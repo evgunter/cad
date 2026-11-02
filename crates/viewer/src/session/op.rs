@@ -534,7 +534,10 @@ pub enum SessionOp {
     /// ([`crate::matetool::MateTool::moving`]): one placement of `body` into `target` holding the whole bundle
     /// `constraints` (`DocEdit::place`), and what read the body along a
     /// path the picture is seen through — a `⊔` operand, the product —
-    /// re-pointed to it, in one action. One history state, one undo.
+    /// re-pointed to it, in one action. One history state, one undo. A
+    /// `body` that is itself a copy refuses [`Refusal::CreateOnACopy`],
+    /// and one a placement copies [`Refusal::BodyPlaced`], naming that
+    /// copy: each moves by its copy's Edit door.
     Place {
         /// The body, as a seat reads it.
         body: Operand,

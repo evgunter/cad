@@ -1650,15 +1650,30 @@ impl ViewerBehavior<'_> {
 
     /// **The Transform tool's panel**: its one pick, which opens the
     /// placement editor on the body or the copy picked
-    /// ([`crate::matetool::MateTool::moving`]); Cancel closes it.
+    /// ([`crate::matetool::MateTool::moving`]); a split picked whole
+    /// asks which half is the body. Cancel closes it.
     pub(crate) fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
-        if self.tools.open_kind() != Some(ToolKind::Transform) {
+        let Some(split) = self
+            .tools
+            .transform()
+            .map(|tool| tool.awaiting_half().cloned())
+        else {
             return self.tool_door(ui, ToolKind::Transform);
-        }
+        };
         crate::widgets::message(
             ui,
             ToolKind::Transform.says(&"pick the body or the copy to move"),
         );
+        let waiting = split.map(|split| (0, split.to_string()));
+        if let Some((_, half)) = half_rows(ui, waiting, &self.theme) {
+            for notice in self
+                .tools
+                .transform_half(self.session.committed_doc(), half)
+            {
+                self.notices
+                    .push(frame::tool_notice(&notice, self.session.landed_pair()));
+            }
+        }
         if ui.button("Cancel").clicked() {
             self.tools.close();
         }

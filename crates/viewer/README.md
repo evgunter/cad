@@ -2243,7 +2243,13 @@ the body and takes over what read it along the path it was seen
 through (a `⊔` operand, the product), never a copy's source. On a copy,
 and on a body one copy places, which is seen through that copy, it is
 that copy's Edit door, the bundle's values as written; its Apply writes
-the bundle in place. A combine re-places an operand from
+the bundle in place. The editor's own first pick takes the same route
+(`matetool::door_on`, A11's member walk included). What is no body opens
+no door, said: a profile, a pattern's family (its values are the rule;
+the pattern is edited instead), a body several copies place, and a split
+picked whole, which asks for its half. The Create door refuses a copy
+(`Refusal::CreateOnACopy`) and a body a placement already copies
+(`Refusal::BodyPlaced`, naming the copy whose Edit door moves it). A combine re-places an operand from
 another space at the pose it held, by values on the first operand's
 space's axes. Nothing a place gesture writes reads the copy's geometry.
 

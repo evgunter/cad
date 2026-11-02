@@ -424,11 +424,12 @@ fn a_feature_re_points_each_placement_of_its_target() {
     let outcome = session.perform(row());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
-        !outcome
-            .committed
-            .iter()
-            .any(|edit| matches!(edit, DocEdit::SetParam { .. })),
-        "the body is no longer placed, so its second pattern re-points nothing: {:?}",
+        matches!(
+            &outcome.committed[..],
+            [DocEdit::DeclareVar { .. }, DocEdit::InsertNode { .. }]
+        ),
+        "the body is no longer placed, so its second pattern re-points nothing: its \
+         index declared and its family inserted: {:?}",
         outcome.committed
     );
     assert_eq!(
@@ -836,6 +837,86 @@ fn the_transform_tool_opens_the_placement_editor_on_its_pick() {
         tools.open_kind(),
         Some(ToolKind::Transform),
         "no door opened: the tool still waits for its pick"
+    );
+}
+
+/// **The Transform tool opens no door on what is no body**, typed: a
+/// profile is not placeable, a pattern's family is moved by its rule, and
+/// a split picked whole waits for the half that is the body, whose
+/// choice then opens that half's Create door.
+#[test]
+fn the_transform_tool_refuses_what_is_no_body_and_asks_a_split_for_its_half() {
+    use viewer::matetool::{MateToolEvent, PlaceDoor};
+    use viewer::tools::ToolNotice;
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let (profile, body) = common::box_in(&mut session, A);
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body.into(),
+            origin: len3([0.0, 0.0, A[2] / 2.0]),
+            normal: scl3([0.0, 0.0, 1.0]),
+        },
+    );
+    let patterned = common::xy_box_in(&mut session, B);
+    let family = session_insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: patterned.into(),
+            count: 3,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(B[0] * 2.0),
+            },
+        },
+    );
+    let doc = session.committed_doc().clone();
+    let picked = |node: RecipeNodeId| {
+        let mut tools = Tools::new();
+        tools.open(ToolKind::Transform);
+        let notices = tools.feed(
+            &doc,
+            Err(viewer::pickcache::NotIndexed::Absent),
+            &[SessionOp::Select(Selection::Node(node))],
+        );
+        (tools, notices)
+    };
+
+    let (tools, notices) = picked(profile);
+    assert!(
+        matches!(&notices[..], [ToolNotice::Mate(MateToolEvent::NotPlaceable { node })] if node.id() == profile),
+        "a profile: {notices:?}"
+    );
+    assert_eq!(tools.open_kind(), Some(ToolKind::Transform));
+
+    for node in [patterned, family] {
+        let (tools, notices) = picked(node);
+        assert!(
+            matches!(&notices[..], [ToolNotice::Mate(MateToolEvent::PatternFamily { family: f })] if f.id() == family),
+            "{node:?} is moved by its pattern's rule: {notices:?}"
+        );
+        assert!(tools.mate().is_none(), "no door opens on the family");
+    }
+
+    let (mut tools, notices) = picked(split);
+    assert!(notices.is_empty(), "{notices:?}");
+    assert_eq!(
+        tools
+            .transform()
+            .and_then(|tool| tool.awaiting_half())
+            .map(|s| s.id()),
+        Some(split),
+        "the split waits for its half"
+    );
+    let notices = tools.transform_half(&doc, SplitHalf::Below);
+    assert!(notices.is_empty(), "{notices:?}");
+    assert_eq!(
+        tools.mate().and_then(|editor| editor.door()),
+        Some(&PlaceDoor::Create {
+            body: Operand::output(split, SplitHalf::Below.port())
+        }),
+        "the chosen half's Create door"
     );
 }
 
@@ -1577,7 +1658,7 @@ fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
         ToolKind::Revolve => tools.revolve().is_some(),
         ToolKind::Boolean => tools.boolean().is_some(),
         ToolKind::Split => tools.split().is_some(),
-        ToolKind::Transform => tools.open_kind() == Some(ToolKind::Transform),
+        ToolKind::Transform => tools.transform().is_some(),
         ToolKind::Pattern => tools.pattern().is_some(),
         ToolKind::Blend => tools.blend().is_some(),
         ToolKind::Part => tools.part().is_some(),

@@ -639,6 +639,82 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     );
 }
 
+/// **The Transform tool reads a pick through a union by A11's member
+/// walk**, as the editor's first pick does: one rule decides which door
+/// a pick opens. A face of the union's own body, named as post_b's
+/// member face, opens the Edit door of the copy the walk reaches — not a
+/// Create door on the union.
+#[test]
+fn the_transform_tool_reaches_an_instance_through_a_unions_name() {
+    let tol = Tol::witness();
+    let bench = asm::bench("transformunion", tol);
+    let session = asm::open_bench(&bench, tol);
+    let mut doc = session.committed_doc().clone();
+    let members = vec![
+        asm::copy(&bench, &doc, bench.post_a),
+        asm::copy(&bench, &doc, bench.post_b),
+    ];
+    let union = common::insert_into(
+        &mut doc,
+        pncad::document::Node::Union {
+            members: pncad::document::Bodies::Spelled(members.clone()),
+        },
+        tol,
+    );
+    let (doc, union_copy) = common::inserted(
+        &doc,
+        crate::fixture::stood(pncad::document::BodyRead::plain(
+            pncad::document::Operand::from(union),
+        )),
+        tol,
+    );
+    let doc = common::pin(
+        &doc,
+        union_copy,
+        &pncad::document::Frame::translation([0.0, UNION_SHIFT, 0.0]),
+        &bench.opts(),
+        tol,
+    );
+    let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
+    ws.resave(&doc, tol).expect("the assembly stores");
+    let mut session = asm::open_bench(&bench, tol);
+    session.pump();
+    let on_copy = asm::pick_face(
+        &session,
+        &asm::down_at(
+            asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
+            asm::POST_B_AT[1] + UNION_SHIFT + asm::POST_SECTION / 2.0,
+        ),
+    );
+    // The same face, picked on the union's own body.
+    let on_union = viewer::session::FaceSelection {
+        node: union,
+        ..on_copy.clone()
+    };
+    let doc = session.committed_doc();
+    let walked = pncad::document::member_of(
+        doc,
+        &pncad::document::SitedRef::new(union, on_union.name.clone()),
+    )
+    .expect("the walk reaches post_b's member")
+    .instance;
+    let editor = viewer::matetool::MateTool::moving_picked(doc, on_union)
+        .unwrap_or_else(|event| panic!("a door opens: {event}"));
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+    assert!(
+        matches!(
+            editor.door(),
+            Some(viewer::matetool::PlaceDoor::Edit { placement, .. }) if *placement == walked
+        ),
+        "the Edit door of {walked:?}, which the walk reaches: {:?}",
+        editor.door()
+    );
+    assert!(
+        walked != union && walked != bench.post_a,
+        "post_b's member, not {walked:?}"
+    );
+}
+
 /// The quarter turn the circular row spins post_b by.
 const QUARTER_TURN: f64 = core::f64::consts::FRAC_PI_2;
 

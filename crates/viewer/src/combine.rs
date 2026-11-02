@@ -578,6 +578,47 @@ pub fn mirror_node(body: Operand, on: Operand, face: StableName) -> AuthoredNode
     )
 }
 
+/// **The Transform tool before its door opens**: a pick opens the
+/// placement editor in its place ([`crate::matetool::MateTool::moving`]),
+/// and a split picked whole waits here for the half that is the body.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TransformTool {
+    split: Option<SpokenNode>,
+}
+
+impl TransformTool {
+    /// A tool waiting for its pick.
+    pub const fn new() -> Self {
+        Self { split: None }
+    }
+
+    /// The split picked whole, waiting for its half.
+    pub fn awaiting_half(&self) -> Option<&SpokenNode> {
+        self.split.as_ref()
+    }
+
+    /// Wait on `split` for its half.
+    pub(crate) fn await_half(&mut self, split: SpokenNode) {
+        self.split = Some(split);
+    }
+
+    /// The split, spoken again from `doc` ([`SpokenNode::respoken`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.split = self.split.take().map(|split| split.respoken(doc));
+    }
+
+    /// The survival step: a split `doc` no longer holds stops waiting.
+    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) {
+        if self
+            .split
+            .as_ref()
+            .is_some_and(|split| doc.node(split.id()).is_none())
+        {
+            self.split = None;
+        }
+    }
+}
+
 vocabulary! {
     /// **What a pattern's members come out as** — the pattern form's
     /// output choice (D10 `[repetition]`).

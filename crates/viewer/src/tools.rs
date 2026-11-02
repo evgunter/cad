@@ -41,6 +41,7 @@ use pncad::select::SplitHalf;
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{
     BooleanTool, DuplicateTool, MirrorEvent, MirrorTool, PartTool, PatternTool, SplitTool,
+    TransformTool,
 };
 use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickcache::NotIndexed;
@@ -475,7 +476,7 @@ pub enum OpenTool {
     Split(SplitTool),
     /// The transform tool, before its pick: the pick opens the
     /// placement editor in its place ([`MateTool::moving`]).
-    Transform,
+    Transform(TransformTool),
     /// The pattern tool.
     Pattern(PatternTool),
     /// The blend tool.
@@ -497,7 +498,7 @@ impl OpenTool {
             Self::Revolve(_) => ToolKind::Revolve,
             Self::Boolean(_) => ToolKind::Boolean,
             Self::Split(_) => ToolKind::Split,
-            Self::Transform => ToolKind::Transform,
+            Self::Transform(_) => ToolKind::Transform,
             Self::Pattern(_) => ToolKind::Pattern,
             Self::Blend(_) => ToolKind::Blend,
             Self::Part(_) => ToolKind::Part,
@@ -566,7 +567,7 @@ impl Tools {
             ToolKind::Revolve => OpenTool::Revolve(RevolveTool::new()),
             ToolKind::Boolean => OpenTool::Boolean(BooleanTool::new()),
             ToolKind::Split => OpenTool::Split(SplitTool::new()),
-            ToolKind::Transform => OpenTool::Transform,
+            ToolKind::Transform => OpenTool::Transform(TransformTool::new()),
             ToolKind::Pattern => OpenTool::Pattern(PatternTool::new()),
             ToolKind::Blend => OpenTool::Blend(BlendTool::new()),
             ToolKind::Part => OpenTool::Part(PartTool::new()),
@@ -641,6 +642,38 @@ impl Tools {
         match &self.open {
             Some(OpenTool::Split(tool)) => Some(tool.clone()),
             _ => None,
+        }
+    }
+
+    /// The open Transform tool, before its pick opened the editor.
+    pub fn transform(&self) -> Option<&TransformTool> {
+        match &self.open {
+            Some(OpenTool::Transform(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// **The half the Transform tool's waiting split is moved as**: the
+    /// placement editor opened on that half
+    /// ([`MateTool::moving`]), or what it says instead.
+    #[must_use = "a refused half is only reported if its notice is shown"]
+    pub fn transform_half(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        half: SplitHalf,
+    ) -> Vec<ToolNotice> {
+        let Some(OpenTool::Transform(tool)) = &self.open else {
+            return Vec::new();
+        };
+        let Some(split) = tool.awaiting_half() else {
+            return Vec::new();
+        };
+        match MateTool::moving(doc, split.id(), Some(u32::from(half.port()))) {
+            Ok(editor) => {
+                self.open = Some(OpenTool::Mate(editor));
+                Vec::new()
+            }
+            Err(event) => vec![ToolNotice::Mate(*event)],
         }
     }
 
@@ -808,12 +841,23 @@ impl Tools {
                 Some(OpenTool::Split(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
-                Some(OpenTool::Transform) => {
-                    if let Some(node) = selection.seat_node() {
-                        match MateTool::moving(doc, node, selection.seat_body()) {
-                            Ok(tool) => self.open = Some(OpenTool::Mate(tool)),
-                            Err(event) => notices.push(ToolNotice::Mate(*event)),
+                Some(OpenTool::Transform(tool)) => {
+                    let opened = match selection {
+                        Selection::Face(face) => Some(MateTool::moving_picked(doc, face.clone())),
+                        Selection::Edge(edge) => Some(MateTool::moving_picked(doc, edge.clone())),
+                        Selection::Vertex(vertex) => {
+                            Some(MateTool::moving_picked(doc, vertex.clone()))
                         }
+                        Selection::Node(node) => Some(MateTool::moving(doc, *node, None)),
+                        Selection::None | Selection::Variable(_) => None,
+                    };
+                    match opened {
+                        Some(Ok(editor)) => self.open = Some(OpenTool::Mate(editor)),
+                        Some(Err(event)) => match *event {
+                            MateToolEvent::HalfUnchosen { split } => tool.await_half(split),
+                            event => notices.push(ToolNotice::Mate(event)),
+                        },
+                        None => {}
                     }
                 }
                 Some(OpenTool::Pattern(tool)) => {
@@ -841,7 +885,8 @@ impl Tools {
     /// about it says that label.
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         match &mut self.open {
-            None | Some(OpenTool::Transform) => {}
+            None => {}
+            Some(OpenTool::Transform(tool)) => tool.respeak(doc),
             Some(OpenTool::Mate(tool)) => tool.respeak(doc),
             Some(OpenTool::Blend(tool)) => tool.respeak(doc),
             Some(OpenTool::Revolve(tool)) => tool.respeak(doc),
@@ -867,7 +912,7 @@ impl Tools {
                 OpenTool::Revolve(_)
                 | OpenTool::Boolean(_)
                 | OpenTool::Split(_)
-                | OpenTool::Transform
+                | OpenTool::Transform(_)
                 | OpenTool::Pattern(_)
                 | OpenTool::Part(_)
                 | OpenTool::Duplicate(_),
@@ -885,7 +930,7 @@ impl Tools {
                 OpenTool::Mate(_)
                 | OpenTool::Blend(_)
                 | OpenTool::Revolve(_)
-                | OpenTool::Transform
+                | OpenTool::Transform(_)
                 | OpenTool::Part(_),
             ) => {}
             Some(OpenTool::Boolean(tool)) => tool.choose_half(seat, half),
@@ -935,7 +980,10 @@ impl Tools {
             OpenTool::Revolve(tool) => tool.reconcile(doc),
             OpenTool::Boolean(tool) => tool.reconcile(doc),
             OpenTool::Split(tool) => tool.reconcile(doc),
-            OpenTool::Transform => Vec::new(),
+            OpenTool::Transform(tool) => {
+                tool.reconcile(doc);
+                Vec::new()
+            }
             OpenTool::Pattern(tool) => tool.reconcile(doc),
             OpenTool::Part(tool) => tool.reconcile(doc),
             OpenTool::Duplicate(tool) => tool.reconcile(doc),

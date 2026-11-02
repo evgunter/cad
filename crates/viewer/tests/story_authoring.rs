@@ -281,8 +281,12 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
 
     // ── The crown: two crossing slots, the second the first cutter
     //    quarter-turned about the axis: a second cutter body, turned
-    //    and lifted by the Transform tool, since a body one copy places
-    //    moves by its copy's Edit door ─────────────────────────────────
+    //    and lifted by the Transform tool. The first cutter's body cannot
+    //    be shared: the Transform tool on it opens the first copy's Edit
+    //    door, the Create door refuses a placed body, and a duplicate of
+    //    the cutter (its one copy is consumed by the cut, so nothing
+    //    draws it) lands as two copies, a stand-in by the identity and
+    //    the stepped one, leaving the stand-in in the picture ──────────
     let (_, cutter) = common::box_in(&mut session, [CUT_W, CUT_T, CUT_H]);
     let cutter1 = lifted(&mut session, cutter, [0.0, 0.0, CUT_Z]);
     let cut1 = session_insert(

@@ -4515,17 +4515,25 @@ impl DocSession {
         constraints: Vec<pncad::document::Constraint<Formula>>,
     ) -> Result<Creating, Refusal> {
         let body = as_body(self.committed_doc(), body);
-        self.require_placeable(&body)?;
         let doc = self.committed_doc();
-        // The Create door is a body not yet placed: one placed since the
-        // draft opened is stale, never placed a second time.
-        if let Some(var) = crate::world::read_var(doc, &body)
-            && let Some(copy) = doc.placements().into_iter().find(|&at| {
-                matches!(doc.node(at), Some(Node::Place { source, .. }) if source.read == var)
-            })
+        // The Create door places a body: a copy moves by its own Edit door.
+        if let Some((node, _)) = crate::world::read_output(doc, &body)
+            && moves_copies(doc, node)
         {
-            return Err(Refusal::BundleStale {
-                node: doc.spoken(copy),
+            return Err(Refusal::CreateOnACopy {
+                copy: doc.spoken(node),
+            });
+        }
+        self.require_placeable(&body)?;
+        // A body a placement copies moves by that copy's Edit door, and is
+        // never placed a second time.
+        if let Some(var) = crate::world::read_var(doc, &body)
+            && let Some(&copy) = crate::world::placements_reading(doc, var).first()
+        {
+            let body = crate::world::read_output(doc, &body).map_or(copy, |(node, _)| node);
+            return Err(Refusal::BodyPlaced {
+                body: doc.spoken(body),
+                copy: doc.spoken(copy),
             });
         }
         let mut takeover = Takeover::of(doc, &body);

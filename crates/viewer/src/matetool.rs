@@ -938,13 +938,24 @@ pub enum MateToolEvent {
         /// The node the pick's body belongs to.
         node: SpokenNode,
     },
-    /// The Transform tool's pick is on a body more than one placement
-    /// copies: which copy moves is the pick to make.
+    /// The pick is on a body more than one placement copies: which copy
+    /// moves is the pick to make.
     SeenThroughSeveral {
         /// The body.
         node: SpokenNode,
         /// How many placements copy it.
         copies: usize,
+    },
+    /// The pick is on a split, picked whole: which half is the body.
+    HalfUnchosen {
+        /// The split.
+        split: SpokenNode,
+    },
+    /// The Transform tool's pick is on a pattern's family, whose values
+    /// are its rule: a member moves by the rule, edited on the pattern.
+    PatternFamily {
+        /// The family's placement.
+        family: SpokenNode,
     },
 }
 
@@ -979,6 +990,13 @@ impl Say for MateToolEvent {
                 f,
                 "{node} is placed by {copies} copies; pick the copy to move"
             ),
+            Self::HalfUnchosen { split } => {
+                write!(f, "{split} is two bodies; choose the half to move")
+            }
+            Self::PatternFamily { family } => write!(
+                f,
+                "{family} is a pattern's members, which its rule moves; edit the pattern"
+            ),
         }
     }
 }
@@ -990,7 +1008,9 @@ impl core::fmt::Display for MateToolEvent {
             Self::Reloaded { .. }
             | Self::PlacementGone { .. }
             | Self::NotPlaceable { .. }
-            | Self::SeenThroughSeveral { .. } => self.say(f, Speaker::TAG),
+            | Self::SeenThroughSeveral { .. }
+            | Self::HalfUnchosen { .. }
+            | Self::PatternFamily { .. } => self.say(f, Speaker::TAG),
         }
     }
 }
@@ -1079,29 +1099,125 @@ pub(crate) fn plane_of(face: Operand) -> Operand {
     Operand::Pose(Box::new(pose::PoseDef::Plane { face }))
 }
 
-/// The placement whose copy a pick at `at` is on: `at` itself when it
-/// is a `Place` or an instance, the instance A11's member walk reaches
-/// otherwise.
-fn placement_of(
+/// **What a pick opens the placement editor on**: a placement's Edit
+/// door, or a body's Create door.
+#[derive(Debug, Clone, PartialEq)]
+enum Opening {
+    /// The placement whose bundle the Edit door writes.
+    Edit(RecipeNodeId),
+    /// The body the Create door places.
+    Create(Operand),
+}
+
+/// Who asks which door a pick opens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Purpose {
+    /// The Transform tool: it types values, so a pattern's family, whose
+    /// values are its rule, is refused rather than opened.
+    Moving,
+    /// The editor's own first pick.
+    Mating,
+    /// Which side a pick fills once the editor's door is open: the same
+    /// route, ungated, since a pick that could open no door is still read
+    /// as on the copy or off it.
+    Siding,
+}
+
+/// **The one rule for which door a pick on `node` opens** (`body` the
+/// output a viewport pick hit, `name` the entity it named), shared by the
+/// editor's first pick, its `on`/`to` routing and the Transform tool:
+///
+/// - a placement or an instance, or a member A11's walk reaches through
+///   `name` ([`member_of`]): its Edit door;
+/// - a body the document places ([`crate::world::placements_reading`]):
+///   its one copy's Edit door, the copy being what is seen, or
+///   [`MateToolEvent::SeenThroughSeveral`];
+/// - a body nothing places: its Create door;
+/// - a split picked whole: [`MateToolEvent::HalfUnchosen`]; anything else
+///   that is no body: [`MateToolEvent::NotPlaceable`].
+///
+/// Moving, a family a pattern writes refuses
+/// [`MateToolEvent::PatternFamily`]: its values are the pattern's rule.
+fn door_on(
     doc: &Doc<ProfileProgram>,
-    at: RecipeNodeId,
-    read: &SitedRef,
-) -> Option<RecipeNodeId> {
-    match doc.node(at) {
-        Some(Node::Place { .. } | Node::InstantiatePart { .. }) => Some(at),
-        _ => member_of(doc, read).map(|member| member.instance),
+    node: RecipeNodeId,
+    body: Option<u32>,
+    name: Option<&StableName>,
+    purpose: Purpose,
+) -> Result<Opening, Box<MateToolEvent>> {
+    let refused = |event| Err(Box::new(event));
+    let edit = |placement: RecipeNodeId| {
+        if purpose == Purpose::Moving && crate::world::repeats(doc, placement) {
+            return refused(MateToolEvent::PatternFamily {
+                family: doc.spoken(placement),
+            });
+        }
+        Ok(Opening::Edit(placement))
+    };
+    let gated = purpose != Purpose::Siding;
+    match doc.node(node) {
+        None if gated => {
+            return refused(MateToolEvent::NotPlaceable {
+                node: doc.spoken(node),
+            });
+        }
+        Some(Node::Place { .. } | Node::InstantiatePart { .. }) => return edit(node),
+        Some(Node::Split { .. }) if gated && body.is_none() => {
+            return refused(MateToolEvent::HalfUnchosen {
+                split: doc.spoken(node),
+            });
+        }
+        _ => {}
+    }
+    // The walk's head may be a construction, which is no placement.
+    if let Some(instance) = name
+        .and_then(|name| member_of(doc, &SitedRef::new(node, name.clone())))
+        .map(|member| member.instance)
+        .filter(|&at| {
+            matches!(
+                doc.node(at),
+                Some(Node::Place { .. } | Node::InstantiatePart { .. })
+            )
+        })
+    {
+        return edit(instance);
+    }
+    let read = match crate::world::seat_read(doc, node, body) {
+        (at, Some(port)) => Operand::output(at, port),
+        (at, None) => Operand::Node(at),
+    };
+    let read = crate::session::as_body(doc, read);
+    if gated && !crate::session::admits_read(doc, &read, crate::session::NodeKindWanted::Body) {
+        return refused(MateToolEvent::NotPlaceable {
+            node: doc.spoken(node),
+        });
+    }
+    let copies = crate::world::read_var(doc, &read)
+        .map(|var| crate::world::placements_reading(doc, var))
+        .unwrap_or_default();
+    match copies[..] {
+        [] => Ok(Opening::Create(read)),
+        [copy] => edit(copy),
+        _ => refused(MateToolEvent::SeenThroughSeveral {
+            node: doc.spoken(node),
+            copies: copies.len(),
+        }),
     }
 }
 
-/// The placement whose copy `pick` is on, if any.
-fn copy_picked(doc: &Doc<ProfileProgram>, pick: &MatePick) -> Option<RecipeNodeId> {
-    let read = SitedRef::new(pick.node(), pick.name().clone());
-    placement_of(doc, pick.node(), &read).filter(|&at| {
-        matches!(
-            doc.node(at),
-            Some(Node::Place { .. } | Node::InstantiatePart { .. })
-        )
-    })
+/// [`door_on`] of an entity pick.
+fn door_picked(
+    doc: &Doc<ProfileProgram>,
+    pick: &MatePick,
+    purpose: Purpose,
+) -> Result<Opening, Box<MateToolEvent>> {
+    door_on(
+        doc,
+        pick.node(),
+        Some(pick.on().body()),
+        Some(pick.name()),
+        purpose,
+    )
 }
 
 /// **The entity `pick` names as an `on` side reads it**: off the shape
@@ -1406,12 +1522,18 @@ impl MateTool {
                 node: doc.spoken(placement),
             });
         };
+        Ok(Self::loaded(doc, placement))
+    }
+
+    /// The Edit door on `placement`, a node [`Self::edit`] has checked is
+    /// one.
+    fn loaded(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Self {
         let base = crate::session::held_bundle(doc, placement);
         let rows = base
             .iter()
             .filter_map(|c| c.mate().map(|m| MateRow::written(doc, Some(c.id), m)))
             .collect();
-        Ok(Self {
+        Self {
             draft: Some(PlaceDraft {
                 door: PlaceDoor::Edit { placement, base },
                 rows,
@@ -1420,61 +1542,50 @@ impl MateTool {
                 into_target_space: false,
             }),
             kind: VarKind::Plane,
-        })
+        }
+    }
+
+    /// The door `opening` names.
+    fn opened(doc: &Doc<ProfileProgram>, opening: Opening) -> Self {
+        match opening {
+            Opening::Edit(placement) => Self::loaded(doc, placement),
+            Opening::Create(body) => Self::create(body),
+        }
     }
 
     /// **The Transform tool's door on `node`**, a body or a copy picked
-    /// (`body` the output a viewport pick hit), opened with no mate row:
-    /// the Edit door on a placement — a copy, an instance — and on a body
-    /// one placement copies, which is seen through that copy; the Create
-    /// door, its six value rows where the body stands in its own space,
-    /// on a body nothing places.
+    /// in the tree (`body` the output a viewport pick hit), opened with no
+    /// mate row: the Edit door on a copy, the Create door, its six value
+    /// rows where the body stands in its own space, on a body nothing
+    /// places ([`door_on`]'s rule).
     ///
     /// # Errors
     ///
-    /// [`MateToolEvent::NotPlaceable`] for a node the document does not
-    /// hold, and [`MateToolEvent::SeenThroughSeveral`] for a body more
-    /// than one placement copies, whose copy is the pick to make.
+    /// The event saying why no door opens: [`MateToolEvent::NotPlaceable`]
+    /// for a node that is no body, [`MateToolEvent::HalfUnchosen`] for a
+    /// split picked whole, [`MateToolEvent::SeenThroughSeveral`] for a
+    /// body several copies place, [`MateToolEvent::PatternFamily`] for a
+    /// pattern's family.
     pub fn moving(
         doc: &Doc<ProfileProgram>,
         node: RecipeNodeId,
         body: Option<u32>,
     ) -> Result<Self, Box<MateToolEvent>> {
-        let not_placeable = || {
-            Box::new(MateToolEvent::NotPlaceable {
-                node: doc.spoken(node),
-            })
-        };
-        match doc.node(node) {
-            None => return Err(not_placeable()),
-            Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
-                return Self::edit(doc, node).map_err(|_| not_placeable());
-            }
-            Some(_) => {}
-        }
-        let read = match crate::world::seat_read(doc, node, body) {
-            (at, Some(port)) => Operand::output(at, port),
-            (at, None) => Operand::Node(at),
-        };
-        let read = crate::session::as_body(doc, read);
-        let copies: Vec<RecipeNodeId> = crate::world::read_var(doc, &read)
-            .map(|var| {
-                doc.placements()
-                    .into_iter()
-                    .filter(|&at| {
-                        matches!(doc.node(at), Some(Node::Place { source, .. }) if source.read == var)
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        match copies[..] {
-            [] => Ok(Self::create(read)),
-            [copy] => Self::edit(doc, copy).map_err(|_| not_placeable()),
-            _ => Err(Box::new(MateToolEvent::SeenThroughSeveral {
-                node: doc.spoken(node),
-                copies: copies.len(),
-            })),
-        }
+        door_on(doc, node, body, None, Purpose::Moving).map(|opening| Self::opened(doc, opening))
+    }
+
+    /// [`Self::moving`] of a viewport pick, which names the entity it hit,
+    /// so a member of an instance reached through a union's name opens
+    /// that instance's Edit door.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::moving`]'s.
+    pub fn moving_picked(
+        doc: &Doc<ProfileProgram>,
+        pick: impl Into<MatePick>,
+    ) -> Result<Self, Box<MateToolEvent>> {
+        door_picked(doc, &pick.into(), Purpose::Moving).map(|opening| Self::opened(doc, opening))
     }
 
     /// **The Edit door on `mate`'s placement, that mate struck out** —
@@ -1587,17 +1698,9 @@ impl MateTool {
         let pick = pick.into();
         let kind = self.kind;
         if self.draft.is_none() {
-            let opened = match copy_picked(doc, &pick) {
-                Some(placement) => Self::edit(doc, placement).ok(),
-                None => doc
-                    .node(pick.node())
-                    .is_some()
-                    .then(|| Self::create(crate::session::picked_body(doc, &pick).0)),
-            };
-            let Some(opened) = opened else {
-                return Some(MateToolEvent::NotPlaceable {
-                    node: doc.spoken(pick.node()),
-                });
+            let opened = match door_picked(doc, &pick, Purpose::Mating) {
+                Ok(opening) => Self::opened(doc, opening),
+                Err(event) => return Some(*event),
             };
             *self = Self { kind, ..opened };
             self.add_mate(kind);
@@ -1626,12 +1729,12 @@ impl MateTool {
     /// Whether `pick` is on the draft's copy: the Edit door's
     /// placement's, or the Create door's body.
     fn is_on_copy(&self, doc: &Doc<ProfileProgram>, pick: &MatePick) -> bool {
+        let Ok(opens) = door_picked(doc, pick, Purpose::Siding) else {
+            return false;
+        };
         match self.door() {
-            Some(PlaceDoor::Edit { placement, .. }) => copy_picked(doc, pick) == Some(*placement),
-            Some(PlaceDoor::Create { body }) => {
-                copy_picked(doc, pick).is_none()
-                    && crate::session::picked_body(doc, pick).0 == *body
-            }
+            Some(PlaceDoor::Edit { placement, .. }) => opens == Opening::Edit(*placement),
+            Some(PlaceDoor::Create { body }) => opens == Opening::Create(body.clone()),
             None => false,
         }
     }

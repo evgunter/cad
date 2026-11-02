@@ -2196,7 +2196,9 @@ pub fn tool_notice(
             | MateToolEvent::Reloaded { .. }
             | MateToolEvent::PlacementGone { .. }
             | MateToolEvent::NotPlaceable { .. }
-            | MateToolEvent::SeenThroughSeveral { .. },
+            | MateToolEvent::SeenThroughSeveral { .. }
+            | MateToolEvent::HalfUnchosen { .. }
+            | MateToolEvent::PatternFamily { .. },
         ) => Retold::Never,
         ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
         ToolNotice::Seated {

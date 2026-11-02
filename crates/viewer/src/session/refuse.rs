@@ -422,6 +422,21 @@ pub enum Refusal {
         /// The placement, as the document held it at the refusal.
         node: SpokenNode,
     },
+    /// The placement editor's Create door was asked to place a body a
+    /// placement already copies: a placed body moves by that copy's
+    /// Edit door, and is never placed a second time by the door.
+    BodyPlaced {
+        /// The body, as the document held it at the refusal.
+        body: SpokenNode,
+        /// The copy whose Edit door moves it.
+        copy: SpokenNode,
+    },
+    /// The placement editor's Create door was asked to place a copy (a
+    /// placement or an instance): a copy moves by its own Edit door.
+    CreateOnACopy {
+        /// The copy, as the document held it at the refusal.
+        copy: SpokenNode,
+    },
     /// The tree's `remove` asked of a value: a freedom is always set,
     /// and its only edit is its number.
     ValueNotRemoved {
@@ -479,6 +494,11 @@ impl Refusal {
             },
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
+            Self::BodyPlaced { body, copy } => Self::BodyPlaced {
+                body: again(body),
+                copy: again(copy),
+            },
+            Self::CreateOnACopy { copy } => Self::CreateOnACopy { copy: again(copy) },
             Self::ValueNotRemoved { node } => Self::ValueNotRemoved { node: again(node) },
             Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
             Self::PlacementFails { fault } => Self::PlacementFails { fault },
@@ -562,6 +582,8 @@ impl Refusal {
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
+            | Self::BodyPlaced { .. }
+            | Self::CreateOnACopy { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -608,6 +630,8 @@ impl Refusal {
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
+            | Self::BodyPlaced { .. }
+            | Self::CreateOnACopy { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -930,6 +954,16 @@ impl core::fmt::Display for Refusal {
                 f,
                 "{node}'s bundle changed since the editor loaded it; the editor's draft was not \
                  written — the editor now shows the bundle as it is"
+            ),
+            Self::BodyPlaced { body, copy } => write!(
+                f,
+                "{body} is placed by {copy}; move it by {copy}'s placement (the placement \
+                 editor's Edit door), not by a second copy"
+            ),
+            Self::CreateOnACopy { copy } => write!(
+                f,
+                "{copy} is a copy; move it by its own placement (the placement editor's Edit \
+                 door), not by a copy of it"
             ),
             Self::ValueNotRemoved { node } => write!(
                 f,
