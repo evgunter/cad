@@ -1991,8 +1991,8 @@ mod tests {
     fn the_placement_editors_value_edits_live_with_its_draft() {
         use crate::matetool::PlaceDoor;
         use pncad::document::{Coord, Operand, RecipeNodeId, TargetAxis};
-        let x = Coord::slide(TargetAxis::X);
-        let y = Coord::slide(TargetAxis::Y);
+        let x = || <Coord<Operand>>::slide(TargetAxis::X);
+        let y = || <Coord<Operand>>::slide(TargetAxis::Y);
         let door = PlaceDoor::Edit {
             placement: RecipeNodeId::new(0, 7),
             base: Vec::new(),
@@ -2002,37 +2002,37 @@ mod tests {
             base: pncad::document::stand().bundle(),
         };
         let mut drafts = Drafts::default();
-        drafts.sync_mate_edits(Some(&door), &[x, y]);
-        drafts.mate_value_edits = vec![(x, "5 mm".to_owned()), (y, "6 mm".to_owned())];
-        drafts.sync_mate_edits(Some(&door), &[x, y]);
+        drafts.sync_mate_edits(Some(&door), &[x(), y()]);
+        drafts.mate_value_edits = vec![(x(), "5 mm".to_owned()), (y(), "6 mm".to_owned())];
+        drafts.sync_mate_edits(Some(&door), &[x(), y()]);
         assert_eq!(
             drafts.mate_value_edits.len(),
             2,
             "kept across frames of one draft"
         );
-        drafts.sync_mate_edits(Some(&door), &[x]);
+        drafts.sync_mate_edits(Some(&door), &[x()]);
         assert_eq!(
             drafts.mate_value_edits,
-            [(x, "5 mm".to_owned())],
+            [(x(), "5 mm".to_owned())],
             "y's row left"
         );
-        drafts.sync_mate_edits(Some(&reloaded), &[x]);
+        drafts.sync_mate_edits(Some(&reloaded), &[x()]);
         assert!(
             drafts.mate_value_edits.is_empty(),
             "a reload drops the edits"
         );
-        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.mate_value_edits = vec![(x(), "5 mm".to_owned())];
         drafts.sync_mate_edits(
             Some(&PlaceDoor::Create {
                 body: Operand::Node(RecipeNodeId::new(0, 9)),
             }),
-            &[x],
+            &[x()],
         );
         assert!(
             drafts.mate_value_edits.is_empty(),
             "another door drops the edits"
         );
-        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.mate_value_edits = vec![(x(), "5 mm".to_owned())];
         drafts.sync_mate_edits(None, &[]);
         assert!(
             drafts.mate_value_edits.is_empty(),

@@ -67,7 +67,7 @@ fn slant(doc: &ProfileDoc, wedge: RecipeNodeId) -> RoleRead<Operand> {
 }
 
 /// A copy of the wedge placed into its own space by `placed`, and
-/// where it stands — or the fold's fault.
+/// where it stands there — or the fold's fault.
 fn copy(
     doc: ProfileDoc,
     wedge: RecipeNodeId,
@@ -86,8 +86,8 @@ fn copy(
     let at = match poses.fault(placement) {
         Some(fault) => Err(format!("{fault:?}")),
         None => poses
-            .placement(&doc, placement)
-            .map_err(|e| format!("unplaced: {e:?}")),
+            .relative(placement)
+            .ok_or_else(|| "unsolved".to_owned()),
     };
     (doc, at)
 }

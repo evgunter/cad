@@ -245,11 +245,11 @@ fn leaves<R>(left: SubgroupFamily, coord: &Coord<R>) -> bool {
 /// target space's axes in `x`, `y`, `z` order (with `along`, those of
 /// the set alone), then the mated one, then each read, in the order
 /// written, up to as many as `left` frees.
-fn slid<'a, R: PartialEq>(
+fn slid<R: PartialEq>(
     left: SubgroupFamily,
-    written: &'a [Coord<R>],
+    written: &[Coord<R>],
     along: Option<super::SlideAxes>,
-) -> Vec<&'a Coord<R>> {
+) -> Vec<&Coord<R>> {
     let mut out: Vec<&Coord<R>> = Vec::new();
     let axes = TargetAxis::ALL.into_iter().filter_map(|a| {
         written

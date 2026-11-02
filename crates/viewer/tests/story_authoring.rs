@@ -45,7 +45,7 @@ use pncad::document::{Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use viewer::props::SlotValue;
-use viewer::session::{DocSession, PatternRuleSpec, ProfileShape, Refusal, SessionOp};
+use viewer::session::{DocSession, PatternRuleSpec, ProfileShape, SessionOp};
 use viewer::tree::RowStatus;
 
 // --- the rook's dimensions (metres) --------------------------------

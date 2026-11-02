@@ -520,7 +520,7 @@ impl<T: SolveScalar> Chart<T> {
     /// **`v` within what the mate leaves of the copy's translation**: its
     /// part across `d` beside a plane mate, along `d` beside an axis
     /// mate, all of it beside a direction mate.
-    fn into_left(&self, v: Vec3<T>) -> Vec3<T> {
+    fn part_left(&self, v: Vec3<T>) -> Vec3<T> {
         let d = self.d.get();
         match self.seat {
             Seat::Depth(_) => v - d * d.dot(v),
@@ -572,7 +572,7 @@ impl<T: SolveScalar> Chart<T> {
                     })
                 } else {
                     unit(
-                        self.into_left(carried),
+                        self.part_left(carried),
                         NoChartWhy::SlidesDoNotSpan {
                             along: None,
                             write: super::turn::slides_left_along(self.left(), self.n),
@@ -604,7 +604,7 @@ impl<T: SolveScalar> Chart<T> {
                         return Err(NoChartWhy::ReadSlidesDoNotSpan);
                     }
                 }
-                unit(self.into_left(u), NoChartWhy::ReadSlidesDoNotSpan)
+                unit(self.part_left(u), NoChartWhy::ReadSlidesDoNotSpan)
             }
             Coord::Spin(_) | Coord::SpinAbout(_) => unreachable!("a spin runs along no direction"),
         }

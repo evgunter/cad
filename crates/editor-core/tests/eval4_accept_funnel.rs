@@ -159,18 +159,14 @@ fn inline_of_a_whole_pair_split_restores_the_pinned_pose_and_reports_nothing() {
     );
 }
 
+/// A world read as written: each freedom and its number.
+type Moves = Vec<(editor_core::Coord<editor_core::Operand>, Formula)>;
+
 /// Two instances of one block, the first pinned to the world at an
 /// offset, the second stacked by a mate and its values onto the first:
 /// the document, its part store, `[a, b]` and `a`'s world read as
 /// written.
-fn placed_pair(
-    label: &str,
-) -> (
-    ProfileDoc,
-    PartStore,
-    [RecipeNodeId; 2],
-    Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
-) {
+fn placed_pair(label: &str) -> (ProfileDoc, PartStore, [RecipeNodeId; 2], Moves) {
     let mut store = PartStore::new();
     let (doc_ref, part_body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let opts = with_resolver(store.clone());

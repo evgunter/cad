@@ -2346,7 +2346,9 @@ mod tests {
                 let mut session = DocSession::inline(doc.clone(), tol);
                 session.pump();
                 let rule = PatternRuleSpec::Linear {
-                    direction: crate::test_support::scl3([1.0, 0.0, 0.0]),
+                    direction: crate::session::PatternDirection::Axis(
+                        pncad::document::TargetAxis::X,
+                    ),
                     spacing: crate::test_support::len(0.05),
                 };
                 let op = if fused {
