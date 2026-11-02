@@ -597,9 +597,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             .iter()
             .map(|s| {
                 let Some(planes) = super::node::bisectors(
+                    &declared.sections,
                     (&*piercing_body, piercing, s.face),
                     (pierced_body, contact.face),
-                    band,
                 ) else {
                     return Ok(None);
                 };

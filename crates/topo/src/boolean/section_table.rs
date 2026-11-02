@@ -242,40 +242,6 @@ impl<T: geom_core::Decide> SectionTable<T> {
         )
     }
 
-    /// **Whether the join reads the pair of `a` and `b` from the table**:
-    /// every pair the table holds but two cylinders, which the join reads
-    /// through its own frame and bisector lanes
-    /// (`join::cylinder_pair_frame`, `node.rs`) and not the value, whose
-    /// bisector arcs a site at a node lies on more than one of. The one
-    /// gate both of the join's readings ([`Self::held_at_the_join`],
-    /// [`Self::carried_at_the_join`]) take.
-    fn join_reads(a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> bool {
-        let cylinder = |(body, f): (&Body<T>, FaceKey)| {
-            body.get_face(f)
-                .and_then(|face| body.get_surface(face.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
-        };
-        !(cylinder(a) && cylinder(b))
-    }
-
-    /// [`Self::held`], for the join ([`Self::join_reads`]).
-    pub(crate) fn held_at_the_join(
-        &self,
-        a: (&Body<T>, FaceKey),
-        b: (&Body<T>, FaceKey),
-    ) -> Option<&Result<PairSection<T>, SectionError>> {
-        Self::join_reads(a, b).then(|| self.held(a, b)).flatten()
-    }
-
-    /// [`Self::carried`], for the join ([`Self::join_reads`]).
-    pub(crate) fn carried_at_the_join(
-        &self,
-        a: (&Body<T>, FaceKey),
-        b: (&Body<T>, FaceKey),
-    ) -> Option<Result<&CarriedSection<T>, Uncarried<'_>>> {
-        Self::join_reads(a, b).then(|| self.carried(a, b)).flatten()
-    }
-
     /// **Component `k` of the pair's carried section, seated**
     /// ([`PairSection::seat`]) at its parameter `at`, on the first ask
     /// for that component, and held for the operation: every chord cut

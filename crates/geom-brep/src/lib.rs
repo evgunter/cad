@@ -195,7 +195,7 @@ pub use pair_section::{
     AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
     ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, CsDecision,
     CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier,
-    Gap, KnownPair, KnownRow, PairPose, PairSection, PoseRefusal, Reached, RegionPlacement, Ring,
+    Gap, KnownPair, KnownRow, NodeSet, PairPose, PairSection, PoseRefusal, Reached, RegionPlacement, Ring,
     Seated, SectionComponent, SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose,
     SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
     TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,

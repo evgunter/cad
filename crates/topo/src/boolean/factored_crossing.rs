@@ -77,7 +77,7 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     let Some((wall, planes)) = walls
         .into_iter()
         .flatten()
-        .find_map(|wall| node::bisectors((x, x_is, wall), (y, face), band).map(|p| (wall, p)))
+        .find_map(|wall| node::bisectors(&declared.sections, (x, x_is, wall), (y, face)).map(|p| (wall, p)))
     else {
         return Ok(None);
     };

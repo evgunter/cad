@@ -86,13 +86,13 @@ fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
             branch: Branch::Only,
         };
         assert_site(
-            germ_section_loops((&body, &other), &germ(Operand::A), band()),
+            germ_section_loops(&super::super::section_table::SectionTable::default(), (&body, &other), &germ(Operand::A), band()),
             (Operand::A, edge, face),
             EdgeCarrierSite::GermFrame,
             &format!("a {name} edge of A"),
         );
         assert_site(
-            germ_section_loops((&other, &body), &germ(Operand::B), band()),
+            germ_section_loops(&super::super::section_table::SectionTable::default(), (&other, &body), &germ(Operand::B), band()),
             (Operand::B, edge, face),
             EdgeCarrierSite::GermFrame,
             &format!("a {name} edge of B"),

@@ -807,7 +807,22 @@ pub struct PairSection<T: Real> {
     decided: Vec<ZeroVerdict>,
     components: Components<T>,
     nodes: Vec<Point3<T>>,
+    node_sets: Vec<NodeSet>,
     lever: T,
+}
+
+/// **A node-joined set of a counted section's components** (C5): arcs
+/// that share nodes, which together are one connected component of the
+/// section. Whether that component winds about each surface's carrier is
+/// a fact about the set, not about any one arc of it, so the set claims
+/// it and its arcs claim nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NodeSet {
+    /// The arcs, by their index among the counted components.
+    pub arcs: Vec<usize>,
+    /// Whether the set proves it winds about each surface's carrier, in
+    /// the order the section was asked of; `false` claims nothing.
+    pub winds: [bool; 2],
 }
 
 /// **The pose a section was built over**, one per pair it serves.
@@ -1182,6 +1197,7 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
         decided,
         components: Components::Counted(components),
         nodes: Vec::new(),
+        node_sets: Vec::new(),
     }
 }
 
@@ -1218,6 +1234,12 @@ impl<T: Decide> PairSection<T> {
     /// ([`ComponentEnds::nodes`]).
     pub fn nodes(&self) -> &[Point3<T>] {
         &self.nodes
+    }
+
+    /// **The node-joined sets of the counted components** ([`NodeSet`]):
+    /// every arc that ends at a node is in exactly one.
+    pub fn node_sets(&self) -> &[NodeSet] {
+        &self.node_sets
     }
 
     /// The components a closed form counts, where one does.
@@ -1335,7 +1357,9 @@ impl<T: Decide> PairSection<T> {
                     .iter()
                     .any(|c| matches!(c.carrier, ClassCarrier::General));
                 let fitted = if general { branches()? } else { Vec::new() };
-                Self::matched(listed, fitted, self.pose.cut(), band)?
+                let carried = Self::matched(listed, fitted, self.pose.cut(), band)?;
+                held_per_set(&self.node_sets, listed, &carried)?;
+                carried
             }
         };
         Ok(CarriedSection {
@@ -2198,6 +2222,36 @@ impl<T: Decide> CarriedComponent<T> {
     }
 }
 
+/// **Each node-joined set's claimed winding held by its arcs** (C5):
+/// where a set holds a marched arc, the arcs' carried windings together
+/// wind at least as the set claims. A closed form's set is the
+/// classification's own claim, read as made.
+fn held_per_set<T: Real>(
+    sets: &[NodeSet],
+    listed: &[SectionComponent<T>],
+    carried: &[CarriedComponent<T>],
+) -> Result<(), CarryError> {
+    for set in sets {
+        let marched = set
+            .arcs
+            .iter()
+            .any(|&i| matches!(listed[i].carrier, ClassCarrier::General));
+        if !marched {
+            continue;
+        }
+        let held = set.arcs.iter().fold([false, false], |acc, &i| {
+            let w = carried[i].winds;
+            [acc[0] || w[0], acc[1] || w[1]]
+        });
+        if set.winds.iter().zip(held).any(|(&claim, held)| claim && !held) {
+            return Err(CarryError::Desync(
+                "a node-joined set's arcs do not wind as the set claims",
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// **The march's branches, each a distinct loop**: each branch's
 /// witness, `carrier(mid)`, lies on that branch alone
 /// ([`CarriedComponent::reads`]). A march that found one loop twice
@@ -2684,6 +2738,36 @@ mod wiring {
         assert!(
             PairSection::matched(&listed, fitted, true, band()).is_ok(),
             "the arcs as listed"
+        );
+    }
+
+    /// **A node-joined set's winding is held by its arcs or the carry
+    /// desyncs**: the two rings of a sphere past a wall's far ruling,
+    /// read as one node-joined set, carry where the set claims the
+    /// winding about the wall the rings hold, and desync where it claims
+    /// one about the sphere they do not.
+    #[test]
+    fn a_node_sets_claimed_winding_is_held_by_its_arcs() {
+        use super::{CarryError, NodeSet, SsiLane};
+        let (a, b) = wall_and_ball((0.1, 0.0, 0.2), 0.7);
+        let section = built(&a, &b);
+        let with = |winds| super::PairSection {
+            node_sets: vec![NodeSet {
+                arcs: vec![0, 1],
+                winds,
+            }],
+            ..section.clone()
+        };
+        assert!(
+            with([true, false]).carry(Some(SsiLane::marched()), band()).is_ok(),
+            "the rings wind about the wall"
+        );
+        assert!(
+            matches!(
+                with([false, true]).carry(Some(SsiLane::marched()), band()),
+                Err(CarryError::Desync(_))
+            ),
+            "the rings do not wind about the sphere"
         );
     }
 

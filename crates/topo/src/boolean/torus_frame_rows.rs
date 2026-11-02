@@ -596,11 +596,11 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
         for (label, got) in [
             (
                 "plane, torus",
-                face_pair_section_loops((&flat, flat_face), (&torus, face), b),
+                face_pair_section_loops(&super::section_table::SectionTable::default(), (&flat, flat_face), (&torus, face), b),
             ),
             (
                 "torus, plane",
-                face_pair_section_loops((&torus, face), (&flat, flat_face), b),
+                face_pair_section_loops(&super::section_table::SectionTable::default(), (&torus, face), (&flat, flat_face), b),
             ),
         ] {
             let read = match &got {
