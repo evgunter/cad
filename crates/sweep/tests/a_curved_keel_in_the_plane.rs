@@ -172,14 +172,17 @@ fn keeled_round(s: f64) -> Body<f64> {
     }
 }
 
-/// **A round keel splits sound, and its section is two annuli.** The
-/// [`keeled_round`] body, its tip on `y = 1` and `0.6 ε` either side, split
-/// by that plane either way up. The keel is one closed edge, which no
-/// loop walks out and back: the material above is two rings apart, and
-/// the section reads the annulus as the two annuli either side of the
-/// circle, `0.5..2` and `2..3`, each one region with a hole.
+/// **A round keel splits sound, and its section reads two annuli
+/// today.** The [`keeled_round`] body, its tip on `y = 1` and `0.6 ε`
+/// either side, split by that plane either way up. The halves keep the
+/// body's volume. The section SHOULD be one annulus with the keel a slit
+/// inside it, as `drop_slits` promises, but the join cannot prune a
+/// closed edge, which has no free end, so it reads the two annuli
+/// either side of the circle, `0.5..2` and `2..3`. This pins the current
+/// reading as the witness of
+/// `work/onehome/a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions.md`.
 #[test]
-fn a_round_keel_in_the_plane_splits_sound_and_sections_as_two_annuli() {
+fn a_round_keel_in_the_plane_reads_two_annuli_today() {
     for s in [0.0, 0.6, -0.6] {
         let body = keeled_round(s);
         let whole = topo::test_support::pinned_volume(

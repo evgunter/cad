@@ -1217,6 +1217,7 @@ impl<T: Decide> Sweep<T> {
     ) -> Result<SectionKind, SplitJoinError> {
         let mut slit = above.0.slit(body, face, below.1)?;
         slit.extend(below.0.slit(body, face, above.1)?);
+        slit.extend(above.0.closed.iter().chain(&below.0.closed));
         let mut left: Vec<EdgeKey> = (above.0.edges.iter().chain(&below.0.edges))
             .map(|&(edge, _)| edge)
             .collect();
@@ -1255,13 +1256,23 @@ enum Shape {
 /// tree.
 ///
 /// The same edges' slit lies on the polygon's other loop ([`Tree::slit`]).
+///
+/// An edge closed on one vertex is no tree edge: it has no free end to
+/// prune it from, and no segment for a slit to run along. A loop running
+/// one out and back is its own slit, a curved one with no strut under
+/// it, which the join passes through and the section query takes out of
+/// the outline (`closed`).
 struct Tree {
     /// The tree's edges, each with its segment key
     /// ([`crate::census::segment_key`]), in loop order.
     edges: Vec<(EdgeKey, [crate::PointKey; 2])>,
+    /// The halves of each edge closed on one vertex that the loop runs
+    /// out along and back.
+    closed: Vec<HalfEdgeKey>,
     /// Whether the tree is the whole loop.
     whole: bool,
-    /// Whether some edge of the tree is not a line.
+    /// Whether some edge of the tree, or a closed edge the loop runs out
+    /// and back, is not a line.
     curved: bool,
 }
 
@@ -1277,6 +1288,7 @@ impl Tree {
             crate::surface_boundary::chart_image(body, &cycle).ok_or_else(|| corrupt_loop(l))?;
         let mut tree = Self {
             edges: Vec::new(),
+            closed: Vec::new(),
             whole: image.half_edges.is_empty() && !cycle.is_empty(),
             curved: false,
         };
@@ -1285,6 +1297,11 @@ impl Tree {
                 continue;
             }
             let (edge, key) = edge_ends(body, he)?;
+            if key[0] == key[1] {
+                tree.closed.push(he);
+                tree.curved = true;
+                continue;
+            }
             if tree.edges.iter().any(|&(e, _)| e == edge) {
                 continue;
             }
