@@ -1,5 +1,0 @@
-- 2026-10-27 — **Opened** by the re-cut of FLUX and FLUXTAIL by logical thread (`docs/doc-ledger/flux-leaves-the-tracker.md`). Nothing dispatched; the slate is in `plan.md`.
-- 2026-10-27 — (seam, CLEAVE PR 5842) The volume backstop left the boolean's operation path under `[ev]` PR 5780: `main-red-reach-volume-backstop-rows-after-the-exact-sliver-bracket` re-pointed — its two backstop rows are deleted or oracle rows, green; PR 5734's readings and the step-export sidecar stay.
-
-- 2026-10-27 — **Seam (ATREST):** `atrest/curved-copies-filling-one-volume-interfere` rewords `ValidationError::SameSideInterference`'s `Display` in `crates/topo/src/validate.rs`: "a face of each lies on one surface facing the same way" instead of "one plane", since the census now decides the finding on cylinders and spheres too. No variant or field moved. (ATREST curved-copies lane)
-- 2026-10-31 — (seam, CLEAVE PR 5842) The volume backstop left the boolean's operation path under `[ev]` PR 5780: closed `a-union-at-its-operands-sum-meets-the-volume-backstop-by-an-ulp` — both orders of the `s = 1e-4` short-arc unions build at 1e-6.
