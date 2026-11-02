@@ -166,10 +166,11 @@ pub use implicit::{
     min_radius_of_curvature, min_radius_of_curvature_toward,
 };
 pub use intersect::{
-    ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection, OpenConic,
-    OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSite,
-    PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane, SectionRadius,
-    SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar, cylinder_axes_parallel,
+    ApexFansMeeting, ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection,
+    OpenConic, OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection,
+    PlaneSite, PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane,
+    SectionRadius, SphereSphereSection, cone_cone_apex_meeting, cone_cylinder_section,
+    cone_plane_apex_extrema, cylinder_axes_coplanar, cylinder_axes_parallel,
     cylinder_cylinder_section, parallel_axes_at, plane_cone_apex_extrema, plane_cone_section,
     plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section, plane_torus_section,
     route, route_pose, sphere_sphere_section, tilted_section_major,
