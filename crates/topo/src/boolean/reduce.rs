@@ -880,9 +880,12 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             crate::live::proven(&body.half_edges, edge.he_plus, EntityId::HalfEdge).start,
             crate::live::Proven,
         );
-        // The ball about the edge's start that holds all of it, out to
-        // the edge's reach from there (`geom_brep::edge_reach_from`): a
-        // closed edge, whose ends are one vertex, reads its diameter.
+        // The ball about the edge's start that holds all of it: a line's
+        // chord; a circle's farthest point from its start, its far end or
+        // the point opposite, so a closed edge, whose ends are one vertex,
+        // reads its diameter; a fitted carrier's control polygon, whose
+        // hull holds it (its weights are positive); any other carrier's
+        // box.
         let curve = body
             .edge_curve_linked(edge_key, edge)
             .certified()
@@ -892,12 +895,23 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                      certified carrier: the operand gate refuses a null edge as scaffolding"
                 )
             });
-        let (t0, t1) = curve.params();
-        let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::of_edge_from(
-            curve.carrier(),
-            (t0, t1),
-            at,
-        ));
+        let end =
+            body.resolve_vertex_point(body.proven_half_edge_end(edge.he_plus), crate::live::Proven);
+        let arm = match curve.carrier() {
+            geom::Curve3::Line(_) => geom_brep::ExtentBall::point(end).lever_from(at),
+            geom::Curve3::Circle { radius, .. } => {
+                geom_brep::circle_arc_lever_from_start(*radius, curve.params())
+            }
+            geom::Curve3::Nurbs(n) => {
+                geom_brep::ExtentBall::of_control_net_from(n.control(), at).lever()
+            }
+            _ => crate::census::edge_reach_in(body, edge_key, &super::boxes::BoxFrame::World)
+                .map(|(lo, hi)| geom_brep::ExtentBall::of_box(lo, hi).lever_from(at))
+                .unwrap_or_else(|| {
+                    unreachable!("{operand:?}'s edge {edge_key:?}: a conic carrier has a box")
+                }),
+        };
+        let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::about(at, arm));
         // One plane, decided by its margin: a pair the producing op
         // should have merged (the merge glues what this decides).
         match super::oriented_plane_eq(&p1, &p2, &extent, band) {

@@ -172,7 +172,8 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
                 let t = sample_param(t0, t1, i);
                 let reading =
                     tangent_second_order(s1, s2, carrier.eval(t), carrier.deriv(t), extent, band);
-                let margin = Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm).value();
+                let margin =
+                    Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm.length()).value();
                 let tag = match reading.verdict.map(|d| d.sign) {
                     Ok(Sign::Positive) => "+",
                     Ok(Sign::Zero) => "0",
@@ -761,7 +762,11 @@ fn the_rule_reads_every_corpus_contact_the_same_in_both_orders_at_interval() {
             let carrier = c.carrier().map_scalar(Interval::from_f64);
             let (t0, t1) = c.params();
             let chord = c.carrier().eval(t0).distance(c.carrier().eval(t1));
-            let extent = Interval::from_f64(edge_extent_inf(c.carrier(), t0, t1, chord));
+            let extent = geom_brep::ExtentBall::of_sphere(
+                geom_core::Point3::origin(),
+                Interval::from_f64(edge_extent_inf(c.carrier(), t0, t1, chord).length()),
+            )
+            .lever();
             let (t0, t1) = (Interval::from_f64(t0), Interval::from_f64(t1));
             let ab = must_carry_over_edge(&a, &b, &carrier, t0, t1, extent, band);
             let ba = must_carry_over_edge(&b, &a, &carrier, t0, t1, extent, band);

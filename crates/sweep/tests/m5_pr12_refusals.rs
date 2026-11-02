@@ -11,7 +11,7 @@
 
 use crate::common::approx::band;
 use geom_core::Tol;
-use geom_core::{Point2, Sign, Vec3};
+use geom_core::{Point2, Point3, Sign, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::battery::{
@@ -458,17 +458,18 @@ fn trio_chain_g1() {
     let b = band();
     let x = Vec3::new(1.0, 0.0, 0.0);
     let y = Vec3::new(0.0, 1.0, 0.0);
+    let arm = |r: f64| geom_brep::ExtentBall::of_sphere(Point3::origin(), r).lever();
     // Definitely NOT G1: a right-angle kink at a 1 m arm.
-    let definite = chain_g1(x, y, 1.0, v, b).unwrap_err();
+    let definite = chain_g1(x, y, arm(1.0), v, b).unwrap_err();
     // Exactly G1: identical tangents — this one PASSES (the polarity
     // is inverted for a coincidence predicate, and the trio says so).
-    chain_g1(x, x, 1.0, v, b).expect("identical tangents are G1");
+    chain_g1(x, x, arm(1.0), v, b).expect("identical tangents are G1");
     // In band: a kink whose sin θ · arm sits inside the band.
     let tiny = in_band();
-    let escalated = chain_g1(x, Vec3::new(1.0, tiny, 0.0), 1.0, v, b).unwrap_err();
+    let escalated = chain_g1(x, Vec3::new(1.0, tiny, 0.0), arm(1.0), v, b).unwrap_err();
     assert_same_recourse(&definite, &escalated, "tangent-continuous wherever");
     // The arm gate: an angle at an arm decided zero is not a question.
-    let collapsed = chain_g1(x, y, 0.0, v, b).unwrap_err();
+    let collapsed = chain_g1(x, y, arm(0.0), v, b).unwrap_err();
     match &collapsed {
         BlendError::Escalated {
             site: BlendSite::Joint { .. },
@@ -491,11 +492,12 @@ fn trio_convexity_sign() {
     let (_, _, e) = keys(&body);
     let b = band();
     let tau = Vec3::new(0.0, 0.0, 1.0);
+    let arm = || geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever();
     let (convex, m) = convexity_at(
         Vec3::new(-1.0, 0.0, 0.0),
         Vec3::new(0.0, -1.0, 0.0),
         tau,
-        1.0,
+        arm(),
         e,
         b,
     )
@@ -514,7 +516,7 @@ fn trio_convexity_sign() {
         Vec3::new(0.0, -1.0, 0.0),
         Vec3::new(-1.0, 0.0, 0.0),
         tau,
-        1.0,
+        arm(),
         e,
         b,
     )
@@ -528,7 +530,7 @@ fn trio_convexity_sign() {
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
         tau,
-        1.0,
+        arm(),
         e,
         b,
     )
@@ -544,7 +546,7 @@ fn trio_convexity_sign() {
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(1.0, in_band(), 0.0).normalize(),
         tau,
-        1.0,
+        arm(),
         e,
         b,
     )

@@ -14,6 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::lever::sphere_arm;
 use crate::shared::point::p3 as p;
 use crate::shared::tol::band;
 use geom::Curve3;
@@ -224,7 +225,7 @@ fn certify_cap_quarter<T: Decide + geom_core::CertifiedBounds>(
         circle.eval(t0),
         circle.eval(t1),
         |k| surfaces.get(k).cloned(),
-        geom_core::Real::from_f64(1.0),
+        sphere_arm(geom_core::Real::from_f64(1.0)),
         band(),
         geom_brep::NurbsLane::certified(),
     )

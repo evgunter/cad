@@ -372,7 +372,7 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
             from,
             to,
             ruling: x,
-            lever: 1.0,
+            lever: geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
         };
         let parities = [
             (
@@ -580,7 +580,8 @@ fn minted_kind(
         normal,
         u_ref,
     };
-    let extent = 2.0 * (RADII.0 + RADII.1) * f.s;
+    let extent =
+        geom_brep::ExtentBall::of_sphere(Point3::origin(), 2.0 * (RADII.0 + RADII.1) * f.s).lever();
     let (section, circles) = match geom_brep::plane_torus_section(&plane, &surface, extent, band) {
         Ok(S::MeridianCircles { c1, c2 }) => ("meridians", vec![c1, c2]),
         Ok(S::ConcentricCircles { c1, c2 }) => ("concentric", vec![c1, c2]),

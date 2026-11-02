@@ -19,6 +19,7 @@
 
 #![allow(clippy::panic, clippy::too_many_lines, clippy::cast_precision_loss)]
 
+use crate::shared::lever::sphere_arm;
 use crate::shared::surf::at_apex;
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
@@ -183,7 +184,7 @@ fn one_sum_differential() {
                 normal: nrm,
                 u_ref: perp(nrm, &mut rng),
             };
-            let got = plane_torus_section(&plane, &torus, extent, b);
+            let got = plane_torus_section(&plane, &torus, sphere_arm(extent), b);
             let (label, truth) = match &got {
                 // A tangency's truth: the plane's stand-off from the
                 // tube's crest circle on its side, what flips it.
@@ -234,7 +235,7 @@ fn one_sum_differential() {
                 normal: nrm,
                 u_ref: perp(nrm, &mut rng),
             };
-            let got = plane_torus_section(&plane, &torus, extent, b);
+            let got = plane_torus_section(&plane, &torus, sphere_arm(extent), b);
             let (label, truth) = match &got {
                 Ok(PlaneTorusSection::MeridianCircles { c1, c2 }) => {
                     let t = circle_pts(c1, 720)
@@ -335,7 +336,7 @@ fn one_sum_differential() {
                 radius: if coax { r1 } else { r2 },
                 u_ref: perp(a2, &mut rng),
             };
-            let ball = ExtentBall::new(
+            let ball = ExtentBall::of_sphere(
                 o1 + y * (r1 * rng.r(0.5, 1.0)) + a1 * (s * rng.r(-1.0, 1.0)),
                 rad,
             );
@@ -435,7 +436,7 @@ fn one_sum_differential() {
                 normal: nrm,
                 u_ref: perp(nrm, &mut rng),
             };
-            let ball = ExtentBall::new(
+            let ball = ExtentBall::of_sphere(
                 o - nrm * (r * rng.r(0.5, 1.0)) + a * (s * rng.r(-1.0, 1.0)),
                 rad,
             );
@@ -499,7 +500,7 @@ fn one_sum_differential() {
                 radius: rr,
                 u_ref: y,
             };
-            let got = cone_cylinder_section(&cone, &wall, extent, b);
+            let got = cone_cylinder_section(&cone, &wall, sphere_arm(extent), b);
             let (label, truth) = match &got {
                 Ok(ConeCylinderSection::CoaxialCircles { c1, c2 }) => {
                     let t = circle_pts(c1, 720)

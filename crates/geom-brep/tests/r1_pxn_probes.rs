@@ -24,6 +24,7 @@
 
 use crate::shared::fixture::segment;
 use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
+use crate::shared::lever::sphere_arm;
 use crate::shared::tol::band;
 use geom::NurbsCurve3;
 use geom::{NurbsSurface, Surface};
@@ -98,7 +99,7 @@ fn a_wiggle_vanishing_at_the_whole_schedule_must_refuse() {
         carrier.knot_values().domain(),
         &plane,
         &wall,
-        1.0,
+        sphere_arm(1.0),
         band(),
     ) {
         Ok(limbs) => panic!(
@@ -144,7 +145,7 @@ fn an_off_plane_wiggle_must_refuse_via_the_plane_envelope() {
         carrier.knot_values().domain(),
         &plane,
         &wall,
-        1.0,
+        sphere_arm(1.0),
         band(),
     ) {
         Ok(limbs) => panic!(
@@ -284,7 +285,7 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
             carrier.knot_values().domain(),
             &plane,
             &wall,
-            1.0,
+            sphere_arm(1.0),
             band(),
         ) {
             Ok(limbs) => {
@@ -404,7 +405,7 @@ fn displacement_scan_finds_the_refusal_boundary_typed() {
                 carrier.knot_values().domain(),
                 &plane,
                 &wall,
-                1.0,
+                sphere_arm(1.0),
                 band(),
             ) {
                 Ok(l) => {
@@ -464,7 +465,7 @@ fn a_drifted_subsegment_of_the_true_locus_certifies_at_the_lane() {
         carrier.knot_values().domain(),
         &plane,
         &wall,
-        0.7,
+        sphere_arm(0.7),
         band(),
     );
     println!("R1 drift subsegment: {r:?}");
@@ -505,7 +506,7 @@ fn near_tangential_scan_is_typed_at_every_angle() {
             carrier.knot_values().domain(),
             &plane,
             &wall,
-            1.0,
+            sphere_arm(1.0),
             band(),
         ) {
             Ok(l) => {

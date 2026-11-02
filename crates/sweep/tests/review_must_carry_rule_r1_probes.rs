@@ -91,7 +91,8 @@ fn kappa_rel_varies_along_a_lane_admitted_carrier_and_the_second_station_decides
         geom_brep::tangent_certificate_lane(&carrier, &a, &b),
         "a Circle carrier on a torus pair is inside the lane"
     );
-    let extent = 2.0 * 0.25; // a full circle's extent is its diameter
+    // A full circle's extent is its diameter.
+    let extent = geom_brep::ExtentBall::of_sphere(Point3::origin(), 2.0 * 0.25).lever();
     let at = |i: u32| {
         let t = geom_brep::sample_param(0.0, TAU, i);
         geom_brep::tangent_second_order(&a, &b, carrier.eval(t), carrier.deriv(t), extent, band())

@@ -206,7 +206,7 @@ fn the_wrap_around_g1_is_vacuous_on_a_circle_and_live_on_a_kink() {
     let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (t0, t1) = c.params();
     let vertex = body.get_half_edge(e.he_plus).unwrap().start;
-    let arm = 2.0;
+    let arm = geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 2.0).lever();
     chain_g1(
         c.carrier().deriv(t1),
         c.carrier().deriv(t0),

@@ -12,6 +12,7 @@
 
 use crate::shared::fixture::segment;
 use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
+use crate::shared::lever::sphere_arm;
 use crate::shared::tol::band;
 use geom_brep::plane_nurbs_limbs;
 use geom_brep::ssi::SsiTube;
@@ -40,7 +41,7 @@ fn the_plane_nurbs_lanes_computed_values_are_unknowns() {
                 carrier.knot_values().domain(),
                 &plane,
                 &wall,
-                S::one(),
+                sphere_arm(S::one()),
                 band(),
             )
             .expect("the true locus certifies at Sym")

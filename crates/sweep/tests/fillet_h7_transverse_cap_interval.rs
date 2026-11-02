@@ -198,7 +198,7 @@ fn cap_transverse_trio_at_the_certified_scalar() {
     let band = Band::linear(Tol::witness()).expect("a band");
     let v = VertexKey::default();
     let tau = v3(0.0, 0.0, 1.0);
-    let lever = iv(1.0);
+    let lever = geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), iv(1.0)).lever();
     // Transverse: the cap normal IS the ruling.
     let radius = iv(0.1);
     let circle = cap_transverse(v, v3(0.0, 0.0, -1.0), tau, radius, lever, band)

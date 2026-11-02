@@ -361,7 +361,8 @@ mod tests {
             plane(Point3::new(0.1, 0.2, -0.3), Vec3::unit_y()),
             plane(Point3::new(0.1, 0.5, -0.3), Vec3::unit_y()),
         ] {
-            match plane_torus_section(&cut, &torus, 3.0, band()).unwrap() {
+            let arm = crate::ExtentBall::of_sphere(Point3::origin(), 3.0).lever();
+            match plane_torus_section(&cut, &torus, arm, band()).unwrap() {
                 PlaneTorusSection::MeridianCircles { c1, c2 }
                 | PlaneTorusSection::ConcentricCircles { c1, c2 } => {
                     w = w.max(sweep(&c1, [&cut, &torus]).max(sweep(&c2, [&cut, &torus])));

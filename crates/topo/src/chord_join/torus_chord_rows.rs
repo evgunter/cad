@@ -280,9 +280,13 @@ fn a_chord_on_an_oval_is_an_arc_on_its_own_parameter() {
     let d = torus(2.0, 0.5);
     let cut = plane(Point3::new(0.3, 0.0, 0.0), Vec3::unit_x());
     let two = loops(&cut, &d, 3.0);
-    let geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 } =
-        geom_brep::plane_torus_section(&cut, &d, 3.0, band()).unwrap()
-    else {
+    let geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 } = geom_brep::plane_torus_section(
+        &cut,
+        &d,
+        geom_brep::ExtentBall::of_sphere(Point3::origin(), 3.0).lever(),
+        band(),
+    )
+    .unwrap() else {
         panic!("x = 0.3 cuts two ovals");
     };
     let tau = core::f64::consts::TAU;

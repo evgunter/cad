@@ -3687,6 +3687,9 @@ fn seam_arrival_check<T: Decide>(
         Ok((turn, margin)) if turn.sign == Sign::Zero => {
             let side = decide(
                 "path_seam_arrival_side",
+                // Unsourced lever: the shorter leg's arm (a line's length, an arc's lesser of
+                // radius and chord), a length of the consumed legs with no extent home in
+                // `profile`.
                 Margin::levered(
                     arriving.unit.dot(start_ang.unit),
                     geom_core::Lever::unsourced(arm),
@@ -4270,6 +4273,8 @@ impl<T: Decide> Core<T> {
         let cross = u1.perp_dot(u2);
         let turn = decide(
             "path_corner_turn",
+            // Unsourced lever: the two anchors' separation, a length of the consumed path
+            // with no extent home in `profile`.
             Margin::levered(cross, geom_core::Lever::unsourced(wn)),
             band,
         )

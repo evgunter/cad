@@ -1153,7 +1153,7 @@ pub mod test_support {
 
     /// **The interior-loop guard's reading of two carriers, with no
     /// faces**: the section certificate's classification through the
-    /// march door, over the reach `(centre, radius)`, which two cylinders
+    /// march door, over the reach `ball`, which two cylinders
     /// read as the operation's region, then its per-pair
     /// rule with no event, no face describing one sheet and no witness
     /// placed, spelled by `Debug` as [`section_report`]'s outcomes are.
@@ -1163,13 +1163,10 @@ pub mod test_support {
     pub fn section_verdict(
         f: &geom::Surface<f64>,
         g: &geom::Surface<f64>,
-        (centre, radius): (geom_core::Point3<f64>, f64),
+        ball: geom_brep::ExtentBall<f64>,
         band: geom_core::Band,
     ) -> String {
         use crate::boolean::section_cert::{Sheet, certify, classify};
-        // Unsourced lever: a ball the test caller hands as `(centre,
-        // radius)`, with no carrier or face to read it from.
-        let ball = geom_brep::ExtentBall::unsourced(centre, radius);
         let section = classify(
             f,
             g,

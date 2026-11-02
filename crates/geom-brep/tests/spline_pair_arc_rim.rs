@@ -20,6 +20,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::lever::sphere_arm;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsSurface};
 use geom_brep::edge_nurbs::sub_arc_joint;
@@ -100,7 +101,7 @@ fn limbs(
     a: &NurbsSurface<f64>,
     b: &NurbsSurface<f64>,
 ) -> Limbs {
-    nurbs_pair_limbs(carrier, params, a, b, 1.0, band())
+    nurbs_pair_limbs(carrier, params, a, b, sphere_arm(1.0), band())
 }
 
 /// Whether `got` refused at limb 3 because the rim lies along chart

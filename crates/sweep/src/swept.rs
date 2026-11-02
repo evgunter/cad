@@ -889,16 +889,11 @@ pub(crate) fn cap_plane<T: Decide>(
     // the two planes meet at an angle of order ε/w and the cosine is
     // ±1 to that order. Under the precondition above an escalation
     // here is a kernel defect.
-    let mut half_perimeter = T::zero();
-    for (i, &p) in ordered.iter().enumerate() {
-        half_perimeter = half_perimeter + (ordered[(i + 1) % ordered.len()] - p).norm();
-    }
-    half_perimeter = half_perimeter * T::from_f64(0.5);
     let agrees = decide(
         "cap_plane_orientation",
         Margin::levered(
             normal.dot(expected_outward),
-            geom_core::Lever::unsourced(half_perimeter),
+            geom_brep::polygon_half_perimeter(&ordered),
         ),
         band,
     )

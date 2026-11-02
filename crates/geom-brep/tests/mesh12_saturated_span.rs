@@ -356,7 +356,7 @@ fn disp<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Disp {
 /// `certify.rs`'s check 2 on a circle carrier, its arithmetic
 /// verbatim: headroom `(τ − Δt)·r`, `Zero | Positive` admit.
 fn certification_disp<T: Decide>(t0: T, t1: T, radius: T, bd: Band) -> Disp {
-    let headroom = Margin::levered(T::tau() - (t1 - t0), geom_core::Lever::unsourced(radius));
+    let headroom = Margin::metered(T::tau() - (t1 - t0), geom_core::InfSpeed::new(radius));
     match decide("interval_span_winding", headroom, bd) {
         Ok(Sign::Positive | Sign::Zero) => Disp::Admit,
         Ok(Sign::Negative) => Disp::Refuse,

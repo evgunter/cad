@@ -535,6 +535,7 @@ fn both_orders(
     t1: f64,
     extent: f64,
 ) -> (MustCarryVerdict, MustCarryVerdict) {
+    let extent = geom_brep::ExtentBall::of_sphere(Point3::origin(), extent).lever();
     (
         must_carry_over_edge(s1, s2, carrier, 0.0, t1, extent, band()),
         must_carry_over_edge(s2, s1, carrier, 0.0, t1, extent, band()),

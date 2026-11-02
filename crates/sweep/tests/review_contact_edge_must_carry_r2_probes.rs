@@ -96,7 +96,7 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
                 let t = sample_param(t0, t1, i);
                 let reading =
                     tangent_second_order(s1, s2, carrier.eval(t), carrier.deriv(t), extent, band);
-                Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm).value()
+                Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm.length()).value()
             })
             .fold(f64::INFINITY, f64::min);
         out.push(Contact {

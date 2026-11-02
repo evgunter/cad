@@ -213,9 +213,9 @@ fn a_dome_equator_rim_decides_convex_at_an_honest_lever() {
     let link = verdict.chains[0].first();
     assert_eq!(link.convexity, Convexity::Convex);
     assert!(
-        (link.arm_len - 2.0).abs() < 1e-9,
+        (link.arm_len.length() - 2.0).abs() < 1e-9,
         "the closed radius-1 rim levers its diameter, got {}",
-        link.arm_len
+        link.arm_len.length()
     );
 }
 
@@ -253,8 +253,8 @@ fn a_boss_root_rim_decides_concave_at_an_honest_lever() {
     let link = verdict.chains[0].first();
     assert_eq!(link.convexity, Convexity::Concave);
     assert!(
-        (link.arm_len - 2.0 * rim_r).abs() < 1e-9,
+        (link.arm_len.length() - 2.0 * rim_r).abs() < 1e-9,
         "the closed radius-(√3/2) rim levers its diameter, got {}",
-        link.arm_len
+        link.arm_len.length()
     );
 }

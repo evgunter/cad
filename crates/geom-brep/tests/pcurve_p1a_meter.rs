@@ -219,6 +219,7 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
 /// row at both scalars.
 mod at_intervals {
     use crate::shared::interval::iv;
+    use crate::shared::lever::sphere_arm;
     use crate::shared::surf::table;
     use geom::{Curve3, Surface};
     use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
@@ -259,7 +260,7 @@ mod at_intervals {
             p0,
             p1,
             &lookup,
-            geom_core::Real::from_f64(1.0),
+            sphere_arm(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -313,7 +314,7 @@ mod at_intervals {
             p0,
             p1,
             &lookup,
-            geom_core::Real::from_f64(1.0),
+            sphere_arm(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )

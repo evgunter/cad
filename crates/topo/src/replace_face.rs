@@ -4867,7 +4867,8 @@ mod pose_reach_rows {
                 t0: 0.0,
                 t1: 0.5,
             }
-            .lever_from(anchor);
+            .lever_from(anchor)
+            .length();
             for k in 0..=720 {
                 let t = core::f64::consts::TAU * f64::from(k) / 720.0;
                 let far = (e.eval(t) - anchor).norm();
@@ -4905,7 +4906,7 @@ mod pose_reach_rows {
             t0: 0.0,
             t1: 4.0,
         };
-        assert!((span.lever_from(Point3::origin()) - tight).abs() < 1e-12);
+        assert!((span.lever_from(Point3::origin()).length() - tight).abs() < 1e-12);
         // `k = 1.2` is in the band too, and reads Zero if the lever is
         // cut below the endpoints' distance.
         for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
@@ -5025,7 +5026,7 @@ mod pose_reach_rows {
         let refusal = |cyl: &Surface<f64>| match geom_brep::cone_cylinder_section(
             &cone,
             cyl,
-            (Point3::new(1.0, 0.0, 1.1) - Point3::origin()).norm(),
+            geom_brep::ExtentBall::point(Point3::origin()).lever_from(Point3::new(1.0, 0.0, 1.1)),
             band(),
         ) {
             Err(geom_brep::SectionError::RoutesToGeneralRung {
@@ -5623,7 +5624,10 @@ mod spline_corner {
             SectionLane::f64(),
             surface,
             &segment(),
-            (1.0, 1.0),
+            (
+                1.0,
+                geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
+            ),
             (VertexKey::default(), EdgeKey::default(), derived),
             0.1,
             Band::linear(tol).unwrap(),

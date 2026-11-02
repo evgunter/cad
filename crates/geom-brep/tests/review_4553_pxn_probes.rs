@@ -11,6 +11,7 @@
 //! speed within a stated factor of the wall's sampled one.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::lever::sphere_arm;
 use geom::{NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{PlaneNurbsLimbs, SsiTube};
 use geom_core::interval::Interval;
@@ -211,7 +212,7 @@ fn run(label: &str, s: &Section, u0s: &[f64]) -> (Vec<String>, (f64, f64)) {
             (ruling(q.x, q.y)).knot_values().domain(),
             &vplane(q.x, q.y, t.x, t.y),
             &wall::<f64>(s),
-            1.0,
+            sphere_arm(1.0),
             band,
         );
         match at_f64 {
@@ -223,7 +224,7 @@ fn run(label: &str, s: &Section, u0s: &[f64]) -> (Vec<String>, (f64, f64)) {
             (ruling(q.x, q.y)).knot_values().domain(),
             &vplane(q.x, q.y, t.x, t.y),
             &wall::<Interval>(s),
-            Interval::one(),
+            sphere_arm(Interval::one()),
             band,
         );
         match at_itv {

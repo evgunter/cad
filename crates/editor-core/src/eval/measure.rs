@@ -559,6 +559,8 @@ fn parallel<T: Decide>(
 ) -> Result<bool, PrimitiveRefusal> {
     match decide(
         predicate,
+        // Unsourced lever: [`arm`], the two operands' reaches summed with their reference
+        // points' separation, a sum no extent read spells in this order.
         Margin::levered(u.cross(v).norm(), geom_core::Lever::unsourced(arm)),
         band,
     ) {
@@ -1256,6 +1258,8 @@ fn plane_round<T: Decide>(
             round: r,
             ..
         } => {
+            // Unsourced lever: [`arm`], the two operands' reaches summed with their reference
+            // points' separation, a sum no extent read spells in this order.
             let tilt = Margin::levered(
                 axis.dot(*outward),
                 geom_core::Lever::unsourced(arm(plane, round)),

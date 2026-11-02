@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::lever::sphere_arm;
 use crate::shared::surf;
 use crate::shared::surf::arena2;
 use crate::shared::tol::band;
@@ -863,7 +864,7 @@ fn certify_line_at_interval(
         p0,
         p1,
         |k| map.get(k).cloned(),
-        geom_core::Real::from_f64(1.0),
+        sphere_arm(geom_core::Real::from_f64(1.0)),
         band(),
         geom_brep::NurbsLane::certified(),
     );
@@ -920,7 +921,7 @@ fn a_renamed_refusal_leaves_no_second_order_escalation_on_the_log() {
         &plane_through_line(r, tilt).map_scalar(lift),
         Point3::new(lift(r), lift(0.0), lift(0.5)),
         Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
-        lift(1.0),
+        sphere_arm(lift(1.0)),
         band(),
     );
     let Err(cause) = so.verdict else {

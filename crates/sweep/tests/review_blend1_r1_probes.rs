@@ -349,7 +349,7 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(1.0, in_band(), 0.0).normalize(),
         tau,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         e,
         band(),
     )
@@ -374,7 +374,7 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
         Vec3::new(1.0, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
         tau,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         e,
         band(),
     )

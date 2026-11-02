@@ -349,7 +349,14 @@ fn a_pair_whose_kappa_rel_varies_along_the_carrier_decides_at_a_later_station() 
 /// first stations are definitely positive and a later one is not,
 /// whatever ε the run committed: with `arm² / 2 = √(ε·K·ε)` a station
 /// is positive while `κ_rel ≥ √K` and stops being so below it.
-fn varying_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>, f64, f64, f64) {
+fn varying_triple() -> (
+    Surface<f64>,
+    Surface<f64>,
+    Curve3<f64>,
+    f64,
+    f64,
+    geom_core::Lever<f64>,
+) {
     let sphere = Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
@@ -369,7 +376,11 @@ fn varying_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>, f64, f64, f64) 
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let b = band();
-    let extent = (2.0 * (b.zero() * b.escalate()).sqrt()).sqrt();
+    let extent = geom_brep::ExtentBall::of_sphere(
+        Point3::origin(),
+        (2.0 * (b.zero() * b.escalate()).sqrt()).sqrt(),
+    )
+    .lever();
     // Walked from the pole end, so the big curvatures come first.
     (
         sphere,

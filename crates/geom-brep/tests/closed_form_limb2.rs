@@ -16,6 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::lever::sphere_arm;
 use crate::shared::surf::table;
 use crate::shared::tol::band;
 use core::f64::consts::PI;
@@ -49,7 +50,7 @@ fn spiric_plane() -> Surface<f64> {
 
 /// One of the two exact ovals `x = 1.1` cuts from [`torus`].
 fn spiric() -> Curve3<f64> {
-    let section = plane_torus_section(&spiric_plane(), &torus(), 1.0, band()).unwrap();
+    let section = plane_torus_section(&spiric_plane(), &torus(), sphere_arm(1.0), band()).unwrap();
     let PlaneTorusSection::SpiricOvals { s1, .. } = section else {
         panic!("expected the two spiric ovals, got {section:?}");
     };

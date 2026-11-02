@@ -9,6 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::lever::sphere_arm;
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU};
 
 use crate::shared::surf::table;
@@ -555,7 +556,7 @@ fn survives_exact_tangency_and_true_corner_classify_definitely() {
         u_ref: Vec3::unit_x(),
     };
     assert_eq!(
-        classify_dihedral(&plane, &cyl, Point3::origin(), 10.0, band()).unwrap(),
+        classify_dihedral(&plane, &cyl, Point3::origin(), sphere_arm(10.0), band()).unwrap(),
         DihedralClass::Smooth
     );
     // True corner: perpendicular planes at arm 1.
@@ -565,7 +566,7 @@ fn survives_exact_tangency_and_true_corner_classify_definitely() {
         u_ref: Vec3::unit_y(),
     };
     assert_eq!(
-        classify_dihedral(&plane, &wall, Point3::origin(), 1.0, band()).unwrap(),
+        classify_dihedral(&plane, &wall, Point3::origin(), sphere_arm(1.0), band()).unwrap(),
         DihedralClass::Transverse
     );
 }
@@ -597,17 +598,17 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     // Healthy arm: definitely transverse (sin theta = cos alpha ~ 0.87).
     let p = at(1.0);
     assert_eq!(
-        classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap(),
+        classify_dihedral(&cone, &plane_through(p), p, sphere_arm(1.0), band()).unwrap(),
         DihedralClass::Transverse
     );
     // In-band arm: honest escalation, as before.
     let p = at(3.0 * eps());
-    assert!(classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).is_err());
+    assert!(classify_dihedral(&cone, &plane_through(p), p, sphere_arm(1.0), band()).is_err());
     // Collapsed arm: now an honest escalation naming the arm gate —
     // never a definite classification. It quotes the wedge the arm
     // meters (PR 3513's fifth fix pass), under that reading's own name.
     let p = at(0.5 * eps());
-    let err = classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap_err();
+    let err = classify_dihedral(&cone, &plane_through(p), p, sphere_arm(1.0), band()).unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
         (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes()))
@@ -650,13 +651,21 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
     // The arm gate escalates, quoting the wedge it meters where that is
     // nonzero and the arm offers a tolerance, and its own decided zero
     // where the arm is exactly zero.
-    let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.5 * eps(), band()).unwrap_err();
+    let err = classify_dihedral(
+        &floor,
+        &wall,
+        Point3::origin(),
+        sphere_arm(0.5 * eps()),
+        band(),
+    )
+    .unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
         (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes())),
         "sub-eps extent"
     );
-    let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.0, band()).unwrap_err();
+    let err =
+        classify_dihedral(&floor, &wall, Point3::origin(), sphere_arm(0.0), band()).unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
         (geom_brep::LeverRung::Arm, Some("dihedral_arm")),
@@ -798,7 +807,7 @@ fn survives_curvature_arm_caps_huge_chord() {
     };
     // sin(theta) = 1, arm = min(r, 1000.0) = r = 3 eps -> in band.
     assert!(
-        classify_dihedral(&tilted, &cyl, Point3::origin(), 1000.0, band()).is_err(),
+        classify_dihedral(&tilted, &cyl, Point3::origin(), sphere_arm(1000.0), band()).is_err(),
         "tiny curvature arm must dominate a huge chord"
     );
 }
@@ -1039,7 +1048,7 @@ mod interval_lane {
             &floor,
             &wall,
             p3(0.0, 0.0, 0.0),
-            Interval::from_f64(1.0),
+            sphere_arm(Interval::from_f64(1.0)),
             band(),
         )
         .unwrap();
@@ -1054,7 +1063,7 @@ mod interval_lane {
             &floor,
             &coplanar,
             p3(0.0, 0.0, 0.0),
-            Interval::from_f64(1.0),
+            sphere_arm(Interval::from_f64(1.0)),
             band(),
         )
         .unwrap();
@@ -1073,7 +1082,7 @@ mod interval_lane {
             p0,
             p1,
             |_| None,
-            geom_core::Real::from_f64(1.0),
+            sphere_arm(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -1120,7 +1129,7 @@ mod interval_lane {
             p,
             p,
             |_| None,
-            geom_core::Real::from_f64(1.0),
+            sphere_arm(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -1163,7 +1172,7 @@ mod interval_lane {
             p,
             p,
             |_| None,
-            geom_core::Real::from_f64(1.0),
+            sphere_arm(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )

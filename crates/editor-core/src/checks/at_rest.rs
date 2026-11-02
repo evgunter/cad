@@ -1123,6 +1123,8 @@ fn constant_pairing<T: Decide>(
             let rel = *o2 - *o1;
             zero(
                 AT_REST_QUIET_AXES_PARALLEL,
+                // Unsourced lever: two faces' reaches from one point summed
+                // (`crate::eval::measure::reach_of`), a sum no extent read spells.
                 Margin::levered(a1.cross(*a2).norm(), geom_core::Lever::unsourced(extent)),
             ) && zero(
                 AT_REST_QUIET_CENTRED,

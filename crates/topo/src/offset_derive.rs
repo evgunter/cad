@@ -1586,7 +1586,7 @@ mod regions {
             },
             &old,
             span,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
             band(),
         ) {
             Ok(Ok(c)) => c,
@@ -1619,7 +1619,7 @@ mod regions {
             },
             &old,
             (-0.1, 0.1),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
             band(),
         );
         assert!(
@@ -1678,7 +1678,7 @@ mod rational_carriers {
             },
             &old,
             (0.0, 1.0),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
             band(),
         ) {
             Ok(Ok(c)) => c,
@@ -1712,7 +1712,13 @@ mod rational_carriers {
             normal: Vec3::unit_x(),
             u_ref: Vec3::unit_y(),
         };
-        match plane_spline_root(&plane, &arc, 0.6, 1.0, band()) {
+        match plane_spline_root(
+            &plane,
+            &arc,
+            0.6,
+            geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
+            band(),
+        ) {
             Ok(SplineRoot::At(t)) => {
                 let p = arc.eval(t);
                 assert!(

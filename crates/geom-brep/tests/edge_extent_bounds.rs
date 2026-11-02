@@ -315,9 +315,9 @@ fn each_kinds_bounds_bracket_the_diameter_and_stay_tight() {
         let (start, end) = (c.eval(t0), c.eval(t1));
         let chord = start.distance(end);
         let (d, slack, r) = dense(c, row.window);
-        let inf = edge_extent_inf(c, t0, t1, chord);
-        let sup = edge_extent_sup(c, t0, t1, chord);
-        let reach = edge_reach_from(c, t0, t1, start);
+        let inf = edge_extent_inf(c, t0, t1, chord).length();
+        let sup = edge_extent_sup(c, t0, t1, chord).length();
+        let reach = edge_reach_from(c, t0, t1, start).length();
         println!(
             "[measured] {}: D {d:.6} (+{slack:.1e}), inf/D {:.6}, sup/D {:.6}, R {r:.6}, reach/R {:.6}",
             row.what,
@@ -341,7 +341,8 @@ fn each_kinds_bounds_bracket_the_diameter_and_stay_tight() {
         // from below, the reach above it.
         let bounds = edge_reach_bounds(c, t0, t1, start);
         check(
-            bounds.below() <= (r + slack) * (1.0 + 1e-12) && bounds.above() == reach,
+            bounds.below().length() <= (r + slack) * (1.0 + 1e-12)
+                && bounds.above().length() == reach,
             format!("{w}: the reach's bounds {bounds:?} do not bracket R {r} at the reach {reach}"),
         );
         check(
@@ -421,12 +422,13 @@ fn a_wild_parameterisation_is_bracketed_and_no_more() {
         let start = wild.eval(t0);
         let chord = start.distance(wild.eval(t1));
         let (d, _, r) = dense(&wild, window);
-        let inf = edge_extent_inf(&wild, t0, t1, chord);
-        let sup = edge_extent_sup(&wild, t0, t1, chord);
-        let reach = edge_reach_from(&wild, t0, t1, start);
+        let inf = edge_extent_inf(&wild, t0, t1, chord).length();
+        let sup = edge_extent_sup(&wild, t0, t1, chord).length();
+        let reach = edge_reach_from(&wild, t0, t1, start).length();
         let LeverBounds::Between { below, above } = edge_reach_bounds(&wild, t0, t1, start) else {
             panic!("{window:?}: a spline's reach is known from both sides");
         };
+        let (below, above) = (below.length(), above.length());
         println!(
             "[measured] wild {window:?}: D {d:.3e}, inf/D {:.4}, sup/D {:.3e}, R {r:.3e}, \
              below/R {:.4}, reach/R {:.3e}",

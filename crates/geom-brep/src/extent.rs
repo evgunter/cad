@@ -93,6 +93,30 @@ pub fn points_lever_from<T: Real>(
     Lever::of_consumed_extent(far.sqrt())
 }
 
+/// **The farthest two of the consumed `points` stand apart**: their
+/// diameter ([`farthest_pair`]), zero for fewer than two.
+pub fn points_diameter<T: Real>(points: &[Point3<T>]) -> Lever<T> {
+    Lever::of_consumed_extent(farthest_pair(points))
+}
+
+/// **Half the perimeter of the closed polygon through the consumed
+/// `points`**, in order: no two of its vertices stand farther apart, the
+/// two ways round between them summing to the perimeter. Zero for none.
+pub fn polygon_half_perimeter<T: Real>(points: &[Point3<T>]) -> Lever<T> {
+    let perimeter = points.iter().enumerate().fold(T::zero(), |sum, (i, &p)| {
+        sum + (points[(i + 1) % points.len()] - p).norm()
+    });
+    Lever::of_consumed_extent(perimeter * T::from_f64(0.5))
+}
+
+/// **How far a circle arc reaches from its start**: its farthest point
+/// from there, `2·|r|·sin(min(Δt/2, π/2))`: the far end, or past a half
+/// turn the point opposite, so a closed arc reads its diameter.
+pub fn circle_arc_lever_from_start<T: Real>(radius: T, (t0, t1): (T, T)) -> Lever<T> {
+    let half = ((t1 - t0) * T::from_f64(0.5)).min(T::from_f64(core::f64::consts::FRAC_PI_2));
+    Lever::of_consumed_extent(radius.abs() * T::from_f64(2.0) * half.sin())
+}
+
 /// A closed ball `|x − center| ≤ radius` enclosing a consumed region
 /// (module docs).
 #[derive(Clone, Copy, Debug)]
@@ -263,14 +287,12 @@ impl<T: Real> ExtentBall<T> {
         Lever::of_consumed_extent((hi - lo).norm())
     }
 
-    /// **The ball about `at` holding an edge**: the edge's carrier over
-    /// `[t0, t1]`, out to its reach from `at` ([`edge_reach_from`]).
+    /// **The ball about `at` out to `lever`**, a read of the consumed
+    /// extent taken from `at` itself: every point that read covers lies
+    /// in it.
     #[must_use]
-    pub fn of_edge_from(carrier: &Curve3<T>, (t0, t1): (T, T), at: Point3<T>) -> Self
-    where
-        T: SpanLocate,
-    {
-        Self::new(at, edge_reach(carrier, t0, t1, at))
+    pub fn about(at: Point3<T>, lever: Lever<T>) -> Self {
+        Self::new(at, lever.length())
     }
 
     /// **The ball holding a ring torus** `(center, R, r)`: every point of

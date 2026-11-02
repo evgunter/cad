@@ -186,12 +186,12 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
             for link in chain.links() {
                 let chord = endpoint_chord(&body, link.edge);
                 assert_eq!(
-                    link.arm_len.to_bits(),
+                    link.arm_len.length().to_bits(),
                     chord.to_bits(),
                     "straight edge {:?} at l = {l}: arm {} != endpoint chord {} at the bit \
                      level; {}",
                     link.edge,
-                    link.arm_len,
+                    link.arm_len.length(),
                     chord,
                     fuzz::replay()
                 );
@@ -236,15 +236,15 @@ fn closed_rims_meter_their_diameter_and_never_exceed_arc_length() {
             let link = verdict.chains[0].first();
             assert_eq!(link.convexity, expect_convexity, "{}", fuzz::replay());
             assert!(
-                (link.arm_len - 2.0 * rim_r).abs() < 1e-9,
+                (link.arm_len.length() - 2.0 * rim_r).abs() < 1e-9,
                 "closed rim of radius {rim_r}: arm {} is not the diameter; {}",
-                link.arm_len,
+                link.arm_len.length(),
                 fuzz::replay()
             );
             assert!(
-                link.arm_len <= core::f64::consts::TAU * rim_r,
+                link.arm_len.length() <= core::f64::consts::TAU * rim_r,
                 "arm {} exceeds the rim's arc length; {}",
-                link.arm_len,
+                link.arm_len.length(),
                 fuzz::replay()
             );
         }

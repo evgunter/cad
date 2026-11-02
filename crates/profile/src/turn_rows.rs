@@ -11,7 +11,7 @@
 use core::f64::consts::{PI, TAU};
 
 use geom_core::k_stats::decide;
-use geom_core::{Arc2, Band, Decide, Margin, Point2, Sign, Tol};
+use geom_core::{Arc2, Band, Decide, InfSpeed, Margin, Point2, Sign, Tol};
 
 use crate::path::PathError;
 use crate::path::verbs::sweep_gates;
@@ -136,7 +136,7 @@ fn old_range<T: Decide>(arc: Arc2<T>, range: Range, band: Band) -> Outcome {
     };
     match decide(
         "arc_sweep_range",
-        Margin::levered(ratio, geom_core::Lever::unsourced(arc.radius)),
+        Margin::metered(ratio, InfSpeed::new(arc.radius)),
         band,
     ) {
         Err(cause) => Outcome::Escalated(cause.predicate),

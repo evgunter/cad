@@ -117,7 +117,13 @@ fn r1_a_first_order_exits_verdict_on_a_hole_wall_is_contradicted_at_its_own_arm(
     let n = OutwardNormal::from_chart(Vec3::new(-1.0, 0.0, 0.0), true);
     let d = Vec3::new(-eps, 1.0, 0.0).normalize();
     assert_eq!(
-        enters_material(d, n, arm, band()).unwrap(),
+        enters_material(
+            d,
+            n,
+            geom_brep::ExtentBall::of_sphere(Point3::origin(), arm).lever(),
+            band()
+        )
+        .unwrap(),
         EntersMaterial::Exits,
         "the first-order verdict is a definite Out"
     );

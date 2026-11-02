@@ -83,6 +83,7 @@
     clippy::unreachable
 )]
 
+use crate::shared::lever::sphere_arm;
 use crate::shared::surf;
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, NurbsCurve3};
@@ -2646,7 +2647,7 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
             carrier.knot_values().domain(),
             &cutting_plane(),
             &wall,
-            1.0,
+            sphere_arm(1.0),
             band(),
         ) {
             Err(geom_brep::PlaneNurbsRefusal::ChartSpeed(got)) => {

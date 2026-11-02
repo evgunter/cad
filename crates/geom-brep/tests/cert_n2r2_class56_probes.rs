@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use crate::shared::fixture::segment;
+use crate::shared::lever::sphere_arm;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
@@ -70,7 +71,7 @@ fn n2r2_class5_plane_nurbs_limbs_on_masquerade() {
             carrier.knot_values().domain(),
             &plane(),
             &w,
-            1.0,
+            sphere_arm(1.0),
             band(),
         );
         eprintln!("[class 5 {name}] plane_nurbs_limbs -> {r:?}");

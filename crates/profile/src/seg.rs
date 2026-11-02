@@ -361,7 +361,8 @@ pub(crate) fn build_loop_seg<T: Decide>(
 ///
 /// - **`full_turn_reach`** — margin: the turn's reach from its vertex,
 ///   |m| with m = 2r·Δθ/2π (meters: the sweep as a fraction of a turn,
-///   levered by the diameter — the diameter at |Δθ| = 2π). Zero ⇒
+///   metered at a diameter per turn, which no fraction's reach falls
+///   short of — the diameter at |Δθ| = 2π). Zero ⇒
 ///   degenerate (a carrier below the band, or a sweep of nothing).
 /// - **`full_turn_sense`** — margin: m itself, the antipode's signed
 ///   offset from the tangent at the vertex (the sagitta, whose limit a
@@ -386,10 +387,7 @@ fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
     check: impl FnOnce(Arc2<T>) -> Result<(), E>,
 ) -> Result<Seg<T>, E> {
     let escalated = |source| E::from(ShapeIssue::Escalated(source));
-    let reach = Margin::levered(
-        arc.sweep / T::tau(),
-        geom_core::Lever::unsourced(arc.radius + arc.radius),
-    );
+    let reach = Margin::metered(arc.sweep / T::tau(), InfSpeed::new(arc.radius + arc.radius));
     let m = reach.value();
     match decide("full_turn_reach", Margin::of(m.abs()), band).map_err(escalated)? {
         Sign::Positive => {}
@@ -692,6 +690,8 @@ pub(crate) const BRANCH_READ: &str = "path_arc_branch";
 /// `segment_straightness`'s margin, read by [`build_seg`] and by the
 /// door's read-back ([`read_back_arc`]).
 fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
+    // Unsourced lever: the chord `|b − a|`, a length of the consumed segment, but `profile`
+    // has no extent home (`geom_brep` is not its dependency) to read it through.
     Margin::levered(bow * T::from_f64(0.5), geom_core::Lever::unsourced(len))
 }
 
@@ -801,11 +801,8 @@ pub(crate) fn read_back_arc<T: Decide>(
         // authored arc and the other one on the carrier span the chord,
         // so each reads at least the chord's length: the authored one
         // Positive, the other Negative.
-        let signed = Margin::levered(
-            arc.sweep * sense.sign::<T>(),
-            geom_core::Lever::unsourced(arc.radius),
-        )
-        .value();
+        let signed =
+            Margin::metered(arc.sweep * sense.sign::<T>(), InfSpeed::new(arc.radius)).value();
         let reading = match check_unlogged(BRANCH_READ, signed, band, "F24") {
             Ok(Sign::Positive) => Reading::Passed,
             Ok(Sign::Zero | Sign::Negative) => Reading::Off(signed),
@@ -1141,6 +1138,8 @@ pub(crate) fn junction_reverses<T: Decide>(
     Ok(matches!(
         decide(
             "path_junction_side",
+            // Unsourced lever: the leg's arm ([`Seg::arm`]: a line's length, an arc's lesser of
+            // radius and chord), a length of the consumed leg with no extent home in `profile`.
             Margin::levered(arriving.dot(departing), geom_core::Lever::unsourced(arm)),
             band
         )?,
@@ -1244,6 +1243,9 @@ pub(crate) fn junction_turn<T: Decide>(
     Ok((
         decide_reported(
             name,
+            // Unsourced lever: the shorter leg's arm ([`Seg::arm`]: a line's length, an arc's
+            // lesser of radius and chord), a length of the consumed legs with no extent home in
+            // `profile`.
             Margin::levered(read, geom_core::Lever::unsourced(arm)),
             band,
         )?,

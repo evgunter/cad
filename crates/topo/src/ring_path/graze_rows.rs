@@ -462,7 +462,7 @@ fn segment_section(
                         from,
                         to,
                         ruling: e,
-                        lever: slant * 0.7,
+                        lever: geom_brep::ExtentBall::of_sphere(apex, slant * 0.7).lever(),
                     }],
                     arrival: e,
                 };

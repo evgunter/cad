@@ -24,6 +24,7 @@
 
 use crate::shared::fixture::segment;
 use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
+use crate::shared::lever::sphere_arm;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
@@ -52,7 +53,7 @@ fn the_stated_carrier_certifies_against_both_surfaces() {
         carrier.knot_values().domain(),
         &plane,
         &wall,
-        1.0,
+        sphere_arm(1.0),
         band(),
     )
     .expect("the true locus certifies");
@@ -98,7 +99,7 @@ fn a_displaced_carrier_refuses_with_the_measured_residual() {
         carrier.knot_values().domain(),
         &plane,
         &wall,
-        1.0,
+        sphere_arm(1.0),
         band(),
     ) {
         Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
@@ -149,7 +150,7 @@ fn an_on_plane_off_wall_carrier_is_refused_by_the_nurbs_side() {
         carrier.knot_values().domain(),
         &plane,
         &wall,
-        1.0,
+        sphere_arm(1.0),
         band(),
     ) {
         Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
@@ -185,7 +186,7 @@ fn a_tangential_plane_refuses_with_the_transversality_vocabulary() {
         carrier.knot_values().domain(),
         &tangent,
         &wall,
-        1.0,
+        sphere_arm(1.0),
         band(),
     ) {
         Err(PlaneNurbsRefusal::NotTransverse { sample, .. }) => {
@@ -233,7 +234,7 @@ fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
         carrier.knot_values().domain(),
         &plane,
         &wall,
-        1.0,
+        sphere_arm(1.0),
         band(),
     ) {
         Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
@@ -286,7 +287,7 @@ fn a_plane_near_tangent_to_a_flat_wall_refuses_at_the_edges_extent() {
         carrier.knot_values().domain(),
         &plane,
         &wall,
-        1.0,
+        sphere_arm(1.0),
         band(),
     ) {
         Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
@@ -575,7 +576,7 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
             carrier.knot_values().domain(),
             &transverse_plane(),
             &wall,
-            1.0,
+            sphere_arm(1.0),
             band(),
         );
         let Err(PlaneNurbsRefusal::CarrierDomain(r)) = lane else {

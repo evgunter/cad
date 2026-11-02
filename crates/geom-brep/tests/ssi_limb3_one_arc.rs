@@ -10,6 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::lever::sphere_arm;
 use crate::shared::tol::{band, eps};
 use geom::{NurbsSurface, Surface};
 use geom_brep::ssi::{self, BranchEnd, ChartAxis, ChartEnd, SsiDomain, SsiOutcome};
@@ -399,7 +400,7 @@ fn declared(
         carrier.knot_values().domain(),
         &plane,
         wall,
-        1.0,
+        sphere_arm(1.0),
         band(),
     )
 }
@@ -641,7 +642,7 @@ fn a_flush_side_on_a_conical_or_twisted_wall_certifies() {
             carrier.knot_values().domain(),
             &transverse_plane(),
             &wall,
-            1.0,
+            sphere_arm(1.0),
             band(),
         );
         assert!(got.is_ok(), "the frustum r₁ = {r1}, ε {:e}: {got:?}", eps());
@@ -665,7 +666,7 @@ fn a_flush_side_on_a_conical_or_twisted_wall_certifies() {
         carrier.knot_values().domain(),
         &plane,
         &ramp,
-        1.0,
+        sphere_arm(1.0),
         band(),
     );
     assert!(got.is_ok(), "the ramp, ε {:e}: {got:?}", eps());

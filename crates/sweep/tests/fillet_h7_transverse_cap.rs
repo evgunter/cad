@@ -551,12 +551,14 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let band = Band::linear(tol()).expect("a band");
     let v = VertexKey::default();
     let tau = Vec3::new(0.0, 0.0, 1.0);
-    let circle = cap_transverse(v, Vec3::new(0.0, 0.0, -1.0), tau, R, 1.0, band)
+    let arm = |r: f64| geom_brep::ExtentBall::of_sphere(Point3::origin(), r).lever();
+    let circle = cap_transverse(v, Vec3::new(0.0, 0.0, -1.0), tau, R, arm(1.0), band)
         .expect("a perpendicular cap is Zero");
     assert!(matches!(circle, EndSection::Circle), "{circle:?}");
     let phi = 0.3f64;
     let n = Vec3::new(phi.sin(), 0.0, phi.cos());
-    let oblique = cap_transverse(v, n, tau, R, 1.0, band).expect("an oblique cap is the ellipse");
+    let oblique =
+        cap_transverse(v, n, tau, R, arm(1.0), band).expect("an oblique cap is the ellipse");
     let EndSection::Ellipse(Curve3::Ellipse {
         semi_u,
         semi_v,
@@ -578,14 +580,14 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
         "the ellipse's axis is the cap's normal"
     );
     let t = 0.5 * (band.zero() + band.escalate());
-    let escalated = cap_transverse(v, Vec3::new(t, 0.0, 1.0), tau, R, 1.0, band)
+    let escalated = cap_transverse(v, Vec3::new(t, 0.0, 1.0), tau, R, arm(1.0), band)
         .expect_err("an in-band cap escalates");
     let BlendError::Escalated { source, .. } = &escalated else {
         panic!("the in-band row must escalate, got {escalated:?}");
     };
     assert_eq!(source.predicate, Some("fillet3_cap_transverse"));
     let n = Vec3::new(t, 0.0, 1.0);
-    let sliver = cap_transverse(v, n, tau, R, 1e3, band)
+    let sliver = cap_transverse(v, n, tau, R, arm(1e3), band)
         .expect("levered up, the departure is definite: the ellipse");
     let EndSection::Ellipse(Curve3::Ellipse {
         semi_u,

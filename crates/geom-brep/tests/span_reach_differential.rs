@@ -30,9 +30,9 @@
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{PlaneCylinderSection, plane_cylinder_section};
-use geom_brep::{Reach, SectionError, WallBend};
+use geom_brep::{ExtentBall, Reach, SectionError, WallBend};
 use geom_core::k_stats::decide;
-use geom_core::{Margin, Point3, Sign, Vec3};
+use geom_core::{Lever, Margin, Point3, Sign, Vec3};
 use std::collections::BTreeMap;
 use test_utils::fuzz;
 
@@ -81,15 +81,20 @@ struct Face {
 
 impl Face {
     /// `face_reach_from(at)`: main's (`whole`) or the span's.
-    fn across(&self, at: Point3<f64>, whole: bool) -> f64 {
-        let e = self.edges.iter().fold(0.0_f64, |m, s| {
-            m.max(if whole {
-                s.lever_from(at)
-            } else {
-                s.span_reach_from(at)
-            })
-        });
-        self.corners.iter().fold(e, |m, p| m.max((*p - at).norm()))
+    fn across(&self, at: Point3<f64>, whole: bool) -> Lever<f64> {
+        let e = self
+            .edges
+            .iter()
+            .fold(ExtentBall::point(at).lever(), |m, s| {
+                m.max(if whole {
+                    s.lever_from(at)
+                } else {
+                    s.span_reach_from(at)
+                })
+            });
+        self.corners
+            .iter()
+            .fold(e, |m, p| m.max(ExtentBall::point(*p).lever_from(at)))
     }
     /// `face_axial_range(at, axis)`.
     fn axial(&self, at: Point3<f64>, axis: Vec3<f64>) -> (f64, f64) {
@@ -330,7 +335,7 @@ fn span_reach_differential() {
                     at,
                     below,
                     above,
-                    across: face.across(at, whole),
+                    across: face.across(at, whole).length(),
                 };
                 (plane_cylinder_section(&plane, &cyl, &reach, b), reach)
             };
@@ -384,7 +389,7 @@ fn span_reach_differential() {
                     if against(vh) { " AGAINST" } else { "" }
                 ));
             }
-            let across_head = face.across(at, false);
+            let across_head = face.across(at, false).length();
             if across_head < face.sampled_reach(at) - ulps(at, face.sampled_reach(at)) {
                 println!(
                     "SHORT {caller} {i} r={s:e} du={du:e} h={h:e} head={across_head:e} sampled={:e} short_by={:e} ulps={:e} |at|={:e}",
@@ -395,7 +400,7 @@ fn span_reach_differential() {
                 );
                 t.short_lever += 1;
             }
-            if across_head > face.across(at, true) {
+            if across_head > face.across(at, true).length() {
                 t.longer_than_main += 1;
             }
             // Head's in-band conics: would the exact reach across the wall
@@ -408,7 +413,7 @@ fn span_reach_differential() {
                     .iter()
                     .map(|p| across_of(*p))
                     .fold(0.0_f64, f64::max);
-                let ideal = c.abs() * hl + exact * (1.0 - cos);
+                let ideal = c.abs() * hl.length() + exact * (1.0 - cos);
                 let k = if ideal >= b.escalate() {
                     "sum of maxima"
                 } else {
@@ -630,22 +635,22 @@ fn split_cyl_case(rng: &mut Rng, b: geom_core::Band, s: f64) -> Case {
     let kappa = geom_brep::implicit_max_normal_curvature(&cyl, base);
     let tilt = radial.cross(nsp).norm();
     // Rule (a)'s tree at a lever: the verdict, or "esc".
-    let tree = |arm: f64| -> &'static str {
-        match decide(
-            "split_sector_coplanar",
-            Margin::levered(tilt, geom_core::Lever::unsourced(arm)),
-            b,
-        ) {
+    let tree = |arm: Lever<f64>| -> &'static str {
+        match decide("split_sector_coplanar", Margin::levered(tilt, arm), b) {
             Ok(Sign::Positive | Sign::Negative) => return "silent",
             Err(_) => return "esc",
             Ok(Sign::Zero) => {}
         }
-        match decide("tangent_sector_osculation", Margin::sagitta(kappa, arm), b) {
+        match decide(
+            "tangent_sector_osculation",
+            Margin::sagitta(kappa, arm.length()),
+            b,
+        ) {
             Ok(Sign::Positive) => {}
             Ok(_) => return "unsupported",
             Err(_) => return "esc",
         }
-        match geom_brep::bends_into_material(&cyl, base, outward, arm, b) {
+        match geom_brep::bends_into_material(&cyl, base, outward, arm.length(), b) {
             Ok(WallBend::IntoMaterial) => "graze",
             Ok(WallBend::OutOfMaterial) => "knife",
             Ok(WallBend::Flat) => "unsupported",
@@ -671,8 +676,8 @@ fn split_cyl_case(rng: &mut Rng, b: geom_core::Band, s: f64) -> Case {
         truth,
         main: tree(main_arm),
         head: tree(head_arm),
-        short: head_arm < reach - ulps(base, reach),
-        longer: head_arm > main_arm,
+        short: head_arm.length() < reach - ulps(base, reach),
+        longer: head_arm.length() > main_arm.length(),
     }
 }
 
@@ -721,9 +726,9 @@ fn plane_case(
 ) -> Case {
     let base = face.corners[corner];
     let reach = face.sampled_reach(base).max(1e-300);
-    let read = |arm: f64| match decide(
+    let read = |arm: Lever<f64>| match decide(
         "split_sector_coplanar",
-        Margin::levered(nf.cross(nsp).norm(), geom_core::Lever::unsourced(arm)),
+        Margin::levered(nf.cross(nsp).norm(), arm),
         b,
     ) {
         Ok(Sign::Zero) => "coplanar",
@@ -735,8 +740,8 @@ fn plane_case(
         truth: classify(sector_offset((x, y), nsp, radii, arc, corner), b),
         main: read(main_arm),
         head: read(head_arm),
-        short: head_arm < reach - ulps(base, reach),
-        longer: head_arm > main_arm,
+        short: head_arm.length() < reach - ulps(base, reach),
+        longer: head_arm.length() > main_arm.length(),
     }
 }
 
