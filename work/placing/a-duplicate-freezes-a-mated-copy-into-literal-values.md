@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-02
 priority: P1
 cost: M
+rides_with: the-placement-editor-commits-on-apply-not-live
 ---
 
 

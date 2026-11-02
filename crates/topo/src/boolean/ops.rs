@@ -118,6 +118,7 @@ use super::combine::{GraftMap, graft_solids_disjoint};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::edge_join::join_stage;
 use super::finish::setopfinish;
+use super::holdings::Holdings;
 use super::join::bool_connect;
 use super::reduce::PendingRow;
 use super::section_cert::Refusal as SectionRefusal;
@@ -206,6 +207,11 @@ pub struct BooleanBody<T: Real> {
     /// The face pairs those coincidences glue, in their order
     /// ([`GlueVerdict`]).
     pub verdicts: Vec<GlueVerdict<T>>,
+    /// Per face of [`Self::body`], and per discard row of
+    /// [`Self::naming`], exactly the operand faces whose area it holds,
+    /// operand A at place 0 and B at place 1, read from the naming's
+    /// records ([`Holdings::of_records`]).
+    pub holdings: Holdings,
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -747,30 +753,81 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op_given(op, a, b, inputs, None, strategy, tol)
+    boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
 }
 
 /// [`boolean_op_with`], its coincidences `given` where they are a fold
 /// step's of the n-ary door ([`super::nary`]): `Some` makes those pairs
 /// the operation's only coincidences, and it decides none of its own.
+/// The operation puts its operand clones as its cuts left them in
+/// `clones`, or in a slot of its own ([`Glue::clones`]), and reads its
+/// discarded fragments' regions there.
 pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
     inputs: &BooleanInputs,
-    given: Option<&[super::GluedPair<T>]>,
+    (given, clones): (Option<&[super::GluedPair<T>]>, Option<super::CloneSlot<T>>),
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let result = boolean_door(op, a, b, &Glue::of(inputs, given), strategy, tol);
+    let clones = clones.unwrap_or_default();
+    let glue = Glue {
+        clones: Some(clones.clone()),
+        ..Glue::of(inputs, given)
+    };
+    let mut result = boolean_door(op, a, b, &glue, strategy, tol);
+    // The one place a result leaves the door: its naming is final here,
+    // past every rewrite (a sphere cut-in's, after its re-entry), so its
+    // holdings are read here and nowhere else.
+    if let Ok(BooleanResult::Body(out)) = &mut result {
+        let band = Band::linear(tol)?;
+        let held = clones
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        out.holdings = Holdings::of_records(
+            op,
+            &out.naming,
+            &out.body,
+            ([a, b], [held[0].as_ref(), held[1].as_ref()]),
+            band,
+        );
+        holdings_name_input_faces(&out.holdings, [a, b]);
+    }
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     if let Ok(BooleanResult::Body(out)) = &result {
         rows_name_input_cells(&out.coincidences, [a, b]);
     }
     result
+}
+
+/// **Every operand face a boolean's holdings name is a face of its
+/// operand**, and every finished face holds one.
+///
+/// # Panics
+///
+/// For a face that is not: the holdings are read from the naming's
+/// final rows, each read back to its operand ([`Holdings::of_records`]).
+fn holdings_name_input_faces<T: Real>(holdings: &Holdings, inputs: [&Body<T>; 2]) {
+    for (place, f) in holdings.named() {
+        if inputs[place].get_face(f).is_none() {
+            unreachable!(
+                "a boolean's holdings name operand {place}'s face {f:?}, which that operand does \
+                 not hold, though they are read from the naming's final rows"
+            );
+        }
+    }
+    for (f, held) in holdings.faces() {
+        if held.faces().is_some_and(BTreeSet::is_empty) {
+            unreachable!(
+                "finished face {f:?} holds no operand face, though every finished face is a \
+                 piece of one"
+            );
+        }
+    }
 }
 
 /// **Every input cell a row names is live in its input**, a meeting's
@@ -1192,7 +1249,10 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         edge_joins,
         killed_lineage,
     };
+    decls.keep_clone(Operand::A, || fin.clone_a);
+    decls.keep_clone(Operand::B, || fin.clone_b);
     Ok(BooleanResult::Body(BooleanBody {
+        holdings: Holdings::unread(),
         body,
         kind: BooleanResultKind::Seamed,
         contacts,
@@ -6947,7 +7007,7 @@ impl Recharts {
     /// input shell wears that sphere: a closed sphere group
     /// ([`super::solid_contain::closed_sphere_group`]) is the whole
     /// shell.
-    fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
+    pub(crate) fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
         self.cells.get(&cell).map(|&at| self.shells[at].as_slice())
     }
 }
@@ -7860,7 +7920,13 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 discards,
                 ..BooleanNaming::default()
             };
+            for (operand, clone) in [(Operand::A, &red.a), (Operand::B, &red.b)] {
+                if naming.discards.iter().any(|d| d.operand == operand) {
+                    decls.keep_clone(operand, || clone.clone());
+                }
+            }
             Ok(BooleanResult::Body(BooleanBody {
+                holdings: Holdings::unread(),
                 body,
                 kind,
                 contacts,
@@ -8199,7 +8265,13 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             ..BooleanNaming::default()
         },
     };
+    for (operand, clone) in [(Operand::A, &red.a), (Operand::B, &red.b)] {
+        if naming.discards.iter().any(|d| d.operand == operand) {
+            decls.keep_clone(operand, || clone.clone());
+        }
+    }
     Ok(BooleanResult::Body(BooleanBody {
+        holdings: Holdings::unread(),
         body,
         kind,
         contacts,
