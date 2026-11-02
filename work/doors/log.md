@@ -196,3 +196,9 @@ AUTHOR's narrative is recoverable from
 - `a-fillet-on-a-drawn-unions-operand-is-drawn-nowhere`: closed — drawn by SPACES' PR 6265; the `∪`-operand re-point is superseded (a `∪` is drawn as its result, not a seen path).
 - `a-split-of-a-drawn-body-is-drawn-unsplit`: live for a *placed* body only (`add_split` writes a bare `Split`, no takeover); P0→P1 M, a faithful elaboration of §5′.3 (a) (take the target over to `⊔[above, below]`, as blend/pattern do). Dispatched as `doors/split-takes-over`. Tier: style review + correctness reviewer (a wrong picture). The lane also fixes two stale texts the re-read found: `INTENT-STAGE3-SPEC.md:493`'s "`⊔`/`∪` operand slot" (6209 made it `⊔` only — a wording consequence of the ratified rule) and `op.rs:777`'s `AddMirror` doc.
 - `the-mirror-keeps-two-pieces-…`: open, design, P1→P2 (a missing feature; adding `⊔` output changes 6209's ratified README sentence). Tail for a successor; not this sitting.
+
+## 2026-11-02 08:00 — 6331 (split takeover) reviews in: fix pass 1
+
+- Style: mergeable; stale census/module/spec text the PR half-edited; product-slot row pins less than its name. Correctness: claims hold across duplicate, placed `⊔`, transform, mirror-then-split; MAJOR-1 — `held_as_itself` widened `successors`' reads to every split of the body for *every* takeover door, so a combine of a body with its own earlier split half drops a mate main kept.
+- Ruling: the reads are the body plus the halves of the split this action wrote, passed from `Wrote`, never rediscovered by walking the document — non-split doors ask exactly what they asked on main. Class note: widening a shared kernel query for one door changed every door; a lane that widens a shared query states and tests what the other callers now see.
+- The README sentence lands with the change: it describes §5′.3 (a), and its one choice (`⊔` over `∪`) was a designer pair's, not a ratified decision of Ev's.
