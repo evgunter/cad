@@ -1,0 +1,3 @@
+fork: create-commits-then-edits (Ev 2026-11-01: one rule for every create/edit pair in the viewer, (a) preferred: a create gesture commits the node and the edit surface takes over)
+byte1 (arm): 118 -> two designers
+byte2 (labels): 16 -> even -> A = Opus, B = Fable
