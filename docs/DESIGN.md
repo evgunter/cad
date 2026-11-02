@@ -1127,6 +1127,8 @@ suits the slot.
 - *Discrete kinds:* a side, a half, a sense, an orientation
   ([placement.values]).
 - *Poses:* `Point`, `Direction`, `Axis`, `Plane`, `Pivot`, `Flag`, `Frame`
+- *2-D poses:* `Point2`, `Direction2`, in one profile's coordinates
+  ([variables.poses]).
   ([variables.poses]).
 - *Shapes:* `Body`; `Bodies`, an ordered list of bodies whose length
   is a `Count`; and `Profile`. Only an operation defines a shape. A
@@ -1199,10 +1201,13 @@ Every number a pose, a construction's axis or a placement holds is a
 component of a direction or of a frame's axis, and a 2-D direction is
 an angle. A face reads as a plane and a vertex as a point; no reader
 takes a carrier's reference direction. A 2-D value (a profile's step,
-a revolve's axis line) lives in the node that holds its frame, as
-length and angle slots or, inside a profile, as a read of an earlier
-step's geometry (PATHS-DESIGN §1b), and is never a variable of a 2-D
-kind; its lift to a 3-D pose is how it leaves.
+a revolve's axis line) is a `Point2` or `Direction2` in the
+coordinates of one profile, scoped to it as a selection is to its body:
+it is read only by that profile's later steps, by a node that reads
+that profile, or by a profile drawn on the same frame. Its plane is
+established by its scope and never checked between two values. Where
+the profile is drawn on a frame, its lift is a pose of that frame's
+space; a free profile's lifts nowhere (PATHS-DESIGN §1b).
 
 ### Operations `[operations]`
 
