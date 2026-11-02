@@ -341,3 +341,19 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   build 882 → 539 s paired): FULL review, fix pass in flight.
 - `read-reach-blanks-doctests` banded P3 E (a guard that cannot see a
   read edge: tooling that prevents a silent bug).
+
+## 2026-11-02 — handed back
+
+- #6361 merged after its fix pass: the shipped wrapper re-measured
+  paired (kernel 814 → 537 s on the slow runner, app 502 → 420 s on a
+  fast one), 14 tests moved to the slow set, a step reds the build if
+  the wrapper stops applying, `test-fast.sh` uses the same wrapper. The
+  0.5–0.8 s cohort is a P4 row.
+- Not taken: `test-shards-rebuild-dependencies-their-cache-holds`. Its
+  wall payoff is small and per-shard priming adds runner-minutes on
+  every main push, against the user's no-more-queueing condition.
+- P0 and P1 are closed, so the sitting ends and the track goes back
+  `ready`. Review tiers: FULL on every workflow/filter lever (#6323,
+  #6324, #6361), STYLE on each pin PR (#6343, #6355), the census
+  tracker-only on the orchestrator's read. Every review that ran found
+  something worth a fix pass; #6324 took three.
