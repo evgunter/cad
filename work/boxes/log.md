@@ -67,3 +67,22 @@ home for a face's or edge's extent, so each site that needed one built
 its own. TWICE's `extent-ball-and-reach-are-two-statements-of-one-extent`
 and ONEHOME's cluster C (`three-readings-of-a-points-rounding-charge-it-three-ways`)
 are the same gap seen from the verdict side; the step-2 survey reads them.
+
+## 2026-11-02 — the extent-home fork goes to Ev (PR 6334)
+
+(BOXES orchestrator) Three designers (fork row 239) converged in three
+rounds: one cover per entity, a reading under `[one-way.readings]`, its
+shapes as methods, `Uncovered` typed with meet/hull defined on the
+`Result`. PR 6334 carries the DESIGN edit and asks Ev to ratify. Units
+wait on the ruling. Implementation notes the designers asked the units
+to carry: `glue::overlap_ball`'s NaN-dropping `f64::max`/`min` is the
+first consumer onto `meet` (it gets poison ∩ X = X today by accident);
+`Uncovered`'s reason combines on Err ∧ Err; the cylinder arm's
+`splice_superseded` branch goes (an undecided axis is an absent slab);
+`held_reach_in`'s pole narrowing folds into the sphere arm; the
+`ConeSlab` "jurisdiction" fence comes down; a parameter-window type
+survives as data in `geom`. Rows to fold under the design beyond
+BOXES': `apex/face-reach-misses-an-interior-far-point-on-a-sphere-torus-or-cone-face`,
+`tang/whole-turn-conic-reach-…`, `lever/germ-takes-the-span-bounded-face-reach-alone`,
+`hone/splitting-face-extent-lever-reads-vertices-not-arcs`,
+`twice/extent-ball-and-reach-are-two-statements-of-one-extent`.

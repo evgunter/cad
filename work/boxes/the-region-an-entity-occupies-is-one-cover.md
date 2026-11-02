@@ -7,6 +7,7 @@ opened: 2026-11-02
 priority: P1
 branch: boxes/ev-extent-home
 refs: [D280, an-edges-extent-has-four-dispatchers, sphere-operand-box-is-the-whole-ball, split-gate-sphere-zone-folds-into-face-box-rule, extent-ball-and-reach-are-two-statements-of-one-extent]
+pr: 6334
 ---
 
 
