@@ -2032,7 +2032,7 @@ pub struct CommittedProfiles {
 /// in its place would put a shape on screen the document does not
 /// have.
 ///
-/// `except` is the profile a form is EDITING, if any: that form draws
+/// `except` is the profile the editor is EDITING, if any: the editor draws
 /// its own replay of the node in the preview lane, and a loop drawn
 /// both as it was committed and as it is being changed would show two
 /// shapes where there is one.

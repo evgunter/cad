@@ -72,7 +72,7 @@ impl ViewerBehavior<'_> {
         // Held apart from the drafts for the frame, so the slot doors
         // below can borrow the pane whole.
         let Some(mut edit) = self.drafts.profile_edit.take() else {
-            unreachable!("`Drafts::profile_edit` answered Ok, so the draft is held")
+            unreachable!("`Drafts::profile_edit` answered Ok, so the draft is open")
         };
         let untouched = !edit.differs_from_base();
         // The refused text standing in a field: the slot door's own
@@ -405,6 +405,16 @@ pub(crate) fn edit_door_ui(
 ) -> Option<SessionOp> {
     let node = edit.node;
     let (landed, tol) = (session.doc(), session.tol());
+    // A change put off last frame, made now over the program the op
+    // then landed (`ProfileEdit::defer`).
+    for change in edit.take_deferred() {
+        match edit.apply(change, notation) {
+            Ok(()) => edit.changed(),
+            Err(fault) => news
+                .notices
+                .push(frame::tool_news(&FormKind::EditProfile.refuses(&fault))),
+        }
+    }
     ui.label(format!("profile {}", landed.spoken(node)));
     let loops = edit.loops().len();
     let views = edit.steps(landed, tol);
@@ -569,7 +579,7 @@ pub(crate) fn edit_door_ui(
     let held_back = |edit: &ProfileEdit| {
         edit.pen_order(landed, tol).is_some() || drivers_hold(edit, landed).is_some()
     };
-    let mut formed = edit.offer(dragging, held_back(edit), &door);
+    let mut formed = edit.offer(dragging, held_back(edit), door);
     for change in clicks {
         if formed.is_some() {
             edit.defer(change);
@@ -581,7 +591,7 @@ pub(crate) fn edit_door_ui(
         }
     }
     if formed.is_none() {
-        formed = edit.offer(dragging, held_back(edit), &door);
+        formed = edit.offer(dragging, held_back(edit), door);
     }
     // A change that did not lower is said, and every other change of
     // its frame stands.
@@ -669,7 +679,7 @@ pub(crate) fn add_loop_row(ui: &mut egui::Ui) -> Option<ShapeKind> {
     .inner
 }
 
-/// **Why a driven argument holds the draft back**, if one does — said
+/// **Why a driven argument keeps the draft pending**, if one does — said
 /// under the step list, and the draft is not offered to the document
 /// while it stands.
 ///
@@ -799,7 +809,7 @@ pub(crate) enum StepRow {
 /// step with a fresh one of that verb rather than carrying
 /// numbers across: two verbs' fields mean different things (a
 /// `line`'s length is not a `turn`'s angle), so a carried number
-/// would be a guess the form cannot check.
+/// would be a guess the editor cannot check.
 ///
 /// **The row number is the one the refusals use.** A preview
 /// refusal reads "loop 0 step 2", and a list with nothing written
@@ -813,7 +823,7 @@ pub(crate) enum StepRow {
 /// ([`sketch::tip_state_at`]); what it admits is read off the
 /// kernel's own transition table ([`sketch::admits_at`]) and, for
 /// an arc spec, off its dispatcher's forms — both projected from
-/// the declarations the replay runs, so the form keeps no copy of
+/// the declarations the replay runs, so the editor keeps no copy of
 /// the lattice. A verb picked lands in the first arc form its row
 /// takes ([`sketch::fresh_step_at`]).
 ///
@@ -1049,7 +1059,7 @@ mod tests {
     use crate::theme::Theme;
 
     /// **Drawing the editor never rewrites a document value.** A
-    /// committed `circle_split` above the form's count cap (the
+    /// committed `circle_split` above the editor's count cap (the
     /// document admits any count) is loaded into the edit door and
     /// DRAWN once, untouched: its count is the committed one, and
     /// nothing reads as moved.
@@ -1166,7 +1176,7 @@ mod tests {
             on: None,
         });
         let (doc, profile) = try_inserted(&doc, node, Tol::witness())
-            .expect("the document admits a split circle above the form's cap");
+            .expect("the document admits a split circle above the editor's cap");
         let mut drafts = Drafts::default();
         let edit = drafts.profile_edit(&doc, profile).expect("held");
         assert!(!edit.differs_from_base(), "fresh load");
@@ -1406,8 +1416,8 @@ mod tests {
         }
     }
 
-    /// **A refused step's loop draws, and the form says the refusal
-    /// loud.** The `arc_fillet_arc` the form hands an author who picks
+    /// **A refused step's loop draws, and the editor says the refusal
+    /// loud.** The `arc_fillet_arc` the editor hands an author who picks
     /// it after two legs is refused on arrival; what is said under the
     /// step list is that refusal in the actionable voice, holding the
     /// commit — never the unfinished chain's quiet sentence, though the
@@ -1445,7 +1455,7 @@ mod tests {
     }
 
     /// **A chain with an unclosable tip draws the legs before it, and
-    /// the form says that tip's own sentence, quietly** — at every
+    /// the editor says that tip's own sentence, quietly** — at every
     /// state no `line_to` leaves, as the lattice table lists them. What
     /// is painted under the step list is the end-of-program refusal
     /// naming the tip, in the weak voice, holding the commit; never the
@@ -1510,7 +1520,7 @@ mod tests {
     }
 
     /// **A chain whose close is refused on its geometry draws the legs
-    /// written, and the form says why, quietly** — at every shape of
+    /// written, and the editor says why, quietly** — at every shape of
     /// such a close ([`test_support::geometry_refused_closes`]). What is
     /// painted under the step list is the refusal the drawn loop
     /// carries, in the weak voice, holding the commit: the close's own,
@@ -1634,8 +1644,8 @@ mod tests {
     // The edit door, driven through the panel
     // -------------------------------------------------------------- //
 
-    /// A session over a 10 mm square profile authored as the form's
-    /// default chain, a unit extrude of it, and a shell opening the wall
+    /// A session over a 10 mm square profile authored as the path
+    /// template's chain, a unit extrude of it, and a shell opening the wall
     /// step `named` draws — a payload carrier of one profile piece's
     /// name. Answers the session, the profile, the carrier and
     /// the name.
@@ -1854,15 +1864,89 @@ mod tests {
         );
     }
 
+    /// **A template loop is added inside the profile, not at the
+    /// origin.** On a 20 × 10 mm rectangle centred at (50, 30) mm, `Add
+    /// circle loop` offers a circle on the rectangle's centre with a
+    /// quarter of its shorter side as radius, which lands as a hole.
+    #[test]
+    fn a_template_loop_is_added_inside_the_profile() {
+        use crate::forms::ShapeKind;
+        use crate::session::{DocSession, SessionOp};
+        use pncad::document::LoopProgram;
+
+        let tol = Tol::witness();
+        let mut session = DocSession::inline(Doc::empty_derived("inside", tol), tol);
+        let rectangle = sketch::path_program(
+            &[Step::Rectangle {
+                centre: Point2::new(0.05, 0.03),
+                width: 0.02,
+                height: 0.01,
+            }],
+            Notation::CANONICAL,
+            &|_, _| None,
+        )
+        .expect("finite");
+        let out = session.perform(SessionOp::AddProfile {
+            loops: vec![rectangle],
+        });
+        let profile = out.made.expect("a profile");
+        let mut drafts = Drafts::default();
+        let preview = {
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("held");
+            sketch::preview(
+                sketch::profile_plane(),
+                &edit.shapes(session.doc(), tol).expect("drawn"),
+                tol,
+                1e-4,
+            )
+        };
+        let mut formed = None;
+        let label = super::add_loop_label(ShapeKind::Circle);
+        crate::pane::headless::painted_after_clicking(&label, |ui| {
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("held");
+            if let Some(op) = super::edit_door_ui(
+                ui,
+                &session,
+                (Theme::DEFAULT, Notation::CANONICAL),
+                edit,
+                Some(&preview),
+                None,
+                &mut super::FieldNews::default(),
+            ) {
+                formed = Some(op);
+            }
+        });
+        let Some(SessionOp::EditProfile { loops, .. }) = formed else {
+            panic!("the circle inside the rectangle lands: {formed:?}")
+        };
+        let LoopProgram::Circle { centre, radius } = &loops[1] else {
+            panic!("a circle: {:?}", loops[1])
+        };
+        let near = |formula: &pncad::document::Formula, want: f64| {
+            formula
+                .literal_value()
+                .is_some_and(|got| (got - want).abs() < 1e-12)
+        };
+        assert!(
+            near(&centre[0], 0.05) && near(&centre[1], 0.03) && near(radius, 0.0025),
+            "on the rectangle's centre, a quarter of its height: {:?}",
+            loops[1]
+        );
+    }
+
     /// **A rectangle loop reopens in the editor as the centre, width
     /// and height it was written as, and
-    /// a width edit lands as that one value.** The form's rectangle,
+    /// a width edit lands as that one value.** The rectangle,
     /// committed, is one `rectangle` step; the door draws that step's
     /// centre, width and height, and no corner; its width moved and
     /// applied is one `SetProgram` whose width slot holds the new value
     /// while the height and centre keep theirs.
     #[test]
-    fn a_form_rectangle_reopens_as_its_centre_width_and_height() {
+    fn a_rectangle_loop_reopens_as_its_centre_width_and_height() {
         use pncad::document::{DocEdit, LoopProgram, SlotId, StepArg};
 
         let tol = Tol::witness();
@@ -1882,13 +1966,13 @@ mod tests {
             loops: vec![rectangle],
         });
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
-        let profile = out.made.expect("the form made a profile");
+        let profile = out.made.expect("the insert made a profile");
         let Some(Node::Profile(program)) = session.committed_doc().node(profile) else {
             panic!("a profile")
         };
         assert!(
             matches!(program.loops[..], [LoopProgram::Rectangle { .. }]),
-            "the form stores the rectangle as written: {:?}",
+            "the insert stores the rectangle as written: {:?}",
             program.loops
         );
 
@@ -1991,7 +2075,7 @@ mod tests {
     }
 
     /// **An old corner-polygon rectangle edits as a path**: a document
-    /// written before the rectangle form, holding a rectangle as its
+    /// written before the `rectangle` step, holding a rectangle as its
     /// corners, opens and edits as the path it is. No migration and no guess: the door holds its five
     /// chain steps, draws `line_to`, and an edit of one corner lands as
     /// one `SetProgram` that keeps the loop a chain.
@@ -2446,7 +2530,7 @@ mod tests {
         click_door(session, drafts, profile, GLYPH_UP, 4)
     }
 
-    /// **A change that leaves an unclosed chain is held, refused
+    /// **A change that leaves an unclosed chain is pending, refused
     /// visibly, with nothing in history; the next change that closes
     /// it lands as one step.** The square's close moved up a row runs
     /// the chain on past it: the door refuses, the editor says so and
@@ -2455,7 +2539,7 @@ mod tests {
     /// and that change lands the whole draft as one `SetProgram`, one
     /// undo from the square.
     #[test]
-    fn an_unclosed_chain_is_held_and_the_change_that_closes_it_lands() {
+    fn an_unclosed_chain_is_pending_and_the_change_that_closes_it_lands() {
         use crate::session::SessionOp;
         use pncad::document::DocEdit;
 
@@ -2471,7 +2555,7 @@ mod tests {
                 .profile_edit
                 .as_ref()
                 .is_some_and(crate::drafts::ProfileEdit::differs_from_base),
-            "the draft is held"
+            "the draft is pending"
         );
         assert_eq!(session.history().current(), state, "nothing in history");
         let (_, formed) = click_door(&session, &mut drafts, profile, GLYPH_REMOVE, 4);
@@ -2491,11 +2575,11 @@ mod tests {
         );
     }
 
-    /// **Discarding a held draft restores the document's program**:
+    /// **Discarding a pending draft restores the document's program**:
     /// the refused draft dropped, the editor holds the committed
     /// program again and nothing is formed or written.
     #[test]
-    fn discarding_a_held_draft_restores_the_documents_program() {
+    fn discarding_a_pending_draft_restores_the_documents_program() {
         let (session, profile) = square_session();
         let mut drafts = Drafts::default();
         let (_, formed) = unclose(&session, &mut drafts, profile);
@@ -2520,13 +2604,16 @@ mod tests {
         );
     }
 
-    /// **Undo while a draft is held loses no committed work**: one
-    /// change lands, a later one is held; undo takes back the landed
-    /// change and drops the held draft, which was an edit of a program
-    /// the document no longer holds; redo brings the landed change
-    /// back, and nothing landed in between to cut the redo off.
+    /// **Undo over a pending draft at the session loses no committed
+    /// work**: one change lands, a later one is pending; an undo the
+    /// session performs takes back the landed change and the pending
+    /// draft goes with it (the app's undo takes the draft first:
+    /// `live_editor::undo_takes_back_a_pending_draft_first_and_says_so`),
+    /// being an edit of a program the document no longer holds; redo
+    /// brings the landed change back, and nothing landed in between to
+    /// cut the redo off.
     #[test]
-    fn undo_and_redo_over_a_held_draft_keep_the_committed_change() {
+    fn undo_and_redo_over_a_pending_draft_keep_the_committed_change() {
         use crate::session::SessionOp;
 
         let (mut session, profile) = square_session();
@@ -2538,7 +2625,7 @@ mod tests {
         let landed = session.committed_doc().clone();
         drafts.sync_profile_edit(session.committed_doc(), Some(profile));
         let (_, formed) = click_door(&session, &mut drafts, profile, GLYPH_UP, 3);
-        assert!(formed.is_none(), "the second change is held");
+        assert!(formed.is_none(), "the second change is pending");
         assert!(session.perform(SessionOp::Undo).refusal.is_none());
         drafts.sync_profile_edit(session.committed_doc(), Some(profile));
         assert!(
@@ -2550,7 +2637,7 @@ mod tests {
                 .profile_edit
                 .as_ref()
                 .is_some_and(|edit| !edit.differs_from_base()),
-            "the held draft went with the program it was made over"
+            "the pending draft went with the program it was made over"
         );
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
         drafts.sync_profile_edit(session.committed_doc(), Some(profile));
@@ -3142,13 +3229,13 @@ mod tests {
         );
     }
 
-    /// **A driving variable deleted under held edits holds the draft,
+    /// **A driving variable deleted under edits keeps the draft pending,
     /// and says why.** The far corner's x reads `w`; with another
     /// corner moved in the draft, `w` is deleted: the door says the
     /// expression does not evaluate, naming the argument, and the draft
     /// forms nothing rather than writing a reader of nothing.
     #[test]
-    fn a_deleted_driving_variable_holds_the_draft_and_says_why() {
+    fn a_deleted_driving_variable_keeps_the_draft_pending_and_says_why() {
         use crate::session::SessionOp;
         use pncad::document::{Dimension, FreeVar, StepArg, VarName};
 
@@ -3221,7 +3308,7 @@ mod tests {
 
     /// review 6295: removing the outer loop of a plate with two holes
     /// leaves two outers; the edit door's preview refuses, and the door
-    /// refuses the same way, so the draft is held and nothing lands.
+    /// refuses the same way, so the draft is pending and nothing lands.
     #[test]
     fn review_6295_removing_the_outer_of_two_holes_refuses_in_the_preview() {
         let (mut session, profile, _driven) = three_loop_plate();

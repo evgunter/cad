@@ -309,7 +309,7 @@ pub(crate) fn apply_polarity(ctx: &egui::Context, polarity: Polarity) {
 /// reporting it. That is what these four used to be: `✕`, `▲`, `▼`
 /// and `▸` are all absent from that stack (`▲`/`▼` exist only in
 /// `Hack-Regular`, which is the MONOSPACE family and never reached by
-/// a button label), so every row of the path form carried three empty
+/// a button label), so every row of the step list carried three empty
 /// boxes and every placed body in the feature tree carried a fourth.
 ///
 /// They are named here rather than spelled at each use so the rule has
@@ -1471,6 +1471,8 @@ impl ViewerApp {
             // dropped before anything is spoken from it.
             self.respeak_held();
         }
+        // A replaced document let go of a pending draft in the loop.
+        notices.extend(self.drafts.take_dropped().iter().map(frame::dropped_draft));
         let refusal = frame::batch_refusal(refusal, &performed, self.session.committed_doc());
         // A refusal that offers a choice stands it up; a save, fork or
         // replacement that LANDED answers it; any other refusal leaves
@@ -5658,6 +5660,252 @@ mod properties_pane_tests {
         );
     }
 
+    /// **The live profile editor over the startup plate**: its
+    /// changes, one offer each, and what a pending draft does when it
+    /// is let go of.
+    mod live_editor {
+        use super::*;
+        use crate::forms::ShapeKind;
+        use crate::pane::profile::{DISCARD, PENDING, add_loop_label};
+
+        /// The startup app with its plate's profile selected and the
+        /// editor open on it.
+        fn plate_open() -> (Driven, RecipeNodeId) {
+            let mut driven = Driven::with(Vec::new());
+            let profile = startup_node(0);
+            driven.select(Selection::Node(profile));
+            driven.settle();
+            (driven, profile)
+        }
+
+        /// Where each run starting `prefix` was painted.
+        fn runs(painted: &[(String, egui::Rect)], prefix: &str) -> Vec<egui::Pos2> {
+            painted
+                .iter()
+                .filter(|(run, _)| run.starts_with(prefix))
+                .map(|(_, rect)| rect.center())
+                .collect()
+        }
+
+        fn key(key: egui::Key) -> egui::Event {
+            egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: if key == egui::Key::A {
+                    egui::Modifiers::COMMAND
+                } else {
+                    egui::Modifiers::default()
+                },
+            }
+        }
+
+        fn status(driven: &Driven) -> String {
+            driven
+                .app
+                .status
+                .as_ref()
+                .map(|said| said.text().to_owned())
+                .unwrap_or_default()
+        }
+
+        /// Whether the editor holds a draft the document does not.
+        fn pending(driven: &Driven) -> bool {
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .is_some_and(crate::drafts::ProfileEdit::differs_from_base)
+        }
+
+        fn hole_radius(driven: &Driven, profile: RecipeNodeId) -> Option<f64> {
+            crate::props::slot_rows(driven.app.session.committed_doc(), profile)
+                .into_iter()
+                .find(|row| {
+                    matches!(
+                        row.slot,
+                        SlotId::Profile {
+                            loop_: 1,
+                            arg: pncad::document::StepArg::Radius,
+                            ..
+                        }
+                    )
+                })
+                .and_then(|row| row.value.ok()?.one().map(|value| value.as_f64()))
+        }
+
+        /// The plate with a rectangle added across its hole: a change
+        /// the door refuses, so the editor holds it pending. Answers
+        /// the app, the profile and the history's length before it.
+        fn pending_rectangle() -> (Driven, RecipeNodeId, usize) {
+            let (mut driven, profile) = plate_open();
+            // One step in the history, for an undo to have something
+            // to step back over.
+            driven.app.perform_batch(vec![SessionOp::SetLabel {
+                node: extrude(),
+                label: pncad::document::Label::new("plinth").ok(),
+            }]);
+            driven.settle();
+            let steps = driven.app.session.history().len();
+            driven.click(&add_loop_label(ShapeKind::Rectangle));
+            driven.settle();
+            let painted = driven.quiet();
+            assert!(
+                painted.iter().any(|(run, _)| run.starts_with(PENDING)),
+                "the rectangle across the hole is pending: {painted:?}"
+            );
+            assert!(pending(&driven));
+            assert_eq!(driven.app.session.history().len(), steps, "nothing landed");
+            (driven, profile, steps)
+        }
+
+        /// **A field's commit and a click in one frame are two offers,
+        /// in the order they were made.** The hole's radius typed, then
+        /// `Add circle loop` clicked (the click takes the field's
+        /// focus): the radius lands on its own, one step; the circle,
+        /// placed in the plate's box and identical to the new hole, is
+        /// refused and alone is pending. Discarding it keeps the radius.
+        #[test]
+        fn a_typed_field_lands_before_the_click_that_took_its_focus() {
+            let (mut driven, profile) = plate_open();
+            let steps = driven.app.session.history().len();
+            let painted = driven.quiet();
+            let field = runs(&painted, "radius ")[0];
+            driven.click_at(field);
+            driven.frame(vec![key(egui::Key::A)]);
+            driven.frame(vec![egui::Event::Text("0.01".to_owned())]);
+            driven.click(&add_loop_label(ShapeKind::Circle));
+            driven.settle();
+            assert_eq!(
+                driven.app.session.history().len(),
+                steps + 1,
+                "the radius landed on its own: {}",
+                status(&driven)
+            );
+            assert_eq!(
+                hole_radius(&driven, profile),
+                Some(0.01),
+                "the radius moved"
+            );
+            assert!(pending(&driven), "the circle alone is pending");
+            driven.click(DISCARD);
+            driven.settle();
+            assert!(!pending(&driven), "discarded");
+            assert_eq!(
+                hole_radius(&driven, profile),
+                Some(0.01),
+                "the landed radius is kept"
+            );
+            assert_eq!(driven.app.session.history().len(), steps + 1);
+        }
+
+        /// **Undo takes back a pending draft first, and says so.** The
+        /// first undo discards the pending rectangle without stepping
+        /// the history; the next undo steps it.
+        #[test]
+        fn undo_takes_back_a_pending_draft_first_and_says_so() {
+            let (mut driven, _profile, steps) = pending_rectangle();
+            let state = driven.app.session.history().current();
+            driven.app.perform_batch(vec![SessionOp::Undo]);
+            driven.settle();
+            assert!(!pending(&driven), "the draft went");
+            assert_eq!(
+                driven.app.session.history().current(),
+                state,
+                "the history did not step"
+            );
+            assert!(
+                status(&driven).contains("discarded — undo took them back first"),
+                "said: {}",
+                status(&driven)
+            );
+            assert_eq!(driven.app.session.history().len(), steps);
+            driven.app.perform_batch(vec![SessionOp::Undo]);
+            driven.settle();
+            assert_ne!(
+                driven.app.session.history().current(),
+                state,
+                "the next undo steps the history"
+            );
+        }
+
+        /// **Selecting away from a pending draft says it was dropped.**
+        #[test]
+        fn selecting_away_from_a_pending_draft_says_so() {
+            let (mut driven, _profile, _) = pending_rectangle();
+            driven.select(Selection::Node(extrude()));
+            driven.settle();
+            assert!(
+                driven.app.drafts.profile_edit.is_none(),
+                "the editor closed"
+            );
+            assert!(
+                status(&driven).contains("discarded — the selection left the profile"),
+                "said: {}",
+                status(&driven)
+            );
+        }
+
+        /// **Another document drops a pending draft, and says so.**
+        #[test]
+        fn a_new_document_says_the_pending_draft_was_dropped() {
+            let (mut driven, _profile, _) = pending_rectangle();
+            driven.app.perform_batch(vec![SessionOp::NewDocument {
+                name: "other".to_owned(),
+            }]);
+            driven.settle();
+            assert!(driven.app.drafts.profile_edit.is_none());
+            assert!(
+                status(&driven).contains("discarded — the document changed under them"),
+                "said: {}",
+                status(&driven)
+            );
+        }
+
+        /// **A drag lands once, on its release**: nothing reaches the
+        /// history while the hole's radius is dragged, and the release
+        /// lands it as one step.
+        #[test]
+        fn a_drag_lands_once_on_its_release() {
+            let (mut driven, profile) = plate_open();
+            let painted = driven.quiet();
+            let at = runs(&painted, "radius ")[0];
+            let steps = driven.app.session.history().len();
+            let was = hole_radius(&driven, profile);
+            let button = |pos, pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            driven.frame(vec![egui::Event::PointerMoved(at)]);
+            driven.frame(vec![button(at, true)]);
+            let mut to = at;
+            // Leftwards, shrinking the hole: a drag the other way soon
+            // grows it across the plate's outline, which the door
+            // refuses.
+            for _ in 0..6 {
+                to -= egui::vec2(1.0, 0.0);
+                driven.frame(vec![egui::Event::PointerMoved(to)]);
+                assert_eq!(
+                    driven.app.session.history().len(),
+                    steps,
+                    "nothing lands mid-drag"
+                );
+            }
+            driven.frame(vec![button(to, false)]);
+            driven.settle();
+            assert_eq!(
+                driven.app.session.history().len(),
+                steps + 1,
+                "the release lands the drag once"
+            );
+            assert_ne!(hole_radius(&driven, profile), was, "the radius moved");
+        }
+    }
+
     /// **A field committed lands as one undo step, and not before**,
     /// through the real app: a circle's radius field is clicked into
     /// and a new radius typed, which changes nothing in the document
@@ -9384,13 +9632,13 @@ mod properties_pane_tests {
 
         /// The held draft offered to the document, as a field's commit
         /// offers it: what the pane says after that it did not before.
-        fn apply(driven: &mut Driven) -> Vec<String> {
+        fn land(driven: &mut Driven) -> Vec<String> {
             let before = driven.app.session.history().len();
             let pre: Vec<String> = driven.quiet().into_iter().map(|(r, _)| r).collect();
             driven.settle_draft();
             let painted = driven.quiet();
             eprintln!(
-                "apply: history {} -> {}; status {:?}",
+                "land: history {} -> {}; status {:?}",
                 before,
                 driven.app.session.history().len(),
                 driven.app.status.as_ref().map(|m| m.text().to_owned())
@@ -9458,7 +9706,7 @@ mod properties_pane_tests {
                 source(&driven, outline(2, StepArg::TargetX)),
                 held_point(&driven, 3).y
             );
-            let said = apply(&mut driven);
+            let said = land(&mut driven);
             eprintln!(
                 "said {said:?}; source step2 {:?}",
                 source(&driven, outline(2, StepArg::TargetX))
@@ -9582,7 +9830,7 @@ mod properties_pane_tests {
                     Step::ArcTo(arc(ArcMode::Bulge)),
                 );
             driven.quiet();
-            let said = apply(&mut driven);
+            let said = land(&mut driven);
             eprintln!("arc applied: {said:?}");
             perform(
                 &mut driven,
@@ -9668,7 +9916,7 @@ mod properties_pane_tests {
                         Step::LineTo(Target::Point(Point2::new(x, y))),
                     );
                 driven.quiet();
-                let said = apply(&mut driven);
+                let said = land(&mut driven);
                 let rx = driven.row(profile(), outline(1, StepArg::TargetX));
                 let ry = driven.row(profile(), outline(1, StepArg::TargetY));
                 let (lx, ly) = (
@@ -9790,7 +10038,7 @@ mod properties_pane_tests {
                     .differs_from_base(),
                 &painted[painted.len().saturating_sub(25)..]
             );
-            let said = apply(&mut driven);
+            let said = land(&mut driven);
             eprintln!("control said {said:?}");
         }
 
@@ -9801,7 +10049,7 @@ mod properties_pane_tests {
             assert_eq!(held_point(&driven, 2).x, 0.07);
             touch_far_y(&mut driven, 0.05);
             let states = driven.app.session.history().len();
-            let _said = apply(&mut driven);
+            let _said = land(&mut driven);
             eprintln!(
                 "history {} -> {}",
                 states,
@@ -9976,9 +10224,9 @@ mod properties_pane_tests {
             );
             driven.quiet();
             touch_far_y(&mut driven, 0.05);
-            let _said = apply(&mut driven);
+            let _said = land(&mut driven);
             let row = driven.row(profile(), outline(2, StepArg::TargetX));
-            eprintln!("source after rename+apply: {:?}", row.source);
+            eprintln!("source after rename+land: {:?}", row.source);
             assert_eq!(row.source.as_deref(), Some("width"));
         }
 

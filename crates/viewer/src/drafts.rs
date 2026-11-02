@@ -1245,7 +1245,8 @@ impl Drafts {
     /// # Errors
     ///
     /// [`HeldRefusal`] when the node is not a profile the editor can
-    /// hold — and the held draft is dropped with it, so nothing stale
+    /// hold — and the open draft is dropped with it (said, when it
+    /// held changes: [`Self::take_dropped`]), so nothing stale
     /// survives the refusal.
     pub(crate) fn profile_edit(
         &mut self,
@@ -1416,11 +1417,13 @@ impl Drafts {
     }
 
     /// **Another document replaced the one the held face was picked
-    /// in** (an open, a new document): the latch names nothing in it.
+    /// in** (an open, a new document): the latch names nothing in it,
+    /// and the profile editor's draft edits nothing in it.
     pub(crate) fn document_replaced(&mut self) {
         for latch in self.latches() {
             *latch = None;
         }
+        self.let_go(DropWhy::DocumentMoved);
     }
 
     /// **The faces the forms latch**, the one list of them: what a
@@ -1967,7 +1970,7 @@ mod tests {
         let authored = vec![super::template_steps(ShapeKind::Path, None)];
         let edit = drafts
             .profile_edit(&doc, profile)
-            .expect("the editor holds the form's profile");
+            .expect("the editor holds the template's profile");
         assert!(
             !edit.differs_from_base(),
             "a fresh load has nothing to apply"
@@ -2127,7 +2130,7 @@ mod tests {
         let (doc, mut drafts, profile) = authored_by_the_template();
         let edit = drafts.profile_edit(&doc, profile).expect("held");
         let &[a, b, c, d, e] = edit.base().ids[0].as_slice() else {
-            panic!("the form's default chain is five steps")
+            panic!("the path template is five steps")
         };
         let point = |x, y| Step::LineTo(Target::Point(Point2::new(x, y)));
         let notation = Notation::DEFAULT;

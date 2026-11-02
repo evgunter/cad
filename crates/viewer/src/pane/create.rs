@@ -2720,9 +2720,9 @@ mod creation_nouns {
     }
 }
 
-/// **The traced-profile form's held face across a selection that moved
-/// on** ([`ViewerBehavior::sketch_face_rows`]'s pick, and
-/// `Drafts::respeak` after each op).
+/// **The traced-profile form's held faces across a selection that
+/// moved on** (its two latches, `Drafts::trace_plane` and
+/// `Drafts::trace_face`, and `Drafts::respeak` after each op).
 #[cfg(test)]
 mod sketch_face_said {
     // Panicking is a test's failure mechanism (workspace lint note).

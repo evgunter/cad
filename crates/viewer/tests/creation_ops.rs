@@ -537,8 +537,8 @@ fn the_rectangle_template_is_the_rectangle_as_written() {
     );
 }
 
-/// **A profile with no loops is a document state**: the add-profile
-/// op inserts it, it evaluates to the empty region, and its tree row
+/// **A profile with no loops is a document state**: New profile's
+/// op (`SessionOp::AddProfile` with no loops) inserts it, it evaluates to the empty region, and its tree row
 /// is an ordinary profile row. What sweeps it refuses at its own door,
 /// on its own row, in the words `EmptyProfile` has.
 #[test]

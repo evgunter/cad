@@ -4,7 +4,7 @@
 //! `SessionOp::EditProfile`.
 //!
 //! The rows claim four things the one-editor design rests on:
-//! everything the create form can author loads into the editor and
+//! every loop the editor's templates and step list write loads back and
 //! lowers back to the program it came from (the round trip); an
 //! untouched editor applied costs nothing — no edit, no history
 //! state (the no-op); an applied editor is ONE `SetProgram`, one
@@ -40,7 +40,7 @@ const MM: Notation = Notation {
     angle: pncad::quantity::DEG,
 };
 
-/// A closed square authored the way the form's default chain is.
+/// A closed square, as the editor's path template writes one.
 fn square(x0: f64, side: f64) -> Vec<Step<f64>> {
     vec![
         Step::At(Point2::new(x0, 0.0)),
@@ -51,8 +51,9 @@ fn square(x0: f64, side: f64) -> Vec<Step<f64>> {
     ]
 }
 
-/// Every loop list the add-profile form can author from its three
-/// shapes, each as the form would hand it over.
+/// Loop lists of every kind the editor writes — its circle and
+/// rectangle templates, and chains of each verb family its step list
+/// offers — each as steps at plain numbers.
 fn authored() -> Vec<(&'static str, Vec<Vec<Step<f64>>>)> {
     vec![
         (
@@ -128,14 +129,14 @@ fn authored() -> Vec<(&'static str, Vec<Vec<Step<f64>>>)> {
     ]
 }
 
-/// The held loops as the program the editor's Apply sends.
+/// The held loops as the program a change the editor offers sends.
 fn lowered(held: &[Vec<HeldStep>]) -> Vec<LoopProgram<Formula>> {
     held.iter()
         .map(|steps| HeldStep::program(steps).expect("a program's shape"))
         .collect()
 }
 
-/// Template loops lowered the way the create form lowers them.
+/// Loops of steps lowered in `notation`, as an insert writes them.
 fn templated(loops: &[Vec<Step<f64>>], notation: Notation) -> Vec<LoopProgram<Formula>> {
     loops
         .iter()
@@ -224,7 +225,7 @@ fn program(session: &DocSession, node: RecipeNodeId) -> &ProfileProgram {
     }
 }
 
-/// The op the editor's Apply sends for `loops` over `node`'s committed
+/// The op the editor forms for `loops` over `node`'s committed
 /// program, every step kept where it is.
 fn edit_of(
     session: &DocSession,
@@ -240,8 +241,8 @@ fn edit_of(
     }
 }
 
-/// **Everything the create form authors loads, and an untouched load
-/// applied is nothing.** For every shape the form offers, written in
+/// **Every loop the editor writes loads back, and an untouched load
+/// committed is nothing.** For every loop list above, written in
 /// either notation: the committed profile loads into the editor as it
 /// is written; every step's view at plain numbers, written back over it
 /// in either notation, leaves it as written, unit and all; and the edit
@@ -288,14 +289,14 @@ fn every_authored_profile_round_trips_and_an_untouched_apply_is_a_no_op() {
     }
 }
 
-/// **Every verb, arc mode and target form the form's pickers offer
+/// **Every verb, arc mode and target form the editor's pickers offer
 /// comes back as itself.** The rows above go through the document
 /// door, which admits only programs that replay; this one takes each
-/// fresh step the form can put in a row — valid profile or not — to
+/// fresh step the editor can put in a row — valid profile or not — to
 /// its program, holds it through the editor's loader, and writes its
 /// view back over it.
 #[test]
-fn every_verb_the_form_offers_loads_back_as_itself() {
+fn every_verb_the_editor_offers_loads_back_as_itself() {
     let mut steps: Vec<Step<f64>> = Verb::ALL
         .iter()
         .map(|&verb| sketch::fresh_step(verb))
@@ -647,8 +648,8 @@ fn a_driven_argument_loads_as_its_expression() {
 /// and its other steps edit.** `line_to(at_x)` lowers against the pen
 /// its prefix leaves, which only an evaluation replays, so the editor
 /// has no view of it at plain numbers and holds it as written; the
-/// steps beside it are views like any other. Two corners moved, Apply
-/// is one `SetProgram` keeping every step, the pen step among them as
+/// steps beside it are views like any other. Two corners moved, the
+/// edit is one `SetProgram` keeping every step, the pen step among them as
 /// it was written.
 #[test]
 fn a_step_running_to_a_written_coordinate_opens_and_its_neighbours_edit() {
