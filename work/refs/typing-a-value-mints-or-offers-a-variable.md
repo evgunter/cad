@@ -2,13 +2,14 @@
 id: typing-a-value-mints-or-offers-a-variable
 kind: unit
 title: The GUI: a typed value mints an anonymous variable (VR6), the slot offers an existing variable of equal value, and a name is proposed and stored only on commit (VR2)
-status: review
+status: closed
 opened: 2026-10-03
 priority: P0
 cost: M
 branch: intent/gui-variables
 pr: 4247
 refs: [6103]
+closed: 2026-11-02
 ---
 
 Unparked 2026-10-07: INTENT-LITERALS PR C (#4146) put a `VarId` in every
@@ -32,3 +33,11 @@ slot and minted an anonymous variable for a typed value.
   document holds no name until **Name** or Enter commits one `RenameVar`.
 - With it, `viewer-param-vocabulary-names-a-variable` and
   `viewer-value-doors-read-a-defined-variable-as-absent`.
+
+## Closed (2026-11-02, REFS orchestrator)
+
+PR 4247 merged on 2026-10-08 and built the unit; the row was left at
+`review` through INTENT's split. The PR's stated follow-up (an offer
+button names an anonymous variable by its reading slot while other
+viewer surfaces speak its `SpokenVar` tag) is filed as
+`work/chrome/an-offer-button-names-a-variable-unlike-every-other-viewer-surface.md`.
