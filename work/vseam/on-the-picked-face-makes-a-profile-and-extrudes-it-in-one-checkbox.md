@@ -71,3 +71,15 @@ This is the build. Spec: `[placement]` and REFERENCES DM1 as merged.
 
 It crosses editor-core, pncad, pncad-py and the viewer. Cut it into
 units on those owners before dispatch. Re-priced D → H.
+
+## 2026-11-02 — cut into units
+
+- `work/doctail/a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face`
+  (editor-core: the face-frame pose, the drawn-on-face door, the signed
+  depth);
+- `work/lib/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`
+  (pncad and pncad-py), blocked on the first;
+- `work/vseam/on-the-picked-face-draws-the-profile-there` (the viewer,
+  and the final deletion of the fused act), blocked on both.
+
+This row closes with the last.

@@ -103,7 +103,7 @@ inward-offset boundary is embedded" are the same gate.
    subdivision (`window_of`, `Cell`, `Sweep`, `split`,
    `verify_witness`, ~1000 lines of `clearance.rs`) reads only
    `topo::Body<Interval>`, `bvh` and `geom-core`. Only the OUTER half
-   (`clearance_over`, `LeafFold`, `facet_restrict`) touches `Doc`,
+   (`clearance_over_at_dials`, `LeafFold`, `facet_restrict`) touches `Doc`,
    `ParamBox` and `Evaluation`. `topo` already depends on `bvh`.
 2. No scalar remap of a body exists (M10-7 deviation D3: the arenas
    are `SlotMap`s whose keys a rebuild cannot preserve), so an

@@ -280,7 +280,7 @@ impl core::fmt::Display for RadiusEmission {
 ///   [`PieceRole::RunIn`], its [`PieceRole::Arc`] and its
 ///   [`PieceRole::RunOut`], a fused verb's authored arc carriers being
 ///   its runs;
-/// - a complete-loop carrier form (`circle`, `circle_split`) draws
+/// - a complete-loop form (`circle`, `circle_split`, `rectangle`) draws
 ///   [`PieceRole::Piece`] `k` for its segment `k`, and so does a
 ///   section a kernel door builds rather than an author (a tube's).
 ///
@@ -300,7 +300,7 @@ pub enum PieceRole {
     Arc,
     /// The run out of a fillet: the trimmed arrival side.
     RunOut,
-    /// Piece `k` of a complete-loop carrier form, or of a section a
+    /// Piece `k` of a complete-loop form, or of a section a
     /// kernel door builds.
     Piece(u32),
 }
@@ -338,9 +338,14 @@ impl core::fmt::Display for PieceRole {
 /// circle's lowering builds its vertex table at this length.
 pub const CIRCLE_PIECES: u32 = 2;
 
+/// How many pieces a `rectangle` draws: its four sides, bottom, right,
+/// top and left, from the lower-left corner.
+pub const RECTANGLE_PIECES: u32 = 4;
+
 /// **How many indexed pieces a step of `verb` draws**, `n` being a
 /// `circle_split`'s count (read for that verb alone): [`CIRCLE_PIECES`]
-/// for `circle`, `n` for `circle_split`, and `0` for every verb whose
+/// for `circle`, `n` for `circle_split`, [`RECTANGLE_PIECES`] for
+/// `rectangle`, and `0` for every verb whose
 /// roles are not indexed. The one derivation the replay's role check
 /// and an authored step's address both read.
 #[must_use]
@@ -350,6 +355,7 @@ pub fn carrier_pieces(verb: crate::Verb, n: usize) -> u32 {
         // `circle_split` refuses a count past `u32` at construction
         // (`PathError::CircleSplitCount`), so no step holds one.
         crate::Verb::CircleSplit => u32::try_from(n).unwrap_or(u32::MAX),
+        crate::Verb::Rectangle => RECTANGLE_PIECES,
         _ => 0,
     }
 }
@@ -385,9 +391,8 @@ pub enum RoleList {
     /// A fillet, and every fused fillet verb, draws
     /// [`PieceRole::RunIn`], [`PieceRole::Arc`] and [`PieceRole::RunOut`].
     Fillet,
-    /// A complete-loop carrier form draws [`PieceRole::Piece`] `k` for
-    /// each `k` below its piece count ([`CIRCLE_PIECES`] for `circle`,
-    /// `n` for `circle_split`).
+    /// A complete-loop form draws [`PieceRole::Piece`] `k` for each `k`
+    /// below its piece count ([`carrier_pieces`]).
     Carrier,
 }
 
@@ -412,7 +417,7 @@ impl RoleList {
             | V::FarEndTo
             | V::CloseTo => Self::Leg,
             V::Fillet | V::FilletArc | V::ArcFillet | V::ArcFilletArc => Self::Fillet,
-            V::Circle | V::CircleSplit => Self::Carrier,
+            V::Circle | V::CircleSplit | V::Rectangle => Self::Carrier,
         }
     }
 
@@ -541,15 +546,16 @@ impl ReplayStructure {
         }
     }
 
-    /// The record of a COMPLETE-LOOP CARRIER form (`circle`,
-    /// `circle_split`): one authored step that produced every segment
-    /// of the loop, and no fillet resolution anywhere in the form.
+    /// The record of a COMPLETE-LOOP form (`circle`, `circle_split`,
+    /// `rectangle`): one authored step that produced every segment of
+    /// the loop, and no fillet resolution anywhere in the form.
     ///
-    /// `radii` is empty and that is not an omission: a carrier form's
+    /// `radii` is empty and that is not an omission: a circle form's
     /// whole boundary is one arc carrier at the loop's one radius, so
-    /// the answer is per LOOP and needs no per-segment address — the
-    /// shape this record exists for is the chain, where two segments of
-    /// one loop are drawn at two different radii.
+    /// the answer is per LOOP and needs no per-segment address, and a
+    /// rectangle draws no arc — the shape this record exists for is the
+    /// chain, where two segments of one loop are drawn at two different
+    /// radii.
     ///
     /// # Errors
     ///
@@ -1001,8 +1007,10 @@ impl std::error::Error for StructureRefusal {}
 /// that recorded nothing.
 #[derive(Clone, Debug)]
 pub(crate) enum Guide<T: Real> {
-    /// Selecting freely and recording what was selected.
-    Recording(ReplayStructure),
+    /// Selecting freely and recording what was selected — and, where
+    /// the pass draws its construction, what each arc fillet's fit was
+    /// handed.
+    Recording(ReplayStructure, Option<crate::path::program::Drawing<T>>),
     /// Consuming a prior pass's selections and re-verifying each.
     Guided {
         /// The decisions to consume, in resolution order.
@@ -1017,7 +1025,20 @@ pub(crate) enum Guide<T: Real> {
 impl<T: Real> Guide<T> {
     /// A fresh recording guide.
     pub(crate) fn recording() -> Self {
-        Self::Recording(ReplayStructure::default())
+        Self::Recording(ReplayStructure::default(), None)
+    }
+
+    /// A fresh recording guide that also draws into `drawing`.
+    pub(crate) fn drawing(drawing: crate::path::program::Drawing<T>) -> Self {
+        Self::Recording(ReplayStructure::default(), Some(drawing))
+    }
+
+    /// Where this pass draws its construction, if it does.
+    pub(crate) fn drawn(&self) -> Option<&crate::path::program::Drawing<T>> {
+        match self {
+            Self::Recording(_, drawing) => drawing.as_ref(),
+            Self::Guided { .. } => None,
+        }
     }
 
     /// Whether this guide is still consuming a record.
@@ -1049,7 +1070,7 @@ impl<T: Real> Guide<T> {
     /// state in which a lane would start choosing structure for itself.
     pub(crate) fn consume(&mut self) -> Result<Option<(usize, FilletDecision)>, StructureRefusal> {
         match self {
-            Self::Recording(_) => Ok(None),
+            Self::Recording(..) => Ok(None),
             Self::Guided { record, next, .. } => {
                 let i = *next;
                 *next += 1;
@@ -1107,7 +1128,7 @@ impl<T: Real> Guide<T> {
     /// Records one resolution's decisions (a no-op under guidance,
     /// where the decisions came from the record).
     pub(crate) fn record(&mut self, decision: FilletDecision) {
-        if let Self::Recording(s) = self {
+        if let Self::Recording(s, _) = self {
             s.fillets.push(decision);
         }
     }
@@ -1129,7 +1150,7 @@ impl<T: Real> Guide<T> {
         pieces: Vec<Piece>,
     ) -> ReplayStructure {
         match self {
-            Self::Recording(mut s) => {
+            Self::Recording(mut s, _) => {
                 s.steps = spans;
                 s.radii = radii;
                 s.pieces = pieces;

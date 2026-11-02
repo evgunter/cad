@@ -12,7 +12,7 @@ use slotmap::SecondaryMap;
 use super::{PlaneSide, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::boolean::boxes::BoxFrame;
-use crate::entity::{EdgeKey, FaceKey, VertexKey};
+use crate::entity::{EdgeKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::{decide, decide_nonzero};
 use crate::vertex_section::VertexRefusal;
@@ -24,7 +24,8 @@ use crate::vertex_section::VertexRefusal;
 /// arm — `Plane`, `Cylinder` and `Cone`. A face of any other kind
 /// (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed only when the
 /// plane MAY meet it: when its padded reach along the plane's normal
-/// ([`gate_face_reach`]) is not definitely on one side of the plane
+/// (`census::face_reach_in`, the boolean's `FaceBoxRule` at this
+/// body's scalar) is not definitely on one side of the plane
 /// ([`reach_clears`]). Behind a reach that clears, the face has no
 /// vertex on or across the plane, no edge crossing it and no section
 /// through it, so every later stage carries it through whole. The
@@ -60,7 +61,11 @@ pub(super) fn carrier_gate<T: Decide>(
             | geom::SurfaceKind::Torus
             | geom::SurfaceKind::Nurbs
             | geom::SurfaceKind::Approx => {
-                if !reach_clears(gate_face_reach(body, face_key, band, &frame), plane, band) {
+                if !reach_clears(
+                    crate::census::face_reach_in(body, face_key, band, &frame),
+                    plane,
+                    band,
+                ) {
                     return Err(SplitReduceError::CurvedBooleanUnsupported {
                         face: face_key,
                         kind,
@@ -115,89 +120,12 @@ fn edge_clears<T: Decide>(
     reach_clears(crate::census::edge_reach_in(body, edge, frame), plane, band)
         || [e.he_plus, e.he_minus].into_iter().any(|he| {
             let face = body.face_of_linked(he);
-            reach_clears(gate_face_reach(body, face, band, frame), plane, band)
+            reach_clears(
+                crate::census::face_reach_in(body, face, band, frame),
+                plane,
+                band,
+            )
         })
-}
-
-/// K name: a torus face's ring convention `R > r`, the major radius
-/// less the minor (metres), decided before its chart rectangle is read
-/// in closed form.
-const SPLIT_GATE_TORUS_RING: &str = "split_gate_torus_ring";
-
-/// A face's reach for the gate, in `frame`: `census::face_reach_in`
-/// (the boolean's `FaceBoxRule` at this body's scalar), except where a
-/// torus face's chart rectangle is read in closed form
-/// ([`torus_window_reach`]): the rule's box for a torus samples the
-/// rectangle and pays a subdivision charge that reaches thousandths of
-/// the radii.
-///
-/// `face` is read out of the body by the caller (the gate's arena walk,
-/// or a half's face in [`edge_clears`]), so it is proven, and its
-/// surface is a link ([`crate::live::OPERATORS_KEEP_LINKS`]): either
-/// miss panics. `None` is the reach's own: no claim to make.
-fn gate_face_reach<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    band: Band,
-    frame: &BoxFrame<T>,
-) -> Option<(Point3<T>, Point3<T>)> {
-    let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
-    let patch = match body.face_surface_linked(face, f) {
-        geom::Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        } => torus_window_reach(
-            body,
-            face,
-            (*center, *axis, *u_ref),
-            (*major_radius, *minor_radius),
-            band,
-            frame,
-        ),
-        _ => None,
-    };
-    patch.or_else(|| crate::census::face_reach_in(body, face, band, frame))
-}
-
-/// A torus face's chart rectangle, in `frame`: `boxes::torus_rect_extent`
-/// per coordinate over the window the boundary's stored certified
-/// pcurves pin (`boxes::torus_chart_window`, the walk the rule's own
-/// box reads), when the ring convention `R > r` is decided. `None`
-/// when no window reads or the convention is not decided, and the rule's
-/// box stands.
-fn torus_window_reach<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    (center, axis, u_ref): (Point3<T>, geom_core::Vec3<T>, geom_core::Vec3<T>),
-    (major, minor): (T, T),
-    band: Band,
-    frame: &BoxFrame<T>,
-) -> Option<(Point3<T>, Point3<T>)> {
-    if !matches!(
-        decide(SPLIT_GATE_TORUS_RING, Margin::of(major - minor), band),
-        Ok(Sign::Positive)
-    ) {
-        return None;
-    }
-    let window = crate::census::torus_chart_window(body, face, major, minor)?;
-    let (c, ax, ur, vr) = (
-        frame.point(center),
-        frame.vector(axis),
-        frame.vector(u_ref),
-        frame.vector(axis.cross(u_ref)),
-    );
-    let at = |c: T, p: T, q: T, a: T| {
-        crate::boolean::boxes::torus_rect_extent(c, (p, q, a), (major, minor), window)
-    };
-    let ((xl, xh), (yl, yh), (zl, zh)) = (
-        at(c.x, ur.x, vr.x, ax.x),
-        at(c.y, ur.y, vr.y, ax.y),
-        at(c.z, ur.z, vr.z, ax.z),
-    );
-    Some((Point3::new(xl, yl, zl), Point3::new(xh, yh, zh)))
 }
 
 /// K name: an unarmed entity's padded reach, its distance from the
@@ -1363,7 +1291,7 @@ mod torn_rows {
     /// `edge_clears` reads both faces of an edge the plane crosses, and a
     /// half whose loop was dropped panics naming it, where a read of the
     /// miss as no face would clear the edge on its other face alone.
-    /// `gate_face_reach` reads the face's surface, and a dropped one
+    /// The gate's face reach (`census::face_reach_in`) reads the face's surface, and a dropped one
     /// panics naming it, where a read of the miss as no claim to make
     /// would answer the census's box.
     #[test]
@@ -1412,16 +1340,16 @@ mod torn_rows {
         let mut body = fresh();
         let (face, surface) = body.faces().next().map(|(k, f)| (k, f.surface)).unwrap();
         assert!(
-            super::gate_face_reach(&body, face, band, &frame).is_some(),
+            crate::census::face_reach_in(&body, face, band, &frame).is_some(),
             "a sound face has a reach"
         );
         body.surfaces.remove(surface);
         let named = format!("{}'s surface names", EntityId::Face(face));
         assert_torn_op_panics(
-            "gate_face_reach",
+            "face_reach_in",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| super::gate_face_reach(b, face, band, &frame),
+            |b| crate::census::face_reach_in(b, face, band, &frame),
         );
     }
 }
