@@ -858,7 +858,7 @@ fn free_move_words() -> g1::Refusals<DisplayFault> {
 /// Owned rather than borrowed so a caller can hold one across the
 /// mutation that would invalidate a borrow, and because the maps are
 /// a handful of entries.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct DisplayView {
     /// Space → the display frame composed over its drawn bodies. An
     /// in-flight preview overrides that space's committed value.
@@ -872,11 +872,40 @@ pub struct DisplayView {
     /// displaces and marks, and the pick carries rays into.
     pub moved_nodes: BTreeMap<RecipeNodeId, Frame>,
     /// **The committed profile drawn by its edit preview instead**
-    /// ([`DisplayView::previewing`]): the committed-profile lane draws
-    /// no outline of it and the pick offers none, so a cursor meets
-    /// only what is drawn. `None` from [`DisplayState::view`], which
+    /// ([`DisplayView::previewing`]): the committed-profile lane leaves
+    /// its committed outline out, and the pick and the selection marks
+    /// read the preview's outline as that node's
+    /// ([`crate::pickindex::PickIndex::drawn_outline`]), so a cursor
+    /// meets what is drawn. `None` from [`DisplayState::view`], which
     /// knows no editor.
-    pub previewed_profile: Option<RecipeNodeId>,
+    pub previewed_profile: Option<PreviewedProfile>,
+}
+
+/// **A committed profile as its edit preview draws it**: the node, and
+/// the world polyline of each loop the preview draws
+/// ([`crate::sketch::PreviewLoop::drawn_on`]). No loop where the preview
+/// has nothing to draw, and the node is then drawn, and picked, by
+/// nothing.
+#[derive(Debug, Clone)]
+pub struct PreviewedProfile {
+    /// The profile node the edit door holds.
+    pub node: RecipeNodeId,
+    /// One world polyline per drawn loop, in authoring order.
+    pub outline: Vec<Vec<pncad::geom_core::Point3<f64>>>,
+}
+
+impl PreviewedProfile {
+    /// `node` drawn by `preview`, the one the frame's preview lane draws.
+    pub fn of(node: RecipeNodeId, preview: Option<&crate::sketch::ProfilePreview>) -> Self {
+        let outline = preview.map_or_else(Vec::new, |preview| {
+            preview
+                .loops
+                .iter()
+                .map(|lp| lp.drawn_on(&preview.plane))
+                .collect()
+        });
+        Self { node, outline }
+    }
 }
 
 impl DisplayView {
@@ -886,14 +915,19 @@ impl DisplayView {
         Self::default()
     }
 
-    /// This view with `node`'s committed outline drawn by an edit
-    /// preview instead ([`DisplayView::previewed_profile`]).
+    /// This view with a committed profile drawn by its edit preview
+    /// instead ([`DisplayView::previewed_profile`]).
     #[must_use]
-    pub fn previewing(self, node: Option<RecipeNodeId>) -> Self {
+    pub fn previewing(self, profile: Option<PreviewedProfile>) -> Self {
         Self {
-            previewed_profile: node,
+            previewed_profile: profile,
             ..self
         }
+    }
+
+    /// The node [`DisplayView::previewed_profile`] draws by its preview.
+    pub fn previewed_node(&self) -> Option<RecipeNodeId> {
+        self.previewed_profile.as_ref().map(|profile| profile.node)
     }
 
     /// Whether the picture drops body `body` of `node`: a hidden

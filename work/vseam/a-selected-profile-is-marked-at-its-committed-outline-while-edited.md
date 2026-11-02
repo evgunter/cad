@@ -2,8 +2,11 @@
 id: a-selected-profile-is-marked-at-its-committed-outline-while-edited
 kind: issue
 title: a profile edited in place is marked as selected at its committed outline, which the pick no longer offers
-status: open
+status: closed
 opened: 2026-11-02
+closed: 2026-11-02
+branch: vseam/an-edited-profile-is-not-picked-by-its-old-outline
+pr: 6352
 priority: P3
 cost: E
 ---
@@ -29,3 +32,12 @@ that moment. The question is what a selected profile under edit is
 marked by: its committed outline (today), the preview's loops, or
 nothing beyond the preview tint. `edge_overlay` already takes the
 `DisplayView`, so whichever answer is chosen reads the same exclusion.
+
+## Closed
+
+Closed 2026-11-02 by PR 6352. `marks::edge_overlay` now marks a
+profile by `PickIndex::drawn_outline(node, display)`. That is the edit
+preview's outline while `DisplayView::previewed_profile` names the node,
+and the committed outline otherwise, so a selected profile under edit is
+marked where its preview draws it. Row:
+`marks::tests::a_profile_previewed_in_place_is_marked_by_its_preview`.

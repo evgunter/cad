@@ -2205,9 +2205,17 @@ impl eframe::App for ViewerApp {
             profile_constructions.create = None;
         }
         // The committed node the edit door is previewing in its place,
-        // which the committed-profile lane and the pick both leave out.
-        let display =
-            display.previewing(self.drafts.edited_in_place(profile_previews.edit.as_ref()));
+        // with what that preview draws: the committed-profile lane
+        // leaves the node out, and the pick and the marks read it by
+        // the preview's outline.
+        let display = display.previewing(
+            self.drafts
+                .edited_in_place(profile_previews.edit.as_ref())
+                .map(|node| {
+                    let drawn = profile_previews.edit.as_ref().and_then(|p| p.as_ref().ok());
+                    crate::display::PreviewedProfile::of(node, drawn)
+                }),
+        );
         let mut profile_drawn = ProfileDoors::<bool>::default();
         // **Zeroed here, every frame: after the toolbar has read last
         // frame's value and before the panes draw.** A frame the
@@ -10245,7 +10253,7 @@ mod properties_pane_tests {
     }
 
     /// **A profile the edit door previews in place is picked by what
-    /// is drawn, not by its committed outline.** A lone rectangle is
+    /// is drawn: its preview, as that profile.** A lone rectangle is
     /// selected, which opens its edit door, and the draft moves its
     /// right side 10 mm left: the committed lane leaves the old outline
     /// out and the preview draws the moved one.
@@ -10253,11 +10261,12 @@ mod properties_pane_tests {
     /// - The pointer resting on the old right side hovers nothing, and
     ///   a click there selects nothing. Red if the pick still offers
     ///   the outline the lane does not draw.
-    /// - The pointer on the preview's right side hovers nothing and a
-    ///   click there selects nothing: a preview is not in the document,
-    ///   so it is not picked.
+    /// - The pointer on the preview's right side hovers the profile,
+    ///   and a click there keeps it selected with its draft still
+    ///   previewed in place. Red if the preview is not offered as its
+    ///   node, where the click would deselect and drop the draft.
     #[test]
-    fn a_profile_edited_in_place_is_not_picked_by_its_undrawn_outline() {
+    fn a_profile_edited_in_place_is_picked_by_its_preview_not_its_old_outline() {
         use crate::session::Hovered;
         use pncad::geom_core::Point2;
         use pncad::profile::{Step, Target};
@@ -10305,13 +10314,20 @@ mod properties_pane_tests {
                 );
             }
             driven.quiet();
-            assert!(
-                driven.app.drafts.profile_edit.is_some(),
-                "the moved draft is still held"
-            );
+        };
+        // What the edit door holds: its node and the moved right side.
+        let held = |driven: &Driven| {
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .map(|edit| (edit.node, edit.programs().expect("the draft lowers")))
         };
 
         edit_in_place(&mut driven);
+        let moved = held(&driven);
+        assert!(moved.is_some(), "the moved draft is held");
         driven.hovered(old_side);
         assert_eq!(
             driven.app.session.hover(),
@@ -10321,24 +10337,28 @@ mod properties_pane_tests {
         driven.hovered(preview_side);
         assert_eq!(
             driven.app.session.hover(),
-            None,
-            "the preview's right side hovers nothing"
+            Some(&Hovered::Profile(profile)),
+            "the preview's right side hovers the profile it previews"
         );
+        driven.click_at(preview_side);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(profile),
+            "a click on the preview's right side keeps the profile selected"
+        );
+        assert_eq!(
+            held(&driven),
+            moved,
+            "and keeps its draft, moved side and all"
+        );
+
         driven.click_at(old_side);
         driven.quiet();
         assert_eq!(
             driven.app.session.selection(),
             &Selection::None,
             "a click on the old right side selects nothing"
-        );
-
-        edit_in_place(&mut driven);
-        driven.click_at(preview_side);
-        driven.quiet();
-        assert_eq!(
-            driven.app.session.selection(),
-            &Selection::None,
-            "a click on the preview's right side selects nothing"
         );
     }
 

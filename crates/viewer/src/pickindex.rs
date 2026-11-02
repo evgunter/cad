@@ -2392,8 +2392,9 @@ impl PickIndex {
     }
 
     /// **The nearest drawn line within the pick radius that the solid
-    /// does not hide** — a body edge or a committed profile's outline,
-    /// whichever `lines` offers — or `None`. See
+    /// does not hide** — a body edge or a profile's drawn outline
+    /// ([`PickIndex::drawn_outline`]), whichever `lines` offers — or
+    /// `None`. See
     /// [`PickIndex::edge_at_for`] for the whole argument; this is the
     /// one walk both kinds of line go through, so they meet one
     /// distance contest, one tie rule and one occlusion test.
@@ -2436,17 +2437,11 @@ impl PickIndex {
         // measuring it would need clipping, and a line running through
         // the eye is not something a cursor is aiming at.
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
+        let outlines = self.drawn_outlines(display);
         if lines.outlines {
-            // An outline the picture draws by its edit preview instead
-            // is not on screen, so it is not offered.
-            let drawn = self
-                .outlines
-                .iter()
-                .enumerate()
-                .filter(|(_, outline)| display.previewed_profile != Some(outline.node));
-            for (rank, outline) in drawn {
+            for (rank, (_, loops)) in outlines.iter().enumerate() {
                 let mut best: Option<Candidate> = None;
-                for (lp, points) in outline.loops.iter().enumerate() {
+                for (lp, points) in loops.iter().enumerate() {
                     let projected = points
                         .iter()
                         .map(|&world| project(world))
@@ -2566,7 +2561,7 @@ impl PickIndex {
                 continue;
             }
             return Ok(Some(match line {
-                Line::Outline(rank) => Near::Profile(self.outlines[rank].node),
+                Line::Outline(rank) => Near::Profile(outlines[rank].0),
                 Line::Edge(rank) => {
                     let part = bodies[rank];
                     let id = EdgeId {
@@ -2602,6 +2597,43 @@ impl PickIndex {
             .iter()
             .find(|outline| outline.node == node)
             .map_or(&[], |outline| outline.loops.as_slice())
+    }
+
+    /// **The outline the picture draws of profile `node`**: the edit
+    /// preview's where `display` says the node is drawn by one
+    /// ([`DisplayView::previewed_profile`]), else its committed
+    /// outline ([`PickIndex::profile_outline`]). What the pick measures
+    /// a cursor against and what the profile marks light.
+    pub fn drawn_outline<'a>(
+        &'a self,
+        node: RecipeNodeId,
+        display: &'a DisplayView,
+    ) -> &'a [Vec<Point3<f64>>] {
+        match &display.previewed_profile {
+            Some(previewed) if previewed.node == node => &previewed.outline,
+            _ => self.profile_outline(node),
+        }
+    }
+
+    /// **Every profile outline the picture draws**, by node
+    /// ([`PickIndex::drawn_outline`]): the committed ones in document
+    /// order, the previewed node's in its committed one's place, or
+    /// last where the index holds no committed outline of it.
+    fn drawn_outlines<'a>(
+        &'a self,
+        display: &'a DisplayView,
+    ) -> Vec<(RecipeNodeId, &'a [Vec<Point3<f64>>])> {
+        let mut drawn: Vec<(RecipeNodeId, &[Vec<Point3<f64>>])> = self
+            .outlines
+            .iter()
+            .map(|outline| (outline.node, self.drawn_outline(outline.node, display)))
+            .collect();
+        if let Some(previewed) = &display.previewed_profile
+            && !drawn.iter().any(|(node, _)| *node == previewed.node)
+        {
+            drawn.push((previewed.node, previewed.outline.as_slice()));
+        }
+        drawn
     }
 
     /// **The whole cursor path, as one function**: a cursor action

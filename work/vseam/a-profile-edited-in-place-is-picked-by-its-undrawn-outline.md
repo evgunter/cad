@@ -33,11 +33,19 @@ index per edit.
 
 ## Closed
 
-Closed 2026-11-02 by PR 6352. The exclusion is one value,
-`display::DisplayView::previewed_profile`, which the frame sets from
-`Drafts::edited_in_place`. The committed-profile lane passes it to
-`sketch::committed`'s `except`, and `PickIndex::near` skips that
-node's outline. Row:
-`app::properties_pane_tests::a_profile_edited_in_place_is_not_picked_by_its_undrawn_outline`.
+Closed 2026-11-02 by PR 6352. `display::DisplayView::previewed_profile`
+carries the node the edit door previews in place together with the
+world outline of that preview, which the frame builds from the preview
+it already took (`display::PreviewedProfile::of`). The committed-profile
+lane passes the node to `sketch::committed`'s `except`.
+`PickIndex::drawn_outline` gives the preview's outline for that node and
+the committed one for every other node. `PickIndex::near` and
+`marks::edge_overlay` both read it. So the old outline is neither drawn
+nor picked, and the preview is picked and marked as its profile. A
+click on the preview keeps the selection and the draft. Rows:
+`app::properties_pane_tests::a_profile_edited_in_place_is_picked_by_its_preview_not_its_old_outline`
+and `marks::tests::a_profile_previewed_in_place_is_marked_by_its_preview`.
 
-Residue: `a-selected-profile-is-marked-at-its-committed-outline-while-edited`.
+The selected-mark finding filed with the first version of this PR,
+`a-selected-profile-is-marked-at-its-committed-outline-while-edited`,
+was the same fix and is closed by the same PR.

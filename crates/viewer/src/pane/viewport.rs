@@ -1542,7 +1542,7 @@ impl ViewerBehavior<'_> {
                 doc,
                 evaluation,
                 self.delta.get(),
-                self.display.previewed_profile,
+                self.display.previewed_node(),
             );
         }
         profiles
