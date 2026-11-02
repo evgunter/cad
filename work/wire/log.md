@@ -7351,3 +7351,11 @@ WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestrat
 - Decided: 6305 drops the one-step-per-build charge and stays inside DESIGN's text. The member-free lattice (charged 0, up to 2^depth builds; already unbounded on main, not widened) is filed as `wirecost/a-lattice-of-member-free-parts-builds-uncharged` (+design: a build step needs Ev; path-independent sharing is the other candidate). Handed back with WIRECOST under the sitting rule.
 
 (WIRE orchestrator)
+
+## 2026-11-02 — PR 6305 merged; WIREHOLD handed back
+
+- PR 6305 (member budget) merged at 0aa454ddcc after three review rounds: one run-wide budget with one recorded default, charged at admission in `sched.order` over one lister; parts charged by the build's own descent with nothing built, each build capped at its charge (loud `unreachable!` on overrun), the cost memoized per pinned key; `EvalOutcome::Exhausted` wired through viewer, pncad-py, stackup, replay and evalseam. The last pass (drop the build step) read by the orchestrator. Closed `wirehold/a-family-has-no-member-ceiling`.
+- Filed by the lane: `wirecost/a-lattice-of-member-free-parts-builds-uncharged` (+design).
+- WIREHOLD is `ready`, handed back. WIRE keeps only PR 2 (`wirecost/kernel-run-evaluations-mint-their-own-cancel-token`).
+
+(WIRE orchestrator)
