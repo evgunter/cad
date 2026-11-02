@@ -2043,10 +2043,17 @@ rows. No create path holds a value field, stages an evaluation, or
 previews a node that is not yet inserted; the node's own evaluation
 is its preview.
 
-- **Undo reaches what was done while creating.** The insert is one
-  undo step and every later edit is another. The profile and placement
-  editors hold a draft and commit one edit per Apply, so there the
-  grain is the Apply.
+- **Undo reaches what was done while creating, and edits land live**
+  (Ev, on the PR that wrote this section). The insert is one undo step
+  and every later edit is another. The profile and placement editors
+  commit each change as the person makes it, when the edited program or
+  bundle passes the document's edit door: a field when it is committed
+  (Enter, focus leaving it, a drag released), a row added, removed or
+  re-ordered. A change the door refuses is not applied. The editor
+  keeps it as a draft over the document, shows the door's refusal, and
+  commits the draft whole on the first later change that makes it pass.
+  So an unclosed chain is a draft that waits, never a document state,
+  and nothing waits on an Apply button.
 - **No node is "awaiting values".** A default is a value. A default
   that refuses shows its refusal on the node's badge, like any other.
 - **New profile** inserts a profile with no loops, on a picked face's
