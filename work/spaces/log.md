@@ -257,3 +257,15 @@ Newest entries at the bottom; the tail is the program's live status.
 - 2026-11-02 — PR 6296 FULL review: APPROVE-WITH-FIXES, no MAJOR. The node check, read/write faults and the duplicate refusal had no row (surviving mutants); the Write notice untrue when an old layout survives a failed write/remove; two rules (in-session prune vs restore) for one question. Adjudication: keep IDENTITY DI5 as ratified (keyed by space) and save a witness node per frame, so one check serves prune and restore; the layout takes prefs' tolerant posture and store. Fix pass dispatched. (SPACES orchestrator)
 - 2026-11-02 — `the-add-to-the-product-door` closed with `the-products-recourse-names-a-door-only-a-tree-click-reaches` (PR 6279): every review item taken; editor-core's `unused` recourse left as it was. (SPACES orchestrator)
 - 2026-11-02 — PR 6279 merged (`209b195b`). Left at P0/P1: `display-frames-are-not-saved-with-the-document` (PR 6296, fix pass in flight). (SPACES orchestrator)
+- 2026-11-02 — `display-frames-are-not-saved-with-the-document` closed
+  (PR 6296). **Sitting ends: every P0 and P1 row is done** (the two P0s and
+  five P1s of the opening slate, through PRs 6208, 6209, 6265, 6269, 6270,
+  6279, 6296). Track handed back `ready`. The tail is P2/P3 rows the
+  lanes filed: `a-pick-read-takes-the-whole-copy`,
+  `the-projection-tool-writes-a-member-read-a-pick-already-seats`,
+  `a-family-member-read-alone-has-no-toggle-of-its-own`,
+  `free-move-refuses-a-body-the-author-showed`,
+  `whether-a-body-only-shown-is-tinted-outside-the-product` (design: a
+  question for Ev — whether a body drawn only by the author's show
+  carries the outside-the-product tint), and
+  `the-display-budget-does-not-price-shown-bodies` (P3). (SPACES orchestrator)
