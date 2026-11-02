@@ -6,10 +6,10 @@
 //! the kernel. The first rows are cuts across a sunk boss whose chords
 //! cross or run along the line where two glued wall faces met, which
 //! name as pieces of the seam their merged face's parent makes (N3), the
-//! same wherever the cut crosses it; then a union whose end pass still
-//! refuses under the bug's words, the one known exception, pinned with
-//! the row that owns it. The next three are constructions that once
-//! refused and now build: a merged wall whose edges are pieces of member
+//! same wherever the cut crosses it; then unions whose members glue a
+//! wall only together, which refuse as the missing rule N2's third
+//! clause names. The next three are constructions that once refused and
+//! now build: a merged wall whose edges are pieces of member
 //! edges, a block sunk flush inside another, and a rim in several
 //! pieces. The last three run members whose
 //! coincident faces overlap in area, under a covering block, in every
@@ -332,61 +332,101 @@ fn volume(body: &topo::Body<f64>) -> f64 {
     .volume
 }
 
-/// **A bar through a sunk boss passes the chord rule and refuses at the
-/// union's parents.**
-///
-/// A plate and a cylinder boss sunk into it, its wall drawn as two
-/// semicircular pieces, joined by a union; a bar along y through the
-/// boss, joined to them by a second union. The bar's walls cut each wall
-/// piece in two, and the judgement of the two members merges the two
-/// cosurface pieces on each side of the bar, so each merged wall face
-/// holds both boss pieces. The chord where a bar wall meets it cites the
-/// merged wall's parent, as the sunk-boss slot's does
-/// (`emit_union_borders::a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`).
-/// The union's end pass then links member faces only across the two
-/// members a judgement holds, so the two faces of the first member it
-/// merged are two parents in one finished face, and that refuses as an
-/// emission bug: the one legal recipe here told the kernel is broken,
-/// pinned as the known exception. Owned by
-/// `work/refs/a-union-judgement-that-merges-two-faces-of-one-member-links-neither.md`,
-/// whose fix flips this row.
+/// `members`' union refuses, in each order of `orders`, as the missing
+/// rule for faces the members glued only together, naming both boss wall
+/// pieces among the member faces it lists.
+fn refuses_as_unjudged_glue(
+    label: &str,
+    doc: &ProfileDoc,
+    boss: RecipeNodeId,
+    orders: &[Vec<RecipeNodeId>],
+) {
+    for order in orders {
+        let (docx, union) = crate::fixture::union_over(doc.clone(), order);
+        let ev = run(&docx);
+        let Some(NodeErrorKind::Naming(NamingError::UnsupportedUnjudgedGlue { faces, .. })) =
+            failure(&ev, union)
+        else {
+            panic!(
+                "{label} {order:?}: the union refuses as an unjudged glue: {:?}",
+                failure(&ev, union)
+            );
+        };
+        let listed: Vec<String> = faces.iter().map(|(_, name)| name.to_string()).collect();
+        for piece in crate::emit_union_borders::wall_pieces(&ev, boss) {
+            assert!(
+                listed.iter().any(|n| n.contains(&piece)),
+                "{label} {order:?}: the refusal lists boss wall piece {piece}: {listed:?}"
+            );
+        }
+    }
+}
+
+/// Every order of `members`.
+fn orders_of(members: &[RecipeNodeId]) -> Vec<Vec<RecipeNodeId>> {
+    orders(members.len())
+        .into_iter()
+        .map(|order| order.into_iter().map(|i| members[i]).collect())
+        .collect()
+}
+
+/// **A flat union of plate, boss and bar glues the boss wall only
+/// together.** The members of the bar row in
+/// `emit_union_borders::a_bar_through_a_sunk_boss_names_its_merged_wall_as_the_slot_does`,
+/// as one three-member union: the plate covers the boss wall below
+/// z = 1 and the bar above z = 0.8, so only the two together open the
+/// wall's ring, and no pairwise judgement merges its two pieces. The
+/// fold glues them, which N2's third clause links by the area each
+/// holds, so every order refuses as that missing rule.
 #[test]
-fn a_bar_through_a_sunk_boss_refuses_at_the_unions_parents() {
-    let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
-    let (doc, boss) = crate::emit_union_borders::cylinder(
-        doc,
-        plate,
-        [1.5, 1.5, 0.5],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        1.0,
-    );
+fn a_flat_union_of_plate_boss_and_bar_refuses_as_unjudged_glue() {
+    let doc = ProfileDoc::empty_derived("unjudged-glue-flat", Tol::witness());
+    let (doc, [plate, boss]) = plate_and_boss(doc);
     let (doc, bar) = block_on(doc, plate, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
-    let (doc, joined) = crate::fixture::insert(
+    refuses_as_unjudged_glue("flat", &doc, boss, &orders_of(&[plate, boss, bar]));
+}
+
+/// **Two blocks that open the boss wall only together.** The plate and
+/// boss joined, and two blocks over the boss's north wall piece: `lo`
+/// x 1.35 to 1.65, y 1.6 to 2.0, z 0.9 to 1.3 and `hi` x 1.4 to 1.6,
+/// y 1.65 to 2.1, z 1.2 to 1.6. Neither alone cuts the wall from the
+/// plate to the boss's top, so neither judgement opens its ring; the
+/// two together do, and the fold glues the two wall pieces no pair
+/// glued, in every order.
+#[test]
+fn two_blocks_that_open_a_sunk_boss_wall_only_together_refuse_as_unjudged_glue() {
+    let doc = ProfileDoc::empty_derived("unjudged-glue-lo-hi", Tol::witness());
+    let (doc, [plate, boss]) = plate_and_boss(doc);
+    let (doc, joined) = insert(
         doc,
-        editor_core::Node::Union {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+        Node::Union {
+            members: Bodies::Spelled(vec![plate.into(), boss.into()]),
         },
     );
-    let (doc, barred) = crate::fixture::insert(
+    let (doc, lo) = block_on(doc, plate, (1.35, 1.65), (1.6, 2.0), 0.9, 0.4);
+    let (doc, hi) = block_on(doc, plate, (1.4, 1.6), (1.65, 2.1), 1.2, 0.4);
+    refuses_as_unjudged_glue("lo, hi", &doc, boss, &orders_of(&[joined, lo, hi]));
+}
+
+/// **Two bars that sever the boss wall only together.** The plate and
+/// boss joined, and two bars x 1.4 to 1.6, y 1.5 to 2.5 through the
+/// north wall piece, one from z 0.8 to 1.25 and one from z 1.2 to 2.0:
+/// each alone leaves a band of the wall whole across it, and the two
+/// together cut it from the plate to the boss's top, so only the fold
+/// opens the wall's ring, in every order.
+#[test]
+fn two_bars_that_sever_a_sunk_boss_wall_only_together_refuse_as_unjudged_glue() {
+    let doc = ProfileDoc::empty_derived("unjudged-glue-bars", Tol::witness());
+    let (doc, [plate, boss]) = plate_and_boss(doc);
+    let (doc, joined) = insert(
         doc,
-        editor_core::Node::Union {
-            members: editor_core::Bodies::Spelled(vec![joined.into(), bar.into()]),
+        Node::Union {
+            members: Bodies::Spelled(vec![plate.into(), boss.into()]),
         },
     );
-    let ev = run(&doc);
-    assert!(failure(&ev, joined).is_none(), "the boss joins the plate");
-    assert!(
-        matches!(
-            failure(&ev, barred),
-            Some(NodeErrorKind::Naming(NamingError::Emission {
-                what: "a union's face descends from member faces no judged pair links"
-            }))
-        ),
-        "the union's parents do not link the boss's two pieces: {:?}",
-        failure(&ev, barred)
-    );
+    let (doc, low) = block_on(doc, plate, (1.4, 1.6), (1.5, 2.5), 0.8, 0.45);
+    let (doc, high) = block_on(doc, plate, (1.4, 1.6), (1.5, 2.5), 1.2, 0.8);
+    refuses_as_unjudged_glue("bars", &doc, boss, &orders_of(&[joined, low, high]));
 }
 
 /// **A split piece the fold's kills cut off is a piece, not a chord.**

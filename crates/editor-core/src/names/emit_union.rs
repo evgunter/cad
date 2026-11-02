@@ -2035,12 +2035,12 @@ type MemberFace = (usize, topo::FaceKey);
 /// each classified beside a point against the other member's closed body
 /// (N2's senses).
 ///
-/// A judgement is the two members' own union, so a pair it merged
-/// (`BooleanNaming::merge_groups`) or whose region it held through the
-/// other face (`BooleanNaming::substituted`) is one its margins decided one
-/// carrier (declared or not, D10), and that lies with one orientation:
-/// the kernel merges and covers no other. A certified pair the judgement
-/// never brought together is in neither record and links nothing.
+/// A judgement is the two members' own union. Every member face one of
+/// its merged faces holds is linked, faces of one member included
+/// (`BooleanNaming::merge_groups`), and so is each pair whose region it
+/// held through the other face (`BooleanNaming::substituted`). A
+/// certified pair no judgement brought together is in neither record and
+/// links nothing.
 pub(crate) struct Links<T: geom_core::Real> {
     pairs: Vec<(MemberFace, MemberFace)>,
     classes: Vec<PairClass<T>>,
@@ -2127,10 +2127,9 @@ impl<T: geom_core::Real> Links<T> {
             for &g in faces {
                 held.insert(member(descent.result_face(g)));
             }
-            for &x in held.iter().filter(|m| m.0 == a) {
-                for &y in held.iter().filter(|m| m.0 == b) {
-                    self.pairs.push((x, y));
-                }
+            let mut held = held.into_iter();
+            if let Some(first) = held.next() {
+                self.pairs.extend(held.map(|y| (first, y)));
             }
         }
         for s in &naming.substituted {
@@ -2252,8 +2251,9 @@ impl<'l> Fold<'l> {
 /// face. A finished face takes the parent of the member faces it
 /// descends from, read by entity off the fold ([`Fold`]); which faces a
 /// fold step merged, kept or discarded does not enter, and a finished
-/// face descending from faces of two parents refuses. Tied member faces
-/// are separate parents spelled alike.
+/// face descending from faces of two parents refuses
+/// ([`NamingError::UnsupportedUnjudgedGlue`]). Tied member faces are
+/// separate parents spelled alike.
 struct Parents {
     /// Finished face → its parent.
     of_face: BTreeMap<topo::FaceKey, usize>,
@@ -2315,26 +2315,46 @@ impl Parents {
                 link.insert(m);
             }
         }
-        // What the fold merged does not link: a finished face whose member
-        // faces are of several parents has no one parent to take. Two
-        // faces of DIFFERENT members a fold step merged meet in their own
-        // pair's union too (a union only adds material, and the pair is
-        // judged under the same declarations), and that judgement merges
-        // or covers them. Two faces of ONE member a judgement merges link
-        // nothing: `Links::judged` records member-a × member-b pairs
-        // only. A legal recipe reaches that (a bar through a sunk boss's
-        // two wall pieces,
-        // `wire_legal_union_refusals::a_bar_through_a_sunk_boss_refuses_at_the_unions_parents`)
-        // and refuses here under the bug's words; what such a pair is
-        // is `work/refs/a-union-judgement-that-merges-two-faces-of-one-member-links-neither.md`'s.
-        // A curved run the pair leaves unmerged (`merge_skipped`), the
-        // fold, holding no fewer of its faces, leaves unmerged too.
-        for (_, from, _) in &rows {
+        // A member face's member and its name in that member's table.
+        let named = |(m, f): MemberFace| {
+            let member = members.get(m).unwrap_or_else(|| {
+                unreachable!(
+                    "union {union:?} links member face {f:?} under index {m} of {} members: \
+                     every index is a member's place in the fold (`Fold`, `Links::judged`)",
+                    members.len()
+                )
+            });
+            let of = member
+                .table
+                .name_ref_of(&ent(0, EntityKey::Face(f)))
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "member {:?}'s face {f:?}, which union {union:?} holds, is unnamed in \
+                         its table: a member's table is total over its body (`check_total`)",
+                        member.read
+                    )
+                });
+            (member, of)
+        };
+        // A finished face whose member faces no judgement links was
+        // glued by the members only together. N2's third clause links
+        // such faces by the area each holds, which the fold's lineage
+        // (it can list a member face the face holds no area of) does not
+        // read, so the face refuses here, before any edge or vertex pass
+        // reads its parents.
+        for &(f, from, _) in &rows {
             let mut roots = from.iter().map(|&m| link.root(m));
             let first = roots.next();
             if roots.any(|r| Some(r) != first) {
-                return Err(NamingError::Emission {
-                    what: "a union's face descends from member faces no judged pair links",
+                return Err(NamingError::UnsupportedUnjudgedGlue {
+                    face: f,
+                    faces: from
+                        .iter()
+                        .map(|&m| {
+                            let (member, of) = named(m);
+                            (member.read, of.name().clone())
+                        })
+                        .collect(),
                 });
             }
         }
@@ -2351,25 +2371,9 @@ impl Parents {
         for (r, entities) in classes {
             let mut from = BTreeSet::new();
             let mut tied = false;
-            for &(m, f) in &entities {
-                let member = members.get(m).unwrap_or_else(|| {
-                    unreachable!(
-                        "union {union:?} links member face {f:?} under index {m} of {} members: \
-                         every index is a member's place in the fold (`Fold`, `Links::judged`)",
-                        members.len()
-                    )
-                });
-                let of = member
-                    .table
-                    .name_ref_of(&ent(0, EntityKey::Face(f)))
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "member {:?}'s face {f:?}, which union {union:?} holds, is unnamed in \
-                             its table: a member's table is total over its body (`check_total`)",
-                            member.read
-                        )
-                    })
-                    .clone();
+            for &m in &entities {
+                let (member, of) = named(m);
+                let of = of.clone();
                 tied |= member.table.is_tied(&of);
                 from.insert((member.read, of));
             }

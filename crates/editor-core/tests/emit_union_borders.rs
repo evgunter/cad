@@ -1652,27 +1652,7 @@ fn assert_wall_chords_cite_the_merged_parent(
 ) {
     use crate::fixture::{ends, point};
     let on_wall = |p: geom_core::Point3<f64>| ((p.x - 1.5).hypot(p.y - 1.5) - 0.3).abs() < 1e-9;
-    let boss_body = body_of(ev, boss);
-    let pieces: Vec<String> = table(ev, boss)
-        .iter()
-        .filter_map(|(name, entry)| match entry {
-            Entry::Unique(ent) => match ent.key {
-                EntityKey::Face(f)
-                    if topo::query::face_surface_kind(&boss_body, f)
-                        == Some(geom::SurfaceKind::Cylinder) =>
-                {
-                    Some(name.to_string())
-                }
-                _ => None,
-            },
-            _ => None,
-        })
-        .collect();
-    assert_eq!(
-        pieces.len(),
-        2,
-        "{label}: the boss wall is two pieces: {pieces:?}"
-    );
+    let pieces = wall_pieces(ev, boss);
     let body = body_of(ev, out);
     let mut seams: BTreeMap<RoleSeg, usize> = BTreeMap::new();
     for (name, entry) in table(ev, out).iter() {
@@ -1777,6 +1757,188 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
             chains.values().any(|&n| n >= 2),
             "{label}: some chain is two or more pieces told apart by their ends: {chains:?}"
         );
+    }
+}
+
+/// The plate `[0,3]² × [0,1]` and the sunk boss of [`cylinder`] joined
+/// by a two-member union: the document, the plate, the boss and the
+/// union.
+fn sunk_boss_joined() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("sunk-boss-joined", Tol::witness());
+    let (doc, [plate, boss]) = crate::wire_legal_union_refusals::plate_and_boss(doc);
+    let (doc, joined) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+        },
+    );
+    (doc, plate, boss, joined)
+}
+
+/// The boss's two wall pieces, as its own table names them, said by tag.
+pub(crate) fn wall_pieces(ev: &Evaluation<f64>, boss: RecipeNodeId) -> [String; 2] {
+    let boss_body = body_of(ev, boss);
+    let pieces: Vec<String> = table(ev, boss)
+        .iter()
+        .filter_map(|(name, entry)| match entry {
+            Entry::Unique(ent) => match ent.key {
+                EntityKey::Face(f)
+                    if topo::query::face_surface_kind(&boss_body, f)
+                        == Some(geom::SurfaceKind::Cylinder) =>
+                {
+                    Some(name.to_string())
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    let [p0, p1] = pieces.as_slice() else {
+        panic!("the boss wall is two pieces: {pieces:?}");
+    };
+    [p0.clone(), p1.clone()]
+}
+
+/// `node`'s face names, said by tag with `node`'s own tag replaced by
+/// `NODE`, so two nodes' tables compare modulo their ids.
+fn face_names_modulo(ev: &Evaluation<f64>, node: RecipeNodeId) -> BTreeSet<String> {
+    let tag = node.to_string();
+    table(ev, node)
+        .iter()
+        .filter(|(name, _)| name.kind == EntityKind::Face)
+        .map(|(name, _)| name.to_string().replace(&tag, "NODE"))
+        .collect()
+}
+
+/// **A bar through a sunk boss names its merged wall as the slot does.**
+///
+/// The plate and sunk boss joined by a union; a bar x 1.4 to 1.6,
+/// y 0.5 to 2.5, z 0.8 to 2.0 joined to that union by a second union.
+/// The bar cuts each wall piece in two, and the judgement of the two
+/// members merges the two cosurface pieces on each side of the bar:
+/// two faces of the FIRST member, which that merge links (N2's first
+/// clause), so the wall is one parent held as two faces. The union
+/// names, alike in both member orders, and its faces are the
+/// subtract's of the same bar (the sunk-boss slot of
+/// [`a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`])
+/// modulo the two nodes' ids, but for the bar's cap each keeps: the
+/// union its top, the slot its floor. Each chord where a bar wall meets
+/// the merged wall cites its parent.
+#[test]
+fn a_bar_through_a_sunk_boss_names_its_merged_wall_as_the_slot_does() {
+    let (doc, plate, boss, joined) = sunk_boss_joined();
+    let (doc, bar) = block_on(doc, plate, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
+    let (sub_doc, cut) = insert(
+        doc.clone(),
+        Node::Subtract {
+            from: joined.into(),
+            tool: bar.into(),
+        },
+    );
+    let sub_ev = run(&sub_doc);
+    assert!(
+        failure(&sub_ev, cut).is_none(),
+        "the slot names: {:?}",
+        failure(&sub_ev, cut)
+    );
+    let slot = face_names_modulo(&sub_ev, cut);
+    let mut tables = Vec::new();
+    for order in [[joined, bar], [bar, joined]] {
+        let (docx, barred) = crate::fixture::union_over(doc.clone(), &order);
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, barred).is_none(),
+            "{order:?}: the barred union names: {:?}",
+            failure(&ev, barred)
+        );
+        assert_wall_chords_cite_the_merged_parent(&format!("{order:?}"), &ev, boss, barred, 4);
+        let union = face_names_modulo(&ev, barred);
+        let only_union: Vec<&String> = union.difference(&slot).collect();
+        let only_slot: Vec<&String> = slot.difference(&union).collect();
+        assert!(
+            matches!(
+                (only_union.as_slice(), only_slot.as_slice()),
+                ([top], [floor]) if top.starts_with("the end cap of node ")
+                    && **top == floor.replacen("the start cap", "the end cap", 1)
+            ),
+            "{order:?}: the faces one names and the other does not are the bar's top in the \
+             union and its floor in the slot: {only_union:?} against {only_slot:?}"
+        );
+        tables.push(union);
+    }
+    assert_eq!(tables[0], tables[1], "the two member orders name alike");
+}
+
+/// **A half-block intersect of a sunk boss names its wall as one merged
+/// face.** The plate and sunk boss joined by a union, intersected with a
+/// block x 0 to 1.5, z 0.5 to 2.0: the block's wall at x = 1.5 opens the
+/// boss wall's ring, and the judgement merges the two wall pieces' left
+/// halves, two faces of one member, into one half-cylinder. That merge
+/// links them (N2's first clause), so the face is cited by the `Merged`
+/// parent of both pieces, in both member orders.
+#[test]
+fn a_half_block_intersect_of_a_sunk_boss_names_its_wall_as_one_merged_face() {
+    let (doc, plate, boss, joined) = sunk_boss_joined();
+    let (doc, half) = block_on(doc, plate, (0.0, 1.5), (0.0, 3.0), 0.5, 1.5);
+    for order in [[joined, half], [half, joined]] {
+        let (docx, both) = insert(
+            doc.clone(),
+            Node::Intersect {
+                members: editor_core::Bodies::Spelled(order.iter().map(|&m| m.into()).collect()),
+            },
+        );
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, both).is_none(),
+            "{order:?}: the intersect names: {:?}",
+            failure(&ev, both)
+        );
+        let pieces = wall_pieces(&ev, boss);
+        let citing: Vec<(String, usize)> = face_names_modulo(&ev, both)
+            .into_iter()
+            .map(|n| {
+                let cites = pieces.iter().filter(|p| n.contains(p.as_str())).count();
+                (n, cites)
+            })
+            .filter(|(_, cites)| *cites > 0)
+            .collect();
+        assert!(
+            matches!(citing.as_slice(), [(name, 2)] if name.starts_with("the merged face of")),
+            "{order:?}: one face cites the wall, by the merged parent of both pieces: {citing:?}"
+        );
+    }
+}
+
+/// **A sunk boss joined to its plate keeps its wall's two pieces.** The
+/// boss's wall ring stays closed in the union, so no merge holds both
+/// pieces and nothing links them: each is its own parent, named as
+/// piece 0 and as piece 1 of the profile step, in both member orders.
+#[test]
+fn a_sunk_boss_joined_to_its_plate_names_its_wall_pieces_apart() {
+    let doc = ProfileDoc::empty_derived("sunk-boss-joined", Tol::witness());
+    let (doc, [plate, boss]) = crate::wire_legal_union_refusals::plate_and_boss(doc);
+    for order in [[plate, boss], [boss, plate]] {
+        let (docx, joined) = crate::fixture::union_over(doc.clone(), &order);
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, joined).is_none(),
+            "{order:?}: the union names: {:?}",
+            failure(&ev, joined)
+        );
+        let pieces = wall_pieces(&ev, boss);
+        let citing: Vec<String> = face_names_modulo(&ev, joined)
+            .into_iter()
+            .filter(|n| pieces.iter().any(|p| n.contains(p.as_str())))
+            .collect();
+        let [a, b] = citing.as_slice() else {
+            panic!("{order:?}: two faces cite the wall: {citing:?}");
+        };
+        for (name, piece) in [(a, "piece 0"), (b, "piece 1")] {
+            assert!(
+                name.starts_with(&format!("the side wall over {piece} of")),
+                "{order:?}: the wall piece is named as its own {piece}: {name}"
+            );
+        }
     }
 }
 

@@ -2262,6 +2262,7 @@ test_utils::f6_variants! {
         UnsupportedSeamSides,
         UnsupportedJoin,
         UnsupportedUnionName,
+        UnsupportedUnjudgedGlue,
         UnsupportedTurnedCell,
         WayInZeroBand,
         JoinedPieceOffRoot,
@@ -2623,6 +2624,35 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 "member read 000000000025's edge",
                 "is read where one edge is needed",
                 "the member ties that name to several edges",
+            ],
+        ),
+        (
+            NamingError::UnsupportedUnjudgedGlue {
+                face,
+                faces: vec![
+                    (
+                        editor_core::VarId::new(0, tagged(41)),
+                        StableName {
+                            kind: EntityKind::Face,
+                            node: RecipeNodeId::new(0, tagged(41)),
+                            path: vec![RoleSeg::Cap(CapEnd::Start)],
+                        },
+                    ),
+                    (
+                        editor_core::VarId::new(0, tagged(43)),
+                        StableName {
+                            kind: EntityKind::Face,
+                            node: RecipeNodeId::new(0, tagged(43)),
+                            path: vec![RoleSeg::Cap(CapEnd::End)],
+                        },
+                    ),
+                ],
+            },
+            vec![
+                "member read 000000000029's face (the start cap",
+                "member read 00000000002b's face (the end cap",
+                "no two members glued into one",
+                "not read exactly yet",
             ],
         ),
         (

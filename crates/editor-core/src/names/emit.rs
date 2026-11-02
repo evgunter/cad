@@ -40,7 +40,7 @@ use crate::node::RecipeNodeId;
 /// 4. A MISSING RULE: [`Self::UnsupportedSeamVertex`],
 ///    [`Self::UnsupportedCrossingSenses`], [`Self::UnsupportedSeamSides`],
 ///    [`Self::UnsupportedJoin`], [`Self::UnsupportedUnionName`],
-///    [`Self::UnsupportedTurnedCell`],
+///    [`Self::UnsupportedUnjudgedGlue`], [`Self::UnsupportedTurnedCell`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::ChordOffRim`], [`Self::MemberEdgeTied`],
 ///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`] and
@@ -346,6 +346,21 @@ pub enum NamingError {
         member: crate::VarId,
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
+    },
+    /// A union's face that holds area of member faces no pairwise
+    /// judgement links (`names/README.md`, N2): the members together
+    /// glued what no two of them glued, so only N2's third clause, the
+    /// finished body holding area of both in one face, links them. That
+    /// clause reads the area each holds exactly, and the union reads its
+    /// descent only through the fold's lineage, which can hold more
+    /// member faces than the face's area does, so it refuses.
+    UnsupportedUnjudgedGlue {
+        /// The finished face, a key of the union's body.
+        face: FaceKey,
+        /// The member faces the fold says it descends from, each by the
+        /// read its member came in through and its name in that
+        /// member's table, in that order.
+        faces: Vec<(crate::VarId, StableName)>,
     },
     /// A boolean crossing whose senses no rule reads: the edge piece
     /// classes at the vertex fit no one sense per edge name
@@ -934,6 +949,21 @@ impl crate::spoken::Say for NamingError {
                 by.read(*member),
                 by.name(edge)
             ),
+            Self::UnsupportedUnjudgedGlue { faces, .. } => write!(
+                f,
+                "{UNRULED_FRAMING}: a face of the union holds member faces that no two \
+                 members glued into one ({}); the members together glued them, and which \
+                 member faces such a face holds area of is not read exactly yet",
+                faces
+                    .iter()
+                    .map(|(read, name)| format!(
+                        "member {}'s face ({})",
+                        by.read(*read),
+                        by.name(name)
+                    ))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ),
             Self::Band(error) => write!(
                 f,
                 "the naming band could not be built from the ambient tolerance, so no \
@@ -1014,6 +1044,7 @@ impl NamingError {
             | Self::UnsupportedSeamSides { .. }
             | Self::UnsupportedJoin { .. }
             | Self::UnsupportedUnionName { .. }
+            | Self::UnsupportedUnjudgedGlue { .. }
             | Self::UnsupportedTurnedCell { .. } => Some(Category::Unruled),
             Self::WayInZeroBand { .. }
             | Self::JoinedPieceOffRoot { .. }
@@ -2123,6 +2154,36 @@ mod display_tests {
                 },
                 vec!["loop 9 does not fit", "Recourse: draw the loops"],
             ),
+            (
+                NamingError::UnsupportedUnjudgedGlue {
+                    face: pair.0,
+                    faces: vec![
+                        (
+                            crate::VarId::new(0, test_utils::refusal::tagged(41)),
+                            StableName {
+                                kind: EntityKind::Face,
+                                node: RecipeNodeId::new(0, test_utils::refusal::tagged(41)),
+                                path: vec![RoleSeg::Cap(super::super::role::CapEnd::Start)],
+                            },
+                        ),
+                        (
+                            crate::VarId::new(0, test_utils::refusal::tagged(43)),
+                            StableName {
+                                kind: EntityKind::Face,
+                                node: RecipeNodeId::new(0, test_utils::refusal::tagged(43)),
+                                path: vec![RoleSeg::Cap(super::super::role::CapEnd::End)],
+                            },
+                        ),
+                    ],
+                },
+                vec![
+                    "a face of the union",
+                    "no two members glued",
+                    "the start cap",
+                    "the end cap",
+                    "not read exactly yet",
+                ],
+            ),
         ];
         // The category is `NamingError::category`'s, which also chooses
         // the ending. Which framing each arm's `Display` interpolates is
@@ -2166,6 +2227,7 @@ mod display_tests {
                 NamingError::JoinedPieceOffRoot { .. } => 26,
                 NamingError::UnsupportedTurnedCell { .. } => 27,
                 NamingError::PastWidth { .. } => 28,
+                NamingError::UnsupportedUnjudgedGlue { .. } => 29,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
