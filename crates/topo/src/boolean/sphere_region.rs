@@ -1211,3 +1211,651 @@ mod tests {
         );
     }
 }
+
+/// Review probe (PR 6307): every ray and every two-leg path read
+/// separately against an analytic truth, on lunes, caps, zones and
+/// partial spheres, at f64 and Interval, at three bands.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::too_many_lines)]
+mod review_probe {
+    use super::*;
+    use crate::entity::EdgeKey;
+    use slotmap::KeyData;
+    use std::f64::consts::{FRAC_PI_2, PI, TAU};
+
+    type Truth = std::rc::Rc<dyn Fn(Vec3<f64>) -> bool>;
+
+    #[derive(Clone, Copy)]
+    struct Spec {
+        pole: [f64; 3],
+        theta: f64,
+        u: [f64; 3],
+        t0: f64,
+        t1: f64,
+        forward: bool,
+    }
+
+    fn unit(v: [f64; 3]) -> Vec3<f64> {
+        let v = Vec3::new(v[0], v[1], v[2]);
+        v / v.norm()
+    }
+
+    fn build<T: Decide>(
+        specs: &[Spec],
+        sense: bool,
+        turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+    ) -> SphereFaceRegion<T> {
+        let lift = T::from_f64;
+        let v = |w: Vec3<f64>| Vec3::new(lift(w.x), lift(w.y), lift(w.z));
+        let edges = specs
+            .iter()
+            .enumerate()
+            .map(|(k, s)| {
+                let pole = unit(s.pole);
+                let u = unit(s.u);
+                let u = u - pole * pole.dot(u);
+                let u = u / u.norm();
+                let c = pole * s.theta.cos();
+                RegionEdge {
+                    edge: EdgeKey::from(KeyData::from_ffi(k as u64 + 1)),
+                    r#loop: LoopKey::default(),
+                    cycle: 0,
+                    carrier: geom::Curve3::Circle {
+                        center: Point3::new(lift(c.x), lift(c.y), lift(c.z)),
+                        axis: v(pole),
+                        radius: lift(s.theta.sin()),
+                        u_ref: v(u),
+                    },
+                    t0: lift(s.t0),
+                    t1: lift(s.t1),
+                    turn: turn(s.t0, s.t1),
+                    forward: s.forward,
+                }
+            })
+            .collect();
+        SphereFaceRegion {
+            center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+            radius: lift(1.0),
+            sense,
+            outer: LoopKey::default(),
+            edges,
+        }
+    }
+
+    fn az(a: f64) -> [f64; 3] {
+        [a.cos(), a.sin(), 0.0]
+    }
+    fn meridian_pole(a: f64) -> [f64; 3] {
+        [-a.sin(), a.cos(), 0.0]
+    }
+
+    /// Lune of azimuths [a0, a0+w], polar [top, π]: the south pole a vertex.
+    fn pole_lune(a0: f64, w: f64, top: f64) -> (Vec<Spec>, Truth) {
+        let z = [0.0, 0.0, 1.0];
+        let specs = vec![
+            Spec { pole: meridian_pole(a0), theta: FRAC_PI_2, u: z, t0: top, t1: PI, forward: true },
+            Spec { pole: meridian_pole(a0 + w), theta: FRAC_PI_2, u: z, t0: top, t1: PI, forward: false },
+            Spec { pole: z, theta: top, u: az(a0), t0: 0.0, t1: w, forward: false },
+        ];
+        let truth: Truth = std::rc::Rc::new(move |p: Vec3<f64>| {
+            let polar = p.z.clamp(-1.0, 1.0).acos();
+            let phi = (p.y.atan2(p.x) - a0).rem_euclid(TAU);
+            polar > top && phi < w
+        });
+        (specs, truth)
+    }
+
+    /// Lune of azimuths [a0, a0+w], pole to pole: both poles vertices.
+    fn full_lune(a0: f64, w: f64) -> (Vec<Spec>, Truth) {
+        let z = [0.0, 0.0, 1.0];
+        let specs = vec![
+            Spec { pole: meridian_pole(a0), theta: FRAC_PI_2, u: z, t0: 0.0, t1: PI, forward: true },
+            Spec { pole: meridian_pole(a0 + w), theta: FRAC_PI_2, u: z, t0: 0.0, t1: PI, forward: false },
+        ];
+        let truth: Truth = std::rc::Rc::new(move |p: Vec3<f64>| {
+            let phi = (p.y.atan2(p.x) - a0).rem_euclid(TAU);
+            phi < w
+        });
+        (specs, truth)
+    }
+
+    /// Cap about `n` of angular radius `rho`, one arc.
+    fn cap(n: [f64; 3], rho: f64, inside: bool) -> (Vec<Spec>, Truth) {
+        let nn = unit(n);
+        let u = if nn.z.abs() < 0.9 { [0.0, 0.0, 1.0] } else { [1.0, 0.0, 0.0] };
+        let specs = vec![Spec { pole: n, theta: rho, u, t0: 0.0, t1: TAU, forward: inside }];
+        let truth: Truth = std::rc::Rc::new(move |p: Vec3<f64>| {
+            let ang = (p.dot(nn)).clamp(-1.0, 1.0).acos();
+            (ang < rho) == inside
+        });
+        (specs, truth)
+    }
+
+    /// Zone between polar hi < lo about `n`.
+    fn zone(n: [f64; 3], hi: f64, lo: f64) -> (Vec<Spec>, Truth) {
+        let nn = unit(n);
+        let u = if nn.z.abs() < 0.9 { [0.0, 0.0, 1.0] } else { [1.0, 0.0, 0.0] };
+        let specs = vec![
+            Spec { pole: n, theta: hi, u, t0: 0.0, t1: TAU, forward: false },
+            Spec { pole: n, theta: lo, u, t0: 0.0, t1: TAU, forward: true },
+        ];
+        let truth: Truth = std::rc::Rc::new(move |p: Vec3<f64>| {
+            let ang = (p.dot(nn)).clamp(-1.0, 1.0).acos();
+            ang > hi && ang < lo
+        });
+        (specs, truth)
+    }
+
+    fn flipped(specs: &[Spec]) -> Vec<Spec> {
+        specs.iter().map(|s| Spec { forward: !s.forward, ..*s }).collect()
+    }
+
+    fn sph(polar: f64, a: f64) -> Vec3<f64> {
+        Vec3::new(polar.sin() * a.cos(), polar.sin() * a.sin(), polar.cos())
+    }
+
+    /// Distance (angle) from p to the boundary, sampled densely.
+    fn clearance(specs: &[Spec], p: Vec3<f64>) -> f64 {
+        let mut best = f64::INFINITY;
+        for s in specs {
+            let pole = unit(s.pole);
+            let u = unit(s.u);
+            let u = u - pole * pole.dot(u);
+            let u = u / u.norm();
+            let v = pole.cross(u);
+            let n = 1500;
+            for i in 0..=n {
+                let t = s.t0 + (s.t1 - s.t0) * i as f64 / n as f64;
+                let q = pole * s.theta.cos() + (u * t.cos() + v * t.sin()) * s.theta.sin();
+                best = best.min((q - p).norm());
+            }
+            // the arc's ends exactly
+        }
+        best
+    }
+
+    #[derive(Default, Debug)]
+    struct Tally {
+        cases: usize,
+        wrong_probe: usize,
+        wrong_answer: usize,
+        refused_clear: usize,
+        decided_by_path_only: usize,
+        refused_samples: Vec<String>,
+        wrong_samples: Vec<String>,
+    }
+
+    fn read_all<T: Decide>(
+        r: &SphereFaceRegion<T>,
+        p: Point3<T>,
+        band: Band,
+    ) -> (Vec<Result<bool, Fault>>, Vec<Result<bool, Fault>>) {
+        let w = p - r.center;
+        let a = w / w.norm();
+        let aimed: Vec<Vec3<T>> = targets(&r.edges).map(|y| y - r.center).collect();
+        let scheduled: Vec<Vec3<T>> = SCHEDULE.iter().map(|x| x.map(T::from_f64)).collect();
+        let mut dirs: Vec<Vec3<T>> = Vec::new();
+        for d in aimed.iter().chain(&scheduled) {
+            dirs.push(*d);
+        }
+        for d in aimed.iter().chain(&scheduled) {
+            dirs.push(-*d);
+        }
+        let rays = dirs
+            .into_iter()
+            .map(|toward| {
+                let raw = toward - a * a.dot(toward);
+                let arm = Margin::levered(raw.norm() / toward.norm(), r.radius);
+                match decide("bool_sphere_region_arm", arm, band) {
+                    Ok(Sign::Positive) => region::read_leg(r, &r.ray(a, tangent(a, raw)), band),
+                    Ok(_) => Err(RayFault::Unread),
+                    Err(diag) => Err(RayFault::InBand(RegionRefusal::Escalated(diag))),
+                }
+            })
+            .collect();
+        let mut paths = Vec::new();
+        for target in targets(&r.edges) {
+            for (f, t) in [(true, true), (true, false), (false, true), (false, false)] {
+                let path = Path::Aimed { target, parallel_first: false, first_forward: f, then_forward: t };
+                paths.push(region::read_path(r, p, path, band));
+            }
+        }
+        (rays, paths)
+    }
+
+    fn run<T: Decide>(
+        scalar: &str,
+        turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+        shapes: &[(String, Vec<Spec>, bool, Truth)],
+        points: &[(String, Vec3<f64>)],
+        tally: &mut Tally,
+    ) {
+        let lift = T::from_f64;
+        for (name, specs, sense, truth) in shapes {
+            let r = build::<T>(specs, *sense, turn);
+            for (pname, pv) in points {
+                let pv = *pv / pv.norm();
+                let clear = clearance(specs, pv);
+                for eps in [1e-6, 1e-9, 1e-12] {
+                    let band = Band::new(eps, 10.0 * eps).unwrap();
+                    if clear < 30.0 * eps {
+                        continue;
+                    }
+                    tally.cases += 1;
+                    let want = truth(pv);
+                    let p = Point3::new(lift(pv.x), lift(pv.y), lift(pv.z));
+                    let (rays, paths) = read_all(&r, p, band);
+                    let tag = format!("{scalar} eps {eps:e} {name} at {pname} (clear {clear:.2e})");
+                    for (k, got) in rays.iter().chain(paths.iter()).enumerate() {
+                        if let Ok(v) = got {
+                            if *v != want {
+                                tally.wrong_probe += 1;
+                                if tally.wrong_samples.len() < 40 {
+                                    tally.wrong_samples.push(format!(
+                                        "{tag}: probe {k} ({}) says {v}, truth {want}",
+                                        if k < rays.len() { "ray" } else { "path" }
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    let ray_def = rays.iter().any(Result::is_ok);
+                    let path_def = paths.iter().any(Result::is_ok);
+                    if !ray_def && path_def {
+                        tally.decided_by_path_only += 1;
+                    }
+                    match r.contains(p, band) {
+                        Ok(Some(v)) if v == want => {}
+                        Ok(got) => {
+                            tally.wrong_answer += 1;
+                            tally.wrong_samples.push(format!("{tag}: contains {got:?}, truth {want}"));
+                        }
+                        Err(e) => {
+                            tally.refused_clear += 1;
+                            if tally.refused_samples.len() < 80 {
+                                let pred = match &e {
+                                    RegionRefusal::Escalated(d) => format!("{:?}", d.predicate),
+                                    other => format!("{other:?}"),
+                                };
+                                tally.refused_samples.push(format!("{tag}: {pred}"));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn review_every_probe_agrees_with_the_truth() {
+        let mut shapes: Vec<(String, Vec<Spec>, bool, Truth)> = Vec::new();
+        for w_deg in [2.0, 1.0, 0.5, 0.25, 0.1, 0.01] {
+            let w = w_deg * PI / 180.0;
+            for a0 in [0.0, 0.3, PI - w / 2.0, 1.5 * PI] {
+                for top in [FRAC_PI_2, 1.0, 2.5] {
+                    let (s, t) = pole_lune(a0, w, top);
+                    shapes.push((format!("lune {w_deg}° a0 {a0:.3} top {top:.2}"), s, true, t));
+                }
+                let (s, t) = full_lune(a0, w);
+                shapes.push((format!("full lune {w_deg}° a0 {a0:.3}"), s.clone(), true, t));
+                // the complement: a partial sphere missing a slim lune
+                let (s2, t2) = full_lune(a0, w);
+                let t2c: Truth = std::rc::Rc::new(move |p| !t2(p));
+                shapes.push((format!("all but lune {w_deg}° a0 {a0:.3}"), flipped(&s2), true, t2c));
+            }
+        }
+        for delta in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6] {
+            for rho in [0.5, 1.2, FRAC_PI_2] {
+                // a cap whose rim passes delta from the north pole, either side
+                for sgn in [1.0f64, -1.0] {
+                    let tilt = rho + sgn * delta;
+                    let n = [tilt.sin(), 0.0, tilt.cos()];
+                    for inside in [true, false] {
+                        let (s, t) = cap(n, rho, inside);
+                        shapes.push((format!("cap rho {rho} rim {}{delta:e} off pole in {inside}", if sgn > 0.0 {"+"} else {"-"}), s, true, t));
+                    }
+                    // a zone whose rim passes delta from the pole
+                    let (s, t) = zone(n, rho, rho + 0.7);
+                    shapes.push((format!("zone rim {}{delta:e} off pole rho {rho}", if sgn > 0.0 {"+"} else {"-"}), s, true, t));
+                }
+            }
+        }
+        for gap in [3e-6, 3e-5, 1e-3, 0.1] {
+            let (s, t) = zone([0.0, 0.0, 1.0], 1.0, 1.0 + gap);
+            shapes.push((format!("zone gap {gap:e}"), s, true, t));
+        }
+        // inner (flipped sense) copies of every third shape
+        let n0 = shapes.len();
+        for k in (0..n0).step_by(3) {
+            let (name, specs, truth) = (shapes[k].0.clone(), flipped(&shapes[k].1), shapes[k].3.clone());
+            shapes.push((format!("INNER {name}"), specs, false, truth));
+        }
+
+        let mut points: Vec<(String, Vec3<f64>)> = vec![
+            ("north".into(), Vec3::new(0.0, 0.0, 1.0)),
+            ("south".into(), Vec3::new(0.0, 0.0, -1.0)),
+        ];
+        for off in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-8] {
+            for k in 0..5 {
+                let a = k as f64 * TAU / 5.0 + 0.1;
+                points.push((format!("north+{off:e}@{a:.2}"), sph(off, a)));
+                points.push((format!("south-{off:e}@{a:.2}"), sph(PI - off, a)));
+            }
+        }
+        for i in 1..8 {
+            for j in 0..8 {
+                let polar = i as f64 * PI / 8.0;
+                let a = j as f64 * TAU / 8.0 + 0.05;
+                points.push((format!("grid {i},{j}"), sph(polar, a)));
+            }
+        }
+        // near a seam: at azimuth just beside 0 and 0.3
+        for d in [1e-3, 1e-4, 1e-5] {
+            for a0 in [0.0, 0.3] {
+                points.push((format!("seam {a0}-{d:e}"), sph(2.0, a0 - d)));
+                points.push((format!("seam {a0}+{d:e}"), sph(2.0, a0 + d)));
+            }
+        }
+        // antipodes of the lunes' equator vertices
+        for a0 in [0.0, 0.3, 1.5 * PI] {
+            points.push((format!("antipode of {a0}"), -sph(FRAC_PI_2, a0)));
+            points.push((format!("antipode of top 1 at {a0}"), -sph(1.0, a0)));
+        }
+
+        let mut tf = Tally::default();
+        run::<f64>("f64", crate::boolean::region::fixture_turn, &shapes, &points, &mut tf);
+        let mut ti = Tally::default();
+        run::<geom_core::Interval>(
+            "Interval",
+            crate::boolean::region::fixture_turn_interval,
+            &shapes,
+            &points,
+            &mut ti,
+        );
+        for (s, t) in [("f64", &tf), ("Interval", &ti)] {
+            eprintln!(
+                "{s}: cases {} wrong_probe {} wrong_answer {} refused_clear {} path_only {}",
+                t.cases, t.wrong_probe, t.wrong_answer, t.refused_clear, t.decided_by_path_only
+            );
+            for x in &t.wrong_samples {
+                eprintln!("  WRONG {x}");
+            }
+            for x in &t.refused_samples {
+                eprintln!("  REFUSED {x}");
+            }
+        }
+        assert_eq!(tf.wrong_probe + ti.wrong_probe + tf.wrong_answer + ti.wrong_answer, 0);
+    }
+}
+
+/// Review dump (PR 6307): every ray and every two-leg path read
+/// separately against an analytic truth, on lunes, caps, zones and
+/// partial spheres, at f64 and Interval, at three bands.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::too_many_lines)]
+mod review_dump {
+    use super::*;
+    use crate::entity::EdgeKey;
+    use slotmap::KeyData;
+    use std::f64::consts::{FRAC_PI_2, PI, TAU};
+
+    type Truth = std::rc::Rc<dyn Fn(Vec3<f64>) -> bool>;
+
+    #[derive(Clone, Copy)]
+    struct Spec {
+        pole: [f64; 3],
+        theta: f64,
+        u: [f64; 3],
+        t0: f64,
+        t1: f64,
+        forward: bool,
+    }
+
+    fn unit(v: [f64; 3]) -> Vec3<f64> {
+        let v = Vec3::new(v[0], v[1], v[2]);
+        v / v.norm()
+    }
+
+    fn build<T: Decide>(
+        specs: &[Spec],
+        sense: bool,
+        turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+    ) -> SphereFaceRegion<T> {
+        let lift = T::from_f64;
+        let v = |w: Vec3<f64>| Vec3::new(lift(w.x), lift(w.y), lift(w.z));
+        let edges = specs
+            .iter()
+            .enumerate()
+            .map(|(k, s)| {
+                let pole = unit(s.pole);
+                let u = unit(s.u);
+                let u = u - pole * pole.dot(u);
+                let u = u / u.norm();
+                let c = pole * s.theta.cos();
+                RegionEdge {
+                    edge: EdgeKey::from(KeyData::from_ffi(k as u64 + 1)),
+                    r#loop: LoopKey::default(),
+                    cycle: 0,
+                    carrier: geom::Curve3::Circle {
+                        center: Point3::new(lift(c.x), lift(c.y), lift(c.z)),
+                        axis: v(pole),
+                        radius: lift(s.theta.sin()),
+                        u_ref: v(u),
+                    },
+                    t0: lift(s.t0),
+                    t1: lift(s.t1),
+                    turn: turn(s.t0, s.t1),
+                    forward: s.forward,
+                }
+            })
+            .collect();
+        SphereFaceRegion {
+            center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+            radius: lift(1.0),
+            sense,
+            outer: LoopKey::default(),
+            edges,
+        }
+    }
+
+    fn az(a: f64) -> [f64; 3] {
+        [a.cos(), a.sin(), 0.0]
+    }
+    fn meridian_pole(a: f64) -> [f64; 3] {
+        [-a.sin(), a.cos(), 0.0]
+    }
+
+    /// Lune of azimuths [a0, a0+w], polar [top, π]: the south pole a vertex.
+    fn pole_lune(a0: f64, w: f64, top: f64) -> (Vec<Spec>, Truth) {
+        let z = [0.0, 0.0, 1.0];
+        let specs = vec![
+            Spec { pole: meridian_pole(a0), theta: FRAC_PI_2, u: z, t0: top, t1: PI, forward: true },
+            Spec { pole: meridian_pole(a0 + w), theta: FRAC_PI_2, u: z, t0: top, t1: PI, forward: false },
+            Spec { pole: z, theta: top, u: az(a0), t0: 0.0, t1: w, forward: false },
+        ];
+        let truth: Truth = std::rc::Rc::new(move |p: Vec3<f64>| {
+            let polar = p.z.clamp(-1.0, 1.0).acos();
+            let phi = (p.y.atan2(p.x) - a0).rem_euclid(TAU);
+            polar > top && phi < w
+        });
+        (specs, truth)
+    }
+
+    /// Lune of azimuths [a0, a0+w], pole to pole: both poles vertices.
+    fn full_lune(a0: f64, w: f64) -> (Vec<Spec>, Truth) {
+        let z = [0.0, 0.0, 1.0];
+        let specs = vec![
+            Spec { pole: meridian_pole(a0), theta: FRAC_PI_2, u: z, t0: 0.0, t1: PI, forward: true },
+            Spec { pole: meridian_pole(a0 + w), theta: FRAC_PI_2, u: z, t0: 0.0, t1: PI, forward: false },
+        ];
+        let truth: Truth = std::rc::Rc::new(move |p: Vec3<f64>| {
+            let phi = (p.y.atan2(p.x) - a0).rem_euclid(TAU);
+            phi < w
+        });
+        (specs, truth)
+    }
+
+    /// Cap about `n` of angular radius `rho`, one arc.
+    fn cap(n: [f64; 3], rho: f64, inside: bool) -> (Vec<Spec>, Truth) {
+        let nn = unit(n);
+        let u = if nn.z.abs() < 0.9 { [0.0, 0.0, 1.0] } else { [1.0, 0.0, 0.0] };
+        let specs = vec![Spec { pole: n, theta: rho, u, t0: 0.0, t1: TAU, forward: inside }];
+        let truth: Truth = std::rc::Rc::new(move |p: Vec3<f64>| {
+            let ang = (p.dot(nn)).clamp(-1.0, 1.0).acos();
+            (ang < rho) == inside
+        });
+        (specs, truth)
+    }
+
+    /// Zone between polar hi < lo about `n`.
+    fn zone(n: [f64; 3], hi: f64, lo: f64) -> (Vec<Spec>, Truth) {
+        let nn = unit(n);
+        let u = if nn.z.abs() < 0.9 { [0.0, 0.0, 1.0] } else { [1.0, 0.0, 0.0] };
+        let specs = vec![
+            Spec { pole: n, theta: hi, u, t0: 0.0, t1: TAU, forward: false },
+            Spec { pole: n, theta: lo, u, t0: 0.0, t1: TAU, forward: true },
+        ];
+        let truth: Truth = std::rc::Rc::new(move |p: Vec3<f64>| {
+            let ang = (p.dot(nn)).clamp(-1.0, 1.0).acos();
+            ang > hi && ang < lo
+        });
+        (specs, truth)
+    }
+
+    fn flipped(specs: &[Spec]) -> Vec<Spec> {
+        specs.iter().map(|s| Spec { forward: !s.forward, ..*s }).collect()
+    }
+
+    fn sph(polar: f64, a: f64) -> Vec3<f64> {
+        Vec3::new(polar.sin() * a.cos(), polar.sin() * a.sin(), polar.cos())
+    }
+
+    /// Distance (angle) from p to the boundary, sampled densely.
+    fn clearance(specs: &[Spec], p: Vec3<f64>) -> f64 {
+        let mut best = f64::INFINITY;
+        for s in specs {
+            let pole = unit(s.pole);
+            let u = unit(s.u);
+            let u = u - pole * pole.dot(u);
+            let u = u / u.norm();
+            let v = pole.cross(u);
+            let n = 1500;
+            for i in 0..=n {
+                let t = s.t0 + (s.t1 - s.t0) * i as f64 / n as f64;
+                let q = pole * s.theta.cos() + (u * t.cos() + v * t.sin()) * s.theta.sin();
+                best = best.min((q - p).norm());
+            }
+            // the arc's ends exactly
+        }
+        best
+    }
+
+
+    fn dump_at<T: Decide>(
+        scalar: &str,
+        turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+        shapes: &[(String, Vec<Spec>, bool, Truth)],
+        points: &[(String, Vec3<f64>)],
+        out: &mut String,
+    ) {
+        use std::fmt::Write as _;
+        let lift = T::from_f64;
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            for (name, specs, sense, truth) in shapes {
+                let r = build::<T>(specs, *sense, turn);
+                for (pname, pv) in points {
+                    let pv = *pv / pv.norm();
+                    let p = Point3::new(lift(pv.x), lift(pv.y), lift(pv.z));
+                    let got = match r.contains(p, band) {
+                        Ok(v) => format!("{v:?}"),
+                        Err(RegionRefusal::Escalated(d)) => format!("esc {:?}", d.predicate),
+                        Err(e) => format!("{e:?}"),
+                    };
+                    let _ = writeln!(out, "{scalar}|{eps:e}|{name}|{pname}|truth {}|{got}", truth(pv));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn review_dump_contains() {
+        let mut shapes: Vec<(String, Vec<Spec>, bool, Truth)> = Vec::new();
+        for w_deg in [2.0, 1.0, 0.5, 0.25, 0.1, 0.01] {
+            let w = w_deg * PI / 180.0;
+            for a0 in [0.0, 0.3, PI - w / 2.0, 1.5 * PI] {
+                for top in [FRAC_PI_2, 1.0, 2.5] {
+                    let (s, t) = pole_lune(a0, w, top);
+                    shapes.push((format!("lune {w_deg}° a0 {a0:.3} top {top:.2}"), s, true, t));
+                }
+                let (s, t) = full_lune(a0, w);
+                shapes.push((format!("full lune {w_deg}° a0 {a0:.3}"), s.clone(), true, t));
+                // the complement: a partial sphere missing a slim lune
+                let (s2, t2) = full_lune(a0, w);
+                let t2c: Truth = std::rc::Rc::new(move |p| !t2(p));
+                shapes.push((format!("all but lune {w_deg}° a0 {a0:.3}"), flipped(&s2), true, t2c));
+            }
+        }
+        for delta in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6] {
+            for rho in [0.5, 1.2, FRAC_PI_2] {
+                // a cap whose rim passes delta from the north pole, either side
+                for sgn in [1.0f64, -1.0] {
+                    let tilt = rho + sgn * delta;
+                    let n = [tilt.sin(), 0.0, tilt.cos()];
+                    for inside in [true, false] {
+                        let (s, t) = cap(n, rho, inside);
+                        shapes.push((format!("cap rho {rho} rim {}{delta:e} off pole in {inside}", if sgn > 0.0 {"+"} else {"-"}), s, true, t));
+                    }
+                    // a zone whose rim passes delta from the pole
+                    let (s, t) = zone(n, rho, rho + 0.7);
+                    shapes.push((format!("zone rim {}{delta:e} off pole rho {rho}", if sgn > 0.0 {"+"} else {"-"}), s, true, t));
+                }
+            }
+        }
+        for gap in [3e-6, 3e-5, 1e-3, 0.1] {
+            let (s, t) = zone([0.0, 0.0, 1.0], 1.0, 1.0 + gap);
+            shapes.push((format!("zone gap {gap:e}"), s, true, t));
+        }
+        // inner (flipped sense) copies of every third shape
+        let n0 = shapes.len();
+        for k in (0..n0).step_by(3) {
+            let (name, specs, truth) = (shapes[k].0.clone(), flipped(&shapes[k].1), shapes[k].3.clone());
+            shapes.push((format!("INNER {name}"), specs, false, truth));
+        }
+        let mut points: Vec<(String, Vec3<f64>)> = vec![
+            ("north".into(), Vec3::new(0.0, 0.0, 1.0)),
+            ("south".into(), Vec3::new(0.0, 0.0, -1.0)),
+        ];
+        for off in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-8] {
+            for k in 0..5 {
+                let a = k as f64 * TAU / 5.0 + 0.1;
+                points.push((format!("north+{off:e}@{a:.2}"), sph(off, a)));
+                points.push((format!("south-{off:e}@{a:.2}"), sph(PI - off, a)));
+            }
+        }
+        for i in 1..8 {
+            for j in 0..8 {
+                let polar = i as f64 * PI / 8.0;
+                let a = j as f64 * TAU / 8.0 + 0.05;
+                points.push((format!("grid {i},{j}"), sph(polar, a)));
+            }
+        }
+        // near a seam: at azimuth just beside 0 and 0.3
+        for d in [1e-3, 1e-4, 1e-5] {
+            for a0 in [0.0, 0.3] {
+                points.push((format!("seam {a0}-{d:e}"), sph(2.0, a0 - d)));
+                points.push((format!("seam {a0}+{d:e}"), sph(2.0, a0 + d)));
+            }
+        }
+        // antipodes of the lunes' equator vertices
+        for a0 in [0.0, 0.3, 1.5 * PI] {
+            points.push((format!("antipode of {a0}"), -sph(FRAC_PI_2, a0)));
+            points.push((format!("antipode of top 1 at {a0}"), -sph(1.0, a0)));
+        }
+
+        let mut out = String::new();
+        dump_at::<f64>("f64", crate::boolean::region::fixture_turn, &shapes, &points, &mut out);
+        dump_at::<geom_core::Interval>("Interval", crate::boolean::region::fixture_turn_interval, &shapes, &points, &mut out);
+        std::fs::write(std::env::var("REVIEW_DUMP").unwrap(), out).unwrap();
+    }
+}
