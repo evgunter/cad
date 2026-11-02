@@ -1042,9 +1042,8 @@ impl VersionOffer {
     }
 }
 
-/// **Why a gesture's frame could not be made** — the transform
-/// gesture's placement, a split's cutting plane, a circular pattern's
-/// axis. Each is made of numbers the gesture carries, taken at their
+/// **Why a gesture's frame could not be made** — a split's cutting
+/// plane, a circular pattern's axis. Each is made of numbers the gesture carries, taken at their
 /// nominal values in the document, and read off a body's own geometry
 /// (spec §5, the restate ladder).
 #[derive(Debug, Clone)]

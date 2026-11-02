@@ -374,8 +374,8 @@ pub(crate) const COMBINE_BODIES: &str = "Combine bodies";
 /// The heading of the section whose tools reshape a body's edges.
 pub(crate) const BLEND_EDGES: &str = "Blend edges";
 
-/// The heading of the section whose tools bring in another document
-/// and place it.
+/// The heading of the section whose tools place a body: an instance of
+/// another document, the Transform tool, and the placement editor.
 pub(crate) const ASSEMBLE_PARTS: &str = "Assemble parts";
 
 /// **The chooser's answer, drawn**: the directory it read, then the
@@ -631,8 +631,6 @@ impl ViewerBehavior<'_> {
             ui.separator();
             self.mirror_tool_ui(ui);
             ui.separator();
-            self.transform_tool_ui(ui);
-            ui.separator();
             self.pattern_tool_ui(ui);
             ui.separator();
             // Beside the pattern they read and author: a projection
@@ -649,10 +647,11 @@ impl ViewerBehavior<'_> {
         ui.collapsing(BLEND_EDGES, |ui| {
             self.blend_tool_ui(ui);
         });
-        // The tools whose subject is another document: an instance of
-        // a part, and the mate that places one.
+        // The tools that place a body: an instance of a part, the
+        // Transform tool's door, and the placement editor it opens.
         ui.collapsing(ASSEMBLE_PARTS, |ui| {
             self.add_part_ui(ui);
+            self.transform_tool_ui(ui);
             self.mate_tool_ui(ui);
         });
         ui.separator();
@@ -1649,54 +1648,20 @@ impl ViewerBehavior<'_> {
         self.tool_commit_row(ui, ToolKind::Mirror, |_, _| Ok(tool.op()?));
     }
 
-    /// The transform tool's panel: one body pick plus the placement
-    /// fields, and the one committed edit.
+    /// **The Transform tool's panel**: its one pick, which opens the
+    /// placement editor on the body or the copy picked
+    /// ([`crate::matetool::MateTool::moving`]); Cancel closes it.
     pub(crate) fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(tool) = self.tools.transform() else {
+        if self.tools.open_kind() != Some(ToolKind::Transform) {
             return self.tool_door(ui, ToolKind::Transform);
-        };
-        crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
-        if let Some((seat, half)) = seats_row(
-            ui,
-            tool.seats(),
-            frame::landed_speaker(self.session.landed_pair()),
-            &self.theme,
-        ) {
-            self.tools.choose_half(seat, half);
         }
-        ui.horizontal(|ui| {
-            unit_vec3_row(
-                ui,
-                "translation",
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.transform_translation,
-            );
-            length_picker(ui, "transform_translation", &mut self.notation.length);
-        });
-        vec3_row(
+        crate::widgets::message(
             ui,
-            "rotation axis",
-            UNIT_DRAG_SPEED,
-            &mut self.drafts.transform_axis,
+            ToolKind::Transform.says(&"pick the body or the copy to move"),
         );
-        ui.horizontal(|ui| {
-            ui.label("rotation angle");
-            unit_field(
-                ui,
-                self.notation.angle.def(),
-                ANGLE_DRAG_SPEED,
-                &mut self.drafts.transform_angle,
-            );
-            angle_picker(ui, "transform_angle", &mut self.notation.angle);
-        });
-        self.tool_commit_row(ui, ToolKind::Transform, |drafts, notation| {
-            Ok(tool.op(
-                notation.length_literals(drafts.transform_translation)?,
-                scalars(drafts.transform_axis)?,
-                notation.angle_literal(drafts.transform_angle)?,
-            )?)
-        });
+        if ui.button("Cancel").clicked() {
+            self.tools.close();
+        }
     }
 
     /// The pattern tool's panel: a body pick, a rule choice with its
@@ -2034,9 +1999,9 @@ impl ViewerBehavior<'_> {
 
     /// **The kind noun of the node a tool's commit creates** —
     /// `node_kind_noun`'s word, which its proposed label counts by —
-    /// or `None` for the mate tool, whose commit is a constraint in a
-    /// placement's bundle and creates no node, so its form offers no
-    /// label ([`Self::tool_commit_row`]). It is read off the tool, not
+    /// or `None` for the mate tool, whose commit writes a bundle, and
+    /// the Transform tool, which commits nothing but opens it: neither
+    /// form offers a label ([`Self::tool_commit_row`]). It is read off the tool, not
     /// the op ([`SessionOp::creates_a_node`]), because the label is
     /// offered before the picks make an op; a noun beside an op that
     /// creates no node is said at the commit ([`Self::push_labelled`]).
@@ -2048,7 +2013,7 @@ impl ViewerBehavior<'_> {
     /// of its symmetric part; the label lands there.
     fn tool_noun(&self, kind: ToolKind) -> Option<&'static str> {
         Some(match kind {
-            ToolKind::Mate => return None,
+            ToolKind::Mate | ToolKind::Transform => return None,
             ToolKind::Revolve => "Revolve",
             ToolKind::Boolean => match self.tools.boolean().map(|tool| tool.operation()) {
                 Some(BooleanOp::Union) | None => "Union",
@@ -2067,7 +2032,6 @@ impl ViewerBehavior<'_> {
                 }
                 _ => "Mirror",
             },
-            ToolKind::Transform => "Transform",
             ToolKind::Pattern => match self.drafts.pattern_output {
                 PatternOutputChoice::Instances => "Place",
                 PatternOutputChoice::Fused => "Union",
@@ -2442,7 +2406,7 @@ mod tests {
             },
             tol,
         );
-        let mut tool = crate::combine::TransformTool::new();
+        let mut tool = crate::combine::SplitTool::new();
         tool.pick(&doc, split);
         let mut chosen = None;
         let drawn = painted_after_clicking(crate::tree::split_half_label(SplitHalf::Below), |ui| {
@@ -3072,7 +3036,6 @@ mod tools_respeak {
             ToolKind::Revolve,
             ToolKind::Boolean,
             ToolKind::Split,
-            ToolKind::Transform,
             ToolKind::Pattern,
             ToolKind::Part,
             ToolKind::Duplicate,

@@ -938,6 +938,14 @@ pub enum MateToolEvent {
         /// The node the pick's body belongs to.
         node: SpokenNode,
     },
+    /// The Transform tool's pick is on a body more than one placement
+    /// copies: which copy moves is the pick to make.
+    SeenThroughSeveral {
+        /// The body.
+        node: SpokenNode,
+        /// How many placements copy it.
+        copies: usize,
+    },
 }
 
 impl Say for MateToolEvent {
@@ -967,6 +975,10 @@ impl Say for MateToolEvent {
                 f,
                 "the pick is on {node}, which is no copy and no body to place"
             ),
+            Self::SeenThroughSeveral { node, copies } => write!(
+                f,
+                "{node} is placed by {copies} copies; pick the copy to move"
+            ),
         }
     }
 }
@@ -975,9 +987,10 @@ impl core::fmt::Display for MateToolEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::PickLost { pick, .. } => self.say(f, Speaker::held(pick.said())),
-            Self::Reloaded { .. } | Self::PlacementGone { .. } | Self::NotPlaceable { .. } => {
-                self.say(f, Speaker::TAG)
-            }
+            Self::Reloaded { .. }
+            | Self::PlacementGone { .. }
+            | Self::NotPlaceable { .. }
+            | Self::SeenThroughSeveral { .. } => self.say(f, Speaker::TAG),
         }
     }
 }
@@ -1408,6 +1421,58 @@ impl MateTool {
             }),
             kind: VarKind::Plane,
         })
+    }
+
+    /// **The Transform tool's door on `node`**, a body or a copy picked
+    /// (`body` the output a viewport pick hit), opened with no mate row:
+    /// the Edit door on a placement — a copy, an instance — and on a body
+    /// one placement copies, which is seen through that copy; the Create
+    /// door, its six value rows where the body stands in its own space,
+    /// on a body nothing places.
+    ///
+    /// # Errors
+    ///
+    /// [`MateToolEvent::NotPlaceable`] for a node the document does not
+    /// hold, and [`MateToolEvent::SeenThroughSeveral`] for a body more
+    /// than one placement copies, whose copy is the pick to make.
+    pub fn moving(
+        doc: &Doc<ProfileProgram>,
+        node: RecipeNodeId,
+        body: Option<u32>,
+    ) -> Result<Self, MateToolEvent> {
+        let not_placeable = || MateToolEvent::NotPlaceable {
+            node: doc.spoken(node),
+        };
+        match doc.node(node) {
+            None => return Err(not_placeable()),
+            Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
+                return Self::edit(doc, node).map_err(|_| not_placeable());
+            }
+            Some(_) => {}
+        }
+        let read = match crate::world::seat_read(doc, node, body) {
+            (at, Some(port)) => Operand::output(at, port),
+            (at, None) => Operand::Node(at),
+        };
+        let read = crate::session::as_body(doc, read);
+        let copies: Vec<RecipeNodeId> = crate::world::read_var(doc, &read)
+            .map(|var| {
+                doc.placements()
+                    .into_iter()
+                    .filter(|&at| {
+                        matches!(doc.node(at), Some(Node::Place { source, .. }) if source.read == var)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        match copies[..] {
+            [] => Ok(Self::create(read)),
+            [copy] => Self::edit(doc, copy).map_err(|_| not_placeable()),
+            _ => Err(MateToolEvent::SeenThroughSeveral {
+                node: doc.spoken(node),
+                copies: copies.len(),
+            }),
+        }
     }
 
     /// **The Edit door on `mate`'s placement, that mate struck out** —
