@@ -5,27 +5,26 @@
 //! the partner's distance on the plane and its canonical form `f` on a
 //! curved partner ([`super::residual`]); the pass reads `φ` along each
 //! side, its partials over cells, and its value at a corner through a
-//! [`Partner`], and is otherwise the one pass. Below, "the plane" is
-//! the partner.
+//! [`Partner`], and is otherwise the one pass.
 //!
 //! The march meets the wall's domain boundary only as a box test on
-//! marched states, so on its own it cannot tell a plane through a
+//! marched states, so on its own it cannot tell a partner through a
 //! corner from one flush with a side or from a branch shorter than its
 //! step. This pass decides the four sides and the four corners once, at
 //! ε, before seeding:
 //!
-//! - **A side** is plane × one boundary curve
-//!   ([`crate::boundary_section`]). Either it lies within the band of
-//!   the plane, or it meets the plane at isolated roots, each decided
+//! - **A side** is the partner × one boundary curve
+//!   ([`crate::boundary_section`] on the plane). Either it lies within the band of
+//!   the partner, or it meets the partner at isolated roots, each decided
 //!   transversal along the side. A side within the band whose slope
 //!   across it is one-signed over a strip beside it is a
 //!   [`SsiBoundaryContact::Side`] region where the locus is coincident
-//!   with it, nothing where the strip is clear of the plane, and
+//!   with it, nothing where the strip is clear of the partner, and
 //!   otherwise apart: no region, its interior roots kept. A side no
 //!   strip decides is decided by its own roots.
-//! - **A corner** within the band of the plane, on no side a strip
-//!   decides or on two apart sides, is classified by the
-//!   plane distance's two inward partials over a corner cell
+//! - **A corner** within the band of the partner, on no side a strip
+//!   decides or on two apart sides, is classified by
+//!   `φ`'s two inward partials over a corner cell
 //!   ([`NurbsBoxes::deriv_box`]), the cell walking the tube ladder.
 //!   Both one-signed and of one sign: the locus leaves the domain
 //!   there, and the corner is a [`SsiBoundaryContact::Corner`] region,
@@ -263,8 +262,9 @@ pub(crate) trait Partner {
     /// the wall, on the wall's derivative box there.
     fn partial(&self, boxes: &NurbsBoxes<'_, f64>, w: UvWindow, along_u: bool) -> Interval;
 
-    /// `φ` at the wall's point `p`, and an upper bound in metres on its
-    /// distance from the partner, which the corner's band decision reads.
+    /// `φ` at the wall's point `p`, and a lower bound in metres on its
+    /// distance from the partner, which the corner's band decision reads:
+    /// a corner it decides past the band is clear.
     fn at_point(&self, p: Point3<f64>) -> (Interval, f64);
 
     /// The least sine of the angle between the wall and the partner
@@ -290,6 +290,20 @@ pub(crate) trait Partner {
 
     /// The wall's `(u, v)` of a settled state.
     fn uv(state: &Self::State) -> (f64, f64);
+}
+
+/// The plane distance's partial along `u` (`along_u`) or `v` over the
+/// window `w`, on the wall's derivative box there: `n·S_d`, `n` the
+/// plane's unit normal. The plane partner's and the side arm's one
+/// reading of it.
+fn plane_partial<T: CertifiedBounds>(
+    n: [Interval; 3],
+    boxes: &NurbsBoxes<'_, T>,
+    w: UvWindow,
+    along_u: bool,
+) -> Interval {
+    let b = boxes.deriv_box(w, along_u);
+    n[0] * b.x + n[1] * b.y + n[2] * b.z
 }
 
 /// **The plane, as the plane × NURBS lane's pass reads it**: its
@@ -330,9 +344,7 @@ impl Partner for PlanePartner<'_> {
     }
 
     fn partial(&self, boxes: &NurbsBoxes<'_, f64>, w: UvWindow, along_u: bool) -> Interval {
-        let n = self.plane.normal_interval();
-        let b = boxes.deriv_box(w, along_u);
-        n[0] * b.x + n[1] * b.y + n[2] * b.z
+        plane_partial(self.plane.normal_interval(), boxes, w, along_u)
     }
 
     fn at_point(&self, p: Point3<f64>) -> (Interval, f64) {
@@ -447,7 +459,8 @@ impl Partner for &Curved {
     fn at_point(&self, p: Point3<f64>) -> (Interval, f64) {
         let q = self.framed_point(p);
         let phi = self.value(q);
-        (phi, self.ceiling_metres(magnitude(phi), q))
+        let floor = super::enclose::zero_free_lower_bound(self.floor_metres(phi, q));
+        (phi, floor)
     }
 
     fn sine(&self, boxes: &NurbsBoxes<'_, f64>, r: UvRect, inf: f64, speed: f64) -> f64 {
@@ -1366,10 +1379,7 @@ pub(crate) fn side_stretch<T: CertifiedBounds>(
         Reading::Within(sup) => matches!(
             side_cover(
                 boxes,
-                &|w, along_u| {
-                    let d = boxes.deriv_box(w, along_u);
-                    normal[0] * d.x + normal[1] * d.y + normal[2] * d.z
-                },
+                &|w, along_u| plane_partial(normal, boxes, w, along_u),
                 (side, domain),
                 r,
                 sup,

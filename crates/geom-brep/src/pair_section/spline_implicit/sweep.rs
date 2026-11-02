@@ -10,7 +10,7 @@
 //! accounting), to the accounting floor. A cell is:
 //!
 //! - **excluded** where `φ` over it is decided past the band
-//!   (`plane_spline_sweep_excluded`): on the plane its height on the
+//!   (`spline_sweep_excluded`): on the plane its height on the
 //!   accounting's own enclosure
 //!   ([`crate::ssi::exhaust::chart_plane_height`]), over the normal's
 //!   length; on a curved partner `f` over the cell's box, a floor in
@@ -21,7 +21,7 @@
 //!   boxes ([`NurbsBoxes::deriv_box_closed`], [`NurbsBoxes::speed_sup`])
 //!   and, on a curved partner, `∇f` over the cell's box (`n` and its
 //!   length on the plane), levered by the feature extent, is decided off
-//!   zero (`plane_spline_sweep_regular`), as the march decides
+//!   zero (`spline_sweep_regular`), as the march decides
 //!   transversality;
 //! - neither, and halved; one such cell at the floor declines the sweep.
 //!
@@ -169,7 +169,7 @@ pub(super) fn sweep(
             let d = boxes.deriv_box_closed(w, along_u);
             let slope =
                 (d.x * n.x + d.y * n.y + d.z * n.z) / (length * Interval::from_certified(speed));
-            off("plane_spline_sweep_regular", Margin::levered(slope, arm))
+            off("spline_sweep_regular", Margin::levered(slope, arm))
         })
     };
     // `φ` over a cell, in metres: a floor on its distance, signed.
@@ -199,7 +199,7 @@ pub(super) fn sweep(
         value,
         floor,
         |cell, metres| {
-            let above = match decide("plane_spline_sweep_excluded", Margin::of(metres), band) {
+            let above = match decide("spline_sweep_excluded", Margin::of(metres), band) {
                 Ok(Sign::Positive) => true,
                 Ok(Sign::Negative) => false,
                 _ => return false,

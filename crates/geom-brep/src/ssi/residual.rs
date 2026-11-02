@@ -48,8 +48,52 @@ pub(crate) struct Curved {
     /// axis: `e₀` the reference direction made orthogonal to the axis,
     /// `e₁ = e₂ × e₀`, `e₂` the axis.
     frame: [Vec3<Interval>; 3],
-    form: CanonicalSurface,
-    meters: Meters<Interval>,
+    form: Form,
+}
+
+/// **The three curved forms**, their scalars as certification
+/// enclosures: the cylinder `x² + y² − R²`, the sphere
+/// `x² + y² + z² − r²`, the torus
+/// `(x² + y² + z² + R² − r²)² − 4R²(x² + y²)`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Form {
+    /// The cylinder of `radius` about the frame's third axis.
+    Cylinder {
+        /// Its radius.
+        radius: Interval,
+    },
+    /// The sphere of `radius` about the frame's origin.
+    Sphere {
+        /// Its radius.
+        radius: Interval,
+    },
+    /// The ring torus about the frame's third axis.
+    Torus {
+        /// Its major radius `R`.
+        major: Interval,
+        /// Its minor radius `r`.
+        minor: Interval,
+    },
+}
+
+impl Form {
+    /// The form as the composites take it.
+    pub(crate) fn canonical(self) -> CanonicalSurface {
+        match self {
+            Self::Cylinder { radius } => CanonicalSurface::Cylinder { radius },
+            Self::Sphere { radius } => CanonicalSurface::Sphere { radius },
+            Self::Torus { major, minor } => CanonicalSurface::Torus { major, minor },
+        }
+    }
+
+    /// Its conversion between `|f|` and metres.
+    fn meters(self) -> Meters<Interval> {
+        match self {
+            Self::Cylinder { radius } => Meters::Cylinder { radius },
+            Self::Sphere { radius } => Meters::Sphere { radius },
+            Self::Torus { major, minor } => Meters::Torus { major, minor },
+        }
+    }
 }
 
 impl Curved {
@@ -59,21 +103,13 @@ impl Curved {
     /// torus (`R > r`) refuses.
     pub(crate) fn of(surface: &Surface<f64>) -> Result<Self, &'static str> {
         let positive = |x: f64| x.is_finite() && x > 0.0;
-        let (form, meters) = match *surface {
-            Surface::Cylinder { radius, .. } if positive(radius) => {
-                let radius = Interval::point(radius);
-                (
-                    CanonicalSurface::Cylinder { radius },
-                    Meters::Cylinder { radius },
-                )
-            }
-            Surface::Sphere { radius, .. } if positive(radius) => {
-                let radius = Interval::point(radius);
-                (
-                    CanonicalSurface::Sphere { radius },
-                    Meters::Sphere { radius },
-                )
-            }
+        let form = match *surface {
+            Surface::Cylinder { radius, .. } if positive(radius) => Form::Cylinder {
+                radius: Interval::point(radius),
+            },
+            Surface::Sphere { radius, .. } if positive(radius) => Form::Sphere {
+                radius: Interval::point(radius),
+            },
             Surface::Torus {
                 major_radius,
                 minor_radius,
@@ -86,10 +122,7 @@ impl Curved {
                                 its form's distance divisor has a positive lower bound",
                     );
                 }
-                (
-                    CanonicalSurface::Torus { major, minor },
-                    Meters::Torus { major, minor },
-                )
+                Form::Torus { major, minor }
             }
             Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => {
                 return Err("the partner's radius is not certified positive and finite");
@@ -120,24 +153,20 @@ impl Curved {
             origin: vector(Vec3::new(origin.x, origin.y, origin.z)),
             frame,
             form,
-            meters,
         })
     }
 
-    /// The canonical form the composites are built of.
-    pub(crate) fn form(&self) -> CanonicalSurface {
+    /// The form.
+    pub(crate) fn form(&self) -> Form {
         self.form
     }
 
     /// The partner's kind, for a refusal's text.
     pub(crate) fn name(&self) -> &'static str {
         match self.form {
-            CanonicalSurface::Cylinder { .. } => "cylinder",
-            CanonicalSurface::Sphere { .. } => "sphere",
-            CanonicalSurface::Torus { .. } => "torus",
-            CanonicalSurface::Plane | CanonicalSurface::Cone { .. } => {
-                unreachable!("a curved partner is a cylinder, a sphere or a torus")
-            }
+            Form::Cylinder { .. } => "cylinder",
+            Form::Sphere { .. } => "sphere",
+            Form::Torus { .. } => "torus",
         }
     }
 
@@ -165,14 +194,11 @@ impl Curved {
     pub(crate) fn value(&self, q: Vec3<Interval>) -> Interval {
         let radial = q.x.sqr() + q.y.sqr();
         match self.form {
-            CanonicalSurface::Cylinder { radius } => radial - radius.sqr(),
-            CanonicalSurface::Sphere { radius } => radial + q.z.sqr() - radius.sqr(),
-            CanonicalSurface::Torus { major, minor } => {
+            Form::Cylinder { radius } => radial - radius.sqr(),
+            Form::Sphere { radius } => radial + q.z.sqr() - radius.sqr(),
+            Form::Torus { major, minor } => {
                 let shifted = radial + q.z.sqr() + major.sqr() - minor.sqr();
                 shifted.sqr() - Interval::point(4.0) * major.sqr() * radial
-            }
-            CanonicalSurface::Plane | CanonicalSurface::Cone { .. } => {
-                unreachable!("a curved partner is a cylinder, a sphere or a torus")
             }
         }
     }
@@ -181,11 +207,9 @@ impl Curved {
     fn frame_gradient(&self, q: Vec3<Interval>) -> Vec3<Interval> {
         let two = Interval::point(2.0);
         match self.form {
-            CanonicalSurface::Cylinder { .. } => {
-                Vec3::new(two * q.x, two * q.y, Interval::point(0.0))
-            }
-            CanonicalSurface::Sphere { .. } => Vec3::new(two * q.x, two * q.y, two * q.z),
-            CanonicalSurface::Torus { major, minor } => {
+            Form::Cylinder { .. } => Vec3::new(two * q.x, two * q.y, Interval::point(0.0)),
+            Form::Sphere { .. } => Vec3::new(two * q.x, two * q.y, two * q.z),
+            Form::Torus { major, minor } => {
                 let shifted = q.x.sqr() + q.y.sqr() + q.z.sqr() + major.sqr() - minor.sqr();
                 let four = Interval::point(4.0) * shifted;
                 let eight = Interval::point(8.0) * major.sqr();
@@ -194,9 +218,6 @@ impl Curved {
                     four * q.y - eight * q.y,
                     four * q.z,
                 )
-            }
-            CanonicalSurface::Plane | CanonicalSurface::Cone { .. } => {
-                unreachable!("a curved partner is a cylinder, a sphere or a torus")
             }
         }
     }
@@ -222,7 +243,7 @@ impl Curved {
     /// the surface from below. Refused where the divisor has no positive
     /// finite upper bound.
     pub(crate) fn floor_metres(&self, f: Interval, q: Vec3<Interval>) -> Interval {
-        let divisor = self.meters.divisor(q);
+        let divisor = self.form.meters().divisor(q);
         let sup = divisor.lo().abs().max(divisor.hi().abs());
         if !(divisor.is_certified() && sup > 0.0 && sup.is_finite()) {
             return Interval::refused();
@@ -237,7 +258,7 @@ impl Curved {
     /// the sphere). `+∞` where it does not certify.
     pub(crate) fn ceiling_metres(&self, mag: f64, q: Vec3<Interval>) -> f64 {
         let reach = match self.form {
-            CanonicalSurface::Sphere { .. } => q.x.sqr() + q.y.sqr() + q.z.sqr(),
+            Form::Sphere { .. } => q.x.sqr() + q.y.sqr() + q.z.sqr(),
             _ => q.x.sqr() + q.y.sqr(),
         }
         .sqrt();
@@ -246,7 +267,8 @@ impl Curved {
         }
         let rho = Interval::point(reach.lo().max(0.0));
         let over = self
-            .meters
+            .form
+            .meters()
             .over(Interval::point(mag), rho, (0.0, 0.0), |lever| {
                 if lever.is_certified() && lever.lo() > 0.0 {
                     Ok(lever)

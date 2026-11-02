@@ -2456,8 +2456,8 @@ pub enum TraceDecision {
     /// radius is positive ([`SsiError::RadiusNotPositive`] is its
     /// verdict).
     PairRadius(crate::SectionRadius),
-    /// `ssi_boundary_on_plane` and `ssi_boundary_corner`: how far a
-    /// side or a corner of the wall lies from the plane. Every arm is
+    /// `ssi_boundary_on_partner` and `ssi_boundary_corner`: how far a
+    /// side or a corner of the wall lies from its partner. Every arm is
     /// reported (a region in the band), so only a poisoned distance
     /// escalates it.
     BoundarySection,

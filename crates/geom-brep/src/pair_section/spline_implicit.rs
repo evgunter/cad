@@ -44,7 +44,7 @@
 //! wall's whole knot rectangle: every branch with its three-limb certificate, every
 //! boundary region, and the accounting that they are all of them. The
 //! plane is read at its pivot, its origin moved to its foot nearest the
-//! wall ([`SplineImplicitPose::anchored`]), so where its origin is stored
+//! wall (`SplineImplicitPose::anchored`), so where its origin is stored
 //! changes nothing. The foot is found in `f64`, so the plane read may
 //! stand off the stored one; that shift is certified and charged: the
 //! reading's band is padded by it, and the witness's bracket reads the
@@ -235,10 +235,68 @@ impl<T: Real> SplineImplicitPose<T> {
 /// What stage 1 decides of a pose it does not refuse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Hull {
-    /// The net lies strictly on one side of the plane.
+    /// The net lies strictly on one side of the partner.
     Apart,
-    /// The net reaches past the band of the plane.
+    /// The net reaches past the band of the partner.
     Cuts,
+}
+
+/// **Stage 1's one rule, from its readings**: every reading of the net
+/// decided of one sign is apart; otherwise `coincidence`, the net's
+/// largest distance read against the band, decides it coincident (a
+/// coincidence its consumer keeps, D10), cutting, or in band.
+///
+/// # Errors
+///
+/// [`SectionError::CoincidentSurfaces`] and [`SectionError::Escalated`].
+fn hull_verdict(
+    sides: &[Option<Sign>],
+    coincidence: impl FnOnce() -> Result<Magnitude, geom_core::Indeterminate>,
+) -> Result<Hull, SectionError> {
+    let all = |s| !sides.is_empty() && sides.iter().all(|&t| t == Some(s));
+    if all(Sign::Positive) || all(Sign::Negative) {
+        return Ok(Hull::Apart);
+    }
+    match coincidence() {
+        Ok(Magnitude::Zero) => Err(SectionError::CoincidentSurfaces),
+        Ok(Magnitude::Positive) => Ok(Hull::Cuts),
+        Err(diag) => Err(SectionError::Escalated(diag)),
+    }
+}
+
+/// **The door's collapsed sides, against any partner**: a side of the
+/// wall's rectangle collapsed to a point
+/// ([`crate::chart_singularity::spline_collapsed_row`]) is a pole, and
+/// one whose row is not decided clear of the partner, every point of it
+/// on one side by `clear`, is refused before any sweep, named.
+///
+/// # Errors
+///
+/// [`SectionError::Unaccounted`], naming the side.
+fn door_on<T: Decide>(
+    net: &NurbsSurface<T>,
+    band: Band,
+    partner: &str,
+    clear: impl Fn(Point3<T>) -> Option<Sign>,
+) -> Result<(), SectionError> {
+    let control = net.control();
+    for side in crate::ssi::boundary::SIDES {
+        let Some(row) = crate::chart_singularity::spline_collapsed_row(net, side, band) else {
+            continue;
+        };
+        let signs: Vec<_> = row
+            .iter()
+            .filter_map(|&i| control.get(i))
+            .map(|&p| clear(p))
+            .collect();
+        let one = |s| !signs.is_empty() && signs.iter().all(|&t| t == Some(s));
+        if !(one(Sign::Positive) || one(Sign::Negative)) {
+            return Err(SectionError::Unaccounted {
+                cause: format!("{side} collapses to a point not decided clear of the {partner}"),
+            });
+        }
+    }
+    Ok(())
 }
 
 impl<T: Decide> SplineImplicitPose<T> {
@@ -269,16 +327,10 @@ impl<T: Decide> SplineImplicitPose<T> {
             .iter()
             .map(|&h| decide("section_nurbs_plane_hull", Margin::of(h), band).ok())
             .collect();
-        let all = |s| !sides.is_empty() && sides.iter().all(|&t| t == Some(s));
-        if all(Sign::Positive) || all(Sign::Negative) {
-            return Ok(Hull::Apart);
-        }
-        let reach = heights.iter().fold(T::zero(), |m, &h| m.max(h.abs()));
-        match decide_magnitude("section_nurbs_plane_coincident", Margin::of(reach), band) {
-            Ok(Magnitude::Zero) => Err(SectionError::CoincidentSurfaces),
-            Ok(Magnitude::Positive) => Ok(Hull::Cuts),
-            Err(diag) => Err(SectionError::Escalated(diag)),
-        }
+        hull_verdict(&sides, || {
+            let reach = heights.iter().fold(T::zero(), |m, &h| m.max(h.abs()));
+            decide_magnitude("section_nurbs_plane_coincident", Margin::of(reach), band)
+        })
     }
 
     /// **The door's collapsed sides**: a side of the wall's rectangle
@@ -291,27 +343,9 @@ impl<T: Decide> SplineImplicitPose<T> {
     ///
     /// [`SectionError::Unaccounted`], naming the side.
     fn door(&self, band: Band) -> Result<(), SectionError> {
-        let control = self.net.control();
-        for side in crate::ssi::boundary::SIDES {
-            let Some(row) = crate::chart_singularity::spline_collapsed_row(&self.net, side, band)
-            else {
-                continue;
-            };
-            let signs: Vec<_> = row
-                .iter()
-                .filter_map(|&i| control.get(i))
-                .map(|&p| decide("section_nurbs_plane_pole", Margin::of(self.height(p)), band).ok())
-                .collect();
-            let one = |s| !signs.is_empty() && signs.iter().all(|&t| t == Some(s));
-            if !(one(Sign::Positive) || one(Sign::Negative)) {
-                return Err(SectionError::Unaccounted {
-                    cause: format!(
-                        "the wall's {side} collapses to a point not decided clear of the plane"
-                    ),
-                });
-            }
-        }
-        Ok(())
+        door_on(&self.net, band, "plane", |p| {
+            decide("section_nurbs_plane_pole", Margin::of(self.height(p)), band).ok()
+        })
     }
 
     /// The height of `p` over the plane, in metres.
@@ -331,9 +365,9 @@ impl SplineImplicitPose<f64> {
     /// `section_cert`'s lever and pivot). The foot is found in `f64`,
     /// so the plane read stands off the stored one by up to
     /// [`Pivot::shift`], which the reading's band and the witness's
-    /// bracket are charged.
-    #[must_use]
-    pub fn anchored(&self) -> Surface<f64> {
+    /// bracket are charged. A plane pose's alone: the classification
+    /// reads it only where the partner is a plane.
+    pub(crate) fn anchored(&self) -> Surface<f64> {
         self.pivot().plane
     }
 
@@ -373,16 +407,19 @@ impl SplineImplicitPose<f64> {
     }
 
     /// **The reading's domain**: against a plane, the window of the plane
-    /// read at its pivot ([`Self::anchored`]), reaching twice the farthest
+    /// read at its pivot (`Self::anchored`), reaching twice the farthest
     /// control point from the pivot plus the feature extent, so it holds
-    /// the wall and a march ends only on the wall's rectangle; against a
-    /// curved partner, the cube about the net's ball. The feature extent
-    /// is the net ball's diameter ([`super::domain_about`]).
+    /// the wall and a march ends only on the wall's rectangle. A curved
+    /// partner has no chart window and nothing marches on its pose, so its
+    /// domain carries only what the classification reads, the feature
+    /// extent and the accounting floor: the cube of the net's ball. The
+    /// feature extent is the net ball's diameter
+    /// ([`super::domain_about`]).
     #[must_use]
     pub fn domain(&self) -> SsiDomain {
         if !self.is_plane() {
             let ball = self.ball();
-            return super::domain_about(ball.center(), ball.radius() * 1.01, ball.radius() * 2.0);
+            return super::domain_about(ball.center(), ball.radius(), ball.radius() * 2.0);
         }
         let Surface::Plane { origin, .. } = self.anchored() else {
             unreachable!("the pose holds a plane")
@@ -398,7 +435,7 @@ impl SplineImplicitPose<f64> {
     }
 }
 
-/// **The plane read at its pivot** ([`SplineImplicitPose::anchored`]).
+/// **The plane read at its pivot** (`SplineImplicitPose::anchored`).
 struct Pivot {
     /// The plane, its origin at the foot.
     plane: Surface<f64>,
@@ -705,11 +742,7 @@ pub(super) fn whole(
     band: Band,
 ) -> Result<PairSection<f64>, SectionError> {
     if !pose.is_plane() {
-        return Err(SectionError::RoutesToGeneralRung {
-            pair: "a NURBS wall and a cylinder, sphere or torus",
-            why: "the whole reading over the wall's knot rectangle is not built for a curved \
-                  partner",
-        });
+        return Err(curved::unbuilt());
     }
     let pivot = pose.pivot();
     let read_band = pivot.band(band)?;

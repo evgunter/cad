@@ -1752,9 +1752,10 @@ pub(super) fn of_pair_section<T: Decide>(
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
         // Two surfaces decided one share a carrier: no component count
         // is certified, as at a tangency. Two tori (`tt_coincident`), two
-        // cylinders and a spline wall on a plane
-        // (`section_nurbs_plane_coincident`) are decided one; the refusal
-        // carries no pose, so it is named by the value.
+        // cylinders, and a spline wall on a plane
+        // (`section_nurbs_plane_coincident`) or on a cylinder, sphere or
+        // torus (`section_nurbs_implicit_coincident`) are decided one; the
+        // refusal carries no pose, so it is named by the value.
         Err(SectionError::CoincidentSurfaces) => {
             return Section::Tangent("pair_section_coincident");
         }

@@ -203,7 +203,7 @@ impl Pieces {
         let weights: Vec<f64> = unit_scale_exact(curve.weights())
             .map_or_else(|| curve.weights().to_vec(), |(_, scaled)| scaled);
         let data = CurveCertData::new(curve.knots_f64_interim(), &weights, &coords).ok()?;
-        let form = canonical_composite(&data, &curved.form()).ok()?;
+        let form = canonical_composite(&data, &curved.form().canonical()).ok()?;
         let pieces: Vec<Piece> = form
             .num
             .breaks()
@@ -645,7 +645,7 @@ fn read_section(
         })
     };
     match decide(
-        "ssi_boundary_on_plane",
+        "ssi_boundary_on_partner",
         Margin::of(pieces.metres(sup)),
         band,
     ) {

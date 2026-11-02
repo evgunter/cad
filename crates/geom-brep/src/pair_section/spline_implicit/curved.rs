@@ -1,5 +1,6 @@
-//! **A spline wall against a cylinder, sphere or torus: stages 1 to 3**
-//! (module docs of [`super`]), through the march door, at `f64`.
+//! **A spline wall against a cylinder, sphere or torus: the hull, the
+//! door, the pass and the sweep** (module docs of [`super`]), through the
+//! march door, at `f64`.
 //!
 //! - **The hull.** `φ = f∘S` is the composite of the partner's canonical
 //!   form ([`Curved`]) with the wall's rational chart, so on each Bézier
@@ -27,22 +28,29 @@
 
 use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
-use geom_core::k_stats::{Magnitude, decide, decide_magnitude};
+use geom_core::k_stats::{decide, decide_magnitude};
 use geom_core::spline::TensorCoeffs;
-use geom_core::spline::compose::CanonicalSurface;
 use geom_core::spline::compose::patch::PatchSpans;
-use geom_core::{Band, Bounds, Interval, Margin, Sign, Vec3};
+use geom_core::{Band, Bounds, Interval, Margin, Vec3};
 
 use super::super::{ChartReach, Components, PairSection, Reached};
 use super::sweep::{self, Phi, Sweep};
-use super::{Hull, SplineImplicitPose, contact_reach};
+use super::{Hull, SplineImplicitPose, contact_reach, door_on, hull_verdict};
 use crate::intersect::SectionError;
-use crate::ssi::residual::{Curved, ImplicitWall};
+use crate::ssi::residual::{Curved, Form, ImplicitWall};
 
-/// Why a declined sweep's pose refuses.
-const UNBUILT: &str = "the regularity sweep does not decide the section loop-free, and the \
-                       whole reading over the wall's knot rectangle that would list its \
-                       components is not built for a curved partner";
+/// **The one refusal of a curved partner's pose the classification
+/// does not decide**: the whole reading over the wall's knot rectangle,
+/// which a plane's pose falls to, is not built for a curved partner. A
+/// declined sweep and a reading asked whole both end here.
+pub(super) fn unbuilt() -> SectionError {
+    SectionError::RoutesToGeneralRung {
+        pair: "a NURBS wall and a cylinder, sphere or torus",
+        why: "the regularity sweep does not decide the section loop-free, and the whole \
+              reading over the wall's knot rectangle that would list its components is not \
+              built for a curved partner",
+    }
+}
 
 /// **The pair's classification, the march door's arm for a curved
 /// partner** (module docs).
@@ -85,10 +93,7 @@ pub(super) fn section(
         band,
         domain.extent,
     ) {
-        Sweep::Declined(_) => Err(SectionError::RoutesToGeneralRung {
-            pair: "a NURBS wall and a cylinder, sphere or torus",
-            why: UNBUILT,
-        }),
+        Sweep::Declined(_) => Err(unbuilt()),
         Sweep::LoopFree => Ok(
             match Reached::new(pose.order(ChartReach::default(), reach)) {
                 Some(reached) => pose.section(Components::Reaching(reached)),
@@ -172,11 +177,9 @@ pub(super) fn hull(
     let w2 = gw.mul(&gw);
     let radial = gx.mul(&gx).add(&gy.mul(&gy));
     let (num, den) = match curved.form() {
-        CanonicalSurface::Cylinder { radius } => (radial.sub(&w2.scale(radius.sqr())), w2),
-        CanonicalSurface::Sphere { radius } => {
-            (radial.add(&gz.mul(&gz)).sub(&w2.scale(radius.sqr())), w2)
-        }
-        CanonicalSurface::Torus { major, minor } => {
+        Form::Cylinder { radius } => (radial.sub(&w2.scale(radius.sqr())), w2),
+        Form::Sphere { radius } => (radial.add(&gz.mul(&gz)).sub(&w2.scale(radius.sqr())), w2),
+        Form::Torus { major, minor } => {
             let shifted = radial
                 .add(&gz.mul(&gz))
                 .add(&w2.scale(major.sqr() - minor.sqr()));
@@ -185,9 +188,6 @@ pub(super) fn hull(
                 shifted.mul(&shifted).sub(&radial.mul(&w2).scale(four)),
                 w2.mul(&w2),
             )
-        }
-        CanonicalSurface::Plane | CanonicalSurface::Cone { .. } => {
-            unreachable!("a curved partner is a cylinder, a sphere or a torus")
         }
     };
     let (nu, nvc) = num.cell_counts();
@@ -216,23 +216,17 @@ pub(super) fn hull(
             .ok()
         })
         .collect();
-    let all = |s| !sides.is_empty() && sides.iter().all(|&t| t == Some(s));
-    if all(Sign::Positive) || all(Sign::Negative) {
-        return Ok(Hull::Apart);
-    }
-    let reach = values
-        .iter()
-        .fold(0.0_f64, |m, f| m.max(f.lo().abs()).max(f.hi().abs()));
-    let ceiling = curved.ceiling_metres(reach, box_);
-    match decide_magnitude(
-        "section_nurbs_implicit_coincident",
-        Margin::of(ceiling),
-        band,
-    ) {
-        Ok(Magnitude::Zero) => Err(SectionError::CoincidentSurfaces),
-        Ok(Magnitude::Positive) => Ok(Hull::Cuts),
-        Err(diag) => Err(SectionError::Escalated(diag)),
-    }
+    hull_verdict(&sides, || {
+        let reach = values
+            .iter()
+            .fold(0.0_f64, |m, f| m.max(f.lo().abs()).max(f.hi().abs()));
+        let ceiling = curved.ceiling_metres(reach, box_);
+        decide_magnitude(
+            "section_nurbs_implicit_coincident",
+            Margin::of(ceiling),
+            band,
+        )
+    })
 }
 
 /// **The door's collapsed sides** (module docs).
@@ -245,35 +239,15 @@ pub(super) fn door(
     net: &NurbsSurface<f64>,
     band: Band,
 ) -> Result<(), SectionError> {
-    let control = net.control();
-    for side in crate::ssi::boundary::SIDES {
-        let Some(row) = crate::chart_singularity::spline_collapsed_row(net, side, band) else {
-            continue;
-        };
-        let signs: Vec<_> = row
-            .iter()
-            .filter_map(|&i| control.get(i))
-            .map(|&p| {
-                let q = curved.framed_point(p);
-                decide(
-                    "section_nurbs_implicit_pole",
-                    Margin::of(curved.floor_metres(curved.value(q), q)),
-                    band,
-                )
-                .ok()
-            })
-            .collect();
-        let one = |s| !signs.is_empty() && signs.iter().all(|&t| t == Some(s));
-        if !(one(Sign::Positive) || one(Sign::Negative)) {
-            return Err(SectionError::Unaccounted {
-                cause: format!(
-                    "{side} collapses to a point not decided clear of the {}",
-                    curved.name()
-                ),
-            });
-        }
-    }
-    Ok(())
+    door_on(net, band, curved.name(), |p| {
+        let q = curved.framed_point(p);
+        decide(
+            "section_nurbs_implicit_pole",
+            Margin::of(curved.floor_metres(curved.value(q), q)),
+            band,
+        )
+        .ok()
+    })
 }
 
 #[cfg(test)]
