@@ -301,3 +301,9 @@ and bodies unchanged. No orchestrator yet.
   - **Unchanged:** MINOR-1 (`feet`'s two-point shape) stays on 3a's list. Ev's PR 6398 has no comments yet.
 
 - 2026-11-02 22:20 — **PR 6400 merged** (NURBS 3a-0; single full review APPROVE; a small pass added a `first < N` debug check, narrowed the `RectExit` bound to `SectionSystem`, and fixed docs). **Stage 3a dispatched** to the same implementer (`sectarms/nurbs-implicit-arm-stage3a`; H, dual review). The pcurve on the implicit side follows an existing lane's precedent, or stops for a ruling.
+
+- 2026-11-02 — **The container restarted mid-work.** Both lanes' clones and targets survived, so both were resumed from their transcripts:
+  - cylinder 3b-i was at 069db8d, pushed;
+  - NURBS 3a had uncommitted edits and was told to commit and push its work in progress first.
+  
+  The lost "wait for CI" task needed no recreation. Ev's PR 6398 is still unanswered.
