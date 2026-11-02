@@ -145,3 +145,9 @@ AUTHOR's narrative is recoverable from
 - Re-verify 3 of `ac066e8588`: chains over `verbatim_edge`, rebind rounds (terminate, no double rebind), `Holds`, one door spelling and the shipped-only census all check out. NEW-A: `name_run` chose the seed by *recency*, not by *answering the shown document*, so an undo of an unlanded takeover made it judge a live pick against a document no longer shown and drop it (probed red).
 - Class note: the ruling at 01:05 said "an evaluation answering the document" and the lane implemented "the newest evaluation" — a ruling stated as identity was implemented as an ordering. Brief such rulings with the failing ordering case named.
 - Fix pass 4: choose by identity (else abstain); rounds only when a chain body reads a rebound site (cost 143 vs 62 ms); small S-A/S-C; NEW-3 row option 3 corrected; S-2's wider hand-walked Place chains filed P3.
+
+## 2026-11-02 04:00 — clearance unit reported; reviews dispatched
+
+- PR 6292 (`a-clearance-assertion-is-decided-by-the-sweep`) reported at head `2e490135dc`, CI green. Tier per plan's posture: a style review plus a correctness reviewer — a wrong clearance verdict is a confident wrong picture. The correctness reviewer runs as its own cloud session (this container's disk is shared with 6264's lane) and posts on the PR; the style reviewer runs locally, read-only.
+- Class finding filed: `node-standing-census-goes-red-on-main-between-nightlies` — main broke the read census twice today and both fixes rode unrelated PRs (6264, 6292).
+- Lane note worth keeping: the clearance lane's local subset missed 10 fixture failures that CI caught; "the CI log tail hides failures" — read the jobs, not the tail.
