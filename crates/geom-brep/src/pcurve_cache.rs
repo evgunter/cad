@@ -4448,7 +4448,7 @@ impl<T: Decide> PcurveCache<T> {
         surface: &Surface<T>,
         band: Band,
     ) -> Result<Self, PcurveCertifyError> {
-        read_incidence(carrier, t0, t1, surface, band)?;
+        let shown = read_shown(carrier, t0, t1, surface, band)?;
         let certificate = match &pcurve {
             Pcurve::Fitted(_) | Pcurve::General(_) => {
                 return Err(PcurveCertifyError::ImageMismatch {
@@ -4476,7 +4476,7 @@ impl<T: Decide> PcurveCache<T> {
             // not say a word. Adding a variant must be a
             // compiler-guided edit at every dispatch site.
             Pcurve::Harmonic { u, v } => {
-                run_harmonic_checks((*u, *v), t0, t1, carrier, surface, band)?
+                run_harmonic_checks((*u, *v), t0, t1, carrier, surface, band, shown)?
             }
             // The spiric lane: closed-form like the harmonic and iso
             // ones — no bracket obligation — so it shares this
@@ -4674,7 +4674,7 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
-        read_incidence(carrier, t0, t1, surface, band)?;
+        let shown = read_shown(carrier, t0, t1, surface, band)?;
         match &self.pcurve {
             Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
                 image,
@@ -4745,6 +4745,7 @@ impl<T: Decide> PcurveCache<T> {
                 carrier,
                 surface,
                 band,
+                shown,
             ),
         }
     }
@@ -5255,6 +5256,7 @@ fn run_harmonic_checks<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
+    shown: Option<incidence::Incident>,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     let pcurve = &Pcurve::Harmonic { u, v };
     // ---- Check 1: the certified lane. ----
@@ -5359,7 +5361,7 @@ fn run_harmonic_checks<T: Decide>(
             )
         }
         _ => {
-            let terms = periodic_envelope(
+            let terms = periodic_envelope_shown(
                 (u, v),
                 carrier,
                 carrier_form,
@@ -5367,6 +5369,7 @@ fn run_harmonic_checks<T: Decide>(
                 (t0, t1),
                 reach,
                 band,
+                shown,
             )?;
             (terms.total(), Some(terms))
         }
@@ -5540,6 +5543,7 @@ impl<T: Decide> EnvelopeTerms<T> {
 /// Check 4 on a periodic chart: the carrier's incidence under the
 /// structure [`derive_harmonic`] selects for it, plus the stored
 /// image's fidelity to the image it derives.
+#[cfg(test)]
 fn periodic_envelope<T: Decide>(
     stored: (Channel<T>, Channel<T>),
     carrier: &Curve3<T>,
@@ -5549,17 +5553,47 @@ fn periodic_envelope<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<EnvelopeTerms<T>, PcurveCertifyError> {
+    periodic_envelope_shown(
+        stored,
+        carrier,
+        carrier_form,
+        surface,
+        span,
+        reach,
+        band,
+        None,
+    )
+}
+
+/// [`periodic_envelope`] behind the stored chart's incidence read the
+/// certification already took (`shown`), carried to the re-derivation
+/// on the chart's orthonormalised twin rather than read there again.
+#[allow(clippy::too_many_arguments)]
+fn periodic_envelope_shown<T: Decide>(
+    stored: (Channel<T>, Channel<T>),
+    carrier: &Curve3<T>,
+    carrier_form: Harmonic3<T>,
+    surface: &Surface<T>,
+    span: (T, T),
+    reach: T,
+    band: Band,
+    shown: Option<incidence::Incident>,
+) -> Result<EnvelopeTerms<T>, PcurveCertifyError> {
     // The lemma's premise is an orthonormal frame. The stored chart's
     // need not be one over a box (or at all), so the lemma is applied
     // on the chart's orthonormalised twin and the two maps' distance
     // over the stored image is its own term (`Frame`).
     let ideal = orthonormal_chart(surface);
-    let (derived, derivation) = derive_harmonic(
-        carrier,
-        &ideal,
-        Placement::over(span, carrier, &ideal),
-        band,
-    )?;
+    //
+    // The carrier's incidence is the stored chart's read, which the
+    // certification took before any check (`shown`): the twin is the same
+    // chart in an orthonormal frame, and is not read again. Read on the
+    // twin, an interval chart would be read wider than the mint's read of
+    // the stored one, so a stored row would read in band where its mint
+    // did not.
+    let place = Placement::over(span, carrier, &ideal);
+    let place = shown.map_or(place, |read| place.shown(read));
+    let (derived, derivation) = derive_harmonic(carrier, &ideal, place, band)?;
     // The derivation's image is harmonic on every arm but the focal
     // section's (`Derivation::FocalSection`), which images as its own
     // variant.
@@ -8617,6 +8651,10 @@ pub(crate) struct Placement<T> {
     /// The span the placement reads, which an open carrier's incidence
     /// test samples ([`incidence::incident`]).
     span: (T, T),
+    /// The carrier's incidence read already taken on the chart this
+    /// placement re-derives on (`Placement::shown`): the test returns it
+    /// rather than reading the carrier again.
+    shown: Option<incidence::Incident>,
 }
 
 /// **Which angle a placement names**, and so the window it is named in
@@ -8719,6 +8757,18 @@ impl<T: Decide> Placement<T> {
                 latitude,
             },
             span: (t0, t1),
+            shown: None,
+        }
+    }
+
+    /// This placement carrying the carrier's incidence read already
+    /// taken on the chart, so a re-derivation (check 4's, on the chart's
+    /// orthonormalised twin) takes the class arms behind that read rather
+    /// than reading the carrier a second time.
+    fn shown(self, read: incidence::Incident) -> Self {
+        Self {
+            shown: Some(read),
+            ..self
         }
     }
 
@@ -9086,14 +9136,30 @@ pub fn read_incidence<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
+    read_shown(carrier, t0, t1, surface, band).map(|_| ())
+}
+
+/// [`read_incidence`], with the read's witness where the closed-form
+/// test took it ([`incidence::Incident`]): the one read of the carrier on
+/// its chart that a certification carries to check 4's re-derivation
+/// (`Placement::shown`). `None` where no closed-form test reads (a
+/// spline chart, or a spline carrier's own test), which has no class
+/// arm to carry it to.
+fn read_shown<T: Decide>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<Option<incidence::Incident>, PcurveCertifyError> {
     if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
-        return Ok(());
+        return Ok(None);
     }
     if let Curve3::Nurbs(net) = carrier {
         return match net_incidence(net, Some((t0, t1)), surface, band)? {
             Incidence::Off(margin) => Err(OffChart("the spline carrier does not lie on the chart")
                 .with_margin(OffMargin::Past(margin), surface, carrier)),
-            Incidence::On => Ok(()),
+            Incidence::On => Ok(None),
         };
     }
     incidence::incident(
@@ -9102,7 +9168,7 @@ pub fn read_incidence<T: Decide>(
         Placement::over((t0, t1), carrier, surface),
         band,
     )
-    .map(|_| ())
+    .map(Some)
 }
 
 /// **The mint's incidence read of one point** (D3): whether `point` lies
@@ -9152,7 +9218,6 @@ fn net_incidence<T: Decide>(
         surface,
         span,
         |t| net.eval(t),
-        None,
         T::zero(),
         band,
     )
@@ -10705,7 +10770,6 @@ fn chart_incidence<T: Decide>(
     name: &'static str,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
-    sits: Sits<'_, T>,
     slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
@@ -10714,7 +10778,6 @@ fn chart_incidence<T: Decide>(
         surface,
         (T::zero(), T::tau()),
         |t| carrier.eval(t),
-        sits,
         slack,
         band,
     )
@@ -10740,22 +10803,10 @@ fn incidence_over_span<T: Decide>(
     surface: &Surface<T>,
     span: (T, T),
     at: impl Fn(T) -> Point3<T>,
-    sits: Sits<'_, T>,
     slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    let (mut farthest, reach) = farthest_over_span(surface, span, at);
-    // At an enclosure scalar the read where the carrier sits encloses the
-    // same exact distances as the moved one, by an independent argument,
-    // so the smaller of the two encloses the farthest of them too. The
-    // move keeps a carrier far from its chart's anchor tight; read where
-    // it sits, an input that is itself an enclosure (a dimension widened
-    // to a parameter box) is not split into an offset and a remainder
-    // whose widths then add.
-    if let (geom_core::Witness::Exact, Some((carrier, chart))) = (T::WITNESS, sits) {
-        let (direct, _) = farthest_over_span(chart, span, |t| carrier.eval(t));
-        farthest = farthest.min(direct);
-    }
+    let (farthest, reach) = farthest_over_span(surface, span, at);
     // The distance is computed from coordinates rounded at the samples'
     // reach, after a move into the carrier's frame that rounded by
     // `slack` (`incidence::anchored`): together the rounding `c`. It is
@@ -10809,11 +10860,6 @@ fn incidence_over_span<T: Decide>(
     }
 }
 
-/// The carrier and its chart where they sit, before the move into the
-/// carrier's frame (`incidence::anchored`): read as well at an enclosure
-/// scalar ([`incidence_over_span`]); `None` where nothing moved.
-type Sits<'a, T> = Option<(&'a Curve3<T>, &'a Surface<T>)>;
-
 /// **The one door to the general lane** (D3): a lane choice picks between
 /// images of a carrier ON the chart, so before a class reading that did
 /// not show one of the chart's own classes may take the general lane, or
@@ -10838,7 +10884,9 @@ mod incidence {
 
     /// **The read in the carrier's own frame.** The carrier and the
     /// chart are moved together by the carrier's own anchor (a conic's or
-    /// spiric's centre, a line's origin), so the carrier's points are
+    /// spiric's centre; a line's point at the middle of `span`, its
+    /// parameter shifted by that middle, so no sample is more than half
+    /// the span from it), so the carrier's points are
     /// evaluated at its own size; the chart's axis is made unit; and a
     /// plane's or cylinder's anchor, which the chart reads up to a slide
     /// in its plane or along its axis, is slid to its foot nearest the
@@ -10857,16 +10905,37 @@ mod incidence {
     /// carrier on it, and a cone's apex slides nowhere, so theirs are
     /// read from where they sit. `None` for a spline carrier or chart,
     /// read where it is.
+    ///
+    /// The line's anchor is the middle of its span, not its origin: an
+    /// enclosure's offset from an anchor at one end and its run from that
+    /// end each carry the chart's width separately, where taken from the
+    /// middle neither is longer than half the span. The anchor's own
+    /// rounding (at `f64`) is in the offset's, so in the slack, and the
+    /// moved line's origin is the anchor exactly.
+    ///
+    /// Returned as the moved carrier, the moved chart, the slack, and
+    /// the shift the moved carrier's parameter is read less (`mid` for a
+    /// line, zero otherwise).
     fn anchored<T: geom_core::Real>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
-    ) -> Option<(Curve3<T>, Surface<T>, T)> {
+        (t0, t1): (T, T),
+    ) -> Option<(Curve3<T>, Surface<T>, T, T)> {
         use geom_core::running::{Rounded, dot, exact_vec};
+        let mid = match carrier {
+            Curve3::Line { .. } => (t0 + t1) * T::from_f64(0.5),
+            _ => T::zero(),
+        };
         let k = match *carrier {
-            Curve3::Line { origin, .. } => origin,
+            Curve3::Line { origin, dir } => {
+                let [ox, oy, oz] = exact_vec(origin - geom_core::Point3::origin());
+                let [dx, dy, dz] = exact_vec(dir);
+                let m = Rounded::exact(mid);
+                [ox + dx * m, oy + dy * m, oz + dz * m]
+            }
             Curve3::Circle { center, .. }
             | Curve3::Ellipse { center, .. }
-            | Curve3::Spiric { center, .. } => center,
+            | Curve3::Spiric { center, .. } => exact_vec(center - geom_core::Point3::origin()),
             _ => return None,
         };
         let mut moved = surface.clone();
@@ -10878,7 +10947,7 @@ mod incidence {
         };
         // The anchor's offset from the carrier's, with its rounding.
         let [ax, ay, az] = exact_vec(*anchor - geom_core::Point3::origin());
-        let [kx, ky, kz] = exact_vec(k - geom_core::Point3::origin());
+        let [kx, ky, kz] = k;
         let mut off = [ax - kx, ay - ky, az - kz];
         // Slid to its foot nearest the carrier: in the plane, the normal
         // part of the offset; on the axis, its radial part.
@@ -10906,18 +10975,29 @@ mod incidence {
             *axis = axis.normalize();
         }
         // The carrier's own anchor lands on the origin exactly: `k − k`
-        // is zero at `f64`, and at an enclosure scalar would otherwise be
-        // twice `k`'s width wide, its width then counted again in the
-        // offset above.
-        let mut carrier = carrier.translated(geom_core::Point3::origin() - k)?;
-        match &mut carrier {
-            Curve3::Line { origin: at, .. }
-            | Curve3::Circle { center: at, .. }
-            | Curve3::Ellipse { center: at, .. }
-            | Curve3::Spiric { center: at, .. } => *at = geom_core::Point3::origin(),
-            _ => unreachable!("anchored: the carrier's kind is the one its anchor was read off"),
-        }
-        Some((carrier, moved, error))
+        // is zero at `f64` (less the anchor's rounding, which the offset
+        // carries), and at an enclosure scalar would otherwise be twice
+        // `k`'s width wide.
+        let carrier = match *carrier {
+            Curve3::Line { dir, .. } => Curve3::Line {
+                origin: geom_core::Point3::origin(),
+                dir,
+            },
+            _ => {
+                let k = geom_core::Vec3::new(kx.value, ky.value, kz.value);
+                let mut moved = carrier.translated(-k)?;
+                match &mut moved {
+                    Curve3::Circle { center: at, .. }
+                    | Curve3::Ellipse { center: at, .. }
+                    | Curve3::Spiric { center: at, .. } => *at = geom_core::Point3::origin(),
+                    _ => unreachable!(
+                        "anchored: the carrier's kind is the one its anchor was read off"
+                    ),
+                }
+                moved
+            }
+        };
+        Some((carrier, moved, error, mid))
     }
 
     /// **The chart's incidence test of `carrier`**: a carrier shown off
@@ -10950,8 +11030,8 @@ mod incidence {
         band: Band,
     ) -> Result<Incidence, PcurveCertifyError> {
         let probe = point_probe(point);
-        let (moved, slack) = match anchored(&probe, surface) {
-            Some((_, moved, slack)) => (moved, slack),
+        let (moved, slack) = match anchored(&probe, surface, (T::zero(), T::zero())) {
+            Some((_, moved, slack, _)) => (moved, slack),
             None => (surface.clone(), T::zero()),
         };
         super::incidence_over_span(
@@ -10959,7 +11039,6 @@ mod incidence {
             &moved,
             (T::zero(), T::zero()),
             |_| geom_core::Point3::origin(),
-            Some((&probe, surface)),
             slack,
             band,
         )
@@ -10971,6 +11050,11 @@ mod incidence {
         place: Placement<T>,
         band: Band,
     ) -> Result<Incident, PcurveCertifyError> {
+        // A placement carrying the read already taken on this chart is
+        // not read again (`Placement::shown`).
+        if let Some(read) = place.shown {
+            return Ok(read);
+        }
         let tested = Incident { _tested: () };
         #[cfg(test)]
         if super::mutants::skip_incidence() {
@@ -10978,17 +11062,19 @@ mod incidence {
         }
         // Read in the chart's own frame, so a sample's distance carries
         // the rounding of the carrier's size, not of its placement.
-        let anchored = anchored(carrier, surface);
-        let sits = anchored.as_ref().map(|_| (carrier, surface));
-        let (carrier, surface, slack) = anchored
+        let anchored = anchored(carrier, surface, place.span);
+        let (carrier, surface, slack, shift) = anchored
             .as_ref()
-            .map_or((carrier, surface, T::zero()), |(c, s, e)| (c, s, *e));
+            .map_or((carrier, surface, T::zero(), T::zero()), |(c, s, e, m)| {
+                (c, s, *e, *m)
+            });
         let (name, off_why) = match (carrier, surface) {
             (Curve3::Circle { .. } | Curve3::Ellipse { .. }, Surface::Cone { .. }) => {
-                return cone_conic_incidence(carrier, surface, sits, slack, band).map(|()| tested);
+                return cone_conic_incidence(carrier, surface, slack, band).map(|()| tested);
             }
             (Curve3::Line { .. }, _) => {
-                return line_incidence(carrier, surface, place.span, sits, slack, band)
+                let (t0, t1) = place.span;
+                return line_incidence(carrier, surface, (t0 - shift, t1 - shift), slack, band)
                     .map(|()| tested);
             }
             (_, Surface::Sphere { .. }) => (
@@ -11009,7 +11095,7 @@ mod incidence {
                  its own test (`net_incidence`)"
             ),
         };
-        match chart_incidence(name, carrier, surface, sits, slack, band)? {
+        match chart_incidence(name, carrier, surface, slack, band)? {
             Incidence::On => Ok(tested),
             Incidence::Off(margin) => {
                 Err(OffChart(off_why).with_margin(super::OffMargin::Past(margin), surface, carrier))
@@ -11023,7 +11109,6 @@ mod incidence {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         span: (T, T),
-        sits: super::Sits<'_, T>,
         slack: T,
         band: Band,
     ) -> Result<(), PcurveCertifyError> {
@@ -11032,7 +11117,6 @@ mod incidence {
             surface,
             span,
             |t| carrier.eval(t),
-            sits,
             slack,
             band,
         )? {
@@ -11284,7 +11368,6 @@ fn spiric_chart_pcurve<T: Decide>(
 fn cone_conic_incidence<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
-    sits: Sits<'_, T>,
     slack: T,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
@@ -11330,14 +11413,7 @@ fn cone_conic_incidence<T: Decide>(
             return Err(near_apex.with_margin(OffMargin::InBand(margin), surface, carrier));
         }
     }
-    match chart_incidence(
-        "pcurve_cone_chart_incident",
-        carrier,
-        surface,
-        sits,
-        slack,
-        band,
-    )? {
+    match chart_incidence("pcurve_cone_chart_incident", carrier, surface, slack, band)? {
         Incidence::On => Ok(()),
         Incidence::Off(margin) => Err(OffChart(
             "the conic's points are not on the cone (its distance from the cone at a sample is \
