@@ -59,3 +59,7 @@ commit; author in a separate commit.**
 
 UNSEEN folded into UNREAD (Ev, in chat, 2026-10-26): a reference no gate
 reads and a claim no gate reads are one kind of work. Id and body unchanged.
+
+## Moved to CIW (2026-11-02)
+
+- 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
