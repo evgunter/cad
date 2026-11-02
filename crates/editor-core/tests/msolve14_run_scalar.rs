@@ -2121,7 +2121,7 @@ fn a5_sensitivities_cross_a_seated_mate() {
 #[test]
 fn a5_certified_clearance_runs_over_a_seated_mate() {
     use editor_core::clearance::{
-        ClearanceQuery, ClearanceVerdict, FaceScope, Selection, clearance_with,
+        ClearanceQuery, ClearanceVerdict, FaceScope, Selection, clearance_at_dials,
     };
     let b = bolted("msolve14-a5-clearance");
     let resolver = b.opts.resolver.clone().expect("the store resolves");
@@ -2136,12 +2136,16 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
         faces: FaceScope::All,
     };
     let ask = |c: f64| {
-        clearance_with(
+        clearance_at_dials(
             &b.doc,
             &leaf,
             &Selection::body_of(b.bolt),
             &copy2,
-            &ClearanceQuery::at_least(c, Tol::witness()).resolved_by(&resolver),
+            &ClearanceQuery::at_dials(
+                editor_core::clearance::ClearanceBound::at_least(c),
+                Tol::witness(),
+            )
+            .resolved_by(&resolver),
         )
         .verdict()
         .clone()
@@ -2178,7 +2182,7 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
 /// frame answers alike.
 #[test]
 fn r1_clearance_answers_alike_in_either_order() {
-    use editor_core::clearance::{ClearanceQuery, FaceScope, Selection, clearance_with};
+    use editor_core::clearance::{ClearanceQuery, FaceScope, Selection, clearance_at_dials};
     let b = bolted("msolve14-a5-clearance");
     let resolver = b.opts.resolver.clone().expect("the store resolves");
     let (lo, hi) = narrow(0.05);
@@ -2193,12 +2197,16 @@ fn r1_clearance_answers_alike_in_either_order() {
     };
     let bolt = Selection::body_of(b.bolt);
     let ask = |x: &Selection, y: &Selection, c: f64| {
-        let r = clearance_with(
+        let r = clearance_at_dials(
             &b.doc,
             &leaf,
             x,
             y,
-            &ClearanceQuery::at_least(c, Tol::witness()).resolved_by(&resolver),
+            &ClearanceQuery::at_dials(
+                editor_core::clearance::ClearanceBound::at_least(c),
+                Tol::witness(),
+            )
+            .resolved_by(&resolver),
         );
         format!("{:?}", r.verdict())
             .chars()

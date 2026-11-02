@@ -34,7 +34,8 @@ bounds the `Budget` mass by `2ε / 80ε + 1e-3` rather than claiming it.
 ## Why it is M10's
 
 It is the same class M10-6 recognised for measure refusals
-(`box_independent_measure_class`: a fact about the document no box
+(`box_independent_measure_class`, retired in PR 6292 with the
+`min_clearance` measure that was its only member: a fact about the document no box
 moves, priced under its own name rather than refined to the floor),
 but the refusal is a KERNEL one — a magnitude slot decided zero — and
 naming it is a driver decision: a `RefusalReason` for "the box lies in

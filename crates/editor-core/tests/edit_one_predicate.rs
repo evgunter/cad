@@ -83,11 +83,11 @@ fn with_value() -> (ProfileDoc, editor_core::VarId) {
 }
 
 fn assertion(value: editor_core::VarId, bound: Formula) -> AuthoredNode {
-    Node::Assertion {
+    Node::Assertion(editor_core::Claim::Value {
         value: Formula::var(value, Dimension::Length),
         bound,
         relation: editor_core::AssertionRelation::AtLeast,
-    }
+    })
 }
 
 /// **The value is no scalar — both doors.** An assertion reads its
