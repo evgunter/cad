@@ -965,11 +965,17 @@ impl MateTool {
             }
             _ => (picked_on.clone(), picked_on.into()),
         };
+        // `to` is read where it was picked: on a copy, the copy itself;
+        // on a drawn operation, the output picked ([`crate::session::face_read`]).
+        let to_operand = match doc.node(to.node()) {
+            Some(Node::Place { .. } | Node::InstantiatePart { .. }) => picked_to.clone().into(),
+            _ => crate::session::face_read(doc, to),
+        };
         Ok(MateProposal {
             placement,
             mate: Mate {
                 on: read_on.side(on_operand, false),
-                to: read_to.side(picked_to.clone().into(), choice.flip),
+                to: read_to.side(to_operand, choice.flip),
                 // The commit writes the orientation nearest where the
                 // copy stands ([`SessionOp::AddMate`]).
                 orient: pncad::document::Orientation::IDENTITY,

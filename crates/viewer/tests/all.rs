@@ -116,6 +116,8 @@ mod input_mapping;
 mod instance_authoring;
 #[path = "landing_gathers.rs"]
 mod landing_gathers;
+#[path = "lands_unplaced.rs"]
+mod lands_unplaced;
 #[path = "mate_door_and_badge.rs"]
 mod mate_door_and_badge;
 #[path = "mate_kinds.rs"]

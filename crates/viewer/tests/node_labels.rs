@@ -223,8 +223,7 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
 /// yardstick. Labelled, it commits through whatever door it takes and
 /// its outcome is that same action's with one more edit: the same edits
 /// in the same order and then a `SetLabel` on the node it made
-/// (`viewer::world::made`: the last it minted that is not a world
-/// placement), the same minted ids and the same netted maintenance, and
+/// (`OpOutcome::made`), the same minted ids and the same netted maintenance, and
 /// ONE evaluation requested for the whole of it. The label is on that
 /// node, and ONE undo returns the document to what it was before the
 /// action. Answers that node and the maintenance the action netted.
@@ -255,8 +254,12 @@ fn labelled_as_one_undo(
         requested.next(),
         "{what}: one action requests one evaluation"
     );
-    let node = viewer::world::made(session.committed_doc(), &outcome.minted)
-        .unwrap_or_else(|| panic!("{what} made a node"));
+    let node = outcome.made.unwrap_or_else(|| panic!("{what} made a node"));
+    assert_eq!(
+        alone.made,
+        Some(node),
+        "{what}: the same node, labelled or not"
+    );
     let labelled = DocEdit::SetLabel {
         node,
         label: Some(label(text)),
@@ -358,24 +361,21 @@ fn a_labelled_creation_nets_the_maintenance_its_own_run_reports() {
         let [profile] = made.minted[..] else {
             panic!("one profile minted: {:?}", made.minted);
         };
-        let placed = session.perform(SessionOp::AddExtrude {
+        let made = session.perform(SessionOp::AddExtrude {
             profile,
             distance: common::len(0.01),
         });
-        let doc = session.committed_doc();
-        let body = viewer::world::made(doc, &placed.minted).expect("an extrude");
-        let copy = placed
-            .minted
-            .iter()
-            .copied()
-            .find(|&node| matches!(doc.node(node), Some(Node::Place { .. })))
-            .expect("the extrude's world copy");
-        (body, doc.outputs(copy)[0])
+        made.made.expect("an extrude")
     };
-    let (kept, _) = block(&mut session, 0.0);
-    let (joined, copy) = block(&mut session, 0.05);
+    let kept = block(&mut session, 0.0);
+    let joined = block(&mut session, 0.05);
+    // Both blocks placed into the world by hand: a new body lands
+    // unplaced.
+    let (doc, _) = common::placed(session.committed_doc(), kept, tol);
+    let (doc, placement) = common::placed(&doc, joined, tol);
+    let copy = doc.outputs(placement)[0];
     let (doc, _) = common::edited(
-        session.committed_doc(),
+        &doc,
         DocEdit::SetAppearance {
             body: copy,
             name: StableName {
@@ -999,6 +999,9 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let mut session = DocSession::inline(Doc::empty_derived("checks-window-speaks", tol), tol);
     let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
     let small = common::xy_box_in(&mut session, [0.02, 0.01, 0.006]);
+    // Both placed into the world by hand: a new body lands unplaced.
+    let (session, _) = common::world_copy_in(&session, big, tol);
+    let (mut session, _) = common::world_copy_in(&session, small, tol);
     let copies = [big, small].map(|body| common::copy_of(session.committed_doc(), body));
     common::product_is(&mut session, &copies);
     let named = session.perform(SessionOp::SetLabel {
@@ -1120,7 +1123,7 @@ fn a_labelled_creation_keeps_its_label_through_save_and_reopen() {
         label: label(text),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let node = viewer::world::made(session.committed_doc(), &outcome.minted).expect("made a node");
+    let node = outcome.made.expect("made a node");
 
     let dir = common::tempdir("node-labels-reopen");
     let path = dir.join("plate.pncad");
@@ -1174,8 +1177,7 @@ fn a_degenerate_creation_still_mints_the_node_it_labels() {
             label: label("degenerate"),
         });
         assert!(outcome.refusal.is_none(), "{what}: {:?}", outcome.refusal);
-        let node = viewer::world::made(session.committed_doc(), &outcome.minted)
-            .unwrap_or_else(|| panic!("{what} made a node"));
+        let node = outcome.made.unwrap_or_else(|| panic!("{what} made a node"));
         assert_eq!(
             session.committed_doc().label(node),
             Some(&label("degenerate")),

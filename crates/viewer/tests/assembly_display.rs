@@ -1530,6 +1530,7 @@ fn a_frame_whose_bodies_are_fused_goes_once_nothing_draws_them() {
     let tol = Tol::witness();
     let bench = asm::bench("fmfuse", tol);
     let union = asm::store_union(&bench, &[bench.shelf_i, bench.post_b], tol);
+    asm::store_world_copy(&bench, union, tol);
     let mut session = asm::open_bench(&bench, tol);
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
@@ -1538,19 +1539,8 @@ fn a_frame_whose_bodies_are_fused_goes_once_nothing_draws_them() {
     );
     session.pump();
     let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
-        .expect("the mated post is in the shelf's space");
+        .expect("the mated post is in the shelf's space: the product draws it as its piece");
     commit_frame(&mut session, bench.post_b);
-    assert!(session.display().free_move_of(space).is_some());
-
-    let outcome = session.perform(SessionOp::Duplicate {
-        input: union.into(),
-        beside: None,
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(
-        outcome.withdrawn.superseded.is_empty(),
-        "the product still draws the shelf and the post as its pieces"
-    );
     assert!(session.display().free_move_of(space).is_some());
 
     let outcome = session.perform(SessionOp::SetProduct { bodies: vec![] });

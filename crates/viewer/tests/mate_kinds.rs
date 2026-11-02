@@ -328,8 +328,7 @@ fn an_edge_mated_as_a_direction_runs_parallel() {
 
 /// **A circular edge made coaxial with a cylinder's face** (`Axis` on
 /// a circular edge and on a face's carrier): a small peg's top rim
-/// onto a large peg's side, both bodies placed in the world by the
-/// session; after the commit the rim is drawn about the large peg's
+/// onto a large peg's side, each peg's body placed in the world; after the commit the rim is drawn about the large peg's
 /// axis.
 #[test]
 fn a_circular_edge_is_coaxial_with_a_cylinder_face() {
@@ -358,9 +357,13 @@ fn a_circular_edge_is_coaxial_with_a_cylinder_face() {
     };
     let big = peg(&mut session, [0.0, 0.0], BIG, 0.02);
     let small = peg(&mut session, SMALL_AT, SMALL, 0.01);
-    session.pump();
+    // A new body lands unplaced: each peg is placed in the world by
+    // hand, as a person would, so the mate has copies to place.
     let doc = session.committed_doc().clone();
-    let (big_copy, small_copy) = (common::copy_of(&doc, big), common::copy_of(&doc, small));
+    let (doc, big_copy) = common::world_copy(&doc, big, tol);
+    let (doc, small_copy) = common::world_copy(&doc, small, tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
     let index = asm::index_of(&session);
     let camera = front_camera(Point3::new(0.025, 0.015, 0.01));
     let rim_front = Point3::new(SMALL_AT[0], SMALL_AT[1] - SMALL, 0.01);

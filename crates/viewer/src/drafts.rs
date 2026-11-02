@@ -1080,12 +1080,16 @@ impl Drafts {
     /// **A creation landed**: the label its form held is spent, so the
     /// next creation of that kind proposes afresh. The form is found by
     /// the kind noun of the node the action made
-    /// ([`crate::world::made`]) — the noun a
+    /// ([`crate::session::OpOutcome::made`]) — the noun a
     /// form's label field is keyed by, which is that node's kind
     /// (`creation_nouns`). Called only for an op that committed, so a
     /// refused creation keeps what was typed.
-    pub(crate) fn creation_landed(&mut self, doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) {
-        if let Some(node) = crate::world::made(doc, minted).and_then(|id| doc.node(id)) {
+    pub(crate) fn creation_landed(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        made: Option<RecipeNodeId>,
+    ) {
+        if let Some(node) = made.and_then(|id| doc.node(id)) {
             self.creation_labels
                 .remove(pncad::document::node_kind_noun(node));
         }
@@ -1533,7 +1537,7 @@ mod tests {
             drafts.profile_shape, None,
             "the labelled add settles the form as the bare one does"
         );
-        drafts.creation_landed(&doc, &[profile]);
+        drafts.creation_landed(&doc, Some(profile));
         assert_eq!(
             drafts.creation_labels.keys().copied().collect::<Vec<_>>(),
             vec!["Extrude"],

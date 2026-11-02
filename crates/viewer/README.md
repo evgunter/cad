@@ -2082,14 +2082,19 @@ where it was written; where a space is drawn otherwise is held in one
 way only, as a display frame. The "Add part…" gesture writes the new
 space's display frame clear of what is drawn, the same kind of value a
 free-move writes (IDENTITY DI5), so two inserted parts never land on
-each other (Ev, PR 6209: one way to store where something is
-displayed, not a derived layout beside it).
+each other within a session (Ev, PR 6209: one way to store where
+something is displayed, not a derived layout beside it). Display frames
+are not saved with the document yet, so a reopened document draws them
+at the identity (`work/spaces/display-frames-are-not-saved-with-the-document.md`).
 
 A free-move frame is display state keyed by a shown space's `Space`
 variable and moves every body drawn in it; it is dropped when the space
-is no longer shown or is gone once the next evaluation has settled
-(`display::space_check`), so an undo and redo of the gesture that made
-the space keeps its frame. The world is
+is no longer shown or is gone (`display::space_check`, IDENTITY DI5).
+The frame the "Add part…" gesture writes belongs to that gesture's
+history step: it is measured once the evaluation answering the insert
+lands (`pickindex::clear_of_drawn`), taken back by the step's undo and
+written again by its redo, and no other action inherits it, whatever
+space it mints. The world is
 the frame the other spaces move against: a frame on it would be the
 camera a second time, so the probe refuses it
 (`AdmissionFault::InTheWorld`). Any other shown space under a pick is

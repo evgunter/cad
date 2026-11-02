@@ -120,8 +120,9 @@ fn open_at(path: &Path, tol: Tol) -> DocSession {
 }
 
 /// Author one box part through the creation ops — a new document, one
-/// centred rectangle, one extrude, the box's copy its product — assert
-/// its volume, and save it. Answers the part's document id.
+/// centred rectangle, one extrude, the box placed into the world by hand
+/// and its copy the product — assert its volume, and save it. Answers
+/// the part's document id.
 fn author_box_part(
     session: &mut DocSession,
     name: &str,
@@ -138,8 +139,22 @@ fn author_box_part(
         near(body_volume(session, extrude, tol), width * height * depth),
         "the {name} part's volume is its box"
     );
-    let copy = common::copy_of(session.committed_doc(), extrude);
-    common::product_is(session, &[copy]);
+    common::reopened_with(
+        session,
+        file,
+        |doc| {
+            let (doc, copy) = common::world_copy(doc, extrude, tol);
+            common::edited(
+                &doc,
+                pncad::document::DocEdit::SetProduct {
+                    product: Some(pncad::document::Operand::Node(copy)),
+                },
+                tol,
+            )
+            .0
+        },
+        tol,
+    );
     let saved = session.perform(SessionOp::Save(file.to_path_buf()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     session.committed_doc().id()
@@ -287,8 +302,8 @@ fn the_windmill_story() {
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
     assert_eq!(
         session.doc().ids().len(),
-        1,
-        "the slip is off the path: the tower, its own placement"
+        2,
+        "the slip is off the path: the tower and its own space"
     );
     let abandoned = session
         .history()
@@ -313,13 +328,13 @@ fn the_windmill_story() {
     );
     assert_eq!(
         history.entry(abandoned).doc().len(),
-        2,
-        "the abandoned two-tower document is intact, each tower its own placement"
+        4,
+        "the abandoned two-tower document is intact, each tower in its own space"
     );
     // Backwards and forwards across the add: redo follows the branch
     // the cursor is on — the hub, not the abandoned second tower.
     session.perform(SessionOp::Undo);
-    assert_eq!(session.doc().ids().len(), 1);
+    assert_eq!(session.doc().ids().len(), 2);
     session.perform(SessionOp::Redo);
     assert!(
         session.doc().node(hub_i).is_some(),
@@ -334,8 +349,16 @@ fn the_windmill_story() {
         other => panic!("expected the self-instance refusal, got {other:?}"),
     }
 
-    // ── 4. RESOLVE: two instance rows, both ok.
+    // ── 4. RESOLVE: two instance rows, both ok. The tower is then
+    // placed into the world by hand — it stands where the product is
+    // made, and an inserted part lands in a space of its own.
     session.pump();
+    common::reopened_with(
+        &mut session,
+        &asm_path,
+        |doc| common::into_world(doc, tower_i, tol),
+        tol,
+    );
     let rows = common::asm::instance_rows(&session);
     assert_eq!(rows.len(), 2);
     for row in &rows {

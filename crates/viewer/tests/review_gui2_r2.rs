@@ -1259,7 +1259,7 @@ fn undo_across_the_selections_birth_and_back() {
         .expect("the new instance is hit");
     assert_eq!(
         face.node,
-        common::copy_of(session.committed_doc(), third),
+        common::drawn_node(session.committed_doc(), third),
         "the pick is on the copy the edit placed"
     );
     session.perform(SessionOp::Select(Selection::Face(face.clone())));

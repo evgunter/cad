@@ -50,12 +50,25 @@ fn instance_of(session: &DocSession, node: RecipeNodeId) -> (pncad::document::Do
     }
 }
 
-/// Whether the instance's bundle is the identity bundle the place
-/// gesture writes (no mate, the constant `0` on every freedom), which
-/// `SolvedPoses::at_identity` reads off the recipe: the insert door's
-/// own placement (A11 (2)).
+/// Whether the instance stands by the identity bundle the place
+/// gesture writes (no mate, the constant `0` on every freedom) in the
+/// space it is placed into: the insert door's own placement (A11 (2)).
 fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
-    common::solve(session, session.doc(), Tol::witness()).at_identity(node)
+    common::solve(session, session.doc(), Tol::witness())
+        .relative(node)
+        .is_some_and(|at| at.is_identity_bits())
+}
+
+/// **`instance` placed into the world by hand**: the session's document
+/// saved to `path` with the instance re-targeted into the world, as the
+/// product door moves a copy nothing in its space reads, and reopened.
+fn into_world(session: &mut DocSession, instance: RecipeNodeId, path: &Path, tol: Tol) {
+    common::reopened_with(
+        session,
+        path,
+        |doc| common::into_world(doc, instance, tol),
+        tol,
+    );
 }
 
 // --- the acceptance ------------------------------------------------
@@ -82,17 +95,22 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     let (shelf_ref, shelf_interface) = instance_of(&session, shelf_i);
     assert_eq!(shelf_ref, bench.shelf);
     assert!(shelf_interface);
-    // And each is in the world by the same action (A10): an instance
-    // is a placement of its own, and nothing else copies it.
+    // And each lands in a space of its own by the same action: an
+    // instance is a placement of its own, and nothing else copies it.
     let doc = session.committed_doc();
     assert_eq!(
         doc.placements(),
         [post_i, shelf_i],
         "both instances are drawn, each its own placement"
     );
+    let spaces = [post_i, shelf_i].map(|i| doc.node_space(i));
+    assert!(
+        spaces[0] != spaces[1] && !spaces.contains(&Some(pncad::document::VarId::WORLD)),
+        "each in a fresh space of its own: {spaces:?}"
+    );
     assert!(
         [post_i, shelf_i].iter().all(|&i| at_origin(&session, i)),
-        "AddInstance places each instance at the identity"
+        "AddInstance places each instance at the identity of its space"
     );
 
     // The instances evaluate: the references resolve through the
@@ -117,9 +135,16 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
 
-    // Free-move: an authored instance is placed into the world at the
-    // identity, and the probe, which moves another shown space (DI5),
-    // refuses it typed.
+    // Free-move: an authored instance is drawn in a space of its own,
+    // which the probe moves (DI5).
+    let begun = session.perform(SessionOp::BeginFreeMove { node: shelf_i });
+    assert!(begun.refusal.is_none(), "{:?}", begun.refusal);
+    let cancelled = session.perform(SessionOp::CancelFreeMove);
+    assert!(cancelled.refusal.is_none(), "{:?}", cancelled.refusal);
+
+    // The shelf placed into the world by hand; the probe, which moves
+    // another shown space, then refuses it typed.
+    into_world(&mut session, shelf_i, &path, tol);
     let probe = |session: &mut DocSession| {
         let outcome = session.perform(SessionOp::BeginFreeMove { node: shelf_i });
         assert!(
@@ -137,10 +162,10 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     probe(&mut session);
 
     // The shipped mate tool's op takes them from here. A fresh instance
-    // stands by the identity bundle, values and no mate: the mate drops
-    // the values it fixes, and the seat's values set the ones it leaves.
-    // The shelf stands at the world's identity, so the values are
-    // measured from it.
+    // stands by the identity bundle, values and no mate: the mate moves
+    // the post into the shelf's space, drops the values it fixes, and
+    // the seat's values set the ones it leaves. The shelf stands at the
+    // world's identity, so the values are measured from it.
     let seat = || {
         asm::seat_op_under(
             &bench,
@@ -153,8 +178,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        2,
-        "the mate, and its values written over the bundle"
+        3,
+        "the move into the shelf's space, the mate, and its values written over the bundle"
     );
     session.pump();
     assert!(!tree::has_faults(&session.tree_rows()));
