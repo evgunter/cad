@@ -269,3 +269,17 @@ and bodies unchanged. No orchestrator yet.
   - **3b-i** is building: the closed-form carried chord arm, parallel rulings and cylinder × sphere coaxial circles; the parallel plane lane retires.
   - **3b-ii** waits on the bisector lane's retirement and on **design fork F1, "a germ leaves a node"**: which component a site at a node and a germ leaving it ride, and by what decision; one rule for every pair with nodes (cylinders now, spline and cone nodes later).
   - The fork draw puts three designers on F1 (bytes on `analysis/design-fork/a-germ-leaves-a-node`). They are dispatched concurrently with one problem statement and no candidates.
+
+- 2026-11-02 21:10 — **Fork F1 "a germ leaves a node" goes to Ev as `[ev]` PR 6398** (row 246, three designers, two rounds; all agree).
+  - **Mint, don't locate:** germs at a node are minted from arc ends the value lists.
+  - **The node on the value:** each node is listed with its normal, two tangent lines and sector side, read off the relative second fundamental form.
+  - **Site readings:** a site reads `AtNode | OnArc`, and escalates in band.
+  - **Retires:** the bisector lane, `Positive/Negative` on the cylinder path, and `bool_node_run_turn` (a second read of the face sense).
+  - **C5 amended:** the certified-box clause and the node listing.
+  - **Residual:** spelling only (`Q` itself vs lines + one side bit).
+  - **Held until Ev answers:** cylinder 3b-ii.
+
+  The designers' orchestrator notes, acted on:
+  - NURBS stage 3's node arcs must end at the node along its ray, matched once at carry, or refuse typed. This goes into 3b's brief, not 3a's.
+  - `cylinder_cylinder` lists nodes whose arcs the region dropped. Fix it in 3b-ii.
+  - The −π/2/3π/2 parameter wrap means a node seat is the span end. Use this in 3b-i/ii.
