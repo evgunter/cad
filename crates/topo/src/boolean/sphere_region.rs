@@ -1361,7 +1361,12 @@ mod tests {
 
     /// Sphere faces built from arc specs in a unit frame, with each one's
     /// truth: a lune, a cap and a zone (PR 6307's review probe).
-    #[allow(clippy::type_complexity, clippy::many_single_char_names, dead_code)]
+    #[allow(
+        clippy::type_complexity,
+        clippy::many_single_char_names,
+        clippy::let_and_return,
+        dead_code
+    )]
     mod faces {
         use super::*;
         use crate::entity::EdgeKey;
