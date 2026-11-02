@@ -67,3 +67,13 @@
   - Raised beyond R1: MINOR G1, the first order over a slack refuses in the band's gap instead of tying (not monotone in the rise, executed). The fuzz's apex mode never judges its disagreeing draws. `Tie` doesn't carry its `Reading`. The charge re-spells settle's slack move by hand.
   - Adjudicated: G1 must fix, with probe and texts. G2–G4 wanted: Jet docs, a typed tie origin or a P3 row, a judged apex mode. The pierce spellings go to lane 2.
   - Last fix pass sent to lane 1; no third review.
+
+- 2026-11-02: PR 6378 was merged as `51132bca` after two fix passes.
+  - Its dual-review row (sequential arm, both reviews) was the PR's last commit.
+  - The unit is closed and lane 2's row is unparked.
+  - Lane 2, `the-cone-sites-read-every-bounds-side-through-bound-read`, is dispatched to cloud session `session_013QoYWWx5jko2WWjMZRRnCP` on branch `oneread/cone-sites-bound-read`. Its scope:
+    - Item 1 at recl edge-edge and `cone_classes`.
+    - Item 4's re-wording.
+    - The P2 `vtxfac-partner-side-…` row, claimed into the lane.
+    - One pierce spelling, a carry-over from both reviews of PR 6378.
+  - The lane reviews at the dual tier, letter M, so rule 1's draw happens at hand-back.
