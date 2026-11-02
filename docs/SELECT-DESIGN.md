@@ -92,14 +92,14 @@ genuine lengths (`Margin` doors, no ledger debt). The comparison
 vocabulary is the sign trilean against a stated value: `≈ v` /
 `> v` / `< v` at the document ε-band — never a bare float equality.
 
-**Convexity — RESERVED, NOT BUILT (GS-Q2).** No 3D
-edge-convexity predicate exists in the kernel (the only shipped
-convex/reflex classification is the 2D vertex-sector one in
-`boolean/sectors.rs`). A dihedral-sign predicate is a genuinely new
-decided predicate: comparand design (the honest margin is not
-obviously a length — likely a flagged-lane ledger conversation),
-sample-point choice along the edge, behavior on smooth (tangent)
-edges, and an equivariance check. Demand evidence is the weakest of
+**Convexity — RESERVED, NOT BUILT (GS-Q2).** The kernel's 3D
+edge-convexity predicate is `geom_brep::classify_edge_wedge`: convex,
+concave, smooth (wedge π) or knife (a cusp or slit), its margin the
+signed dihedral `((n₊ × n₋)·τ̂)·arm` in meters, read at one point of
+the edge; the blend verbs are its consumer. A selector atom over it
+is still new work: sample-point choice along the edge (a dihedral
+that changes sign along one edge has no one class), and an
+equivariance check. Demand evidence is the weakest of
 the alphabet (the demo got "concave rim" via kind-pairs). So v1
 ships kind, adjacent-kind-pair and datum-relative position, and
 convexity keeps only its vocabulary slot — `GeomPred::Convex` /
@@ -272,10 +272,10 @@ logs bracket operations, not sessions, which is how every existing
 pin already uses them.
 
 **GS-Q2 — Convexity does NOT ship in v1: the slot is reserved, not
-built.** Ground: no kernel predicate exists (only the 2D
-vertex-sector convex/reflex classifier), comparand design is
-genuinely open (dihedral sign at a sample — likely flagged-lane),
-and the demand evidence is a comment rather than a call site, since
+built.** Ground: the kernel predicate reads one point of an edge
+(`geom_brep::classify_edge_wedge`), and a selector atom needs a
+whole-edge verdict, and the demand evidence is a comment rather than
+a call site, since
 the demo's kind-pairs covered the real case. A wrong margin design
 shipped into public API costs far more than a follow-up unit.
 

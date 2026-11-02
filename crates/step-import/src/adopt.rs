@@ -522,7 +522,7 @@ fn adopt_edges(
             // refusal naming the residual, not a silent rung
             // withdrawal. LINE rims are endpoint-forced and stay
             // ungated (gate docs).
-            if nurbs_rim && matches!(spec.carrier, Curve3::Circle { .. }) {
+            if nurbs_rim && matches!(spec.carrier, Curve3::Circle(..)) {
                 let wall =
                     [fs_plus, fs_minus]
                         .into_iter()
@@ -1009,16 +1009,17 @@ fn mapped_self_description(
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
         })),
-        Curve3::Circle { center, axis, .. } => {
-            Some(MappedCurve::whole(MappedSource::RevolvedPoint {
-                point: Point2::new(0.0, 0.0),
-                place: Affine3::translation(p_start - Point3::origin()),
-                axis_origin: *center,
-                axis_dir: *axis,
-                angle: t1 - t0,
-            }))
-        }
-        Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
+            ..
+        }) => Some(MappedCurve::whole(MappedSource::RevolvedPoint {
+            point: Point2::new(0.0, 0.0),
+            place: Affine3::translation(p_start - Point3::origin()),
+            axis_origin: *center,
+            axis_dir: *axis,
+            angle: t1 - t0,
+        })),
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }
 
@@ -1072,12 +1073,14 @@ fn arc_rim_on_wall_boundary(
     p_end: Point3<f64>,
     tol: Tol,
 ) -> Result<(), ArcRimRefusal> {
-    let Curve3::Circle {
-        center,
-        axis,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    } = *carrier
+    }) = *carrier
     else {
         // Only arc rims are gated (doc above); the caller matches
         // Circle before calling, so this arm is defensive totality.

@@ -299,12 +299,7 @@ fn a_built_spur_is_out_of_the_chart_image() {
     };
     let inward = outward.cross(along);
     let up = Vec3::new(0.0, 1.0, 0.0);
-    let carrier = geom::Curve3::Circle {
-        center: Point3::origin(),
-        axis: up.cross(inward),
-        radius: 1.0,
-        u_ref: up,
-    };
+    let carrier = geom::Curve3::circle(Point3::origin(), up.cross(inward), 1.0, up);
     let tip = carrier.eval(1.0);
     let spec = EdgeCurveSpec::arc_of_circle(carrier, 0.0, 1.0).unwrap();
     body.mev(MevSite::Fan { he1: he, he2: he }, tip, spec, tol())

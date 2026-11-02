@@ -384,7 +384,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
     ] {
         let s = classify(&donut(), &partner);
         // At ε 1e-6 the tilted torus's march straddles its tube
-        // (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
+        // (`work/sect/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
         if matches!(s, Section::Unmarched) && Tol::witness().eps() == 1e-6 {
             continue;
         }
@@ -1397,12 +1397,7 @@ fn full_rim(
             pair: SurfacePair::new(cyl, rim_plane),
             selector: geom_brep::CurveSelector::Witness(p(-1.0, 0.0, z)),
         },
-        carrier: Curve3::Circle {
-            center: p(0.0, 0.0, z),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(p(0.0, 0.0, z), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         param_end: TAU,
     };
@@ -1781,12 +1776,7 @@ fn sphere_cut(c: Point3<f64>, k: Vec3<f64>) -> (Body<f64>, [FaceKey; 2], Surface
             pair: SurfacePair::new(key, cut_plane),
             selector: geom_brep::CurveSelector::Witness(c - u_ref * rho),
         },
-        carrier: Curve3::Circle {
-            center: c,
-            axis: k,
-            radius: rho,
-            u_ref,
-        },
+        carrier: Curve3::circle(c, k, rho, u_ref),
         param_start: 0.0,
         param_end: TAU,
     };
@@ -1987,12 +1977,7 @@ fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
                 pair: SurfacePair::new(cone, rim_plane),
                 selector: geom_brep::CurveSelector::Witness(rim_at(0.5 * (t0 + t1))),
             },
-            carrier: Curve3::Circle {
-                center: p(0.0, 0.0, 1.0),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: Curve3::circle(p(0.0, 0.0, 1.0), Vec3::unit_z(), 1.0, Vec3::unit_x()),
             param_start: t0,
             param_end: t1,
         }
@@ -2218,20 +2203,20 @@ pub(super) fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, Face
                     },
                     // A descending arc runs forward on the reversed
                     // axis, its seam moved to `t0`.
-                    carrier: Curve3::Circle {
-                        center: p(0.0, 0.0, h),
-                        axis: if t1 > t0 {
+                    carrier: Curve3::circle(
+                        p(0.0, 0.0, h),
+                        if t1 > t0 {
                             Vec3::unit_z()
                         } else {
                             -Vec3::unit_z()
                         },
-                        radius: h.abs(),
-                        u_ref: if t1 > t0 {
+                        h.abs(),
+                        if t1 > t0 {
                             Vec3::unit_x()
                         } else {
                             v(t0.cos(), t0.sin(), 0.0)
                         },
-                    },
+                    ),
                     param_start: if t1 > t0 { t0 } else { 0.0 },
                     param_end: if t1 > t0 { t1 } else { t0 - t1 },
                 };
@@ -2400,12 +2385,14 @@ fn torus_iso(
             pair: SurfacePair::new(torus, cut),
             selector: geom_brep::CurveSelector::Witness(torus_at((major, minor), mid)),
         },
-        carrier: Curve3::Circle {
-            center,
-            axis,
+        carrier: Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        },
+        }),
         param_start: 0.0,
         param_end: sweep,
     }
@@ -2557,7 +2544,7 @@ fn notched_chart(du: f64, dv: f64, corner: bool) -> (Vec<(f64, f64)>, (f64, f64)
 #[test]
 fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
     test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
@@ -2603,7 +2590,7 @@ fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
 #[test]
 fn a_torus_rectangle_trims_on_every_ring() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
     test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
@@ -2795,7 +2782,7 @@ fn a_small_notch_in_a_cone_face_reads_out_at_every_size() {
 #[test]
 fn the_smallest_notch_never_reads_in() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
     test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],

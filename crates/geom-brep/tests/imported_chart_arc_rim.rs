@@ -76,12 +76,12 @@ fn weighted_wall(w: impl Fn(usize) -> f64) -> Surface<f64> {
 }
 
 fn rim(axis_z: f64) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, axis_z),
-        radius: R,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, axis_z),
+        R,
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 fn breaks() -> KnotVector {

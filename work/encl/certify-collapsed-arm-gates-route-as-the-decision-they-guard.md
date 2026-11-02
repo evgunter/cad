@@ -86,7 +86,7 @@ That routing is done on this row's branch: `TraceDecision::ending`
 ends `TransversalityArm` by `CertCheck::TransversalityArm`. The
 march still reports an arm the gate decided collapsed as an
 `SsiError::Escalated`, "too close to call"; that half is SSIMARCH's,
-`work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`.
+`work/ssiarith/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`.
 
 ## What main already carried, and what this row adds
 
@@ -109,4 +109,4 @@ validator report it as `CertifyError::ArmCollapsed` and
 
 ## Closed
 
-2026-10-08. PR 3431 merged at `cd9214980a`, after a full review, a fix pass and an approving delta re-review. The SSI march's half went to `work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`; the seam and split readers went to `work/cleave/split-dihedral-readers-drop-the-arm-rung.md`. Follow-ups from the re-review are in `work/encl/lever-escalation-rung-is-public-and-its-arm-is-told-three-ways.md`.
+2026-10-08. PR 3431 merged at `cd9214980a`, after a full review, a fix pass and an approving delta re-review. The SSI march's half went to `work/ssiarith/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`; the seam and split readers went to `work/cleave/split-dihedral-readers-drop-the-arm-rung.md`. Follow-ups from the re-review are in `work/encl/lever-escalation-rung-is-public-and-its-arm-is-told-three-ways.md`.

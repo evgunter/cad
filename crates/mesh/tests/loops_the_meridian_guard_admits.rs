@@ -49,12 +49,12 @@ fn unit_sphere() -> Surface<f64> {
 
 /// The same great circle by latitude: `eval(t) = (cos t, 0, sin t)`.
 fn meridian_by_latitude() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, -1.0, 0.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// What `tessellate` answers for `body`, reduced to the part that is a
@@ -113,12 +113,12 @@ fn disposition(body: &Body<f64>, kind: SurfaceKind, delta: f64) -> String {
 fn cap_with_a_spur(tip: f64) -> Body<f64> {
     let tol = Tol::witness();
     let z = 0.5_f64;
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: (1.0 - z * z).sqrt(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        (1.0 - z * z).sqrt(),
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let disc = Surface::Plane {
         origin: Point3::new(0.0, 0.0, z),
         normal: Vec3::new(0.0, 0.0, -1.0),

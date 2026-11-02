@@ -721,13 +721,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "TangentCrescentUnsupported",
-            BooleanError::TangentCrescentUnsupported {
-                a_face: FaceKey::default(),
-                b_face: FaceKey::default(),
-            },
-        ),
-        (
             "VertexReadTwice",
             BooleanError::VertexReadTwice {
                 operand: Operand::A,

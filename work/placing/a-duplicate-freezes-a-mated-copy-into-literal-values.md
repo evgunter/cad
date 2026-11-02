@@ -2,12 +2,10 @@
 id: a-duplicate-freezes-a-mated-copy-into-literal-values
 kind: issue
 title: Duplicate writes a copy's solved motion back as literal values and drops its mates; it retires in favour of a second placement of the body
-status: parked
+status: open
 opened: 2026-11-02
 priority: P1
 cost: M
-design: true
-blocked_on: [6353]
 ---
 
 
@@ -67,3 +65,7 @@ Under Ev's direction, a placed body shown in the View pane and picked as itself 
 Its done-when row (place, show, pick, get a second placement) fails on main today for exactly this reason.
 
 **Why parked on `[ev]` 6353:** its one open design point, a feature on either of two placements taking over both, is 6353's question. 6353's agreed half (a feature on a copy reads the copy) dissolves the coupling.
+
+## Unparked (2026-11-02): `[ev]` 6353 answered
+
+The coupling this row waited on is settled: a feature picked on one placement reads that placed copy only, so two placements of one body no longer move together under a feature. Duplicate retires into a second placement made through the Create door (Ev's direction above). This unit also undoes 6356's `BodyPlaced` refusal and its once-placed routing, as recorded above.
