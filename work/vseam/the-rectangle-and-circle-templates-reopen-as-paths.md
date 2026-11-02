@@ -46,7 +46,7 @@ The choice under "What would close it" (record the template on the
 node, or recognise it on load) is open, so `design` is set. The first
 option is a document change.
 
-## 2026-10-31 — the premise, corrected by the designer pair (`[ev]` PR, fork-log row 224)
+## 2026-10-31 — the premise, corrected by the designer pair (`[ev]` PR, fork-log row 234)
 
 The circle already reopens as itself: `circle(centre, r)` stores what
 was written, and the edit door shows that one step's centre and radius.
