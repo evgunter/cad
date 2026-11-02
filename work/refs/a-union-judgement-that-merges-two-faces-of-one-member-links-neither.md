@@ -2,7 +2,7 @@
 id: a-union-judgement-that-merges-two-faces-of-one-member-links-neither
 kind: issue
 title: A union whose judgement merges two faces of one member refuses as an emission bug
-status: open
+status: spec
 opened: 2026-10-17
 priority: P1
 cost: M
@@ -49,3 +49,41 @@ chords and the end pass refuses here. The subtract of the same slab
 names (`emit_union_borders::a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`):
 a subtract is named by the pair emitter alone (`eval/wire.rs`'s
 `wire_subtract`), and only a union or intersect reaches `name_union`.
+
+## Decided by the designers; the spec for the unit (2026-11-02, REFS orchestrator)
+
+Three designers (fork `union-same-member-merge`) agreed after one reconciliation round.
+
+**What is wrong, and why it is wider than the title.**
+
+- `Links::judged` records a pair only across the two members. A merge that glues two faces of ONE member therefore links nothing (the witness, the nested `Union[Union[plate, boss], bar]`, and a two-member intersect).
+- The end pass also assumes that whatever the fold glues, some single pair also glued (`Parents::of`'s comment). That is false. A union covers material, so the fold's exposed run can hold fewer faces than any pair's, and a closed curved run that no single pair opens is glued by the fold alone. Each designer built a witness independently:
+  - flat `Union[plate, boss, bar]`, refusing in every member order;
+  - two half-cylinder members plus a full-height bar;
+  - `[Union[plate, boss], lo, hi]`, where only the two blocks together open the ring;
+  - two notches severing a wall piece only in the fold.
+- The edge and vertex passes rest on the same assumption. With faces linked by lineage, `Flush::meeting` reaches its `unreachable!` in 2 of 6 orders.
+
+**The rule (names README N2).** Member faces are linked, transitively, when any of these holds:
+
+1. a pairwise judgement merged them, whether they are faces of two members or of one;
+2. a judgement held one face's region through the other;
+3. the finished body holds area of both in one face, **read exactly**: by area held, never by the fold's lineage, which only grows and would make names depend on member order.
+
+A parent is `Merged` of its class. It is held as one face, or as `Borders` pieces separated by other members' walls, as the subtract already names it.
+
+**What this unit lands:**
+
+- (1) in `Links::judged`;
+- a typed missing-rule `NamingError` variant for the faces that only (3) would link. It names the member faces, replaces the `Emission` refusal in `Parents::of`, and fires before the edge and vertex passes, so `Flush::meeting`'s `unreachable!` cannot be reached;
+- the false comments in `Parents::of` and on `Links` come out;
+- N2 states rules 1–3. It also says that until descent is read exactly, a face only rule 3 links refuses as that missing rule.
+
+**Done when:**
+
+- the witness `a_bar_through_a_sunk_boss_refuses_at_the_unions_parents` names, and its names equal the subtract's sunk-boss slot modulo node ids;
+- a two-member intersect names;
+- the fold-only witnesses each refuse with the typed variant, in every member order tried;
+- plain `plate ∪ boss` still names piece 0 and piece 1.
+
+Review tier: **single, FULL** (a naming rule change with correctness at risk; the design is already weighed). The README change goes through an `[ev]` PR: it changes the N2 link rule Ev approved on PR 3734.
