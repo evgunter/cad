@@ -29,6 +29,17 @@ Measured on PR 6371 at CI's opt-1:
   took 37 s, `revolve_washer::m10_9_…` 33 s and
   `one_segment_loop::a_one_segment_strut_…` 27 s.
 
+**What the switch leaves in the slow set.** Two rows still pay a
+finish the switch does not take away, so they join the slow set on
+PR 6371 (CI, opt-1):
+
+- `editor-core` `trim_3_windows_interval::a_revolved_quarter_band_is_windowed_and_holds`
+  took 3.48 s, against under 1 s on main. The likely cost, unmeasured:
+  its clearance query reads a placed copy through `Framed::read_in`,
+  which at `f64` ends in the placement's finish.
+- `mesh` `probe_review::z1_fixtures_still_tessellate_with_the_falsifier_gated_out`
+  took 1.05 s. It lofts a prism, which the `f64` door finishes.
+
 **The test that says it is closed.** With the switch's box arm deleted,
 those rows run within the 1.0 s slow-test budget (or each is in the slow
 set for its own reason), and the decision pins move by less than the
