@@ -57,3 +57,7 @@ containment's boundary pre-pass), so no one decision's words are true of
 it. `WORDLESS` lists it under its own reason. Giving it words needs one
 predicate name per decision; `bool_contact_arc` is the same case,
 though a subtract does not log it.
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. The invariant lane's `volume_backstop*` predicates are no longer decided, so `edit_refusal_recourse`'s `WORDLESS` drops them.

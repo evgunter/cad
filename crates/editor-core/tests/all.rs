@@ -627,6 +627,8 @@ mod seat4_verb_lowering;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
+#[path = "split_and_shell_carry_contacts.rs"]
+mod split_and_shell_carry_contacts;
 #[path = "split_carries_spaces.rs"]
 mod split_carries_spaces;
 #[path = "split_pinch_keeps.rs"]
@@ -880,3 +882,5 @@ mod union_flush_fuses;
 mod union_member_orders_decide_alike;
 #[path = "value_chart_sweeps.rs"]
 mod value_chart_sweeps;
+#[path = "vessel_cavity_interval.rs"]
+mod vessel_cavity_interval;

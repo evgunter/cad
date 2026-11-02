@@ -110,7 +110,7 @@ pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
     EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, RowRefusal,
     SplineFoot, StatedImage, StatedSpan, WindingReading, folded_parallelism, sample_param,
-    schedule_param,
+    schedule_param, side_row_certifies,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
@@ -127,8 +127,8 @@ pub use dihedral::{
     must_carry_over_edge, reask_chart, reask_pair, second_order_walk, tangent_second_order,
 };
 pub use dihedral_side::{
-    CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace, SideRole,
-    chart_normal_at, dihedral_side, regular_jet,
+    ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
+    SideRole, chart_normal_at, chart_point_normal, dihedral_side, regular_jet,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, ArcRimRefusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault,
@@ -141,8 +141,8 @@ pub use edge_nurbs::{
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,
-    enters_material, enters_material_order2, enters_material_reported, normal_alignment,
-    tied_germ_turn,
+    departure_side_reported, enters_material, enters_material_order2, enters_material_reported,
+    normal_alignment, parting, parting_side, tied_germ_turn,
 };
 pub use extent::{
     ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,
@@ -192,16 +192,18 @@ pub use offset_fit::{
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
+pub use offset_meters::ChartArmRefusal;
 pub use pair_section::{
     AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
     ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, CsDecision,
     CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier,
-    Gap, PairPose, PairSection, PlaneSplinePose, PoseRefusal, RegionPlacement, Ring, Seated,
-    SectionComponent, SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose,
-    SquareWall, SsiLane, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData,
-    TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose,
-    TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt,
-    pair_section, square_part, tori_coincide,
+    Gap, KnownPair, KnownRow, PairPose, PairSection, PlaneSplinePose, PoseRefusal, Reached,
+    RegionPlacement, Ring, Seated, SectionComponent, SectionDecision, SectionRead, SiteFoot,
+    SiteRefusal, SphereTorusPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
+    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
+    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
+    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,
+    tori_coincide,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,

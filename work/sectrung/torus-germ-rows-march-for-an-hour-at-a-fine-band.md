@@ -64,3 +64,29 @@ the cross-operation question are on
 
 A measurement of where the march spends its time at 1e-12, and either a
 cheaper march or rows sized for the nightly's budget.
+
+## Rows past 300 s at 1e-12 (EPSROWS, 2026-10-31)
+
+EPSROWS (CLEAR) ran the sweep rows that pin a refusal arm at
+`CAD_TOLERANCE_EPS=1e-12`, on main `45f6be75` (4 cores, 300 s per row).
+These ran past 300 s with no verdict. They are slow, not red: the
+nightly has no 300 s cap.
+
+- `ellipse_torus::a_torus_just_clear_of_the_rim_is_decided_by_its_roots`
+- `germ_interior_oval::a_nurbs_graze_behind_crossings_is_refused_on_every_op`
+- `germ_radial_hole::a_radial_hole_through_the_tube_stops_at_the_volume`
+- `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs`
+- `germ_torus_components::a_ball_round_the_donuts_axis_passes_the_germ_mint`
+- `germ_torus_components::a_drum_against_a_moved_donut_passes_the_germ_mint`
+- `germ_torus_components::two_donuts_in_general_pose_pass_the_germ_mint`
+- `the_door_reads_seam_regions_as_tier_3_does::the_door_names_the_flipped_face_tier_3_names`
+- `the_door_reads_seam_regions_as_tier_3_does::the_door_names_the_flipped_face_tier_3_names_against_the_rod`
+- `the_door_reads_seam_regions_as_tier_3_does::the_door_names_the_flipped_face_tier_3_names_against_the_stub`
+- `the_door_reads_seam_regions_as_tier_3_does::the_door_names_the_flipped_face_tier_3_names_the_tilted_ball_against_the_turned_rod`
+- `the_door_reads_seam_regions_as_tier_3_does::the_door_names_the_flipped_face_tier_3_names_the_unit_ball_against_the_turned_rod`
+- `torus_doors_join::a_rod_across_the_inner_bound_stops_at_the_join`
+- `torus_doors_join::a_rod_across_the_tube_stops_at_the_conic_trim`
+- `torus_doors_join::a_rod_inside_the_tubes_shadow_stops_at_the_volume`
+- `torus_doors_join::a_rod_off_the_axis_line_stops_at_the_join`
+- `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_join`
+- `verbs_cylsph_opening::a_transversal_pose_reaches_the_join_lane_in_both_poses`

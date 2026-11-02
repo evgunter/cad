@@ -1483,6 +1483,15 @@ pub enum NodeErrorKind {
     Tube(Box<TubeError>),
     /// The split op refused.
     Split(SplitError),
+    /// **Its operand's contact records do not carry onto what it
+    /// built**, through the kernel's carry for its op
+    /// ([`topo::SplitResult::carry_contacts`],
+    /// [`topo::Shelled::carry_contacts`]): the carry's refusal,
+    /// unaltered, citing the operand's record.
+    ContactCarry {
+        /// The carry's refusal.
+        refusal: topo::CarryRefusal,
+    },
     /// A BLEND op refused — the fillet's (M5 PR 12) or the chamfer's:
     /// a structural precondition on the requested chain, one of the
     /// numbered predicates, a corner or spine class the in-place
@@ -1687,10 +1696,9 @@ pub enum NodeErrorKind {
     IndexCountOutOfRange {
         /// The index.
         index: crate::VarId,
-        /// The evaluated count.
+        /// The evaluated count; the counts it is outside are
+        /// [`crate::MemberCountFault::ADMITS`].
         count: i64,
-        /// The counts an index admits, both ends included.
-        admits: core::ops::RangeInclusive<i64>,
     },
     /// A pick ([`crate::VarDef::Pick`]) whose path names no piece of
     /// its copy: the source no longer holds that piece, or never did.
@@ -2110,6 +2118,24 @@ impl crate::spoken::Say for NodeErrorKind {
             // would read a hollow refusal as a solid one half the time.
             Self::Tube(e) => write!(f, "the tube op refused: {e}"),
             Self::Split(e) => write!(f, "the split op refused: {e}"),
+            Self::ContactCarry { refusal } => {
+                use topo::CarryRefusal as R;
+                let what = match refusal {
+                    R::Unmapped { .. } => "lies on geometry it lost without removing it",
+                    R::Pair { .. } => "lands only on cells that are one or adjacent",
+                    R::Parted { .. } => "lands on both sides of the cut away from the cut",
+                    R::Unread { .. } => "could not be read where it divided the touch",
+                    R::Stale { .. } => "no longer touches where it put the touch",
+                    R::MintedMeeting { .. } => "meets where it minted cells it cannot back",
+                };
+                write!(
+                    f,
+                    "a touch its operand records {what}. {}",
+                    crate::sentence::Recourse(
+                        "move the touch, or this operation's geometry off it"
+                    )
+                )
+            }
             Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
             // No cause is guessed here: the kernel's refusal names its
             // own, and a coincidence refusal carries its own recourse.
@@ -2246,17 +2272,13 @@ impl crate::spoken::Say for NodeErrorKind {
                     by.read(*index)
                 )
             }
-            Self::IndexCountOutOfRange {
-                index,
-                count,
-                admits,
-            } => write!(
+            Self::IndexCountOutOfRange { index, count } => write!(
                 f,
                 "the count of index {} evaluated to {count}, and an index holds {} to {} \
                  members. Recourse: make it evaluate within that range",
                 by.read(*index),
-                admits.start(),
-                admits.end()
+                crate::MemberCountFault::ADMITS.start(),
+                crate::MemberCountFault::ADMITS.end()
             ),
             // Every role word is already a complete noun phrase for
             // the vector (the `*_ROLE` constants are where they are
@@ -2637,11 +2659,11 @@ impl Epoch {
 }
 
 /// The cooperative cancel token (spec D5): checked BETWEEN nodes on
-/// the serial walk, and between levels on the level schedule — node
-/// granularity in v1; tokens are never threaded into kernel ops. A
-/// `parallel` request that runs as the serial walk (a symbolic session
-/// or shape report installed, [`EvalOptions::parallel`]) is checked
-/// between nodes.
+/// the serial walk, between levels on the level schedule, and before
+/// each member of a family; tokens are never threaded into kernel ops.
+/// A `parallel` request that runs as the serial walk (a symbolic
+/// session or shape report installed, [`EvalOptions::parallel`]) is
+/// checked between nodes.
 #[derive(Debug, Clone, Default)]
 pub struct CancelToken(Arc<AtomicBool>);
 
@@ -3539,10 +3561,12 @@ pub(crate) fn read_pose_in<T: EvalScalar>(
 /// whole, recorded on [`Evaluation::prior_refused`], and the run
 /// recomputes every node.
 ///
-/// `cancel` is checked between nodes on the serial walk and between
-/// levels on the level schedule — spec D5's cooperative yield points at
-/// node granularity; a canceled run returns the completed prefix with
-/// [`EvalOutcome::Canceled`]. A `parallel` request runs as the serial
+/// `cancel` is checked between nodes on the serial walk, between
+/// levels on the level schedule, and before each member of a family
+/// ([`members::eval_family`]) — spec D5's cooperative yield points; a
+/// canceled run returns the completed prefix with
+/// [`EvalOutcome::Canceled`], a family canceled part-way holding no
+/// result. A `parallel` request runs as the serial
 /// walk, and is checked between nodes, while a symbolic session or
 /// shape report is installed ([`EvalOptions::parallel`]).
 pub fn evaluate<T>(
@@ -3771,12 +3795,17 @@ where
             // Each node runs under a K-funnel frame of its own; its
             // bracket in `eval_node` nests inside that frame.
             let results = geom_core::k_stats::map_detached(level, |&id| {
-                eval_any(doc, &env, id, &chains, &nodes, prior, &op_env, tol)
+                eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol)
             });
             for (&id, (step, recording)) in level.iter().zip(results) {
-                bookkeep(&step, &mut recomputed, &mut reused);
-                nodes.insert(id, step.result);
                 recordings.insert(id, recording);
+                match step {
+                    Ok(step) => {
+                        bookkeep(&step, &mut recomputed, &mut reused);
+                        nodes.insert(id, step.result);
+                    }
+                    Err(Canceled) => outcome = EvalOutcome::Canceled,
+                }
             }
         }
         for id in &sched.order {
@@ -3790,7 +3819,11 @@ where
                 outcome = EvalOutcome::Canceled;
                 break;
             }
-            let step = eval_any(doc, &env, id, &chains, &nodes, prior, &op_env, tol);
+            let Ok(step) = eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol)
+            else {
+                outcome = EvalOutcome::Canceled;
+                break;
+            };
             bookkeep(&step, &mut recomputed, &mut reused);
             nodes.insert(id, step.result);
         }
@@ -4047,22 +4080,23 @@ fn eval_any<T>(
     chains: &BTreeMap<RecipeNodeId, crate::repetition::Reached>,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
+    cancel: &CancelToken,
     op_env: &wire::OpEnv<'_, T>,
     tol: Tol,
-) -> NodeStep<T>
+) -> Result<NodeStep<T>, Canceled>
 where
     T: EvalScalar,
 {
     let prior = prior.and_then(|p| p.value(id));
     match chains.get(&id) {
-        Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
+        Some(crate::repetition::Reached::Unrelated(a, b)) => Ok(NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
                 kind: NodeErrorKind::IndicesUnrelated { a: *a, b: *b },
                 escalations: Arc::new(Vec::new()),
             }),
             reused: false,
-        },
+        }),
         Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
             members::eval_family(
                 doc,
@@ -4071,15 +4105,23 @@ where
                 chain,
                 results,
                 prior,
+                cancel,
                 op_env,
                 |env, results, prior, op_env, at| {
                     eval_node(doc, env, id, results, prior, op_env, at, tol)
                 },
             )
         }
-        _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
+        _ => Ok(eval_node(doc, env, id, results, prior, op_env, &[], tol)),
     }
 }
+
+/// **The cancel token was observed set inside a node** — before one
+/// of a family's members: the node holds no result, as one the walk
+/// never reached holds none. Not `coincide::Canceled`, whose `Display`
+/// says the coincidence door was canceled.
+#[derive(Debug)]
+struct Canceled;
 
 struct NodeStep<T: Decide> {
     result: NodeResult<T>,

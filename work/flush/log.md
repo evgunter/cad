@@ -623,3 +623,59 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 
 Filed `main-red-reader-census-lists-the-deleted-given-pair-test` on this slate: PR 5772 deleted `crates/topo/tests/a_given_pair_is_made_from_a_kernel_verdict.rs`, but test-utils' `reader_census` ledger still lists it, and the census is red on main. (QUAD triage lane, PR 5824)
 - 2026-10-27 (ATREST orchestrator): closed `main-red-reader-census-lists-the-deleted-given-pair-test`. Its dead ledger entry was removed in ATREST's reader_census fix (the same row was red on `topo/src/link.rs`).
+- 2026-10-31 — **Back after a four-day usage gap.** PR 5781's dual delta check was frozen at `ba313795a9`. One delta report is in (APPROVE-WITH-FIXES); the other was paused mid-run by the gap and has resumed. Main moved by about 2,300 commits; the PR now conflicts in `.config/nextest.toml` only, which the last pass resolves.
+  - **PR 5772 left a main red** that its CI could not see: test-utils' `reader_census` still listed the deleted `a_given_pair_is_made_from_a_kernel_verdict.rs`. QUAD's triage filed it here and ATREST fixed it on 2026-10-27. Lesson for this slate: a PR that deletes a test file greps the census ledgers for it.
+  - **Closed `a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab`** (P1) on my read: CLEAVE's PR 5545 builds every cell it owed and put the "slab inside ∪ slit" row back in its pin.
+  - **Dispatched `main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond`** (P1 M, branch `flush/partial-torus-rim-ray`). Tier: one FULL review (a containment reading). It is coupled with PR 5781, which changes the same reader (`curved_edges`, the `clear` set), so the lane measures on both heads and builds on main after 5781 lands.
+— (FLUSH orchestrator)
+- 2026-10-31 — **PR 5781 closes `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`.** The corpus's exact ties at the nominal go from 483 (518 on today's main) to 22, all `cut_cylinder` coaxial wall roots, and the trimmed-sphere ties from 1/1/2/5 to 0. No body changed side at three ε.
+  - **Dual review**, concurrent, one frozen head: one MAJOR, unilateral, demonstrated by execution and a mutant (tally +1). A root on a cylinder's own seam read outside its face: `point_in_solid` misread 352–608 of 7381 seam-plane points. The other reviewer had argued that the seam cancels exactly, and retracted that in its delta check. The fix pass gave the turn readers their own licence set, `clear`, with no own seam in it. Both delta checks approved, and a last pass took their notes; I read it.
+  - **The class**: every reader of an edge set must say what membership means. `read` was "decided" for one site and "clear of the ray" for another. Written on the row's `## Fix`.
+  - **My call on a MINOR.** The fix pass moves which seam-split poses meet the filed P1 (6 that build on main now refuse, 15 that refused now build; 58 of 384 against 65). The first brief's letter makes any Out↔In move MAJOR, but these refuse at the gate with no wrong body shipped, by the P1's own mechanism, so I held it MINOR.
+  - **Residue:** five rows on this slate (the 22 ties as a design question; cone, sphere-patch and torus-patch roots; the ruled on-axis hull at `Interval`; the torus fixed chart point; the census ladder), plus the P1 `an-aimed-rays-start-past-…`. The fuzz find on the last pass's CI, red on main, is filed on SSIARITH (`a-torus-limb-twos-sampled-residual-overshoots-its-span-bound-by-rounding`).
+— (FLUSH orchestrator)
+- 2026-10-31 — **Split, duplicate and dispatch.**
+  - **The split.** FLUSH reached 45 points against its 32 once PR 5781 filed its residue. Its five P2 rows on the side reader's remaining exact ties cohere as one question, so they moved by `git mv` to a new program, **SIDETIES** (`work/sideties/`, 25/30, `ready`). FLUSH is at 17.
+  - **The duplicate.** FLUSH's P1 `an-aimed-rays-start-past-…` is the same defect as INSIDE's `aimed-rays-start-at-a-conic-carriers-reach-…`, which CHART filed on 2026-10-24: the same pose family, cause and remedies. I claimed INSIDE's row and closed it as the duplicate, kept FLUSH's (the fuller record, cited by its pin) and carried INSIDE's executed witness onto it. I left a note on INSIDE's log.
+  - **Dispatched** `an-aimed-rays-start-past-…` (P1 M, branch `flush/aimed-ray-reach`), one FULL review: a wrong side read. Its ground is INSIDE's `solid_contain.rs` ray × quadric roots and the side reader's reach. It is independent of the partial-torus rim lane, which works the curved-edge rule.
+— (FLUSH orchestrator)
+- 2026-11-01 — **PR 6168 closes `main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond`** (P1). A ray grazing a partial torus's rim had borrowed the tube's crossing across the axis as the met rim's half and lost its exit. A far curved root now stands only under a metered reach bound (`reaches_root_in_band`, its own rows), and an undecided bound sets the ray aside.
+  - **One FULL review**, APPROVE-WITH-FIXES. Its two MINORs: an undecided or poisoned bound folded into "stands"; the comparison was unmetered, through the wrong door, under another decision's row. **A check pass**, APPROVE-WITH-FIXES. Its two MINORs: in-band negative margins are set aside; no guard on the fold.
+  - **My ruling on the check pass's MINOR-1:** keep setting in-band margins aside on both sides, since deciding by the f64 sign inside the escalation band is the represented tie-break `[verdicts]` forbids. The doc now says so, with the cost (204 at 1e-6, 192 of them inside chords), and a unit row reds under the old fold. Last pass read by me.
+  - **Cost** against main: 2/38/1 rays move from read to set aside at 1e-9/1e-6/1e-12, 0 wrong. Residue: the torus's sufficiency, filed on FLUSHTAIL (P3).
+  - **Seam:** `join::in_band` moved to `topo::validate` beside `decide` (RESTFRONT's file; a helper move with no contract change), shared by `join.rs` and `solid_contain.rs`.
+  - **Friction:** a release build of the suites runs out of memory on a review container at the default job count; reviewers ran with `CARGO_BUILD_JOBS=2`.
+— (FLUSH orchestrator)
+- 2026-11-01 — **PR 6174 closes `an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side`** (P1). Aimed rays had started at a conic carrier's reach (~8e6 m out), where the ray × quadric roots lost ~3e-4 m. They now start inside an arc's own ball (~5 m), read the quadratics about the ray's closest approach, and carry a metered root slack. Inside-out census poses: 58 → 0 at 1e-9, 13 → 0 at 1e-12.
+  - **One FULL review**, APPROVE-WITH-FIXES: a latent panic (`pair`'s slack-reduced margin through `decide_magnitude`), and two of three changes unpinned. **A check pass**, APPROVE: each change now reds a pin alone, the charged discriminant got the sign right on 20,000 near-tangent lines where plain f64 missed 901, and nothing moved against the merge base.
+  - Merged second, after PR 6168. The lane merged main, and the reviewer showed the slack-widened span meets 6168's bound only after `stands` is decided.
+  - **Residue:** the root-rounding readers (INSIDE, now naming 6168's `reach_margin`); the edge sweep's slack (ROOTS); `curved_edges.rs:182` at `Interval` (INSIDE); and `decide-magnitude-reported-callers-unswept-for-a-negative-margin` (INSIDE, P3 E, filed here).
+  - **Brief template fix (noted by the reviewer):** D10 is now `[intent]`. The side reader's clauses are `[verdicts]`, `[failure.taxonomy]`, `[tolerance.epsilon]` and `[coincidence]`/`[coincidence.booleans]`.
+— (FLUSH orchestrator)
+
+## 2026-11-01 — the sitting ends; FLUSH handed back (`ready`)
+
+FLUSH's P0 and P1 rows are done or parked, so this sitting ends (`memories/orchestration-model.md`).
+
+- **Done this sitting** (2026-10-26 to 11-01):
+  - PR 5706 (fallback cuts per face);
+  - PR 5730 (trimmed-sphere aims);
+  - PR 5733 (three-way names to BORDERS);
+  - PR 5737 (`[ev]`: the n-ary door; Ev's ε ruling);
+  - PR 5772 (the n-ary union door);
+  - PR 5781 (the aims' ties);
+  - PR 6168 (the partial-torus rim ray);
+  - PR 6174 (the aimed ray's reach).
+  The slit-floor P1 closed on CLEAVE's PR 5545. INSIDE's aimed-ray duplicate closed into FLUSH's row.
+- **Opened SIDETIES** (`work/sideties/`, 25/30, `ready`) for PR 5781's five P2 rows on the side reader's remaining exact ties. Its first row is a design question (`cut_cylinder`'s 22 coaxial wall roots) for designers before any lane builds it.
+- **What a successor finds here:**
+  - the two P0s, parked on REACHHOLD's door census;
+  - `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch` (P3, H);
+  - three unpriced older rows.
+- **Friction, for the record:**
+  - a four-day usage gap paused a dual review mid-delta;
+  - lanes deep in foreground waits do not read messages until their turn ends, so send with priority `next`;
+  - release suite builds run out of memory on review containers unless held to `CARGO_BUILD_JOBS=2`;
+  - a closing commit on a green head still waits for CI before the merge is accepted.
+— (FLUSH orchestrator)
+- 2026-11-01 — ONEREAD filed `main-red-a-needle-cavity-12eps-channel-escalates-at-bool-contact-vertex` (P1) on FLUSH's slate: a slow-set row red on main at default ε, found by ONEREAD's PR 6247 review. (ONEREAD orchestrator)

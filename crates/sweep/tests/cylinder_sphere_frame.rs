@@ -53,13 +53,13 @@ const R: f64 = 0.5;
 /// `z` over `z ∈ [z0, z1]`, below the plane through `(0, 0, cut.0)` with
 /// normal `(sin cut.1, 0, cos cut.1)` where there is a cut.
 #[derive(Clone, Copy)]
-struct Drum {
+pub(crate) struct Drum {
     z0: f64,
     z1: f64,
     cut: Option<(f64, f64)>,
 }
 
-const FULL: Drum = Drum {
+pub(crate) const FULL: Drum = Drum {
     z0: -1.0,
     z1: 1.0,
     cut: None,
@@ -86,7 +86,7 @@ fn gk(f: &dyn Fn(f64) -> f64, a: f64, b: f64, tol: f64, depth: u32) -> f64 {
 /// inside `drum`. Sliced at `y`, the ball is a disc about `(c.x, c.z)` of
 /// radius `√(big² − (y − c.y)²)` and the drum the convex polygon
 /// `|x| ≤ √(R² − y²)`, `z0 ≤ z ≤ z1`, below the cut's line.
-fn oracle(big: f64, c: [f64; 3], drum: Drum) -> f64 {
+pub(crate) fn oracle(big: f64, c: [f64; 3], drum: Drum) -> f64 {
     let slice = |y: f64| {
         let w2 = R * R - y * y;
         let rho2 = big * big - (y - c[1]) * (y - c[1]);
@@ -268,7 +268,7 @@ fn runs(va: f64, vb: f64, vi: f64) -> [(&'static str, BooleanOp, bool, f64); 6] 
     ]
 }
 
-fn run(
+pub(crate) fn run(
     op: BooleanOp,
     x: &AtRestBody<f64>,
     y: &AtRestBody<f64>,

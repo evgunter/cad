@@ -5,6 +5,54 @@ item files beside this plan.
 
 Branch prefix **`cleave/`**; away-channel tag `(CLEAVE orchestrator)`.
 
+## State at hand-back (2026-11-01)
+
+No orchestrator: the track is `ready`. The sitting that split CLEAVE
+ended when its P1 rows were done (PRs 6177, 6184, 6185, 6237 merged).
+
+- **No P0 or P1 row is dispatchable.** The one live P1,
+  `three-corners-alternating-round-a-corner-refuse-at-the-join`, is
+  parked on `shared-vertex-crossings-that-tie-or-interleave-are-unprobed`.
+- **The slate is P2 and P3**, around one story: where solids meet along a
+  line. That covers the `LineWedges` overlaps; an edge running past a
+  face along coincident edges; the fate cut's placement voice; the touch
+  end on an edge of a division; the sliver, pinch-ray and slit-face tail.
+- **Rows still here only until their claimants' tracker PRs land:**
+  - the two cylinder-tangent rows, claimed by TANGRIM on
+    `tangrim/orchestrator`;
+  - `a-conic-on-a-cone-face-is-read-at-five-samples-unbounded-between`,
+    claimed by PARTING on `parting/orchestrator`.
+
+  Load is about 33/30 once they move. A successor splits it on its seams
+  if it grows: the fate-cut placement rows against the line-wedge rows.
+- **Main red to know about:** a loft-cap injectivity pin at 1e-6
+  (`self_intersection_proves_injectivity::a_lens_loft_cap_refuses_departure_at_its_tip_at_both_scalars`),
+  named in CLEAR's departure row. It is not CLEAVE's.
+
+## The 2026-11-01 split
+
+CLEAVE measured 114 budget points against 30, and Ev suggested (in
+chat, 2026-11-01) splitting it into tracks of a session's work each,
+run in parallel in cloud sessions. It was cut on its semantic seams;
+every row moved by `git mv`, id and body unchanged, with a dated
+`## Slate triage` note:
+
+- **TANGRIM** (`work/tangrim/`): tangent curved rims and crescents.
+- **PARTING** (`work/parting/`): the parting's reading of edges lying
+  in faces, and cuts on spline faces.
+- **TOUCHREC** (`work/touchrec/`): a result's records of its own
+  touches, and the glue's kept copy.
+- **ONEREAD** (`work/oneread/`): one question with two readers.
+- **SEAL** (`work/seal/`): the Indeterminate seal and the
+  declared-contact rows in its way.
+- `a-built-sliver-is-not-a-legal-operand` to HELDRECORDS and
+  `main-red-the-corner-boss-row-labels-a-node-no-member-is` to BORDERS.
+
+CLEAVE keeps where solids meet along a line, and every row in flight
+(PRs 6177, 6184, 6185). The rows those PRs file move on landing: the
+cylinder-tangent rows to TANGRIM, the missing fate-touch record to
+TOUCHREC.
+
 ## Charter
 
 A split or boolean on an ordinary body hands back a valid body with

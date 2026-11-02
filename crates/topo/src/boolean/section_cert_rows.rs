@@ -406,7 +406,10 @@ fn a_general_torus_pose_is_read_from_its_march() {
                 (w - k.witness).norm() == 0.0,
                 "{what}: the witness is the carrier's middle"
             );
-            assert_eq!(c.pad, k.pad, "{what}: the witness's pad is its loop's");
+            assert_eq!(
+                c.pad, k.reach,
+                "{what}: the witness's pad is its loop's reach"
+            );
             // Closeness: the witness lies on the carrier, within its
             // certified limb-2 bound of each surface.
             let sup = k.certificate.as_ref().expect("a fitted loop").hull_sup;
@@ -563,11 +566,14 @@ fn bump() -> Surface<f64> {
 /// **NURBS × plane with no march door: W0 on the control net, else
 /// R-lane**, in both orders. A plane clear of every control point, on
 /// either side and either orientation, is apart before any reading; a
-/// plane that cuts the net, one that touches its top row, and a
-/// placeholder's poison net are read whole (`section_cert_spline_rows`),
-/// which a scalar with no march door does not. Red against W0 reading
-/// any one point clear rather than all (the cut and touching planes),
-/// and against W0 dropped (the clear ones).
+/// plane that cuts the net and one that touches its top row are read
+/// whole (`section_cert_spline_rows`), which a scalar with no march door
+/// does not; a placeholder's poison net is refused at the hull, with or
+/// without a door (R-reach). Two spline patches are read whole too
+/// (`section_cert_spline_pair_rows`), so with no door they are R-lane.
+/// Red against W0 reading any one point clear rather than all (the cut
+/// and touching planes), against W0 dropped (the clear ones), and against
+/// the poison read past the hull (R-lane).
 #[test]
 fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
     let placeholder = Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder()));
@@ -594,11 +600,11 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
         }
     }
     let pl = plane(p(0.0, 0.0, 2.5), v(0.0, 0.0, 1.0));
+    assert!(matches!(unmarched(&placeholder, &pl), Section::Intractable));
     assert!(matches!(
-        unmarched(&placeholder, &pl),
+        unmarched(&bump(), &bump()),
         Section::NoLane("f64")
     ));
-    assert!(matches!(unmarched(&bump(), &bump()), Section::Intractable));
 }
 
 // -------------------------------------------------------------------
@@ -685,7 +691,7 @@ fn cylinder_pairs_every_class() {
     // itself, not a curve, so it refuses as a tangency rather than
     // clearing as rulings.
     let s = classify(&a, &cylinder(p(0.0, 0.0, 3.0), v(0.0, 0.0, -1.0), 1.0));
-    assert_eq!(tangent(&s), "cc_coaxial");
+    assert_eq!(tangent(&s), "pair_section_coincident");
     // Apart.
     let s = classify(&a, &cylinder(p(0.0, 2.0, 0.0), Vec3::unit_x(), 0.5));
     assert_eq!(shape(&s).0, 0);
@@ -999,7 +1005,7 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     let inner = cylinder(p(0.0, 0.8, 0.0), Vec3::unit_x(), 0.2);
     assert_eq!(tangent(&classify(&fat, &inner)), "cc_crossing_nest");
     let same = cylinder(p(0.0, 0.0, 3.0), Vec3::unit_z(), 1.0);
-    assert_eq!(tangent(&classify(&fat, &same)), "cc_coaxial");
+    assert_eq!(tangent(&classify(&fat, &same)), "pair_section_coincident");
     // A ball about a wall's axis touches it all round, and two spheres
     // one inside the other about one centre stand within the band of
     // each other everywhere: neither is the extreme of a level clear of

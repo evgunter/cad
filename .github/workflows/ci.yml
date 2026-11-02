@@ -605,9 +605,11 @@ jobs:
           (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
           (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
       # The `ci` profile (demos/tour/.config/nextest.toml) leaves out the
-      # tour rows that run only nightly.
+      # tour rows that run only nightly. The `ci-tour` cargo profile is
+      # release at opt-level 1, with its assertions still armed; its header
+      # in demos/tour/Cargo.toml has the measurement.
       - name: demos tour suite
-        run: cd demos/tour && cargo nextest run --release --profile ci --no-fail-fast
+        run: cd demos/tour && cargo nextest run --cargo-profile ci-tour --profile ci --no-fail-fast
 
   tools:
     name: tools (k-lint, tess-lint, tess-meter)

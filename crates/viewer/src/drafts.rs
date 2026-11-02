@@ -15,9 +15,9 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Weak};
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, Evaluation, Formula, HeldNodes, Label, LabelFault, LoopProgram,
-    Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepArg, StepId,
-    VarId, VarName,
+    Dimension, DimensionError, Doc, Evaluation, Formula, Label, LabelFault, LoopProgram,
+    Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, Speaker,
+    StepArg, StepId, VarId, VarName,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{Step, Target};
@@ -32,6 +32,7 @@ use crate::props::{self, Notation};
 use crate::seats::SeatError;
 use crate::session::{FaceSelection, ProfileShape, SessionOp, SketchTraceFault};
 use crate::sketch::{self, HeldLoops, HeldRefusal};
+use crate::tree::HeldPick;
 
 /// Transient text a panel is mid-edit on.
 ///
@@ -62,10 +63,15 @@ pub(crate) struct Drafts {
     pub(crate) expr_text: String,
     /// The naming field, while it is open ([`NameDraft`]).
     pub(crate) name_draft: Option<NameDraft>,
+    /// **Whether the add-variable form is open** — its `New variable…`
+    /// door clicked, or an unknown-variable refusal's offer landed
+    /// ([`crate::frame::creation_offer`]). Closed, the form's fields
+    /// below are not drawn.
+    pub(crate) new_variable_open: bool,
     /// The add-variable form's name field.
     pub(crate) new_variable_name: String,
     /// Its chosen dimension — `None` until the user picks one, and
-    /// the Create button waits for the pick. The offer path lands
+    /// the commit button waits for the pick. The offer path lands
     /// here from an expression whose context does not determine the
     /// new variable's dimension, and a silently-defaulted one would
     /// be a guess none of this program's doors make.
@@ -89,8 +95,14 @@ pub(crate) struct Drafts {
     pub(crate) mate_values: [(bool, f64); crate::matetool::MateFreedom::ALL.len()],
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
-    /// Create — a name in flight is a draft, not a document.
+    /// its commit — a name in flight is a draft, not a document.
     pub(crate) new_doc_name: Option<String>,
+    /// **Whether the add-profile form is open** — its `Add profile…`
+    /// door clicked. Whether it is on screen is a different read, the
+    /// frame's (`ProfileDoors::create`): a section folded over an open
+    /// form hides it too, and what the viewport shows of the form
+    /// follows that read ([`Self::marked_face`], [`Self::trace_wanted`]).
+    pub(crate) profile_open: bool,
     /// **Whether the add-profile form draws on the selected face** —
     /// "sketch on this face" ([`SessionOp::SketchOnFace`]) — rather than
     /// on the profile's own plane alone.
@@ -110,22 +122,20 @@ pub(crate) struct Drafts {
     /// so a stale latch would commit against a same-numbered face of
     /// the next document. A document replacement therefore drops it
     /// ([`Self::document_replaced`]).
-    pub(crate) sketch_face: Option<FaceSelection>,
-    /// The nodes [`Self::sketch_face`] names, as the last document that
-    /// held them spoke them: the selection's when the face was copied
-    /// from it (`DocSession::selection_said`), spoken again from each
-    /// later document ([`Self::respeak`]).
-    sketch_face_said: HeldNodes,
+    ///
+    /// Held as every face pick is ([`HeldPick`]), its nodes spoken again
+    /// from each later document ([`Self::respeak`]).
+    pub(crate) sketch_face: Option<HeldPick>,
     /// **Whether the path continues tangent to a face's trace** — a
     /// profile drawn on a body's plane ([`SessionOp::AddDrawnProfile`])
     /// whose chain writes [`Self::trace_gesture`] — rather than a
     /// profile on its own plane.
     pub(crate) trace_on: bool,
     /// The face whose body's plane the traced sketch is drawn on: a
-    /// latch of the viewport's face pick, as [`Self::sketch_face`] is.
-    pub(crate) trace_plane: Option<FaceSelection>,
+    /// latch of the viewport's face pick, held as [`Self::sketch_face`] is.
+    pub(crate) trace_plane: Option<HeldPick>,
     /// The face the sketch traces, latched the same way.
-    pub(crate) trace_face: Option<FaceSelection>,
+    pub(crate) trace_face: Option<HeldPick>,
     /// Where the trace steps go in the chain, and their branches.
     pub(crate) trace_gesture: sketch::TraceGesture,
     /// The trace the two latches show, as last read against the landed
@@ -142,6 +152,11 @@ pub(crate) struct Drafts {
     pub(crate) split_origin: [f64; 3],
     /// The split form's plane normal (unitless).
     pub(crate) split_normal: [f64; 3],
+    /// The split target the plane's point was last seeded for: a new
+    /// target seeds it at that body's centre
+    /// ([`crate::splitplane::centre`]), and the person's edits stand
+    /// until the target changes.
+    pub(crate) split_seeded: Option<pncad::document::Operand>,
     /// The add-profile form's shape choice — `None` until the user
     /// makes one.
     ///
@@ -586,14 +601,15 @@ impl ProfileEdit {
     /// expression's reading, and it moves when what the expression
     /// reads moves (a variable set, dragged, undone), which is what the
     /// preview draws. A reading that does not evaluate leaves the
-    /// number as it was; the door says why it waits
+    /// number as it was, and so does one with a value per member; the
+    /// door says why it waits
     /// ([`Self::unread_drivers`]).
     pub(crate) fn read_drivers(&mut self, landed: &Doc<ProfileProgram>, tol: Tol) {
         let rows = props::slot_rows(landed, self.node);
         let reading = |slot: SlotId| {
             let row = rows.iter().find(|row| row.slot == slot)?;
             row.driver.is_driven().then_some(())?;
-            row.value.as_ref().ok().map(|value| value.as_f64())
+            row.value.as_ref().ok()?.one().map(|value| value.as_f64())
         };
         let kept = self.kept();
         for (loop_, rows) in kept.iter().enumerate() {
@@ -625,10 +641,11 @@ impl ProfileEdit {
         }
     }
 
-    /// **Every driven argument of a kept step whose expression does not
-    /// evaluate in `landed`**, with the fault: Apply waits on them (a
-    /// variable they read deleted, say), since the number beside them
-    /// reads nothing.
+    /// **Every driven argument of a kept step that reads no one value
+    /// in `landed`**, with why: Apply waits on them, since the number
+    /// beside them reads nothing. Its expression did not evaluate (a
+    /// variable it reads deleted, say), or it reads an index and has a
+    /// value per member where a step holds one.
     pub(crate) fn unread_drivers(&self, landed: &Doc<ProfileProgram>) -> Vec<(SlotId, String)> {
         let rows = props::slot_rows(landed, self.node);
         self.kept()
@@ -648,8 +665,19 @@ impl ProfileEdit {
             })
             .filter_map(|slot| {
                 let row = rows.iter().find(|row| row.slot == slot)?;
-                let fault = row.value.as_ref().err()?;
-                Some((slot, fault.to_string()))
+                let why = match &row.value {
+                    Ok(props::Reading::One(_)) => return None,
+                    Ok(props::Reading::PerMember(members)) => {
+                        let indices: Vec<String> =
+                            members.over().iter().map(ToString::to_string).collect();
+                        format!(
+                            "it reads index {}, so it has a value per member and the editor holds one",
+                            indices.join(", ")
+                        )
+                    }
+                    Err(fault) => fault.to_string(),
+                };
+                Some((slot, why))
             })
             .collect()
     }
@@ -867,6 +895,7 @@ impl Default for Drafts {
             expr_text: String::new(),
             name_draft: None,
             new_variable_name: String::new(),
+            new_variable_open: false,
             new_variable_dimension: None,
             new_variable_value: 0.0,
             new_variable_offer: None,
@@ -877,9 +906,9 @@ impl Default for Drafts {
             mate_into_target_space: false,
             mate_values: [(false, 0.0); crate::matetool::MateFreedom::ALL.len()],
             new_doc_name: None,
+            profile_open: false,
             sketch_on_face: false,
             sketch_face: None,
-            sketch_face_said: HeldNodes::default(),
             trace_on: false,
             trace_plane: None,
             trace_face: None,
@@ -889,6 +918,7 @@ impl Default for Drafts {
             sketch_spin: 0.0,
             split_origin: [0.0; 3],
             split_normal: [0.0, 0.0, 1.0],
+            split_seeded: None,
             profile_shape: None,
             profile_path: vec![
                 Step::At(Point2::origin()),
@@ -974,17 +1004,30 @@ impl Drafts {
         }
     }
 
+    /// **The add-variable form closes**, at its Cancel or once its
+    /// declaration is accepted ([`Self::accepted`]), and its fields go
+    /// with it: the next `New variable…` starts empty.
+    pub(crate) fn close_new_variable(&mut self) {
+        self.new_variable_open = false;
+        self.new_variable_name.clear();
+        self.new_variable_dimension = None;
+        self.new_variable_value = 0.0;
+        self.new_variable_offer = None;
+    }
+
     /// **A form whose op the document ACCEPTED comes to rest** — called
     /// once per op a batch performed without a refusal.
     ///
-    /// Only the add-profile form has anything to settle: its drafts ARE
+    /// The add-profile form settles its preview: its drafts ARE
     /// the viewport's preview (`sketch::preview` is replayed from them
     /// every frame), so a form left holding the shape it just committed
     /// would keep drawing that shape in the probe tint over the
     /// committed drawing of the node it became. Resting the shape
-    /// (`None`) is what the form means by "nothing being composed"; the
+    /// (`None`) is what the form means by "nothing being composed", and
+    /// the form closes with its one committed edit, as a tool does; the
     /// field values stay, so a second profile starts from where the
-    /// first one left off. A sketch on a face settles the same way.
+    /// first one left off. A sketch on a face settles the same way, and
+    /// the add-variable form closes on its own declaration.
     ///
     /// A REFUSED add leaves the drafts alone, so correcting what was
     /// refused does not cost what was typed.
@@ -1008,6 +1051,15 @@ impl Drafts {
                 | SessionOp::AddDrawnProfile { .. }
         ) {
             self.profile_shape = None;
+            self.profile_open = false;
+        }
+        // The add-variable form's own declaration landed: the one
+        // naming the variable its field still says.
+        if let SessionOp::DeclareVar { name, .. } = op
+            && self.new_variable_open
+            && name.as_str() == self.new_variable_name.trim()
+        {
+            self.close_new_variable();
         }
     }
 
@@ -1028,12 +1080,16 @@ impl Drafts {
     /// **A creation landed**: the label its form held is spent, so the
     /// next creation of that kind proposes afresh. The form is found by
     /// the kind noun of the node the action made
-    /// ([`crate::world::made`]) — the noun a
+    /// ([`crate::session::OpOutcome::made`]) — the noun a
     /// form's label field is keyed by, which is that node's kind
     /// (`creation_nouns`). Called only for an op that committed, so a
     /// refused creation keeps what was typed.
-    pub(crate) fn creation_landed(&mut self, doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) {
-        if let Some(node) = crate::world::made(doc, minted).and_then(|id| doc.node(id)) {
+    pub(crate) fn creation_landed(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        made: Option<RecipeNodeId>,
+    ) {
+        if let Some(node) = made.and_then(|id| doc.node(id)) {
             self.creation_labels
                 .remove(pncad::document::node_kind_noun(node));
         }
@@ -1176,20 +1232,6 @@ impl Drafts {
         self.trace_plane = None;
         self.trace_face = None;
         self.sketch_face = None;
-        self.sketch_face_said = HeldNodes::default();
-    }
-
-    /// **The on-face form takes the selection's face**, with its nodes
-    /// as the session has them spoken (`DocSession::selection_said`).
-    pub(crate) fn hold_sketch_face(&mut self, face: FaceSelection, said: &HeldNodes) {
-        self.sketch_face = Some(face);
-        self.sketch_face_said = said.clone();
-    }
-
-    /// The held face's nodes as the last document that held them spoke
-    /// them; empty with no face held.
-    pub(crate) fn sketch_face_said(&self) -> &HeldNodes {
-        &self.sketch_face_said
     }
 
     /// **The held picks' nodes, spoken again from `doc`**, the session's
@@ -1197,7 +1239,16 @@ impl Drafts {
     /// rule): a node `doc` holds takes its label now, and one it no
     /// longer holds keeps the last it had.
     pub(crate) fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.sketch_face_said = self.sketch_face_said.respoken(doc);
+        for held in [
+            &mut self.sketch_face,
+            &mut self.trace_plane,
+            &mut self.trace_face,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            *held = held.respoken(doc);
+        }
     }
 
     /// **The face this form holds**: [`Self::sketch_face`] while the
@@ -1205,22 +1256,35 @@ impl Drafts {
     ///
     /// Off the face the latch is kept, not held — nothing the form
     /// commits reads it — so switching off releases the pick, and
-    /// switching back holds it again. What the viewport marks as held
-    /// (`crate::marks::Held`).
-    pub(crate) fn held_face(&self) -> Option<&FaceSelection> {
+    /// switching back holds it again.
+    pub(crate) fn held_face(&self) -> Option<&HeldPick> {
         self.sketch_face.as_ref().filter(|_| self.sketch_on_face)
     }
 
-    /// **The latches a trace is to be read for** — when the form writes
-    /// a traced path, both are held, and the trace shown was not read
-    /// for them against `landed`. Drops the trace shown when the form
-    /// writes no traced path or a latch is empty.
+    /// **The face the viewport marks as held** (`crate::marks::Held`):
+    /// [`Self::held_face`] while the form was `drawn` on the last frame
+    /// (`ProfileDoors::create`), the one read of whether the form is
+    /// on screen — a form behind its door, in a folded section or in a
+    /// pane not drawn holds nothing a reader can see.
+    pub(crate) fn marked_face(&self, drawn: bool) -> Option<&FaceSelection> {
+        self.held_face().filter(|_| drawn).map(HeldPick::face)
+    }
+
+    /// **The latches a trace is to be read for** — when the form was
+    /// `drawn` on the last frame (the read [`Self::marked_face`] takes)
+    /// and writes a traced path, both are held, and the trace shown was
+    /// not read for them against `landed`. Drops the trace shown
+    /// otherwise.
     pub(crate) fn trace_wanted(
         &mut self,
+        drawn: bool,
         landed: Option<&Arc<Evaluation<f64>>>,
     ) -> Option<(FaceSelection, FaceSelection)> {
-        let (true, Some(plane), Some(face)) = (self.traces(), &self.trace_plane, &self.trace_face)
-        else {
+        let (true, Some(plane), Some(face)) = (
+            drawn && self.traces(),
+            self.trace_plane.as_ref().map(HeldPick::face),
+            self.trace_face.as_ref().map(HeldPick::face),
+        ) else {
             self.trace_shown = None;
             return None;
         };
@@ -1271,8 +1335,8 @@ impl Drafts {
             let chain = sketch::traced_loop(&self.profile_path, &self.trace_gesture, 0, notation)
                 .map_err(CommitFault::Traced)?;
             return Ok(Some(SessionOp::AddDrawnProfile {
-                plane: plane.clone(),
-                traced: vec![face.clone()],
+                plane: plane.face().clone(),
+                traced: vec![face.face().clone()],
                 chains: vec![chain],
             }));
         }
@@ -1284,7 +1348,7 @@ impl Drafts {
             return Ok(None);
         };
         Ok(Some(SessionOp::SketchOnFace {
-            face: face.clone(),
+            face: face.face().clone(),
             loops,
             distance: notation.length_literal(self.sketch_depth)?,
             spin: notation.angle_literal(self.sketch_spin)?,
@@ -1368,6 +1432,27 @@ impl std::fmt::Display for CommitFault {
     }
 }
 
+/// **A form's face latch takes `face`**: held as a pick is
+/// ([`HeldPick::new`]), its nodes as `doc` speaks them now. The face it already holds is kept as held, so its labels
+/// stay the ones it kept while the selection stays on it (a later edit
+/// may have taken a node `doc` no longer speaks).
+pub(crate) fn latch(slot: &mut Option<HeldPick>, doc: &Doc<ProfileProgram>, face: &FaceSelection) {
+    if slot.as_ref().is_some_and(|held| held.face() == face) {
+        return;
+    }
+    *slot = Some(HeldPick::new(doc, face.clone()));
+}
+
+/// **A form's latch row, said**: the held pick by `by` ([`HeldPick`]), a
+/// node `by` no longer holds as the latch kept it; the empty pick's one
+/// spelling ([`crate::seats::NONE_PICKED`]) while nothing is held.
+pub(crate) fn latch_said(held: Option<&HeldPick>, by: Speaker<'_>) -> String {
+    held.map_or_else(
+        || crate::seats::NONE_PICKED.to_owned(),
+        |held| pncad::document::Said(held, by).to_string(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
@@ -1445,7 +1530,7 @@ mod tests {
             drafts.profile_shape, None,
             "the labelled add settles the form as the bare one does"
         );
-        drafts.creation_landed(&doc, &[profile]);
+        drafts.creation_landed(&doc, Some(profile));
         assert_eq!(
             drafts.creation_labels.keys().copied().collect::<Vec<_>>(),
             vec!["Extrude"],
@@ -1569,8 +1654,9 @@ mod tests {
             matches!(waiting.profile_op(notation), Ok(None)),
             "no face held: the form waits"
         );
+        let doc = Doc::<ProfileProgram>::empty_derived("sketch-face", Tol::witness());
         let drafts = Drafts {
-            sketch_face: Some(face.clone()),
+            sketch_face: Some(crate::tree::HeldPick::new(&doc, face.clone())),
             sketch_spin: core::f64::consts::FRAC_PI_2,
             ..waiting
         };

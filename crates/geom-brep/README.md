@@ -542,16 +542,19 @@ side's image on the other chart:
   that the caller hands in with its two certified images. The region
   is the row's cover, a chain of boxes along the row, each wide enough
   across it to hold the accounting floor's cells beside it, over which
-  the pair's crossing reading (`graph_margin`, `ssi::row_crossing` at
-  that width) is zero-free. Each slice across the row then holds at
-  most one solution, and the row is that solution. Its cells are
+  the pair's crossing reading (`graph_margin`, `ssi::four::row_cover`,
+  `row_crossing` at that width) is zero-free. Each slice across the row then holds at
+  most one solution, so no closed loop lies in the cover; where the
+  row is an exact solution, it is that solution. Its cells are
   contact cells in the accounting.
 - **A `Corner` region** comes from a shared vertex at a corner of both
   rectangles. The reading certifies the crossing reading zero-free
   over the corner cell, and reads the signs of the direction the
-  section leaves along there, as the plane lane reads a corner's
-  inward partials: either the section leaves the domain (an isolated
-  point), or a branch starts there.
+  section runs along there, as the plane lane reads a corner's
+  inward partials. Mixed signs make every arc in the cell monotone
+  in all four coordinates, so no arc closes in the cell, which is a
+  contact cell; uniform signs make the corner a crossing where a
+  branch starts.
 
 A face the walk does not resolve within its pieces and that no handed-in
 row or vertex covers (the section touching or running along a side, or
@@ -888,6 +891,15 @@ face. A point of the rectangle's side that lies in the face lies on one
 of the face's pcurves (C4), which is an edge of the face. So the
 interior-loop guard clears such a component as it clears an unbounded
 one.
+A plane × spline pair is classified before `all()` is read, in the
+order above: the hull decides it apart or coincident, or escalates, at
+every scalar; a collapsed side not decided clear refuses at the door;
+the boundary pass, run once and handed on to `all()`, refuses a graze
+by name and finds where the section ends; and the regularity sweep's
+loop-free verdict, every component open with its ends on those sides
+(`Components::Reaching`), is the value's, with no `all()`. The guard
+clears it where each of those sides bounds the face, and otherwise
+reads it whole. Where the sweep declines, the value is `all()`'s.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
@@ -899,8 +911,8 @@ the end of exactly one branch, each listed witness on exactly one
 branch, each claimed winding held, else a desync), and
 otherwise the march's own closed branches (`Components::Marched`), each
 winding about an operand as the fitted loop's turns about the
-operand's axis and core circle, read off the loop in ℝ³, say
-(`pair_section::winds`); a point is read on a carried loop within the
+operand's axis and core circle, read over the loop's uniqueness tube
+in ℝ³, say (`pair_section::winds`); a point is read on a carried loop within the
 band padded by the loop's pad (`CarriedComponent::pad`, where its
 closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
@@ -1034,7 +1046,14 @@ end of the span is the end vertex's meeting: the walk reads past it as
 far as the carrier runs, and a box holding the end's state on which
 every solution lies within the band of the end, by the mean value
 theorem, is accounted for by it, so an end at the carrier's domain end
-or on the chart's edge is read without reading past either. A spiric
+or on the chart's edge is read without reading past either. An end on
+the chart's domain edge, the face's rim, is first read by its sector:
+where the span's departure, enclosed over a window leaving the end,
+leaves on the far side of the rim from the face's inward departure,
+enclosed by the chart's partials over a window inside the edge, every
+solution in that box of the state lies within the band of the end, a
+tangent touch and an end on a crease included, and the walk does not
+read past that end. A spiric
 span against a spline face is unbuilt. The analytic
 arms are the sweep's existing root doors. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
@@ -1110,12 +1129,21 @@ transverse normal curvature
 `κ_rel = κ₁ − κ₂` bounded away from zero (the IFT denominator of the jet
 system), with C2's hull bounds and tube between samples. Where
 first-order sector ranking ties exactly, classification descends one
-order: a surface pair through `enters_material_order2` (consumed by
-`topo::boolean::sectors`), a conic edge against a plane through
-`conic_bend_side`, its lift certified from the carrier's curvature
-bounds less the first-order residue (consumed by
-`topo::splitting::neighborhood` and `topo::boolean::sectors` alike); an
-in-band second-order tie escalates. Readings of different equations are never
+order. Two curves or sheets leaving along one tangent part by the one
+parting reading (`parting`, `(κ₁ − κ₂)·û·l²/2`, decided by each site
+under its own name; `parting_side` against a reference side, of which
+`enters_material_order2`, a curve against a plane, and `tied_germ_turn`
+are cases): a surface pair along a declared tangency and the boolean's
+bound-against-bound readings alike (`topo::boolean::sectors`, `fate`,
+`slit`). An edge bound of a vertex's sector against a face is read
+through the one bound-side reading (`topo::bound_side`), taken by
+`topo::boolean::sectors` and `topo::splitting::neighborhood` alike, and
+so is a bisector bound in the boolean's sector passes; the split's
+subdivision bisectors (`wide_entries`, `split_bisector_side`) read
+their side of the plane outside it. A conic edge against a plane
+descends through `conic_bend_side`, its lift certified from the
+carrier's curvature bounds less the first-order residue. An in-band
+second-order tie escalates. Readings of different equations are never
 summed: the witness's offset along the shared normal and across the
 locus are perpendicular, and a residual is a defect of its equation, not
 a distance to the locus (as for `Intersection`). Two terms are summed
@@ -1330,7 +1358,13 @@ reading takes a pole's side from this lane's own stereographic turning
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a
 contradiction, wherever at least one pole lies off the loop
-(`sphere_loop_side`). A face whose loop holds both poles is read through
+(`sphere_loop_side`). A wrap tip's spur bounds nothing and leaves the
+loop's chart image, taking the pole at its tip off the loop, but the
+face holds that pole: tier 3 hands each tip the image drops to the
+reader as a point the face holds (`boundary_material_sign_holding`), so
+the face lies on the side that holds its own singular vertices and no
+other pole. The closed-form lane's cross-check of the bit takes the
+same datum (`curved_face_holding`). A face whose loop holds both poles is read through
 its seam region, the faces of its surface it reaches across shared
 edges: a pole on an edge interior to the region lies inside it, so the
 region is the side of its boundary that holds such a pole

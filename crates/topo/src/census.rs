@@ -337,9 +337,9 @@ use crate::geometry::PointKey;
 use crate::live::{BoundaryMember, proven};
 use crate::null::CurveGeom;
 
-use crate::link::{Germ, Hold, Link, Planar, Sector, TouchUnread, TouchVerdict, rest};
+use crate::link::{FaceSector, Germ, Hold, Link, Planar, TouchUnread, TouchVerdict, rest};
 #[cfg(test)]
-use crate::link::{PieceAt, face_piece};
+use crate::link::{PieceAt, Sector, face_piece};
 use crate::validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, CrossingSideVerdict, Departure,
     StaleDeclaration, Undecidable, ValidationError, decide,
@@ -2784,8 +2784,8 @@ impl<T: Real> Geo<T> {
     }
 }
 
-/// A witness position rendered as COORDINATES (the payload posture of
-/// `ResultVolumeImplausible`: display data, never load-bearing).
+/// A witness position rendered as COORDINATES (display data, never
+/// load-bearing).
 ///
 /// Coordinates rather than the point's own `Debug`, because this string
 /// is pasted verbatim into a user-facing refusal: `Point3`'s derived
@@ -4125,10 +4125,11 @@ fn ef_overlap_lane<T: Decide>(
 /// none, `None` with any other kind). A quadric that holds three points
 /// of a line holds the line, so the two points and their midpoint each
 /// read their residual (`name`) on the carrier: `Ok(true)` where all
-/// three read `Zero`, `Ok(false)` where one reads off. The argument is
-/// exact; the readings are in band, so `Ok(true)` says the line lies on
-/// the carrier at the band, and a residual the band cannot read is
-/// `Err`.
+/// three read `Zero`, `Ok(false)` where one reads off, whatever the
+/// others read (all three are read first: one point definitely off
+/// decides it). The argument is exact; the readings are in band, so
+/// `Ok(true)` says the line lies on the carrier at the band, and a
+/// residual the band cannot read, with none off, is `Err`.
 pub(crate) fn line_on_quadric_carrier<T: Decide>(
     surface: &geom::Surface<T>,
     p0: Point3<T>,
@@ -4142,15 +4143,115 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
     ) {
         return None;
     }
-    for q in [p0, p1, p0.lerp(p1, T::from_f64(0.5))] {
+    Some(points_on_surface(
+        surface,
+        &[p0, p1, p0.lerp(p1, T::from_f64(0.5))],
+        name,
+        band,
+    ))
+}
+
+/// **Whether every one of `points` lies on `surface`**, each one's
+/// implicit residual decided on the band under `name`: `Ok(false)` where
+/// one reads definitely off, whatever the others read (every point is
+/// read first, so a point in band ahead of it does not pre-empt it);
+/// `Ok(true)` where all read `Zero`; and the first in-band reading where
+/// none is off.
+pub(crate) fn points_on_surface<T: Decide>(
+    surface: &geom::Surface<T>,
+    points: &[Point3<T>],
+    name: &'static str,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut in_band = None;
+    for &q in points {
         let r = geom_brep::implicit::implicit_residual(surface, q);
         match decide(name, Margin::of(r), band) {
             Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => return Some(Ok(false)),
-            Err(cause) => return Some(Err(cause)),
+            Ok(Sign::Positive | Sign::Negative) => return Ok(false),
+            Err(cause) => {
+                in_band.get_or_insert(cause);
+            }
         }
     }
-    Some(Ok(true))
+    in_band.map_or(Ok(true), Err)
+}
+
+/// **One point definitely off a quadric decides that a line or a conic
+/// is not on it**, whatever an earlier point read
+/// ([`points_on_surface`], [`line_on_quadric_carrier`]).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod points_on_surface_rows {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn cylinder() -> geom::Surface<f64> {
+        geom::Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// A residual of half the band's escalation, between its zero and
+    /// its escalation: in band.
+    fn in_band() -> f64 {
+        let b = band();
+        assert!(
+            b.zero() < 0.5 * b.escalate(),
+            "the band has room between its edges"
+        );
+        0.5 * b.escalate()
+    }
+
+    #[test]
+    fn a_line_with_one_end_in_band_and_the_other_off_is_not_on_the_cylinder() {
+        let near = Point3::new(1.0 + in_band(), 0.0, 0.0);
+        let off = Point3::new(1.5, 0.0, 1.0);
+        let read = super::line_on_quadric_carrier(&cylinder(), near, off, "test_row", band());
+        assert_eq!(read, Some(Ok(false)), "the far end decides it");
+        // Alone, the in-band end escalates.
+        assert!(matches!(
+            super::line_on_quadric_carrier(
+                &cylinder(),
+                near,
+                Point3::new(1.0 + in_band(), 0.0, 1.0),
+                "test_row",
+                band()
+            ),
+            Some(Err(_))
+        ));
+    }
+
+    #[test]
+    fn a_conics_samples_in_band_then_off_are_not_on_the_sphere() {
+        let sphere = geom::Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let r = 1.0 + in_band();
+        // Five samples of a circle's arc, as `carrier_on_surface` reads
+        // a conic: the first two in band of the sphere, the rest off.
+        let samples = [
+            Point3::new(r, 0.0, 0.0),
+            Point3::new(0.0, r, 0.0),
+            Point3::new(-1.2, 0.0, 0.0),
+            Point3::new(0.0, -1.2, 0.0),
+            Point3::new(1.2, 0.0, 0.0),
+        ];
+        assert_eq!(
+            super::points_on_surface(&sphere, &samples, "test_row", band()),
+            Ok(false)
+        );
+        assert!(super::points_on_surface(&sphere, &samples[..2], "test_row", band()).is_err());
+    }
 }
 
 /// **`cuts` put in order along a straight span** by their positions `s`
@@ -8172,9 +8273,9 @@ impl TouchSite {
                 .ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))
         };
         let on_edge =
-            |e: EdgeKey, p: Point3<T>| Link::touch_on_edge(body, geo, e, p, band).map(Germ::Cone);
+            |e: EdgeKey, p: Point3<T>| Link::touch_on_edge(body, geo, e, p, band).map(Germ::Link);
         let in_face =
-            |f: FaceKey, p: Point3<T>| Link::touch_in_face(body, geo, f, p, band).map(Germ::Cone);
+            |f: FaceKey, p: Point3<T>| Link::touch_in_face(body, geo, f, p, band).map(Germ::Link);
         Ok(match self {
             Self::EdgeEdge(a, b) => {
                 let m = ee_overlap_midpoint(edge(a)?, edge(b)?);
@@ -8293,7 +8394,7 @@ fn edge_in_own_face<T: Decide>(
 /// answers `Unreadable` before any other refusal): no sector reads one
 /// yet. A planar face with a curved edge held inside it or inside a
 /// line edge is read, as the disc its edges clear
-/// ([`crate::link::Sector::cleared`]), and its refusals are the
+/// ([`crate::link::FaceSector::cleared`]), and its refusals are the
 /// undecided twin's like any other's.
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
@@ -8372,10 +8473,10 @@ fn sweep_self_touch_points<T: Decide>(
 /// build refused with.
 type LinkPair<T> = (Result<Germ<T>, TouchUnread>, Result<Germ<T>, TouchUnread>);
 
-impl<T: Decide> Sector<T> {
+impl<T: Decide> FaceSector<T> {
     /// One planar face of the snapshot as its sectors at the touch
     /// point, held there as `holds` say — a face with an edge that is not
-    /// a line as the disc its edges clear ([`Sector::cleared`]), and a
+    /// a line as the disc its edges clear ([`FaceSector::cleared`]), and a
     /// line-bounded one as follows: inside it (one sector
     /// about `p`), or at each pass of its loops through the point — every
     /// corner on the point, about its vertex, whether the loops pass one
@@ -8438,7 +8539,7 @@ impl<T: Decide> Link<T> {
     /// on those keys, at that corner; each edge of the solid a tie names
     /// at the point, its two faces inside it; each face of the solid a
     /// tie names at the point, inside it. How a face held more than one
-    /// way is read is [`Sector::of`]'s.
+    /// way is read is [`FaceSector::of`]'s.
     #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
     fn touch_at_point(
         body: &Body<T>,
@@ -8450,7 +8551,7 @@ impl<T: Decide> Link<T> {
         band: Band,
     ) -> Result<Self, TouchUnread> {
         match Germ::touch_at_point(body, geo, ties, solid, keys, p, band)? {
-            Germ::Cone(link) => Ok(link),
+            Germ::Link(link) => Ok(link),
             Germ::Round { .. } => Err(TouchUnread::Unreadable),
         }
     }
@@ -8528,7 +8629,7 @@ impl<T: Decide> Germ<T> {
                     hs.push(h);
                 }
             }
-            match Sector::of(body, geo, f, p, &hs, band) {
+            match FaceSector::of(body, geo, f, p, &hs, band) {
                 Ok(s) => sectors.extend(s),
                 Err(TouchUnread::Unreadable) => return Err(TouchUnread::Unreadable),
                 Err(v) => {
@@ -8539,7 +8640,7 @@ impl<T: Decide> Germ<T> {
         if let Some(v) = refused {
             return Err(v);
         }
-        Link::of(p, sectors).map(Germ::Cone)
+        Link::of(p, sectors).map(Germ::Link)
     }
 }
 
@@ -8559,7 +8660,7 @@ impl<T: Decide> Link<T> {
         }
         let mut sectors = Vec::new();
         for &f in &keys {
-            sectors.extend(Sector::of(
+            sectors.extend(FaceSector::of(
                 body,
                 geo,
                 f,
@@ -8579,7 +8680,7 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
-        Self::of(p, Sector::of(body, geo, f, p, &[Hold::Inside], band)?)
+        Self::of(p, FaceSector::of(body, geo, f, p, &[Hold::Inside], band)?)
     }
 }
 
@@ -10360,22 +10461,6 @@ impl<'b, T: Decide> RecordConfirm<'b, T> {
     }
 }
 
-/// [`parallel_reading`] over two segments: whether their lines are parallel,
-/// decided as an edge-edge record's confirm pass decides it.
-///
-/// # Errors
-///
-/// The escalated decision.
-pub(crate) fn segments_parallel<T: Decide>(
-    a: (Point3<T>, Point3<T>),
-    b: (Point3<T>, Point3<T>),
-    band: Band,
-) -> Result<bool, Indeterminate> {
-    let mut errors = Vec::new();
-    let parallel = parallel_reading(&segment(a), &segment(b), band, &mut errors);
-    escalation(parallel, errors)
-}
-
 /// The point of `a`'s line nearest `b`'s, for two segments whose lines
 /// are not parallel: where they cross, once they are decided to meet
 /// ([`ee_cross_point`]).
@@ -10384,25 +10469,6 @@ pub(crate) fn segment_cross_point<T: Real>(
     b: (Point3<T>, Point3<T>),
 ) -> Point3<T> {
     ee_cross_point(&segment(a), &segment(b))
-}
-
-/// A census answer, or the escalation it pushed.
-///
-/// # Panics
-///
-/// Where the question answered `None` and pushed no escalation: its
-/// contract is `None` exactly where a decision escalated, so a `None`
-/// with nothing pushed is a broken invariant, never a "no".
-fn escalation(answer: Option<bool>, errors: Vec<ValidationError>) -> Result<bool, Indeterminate> {
-    for e in errors {
-        if let ValidationError::CensusEscalated { cause } = e {
-            return Err(cause);
-        }
-    }
-    match answer {
-        Some(answer) => Ok(answer),
-        None => unreachable!("a census question answers `None` only where it pushed an escalation"),
-    }
 }
 
 /// **Door 1 of a face pair at rest**: carrier identity and opposed
@@ -12126,7 +12192,7 @@ mod tests {
     /// key, no ties) hold the same sectors, each its outward normal and
     /// its wedges' real points, bit for bit. The two builders spell the
     /// incidence two ways (the vertex's face orbit, the snapshot's
-    /// vertex-to-face index) and share `Sector::of_face`. Red if one
+    /// vertex-to-face index) and share `FaceSector::of_face`. Red if one
     /// gathers a face, a corner or a loop the other does not.
     #[test]
     fn the_body_link_and_the_snapshot_link_agree() {
@@ -12136,6 +12202,7 @@ mod tests {
         let geo = snapshot(body);
         let held = |link: &Link<f64>| {
             let mut sectors: Vec<String> = link
+                .cone()
                 .sectors
                 .iter()
                 .map(|s| format!("{:?} {:?} {:?}", s.outward, s.apex, s.wedges))
@@ -15493,6 +15560,7 @@ mod tests {
         let geo = snapshot(body);
         let link = vertex_link(body, &geo, v, band).expect("a planar corner");
         let face = link
+            .cone()
             .sectors
             .iter()
             .find(|f| (f.outward - m).norm() < 1e-9)
@@ -15977,19 +16045,12 @@ mod tests {
                 }
             }
             let piece = face_piece(p, *m, &rings, place, &[], band)?;
-            sectors.push(Sector {
-                surface: Surface::Plane {
-                    origin: verts[loops[0][0]],
-                    normal: *m,
-                    u_ref: m.cross(Vec3::new(1.0, 1.0, 1.0)).normalize(),
-                },
-                sense: true,
+            sectors.push(FaceSector::planar(Sector {
                 outward: *m,
                 apex: p,
                 wedges: piece.chunks_exact(2).map(|w| (w[0], w[1])).collect(),
                 closed: matches!(place, PieceAt::Inside),
-                clear: None,
-            });
+            }));
         }
         Link::of(p, sectors)
     }
@@ -16094,7 +16155,7 @@ mod tests {
     /// sides it rests. With one side left out, the three left bound no
     /// region of directions: each bound of the missing side is the bound
     /// of one sector only, and crossing-parity reads nothing true of
-    /// them. That link refuses `Unanalysed` ([`Link::closes`]). Red
+    /// them. That link refuses `Unanalysed` ([`Cone::closes`](crate::link::Cone::closes)). Red
     /// where every link is taken to close: the open fan's parity then
     /// reads the floor's directions inside the pyramid, a crossing.
     #[test]
@@ -16152,8 +16213,8 @@ mod tests {
             band,
         )
         .expect("a face");
-        let face = Link::of(Point3::new(0.0, 0.0, 0.0), face.sectors).expect("a link");
-        assert!(face.tie > 0.0);
+        let face = Link::of(Point3::new(0.0, 0.0, 0.0), face.into_faces()).expect("a link");
+        assert!(face.cone().tie > 0.0);
         assert_eq!(
             rest::judge(&face, &floor_link(band), band),
             TouchVerdict::Unread(TouchUnread::InBand)

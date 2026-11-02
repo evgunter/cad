@@ -159,3 +159,25 @@ The end refusal differs from the dip's (`Join` rather than
 `sectors::along`) and the mechanism is not traced to a line; filed here
 because the vertex shape is the same, a coplanar lump beside a tangent
 lump on one bound.
+
+## The deep fixture answers (TANGRIM's line–arc junction branch, 2026-11-01)
+
+The fillet line–arc junction row
+(`work/tangrim/a-box-along-a-fillets-line-arc-junction-reaches-classification-invariants.md`)
+meets this row's vertex shape: a coplanar lump beside a tangent lump on
+one bound. Its branch (`tangrim/fillet-line-arc-junction`) lets the
+one-carrier lump claim the shared bound in `vtxfac::classify_vertex_on_face`,
+reads the tangent sector's germ at second order (its cell the locus
+bound, its direction that bound's ray), and gives a germ along a line
+edge of the wall's solid the straight chord on the plane in
+`boolean::join` — the arm the trace above named. On it,
+`the_dip_on_a_deep_slab_answers_every_op` (renamed from
+`…_unions_into_one_solid`) holds slab ∖ round, round ∖ slab and ∩ SOUND
+at their closed forms, at the default ε, 1e-6 and 1e-12.
+
+Still open: `the_untilted_dip` escalates `Corner(Straight)` at every op
+(the round's wedge-0 corner in the slab's bottom face), and
+`review_4831_probes::p1_a_bore_inside_a_disc_touching_its_wall` still
+refuses `Join` ("8 section ends found no partner") at every op: its
+shared bound is the cap's circle edge, met at an edge-edge site, which
+the junction's fix (an edge-sector key, a line-edge chord) does not reach.

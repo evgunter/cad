@@ -20,10 +20,20 @@
 //!    through the centre with normal `ĝ = p̂ × t`.
 //! 2. Every arc of every loop meets that plane at the roots of a first
 //!    harmonic, `ĝ·(C − c) + ρ(ĝ·û) cos θ + ρ(ĝ·v̂) sin θ`, certified by
-//!    the shared first-harmonic door
-//!    ([`super::circle_roots::first_harmonic_roots`]); a root counts
-//!    where it lies inside its arc's span, at the ray parameter `s` it
-//!    sits at. The ray is a leg of the region skeleton
+//!    the shared first-harmonic door, each root as a direction from the
+//!    arc's centre ([`super::circle_roots::first_harmonic_root_directions`]);
+//!    a root counts where it lies inside its arc's span, at the ray
+//!    parameter `s` it sits at. Neither reading is an angle with a cut. A
+//!    root is read against the end of its span nearer it (the side of
+//!    the middle's diameter it lies on): within a quarter turn of that
+//!    end, as its raw angle less the end's parameter, which keeps the
+//!    end's relative precision; past that, as the half-width less its
+//!    angle from the middle. A crossing along the ray is placed by the
+//!    angle swept from `p`. The angles from the middle, from an end and
+//!    from `p` are each the unsigned `2·atan2` of two norms
+//!    ([`region::between`]), so a root a half turn from its arc's middle
+//!    and a crossing at `p`'s antipode — every meridian ray from a pole
+//!    meets the other pole there — read as tightly as any. The ray is a leg of the region skeleton
 //!    ([`region::read_leg`]), so each arc's roots are all read against
 //!    its span before any is placed along the ray.
 //! 3. At the closest crossing, the ray's heading against `N × τ` says
@@ -39,7 +49,7 @@
 //! # Which rays
 //!
 //! First the rays aimed at points of the boundary — three points of every
-//! arc, in loop order — each of which meets the boundary somewhere; then
+//! arc, in walk order — each of which meets the boundary somewhere; then
 //! the fixed schedule's directions projected onto the tangent plane at
 //! `p` (`splitting::containment::SCHEDULE`), for the points where every
 //! aimed ray runs along an arc: a point a hair off a vertex sees every
@@ -79,8 +89,8 @@
 //! - `bool_sphere_region_arm`: a ray direction's share of the tangent
 //!   plane at `p`, at the sphere's radius — a schedule member near the
 //!   normal, or a target at `p` or its antipode, casts no ray.
-//! - `bool_sphere_region_span`: a root's parameter against its arc's
-//!   span ends, at the arc's radius.
+//! - `bool_sphere_region_span`: a root against the end of its arc's span
+//!   nearer it, the signed angle to that end at the arc's radius.
 //! - `bool_sphere_region_at`: a crossing's place along the ray, from
 //!   `p`, at the sphere's radius.
 //! - `bool_sphere_region_order`: two crossings' places along the ray.
@@ -95,10 +105,10 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::BooleanDecision;
-use super::circle_roots::{FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band};
+use super::circle_roots::{FirstHarmonic, FirstHarmonicRows, first_harmonic_root_directions};
 use super::region::{
     self, Fault, Landing, Leg, Legs, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
-    circle_edge_hit, found, span, targets,
+    between, circle_edge_hit, found, span_at_nearer_end, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -122,8 +132,9 @@ const BOUNDARY: ConicRows = ConicRows::bounded(
 );
 
 /// The fraction of each arc's span [`SphereFaceRegion::aim`] steps from:
-/// the golden section, off the middle a symmetric pose's planes hold.
-const AIM_FRACTION: f64 = 0.381_966_011_250_105_2;
+/// the golden section ([`geom_core::GOLDEN_SECTION`]), off the middle a
+/// symmetric pose's planes hold.
+const AIM_FRACTION: f64 = 1.0 - geom_core::GOLDEN_SECTION;
 
 /// How many even steps of each arc's span [`SphereFaceRegion::aim`]'s
 /// clearance reads.
@@ -238,46 +249,36 @@ impl<T: Decide> SphereFaceRegion<T> {
     }
 
     /// A point of the face the side-at-infinity reader may aim at, found
-    /// by evaluation alone: a point `m` of each arc ([`AIM_FRACTION`] of
-    /// its span) stepped along its great circle toward the face (`N × τ`, module docs) by an angle `φ` that
-    /// keeps the step's path off every boundary arc, and the step that
-    /// goes deepest. `φ` is at most half the arc's circle's angular radius
-    /// about the nearer pole, so the path does not meet that circle again,
-    /// and `R·φ` at most half a lower bound on `m`'s distance from every
-    /// other arc ([`Self::clearance`]), so it meets no other arc: the
-    /// stepped point lies in the face, as the face lies along `N × τ` at
-    /// `m`. A face narrower than the rounding there steps nowhere and aims
-    /// at `m`; the aim only steers either way. `None` for a
-    /// face with no boundary arc, which offers no aim.
+    /// by evaluation alone: the point `m` of the face's first arc (the
+    /// outer loop's first, in walk order) at [`AIM_FRACTION`] of its span,
+    /// stepped along its great circle toward the face (`N × τ`, module
+    /// docs) by an angle `φ` that keeps the step's path off every boundary
+    /// arc. `φ` is at most half the arc's circle's angular radius about
+    /// the nearer pole, so the path does not meet that circle again, and
+    /// `R·φ` at most half a lower bound on `m`'s distance from every other
+    /// arc ([`Self::clearance`]), so it meets no other arc: the stepped
+    /// point lies in the face, as the face lies along `N × τ` at `m`. One
+    /// arc is stepped from, by its place in the walk: choosing among
+    /// arcs by their steps would be a choice on values, which two arcs a
+    /// symmetric face holds alike tie, and an enclosure of a tie is the
+    /// hull of both steps. A face narrower than the rounding there steps
+    /// nowhere and aims at `m`; the aim only steers either way. `None`
+    /// for a face with no boundary arc, which offers no aim.
     pub(crate) fn aim(&self) -> Option<Point3<T>> {
-        let (zero, half) = (T::zero(), T::from_f64(0.5));
-        let mut best: Option<(T, Point3<T>)> = None;
-        for (k, arc) in self.edges.iter().enumerate() {
-            let geom::Curve3::Circle { radius, .. } = arc.carrier else {
-                unreachable!("sphere_face_region admits circles only")
-            };
-            let t = arc.t0 + (arc.t1 - arc.t0) * T::from_f64(AIM_FRACTION);
-            let m = arc.at(t);
-            let own = (radius / self.radius).abs().min(T::one()).asin() * half;
-            let room = self.clearance(k, m) * half / self.radius;
-            let phi = own.min(room).max(zero);
-            let w = m - self.center;
-            let into = self.outward(m).cross(arc.traversal(t));
-            let (sin, cos) = phi.sin_cos();
-            let p = self.center + (w / w.norm() * cos + into / into.norm() * sin) * self.radius;
-            best = Some(match best {
-                // Evaluation, not a decision: the deeper step only steers.
-                Some((deepest, q)) => {
-                    let pick = |a: T, b: T| (phi - deepest).select_le_zero(a, b);
-                    (
-                        pick(deepest, phi),
-                        Point3::new(pick(q.x, p.x), pick(q.y, p.y), pick(q.z, p.z)),
-                    )
-                }
-                None => (phi, p),
-            });
-        }
-        best.map(|(_, p)| p)
+        let half = T::from_f64(0.5);
+        let arc = self.edges.first()?;
+        let geom::Curve3::Circle { radius, .. } = arc.carrier else {
+            unreachable!("sphere_face_region admits circles only")
+        };
+        let t = arc.t0 + (arc.t1 - arc.t0) * T::from_f64(AIM_FRACTION);
+        let m = arc.at(t);
+        let own = (radius / self.radius).abs().min(T::one()).asin() * half;
+        let room = self.clearance(0, m) * half / self.radius;
+        let phi = own.min(room).max(T::zero());
+        let w = m - self.center;
+        let into = self.outward(m).cross(arc.traversal(t));
+        let (sin, cos) = phi.sin_cos();
+        Some(self.center + (w / w.norm() * cos + into / into.norm() * sin) * self.radius)
     }
 
     /// A lower bound on the distance from `m` to every arc but the `k`th:
@@ -338,6 +339,10 @@ impl<T: Decide> Region<T> for SphereFaceRegion<T> {
         &self.edges
     }
 
+    fn edges_mut(&mut self) -> &mut Vec<Arc<T>> {
+        &mut self.edges
+    }
+
     fn outer(&self) -> LoopKey {
         self.outer
     }
@@ -383,29 +388,58 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         else {
             unreachable!("sphere_face_region admits circles only")
         };
-        let roots = first_harmonic_roots_in_band(
+        let roots = first_harmonic_root_directions(
             &FirstHarmonic::circle_off_plane(
                 (center, axis, radius, u_ref),
                 (self.center, ray.course.normal),
             ),
             radius,
-            arc.t0,
-            arc.t1,
             &ROOT_ROWS,
             band,
         );
+        let v_ref = axis.cross(u_ref);
+        let two = T::from_f64(2.0);
+        let (mid, half) = ((arc.t0 + arc.t1) / two, (arc.t1 - arc.t0) / two);
+        let on_circle = |t: T| {
+            let (sin, cos) = t.sin_cos();
+            u_ref * cos + v_ref * sin
+        };
+        let (start, middle, end) = (on_circle(arc.t0), on_circle(mid), on_circle(arc.t1));
+        let quarter = T::pi() / two;
         let mut out = Vec::new();
-        for theta in found(roots)? {
-            let lands = span(
-                "bool_sphere_region_span",
-                theta,
-                (arc.t0, arc.t1),
-                radius,
-                band,
-            )?;
-            if let Some(sideless) = lands {
-                out.push((arc.at(theta), theta, sideless));
-            }
+        for root in found(roots)? {
+            let (cos, sin) = root.direction;
+            let toward = u_ref * cos + v_ref * sin;
+            let off = between(toward, middle);
+            // The signed angle to each end, positive inside: within a
+            // quarter turn of the end, the raw root less the end's
+            // parameter, a difference of two near numbers that keeps its
+            // relative precision; past that, the half-width less the
+            // angle from the middle.
+            let to_end = |end: Vec3<T>, local: T| {
+                (between(toward, end) - quarter).select_le_zero(local, half - off)
+            };
+            let tau = T::tau();
+            // Which half of the span: the side of `middle`'s diameter
+            // `toward` lies.
+            let ahead = middle.cross(toward).dot(axis);
+            let to_end = (T::zero() - ahead).select_le_zero(
+                to_end(end, (arc.t1 - root.raw).reduce_periodic_centred(tau)),
+                to_end(start, (root.raw - arc.t0).reduce_periodic_centred(tau)),
+            );
+            let Some(sideless) =
+                span_at_nearer_end("bool_sphere_region_span", to_end, radius, band)?
+            else {
+                continue;
+            };
+            // `ahead` is undecided only for a root at the middle, where
+            // both choices agree, or a half turn from it. There the
+            // parameter is a whole turn's hull, and a root inside the
+            // span lies at a whole turn's ends, which the span reading
+            // places sideless wherever the enclosure is narrower than
+            // the band's zero.
+            let theta = (T::zero() - ahead).select_le_zero(mid + off, mid - off);
+            out.push((center + toward * radius, theta, sideless));
         }
         Ok(out)
     }
@@ -417,7 +451,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::entity::EdgeKey;
@@ -435,6 +469,7 @@ mod tests {
             edges: vec![RegionEdge {
                 edge: EdgeKey::from(KeyData::from_ffi(1)),
                 r#loop: LoopKey::default(),
+                cycle: 0,
                 carrier: geom::Curve3::Circle {
                     center: Point3::new(0.0, 0.0, 0.5),
                     axis: Vec3::new(0.0, 0.0, 1.0),
@@ -504,6 +539,7 @@ mod tests {
         let meridian = |az: f64, forward: bool, key: u64| RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Circle {
                 center: Point3::origin(),
                 axis: Vec3::new(-az.sin(), az.cos(), 0.0),
@@ -542,6 +578,7 @@ mod tests {
         RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Circle {
                 center: Point3::origin() + pole * theta.cos(),
                 axis: pole,
@@ -745,6 +782,281 @@ mod tests {
                 .unwrap()
                 .is_none(),
             "a null edge refuses"
+        );
+    }
+
+    /// **A pole whose side the door reads in band escalates, with its
+    /// margin** (D4 ¶1): the zone of the unit sphere between rims at
+    /// heights `0.5` and `0.5 − 3ε·sin 60°`, `3ε` apart along every
+    /// meridian, inside the band — the ball split by the upper rim, and
+    /// the lower rim planted on the face below it as a ring. Each pole is
+    /// far off the zone's boundary, and every great circle through it is
+    /// a meridian, which meets the two rims at places the band cannot
+    /// order: the face's door, every surface cycle kept, escalates on the
+    /// order row with its margin at both poles, never a side. A pin of the
+    /// door's in-band reading at `f64`, where it reads alike before and
+    /// after its roots are read as directions; tier 3 reads it through
+    /// the door once the switch lands.
+    #[test]
+    fn a_pole_read_in_band_escalates_with_its_margin() {
+        use crate::construction::{FaceSurface, MefSite, MevSite};
+        use crate::entity::LoopBoundary;
+        use geom_brep::EdgeCurveSpec;
+        let tol = geom_core::Tol::witness();
+        let (pi, tau) = (core::f64::consts::PI, core::f64::consts::TAU);
+        let (z1, z2) = (0.5, 0.5 - 3.0 * tol.eps() * (pi / 3.0).sin());
+        let rim = |z: f64| {
+            let r = (1.0f64 - z * z).sqrt();
+            let circle = geom::Curve3::Circle {
+                center: Point3::new(0.0, 0.0, z),
+                axis: Vec3::unit_z(),
+                radius: r,
+                u_ref: Vec3::unit_x(),
+            };
+            (r, circle)
+        };
+        let mut body = Body::<f64>::new();
+        let (r1, upper) = rim(z1);
+        let seed = body.mvfs(Point3::new(r1, 0.0, z1), true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: geom::Surface::Sphere {
+                    center: Point3::origin(),
+                    radius: 1.0,
+                    axis: Vec3::unit_z(),
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let half = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::new(-r1, 0.0, z1),
+                EdgeCurveSpec::arc_of_circle(upper.clone(), 0.0, pi).unwrap(),
+                tol,
+            )
+            .unwrap();
+        let below = body
+            .mef(
+                MefSite::Chords {
+                    he1: half.he_minus,
+                    he2: half.he_plus,
+                },
+                EdgeCurveSpec::arc_of_circle(upper, pi, tau).unwrap(),
+                FaceSurface::Inherit,
+                tol,
+            )
+            .unwrap();
+        // The lower rim, planted on the face below the upper one from a
+        // strut to the far side of it, which the ring's making kills.
+        let zone = below.face;
+        let LoopBoundary::Cycle { first } = body
+            .get_loop(body.get_face(zone).unwrap().outer)
+            .unwrap()
+            .boundary
+        else {
+            panic!("the outer loop is a cycle")
+        };
+        let from = body
+            .get_vertex(body.get_half_edge(first).unwrap().start)
+            .unwrap()
+            .point;
+        let side = body.points[from].x.signum();
+        let (r2, lower) = rim(z2);
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: first,
+                    he2: first,
+                },
+                Point3::new(-side * r2, 0.0, z2),
+                tol,
+            )
+            .unwrap();
+        let (t_far, t_near) = if side > 0.0 { (pi, tau) } else { (0.0, pi) };
+        let fan = MevSite::Fan {
+            he1: strut.he_minus,
+            he2: strut.he_minus,
+        };
+        let across = body
+            .mev(
+                fan,
+                Point3::new(side * r2, 0.0, z2),
+                EdgeCurveSpec::arc_of_circle(lower.clone(), t_far, t_near).unwrap(),
+                tol,
+            )
+            .unwrap();
+        let (t0, t1) = if side > 0.0 { (0.0, pi) } else { (pi, tau) };
+        let close = body
+            .mef(
+                MefSite::Chords {
+                    he1: across.he_minus,
+                    he2: across.he_plus,
+                },
+                EdgeCurveSpec::arc_of_circle(lower, t0, t1).unwrap(),
+                FaceSurface::Inherit,
+                tol,
+            )
+            .unwrap();
+        body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        for edge in [half.edge, below.edge, across.edge, close.edge] {
+            body.describe_at_rest(edge, tol).unwrap();
+        }
+        crate::mint_pcurves(&mut body, tol).unwrap();
+        let zone = body
+            .faces
+            .iter()
+            .find(|(_, f)| !f.rings.is_empty())
+            .expect("the lower rim is a ring")
+            .0;
+        let band = Band::linear(tol).unwrap();
+        let every: Vec<usize> = (0..crate::surface_boundary::surface_cycles(&body, zone)
+            .unwrap()
+            .len())
+            .collect();
+        for (pole, z) in [("north", 1.0), ("south", -1.0)] {
+            let got =
+                crate::boolean::cycle_side(&body, zone, &every, Point3::new(0.0, 0.0, z), band);
+            assert!(
+                matches!(
+                    &got,
+                    Err(crate::boolean::ContainError::Escalated { diag, .. })
+                        if diag.predicate == Some("bool_sphere_region_order")
+                            && !diag.margin.is_invalid()
+                ),
+                "the {pole} pole is undecided on the order row: {got:?}"
+            );
+        }
+    }
+
+    /// The unit sphere's lune between azimuths `π` and `3π/2`, below the
+    /// parallel at polar angle `1`, at `T`: its two meridian arcs run down
+    /// to the south pole, a vertex of the face, and its parallel arc is
+    /// framed about `−z` from `−y`, as a box row's carve frames it.
+    fn pole_lune<T: Decide>(
+        turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+    ) -> SphereFaceRegion<T> {
+        let lift = T::from_f64;
+        let v = |x: f64, y: f64, z: f64| Vec3::new(lift(x), lift(y), lift(z));
+        let pi = core::f64::consts::PI;
+        let edge = |carrier, (t0, t1): (f64, f64), forward, key| RegionEdge {
+            edge: EdgeKey::from(KeyData::from_ffi(key)),
+            r#loop: LoopKey::default(),
+            cycle: 0,
+            carrier,
+            t0: lift(t0),
+            t1: lift(t1),
+            turn: turn(t0, t1),
+            forward,
+        };
+        let meridian = |az: f64| geom::Curve3::Circle {
+            center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+            axis: v(-az.sin(), az.cos(), 0.0),
+            radius: lift(1.0),
+            u_ref: v(0.0, 0.0, 1.0),
+        };
+        let parallel = geom::Curve3::Circle {
+            center: Point3::new(lift(0.0), lift(0.0), lift(1f64.cos())),
+            axis: v(0.0, 0.0, -1.0),
+            radius: lift(1f64.sin()),
+            u_ref: v(0.0, -1.0, 0.0),
+        };
+        SphereFaceRegion {
+            center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+            radius: lift(1.0),
+            sense: true,
+            outer: LoopKey::default(),
+            edges: vec![
+                edge(meridian(pi), (1.0, pi), true, 1),
+                edge(parallel, (0.0, pi / 2.0), true, 2),
+                edge(meridian(1.5 * pi), (1.0, pi), false, 3),
+            ],
+        }
+    }
+
+    /// **The door settles a pole at the certified scalar.** Every great
+    /// circle through the north pole passes the south pole at its
+    /// antipode, where it meets the lune's two meridian arcs at their
+    /// ends; and the great circle through the lune's middle meets its
+    /// parallel arc a half turn from the arc's middle, and the one in the
+    /// plane `y = 0` reads the arc's phase on its cut. Read as angles,
+    /// each was a whole turn's hull at `Interval`, and the pole refused in
+    /// band. The north pole is outside, the south pole on the boundary,
+    /// and a point of the lune in it, at `f64` and at `Interval`.
+    #[test]
+    fn the_door_settles_a_pole_at_the_certified_scalar() {
+        fn read<T: Decide>(
+            scalar: &str,
+            turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+        ) {
+            let band = Band::new(1e-9, 1e-8).unwrap();
+            let lift = T::from_f64;
+            let region = pole_lune::<T>(turn);
+            let at = |x: f64, y: f64, z: f64| Point3::new(lift(x), lift(y), lift(z));
+            let pi = core::f64::consts::PI;
+            let (polar, az) = (2.0f64, 1.25 * pi);
+            let inside = at(polar.sin() * az.cos(), polar.sin() * az.sin(), polar.cos());
+            for (what, p, want) in [
+                ("the north pole", at(0.0, 0.0, 1.0), Some(false)),
+                ("the south pole", at(0.0, 0.0, -1.0), None),
+                ("a point of the lune", inside, Some(true)),
+            ] {
+                assert_eq!(region.contains(p, band), Ok(want), "{what} at {scalar}");
+            }
+        }
+        read::<f64>("f64", crate::boolean::region::fixture_turn);
+        read::<geom_core::Interval>("Interval", crate::boolean::region::fixture_turn_interval);
+    }
+
+    /// **A root a half turn from its arc's middle, or on its phase's cut,
+    /// reads as tightly as any.** From the north pole, the great circle
+    /// toward azimuth `5π/4` meets the lune's parallel arc at its middle
+    /// and a half turn from it; the one toward azimuth `π` lies in the
+    /// plane `y = 0`, against which the arc's phase (`−y` its reference,
+    /// about `−z`) is a half turn. Read as angles, the far root and both
+    /// of the second's were a whole turn's hull at `Interval`, which the
+    /// span reading refused in band. Read as directions, the first leg
+    /// lands once, inside the arc, and the second once, at its end.
+    #[test]
+    fn a_root_opposite_its_arcs_middle_or_on_its_phase_cut_reads_tight() {
+        fn read<T: Decide>(
+            scalar: &str,
+            turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+            hi: fn(T) -> f64,
+        ) {
+            let band = Band::new(1e-9, 1e-8).unwrap();
+            let lift = T::from_f64;
+            let region = pole_lune::<T>(turn);
+            let pole = Vec3::new(lift(0.0), lift(0.0), lift(1.0));
+            let pi = core::f64::consts::PI;
+            let rim = 1f64.sin();
+            for (az, end) in [(1.25 * pi, false), (pi, true)] {
+                let toward = Vec3::new(lift(az.cos()), lift(az.sin()), lift(0.0));
+                let leg = region.ray(pole, toward);
+                let got = region.landings(&region.edges[1], &leg, band);
+                let Ok(landings) = got else {
+                    panic!("azimuth {az}: the leg lands at {scalar}, got {got:?}")
+                };
+                assert_eq!(landings.len(), 1, "azimuth {az} at {scalar}");
+                let (y, _, sideless) = landings[0];
+                let want = Point3::new(rim * az.cos(), rim * az.sin(), 1f64.cos());
+                let miss = (y - Point3::new(lift(want.x), lift(want.y), lift(want.z))).norm();
+                assert!(
+                    hi(miss) < 1e-12 && sideless == end,
+                    "azimuth {az} at {scalar}: {y:?} sideless {sideless}"
+                );
+            }
+        }
+        read::<f64>("f64", crate::boolean::region::fixture_turn, |x| x);
+        read::<geom_core::Interval>(
+            "Interval",
+            crate::boolean::region::fixture_turn_interval,
+            geom_core::Bounds::hi,
         );
     }
 }

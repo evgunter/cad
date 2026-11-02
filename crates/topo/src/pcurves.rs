@@ -1011,13 +1011,63 @@ fn half_edge_curve<T: Real>(
         .ok_or(PcurveMintError::NoCarrier { half_edge })
 }
 
+/// **The image on `wall`'s chart of a carrier that runs along a side of
+/// it**, over `[t0, t1]`, admitted by a shared row's one test
+/// ([`geom_brep::side_row_certifies`]): a circle's arc rim over the whole
+/// side or part of it ([`geom_brep::pick_arc_rim`]), any other carrier's
+/// boundary row or column traversing the chart's whole domain along its
+/// moving axis, in either direction ([`probe_pick`]). `None` where no candidate
+/// certifies. The image is on the carrier's own parameter, so a second
+/// wall's image of one edge's carrier is stated over that edge.
+pub(crate) fn side_image_of<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    wall: &Surface<T>,
+    band: Band,
+) -> Option<Pcurve<T>> {
+    use geom_core::{Point2, Vec2};
+    let chart = wall.spline_chart()?;
+    let span = t1 - t0;
+    let picked = if matches!(carrier, geom::Curve3::Circle { .. }) {
+        geom_brep::pick_arc_rim(carrier, (t0, span), wall, band).ok()?
+    } else {
+        let ((u0, u1), (v0, v1)) = (
+            chart.knot_values_u().domain(),
+            chart.knot_values_v().domain(),
+        );
+        let line = |p0: Point2<T>, pl: Vec2<T>| Pcurve::IsoLine { p0, pl };
+        let rows = [v0, v1].into_iter().flat_map(|y| {
+            [(u0, u1), (u1, u0)].map(|(a, b)| {
+                let slope = (b - a) / span;
+                line(Point2::new(a - slope * t0, y), Vec2::new(slope, T::zero()))
+            })
+        });
+        let columns = [u0, u1].into_iter().flat_map(|x| {
+            [(v0, v1), (v1, v0)].map(|(a, b)| {
+                let slope = (b - a) / span;
+                line(Point2::new(x, a - slope * t0), Vec2::new(T::zero(), slope))
+            })
+        });
+        probe_pick(
+            "pcurve_shared_side",
+            carrier,
+            (t0, span),
+            wall,
+            band,
+            rows.chain(columns),
+        )
+        .ok()?
+    }?;
+    geom_brep::side_row_certifies(wall, &picked, (carrier, (t0, t1)), band).then_some(picked)
+}
+
 /// The certified carrier and parameter interval of `half_edge`'s edge.
 ///
 /// # Errors
 ///
 /// [`half_edge_curve`]'s.
 #[track_caller]
-fn half_edge_carrier<T: Decide>(
+pub(crate) fn half_edge_carrier<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<(geom::Curve3<T>, T, T), PcurveMintError> {
@@ -1692,17 +1742,15 @@ pub(crate) fn chart_closed_channels<T: Decide>(surface: &Surface<T>, band: Band)
 /// **Whether a side of `surface`'s chart rectangle bounds a face lying
 /// on it** (`section_cert`'s W1′): the side lies in a channel the chart
 /// does not close ([`chart_closed_channels`]), and it is a curve, not a
-/// point: some control point of the net's row along it is decided apart
-/// from the row's first (`pcurve_chart_side_spans`), so the side is no
-/// collapsed side, a pole a face may lie across with no edge on it. A
-/// row decided one point, or undecided, collapses; a surface that is no
-/// spline has no side read here.
+/// point ([`geom_brep::chart_singularity::spline_side_spans`], the one
+/// reading of a collapsed side, a pole a face may lie across with no
+/// edge on it); a surface that is no spline has no side read here.
 pub(crate) fn chart_side_bounds<T: Decide>(
     surface: &Surface<T>,
     side: geom_brep::ChartSide,
     band: Band,
 ) -> bool {
-    use geom_brep::{ChartAxis, ChartEnd};
+    use geom_brep::ChartAxis;
     let [u_closed, v_closed] = chart_closed_channels(surface, band);
     let closed = match side.fixed {
         ChartAxis::U => u_closed,
@@ -1711,32 +1759,7 @@ pub(crate) fn chart_side_bounds<T: Decide>(
     let Some(payload) = surface.spline_chart() else {
         return false;
     };
-    let (nu, nv) = payload.control_counts();
-    let row: Vec<usize> = match (side.fixed, side.end) {
-        (ChartAxis::U, ChartEnd::Low) => (0..nv).collect(),
-        (ChartAxis::U, ChartEnd::High) => {
-            (0..nv).map(|iv| (nu.saturating_sub(1)) * nv + iv).collect()
-        }
-        (ChartAxis::V, ChartEnd::Low) => (0..nu).map(|iu| iu * nv).collect(),
-        (ChartAxis::V, ChartEnd::High) => {
-            (0..nu).map(|iu| iu * nv + nv.saturating_sub(1)).collect()
-        }
-    };
-    let control = payload.control();
-    let Some(first) = row.first().and_then(|&i| control.get(i)) else {
-        return false;
-    };
-    let spans = row.iter().filter_map(|&i| control.get(i)).any(|p| {
-        matches!(
-            decide(
-                "pcurve_chart_side_spans",
-                Margin::of(first.distance(*p)),
-                band
-            ),
-            Ok(Sign::Positive)
-        )
-    });
-    !closed && spans
+    !closed && geom_brep::chart_singularity::spline_side_spans(payload, side, band)
 }
 
 /// A spline net's channel, for the closure question [`net_closes`] asks.

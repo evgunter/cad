@@ -55,6 +55,66 @@ use crate::session::{DocSession, FreeMoveName, GestureName, SessionOp, ValueGest
 use crate::sketch;
 use crate::theme::Theme;
 
+/// What every open form's and tool's closing button says.
+pub(crate) const CANCEL: &str = "Cancel";
+
+/// **The door to a form or a tool**: the one button that opens what
+/// `label` names, drawn while it is closed. Every door in the chrome is
+/// drawn here, so a door looks one way wherever it stands; what a click
+/// opens is the caller's, which is why this answers the response.
+pub(crate) fn door(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) -> egui::Response {
+    ui.button(label)
+}
+
+/// **A form whose open state is a flag**, behind its [`door`]: closed,
+/// the door, which opens it when clicked. Answers whether the form is
+/// open — whether the caller draws it.
+pub(crate) fn form_door(ui: &mut egui::Ui, label: &str, open: &mut bool) -> bool {
+    if !*open && door(ui, label).clicked() {
+        *open = true;
+    }
+    *open
+}
+
+/// What a form's [`commit_row`] was clicked for this frame.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Closing {
+    /// The commit was clicked.
+    pub(crate) commit: bool,
+    /// [`CANCEL`] was clicked.
+    pub(crate) cancel: bool,
+}
+
+/// **An open form's closing row**: its commit, labelled with what it
+/// makes, then whatever else the form keeps beside it (`between`), then
+/// [`CANCEL`]. `blocked` is why the commit is withheld, said on the
+/// disabled commit's hover; `None` leaves it live. A form that says the
+/// reason in the open as well hands the same words to both.
+///
+/// The form closes on its Cancel here, and on its commit only once the
+/// document ACCEPTS the op — that is the caller's to read, so a refused
+/// commit keeps what was typed.
+pub(crate) fn commit_row(
+    ui: &mut egui::Ui,
+    commit: impl Into<egui::WidgetText>,
+    blocked: Option<&str>,
+    between: impl FnOnce(&mut egui::Ui),
+) -> Closing {
+    ui.horizontal(|ui| {
+        let button = ui.add_enabled(blocked.is_none(), egui::Button::new(commit));
+        let commit = match blocked {
+            Some(why) => button.on_disabled_hover_text(why).clicked(),
+            None => button.clicked(),
+        };
+        between(ui);
+        Closing {
+            commit,
+            cancel: ui.button(CANCEL).clicked(),
+        }
+    })
+    .inner
+}
+
 /// **A sentence drawn so that it WRAPS INSIDE THE REGION it is drawn
 /// in** — a refusal, a fault, a check finding, the status line.
 ///
@@ -101,7 +161,7 @@ use crate::theme::Theme;
 /// still be broken where epaint's own rule breaks it.
 ///
 /// A message that reaches the floor is a finding about the layout that
-/// put it there; `crate::pane::features`'s `message_indent` is one this
+/// put it there; `crate::pane::features`'s `nested_indent` is one this
 /// chrome answered. The toolbar's status line is another: the panel it
 /// is in does not scroll, so the line has a row of its own that does
 /// (`crate::app`'s `toolbar_ui`).
@@ -571,10 +631,10 @@ type BoxedPreview<'a> = Box<dyn Fn([f64; 3]) -> SessionOp + 'a>;
 /// preview carries — and is
 /// the only part of the probe's vocabulary that is not the name's.
 pub(crate) fn free_move_gesture<'a>(
-    instance: RecipeNodeId,
+    node: RecipeNodeId,
     frame_of: impl Fn([f64; 3]) -> Frame + Copy + 'a,
 ) -> ProbeOps<'a> {
-    let name = FreeMoveName { instance };
+    let name = FreeMoveName { node };
     let gesture = GestureName::FreeMove(name);
     ProbeOps {
         gesture: GestureVocabulary {
@@ -1170,8 +1230,16 @@ pub(crate) fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [
 /// the half of this that is easy to leave out: a tick in metres
 /// applied to a field showing millimetres is the same gesture made a
 /// thousand times finer by a change of notation.
-pub(crate) fn unit_field(ui: &mut egui::Ui, unit: UnitDef, speed: f64, canonical: &mut f64) {
-    named_field(ui, "", unit, speed, canonical);
+///
+/// Answers whether the person edited the value this frame
+/// ([`named_field`]).
+pub(crate) fn unit_field(
+    ui: &mut egui::Ui,
+    unit: UnitDef,
+    speed: f64,
+    canonical: &mut f64,
+) -> bool {
+    named_field(ui, "", unit, speed, canonical)
 }
 
 /// [`unit_field`] with the quantity's NAME written into the field
@@ -1205,13 +1273,17 @@ pub(crate) fn unit_field(ui: &mut egui::Ui, unit: UnitDef, speed: f64, canonical
 /// show exactly the wrong number it is greyed for. The marker names
 /// the unit because the unit is half of what failed and the picker
 /// beside the form is the repair.
+///
+/// Answers whether the person edited the value this frame — the
+/// widget's own word, so a caller that has to react to an edit asks
+/// the field rather than comparing values.
 pub(crate) fn named_field(
     ui: &mut egui::Ui,
     name: &str,
     unit: UnitDef,
     speed: f64,
     canonical: &mut f64,
-) {
+) -> bool {
     let Some(mut written) = props::written(*canonical, unit) else {
         let marker = props::no_reading(unit);
         ui.weak(if name.is_empty() {
@@ -1219,7 +1291,7 @@ pub(crate) fn named_field(
         } else {
             format!("{name} {marker}")
         });
-        return;
+        return false;
     };
     let mut field = number_field(&mut written, props::in_written(speed, unit));
     if !name.is_empty() {
@@ -1232,6 +1304,7 @@ pub(crate) fn named_field(
     if response.changed() {
         *canonical = props::from_written(written, unit);
     }
+    response.changed()
 }
 
 /// A dimensionless field with its own name written in — the scalar
@@ -1262,9 +1335,12 @@ pub(crate) fn unit_vec3_row(
 /// the axis it is, because a row of a path form holds several points
 /// and a bare pair of numbers says which of them it belongs to only
 /// by position.
-pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut Point2<f64>) {
-    named_field(ui, "x", unit, FIELD_DRAG_SPEED, &mut point.x);
-    named_field(ui, "y", unit, FIELD_DRAG_SPEED, &mut point.y);
+///
+/// Answers whether the person edited either coordinate this frame.
+pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut Point2<f64>) -> bool {
+    let x = named_field(ui, "x", unit, FIELD_DRAG_SPEED, &mut point.x);
+    let y = named_field(ui, "y", unit, FIELD_DRAG_SPEED, &mut point.y);
+    x || y
 }
 
 /// **What a step row's fields draw for each argument** — the seam
@@ -1312,8 +1388,12 @@ impl WrittenIn {
 impl ArgDoors for WrittenIn {
     fn field(&mut self, ui: &mut egui::Ui, _: usize, arg: StepArg, name: &str, value: &mut f64) {
         match arg.dimension() {
-            Dimension::Length => named_field(ui, name, self.length, FIELD_DRAG_SPEED, value),
-            Dimension::Angle => named_field(ui, name, self.angle, ANGLE_DRAG_SPEED, value),
+            Dimension::Length => {
+                named_field(ui, name, self.length, FIELD_DRAG_SPEED, value);
+            }
+            Dimension::Angle => {
+                named_field(ui, name, self.angle, ANGLE_DRAG_SPEED, value);
+            }
             Dimension::Scalar | Dimension::Count => named_scalar(ui, name, UNIT_DRAG_SPEED, value),
         }
     }
@@ -2705,7 +2785,7 @@ mod tests {
     /// mean opposite things, and this is the one that means abandon.
     ///
     /// It is also the ONLY abandon a user has while the button is
-    /// still down: [`crate::session::DocSession::cancel_doors`] draws
+    /// still down: [`crate::session::DocSession::cancel_doors`] puts
     /// *"Cancel free-move"* in the toolbar, and reaching a toolbar
     /// control costs the pointer release that lands the frame.
     ///

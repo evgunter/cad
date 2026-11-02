@@ -82,6 +82,10 @@ use crate::tools::Tools;
 // path to assert the unit/tick pair on it.
 pub use crate::forms::FieldWriting;
 
+#[cfg(all(any(test, feature = "test-support"), not(target_family = "wasm")))]
+#[doc(hidden)]
+pub mod drive;
+
 /// Where this build keeps preferences.
 ///
 /// One `cfg` alias rather than a trait object: there is exactly one
@@ -131,6 +135,10 @@ const WINDOW_TITLE: &str = "pncad";
 
 /// What the toolbar calls a document with no path of its own.
 const UNTITLED: &str = "untitled";
+
+/// What the New… form's commit button says: what it makes, so it reads
+/// apart from every other commit on screen.
+const NEW_DOCUMENT_COMMIT: &str = "Create document";
 
 /// The tab name of the container holding the feature tree and the
 /// properties — the document's model, as against the View pane's
@@ -370,10 +378,10 @@ pub struct ViewerApp {
     /// **What the last scene rebuild refused**, held until one
     /// succeeds — the state [`crate::frame::scene_badge`] reads.
     ///
-    /// Held rather than announced: the viewport keeps drawing the mesh
-    /// it already has, so "the picture is older than the document and
-    /// the rebuild will not run" is true on every frame until a
-    /// rebuild lands, and a badge is a read of exactly this.
+    /// Held rather than announced: the viewport draws nothing under it,
+    /// so "the picture is missing and the rebuild will not run" is true
+    /// on every frame until a rebuild lands, and a badge is a read of
+    /// exactly this.
     scene_fault: Option<SceneError>,
     /// **What the last projection refused**, written by the viewport
     /// as it paints and read by [`crate::frame::projection_badge`].
@@ -384,23 +392,11 @@ pub struct ViewerApp {
     /// moves somewhere it can be — so a badge one frame behind is a
     /// badge that appears.
     projection_fault: Option<CameraError>,
-    /// **How many committed profiles the viewport could not draw on
-    /// the last frame it drew** (`crate::sketch::CommittedProfiles::
-    /// undrawn`), read by [`crate::frame::profiles_badge`].
-    ///
-    /// One frame behind for the reason above. Unlike the fault above
-    /// it is not held past the frame that made it: the frame entry
-    /// point (`<ViewerApp as eframe::App>::ui`) zeroes the value the
-    /// panes write and assigns the result back unconditionally, so
-    /// this says what the LAST FRAME found and never what some
-    /// earlier one did.
-    profiles_undrawn: usize,
-    /// **What the index could not name on the held edge set's body on
-    /// the last frame the viewport drew** (`marks::EdgeOverlay::
-    /// held_refused`), read by [`crate::frame::held_edges_badge`].
-    /// Zeroed and assigned back every frame as
-    /// [`Self::profiles_undrawn`] is.
-    held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
+    /// **What the viewport found on the last frame**, read by the
+    /// per-read badges in [`crate::frame`]. One frame behind for the
+    /// reason above, and unlike the fault above never held past the
+    /// frame that made it ([`ViewportReads`]).
+    viewport_reads: ViewportReads,
     /// What the incoming document is owed when its scene lands, and the
     /// budget's verdict about it ([`DocumentDerived`]).
     derived: DocumentDerived,
@@ -479,6 +475,11 @@ pub struct ViewerApp {
     /// the next event about that subject can retire it
     /// ([`crate::frame::Subject`]).
     status: Option<frame::Message>,
+    /// The tool that was open at the last batch — what a change of the
+    /// open tool is measured against, so the line's
+    /// [`frame::Subject::Tool`] messages retire with the tool they are
+    /// about ([`frame::tool_status`]).
+    line_tool: Option<crate::tools::ToolKind>,
     /// **Everything THIS frame has to say**, collected as it happens
     /// and ranked with the batch verdict rather than before it. It was
     /// the open tool's declined picks and survival drops plus the
@@ -710,6 +711,26 @@ fn prover() -> Result<Box<dyn crate::evalseam::DoorService>, StartupError> {
     }
 }
 
+/// The staged seam: [`prover`]'s shape over a staged operation's run.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. Every staged verdict would otherwise read checking
+/// forever.
+fn stager() -> Result<Box<dyn crate::evalseam::StagedService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadStager::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineStager::new()))
+    }
+}
+
 /// **What the viewer owes the document under the session when its
 /// first scene lands, and what the budget said about it.**
 ///
@@ -816,6 +837,16 @@ impl ViewerApp {
     /// Every arm of [`StartupError`] except
     /// [`StartupError::NoWgpuRenderState`], which is [`Self::new`]'s.
     fn assemble(egui_ctx: &egui::Context, tol: Tol) -> Result<Self, StartupError> {
+        Self::assemble_with(egui_ctx, tol, prefs_store())
+    }
+
+    /// [`Self::assemble`] over the preferences `store` it reads and
+    /// writes.
+    fn assemble_with(
+        egui_ctx: &egui::Context,
+        tol: Tol,
+        store: Store,
+    ) -> Result<Self, StartupError> {
         let delta = DisplayTolerance::new(scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
         // The startup plate is a new document, so it mints its id as
         // `SessionOp::NewDocument` does; the scene fixture derives one.
@@ -839,7 +870,6 @@ impl ViewerApp {
         // colour scheme was unreadable would be trading the whole
         // product for a preference, so every arm ends in a message
         // and the defaults.
-        let store = prefs_store();
         let (saved, mut notices) = match store.load() {
             Ok(Some(text)) => match Prefs::from_toml(&text) {
                 Ok((prefs, notices)) => (prefs, notices.iter().map(ToString::to_string).collect()),
@@ -891,7 +921,9 @@ impl ViewerApp {
         // modifier is held (`configure_input`'s doc says why).
         crate::pane::viewport::configure_input(egui_ctx);
 
-        let mut session = DocSession::new(document, tol, evaluator()?).with_door(prover()?);
+        let mut session = DocSession::new(document, tol, evaluator()?)
+            .with_door(prover()?)
+            .with_stager(stager()?);
         session.set_notation(notation);
 
         Ok(Self {
@@ -907,8 +939,7 @@ impl ViewerApp {
             scene_focus: BTreeSet::new(),
             scene_fault: None,
             projection_fault: None,
-            profiles_undrawn: 0,
-            held_edges_refused: None,
+            viewport_reads: ViewportReads::default(),
             // The startup document's δ goes through the same budget an
             // opened one's does: it is small enough that the budget
             // will not move it, and a first picture that took a
@@ -930,6 +961,7 @@ impl ViewerApp {
             // Whatever the preferences file had to say, in the one
             // place this crate puts a thing that went wrong.
             status: frame::startup_notices(&notices),
+            line_tool: None,
             notices: Vec::new(),
             chooser: platform::chooser_backend(),
             save_choice: None,
@@ -1049,7 +1081,9 @@ impl ViewerApp {
         // one. A refusal is held by the cache and badged, not
         // announced; a superseded answer is nothing to say
         // (`pickcache::IndexLanding::Stale` is what restart-without-cancel
-        // produces, once per δ changed mid-build).
+        // produces, once per δ changed mid-build). A copy the index
+        // could not draw is not a refusal: the index draws the rest and
+        // holds the copy's reason (`PickIndex::undrawn`).
         let mut rebuilt = false;
         for landing in self.picks.pump() {
             match landing {
@@ -1065,11 +1099,16 @@ impl ViewerApp {
         }
         // The cache owns the retry policy: one attempt per (landed
         // generation, δ). A refused build is reported and held, not
-        // re-attempted every frame behind a stale picture.
+        // re-attempted every frame.
         //
-        // Every arm but `Current` leaves the viewport drawing the mesh
-        // it already has — an older picture, which the indexing
-        // indicator names and `pickcache::unindexed` refuses picks against.
+        // **A held refusal draws nothing**, never the picture from
+        // before it: that picture is of a run the index no longer
+        // describes, and every pick against it is refused. The arms that
+        // wait for a build (`Submitted`, `Indexing`) and the one with
+        // nothing settled to build (`Nothing`) leave the viewport
+        // drawing the mesh it already has — an older picture, which the
+        // indexing indicator names and `pickcache::unindexed` refuses
+        // picks against (a canceled run is the other, `CANCELED_LINE`).
         // **The index waits for the budget's answer.** A build
         // submitted at the δ in force while the fit is still pricing
         // the document IS the un-budgeted build the budget exists to
@@ -1086,8 +1125,14 @@ impl ViewerApp {
         // second on the frames just after a document opens.
         let settled = (!self.fit.busy()).then_some(self.delta);
         match self.picks.sync(self.session.index_inputs(), settled) {
-            pickcache::CacheStep::Held
-            | pickcache::CacheStep::Nothing
+            pickcache::CacheStep::Held => {
+                // The index's badge says it; a scene fault about the
+                // picture this replaces is no longer true of any.
+                self.draw_nothing();
+                self.scene_fault = None;
+                return;
+            }
+            pickcache::CacheStep::Nothing
             | pickcache::CacheStep::Submitted
             | pickcache::CacheStep::Indexing => return,
             pickcache::CacheStep::Current => {}
@@ -1105,10 +1150,9 @@ impl ViewerApp {
         }
         match index.scene_focused(&self.session.display_view(), &focus) {
             Ok(mesh) => {
-                // Marked current ONLY on success: a refused build must
-                // not consume this (generation, display) pair, or the
-                // stale picture stays on screen marked as the current
-                // one and is never retried.
+                // The key is set ONLY on success: a refused build
+                // leaves the empty picture on screen with no key, so
+                // nothing reads its ids as this index's.
                 // Taken from the INDEX, not from the session: the
                 // pair that matters is the one whose id map is in this
                 // mesh, and reading the session's generation here would
@@ -1134,11 +1178,32 @@ impl ViewerApp {
                 // read of held state and so cannot be stale here or
                 // erased by anything the rest of the frame does.
             }
-            // Held, not announced: this pair is deliberately left
-            // unmarked above so the rebuild is retried, and the fault
-            // is true of the picture on screen until one succeeds.
-            Err(error) => self.scene_fault = Some(error),
+            // Held, not announced: the fault is true of the empty
+            // picture on screen until a rebuild succeeds — never of the
+            // picture from before it.
+            Err(error) => {
+                self.draw_nothing();
+                // Tried under these inputs: the next index, display or
+                // focus change retries it, and an unchanged frame does not.
+                self.scene_display = Some(display_revision);
+                self.scene_focus = focus;
+                self.scene_fault = Some(error);
+            }
         }
+    }
+
+    /// Put the empty picture on screen, once: the scene under a pick
+    /// index or a scene rebuild refused as a whole. No index minted its
+    /// ids, so it carries no key.
+    fn draw_nothing(&mut self) {
+        if self.scene_key.is_none() && self.scene.positions().is_empty() {
+            return;
+        }
+        self.scene = Arc::new(SceneMesh::nothing(self.delta));
+        self.scene_key = None;
+        self.scene_display = None;
+        self.scene_focus = BTreeSet::new();
+        self.revision = self.revision.wrapping_add(1);
     }
 
     /// Change δ to `delta`, rebuilding the picture from the evaluation
@@ -1237,6 +1302,17 @@ impl ViewerApp {
         // seam just landed — is exactly the frame that needs its
         // notice shown.
         let mut notices = core::mem::take(&mut self.notices);
+        // A tool opened, closed or swapped since the last batch — a
+        // Cancel in its panel, the previous batch's commit — retires
+        // what the line says about the tool that was open. Before the
+        // early return: a Cancel is a frame with nothing else to say.
+        let open = self.tools.open_kind();
+        frame::deliver(
+            &mut Vec::new(),
+            &mut self.status,
+            frame::tool_status(self.line_tool, open),
+        );
+        self.line_tool = open;
         if ops.is_empty() && notices.is_empty() {
             return;
         }
@@ -1252,7 +1328,7 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let answers = answers_a_save_choice(&op);
-            let mut outcome = self.session.perform(op);
+            let outcome = self.session.perform(op);
             answered_save_choice |= answers && outcome.refusal.is_none();
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
@@ -1267,7 +1343,7 @@ impl ViewerApp {
             // Read before the match below moves the refusal out: a
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.
-            let minted = core::mem::take(&mut outcome.minted);
+            let made = outcome.made;
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),
@@ -1282,14 +1358,14 @@ impl ViewerApp {
                     self.tools.close();
                     self.drafts.accepted(&accepted_op);
                     self.drafts
-                        .creation_landed(self.session.committed_doc(), &minted);
+                        .creation_landed(self.session.committed_doc(), made);
                 }
                 // A form whose op committed comes to rest, for the
                 // tool's reason: a refusal leaves it holding its draft.
                 None => {
                     self.drafts.accepted(&accepted_op);
                     self.drafts
-                        .creation_landed(self.session.committed_doc(), &minted);
+                        .creation_landed(self.session.committed_doc(), made);
                 }
             }
             // After the match, so a replaced document's held picks are
@@ -1332,6 +1408,7 @@ impl ViewerApp {
             self.drafts.new_variable_name = name.as_str().to_owned();
             self.drafts.new_variable_dimension = None;
             self.drafts.new_variable_offer = Some(name.clone());
+            self.drafts.new_variable_open = true;
         }
         self.apply_status(verdict);
     }
@@ -1577,14 +1654,14 @@ impl ViewerApp {
         self.checks_shown = open;
     }
 
-    /// The toolbar row: the controls the chrome keeps drawn in every
-    /// state, the two gesture cancel doors among them.
+    /// The toolbar row: the document's controls, and the two gesture
+    /// cancel doors while their gestures are in flight.
     ///
     /// **Wrapped, not one line.** A non-wrapping row is laid out on
     /// one line and clipped, so a window narrower than the row's
     /// natural width does not shrink the right-hand end — it puts it
-    /// out of reach, with nothing saying so. The two cancel doors sit
-    /// there, and a cancel door is the ONE exit from a state in which
+    /// out of reach, with nothing saying so. A cancel door in flight
+    /// sits in this row, and it is the ONE exit from a state in which
     /// every other operation refuses [`Refusal::GestureInFlight`],
     /// which is why it is in the panel that is always drawn. Wrapping
     /// costs a second line only at widths where the alternative was a
@@ -1617,13 +1694,13 @@ impl ViewerApp {
             ui.add(egui::Label::new(document_name(self.session.path())).truncate());
             ui.separator();
             // The New… control: one name field. The field is a draft; the
-            // op is emitted only by Create, gated on
+            // op is emitted only by its commit, gated on
             // `Refusal::new_document_name`, the door's own blank check,
             // so the button cannot offer a click the door refuses. Out
             // of it the button shows that refusal's own words.
             match self.drafts.new_doc_name.as_mut() {
                 None => {
-                    if ui.button("New…").clicked() {
+                    if crate::widgets::door(ui, "New…").clicked() {
                         self.drafts.new_doc_name = Some(String::new());
                     }
                 }
@@ -1634,12 +1711,19 @@ impl ViewerApp {
                             .desired_width(120.0),
                     );
                     let named = Refusal::new_document_name(name).map(str::to_owned);
-                    if refusable_button(ui, "Create", named.as_ref().err()) {
-                        if let Ok(name) = named {
-                            ops.push(SessionOp::NewDocument { name });
-                        }
-                        self.drafts.new_doc_name = None;
-                    } else if ui.button("Cancel").clicked() {
+                    let blocked = named.as_ref().err().map(Refusal::to_string);
+                    let closing = crate::widgets::commit_row(
+                        ui,
+                        NEW_DOCUMENT_COMMIT,
+                        blocked.as_deref(),
+                        |_| {},
+                    );
+                    if closing.commit
+                        && let Ok(name) = named
+                    {
+                        ops.push(SessionOp::NewDocument { name });
+                    }
+                    if closing.commit || closing.cancel {
                         self.drafts.new_doc_name = None;
                     }
                 }
@@ -1720,10 +1804,11 @@ impl ViewerApp {
                 }
             }
             ui.separator();
-            // **The history controls**, drawn the way the cancel
-            // doors below are: the refusal the step would be answered
-            // with decides both whether the button is live and what it
-            // says while it is not (`Refusal::nothing_to_step`). These
+            // **The history controls**, drawn at rest as well, and
+            // disabled rather than absent when they can do nothing: the
+            // refusal the step would be answered with decides both
+            // whether the button is live and what it says while it is
+            // not (`Refusal::nothing_to_step`). These
             // two buttons are the only hand that pushes
             // `SessionOp::Undo` or `SessionOp::Redo`, so a sentence
             // they do not show is one no reader ever meets — and the
@@ -1750,16 +1835,24 @@ impl ViewerApp {
             // frame whatever the selection, the standing and the
             // layout are.
             //
-            // Enabled exactly while the door's own gesture is in
-            // flight, and out of flight it says the refusal the
-            // operation itself would give — the value that knows
-            // carries the words, so the two cannot disagree.
-            for door in self.session.cancel_doors() {
-                if refusable_button(ui, door.label, door.blocked.as_ref()) {
-                    ops.push(door.op);
+            // Drawn exactly while the door's own gesture is in
+            // flight — the door's `blocked`, the refusal its operation
+            // gives with no gesture, is the one test — so the toolbar
+            // at rest carries no cancel with nothing to cancel.
+            let mut doors = self
+                .session
+                .cancel_doors()
+                .into_iter()
+                .filter(|door| door.blocked.is_none())
+                .peekable();
+            if doors.peek().is_some() {
+                for door in doors {
+                    if ui.button(door.label).clicked() {
+                        ops.push(door.op);
+                    }
                 }
+                ui.separator();
             }
-            ui.separator();
             if ui
                 .button("Zoom to fit")
                 .on_hover_text("frame the whole model in the viewport")
@@ -1783,7 +1876,7 @@ impl ViewerApp {
                     ui.separator();
                     ui.spinner();
                     ui.label("evaluating…");
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(crate::widgets::CANCEL).clicked() {
                         ops.push(SessionOp::CancelEvaluation);
                     }
                     // A background result is not a user event, so
@@ -1886,17 +1979,17 @@ impl ViewerApp {
             // **The three display seams that hold a refusal.**
             // Each is a read of held state — the scene fault kept
             // until a rebuild lands, the pick cache's own held
-            // refusal, the projection the viewport could not form
-            // — so each stands for as long as the picture is stale
-            // rather than until the next acting batch sweeps a
-            // line. What a pick aimed at the missing index gets is
+            // refusal or the copies its index could not draw, the
+            // projection the viewport could not form — so each stands
+            // for as long as what it reads holds, rather than until the
+            // next acting batch sweeps a line. What a pick aimed at the missing index gets is
             // still the line's, because that is an outcome
             // (`frame::unindexed_refusal`).
             for badge in [
                 frame::scene_badge(self.scene_fault.as_ref()),
                 frame::index_badge(
                     self.picks.error(),
-                    self.session.doc(),
+                    self.picks.index(),
                     self.session.landed_pair(),
                 ),
                 frame::projection_badge(self.projection_fault.as_ref()),
@@ -1911,12 +2004,12 @@ impl ViewerApp {
             // refusal until the seam they name succeeds, and this is a
             // count the frame re-takes. A profile left out of the
             // picture is otherwise a document without it.
-            if let Some(badge) = frame::profiles_badge(self.profiles_undrawn) {
+            if let Some(badge) = frame::profiles_badge(self.viewport_reads.profiles_undrawn) {
                 draw_badge(ui, &self.theme, &badge);
             }
             // And the held edges the mark could not tell held or not.
             if let Some(badge) = frame::held_edges_badge(
-                self.held_edges_refused.as_ref(),
+                self.viewport_reads.held_edges_refused.as_ref(),
                 self.session.landed_pair().map(|(doc, _)| doc),
             ) {
                 draw_badge(ui, &self.theme, &badge);
@@ -1926,13 +2019,26 @@ impl ViewerApp {
             // name `crate::theme` gives it — the registry IS the
             // menu, so a theme cannot be shipped and left
             // unreachable.
-            egui::ComboBox::from_id_salt("viewer_theme")
+            //
+            // A combo lays itself out at the cursor whether the row has
+            // room or not (`egui`'s `button_frame` takes the rect before
+            // the wrap), so the wrapping row is asked first, against the
+            // width the picker took when it was last drawn: a picker that
+            // would run past the edge starts the next line.
+            let picker_id = ui.id().with("viewer_theme_width");
+            let last_width: Option<f32> = ui.ctx().data(|data| data.get_temp(picker_id));
+            if last_width.is_some_and(|width| ui.available_size_before_wrap().x < width) {
+                ui.end_row();
+            }
+            let picker = egui::ComboBox::from_id_salt("viewer_theme")
                 .selected_text(chosen.name)
                 .show_ui(ui, |ui| {
                     for theme in Theme::ALL {
                         ui.selectable_value(&mut *chosen, *theme, theme.name);
                     }
                 });
+            let width = picker.response.rect.width() + ui.spacing().item_spacing.x;
+            ui.ctx().data_mut(|data| data.insert_temp(picker_id, width));
             // **Beside the picker, not in the badge row above**:
             // it is the only badge that is about a control rather
             // than about the document or the picture, and a
@@ -2013,7 +2119,10 @@ impl eframe::App for ViewerApp {
         // A traced path runs onto the trace at evaluation, which no
         // replay here can draw: the create door shows the trace instead.
         let landed = self.session.evaluation_arc().cloned();
-        if let Some(latches) = self.drafts.trace_wanted(landed.as_ref()) {
+        if let Some(latches) = self
+            .drafts
+            .trace_wanted(self.profile_drawn.create, landed.as_ref())
+        {
             let read = self.session.sketch_trace(&latches.0, &latches.1);
             self.drafts.show_trace(latches, landed.as_ref(), read);
         }
@@ -2029,13 +2138,12 @@ impl eframe::App for ViewerApp {
         // which the committed-profile pass leaves out.
         let profile_edited = self.drafts.edited_in_place(profile_previews.edit.as_ref());
         let mut profile_drawn = ProfileDoors::<bool>::default();
-        // **Zeroed here and assigned back below, every frame.** The
-        // viewport writes it while it draws; a frame the viewport does
-        // not draw at all is a frame with no profile left undrawn in it,
+        // **Zeroed here, every frame: after the toolbar has read last
+        // frame's value and before the panes draw.** A frame the
+        // viewport does not draw at all is a frame it found nothing in,
         // and this is where that is said rather than left to whatever
-        // the field last held.
-        let mut profiles_undrawn = 0_usize;
-        let mut held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>> = None;
+        // the last drawn frame found.
+        self.viewport_reads = ViewportReads::default();
         let mut delta_request: Option<DisplayTolerance> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -2060,6 +2168,10 @@ impl eframe::App for ViewerApp {
         // already stands on — so the chrome follows [`Polarity`]
         // through the toolkit's visuals, exactly as
         // [`apply_polarity`] intends, instead of one panel escaping it.
+        // The revolve tool's held profile as the viewport will draw its
+        // axis over it, for the repaint request after the picks are fed.
+        let revolve_held = self.tools.revolve().and_then(|tool| tool.profile());
+        let split_held = self.tools.split().map(|tool| tool.seats().clone());
         egui::CentralPanel::no_frame()
             .frame(egui::Frame::NONE.fill(ui.visuals().panel_fill))
             .show(ui, |ui| {
@@ -2082,11 +2194,11 @@ impl eframe::App for ViewerApp {
                     part_chooser: &mut self.part_chooser,
                     profile_previews: &profile_previews,
                     profile_drawn: &mut profile_drawn,
+                    profile_was_drawn: self.profile_drawn,
                     profile_edited,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
-                    profiles_undrawn: &mut profiles_undrawn,
-                    held_edges_refused: &mut held_edges_refused,
+                    viewport_reads: &mut self.viewport_reads,
                     notices: &mut self.notices,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
@@ -2104,8 +2216,6 @@ impl eframe::App for ViewerApp {
             self.remember_prefs();
         }
         self.profile_drawn = profile_drawn;
-        self.profiles_undrawn = profiles_undrawn;
-        self.held_edges_refused = held_edges_refused;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
@@ -2151,6 +2261,17 @@ impl eframe::App for ViewerApp {
             self.picks.index_or_why(self.fit.as_ref()),
             &ops,
         );
+        // A revolve profile picked or cleared after the viewport drew
+        // this frame's axis (`pane::viewport::push_revolve_axis`) asks
+        // for the next.
+        if self.tools.revolve().and_then(|tool| tool.profile()) != revolve_held {
+            ui.ctx().request_repaint();
+        }
+        // The split plane likewise (`splitplane::push_split_plane`): a
+        // target picked or cleared after it was drawn.
+        if self.tools.split().map(|tool| tool.seats().clone()) != split_held {
+            ui.ctx().request_repaint();
+        }
         let landed = self.session.landed_pair();
         self.notices.extend(
             declined
@@ -2177,6 +2298,28 @@ impl eframe::App for ViewerApp {
     fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
         visuals.panel_fill.to_normalized_gamma_f32()
     }
+}
+
+/// **What the viewport found while it drew one frame**: the per-frame,
+/// unlatched reads the toolbar badges, one [`crate::frame`] badge door
+/// per member.
+///
+/// `Default` is the frame the viewport did not draw. The frame entry
+/// point (`<ViewerApp as eframe::App>::ui`) resets the whole value to
+/// it before the panes draw, so a member says what the LAST frame found
+/// and never what an earlier one did: a viewport dragged shut or tabbed
+/// away reports nothing. That reset names no member, so a member added
+/// here is zeroed by the line that zeroes the rest.
+#[derive(Debug, Default, PartialEq)]
+pub(crate) struct ViewportReads {
+    /// How many committed profiles the viewport drew nothing of
+    /// (`crate::sketch::CommittedProfiles::undrawn`), for
+    /// [`frame::profiles_badge`].
+    pub(crate) profiles_undrawn: usize,
+    /// What the index could not name on the held edge set's body
+    /// (`marks::EdgeOverlay::held_refused`), for
+    /// [`frame::held_edges_badge`].
+    pub(crate) held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
 }
 
 /// The `Behavior` egui_tiles renders panes through: a borrow of the
@@ -2231,6 +2374,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) profile_previews: &'a ProfileDoors<Option<Result<ProfilePreview, PreviewError>>>,
     /// Set by each door's editor while it draws; read next frame.
     pub(crate) profile_drawn: &'a mut ProfileDoors<bool>,
+    /// What [`Self::profile_drawn`] said on the last frame: which doors
+    /// are on screen, the one read every preview and mark of a door
+    /// follows.
+    pub(crate) profile_was_drawn: ProfileDoors<bool>,
     /// The committed profile the edit door is previewing this frame,
     /// which the committed-profile pass leaves out
     /// (`sketch::committed`'s `except`).
@@ -2242,23 +2389,11 @@ pub(crate) struct ViewerBehavior<'a> {
     /// had already painted past and the next accepted act would
     /// sweep.
     pub(crate) projection_fault: &'a mut Option<CameraError>,
-    /// **How many committed profiles the viewport drew nothing of this
-    /// frame** ([`ViewerApp::profiles_undrawn`]), for
-    /// [`frame::profiles_badge`] to read.
-    ///
-    /// Written by the viewport pane and read by the toolbar next
-    /// frame, like the fault above — and unlike it, it does not have
-    /// to be cleared by anyone. The frame entry point
-    /// (`<ViewerApp as eframe::App>::ui`) zeroes the local this
-    /// borrows before the panes draw and assigns the result back
-    /// after, whether or not the viewport was one of them, so a
-    /// viewport dragged shut or tabbed away reports none rather than
-    /// leaving the last count it made standing.
-    pub(crate) profiles_undrawn: &'a mut usize,
-    /// What the index could not name on the held edge set's body
-    /// ([`ViewerApp::held_edges_refused`]); zeroed by the frame entry
-    /// point and written by the viewport, as `profiles_undrawn` is.
-    pub(crate) held_edges_refused: &'a mut Option<frame::Spelled<EdgeNamesRefused>>,
+    /// What the viewport finds while it draws this frame, for the
+    /// toolbar to badge next frame ([`ViewerApp::viewport_reads`]).
+    /// Defaulted by the frame entry point before the panes draw, so no
+    /// writer has to clear it.
+    pub(crate) viewport_reads: &'a mut ViewportReads,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
     /// produced. A pane that assigned `status` instead had no way to
@@ -3292,10 +3427,42 @@ mod tests {
         const ELSEWHERE: egui::Pos2 = egui::Pos2::new(1500.0, 550.0);
     }
 
+    /// **A cancel door is on the toolbar exactly while its gesture is
+    /// in flight**: neither at rest, and the drag's door once a slot
+    /// drag has begun — its in-flight state read off the door
+    /// (`CancelDoor::blocked`), so the free-move door stays off while
+    /// only the drag is held.
+    #[test]
+    fn a_cancel_door_is_on_the_toolbar_only_while_its_gesture_is_in_flight() {
+        const DRAG: &str = "Cancel drag";
+        const FREE_MOVE: &str = "Cancel free-move";
+        let shown = |painted: &[(String, egui::Rect)], label: &str| {
+            painted.iter().any(|(text, _)| text == label)
+        };
+        let mut toolbar = Toolbar::open();
+        let rest = toolbar.frame(Some(Toolbar::ELSEWHERE));
+        assert!(
+            !shown(&rest, DRAG) && !shown(&rest, FREE_MOVE),
+            "no gesture in flight, no cancel on the toolbar: {rest:?}"
+        );
+        // The startup plate's extrude (`scene::plate_with_hole`).
+        let extrude = toolbar.app.session.doc().ids()[1];
+        let begun = toolbar.app.session.perform(SessionOp::BeginGesture {
+            node: extrude,
+            slot: pncad::document::SlotId::Distance,
+        });
+        assert!(begun.refusal.is_none(), "the drag begins: {begun:?}");
+        let held = toolbar.frame(Some(Toolbar::ELSEWHERE));
+        assert!(
+            shown(&held, DRAG) && !shown(&held, FREE_MOVE),
+            "a drag in flight puts its own door on the toolbar and no other: {held:?}"
+        );
+    }
+
     /// **A disabled toolbar control says what its own operation
     /// refuses** — and says it about ITSELF.
     ///
-    /// Three controls are held to it: Undo, Redo, and Create on the
+    /// Three controls are held to it: Undo, Redo, and the commit on the
     /// New-document form. For each, the words a reader actually sees
     /// are read back off the painted frame and compared with the
     /// sentence the session answers that control's own operation with.
@@ -3311,11 +3478,8 @@ mod tests {
     /// it.
     ///
     /// **Three controls, hand-listed, and that is this row's blind
-    /// spot.** `gesture_table.rs`'s
-    /// `a_closed_door_says_what_its_own_operation_refuses` walks
-    /// `DocSession::cancel_doors`, so a fifth cancel door is held the
-    /// day it is added. There is no such value here — a toolbar's
-    /// disabled controls are not enumerable — so a fourth control
+    /// spot.** A toolbar's disabled controls are not enumerable, so a
+    /// fourth control
     /// added to `toolbar_ui` is not caught by this row. The instrument
     /// that finds one is the `add_enabled` sweep
     /// (`crates/viewer/README.md`, the disabled-control rule), and the
@@ -3326,7 +3490,7 @@ mod tests {
     fn a_disabled_toolbar_control_says_what_its_own_operation_refuses() {
         let mut toolbar = Toolbar::open();
         // The New-document form is a draft the New… button opens; the
-        // Create button is not drawn until it is open.
+        // commit button is not drawn until it is open.
         toolbar.app.drafts.new_doc_name = Some(String::new());
 
         // A freshly assembled session is at the root of a history with
@@ -3335,7 +3499,7 @@ mod tests {
             ("Undo", SessionOp::Undo),
             ("Redo", SessionOp::Redo),
             (
-                "Create",
+                super::NEW_DOCUMENT_COMMIT,
                 SessionOp::NewDocument {
                     name: String::new(),
                 },
@@ -3376,7 +3540,7 @@ mod tests {
         // refusal moves nothing here; putting the wrong verb under a
         // button reds it.
         //
-        // The Create button takes no such clause: it has no sibling to
+        // The commit button takes no such clause: it has no sibling to
         // be confused with, and its sentence is about the name rather
         // than about the verb on the button.
         for (label, other) in [("Undo", "Redo"), ("Redo", "Undo")] {
@@ -3890,87 +4054,9 @@ mod properties_pane_tests {
 
     /// The window every whole-app row here is drawn in unless it needs
     /// a taller one.
-    pub(super) const WINDOW: egui::Vec2 = egui::vec2(1600.0, 1000.0);
+    pub(super) const WINDOW: egui::Vec2 = egui::vec2(1600.0, 1200.0);
 
-    /// **One frame of the real app**, in a `window`-sized window, with
-    /// `time` and `events` as its input: every text run it painted and
-    /// where. The one frame body every whole-app row here draws with.
-    pub(super) fn app_frame(
-        ctx: &egui::Context,
-        app: &mut ViewerApp,
-        frame: &mut eframe::Frame,
-        window: egui::Vec2,
-        time: Option<f64>,
-        events: Vec<egui::Event>,
-    ) -> Vec<crate::pane::headless::Landed> {
-        let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, window)),
-            time,
-            events,
-            ..Default::default()
-        };
-        let mut output = ctx.run_ui(input, |ui| {
-            eframe::App::ui(app, ui, frame);
-        });
-        // Nothing here paints, so the frame's texture delta is
-        // dropped rather than uploaded.
-        output.textures_delta.clear();
-        crate::pane::headless::landed_in(&output.shapes)
-    }
-
-    /// How many frames [`settle`] paints before it calls the app stuck.
-    const SETTLE_FRAMES: usize = 3000;
-
-    /// Whether the index attempt for the picture on screen is
-    /// answered: an index held, or its refusal. One that is neither is
-    /// one `sync` has not asked for yet.
-    pub(super) fn index_answered(app: &ViewerApp) -> bool {
-        app.picks.index().is_some() || app.picks.error().is_some()
-    }
-
-    /// **Nothing the toolbar's progress read names can change before
-    /// the next op**: no wait is outstanding (so the document landed
-    /// and its evaluation is current), and the index attempt is
-    /// answered.
-    pub(super) fn quiescent(app: &ViewerApp) -> bool {
-        app.progress().is_none() && index_answered(app)
-    }
-
-    /// **Paint until `until` holds of the app**, and answer the first
-    /// frame painted in that state. Most rows wait for
-    /// [`quiescent`]; a row whose fixture keeps a wait open on purpose
-    /// names what it waits for instead.
-    ///
-    /// The evaluation, the display fit and the index build run on
-    /// worker threads, so a fixed number of frames catches whichever
-    /// phase the scheduler reached. Everything `until` reads moves only
-    /// inside a frame (the session's and the seams' `pump`/`poll` at
-    /// its top, the cache's `sync`, an op's submit in the batch at its
-    /// end), so a frame read as settled afterwards painted that state.
-    ///
-    /// # Panics
-    ///
-    /// When [`SETTLE_FRAMES`] frames go by without `until` holding.
-    pub(super) fn settle<T>(
-        app: &mut ViewerApp,
-        until: impl Fn(&ViewerApp) -> bool,
-        mut paint: impl FnMut(&mut ViewerApp) -> T,
-    ) -> T {
-        for _ in 0..SETTLE_FRAMES {
-            let painted = paint(app);
-            if until(app) {
-                return painted;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        panic!(
-            "the app did not settle in {SETTLE_FRAMES} frames: progress {:?}, index held {}, \
-             refusal held {}",
-            app.progress(),
-            app.picks.index().is_some(),
-            app.picks.error().is_some(),
-        );
-    }
+    pub(super) use super::drive::{app_frame, index_answered, quiescent, settle};
 
     /// **The wait answers a frame that paints nothing outstanding.**
     /// The startup evaluation, the display fit and the index build
@@ -4010,22 +4096,22 @@ mod properties_pane_tests {
     }
 
     /// **The collapsed Properties section whose body paints `kind`'s
-    /// activation button**, or `None` for a button at the pane's top
-    /// level. The one answer every row here that opens a tool reads.
-    fn section_of(kind: crate::tools::ToolKind) -> Option<&'static str> {
-        use crate::pane::create::{ADD_FEATURE, BLEND_EDGES, COMBINE_BODIES};
+    /// activation button**. The one answer every row here that opens a
+    /// tool reads.
+    fn section_of(kind: crate::tools::ToolKind) -> &'static str {
+        use crate::pane::create::{ADD_FEATURE, ASSEMBLE_PARTS, BLEND_EDGES, COMBINE_BODIES};
         use crate::tools::ToolKind;
         match kind {
-            ToolKind::Mate => None,
-            ToolKind::Revolve => Some(ADD_FEATURE),
+            ToolKind::Mate => ASSEMBLE_PARTS,
+            ToolKind::Revolve => ADD_FEATURE,
             ToolKind::Boolean
             | ToolKind::Split
             | ToolKind::Transform
             | ToolKind::Pattern
             | ToolKind::Part
             | ToolKind::Duplicate
-            | ToolKind::Mirror => Some(COMBINE_BODIES),
-            ToolKind::Blend => Some(BLEND_EDGES),
+            | ToolKind::Mirror => COMBINE_BODIES,
+            ToolKind::Blend => BLEND_EDGES,
         }
     }
 
@@ -4055,7 +4141,8 @@ mod properties_pane_tests {
         app.tools.open(tool);
         clicked(&mut app, picks(body));
         let landed = settle(&mut app, quiescent, |app| paint(app, Vec::new()));
-        if let Some(section) = section_of(tool) {
+        {
+            let section = section_of(tool);
             let at = landed
                 .iter()
                 .find(|landed| landed.text == section)
@@ -4119,9 +4206,10 @@ mod properties_pane_tests {
         let (_, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |_| {
             vec![Selection::Face(cap_of(pncad::prelude::CapEnd::End))]
         });
-        // A pick is on the drawn copy, and says so.
+        // A pick is the face in its words, on the copy clicked.
         let line = format!(
-            "on: face of Place {}; to: —",
+            "on: the end cap of Extrude {}, on Place {}; to: none picked",
+            test_utils::refusal::tag(extrude().0.digest()),
             test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
@@ -5003,24 +5091,14 @@ mod properties_pane_tests {
         );
     }
 
-    /// A session over two instances of one part, and the two instance
-    /// ids in document order: placed in the world through one union
-    /// when `fused`, and each its own placement either way. Also the union's
-    /// id, when there is one.
+    /// A session over two instances of one part, each placed into the
+    /// world by itself, and the two instance ids in document order.
     ///
-    /// The part is never resolved: the display admission is a question
-    /// about the recipe's edges, so the rows fail to evaluate and the
-    /// tree draws them, with their checkboxes, all the same.
-    fn two_instances(
-        fused: bool,
-    ) -> (
-        crate::session::DocSession,
-        [RecipeNodeId; 2],
-        Option<RecipeNodeId>,
-    ) {
-        use pncad::document::{
-            Bodies, BodyRead, ContentPin, DocRef, DocumentId, Node, Operand, ProfileDoc, VarId,
-        };
+    /// The part is never resolved: the hide's admission is a question
+    /// about the recipe, so the rows fail to evaluate and the tree draws
+    /// them, with their checkboxes, all the same.
+    fn two_instances() -> (crate::session::DocSession, [RecipeNodeId; 2]) {
+        use pncad::document::{ContentPin, DocRef, DocumentId, Node, Operand, ProfileDoc, VarId};
         let tol = pncad::tolerance::witness();
         let part = DocRef {
             id: DocumentId::derive("shown-part"),
@@ -5028,94 +5106,20 @@ mod properties_pane_tests {
         };
         let mut doc = ProfileDoc::empty(DocumentId::derive("shown-asm"), tol);
         let insert = |doc: &mut ProfileDoc, node| crate::test_support::insert_into(doc, node, tol);
-        // Each instance is a placement of its own, into the world at
-        // the identity.
         let world = || Operand::Var(VarId::WORLD);
         let stand = || pncad::document::stand().bundle();
         let a = insert(&mut doc, Node::instantiate_part(part, world(), stand()));
         let b = insert(&mut doc, Node::instantiate_part(part, world(), stand()));
-        let union = fused.then(|| {
-            // An instance defines one body, its part's product: the
-            // edges are what the admission reads.
-            let copy = |instance| BodyRead::plain(Operand::Node(instance));
-            let union = insert(
-                &mut doc,
-                Node::Union {
-                    members: Bodies::Spelled(vec![copy(a), copy(b)]),
-                },
-            );
-            // Placed at the identity: the part never resolves, so no
-            // pose is read off its copies to place it by.
-            insert(
-                &mut doc,
-                Node::place(BodyRead::plain(Operand::from(union)), world(), stand()),
-            );
-            union
-        });
         let mut session = crate::session::DocSession::inline(doc, tol);
         session.pump();
-        (session, [a, b], union)
+        (session, [a, b])
     }
 
-    /// **A fused instance's tree checkbox is drawn, cannot be flipped,
-    /// and says on hover what `SetInstanceHidden` would refuse with**
-    /// — the whole app, the real feature tree, each row read for its
-    /// own instance.
-    ///
-    /// The runtime value that makes it false is a checkbox gated on
-    /// anything weaker than the op's admission (the row's kind, which
-    /// a fused instance passes): hovered, it would say nothing, and
-    /// clicked it would push an op the session then refuses.
+    /// **An instance row's tree checkbox is live, silent, and the click
+    /// hides its own row's body.**
     #[test]
-    fn a_fused_instances_tree_checkbox_is_disabled_with_the_refusal_it_would_get() {
-        let (session, ids, union) = two_instances(true);
-        let union = union.expect("the fused fixture has a union");
-        let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
-        let at = pane.each("shown");
-        assert_eq!(at.len(), 2, "one checkbox per instance row: {at:?}");
-        for (id, at) in ids.into_iter().zip(at) {
-            let said = pane
-                .app
-                .session
-                .instance_hidden_refusal(id)
-                .expect("SetInstanceHidden refuses a fused instance")
-                .to_string();
-            let quiet = pane.quiet();
-            assert_eq!(
-                Driven::gained(&quiet, pane.hovered(at)),
-                vec![said.clone()],
-                "the hover is the op's own sentence"
-            );
-            // Planted, not only compared with the one home: the words
-            // a reader gets, naming this row's instance.
-            let other = ids.into_iter().find(|&other| other != id).expect("two");
-            assert_eq!(
-                said,
-                format!(
-                    "InstantiatePart {}'s geometry is fused into Union {} together with \
-                     InstantiatePart {} — a display operation cannot address it separately",
-                    test_utils::refusal::tag(id.0.digest()),
-                    test_utils::refusal::tag(union.0.digest()),
-                    test_utils::refusal::tag(other.0.digest())
-                )
-            );
-            pane.click_at(at);
-            pane.quiet();
-            assert!(
-                pane.app.session.display().hidden().is_empty(),
-                "a refused checkbox hides nothing"
-            );
-            assert_eq!(status(&pane), None, "and pushes nothing the op refused");
-        }
-    }
-
-    /// **The same drive over two unfused instances: live, silent, and
-    /// the click hides its own row's instance** — the row that keeps
-    /// the one above from passing because the harness missed the
-    /// checkbox.
-    #[test]
-    fn an_addressable_instances_tree_checkbox_is_live_and_says_nothing() {
-        let (session, [a, _], _) = two_instances(false);
+    fn an_instances_tree_checkbox_is_live_and_hides_its_own_body() {
+        let (session, [a, _]) = two_instances();
         let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
         let at = pane.each("shown");
         assert_eq!(at.len(), 2, "one checkbox per instance row: {at:?}");
@@ -5124,7 +5128,7 @@ mod properties_pane_tests {
         pane.click_at(at[0]);
         pane.quiet();
         assert_eq!(
-            pane.app.session.display().hidden(),
+            pane.app.session.display().hidden_bodies(),
             &std::collections::BTreeSet::from([a])
         );
     }
@@ -5265,6 +5269,7 @@ mod properties_pane_tests {
         let ctx = egui::Context::default();
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
+        app.drafts.profile_open = true;
         plant(&mut app.drafts);
         let mut frame = eframe::Frame::_new_kittest();
         let mut seconds = 0.0;
@@ -5383,20 +5388,16 @@ mod properties_pane_tests {
             .map(|kind| {
                 let section = section_of(kind);
                 assert_eq!(driven.app.tools.open_kind(), None, "before {kind:?}");
-                if let Some(section) = section {
-                    let closed = driven.frame(Vec::new());
-                    assert!(
-                        !closed.iter().any(|(run, _)| *run == kind.button()),
-                        "{kind:?}'s button is painted before {section:?} opens: {closed:?}"
-                    );
-                    driven.click(section);
-                }
+                let closed = driven.frame(Vec::new());
+                assert!(
+                    !closed.iter().any(|(run, _)| *run == kind.button()),
+                    "{kind:?}'s button is painted before {section:?} opens: {closed:?}"
+                );
+                driven.click(section);
                 driven.click(&kind.button());
                 let opened = driven.app.tools.open_kind();
                 driven.app.tools.close();
-                if let Some(section) = section {
-                    driven.click(section);
-                }
+                driven.click(section);
                 opened
             })
             .collect();
@@ -5408,21 +5409,277 @@ mod properties_pane_tests {
     }
 
     /// **The creation doors that are not tools are reachable too**: the
-    /// extrude form, under "Add feature", paints its button (withheld,
-    /// with nothing selected), and the `Add part…` button opens the part
-    /// chooser. The add-profile form is the subject of
-    /// rows of its own above, which open the section and read it.
+    /// extrude form is drawn while a profile is selected and not while
+    /// anything else is (its door's own kind test) — with every
+    /// creation section still collapsed, so a profile selected finds it
+    /// without opening a header — and the `Add part…` button, under
+    /// its section, opens the part chooser. The add-profile form is the
+    /// subject of rows of its own, which open its door and read it.
     #[test]
     fn the_extrude_form_and_the_part_chooser_are_reachable() {
-        use crate::pane::create::{ADD_FEATURE, ADD_PART, EXTRUDE};
-        let mut driven = Driven::with(Vec::new());
-        driven.click(ADD_FEATURE);
-        Driven::only(&driven.frame(Vec::new()), EXTRUDE);
+        use crate::pane::create::{ADD_PART, ADD_PROFILE_DOOR, ASSEMBLE_PARTS, EXTRUDE};
+        // The button's words for `node`, as the form spells them.
+        let button = |driven: &Driven, node: RecipeNodeId| {
+            format!(
+                "{EXTRUDE} {}",
+                pncad::document::Speaker::of(driven.app.session.doc()).node(node)
+            )
+        };
+        let offers = |painted: &[(String, egui::Rect)], words: &str| {
+            painted.iter().any(|(run, _)| run == words)
+        };
+        let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
+        let painted = driven.frame(Vec::new());
+        let refused = button(&driven, extrude());
+        assert!(
+            !offers(&painted, &refused) && !offers(&painted, EXTRUDE),
+            "an extrude selected is not a profile, so no extrude is offered: {painted:?}"
+        );
+        driven.select(Selection::Node(startup_node(0)));
+        let painted = driven.frame(Vec::new());
+        let offered = button(&driven, startup_node(0));
+        assert!(
+            !offers(&painted, ADD_PROFILE_DOOR),
+            "the creation sections are collapsed in this frame: {painted:?}"
+        );
+        assert!(
+            offers(&painted, &offered),
+            "the startup profile selected offers {offered:?} with the sections collapsed: \
+             {painted:?}"
+        );
         assert!(driven.app.part_chooser.is_none(), "the startup app");
+        driven.click(ASSEMBLE_PARTS);
         driven.click(ADD_PART);
         assert!(
             driven.app.part_chooser.is_some(),
             "{ADD_PART:?} opens the chooser"
+        );
+    }
+
+    /// **The Properties pane at rest is its doors**: with nothing
+    /// selected and nothing open, no form's fields or commit is
+    /// painted — the add-profile form behind `Add profile…` even with
+    /// its section open, the add-variable form behind `New variable…` —
+    /// and each door opens its form. The add-variable form, open with
+    /// no dimension picked, says why its commit waits in the painted
+    /// frame rather than only on a hover.
+    #[test]
+    fn the_properties_pane_at_rest_draws_doors_and_each_opens_its_form() {
+        use crate::pane::create::{ADD_FEATURE, ADD_PROFILE, ADD_PROFILE_DOOR};
+        use crate::pane::properties::{NEW_VARIABLE, NEW_VARIABLE_COMMIT};
+        let offers = |painted: &[(String, egui::Rect)], words: &str| {
+            painted.iter().any(|(run, _)| run == words)
+        };
+        let mut driven = Driven::with(Vec::new());
+        let rest = driven.frame(Vec::new());
+        for (door, form) in [
+            (NEW_VARIABLE, NEW_VARIABLE_COMMIT),
+            (ADD_FEATURE, ADD_PROFILE),
+        ] {
+            assert!(
+                offers(&rest, door) && !offers(&rest, form),
+                "at rest {door:?} is painted and {form:?} is not: {rest:?}"
+            );
+        }
+        driven.click(ADD_FEATURE);
+        let section = driven.frame(Vec::new());
+        assert!(
+            offers(&section, ADD_PROFILE_DOOR) && !offers(&section, ADD_PROFILE),
+            "the open section offers the form's door, not the form: {section:?}"
+        );
+        driven.click(ADD_PROFILE_DOOR);
+        assert!(
+            offers(&driven.frame(Vec::new()), ADD_PROFILE),
+            "the door opens the add-profile form"
+        );
+        driven.click(NEW_VARIABLE);
+        driven.app.drafts.new_variable_name = "gap".to_owned();
+        let open = driven.frame(Vec::new());
+        assert!(
+            offers(&open, NEW_VARIABLE_COMMIT) && offers(&open, "pick a dimension first"),
+            "the open form paints its commit and why it waits: {open:?}"
+        );
+    }
+
+    /// **The variables list paints each variable's value**: a length
+    /// declared in millimetres is listed as `t = 20 mm`, the line
+    /// [`crate::pane::properties::variable_line`] spells.
+    #[test]
+    fn the_variables_list_paints_each_variables_value() {
+        let driven = &mut Driven::with(vec![SessionOp::DeclareVar {
+            name: pncad::document::VarName::from_static("t"),
+            value: crate::props::doc_variable(
+                pncad::document::Dimension::Length,
+                crate::props::SlotValue::Continuous(0.02),
+                Some(pncad::quantity::MM.def()),
+            ),
+        }]);
+        let painted = driven.frame(Vec::new());
+        assert!(
+            painted.iter().any(|(run, _)| run == "t = 20 mm"),
+            "the list says t's value: {painted:?}"
+        );
+    }
+
+    /// **A definition that reads nothing says why under its list
+    /// line** (review of #6242): `w = t / scalar(n - 2)` at `n = 2`
+    /// reads `?` in the list, and the fault is painted, so a list that dropped the note
+    /// or showed a stale value goes red.
+    #[test]
+    fn the_variables_list_says_why_a_definition_reads_nothing() {
+        let length = |value| {
+            crate::props::doc_variable(
+                pncad::document::Dimension::Length,
+                crate::props::SlotValue::Continuous(value),
+                Some(pncad::quantity::MM.def()),
+            )
+        };
+        let mut driven = Driven::with(vec![
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("t"),
+                value: length(0.02),
+            },
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("n"),
+                value: crate::props::doc_variable(
+                    pncad::document::Dimension::Count,
+                    crate::props::SlotValue::Count(3),
+                    None,
+                ),
+            },
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("w"),
+                value: length(0.04),
+            },
+        ]);
+        let w = crate::props::variable_rows(driven.app.session.doc())
+            .into_iter()
+            .find(|row| row.label.to_string() == "w")
+            .expect("w is declared")
+            .var;
+        let n = crate::props::variable_rows(driven.app.session.doc())
+            .into_iter()
+            .find(|row| row.label.to_string() == "n")
+            .expect("n is declared")
+            .var;
+        let defined = driven.app.session.perform(SessionOp::SetVariableText {
+            var: w,
+            text: "t / scalar(n - 2)".to_owned(),
+        });
+        assert!(defined.refusal.is_none(), "w is defined: {defined:?}");
+        let moved = driven.app.session.perform(SessionOp::SetVariable {
+            var: n,
+            value: crate::props::SlotValue::Count(2),
+        });
+        assert!(moved.refusal.is_none(), "n moves to 2: {moved:?}");
+        let row = crate::props::defined_rows(driven.app.session.doc())
+            .into_iter()
+            .find(|row| row.var == w)
+            .expect("w is defined");
+        let fault = row
+            .value
+            .as_ref()
+            .expect_err("the definition reads nothing");
+        let painted = driven.frame(Vec::new());
+        assert!(
+            painted
+                .iter()
+                .any(|(run, _)| run == &format!("w = {} = {}", row.formula, crate::props::NO_VALUE)),
+            "the list says w reads nothing: {painted:?}"
+        );
+        assert!(
+            painted.iter().any(|(run, _)| run == &format!("w: {fault}")),
+            "and why, under its line: {painted:?}"
+        );
+        // Selected, its own row says why, and the pane says it once.
+        driven.select(Selection::Variable(w));
+        let painted = driven.frame(Vec::new());
+        let said = painted
+            .iter()
+            .filter(|(run, _)| run == &format!("w: {fault}"))
+            .count();
+        assert_eq!(said, 1, "the reason is said once: {painted:?}");
+    }
+
+    /// **The add-variable form's commit is live exactly when a click
+    /// declares**: a `Count` over a field holding `NaN` is refused by
+    /// `SlotValue::of`, so the commit is disabled and the refusal is
+    /// painted under the row — a click pushes nothing and the form
+    /// stays open.
+    #[test]
+    fn the_add_variable_commit_waits_on_a_value_its_dimension_refuses() {
+        use crate::pane::properties::{NEW_VARIABLE, NEW_VARIABLE_COMMIT};
+        use pncad::document::Dimension;
+        let mut driven = Driven::with(Vec::new());
+        driven.click(NEW_VARIABLE);
+        driven.app.drafts.new_variable_name = "n".to_owned();
+        driven.app.drafts.new_variable_dimension = Some(Dimension::Count);
+        driven.app.drafts.new_variable_value = f64::NAN;
+        let refusal = crate::props::SlotValue::of(Dimension::Count, f64::NAN)
+            .expect_err("a NaN count is refused")
+            .to_string();
+        let painted = driven.frame(Vec::new());
+        assert!(
+            painted.iter().any(|(run, _)| *run == refusal),
+            "the refusal is painted under the row: {painted:?}"
+        );
+        let vars = driven.app.session.committed_doc().var_named("n");
+        driven.click(NEW_VARIABLE_COMMIT);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.committed_doc().var_named("n"),
+            vars,
+            "nothing was declared"
+        );
+        assert!(driven.app.drafts.new_variable_open, "the form stays open");
+    }
+
+    /// **The add-variable form closes when its declaration is accepted,
+    /// and a refused one keeps what was typed**: with a drag in flight
+    /// the declare is refused (`Refusal::GestureInFlight`), so the form
+    /// is still open on the typed name; once the drag is cancelled the
+    /// same click declares and the form closes.
+    #[test]
+    fn the_add_variable_form_closes_on_acceptance_and_keeps_a_refused_draft() {
+        use crate::pane::properties::{NEW_VARIABLE, NEW_VARIABLE_COMMIT};
+        use pncad::document::Dimension;
+        let mut driven = Driven::with(Vec::new());
+        driven.click(NEW_VARIABLE);
+        driven.app.drafts.new_variable_name = "gap".to_owned();
+        driven.app.drafts.new_variable_dimension = Some(Dimension::Length);
+        driven.app.drafts.new_variable_value = 0.002;
+        driven.app.perform_batch(vec![SessionOp::BeginGesture {
+            node: extrude(),
+            slot: pncad::document::SlotId::Distance,
+        }]);
+        driven.click(NEW_VARIABLE_COMMIT);
+        assert!(
+            driven
+                .app
+                .session
+                .committed_doc()
+                .var_named("gap")
+                .is_none(),
+            "refused while the drag is in flight"
+        );
+        assert!(
+            driven.app.drafts.new_variable_open && driven.app.drafts.new_variable_name == "gap",
+            "a refused declaration keeps the form and what was typed"
+        );
+        driven.app.perform_batch(vec![SessionOp::CancelGesture]);
+        driven.click(NEW_VARIABLE_COMMIT);
+        assert!(
+            driven
+                .app
+                .session
+                .committed_doc()
+                .var_named("gap")
+                .is_some(),
+            "declared"
+        );
+        assert!(
+            !driven.app.drafts.new_variable_open,
+            "the form closed with its accepted declaration"
         );
     }
 
@@ -5465,6 +5722,57 @@ mod properties_pane_tests {
             .expect("the instance went in")
     }
 
+    /// **The free-move cancel door is on the toolbar exactly while a
+    /// probe is in flight**: absent before it begins and after it is
+    /// cancelled, present between — and the drag's door stays off, its
+    /// own gesture not being in flight.
+    #[test]
+    fn the_free_move_cancel_door_is_on_the_toolbar_only_while_a_probe_is_in_flight() {
+        const DRAG: &str = "Cancel drag";
+        const FREE_MOVE: &str = "Cancel free-move";
+        let shown = |painted: &[(String, egui::Rect)], label: &str| {
+            painted.iter().any(|(text, _)| text == label)
+        };
+        let tol = pncad::tolerance::witness();
+        let (dir, part, _) = part_workspace("free-move door", tol);
+        let mut driven = Driven::with(vec![
+            SessionOp::NewDocument {
+                name: "free-move-door".to_owned(),
+            },
+            SessionOp::Save(dir.join("assembly.pncad")),
+            SessionOp::AddInstance { id: part.id() },
+        ]);
+        driven.settle();
+        let instance = the_instance(driven.app.session.committed_doc());
+        // A space of its own, which the probe moves.
+        driven.app.perform_batch(vec![SessionOp::IntoOwnSpace {
+            placement: instance,
+        }]);
+        driven.settle();
+        let rest = driven.frame(Vec::new());
+        assert!(!shown(&rest, FREE_MOVE), "no probe, no door: {rest:?}");
+        driven
+            .app
+            .perform_batch(vec![SessionOp::BeginFreeMove { node: instance }]);
+        assert!(
+            driven.app.session.display().probing().is_some(),
+            "the probe began: {:?}",
+            status(&driven)
+        );
+        let held = driven.frame(Vec::new());
+        assert!(
+            shown(&held, FREE_MOVE) && !shown(&held, DRAG),
+            "a probe in flight puts its own door on the toolbar and no other: {held:?}"
+        );
+        driven.click(FREE_MOVE);
+        let after = driven.frame(Vec::new());
+        assert!(
+            !shown(&after, FREE_MOVE),
+            "the door cancelled the probe and went with it: {after:?}"
+        );
+        std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    }
+
     /// **An undo's withdrawal reaches the status line** (DI5): a
     /// free-move frame is keyed by its space, and an undo past the edit
     /// that gave the copy a space of its own takes the space, so the
@@ -5495,12 +5803,12 @@ mod properties_pane_tests {
             .node_space(instance)
             .expect("the copy is placed into a space");
         driven.app.perform_batch(vec![
-            SessionOp::BeginFreeMove { instance },
+            SessionOp::BeginFreeMove { node: instance },
             SessionOp::PreviewFreeMove {
-                instance,
+                node: instance,
                 frame: pncad::document::Frame::translation([0.0, 0.0, 0.05]),
             },
-            SessionOp::CommitFreeMove { instance },
+            SessionOp::CommitFreeMove { node: instance },
         ]);
         assert!(
             driven.app.session.display().free_move_of(space).is_some(),
@@ -5602,6 +5910,7 @@ mod properties_pane_tests {
             .into_owned();
         let mut driven = Driven::with(vec![SessionOp::Save(dir.join("assembly.pncad"))]);
         driven.settle();
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
         driven.click(ADD_PART);
 
         let painted = driven.frame(Vec::new());
@@ -5735,6 +6044,7 @@ mod properties_pane_tests {
                 &self.app.session,
                 &self.app.tools,
                 &self.app.drafts,
+                self.app.profile_drawn.create,
             )
         }
 
@@ -5772,6 +6082,7 @@ mod properties_pane_tests {
         /// rows, and the selection then cleared.
         fn holding_the_top_cap() -> (Self, crate::session::FaceSelection) {
             let mut driven = Self::with_seams(Vec::new(), |app| {
+                app.drafts.profile_open = true;
                 app.drafts.sketch_on_face = true;
                 app.drafts.profile_shape = Some(crate::forms::ShapeKind::Circle);
             });
@@ -5780,13 +6091,63 @@ mod properties_pane_tests {
             let top = cap_of(pncad::prelude::CapEnd::End);
             driven.select(Selection::Face(top.clone()));
             assert_eq!(
-                driven.app.drafts.sketch_face.as_ref(),
+                driven
+                    .app
+                    .drafts
+                    .sketch_face
+                    .as_ref()
+                    .map(crate::tree::HeldPick::face),
                 Some(&top),
                 "the rows latched it"
             );
             driven.select(Selection::None);
             (driven, top)
         }
+    }
+
+    /// **The add-profile form's Cancel lets its held face go**: closed
+    /// behind its door, the form holds nothing, so the viewport marks
+    /// nothing as held. Goes red if `Drafts::held_face` stops reading
+    /// `profile_open`.
+    #[test]
+    fn the_add_profile_forms_cancel_lets_its_held_face_go() {
+        use crate::pickindex::IdMap;
+        const NONE: u32 = IdMap::NOTHING;
+        let (mut driven, top) = Driven::holding_the_top_cap();
+        let top_id = driven.patch_of(&top);
+        assert_eq!(driven.held(), [top_id, NONE, NONE], "held while open");
+        driven.click("Cancel");
+        driven.quiet();
+        assert!(!driven.app.drafts.profile_open, "the Cancel closed it");
+        assert_eq!(
+            driven.held(),
+            [NONE, NONE, NONE],
+            "closed, it holds nothing"
+        );
+    }
+
+    /// **Folding the section the open add-profile form sits in lets its
+    /// held face go too**: the form is no more on screen than behind
+    /// its door, and a face marked as held by a form nobody can see is
+    /// the defect the door's gate closes.
+    #[test]
+    fn folding_the_add_profile_forms_section_lets_its_held_face_go() {
+        use crate::pickindex::IdMap;
+        const NONE: u32 = IdMap::NOTHING;
+        let (mut driven, top) = Driven::holding_the_top_cap();
+        let top_id = driven.patch_of(&top);
+        assert_eq!(driven.held(), [top_id, NONE, NONE], "held while open");
+        driven.click(crate::pane::create::ADD_FEATURE);
+        driven.quiet();
+        assert!(
+            driven.each(crate::pane::create::ADD_PROFILE).is_empty(),
+            "the section folded"
+        );
+        assert_eq!(
+            driven.held(),
+            [NONE, NONE, NONE],
+            "a folded form holds nothing"
+        );
     }
 
     /// **The add-profile form's held face is marked after the selection
@@ -5830,7 +6191,12 @@ mod properties_pane_tests {
         driven.click("on the picked face");
         driven.quiet();
         assert_eq!(
-            driven.app.drafts.sketch_face.as_ref(),
+            driven
+                .app
+                .drafts
+                .sketch_face
+                .as_ref()
+                .map(crate::tree::HeldPick::face),
             Some(&bottom),
             "kept, not cleared"
         );
@@ -5971,7 +6337,10 @@ mod properties_pane_tests {
             driven
                 .app
                 .drafts
-                .sketch_face_said()
+                .sketch_face
+                .as_ref()
+                .expect("the form holds the top cap")
+                .said()
                 .spoken(extrude())
                 .to_string(),
             plinth,
@@ -6179,6 +6548,46 @@ mod properties_pane_tests {
         assert_eq!(camera_pose(&driven.app), moved, "the moved camera stands");
     }
 
+    /// **An index refused as a whole draws nothing**, never the picture
+    /// from before the refusal, and says so loudly. Such a refusal is a
+    /// fault of the index itself, which no document produces, so the
+    /// seam here refuses every build it answers.
+    #[test]
+    fn a_whole_index_refusal_clears_the_picture() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven.app.scene.stats().triangles > 0 && driven.app.scene_key.is_some(),
+            "the premise: the plate is drawn from an index"
+        );
+        let (refusing, _) =
+            crate::test_support::RefusingIndexer::new(crate::evalseam::InlineIndexer::new());
+        driven.app.picks = crate::pickcache::PickCache::new(Box::new(refusing));
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(driven.app.picks.error().is_some(), "the refusal is held");
+        assert!(
+            driven.app.scene.positions().is_empty(),
+            "nothing is drawn under a refused index"
+        );
+        assert_eq!(driven.app.scene_key, None, "and no index minted its ids");
+        let badge = crate::frame::index_badge(
+            driven.app.picks.error(),
+            driven.app.picks.index(),
+            driven.app.session.landed_pair(),
+        )
+        .expect("the refusal badges");
+        assert_eq!(badge.tone(), crate::frame::Tone::Actionable);
+        assert!(
+            badge
+                .label()
+                .ends_with("nothing is drawn or picked until the index builds"),
+            "{}",
+            badge.label()
+        );
+    }
+
     /// **The mate tool's two picks are marked once the selection moves
     /// on, and not once the tool closes.**
     #[test]
@@ -6242,6 +6651,25 @@ mod properties_pane_tests {
         );
     }
 
+    /// **A deselect that is not a viewport click says nothing about the
+    /// open tool**: it is no attempt to seat anything, so the miss notice
+    /// is the viewport's alone.
+    #[test]
+    fn a_deselect_outside_the_viewport_with_a_tool_open_says_nothing() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.app.tools.open(crate::tools::ToolKind::Boolean);
+        driven.select(Selection::Node(extrude()));
+        driven.select(Selection::None);
+        let said = driven.app.status.as_ref().map(|m| m.text().to_owned());
+        assert!(
+            !said
+                .as_deref()
+                .is_some_and(|text| text.contains("no pick taken")),
+            "{said:?}"
+        );
+    }
+
     /// **A blend target whose drawn edges the index cannot all name
     /// says so**: the held mark is badged in the index's words, and the
     /// all-edges load puts the index's refusal on the line rather than
@@ -6289,7 +6717,7 @@ mod properties_pane_tests {
         let refused_said =
             pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
         assert!(
-            refused_said.contains("of Place "),
+            refused_said.contains("edges it draws on Place "),
             "the refusal's node is said as the landed document holds it: {refused_said}"
         );
         let spelled = crate::frame::Spelled::in_landed(refused.clone(), Some(landed));
@@ -6303,7 +6731,16 @@ mod properties_pane_tests {
 
         // A read of the frame the viewport drew, not a latch: with the
         // viewport not drawn, the same held set and the same refusing
-        // index badge nothing, and drawn again they badge again.
+        // index badge nothing, and drawn again they badge again. Only
+        // `held_edges_refused` is non-zero here, so the whole-value
+        // asserts below guard that member alone; `profiles_undrawn`
+        // waits on a fixture that makes it non-zero
+        // (`work/vdoc/committed-profiles-undrawn-has-no-witness.md`).
+        assert_ne!(
+            driven.app.viewport_reads,
+            super::ViewportReads::default(),
+            "the drawn viewport found the refusal"
+        );
         let viewport = driven
             .app
             .tree
@@ -6317,6 +6754,11 @@ mod properties_pane_tests {
                 .iter()
                 .any(|(run, _)| run.starts_with("held edges:")),
             "a viewport that did not draw leaves no badge standing: {undrawn:?}"
+        );
+        assert_eq!(
+            driven.app.viewport_reads,
+            super::ViewportReads::default(),
+            "a viewport that did not draw leaves none of its reads standing"
         );
         driven.app.tree.set_visible(viewport, true);
         assert!(driven.quiet().iter().any(|(run, _)| run == badge.label()));
@@ -6498,14 +6940,15 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The mate tool's same-copy refusal says the kept label
-    /// while the landed document is behind**: the run that would land
-    /// the rename and the delete is held, so the landed document still
-    /// says the picked copy's placement by its old label and the survival step keeps the
-    /// picks; the commit's refusal says the last label the shown
-    /// document gave it.
+    /// **The mate tool's same-copy refusal says the landed label while
+    /// the landed document is behind**: the run that would land the
+    /// rename and the delete is held, so the landed document still says
+    /// the picked copy's placement by its old label and the survival
+    /// step keeps the picks. The chrome speaks the landed document, so
+    /// the commit's refusal says that label, as the panel line does —
+    /// not the rename the shown document made since.
     #[test]
-    fn the_mate_refusal_says_the_kept_label_while_a_delete_has_not_landed() {
+    fn the_mate_refusal_says_the_landed_label_while_a_delete_has_not_landed() {
         let (mut driven, open) = gated();
         driven.app.perform_batch(vec![SessionOp::SetLabel {
             node: placement(),
@@ -6547,18 +6990,19 @@ mod properties_pane_tests {
                 .is_some_and(|tool| tool.state().picks()[0].is_some()),
             "the survival step kept the pick"
         );
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
         driven.click(&crate::tools::ToolKind::Mate.commit());
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let said = status(&driven).expect("the commit refused");
-        let plinth = format!(
-            "Place \"plinth\" ({})",
+        let base = format!(
+            "Place \"base\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
         // Both picks are caps of the one copy, so the commit refuses
         // the pair, naming the copy's placement.
         assert!(
-            said.contains(&format!("both picks are on {plinth},")),
-            "the refusal says the kept label: {said}"
+            said.contains(&format!("both picks are on {base},")),
+            "the refusal says the landed label: {said}"
         );
     }
 
@@ -6734,6 +7178,7 @@ mod properties_pane_tests {
         fn drive(session: DocSession, plane: FaceSelection, traced: FaceSelection) -> Driven {
             let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
             let drafts = &mut pane.app.drafts;
+            drafts.profile_open = true;
             drafts.profile_shape = Some(ShapeKind::Path);
             drafts.profile_path = footprint();
             drafts.trace_on = true;
@@ -6938,7 +7383,8 @@ mod properties_pane_tests {
             pane.quiet();
             assert!(*pane.app.session.committed_doc() == before, "Add is held");
 
-            pane.app.drafts.trace_face = Some(wall);
+            let doc = pane.app.session.doc().clone();
+            crate::drafts::latch(&mut pane.app.drafts.trace_face, &doc, &wall);
             pane.quiet();
             assert!(
                 pane.app
@@ -6976,6 +7422,24 @@ mod properties_pane_tests {
             crate::docio::save(&path, pane.app.session.committed_doc(), tol).expect("saves");
             let reopened = crate::docio::open(&path, tol).expect("reopens");
             assert!(*reopened.doc() == after, "a save reopens as written");
+        }
+
+        /// **A folded form reads no trace**: the trace is read for the
+        /// form only while it is on screen, so folding the section over
+        /// the open form drops the trace it showed, as its Cancel does.
+        #[test]
+        fn a_folded_add_profile_form_reads_no_trace() {
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = drive(session, bottom, wall);
+            assert!(pane.app.drafts.trace_shown.is_some(), "read while open");
+            pane.click(crate::pane::create::ADD_FEATURE);
+            pane.quiet();
+            assert!(pane.app.drafts.profile_open, "folded, not closed");
+            assert!(
+                pane.app.drafts.trace_shown.is_none(),
+                "a folded form reads no trace"
+            );
         }
 
         /// **The wall picked for the plane is no plane**: the pane says
@@ -7122,6 +7586,8 @@ mod properties_pane_tests {
                     .row(profile(), outline(step as u32, StepArg::TargetX))
                     .value
                     .expect("reads")
+                    .one()
+                    .expect("one value")
                     .as_f64()
             }
         }
@@ -7246,7 +7712,9 @@ mod properties_pane_tests {
                 eprintln!(
                     "  {} = {:?} src {:?}",
                     row.slot.label(),
-                    row.value.as_ref().map(|v| v.as_f64()),
+                    row.value
+                        .as_ref()
+                        .map(|v| v.one().expect("one value").as_f64()),
                     row.source
                 );
             }
@@ -7412,8 +7880,14 @@ mod properties_pane_tests {
                 let rx = driven.row(profile(), outline(1, StepArg::TargetX));
                 let ry = driven.row(profile(), outline(1, StepArg::TargetY));
                 let (lx, ly) = (
-                    rx.value.as_ref().map(|v| v.as_f64()).ok(),
-                    ry.value.as_ref().map(|v| v.as_f64()).ok(),
+                    rx.value
+                        .as_ref()
+                        .map(|v| v.one().expect("one value").as_f64())
+                        .ok(),
+                    ry.value
+                        .as_ref()
+                        .map(|v| v.one().expect("one value").as_f64())
+                        .ok(),
                 );
                 eprintln!(
                     "{i}: said {said:?} x {lx:?} {:?} y {ly:?} {:?}",
@@ -7533,7 +8007,13 @@ mod properties_pane_tests {
                 assert_eq!(row.source.as_deref(), Some("w"), "step {step} kept w");
             }
             let moved = driven.row(profile(), outline(3, StepArg::TargetY));
-            assert_eq!(moved.value.map(|v| v.as_f64()).ok(), Some(0.05));
+            assert_eq!(
+                moved
+                    .value
+                    .map(|v| v.one().expect("one value").as_f64())
+                    .ok(),
+                Some(0.05)
+            );
             assert!(
                 !driven
                     .app
@@ -7562,7 +8042,7 @@ mod properties_pane_tests {
                 driven
                     .row(profile(), outline(2, StepArg::TargetX))
                     .value
-                    .map(|v| v.as_f64())
+                    .map(|v| v.one().expect("one value").as_f64())
             );
             let painted = driven.quiet();
             eprintln!(
@@ -7582,7 +8062,7 @@ mod properties_pane_tests {
                 driven
                     .row(profile(), outline(2, StepArg::TargetX))
                     .value
-                    .map(|v| v.as_f64())
+                    .map(|v| v.one().expect("one value").as_f64())
             );
             perform(&mut driven, SessionOp::Undo);
             driven.quiet();
@@ -7591,7 +8071,7 @@ mod properties_pane_tests {
                 driven
                     .row(profile(), outline(3, StepArg::TargetY))
                     .value
-                    .map(|v| v.as_f64()),
+                    .map(|v| v.one().expect("one value").as_f64()),
                 driven.row(profile(), outline(2, StepArg::TargetX)).source,
                 held_point(&driven, 3).y
             );
@@ -7960,14 +8440,14 @@ mod properties_pane_tests {
         #[test]
         fn the_naming_door_waits_on_held_edits() {
             let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile()))]);
-            // The pane says `name` once outside the editor (the
-            // new-variable form), so what is counted is the rows' doors.
+            // The new-variable form, whose field also says `name`, is
+            // behind its door, so every `name` counted is a row's door.
             let named = |painted: &[(String, egui::Rect)]| {
                 painted.iter().filter(|(run, _)| run == "name").count()
             };
             let untouched = named(&driven.quiet());
             assert!(
-                untouched > 1,
+                untouched > 0,
                 "an untouched draft offers naming: {untouched}"
             );
             driven
@@ -7980,7 +8460,7 @@ mod properties_pane_tests {
                 Step::LineTo(Target::Point(pncad::geom_core::Point2::new(0.0, 0.05)));
             assert_eq!(
                 named(&driven.quiet()),
-                1,
+                0,
                 "held edits hold every row's naming door"
             );
         }

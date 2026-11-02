@@ -79,6 +79,7 @@ pub mod screen;
 pub mod seats;
 pub mod session;
 pub mod sketch;
+pub mod splitplane;
 pub mod theme;
 pub mod tools;
 pub mod tree;
@@ -139,12 +140,13 @@ fn app_lane_skipped_no_app_feature_coverage_here() {
     );
 }
 
-pub use blend::{BlendEvent, BlendKindChoice, BlendTarget, BlendTool, FREEZE_NOTE};
+pub use blend::{BlendEvent, BlendKindChoice, BlendTool, FREEZE_NOTE};
 pub use camera::{Camera, CameraError, CameraOp, CameraOpError, cursor_projection};
 pub use docio::DocIoError;
 pub use evalseam::{
     DoorDone, DoorRequest, DoorService, EvalDone, EvalRequest, EvalService, IndexDone,
-    IndexRequest, IndexService, InlineEvaluator, InlineIndexer, InlineProver,
+    IndexRequest, IndexService, InlineEvaluator, InlineIndexer, InlineProver, InlineStager,
+    StagedDone, StagedKey, StagedRequest, StagedService,
 };
 // The two seam lanes are meant to be interchangeable, so they are named
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
@@ -153,7 +155,9 @@ pub use display::{
     free_move_check, space_check,
 };
 #[cfg(not(target_family = "wasm"))]
-pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, Worker};
+pub use evalseam::{
+    SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, ThreadStager, Worker,
+};
 pub use generation::Generation;
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
@@ -168,9 +172,10 @@ pub use pickcache::{NotIndexed, unindexed};
 pub use pickindex::{
     EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgeNames, EdgeNamesRefused, EdgePick, IdMap,
     IdMapError, PatchId, PatchNameFault, PickError, PickIndex, PickIndexError, PickKinds,
+    UndrawnBody,
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError, Unusable};
-pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
+pub use props::{MemberFault, MemberValues, Reading, SlotDriver, SlotFault, SlotRow, SlotValue};
 pub use revolvetool::RevolveTool;
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
 pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};

@@ -96,6 +96,24 @@ impl CcDecision {
     }
 }
 
+impl SectionError {
+    /// **Whether this is two parallel walls' gap or nest read in band**
+    /// ([`CcDecision::ParallelGap`], [`CcDecision::ParallelNest`]): the
+    /// walls meet in rulings, a tangent ruling or nothing, so every
+    /// component the section could have is a line.
+    #[must_use]
+    pub fn parallel_walls_undecided(&self) -> bool {
+        let Self::Escalated(diag) = self else {
+            return false;
+        };
+        diag.predicate.is_some_and(|p| {
+            [CcDecision::ParallelGap, CcDecision::ParallelNest]
+                .into_iter()
+                .any(|d| p == d.name() || p == d.floor())
+        })
+    }
+}
+
 /// **Where a ball stands against the region**: wholly inside it, wholly
 /// clear of it, or across its boundary (or undecided there, which reads
 /// as across: the region is padded, so nothing the operation uses lies

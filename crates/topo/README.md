@@ -264,10 +264,11 @@ Verification is `Rest`'s carrier rung with the sense bit reversed:
 carrier non-contradiction through the kind ladder, senses aligned as an
 exact bit. Opposed senses contradict it, as aligned senses contradict
 `Rest` at every door. A union merges a continuation its margin decides:
-the merge stage reads the same ladder (D10), keeping the
-description of the group's arena-first face that lies in no other
-member's hole. That is ordinarily operand A's, and B's where A's face
-plugs a hole of B's.
+the merge stage reads the glue's record of the pair and measures
+nothing again (D10), and the merged face keeps the first-written operand's description, which the glue decides
+once per pair (DESIGN.md [coincidence.booleans]): operand A's, where
+A's face plugs a hole of B's as anywhere else, whichever face holds the
+merged region.
 
 **Seam.** A *seam* is a junction of the result whose material wedge is
 π: two faces on distinct carriers joining G1 along a curve. It is read
@@ -678,6 +679,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    a vertex's incidence on a singular point is one reading,
    `geom_brep::chart_singularity::vertex_at_singular_point`, which the
    at-vertex placement, the reset and the tip rule all read),
+   **one region per face** off the plane (each surface cycle on the
+   face's side of every other, read by the point-in-face doors cut to
+   one cycle, a torus's essential cycles as one pair:
+   `CycleOffFaceSide`, `CycleSideUndecided`, `EssentialCyclesUnpaired`;
+   `src/one_region.rs`),
    **prefer-intrinsic
    enforcement** ([edges]) and the
    **orientation invariant** (a solid's faces leave infinity outside
@@ -765,8 +771,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      one point share one point key, whether they stay in one solid or
      lie in two: an op that cuts one vertex into copies hands each copy
      the original's point, as it hands a cut face's fragments one
-     surface; vertices whose gap an op decided Zero share the key it
-     keeps, and the op records that decision (a `VertexFusion` row,
+     surface; vertices whose gap an op decided Zero share the key of
+     the point it keeps (between a boolean's two operands, the glue's
+     kept side's, [coincidence.booleans]), and the op records that
+     decision (a `VertexFusion` row,
      cited by the pair's vertex-vertex record) for the lint, not for
      the census. A Zero-gap vertex pair on two point keys in a finished
      body is its producer's defect.

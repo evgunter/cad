@@ -101,21 +101,24 @@ const COPIES: usize = 9;
 /// [`ContainError::Escalated`] where the reading stopped on an in-band
 /// decision; an unsettled reading with no such decision is
 /// `Trim(None)`, the curved door's remainder.
+///
+/// An `In` placement comes with the chart point of the in-trim foot it
+/// was decided at.
 pub(super) fn spline_face_placement<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
     band: Band,
-) -> Result<CurvedPlacement, ContainError> {
+) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
     let face_data = proven(&body.faces, face, EntityId::Face);
     let Some(chart) = body.face_surface_linked(face, face_data).spline_chart() else {
         unreachable!("the spline arm is reached on a spline chart")
     };
     Ok(match read(body, face, chart, q, band) {
-        Reading::OffCarrier => CurvedPlacement::OffCarrier,
-        Reading::In => CurvedPlacement::Trim(Some(FaceContainment::In)),
-        Reading::Out => CurvedPlacement::Trim(Some(FaceContainment::Out)),
-        Reading::Unsettled(None) => CurvedPlacement::Trim(None),
+        Reading::OffCarrier => (CurvedPlacement::OffCarrier, None),
+        Reading::In(uv) => (CurvedPlacement::Trim(Some(FaceContainment::In)), Some(uv)),
+        Reading::Out => (CurvedPlacement::Trim(Some(FaceContainment::Out)), None),
+        Reading::Unsettled(None) => (CurvedPlacement::Trim(None), None),
         Reading::Unsettled(Some(diag)) => {
             // The carrier rows are the carrier decision's; the trim's and
             // the arm's have no decision of the door's to name.
@@ -180,8 +183,8 @@ pub(super) fn spline_chart_placement<T: Decide>(
 pub(crate) enum Reading {
     /// No point of the carrier is within the band of the point.
     OffCarrier,
-    /// A foot within the band lies in the trim.
-    In,
+    /// A foot within the band lies in the trim: its chart point.
+    In((f64, f64)),
     /// A foot lies within the band, and every point of the carrier near
     /// the point lies outside the trim.
     Out,
@@ -302,7 +305,7 @@ pub(crate) fn read_capped<T: Decide>(
                         }
                     });
                 if placed == Some(true) {
-                    return Reading::In;
+                    return Reading::In((cu, cv));
                 }
                 if inside == Some(false) {
                     leaf = true;

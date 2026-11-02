@@ -2056,8 +2056,8 @@ fn is_seam_vertex<T: Decide>(
 
 /// The refusal for a straight band — either open band — ending at a
 /// curved end face.
-pub const END_FACE_CURVED: &str = "a straight band ends at a curved end face, where its \
-     cut-off is not built; it is built in a plane end face";
+pub const END_FACE_CURVED: &str = "a straight blend would have to stop against a curved \
+     face, which is not supported yet; it can stop against a flat face";
 
 /// **What a band's plane end face cuts from it**: a chord from a plane
 /// band, and from a cylinder band the kind [`cap_transverse`] picked —

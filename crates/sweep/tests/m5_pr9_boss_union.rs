@@ -3,8 +3,7 @@
 //! top face; the seam is the rim circle where the wall crosses the
 //! top plane, minted as THREE conic arcs (the boss's three walls),
 //! carried by exact `Circle` carriers on BOTH operands' sides,
-//! described intrinsically, certified pcurves at rest, tier-3 valid,
-//! volume backstopped.
+//! described intrinsically, certified pcurves at rest, tier-3 valid.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

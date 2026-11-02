@@ -122,14 +122,16 @@
 //! - **R-reach**: a kind pair or pose with no arm (torus against a
 //!   cylinder neither parallel nor square to its axis, a torus tilted
 //!   to it; a cone against a non-coaxial torus; a NURBS or approximated
-//!   face paired with anything but a plane, and one whose net a plane
-//!   cuts that the whole reading refused short of a tangency). Every
+//!   face paired with anything but a plane or another spline face, and a
+//!   spline pair the whole reading refused short of a tangency). Every
 //!   pair with a face that is not a
 //!   plane is examined; two planes meet in a line, which W1 clears.
 //! - **R-tan**: a classification margin `Zero` or undecided — a
 //!   tangency, where components pinch and the count is not certified;
 //!   on a spline section, a tangency the march meets, or the section
-//!   grazing or running along a side of the wall's rectangle.
+//!   grazing or running along a side of the wall's rectangle (on two
+//!   spline faces, one no shared row or corner handed in covers, or a
+//!   handed-in row the walls are tangent along at a point).
 //!   A margin decided `Zero` where the carriers touch at one point is a
 //!   touch instead (below), and refuses R-tan only when it is not
 //!   certified out of either face.
@@ -329,16 +331,25 @@
 //!   (axis offset `e`): one loop when `|e − ρc| < ρs < e + ρc`,
 //!   witnessed on the nearest ruling; two loops encircling the cylinder
 //!   when `e + ρc < ρs`.
-//! - **NURBS × plane** (an approximated face read as its fit): W0 when
-//!   the control net's every point is certified strictly on one side of
-//!   the plane — the patch lies in the net's convex hull, its weights
-//!   being positive. Any other pose is the section value's whole reading
-//!   ([`geom_brep::pair_section`] with a march door, C3's `all()`), which the march
-//!   door reads (at `f64`; with no door, R-lane): a closed branch is a
-//!   loop, read by W3, W4 or the no-event decision; an open branch, a
-//!   `Side` region and a `Corner` region reach the wall's chart boundary
-//!   (W1′). The reading accounts every cell of the wall's rectangle, so
-//!   the count is certified.
+//! - **NURBS × plane** (an approximated face read as its fit): the
+//!   pair's classification in the section value
+//!   ([`geom_brep::pair_section()`], C5), read and never re-decided. Its
+//!   hull is W0: the control net's every point decided strictly on one
+//!   side of the plane, the patch lying in the net's convex hull (its
+//!   weights are positive); a net within the zero band everywhere is
+//!   coincident (R-tan, named) and one in band escalates (R-tan). A
+//!   collapsed side not decided clear of the plane refuses at the door
+//!   (R-reach). Through the march door the boundary pass refuses a graze
+//!   or a side held tangent (R-tan, named), and the regularity sweep is
+//!   the guard's loop-free stage: the wall's normal bounded off the
+//!   plane's, so no component closes in the wall's chart, each ending
+//!   on a side the pass found an end on; it clears by W1′ where every
+//!   such side bounds the wall, and is otherwise read whole. Any other
+//!   pose is the whole reading (C3's `all()`, at `f64`; with no door,
+//!   R-lane): a closed branch is a loop, read by W3, W4 or the no-event
+//!   decision; an open branch, a `Side` region and a `Corner` region
+//!   reach the wall's chart boundary (W1′). The reading accounts every
+//!   cell of the wall's rectangle, so the count is certified.
 //! - **Cone × plane**: an ellipse on one nappe (essential, one
 //!   component), a hyperbola or two lines through the apex (unbounded),
 //!   or near the parabola either (essential, no witness), decided on
@@ -438,9 +449,9 @@ pub(crate) struct Component<T: Real> {
     /// `F` where it reaches both faces' (one is enough).
     pub reaches: Option<Side>,
     /// **How far the witness may stand from the component**, in metres:
-    /// a marched loop's pad ([`geom_brep::CarriedComponent::pad`], where
-    /// closeness is argued: the component within it of the carrier, the
-    /// carrier within it of each surface), zero for a closed form. W3
+    /// a marched loop's reach ([`geom_brep::CarriedComponent::reach`]:
+    /// a box of its uniqueness tube holds both the witness and a piece of
+    /// the component), zero for a closed form. W3
     /// reads the witness `w` against the band padded by twice it
     /// (`certify`): a face's placement margins are lengths read at a
     /// point's foot on the face's surface, and for the point `c` of the
@@ -723,6 +734,7 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 /// Pure: surfaces, the pair's reach (module docs), the operation's
 /// region, which the section value reads a pair with no bounded side
 /// over (two cylinders), and the band.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn classify<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
@@ -731,9 +743,30 @@ pub(crate) fn classify<T: Decide>(
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
 ) -> Section<T> {
+    classify_known(
+        f,
+        g,
+        reach,
+        region,
+        lane,
+        band,
+        geom_brep::KnownPair::default(),
+    )
+}
+
+/// [`classify`] with what the boolean knows of a spline pair handed in
+/// (`known`, read by the spline pair's arm alone).
+pub(crate) fn classify_known<T: Decide>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    reach: Reach<T>,
+    region: Option<ExtentBall<T>>,
+    lane: Option<geom_brep::SsiLane<T>>,
+    band: Band,
+    known: geom_brep::KnownPair<T>,
+) -> Section<T> {
     use geom::Surface as S;
     let marched = move |s: &geom_brep::PairSection<T>| of_carried(s.carry(lane, band).as_ref());
-    let kinds = (f.kind(), g.kind());
     match (f, g) {
         (S::Sphere { .. } | S::Cylinder { .. } | S::Torus { .. }, S::Torus { .. })
         | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
@@ -741,10 +774,10 @@ pub(crate) fn classify<T: Decide>(
         | (S::Cylinder { .. }, S::Sphere { .. }) => {
             match geom_brep::pair_section(f, g, region, None, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
-                    of_pair_section(&Ok(section), kinds, band, marched)
+                    of_pair_section(&Ok(section), band, marched)
                 }
                 Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
-                Err(e) => of_pair_section(&Err(e), kinds, band, marched),
+                Err(e) => of_pair_section(&Err(e), band, marched),
             }
         }
         (S::Torus { .. }, S::Plane { .. } | S::Cone { .. }) => torus_pair(f, g, reach, band),
@@ -780,57 +813,52 @@ pub(crate) fn classify<T: Decide>(
         ) => sphere_sphere(c1, r1, c2, r2, band),
         (S::Nurbs(_) | S::Approx(_), S::Plane { .. })
         | (S::Plane { .. }, S::Nurbs(_) | S::Approx(_)) => spline_plane(f, g, lane, band),
+        (S::Nurbs(_) | S::Approx(_), S::Nurbs(_) | S::Approx(_)) => {
+            spline_pair(f, g, known, lane, band)
+        }
         _ => Section::Intractable,
     }
 }
 
-/// **A spline face against a plane: W0, then the whole reading.** A
-/// patch lies in the convex hull of its control net (its weights are
-/// positive), so a net whose every point is certified strictly on one
-/// side of the plane meets it nowhere (W0); an approximating surface is
-/// read as its fit. Any other pose is the section value's whole reading
-/// ([`geom_brep::pair_section`]) through `lane`; with no lane the
-/// scalar does not march, R-lane.
+/// **Two spline faces, read whole** ([`geom_brep::spline_pair_section`]
+/// through `lane`, module docs): C3's reading of the pair with the rows
+/// and corners the faces share handed in, its components listed (a closed
+/// branch a loop with its witness; an open branch, a `Side` region and a
+/// `Corner` region reaching the sides they end on, cleared by W1′ where
+/// one bounds its face), its refusals mapped by name. With no lane it is
+/// R-lane.
+fn spline_pair<T: Decide>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    known: geom_brep::KnownPair<T>,
+    lane: Option<geom_brep::SsiLane<T>>,
+    band: Band,
+) -> Section<T> {
+    let read = geom_brep::spline_pair_section(f, g, known, lane, band);
+    of_pair_section(&read, band, |_| Section::Unmarched)
+}
+
+/// **A spline face against a plane, read off the pair's
+/// classification** ([`geom_brep::pair_section()`] through `lane`, module
+/// docs): the hull's apart is W0 and its coincidence R-tan; the
+/// door's and the boundary pass's refusals map by name; the regularity
+/// sweep's loop-free verdict ([`geom_brep::Components::Reaching`])
+/// clears by W1′ where every side it names bounds the wall, and is
+/// otherwise read whole; any other pose is C3's whole reading. With no
+/// lane a pose the hull does not decide is R-lane.
 fn spline_plane<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
 ) -> Section<T> {
-    use geom::Surface as S;
-    let ((&S::Plane { origin, normal, .. }, wall) | (wall, &S::Plane { origin, normal, .. })) =
-        (f, g)
-    else {
-        unreachable!("the arm is handed a plane")
+    let listed = move |s: &geom_brep::PairSection<T>| {
+        of_pair_section(&s.read_whole(lane, band), band, |_| Section::Unmarched)
     };
-    let Some(patch) = wall.spline_chart() else {
-        unreachable!("the arm is handed a spline")
-    };
-    let n = unit(normal);
-    let sides: Vec<_> = patch
-        .control()
-        .iter()
-        .map(|&c| {
-            sign(
-                "section_nurbs_plane_hull",
-                Margin::of((c - origin).dot(n)),
-                band,
-            )
-        })
-        .collect();
-    let apart = |s| !sides.is_empty() && sides.iter().all(|&t| t == Some(s));
-    if apart(Sign::Positive) || apart(Sign::Negative) {
-        return none();
-    }
-    let no_march = |_: &geom_brep::PairSection<T>| Section::Unmarched;
-    let kinds = (f.kind(), g.kind());
     match geom_brep::pair_section(f, g, None, lane, band) {
-        Ok(geom_brep::SectionRead::Built(section)) => {
-            of_pair_section(&Ok(section), kinds, band, no_march)
-        }
+        Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section), band, listed),
         Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
-        Err(geom_brep::SectionError::NoMarch { scalar }) => Section::NoLane(scalar),
-        Err(e) => of_pair_section(&Err(e), kinds, band, no_march),
+        Err(e) => of_pair_section(&Err(e), band, listed),
     }
 }
 
@@ -1690,7 +1718,6 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
 /// since a cut end lies past every face the operation holds (W1).
 pub(super) fn of_pair_section<T: Decide>(
     read: &Result<geom_brep::PairSection<T>, geom_brep::SectionError>,
-    kinds: (geom::SurfaceKind, geom::SurfaceKind),
     band: Band,
     marched: impl FnOnce(&geom_brep::PairSection<T>) -> Section<T>,
 ) -> Section<T> {
@@ -1701,7 +1728,7 @@ pub(super) fn of_pair_section<T: Decide>(
         // rulings, a tangent ruling or nothing: every component is a line,
         // which W1 clears whatever the count. Whether the faces touch
         // along the ruling is the tangent locus's question (C7).
-        Err(SectionError::Escalated(diag)) if parallel_walls_undecided(diag) => {
+        Err(e) if e.parallel_walls_undecided() => {
             return Section::Components {
                 parts: vec![Component::closed_form(true, [false, false], None)],
                 single: false,
@@ -1716,17 +1743,12 @@ pub(super) fn of_pair_section<T: Decide>(
         Err(SectionError::Pinched { predicate }) => return Section::Tangent(predicate),
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
         // Two surfaces decided one share a carrier: no component count
-        // is certified, as at a tangency. Of the pairs the value builds,
-        // two tori are decided one on `tt_coincident`
-        // (`geom_brep::TorusTorusPose`) and two cylinders on
-        // `cc_coaxial` (`geom_brep::CylinderCylinderPose`).
+        // is certified, as at a tangency. Two tori (`tt_coincident`), two
+        // cylinders and a spline wall on a plane
+        // (`section_nurbs_plane_coincident`) are decided one; the refusal
+        // carries no pose, so it is named by the value.
         Err(SectionError::CoincidentSurfaces) => {
-            return Section::Tangent(match kinds {
-                (geom::SurfaceKind::Cylinder, geom::SurfaceKind::Cylinder) => {
-                    geom_brep::CcDecision::Coaxial.name()
-                }
-                _ => "tt_coincident",
-            });
+            return Section::Tangent("pair_section_coincident");
         }
         // A kind pair the value serves refuses these on no arm of its
         // own: an operand's size (decided or not), a torus off its ring,
@@ -1745,9 +1767,32 @@ pub(super) fn of_pair_section<T: Decide>(
         ) => return Section::Intractable,
         Err(SectionError::NoMarch { scalar }) => return Section::NoLane(scalar),
     };
+    let (f, g) = section.pose().operands();
     let components = match section.components() {
         Components::Counted(components) => components,
         Components::Marched => return marched(section),
+        // Every component is open, ending on some of these sides (some
+        // side, by the variant's contract): each clears by W1′ where
+        // every side listed bounds its surface; otherwise the list is the
+        // reader's to take.
+        &Components::Reaching(reached) => {
+            let [on_f, on_g] = reached.rims();
+            if !(bounding(on_f, f, band).all(|b| b) && bounding(on_g, g, band).all(|b| b)) {
+                return marched(section);
+            }
+            let side = if on_f.any() { Side::F } else { Side::G };
+            return Section::Components {
+                parts: vec![Component {
+                    unbounded: false,
+                    essential_f: false,
+                    essential_g: false,
+                    witness: None,
+                    reaches: Some(side),
+                    pad: 0.0,
+                }],
+                single: false,
+            };
+        }
     };
     let ends = |c: &geom_brep::SectionComponent<T>| match c.shape {
         ComponentShape::Open { ends } => ends,
@@ -1776,16 +1821,10 @@ pub(super) fn of_pair_section<T: Decide>(
             _ => Section::Tangent(zero.decision.name()),
         };
     }
-    let (f, g) = section.pose().operands();
-    let bounds = |reach: geom_brep::ChartReach, surface: &geom::Surface<T>| {
-        reach
-            .sides()
-            .any(|side| crate::pcurves::chart_side_bounds(surface, side, band))
-    };
     // Each component's set: the least node any arc of its node-joined set
     // ends at, found by joining arcs that share a node.
     let mut root: Vec<usize> = (0..section.nodes().len()).collect();
-    fn find(root: &mut [usize], k: usize) -> usize {
+    fn find(root: &[usize], k: usize) -> usize {
         let mut k = k;
         while root[k] != k {
             k = root[k];
@@ -1794,7 +1833,7 @@ pub(super) fn of_pair_section<T: Decide>(
     }
     for c in components {
         if let [Some(a), Some(b)] = ends(c).nodes {
-            let (ra, rb) = (find(&mut root, a), find(&mut root, b));
+            let (ra, rb) = (find(&root, a), find(&root, b));
             root[ra.max(rb)] = ra.min(rb);
         }
     }
@@ -1809,21 +1848,16 @@ pub(super) fn of_pair_section<T: Decide>(
             witness: c.witness,
             // Only rim ends reach a chart side; a cut end or a node end
             // clears nothing here.
-            reaches: if bounds(on_f, f) {
+            reaches: if bounding(on_f, f, band).any(|b| b) {
                 Some(Side::F)
-            } else if bounds(on_g, g) {
+            } else if bounding(on_g, g, band).any(|b| b) {
                 Some(Side::G)
             } else {
                 None
             },
             pad: c.pad,
         };
-        let set = ends
-            .nodes
-            .iter()
-            .flatten()
-            .next()
-            .map(|&k| find(&mut root, k));
+        let set = ends.nodes.iter().flatten().next().map(|&k| find(&root, k));
         match parts.iter_mut().find(|(s, _)| set.is_some() && *s == set) {
             Some((_, joined)) => {
                 joined.unbounded |= part.unbounded;
@@ -1840,24 +1874,24 @@ pub(super) fn of_pair_section<T: Decide>(
     }
 }
 
-/// Whether `diag` is two parallel walls' gap or nest read in band
-/// ([`geom_brep::CcDecision::ParallelGap`],
-/// [`geom_brep::CcDecision::ParallelNest`]).
-fn parallel_walls_undecided(diag: &geom_core::Indeterminate) -> bool {
-    use geom_brep::CcDecision::{ParallelGap, ParallelNest};
-    diag.predicate.is_some_and(|p| {
-        [ParallelGap, ParallelNest]
-            .into_iter()
-            .any(|d| p == d.name() || p == d.floor())
-    })
+/// **Whether each side of `surface`'s chart `reach` names bounds a face
+/// on it** (W1′, [`crate::pcurves::chart_side_bounds`]), side by side.
+fn bounding<'a, T: Decide>(
+    reach: geom_brep::ChartReach,
+    surface: &'a geom::Surface<T>,
+    band: Band,
+) -> impl Iterator<Item = bool> + 'a {
+    reach
+        .sides()
+        .map(move |side| crate::pcurves::chart_side_bounds(surface, side, band))
 }
 
 /// **A section no closed form counts, read from its march** (W0 to W4
 /// on the march's components): no branch is W0, its receipt being the
 /// march's exhaustiveness; each loop winds as its turns about each
-/// surface's axis and core read off the loop do (W2,
+/// surface's axis and core read over its uniqueness tube do (W2,
 /// `geom_brep::pair_section::winds`); its witness is its carrier's
-/// middle point, within its tube of the component, so W3 places it with
+/// middle point, within its reach of the component, so W3 places it with
 /// that pad ([`Component::pad`]); and the march's count is certified, so
 /// a lone loop is W4's. At
 /// a scalar with no march it is R-lane; a march or loop reading that
@@ -1874,6 +1908,7 @@ pub(super) fn of_carried<T: Decide>(
             | CarryError::March(_)
             | CarryError::Winds(_)
             | CarryError::PadShort { .. }
+            | CarryError::TubeUnread
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
             | CarryError::Seat(_),
@@ -1889,7 +1924,7 @@ pub(super) fn of_carried<T: Decide>(
                 essential_g: c.winds[1],
                 witness: Some(c.witness),
                 reaches: None,
-                pad: c.pad,
+                pad: c.reach,
             })
             .collect(),
         single: components.len() == 1,
@@ -2017,6 +2052,9 @@ mod section_cert_parallel_tori_rows;
 #[cfg(test)]
 #[path = "section_cert_rows.rs"]
 pub(super) mod section_cert_rows;
+#[cfg(test)]
+#[path = "section_cert_spline_pair_rows.rs"]
+mod section_cert_spline_pair_rows;
 #[cfg(test)]
 #[path = "section_cert_spline_rows.rs"]
 mod section_cert_spline_rows;
