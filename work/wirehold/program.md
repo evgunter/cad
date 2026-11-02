@@ -2,7 +2,7 @@
 id: wirehold
 kind: program
 title: WIREHOLD — WIRE's post-D10 residue: member families and their cancelation, the placement and pose readers, forwarders the census does not weld, and the profile's structure record
-status: ready
+status: active
 opened: 2026-10-17
 group: api/eval
 prefix: wirehold/

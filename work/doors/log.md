@@ -202,3 +202,7 @@ AUTHOR's narrative is recoverable from
 - Style: mergeable; stale census/module/spec text the PR half-edited; product-slot row pins less than its name. Correctness: claims hold across duplicate, placed `⊔`, transform, mirror-then-split; MAJOR-1 — `held_as_itself` widened `successors`' reads to every split of the body for *every* takeover door, so a combine of a body with its own earlier split half drops a mate main kept.
 - Ruling: the reads are the body plus the halves of the split this action wrote, passed from `Wrote`, never rediscovered by walking the document — non-split doors ask exactly what they asked on main. Class note: widening a shared kernel query for one door changed every door; a lane that widens a shared query states and tests what the other callers now see.
 - The README sentence lands with the change: it describes §5′.3 (a), and its one choice (`⊔` over `∪`) was a designer pair's, not a ratified decision of Ev's.
+## 2026-11-02 08:45 — P1 `a-split-of-a-drawn-body-is-drawn-unsplit` merges (PR 6331)
+
+- Style + correctness reviews, one fix pass (the shared successor query had been widened for every door; now the split passes its own halves as `intact`), re-verify says merge. CI green at `b572bc4803`.
+- Residue filed: `a-split-half-cannot-be-split` (P3 E), `a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it` (P3 M); `a-takeover-could-re-seat-a-pick-its-result-keeps`'s premise corrected in place.
