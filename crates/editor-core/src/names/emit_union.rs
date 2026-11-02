@@ -44,7 +44,8 @@
 //! - a face is named for its PARENT, the member faces the pairwise
 //!   judgements consumed together, transitively ([`Links`]), which a
 //!   finished face takes from the member faces it descends from by
-//!   entity through the fold ([`Fold`], [`Parents`]): the parent
+//!   entity through the fold ([`Fold`], [`Parents`]; a face whose
+//!   member faces no judgement links refuses): the parent
 //!   itself when the finished body holds it as one face, and
 //!   otherwise the parent and one `Borders`
 //!   over the divider walls each piece borders; a seam edge is named
@@ -2041,12 +2042,12 @@ type MemberFace = (usize, topo::FaceKey);
 /// each classified beside a point against the other member's closed body
 /// (N2's senses).
 ///
-/// A judgement is the two members' own union, so a pair it merged
-/// (`BooleanNaming::merge_groups`) or whose region it held through the
-/// other face (`BooleanNaming::substituted`) is one its margins decided one
-/// carrier (declared or not, D10), and that lies with one orientation:
-/// the kernel merges and covers no other. A certified pair the judgement
-/// never brought together is in neither record and links nothing.
+/// A judgement is the two members' own union. Every member face one of
+/// its merged faces holds is linked, faces of one member included
+/// (`BooleanNaming::merge_groups`), and so is each pair whose region it
+/// held through the other face (`BooleanNaming::substituted`). A
+/// certified pair no judgement brought together is in neither record and
+/// links nothing.
 pub(crate) struct Links<T: geom_core::Real> {
     pairs: Vec<(MemberFace, MemberFace)>,
     classes: Vec<PairClass<T>>,
@@ -2133,10 +2134,9 @@ impl<T: geom_core::Real> Links<T> {
             for &g in faces {
                 held.insert(member(descent.result_face(g)));
             }
-            for &x in held.iter().filter(|m| m.0 == a) {
-                for &y in held.iter().filter(|m| m.0 == b) {
-                    self.pairs.push((x, y));
-                }
+            let mut held = held.into_iter();
+            if let Some(first) = held.next() {
+                self.pairs.extend(held.map(|y| (first, y)));
             }
         }
         for s in &naming.substituted {
@@ -2258,8 +2258,9 @@ impl<'l> Fold<'l> {
 /// face. A finished face takes the parent of the member faces it
 /// descends from, read by entity off the fold ([`Fold`]); which faces a
 /// fold step merged, kept or discarded does not enter, and a finished
-/// face descending from faces of two parents refuses. Tied member faces
-/// are separate parents spelled alike.
+/// face descending from faces of two parents refuses
+/// ([`NamingError::UnsupportedUnjudgedGlue`]). Tied member faces are
+/// separate parents spelled alike.
 struct Parents {
     /// Finished face → its parent.
     of_face: BTreeMap<topo::FaceKey, usize>,
@@ -2321,27 +2322,44 @@ impl Parents {
                 link.insert(m);
             }
         }
-        // What the fold merged does not link: a finished face whose member
-        // faces are of several parents has no one parent to take. Two
-        // faces of DIFFERENT members a fold step merged meet in their own
-        // pair's union too (a union only adds material, and the pair is
-        // judged under the same declarations), and that judgement merges
-        // or covers them. Two faces of ONE member a judgement merges link
-        // nothing: `Links::judged` records member-a × member-b pairs
-        // only. A legal recipe reaches that (a bar through a sunk boss's
-        // two wall pieces,
-        // `wire_legal_union_refusals::a_bar_through_a_sunk_boss_refuses_at_the_unions_parents`)
-        // and refuses here under the bug's words; what such a pair is
-        // is `work/refs/a-union-judgement-that-merges-two-faces-of-one-member-links-neither.md`'s.
-        // A curved run the pair leaves unmerged (`merge_skipped`), the
-        // fold, holding no fewer of its faces, leaves unmerged too.
-        for (_, from, _) in &rows {
+        // A member face's member and its name in that member's table.
+        let named = |(m, f): MemberFace| {
+            let member = members.get(m).unwrap_or_else(|| {
+                unreachable!(
+                    "union {union:?} links member face {f:?} under index {m} of {} members: \
+                     every index is a member's place in the fold (`Fold`, `Links::judged`)",
+                    members.len()
+                )
+            });
+            let of = member
+                .table
+                .name_ref_of(&ent(0, EntityKey::Face(f)))
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "member {:?}'s face {f:?}, which union {union:?} holds, is unnamed in \
+                         its table: a member's table is total over its body (`check_total`)",
+                        member.read
+                    )
+                });
+            (member, of)
+        };
+        // A finished face whose lineage spans member faces no judgement
+        // links: only N2's third clause could link them, by the area
+        // each holds, and the fold's lineage can cite a member face the
+        // face holds no area of, so the clause is not read from it.
+        for &(f, from, _) in &rows {
             let mut roots = from.iter().map(|&m| link.root(m));
             let first = roots.next();
             if roots.any(|r| Some(r) != first) {
-                return Err(NamingError::Emission {
-                    what: "a union's face descends from member faces no judged pair links",
-                });
+                let mut faces: Vec<(crate::VarId, StableName)> = from
+                    .iter()
+                    .map(|&m| {
+                        let (member, of) = named(m);
+                        (member.read, of.name().clone())
+                    })
+                    .collect();
+                faces.sort();
+                return Err(NamingError::UnsupportedUnjudgedGlue { face: f, faces });
             }
         }
         let mut classes: BTreeMap<MemberFace, BTreeSet<MemberFace>> = BTreeMap::new();
@@ -2357,25 +2375,9 @@ impl Parents {
         for (r, entities) in classes {
             let mut from = BTreeSet::new();
             let mut tied = false;
-            for &(m, f) in &entities {
-                let member = members.get(m).unwrap_or_else(|| {
-                    unreachable!(
-                        "union {union:?} links member face {f:?} under index {m} of {} members: \
-                         every index is a member's place in the fold (`Fold`, `Links::judged`)",
-                        members.len()
-                    )
-                });
-                let of = member
-                    .table
-                    .name_ref_of(&ent(0, EntityKey::Face(f)))
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "member {:?}'s face {f:?}, which union {union:?} holds, is unnamed in \
-                             its table: a member's table is total over its body (`check_total`)",
-                            member.read
-                        )
-                    })
-                    .clone();
+            for &m in &entities {
+                let (member, of) = named(m);
+                let of = of.clone();
                 tied |= member.table.is_tied(&of);
                 from.insert((member.read, of));
             }
@@ -2553,14 +2555,31 @@ fn name_by_parents<T: geom_core::Decide>(
     let mut held: Vec<(StableName, Entry)> = Vec::new();
 
     // ---- Seam edges, by the parents on their two sides. ----
-    let is_seam = |name: &StableName| {
-        name.kind == EntityKind::Edge && matches!(name.path.first(), Some(RoleSeg::Seam { .. }))
+    // A seam row is a `Seam`, or a `Merged` edge none of whose edges
+    // lies along a member edge: the fold step that merged two faces
+    // merges the seams they bordered, and a step later than the one
+    // that minted those seams spells the result `Merged` of them, so
+    // the fold's spelling depends on member order and the edge's place
+    // off every member edge does not.
+    let off_members = |entry: &Entry| {
+        entry.entities().iter().all(|e| {
+            matches!(e.key, EntityKey::Edge(k)
+                if !flush.edges.contains_key(&k) && !flush.spans.contains_key(&k))
+        })
+    };
+    let is_seam = |name: &StableName, entry: &Entry| {
+        name.kind == EntityKind::Edge
+            && match name.path.first() {
+                Some(RoleSeg::Seam { .. }) => true,
+                Some(RoleSeg::Merged(_)) => off_members(entry),
+                _ => false,
+            }
     };
     let mut seams: BTreeSet<topo::EdgeKey> = BTreeSet::new();
     // A unique seam row's collapsed spelling → its edge.
     let mut respelled: BTreeMap<StableName, topo::EdgeKey> = BTreeMap::new();
     for (name, entry) in t.iter() {
-        if !is_seam(name) {
+        if !is_seam(name, entry) {
             continue;
         }
         let keys = match entry {
@@ -2598,9 +2617,9 @@ fn name_by_parents<T: geom_core::Decide>(
                 shape: SeamSidesShape::NotTwoFaces,
             });
         };
-        // A pair that merges A's face with B's links them, but the fold
-        // may skip the same curved group (`SkippedMerge` reads the
-        // group's shape, and the fold's group holds more faces).
+        // Member faces a judgement linked are one parent, and the fold
+        // can still hold two of them as two faces meeting here, off every
+        // member edge; no rule names an edge inside one parent.
         if parents.of_face.get(f0) == parents.of_face.get(f1) {
             return Err(NamingError::UnsupportedSeamSides {
                 edge: k,
@@ -2677,7 +2696,7 @@ fn name_by_parents<T: geom_core::Decide>(
     };
     let mut vertices = Vec::new();
     for (name, entry) in t.iter() {
-        if name.kind == EntityKind::Face || is_seam(name) {
+        if name.kind == EntityKind::Face || is_seam(name, entry) {
             continue;
         }
         let spelled = name.clone().rewrite_path(&mut cite)?;
