@@ -63,6 +63,10 @@ pub(crate) enum Reach<T: geom_core::Real> {
         extent: T,
         /// The edge's bend at the base vertex.
         bend: ConicBend<T>,
+        /// The edge's arc out of the base vertex, where a point of it is
+        /// read (a circle or an ellipse; `None` for a spiric or a
+        /// spline, whose bend is not certified).
+        arc: Option<ConicArc<T>>,
     },
     /// A subdivision bisector: a direction with no point behind it,
     /// levered at its sector's arm, and how its sector's face bends
@@ -75,6 +79,9 @@ pub(crate) enum Reach<T: geom_core::Real> {
         /// The face's normal section's curvature vector along the
         /// bisector, `None` on a spline face.
         bend: Option<Vec3<T>>,
+        /// Where the bisector stands on its sector's face: `None` for a
+        /// hand-stated bisector with no face behind it.
+        on: Option<OnFace<T>>,
     },
 }
 
@@ -108,19 +115,65 @@ impl<T: Decide> Reach<T> {
     /// A bisector of a sector on `face` (outward unit normal `n`) along
     /// the unit `dir`, levered at `arm`: it bends as the face's normal
     /// section along it.
-    pub(crate) fn bisector(arm: T, dir: Vec3<T>, n: Vec3<T>, face: FaceBend<T>) -> Self {
+    pub(crate) fn bisector(
+        arm: T,
+        dir: Vec3<T>,
+        n: Vec3<T>,
+        face: FaceBend<T>,
+        base: Point3<T>,
+    ) -> Self {
         Self::Bisector {
             arm,
             bend: face.section(dir, n).map(|a| n * a),
+            on: Some(OnFace { base, face }),
         }
     }
 
-    /// A bisector of a straight section, levered at `arm`: a sector on a
-    /// plane, or a ruling.
+    /// A bisector of a straight section, levered at `arm`: a ruling of
+    /// a face at `base`, which lies in the face.
+    pub(crate) fn ruling(arm: T, base: Point3<T>) -> Self {
+        Self::Bisector {
+            arm,
+            bend: Some(Vec3::zero()),
+            on: Some(OnFace {
+                base,
+                face: FaceBend::Plane,
+            }),
+        }
+    }
+
+    /// A hand-stated straight bisector levered at `arm`, with no face
+    /// behind it.
+    #[cfg(test)]
     pub(crate) fn straight_bisector(arm: T) -> Self {
         Self::Bisector {
             arm,
             bend: Some(Vec3::zero()),
+            on: None,
+        }
+    }
+
+    /// **The bound's point at `l` from its base vertex**, `l` no longer
+    /// than [`Self::length`]: a point of the edge, or of a bisector's
+    /// sector face, that a witness reads ([`Tie::descend`]). A line
+    /// edge's point on its chord; a conic's at an arc no longer than
+    /// `l` ([`ConicArc::at`]); a bisector's direction carried to its
+    /// face's carrier ([`Carrier::foot`]). `None` where the bound has no
+    /// point behind it: a probe, a hand-stated bisector, a spiric or a
+    /// spline edge, or a foot that does not read.
+    pub(crate) fn witness(self, dir: Vec3<T>, l: T) -> Option<Point3<T>> {
+        match self {
+            Self::Chord { base, far } => Some(base + (far - base) * (l / (far - base).norm())),
+            Self::Extent(_) => None,
+            Self::Conic { arc, .. } => arc.map(|arc| arc.at(l)),
+            Self::Bisector { on, .. } => on.and_then(|on| {
+                let straight = on.base + dir.normalize() * l;
+                match on.face {
+                    FaceBend::Plane => Some(straight),
+                    FaceBend::Implicit { carrier, .. } => carrier.foot(straight),
+                    FaceBend::Fitted => None,
+                }
+            }),
         }
     }
 
@@ -187,6 +240,9 @@ pub(crate) enum FaceBend<T: geom_core::Real> {
         /// `1/κ_max` at the vertex
         /// ([`geom_brep::implicit_max_normal_curvature`]).
         radius: T,
+        /// The carrier itself, which a witness point's offset is read
+        /// against.
+        carrier: Carrier<T>,
     },
     /// A spline face: no implicit form, so no certified bend.
     Fitted,
@@ -198,12 +254,13 @@ impl<T: geom_core::Real> FaceBend<T> {
         if surface.kind() == geom::SurfaceKind::Plane {
             return Self::Plane;
         }
-        match surface {
-            geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => Self::Fitted,
-            _ => Self::Implicit {
+        match Carrier::of(surface) {
+            None => Self::Fitted,
+            Some(carrier) => Self::Implicit {
                 gradient: geom_brep::implicit_gradient(surface, p),
                 hessian: geom_brep::implicit_hessian(surface, p),
                 radius: T::one() / geom_brep::implicit_max_normal_curvature(surface, p),
+                carrier,
             },
         }
     }
@@ -253,6 +310,12 @@ impl FaceBend<f64> {
     pub(crate) fn ball(gradient: Vec3<f64>, radius: f64) -> Self {
         let k = 1.0 / radius;
         Self::Implicit {
+            carrier: Carrier::Sphere {
+                center: Point3::origin() - gradient * radius,
+                radius,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
             gradient,
             hessian: Mat3::from_cols(
                 Vec3::new(k, 0.0, 0.0),
@@ -270,6 +333,12 @@ impl FaceBend<f64> {
         let k = 1.0 / radius;
         let col = |e: Vec3<f64>| (e - axis * axis.dot(e)) * k;
         Self::Implicit {
+            carrier: Carrier::Cylinder {
+                origin: Point3::origin() - gradient * radius,
+                axis,
+                radius,
+                u_ref: gradient,
+            },
             gradient,
             hessian: Mat3::from_cols(
                 col(Vec3::new(1.0, 0.0, 0.0)),
@@ -279,6 +348,264 @@ impl FaceBend<f64> {
             radius,
         }
     }
+}
+
+/// **A face's carrier with an implicit form**, kept beside its bend so
+/// that a witness point's offset from it is the carrier's own residual
+/// ([`geom_brep::implicit_residual`]), the one the root doors read.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Carrier<T: geom_core::Real> {
+    /// [`geom::Surface::Cylinder`].
+    Cylinder {
+        origin: Point3<T>,
+        axis: Vec3<T>,
+        radius: T,
+        u_ref: Vec3<T>,
+    },
+    /// [`geom::Surface::Cone`].
+    Cone {
+        apex: Point3<T>,
+        axis: Vec3<T>,
+        half_angle: T,
+        u_ref: Vec3<T>,
+    },
+    /// [`geom::Surface::Sphere`].
+    Sphere {
+        center: Point3<T>,
+        radius: T,
+        axis: Vec3<T>,
+        u_ref: Vec3<T>,
+    },
+    /// [`geom::Surface::Torus`].
+    Torus {
+        center: Point3<T>,
+        axis: Vec3<T>,
+        major_radius: T,
+        minor_radius: T,
+        u_ref: Vec3<T>,
+    },
+}
+
+impl<T: geom_core::Real> Carrier<T> {
+    /// A curved carrier with an implicit form; `None` for a plane, a
+    /// spline or a fitted surface.
+    fn of(surface: &geom::Surface<T>) -> Option<Self> {
+        match *surface {
+            geom::Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => Some(Self::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            }),
+            geom::Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => Some(Self::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            }),
+            geom::Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => Some(Self::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            }),
+            geom::Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => Some(Self::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            }),
+            geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+                None
+            }
+        }
+    }
+
+    fn surface(self) -> geom::Surface<T> {
+        match self {
+            Self::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => geom::Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            },
+            Self::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => geom::Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            },
+            Self::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => geom::Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            },
+            Self::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => geom::Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            },
+        }
+    }
+
+    /// The carrier's residual at `p` ([`geom_brep::implicit_residual`]):
+    /// positive along its gradient, in metres.
+    fn residual(self, p: Point3<T>) -> T {
+        geom_brep::implicit_residual(&self.surface(), p)
+    }
+
+    /// The point of the carrier `p` stands over: `p` less its residual
+    /// along the carrier's unit gradient there. Exact on a cone's nappe
+    /// (whose residual is the distance), and within the band of the
+    /// carrier wherever `p` stands within a small fraction of its
+    /// radius of it; the witness that reads it re-reads its residual,
+    /// so a foot off the carrier refuses rather than misleads. `None`
+    /// where the gradient is poison (a cone's apex or axis, a torus's
+    /// axis).
+    fn foot(self, p: Point3<T>) -> Option<Point3<T>> {
+        let surface = self.surface();
+        let g = geom_brep::implicit_gradient(&surface, p);
+        let r = geom_brep::implicit_residual(&surface, p);
+        let norm = g.norm();
+        let foot = p - g * (r / norm.powi(2));
+        geom_core::is_finite_length(foot.x + foot.y + foot.z).then_some(foot)
+    }
+}
+
+/// **A conic edge's arc out of its vertex**, as [`Reach::witness`]
+/// reads a point of it: the circle or ellipse, and its parameters at
+/// the vertex and the far end.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ConicArc<T: geom_core::Real> {
+    center: Point3<T>,
+    axis: Vec3<T>,
+    semi: (T, T),
+    u_ref: Vec3<T>,
+    circle: bool,
+    from: T,
+    to: T,
+}
+
+impl<T: geom_core::Real> ConicArc<T> {
+    /// The arc of `curve` its walk leaves the vertex along (`he_plus`
+    /// walks `t₀ → t₁`): `None` for a carrier that is not a circle or
+    /// an ellipse.
+    pub(crate) fn of(curve: &geom_brep::EdgeCurve<T>, he_plus: bool) -> Option<Self> {
+        let (t0, t1) = curve.params();
+        let (from, to) = if he_plus { (t0, t1) } else { (t1, t0) };
+        let (center, axis, semi, u_ref, circle) = match *curve.carrier() {
+            geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => (center, axis, (radius, radius), u_ref, true),
+            geom::Curve3::Ellipse {
+                center,
+                axis,
+                semi_u,
+                semi_v,
+                u_ref,
+            } => (center, axis, (semi_u, semi_v), u_ref, false),
+            _ => return None,
+        };
+        Some(Self {
+            center,
+            axis,
+            semi,
+            u_ref,
+            circle,
+            from,
+            to,
+        })
+    }
+
+}
+
+impl<T: Decide> ConicArc<T> {
+    /// The arc's point at most `l` along it from the vertex: its
+    /// parameter advanced by `l` over the carrier's greatest speed (a
+    /// circle's radius, an ellipse's larger semi-axis), no further than
+    /// the far end, so the point lies on the edge.
+    fn at(self, l: T) -> Point3<T> {
+        let (a, b) = self.semi;
+        let speed = a.abs().max(b.abs());
+        let span = self.to - self.from;
+        let t = self.from + span * (l / (speed * span.abs())).min(T::one());
+        let carrier = if self.circle {
+            geom::Curve3::Circle {
+                center: self.center,
+                axis: self.axis,
+                radius: a,
+                u_ref: self.u_ref,
+            }
+        } else {
+            geom::Curve3::Ellipse {
+                center: self.center,
+                axis: self.axis,
+                semi_u: a,
+                semi_v: b,
+                u_ref: self.u_ref,
+            }
+        };
+        carrier.eval(t)
+    }
+}
+
+/// **Where a subdivision bisector stands**: its sector's base vertex
+/// and the face it lies in.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct OnFace<T: geom_core::Real> {
+    /// The sector's base vertex.
+    pub base: Point3<T>,
+    /// The sector's face at the vertex.
+    pub face: FaceBend<T>,
 }
 
 /// **A face at the vertex, as a bound's side is read against it**: the
@@ -656,6 +983,27 @@ pub(crate) fn sagitta_charge<T: Decide>(slope: T, lever: T, reach: T) -> T {
 }
 
 impl<T: Decide> Tie<T> {
+    /// **The witness's offset from the face at `l`**, toward the datum's
+    /// normal, in metres: the bound's point at `l`
+    /// ([`Reach::witness`]) against a curved face's carrier by the
+    /// carrier's own residual ([`Carrier::residual`]), against a plane
+    /// by its height over the plane through the base vertex. `None`
+    /// where the bound has no point behind it or the face no carrier.
+    fn witness_offset(self, l: T) -> Option<T> {
+        let n = self.face.reference.vec();
+        let w = self.reach.witness(self.dir, l)?;
+        match self.face.bend {
+            FaceBend::Plane => Some((w - self.reach.witness(self.dir, T::zero())?).dot(n)),
+            FaceBend::Implicit {
+                gradient, carrier, ..
+            } => {
+                let along = gradient.dot(n);
+                Some(carrier.residual(w) * along / along.abs())
+            }
+            FaceBend::Fitted => None,
+        }
+    }
+
     /// **A bound whose reach the band does not read as a length**, tied:
     /// `fault` is [`read`]'s, on the arm gate's rung (the reach is within
     /// the band, or decided zero there). A consumer that reads such a
@@ -718,7 +1066,7 @@ impl<T: Decide> Tie<T> {
         let uncertified = Ok(Descent::Unresolved(Unresolved::Uncertified));
         let own = match (face.bend, reach) {
             (FaceBend::Fitted, _) | (_, Reach::Bisector { bend: None, .. }) => return uncertified,
-            (FaceBend::Plane, Reach::Conic { extent, bend }) => {
+            (FaceBend::Plane, Reach::Conic { extent, bend, .. }) => {
                 return match geom_brep::conic_bend_side(
                     self.dir,
                     extent,
@@ -753,7 +1101,37 @@ impl<T: Decide> Tie<T> {
             .into_iter()
             .flatten()
             .fold(reach.length(), T::min);
-        match geom_brep::parting_side(own - n * section, face.reference, arm, band) {
+        let probe = geom_brep::parting_side(own - n * section, face.reference, arm, band);
+        if let Some(path) = std::env::var_os("LW_PROBE") {
+            let w_arm = self.witness_offset(arm);
+            let w_reach = self.witness_offset(reach.length());
+            let kind = match reach {
+                Reach::Chord { .. } => "chord",
+                Reach::Extent(_) => "extent",
+                Reach::Conic { .. } => "conic",
+                Reach::Bisector { .. } => "bisector",
+            };
+            let fk = match face.bend {
+                FaceBend::Plane => "plane".to_string(),
+                FaceBend::Implicit { carrier, .. } => format!("{:?}", carrier.surface().kind()),
+                FaceBend::Fitted => "fitted".to_string(),
+            };
+            let verdict = match &probe {
+                Ok(v) => format!("{v:?}"),
+                Err(e) => format!("ESC({:?})", e.diag().margin),
+            };
+            let parting = geom_brep::parting(own - n * section, face.reference.vec(), arm).value();
+            let line = format!(
+                "LWPROBE test={} kind={kind} face={fk} verdict={verdict} parting={parting:?} arm={arm:?} reach={:?} w_arm={w_arm:?} w_reach={w_reach:?}",
+                std::thread::current().name().unwrap_or("?"),
+                reach.length()
+            );
+            use std::io::Write as _;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = f.write_all(format!("{line}\n").as_bytes());
+            }
+        }
+        match probe {
             Ok(verdict) => Ok(Side::of(verdict).map_or(Descent::Rides, Descent::Leaves)),
             Err(escalation)
                 if escalation.rung() == geom_brep::LeverRung::Reading
@@ -812,7 +1190,7 @@ mod tests {
         let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
-        (tangent.normalize() * extent, Reach::Conic { extent, bend })
+        (tangent.normalize() * extent, Reach::Conic { extent, bend, arc: None })
     }
 
     /// **A tie is kept whole at first order and descended on asking**: a
@@ -919,6 +1297,12 @@ mod tests {
                 Vec3::new(0.0, 0.0, nan),
             ),
             radius: 1.0,
+            carrier: Carrier::Sphere {
+                center: Point3::new(0.0, 0.0, -1.0),
+                radius: 1.0,
+                axis: x,
+                u_ref: z,
+            },
         };
         let face = FaceDatum::of_face(OutwardNormal::from_chart(z, true), poisoned, f64::MAX);
         assert!(
@@ -1072,7 +1456,7 @@ mod tests {
                         let tangent = carrier.deriv(0.0);
                         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
                         (
-                            Reach::Conic { extent, bend },
+                            Reach::Conic { extent, bend, arc: None },
                             tangent.normalize() * extent,
                             Box::new(move |l| {
                                 center + (u_ref * (k * l).cos() + d * (k * l).sin()) * radius
@@ -1091,7 +1475,7 @@ mod tests {
                         };
                         let own_n = (p - c).normalize();
                         (
-                            Reach::bisector(0.5, d, own_n, FaceBend::at(&own, p)),
+                            Reach::bisector(0.5, d, own_n, FaceBend::at(&own, p), p),
                             d,
                             Box::new(move |l| c + ((p + d * l) - c).normalize() * rad),
                         )
@@ -1167,7 +1551,7 @@ mod tests {
             let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, chord);
             let tangent = carrier.deriv(0.0);
             let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
-            (tangent.normalize() * extent, Reach::Conic { extent, bend })
+            (tangent.normalize() * extent, Reach::Conic { extent, bend, arc: None })
         };
         let side =
             |s: &geom::Surface<f64>, p, outward: Vec3<f64>, (d, r): (Vec3<f64>, Reach<f64>)| {
@@ -1324,7 +1708,7 @@ mod tests {
             OutwardNormal::from_chart(z, true),
         ));
         for own in [z, -z] {
-            let bisector = Reach::bisector(0.5, x, own, FaceBend::at(&sph, p));
+            let bisector = Reach::bisector(0.5, x, own, FaceBend::at(&sph, p), p);
             let FirstOrder::Tied(tie) = read(x, bisector, face, band()).unwrap() else {
                 panic!("a bisector in the tangent plane ties");
             };

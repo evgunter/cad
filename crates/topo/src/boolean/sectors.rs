@@ -271,6 +271,8 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
     pub at_vertex: BoolFace<T>,
     /// How the face bends at the vertex.
     pub bend: FaceBend<T>,
+    /// The vertex's point.
+    pub base: Point3<T>,
 }
 
 /// **The plane a corner at a cone's apex is read against**
@@ -365,6 +367,7 @@ pub(super) fn build_sectors<T: Decide>(
             face,
             at_vertex,
             bend,
+            base,
         } = corner;
         // The three sector-shape rungs — metering arm, wideness, and
         // the subdivision direction (PR 2's derivation: the cone
@@ -387,7 +390,7 @@ pub(super) fn build_sectors<T: Decide>(
                     (reach_start, reach_end),
                     face,
                     at_vertex,
-                    bend,
+                    (bend, base),
                 );
                 continue;
             }
@@ -412,7 +415,7 @@ pub(super) fn build_sectors<T: Decide>(
                 arm,
             }),
             Some(b) => {
-                let bisector = Reach::bisector(arm, b.normalize(), normal.vec(), bend);
+                let bisector = Reach::bisector(arm, b.normalize(), normal.vec(), bend, base);
                 // Chained order (module docs): the end-sharing half
                 // first, then the start-sharing half.
                 sectors.push(BoolSector {
@@ -478,6 +481,7 @@ fn push_apex_corner<T: Decide>(
         face,
         at_vertex,
         bend,
+        base,
     } = corner;
     // With no plane, the axis's own: square to the axis, it holds no
     // extremal ruling, and the corner reads its arm and its window.
@@ -489,7 +493,7 @@ fn push_apex_corner<T: Decide>(
     let ApexShape { arm, rulings } = apex_corner_shape((end, start), apex, bounds, across, band)?;
     let (unit_end, unit_start) = (end.normalize(), start.normalize());
     // A ruling is a straight line on the cone.
-    let inner = Reach::straight_bisector(arm);
+    let inner = Reach::ruling(arm, base);
     let mut from = (unit_end, end_reach);
     for to in rulings
         .into_iter()
@@ -525,7 +529,7 @@ fn push_full_turn<T: Decide>(
     (start_reach, end_reach): (Reach<T>, Reach<T>),
     face: FaceKey,
     at_vertex: BoolFace<T>,
-    bend: FaceBend<T>,
+    (bend, base): (FaceBend<T>, Point3<T>),
 ) {
     let [q1, q2, q3] = turn.quarters(TurnOrder::FromNext);
     let bounds = [turn.unit_next, q1, q2, q3, turn.unit_own];
@@ -533,7 +537,7 @@ fn push_full_turn<T: Decide>(
         BoolFace::Tangent(normal) => normal.vec(),
         BoolFace::Apex(_) => unreachable!("a slit tip's full turn lies in a tangent plane"),
     };
-    let inner = |q: Vec3<T>| Reach::bisector(turn.arm, q.normalize(), normal, bend);
+    let inner = |q: Vec3<T>| Reach::bisector(turn.arm, q.normalize(), normal, bend, base);
     let reaches = [start_reach, inner(q1), inner(q2), inner(q3), end_reach];
     for k in (0..4).rev() {
         sectors.push(BoolSector {
@@ -607,9 +611,11 @@ pub(super) fn orbit_corners<T: Decide>(
             | geom::Curve3::Ellipse { .. }
             | geom::Curve3::Spiric { .. }
             | geom::Curve3::Nurbs(_) => {
+                let he_plus = he == edge.he_plus;
                 let ConicDeparture { dir, extent, bend } =
-                    ConicDeparture::of(curve, he == edge.he_plus, p_end.distance(p_base));
-                (dir, Reach::Conic { extent, bend })
+                    ConicDeparture::of(curve, he_plus, p_end.distance(p_base));
+                let arc = crate::bound_side::ConicArc::of(curve, he_plus);
+                (dir, Reach::Conic { extent, bend, arc })
             }
         }
     };
@@ -620,10 +626,8 @@ pub(super) fn orbit_corners<T: Decide>(
         let (start, start_reach) = departure(orbit[(i + 1) % n]); // CCW-first
         let (face, at_vertex) = sector_face(body, operand, vertex, he, band)?;
         let face_data = proven(&body.faces, face, EntityId::Face);
-        let bend = FaceBend::at(
-            body.face_surface_linked(face, face_data),
-            body.resolve_vertex_point(vertex, Proven),
-        );
+        let base = body.resolve_vertex_point(vertex, Proven);
+        let bend = FaceBend::at(body.face_surface_linked(face, face_data), base);
         Ok(OrbitCorner {
             he,
             start,
@@ -633,6 +637,7 @@ pub(super) fn orbit_corners<T: Decide>(
             face,
             at_vertex,
             bend,
+            base,
         })
     })
 }
@@ -2392,7 +2397,7 @@ pub(super) fn crescent_refusal<T: Decide>(
 /// own, a line edge's zero; `None` for a bisector or a probe.
 fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
     match reach {
-        Reach::Conic { extent, bend } => Some((bend.curvature, extent)),
+        Reach::Conic { extent, bend, .. } => Some((bend.curvature, extent)),
         Reach::Chord { .. } => Some((Vec3::new(T::zero(), T::zero(), T::zero()), reach.length())),
         Reach::Extent(_) | Reach::Bisector { .. } => None,
     }
@@ -3487,7 +3492,7 @@ mod tests {
         let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
-        (tangent.normalize() * extent, Reach::Conic { extent, bend })
+        (tangent.normalize() * extent, Reach::Conic { extent, bend, arc: None })
     }
 
     /// **The split walk and the boolean read one edge's side of a plane
@@ -3740,7 +3745,7 @@ mod tests {
                         let tangent = carrier.deriv(0.0);
                         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
                         let dir = tangent.normalize() * extent;
-                        let reach = Reach::Conic { extent, bend };
+                        let reach = Reach::Conic { extent, bend, arc: None };
                         if enters_material(dir, n, extent, b) != Ok(EntersMaterial::Tangent) {
                             continue;
                         }
@@ -3828,7 +3833,7 @@ mod tests {
         assert_eq!(
             pierce_side(
                 dir,
-                Reach::Conic { extent, bend },
+                Reach::Conic { extent, bend, arc: None },
                 n,
                 FaceBend::Plane,
                 NO_CURVATURE(),
@@ -3874,7 +3879,7 @@ mod tests {
             SideCode::On,
             "a great arc of a hollow sphere rides it"
         );
-        let Reach::Conic { extent, bend } = reach else {
+        let Reach::Conic { extent, bend, .. } = reach else {
             unreachable!("`quarter_arc` mints a conic reach")
         };
         // The arc's length and extent bounded loosely, but soundly, by
@@ -3906,6 +3911,7 @@ mod tests {
             Reach::Conic {
                 extent: short,
                 bend: loose,
+                arc: None,
             },
             n,
             FaceBend::Plane,
@@ -3919,6 +3925,7 @@ mod tests {
                 bounds: geom_brep::BendBounds::Unbounded,
                 ..bend
             },
+            arc: None,
         };
         let got = pierce_side(dir, spiric, n, FaceBend::Plane, NO_CURVATURE(), b);
         assert!(conic_bend(&got), "a spiric tie: {got:?}");
