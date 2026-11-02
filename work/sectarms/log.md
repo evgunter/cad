@@ -293,3 +293,9 @@ and bodies unchanged. No orchestrator yet.
     - `RectExit` offsets;
     - limb 3.
   - A single full review is running in a cloud session.
+
+- 2026-11-02 22:00 — **PR 6400 review: APPROVE** (single full review in the cloud, no correctness defect).
+  - **Verification:** the reviewer's own base/head dump (17.7 MB) came out byte-identical and covered the pair-lane closed loops and all four `RectExit` sides. Its two mutants (swapped `feet`, `first` off by one) both turned rows red.
+  - **Small pass sent before merge:** `RectExit` silently accepts `first >= N` (narrow the bound and check it); a stale plane-only doc line; document the order of `feet`.
+  - **Class, logged:** `nurbs_nurbs_section` rows built as graphs over (x, y) cannot catch a swapped `feet`. 3a's rows use non-graph charts.
+  - **Unchanged:** MINOR-1 (`feet`'s two-point shape) stays on 3a's list. Ev's PR 6398 has no comments yet.
