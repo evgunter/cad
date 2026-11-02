@@ -33,3 +33,11 @@
   - **The re-check's one new finding:** the same-member link moves two caps meeting face to face, plus the bar, from a uniform typed refusal into BORDERS' order-dependent `Emission` class. Filed as a witness on `work/borders/a-union-over-a-stepped-plate-refuses-in-the-orders-that-fold-the-plate-early.md`, in the PR.
   - **Open, unsure:** `off_members` would read as a seam a `Merged` edge that partly lies along a member edge. It is argued impossible for planar members, but curved members are unchecked. It rides the P1 row's audit.
   - **Waits on Ev's N2 answer.**
+- 2026-11-02 — **PR 6344 review (sequential arm, review 1): APPROVE-WITH-FIXES, no MAJOR, so no second review.** The core contract held under probes and mutation: knife read as smooth and smooth read as knife each go red, and every request equals the same request with its smooth edges removed, on nine fixtures.
+  - **Minors, all sent to the fix pass:**
+    - nothing guards the `blended` filter feeding `corner_at` (the mutant survives);
+    - the refusal-names-its-edge row is weak;
+    - the split finish is a fourth copy of the class-then-pairing composition, missing from the ONEDOOR row;
+    - the filed chain-end row states the wrong first measurement;
+    - the BANDRULE rows cite a scratch path; committed pinning rows replace it.
+  - **Main reds:** 8 slow-set reds in suites with no blend node. The lane is checking which are red on main.
