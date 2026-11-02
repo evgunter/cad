@@ -16,15 +16,16 @@
 //!   ([`ConeApex::turn`]);
 //! - **where two sectors' faces meet at the vertex** ([`meeting`]): two
 //!   planes in a line; a plane and a fan in the plane's section rulings,
-//!   read through the one trace the split and the pierce read
-//!   ([`crate::chord_join::wall_section`]); two fans of one apex in the
+//!   read through the section table's cone arm, the trace the split and
+//!   the pierce read ([`crate::chord_join::cone_apex_plane_section`]);
+//!   two fans of one apex in the
 //!   rulings both cones hold ([`geom_brep::cone_cone_apex_meeting`]), or
 //!   one fan where the cones are one.
 //!
 //! The pair algebra is bound-coded: a sector's side of a partner face is
 //! read off its bounds, which holds where the side is monotone across
 //! the sector. [`super::sectors::build_sectors`] cuts every sector at
-//! its partner faces' extremes ([`super::sectors::ApexPlane`]) so that
+//! its partner faces' extremes ([`super::sectors::Partners`]) so that
 //! it is.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
@@ -32,7 +33,6 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 use super::sectors::{BoolFace, BoolSector, Reach};
 use super::{BooleanError, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
-use crate::chord_join::{SectionCase, WallSection, wall_section};
 use crate::entity::VertexKey;
 use crate::sector_face::ConeApex;
 use crate::validate::decide;
@@ -184,8 +184,9 @@ pub(super) type Side<'a, T> = (Operand, Option<(&'a Body<T>, VertexKey)>, &'a Bo
 /// - Two planes: parallel at the shorter arm (`bool_faces_parallel`)
 ///   is a coincidence; else their line, both rays.
 /// - A plane and a fan: the plane's section of the cone through its
-///   apex (`wall_section`, the trace the split's and the pierce's apex
-///   germs read), each line on the fan's nappe a ray. A plane tangent to
+///   apex (`chord_join::cone_apex_plane_section`, the section table's
+///   cone arm, which the split's and the pierce's apex germs read), each
+///   line on the fan's nappe a ray. A plane tangent to
 ///   the cone along a ruling is a tangency between distinct carriers,
 ///   refused as the pierce refuses a graze.
 /// - Two fans: axes parallel at the shorter arm (`bool_fans_coaxial`)
@@ -224,10 +225,10 @@ pub(super) fn meeting<T: Decide>(
             }
         }
         (BoolFace::Apex(apex), BoolFace::Tangent(normal)) => {
-            plane_fan((a_op, a_site, a, apex), normal.vec(), band)
+            plane_fan(((a_op, a_site, a), apex), normal.vec(), band)
         }
         (BoolFace::Tangent(normal), BoolFace::Apex(apex)) => {
-            plane_fan((b_op, b_site, b, apex), normal.vec(), band)
+            plane_fan(((b_op, b_site, b), apex), normal.vec(), band)
         }
         (BoolFace::Apex(pa), BoolFace::Apex(pb)) => {
             let (axa, axb) = (nappe_axis(pa, a.start), nappe_axis(pb, b.start));
@@ -270,12 +271,7 @@ pub(super) fn meeting<T: Decide>(
 /// [`meeting`]'s plane-and-fan arm: the plane through the apex with unit
 /// outward `normal`, against the fan's face, through the section table.
 fn plane_fan<T: Decide>(
-    (operand, site, fan, apex): (
-        Operand,
-        Option<(&Body<T>, VertexKey)>,
-        &BoolSector<T>,
-        &ConeApex<T>,
-    ),
+    ((operand, site, fan), apex): (Side<'_, T>, &ConeApex<T>),
     normal: Vec3<T>,
     band: Band,
 ) -> Result<Meeting<T>, BooleanError> {
@@ -292,22 +288,24 @@ fn plane_fan<T: Decide>(
             what: "a plane sector's outward normal is not a unit direction",
         }
     })?;
-    let lines = match wall_section(fan_body, band, apex.apex, unit, fan.face, vertex) {
-        Ok(Some(WallSection {
-            case: SectionCase::Straight([l1, l2]),
-            ..
-        })) => vec![l1, l2],
-        Ok(Some(WallSection {
-            case: SectionCase::Tangent(_),
-            ..
-        })) => return Err(tangency()),
-        // A plane through the apex meeting the cone there alone: the
-        // table reads an apex point, an empty conic.
-        Ok(Some(WallSection {
-            case: SectionCase::Conic(_) | SectionCase::Loops { .. },
-            ..
-        }))
-        | Ok(None) => return Ok(Meeting::Rays(Vec::new())),
+    let lines = match crate::chord_join::cone_apex_plane_section(
+        fan_body,
+        band,
+        (apex.apex, unit),
+        fan.face,
+        vertex,
+    ) {
+        Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, l2 }) => vec![l1, l2],
+        Ok(geom_brep::PlaneConeSection::ApexTangentLine(_)) => return Err(tangency()),
+        // The plane meets the cone at its apex alone, or (in band of the
+        // apex, the section starting past it) a conic off the apex, which
+        // the vertex does not meet.
+        Ok(
+            geom_brep::PlaneConeSection::ApexPoint(_)
+            | geom_brep::PlaneConeSection::AxisNormalCircle(_)
+            | geom_brep::PlaneConeSection::TiltedEllipse(_)
+            | geom_brep::PlaneConeSection::OpenConic(_),
+        ) => return Ok(Meeting::Rays(Vec::new())),
         Err(crate::chord_join::SplitJoinError::Escalated { diag, .. }) => {
             return Err(BooleanError::coincidence(
                 Coincide::Sectors,

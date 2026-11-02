@@ -519,7 +519,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         piercing,
         vertex,
         tips,
-        super::sectors::ApexPlane::One(n_pierced.vec()),
+        &super::sectors::Partners::Pierced(n_pierced.vec()),
         band,
     )?;
     let n = sectors.len();
@@ -3704,7 +3704,7 @@ mod tests {
             Operand::A,
             vertex,
             &crate::sector_shape::SlitTips::default(),
-            crate::boolean::sectors::ApexPlane::None,
+            &crate::boolean::sectors::Partners::None,
             band,
         )
         .unwrap();

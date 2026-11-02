@@ -2568,6 +2568,51 @@ fn chord_spec<T: Decide>(
     }))
 }
 
+/// **The plane through a cone face's apex against the cone**, read as the
+/// C5 table's cone arm reads it for a chord ([`wall_section`]): the same
+/// lane, `geom_brep::plane_cone_section`, at the same reach of the face
+/// at `at`, its classification handed back whole. The vertex–vertex
+/// pair search reads where a plane meets a fan of the cone's rulings by
+/// it (`boolean::fan`), and a plane touching the cone at the apex alone
+/// is no chord's case but a meeting there alone, which the chord reading
+/// refuses as its invariant.
+///
+/// # Errors
+///
+/// [`SplitJoinError::SectionInvariant`] for a face that is not a cone;
+/// the face's reach's refusals; the lane's ([`SplitJoinError::Escalated`]
+/// on an escalation).
+pub(crate) fn cone_apex_plane_section<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    (origin, normal): (Point3<T>, UnitVec3<T>),
+    face: FaceKey,
+    at: VertexKey,
+) -> Result<geom_brep::PlaneConeSection<T>, SplitJoinError> {
+    let wall = body
+        .get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .cloned()
+        .ok_or_else(|| corrupt_face(face))?;
+    let SectionReach::Cone(reach) = section_reach(body, at, face, (&wall, None), band)? else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a cone apex's plane section read on a face that is not a cone",
+        });
+    };
+    let plane_s = geom_brep::PlaneSite {
+        origin,
+        normal: normal.get(),
+    };
+    geom_brep::plane_cone_section(&plane_s, &wall, &reach, band).map_err(|e| match e {
+        geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
+        other => SplitJoinError::Section {
+            face,
+            source: other,
+        },
+    })
+}
+
 /// What the split plane cuts a curved face in: the face's wall surface
 /// and THE C5 table's verdict for the pair. `None` for a planar face;
 /// a kind the split's gate refuses is refused typed. `at` is a vertex
