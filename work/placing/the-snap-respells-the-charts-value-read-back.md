@@ -2,11 +2,12 @@
 id: the-snap-respells-the-charts-value-read-back
 kind: issue
 title: snap::snapped re-derives the value chart's spin and slide read-back in the viewer because the kernel's Chart has no public door
-status: open
+status: closed
 opened: 2026-11-02
 priority: P3
 cost: M
 rides_with: mate-tool-commits-one-mate
+closed: 2026-11-02
 ---
 
 
@@ -17,3 +18,7 @@ Found by PLACING's second INTENT sweep (2026-11-02; Ev on PR 6281), read at `72c
 These match `Chart::spin` and `Chart::slide` term for term today, so there is no behaviour break; this was compared by reading, not run. `[placement.values]` is one chart, and `mate/turn.rs` declares itself the one home of these readers. A second spelling is a drift risk.
 
 The bundle editor rewrites `snapped` (the "generalised snap", `mate-tool-commits-one-mate`'s build notes). When it does, it reads values back through a kernel door rather than re-spelling them. Opening that door is MSOLVE's ground (`mate/value.rs`), so the lane says so on MSOLVE's log.
+
+## Closed (2026-11-02, PR 6300)
+
+Answered by the bundle editor as merged, with its dual review's fix passes; see `mate-tool-commits-one-mate`'s Closed section and `docs/dual-review-log/rows/PR-6300.md`.

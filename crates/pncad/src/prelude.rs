@@ -202,11 +202,13 @@ pub use ::profile::{
 // the value and not name its type; and `circle_split` is the
 // declared-subdivision carrier the boss corpus authors with (the
 // `bossplate` scene's three-arc rim IS one), so `circle` alone left
-// half of the closed-carrier vocabulary a crate away.
+// half of the closed-carrier vocabulary a crate away; `rectangle` is
+// the third complete-loop form, beside them.
 pub use ::profile::{
     ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ClosedLoop, ContinueTarget, CornerReason,
     CornerRefusal, CornerWindow, LineTarget, OntoTarget, Open, PartialPath, PathError,
     PathNoCornerReason, Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
+    rectangle,
 };
 // **The profile refusals' own payload vocabulary**, carried beside
 // the refusals for the reason the blend four ride in group 3: a

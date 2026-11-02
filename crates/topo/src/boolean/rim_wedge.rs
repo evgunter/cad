@@ -44,6 +44,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 use crate::validate::{MaterialArmOutcome, MaterialStations};
 use crate::{Body, FaceKey};
 use geom_brep::MaterialWedge;
+use geom_brep::ladder::{Answering, Climb, IdentityLadder, Rung, climb, read_identity};
 
 /// A rim circle, in the data the curve carries: centre, unit axis,
 /// radius and the seam reference the sampling phase starts from.
@@ -142,50 +143,41 @@ pub(crate) fn shared_rim<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
-    // A pair decided one answers whatever another pair read; an
-    // undecided pair refuses only where none is.
-    let mut undecided = None;
-    let mut undecided_logs = Vec::new();
-    for ra in face_boundary_circles(a, fa) {
-        for rb in face_boundary_circles(b, fb) {
-            let (read, log) = geom_core::k_stats::detached(|| same_circle(ra, rb, band));
-            match read {
-                Ok(Some(margin)) => {
-                    undecided_logs
-                        .into_iter()
-                        .for_each(geom_core::k_stats::splice_superseded);
-                    geom_core::k_stats::splice(log);
-                    return Ok(Some((ra, margin)));
-                }
-                Ok(None) => geom_core::k_stats::splice(log),
-                Err(diag) => {
-                    undecided_logs.push(log);
-                    undecided.get_or_insert(diag);
-                }
-            }
-        }
-    }
-    undecided_logs
+    // A pair decided one answers whatever another pair read: the ladder
+    // whose answer is a pair decided one. Which pair answers names the
+    // rim, and that it is THE shared rim rests on no earlier pair being
+    // one too (a face pair riding two circles is outside this door), so
+    // an undecided pair ahead of the answer stays live
+    // (`Answering::First`).
+    let bs = face_boundary_circles(b, fb);
+    let pairs = face_boundary_circles(a, fa)
         .into_iter()
-        .for_each(geom_core::k_stats::splice);
-    undecided.map_or(Ok(None), Err)
+        .flat_map(|ra| bs.iter().map(move |&rb| (ra, rb)));
+    match climb(Answering::First, pairs, |(ra, rb)| {
+        match same_circle(ra, rb, band) {
+            Ok(Some(margin)) => Rung::Answers((ra, margin)),
+            Ok(None) => Rung::Passes,
+            Err(diag) => Rung::kept(diag),
+        }
+    }) {
+        Climb::Answered { answer, .. } => Ok(Some(answer)),
+        Climb::Passed => Ok(None),
+        Climb::Undecided(diag) => Err(diag),
+    }
 }
 
-/// Whether two circles are one, on their own data at `band`, by the
-/// identity ladder's rule ([`super::carrier_eq::identity_data`]): any
-/// datum decided apart answers no, so an in-band radius never hides a
-/// centre decided elsewhere. Radius and centre first, angle last — the
+/// Whether two circles are one, on their own data at `band`: the
+/// identity ladder ([`read_identity`]), so an in-band radius never hides
+/// a centre decided elsewhere. Radius and centre first, angle last — the
 /// two LENGTH data separate almost every non-rim pair definitely and
 /// cheaply. [`shared_rim`]'s docs carry the rest. The circles' one
-/// margin, where every datum decides Zero: the radius row's, standing
-/// jointly for the others.
+/// margin, where every datum decides Zero: the data's, taken jointly.
 fn same_circle<T: Decide>(
     ra: Rim<T>,
     rb: Rim<T>,
     band: Band,
 ) -> Result<Option<geom_core::MarginDiag>, Indeterminate> {
-    use super::carrier_eq::IdentityData;
-    match super::carrier_eq::identity_data(
+    match read_identity(
         [
             ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
             ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
@@ -196,9 +188,9 @@ fn same_circle<T: Decide>(
         ],
         band,
     ) {
-        IdentityData::Distinct => Ok(None),
-        IdentityData::One(margin) => Ok(margin),
-        IdentityData::Undecided(measure) => Err(measure.reported()),
+        IdentityLadder::Apart { .. } => Ok(None),
+        IdentityLadder::Zero(margin) => Ok(margin),
+        IdentityLadder::Undecided(diag) => Err(diag),
     }
 }
 
@@ -741,7 +733,7 @@ fn crossings<T: Decide>(
     let inside = |m: T| matches!(read(m), Ok(geom_core::Sign::Positive));
     let mut candidates: Vec<Point3<T>> = Vec::new();
     match (curve.carrier(), locus) {
-        (geom::Curve3::Line { .. }, _) => {
+        (geom::Curve3::Line(_), _) => {
             let p1 = curve.carrier().eval(t1);
             let w = p1 - p0;
             match locus {
@@ -822,7 +814,7 @@ fn crossings<T: Decide>(
                         candidates.push(origin + dir * (ae.dot(ce - origin) / ad));
                     }
                     if maybe_zero(ad) && maybe_zero(ae.dot(origin - ce)) {
-                        let foot = origin + dir * (ce - origin).dot(dir);
+                        let foot = geom::Line { origin, dir }.foot(ce);
                         let h = (foot - ce).norm();
                         if maybe_not_positive(h - re) {
                             let half = (re.powi(2) - h.powi(2)).max(T::zero()).sqrt();
@@ -910,7 +902,7 @@ fn rides<T: Decide>(
             band,
         )
         .map(|one| one.is_some()),
-        (Locus::Line { origin, dir }, geom::Curve3::Line { .. }) => {
+        (Locus::Line { origin, dir }, geom::Curve3::Line(_)) => {
             let (t0, t1) = curve.params();
             for p in [curve.carrier().eval(t0), curve.carrier().eval(t1)] {
                 let d = p - origin;

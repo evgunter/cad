@@ -2,11 +2,11 @@
 id: circle-and-ellipse-frame-arms-re-spell-conic-of
 kind: issue
 title: LoopArc::of and the section outline's Circle and Ellipse arms re-spell geom_brep::Conic::of
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: E
-design: true
+branch: onehome/conic-frame
 ---
 
 Found by the class sweep on `cleave/carrier-cross-one-curve`, which
@@ -46,3 +46,13 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 - Banded P1: two frames re-spell `Conic::of`'s arms: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Priced `E`, the effort the body describes.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Decided (Ev, PR 6325, 2026-11-02)
+
+DESIGN `[one-way]` gains the general rule: two types never carry the same fields; a part kinds share is named for what it means and is one type each kind holds. For the conic, Ev chose the shape below over one merged `Curve3::Conic` variant ("we shouldn't just degrade every circle into an ellipse"), and asked that the specifics live in a more specific document than DESIGN: `geom`'s curve module docs, written by the unit.
+
+- `Curve3::Circle` and `Curve3::Ellipse` stay two kinds. Each holds one `geom::ConicFrame { center, axis, u_ref }` (the placement alone: a point and an oriented orthonormal basis, `v_ref = axis × u_ref`) beside its own shape (`radius`; `semi_u, semi_v` in stored order, which is where the seam sits).
+- A reading of the placement alone takes a `&ConicFrame`. A reading either kind can answer (a point at θ, the angle of a point, speed bounds, the major frame) is a method of a `Conic` trait both implement. Which semi-axis is larger is a reading of the ellipse (it replaces `Curve3::semi_axes_by_size`).
+- Every other spelling goes: `geom_brep::implicit::Conic`, `geom`'s private `curves/boxes.rs` `ConicFrame` and `carrier_speed::SemiAxes`, and topo's `ring_path::Conic`/`LoopArc::of`, `section_loops` outline conic, `ruled_region::Conic`, `loop_winding::ConicFrame`, `chord_join::SectionConic`, `containment::ConicArc` and `boolean/boxes.rs` `ConicArc`. Each keeps only what it adds (a span, an own loop, end points).
+- Both semi-axes are positive at every door. Certification's check 2 stops admitting a negative `semi_u`, and the magnitude `.abs()` sites and `loop_winding`'s signed hedge go.
+- Riding it: `semi-axes-by-size-misses-seven-inline-sites` and `a-conics-eccentric-anomaly-is-read-five-ways`.

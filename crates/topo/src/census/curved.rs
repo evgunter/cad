@@ -505,7 +505,7 @@ mod tests {
     }
 
     fn line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Line { origin, dir }
+        Curve3::Line(geom::Line { origin, dir })
     }
 
     /// The rational quadratic arc from `(0, 0)` to `(2, 0)` through

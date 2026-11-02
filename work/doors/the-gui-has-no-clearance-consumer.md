@@ -2,11 +2,11 @@
 id: the-gui-has-no-clearance-consumer
 kind: issue
 title: the GUI has no clearance consumer: no verdict, no witness, no refusal
-status: parked
+status: dispatched
 opened: 2026-09-30
 priority: P1
 cost: M
-blocked_on: [a-clearance-assertion-is-decided-by-the-sweep]
+branch: doors/clearance-consumer
 ---
 
 ## What the GUI is missing

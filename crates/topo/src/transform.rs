@@ -476,10 +476,9 @@ fn map_carrier<T: Real>(
     c: &Curve3<T>,
 ) -> Result<Curve3<T>, TransformError> {
     Ok(match *c {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: map.transform_point(origin),
-            dir: map_vec(map, dir),
-        },
+        Curve3::Line(geom::Line { origin, dir }) => {
+            Curve3::line(map.transform_point(origin), map_vec(map, dir))
+        }
         Curve3::Circle {
             center,
             axis,

@@ -1092,7 +1092,7 @@ pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bo
     match carrier {
         Curve3::Nurbs(_) => crate::edge_nurbs::is_analytic(surface),
         Curve3::Circle { .. } => matches!(surface, Surface::Sphere { .. }),
-        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => false,
+        Curve3::Line(_) | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => false,
     }
 }
 
@@ -1170,7 +1170,7 @@ pub(crate) fn project<T: Decide>(
                 span: t1 - t0,
             }
         }
-        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
+        Curve3::Line(_) | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
             unreachable!("project: `has_lane` admits no line, ellipse or spiric")
         }
     };

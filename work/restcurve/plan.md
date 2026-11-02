@@ -80,3 +80,31 @@ The fork-log rows 221 and 222 carry the recommendation halves. Their second comm
 - Read a ratified sentence's code before explaining it to Ev: "a seam is a property of a face" was misread.
 
 **One more lesson (2026-10-31):** never create a cloud session in the same tool batch as the lookup of its SHA. A parallel call sent a short SHA and a placeholder prompt; it failed at start and touched nothing.
+
+## Handoff (2026-11-02, end of the second sitting)
+
+The sitting ended because no P0 or P1 remains. It closed five rows:
+- PR 6163: the region arm, `validate-tier3-curved-boundary-containment`;
+- PR 6244: torus windows a hair apart at the certified scalar;
+- PR 6252: the sphere door settles a pole at the certified scalar;
+- PR 6307: the two-leg sphere path, and tier 3's pole side through the door, which retires tier 3's `walk_loop`;
+- the hair-gap row it filed.
+
+**State.** Tier 3 reads one region per face on every analytic kind, and reads a chart singularity's side through the face's door. The doors settle poles, hair gaps and antipodal crossings at Interval. Every rule above has rows that a mutant turns red.
+
+**What is left (all P3 or unpriced):**
+- `a-loop-the-chart-singularity-walk-cannot-certify-is-exempt`: tier 3 no longer reads `walk_loop`. Only step-import does, through FOREIGN's `import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave`. Close this row for tier 3 when that lands, or re-scope it to import.
+- `a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt`: `place_on_boundary`'s sampled-carrier exemption.
+- `check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges` (H).
+- `the-cone-door-reads-an-apex-generators-crossings-through-a-cut-angle`: it now cites the readings the other doors move onto (`span_at_nearer_end`, `first_harmonic_root_directions`). ROOTS' `an-angle-opposite-its-spans-middle-…` is the same class across the torus and ruled doors.
+- `the-region-arm-is-silent-on-spline-faces-and-off-admits-edges`: it now also lists sphere and cone edges outside the doors' `admits`, which tier 3 exempts since `walk_loop` retired.
+- Two unpriced rows.
+
+**Follow-ups noted on PRs, not yet rows:**
+- The sphere door keeps its own aimed-path schedule rather than `region::walk`'s (PR 6307's style finding).
+- `CircleFamily::Rim`'s own-parameter route could take the point reading (PR 6244).
+
+**Lessons from this sitting:**
+- Every review round of a door change found a false refusal at the certified scalar. Brief reviewers to probe Interval hard, and verify each pass's door change with a base-vs-head differential.
+- An implementer polling a long sweep in the foreground misses `next`-priority messages; send `now`.
+- Two worktrees on one branch name move each other's HEAD. Work in a detached worktree and push by refspec.

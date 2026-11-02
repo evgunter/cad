@@ -33,7 +33,7 @@ pub(crate) fn endpoint_params(
     self_loop: bool,
 ) -> Result<(f64, f64), StepImportError> {
     match carrier {
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             if self_loop {
                 return Err(StepImportError::Topology {
                     id,
@@ -198,10 +198,7 @@ mod tests {
         // Chosen so the escape is an `Ok`, not a refusal with the
         // wrong sentence: the start projects to a finite `HUGE` and
         // the end to `+∞`, and `+∞ > HUGE` is `Greater`.
-        let carrier = Curve3::Line {
-            origin: Point3::new(0.0, 0.0, -HUGE),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let carrier = Curve3::line(Point3::new(0.0, 0.0, -HUGE), Vec3::new(0.0, 0.0, 1.0));
         let p_start = Point3::new(0.0, 0.0, 0.0);
         let p_end = Point3::new(0.0, 0.0, HUGE);
         match endpoint_params(9, &carrier, p_start, p_end, false) {

@@ -578,10 +578,7 @@ fn plane_cone_decides_the_apex_gap_and_the_discriminant_as_one_sum() {
     };
     let got = at(INSIDE * z, INSIDE * z);
     assert!(
-        matches!(
-            got,
-            Ok(PlaneConeSection::ApexTangentLine(Curve3::Line { .. }))
-        ),
+        matches!(got, Ok(PlaneConeSection::ApexTangentLine(Curve3::Line(_)))),
         "inside: the tangent generator, got {got:?}"
     );
     let got = at(SPLIT * z, SPLIT * z);

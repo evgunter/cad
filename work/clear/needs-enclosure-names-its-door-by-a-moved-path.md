@@ -16,7 +16,7 @@ carries `door: "clearance::min_separation"` (`editor-core/src/eval/wire.rs`,
 the `min_clearance` arm of the measure evaluation). SHELL-3 moved that
 door to `topo::clearance::min_separation` and left the string alone:
 it is rendered text, pinned by
-`m10_6_min_clearance_interval.rs` (three rows),
+`m10_6_clearance_assertion_interval.rs` (three rows),
 `r2_m10_6_probes_interval.rs`, `pncad-py/src/tests.rs`'s
 `the_fourth_verbs_two_refusals_are_stable` and
 `pncad-py/tests/test_measures.py`, and a move with no behaviour change

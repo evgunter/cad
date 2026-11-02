@@ -131,14 +131,16 @@ pub const fn var_kind_tag(kind: pncad::document::VarKind) -> &'static str {
 /// The stable tag for what an operand slot admits: a kind's own word
 /// ([`var_kind_tag`]), `placeable` (a body or a list of bodies),
 /// `measured` (what a measure's reference reads: a body, a face, an
-/// edge or a vertex), or the word of what a pose definition's read
-/// admits ([`pose_admits_tag`]).
+/// edge or a vertex), `cleared` (what a clearance assertion's seat
+/// reads: a body or a face), or the word of what a pose definition's
+/// read admits ([`pose_admits_tag`]).
 pub const fn slot_kind_tag(kind: pncad::document::SlotKind) -> &'static str {
     use pncad::document::SlotKind as K;
     match kind {
         K::Is(kind) => var_kind_tag(kind),
         K::Placeable => "placeable",
         K::Measured(_) => "measured",
+        K::Cleared => "cleared",
         K::Pose(admits) => pose_admits_tag(admits),
     }
 }
@@ -171,9 +173,9 @@ pub const fn pose_admits_tag(admits: pncad::document::pose::PoseAdmits) -> &'sta
 /// moving this map in means weakening the one claim that makes the
 /// reader exact, for four words. Capitalised Python-visible
 /// vocabulary is not rare and this is not the only list of it:
-/// [`ErrorClass::class_name`] mints 35 exception-class names below,
+/// [`ErrorClass::class_name`] mints 34 exception-class names below,
 /// `py::value::Verdict`'s `status` answers `Holds`/`Violated`/
-/// `Unevaluated`, and every fieldless `#[pyclass]` enum under
+/// `Unevaluated`/`Refused`, and every fieldless `#[pyclass]` enum under
 /// `src/py/` carries capitalised member names. What is true of this
 /// list alone is that its four words are a second spelling of
 /// [`dimension_tag`]'s four, which is why it belongs beside them —
@@ -500,26 +502,6 @@ pub enum ErrorClass {
     /// it to uniform, so the door that would have to guess raises
     /// instead, naming the parameter.
     Measure,
-    /// A measure whose value is an ENCLOSURE, read at a build whose
-    /// scalar is a point (E3/E7, M10-6). The Python class keeps the
-    /// Rust type's own name,
-    /// [`MeasureUnavailableAt`](pncad::document::MeasureUnavailableAt).
-    ///
-    /// **Deliberately not [`Self::Measure`], and the two names are
-    /// one word apart on purpose.** That one is the ANALYSIS lane
-    /// refusing to price a mass whose parameter carries a band; this
-    /// one is the MEASUREMENT lane saying a `min_clearance` has no
-    /// value at the `f64` scalar the binding evaluates at. Different
-    /// kernel types, different questions, and a caller catching one
-    /// must not catch the other — so each keeps its own Rust name and
-    /// neither subclasses the other.
-    ///
-    /// A typed ABSENCE rather than a failure: the measure node
-    /// evaluates successfully and says what it cannot say, which is
-    /// why an assertion over it reports `Unevaluated` carrying this
-    /// reason instead of being poisoned. The payload names the DOOR
-    /// that could answer, so the recourse is in the refusal.
-    MeasureUnavailableAt,
     /// An analysis policy that cannot be honoured: a quantile mass
     /// outside `(0, 1)`. The Python class keeps the Rust type's own
     /// name,
@@ -616,7 +598,6 @@ impl ErrorClass {
             Self::Enforce => "CheckRefusal",
             Self::Distribution => "DistributionFault",
             Self::Measure => "MeasureUnavailable",
-            Self::MeasureUnavailableAt => "MeasureUnavailableAt",
             Self::AnalysisPolicy => "AnalysisPolicyError",
             Self::Mc => "McRefusal",
             Self::StepHandle => "StepHandleError",
