@@ -1419,12 +1419,12 @@ mod tests {
                         edge: EdgeKey::from(KeyData::from_ffi(k as u64 + 1)),
                         r#loop: LoopKey::default(),
                         cycle: 0,
-                        carrier: geom::Curve3::Circle {
-                            center: p3([c[0] + r * cen[0], c[1] + r * cen[1], c[2] + r * cen[2]]),
-                            axis: v3(rot(beta, ax)),
-                            radius: l(r * rad),
-                            u_ref: v3(rot(beta, u)),
-                        },
+                        carrier: geom::Curve3::circle(
+                            p3([c[0] + r * cen[0], c[1] + r * cen[1], c[2] + r * cen[2]]),
+                            v3(rot(beta, ax)),
+                            l(r * rad),
+                            v3(rot(beta, u)),
+                        ),
                         t0: l(t0),
                         t1: l(t1),
                         turn: turn(t0, t1),
