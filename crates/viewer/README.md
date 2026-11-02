@@ -914,7 +914,7 @@ neither.
 | Module | Holds |
 |---|---|
 | `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `ShapeKind`, `PatternLayoutChoice` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the two enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum (the mate tool's `MATE_KINDS`, a deliberately partial mirror of `VarKind`, lives beside the tool in `matetool`). A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
-| `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door, and `RowEdit` a change to the shape of one of its step lists), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-profile form's `SessionOp` (on its own plane, or sketched on a picked face) — the same layer as `session::author`, and today the larger half of it |
+| `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is a committed profile's program held as written, for the edit door, which the add-profile form's step list edits through each step's view at plain numbers, and `RowEdit` a change to the shape of one of its step lists), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-profile form's `SessionOp` (on its own plane, or sketched on a picked face) — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `RankedVerdict`, `Badge`, the doors that build one and the two that spend one — `deliver` for a policy's `StatusUpdate`, `apply` for the ranking's `RankedVerdict`, each taking only its own type, so the compiler rejects a policy's verdict at the ranked door — though a hand-built `RankedVerdict::Show` still passes, which is `work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors.md`), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`) and the one a failed instance makes (`version_offer`), what a folded event stream amounts to (`folded_is_a_camera_event`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, whose `unusable` answers the reason a dialog the environment cannot put up gives for being disabled; `chooser_backend`; `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`) and the WSL probe (`running_under_wsl`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
 | `idpass` | The GPU id pass's bookkeeping: what query is outstanding, what it was asked about, how its reply travels back, and what that reply is worth when it comes (`IdQueryLog`, `IdSubject`, `IdStep`, `IdChannel`, `IdReply`, `ReadbackFault`, `IdAnswer`, `Disagreement`, `IdNews`, `compare`). The id pass is a round trip — one frame issues a query, a later frame reads the answer, and in between the cursor can move, the picture can be rebuilt and the index can be replaced — so the only thing that can say whether an answer still describes its question is state carried ACROSS frames. That is what puts it here rather than in `frame`, whose policies are values precisely so they can be replayed: everything in this module REMEMBERS, or carries what is remembered from the frame that asked to the frame that reads. That includes the reply's failure, `ReadbackFault`: `gpu` raises it, but the frame reads it and `gpu` is `app`-only, so it is named here, carrying the device's words as text and no driver type. The failure it remembers against is an answer outliving its question, which does not look like a fault — it reports as *the two picking paths disagree* |
@@ -1538,7 +1538,14 @@ box of the `f32` corners that crossed the display seam, widened back.
 A preview that failed to replay draws nothing and frames nothing; a
 loop of one vertex frames its point. The previews' step marks are not
 in it, nor is anything else sized by the view: a fit that framed them
-would depend on the camera it is choosing. So a frame builds the
+would depend on the camera it is choosing. Nor is a preview's
+construction — the two sides each fused fillet step's fit was handed,
+whole, each with a heading mark at its anchor, and the fillet circle
+the fit found (`sketch::drawn`, out of the preview's own replay),
+drawn in their own lane under the kept pieces, and drawn when the
+step's fit refuses too: a carrier is a whole circle, and one large
+enough to fillet against would frame the profile as a speck. So a
+frame builds the
 geometry lanes, derives the extent, fits, folds the pointer's events,
 and only then sizes the marks against the camera that settled — one
 pure function, `pane::viewport::frame_camera`, whose order a row
@@ -2051,21 +2058,26 @@ the tool lists it twice and the session door commits it like any other
 document; the door's only per-operand check is the node kind
 (`Refusal::WrongNodeKind`), at every operand.
 
-### The picture draws bodies
+### What the picture shows
 
-A new body lands unplaced, in a space of its own (Ev, 2026-10-31), and
-the picture draws bodies, not placements. **A body is drawn unless an
-operation reads it as a body**: as an operator's operand (`∪ − ∩ ⊔`),
-as a one-input operation's input (a fillet, a split, a mirror), or as a
-placement's source, wherever the copy lands. A read of one member of a
-family takes over that member alone. A mate reads a pose, a selection
-or a measure observes, an assertion states: none of them hides a body.
-So an extrude is drawn at once; a fillet of it is drawn in its place;
-a pattern of it draws the family, member 0 standing where the body
-stood; and once the body is placed into the world its own picture goes,
-while a body beside it that nothing reads stays drawn. The product
-stays the slot the document writes: only the picture is derived, and
-nothing it derives re-enters the model.
+**Every body is shown by default except intermediate ones, and the
+View pane can show or hide any body.** A body is intermediate when
+another body is built from it:
+- an operand of `∪ − ∩ ⊔`;
+- the input of a fillet, split or mirror;
+- the source of a placement, whose copy is shown in its place.
+
+A read of one member of a family makes that member alone intermediate.
+Mates, selections, measurements and assertions build no body, so they
+make nothing intermediate. So an extrude is shown as soon as it exists
+(it lands unplaced, in a space of its own: Ev, 2026-10-31), a fillet of
+it is shown in its place, a pattern of it shows the family with member
+0 standing where the body stood, and once the body is placed into the
+world its copy is shown and the body is not. A body beside it that
+nothing builds from stays shown. The default is derived from the recipe
+alone. Show and hide in the View pane are display state on top of it,
+and never enter the model. The product stays the slot the document
+writes.
 
 Each drawn body is drawn in its own space through the one composing
 door (`editor_core::mate::solve::in_space`), a `⊔` as its pieces. The
@@ -2181,7 +2193,10 @@ identity bundle (`editor_core::stand`: no mate, and the constant `0` on
 each slide and spin), in one action. A pattern, fused or not, lands
 where the pick was seen and takes the seen body over along the path it
 was seen through (a placement's source, a `⊔` operand, the product
-slot), member 0 standing where that body stood. A duplicate of a copy
+slot), member 0 standing where that body stood. A split takes the seen
+body over the same way, by `above ⊔ below`, its two halves standing
+where that body stood; where nothing reads the body along such a
+path, the split's halves are drawn in its place. A duplicate of a copy
 is one more copy in that copy's space, by values on every freedom at
 the copy's evaluated motion and no mate, one step along the original's
 own `x`; a duplicate of an unplaced body is two copies in its own
