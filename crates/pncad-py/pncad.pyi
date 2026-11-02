@@ -5709,8 +5709,9 @@ class Evaluation:
         instance was a memo hit: a reused node never asks."""
     @property
     def canceled(self) -> bool:
-        """Whether this run was CANCELED — the kernel's `EvalOutcome`,
-        whose two variants are a yes/no and cross as one.
+        """Whether this run was CANCELED — the kernel's
+        `EvalOutcome.Canceled`; its other stop, running out of member
+        budget, crosses as `exhausted`.
 
         True means `evaluate`'s `cancel=` token was observed set at a
         yield point. `order()` is still the FULL deterministic order —

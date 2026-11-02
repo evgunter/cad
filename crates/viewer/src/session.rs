@@ -953,6 +953,18 @@ impl DocSession {
                 evaluation: None, ..
             } => Staged::Checking,
             StageAnswer::Made {
+                doc,
+                evaluation: Some(evaluation),
+                ..
+            } if let pncad::document::EvalOutcome::Exhausted { at, held, budget } =
+                evaluation.outcome =>
+            {
+                Staged::Exhausted {
+                    doc,
+                    out: OutOfBudget { at, held, budget },
+                }
+            }
+            StageAnswer::Made {
                 node,
                 doc,
                 evaluation: Some(evaluation),
@@ -4274,6 +4286,14 @@ pub enum Staged<'a> {
     Refused(&'a Refusal),
     /// Its run has not landed.
     Checking,
+    /// Its run ran out of its member budget: the draft is not evaluated,
+    /// and evaluating it again runs out at the same family.
+    Exhausted {
+        /// The staged document.
+        doc: &'a Doc<ProfileProgram>,
+        /// Where its run ran out.
+        out: OutOfBudget,
+    },
     /// Its run landed: the staged document, the node the operation made
     /// in it, and the document's evaluation.
     Evaluated {

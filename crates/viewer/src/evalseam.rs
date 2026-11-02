@@ -839,8 +839,10 @@ pub trait StagedService {
     fn busy(&self) -> bool;
 }
 
-/// The staged run: the document under the landed memo, answered only
-/// when it reached every node.
+/// The staged run: the document under the landed memo, answered when it
+/// reached every node or ran out of its member budget — the second an
+/// answer of its own, which re-running the same draft would only repeat.
+/// A canceled run answers nothing.
 fn run_staged(request: StagedRequest, cancel: &CancelToken) -> Option<StagedDone> {
     let StagedRequest {
         key,
@@ -850,7 +852,7 @@ fn run_staged(request: StagedRequest, cancel: &CancelToken) -> Option<StagedDone
         tol,
     } = request;
     let evaluation = evaluate(&doc, prime.as_deref(), cancel, &options(&resolver), tol);
-    (evaluation.outcome == EvalOutcome::Completed).then(|| StagedDone {
+    (evaluation.outcome != EvalOutcome::Canceled).then(|| StagedDone {
         key,
         evaluation: Arc::new(evaluation),
     })

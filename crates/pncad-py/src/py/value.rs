@@ -1421,9 +1421,9 @@ impl Evaluation {
         Err(standing_raise(py, &self.doc, &self.inner, *node, standing))
     }
 
-    /// **Whether this run was CANCELED** — the Python shape of the
-    /// kernel's `EvalOutcome`, whose two variants are a yes/no and
-    /// cross as one.
+    /// **Whether this run was CANCELED** — the kernel's
+    /// `EvalOutcome::Canceled`; its other stop, running out of member
+    /// budget, crosses as [`Self::exhausted`].
     ///
     /// `True` means the token passed as [`super::value::evaluate`]'s
     /// `cancel=` was observed set at a yield point, so

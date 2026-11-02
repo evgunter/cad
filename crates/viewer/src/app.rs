@@ -3172,16 +3172,36 @@ mod tests {
         use crate::pickcache::IndexSeam;
         use crate::session::{DocSession, Outstanding};
 
-        const WORDS: [&str; 5] = [
+        let tol = pncad::tolerance::witness();
+        // The plate, and the plate with a row of `u32::MAX` copies of it,
+        // which runs out of the default member budget at the row.
+        let (plate, body) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let (huge, row) = crate::test_support::row_of_copies(
+            &plate,
+            body,
+            i64::from(u32::MAX),
+            (pncad::document::TargetAxis::X, 0.05),
+            tol,
+        );
+        let out = crate::session::OutOfBudget {
+            at: row,
+            held: 0,
+            budget: pncad::document::DEFAULT_MEMBER_BUDGET,
+        };
+        let out_line = crate::app::exhausted_line(&huge.spoken(row).to_string(), out);
+        let words = [
             "evaluating…",
             "Cancel",
             CANCELED_LINE,
             "Re-evaluate",
             "indexing…",
+            &out_line,
         ];
-        let tol = pncad::tolerance::witness();
         let session = |outstanding: Outstanding| {
-            let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+            let document = match outstanding {
+                Outstanding::Exhausted(_) => huge.clone(),
+                _ => plate.clone(),
+            };
             let mut session = DocSession::inline(document, tol);
             session.pump();
             match outstanding {
@@ -3194,9 +3214,7 @@ mod tests {
                     session.perform(SessionOp::CancelEvaluation);
                     session.pump();
                 }
-                Outstanding::Exhausted(_) => {
-                    unreachable!("the plate runs out of no budget; the table below plants none")
-                }
+                Outstanding::Exhausted(_) => {}
             }
             assert_eq!(
                 session.outstanding(),
@@ -3229,7 +3247,7 @@ mod tests {
             );
             row.painted
                 .into_iter()
-                .filter(|text| WORDS.contains(&text.as_str()))
+                .filter(|text| words.contains(&text.as_str()))
                 .collect::<Vec<_>>()
         };
         for (outstanding, index, expected) in [
@@ -3254,6 +3272,13 @@ mod tests {
                 Outstanding::Canceled,
                 IndexSeam::Building,
                 vec![CANCELED_LINE, "Re-evaluate", "indexing…"],
+            ),
+            // No picture lands for the row, so no index is built behind
+            // it: the one pair is the idle one.
+            (
+                Outstanding::Exhausted(out),
+                IndexSeam::Idle,
+                vec![out_line.as_str()],
             ),
         ] {
             assert_eq!(

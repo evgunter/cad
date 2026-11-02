@@ -149,6 +149,11 @@ pub struct Evaluation<T: Decide> {
     /// part — contributes to THIS count too, so the number is the whole
     /// run's seam traffic rather than one level's.
     pub part_evaluations: usize,
+    /// **The listing steps this run's admission charged**: every
+    /// family's and every part's, to the node it ran out at where it
+    /// did ([`EvalOptions::member_budget`]). What an instance of this
+    /// document, as a part, is charged ([`parts::PartValue::steps`]).
+    pub(crate) listed: u64,
     /// The document's appearance store resolved against THIS
     /// evaluation's name tables (M4 PR 7): per node, entity →
     /// attributes, so a renderer/exporter consumes appearance without
@@ -1010,6 +1015,7 @@ impl Evaluation<f64> {
             tolerance: tolerance_of(tol),
             whole_refusal: false,
             prior_refused: None,
+            listed: 0,
             recomputed: order.len(),
             order,
             nodes,
@@ -3101,8 +3107,8 @@ pub struct EvalOptions {
 /// ([`EvalOptions::member_budget`]). A member costs about 17.5 KB and
 /// 1.1 ms in a debug build (a ring of copies of one block), so the
 /// default admits about 1.1 GB and a minute and a quarter of members:
-/// within a desktop's memory, and as large as the subdivision driver's
-/// leaf budget ([`crate::drive::DEFAULT_MAX_LEAVES`]).
+/// well within a desktop's memory, and short enough that a run nobody
+/// can cancel answers in about a minute.
 pub const DEFAULT_MEMBER_BUDGET: u64 = 65_536;
 
 /// **A rigid motion stated in `f64`**, lifted to an evaluation's scalar
@@ -3771,17 +3777,67 @@ where
     // by the descent below the top, and entered here at the top, in
     // one serial pass that reuses what the prior carried (`parts`
     // module docs).
-    let entry = match reached {
-        Some((reached, _)) => parts::Entry {
+    // Which indices each node reaches, read once off the recipe: a node
+    // reaching any is evaluated once per member of them ([`members`]).
+    let chains: BTreeMap<RecipeNodeId, crate::repetition::Reached> = if doc.declares_index() {
+        let mut reach = crate::repetition::Reach::new(doc);
+        sched.order.iter().map(|&id| (id, reach.node(id))).collect()
+    } else {
+        BTreeMap::new()
+    };
+    // **Admission**, before anything is built: every node charged, in
+    // `sched.order`, its listing steps, a family its own and an instance
+    // its part's ([`parts::PartValue::steps`]), the parts entered as
+    // their instances are reached so each part's evaluation is held to
+    // what remains of the run's one budget. A family is listed over the
+    // NOMINAL environment, whatever the lane: so the charge is the
+    // document's, and the nominal run a trace reader reads
+    // (`nominal_ev`) is charged exactly as this one, reaching the same
+    // node; a lane whose own count of a family disagrees refuses that
+    // family when it evaluates, which no budget decides.
+    let mut admission = Admission::new(&sched.order, opts.member_budget);
+    let mut store = reached.is_none().then(|| {
+        parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
+            .with_symbols(opts.symbols)
+            .with_twist(opts.computing_twist)
+    });
+    let admitted = admission.admit(|id, remaining| {
+        let parted = match parts::instantiated(doc, id) {
+            None => Some(0),
+            Some(part) => match (&mut store, &reached) {
+                (Some(store), _) => {
+                    store.enter(part, prior.map(|p| &p.parts), remaining, cancel, tol)
+                }
+                (None, Some((reached, _))) => reached.steps(&part, remaining, tol),
+                (None, None) => unreachable!("a run enters its parts or is handed them"),
+            },
+        };
+        let Some(parted) = parted else {
+            return Ok(None);
+        };
+        let listed = match chains.get(&id) {
+            Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
+                members::listing_steps(
+                    doc,
+                    &nominal_env,
+                    &nominal_env,
+                    chain,
+                    remaining - parted,
+                    cancel,
+                )?
+            }
+            _ => Some(0),
+        };
+        Ok(listed.map(|listed| listed + parted))
+    });
+    let entry = match (store, reached) {
+        (Some(store), _) => store.finish(),
+        (None, Some((reached, _))) => parts::Entry {
             reached,
             carried: parts::Carried::none(),
             evaluations: 0,
         },
-        None => parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
-            .with_symbols(opts.symbols)
-            .with_twist(opts.computing_twist)
-            .with_member_budget(opts.member_budget)
-            .enter_census(doc, prior.map(|p| &p.parts), cancel, tol),
+        (None, None) => unreachable!("a run enters its parts or is handed them"),
     };
     // A placement's bundle is folded where the placement evaluates
     // (INTENT stage 3 C): every pose a mate reads is then a value of
@@ -3798,30 +3854,13 @@ where
             pass_two,
         },
     };
-    // Which indices each node reaches, read once off the recipe: a node
-    // reaching any is evaluated once per member of them ([`members`]).
-    let chains: BTreeMap<RecipeNodeId, crate::repetition::Reached> = if doc.declares_index() {
-        let mut reach = crate::repetition::Reach::new(doc);
-        sched.order.iter().map(|&id| (id, reach.node(id))).collect()
-    } else {
-        BTreeMap::new()
-    };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
     let mut reused = 0usize;
-    let mut outcome = EvalOutcome::Completed;
-    let mut admission = Admission::new(&sched.order, opts.member_budget);
-    let charge = |id: RecipeNodeId, remaining: u64| {
-        // A part whose own run ran out stops this run at its instance.
-        if parts::instantiated(doc, id).is_some_and(|r| entry.reached.exhausted(&r, tol)) {
-            return Ok(None);
-        }
-        match chains.get(&id) {
-            Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
-                members::listing_steps(doc, &env, &nominal_env, chain, remaining, cancel)
-            }
-            _ => Ok(Some(0)),
-        }
+    let mut outcome = if admitted.is_err() {
+        EvalOutcome::Canceled
+    } else {
+        EvalOutcome::Completed
     };
 
     // The level schedule runs only where a decision is thread-portable
@@ -3839,20 +3878,12 @@ where
         // a schedule-shaped sequence.
         let mut recordings: BTreeMap<RecipeNodeId, geom_core::k_stats::Detached> = BTreeMap::new();
         for level in &sched.levels {
-            if cancel.is_canceled() {
+            if outcome == EvalOutcome::Canceled || cancel.is_canceled() {
                 outcome = EvalOutcome::Canceled;
                 break;
             }
-            // Admission runs in `sched.order`, through the level's last
-            // node in it, so a level runs what the serial walk would
-            // have run of it and the crossing node is the serial walk's.
-            let through = level.iter().map(|id| admission.position(*id)).max();
-            if let Some(through) = through
-                && admission.admit_through(through, &charge).is_err()
-            {
-                outcome = EvalOutcome::Canceled;
-                break;
-            }
+            // A level runs the nodes before the crossing node in
+            // `sched.order`, which are what the serial walk runs of it.
             let admitted: Vec<RecipeNodeId>;
             let level = if admission.crossed.is_some() {
                 admitted = level
@@ -3890,16 +3921,12 @@ where
             }
         }
     } else {
-        for (at, &id) in sched.order.iter().enumerate() {
-            if cancel.is_canceled() {
+        for &id in &sched.order {
+            if outcome == EvalOutcome::Canceled || cancel.is_canceled() {
                 outcome = EvalOutcome::Canceled;
                 break;
             }
-            if admission.admit_through(at, &charge).is_err() {
-                outcome = EvalOutcome::Canceled;
-                break;
-            }
-            if admission.crossed.is_some() {
+            if !admission.admits(id) {
                 break;
             }
             let Ok(step) = eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol)
@@ -3917,6 +3944,7 @@ where
     {
         outcome = exhausted;
     }
+    let listed = admission.held;
 
     // Cycle leftovers (unreachable through `apply`): typed refusals,
     // appended after the schedulable order so `order` still covers
@@ -3952,6 +3980,7 @@ where
         outcome,
         recomputed,
         reused,
+        listed,
         part_evaluations: entry.evaluations,
         appearance: resolved_appearance,
         env,
@@ -3963,14 +3992,14 @@ where
 }
 
 /// **A run's member budget, charged at admission** in `order`, the
-/// schedule's order: each node is charged its listing steps before it
-/// runs, and every node before it in `order` is charged first, so the
-/// node the budget runs out at is the same under either schedule.
+/// schedule's order, before any node runs: each node is charged its
+/// listing steps, and the first whose charge passes what remains is
+/// where the run runs out, the same node under either schedule.
 struct Admission<'o> {
     order: &'o [RecipeNodeId],
     position: BTreeMap<RecipeNodeId, usize>,
-    /// The position in `order` of the next node to charge.
-    next: usize,
+    /// The steps charged to the nodes before the crossing one: all of
+    /// them, where none crossed.
     held: u64,
     budget: u64,
     /// The position of the node whose charge passed what remained.
@@ -3982,42 +4011,38 @@ impl<'o> Admission<'o> {
         Self {
             order,
             position: order.iter().enumerate().map(|(at, &id)| (id, at)).collect(),
-            next: 0,
             held: 0,
             budget,
             crossed: None,
         }
     }
 
-    fn position(&self, id: RecipeNodeId) -> usize {
-        self.position
-            .get(&id)
-            .copied()
-            .unwrap_or_else(|| unreachable!("a level holds nodes of the schedule's order"))
-    }
-
-    /// Charges every node through position `through` not yet charged,
-    /// stopping at the first whose charge passes what remains; `charge`
-    /// lists a node's members against the remainder.
-    fn admit_through(
+    /// Charges every node in order, stopping at the first whose charge
+    /// passes what remains; `charge` lists a node against the remainder
+    /// and answers its steps, `None` where they pass it.
+    fn admit(
         &mut self,
-        through: usize,
-        charge: &impl Fn(RecipeNodeId, u64) -> Result<Option<u64>, Canceled>,
+        mut charge: impl FnMut(RecipeNodeId, u64) -> Result<Option<u64>, Canceled>,
     ) -> Result<(), Canceled> {
-        while self.crossed.is_none() && self.next <= through {
-            match charge(self.order[self.next], self.budget - self.held)? {
+        for (at, &id) in self.order.iter().enumerate() {
+            match charge(id, self.budget - self.held)? {
                 Some(steps) => self.held += steps,
-                None => self.crossed = Some(self.next),
+                None => {
+                    self.crossed = Some(at);
+                    break;
+                }
             }
-            self.next += 1;
         }
         Ok(())
     }
 
     /// Whether `id` stands before the node the budget ran out at.
     fn admits(&self, id: RecipeNodeId) -> bool {
-        self.crossed
-            .is_none_or(|crossed| self.position(id) < crossed)
+        self.crossed.is_none_or(|crossed| {
+            self.position
+                .get(&id)
+                .is_some_and(|&position| position < crossed)
+        })
     }
 
     fn exhausted(&self) -> Option<EvalOutcome> {
@@ -4145,6 +4170,7 @@ where
         tolerance: tolerance_of(tol),
         whole_refusal: true,
         prior_refused,
+        listed: 0,
         order,
         nodes,
         outcome: EvalOutcome::Completed,

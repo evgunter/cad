@@ -11,8 +11,8 @@ use crate::blocks::block;
 use crate::fixture;
 use crate::g_index_families::ring;
 use editor_core::{
-    CancelToken, Coord, DEFAULT_MEMBER_BUDGET, EvalOptions, EvalOutcome, Evaluation, Formula,
-    ProfileDoc, RecipeNodeId, TargetAxis, evaluate,
+    CancelToken, Coord, DEFAULT_MEMBER_BUDGET, Dimension, EvalOptions, EvalOutcome, Evaluation,
+    Formula, Node, ProfileDoc, RecipeNodeId, TargetAxis, evaluate,
 };
 use geom_core::Tol;
 
@@ -111,6 +111,56 @@ fn both_schedules_run_out_at_the_same_family() {
     }
 }
 
+/// **The level schedule charges in the schedule's order, not level by
+/// level**: a placement `p` over `i = index(3)` copies a block, and an
+/// extrude `c` whose depth reads `j = index(5)`, inserted after it,
+/// stands a level BELOW `p` (its profile reads nothing) yet after it in
+/// the schedule's order. Under a budget of 6, `p`'s 3 steps are
+/// admitted and `c`'s 5 cross, on both schedules. Red if a level is
+/// charged before the next is: `c`, a level earlier, would be charged
+/// first and `p` would cross.
+#[test]
+fn a_family_a_level_down_and_later_in_order_crosses_after() {
+    let doc = ProfileDoc::empty_derived("budget-levels", Tol::witness());
+    let (doc, i) = fixture::index(doc, "i", 3);
+    let (doc, j) = fixture::index(doc, "j", 5);
+    let (doc, cell) = block(doc, (0.0, 0.5), (0.0, 0.5), 0.5);
+    let slide = Formula::mul(fixture::scalar_of(i), fixture::len(1.0)).unwrap();
+    let (doc, p) = fixture::family_of(doc, cell, vec![(Coord::Slide(TargetAxis::X), slide)]);
+    let (doc, profile) = fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.0, 0.0, 0.5)],
+    );
+    let depth = Formula::mul(
+        Formula::count_to_scalar(
+            Formula::add(Formula::var(j, Dimension::Count), Formula::count(1)).unwrap(),
+        )
+        .unwrap(),
+        fixture::len(0.25),
+    )
+    .unwrap();
+    let (doc, c) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: depth,
+        },
+    );
+    let ev = run(&doc, None, &EvalOptions::default());
+    let at = |id| ev.order.iter().position(|&n| n == id).unwrap();
+    assert!(
+        at(p) < at(c),
+        "the placement precedes the extrude in the order"
+    );
+    for parallel in [false, true] {
+        let ev = run(&doc, None, &budget(OUT_AT_B, parallel));
+        out_at_b(&ev, p, c, &format!("parallel {parallel}"));
+    }
+}
+
 /// **The verdict is the document's and the budget's alone**: a run over
 /// a warm memo that holds both families, and a cold run of the
 /// document saved and loaded, run out where a cold run does. Red if a
@@ -188,4 +238,91 @@ fn outer_values_over_empty_inner_indices_run_out() {
         },
         "a million outer values are a million listing steps"
     );
+}
+
+/// **A part of `n` copies**: a document `name` holding a row of `n`
+/// copies of a block, over `k = index(n)`, its world the row.
+fn row_part(name: &str, n: i64) -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived(name, Tol::witness());
+    let (doc, k) = fixture::index(doc, "k", n);
+    let (doc, cell) = block(doc, (0.0, 0.5), (0.0, 0.5), 0.5);
+    let slide = Formula::mul(fixture::scalar_of(k), fixture::len(1.0)).unwrap();
+    fixture::family_of(doc, cell, vec![(Coord::Slide(TargetAxis::X), slide)])
+}
+
+/// A document instancing each of `parts`, in order, through a store
+/// holding them, its instances, and options over that store.
+fn instancing(parts: &[(&str, i64)]) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
+    let mut store = fixture::resolver::PartStore::new();
+    let mut doc = ProfileDoc::empty_derived("budget-instancing", Tol::witness());
+    let mut instances = Vec::new();
+    for &(name, n) in parts {
+        let (part, _) = store.insert_part(row_part(name, n), Tol::witness());
+        let (next, instance) = fixture::insert(doc, fixture::mated_instance(part));
+        doc = next;
+        instances.push(instance);
+    }
+    (doc, instances, fixture::resolver::with_resolver(store))
+}
+
+/// **A part is charged at its instance, warm or cold**: an instance of
+/// a part of 5 copies runs out of a budget of 3 at the instance, cold
+/// and over a prior that carries the part's row. Red if a carried row
+/// is not charged (the warm run completes).
+#[test]
+fn a_carried_part_is_charged_as_an_evaluated_one() {
+    let (doc, instances, opts) = instancing(&[("budget-part-five", 5)]);
+    let out = EvalOutcome::Exhausted {
+        at: instances[0],
+        held: 0,
+        budget: 3,
+    };
+    let three = EvalOptions {
+        member_budget: 3,
+        ..opts.clone()
+    };
+    let cold = run(&doc, None, &three);
+    assert_eq!(cold.outcome, out, "cold, the instance runs out");
+    let full = run(&doc, None, &opts);
+    assert_eq!(
+        full.outcome,
+        EvalOutcome::Completed,
+        "the default admits it"
+    );
+    let warm = run(&doc, Some(&full), &three);
+    assert_eq!(warm.outcome, out, "warm, the carried row is charged alike");
+}
+
+/// **Parts share the run's one budget**: two parts of 2 and 3 copies,
+/// each listing its row twice (the row, and its world's placement of
+/// it), 4 and 6 steps, each fit a budget of 8 and together cross it at
+/// the second instance, the first's 4 steps held. Red if each part's
+/// evaluation is a run of its own under the whole budget.
+#[test]
+fn two_parts_that_each_fit_together_run_out() {
+    let (doc, instances, opts) = instancing(&[("budget-part-two", 2), ("budget-part-three", 3)]);
+    for parallel in [false, true] {
+        let ev = run(
+            &doc,
+            None,
+            &EvalOptions {
+                member_budget: 8,
+                parallel,
+                ..opts.clone()
+            },
+        );
+        assert_eq!(
+            ev.outcome,
+            EvalOutcome::Exhausted {
+                at: instances[1],
+                held: 4,
+                budget: 8
+            },
+            "parallel {parallel}: the second instance crosses"
+        );
+        assert!(
+            ev.value(instances[0]).is_some(),
+            "the first is in the prefix"
+        );
+    }
 }
