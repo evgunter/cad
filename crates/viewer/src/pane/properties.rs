@@ -76,7 +76,7 @@ impl ViewerBehavior<'_> {
             // pick is a way of reaching that feature, which is what
             // G3's click-to-select is for, and an edge reaches it the
             // same way a face does.
-            Selection::Face(_) | Selection::Edge(_) => {
+            Selection::Face(_) | Selection::Edge(_) | Selection::Vertex(_) => {
                 let groups = self.session.slot_groups();
                 if groups.is_empty() && standing.live() {
                     crate::widgets::message_toned(
@@ -460,6 +460,10 @@ impl ViewerBehavior<'_> {
             }
             Standing::Edge { edge, .. } => {
                 let picked = PickedName::edge(edge);
+                self.entity_header_ui(ui, &picked, standing);
+            }
+            Standing::Vertex { vertex, .. } => {
+                let picked = PickedName::vertex(vertex);
                 self.entity_header_ui(ui, &picked, standing);
             }
         }
@@ -1467,6 +1471,7 @@ pub(crate) fn standing_verdict(
         }
         Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
         Standing::Edge { resolution, .. } => ("edge", resolution.as_deref()),
+        Standing::Vertex { resolution, .. } => ("vertex", resolution.as_deref()),
     };
     let by = crate::frame::landed_speaker(landed).or_held(said);
     let said = match resolution {

@@ -127,7 +127,7 @@ pub(crate) enum VertexFace<T: geom_core::Real> {
     /// cone's axis but definitely off its apex
     /// ([`ConePoint::NearAxis`]): read, ill-conditioned, for a lane that
     /// reads it (the split, as it did before the apex was read); the
-    /// Boolean refuses it.
+    /// Boolean refuses it under its own name.
     NearAxis(OutwardNormal<T>),
     /// The vertex is the apex of the face's cone.
     Apex(ConeApex<T>),
@@ -219,6 +219,33 @@ impl<T: Decide> ConeApex<T> {
         (t - f)
             .norm()
             .copysign(f.cross(t).dot(self.axis) * self.sweep(f))
+    }
+
+    /// The azimuth the face's sweep turns through from the ruling along
+    /// `from` to the one along `d`, in `(0, 2π]`: zero along `from`,
+    /// increasing the way the face's interior leaves it
+    /// ([`ConeApex::sweep`]).
+    pub(crate) fn azimuth_from(&self, from: Vec3<T>, d: Vec3<T>) -> T {
+        let (e1, e2) = self.sweep_frame(from);
+        let a = d.dot(e2).atan2(d.dot(e1));
+        a.select_le_zero(a + T::tau(), a)
+    }
+
+    /// The unit ruling the face's sweep reaches from the one along `from`
+    /// after turning through `azimuth` ([`ConeApex::azimuth_from`]), on
+    /// `from`'s nappe.
+    pub(crate) fn ruling_from(&self, from: Vec3<T>, azimuth: T) -> Vec3<T> {
+        let (e1, e2) = self.sweep_frame(from);
+        let along = self.axis * self.half_angle.cos().copysign(from.dot(self.axis));
+        along + (e1 * azimuth.cos() + e2 * azimuth.sin()) * self.half_angle.sin()
+    }
+
+    /// The sweep's frame square to the axis at the ruling along `from`:
+    /// `e1` along its azimuth, `e2` the way the face's interior leaves it.
+    fn sweep_frame(&self, from: Vec3<T>) -> (Vec3<T>, Vec3<T>) {
+        let from = from.normalize();
+        let e1 = (from - self.axis * from.dot(self.axis)).normalize();
+        (e1, self.axis.cross(e1) * self.sweep(from))
     }
 
     /// Whether the face's material lies inside its cone: the outward
