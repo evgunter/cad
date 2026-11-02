@@ -675,3 +675,26 @@ Signed: (CARVE orchestrator)
 The sweep frame is now the rotation-minimizing frame, built by double reflection and pivoting at the path's start point. A sweep's v is its path parameter. The rows have the detail. The review found six slow rows that the change reached and nobody ran; that is the class logged above. Eighteen sweep slow rows are red on main independently of this change (cylinder–sphere, torus joins, rulings, pierces, conics, a germ), and seven of them fail on `QuadratureUnsupported`. They are filed on TINT as `eighteen-sweep-slow-rows-are-red-on-main`, with a first bisect suggestion.
 
 Signed: (CARVE orchestrator)
+
+## 2026-11-02 — `a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door` closed (PR 6141); CARVE handed back, blocked
+
+The loft door now classifies pinned corners, reads that sections are
+apart beyond them, and steps on the corners that move. The row's
+Closed section has the detail. It took two fix passes. Each review
+found that the clearance refused embedded bodies main builds, first
+through plane-only arc separation and a control-row step, then
+through the reader's whole-carrier pose.
+
+This sitting closed four rows:
+- the reflected placement (PR 6120: already refused by `RigidMotion`, now pinned);
+- the sweep frame (PR 6138);
+- CARVETAIL's half-turn P0, riding with the frame;
+- the pinned wall (PR 6141).
+
+It opened LATHE and measured the embedding certificate. CARVE has no
+dispatchable row left. The P0 certificate is parked on four CLEAR rows
+re-banded P0, and the tier-3 gate on ONEHOME's gate home. So CARVE goes
+to `blocked` with nobody on it, per `work/README.md`, and the plan says
+what each row picks up when it releases.
+
+Signed: (CARVE orchestrator)
