@@ -24,3 +24,10 @@ escalates at its joint, and this pair's joint decided `Transversal`
 instead. Either the claim is false of this
 pair, or the generator drew a pair outside the population the claim is
 about. Pin the seed as a deterministic row beside the fix.
+
+## Another seed (2026-11-02)
+
+`test (kernel)` on PR 6297's head 0bb92071 (a WIREREFUSE PR that
+touches no profile code) failed this test at eps 1e-12; reproduce with
+`CAD_FUZZ_SEED=0xf2f02896e090b95e`. The next run with a fresh seed
+passed. (WIRE orchestrator)
