@@ -1171,9 +1171,12 @@ impl<P> Doc<P> {
 
     /// **The read the placement `node` copies**: its source's read, or
     /// `None` where `node` is no `Place` (only a placement copies, and
-    /// only it carries a source slot). The one spelling of "is this a
-    /// placement copying that body" the takeover door and its callers
-    /// ask.
+    /// only it carries a source slot; an instance copies its part's
+    /// product, no body of this document). The one spelling of "what
+    /// does this copy copy" — the takeover door, the viewer's world
+    /// reads and its stranded-pick walk ask it. A member read of a
+    /// family (`source.is_member()`) answers the family's read: which
+    /// member is the read's index's to say, not this.
     pub fn copied_read(&self, node: RecipeNodeId) -> Option<VarId> {
         match self.node(node)? {
             Node::Place { source, .. } => Some(source.read),

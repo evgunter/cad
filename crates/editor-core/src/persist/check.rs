@@ -45,7 +45,6 @@ use crate::meta::MetaVersionError;
 use crate::node::SlotId;
 use crate::node::{AssertionBoundFault, Node, RecipeNodeId};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
-use crate::resolve::{derivation_nodes, derivation_reads};
 use crate::spoken::SpokenVar;
 use crate::spoken::{SpokenName, SpokenNode};
 use crate::var::{VarId, VarKind, VarRef};
@@ -2028,18 +2027,12 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         if part(carrier.name()) {
             continue;
         }
-        // The ids the name spells in this document: all of them, or
-        // where an instance is, those outside its part's levels.
-        let (nodes, reads, steps) = if parted {
-            let spelled = carrier.name().spelled_outside(&part);
-            (spelled.nodes, spelled.reads, spelled.steps)
-        } else {
-            (
-                derivation_nodes(carrier.name()),
-                derivation_reads(carrier.name()),
-                carrier.name().piece_steps(),
-            )
-        };
+        // The ids the name spells in this document: every level's, but
+        // a part's where an instance is (`part`, constantly false
+        // elsewhere). One walk for both (`StableName::spelled_outside`),
+        // so the two cannot read different embedded names.
+        let spelled = carrier.name().spelled_outside(&part);
+        let (nodes, reads, steps) = (spelled.nodes, spelled.reads, spelled.steps);
         for n in nodes {
             check_id(n)?;
         }

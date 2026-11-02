@@ -10,7 +10,7 @@ design: true
 ---
 
 
-Found by the PR 6264 re-verify (probe `rv_a_fused_pattern_reseats_the_mate_on_the_copys_top`, landed `#[ignore]`d on this row in `crates/viewer/tests/takeover_reseats.rs`). The fused pattern gesture (`DocSession::add_pattern`'s `PatternOutputChoice::Fused` arm, `crates/viewer/src/session.rs`) takes the prototype's world copies over with `Union { members: Bodies::Family(row) }`, where `row` is a placement of the prototype read at the pattern's index. The takeover door (`crates/editor-core/src/take_over.rs`) reads where the copy's names went off the union's table, by the prototype's read (`names::successors`).
+Found by the PR 6264 re-verify (probe `rv_a_fused_pattern_reseats_the_mate_on_the_copys_top`, landed `#[ignore]`d on this row in `crates/viewer/tests/takeovers.rs`). The fused pattern gesture (`DocSession::add_pattern`'s `PatternOutputChoice::Fused` arm, `crates/viewer/src/session.rs`) takes the prototype's world copies over with `Union { members: Bodies::Family(row) }`, where `row` is a placement of the prototype read at the pattern's index. The takeover door (`crates/editor-core/src/take_over.rs`) reads where the copy's names went off the union's table, by the prototype's read (`names::successors`).
 
 The union reads the family, not the prototype, and carries each face of the prototype once per member: the block's top is
 

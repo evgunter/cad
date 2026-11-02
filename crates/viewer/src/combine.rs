@@ -490,10 +490,12 @@ impl MirrorTool {
         }
     }
 
-    /// **The held plane following a takeover**
-    /// ([`HeldPick::following`]), its words spoken from `doc`.
-    pub fn follow(&mut self, moved: &pncad::document::Moved, doc: &Doc<ProfileProgram>) {
-        self.plane = self.plane.as_ref().map(|held| held.following(moved, doc));
+    /// **The plane the tool holds** ([`crate::session::Holds`]).
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        self.plane
+            .iter_mut()
+            .map(crate::session::select::Held::Pick)
+            .collect()
     }
 
     /// **The panel's held-picks line**: the body seat and the plane,

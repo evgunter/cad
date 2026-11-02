@@ -104,8 +104,8 @@ pub use editor_core::cascade_delete_order;
 // composes it into a longer one).
 pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 // A takeover (A10): copies of a body re-pointed to a result that
-// replaces it, each reference the result carries uniquely re-seated by
-// a `Rebind`, as one action (`Recording::take_over` composes it).
+// replaces it, each reference the result carries uniquely rebound by a
+// `Rebind`, as one action (`Recording::take_over` composes it).
 pub use editor_core::{Moved, TakeOverOutcome, Taken, TakenOver, take_over};
 
 // Node vocabulary. A union or intersect takes one `Bodies` argument (a

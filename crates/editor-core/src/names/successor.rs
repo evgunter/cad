@@ -1,5 +1,5 @@
 //! **Where a name read in one variable went, in a table that carries
-//! that variable in** (N1, N3): the successor query a takeover re-seats
+//! that variable in** (N1, N3): the successor query a takeover rebinds
 //! its references by (`crate::take_over`).
 //!
 //! An operation carries an entity of an input in as
@@ -77,7 +77,7 @@ pub fn successors(table: &NameTable, read: VarId) -> BTreeMap<StableName, Stable
 }
 
 /// **`name` with every entity it carries in from one of `moved`'s
-/// reads re-seated**: each `From { read, of }` segment, at any depth,
+/// reads carried on**: each `From { read, of }` segment, at any depth,
 /// whose `read` is a key of `moved` and whose `of` that read's map
 /// holds, carries the mapped name instead. `None` where nothing it
 /// carries moved.
@@ -231,7 +231,7 @@ mod a_successor_is_one_whole_unique_row {
     /// A carry of a moved read is replaced at any depth; one of an
     /// unmoved read with the same inner name is left alone.
     #[test]
-    fn a_carry_is_reseated_through_its_read_alone() {
+    fn a_carry_is_recarried_through_its_read_alone() {
         let to = name(5, vec![RoleSeg::OutputBody]);
         let moved = BTreeMap::from([(READ, BTreeMap::from([(own(0), to.clone())]))]);
         let deep = from(OTHER, from(READ, own(0)));
@@ -248,10 +248,10 @@ mod a_successor_is_one_whole_unique_row {
     }
 
     /// A carry followed, in the same path, by a set of names that are
-    /// not carries: the carry is re-seated on its own read, and the
+    /// not carries: the carry is recarried on its own read, and the
     /// names after it are not read as carried in by that read.
     #[test]
-    fn a_carry_beside_a_borders_set_is_reseated_on_its_own_read() {
+    fn a_carry_beside_a_borders_set_is_recarried_on_its_own_read() {
         let to = name(5, vec![RoleSeg::OutputBody]);
         let moved = BTreeMap::from([(
             READ,

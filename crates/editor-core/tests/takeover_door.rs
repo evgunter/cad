@@ -380,3 +380,92 @@ fn rebinds_in(edits: &[DocEdit<ProfileProgram>]) -> usize {
         .filter(|e| matches!(e, DocEdit::Rebind { .. }))
         .count()
 }
+
+/// A copy of `b` taken over by `b ∪ f` (a flush block: `b`'s top
+/// merges), `link` built on the copy, and a shell holding `b`'s top
+/// read in the link's body. Answers the takeover and the shell's
+/// selection after it, resolved in the link's table.
+fn a_reader_down_a_link(
+    name: &str,
+    link: impl FnOnce(&ProfileDoc, RecipeNodeId) -> editor_core::AuthoredNode,
+) -> (editor_core::TakeOverOutcome, RecipeNodeId, bool) {
+    let doc = ProfileDoc::empty_derived(name, Tol::witness());
+    let (doc, b) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
+    let (doc, f) = block_on(doc, b, (3.0, 6.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, u) = union(doc, vec![b, f]);
+    let (doc, copy) = insert(doc, stood(b));
+    let node = link(&doc, copy);
+    let (doc, l) = insert(doc, node);
+    let l_out = out(&doc, l);
+    let (doc, _) = insert(
+        doc,
+        Node::Shell {
+            thickness: len(0.01),
+            open: Operand::select(Operand::Var(l_out), vec![cap(b, CapEnd::End)]),
+        },
+    );
+    let o = EvalOptions::default();
+    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    let ev = crate::fixture::run(&done.doc, &o);
+    let held = done
+        .doc
+        .vars()
+        .values()
+        .filter_map(|v| v.def().select())
+        .find(|s| s.body == l_out)
+        .expect("the shell's selection");
+    let resolves = held
+        .names
+        .iter()
+        .all(|n| ev.table(l_out).is_some_and(|t| t.lookup(n).is_some()));
+    (done, l, resolves)
+}
+
+/// **A mirror of the copy carries its names as they are**
+/// (`verbatim_edge`'s `Reflected`), so a reader of the mirror reads the
+/// copy's names: the door follows the chain, and — since the mirror's
+/// own plane is a selection on the copy, so the mirror evaluates only
+/// once that is rebound — rebinds in rounds until the mirror's reader
+/// is rebound too. `Moved` answers for the mirror. Goes red if the
+/// chain walk follows placements alone, or the door rebinds in one
+/// round.
+#[test]
+fn a_reader_of_a_mirror_of_the_copy_is_rebound() {
+    let (done, mirror, resolves) =
+        a_reader_down_a_link("takeover-mirror-of-copy", |doc, copy| Node::Mirror {
+            body: copy.into(),
+            plane: crate::fixture::plane_on(doc, copy, [0.0, 1.0, 0.5], [1.0, 0.0, 0.0]),
+        });
+    assert!(resolves, "the mirror's reader resolves after the takeover");
+    assert!(
+        done.taken
+            .moved
+            .0
+            .get(&mirror)
+            .is_some_and(|moved| !moved.is_empty()),
+        "and the mirror's names are answered moved"
+    );
+}
+
+/// **A split of the copy carries the faces it leaves intact as they
+/// are** (`verbatim_edge`'s `Intact`): its plane below the top, the top
+/// is intact before the takeover and after it, so a reader of the
+/// split's top is rebound onto the merged top. Goes red if the chain
+/// walk does not follow a split.
+#[test]
+fn a_reader_of_a_split_of_the_copy_is_rebound_on_an_intact_face() {
+    let (done, split, resolves) =
+        a_reader_down_a_link("takeover-split-of-copy", |doc, copy| Node::Split {
+            target: copy.into(),
+            tool: crate::fixture::plane_on(doc, copy, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
+        });
+    assert!(resolves, "the split's reader resolves after the takeover");
+    assert!(
+        done.taken
+            .moved
+            .0
+            .get(&split)
+            .is_some_and(|moved| !moved.is_empty()),
+        "and the split's intact names are answered moved"
+    );
+}

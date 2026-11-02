@@ -1752,6 +1752,19 @@ pub(crate) enum VerbatimEdge<'a> {
     },
 }
 
+impl VerbatimEdge<'_> {
+    /// **The read whose names the edge carries**: the split's target,
+    /// the mirror's body, the copy's source; `None` for an instance,
+    /// whose names are its part's and are read in no body here.
+    pub(crate) fn carried_read(&self) -> Option<crate::VarId> {
+        match *self {
+            Self::Intact { target } => Some(target),
+            Self::Reflected { body, .. } => Some(body),
+            Self::Copied { source } => source,
+        }
+    }
+}
+
 /// **The name-carrying edge `node` is, if any**: a part's projection,
 /// a split's intact entities, a mirror's image (N1's pass-through ops). Every other node
 /// is classified as re-minting what it carries.
@@ -1900,7 +1913,7 @@ pub(crate) use name_free_seg;
 /// Every walk of a name's path is an implementor of this trait (the
 /// implementors list is the census, and is not restated here: a
 /// re-mapping of ids across a refactoring, a citing of whole member
-/// edges, a collection of the steps a name spells and a re-seating of
+/// edges, a collection of the steps a name spells and a recarrying of
 /// carries are examples). What differs between them is only what each
 /// does with a locator, a carried name, a carry with its read and a
 /// member edge; what they share — which variant carries which, and putting
@@ -2391,19 +2404,8 @@ impl StableName {
         Ok(canonical::form(now))
     }
 
-    /// **Every authored step this name spells a piece of** — in its own
-    /// path and in every name it carries.
-    ///
-    /// What a `SetProgram` that drops a step asks of each name the
-    /// document holds (DM7): a step id is unique across the document,
-    /// so a name that spells it is a name on that step's pieces,
-    /// whichever node minted the name.
-    pub(crate) fn piece_steps(&self) -> std::collections::BTreeSet<StepId> {
-        self.spelled_outside(&|_| false).steps
-    }
-
     /// **Every authored step's piece this name spells**, over the same
-    /// walk as [`Self::piece_steps`]: an edge locator as itself, a
+    /// walk as the steps every level spells: an edge locator as itself, a
     /// vertex locator as the piece that starts there (N1: a vertex is
     /// named by the piece of the same spelling), a kernel-built
     /// section's not at all.
@@ -2741,11 +2743,18 @@ mod tests {
         };
         let carried_wall = carried(RecipeNodeId::new(0, 9), crate::VarId::new(1, 9), wall(1, 4));
         assert_eq!(
-            carried_wall.piece_steps().into_iter().collect::<Vec<_>>(),
+            carried_wall
+                .spelled_outside(&|_| false)
+                .steps
+                .into_iter()
+                .collect::<Vec<_>>(),
             vec![StepId::new(0, 4)]
         );
         let section = band(N, edges()[1]);
-        assert!(section.piece_steps().is_empty(), "a section has no step");
+        assert!(
+            section.spelled_outside(&|_| false).steps.is_empty(),
+            "a section has no step"
+        );
     }
 
     /// `carried` takes the INNER name's kind, which is the one field

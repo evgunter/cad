@@ -1,6 +1,6 @@
 //! **A takeover** (A10): copies of a body re-pointed to a result that
 //! replaces it, with every reference read in those copies that the
-//! result still carries re-seated on the result's name for it, in one
+//! result still carries rebound to the result's name for it, in one
 //! action.
 //!
 //! A re-pointed copy reads the result's table, where a name of the body
@@ -62,7 +62,7 @@ pub struct Taken {
 /// of each copy that reads them went, and the evaluation the door read
 /// that off, where it made one.
 ///
-/// Every reference the document holds is already re-seated by the
+/// Every reference the document holds is already rebound by the
 /// action's own edits. A reader that holds a name outside the document
 /// (a viewer's pick of a face of a copy) follows [`Self::moved`].
 #[derive(Clone, Debug, Default)]
@@ -106,7 +106,7 @@ impl Moved {
 }
 
 impl Recording<'_, ProfileProgram> {
-    /// **Re-point each of `copies` to `result`, and re-seat what read
+    /// **Re-point each of `copies` to `result`, and rebind what read
     /// them** ([module docs](self)): each copy's source slot set to
     /// `result`, then, where something reads a copy, one
     /// [`DocEdit::Rebind`] per (selection body, name) whose name has a
@@ -186,58 +186,117 @@ impl Recording<'_, ProfileProgram> {
         if !read_inside && !chains.keys().any(|&node| held(node)) {
             return Ok(taken);
         }
-        let ev: Evaluation<f64> =
+        // A link down a chain may itself read the copy (a mirror's plane
+        // on one of its faces): it evaluates only once that read is
+        // rebound. So the door evaluates, rebinds, and evaluates again
+        // from that run until a round rebinds nothing; each round takes
+        // the names it moved out of the document, so it ends within the
+        // chain's depth.
+        let mut ev: Evaluation<f64> =
             crate::evaluate(doc, prior, &crate::CancelToken::new(), opts, self.tol());
-        let by_copy: BTreeMap<RecipeNodeId, BTreeMap<StableName, StableName>> = taken
-            .copies
-            .iter()
-            .map(|(&copy, taken)| {
-                let moved = ev
-                    .table(taken.now)
-                    .map(|table| crate::names::successors(table, taken.was))
-                    .unwrap_or_default();
-                (copy, moved)
-            })
-            .collect();
-        // A name read in a copy's body is that copy's; one read
-        // downstream carries such names inside its own, keyed by the
-        // body's read.
-        let moved: BTreeMap<VarId, &BTreeMap<StableName, StableName>> = bodies
-            .iter()
-            .filter_map(|(&var, root)| Some((var, by_copy.get(root)?)))
-            .collect();
-        let edits = crate::refactor::rebinds_at_sites(doc, |site, name| {
-            let body = site?;
-            match moved.get(&body) {
-                // A successor is a unique row of the copy's table.
-                Some(map) => map.get(name).cloned(),
-                // A downstream body re-keys its own rows: its new name
-                // holds only where its table has it as one entity.
-                None => crate::names::recarried(name, &moved).filter(|to| {
-                    ev.table(body)
-                        .and_then(|table| table.lookup(to))
-                        .is_some_and(|entry| matches!(entry, Entry::Unique(_)))
-                }),
+        loop {
+            let doc = self.doc();
+            let (edits, moved) = rebinds_of(doc, &ev, &taken, &chains, &bodies);
+            if edits.is_empty() {
+                taken.moved = moved;
+                break;
             }
-        });
-        for edit in edits {
-            self.apply(edit)?;
+            for edit in edits {
+                self.apply(edit)?;
+            }
+            ev = crate::evaluate(
+                self.doc(),
+                Some(&ev),
+                &crate::CancelToken::new(),
+                opts,
+                self.tol(),
+            );
         }
-        taken.moved = Moved(
-            chains
-                .iter()
-                .filter_map(|(&node, root)| Some((node, by_copy.get(root)?.clone())))
-                .collect(),
-        );
         taken.evaluation = Some(Arc::new(ev));
         Ok(taken)
     }
 }
 
-/// **Every copy that carries a re-pointed copy's names as they are**,
-/// by the re-pointed copy: each re-pointed copy itself, and each
-/// placement down a chain of placements from it (a copy of the copy, a
-/// copy of that).
+/// **One round of a takeover's rebinds, read off `ev`**, and where the
+/// names of each chain node moved ([`Moved`]).
+///
+/// A name read in a chain body (`bodies`, by the re-pointed copy whose
+/// names it carries) moved where that copy's successor did
+/// ([`crate::names::successors`]) and the body's own table holds the new
+/// name as one entity: a mirror and a copy carry every name of the
+/// copy, a split those the geometry leaves intact, so the body's table
+/// is the one that says. A name read downstream carries such names
+/// inside its own, keyed by the body's read, and holds only where its
+/// own body's table has the new name as one entity.
+fn rebinds_of(
+    doc: &Doc<ProfileProgram>,
+    ev: &Evaluation<f64>,
+    taken: &TakenOver,
+    chains: &BTreeMap<RecipeNodeId, RecipeNodeId>,
+    bodies: &BTreeMap<VarId, RecipeNodeId>,
+) -> (Vec<DocEdit<ProfileProgram>>, Moved) {
+    let one = |var: VarId, to: &StableName| {
+        ev.table(var)
+            .and_then(|table| table.lookup(to))
+            .is_some_and(|entry| matches!(entry, Entry::Unique(_)))
+    };
+    let by_copy: BTreeMap<RecipeNodeId, BTreeMap<StableName, StableName>> = taken
+        .copies
+        .iter()
+        .map(|(&copy, taken)| {
+            let moved = ev
+                .table(taken.now)
+                .map(|table| crate::names::successors(table, taken.was))
+                .unwrap_or_default();
+            (copy, moved)
+        })
+        .collect();
+    let in_body: BTreeMap<VarId, BTreeMap<StableName, StableName>> = bodies
+        .iter()
+        .filter_map(|(&var, root)| {
+            let map = by_copy.get(root)?;
+            Some((
+                var,
+                map.iter()
+                    .filter(|(_, to)| one(var, to))
+                    .map(|(from, to)| (from.clone(), to.clone()))
+                    .collect(),
+            ))
+        })
+        .collect();
+    let edits = crate::refactor::rebinds_at_sites(doc, |site, name| {
+        let body = site?;
+        match in_body.get(&body) {
+            Some(map) => map.get(name).cloned(),
+            None => crate::names::recarried(name, &in_body).filter(|to| one(body, to)),
+        }
+    });
+    let moved = Moved(
+        chains
+            .keys()
+            .map(|&node| {
+                let map = doc
+                    .outputs(node)
+                    .iter()
+                    .filter_map(|var| in_body.get(var))
+                    .flatten()
+                    .map(|(from, to)| (from.clone(), to.clone()))
+                    .collect();
+                (node, map)
+            })
+            .collect(),
+    );
+    (edits, moved)
+}
+
+/// **Every node that carries a re-pointed copy's names as they are**,
+/// by the re-pointed copy: each re-pointed copy itself, and each node
+/// down a chain of name-carrying edges from it — a copy of the copy, a
+/// mirror of it, a split of it — walked over the one census of those
+/// edges (`names::verbatim_edge`), so a carrying node added there is
+/// followed here without being remembered. An instance's copy carries
+/// its part's names, read in no body of this document, and starts no
+/// chain.
 fn chains(doc: &Doc<ProfileProgram>, taken: &TakenOver) -> BTreeMap<RecipeNodeId, RecipeNodeId> {
     let mut chains: BTreeMap<RecipeNodeId, RecipeNodeId> =
         taken.copies.keys().map(|&copy| (copy, copy)).collect();
@@ -250,7 +309,9 @@ fn chains(doc: &Doc<ProfileProgram>, taken: &TakenOver) -> BTreeMap<RecipeNodeId
         for node in doc.ids() {
             if !chains.contains_key(&node)
                 && doc
-                    .copied_read(node)
+                    .node(node)
+                    .and_then(crate::names::verbatim_edge)
+                    .and_then(|edge| edge.carried_read())
                     .is_some_and(|read| outs.contains(&read))
             {
                 chains.insert(node, root);

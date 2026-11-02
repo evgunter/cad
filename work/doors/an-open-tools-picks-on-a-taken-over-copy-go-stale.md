@@ -17,4 +17,4 @@ The fix is one `reseat` per tool beside `Tools::respeak` (`crates/viewer/src/too
 
 ## Closed
 
-Closed in the PR 6264 fix pass. A takeover's held-pick re-seat is now one app method over the forms and the open tool (`App::reseat_held`, `crates/viewer/src/app.rs`), fed at landing by `DocSession::take_landed_reseats`. `Tools::reseat` (`crates/viewer/src/tools.rs`) re-seats the mate tool's faces, the mirror tool's plane and the blend tool's edges and rims. The row is `app::properties_pane_tests::an_open_tools_pick_on_a_taken_over_copy_is_re_seated`.
+Closed in PR 6264. A takeover's held picks follow it at its commit, through one site (`DocSession::follow`, `crates/viewer/src/session.rs`), and each holder lists what it holds once (`Holds::held`, `crates/viewer/src/session/select.rs`). The chrome hands its forms and open tool to the session as one holder (`ChromeHolds`, `crates/viewer/src/app.rs`); the open tool's list is `Tools::held` (`crates/viewer/src/tools.rs`): the mate tool's faces, the mirror tool's plane and the blend tool's edges and rims. The row is `app::properties_pane_tests::an_open_tools_pick_on_a_taken_over_copy_follows`.

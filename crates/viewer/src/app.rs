@@ -807,18 +807,10 @@ struct ChromeHolds<'a> {
 }
 
 impl crate::session::Holds for ChromeHolds<'_> {
-    fn held_on(&self, nodes: &mut std::collections::BTreeSet<pncad::document::RecipeNodeId>) {
-        self.drafts.held_on(nodes);
-        self.tools.held_on(nodes);
-    }
-
-    fn follow(
-        &mut self,
-        moved: &pncad::document::Moved,
-        doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
-    ) {
-        self.drafts.follow(moved, doc);
-        self.tools.follow(moved, doc);
+    fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        let mut held = self.drafts.held();
+        held.extend(self.tools.held());
+        held
     }
 }
 
@@ -1288,14 +1280,12 @@ impl ViewerApp {
     /// consumer, discharged in the one place that holds them all. Each
     /// notice already names its tool.
     ///
-    /// A face pick is a name, and a name is judged only against the run
-    /// that answers the document holding it: while that run is owed
-    /// (`DocSession::busy`), the landed one answers an older document,
-    /// and a pick that followed a takeover at its commit names what only
-    /// the newer run holds. So the name questions wait for it.
+    /// A face pick is a name, judged only by a run that answers the
+    /// document it lives in (`DocSession::name_run`, the one gate).
     fn survive_tools(&mut self) {
-        let current = self.session.landed_pair().filter(|_| !self.session.busy());
-        let dropped = self.tools.reconcile(self.session.doc(), current);
+        let dropped = self
+            .tools
+            .reconcile(self.session.doc(), self.session.name_run());
         // A tool's survival drop is provoked by the document transition
         // it did not survive, so the act that accepts the next one is
         // what retires it; `frame::tool_notice` reads from the event
@@ -6249,16 +6239,16 @@ mod properties_pane_tests {
         assert_eq!(driven.held(), [bottom_id, NONE, NONE], "held again");
     }
 
-    /// **A sketch committed on the held face re-seats both picks of
-    /// it**: the startup plate's top cap selected and held by the
-    /// add-profile form, then the form's commit, which takes the plate's
-    /// copy over with the union. The union carries the cap as one face,
-    /// so the selection and the form's held face both name it there and
-    /// both resolve on the copy. Goes red if the takeover stops
-    /// re-seating the session's selection or the drafts' held face, or
-    /// if the successor query stops finding the cap at the union.
+    /// **Both picks of the held face follow a sketch committed on it**:
+    /// the startup plate's top cap selected and held by the add-profile
+    /// form, then the form's commit, which takes the plate's copy over
+    /// with the union. The union carries the cap as one face, so the
+    /// selection and the form's held face both follow it there at the
+    /// commit and both resolve on the copy. Goes red if the session's
+    /// selection or the drafts' held face stops following, or if the
+    /// successor query stops finding the cap at the union.
     #[test]
-    fn a_sketch_on_the_held_face_re_seats_the_selection_and_the_held_face() {
+    fn a_sketch_on_the_held_face_moves_the_selection_and_the_held_face() {
         use crate::session::Standing;
         use pncad::select::Resolution;
         let (mut driven, top) = Driven::holding_the_top_cap();
@@ -6302,11 +6292,15 @@ mod properties_pane_tests {
     /// **An open tool's held pick follows a takeover too**: the mate
     /// tool holding the startup plate's top cap on its copy, and a
     /// sketch committed on that face, which takes the copy over with the
-    /// union. Once the run lands the tool's pick names the cap as the
-    /// union carries it, and resolves there. Goes red if the landed
-    /// re-seat stops reaching the open tool (`Tools::reseat`).
+    /// union. At the commit the tool's pick follows to the cap as the
+    /// union carries it; the survival step run before the landing keeps
+    /// it (it is judged only by a run of the document it lives in,
+    /// `DocSession::name_run`), and once the run lands it resolves
+    /// there. Goes red if the open tool's picks stop being listed to
+    /// follow (`Tools::held`), or the survival step judges a followed
+    /// pick by the older landed run.
     #[test]
-    fn an_open_tools_pick_on_a_taken_over_copy_is_re_seated() {
+    fn an_open_tools_pick_on_a_taken_over_copy_follows() {
         use crate::matetool::MateToolState;
         use pncad::select::Resolution;
         let (mut driven, top) = Driven::holding_the_top_cap();

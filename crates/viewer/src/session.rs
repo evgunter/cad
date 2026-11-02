@@ -60,8 +60,8 @@ use pncad::document::{
     CheckId, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc, DocEdit, DocRef,
     DocumentId, EditError, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, HeldNodes,
     Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartResolver, ProductError,
-    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, TakenOver, VarId,
-    VarName, apply, cascade_delete_order, parse_formula, product_recorded, run_checks_at_rest_on,
+    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
+    apply, cascade_delete_order, parse_formula, product_recorded, run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -540,6 +540,23 @@ struct Derived {
     /// the range probe at every submit ([`DocSession::request_eval`]),
     /// and with everything else here when the document is replaced.
     stage: Option<Stage>,
+    /// **The run a takeover's door made of the committed document**,
+    /// with that document and the generation submitted for it
+    /// ([`DocSession::create`]): an evaluation in hand of a document
+    /// newer than the landed one, which answers a name that followed
+    /// the takeover at its commit while the landing is owed
+    /// ([`DocSession::name_run`]). Dropped with everything else here
+    /// when the document is replaced.
+    seeded: Option<SeededRun>,
+}
+
+/// A door's evaluation of a committed document, kept for the name
+/// questions asked before that document's run lands.
+#[derive(Debug)]
+struct SeededRun {
+    generation: Generation,
+    doc: Arc<Doc<ProfileProgram>>,
+    evaluation: Arc<Evaluation<f64>>,
 }
 
 /// A typed value's offer: the slot it was typed at, the variable it
@@ -575,6 +592,7 @@ impl Derived {
             bounds: None,
             offer: None,
             stage: None,
+            seeded: None,
         }
     }
 }
@@ -602,6 +620,7 @@ impl core::fmt::Debug for Derived {
             bounds,
             offer,
             stage,
+            seeded,
         } = self;
         f.debug_struct("Derived")
             .field("selection", selection)
@@ -612,6 +631,7 @@ impl core::fmt::Debug for Derived {
             .field("bounds", bounds)
             .field("offer", offer)
             .field("stage", &stage.as_ref().map(|stage| stage.key))
+            .field("seeded", &seeded.as_ref().map(|run| run.generation))
             .finish()
     }
 }
@@ -889,7 +909,7 @@ impl DocSession {
             .and_then(|door| self.stage_run(|run| door(run, &|_| false)));
         let answer = match staged {
             Err(refusal) => StageAnswer::Refused(refusal),
-            Ok((recorded, Made { node, taken })) => {
+            Ok((recorded, Made { node, seed, .. })) => {
                 let resolver = self.run_resolver();
                 self.stager.submit(StagedRequest {
                     key,
@@ -897,7 +917,9 @@ impl DocSession {
                     // The takeover's own run where its door made one
                     // (the preview draws what its rebinds seat, so it
                     // keeps them), else the landed one.
-                    prime: taken.evaluation.or_else(|| self.memo_under(&resolver)),
+                    prime: seed
+                        .map(|seed| seed.evaluation)
+                        .or_else(|| self.memo_under(&resolver)),
                     resolver,
                     tol: self.tol,
                 });
@@ -1059,9 +1081,11 @@ impl DocSession {
     /// Whether the selection still denotes something in the evaluation
     /// on screen.
     ///
-    /// **A pure function of (shown document, landed evaluation,
-    /// selection)** — recomputed, never cached, so it cannot be stale
-    /// with respect to the state it describes. A face's verdict comes
+    /// **A pure function of (shown document, the run names are judged
+    /// by, selection)** — recomputed, never cached, so it cannot be
+    /// stale with respect to the state it describes. A name is judged
+    /// only by a run that answers the document it lives in
+    /// ([`Self::name_run`]). A face's verdict comes
     /// from the shipped `resolve` door; nothing here re-implements the
     /// resolution ladder, and the one reading made of its answer is the
     /// feature tree's, of which node an indeterminate verdict waits on.
@@ -1111,18 +1135,65 @@ impl DocSession {
             .collect()
     }
 
-    /// One picked name's verdict against the landed run — the shipped
-    /// `resolve` door, asked once and spelled once for both entity
-    /// kinds, with the node it waits on named as the feature tree
-    /// names it ([`crate::tree::resolution_as_drawn`]).
+    /// One picked name's verdict against the run a name question is
+    /// asked of ([`Self::name_run`]) — the shipped `resolve` door, asked
+    /// once and spelled once for both entity kinds, with the node it
+    /// waits on named as the feature tree names it
+    /// ([`crate::tree::resolution_as_drawn`]).
     fn entity_resolution(
         &self,
         node: RecipeNodeId,
         body: u32,
         name: &StableName,
     ) -> Option<Box<Resolution>> {
-        self.landed_pair()
+        self.name_run()
             .map(|(doc, eval)| Box::new(crate::tree::pick_resolution(doc, eval, node, body, name)))
+    }
+
+    /// **The run a name question is asked of**: an evaluation that
+    /// answers the document the name lives in, with that document. The
+    /// one gate every held name is judged through — the selection's
+    /// standing, an open tool's survival, the sketch trace and the held
+    /// edges' marks.
+    ///
+    /// The landed run, while it answers the shown document. While the
+    /// next run is owed ([`Self::busy`]), the newest run in hand: the
+    /// evaluation a takeover's door made of the committed document
+    /// (`Derived::seeded`), where it is newer than the landed one, since
+    /// a name that followed the takeover at its commit lives only from
+    /// that document on; else the landed run. A pick follows only where
+    /// the door evaluated, so a name the landed run is asked of here did
+    /// not move: its verdict is the one it had before the edit, which
+    /// stands until the landing.
+    ///
+    /// After a cancel (`SessionOp::CancelEvaluation`) the same holds
+    /// until the next run: nothing answers the shown document, so no
+    /// held name is judged against one newer than the run in hand, and
+    /// none is dropped for a verdict that run cannot give.
+    pub fn name_run(&self) -> Option<(&Doc<ProfileProgram>, &Evaluation<f64>)> {
+        match self.ahead_of_the_picture() {
+            Some(run) => Some((run.doc.as_ref(), run.evaluation.as_ref())),
+            None => self.landed_pair(),
+        }
+    }
+
+    /// **Whether names are judged by a run newer than the picture**
+    /// ([`Self::name_run`]): a reader that maps a held name onto what is
+    /// drawn (the held marks) then cannot, and says nothing of it until
+    /// the picture catches up.
+    pub fn names_ahead_of_the_picture(&self) -> bool {
+        self.ahead_of_the_picture().is_some()
+    }
+
+    /// The door's run [`Self::name_run`] asks while it is newer than the
+    /// landed one and the landing is owed.
+    fn ahead_of_the_picture(&self) -> Option<&SeededRun> {
+        let landed = self.derived.landed.as_ref();
+        self.derived
+            .seeded
+            .as_ref()
+            .filter(|_| self.busy())
+            .filter(|seeded| landed.is_none_or(|run| run.generation < seeded.generation))
     }
 
     /// The most recent evaluation that answered the current document.
@@ -3041,9 +3112,8 @@ impl DocSession {
         let (body, name) = picked_body(doc, face);
         self.require_read(&body, NodeKindWanted::Body)?;
         let opts = self.eval_options();
-        let takeover = self.takeover(&body);
-        takeover.stranded_pick(doc)?;
-        Ok(creating_over(move |run, held| {
+        let takeover = self.takeover(&body)?;
+        Ok(taking_over(takeover, move |run| {
             let sketched = run.sketch_on_face(
                 body,
                 name,
@@ -3057,11 +3127,7 @@ impl DocSession {
                 None,
                 &opts,
             )?;
-            let taken = takeover.repoint(run, sketched.union, None, held)?;
-            Ok(Made {
-                node: sketched.union,
-                taken,
-            })
+            Ok((sketched.union, None))
         }))
     }
 
@@ -3120,7 +3186,7 @@ impl DocSession {
         plane: &FaceSelection,
         face: &FaceSelection,
     ) -> Result<pncad::trace::TraceMarks, SketchTraceFault> {
-        let (doc, ev) = self.landed_pair().ok_or(SketchTraceFault::Unevaluated)?;
+        let (doc, ev) = self.name_run().ok_or(SketchTraceFault::Unevaluated)?;
         let frame = drawn_frame(doc, ev, plane, face, self.tol)
             .map_err(|fault| SketchTraceFault::Frame(Arc::new(fault)))?;
         let half = TRACE_WINDOW_MARGIN * body_reach(ev, face.node).unwrap_or(1.0);
@@ -3279,15 +3345,11 @@ impl DocSession {
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
         // document like any other.
-        let (takeover, dropped) = self.combine_in_world(&spec.operands())?;
-        Ok(creating_over(move |run, held| {
+        let takeover = self.combine_in_world(&spec.operands())?;
+        Ok(taking_over(takeover, move |run| {
             let operands = in_one_space(run, &spec.operands())?;
             let node = run.insert(spec.with_operands(operands).node())?;
-            let taken = takeover.repoint(run, node, None, held)?;
-            for placement in dropped {
-                run.apply(DocEdit::DeleteNode { id: placement })?;
-            }
-            Ok(Made { node, taken })
+            Ok((node, None))
         }))
     }
 
@@ -3321,19 +3383,17 @@ impl DocSession {
         self.require_read(&body, NodeKindWanted::Body)?;
         let doc = self.committed_doc();
         let (on, face) = picked_body(doc, plane);
-        let takeover = self.takeover(&body);
-        takeover.stranded_pick(doc)?;
+        let takeover = self.takeover(&body)?;
         let node = combine::mirror_node(body.clone(), on, face);
-        Ok(creating_over(move |run, held| {
+        Ok(taking_over(takeover, move |run| {
             let image = run.insert(node)?;
             // The body FIRST: a union keeps its first member's carrier
             // for a face it merges, so a face of the body merged with its
             // image keeps the body's frame, and what is mated on it
             // stays where it stood
-            // (`takeover_reseats::the_mirrors_merged_top_keeps_the_old_tops_frame`).
+            // (`takeovers::the_mirrors_merged_top_keeps_the_old_tops_frame`).
             let part = run.insert(BooleanSpec::Union(vec![body, image.into()]).node())?;
-            let taken = takeover.repoint(run, part, None, held)?;
-            Ok(Made { node: part, taken })
+            Ok((part, None))
         }))
     }
 
@@ -3404,20 +3464,16 @@ impl DocSession {
         let doc = self.committed_doc();
         let at = gesture_frame(doc, translation, rotation_axis, rotation_angle, self.tol)?;
         let moves = gesture_moves(doc, translation, rotation_axis, rotation_angle, &at)?;
-        let takeover = self.takeover(&input);
+        let takeover = self.takeover_by_a_copy(&input);
         // Into the space the body is in, on that space's axes.
         let target = self.home_space(&input)?;
-        Ok(creating_over(move |run, held| {
+        Ok(taking_over(takeover, move |run| {
             let placement = run.insert(Node::place(
                 pncad::document::BodyRead::plain(input.clone()),
                 Operand::Var(target),
                 pncad::document::Placed::unmated(moves).bundle(),
             ))?;
-            let taken = takeover.repoint(run, placement, None, held)?;
-            Ok(Made {
-                node: placement,
-                taken,
-            })
+            Ok((placement, None))
         }))
     }
 
@@ -3488,32 +3544,29 @@ impl DocSession {
             )
             .map(drop)
         };
-        let doc = self.committed_doc();
-        let takeover = self.takeover(&input);
-        takeover.stranded_pick(doc)?;
-        Ok(creating_over(move |run, held| {
+        let takeover = self.takeover(&input)?;
+        let reads_one_body = takeover.reads_one_body();
+        Ok(taking_over(takeover, move |run| {
             declare(run)?;
             let row = run.insert(placement)?;
             match output {
                 // Several bodies, the family itself: a reader of one
                 // body reads them through a `⊔`.
                 PatternOutputChoice::Instances => {
-                    let whole = if takeover.reads_one_body() {
+                    let whole = if reads_one_body {
                         Some(run.insert(Node::Assemble {
                             members: pncad::document::Bodies::Family(row.into()),
                         })?)
                     } else {
                         None
                     };
-                    let taken = takeover.repoint(run, row, whole, held)?;
-                    Ok(Made { node: row, taken })
+                    Ok((row, whole))
                 }
                 PatternOutputChoice::Fused => {
                     let fused = run.insert(Node::Union {
                         members: pncad::document::Bodies::Family(row.into()),
                     })?;
-                    let taken = takeover.repoint(run, fused, None, held)?;
-                    Ok(Made { node: fused, taken })
+                    Ok((fused, None))
                 }
             }
         }))
@@ -3629,8 +3682,7 @@ impl DocSession {
             Operand::Node(node) => self.require_kind(node, NodeKindWanted::Body)?,
             _ => self.require_read(&read, NodeKindWanted::Body)?,
         }
-        let takeover = self.takeover(&read);
-        takeover.stranded_pick(doc)?;
+        let takeover = self.takeover(&read)?;
         let node = match kind {
             BlendKindChoice::Fillet => Node::fillet(read, size, selection),
             BlendKindChoice::Chamfer => Node::chamfer(read, size, selection),
@@ -3639,13 +3691,9 @@ impl DocSession {
         // result, taking over what read the target, so the picture
         // shows the result where it showed the target and one undo
         // restores both.
-        Ok(creating_over(move |run, held| {
+        Ok(taking_over(takeover, move |run| {
             let result = run.insert(node)?;
-            let taken = takeover.repoint(run, result, None, held)?;
-            Ok(Made {
-                node: result,
-                taken,
-            })
+            Ok((result, None))
         }))
     }
 
@@ -3661,14 +3709,28 @@ impl DocSession {
     }
 
     /// **The takeover of the body `read` names**, in the committed
-    /// document ([`Takeover::of`]), reading the result's table under the
-    /// session's runs: their options, and the landed run as the memo.
-    fn takeover(&self, read: &Operand) -> Takeover {
+    /// document ([`Takeover::of`]), refused where it would strand a pick
+    /// ([`Takeover::stranded_pick`]): the takeover a gesture whose result
+    /// holds no pieces makes (a feature, a mirror's or a sketch's union,
+    /// a pattern).
+    fn takeover(&self, read: &Operand) -> Result<Takeover, Refusal> {
+        let takeover = self.takeover_by_a_copy(read);
+        takeover.stranded_pick(self.committed_doc())?;
+        Ok(takeover)
+    }
+
+    /// **The takeover of the body `read` names, by a copy of it** (the
+    /// transform's: a placement of the body it takes over, whose pieces
+    /// its copy carries, so no pick is stranded), reading the result's
+    /// table under the session's runs: their options and resolver, and
+    /// the landed run as the memo.
+    fn takeover_by_a_copy(&self, read: &Operand) -> Takeover {
         let resolver = self.run_resolver();
         Takeover {
             reads: TakeoverReads {
                 opts: crate::evalseam::options(&resolver),
                 prior: self.memo_under(&resolver),
+                resolver,
             },
             ..Takeover::of(self.committed_doc(), read)
         }
@@ -3682,10 +3744,7 @@ impl DocSession {
     /// counts once; operands nothing reads re-point nothing. Read off
     /// the committed document before the operands are placed, the one
     /// takeover the run then makes.
-    fn combine_in_world(
-        &self,
-        operands: &[Operand],
-    ) -> Result<(Takeover, Vec<RecipeNodeId>), Refusal> {
+    fn combine_in_world(&self, operands: &[Operand]) -> Result<Takeover, Refusal> {
         let doc = self.committed_doc();
         let mut distinct: Vec<&Operand> = Vec::new();
         for operand in operands {
@@ -3695,13 +3754,16 @@ impl DocSession {
         }
         let mut read = distinct
             .into_iter()
-            .map(|operand| self.takeover(operand))
+            .map(|operand| self.takeover_by_a_copy(operand))
             .filter(|takeover| !takeover.is_empty());
         let Some(first) = read.next() else {
-            return Ok((Takeover::of_var(doc, None), Vec::new()));
+            return Ok(Takeover::of_var(doc, None));
         };
         first.stranded_pick(doc)?;
-        Ok((first, read.flat_map(|takeover| takeover.copies).collect()))
+        Ok(Takeover {
+            dropped: read.flat_map(|takeover| takeover.copies).collect(),
+            ..first
+        })
     }
 
     /// [`Self::require_kind`] of a seat's read: a node named alone, or
@@ -4062,8 +4124,8 @@ impl DocSession {
             Err(refusal) => return OpOutcome::refused(refusal),
         };
         let mut held = std::collections::BTreeSet::new();
-        self.derived.selection.held_on(&mut held);
-        outside.held_on(&mut held);
+        select::held_on(&mut self.derived.selection, &mut held);
+        select::held_on(outside, &mut held);
         let staged = self.stage_run(|run| {
             let made = action(run, &|node| held.contains(&node))?;
             if let Some(label) = labelled {
@@ -4075,18 +4137,9 @@ impl DocSession {
             Ok(made)
         });
         match staged {
-            Ok((staged, Made { node, mut taken })) => {
-                // The door ran under the session's resolver, as the run
-                // of the recorded document will.
-                let seed = taken
-                    .evaluation
-                    .take()
-                    .map(|evaluation| crate::evalseam::Seed {
-                        evaluation,
-                        resolver: self.run_resolver(),
-                    });
+            Ok((staged, Made { node, moved, seed })) => {
                 let recorded = self.record_run(staged, seed);
-                self.follow(&taken.moved, outside);
+                self.follow(&moved, outside);
                 OpOutcome {
                     made: Some(node),
                     ..recorded
@@ -4104,8 +4157,9 @@ impl DocSession {
         if moved.is_empty() {
             return;
         }
-        self.derived.selection = self.derived.selection.following(moved);
-        outside.follow(moved, self.history.doc());
+        let doc = self.history.doc();
+        select::follow(&mut self.derived.selection, moved, doc);
+        select::follow(outside, moved, doc);
     }
 
     /// **One constraint removed** ([`SessionOp::RemoveConstraint`]):
@@ -4218,6 +4272,16 @@ impl DocSession {
         // takes a value so a worker owns its copy) and is not a
         // retained copy — the session keeps exactly one.
         self.requested_doc = Arc::new(self.doc().clone());
+        // A door's evaluation of this document answers the names that
+        // followed its takeover until this run lands
+        // ([`Self::name_run`]).
+        if let Some(seed) = &seed {
+            self.derived.seeded = Some(SeededRun {
+                generation: self.generation,
+                doc: Arc::clone(&self.requested_doc),
+                evaluation: Arc::clone(&seed.evaluation),
+            });
+        }
         self.requested_resolver = self.run_resolver();
         // The landing this request will replace no longer wants its door.
         self.door.cancel();
@@ -4296,36 +4360,42 @@ type Creating = Box<
     ) -> Result<Made, EditError>,
 >;
 
-/// **What a creation's run made**: the node, and what a takeover in it
-/// did (empty where it took nothing over).
+/// **What a creation's run made**: the node, where a takeover in it
+/// moved the names the copies held (empty where it moved none), and the
+/// takeover door's own run under the resolver it ran under, where it
+/// made one.
 struct Made {
     node: RecipeNodeId,
-    taken: TakenOver,
+    moved: pncad::document::Moved,
+    seed: Option<crate::evalseam::Seed>,
 }
 
-/// `action` as a [`Creating`] run that takes nothing over.
-fn creating(
-    action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<RecipeNodeId, EditError> + 'static,
+/// **A creating door's run**: `action` makes the result and answers it,
+/// with the `⊔` a reader of one body reads where the result is several
+/// (`Takeover::repoint`'s `whole`), and `takeover` takes the body's
+/// readers over by it. The one spelling of a creation; one that takes
+/// nothing over is [`creating`].
+fn taking_over(
+    takeover: Takeover,
+    action: impl FnOnce(
+        &mut Recording<'_, ProfileProgram>,
+    ) -> Result<(RecipeNodeId, Option<RecipeNodeId>), EditError>
+    + 'static,
 ) -> Creating {
-    Box::new(move |run, _| {
-        action(run).map(|node| Made {
-            node,
-            taken: TakenOver::default(),
-        })
+    Box::new(move |run, held| {
+        let (result, whole) = action(run)?;
+        takeover.repoint(run, result, whole, held)
     })
 }
 
-/// **`action` as a [`Creating`] run that takes over** ([`Takeover`]):
-/// it is handed the holders' copies to pass to [`Takeover::repoint`],
-/// and answers the node it made with what the takeover did.
-fn creating_over(
-    action: impl FnOnce(
-        &mut Recording<'_, ProfileProgram>,
-        &dyn Fn(RecipeNodeId) -> bool,
-    ) -> Result<Made, EditError>
-    + 'static,
+/// `action` as a [`Creating`] run that takes nothing over: [`taking_over`]
+/// with a takeover of nothing.
+fn creating(
+    action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<RecipeNodeId, EditError> + 'static,
 ) -> Creating {
-    Box::new(action)
+    taking_over(Takeover::nothing(), move |run| {
+        action(run).map(|node| (node, None))
+    })
 }
 
 /// **What a takeover re-points** (spec §5′.3 (a)): every read of the
@@ -4343,11 +4413,27 @@ struct Takeover {
     /// Whether the product slot reads `taken` itself.
     product: bool,
     /// What the kernel's takeover reads the result's table under
-    /// ([`DocSession::takeover`]).
+    /// ([`DocSession::takeover_by_a_copy`]).
     reads: TakeoverReads,
+    /// Copies of other bodies the action deletes once it has taken
+    /// these over: a combine's other operands, whose material is in the
+    /// result ([`DocSession::combine_in_world`]).
+    dropped: Vec<RecipeNodeId>,
 }
 
 impl Takeover {
+    /// The takeover of no body: it re-points nothing.
+    fn nothing() -> Self {
+        Self {
+            taken: None,
+            copies: Vec::new(),
+            operands: Vec::new(),
+            product: false,
+            reads: TakeoverReads::default(),
+            dropped: Vec::new(),
+        }
+    }
+
     /// The takeover of the body `read` names in `doc`.
     fn of(doc: &Doc<ProfileProgram>, read: &Operand) -> Self {
         Self::of_var(doc, crate::world::read_var(doc, read))
@@ -4356,13 +4442,7 @@ impl Takeover {
     /// The takeover of `taken` in `doc`.
     fn of_var(doc: &Doc<ProfileProgram>, taken: Option<VarId>) -> Self {
         let Some(var) = taken else {
-            return Self {
-                taken,
-                copies: Vec::new(),
-                operands: Vec::new(),
-                product: false,
-                reads: TakeoverReads::default(),
-            };
+            return Self::nothing();
         };
         let operands = doc
             .ids()
@@ -4382,6 +4462,7 @@ impl Takeover {
             operands,
             product: doc.product() == Some(var),
             reads: TakeoverReads::default(),
+            dropped: Vec::new(),
         }
     }
 
@@ -4437,14 +4518,12 @@ impl Takeover {
         let reads = |held: &pncad::document::Pick| -> Vec<VarId> {
             let mut copied = Vec::new();
             let mut at = held.placement;
-            while let Some(Node::Place { source, .. }) =
-                doc.operation_of(at).and_then(|node| doc.node(node))
-            {
-                if copied.contains(&source.read) {
+            while let Some(read) = doc.operation_of(at).and_then(|node| doc.copied_read(node)) {
+                if copied.contains(&read) {
                     break;
                 }
-                copied.push(source.read);
-                at = source.read;
+                copied.push(read);
+                at = read;
             }
             copied.into_iter().chain(held.of.iter().copied()).collect()
         };
@@ -4479,7 +4558,7 @@ impl Takeover {
         result: RecipeNodeId,
         whole: Option<RecipeNodeId>,
         held: &dyn Fn(RecipeNodeId) -> bool,
-    ) -> Result<TakenOver, EditError> {
+    ) -> Result<Made, EditError> {
         let one = whole.unwrap_or(result);
         for (node, seat) in self.operands {
             run.apply(DocEdit::SetParam {
@@ -4494,13 +4573,30 @@ impl Takeover {
                 product: Some(one.into()),
             })?;
         }
-        run.take_over(
+        let mut taken = run.take_over(
             &self.copies,
             &result.into(),
             &self.reads.opts,
             self.reads.prior.as_deref(),
             held,
-        )
+        )?;
+        for placement in self.dropped {
+            run.apply(DocEdit::DeleteNode { id: placement })?;
+        }
+        // The door's run, under the resolver it ran under: the seed the
+        // run of the recorded document starts from.
+        let seed = taken
+            .evaluation
+            .take()
+            .map(|evaluation| crate::evalseam::Seed {
+                evaluation,
+                resolver: self.reads.resolver,
+            });
+        Ok(Made {
+            node: result,
+            moved: taken.moved,
+            seed,
+        })
     }
 }
 
@@ -4512,6 +4608,10 @@ impl Takeover {
 struct TakeoverReads {
     opts: EvalOptions,
     prior: Option<Arc<Evaluation<f64>>>,
+    /// The resolver `opts` resolves through: the one the door's
+    /// evaluation ran under, which its seed carries
+    /// ([`crate::evalseam::Seed`]).
+    resolver: Option<Arc<dyn PartResolver>>,
 }
 
 /// **The body `node` defines, as a read**: its first `Body` output (a

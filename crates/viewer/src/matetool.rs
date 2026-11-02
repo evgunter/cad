@@ -541,17 +541,17 @@ impl MateTool {
         }
     }
 
-    /// **The held picks following a takeover**
-    /// ([`HeldPick::following`]), their words spoken from `doc`.
-    pub fn follow(&mut self, moved: &pncad::document::Moved, doc: &Doc<ProfileProgram>) {
-        self.state = match &self.state {
-            MateToolState::Idle => MateToolState::Idle,
-            MateToolState::One(on) => MateToolState::One(on.following(moved, doc)),
-            MateToolState::Two { on, to } => MateToolState::Two {
-                on: on.following(moved, doc),
-                to: to.following(moved, doc),
-            },
-        };
+    /// **The picks the tool holds** ([`crate::session::Holds`]): `on`,
+    /// then `to`, as far as picked.
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        match &mut self.state {
+            MateToolState::Idle => Vec::new(),
+            MateToolState::One(on) => vec![crate::session::select::Held::Pick(on)],
+            MateToolState::Two { on, to } => vec![
+                crate::session::select::Held::Pick(on),
+                crate::session::select::Held::Pick(to),
+            ],
+        }
     }
 
     /// **The line the mate panel shows for its held picks** — the

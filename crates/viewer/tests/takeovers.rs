@@ -260,7 +260,7 @@ fn a_face_the_result_consumes_stays_stale() {
 /// block stays seated. Goes red if the takeover re-seats only the
 /// selections of the copy itself.
 #[test]
-fn a_face_of_a_union_of_the_copy_is_re_seated() {
+fn a_face_of_a_union_of_the_copy_is_rebound() {
     let tol = Tol::witness();
     let mut session = common::inline_without_door(Doc::empty_derived("takeover", tol), tol);
     let block = common::xy_box_in(&mut session, BLOCK);
@@ -523,5 +523,108 @@ fn a_fused_patterns_takeover_rebinds_the_mate_on_the_copys_top() {
         drawn::extent(&mut session, small_copy),
         seated_at,
         "the small block stands where it stood"
+    );
+}
+
+/// **A selection that followed a takeover at its commit stands live
+/// before the landing**: the top selected, a fillet committed, no
+/// landing yet. The selection names the fillet's top, which only the
+/// newer document holds, so it is judged by the door's run of that
+/// document (`DocSession::name_run`), not by the older landed one, and
+/// the chrome keeps offering its rows. Goes red if a name is judged by
+/// a run older than the document it lives in.
+#[test]
+fn rv2_a_followed_selection_stands_live_before_the_landing() {
+    let Seated {
+        mut session, block, ..
+    } = seated(top);
+    session.perform(SessionOp::Select(Selection::Face(top(&session))));
+    let live_before = session.standing().live();
+    let rows_before = session.slot_rows().len();
+    let outcome = session.perform(SessionOp::AddFillet {
+        target: block,
+        radius: len(0.002),
+        selection: vec![a_lateral_edge(&session, block)],
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(session.busy(), "not landed");
+    let standing = session.standing();
+    assert!(live_before, "the top stands before the commit");
+    assert!(
+        standing.live(),
+        "the followed selection stands stale while busy: {standing:?}"
+    );
+    assert_eq!(
+        session.slot_rows().len(),
+        rows_before,
+        "and offers its rows"
+    );
+}
+
+/// **A redo moves no pick, and never resolves one wrongly**: a fillet
+/// committed and landed, undone, the top picked afresh (the block's
+/// name), then redone. A redo replays edits and runs no door, so the
+/// pick is not followed; it reads stale, typed, never as another face
+/// (`work/doors/undoing-a-takeover-leaves-the-re-seated-picks-on-the-results-names.md`).
+#[test]
+fn rv2_a_pick_made_after_undo_through_a_redo() {
+    let Seated {
+        mut session, block, ..
+    } = seated(top);
+    let outcome = session.perform(SessionOp::AddFillet {
+        target: block,
+        radius: len(0.002),
+        selection: vec![a_lateral_edge(&session, block)],
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    session.perform(SessionOp::Undo);
+    session.pump();
+    let fresh = top(&session);
+    session.perform(SessionOp::Select(Selection::Face(fresh.clone())));
+    session.perform(SessionOp::Redo);
+    session.pump();
+    let Selection::Face(now) = session.selection().clone() else {
+        panic!("held")
+    };
+    let eval = session.evaluation().expect("landed");
+    let verdict =
+        viewer::tree::pick_resolution(session.committed_doc(), eval, now.node, now.body, &now.name);
+    assert!(
+        !matches!(verdict, pncad::select::Resolution::Resolved(_)),
+        "resolved: {verdict:?}"
+    );
+}
+
+/// **A face clicked while a takeover's run is owed is read off the
+/// older picture**, and a gesture on it writes a stale reference: open,
+/// `work/doors/a-fresh-pick-off-the-older-picture-commits-a-stale-reference.md`.
+/// A fillet committed, and before it lands the top picked afresh off the
+/// landed picture, then sketched on.
+#[test]
+#[ignore = "work/doors/a-fresh-pick-off-the-older-picture-commits-a-stale-reference.md"]
+fn rv2_a_fresh_pick_off_the_older_picture() {
+    let Seated {
+        mut session, block, ..
+    } = seated(top);
+    let outcome = session.perform(SessionOp::AddFillet {
+        target: block,
+        radius: len(0.002),
+        selection: vec![a_lateral_edge(&session, block)],
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(session.busy());
+    let fresh = top(&session);
+    let sketched = session.perform(boss_on(fresh));
+    session.pump();
+    let bad: Vec<_> = session
+        .tree_rows()
+        .into_iter()
+        .filter(|r| r.status != RowStatus::Ok)
+        .map(|r| format!("{r:?}"))
+        .collect();
+    assert!(
+        sketched.refusal.is_some() || bad.is_empty(),
+        "a stale reference committed: {bad:?}"
     );
 }

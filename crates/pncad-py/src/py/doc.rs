@@ -1759,8 +1759,9 @@ impl Doc {
     /// Reading where a name went evaluates the document, under
     /// `resolver=` as `evaluate` takes it: a document with instances
     /// needs the workspace their parts resolve in, or their copies
-    /// evaluate to nothing and no name of them moves. A copy of a copy
-    /// (down a placement chain) carries the same names, and answers
+    /// evaluate to nothing and no name of them moves. A node down a
+    /// chain of name-carrying edges from a copy (a copy of the copy, a
+    /// mirror of it, a split of it) carries the same names, and answers
     /// them too.
     #[pyo3(signature = (copies, result, *, resolver=None))]
     fn take_over(

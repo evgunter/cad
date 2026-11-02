@@ -805,14 +805,14 @@ impl Tools {
         }
     }
 
-    /// **The open tool's held picks following a takeover**: the mate
-    /// tool's faces, the mirror's plane and the blend's edges; the seated
-    /// tools hold bodies, whose reads a takeover keeps.
-    pub fn follow(&mut self, moved: &pncad::document::Moved, doc: &Doc<ProfileProgram>) {
+    /// **The picks the open tool holds** ([`crate::session::Holds`]):
+    /// the mate tool's faces, the mirror's plane and the blend's edges;
+    /// the seated tools hold bodies, whose reads a takeover keeps.
+    pub fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
         match &mut self.open {
-            Some(OpenTool::Mate(tool)) => tool.follow(moved, doc),
-            Some(OpenTool::Blend(tool)) => tool.follow(moved),
-            Some(OpenTool::Mirror(tool)) => tool.follow(moved, doc),
+            Some(OpenTool::Mate(tool)) => tool.held(),
+            Some(OpenTool::Blend(tool)) => tool.held(),
+            Some(OpenTool::Mirror(tool)) => tool.held(),
             None
             | Some(
                 OpenTool::Revolve(_)
@@ -822,35 +822,7 @@ impl Tools {
                 | OpenTool::Pattern(_)
                 | OpenTool::Part(_)
                 | OpenTool::Duplicate(_),
-            ) => {}
-        }
-    }
-
-    /// **The drawn copies the open tool holds names on**: the mate
-    /// tool's faces', the mirror's plane's and the blend's target.
-    pub fn held_on(&self, nodes: &mut std::collections::BTreeSet<RecipeNodeId>) {
-        match &self.open {
-            Some(OpenTool::Mate(tool)) => {
-                nodes.extend(
-                    tool.state()
-                        .picks()
-                        .into_iter()
-                        .flatten()
-                        .map(|held| held.face().node),
-                );
-            }
-            Some(OpenTool::Blend(tool)) => nodes.extend(tool.target().map(|target| target.node())),
-            Some(OpenTool::Mirror(tool)) => nodes.extend(tool.plane().map(|face| face.node)),
-            None
-            | Some(
-                OpenTool::Revolve(_)
-                | OpenTool::Boolean(_)
-                | OpenTool::Split(_)
-                | OpenTool::Transform(_)
-                | OpenTool::Pattern(_)
-                | OpenTool::Part(_)
-                | OpenTool::Duplicate(_),
-            ) => {}
+            ) => Vec::new(),
         }
     }
 

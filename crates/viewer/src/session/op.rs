@@ -710,7 +710,7 @@ pub enum SessionOp {
     /// residue 1): the placements of the first operand the world
     /// places, in the spec's order, are taken over by the boolean
     /// (`Recording::take_over`: re-pointed, and what read them
-    /// re-seated where it carries it), and every other operand's placements are
+    /// rebound where it carries it), and every other operand's placements are
     /// deleted, in the same action — so a combine of placed bodies
     /// leaves the world `[result]`, and one undo restores them. A
     /// repeated operand counts once; operands nothing places place

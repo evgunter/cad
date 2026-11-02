@@ -89,22 +89,84 @@ pub(crate) fn followed_name(node: RecipeNodeId, name: &StableName, moved: &Moved
         .map_or_else(|| name.clone(), Clone::clone)
 }
 
-/// **What holds picks outside the document**: the session's selection,
-/// the chrome's forms and its open tool. A takeover asks each which
-/// drawn copies it holds a name on, so it reads where those names go
-/// even where the document does not, and each follows where they went,
-/// at the commit that moved them (`DocSession::perform_with`).
+/// **What holds picks across operations**: the session's selection,
+/// the chrome's forms and its open tool. A holder states what it holds
+/// once ([`Holds::held`]); which drawn copies it holds names on
+/// ([`held_on`]) and every held name following a takeover
+/// ([`follow`]) are both read off that one list, so the two cannot
+/// disagree about what is held (`DocSession::perform_with`).
 pub trait Holds {
-    /// Each drawn copy a held pick names an entity of.
-    fn held_on(&self, nodes: &mut std::collections::BTreeSet<RecipeNodeId>);
+    /// **Every pick held**, as a handle that reads or moves it.
+    fn held(&mut self) -> Vec<Held<'_>>;
+}
 
-    /// Every held name a takeover moved, onto where it moved, its words
-    /// spoken from `doc`, the document the takeover made.
-    fn follow(
-        &mut self,
-        moved: &Moved,
-        doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
-    );
+/// **One held pick, as a handle**: what [`Holds::held`] lists.
+pub enum Held<'a> {
+    /// A face pick (the selection's).
+    Face(&'a mut FaceSelection),
+    /// An edge pick (the selection's).
+    Edge(&'a mut EdgeSelection),
+    /// A face pick kept with the words that say it (a form's latch, the
+    /// mate tool's picks, the mirror's plane).
+    Pick(&'a mut crate::tree::HeldPick),
+    /// Edges held on one drawn copy (the blend tool's), singly and as
+    /// rims.
+    Edges {
+        /// The drawn copy they are edges of.
+        node: RecipeNodeId,
+        /// The edges held one by one.
+        edges: &'a mut std::collections::BTreeSet<StableName>,
+        /// The rims, each held whole.
+        rims: &'a mut std::collections::BTreeSet<std::collections::BTreeSet<StableName>>,
+    },
+}
+
+impl Held<'_> {
+    /// The drawn copy the pick names an entity of.
+    fn node(&self) -> RecipeNodeId {
+        match self {
+            Self::Face(face) => face.node,
+            Self::Edge(edge) => edge.node,
+            Self::Pick(held) => held.face().node,
+            Self::Edges { node, .. } => *node,
+        }
+    }
+
+    /// The pick on the names a takeover moved its own to
+    /// ([`followed_name`]), a kept pick's words spoken from `doc`.
+    fn follow(self, moved: &Moved, doc: &pncad::document::Doc<pncad::document::ProfileProgram>) {
+        match self {
+            Self::Face(face) => *face = face.following(moved),
+            Self::Edge(edge) => *edge = edge.following(moved),
+            Self::Pick(held) => *held = held.following(moved, doc),
+            Self::Edges { node, edges, rims } => {
+                let now = |name: &StableName| followed_name(node, name, moved);
+                *edges = edges.iter().map(now).collect();
+                *rims = rims
+                    .iter()
+                    .map(|rim| rim.iter().map(now).collect())
+                    .collect();
+            }
+        }
+    }
+}
+
+/// **The drawn copies `holder` holds names on** ([`Holds::held`]).
+pub fn held_on(holder: &mut dyn Holds, nodes: &mut std::collections::BTreeSet<RecipeNodeId>) {
+    nodes.extend(holder.held().iter().map(Held::node));
+}
+
+/// **Every pick `holder` holds, following a takeover** onto the names it
+/// moved them to ([`Holds::held`]), each kept pick's words spoken from
+/// `doc`, the document the takeover made.
+pub fn follow(
+    holder: &mut dyn Holds,
+    moved: &Moved,
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+) {
+    for held in holder.held() {
+        held.follow(moved, doc);
+    }
 }
 
 /// A holder holding nothing: what [`crate::session::DocSession::perform`]
@@ -112,9 +174,9 @@ pub trait Holds {
 pub struct HoldsNothing;
 
 impl Holds for HoldsNothing {
-    fn held_on(&self, _: &mut std::collections::BTreeSet<RecipeNodeId>) {}
-
-    fn follow(&mut self, _: &Moved, _: &pncad::document::Doc<pncad::document::ProfileProgram>) {}
+    fn held(&mut self) -> Vec<Held<'_>> {
+        Vec::new()
+    }
 }
 
 /// A picked edge: the stable name it is, and the node whose body
@@ -253,32 +315,6 @@ pub enum Selection {
 }
 
 impl Selection {
-    /// The drawn copy a picked face or edge names an entity of
-    /// ([`Holds::held_on`]'s answer for the selection).
-    pub fn held_on(&self, nodes: &mut std::collections::BTreeSet<RecipeNodeId>) {
-        match self {
-            Self::Face(face) => {
-                nodes.insert(face.node);
-            }
-            Self::Edge(edge) => {
-                nodes.insert(edge.node);
-            }
-            Self::None | Self::Node(_) | Self::Variable(_) => {}
-        }
-    }
-
-    /// **This selection following a takeover**: a picked face or edge
-    /// on the name it moved to ([`FaceSelection::following`]); anything
-    /// else as it is.
-    #[must_use]
-    pub fn following(&self, moved: &Moved) -> Self {
-        match self {
-            Self::Face(face) => Self::Face(face.following(moved)),
-            Self::Edge(edge) => Self::Edge(edge.following(moved)),
-            Self::None | Self::Node(_) | Self::Variable(_) => self.clone(),
-        }
-    }
-
     /// The recipe node this selection is about, when it is about one:
     /// the node itself, or the feature a picked face belongs to
     /// ([`FaceSelection::feature`] — the node that MADE the face, not
@@ -542,6 +578,17 @@ impl Standing {
                 .as_deref()
                 .filter(|resolution| !resolves(resolution)),
             Self::Empty | Self::Node { .. } | Self::Variable { .. } => None,
+        }
+    }
+}
+
+/// The selection holds the face or edge it picked.
+impl Holds for Selection {
+    fn held(&mut self) -> Vec<Held<'_>> {
+        match self {
+            Self::Face(face) => vec![Held::Face(face)],
+            Self::Edge(edge) => vec![Held::Edge(edge)],
+            Self::None | Self::Node(_) | Self::Variable(_) => Vec::new(),
         }
     }
 }

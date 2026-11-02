@@ -1245,22 +1245,14 @@ impl Drafts {
         ]
     }
 
-    /// **The latched faces following a takeover**
-    /// ([`HeldPick::following`]), their words spoken from `doc`.
-    pub(crate) fn follow(&mut self, moved: &pncad::document::Moved, doc: &Doc<ProfileProgram>) {
-        for latch in self.latches() {
-            *latch = latch.as_ref().map(|held| held.following(moved, doc));
-        }
-    }
-
-    /// The drawn copies the latched faces name entities of.
-    pub(crate) fn held_on(&self, nodes: &mut std::collections::BTreeSet<RecipeNodeId>) {
-        nodes.extend(
-            [&self.sketch_face, &self.trace_plane, &self.trace_face]
-                .into_iter()
-                .flatten()
-                .map(|held| held.face().node),
-        );
+    /// **The picks the forms hold** ([`crate::session::Holds`]): the
+    /// latched faces, the one list ([`Self::latches`]).
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        self.latches()
+            .into_iter()
+            .flatten()
+            .map(crate::session::select::Held::Pick)
+            .collect()
     }
 
     /// **The held picks' nodes, spoken again from `doc`**, the session's

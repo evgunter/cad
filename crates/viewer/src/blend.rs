@@ -636,20 +636,17 @@ impl BlendTool {
         }
     }
 
-    /// **The held edges following a takeover**: each held on a copy the
-    /// takeover moved takes the name it moved to
-    /// ([`crate::session::select::followed_name`]), rims included.
-    pub fn follow(&mut self, moved: &pncad::document::Moved) {
+    /// **The edges the tool holds** ([`crate::session::Holds`]): its
+    /// edges and rims, on its target.
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
         let Some(node) = self.target().map(|target| target.node()) else {
-            return;
+            return Vec::new();
         };
-        let now = |name: &StableName| crate::session::select::followed_name(node, name, moved);
-        self.edges = self.edges.iter().map(now).collect();
-        self.rims = self
-            .rims
-            .iter()
-            .map(|rim| rim.iter().map(now).collect())
-            .collect();
+        vec![crate::session::select::Held::Edges {
+            node,
+            edges: &mut self.edges,
+            rims: &mut self.rims,
+        }]
     }
 
     /// Drop every pick — the panel's `Clear picks` button, and what

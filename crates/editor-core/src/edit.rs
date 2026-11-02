@@ -5375,7 +5375,7 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
 
 /// **The names a `SetProgram` stranded**: every carried name that
 /// spells a piece of a step the reshaping dropped
-/// ([`StableName::piece_steps`]), or a kept step's piece it stopped
+/// (`StableName::spelled_outside`), or a kept step's piece it stopped
 /// drawing (`undrawn`, [`undrawn_kept_pieces`]) —
 /// [`Maintenance::Strand`] on its carrying node,
 /// [`Maintenance::StrandedAppearance`] on a store key, in that order.

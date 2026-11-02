@@ -2378,7 +2378,9 @@ pub(super) mod tests {
                 of: r,
             };
             assert_eq!(
-                wrapped(piece, DEEP, 8, copy).piece_steps(),
+                wrapped(piece, DEEP, 8, copy)
+                    .spelled_outside(&|_| false)
+                    .steps,
                 [StepId::new(0, 7)].into(),
                 "the step at the foot of a chain of members"
             );
@@ -2448,7 +2450,7 @@ pub(super) mod tests {
             3,
             vec![RoleSeg::Merged((0..WIDE).map(member).collect())],
         );
-        let (steps, asked, levels) = counted(|| wide.piece_steps());
+        let (steps, asked, levels) = counted(|| wide.spelled_outside(&|_| false).steps);
         assert_eq!(steps.len(), WIDE, "every member's step");
         assert_eq!(
             levels,
