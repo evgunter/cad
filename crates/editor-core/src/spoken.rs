@@ -51,7 +51,7 @@ use crate::doc::Doc;
 use crate::label::Label;
 use crate::names::words::Detail;
 use crate::names::{NameTable, StableName};
-use crate::node::{MintId, Node, RecipeNodeId, StepId};
+use crate::node::{MintId, Node, RecipeNodeId, SectionId, StepId};
 use crate::program::ProfilePayload;
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
@@ -434,6 +434,10 @@ impl HoldsNodes for SpokenNameParts {
         self.held.step(id)
     }
 
+    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<usize> {
+        self.held.section_at(loft, id)
+    }
+
     fn sole_profile(&self, feature: RecipeNodeId) -> Option<RecipeNodeId> {
         self.held.sole_profile(feature)
     }
@@ -652,6 +656,11 @@ trait HoldsNodes {
     fn constraint_at(&self, _mate: crate::mate::MateRef) -> Option<usize> {
         None
     }
+    /// The 1-based position of the section `id` in the loft `loft`,
+    /// where the document holds it there.
+    fn section_at(&self, _loft: RecipeNodeId, _id: SectionId) -> Option<usize> {
+        None
+    }
     /// A reader of `id` at `dim` as written ([`Doc::written`]), where
     /// the document holds what `id` holds.
     fn written(
@@ -687,6 +696,13 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
             .iter()
             .position(|c| c.id == mate.id)
             .map(|k| k + 1)
+    }
+
+    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<usize> {
+        let Some(Node::Loft { ids, .. }) = self.node(loft) else {
+            return None;
+        };
+        ids.iter().position(|&s| s == id).map(|k| k + 1)
     }
 
     fn written(
@@ -861,6 +877,8 @@ enum NodeFact {
     Output(crate::var::VarId, OutputOf),
     /// A constraint, with its 1-based position in its bundle.
     Constraint(crate::mate::MateRef, usize),
+    /// A loft section, with its loft and its 1-based position there.
+    Section(RecipeNodeId, SectionId, usize),
 }
 
 impl NodeFact {
@@ -872,6 +890,7 @@ impl NodeFact {
             Self::Carry(node, _) => (2, node.0),
             Self::Output(var, _) => (3, var.0),
             Self::Constraint(mate, _) => (4, mate.id.0),
+            Self::Section(_, id, _) => (5, id.0),
         }
     }
 
@@ -892,6 +911,9 @@ impl NodeFact {
             }
             Self::Output(var, _) if doc.var(var).is_some() => {
                 Some(Self::Output(var, doc.output_of(var)?))
+            }
+            Self::Section(loft, id, _) if doc.node(loft).is_some() => {
+                Some(Self::Section(loft, id, doc.section_at(loft, id)?))
             }
             held => Some(held),
         }
@@ -950,6 +972,13 @@ impl HoldsNodes for HeldNodes {
     fn constraint_at(&self, mate: crate::mate::MateRef) -> Option<usize> {
         self.facts.iter().find_map(|fact| match *fact {
             NodeFact::Constraint(held, at) if held == mate => Some(at),
+            _ => None,
+        })
+    }
+
+    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<usize> {
+        self.facts.iter().find_map(|fact| match *fact {
+            NodeFact::Section(of, held, at) if of == loft && held == id => Some(at),
             _ => None,
         })
     }
@@ -1015,6 +1044,11 @@ impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
     fn constraint_at(&self, mate: crate::mate::MateRef) -> Option<usize> {
         let at = self.doc.constraint_at(mate)?;
         self.said.borrow_mut().keep(NodeFact::Constraint(mate, at));
+        Some(at)
+    }
+    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<usize> {
+        let at = self.doc.section_at(loft, id)?;
+        self.said.borrow_mut().keep(NodeFact::Section(loft, id, at));
         Some(at)
     }
     fn speak(&self, id: RecipeNodeId) -> SpokenNode {
@@ -1350,6 +1384,16 @@ impl<'a> Speaker<'a> {
     /// `None` by tag or where the document draws no such step.
     pub(crate) fn step(self, id: StepId) -> Option<StepAt> {
         self.doc?.step(id)
+    }
+
+    /// **A loft section, said**: `section <n>`, `n` its 1-based
+    /// position in `loft` where the document holds it there, and
+    /// `section <id>` where it does not.
+    pub(crate) fn section(self, loft: RecipeNodeId, id: SectionId) -> String {
+        match self.doc.and_then(|doc| doc.section_at(loft, id)) {
+            Some(at) => format!("section {at}"),
+            None => format!("section {id}"),
+        }
     }
 
     /// The node `id` where the sentence knows what it is: `<noun>

@@ -1782,7 +1782,7 @@ pub(super) mod tests {
 
     use crate::names::SegTag;
     use crate::names::role::{CapEnd, PieceRole, ProfileEdgeRef};
-    use crate::node::StepId;
+    use crate::node::{SectionId, StepId};
     use test_utils::own_thread::{WASM_STACK, on_the_smallest_stack};
 
     thread_local! {
@@ -1855,12 +1855,10 @@ pub(super) mod tests {
                 R::RimEdge(CapEnd::End, e2.into()),
                 R::LateralEdge(v),
                 R::CapVertex(CapEnd::Start, v),
-                R::LoftWall(vec![e, e2]),
-                R::LoftSeam(vec![v]),
-                R::LoftSlabWall(1, vec![e, e2]),
-                R::LoftSlabSeam(2, vec![v, v]),
-                R::LoftSectionEdge(1, e),
-                R::LoftSectionVertex(3, v),
+                R::LoftWall(vec![(SectionId::new(1, 1), e), (SectionId::new(2, 2), e2)]),
+                R::LoftSeam(vec![(SectionId::new(1, 1), v)]),
+                R::LoftSectionEdge(SectionId::new(2, 2), e),
+                R::LoftSectionVertex(SectionId::new(3, 3), v),
                 R::Band(e.into()),
                 R::BandRim(v),
                 R::BandRimPi(v),

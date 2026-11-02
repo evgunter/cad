@@ -197,7 +197,7 @@ pub use names::{
 pub use node::{
     AuthoredNode, Axis3, ConstraintId, InputFault, InterfaceCrossing, InterfaceRecord, ListFault,
     LoftSection, Node, OutputPort, PortKind, RecipeNodeId, SitedFace, SitedRef, SlotId,
-    StationMove, StepArg, StepId, TubeWindow, VectorSlot,
+    SectionId, SectionIdFault, StationMove, StepArg, StepId, TubeWindow, VectorSlot,
 };
 pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
@@ -225,7 +225,7 @@ pub use range::{
 };
 pub use refactor::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, NodeMap, RemapError, SplitError,
-    SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline, remap_name, split,
+    SectionMap, SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline, remap_name, split,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,

@@ -44,7 +44,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
-use crate::node::{Node, RecipeNodeId, StepId};
+use crate::node::{Node, RecipeNodeId, SectionId, StepId};
 use crate::program::LoopProgram;
 use crate::var::{VarId, VarKind};
 
@@ -170,6 +170,8 @@ pub enum Minted {
     Var(VarId),
     /// A constraint's id, minted by `AddConstraint`.
     Constraint(crate::node::ConstraintId),
+    /// A loft section's id, minted by `InsertNode` or `SetLoftSections`.
+    Section(SectionId),
 }
 
 impl Minted {
@@ -181,6 +183,7 @@ impl Minted {
             Self::Step(step) => step.0,
             Self::Var(var) => var.0,
             Self::Constraint(c) => c.0,
+            Self::Section(section) => section.0,
         }
     }
 }
@@ -194,6 +197,7 @@ impl core::fmt::Display for Minted {
             Self::Step(step) => write!(f, "step {step}"),
             Self::Var(var) => write!(f, "variable {var}"),
             Self::Constraint(c) => write!(f, "constraint {c}"),
+            Self::Section(section) => write!(f, "section {section}"),
         }
     }
 }
@@ -220,6 +224,16 @@ pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::VarId> {
         loops: Vec<LoopProgram<S>>,
         /// The kept ids.
         ids: &'a [Vec<Option<StepId>>],
+    },
+    /// A loft's sections written whole: the loft, the sections as the
+    /// edit lowered them, and the kept ids.
+    SetLoftSections {
+        /// The loft.
+        node: RecipeNodeId,
+        /// The loft as rewritten, its ids aside.
+        loft: Box<Node<P, S>>,
+        /// The kept ids.
+        ids: &'a [Option<SectionId>],
     },
     /// A variable declared: its KIND, and nothing else. Not its name
     /// (VR2: a name is a label, in neither an id's mint nor a content
@@ -356,6 +370,7 @@ const STEP_TAG: &[u8] = b"mint/step\0";
 const VAR_TAG: &[u8] = b"mint/var\0";
 const OUTPUT_TAG: &[u8] = b"mint/output\0";
 const CONSTRAINT_TAG: &[u8] = b"mint/constraint\0";
+const SECTION_TAG: &[u8] = b"mint/section\0";
 
 impl Mint {
     /// A document's mint before anything is inserted: the zero chain
@@ -386,7 +401,7 @@ impl Mint {
     pub fn steps(&self) -> impl Iterator<Item = StepId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Step(step) => Some(step),
-            Minted::Node(_) | Minted::Var(_) | Minted::Constraint(_) => None,
+            Minted::Node(_) | Minted::Var(_) | Minted::Constraint(_) | Minted::Section(_) => None,
         })
     }
 
@@ -395,7 +410,7 @@ impl Mint {
     pub(crate) fn nodes(&self) -> impl Iterator<Item = RecipeNodeId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Node(id) => Some(id),
-            Minted::Step(_) | Minted::Var(_) | Minted::Constraint(_) => None,
+            Minted::Step(_) | Minted::Var(_) | Minted::Constraint(_) | Minted::Section(_) => None,
         })
     }
 
@@ -444,6 +459,12 @@ impl Mint {
         self.holds(Minted::Step(step))
     }
 
+    /// Whether the document minted `section` as a loft section's id.
+    #[must_use]
+    pub fn has_section(&self, section: SectionId) -> bool {
+        self.holds(Minted::Section(section))
+    }
+
     /// Whether the document minted `var` as a variable's id.
     #[must_use]
     pub fn has_var(&self, var: VarId) -> bool {
@@ -454,7 +475,7 @@ impl Mint {
     pub fn vars(&self) -> impl Iterator<Item = VarId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Var(var) => Some(var),
-            Minted::Node(_) | Minted::Step(_) | Minted::Constraint(_) => None,
+            Minted::Node(_) | Minted::Step(_) | Minted::Constraint(_) | Minted::Section(_) => None,
         })
     }
 
@@ -587,6 +608,57 @@ impl Mint {
     /// loop then step order, each extending the chain once.
     pub(crate) fn steps_of_insert(&mut self, shape: &[Vec<Option<StepId>>]) -> Vec<Vec<StepId>> {
         self.fill(self.chain, shape)
+    }
+
+    /// **The ids for the sections of the loft [`Self::insert`] just
+    /// minted a node for**: one per section, `count` in all, first to
+    /// last, each extending the chain once.
+    pub(crate) fn sections_of_insert(&mut self, count: usize) -> Vec<SectionId> {
+        self.fill_sections(self.chain, &vec![None; count])
+    }
+
+    /// **The ids for a `SetLoftSections`' sections**: one entry per
+    /// section, the id a section keeps or `None` for one to mint. The
+    /// chain is extended by the edit's bytes (`loft` as the edit
+    /// lowered it, with `shape`), and each `None` is minted from it in
+    /// section order; with no `None` nothing moves.
+    pub(crate) fn set_loft_sections<P: Serialize + Clone, S: crate::Slot>(
+        &mut self,
+        node: RecipeNodeId,
+        loft: &Node<P, S>,
+        shape: &[Option<SectionId>],
+    ) -> Vec<SectionId>
+    where
+        Node<P, S>: Serialize,
+    {
+        if shape.iter().all(Option::is_some) {
+            return shape.iter().flatten().copied().collect();
+        }
+        let chain = self.extended(&MintingEdit::SetLoftSections {
+            node,
+            loft: Box::new(loft.clone()),
+            ids: shape,
+        });
+        self.fill_sections(chain, shape)
+    }
+
+    /// Mints each `None` of `shape` along `chain`, extending the log.
+    fn fill_sections(&mut self, mut chain: [u8; 32], shape: &[Option<SectionId>]) -> Vec<SectionId> {
+        let ids = shape
+            .iter()
+            .map(|kept| match *kept {
+                Some(section) => section,
+                None => {
+                    let (next, id) = Self::draw(SECTION_TAG, chain, &self.log);
+                    chain = next;
+                    let section = SectionId(id);
+                    self.log.push(Minted::Section(section));
+                    section
+                }
+            })
+            .collect();
+        self.chain = chain;
+        ids
     }
 
     /// **The ids of the outputs of the node [`Self::insert`] just

@@ -157,6 +157,16 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// and a shape no evaluation can loft [`EditError::LoftShape`]. A
     /// node that is not a loft refuses
     /// [`EditError::SetLoftSectionsOnNonLoft`].
+    ///
+    /// **Which sections are the old ones** is stated, as `SetProgram`'s
+    /// `ids` states its steps: `ids` gives each new section, the first
+    /// included, the [`crate::SectionId`] of the old section it KEEPS,
+    /// or `None` for a section it adds, which the door mints. A loft's
+    /// walls, seams and rings are named by their sections' ids
+    /// (`names/README.md`, N1), so a kept section's names keep their
+    /// spelling wherever it moves. A kept id must be a section of the
+    /// loft and stand for one section, and there is one entry per
+    /// section ([`EditError::SectionIdsRefused`]).
     SetLoftSections {
         /// The loft.
         node: RecipeNodeId,
@@ -165,6 +175,9 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The sections after the first, in skin order, each with its
         /// station.
         then: Vec<crate::LoftSection<crate::Operand, Formula>>,
+        /// Per new section, `first` then `then`: the id of the old
+        /// section it keeps, or `None` for a new one.
+        ids: Vec<Option<crate::SectionId>>,
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
@@ -2564,6 +2577,16 @@ pub enum EditError {
         /// What is wrong with the ids.
         fault: crate::program::StepIdFault,
     },
+    /// A loft's section ids were refused (`names/README.md`, N1): an
+    /// `InsertNode` loft carrying ids of its own, or a
+    /// `SetLoftSections` whose ids are not one per section, keep a
+    /// section the loft does not hold, or keep one twice.
+    SectionIdsRefused {
+        /// The loft.
+        node: SpokenNode,
+        /// What is wrong with the ids.
+        fault: crate::node::SectionIdFault,
+    },
     /// The node does not carry the named slot.
     UnknownSlot {
         /// The node.
@@ -3452,6 +3475,36 @@ fn step_ids_recourse(
     }
 }
 
+/// [`EditError::SectionIdsRefused`]'s recourse, by the fault.
+/// `InsertNode` raises `Preminted`, `SetLoftSections` the count and
+/// keep arms; `NotMinted` is the load door's.
+fn section_ids_recourse(
+    f: &mut core::fmt::Formatter<'_>,
+    tail: Tail,
+    fault: &crate::node::SectionIdFault,
+) -> core::fmt::Result {
+    use crate::node::SectionIdFault as F;
+    match fault {
+        F::Preminted => tail.recourse(f, format_args!("clear the loft's section ids first")),
+        F::Count { .. } => tail.recourse(
+            f,
+            format_args!(
+                "give one entry per section of the new list, the first included, with no id for \
+                 a section it adds"
+            ),
+        ),
+        F::NotThisLofts { .. } => tail.recourse(
+            f,
+            format_args!("keep only ids of this loft's own sections, and give a new section none"),
+        ),
+        F::Repeated { .. } => tail.recourse(
+            f,
+            format_args!("keep the id on one of the two sections, and give the other none"),
+        ),
+        F::NotMinted { .. } => tail.ending(f, geom_core::KERNEL_DEFECT_ENDING),
+    }
+}
+
 /// [`EditError::problem`]'s rendering.
 struct Problem<'a>(&'a EditError);
 
@@ -3540,6 +3593,7 @@ impl EditError {
             }
             | Self::SetProgramOnNonProfile { node }
             | Self::StepIdsRefused { node, fault: _ }
+            | Self::SectionIdsRefused { node, fault: _ }
             | Self::SlotUnknownVarName {
                 node,
                 name: _,
@@ -3845,6 +3899,10 @@ impl EditError {
                     "{node}'s program cannot take the step ids given: {fault}"
                 )?;
                 step_ids_recourse(f, tail, fault)
+            }
+            Self::SectionIdsRefused { node, fault } => {
+                write!(f, "{node} cannot take the section ids given: {fault}")?;
+                section_ids_recourse(f, tail, fault)
             }
             Self::IndexedRead { node, fault } => {
                 write!(f, "{node} cannot read that member: {fault}")?;
@@ -5265,6 +5323,38 @@ fn body_went<P: crate::ProfilePayload>(
         NameCarrier::Payload { .. } => return false,
     };
     before.operation_of(body) == Some(deleted)
+}
+
+/// **A `SetLoftSections`' section ids, checked** before anything is
+/// lowered: one entry per new section, `sections` in all; every kept
+/// id a section of the loft (`old`), and kept once.
+fn check_section_ids(
+    node: &SpokenNode,
+    old: &[crate::SectionId],
+    sections: usize,
+    ids: &[Option<crate::SectionId>],
+) -> Result<(), EditError> {
+    use crate::node::SectionIdFault;
+    let refuse = |fault| EditError::SectionIdsRefused {
+        node: node.clone(),
+        fault,
+    };
+    if ids.len() != sections {
+        return Err(refuse(SectionIdFault::Count {
+            sections,
+            given: ids.len(),
+        }));
+    }
+    let mut kept = std::collections::BTreeSet::new();
+    for &section in ids.iter().flatten() {
+        if !old.contains(&section) {
+            return Err(refuse(SectionIdFault::NotThisLofts { section }));
+        }
+        if !kept.insert(section) {
+            return Err(refuse(SectionIdFault::Repeated { section }));
+        }
+    }
+    Ok(())
 }
 
 /// **A `SetProgram`'s step ids, checked and minted** — before the
@@ -7458,9 +7548,18 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     if let Node::Profile(p) = &mut node {
         p.mint_step_ids(&mut mint)
             .map_err(|fault| EditError::StepIdsRefused {
-                node: entering,
+                node: entering.clone(),
                 fault,
             })?;
+    }
+    if let Node::Loft { then, ids, .. } = &mut node {
+        if !ids.is_empty() {
+            return Err(EditError::SectionIdsRefused {
+                node: entering,
+                fault: crate::node::SectionIdFault::Preminted,
+            });
+        }
+        *ids = mint.sections_of_insert(then.len() + 1);
     }
     // D10: the node defines one variable per port of its signature,
     // minted after its steps. Its inputs are live (above), so every
@@ -8012,28 +8111,35 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             node,
             first,
             then,
+            ids,
             fresh,
         } => {
-            let v_degree = match new.nodes.get(node) {
+            let (v_degree, old) = match new.nodes.get(node) {
                 None => {
                     return Err(EditError::UnknownNode {
                         id: SpokenNode::absent(*node),
                     });
                 }
-                Some(Node::Loft { v_degree, .. }) => *v_degree,
+                Some(Node::Loft { v_degree, ids, .. }) => (*v_degree, ids.clone()),
                 Some(_) => {
                     return Err(EditError::SetLoftSectionsOnNonLoft {
                         node: doc.spoken(*node),
                     });
                 }
             };
+            check_section_ids(&doc.spoken(*node), &old, then.len() + 1, ids)?;
             let authored: Node<P::Authored, Formula> = Node::Loft {
                 first: first.clone(),
                 then: then.clone(),
                 v_degree: Formula::var(v_degree, SlotId::VDegree.expr_dimension()),
+                ids: Vec::new(),
             };
-            let (rewritten, lowering) =
+            let (mut rewritten, lowering) =
                 lower_authored(new, &authored, fresh, || doc.spoken(*node))?;
+            let minted = new.mint.set_loft_sections(*node, &rewritten, ids);
+            if let Node::Loft { ids, .. } = &mut rewritten {
+                *ids = minted;
+            }
             let record = write_reads(doc, new, reported, *node, rewritten, tol)?;
             EditRecord {
                 fresh: lowering.finish(new)?,

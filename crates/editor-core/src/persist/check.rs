@@ -1278,6 +1278,16 @@ pub enum SnapshotError {
         /// What is wrong.
         fault: crate::program::StepIdFault,
     },
+    /// A loft's section ids are not the ones its edit doors would have
+    /// minted (`names/README.md`, N1): not one per section, not in the
+    /// mint log as a section's, or one id standing for two sections
+    /// anywhere in the document.
+    SectionIds {
+        /// The loft.
+        node: SpokenNode,
+        /// What is wrong.
+        fault: crate::node::SectionIdFault,
+    },
     /// The mint's log does not count up from one: an entry's ordinal
     /// is not its place in the log (a repeat, a step down or a gap) —
     /// a log no mint wrote.
@@ -1638,6 +1648,7 @@ impl core::fmt::Display for SnapshotError {
                 "{id} is not in the document's mint log — the document never minted it",
             ),
             Self::StepIds { node, fault } => write!(f, "{node}'s step ids: {fault}"),
+            Self::SectionIds { node, fault } => write!(f, "{node}'s section ids: {fault}"),
             Self::MintLogOrder { entry } => write!(
                 f,
                 "the mint's log does not count up from one at {entry} — its ordinal is not its \
@@ -1944,6 +1955,33 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 if !seen_steps.insert(step) {
                     return Err(fault(crate::program::StepIdFault::Repeated { step }));
                 }
+            }
+        }
+    }
+    // Every loft's section ids, as its steps are a profile's: one per
+    // section, each one the mint log holds as a section's, and no id
+    // standing for two sections anywhere in the document.
+    let mut seen_sections = std::collections::BTreeSet::new();
+    for (&id, node) in &doc.nodes {
+        let Node::Loft { then, ids, .. } = node else {
+            continue;
+        };
+        let fault = |fault| SnapshotError::SectionIds {
+            node: doc.spoken(id),
+            fault,
+        };
+        if ids.len() != then.len() + 1 {
+            return Err(fault(crate::node::SectionIdFault::Count {
+                sections: then.len() + 1,
+                given: ids.len(),
+            }));
+        }
+        for &section in ids {
+            if !doc.mint.has_section(section) {
+                return Err(fault(crate::node::SectionIdFault::NotMinted { section }));
+            }
+            if !seen_sections.insert(section) {
+                return Err(fault(crate::node::SectionIdFault::Repeated { section }));
             }
         }
     }
@@ -2348,6 +2386,7 @@ mod tests {
         const SNAPSHOT_ERROR: SnapshotError = [
             NodeNotMinted,
             StepIds,
+            SectionIds,
             MintLogOrder,
             NameReadNotMinted,
             AppearanceReadNotABody,
@@ -2429,6 +2468,7 @@ mod tests {
             // `validate_snapshot`, which is where the rest live.
             SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
+            | SnapshotError::SectionIds { .. }
             | SnapshotError::NameReadNotMinted { .. }
             | SnapshotError::AppearanceReadNotABody { .. }
             | SnapshotError::NameStepNotMinted { .. }
@@ -2484,6 +2524,12 @@ mod tests {
                 node: node(),
                 fault: crate::program::StepIdFault::Repeated {
                     step: crate::node::StepId::new(0, 2),
+                },
+            },
+            SnapshotError::SectionIds {
+                node: node(),
+                fault: crate::node::SectionIdFault::Repeated {
+                    section: crate::node::SectionId::new(0, 2),
                 },
             },
             SnapshotError::MintLogOrder {

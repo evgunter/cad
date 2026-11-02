@@ -43,7 +43,7 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use super::canonical;
 use super::nest::{Descent, Kept, Stopped, descend};
-use crate::node::{RecipeNodeId, StepId};
+use crate::node::{RecipeNodeId, SectionId, StepId};
 use crate::var::VarId;
 
 /// **The handle a role segment holds its argument [`StableName`] by**:
@@ -1205,28 +1205,21 @@ pub enum RoleSeg {
     CapVertex(CapEnd, ProfileVertexRef),
 
     // ---- Loft ----
-    /// A loft wall: the pieces the skin paired into it, one per
-    /// section, in section order. A loft's caps, rims and cap vertices
-    /// are the extrude's roles, each spelled with its own end
+    /// A loft wall: each section it spans, by its id, with the piece
+    /// the skin paired into the wall there, in section order — every
+    /// section, or a degree-1 slab's two. A loft's caps, rims and cap
+    /// vertices are the extrude's roles, each spelled with its own end
     /// section's locator.
-    LoftWall(Vec<ProfileEdgeRef>),
+    LoftWall(Vec<(SectionId, ProfileEdgeRef)>),
     /// A loft seam: the wall–wall edge through the vertices the skin
-    /// paired, one per section, in section order.
-    LoftSeam(Vec<ProfileVertexRef>),
-    /// A wall of a loft built one per slab (v-degree 1 through three
-    /// sections or more): the slab, counted from the start section, and
-    /// the pieces the skin paired into it at the slab's two sections.
-    LoftSlabWall(u32, Vec<ProfileEdgeRef>),
-    /// A seam of a loft built one per slab: the slab, and the vertices
-    /// it joins at the slab's two sections.
-    LoftSlabSeam(u32, Vec<ProfileVertexRef>),
+    /// paired, each with its section's id, in section order.
+    LoftSeam(Vec<(SectionId, ProfileVertexRef)>),
     /// An edge of an interior section's ring, between two slabs' walls:
-    /// the section, counted from the start section, and the piece it
-    /// lies on there.
-    LoftSectionEdge(u32, ProfileEdgeRef),
-    /// A vertex of an interior section: the section, and the profile
-    /// vertex it lies on there.
-    LoftSectionVertex(u32, ProfileVertexRef),
+    /// the section's id, and the piece it lies on there.
+    LoftSectionEdge(SectionId, ProfileEdgeRef),
+    /// A vertex of an interior section: the section's id, and the
+    /// profile vertex it lies on there.
+    LoftSectionVertex(SectionId, ProfileVertexRef),
 
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
     /// A wall (band) face swept from a run of profile pieces on one
@@ -1887,8 +1880,6 @@ macro_rules! locator_seg {
             | $crate::names::RoleSeg::CapVertex(..)
             | $crate::names::RoleSeg::LoftWall(_)
             | $crate::names::RoleSeg::LoftSeam(_)
-            | $crate::names::RoleSeg::LoftSlabWall(..)
-            | $crate::names::RoleSeg::LoftSlabSeam(..)
             | $crate::names::RoleSeg::LoftSectionEdge(..)
             | $crate::names::RoleSeg::LoftSectionVertex(..)
             | $crate::names::RoleSeg::Band(_)
@@ -1953,6 +1944,15 @@ pub(crate) trait SegRewrite {
     /// The rewriter's own.
     fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
         Ok(v)
+    }
+
+    /// A loft section's id the segment carries directly.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn section(&mut self, s: SectionId) -> Result<SectionId, Self::Error> {
+        Ok(s)
     }
 
     /// What becomes of a name the segment carries ([`Carry`]).
@@ -2086,6 +2086,10 @@ impl<'s, W: SegRewrite> Deep<'_, 's, W> {
 
     fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Stopped<'s, W::Error>> {
         self.w.vertex(v).map_err(Stopped::Refused)
+    }
+
+    fn section(&mut self, s: SectionId) -> Result<SectionId, Stopped<'s, W::Error>> {
+        self.w.section(s).map_err(Stopped::Refused)
     }
 
     fn read(&mut self, r: VarId) -> Result<VarId, Stopped<'s, W::Error>> {
@@ -2226,21 +2230,18 @@ impl RoleSeg {
             R::RimEdge(c, run) => R::RimEdge(*c, run.try_map(|e| w.edge(e))?),
             R::LateralEdge(v) => R::LateralEdge(w.vertex(*v)?),
             R::CapVertex(c, v) => R::CapVertex(*c, w.vertex(*v)?),
-            R::LoftWall(es) => {
-                R::LoftWall(es.iter().map(|e| w.edge(*e)).collect::<Result<_, _>>()?)
-            }
-            R::LoftSeam(vs) => {
-                R::LoftSeam(vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?)
-            }
-            R::LoftSlabWall(s, es) => {
-                R::LoftSlabWall(*s, es.iter().map(|e| w.edge(*e)).collect::<Result<_, _>>()?)
-            }
-            R::LoftSlabSeam(s, vs) => R::LoftSlabSeam(
-                *s,
-                vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?,
+            R::LoftWall(es) => R::LoftWall(
+                es.iter()
+                    .map(|&(s, e)| Ok((w.section(s)?, w.edge(e)?)))
+                    .collect::<Result<_, Stopped<'s, W::Error>>>()?,
             ),
-            R::LoftSectionEdge(s, e) => R::LoftSectionEdge(*s, w.edge(*e)?),
-            R::LoftSectionVertex(s, v) => R::LoftSectionVertex(*s, w.vertex(*v)?),
+            R::LoftSeam(vs) => R::LoftSeam(
+                vs.iter()
+                    .map(|&(s, v)| Ok((w.section(s)?, w.vertex(v)?)))
+                    .collect::<Result<_, Stopped<'s, W::Error>>>()?,
+            ),
+            R::LoftSectionEdge(s, e) => R::LoftSectionEdge(w.section(*s)?, w.edge(*e)?),
+            R::LoftSectionVertex(s, v) => R::LoftSectionVertex(w.section(*s)?, w.vertex(*v)?),
             R::Band(run) => R::Band(run.try_map(|e| w.edge(e))?),
             R::BandRim(v) => R::BandRim(w.vertex(*v)?),
             R::BandRimPi(v) => R::BandRimPi(w.vertex(*v)?),
@@ -2559,8 +2560,6 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::CapVertex(..)
             | $crate::names::RoleSeg::LoftWall(_)
             | $crate::names::RoleSeg::LoftSeam(_)
-            | $crate::names::RoleSeg::LoftSlabWall(..)
-            | $crate::names::RoleSeg::LoftSlabSeam(..)
             | $crate::names::RoleSeg::LoftSectionEdge(..)
             | $crate::names::RoleSeg::LoftSectionVertex(..)
             | $crate::names::RoleSeg::Band(_)

@@ -892,34 +892,28 @@ fn role<'n, 's>(
         )),
         RoleSeg::LoftWall(edges) => one(format!(
             "the loft wall over {}",
-            pieces(edges.iter().map(|e| piece(e, f, by)))
+            pieces(
+                edges
+                    .iter()
+                    .map(|(s, e)| format!("{} at {}", piece(e, f, by), by.section(f, *s)))
+            )
         )),
         RoleSeg::LoftSeam(vertices) => one(format!(
             "the loft seam over {}",
-            pieces(vertices.iter().map(|v| vertex(v, f, by)))
+            pieces(
+                vertices
+                    .iter()
+                    .map(|(s, v)| format!("{} at {}", vertex(v, f, by), by.section(f, *s)))
+            )
         )),
-        // Slabs and sections are counted from 1 in words: slab `s`
-        // spans the author's sections `s + 1` and `s + 2`.
-        RoleSeg::LoftSlabWall(slab, edges) => one(format!(
-            "the loft wall between sections {} and {} over {}",
-            slab + 1,
-            slab + 2,
-            pieces(edges.iter().map(|e| piece(e, f, by)))
-        )),
-        RoleSeg::LoftSlabSeam(slab, vertices) => one(format!(
-            "the loft seam between sections {} and {} over {}",
-            slab + 1,
-            slab + 2,
-            pieces(vertices.iter().map(|v| vertex(v, f, by)))
-        )),
-        RoleSeg::LoftSectionEdge(section, e) => one(format!(
-            "the loft section {} edge over {}",
-            section + 1,
+        RoleSeg::LoftSectionEdge(s, e) => one(format!(
+            "the loft {} edge over {}",
+            by.section(f, *s),
             piece(e, f, by)
         )),
-        RoleSeg::LoftSectionVertex(section, v) => one(format!(
-            "the loft section {} vertex over {}",
-            section + 1,
+        RoleSeg::LoftSectionVertex(s, v) => one(format!(
+            "the loft {} vertex over {}",
+            by.section(f, *s),
             vertex(v, f, by)
         )),
         RoleSeg::Band(r) => one(format!("the band face over {}", run(r, f, by))),

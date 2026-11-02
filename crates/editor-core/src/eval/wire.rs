@@ -403,7 +403,9 @@ where
             wire_revolve(id, at(O::Profile, *profile)?, results, vals, tol)
                 .and_then(|out| twisted(out, id, env, tol))
         }
-        Node::Loft { first, then, .. } => {
+        Node::Loft {
+            first, then, ids, ..
+        } => {
             let sections = core::iter::once(*first)
                 .chain(then.iter().map(|section| section.profile))
                 .enumerate()
@@ -413,7 +415,7 @@ where
                 .iter()
                 .map(|section| section.station.as_slice())
                 .collect();
-            wire_loft(id, &sections, &stations, results, vals, tol)
+            wire_loft(id, (&sections, ids), &stations, results, vals, tol)
                 .and_then(|out| twisted(out, id, env, tol))
         }
         Node::Sweep { profile, path, .. } => {
@@ -4407,7 +4409,7 @@ fn need_count(
 /// than a point lofts the family it spans.
 fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    profiles: &[RecipeNodeId],
+    (profiles, ids): (&[RecipeNodeId], &[crate::SectionId]),
     stations: &[&[crate::node::StationMove]],
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -4452,8 +4454,17 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     })?;
     // Eager N4 emission, BEFORE the structural handoff is dropped. The
     // skin pairs canonical segment `k` of every section into wall `k`,
-    // so wall `k` is named by one locator per section.
-    let table = names::name_loft(id, &built, &pieces).map_err(NodeErrorKind::Naming)?;
+    // so wall `k` is named by one locator per section it spans, each
+    // with that section's id.
+    if ids.len() != profiles.len() {
+        unreachable!(
+            "loft {id} reached evaluation holding {} section ids for {} sections: the insert \
+             door mints one per section and the load door refuses any other count",
+            ids.len(),
+            profiles.len()
+        );
+    }
+    let table = names::name_loft(id, &built, &pieces, ids).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(values[0].framed(Arc::new(built.body))),
         table,
