@@ -2,7 +2,7 @@
 id: onehome
 kind: program
 title: ONEHOME — one implementation per logic on split and boolean ground, where CLEAVE's review residue found two or more
-status: ready
+status: active
 opened: 2026-10-26
 group: kernel/boolean/one-home
 prefix: onehome/

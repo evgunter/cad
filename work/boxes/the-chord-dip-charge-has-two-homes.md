@@ -5,7 +5,8 @@ title: The chord-dip charge f2*step^2/8 has two homes and nine spellings: the on
 status: open
 opened: 2026-09-14
 priority: P1
-cost: D
+cost: C
+rides_with: split-gate-sphere-zone-folds-into-face-box-rule
 ---
 
 

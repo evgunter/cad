@@ -265,6 +265,8 @@ mod resolve_upstream_scope;
 mod revalue_corpus;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
+#[path = "takeover_door.rs"]
+mod takeover_door;
 
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;

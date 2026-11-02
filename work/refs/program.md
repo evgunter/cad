@@ -2,10 +2,10 @@
 id: refs
 kind: program
 title: REFS — references and reads: a name scoped by its read, indexed reads, and the façade's slot words
-status: ready
+status: active
 opened: 2026-10-11
 group: api/names
-prefix: refs/
+prefix: reads/
 tag: (REFS orchestrator)
 ab_band: 13100-13199
 paths: [crates/editor-core/src/names/*]

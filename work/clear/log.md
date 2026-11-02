@@ -355,6 +355,17 @@ Signed: (CARVE orchestrator)
   - **Filed:** CLEARTAIL's `support-separation-has-two-vocabularies-for-faces-and-cells` (P2) and `clearance-recomputes-a-cells-net-and-jet-per-pair` (P3).
   - **Base reds seen in editor-core:** `coincidence_door` is GREEN's open row; `seat7_sweep_lowering` is in FIXTURE's `editor-core-raw-twin-planes-unreconciled`. Neither is CLEAR's.
   - **The price row is unparked** for re-measurement on main with JETFRAME, ZEROSIDE, HEADING and DIRSUPPORT all in.
+- 2026-11-01 — Seam note from DOORS. Ev ratified on PR 6261 (ERROR-DESIGN E3 and E7, DESIGN `[assertions]`):
+  - A clearance is an E10 assertion on `clearance(a, b)`, bounded below, above, or both, and decided by one fused E7 sweep. The minimum is never computed.
+  - `min_clearance` leaves the measures. `editor_core::clearance`'s `Selection`-and-`c` doors retire into `drive::assertion_at`, and `min_separation` leaves evaluation.
+
+  DOORS claimed the kernel unit, `work/doors/a-clearance-assertion-is-decided-by-the-sweep.md`, on branch `doors/clearance-assertion`, because it blocks DOORS' P1 GUI consumer. Its ground is yours: `crates/topo/src/clearance.rs` and `crates/editor-core/src/clearance.rs`. Rows of yours this affects:
+  - `measure-clearance-refused-states-no-recourse-…` dissolves.
+  - `clearance-violated-verdict-names-its-pair-by-bare-keys` and `violated-witness-can-sit-off-the-trimmed-face` become user-facing.
+  - `the-clearance-leaf-doors-ask-an-assertions-question-a-second-way` is answered by the unit.
+  - `needs-enclosures-recourse-…` dissolves with `MeasureUnavailableAt`.
+
+  (DOORS orchestrator)
 - 2026-11-01 — **The price is re-measured (PRICEMEASURE); the price row closes; NETCACHE is next.** On main after JETFRAME, ZEROSIDE, HEADING and DIRSUPPORT, all 14 tour bodies hold within the default pair budget:
   - the lily leaves and sepals: 311–3,410 splits, 2.7–27 s;
   - the Klein loop: 48k splits (73% of the budget), 47 s;
@@ -369,3 +380,4 @@ Signed: (CARVE orchestrator)
 - 2026-11-02 — **Sitting ends; the track is handed back (`ready`).** No P0 or P1 row is dispatchable. CARVE's P0 waits on the ruling `where-the-embedding-certificate-is-paid`, which went to Ev as `[ev]` PR 6301. Whoever holds the track when Ev answers updates that PR in place: the fork log's second commit, then the ruling closes. The ruling's unit then goes to CLEAR. It covers the lane split, the gate's certificate, recorded-pair exclusion and the per-node verdict memo, and needs the planar and boolean-chain price measured first. What remains is P2/P3 tail. `min-separation-floors-by-boxes-not-directions` is banded P3: it is a looseness in a bracket, not unsoundness.
 
 - 2026-11-02 — **Ev ruled at PR 6301: embedding is part of what a finished body promises, and f64 certifies.** Ev first asked why self-interference is banned when two bodies may interfere. The answer was that a self-crossing boundary has no inside the parity readers agree on. Ev: "3 is fine indefinitely". The ruling closed. Unit `the-at-rest-gate-certifies-embedding` filed (P0/H), with three measurements before its spec. CARVE's spines row is re-parked on it. CLEAR stays `ready`: the unit is a successor's sitting.
+- 2026-11-02 — **Seam (BOXES):** claimed into this slate by `git mv`: `signed-penetration-depth` (P1, H), which BOXES carried from the REACH cut though it is a clearance-engine row on `clearance.rs`. See its Re-homed note. (BOXES orchestrator)

@@ -152,6 +152,51 @@ pub struct EvalRequest {
     /// semantics. Shared by `Arc` so the worker holds a handle, not a
     /// copy of the store.
     pub resolver: Option<Arc<dyn PartResolver>>,
+    /// **A run to start from in place of the seam's own**: a completed
+    /// evaluation of a document this one was staged from, made beside
+    /// the seam (a takeover reads the result's table off one before it
+    /// writes its rebinds). Only what the later edits touched is
+    /// evaluated again. `None` starts from the seam's last completed
+    /// run, as every other request does.
+    pub seed: Option<Seed>,
+}
+
+/// **A completed evaluation a request starts from**
+/// ([`EvalRequest::seed`]), with the document it is an evaluation of and
+/// the resolver it resolved parts through. A run may start from an
+/// evaluation of an earlier document (only what changed is evaluated
+/// again), but it answers names only of its own
+/// (`DocSession::name_run`). The seam's priming rule holds a seed to the
+/// request's resolver as it holds its own run ([`same_resolver`]), and a
+/// seed under another one is a caller's error, refused loudly.
+///
+/// **Provenance is held by the type**: its one constructor takes an
+/// [`Answered`](pncad::document::Answered), which is made only by
+/// evaluating, so a seed's document and resolver are the ones its
+/// evaluation ran on.
+#[derive(Clone, Debug)]
+pub struct Seed(pncad::document::Answered);
+
+impl Seed {
+    /// The seed `answered` is.
+    pub fn of(answered: pncad::document::Answered) -> Self {
+        Self(answered)
+    }
+
+    /// The evaluation.
+    pub fn evaluation(&self) -> &Arc<Evaluation<f64>> {
+        self.0.evaluation()
+    }
+
+    /// The document it is an evaluation of.
+    pub fn answers(&self) -> &Arc<Doc<ProfileProgram>> {
+        self.0.doc()
+    }
+
+    /// The resolver it resolved `InstantiatePart` nodes through.
+    pub fn resolver(&self) -> &Option<Arc<dyn PartResolver>> {
+        self.0.resolver()
+    }
 }
 
 /// A finished run.
@@ -291,10 +336,26 @@ fn run_once(
     prior: &mut Option<PriorRun>,
     cancel: &CancelToken,
 ) -> Arc<Evaluation<f64>> {
-    let prime = prior
+    // A seed is held to the seam's two priming rules like its own run:
+    // the same resolver (a caller's error otherwise, so asserted) and a
+    // completed run.
+    if let Some(seed) = &request.seed {
+        assert!(
+            same_resolver(seed.resolver(), &request.resolver),
+            "a seed evaluated under another resolver than its request's"
+        );
+    }
+    let seeded = request
+        .seed
         .as_ref()
-        .filter(|p| same_resolver(&p.resolver, &request.resolver))
-        .map(|p| p.evaluation.as_ref());
+        .map(|seed| seed.evaluation().as_ref())
+        .filter(|seed| seed.outcome == EvalOutcome::Completed);
+    let prime = seeded.or_else(|| {
+        prior
+            .as_ref()
+            .filter(|p| same_resolver(&p.resolver, &request.resolver))
+            .map(|p| p.evaluation.as_ref())
+    });
     let evaluation = Arc::new(evaluate::<f64>(
         &request.doc,
         prime,
