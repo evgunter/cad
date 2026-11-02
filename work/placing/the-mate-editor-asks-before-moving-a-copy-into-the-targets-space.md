@@ -41,13 +41,14 @@ space a placement's mates read is part of that placement.
 
 ## Design work before building
 
-- **Which space a draft targets when its `to` picks disagree.** Two
-  mate rows whose `to` sides are read in two different spaces are a
-  draft that no target satisfies. The verdict should name it, and
-  Apply should stay withheld.
-- **Mates already in the bundle.** Today's re-target stands the copy by
-  the identity, which drops every mate. Under the editor, a loaded mate
-  whose `to` is in the old space is a row the draft can show struck,
+- **A pick in another space than the draft's.** A placement has one
+  target, so a stored bundle never holds mates read in two spaces; the
+  case exists only in the draft, as a click. The click re-targets the
+  draft to its space. Earlier rows whose `to` is read in the old space
+  are struck out, as the next bullet says, rather than being refused.
+- **Mates read in the old space** (loaded, or drafted earlier). Today's re-target stands the copy by
+  the identity, which drops every mate. Under the editor, each such mate
+  is a row the draft can show struck,
   with the reason, before Apply, rather than a reset after it.
 - **What the move strands.** Re-targeting a placement leaves each read
   of its copy in the old space (a `⊔` operand, another placement's
