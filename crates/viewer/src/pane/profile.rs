@@ -2388,4 +2388,184 @@ mod tests {
             "the held edits are kept for the person to revert or repair"
         );
     }
+
+    // ---------------- review 6295 probes ----------------
+
+    /// The Apply label the door paints after `painted`'s last frame.
+    fn apply_label(painted: &str) -> String {
+        let last: Vec<&str> = painted.lines().collect();
+        let half = &last[last.len() / 2..];
+        half.iter()
+            .rev()
+            .find(|l| l.starts_with("Apply"))
+            .map(|l| (*l).to_owned())
+            .unwrap_or_else(|| panic!("no Apply painted: {painted}"))
+    }
+
+    /// Remove the given held loops (each nth REMOVE_LOOP, in order),
+    /// apply, perform; answers (label, outcome, ids after).
+    fn remove_then_apply(
+        session: &mut crate::session::DocSession,
+        profile: pncad::document::RecipeNodeId,
+        removals: &[usize],
+        add: Option<(crate::forms::ShapeKind, Step<f64>)>,
+    ) -> (String, crate::session::OpOutcome) {
+        let mut drafts = Drafts::default();
+        let mut painted = String::new();
+        for nth in removals {
+            painted = click_door(session, &mut drafts, profile, super::REMOVE_LOOP, *nth).0;
+        }
+        if let Some((kind, step)) = add {
+            let added = super::add_loop_label(kind);
+            click_door(session, &mut drafts, profile, &added, 0);
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("held");
+            let n = edit.loops().len();
+            edit.steps_mut(n - 1)[0] = step;
+            // repaint to get the label after the edit
+            painted = crate::pane::headless::painted_text(|ui| {
+                let edit = drafts
+                    .profile_edit(session.committed_doc(), profile)
+                    .expect("held");
+                let _ = super::edit_door_ui(
+                    ui,
+                    session,
+                    Theme::DEFAULT,
+                    Notation::CANONICAL,
+                    edit,
+                    None,
+                    None,
+                );
+            });
+            painted = format!("{painted}\n{painted}");
+        }
+        let label = apply_label(&painted);
+        let (_, formed) = click_door(session, &mut drafts, profile, &label, 0);
+        let out = session.perform(formed.expect("Apply formed"));
+        (label, out)
+    }
+
+    /// review 6295: removing the outer loop of a plate with two holes
+    /// leaves two outers; the edit door's preview refuses before Apply,
+    /// and the door refuses the same way if Apply is forced.
+    #[test]
+    fn review_6295_removing_the_outer_of_two_holes_refuses_in_the_preview() {
+        let (mut session, profile, _driven) = three_loop_plate();
+        let before = session.committed_doc().clone();
+        let mut drafts = Drafts::default();
+        click_door(&session, &mut drafts, profile, super::REMOVE_LOOP, 0);
+        let edit = drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held");
+        let preview = sketch::preview(
+            sketch::profile_plane(),
+            &edit.shapes(),
+            Tol::witness(),
+            1e-4,
+        );
+        assert!(
+            matches!(&preview, Ok(p) if p.invalid.is_some()),
+            "the preview refuses before Apply: {preview:?}"
+        );
+        let (_, out) = remove_then_apply(&mut session, profile, &[0], None);
+        assert!(out.refusal.is_some(), "two outers refuse at the door");
+        assert!(session.committed_doc().bit_eq(&before), "nothing landed");
+    }
+
+    #[test]
+    fn review_6295_remove_the_driven_loop() {
+        let (mut session, profile, _driven) = three_loop_plate();
+        let ids = loop_ids(&session, profile);
+        let (label, out) = remove_then_apply(&mut session, profile, &[2], None);
+        assert_eq!(label, "Apply", "the shell names loop 1, which is kept");
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert_eq!(
+            loop_ids(&session, profile),
+            vec![ids[0].clone(), ids[1].clone()]
+        );
+    }
+
+    #[test]
+    fn review_6295_remove_and_add_in_one_draft() {
+        use crate::forms::ShapeKind;
+        use pncad::document::SlotId;
+        let (mut session, profile, driven) = three_loop_plate();
+        let ids = loop_ids(&session, profile);
+        let before = session.committed_doc().clone();
+        let (label, out) = remove_then_apply(
+            &mut session,
+            profile,
+            &[1],
+            Some((
+                ShapeKind::Circle,
+                Step::Circle {
+                    centre: Point2::new(0.0, 0.006),
+                    radius: 0.002,
+                },
+            )),
+        );
+        assert_eq!(label, "Apply, stranding 1 name");
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let now = loop_ids(&session, profile);
+        assert_eq!(now.len(), 3);
+        assert_eq!(now[..2], [ids[0].clone(), ids[2].clone()]);
+        assert!(
+            !ids.iter().flatten().any(|id| now[2].contains(id)),
+            "the new loop has fresh ids"
+        );
+        let SlotId::Profile { step, arg, .. } = driven else {
+            unreachable!()
+        };
+        let row = row_of(
+            &session,
+            profile,
+            SlotId::Profile {
+                loop_: 1,
+                step,
+                arg,
+            },
+        );
+        assert_eq!(row.source.as_deref(), Some("w"));
+        let after = session.committed_doc().clone();
+        assert!(
+            session
+                .perform(crate::session::SessionOp::Undo)
+                .refusal
+                .is_none()
+        );
+        assert!(session.committed_doc().bit_eq(&before));
+        assert!(
+            session
+                .perform(crate::session::SessionOp::Redo)
+                .refusal
+                .is_none()
+        );
+        assert!(session.committed_doc().bit_eq(&after));
+    }
+
+    #[test]
+    fn review_6295_remove_every_hole() {
+        let (mut session, profile, _driven) = three_loop_plate();
+        let ids = loop_ids(&session, profile);
+        let before = session.committed_doc().clone();
+        // remove loop 2 then loop 1 (both nth 1 after the first, since loop 1 is nth 1)
+        let (label, out) = remove_then_apply(&mut session, profile, &[2, 1], None);
+        assert_eq!(label, "Apply, stranding 1 name");
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert_eq!(loop_ids(&session, profile), vec![ids[0].clone()]);
+        let strands = out
+            .maintenance
+            .iter()
+            .filter(|row| matches!(row, pncad::document::Maintenance::StrandedSelection { .. }))
+            .count();
+        assert_eq!(strands, 1);
+        assert!(
+            session
+                .perform(crate::session::SessionOp::Undo)
+                .refusal
+                .is_none()
+        );
+        assert!(session.committed_doc().bit_eq(&before));
+    }
 }

@@ -1728,6 +1728,140 @@ mod tests {
         );
     }
 
+    /// review 6295: preview verdict vs the door's refusal across containment cases.
+    #[test]
+    fn review_6295_containment_preview_agrees_with_the_door() {
+        let tol = Tol::witness();
+        let chord = 1.0e-4;
+        let circle = |x: f64, y: f64, r: f64| ProfileShape::Circle {
+            centre: [x, y],
+            radius: r,
+        };
+        let rect = |w: f64, h: f64| ProfileShape::Rectangle {
+            width: w,
+            height: h,
+        };
+        let cases: Vec<(&str, Option<ShapeKind>, [f64; 2], f64, Vec<ProfileShape>)> = vec![
+            (
+                "outside",
+                Some(ShapeKind::Rectangle),
+                [0.01, 0.01],
+                0.0,
+                vec![circle(0.02, 0.0, 0.0025)],
+            ),
+            (
+                "overlap edge",
+                Some(ShapeKind::Rectangle),
+                [0.01, 0.01],
+                0.0,
+                vec![circle(0.005, 0.0, 0.0025)],
+            ),
+            (
+                "two holes overlap",
+                Some(ShapeKind::Rectangle),
+                [0.02, 0.02],
+                0.0,
+                vec![circle(-0.001, 0.0, 0.002), circle(0.001, 0.0, 0.002)],
+            ),
+            (
+                "island",
+                Some(ShapeKind::Rectangle),
+                [0.02, 0.02],
+                0.0,
+                vec![rect(0.01, 0.01), circle(0.0, 0.0, 0.0025)],
+            ),
+            (
+                "hole first",
+                Some(ShapeKind::Circle),
+                [0.0, 0.0],
+                0.0025,
+                vec![rect(0.01, 0.01)],
+            ),
+            (
+                "identical",
+                Some(ShapeKind::Rectangle),
+                [0.005, 0.005],
+                0.0,
+                vec![rect(0.005, 0.005)],
+            ),
+            (
+                "touching",
+                Some(ShapeKind::Rectangle),
+                [0.01, 0.01],
+                0.0,
+                vec![circle(0.0025, 0.0, 0.0025)],
+            ),
+            (
+                "tangent inside",
+                Some(ShapeKind::Circle),
+                [0.0, 0.0],
+                0.005,
+                vec![circle(0.0025, 0.0, 0.0025)],
+            ),
+            (
+                "with bore plus added hole",
+                Some(ShapeKind::Circle),
+                [0.0, 0.0],
+                0.01,
+                vec![circle(0.006, 0.0, 0.001)],
+            ),
+        ];
+        let mut disagree = Vec::new();
+        for (name, shape, extent, radius, more) in cases {
+            let mut drafts = Drafts {
+                profile_shape: shape,
+                profile_extent: if extent == [0.0, 0.0] {
+                    [0.01, 0.01]
+                } else {
+                    extent
+                },
+                profile_more: more,
+                ..Drafts::default()
+            };
+            if radius > 0.0 {
+                drafts.profile_radius = radius;
+            }
+            if name.starts_with("with bore") {
+                drafts.profile_bored = true;
+                drafts.profile_bore = 0.002;
+            }
+            let preview =
+                sketch::preview(sketch::profile_plane(), &drafts.profile_loops(), tol, chord);
+            let preview_refuses = match &preview {
+                Ok(p) => p.invalid.is_some(),
+                Err(_) => true,
+            };
+            let op = drafts
+                .profile_op(Notation::DEFAULT)
+                .expect("lowers")
+                .expect("an op");
+            let doc = pncad::document::Doc::empty_derived("containment", tol);
+            let mut session = crate::session::DocSession::inline(doc, tol);
+            let out = session.perform(op);
+            let door_refuses = out.refusal.is_some();
+            // and does the evaluation fail?
+            session.pump();
+            let eval_err = session
+                .evaluation()
+                .map(|e| {
+                    session
+                        .committed_doc()
+                        .ids()
+                        .into_iter()
+                        .filter_map(|id| e.node_error(id).map(|err| format!("{err:?}")))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if preview_refuses != (door_refuses || !eval_err.is_empty()) {
+                disagree.push(name);
+            }
+        }
+        assert!(
+            disagree.is_empty(),
+            "preview and door disagree on {disagree:?}"
+        );
+    }
+
     /// **A sketch on a face lowers the held pick, the depth and the
     /// spin in the form's notation**, and waits for a face while none is
     /// held.

@@ -5535,6 +5535,142 @@ mod properties_pane_tests {
         );
     }
 
+    /// review 6295 e2e: plate + slot + two holes, extrude, fillet a hole's
+    /// rim, remove that hole in the edit door, Apply.
+    #[test]
+    fn review_6295_e2e_remove_a_filleted_hole() {
+        use crate::forms::ShapeKind;
+        use crate::pane::create::{ADD_FEATURE, ADD_PROFILE, ADD_PROFILE_DOOR};
+        use crate::session::ProfileShape;
+
+        let mut driven = Driven::with(Vec::new());
+        let before = driven.app.session.committed_doc().ids();
+        driven.click(ADD_FEATURE);
+        driven.click(ADD_PROFILE_DOOR);
+        driven.click("rectangle");
+        driven.app.drafts.profile_extent = [0.04, 0.02];
+        let rect = crate::pane::profile::add_loop_label(ShapeKind::Rectangle);
+        let circ = crate::pane::profile::add_loop_label(ShapeKind::Circle);
+        driven.click(&rect);
+        driven.click(&circ);
+        driven.click(&circ);
+        driven.app.drafts.profile_more = vec![
+            ProfileShape::Rectangle {
+                width: 0.01,
+                height: 0.003,
+            },
+            ProfileShape::Circle {
+                centre: [-0.012, 0.0],
+                radius: 0.002,
+            },
+            ProfileShape::Circle {
+                centre: [0.012, 0.0],
+                radius: 0.002,
+            },
+        ];
+        driven.click(ADD_PROFILE);
+        let doc = driven.app.session.committed_doc().clone();
+        let profile = doc
+            .ids()
+            .into_iter()
+            .find(|id| !before.contains(id) && matches!(doc.node(*id), Some(Node::Profile(_))))
+            .expect("a profile landed");
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            unreachable!()
+        };
+        assert_eq!(program.loops.len(), 4);
+        let hole_step = program.ids[2][0];
+        let out = driven.app.session.perform(SessionOp::AddExtrude {
+            profile,
+            distance: crate::test_support::len(0.005),
+        });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let extrude = out.made.expect("the extrude");
+        driven.app.session.pump();
+        driven.settle();
+        let eval = driven.app.session.evaluation().expect("landed");
+        let all = pncad::select::all_edges(eval, extrude);
+        let step_dbg = format!("{hole_step:?}");
+        let rims: Vec<_> = all
+            .into_iter()
+            .filter(|n| {
+                let d = format!("{n:?}");
+                d.contains("RimEdge(End") && d.contains(&step_dbg)
+            })
+            .collect();
+        assert!(!rims.is_empty(), "found the hole's top rim");
+        let out = driven.app.session.perform(SessionOp::AddFillet {
+            target: extrude,
+            radius: crate::test_support::len(0.0005),
+            selection: rims,
+        });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let fillet = out.made.expect("the fillet");
+        driven.app.session.pump();
+        driven.settle();
+        let eval = driven.app.session.evaluation().expect("landed");
+        assert!(
+            eval.value(fillet).is_some(),
+            "fillet evaluates: {:?}",
+            eval.node_error(fillet)
+        );
+        let v_before =
+            crate::test_support::evaluated_volume(eval, fillet, pncad::tolerance::witness());
+
+        // Into the edit door.
+        let out = driven
+            .app
+            .session
+            .perform(SessionOp::Select(Selection::Node(profile)));
+        assert!(out.refusal.is_none());
+        let removes = driven.each(crate::pane::profile::REMOVE_LOOP);
+        assert!(
+            removes.len() >= 3,
+            "a Remove loop per loop header: {removes:?}"
+        );
+        driven.click_at(removes[2]);
+        driven.quiet();
+        // Apply sits below this window's fold on a four-loop profile, so
+        // its own formation is performed (`edit_door_ui`'s Apply arm).
+        let op = {
+            let session = &driven.app.session;
+            let rows = crate::props::slot_rows(session.committed_doc(), profile);
+            let noted = |slot: SlotId| rows.iter().find(|row| row.slot == slot)?.unit;
+            let edit = driven.app.drafts.profile_edit.as_ref().expect("held");
+            assert_eq!(edit.loops().len(), 3, "the click removed the first hole");
+            SessionOp::EditProfile {
+                node: profile,
+                base: edit.base().clone(),
+                loops: edit
+                    .programs_noted(crate::props::Notation::CANONICAL, &noted)
+                    .expect("lowers"),
+                ids: edit.ids(),
+            }
+        };
+        let out = driven.app.session.perform(op);
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        // The circle's rim is two named pieces, so one hole strands two.
+        let strands = out
+            .maintenance
+            .iter()
+            .filter(|row| matches!(row, pncad::document::Maintenance::StrandedSelection { .. }))
+            .count();
+        assert_eq!(strands, 2, "the fillet's two rim names are stranded");
+        driven.app.session.pump();
+        driven.settle();
+        let doc = driven.app.session.committed_doc();
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            unreachable!()
+        };
+        assert_eq!(program.loops.len(), 3, "the hole went");
+        let eval = driven.app.session.evaluation().expect("landed");
+        assert!(
+            eval.value(fillet).is_none() && eval.node_error(fillet).is_some(),
+            "the fillet refuses its vanished rim"
+        );
+        let _ = v_before;
+    }
+
     /// **Every tool the chrome has opens from it**: for each kind, with
     /// the Properties section that hosts the kind's activation button
     /// clicked open, the app paints that button once, in
