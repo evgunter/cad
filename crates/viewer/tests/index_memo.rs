@@ -1457,3 +1457,46 @@ fn a_fixed_copy_rebuilds_alone_and_the_copy_placed_after_it_is_reused() {
         "the fix rebuilds the fixed copy alone and reuses the copy after it: {r:?}"
     );
 }
+
+/// Reviewer probe (PR 6299): the index build's wall time per corpus
+/// document, and how many profiles each holds. Run at merge-base and
+/// head; `REVIEW_6299_REPS` builds per document, median reported.
+#[test]
+#[ignore = "reviewer timing probe"]
+fn review_6299_index_build_cost() {
+    let tol = Tol::witness();
+    let reps: usize = std::env::var("REVIEW_6299_REPS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(15);
+    for c in corpus::documents() {
+        let mut session = crate::common::inline_without_door(c.doc.clone(), tol);
+        session.pump();
+        let Some((doc, _)) = session.landed_pair() else {
+            continue;
+        };
+        let profiles = doc
+            .ids()
+            .into_iter()
+            .filter(|&n| matches!(doc.node(n), Some(pncad::document::Node::Profile(_))))
+            .count();
+        if common::index_at(&session, common::corpus_delta()).is_err() {
+            eprintln!("COST {:<28} profiles={profiles:>3} index refused", c.name);
+            continue;
+        }
+        let mut times = Vec::new();
+        for _ in 0..reps {
+            let t = std::time::Instant::now();
+            let index = common::index_at(&session, common::corpus_delta());
+            times.push(t.elapsed().as_secs_f64() * 1e3);
+            drop(index);
+        }
+        times.sort_by(f64::total_cmp);
+        eprintln!(
+            "COST {:<28} profiles={profiles:>3} median_ms={:>9.3} min_ms={:>9.3}",
+            c.name,
+            times[times.len() / 2],
+            times[0]
+        );
+    }
+}

@@ -998,12 +998,8 @@ fn the_event_stream_drives_selection_and_hover_through_typed_ops() {
         common::copy_of(session.committed_doc(), extrude)
     );
     assert_eq!(
-        session
-            .hover()
-            .expect("the hover landed too")
-            .name()
-            .clone(),
-        first.name
+        session.hover().expect("the hover landed too").name(),
+        Some(&first.name)
     );
     assert_eq!(session.selection().node(), Some(extrude));
 
