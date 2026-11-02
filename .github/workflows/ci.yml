@@ -351,9 +351,13 @@ jobs:
             scripts/check-fast-set-times.py --new-since "$BASE" > "$RUNNER_TEMP/new-tests.txt"
           fi
           echo "$(wc -w < "$RUNNER_TEMP/new-tests.txt") identifiers on the diff's added Rust lines"
+      # `--tests` on every nextest call here: cargo's default selection
+      # also links each package's examples, which nextest never runs, and
+      # the lint job's `clippy --all-targets` already checks them. Every
+      # call must select alike, or a later one builds what this one left.
       - name: build
         id: build
-        run: cargo nextest run --no-run --timings --profile ci ${{ matrix.scope }}
+        run: cargo nextest run --no-run --timings --profile ci --tests ${{ matrix.scope }}
       - name: "MEASUREMENT ONLY, removed before merge: unit timings"
         if: '!cancelled()'
         run: |
@@ -377,7 +381,7 @@ jobs:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           rc=0
-          cargo nextest run --profile ci ${{ matrix.scope }} \
+          cargo nextest run --profile ci --tests ${{ matrix.scope }} \
             ${TEST_FILTER:+-E "$TEST_FILTER"} --no-fail-fast || rc=$?
           # Before nextest-failures.py, which deletes the junit report.
           slow=0
@@ -396,7 +400,7 @@ jobs:
           for eps in 1e-6 1e-12; do
             echo "::group::eps=$eps: $EPS_EXTRA"
             r=0
-            CAD_TOLERANCE_EPS=$eps cargo nextest run --profile ci \
+            CAD_TOLERANCE_EPS=$eps cargo nextest run --profile ci --tests \
               ${{ matrix.scope }} -E "$expr" --no-fail-fast --no-tests=warn || r=$?
             scripts/nextest-failures.py "eps $eps" "$r"
             [ "$r" = 0 ] || rc=1
@@ -424,7 +428,7 @@ jobs:
           pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
           echo "slow set over: $pkgs"
           rc=0
-          cargo nextest run --profile ci --ignore-default-filter ${{ matrix.scope }} \
+          cargo nextest run --profile ci --tests --ignore-default-filter ${{ matrix.scope }} \
             -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass || rc=$?
           scripts/nextest-failures.py "slow set" "$rc"
           exit $rc
@@ -441,7 +445,7 @@ jobs:
           # naming no workspace member is dead in either.
           members="$(cargo metadata --no-deps --format-version 1 | jq -r '[.packages[].name] | join(",")')"
           # shellcheck disable=SC2086 # SCOPE is a list of -p flags
-          cargo nextest list --ignore-default-filter $SCOPE --message-format json \
+          cargo nextest list --tests --ignore-default-filter $SCOPE --message-format json \
             | python3 scripts/check-slow-set-names.py --members "$members"
       # Last, so the failing rows close the log whatever ran after them.
       - name: failing tests (name, panic, seed) and slow fast-set tests
@@ -474,7 +478,8 @@ jobs:
         with:
           version: ${{ env.NEXTEST_VERSION }}
       - name: viewer app-feature rows (chrome + gpu pipeline smoke)
-        run: cargo nextest run --profile ci -p viewer --features app
+        # `--tests`: the clippy step above already checks the examples.
+        run: cargo nextest run --profile ci --tests -p viewer --features app
       - name: wasm32 clippy (the browser entry point)
         run: |
           rustup target add wasm32-unknown-unknown
