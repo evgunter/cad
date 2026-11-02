@@ -427,3 +427,51 @@ fn a_memoised_edge_restricts_each_range_as_the_plain_edge_does() {
             .collect();
     }
 }
+
+/// **The memo tells apart ranges a few ulps apart.** On the circle, whose
+/// knots sit at quarters, ranges ending at `0.1`, `⅓` and `0.6`, and the
+/// same ends moved one ulp, and ranges ending an ulp either side of the
+/// knot `0.25`, read in turn through one memo: each is the plain edge's.
+/// Neighbouring ranges enclose apart, so a memo that rounds its keys
+/// serves one neighbour's reading for the other here.
+#[test]
+fn a_memoised_edge_keeps_ranges_an_ulp_apart_apart() {
+    let plain = nurbs_circle().map_scalar(Interval::from_f64);
+    let memo = plain.with_span_memo();
+    let bits = |cs: [Interval; 3]| cs.map(|c| [c.lo().to_bits(), c.hi().to_bits()]);
+    let third: f64 = 1.0 / 3.0;
+    let ranges = [
+        (0.1, third),
+        (0.1, third.next_up()),
+        (0.1f64.next_up(), third),
+        (0.25f64.next_down(), 0.6),
+        (0.25, 0.6),
+        (0.25f64.next_up(), 0.6),
+    ];
+    let want: Vec<_> = ranges
+        .iter()
+        .map(|&(lo, hi)| {
+            (
+                plain.span_enclosure(lo, hi).map(|p| bits([p.x, p.y, p.z])),
+                plain.span_deriv(lo, hi).map(|d| bits([d.x, d.y, d.z])),
+            )
+        })
+        .collect();
+    for (k, pair) in [(1, 0), (2, 0), (3, 4), (5, 4)] {
+        assert_ne!(
+            want[k], want[pair],
+            "the fixture: {:?} reads apart from {:?}",
+            ranges[k], ranges[pair]
+        );
+    }
+    for (k, &(lo, hi)) in ranges.iter().enumerate() {
+        assert_eq!(
+            (
+                memo.span_enclosure(lo, hi).map(|p| bits([p.x, p.y, p.z])),
+                memo.span_deriv(lo, hi).map(|d| bits([d.x, d.y, d.z])),
+            ),
+            want[k],
+            "the memo's enclosure and derivative over {lo}..{hi}"
+        );
+    }
+}

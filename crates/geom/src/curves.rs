@@ -1332,8 +1332,9 @@ pub fn spiric_radial<T: Real>(major: T, minor: T, offset: T, c: T) -> (T, T) {
 
 impl Curve3<geom_core::Interval> {
     /// **The same curve, remembering what its net restricts**
-    /// ([`NurbsCurve3::with_span_memo`]); a closed-form carrier, which
-    /// restricts nothing, as it is.
+    /// ([`NurbsCurve3::with_span_memo`], whose caller contract this
+    /// shares: one question's edge, never a stored curve); a closed-form
+    /// carrier, which keeps no memo, as it is.
     #[must_use]
     pub fn with_span_memo(&self) -> Self {
         match self {
