@@ -6,8 +6,7 @@ status: open
 opened: 2026-10-09
 priority: P1
 cost: M
-branch: placing/gesture-placements
-rides_with: mate-tool-commits-one-mate
+branch: placing/bundle-editor-transform
 ---
 
 

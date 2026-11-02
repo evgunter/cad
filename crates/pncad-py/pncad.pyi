@@ -17,7 +17,7 @@ ATTRIBUTES, never as prose to be parsed.
 Profile authoring is the PATHS lattice (`Open`, `PathOpen`,
 `PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`,
 the arrival builders, `Start`, `circle`,
-`circle_split`) plus the straight-segment shortcut `Node.polygon`;
+`circle_split`, `rectangle`) plus the straight-segment shortcut `Node.polygon`;
 one loop or a list of them, drawn on the profile's own xy. Arcs — sharp legs
 and the fillet family alike — are authored by SPEC MODE (`Bulge`,
 `Via`, `Center`, `Radius`, `Sweep`, `ArcLen`).
@@ -1099,36 +1099,6 @@ class MeasureUnavailable(PncadError):
     variant: str
     param: str
 
-class MeasureUnavailableAt(PncadError):
-    """A measure whose answer is an ENCLOSURE, read at a build whose
-    scalar is a point.
-
-    `variant` is `needs_enclosure`, or `no_upper_bound` where the
-    engine's bracket has a lower end only (reached only at a certified
-    scalar, which this binding does not evaluate at); `verb` is the
-    primitive, `scalar` the scalar this build ran at, and `door` the one
-    that CAN answer — the recourse rides in the refusal rather than in a
-    reader's memory.
-
-    NOT MeasureUnavailable, whose name is one word away and whose
-    question is a different one: that is the analysis lane refusing to
-    price a mass over a band, this is the measurement lane. Neither
-    subclasses the other.
-
-    A typed ABSENCE rather than a failure. The measure node evaluated
-    fine and has no value, which is why an assertion over it reports
-    `Unevaluated` carrying this same reason instead of being poisoned.
-    At `f64`, the only scalar this binding evaluates at, it is always
-    `needs_enclosure` on a `min_clearance`: a station pair found by a
-    point-scalar search is an upper bound on the minimum rather than
-    the minimum, and reporting one would be a degradation ERROR-DESIGN
-    E7 forbids by name."""
-
-    variant: str
-    verb: str
-    scalar: str
-    door: str
-
 class McRefusal(PncadError):
     """A Monte-Carlo run produced nothing (ERROR-DESIGN E11.1).
 
@@ -1391,7 +1361,7 @@ class ClosedLoop:
     @property
     def step(self) -> AuthoredStep:
         """The handle of the loop's last step — the closing verb's, or
-        the one step of a `circle` or `circle_split`."""
+        the one step of a `circle`, `circle_split` or `rectangle`."""
 
 _T = TypeVar("_T")
 
@@ -1761,6 +1731,15 @@ def circle_split(
     n: int,
     phase: Angle,
 ) -> ClosedLoop: ...
+def rectangle(
+    centre: tuple[Length, Length],
+    width: Length,
+    height: Length,
+) -> ClosedLoop:
+    """The axis-aligned rectangle as written: one step keeping its
+    centre, width and height, lowered to four legs counterclockwise
+    from the lower-left corner. Its sides are `Role.piece(0)` to
+    `Role.piece(3)`: bottom, right, top, left."""
 
 # --- a profile drawn on a frame, tracing faces --------------------------
 # A chain written in the document's own vocabulary: the document replays
@@ -1849,7 +1828,8 @@ class Role:
     RunOut: Final[Role]
     @staticmethod
     def piece(k: int) -> Role:
-        """Piece `k` of a carrier form (`circle`, `circle_split`)."""
+        """Piece `k` of a complete-loop form (`circle`, `circle_split`,
+        `rectangle`)."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -2073,9 +2053,9 @@ class MeasurePrimitive:
     """Which closed-form measurement a measure computes, and of which
     two references.
 
-    Four verbs and no fifth: `distance` and `angle` are the geometric
-    readings, `gap` is CONTACT-DESIGN C5's signed mating gap, and
-    `min_clearance` is the one an engine answers.
+    Three verbs: `distance` and `angle` are the geometric readings, and
+    `gap` is CONTACT-DESIGN C5's signed mating gap. A clearance is not
+    a measure but a requirement, `Node.clearance`.
 
     Each reference is a `(node, name)` pair: the entity's stable name
     and the node its carrier is READ AT. A text that is not a name
@@ -2100,23 +2080,6 @@ class MeasurePrimitive:
         `slot_var_kind` at insert)."""
 
     @staticmethod
-    def min_clearance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
-        """The minimum clearance between two selections — a length, and
-        the one verb whose value is an ENCLOSURE.
-
-        Each reference's entity kind is its face scope: a body
-        reference selects every face of that body, a face reference
-        selects the one. An edge or a vertex refuses when the measure is
-        inserted (`slot_var_kind`).
-
-        At the `f64` scalar this library evaluates at, the measure has
-        NO VALUE: `Value.measure` raises MeasureUnavailableAt naming
-        the door that could answer, and an assertion over it reports
-        `Unevaluated` carrying the same reason. The node itself
-        evaluates successfully — the absence is a value, not a
-        failure."""
-
-    @staticmethod
     def gap(outer: _MeasureRef, inner: _MeasureRef) -> MeasurePrimitive:
         """C5's SIGNED gap between a mating pair — a length.
 
@@ -2136,8 +2099,8 @@ class MeasurePrimitive:
 
     @property
     def verb(self) -> str:
-        """`distance`, `angle`, `gap` or `min_clearance` — the same
-        word this primitive's refusals name themselves with."""
+        """`distance`, `angle` or `gap` — the same word this
+        primitive's refusals name themselves with."""
 
     @property
     def dimension(self) -> str:
@@ -2558,10 +2521,8 @@ class Node:
         reader's.
 
         What each primitive reads is checked at insert: `distance` a
-        face, an edge or a vertex, `angle` a face or an edge,
-        `min_clearance` a body or a face, `gap` a face, an edge or a
-        vertex; any other
-        refuses `slot_var_kind`. The rest are the kernel's own typed
+        face, an edge or a vertex, `angle` a face or an edge, `gap` a
+        face, an edge or a vertex; any other refuses `slot_var_kind`. The rest are the kernel's own typed
         refusals at `evaluate`: a name that no longer resolves
         (`select_resolve`), a carrier pair with no v1 closed form
         (`measure_unsupported`) and a non-finite result
@@ -2595,6 +2556,34 @@ class Node:
         operand, the product gather skips an assertion as it skips a
         declaration, and nothing downstream changes shape because one
         is `Violated`. Read it with `Value.assertion`."""
+
+    @staticmethod
+    def clearance(
+        a: tuple[NodeId, str],
+        b: tuple[NodeId, str],
+        *,
+        at_least: Optional[Formula] = None,
+        at_most: Optional[Formula] = None,
+        equal: Optional[Formula] = None,
+    ) -> Node:
+        """A recorded clearance requirement: the clearance between seats
+        `a` and `b` lies within the bounds. A clearance is a requirement
+        and never a value — the minimum distance is not computed, and no
+        formula reads it.
+
+        Each seat is a `(node, name)` pair: a BODY name selects every
+        face of that body, a FACE name the one. An edge or a vertex
+        refuses when the node is inserted (`slot_var_kind`).
+
+        The bounds are lengths from `Doc.parse_formula`, in exactly one
+        shape: `at_least`, `at_most`, both (a band), or `equal` alone.
+        Any other combination raises ValueError.
+
+        The verdict needs the certified sweep, which reads enclosures.
+        At the `f64` scalar this library evaluates at it is the third
+        state: `Value.assertion` answers status `"Refused"`, `holds`
+        None, `refusal` `"needs_certifying_lane"`, and a `reason` naming
+        the lane that answers. The node evaluates; it is not failed."""
 
 _SlotArg: TypeAlias = Var | Formula | WrittenLength | WrittenAngle | Length | Angle | float | int
 """What a slot takes: a variable the document holds (every slot handed
@@ -3119,9 +3108,8 @@ class McMeasure:
     reachable without the McReport that carries the label.
 
     The statistics are over the samples that HAD a value; `unmeasured`
-    counts the rest and is never averaged over. A measure with no
-    `f64` value at any sample — a `min_clearance`, whose answer is an
-    enclosure — is unmeasured at every draw, which is why the count
+    counts the rest and is never averaged over. A measure that refuses
+    at every draw is unmeasured at every draw, which is why the count
     sits beside the statistics rather than behind them."""
 
     @property
@@ -5134,14 +5122,36 @@ class Measurement:
     @property
     def length(self) -> Optional[Length]: ...
 
+class ClearancePair:
+    """Two face points and their distance: the pair a clearance verdict
+    was decided on, verified at `f64`."""
+
+    @property
+    def a(self) -> tuple[Length, Length, Length]:
+        """The point on the first seat's face."""
+    @property
+    def b(self) -> tuple[Length, Length, Length]:
+        """The point on the second seat's face."""
+    @property
+    def distance(self) -> Length: ...
+
 class Verdict:
     """An `Assertion` node's verdict — REPORT ONLY: reading it changes
     nothing about the document, and a violated assertion gates no
-    build. Three states, kept three: `holds` is None where the run's
-    tolerance could not separate the measurement from the bound."""
+    build. Three states, kept three: `holds` is None where there is no
+    verdict — a value claim the run's tolerance could not separate from
+    its bound (`"Unevaluated"`), or a clearance the engine refused
+    (`"Refused"`).
+
+    A value claim carries `measured` and `bound`. A clearance claim
+    carries neither, since no clearance value exists: it carries the
+    `pair` that decided it when one did, and a refusal's class as
+    `refusal`. `reason` says why there is no verdict, with its
+    recourse."""
 
     @property
-    def status(self) -> str: ...
+    def status(self) -> str:
+        """`"Holds"`, `"Violated"`, `"Unevaluated"` or `"Refused"`."""
     @property
     def holds(self) -> Optional[bool]: ...
     @property
@@ -5150,6 +5160,15 @@ class Verdict:
     def bound(self) -> Optional[float]: ...
     @property
     def reason(self) -> Optional[str]: ...
+    @property
+    def refusal(self) -> Optional[str]:
+        """A refused clearance's class (`needs_certifying_lane`, ...)."""
+    @property
+    def pair(self) -> Optional[ClearancePair]:
+        """The pair that decided a clearance: closer than its lower
+        bound (`"Violated"`), or within its upper bound (`"Holds"`).
+        None for a value claim, a refusal, and a clearance decided over
+        every pair at once."""
 
 class Value:
     """A node's successful value."""
@@ -5518,9 +5537,8 @@ class Evaluation:
         an observed value outside an assertion.
 
         A measure under it that did not land raises as `value` of that
-        measure does (`EvaluationError`, `MeasureUnavailableAt` for a
-        `min_clearance` at this point scalar); an evaluation over the
-        bound values that refuses raises `ExprError`."""
+        measure does (`EvaluationError`); an evaluation over the bound
+        values that refuses raises `ExprError`."""
 
     def coincidences(self, node: NodeId) -> list[Coincidence]:
         """The coincidences `node` decided from values (D10), in

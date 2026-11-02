@@ -211,6 +211,7 @@ fn reads_as_body(seat: OperandSlot) -> bool {
         | OperandSlot::Traced(_)
         | OperandSlot::Side { .. }
         | OperandSlot::Measured(..)
+        | OperandSlot::Cleared(_)
         | OperandSlot::Tool
         | OperandSlot::Input
         | OperandSlot::Of

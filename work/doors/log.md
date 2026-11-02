@@ -201,3 +201,10 @@ AUTHOR's narrative is recoverable from
 
 - Style + correctness reviews, one fix pass (the shared successor query had been widened for every door; now the split passes its own halves as `intact`), re-verify says merge. CI green at `b572bc4803`.
 - Residue filed: `a-split-half-cannot-be-split` (P3 E), `a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it` (P3 M); `a-takeover-could-re-seat-a-pick-its-result-keeps`'s premise corrected in place.
+
+## 2026-11-02 10:10 — P1 `a-clearance-assertion-is-decided-by-the-sweep` merges (PR 6292)
+
+- Correctness review → fix pass (M1: an upper bound over a box rested on one midpoint pair) → re-verify says merge: every decided verdict probed, at the door and per drive leaf, matches the analytic truth. Two implementer disputes accepted (facet pruning serves lower bounds only; a reversed band refuses at evaluation).
+- The re-verifier would not post its report on its own (its standing brief covered one comment); I posted it verbatim. Briefs for cloud reviewers now name every comment they may post.
+- Residue: R1 (a regression of the fix pass: meeting scopes over a box refuse where topology decides 0) is DOORS' P2 E — this sitting's to do if time allows; R2, R3 to CLEARTAIL with a seam note.
+- The viewer half `the-gui-has-no-clearance-consumer` is un-parked and dispatched (`doors/clearance-consumer`).

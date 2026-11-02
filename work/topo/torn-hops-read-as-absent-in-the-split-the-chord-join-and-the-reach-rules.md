@@ -85,3 +85,7 @@ Residue is filed as items:
   `work/sector/census-arena-walks-read-a-torn-record-as-absent.md`;
 - the typed raises this unit left for the families row:
   `torn-body-refusal-families-beyond-the-six-doors`.
+
+## Since PR 6336 (BOXES, 2026-11-02)
+
+`classify::gate_face_reach`'s torus arm is gone; the gate reads `census::face_reach_in`. (BOXES orchestrator)

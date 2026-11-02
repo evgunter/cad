@@ -346,12 +346,7 @@ pub fn mated(
         applied.doc
     } else {
         let held = crate::session::held_bundle(&applied.doc, placement);
-        written(
-            &applied.doc,
-            placement,
-            crate::session::valued(held, values),
-            tol,
-        )
+        written(&applied.doc, placement, valued(held, values), tol)
     };
     (doc, pncad::document::MateRef::new(placement, id))
 }
@@ -969,4 +964,36 @@ pub fn row_of_copies(
     )
     .expect("a length pitch");
     inserted(&declared, row, tol)
+}
+
+/// **`held` with `values` written over it**: each
+/// value of `held` on a freedom `values` sets takes that number, keeping
+/// its id; a freedom `values` sets that `held` holds no value on is
+/// appended, for the door to refuse as the bundle's own
+/// ([`pncad::document::MateFault::Overconstrained`]).
+fn valued(
+    held: Vec<pncad::document::Constraint<Formula>>,
+    values: Vec<(pncad::document::Coord, Formula)>,
+) -> Vec<pncad::document::Constraint<Formula>> {
+    use pncad::document::{Constraint, ConstraintId, Value};
+    let mut values = values;
+    let mut bundle: Vec<Constraint<Formula>> = held
+        .into_iter()
+        .map(|c| {
+            let set = c
+                .value()
+                .and_then(|v| values.iter().position(|(coord, _)| *coord == v.coord));
+            match set {
+                Some(at) => {
+                    let (coord, by) = values.remove(at);
+                    Constraint::of_value(c.id, Value { coord, by })
+                }
+                None => c,
+            }
+        })
+        .collect();
+    bundle.extend((1..).zip(values).map(|(i, (coord, by))| {
+        Constraint::of_value(ConstraintId::placeholder(i), Value { coord, by })
+    }));
+    bundle
 }
