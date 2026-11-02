@@ -999,11 +999,9 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let mut session = DocSession::inline(Doc::empty_derived("checks-window-speaks", tol), tol);
     let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
     let small = common::xy_box_in(&mut session, [0.02, 0.01, 0.006]);
-    // Both placed into the world by hand: a new body lands unplaced.
+    // Both added to the product: a new body lands unplaced.
     let (session, _) = common::world_copy_in(&session, big, tol);
     let (mut session, _) = common::world_copy_in(&session, small, tol);
-    let copies = [big, small].map(|body| common::copy_of(session.committed_doc(), body));
-    common::product_is(&mut session, &copies);
     let named = session.perform(SessionOp::SetLabel {
         node: big,
         label: Some(label("big block")),

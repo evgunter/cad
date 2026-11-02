@@ -42,3 +42,28 @@ definite-band half `NormalAtConeApex` "refuses the same way, with no
 tolerance named". A near-axis vertex at `7.9ε` has the levers a band
 reading has (move the cut away from the apex, or tighten the
 tolerance below `7.9ε`).
+
+## The refusal's own name (2026-11-01, SPLITDOOR, `splitdoor/cone-apex-boolean`)
+
+A vertex in the band of a cone's axis now refuses
+`VertexNearConeAxis { operand, face, band }`, not the apex's name. That
+covers both a vertex definitely off the apex and one undecided between
+the two. Its text names this row's levers: move the parts clear of the
+tip, or tighten the tolerance.
+
+`review_6002_boolean_germ_hunt`, re-run at the unit's head at ε 1e-9:
+
+- every 3° and 1° pose at `k = 40`, tilt 0.4 or 1.2, refuses
+  `VertexNearConeAxis`, as does 3°, `k = 1000`, tilt 1.5, spin 0;
+- the poses at `k = 2` and `k = 10` that refused under the apex's name
+  now build. The apex lies in the band of the block's top, and the
+  pierce reads it as its rulings.
+- Every build was checked against the closed form for the plane through
+  the apex: 1e-15 relative. A `point_in_solid` lattice was also checked
+  against the analytic region.
+
+Pinned in `crates/sweep/tests/a_cone_apex_on_a_plane_through_it.rs`:
+`a_needle_vertex_near_its_axis_refuses_by_name` (3°, `k = 40`,
+tilt 1.2) and `a_needle_apex_in_the_band_of_a_plane_builds` (3°,
+`k = 2`, tilt 1.2). Which vertex refuses is still not read, so this row
+stays open.

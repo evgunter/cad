@@ -121,3 +121,31 @@ and bodies unchanged. No orchestrator yet.
   - **Krawczyk and Hessian isolation** plug in at `Declined::Floor`.
   - **A class the review found, which bears on your build:** W5 first ran its sweep ahead of stages 1 and 2. A wall within the band everywhere, and a boundary graze, then cleared where main refuses them as tangent. Run the hull's coincidence call and the boundary pass before the sweep for every implicit `f`. The re-review also showed that the sweep alone reads a long thin in-band wall as loop-free, so the guarantee lives in stages 1 and 2.
   - **Also:** "excluded or regular ⇒ loop-free" is unsound without the same-side join, because an excluded cell can hold the loop's extremum.
+- 2026-11-02 — **Cylinder stage 2 (PR 6151) reviewed and fixed.**
+  - **Single full review on `cf488e3`:** APPROVE-WITH-FIXES, no MAJOR.
+  - **Fix pass `bf4063f`:**
+    - one `join_reads` gate covers the join's held and carried readings;
+    - rows pin the straddling-march and tangent-ruling paths, and both mutants go red;
+    - `traced_in_r3` moved to geom-brep;
+    - the parallel-walls check is a method on the error, not a string compare at the reader;
+    - face boxes are computed once;
+    - the three stale citations are fixed.
+  - **Accepted:** the held-lane gate has no red-without-it row. No current cylinder pose reaches `one_site` while the frame answers, because the frame refuses at germ mint first. It is precautionary until stage 3 retires it, and is stated on the skew row.
+  - **Not a typed variant:** a new `SectionError` variant for parallel walls would move every reader's escalation rows, so the method on the error stands.
+- 2026-11-02 — **Resumed after the weekly limit** (it hit on 10-31 during the stage-2 fix pass; nothing had been pushed).
+  - **Stage 2 fix pass resumed.** The full review returned APPROVE-WITH-FIXES with no MAJOR. Adjudicated: the join's held lane gets the same gate as the carried lane; two staging gaps (records at the region vs the frame's reach; the gate's retirement) are named on the skew row; rows pin the straddling-march and tangent-ruling paths; `region_for`'s kind census moves to geom-brep; the string-keyed control flow becomes typed.
+  - **The P0 NURBS × implicit arm is unblocked:** SPLICE's 6026 and W5 (PR 6150) landed. Its phase-0 plan is dispatched (`sectarms/nurbs-implicit-arm-build`). SPLICE's stage-order class (run the hull's coincidence call and the boundary pass before the sweep, keep the same-side join) is in its brief.
+- 2026-11-02 — **The P0 NURBS arm's plan is accepted** (four stages; build after cylinder stage 2 merges, which shares `pair_section.rs`, `section_cert.rs` and `glue.rs`):
+  - **Stage 1** (H, dual): classification for every implicit `f`, in C5's order (hull, door, pass, sweep), plus topo's routing.
+  - **Stage 2** (H, single full): critical points decided (a 2×2 Krawczyk, the Hessian), plus a crease pass.
+  - **Stage 3** (H, dual): the curved whole reading on the rectangle (`LocalSystem<1,2>`).
+  - **Stage 4** (H, single full): fold the plane in and retire the ℝ⁴ plane lane.
+
+  Filed `the-join-reads-a-spline-implicit-section` (P0 H, parked on the P0), the join half the four stages leave out. No demo pin moves in any stage. Teapot, klein and lily each stop upstream first, and lily's stop has moved to SECTSITE's plane × torus frame (corrected on the torus row).
+- 2026-11-02 — **The plan's findings, adjudicated:**
+  - **(F1) The crease pass.** On a disc of the rectangle, an extremum of `φ` on a crease is a critical point of `φ` along that crease line, or lies at its end, so a 1-D regularity pass along each crease completes the sweep's proof. Accepted as part of the one regularity sweep, not a new decision. C5's sentence still decides the same thing, and the crease pass is how the sweep decides it on a creased wall. Stage 2 builds it, and Ev is told. Klein's half-tube is the case.
+  - **(F2)** The coincidence hull needs a lower bound on the metre divisor, per kind. Build-time.
+  - **(F3)** A decided touch makes small closed loops at nearby levels, so "loop-free is the sweep's verdict" holds outside decided touches, and the same-side join exempts them. A wording correction that lands with stage 2.
+  - **(F4)** C3 states the 1×2 trace in the present tense with no code yet. That stays untrue until stage 3 or 4. Accepted as drift with a schedule.
+  - **(F5)** Fixed: the torus row's stop.
+  - **Load:** the slate is now well over budget (the NURBS arm is about 4 H, the cylinder unit's remaining 2 stages, the cone, the conic pairs). A split along the semantic seam (the NURBS arm vs the unbounded analytic pairs) is owed at the next natural seam.

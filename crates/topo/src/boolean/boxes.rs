@@ -121,6 +121,13 @@
 //!   that holds LESS than its edge (a chord named for a curved
 //!   carrier) is the unsound direction: it could clear a pair that
 //!   meets.
+//! - `census::in_plane`, arm 1's clear in a plane, GRANTS: it reads
+//!   [`edge_box_rule`]'s construction only to tell a line edge, whose
+//!   ends decide which side of a plane it lies on, from any other,
+//!   whose reach must lie definitely off the plane. A looser rule (a
+//!   line read as `NoSoundBox`) only asks more of the edge and REFUSES
+//!   a pair that is apart; a chord named for a curved carrier is the
+//!   unsound direction, reading a curve by its ends.
 //! - `pieces`'s screen (`pieces::Screen`, its face boxes built by the
 //!   boolean's exit in `boolean/ops.rs` and passed in) PRUNES: two
 //!   shells of one result whose hulled boxes clear are never probed
@@ -3748,6 +3755,12 @@ pub(crate) mod tests {
     ///   when loose, which narrows the gap. A rule that named a cover
     ///   holding less would be the unsound direction. A looser
     ///   proposal (an axis not offered) only withholds a depth.
+    /// - `census/in_plane.rs` — arm 1's clear in a plane: one
+    ///   [`edge_box_rule`] read per edge of a face standing on the
+    ///   other's plane, which tells a line edge from a curved one.
+    ///   **Refuses**: a looser rule reads a line as curved and asks its
+    ///   reach to lie off the plane, which only refuses more; a chord
+    ///   named for a curve would be the unsound direction.
     ///
     /// `boolean/boxes.rs` is excluded by path: it is the definition
     /// site, every call in it is this suite's own or one arm calling
@@ -3815,7 +3828,7 @@ pub(crate) mod tests {
         // `boolean/carrier_touch_rows.rs`' one: a spiric-edge witness
         // calls `edge_box` to show its ball lies inside the edge's box,
         // so that only the edge's own floor can clear it.
-        const PINNED: [(&str, usize); 13] = [
+        const PINNED: [(&str, usize); 14] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/carrier_touch_rows.rs", 1),
             ("boolean/glue.rs", 2),
@@ -3825,6 +3838,7 @@ pub(crate) mod tests {
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 11),
             ("census/depth_gap.rs", 2),
+            ("census/in_plane.rs", 1),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),

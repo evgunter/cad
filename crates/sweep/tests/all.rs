@@ -296,6 +296,8 @@ mod parallel_cylinder_join;
 mod pcurve_p1b_r2_probes;
 #[path = "pieces_oblique_bore.rs"]
 mod pieces_oblique_bore;
+#[path = "pinned_corners_at_the_loft_door.rs"]
+mod pinned_corners_at_the_loft_door;
 #[path = "pipeline_null_edge_rows.rs"]
 mod pipeline_null_edge_rows;
 #[path = "pis_arc_capped_poses.rs"]
@@ -1348,6 +1350,8 @@ mod fallback_rows_review;
 
 #[path = "a_box_along_a_fillets_line_arc_junction.rs"]
 mod a_box_along_a_fillets_line_arc_junction;
+#[path = "a_cone_apex_on_a_plane_through_it.rs"]
+mod a_cone_apex_on_a_plane_through_it;
 #[path = "a_cylinder_resting_on_a_box_top_grazes_along_a_line.rs"]
 mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]

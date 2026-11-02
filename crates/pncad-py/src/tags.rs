@@ -1495,6 +1495,10 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CurvedPierceEscalated => "curved_pierce_escalated",
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
+        BooleanErrorKind::VertexPairAtConeApex => "vertex_pair_at_cone_apex",
+        BooleanErrorKind::VertexNearConeAxis => "vertex_near_cone_axis",
+        BooleanErrorKind::ResultPinchedAtConeApex => "result_pinched_at_cone_apex",
+        BooleanErrorKind::ApexSection => "apex_section",
         BooleanErrorKind::NormalAtSplineCrease => "normal_at_spline_crease",
         BooleanErrorKind::PierceLeverUnread => "pierce_lever_unread",
         BooleanErrorKind::EdgeCarrierUnsupported => "edge_carrier_unsupported",
@@ -1653,6 +1657,12 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
         LoftError::FarStackingEscalated { .. } => "far_stacking_escalated",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
+        LoftError::PinnedCorner { .. } => "pinned_corner",
+        LoftError::PinnedCornerUnsupported { .. } => "pinned_corner_unsupported",
+        LoftError::CornerEscalated { .. } => "corner_escalated",
+        LoftError::SectionsTouch { .. } => "sections_touch",
+        LoftError::ClearanceUndecided { .. } => "clearance_undecided",
+        LoftError::ClearanceFault { .. } => "clearance_fault",
     }
 }
 

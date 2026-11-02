@@ -46,8 +46,9 @@ use geom_core::spline::{
     SplineError, Weights,
 };
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
+use crate::memo::{Table, kept, session_memo};
 use crate::net;
 
 /// The surface bounds' piece schedule per direction (D9: structure,
@@ -576,6 +577,29 @@ pub struct NurbsSurface<T: Real> {
     /// [`NurbsSurface::area_floor`], memoised apart: its pieces reach
     /// degree 18 per axis where the per-axis floors reach 28.
     area_floor: OnceLock<T>,
+    /// What [`NurbsSurface::with_rect_memo`] keeps; `None` keeps
+    /// nothing.
+    rects: Option<Arc<RectMemo>>,
+}
+
+/// A rectangle's bits, `[u.0, u.1, v.0, v.1]`: a key that two
+/// rectangles share only when every bound is the same `f64`.
+type RectKey = [u64; 4];
+
+type Jet = (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>);
+
+/// What a memoised chart has read, rectangle by rectangle
+/// ([`NurbsSurface::with_rect_memo`]).
+#[derive(Default)]
+struct RectMemo {
+    nets: Table<RectKey, Option<Vec<Point3<Interval>>>>,
+    jets: Table<RectKey, Option<Jet>>,
+    ders: Table<[u64; 2], SurfaceJet<Interval>>,
+    evals: Table<[u64; 2], Point3<Interval>>,
+}
+
+fn rect_key(u: (f64, f64), v: (f64, f64)) -> RectKey {
+    [u.0.to_bits(), u.1.to_bits(), v.0.to_bits(), v.1.to_bits()]
 }
 
 /// The surface's value, without the stretch memo.
@@ -589,6 +613,7 @@ impl<T: Real> core::fmt::Debug for NurbsSurface<T> {
             stretch: _,
             axis_floors: _,
             area_floor: _,
+            rects: _,
         } = self;
         f.debug_struct("NurbsSurface")
             .field("knots_u", knots_u)
@@ -632,6 +657,7 @@ impl<T: SpanLocate> NurbsSurface<T> {
             stretch: OnceLock::new(),
             axis_floors: OnceLock::new(),
             area_floor: OnceLock::new(),
+            rects: None,
         })
     }
 
@@ -656,7 +682,7 @@ impl<T: Real> NurbsSurface<T> {
     /// symbolic session only, as
     /// [`crate::curves::NurbsCurve3::speed_upper_bound`] is.
     pub fn stretch_sup(&self) -> (geom_core::SupSpeed<T>, geom_core::SupSpeed<T>) {
-        crate::curves::nurbs::session_memo(&self.stretch, || {
+        session_memo(&self.stretch, || {
             let pieces = self.pieces(false);
             let side = |read: fn(&geom_core::spline::CellQuotients<T>) -> T| {
                 geom_core::SupSpeed::new(
@@ -678,7 +704,7 @@ impl<T: Real> NurbsSurface<T> {
     /// floors the norm; poison where a piece's numerator sums to zero
     /// or the statement refuses. Memoised as [`Self::stretch_sup`] is.
     pub fn stretch_floor(&self, along_u: bool) -> T {
-        let (u, v) = crate::curves::nurbs::session_memo(&self.axis_floors, || {
+        let (u, v) = session_memo(&self.axis_floors, || {
             let pieces = self.pieces(false);
             let least = |read: fn(&geom_core::spline::CellQuotients<T>) -> T| {
                 least_of(pieces.as_deref(), read)
@@ -695,7 +721,7 @@ impl<T: Real> NurbsSurface<T> {
     /// per-axis floors still read there). Memoised as
     /// [`Self::stretch_sup`] is.
     pub fn area_floor(&self) -> T {
-        crate::curves::nurbs::session_memo(&self.area_floor, || {
+        session_memo(&self.area_floor, || {
             least_of(self.pieces(true).as_deref(), |c| {
                 c.area
                     .as_ref()
@@ -738,6 +764,7 @@ impl<T: Real> NurbsSurface<T> {
             stretch: OnceLock::new(),
             axis_floors: OnceLock::new(),
             area_floor: OnceLock::new(),
+            rects: None,
         }
     }
 
@@ -865,6 +892,7 @@ impl<T: Real> NurbsSurface<T> {
             stretch: OnceLock::new(),
             axis_floors: OnceLock::new(),
             area_floor: OnceLock::new(),
+            rects: None,
         }
     }
 
@@ -1541,6 +1569,58 @@ impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
 }
 
 impl NurbsSurface<Interval> {
+    /// **The same chart, remembering what it reads**: each rectangle's
+    /// [`Self::rect_net`] and [`Self::rect_jet`], and each point's
+    /// [`Self::point_ders`] and [`Self::point_eval`], is computed on its
+    /// first read and served from then on, to this value and its clones,
+    /// keyed by the rectangle's or the point's exact bits. A walk that
+    /// reads one cell from many pairs restricts the net once.
+    ///
+    /// **What the caller owes.** The memo is never trimmed: it grows by
+    /// one entry for every distinct rectangle or point read, for as long
+    /// as this value or a clone of it lives. Call this on a chart owned
+    /// by one question and dropped with it (the clearance walk's window
+    /// charts are), never on a surface a body or a document stores.
+    /// Nothing here enforces that. A surface not made by this door keeps
+    /// no memo.
+    #[must_use]
+    pub fn with_rect_memo(&self) -> Self {
+        Self {
+            rects: Some(Arc::default()),
+            ..self.clone()
+        }
+    }
+
+    /// How many readings the memo holds, or `None` where this chart
+    /// keeps none ([`Self::with_rect_memo`]).
+    pub fn memo_entries(&self) -> Option<usize> {
+        self.rects
+            .as_deref()
+            .map(|m| m.nets.len() + m.jets.len() + m.ders.len() + m.evals.len())
+    }
+
+    /// [`Self::ders`] at the point `(u, v)`, served from the memo where
+    /// [`Self::with_rect_memo`] keeps one.
+    pub fn point_ders(&self, u: f64, v: f64) -> SurfaceJet<Interval> {
+        kept(
+            self.rects.as_deref(),
+            |m| &m.ders,
+            [u.to_bits(), v.to_bits()],
+            || self.ders(Interval::from_bounds(u, u), Interval::from_bounds(v, v)),
+        )
+    }
+
+    /// [`Self::eval`] at the point `(u, v)`, served from the memo where
+    /// [`Self::with_rect_memo`] keeps one.
+    pub fn point_eval(&self, u: f64, v: f64) -> Point3<Interval> {
+        kept(
+            self.rects.as_deref(),
+            |m| &m.evals,
+            [u.to_bits(), v.to_bits()],
+            || self.eval(Interval::from_bounds(u, u), Interval::from_bounds(v, v)),
+        )
+    }
+
     /// **The patch's enclosure over the parameter rectangle `u × v`**,
     /// one that narrows with the rectangle: the hull of
     /// [`Self::rect_net`]'s points. The restricted net converges to the
@@ -1580,6 +1660,15 @@ impl NurbsSurface<Interval> {
     /// cell, a restriction the blossom door refuses, and a restricted
     /// weight not certified positive.
     pub fn rect_net(&self, u: (f64, f64), v: (f64, f64)) -> Option<Vec<Point3<Interval>>> {
+        kept(
+            self.rects.as_deref(),
+            |m| &m.nets,
+            rect_key(u, v),
+            || self.read_rect_net(u, v),
+        )
+    }
+
+    fn read_rect_net(&self, u: (f64, f64), v: (f64, f64)) -> Option<Vec<Point3<Interval>>> {
         let (iu, iv) = (
             Interval::from_bounds(u.0, u.1),
             Interval::from_bounds(v.0, v.1),
@@ -1650,6 +1739,15 @@ impl NurbsSurface<Interval> {
         u: (f64, f64),
         v: (f64, f64),
     ) -> Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> {
+        kept(
+            self.rects.as_deref(),
+            |m| &m.jets,
+            rect_key(u, v),
+            || self.read_rect_jet(u, v),
+        )
+    }
+
+    fn read_rect_jet(&self, u: (f64, f64), v: (f64, f64)) -> Option<Jet> {
         if !(u.0 < u.1 && v.0 < v.1) {
             return None;
         }
