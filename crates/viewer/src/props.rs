@@ -815,6 +815,8 @@ impl core::error::Error for SlotFault {}
 pub struct SlotRow {
     /// The named slot (never an index).
     pub slot: SlotId,
+    /// What the row is called ([`Node::slot_label`]).
+    pub label: String,
     /// The dimension the slot's expression must have.
     pub dimension: Dimension,
     /// Whether the slot is structural — the `SetStructuralParam`
@@ -881,6 +883,7 @@ fn slot_row(
     let Some(expr) = node.expr(slot).and(doc.slot_expansion(id, slot)) else {
         return SlotRow {
             slot,
+            label: node.slot_label(slot),
             dimension: slot.expr_dimension(),
             structural: slot.is_structural(),
             // No expression to classify. Reported as driven, which is
@@ -897,6 +900,7 @@ fn slot_row(
     };
     SlotRow {
         slot,
+        label: node.slot_label(slot),
         dimension: slot.expr_dimension(),
         structural: slot.is_structural(),
         driver: SlotDriver::of(doc, &expr),
@@ -1515,7 +1519,11 @@ pub fn variable_label(doc: &Doc<ProfileProgram>, var: VarId) -> String {
                 .slots()
                 .into_iter()
                 .find(|&slot| doc.slot(node, slot) == Some(var))?;
-            Some(format!("the {} of {}", slot.label(), doc.spoken(node)))
+            Some(format!(
+                "the {} of {}",
+                doc.node(node)?.slot_label(slot),
+                doc.spoken(node)
+            ))
         })
         .unwrap_or_else(|| doc.spoken_var(var).to_string())
 }
@@ -2083,6 +2091,7 @@ mod written_tests {
     fn a_literal_with_no_millimetre_value_does_not_show_one() {
         let row = |canonical: f64| super::SlotRow {
             slot: SlotId::ShellThickness,
+            label: SlotId::ShellThickness.label(),
             dimension: Dimension::Length,
             structural: false,
             driver: super::SlotDriver::Literal,
