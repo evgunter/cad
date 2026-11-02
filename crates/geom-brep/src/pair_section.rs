@@ -964,6 +964,10 @@ pub(crate) fn whole_reading_refused(e: SsiError) -> SectionError {
 }
 
 /// What [`pair_section`] answers.
+// The section is the variant every reader takes, read once per pair and
+// matched at once; boxing it would cost each of them a deref for the
+// rare `Elsewhere`.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 pub enum SectionRead<T: Real> {
     /// The pair's section.

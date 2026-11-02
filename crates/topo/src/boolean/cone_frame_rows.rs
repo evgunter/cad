@@ -578,6 +578,7 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
 /// value's pose across a region of the walls' radius
 /// ([`super::join::bisector_loops`]), as the join reads it.
 #[test]
+#[allow(clippy::expect_used)]
 fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
     let b = band();
     let wall = |phi: f64| geom::Surface::Cylinder {
