@@ -2,12 +2,13 @@
 id: the-products-recourse-names-a-door-only-a-tree-click-reaches
 kind: issue
 title: The product's recourse says 'set the product' and its only door is on a Place row the viewport never selects
-status: open
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: M
 refs: [6209]
 parent: the-add-to-the-product-door
+closed: 2026-11-02
 ---
 
 
@@ -53,3 +54,7 @@ copy (`Selection::seat_node`, the node whose drawn body the ray met)
 rather than the minting feature. Which of those is the design is
 CHROME's call; whether a document's first body should join the product
 on creation is a D10 `[operations]` question and goes to Ev.
+
+## Closed
+
+By `the-add-to-the-product-door` (PR 6279).

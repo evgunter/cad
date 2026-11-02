@@ -121,3 +121,19 @@ Build-time items:
 - reading a pinch as the guard's `Touch` needs its own argument;
 - the march door seeds on the thinner wall's chart cut by the region;
 - seeding uses the pair's scale, not the region's.
+
+## 2026-11-02: what stage 3 retires (stage 2 review, PR 6151)
+
+Stage 2 left two staging seams for stage 3 to retire:
+- **The join's gate.** `SectionTable::join_reads` (through
+  `held_at_the_join` and `carried_at_the_join`) keeps two cylinders off
+  the join's readings of the table, so the join still reads them through
+  its frame and bisector lanes.
+- **The frame lane's cylinder reading at `frame_lever`.** That lane
+  (`cylinder_pair_axes`, `cylinder_pair_frame`, `crossing_cylinder_reading`
+  for `node.rs`) reads at the faces' reach, while the table's records
+  come from the pose read across the operation's region. In band the two
+  can disagree until stage 3 makes the join read the pose.
+
+Stage 3 also owns the per-arc `winds` of the bisector arcs, which store a
+fact about their node-joined set.

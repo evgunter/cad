@@ -165,7 +165,7 @@ pub(super) fn require_same<T: Decide>(
             Err(super::unglued_corner(
                 declared,
                 pair,
-                super::plane_eq::senses(s1.normal.vec(), s2.normal.vec(), arm, band),
+                super::plane_eq::senses(s1.tangent().vec(), s2.tangent().vec(), arm, band),
                 bounds,
                 // The ladder decides one carrier only on a margin, so a
                 // reading without one is a broken invariant.
@@ -183,7 +183,7 @@ pub(super) fn require_same<T: Decide>(
             rung,
             declared.on_pair_door(
                 pair,
-                super::plane_eq::senses(s1.normal.vec(), s2.normal.vec(), arm, band),
+                super::plane_eq::senses(s1.tangent().vec(), s2.tangent().vec(), arm, band),
             ),
             diag,
         )),
@@ -348,12 +348,12 @@ pub(super) fn recl_sectors<T: Decide>(
             let [a_start, a_end] = sa.reached_bounds();
             let [b_start, b_end] = sb.reached_bounds();
             let ca = (
-                side(&s_a, &s_b, sb.normal, a_start)?,
-                side(&s_a, &s_b, sb.normal, a_end)?,
+                side(&s_a, &s_b, sb.tangent(), a_start)?,
+                side(&s_a, &s_b, sb.tangent(), a_end)?,
             );
             let cb = (
-                side(&s_b, &s_a, sa.normal, b_start)?,
-                side(&s_b, &s_a, sa.normal, b_end)?,
+                side(&s_b, &s_a, sa.tangent(), b_start)?,
+                side(&s_b, &s_a, sa.tangent(), b_end)?,
             );
             // Per-bound propagation, the Rest loop's shape with the
             // SHARED bound's own code (definite codes only — an `On`
@@ -1357,7 +1357,7 @@ fn wedge_is_reflex<T: Decide>(
     let ((first, _), (_, (second, _))) = (fl[0], fl[1]);
     Ok(crate::validate::decide_nonzero(
         "bool_wedge_reflex",
-        Margin::levered(second.dot(secs[first].normal.vec()), arm),
+        Margin::levered(second.dot(secs[first].tangent().vec()), arm),
         band,
     )
     .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?
@@ -1494,7 +1494,7 @@ impl<T: Decide> Folded<T> {
         Ok((shape == super::sectors::FaceShape::Plane).then(|| Self {
             wedge: w,
             datum: super::vtxfac::PierceDatum {
-                normal: sector.normal,
+                normal: sector.tangent(),
                 shape,
                 lever: super::sectors::PierceLever::Everywhere(super::sectors::NO_CURVATURE()),
             },
@@ -1678,7 +1678,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             match side_code(
                 w,
                 reach,
-                other_secs[oi].normal,
+                other_secs[oi].tangent(),
                 super::sectors::NO_CURVATURE(),
                 band,
             )? {
@@ -1763,8 +1763,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                 &s_own,
                                 &s_other,
                                 reach,
-                                other_sec.normal,
-                                own_sec.normal,
+                                other_sec.tangent(),
+                                own_sec.tangent(),
                                 p,
                                 op,
                                 comparison,
@@ -2071,7 +2071,7 @@ fn resolve_edge_sector<T: Decide>(
         super::sectors::tangent_relative_side(
             &super::sectors::tangent_carrier(own_body, own_sec.face)?,
             &super::sectors::tangent_carrier(ref_body, ref_sector.face)?,
-            ref_sector.normal,
+            ref_sector.tangent(),
             p,
             d,
             reached,
@@ -2080,8 +2080,8 @@ fn resolve_edge_sector<T: Decide>(
         )
     };
     let (mut k1, mut k2) = (
-        flank_key(own_secs, f_s, false, ref_sector.normal, band)?,
-        flank_key(own_secs, f_e, true, ref_sector.normal, band)?,
+        flank_key(own_secs, f_s, false, ref_sector.tangent(), band)?,
+        flank_key(own_secs, f_e, true, ref_sector.tangent(), band)?,
     );
     // One On flanker stays On: Table III lumps it whole and the germ
     // stays on the other (`the_stadium_answers_every_op`).
@@ -2110,8 +2110,8 @@ fn resolve_edge_sector<T: Decide>(
                 &super::sectors::tangent_carrier(own_body, own_sec.face)?,
                 &super::sectors::tangent_carrier(ref_body, ref_sector.face)?,
                 declared.reach_of(own_op, own_sec.face, ref_op, ref_sector.face)?,
-                ref_sector.normal,
-                own_sec.normal,
+                ref_sector.tangent(),
+                own_sec.tangent(),
                 p,
                 op,
                 comparison,
@@ -2221,8 +2221,8 @@ fn resolve_bisector_graze<T: Decide>(
     } else {
         &a_sectors[ref_idx]
     };
-    let k1 = flank_key(own_secs, f_s, false, ref_sector.normal, band)?;
-    let k2 = flank_key(own_secs, f_e, true, ref_sector.normal, band)?;
+    let k1 = flank_key(own_secs, f_s, false, ref_sector.tangent(), band)?;
+    let k2 = flank_key(own_secs, f_e, true, ref_sector.tangent(), band)?;
     // Both outer keys definitely on one side: the grazing bisector
     // cannot read Zero when K > 2 (the argument at `vtxfac`'s on-edge
     // resolution — the keys are the physical sector's own bounds, read
@@ -2288,7 +2288,10 @@ mod tests {
             start_reach: Reach::Bisector(1.0),
             end_reach: Reach::Bisector(1.0),
             face: crate::entity::FaceKey::default(),
-            normal: OutwardNormal::from_chart(v(normal), true),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                v(normal),
+                true,
+            )),
             arm: 1.0,
         };
         // Material lies off the first plane's +y side; `second` and its
@@ -2346,7 +2349,10 @@ mod tests {
             start_reach: sr,
             end_reach: er,
             face: crate::entity::FaceKey::default(),
-            normal: OutwardNormal::from_chart(Vec3::new(0.0, 1.0, 0.0), true),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                Vec3::new(0.0, 1.0, 0.0),
+                true,
+            )),
             arm: 1.0,
         };
         let bis = Vec3::new(0.0, 0.0, -1.0);
@@ -2367,7 +2373,10 @@ mod tests {
             ]
         };
         let reference = [BoolSector {
-            normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                Vec3::new(0.0, 0.0, 1.0),
+                true,
+            )),
             ..twin(bis, Reach::Bisector(1.0), bis, Reach::Bisector(1.0))
         }];
         let one_sided = twins([1.0, 0.0, 0.5], [-1.0, 0.0, 0.5]);
@@ -2508,7 +2517,9 @@ mod tests {
                 far: o + end,
             },
             face: crate::entity::FaceKey::default(),
-            normal: OutwardNormal::from_chart(normal, true),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                normal, true,
+            )),
             arm: 1.0,
         };
         let up = Vec3::new(0.0, 1.0, 0.0);
@@ -2649,7 +2660,9 @@ mod tests {
                 far: o + end,
             },
             face,
-            normal: OutwardNormal::from_chart(y, true),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                y, true,
+            )),
             arm,
         };
         let run = |a: (&crate::body::Body<f64>, FaceKey),
@@ -2836,7 +2849,9 @@ mod tests {
                 far: o + end,
             },
             face: crate::entity::FaceKey::default(),
-            normal: OutwardNormal::from_chart(y, true),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                y, true,
+            )),
             arm,
         };
         let corner = [sector(z, x), sector(x, z)];
@@ -2928,7 +2943,9 @@ mod tests {
                 far: o + end,
             },
             face: crate::entity::FaceKey::default(),
-            normal: OutwardNormal::from_chart(normal, true),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                normal, true,
+            )),
             arm: 1.0,
         };
         // Each corner's two faces through the line, the wedge between
@@ -3240,7 +3257,9 @@ mod tests {
             start_reach: chord(start),
             end_reach: chord(end),
             face,
-            normal: OutwardNormal::from_chart(normal, true),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                normal, true,
+            )),
             arm: 1.0,
         };
         let at = |deg: f64| {
@@ -3433,7 +3452,9 @@ mod tests {
                 start_reach: reach(start_bisector),
                 end_reach: reach(end_bisector),
                 face: crate::entity::FaceKey::default(),
-                normal: geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+                at_vertex: crate::boolean::sectors::BoolFace::Tangent(
+                    geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+                ),
                 arm: 1.0,
             }
         };
