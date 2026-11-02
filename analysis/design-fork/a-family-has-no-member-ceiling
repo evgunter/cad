@@ -1,0 +1,6 @@
+fork: a-family-has-no-member-ceiling (WIREHOLD, work/wirehold/a-family-has-no-member-ceiling.md)
+drawn: 2026-11-02T00:49:41Z, od -N2 -tu1 /dev/urandom
+bytes: 140 115
+arm: 140 >= 86 -> two designers
+mapping: 115 odd -> A = Fable designer, B = Opus designer
+protocol: 2126b860b6
