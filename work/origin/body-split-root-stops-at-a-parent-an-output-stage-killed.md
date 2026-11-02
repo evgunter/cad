@@ -55,8 +55,8 @@ None of these copies the records its kills drop:
   only callers are `census.rs` and tests, and no naming layer reads
   them.
 - **The blend's closing join** (`sweep/src/blend/surgery.rs`,
-  `join_edges_within`). `Blended::lineage`
-  (`sweep/src/blend/build.rs`) builds `topo::Lineage` from
+  `join_edges_within`). `BlendNaming::lineage`
+  (`sweep/src/blend/naming.rs`) builds `topo::Lineage` from
   `through_joins` and the blend's own division rows, and never reads a
   `SplitEdge` record. Neither does `emit_blend`. So only `split_root`'s
   readers on a later body can see the loss.
