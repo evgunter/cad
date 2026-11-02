@@ -286,7 +286,7 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
 /// standing caveat. Answers the node a click
 /// selects, as [`failure_lines`] does.
 fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<RecipeNodeId> {
-    let mut clicked = failure_lines(ui, row, theme);
+    let clicked = failure_lines(ui, row, theme);
     match &row.readout {
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
@@ -852,11 +852,11 @@ mod tests {
                 let value = doc.output(measure, 0).expect("a measure defines its value");
                 inserted(
                     doc,
-                    Node::Assertion { claim: editor_core::Claim::Value {
-                        value: Formula::var(value, bound.dim()),
-                        bound,
-                        relation,
-                    } },
+                    Node::Assertion(editor_core::Claim::Value {
+                            value: Formula::var(value, bound.dim()),
+                            bound,
+                            relation,
+                        }),
                     tol,
                 )
             };
@@ -1033,8 +1033,8 @@ mod tests {
     fn a_clearance_at_f64_paints_its_third_state_under_its_row() {
         let fixture = measure_fixture();
         let reason = match verdict_of(&fixture, fixture.clearance) {
-            AssertionVerdict::Clearance(report) => match report.verdict() {
-                ClearanceVerdict::Refused(refusal) => refusal.to_string(),
+            pncad::document::AssertionVerdict::Clearance(report) => match report.verdict() {
+                pncad::analysis::ClearanceVerdict::Refused(refusal) => refusal.to_string(),
                 other => panic!("the premise: f64 cannot certify a clearance: {other:?}"),
             },
             other => panic!("the premise: a clearance's verdict: {other:?}"),
@@ -1191,7 +1191,7 @@ mod tests {
     /// with the kernel's relation for the side assertion `id` records.
     fn compared(fixture: &MeasureFixture, id: RecipeNodeId, measured: &str, bound: &str) -> String {
         match fixture.doc.node(id) {
-            Some(pncad::document::Node::Assertion { claim: editor_core::Claim::Value { relation, .. } }) => {
+            Some(pncad::document::Node::Assertion(editor_core::Claim::Value { relation, .. })) => {
                 format!("{measured} {} {bound}", relation.symbol())
             }
             other => panic!("the premise: {id:?} is an assertion: {other:?}"),

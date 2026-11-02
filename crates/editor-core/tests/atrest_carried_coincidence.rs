@@ -109,11 +109,11 @@ fn gap_zero<R: Clone + Into<Operand>>(
     let value = crate::fixture::value_of(&doc, measure);
     insert(
         doc,
-        Node::Assertion { claim: editor_core::Claim::Value {
-            value,
-            bound: len(0.0),
-            relation: AssertionRelation::Equal,
-        } },
+        Node::Assertion(editor_core::Claim::Value {
+                value,
+                bound: len(0.0),
+                relation: AssertionRelation::Equal,
+            }),
     )
 }
 

@@ -2222,30 +2222,26 @@ fn remap_node(
         // operand does, and one reading a stranded output refuses; any
         // other value is a slot variable, carried as the bound is. The
         // value is no operand, so its miss names no slot of its own.
-        Node::Assertion { claim: crate::measure::Claim::Value {
-            value,
-            bound,
-            relation,
-        } } => Node::Assertion { claim: crate::measure::Claim::Value {
-            value: match rd(crate::OperandSlot::Input, *value) {
-                Err(RemapMiss::Read { output: false, .. }) => *value,
-                Err(RemapMiss::Read { var, .. }) => return Err(RemapMiss::PayloadRead { var }),
-                read => read?,
-            },
-            bound: *bound,
-            relation: *relation,
-        } },
+        Node::Assertion(crate::measure::Claim::Value {
+                    value,
+                    bound,
+                    relation,
+                }) => Node::Assertion(crate::measure::Claim::Value {
+                value: match rd(crate::OperandSlot::Input, *value) {
+                    Err(RemapMiss::Read { output: false, .. }) => *value,
+                    Err(RemapMiss::Read { var, .. }) => return Err(RemapMiss::PayloadRead { var }),
+                    read => read?,
+                },
+                bound: *bound,
+                relation: *relation,
+            }),
         // The seats re-point as a measure's references do; the bounds
         // are slot variables, carried as a value claim's bound is.
-        Node::Assertion {
-            claim: crate::measure::Claim::Clearance { a, b, bounds },
-        } => Node::Assertion {
-            claim: crate::measure::Claim::Clearance {
+        Node::Assertion(crate::measure::Claim::Clearance { a, b, bounds }) => Node::Assertion(crate::measure::Claim::Clearance {
                 a: rd(crate::OperandSlot::Cleared(0), *a)?,
                 b: rd(crate::OperandSlot::Cleared(1), *b)?,
                 bounds: bounds.clone(),
-            },
-        },
+            }),
     })
 }
 

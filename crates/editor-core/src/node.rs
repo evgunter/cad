@@ -1104,7 +1104,7 @@ pub fn payload_exprs<P, S: Slot>(node: &Node<P, S>) -> Option<Vec<&S>> {
 macro_rules! expr_table {
     ($node:expr, $exprs:ident, $wrap:expr, $rest:ident => $other:expr) => {{
         match $node {
-            Node::Assertion { claim } => $wrap(claim.$exprs()),
+            Node::Assertion(claim) => $wrap(claim.$exprs()),
             $rest @ (Node::Profile(_)
             | Node::Extrude { .. }
             | Node::Revolve { .. }
@@ -1893,11 +1893,13 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// no body, the product gather skips it as it skips a
     /// declaration, and `build()` never consults it: an assertion
     /// checks and never places (D10).
-    Assertion {
-        /// What it claims: a variable against a bound, or a clearance
-        /// between two seats within its bounds.
-        claim: crate::measure::Claim<S>,
-    },
+    ///
+    /// What it claims: a variable against a bound, or a clearance
+    /// between two seats within its bounds. On the wire the claim's own
+    /// fields are the node's (`Claim` is untagged): an assertion over a
+    /// value reads `{value, bound, relation}`, a clearance `{a, b,
+    /// bounds}`.
+    Assertion(crate::measure::Claim<S>),
 }
 
 impl Axis3 {
@@ -2106,7 +2108,7 @@ macro_rules! node_rows {
             // from the variable the value reads, which no slot address
             // can state. Both are payload instead
             // ([`payload_exprs`]), and so are a clearance's bounds.
-            Node::Measure { primitive: _ } | Node::Assertion { claim: _ } => {}
+            Node::Measure { primitive: _ } | Node::Assertion(_) => {}
         }
     }};
 }
@@ -2202,14 +2204,10 @@ impl<P> Node<P> {
             | Node::Space
             // An assertion's value is a payload expression
             // ([`payload_exprs`]), not an operand.
-            | Node::Assertion {
-                claim: crate::measure::Claim::Value { .. },
-            } => Vec::new(),
+            | Node::Assertion(crate::measure::Claim::Value { .. }) => Vec::new(),
             // A clearance's two seats are operands; its bounds are
             // payload.
-            Node::Assertion {
-                claim: crate::measure::Claim::Clearance { a, b, .. },
-            } => vec![(O::Cleared(0), *a), (O::Cleared(1), *b)],
+            Node::Assertion(crate::measure::Claim::Clearance { a, b, .. }) => vec![(O::Cleared(0), *a), (O::Cleared(1), *b)],
             Node::Profile(p) => p.read_rows().into_iter().map(|(o, &r)| (o, r)).collect(),
             Node::Extrude {
                 profile,
@@ -2303,12 +2301,8 @@ impl<P> Node<P> {
             }
             Node::World
             | Node::Space
-            | Node::Assertion {
-                claim: crate::measure::Claim::Value { .. },
-            } => Vec::new(),
-            Node::Assertion {
-                claim: crate::measure::Claim::Clearance { a, b, .. },
-            } => vec![(O::Cleared(0), a), (O::Cleared(1), b)],
+            | Node::Assertion(crate::measure::Claim::Value { .. }) => Vec::new(),
+            Node::Assertion(crate::measure::Claim::Clearance { a, b, .. }) => vec![(O::Cleared(0), a), (O::Cleared(1), b)],
             Node::Profile(p) => p.read_rows_mut(),
             Node::Extrude {
                 profile,
@@ -2384,13 +2378,9 @@ impl<P> Node<P> {
     ) -> Option<AssertionBoundFault> {
         let dim = |var: &VarId| doc.vars.get(var)?.kind().dimension();
         match self {
-            Node::Assertion {
-                claim: crate::measure::Claim::Value { value, bound, .. },
-            } => AssertionBoundFault::against(dim(value)?, dim(bound)?),
+            Node::Assertion(crate::measure::Claim::Value { value, bound, .. }) => AssertionBoundFault::against(dim(value)?, dim(bound)?),
             // A clearance is a length, so each bound is one.
-            Node::Assertion {
-                claim: crate::measure::Claim::Clearance { bounds, .. },
-            } => bounds
+            Node::Assertion(crate::measure::Claim::Clearance { bounds, .. }) => bounds
                 .exprs()
                 .into_iter()
                 .find_map(|b| AssertionBoundFault::against(Dimension::Length, dim(b)?)),
@@ -2824,9 +2814,7 @@ impl<P, S: Slot> Node<P, S> {
                     })?,
                 }
             }
-            Node::Assertion { claim } => Node::Assertion {
-                claim: claim.try_map(&mut *f, &mut *read)?,
-            },
+            Node::Assertion(claim) => Node::Assertion(claim.try_map(&mut *f, &mut *read)?),
         })
     }
 }
@@ -3053,7 +3041,7 @@ impl<P: crate::ProfilePayload> Node<P> {
     /// where `doc` no longer holds one, at the other's — and a
     /// clearance's bounds as lengths. `None` for a slot-only node.
     pub(crate) fn payload_reads(&self, doc: &crate::Doc<P>) -> Option<Vec<(VarId, Dimension)>> {
-        let Node::Assertion { claim } = self else {
+        let Node::Assertion(claim) = self else {
             return None;
         };
         Some(claim_reads(doc, claim))
@@ -3278,13 +3266,11 @@ impl<P> Node<P, crate::Formula> {
         b: impl Into<crate::Operand>,
         bounds: crate::measure::ClearanceBounds<crate::Formula>,
     ) -> Self {
-        Node::Assertion {
-            claim: crate::measure::Claim::Clearance {
+        Node::Assertion(crate::measure::Claim::Clearance {
                 a: a.into(),
                 b: b.into(),
                 bounds,
-            },
-        }
+            })
     }
 
     /// **The names this authored node's selection seats author**
@@ -3298,9 +3284,7 @@ impl<P> Node<P, crate::Formula> {
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => vec![selection],
             Node::Shell { open, .. } => vec![open],
             Node::Measure { primitive } => primitive.refs().to_vec(),
-            Node::Assertion {
-                claim: crate::measure::Claim::Clearance { a, b, .. },
-            } => vec![a, b],
+            Node::Assertion(crate::measure::Claim::Clearance { a, b, .. }) => vec![a, b],
             // A drawn profile's traced faces.
             Node::Profile(p) => p.read_rows().into_iter().map(|(_, read)| read).collect(),
             Node::Extrude { .. }
@@ -3319,9 +3303,7 @@ impl<P> Node<P, crate::Formula> {
             | Node::Space
             | Node::Place { .. }
             | Node::InstantiatePart { .. }
-            | Node::Assertion {
-                claim: crate::measure::Claim::Value { .. },
-            } => Vec::new(),
+            | Node::Assertion(crate::measure::Claim::Value { .. }) => Vec::new(),
         };
         seats
             .into_iter()

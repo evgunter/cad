@@ -660,19 +660,19 @@ fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
     let measured = Formula::var(out, Dimension::Length);
     let as_angle = Formula::atan2(measured.clone(), len(1.0)).unwrap();
     let web = r.define("web", measured);
-    let assertion = r.insert(Node::Assertion { claim: editor_core::Claim::Value {
-        value: Formula::var(web, Dimension::Length),
-        bound: len(0.5),
-        relation: editor_core::AssertionRelation::AtLeast,
-    } });
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
+            value: Formula::var(web, Dimension::Length),
+            bound: len(0.5),
+            relation: editor_core::AssertionRelation::AtLeast,
+        }));
     let by_insert = refused(
         &r.doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Assertion { claim: editor_core::Claim::Value {
-                value: as_angle.clone(),
-                bound: len(0.5),
-                relation: editor_core::AssertionRelation::AtLeast,
-            } }),
+            node: Box::new(Node::Assertion(editor_core::Claim::Value {
+                    value: as_angle.clone(),
+                    bound: len(0.5),
+                    relation: editor_core::AssertionRelation::AtLeast,
+                })),
             fresh: Vec::new(),
         },
     );
@@ -706,7 +706,7 @@ fn the_definition_door_refuses_an_assertion_re_pointed_across_dimensions() {
     );
     assert_eq!(
         r.doc.node(assertion).and_then(|n| match n {
-            Node::Assertion { claim: editor_core::Claim::Value { value, .. } } => Some(*value),
+            Node::Assertion(editor_core::Claim::Value { value, .. }) => Some(*value),
             _ => None,
         }),
         Some(web),

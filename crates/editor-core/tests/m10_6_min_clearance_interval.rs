@@ -117,7 +117,10 @@ fn dumbbell(bounds: &[ClearanceBounds<f64>]) -> Dumbbell {
         ],
     );
     let wall = |r: &Recorder, seg: u32| {
-        SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, seg)))
+        SitedRef::new(
+            placed,
+            fixture::fname(solid, fixture::wall(&r.doc, solid, seg)),
+        )
     };
     let assertions = bounds
         .iter()
@@ -170,7 +173,10 @@ fn report_of<T: editor_core::EvalScalar>(
 /// `Interval` over no box.
 fn nominal(bounds: ClearanceBounds<f64>) -> ClearanceReport {
     let f = dumbbell(&[bounds]);
-    report_of(&eval_over::<geom_core::Interval>(&f.doc, None), f.assertions[0])
+    report_of(
+        &eval_over::<geom_core::Interval>(&f.doc, None),
+        f.assertions[0],
+    )
 }
 
 /// **Row 1**: `clearance ≥ 0.5` over walls 0.4 apart is violated, and
@@ -258,7 +264,10 @@ fn a_band_and_an_equality_run_one_fused_sweep() {
         upper.receipt()
     );
     let ClearanceVerdict::Violated(_) = equal.verdict() else {
-        panic!("= 0.45 over a 0.4 gap has a pair closer: {}", equal.render());
+        panic!(
+            "= 0.45 over a 0.4 gap has a pair closer: {}",
+            equal.render()
+        );
     };
     assert_eq!(
         nominal(ClearanceBounds::Equal(0.35)).verdict(),
@@ -269,7 +278,11 @@ fn a_band_and_an_equality_run_one_fused_sweep() {
     let ClearanceVerdict::Within(w) = band.verdict() else {
         panic!("0.3 ≤ 0.4 ≤ 0.5 holds: {}", band.render());
     };
-    assert!((0.3..=0.5).contains(&w.geometry.distance), "{}", band.render());
+    assert!(
+        (0.3..=0.5).contains(&w.geometry.distance),
+        "{}",
+        band.render()
+    );
     assert_eq!(band.receipt().candidates, 1, "{:?}", band.receipt());
 }
 
@@ -330,25 +343,32 @@ fn the_drive_answers_each_certified_leaf_through_the_assertion() {
     );
     let place = f.doc.var_named("place").expect("the fixture declares it");
     for leaf in verdict.certified() {
-        let at = |assertion| {
-            match editor_core::drive::assertion_at(
-                &f.doc,
-                assertion,
-                &leaf.box_,
-                verdict.symbolic(),
-                Tol::witness(),
-            ) {
-                Some(AssertionVerdict::Clearance(report)) => *report,
-                other => panic!("a clearance's verdict over a leaf: {other:?}"),
-            }
+        let at = |assertion| match editor_core::drive::assertion_at(
+            &f.doc,
+            assertion,
+            &leaf.box_,
+            verdict.symbolic(),
+            Tol::witness(),
+        ) {
+            Some(AssertionVerdict::Clearance(report)) => *report,
+            other => panic!("a clearance's verdict over a leaf: {other:?}"),
         };
         let held = at(f.assertions[0]);
-        assert_eq!(held.verdict(), &ClearanceVerdict::Holds, "{}", held.render());
+        assert_eq!(
+            held.verdict(),
+            &ClearanceVerdict::Holds,
+            "{}",
+            held.render()
+        );
         let broken = at(f.assertions[1]);
         let ClearanceVerdict::Violated(w) = broken.verdict() else {
             panic!("0.5 is violated over every leaf: {}", broken.render());
         };
-        let mid = leaf.box_.get(place).expect("the leaf varies `place`").midpoint();
+        let mid = leaf
+            .box_
+            .get(place)
+            .expect("the leaf varies `place`")
+            .midpoint();
         assert_eq!(
             w.param.offsets,
             vec![(place, mid)],

@@ -136,11 +136,11 @@ pub fn document() -> CorpusDoc {
         Formula::add(radius(), radius()).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let _assertion = r.insert(Node::Assertion { claim: editor_core::Claim::Value {
-        value: web,
-        bound: len(MIN_WEB),
-        relation: AssertionRelation::AtLeast,
-    } });
+    let _assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
+            value: web,
+            bound: len(MIN_WEB),
+            relation: AssertionRelation::AtLeast,
+        }));
     r.place_part(plate);
 
     CorpusDoc {

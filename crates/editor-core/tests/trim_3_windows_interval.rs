@@ -15,10 +15,13 @@ use crate::fixture;
 
 use std::collections::BTreeMap;
 
+use crate::fixture::clearance;
 use editor_core::UnitSym;
 use editor_core::analysis::{BoxAxis, ParamBox};
-use editor_core::clearance::{Budgets, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport, ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection};
-use crate::fixture::clearance;
+use editor_core::clearance::{
+    Budgets, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
+    ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection,
+};
 use editor_core::{
     CapEnd, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, VarName,

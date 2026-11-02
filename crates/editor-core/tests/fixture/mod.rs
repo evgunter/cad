@@ -1695,7 +1695,7 @@ pub fn output(doc: &ProfileDoc, measure: RecipeNodeId) -> editor_core::VarId {
 /// When `assertion` is not a live assertion of `doc`.
 pub fn assertion_value(doc: &ProfileDoc, assertion: RecipeNodeId) -> editor_core::VarId {
     match doc.node(assertion) {
-        Some(Node::Assertion { claim: editor_core::Claim::Value { value, .. } }) => *value,
+        Some(Node::Assertion(editor_core::Claim::Value { value, .. })) => *value,
         other => panic!("{assertion} is not an assertion: {other:?}"),
     }
 }
@@ -4073,7 +4073,10 @@ pub fn product_in_world(
 pub fn clearance_within(
     doc: &ProfileDoc,
     leaf: &editor_core::analysis::ParamBox,
-    (a, b): (&editor_core::clearance::Selection, &editor_core::clearance::Selection),
+    (a, b): (
+        &editor_core::clearance::Selection,
+        &editor_core::clearance::Selection,
+    ),
     bounds: editor_core::ClearanceBounds<f64>,
     tol: Tol,
 ) -> Result<editor_core::clearance::ClearanceReport, editor_core::EditError> {
@@ -4123,6 +4126,12 @@ pub fn clearance(
     c: f64,
     tol: Tol,
 ) -> editor_core::clearance::ClearanceReport {
-    clearance_within(doc, leaf, (a, b), editor_core::ClearanceBounds::AtLeast(c), tol)
-        .expect("each selection is a seat a clearance admits")
+    clearance_within(
+        doc,
+        leaf,
+        (a, b),
+        editor_core::ClearanceBounds::AtLeast(c),
+        tol,
+    )
+    .expect("each selection is a seat a clearance admits")
 }

@@ -21,8 +21,8 @@
 use crate::fixture;
 use editor_core::{
     CapEnd, DocEdit, EditError, EntityKind, MeasurePrimitive, MeasureVerb, Node, Operand,
-    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, SlotKind, SnapshotError,
-    StableName, VarKind, VarName, apply, load, save,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, SlotKind, StableName, VarKind, VarName,
+    apply,
 };
 use fixture::{fname, insert, len, on_frame, square, wall};
 use geom_core::Tol;

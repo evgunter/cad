@@ -1077,7 +1077,10 @@ impl ClearanceReport {
     }
 
     /// `verdict`, with the sweep's receipt, widths and region count.
-    pub(crate) fn of<W>(verdict: ClearanceVerdict, report: &topo::clearance::BoundReport<W>) -> Self {
+    pub(crate) fn of<W>(
+        verdict: ClearanceVerdict,
+        report: &topo::clearance::BoundReport<W>,
+    ) -> Self {
         Self {
             verdict,
             receipt: report.receipt,
@@ -1921,7 +1924,9 @@ pub(crate) fn closest_pair(
         return Err("the cells carry no station on their faces to verify at".to_owned());
     };
     ask.confirms(<geom_core::Interval as geom_core::Real>::from_f64(d), band)
-        .map_err(|why| format!("the f64 rebuild measures {d} between the closest stations: {why}"))?;
+        .map_err(|why| {
+            format!("the f64 rebuild measures {d} between the closest stations: {why}")
+        })?;
     Ok(GeometryWitness {
         a: face_a,
         a_uv,

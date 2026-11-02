@@ -57,9 +57,9 @@ use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_k
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, CapEnd, ClearanceBounds, Dimension,
-    Distribution, DocEdit,
-    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
+    Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnitSym, ValuePayload,
+    VarName, evaluate,
 };
 use geom_core::Tol;
 use topo::clearance::{Budgets, Side, min_separation};
@@ -465,11 +465,11 @@ fn web_across(
             ],
         )
         .outputs[0];
-    let assertion = r.insert(Node::Assertion { claim: editor_core::Claim::Value {
-        value: fixture::read_var(&r.doc, measure),
-        bound: len(bound),
-        relation: AssertionRelation::AtLeast,
-    } });
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
+            value: fixture::read_var(&r.doc, measure),
+            bound: len(bound),
+            relation: AssertionRelation::AtLeast,
+        }));
     (r.doc, measure, assertion)
 }
 
@@ -749,7 +749,10 @@ fn neck_related(
         ],
     );
     let assertion = r.insert(Node::clearance(
-        SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
+        SitedRef::new(
+            placed,
+            fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+        ),
         SitedRef::new(
             placed,
             fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
@@ -912,11 +915,11 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
             ],
         )
         .outputs[0];
-    r.insert(Node::Assertion { claim: editor_core::Claim::Value {
-        value: fixture::read_var(&r.doc, measure),
-        bound: len(1.0),
-        relation: AssertionRelation::AtLeast,
-    } });
+    r.insert(Node::Assertion(editor_core::Claim::Value {
+            value: fixture::read_var(&r.doc, measure),
+            bound: len(1.0),
+            relation: AssertionRelation::AtLeast,
+        }));
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     match MassBasis::of(&analyzed) {
         MassBasis::Forced { by } => {
@@ -967,7 +970,10 @@ fn the_mc_lane_over_a_clearance_document_decides_nothing_and_says_so() {
     )
     .expect("replays");
     eprintln!("{}", report.render(&doc));
-    assert!(report.measures.is_empty(), "no node holds a clearance value");
+    assert!(
+        report.measures.is_empty(),
+        "no node holds a clearance value"
+    );
     assert_eq!(report.assertions[0].unevaluated, 16);
     assert!(report.assertions[0].violation_fraction().is_none());
     assert!(report.render(&doc).contains("no sample decided"));
@@ -1024,11 +1030,11 @@ fn bracket(
             ],
         )
         .outputs[0];
-    let web_ok = r.insert(Node::Assertion { claim: editor_core::Claim::Value {
-        value: fixture::read_var(&r.doc, web),
-        bound: len(0.9),
-        relation: AssertionRelation::AtLeast,
-    } });
+    let web_ok = r.insert(Node::Assertion(editor_core::Claim::Value {
+            value: fixture::read_var(&r.doc, web),
+            bound: len(0.9),
+            relation: AssertionRelation::AtLeast,
+        }));
     let clear_ok = r.insert(Node::clearance(
         SitedRef::new(
             post,
@@ -1080,7 +1086,10 @@ fn the_bracket_walk_through_the_public_doors() {
         &verdict,
         &Selection::body_of(verdict_post(&doc)),
         &Selection::body_of(verdict_base(&doc)),
-        &ClearanceQuery { bound: editor_core::clearance::ClearanceBound::at_least(0.1), ..ClearanceQuery::strictly_positive(tol) },
+        &ClearanceQuery {
+            bound: editor_core::clearance::ClearanceBound::at_least(0.1),
+            ..ClearanceQuery::strictly_positive(tol)
+        },
     );
     // **§2's two doors and the key, on the three reports that shipped
     // with no row at all** (R2's MINOR-10): `LeafFold`'s trio,
@@ -1306,11 +1315,11 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     )
     .expect("L − L");
     let measure = r.define("measure", web);
-    let assertion = r.insert(Node::Assertion { claim: editor_core::Claim::Value {
-        value: fixture::read_var(&r.doc, measure),
-        bound: len(bound),
-        relation: AssertionRelation::AtLeast,
-    } });
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
+            value: fixture::read_var(&r.doc, measure),
+            bound: len(bound),
+            relation: AssertionRelation::AtLeast,
+        }));
 
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     let verdict = drive(&r.doc, &analyzed, &DriveConfig::default(), tol).expect("builds");

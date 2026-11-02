@@ -13,9 +13,12 @@ use crate::fixture;
 
 use std::collections::BTreeMap;
 
-use editor_core::analysis::ParamBox;
-use editor_core::clearance::{CertificateArm, ClearanceRefusal, ClearanceVerdict, EngineRefusal, FaceScope, MinSeparationRefusal, Selection, SelectionRefusal, SharedCell, Which};
 use crate::fixture::clearance;
+use editor_core::analysis::ParamBox;
+use editor_core::clearance::{
+    CertificateArm, ClearanceRefusal, ClearanceVerdict, EngineRefusal, FaceScope,
+    MinSeparationRefusal, Selection, SelectionRefusal, SharedCell, Which,
+};
 use editor_core::{EntityKind, Entry, EvalOptions, Node, ProfileDoc, RecipeNodeId, StableName};
 use geom_core::{BandError, Tol};
 use topo::entity::FaceKey;

@@ -4017,9 +4017,7 @@ fn doc_asserts_a_clearance(doc: &Doc<ProfileProgram>) -> bool {
     doc.ids().into_iter().any(|id| {
         matches!(
             doc.node(id),
-            Some(crate::node::Node::Assertion {
-                claim: crate::measure::Claim::Clearance { .. }
-            })
+            Some(crate::node::Node::Assertion(crate::measure::Claim::Clearance { .. }))
         )
     })
 }
@@ -4399,7 +4397,7 @@ where
         // this run (`measure::observe`): it is the one read of a
         // measured value, and the environment every construction reads
         // holds none.
-        crate::node::Node::Assertion { claim } => {
+        crate::node::Node::Assertion(claim) => {
             let reads = crate::node::claim_reads(doc, claim);
             let mut values = Vec::with_capacity(reads.len());
             for (index, &(var, dim)) in reads.iter().enumerate() {
@@ -4407,8 +4405,12 @@ where
                     match refusal {
                         measure::ObservedRefusal::Expr(source) => NodeErrorKind::PayloadExpr {
                             what: match (claim, index) {
-                                (crate::measure::Claim::Value { .. }, 0) => "the assertion's value,",
-                                (crate::measure::Claim::Value { .. }, _) => "the assertion's bound,",
+                                (crate::measure::Claim::Value { .. }, 0) => {
+                                    "the assertion's value,"
+                                }
+                                (crate::measure::Claim::Value { .. }, _) => {
+                                    "the assertion's bound,"
+                                }
                                 (crate::measure::Claim::Clearance { .. }, _) => {
                                     "the clearance's bound,"
                                 }
@@ -4442,7 +4444,9 @@ where
                         payload,
                     }
                 }
-                crate::measure::Claim::Clearance { .. } => wire::OpInput::Clearance { node, payload },
+                crate::measure::Claim::Clearance { .. } => {
+                    wire::OpInput::Clearance { node, payload }
+                }
             }
         }
         _ => wire::OpInput::Other(node),
@@ -5476,11 +5480,11 @@ where
         // expressions, whose evaluated values are fed with the others
         // below; the measures under the value are upstream, so their
         // own keys carry them.
-        Node::Assertion { claim: crate::measure::Claim::Value {
-            value: _,
-            bound: _,
-            relation,
-        } } => h.write_tag(match relation {
+        Node::Assertion(crate::measure::Claim::Value {
+                    value: _,
+                    bound: _,
+                    relation,
+                }) => h.write_tag(match relation {
             crate::measure::AssertionRelation::AtLeast => 1,
             crate::measure::AssertionRelation::AtMost => 2,
             crate::measure::AssertionRelation::Equal => 3,
@@ -5488,9 +5492,7 @@ where
         // A clearance's BOUND SHAPE is payload, its bounds' values are
         // fed below, and its seats are reads, keyed as a measure's are:
         // by their bodies upstream and by the names a selection feeds.
-        Node::Assertion {
-            claim: crate::measure::Claim::Clearance { a, b, bounds },
-        } => {
+        Node::Assertion(crate::measure::Claim::Clearance { a, b, bounds }) => {
             use crate::measure::ClearanceBounds as B;
             h.write_tag(match bounds {
                 B::AtLeast(_) => 4,

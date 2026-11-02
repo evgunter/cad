@@ -204,11 +204,11 @@ fn pad_built(
     )
     .expect("Length - Length");
 
-    let assertion = r.insert(Node::Assertion { claim: editor_core::Claim::Value {
-        value: web,
-        bound: len(0.0),
-        relation: editor_core::AssertionRelation::AtLeast,
-    } });
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
+            value: web,
+            bound: len(0.0),
+            relation: editor_core::AssertionRelation::AtLeast,
+        }));
     let measure = crate::fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
 }

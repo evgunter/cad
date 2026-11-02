@@ -51,11 +51,11 @@ fn assert_on(
 ) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Assertion { claim: editor_core::Claim::Value {
-            value,
-            bound,
-            relation,
-        } },
+        Node::Assertion(editor_core::Claim::Value {
+                value,
+                bound,
+                relation,
+            }),
     )
 }
 
@@ -121,10 +121,10 @@ fn the_relation_is_the_wire_field_and_dir_refuses() {
     assert!(
         matches!(
             loaded.doc.node(id),
-            Some(Node::Assertion { claim: editor_core::Claim::Value {
-                relation: AssertionRelation::Equal,
-                ..
-            } })
+            Some(Node::Assertion(editor_core::Claim::Value {
+                    relation: AssertionRelation::Equal,
+                    ..
+                }))
         ),
         "`=` round-trips"
     );

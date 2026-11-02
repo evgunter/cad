@@ -155,11 +155,11 @@ fn every_form() -> ProfileDoc {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion { claim: editor_core::Claim::Value {
-                value,
-                bound: len(0.0005),
-                relation: AssertionRelation::AtMost,
-            } }),
+            node: Box::new(Node::Assertion(editor_core::Claim::Value {
+                    value,
+                    bound: len(0.0005),
+                    relation: AssertionRelation::AtMost,
+                })),
             fresh: Vec::new(),
         },
     );
@@ -195,11 +195,11 @@ fn angular() -> ProfileDoc {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion { claim: editor_core::Claim::Value {
-                value: crate::fixture::read_var(&doc, measured.outputs[0]),
-                bound: ang(0.5),
-                relation: AssertionRelation::AtLeast,
-            } }),
+            node: Box::new(Node::Assertion(editor_core::Claim::Value {
+                    value: crate::fixture::read_var(&doc, measured.outputs[0]),
+                    bound: ang(0.5),
+                    relation: AssertionRelation::AtLeast,
+                })),
             fresh: Vec::new(),
         },
     );
@@ -301,11 +301,11 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion { claim: editor_core::Claim::Value {
-                value: crate::fixture::value_of(&doc, measure(&doc)),
-                bound: len(0.5),
-                relation: AssertionRelation::AtLeast,
-            } }),
+            node: Box::new(Node::Assertion(editor_core::Claim::Value {
+                    value: crate::fixture::value_of(&doc, measure(&doc)),
+                    bound: len(0.5),
+                    relation: AssertionRelation::AtLeast,
+                })),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -335,11 +335,11 @@ fn an_assertion_over_a_non_scalar_refuses() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion { claim: editor_core::Claim::Value {
-                value: Formula::var(point, Dimension::Angle),
-                bound: ang(0.5),
-                relation: AssertionRelation::AtLeast,
-            } }),
+            node: Box::new(Node::Assertion(editor_core::Claim::Value {
+                    value: Formula::var(point, Dimension::Angle),
+                    bound: ang(0.5),
+                    relation: AssertionRelation::AtLeast,
+                })),
             fresh: Vec::new(),
         },
         Tol::witness(),

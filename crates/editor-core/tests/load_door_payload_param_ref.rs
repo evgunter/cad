@@ -90,11 +90,11 @@ fn asserting_depth() -> (ProfileDoc, VarName, RecipeNodeId) {
     let (doc, name) = with_depth();
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion { claim: editor_core::Claim::Value {
-            value: Formula::named(name.clone(), Dimension::Length),
-            bound: len(-0.0),
-            relation: editor_core::AssertionRelation::AtLeast,
-        } },
+        Node::Assertion(editor_core::Claim::Value {
+                value: Formula::named(name.clone(), Dimension::Length),
+                bound: len(-0.0),
+                relation: editor_core::AssertionRelation::AtLeast,
+            }),
     );
     (doc, name, assertion)
 }
@@ -139,11 +139,11 @@ fn an_assertion_value_reading_an_undeclared_parameter_refuses_to_load() {
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion { claim: editor_core::Claim::Value {
-                value: Formula::named(missing.clone(), Dimension::Length),
-                bound: len(0.0),
-                relation: editor_core::AssertionRelation::AtLeast,
-            } }),
+            node: Box::new(Node::Assertion(editor_core::Claim::Value {
+                    value: Formula::named(missing.clone(), Dimension::Length),
+                    bound: len(0.0),
+                    relation: editor_core::AssertionRelation::AtLeast,
+                })),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -211,11 +211,11 @@ fn an_assertion_value_retyped_under_its_bound_refuses_to_load() {
 #[test]
 fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
     let (doc, name) = with_depth();
-    let bound = |n: &VarName| Node::Assertion { claim: editor_core::Claim::Value {
-        value: len(1.0),
-        bound: Formula::named(n.clone(), Dimension::Length),
-        relation: editor_core::AssertionRelation::AtLeast,
-    } };
+    let bound = |n: &VarName| Node::Assertion(editor_core::Claim::Value {
+            value: len(1.0),
+            bound: Formula::named(n.clone(), Dimension::Length),
+            relation: editor_core::AssertionRelation::AtLeast,
+        });
     let (doc, assertion) = insert(doc, bound(&name));
 
     let missing = VarName::from_static("nowhere");
@@ -309,11 +309,11 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
     .doc;
     let (doc, _) = insert(
         doc,
-        Node::Assertion { claim: editor_core::Claim::Value {
-            value: Formula::named(name.clone(), Dimension::Length),
-            bound: len(1.0),
-            relation: editor_core::AssertionRelation::AtLeast,
-        } },
+        Node::Assertion(editor_core::Claim::Value {
+                value: Formula::named(name.clone(), Dimension::Length),
+                bound: len(1.0),
+                relation: editor_core::AssertionRelation::AtLeast,
+            }),
     );
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
@@ -341,22 +341,22 @@ fn an_assertion_value_that_is_a_body_refuses() {
     let body = doc.output(extrude, 0).expect("a body");
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion { claim: editor_core::Claim::Value {
-            value: Formula::named(name.clone(), Dimension::Length),
-            bound: len(1.0),
-            relation: editor_core::AssertionRelation::AtLeast,
-        } },
+        Node::Assertion(editor_core::Claim::Value {
+                value: Formula::named(name.clone(), Dimension::Length),
+                bound: len(1.0),
+                relation: editor_core::AssertionRelation::AtLeast,
+            }),
     );
 
     // The edit door, over the node the wire surgery below forges.
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion { claim: editor_core::Claim::Value {
-                value: Formula::var(body, Dimension::Length),
-                bound: len(1.0),
-                relation: editor_core::AssertionRelation::AtLeast,
-            } }),
+            node: Box::new(Node::Assertion(editor_core::Claim::Value {
+                    value: Formula::var(body, Dimension::Length),
+                    bound: len(1.0),
+                    relation: editor_core::AssertionRelation::AtLeast,
+                })),
             fresh: Vec::new(),
         },
         Tol::witness(),

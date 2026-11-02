@@ -134,10 +134,14 @@ use crate::fixture;
 
 use std::collections::BTreeMap;
 
+use crate::fixture::clearance;
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
-use editor_core::clearance::{Budgets, CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle, NoTangents, Pruning, Selection, Which, clearance_over, clearance_with, self_intersection};
-use crate::fixture::clearance;
+use editor_core::clearance::{
+    Budgets, CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery,
+    ClearanceRefusal, ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle,
+    NoTangents, Pruning, Selection, Which, clearance_over, clearance_with, self_intersection,
+};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
@@ -1029,7 +1033,10 @@ fn a_driver_certified_leaf_carries_the_certificate() {
         &verdict,
         &wa,
         &wb,
-        &ClearanceQuery { bound: ClearanceBound::at_least(0.2), ..ClearanceQuery::strictly_positive(Tol::witness()) },
+        &ClearanceQuery {
+            bound: ClearanceBound::at_least(0.2),
+            ..ClearanceQuery::strictly_positive(Tol::witness())
+        },
     );
     assert_eq!(fold.verdict, ClearanceVerdict::Holds);
     assert!(fold.receipt.holds(), "{:?}", fold.receipt);
@@ -1090,7 +1097,10 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         );
     };
     let [a, b] = plate.holes.map(Selection::body_of);
-    let query = ClearanceQuery { bound: ClearanceBound::at_least(0.3e-3), ..ClearanceQuery::strictly_positive(tol) };
+    let query = ClearanceQuery {
+        bound: ClearanceBound::at_least(0.3e-3),
+        ..ClearanceQuery::strictly_positive(tol)
+    };
     let fold = clearance_over(&plate.doc, &analyzed, &verdict, &a, &b, &query);
     assert_eq!(
         fold.verdict,
@@ -1102,8 +1112,11 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         &leaf.box_,
         &a,
         &b,
-        &ClearanceQuery { bound: ClearanceBound::at_least(0.3e-3), ..ClearanceQuery::strictly_positive(tol) }
-            .certified_at(editor_core::drive::SymbolicDials::off()),
+        &ClearanceQuery {
+            bound: ClearanceBound::at_least(0.3e-3),
+            ..ClearanceQuery::strictly_positive(tol)
+        }
+        .certified_at(editor_core::drive::SymbolicDials::off()),
     );
     assert_eq!(
         *clearance_with(

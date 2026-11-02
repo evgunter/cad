@@ -20,11 +20,15 @@ use crate::fixture;
 
 use std::collections::BTreeMap;
 
+use crate::fixture::clearance;
 use bvh::Aabb;
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
-use editor_core::clearance::{Budgets, CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, NoTangents, Selection, Which, clearance_over, clearance_with, self_intersection};
-use crate::fixture::clearance;
+use editor_core::clearance::{
+    Budgets, CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
+    ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, NoTangents, Selection, Which,
+    clearance_over, clearance_with, self_intersection,
+};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
     CapEnd, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
@@ -1085,7 +1089,10 @@ fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
         &verdict,
         &sc,
         &ss,
-        &ClearanceQuery { bound: ClearanceBound::at_least(0.3), ..ClearanceQuery::strictly_positive(Tol::witness()) },
+        &ClearanceQuery {
+            bound: ClearanceBound::at_least(0.3),
+            ..ClearanceQuery::strictly_positive(Tol::witness())
+        },
     );
     println!(
         "[r1 e2e] fold: leaves = {}, verdict = {:?}",

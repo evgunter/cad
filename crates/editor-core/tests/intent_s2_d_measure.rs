@@ -94,11 +94,11 @@ fn measure_arithmetic_is_a_definition_the_assertion_reads() {
     .expect("Length - Length");
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion { claim: editor_core::Claim::Value {
-            value: margin,
-            bound: len(1.0),
-            relation: AssertionRelation::AtLeast,
-        } },
+        Node::Assertion(editor_core::Claim::Value {
+                value: margin,
+                bound: len(1.0),
+                relation: AssertionRelation::AtLeast,
+            }),
     );
     let value = fixture::assertion_value(&doc, assertion);
     let held = doc.var(value).expect("the value is a variable");
@@ -290,15 +290,15 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
     // An assertion reads it.
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion { claim: editor_core::Claim::Value {
-            value: Formula::add(
-                Formula::named(VarName::new("m").unwrap(), Dimension::Length),
-                len(0.001),
-            )
-            .unwrap(),
-            bound: len(0.5),
-            relation: AssertionRelation::AtLeast,
-        } },
+        Node::Assertion(editor_core::Claim::Value {
+                value: Formula::add(
+                    Formula::named(VarName::new("m").unwrap(), Dimension::Length),
+                    len(0.001),
+                )
+                .unwrap(),
+                bound: len(0.5),
+                relation: AssertionRelation::AtLeast,
+            }),
     );
     assert!(matches!(
         verdict(&crate::corpus::eval::<f64>(&doc), assertion),
@@ -348,11 +348,11 @@ fn a_redefinition_over_a_measure_binds_after_the_measure_runs() {
     );
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion { claim: editor_core::Claim::Value {
-            value: Formula::named(w.clone(), Dimension::Length),
-            bound: len(0.0),
-            relation: AssertionRelation::AtLeast,
-        } },
+        Node::Assertion(editor_core::Claim::Value {
+                value: Formula::named(w.clone(), Dimension::Length),
+                bound: len(0.0),
+                relation: AssertionRelation::AtLeast,
+            }),
     );
     let (doc, measure) = fixture::measure_node(
         &doc,
@@ -403,11 +403,11 @@ fn an_assertion_over_a_definition_is_poisoned_by_the_measure_under_it() {
     let out = fixture::output(&doc, measure);
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion { claim: editor_core::Claim::Value {
-            value: Formula::add(Formula::var(out, Dimension::Length), len(1.0)).unwrap(),
-            bound: len(0.0),
-            relation: AssertionRelation::AtLeast,
-        } },
+        Node::Assertion(editor_core::Claim::Value {
+                value: Formula::add(Formula::var(out, Dimension::Length), len(1.0)).unwrap(),
+                bound: len(0.0),
+                relation: AssertionRelation::AtLeast,
+            }),
     );
     let ev = crate::corpus::eval::<f64>(&doc);
     assert!(
@@ -437,11 +437,11 @@ fn a_split_refuses_an_assertion_over_a_stranded_measure() {
     let out = fixture::output(&doc, measure);
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion { claim: editor_core::Claim::Value {
-            value: Formula::var(out, Dimension::Length),
-            bound: len(0.0),
-            relation: AssertionRelation::AtLeast,
-        } },
+        Node::Assertion(editor_core::Claim::Value {
+                value: Formula::var(out, Dimension::Length),
+                bound: len(0.0),
+                relation: AssertionRelation::AtLeast,
+            }),
     );
     let (doc, _) = fixture::step(doc, DocEdit::DeleteNode { id: measure });
     let mut cut = std::collections::BTreeSet::from([assertion]);
@@ -464,4 +464,3 @@ fn a_split_refuses_an_assertion_over_a_stranded_measure() {
         other => panic!("the carry refuses the stranded value, got {other:?}"),
     }
 }
-

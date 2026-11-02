@@ -56,9 +56,9 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
-    AssertionRelation, AssertionVerdict, CancelToken, ClearanceBounds, Dimension, Distribution, DocEdit,
-    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, ClearanceBounds, Dimension, Distribution,
+    DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -331,11 +331,11 @@ fn distributed_plate() -> ProfileDoc {
     // threshold below the nominal web, so the verdict is a plain
     // `Holds` rather than a band-coincident one. Row 1 is about the
     // verdict being taken and holding, not about the band.
-    r.insert(Node::Assertion { claim: editor_core::Claim::Value {
-        value: web,
-        bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
-        relation: AssertionRelation::AtLeast,
-    } });
+    r.insert(Node::Assertion(editor_core::Claim::Value {
+            value: web,
+            bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
+            relation: AssertionRelation::AtLeast,
+        }));
     r.doc
 }
 
@@ -436,7 +436,10 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         ],
     );
     let wall = |r: &Recorder, seg: u32| {
-        SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, seg)))
+        SitedRef::new(
+            placed,
+            fixture::fname(solid, fixture::wall(&r.doc, solid, seg)),
+        )
     };
     let (a, b) = (wall(&r, 2), wall(&r, 9));
     let assertion = r.insert(Node::clearance(a, b, ClearanceBounds::AtLeast(len(0.3))));
@@ -895,10 +898,10 @@ fn plain_distance_doc() -> ProfileDoc {
         ],
     );
     let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
-    r.insert(Node::Assertion { claim: editor_core::Claim::Value {
-        value: fixture::read_var(&r.doc, measure_value),
-        bound: len(0.5),
-        relation: AssertionRelation::AtLeast,
-    } });
+    r.insert(Node::Assertion(editor_core::Claim::Value {
+            value: fixture::read_var(&r.doc, measure_value),
+            bound: len(0.5),
+            relation: AssertionRelation::AtLeast,
+        }));
     r.doc
 }

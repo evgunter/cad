@@ -2938,11 +2938,11 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     // the verdict is about the READ door, not about the geometry.
     let (doc, _) = insert(
         doc,
-        Node::Assertion { claim: pncad::document::Claim::Value {
-            value: pncad::document::Formula::var(value, pncad::document::Dimension::Length),
-            bound: len(0.0),
-            relation: pncad::document::AssertionRelation::AtLeast,
-        } },
+        Node::Assertion(pncad::document::Claim::Value {
+                value: pncad::document::Formula::var(value, pncad::document::Dimension::Length),
+                bound: len(0.0),
+                relation: pncad::document::AssertionRelation::AtLeast,
+            }),
     );
     (doc, solid)
 }
@@ -7594,4 +7594,58 @@ mod pattern_presets_are_recognised_as_themselves {
             })
         );
     }
+}
+
+/// **The nominal clearance door answers each clearance assertion in
+/// plain numbers, and stops on its cancel token.** The plate against
+/// itself meets itself, so `clearance ≥ 1 mm` is violated by a pair 0
+/// apart, two points that are one; `clearance ≤ 1 mm` is proved by the
+/// same meeting. A token set before the run answers `Canceled`.
+///
+/// Red if the door reads another scalar's verdict (at `f64` both read
+/// the third state), drops an assertion, or ignores the token.
+#[test]
+fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
+    use pncad::analysis::{Canceled, ClearanceOutcome, clearances_at_nominal};
+    use pncad::document::{ClearanceBounds, Node, Operand};
+    let (doc, solid) = plate_param_facade_only();
+    let (doc, below) = insert(
+        doc,
+        Node::clearance(
+            Operand::Node(solid),
+            Operand::Node(solid),
+            ClearanceBounds::AtLeast(len(0.001)),
+        ),
+    );
+    let (doc, above) = insert(
+        doc,
+        Node::clearance(
+            Operand::Node(solid),
+            Operand::Node(solid),
+            ClearanceBounds::AtMost(len(0.001)),
+        ),
+    );
+    let answers = clearances_at_nominal(&doc, &CancelToken::new(), Tol::witness())
+        .expect("an uncanceled run answers");
+    let ids: Vec<_> = answers.iter().map(|a| a.assertion).collect();
+    assert_eq!(
+        ids,
+        vec![below, above],
+        "one answer per clearance, in order"
+    );
+    let ClearanceOutcome::Violated(pair) = &answers[0].answer else {
+        panic!("a body meets itself: {:?}", answers[0].answer);
+    };
+    assert_eq!((pair.distance, pair.a), (0.0, pair.b), "{pair:?}");
+    assert!(
+        matches!(answers[1].answer, ClearanceOutcome::Within(p) if p.distance == 0.0),
+        "the meeting proves the upper bound: {:?}",
+        answers[1].answer
+    );
+    let cancel = CancelToken::new();
+    cancel.cancel();
+    assert_eq!(
+        clearances_at_nominal(&doc, &cancel, Tol::witness()),
+        Err(Canceled)
+    );
 }

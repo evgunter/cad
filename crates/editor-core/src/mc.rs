@@ -483,7 +483,10 @@ pub fn monte_carlo(
     // first assertion reading it.
     let mut values: Vec<VarId> = Vec::new();
     for &(id, is_measure) in &sinks {
-        if let (false, Some(Node::Assertion { claim: crate::measure::Claim::Value { value, .. } })) = (is_measure, doc.node(id))
+        if let (
+            false,
+            Some(Node::Assertion(crate::measure::Claim::Value { value, .. })),
+        ) = (is_measure, doc.node(id))
             && !values.contains(value)
         {
             values.push(*value);

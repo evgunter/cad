@@ -173,7 +173,11 @@ fn verify<T: Scalar>(
             }
         }
         let (w, d) = best.ok_or("no station")?;
-        let definite = match decide(bound.predicate(), Margin::of(d - at(bound.lower().map_or(0.0, |lo| lo.lo()))), band()) {
+        let definite = match decide(
+            bound.predicate(),
+            Margin::of(d - at(bound.lower().map_or(0.0, |lo| lo.lo()))),
+            band(),
+        ) {
             Ok(Sign::Negative) => true,
             Ok(Sign::Zero) => !bound.zero_discharges(),
             _ => false,

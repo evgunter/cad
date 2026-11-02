@@ -738,11 +738,11 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                 b: fixture::cap_ref(nid(1), editor_core::CapEnd::End).into(),
             },
         },
-        Node::Assertion { claim: editor_core::Claim::Value {
-            value: len(1.0),
-            bound: len(1.0),
-            relation: AssertionRelation::AtLeast,
-        } },
+        Node::Assertion(editor_core::Claim::Value {
+                value: len(1.0),
+                bound: len(1.0),
+                relation: AssertionRelation::AtLeast,
+            }),
     ]);
     nodes
 }

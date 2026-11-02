@@ -112,9 +112,9 @@
 
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
-    HeldNodes, Label, MateFault, MateRef, Node, NodeError, NodeErrorKind,
-    NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode,
-    ValuePayload, held_by, node_kind_noun,
+    HeldNodes, Label, MateFault, MateRef, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
+    ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode, ValuePayload, held_by,
+    node_kind_noun,
 };
 use pncad::prelude::StableName;
 use pncad::select::{
@@ -344,9 +344,7 @@ impl TreeRow {
     pub fn tone(&self) -> Tone {
         match &self.readout {
             Some(Readout::Asserted(asserted)) => asserted.tone(),
-            Some(Readout::Value(_) | Readout::Empty(_)) | None => {
-                self.status.tone()
-            }
+            Some(Readout::Value(_) | Readout::Empty(_)) | None => self.status.tone(),
         }
     }
 }
@@ -905,14 +903,14 @@ fn asserted(
         })
     };
     match node {
-        Node::Assertion {
-            claim: editor_core::Claim::Value {
+        Node::Assertion(editor_core::Claim::Value {
                 value, relation, ..
-            },
-        } => {
+            }) => {
             let dim = match doc.var(*value).and_then(|var| var.kind().dimension()) {
                 Some(dim) => dim,
-                None => unreachable!("an assertion's value is a scalar variable the document holds"),
+                None => {
+                    unreachable!("an assertion's value is a scalar variable the document holds")
+                }
             };
             Asserted {
                 verdict: map(verdict, dim),
@@ -924,9 +922,7 @@ fn asserted(
                     .map(|measure| doc.spoken(measure)),
             }
         }
-        Node::Assertion {
-            claim: editor_core::Claim::Clearance { .. },
-        } => Asserted {
+        Node::Assertion(editor_core::Claim::Clearance { .. }) => Asserted {
             verdict: map(verdict, editor_core::Dimension::Length),
             relation: None,
             measure: None,

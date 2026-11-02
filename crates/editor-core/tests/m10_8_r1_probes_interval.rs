@@ -331,11 +331,11 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
     let wall = MeasurePrimitive::Distance { a: 0, b: 1 };
     let measured = r.measure(&[wall], &refs);
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
-    let assertion = r.insert(Node::Assertion { claim: editor_core::Claim::Value {
-        value: crate::fixture::read_var(&r.doc, measure_value),
-        bound: len(2.25e-3 - 1.0e-4),
-        relation: editor_core::AssertionRelation::AtLeast,
-    } });
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
+            value: crate::fixture::read_var(&r.doc, measure_value),
+            bound: len(2.25e-3 - 1.0e-4),
+            relation: editor_core::AssertionRelation::AtLeast,
+        }));
     (r.doc, measure, assertion)
 }
 

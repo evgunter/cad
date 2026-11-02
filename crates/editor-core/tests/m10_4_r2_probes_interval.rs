@@ -48,9 +48,9 @@ use editor_core::stackup::{
 };
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ParamValue,
-    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, VarId,
-    VarName, evaluate, seed_env,
+    FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ParamValue, ProfileDoc,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, VarId, VarName,
+    evaluate, seed_env,
 };
 use geom_core::interval::Interval;
 use geom_core::{CertifiedEnclosure, Dual64, Tol};
@@ -875,11 +875,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("E9: {e}"));
-    assert_eq!(
-        report
-            .nominal,
-        0.0
-    );
+    assert_eq!(report.nominal, 0.0);
     // The enclosure of an angle in [0, π] arrives a few subnormals
     // BELOW zero (outward rounding through `atan2`, unclipped to the
     // codomain) — M10-2's arithmetic, noted, and harmless here.
@@ -972,11 +968,7 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(
-        report
-            .nominal,
-        -1.0
-    );
+    assert_eq!(report.nominal, -1.0);
     let row = &report.per_param[0];
     match &row.sensitivity {
         SensitivityOutcome::Derivative { value, .. } => assert_eq!(*value, 0.0),
@@ -989,13 +981,9 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
         "the hull encloses the true range: {wc:?}"
     );
     assert!(
-        wc.hi
-            > report
-                .nominal
-                + row.contribution.clone().unwrap(),
+        wc.hi > report.nominal + row.contribution.clone().unwrap(),
         "the linearized top {} is below the hull's {}",
-        report
-            .nominal,
+        report.nominal,
         wc.hi
     );
     println!("curvature hull {wc:?} vs linearized [-1, -1]; true range [-1, -0.75]");
@@ -1142,11 +1130,7 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(
-        report
-            .nominal,
-        4.0
-    );
+    assert_eq!(report.nominal, 4.0);
     let sigma_u = 0.4 / 12f64.sqrt();
     let sigma_n = 0.02;
     let sigma_tn = truncated_sigma(0.05, -0.05, 0.1);

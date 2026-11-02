@@ -407,14 +407,10 @@ where
     let at = |slot, var| super::read_at(doc, slot, var);
     match node {
         Node::Profile(_)
-        | Node::Assertion {
-            claim: crate::measure::Claim::Value { .. },
-        } => {
+        | Node::Assertion(crate::measure::Claim::Value { .. }) => {
             unreachable!("`eval_node` gives a profile and an assertion their own `OpInput` arm")
         }
-        Node::Assertion {
-            claim: crate::measure::Claim::Clearance { bounds, .. },
-        } => {
+        Node::Assertion(crate::measure::Claim::Clearance { bounds, .. }) => {
             let rows = body_rows(node, doc);
             let each = project_each(&rows)?;
             let at = |seat: usize| {
@@ -2447,7 +2443,9 @@ where
         .flat_map(|&e| [geom_core::Bounds::lo(e), geom_core::Bounds::hi(e)])
         .find(|c| !c.is_finite() || *c < 0.0)
     {
-        return answer(ClearanceReport::refused(ClearanceRefusal::NotADistance { c }));
+        return answer(ClearanceReport::refused(ClearanceRefusal::NotADistance {
+            c,
+        }));
     }
     let bounds = bounds.with(&ends);
     // In the frame the two seats condition on (`Framed::computing_among`),
@@ -2496,20 +2494,23 @@ where
     // (audit row F30).
     let report = geom_core::k_stats::unlogged("F30", || {
         lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
-        let (faces, ask) = (candidate.faces(), candidate.ask());
-        let (bx, by) = rebuilt.as_ref().map_err(Clone::clone)?;
-        crate::clearance::closest_pair(
-            (bx.as_ref(), by.as_ref()),
-            faces,
-            lane.on_face_stations(candidate),
-            (ask, b),
-        )
+            let (faces, ask) = (candidate.faces(), candidate.ask());
+            let (bx, by) = rebuilt.as_ref().map_err(Clone::clone)?;
+            crate::clearance::closest_pair(
+                (bx.as_ref(), by.as_ref()),
+                faces,
+                lane.on_face_stations(candidate),
+                (ask, b),
+            )
         })
     });
     let param = || {
-        witness.map_or(crate::clearance::ParamWitness { offsets: Vec::new() }, |w| {
-            w.param.clone()
-        })
+        witness.map_or(
+            crate::clearance::ParamWitness {
+                offsets: Vec::new(),
+            },
+            |w| w.param.clone(),
+        )
     };
     let verdict = crate::clearance::verdict_of(report.verdict.clone(), param, refused);
     answer(ClearanceReport::of(verdict, &report))
@@ -2547,8 +2548,8 @@ impl Witnessing<'_> {
                 .map_err(|e| format!("the f64 rebuild has no body for a seat: {e:?}"))
         };
         let (fa, fb) = (framed(sides[0])?, framed(sides[1])?);
-        let computing = super::Framed::computing_among([fa, fb])
-            .unwrap_or_else(|| unreachable!("two seats"));
+        let computing =
+            super::Framed::computing_among([fa, fb]).unwrap_or_else(|| unreachable!("two seats"));
         let read = |f| {
             computing.read_in(f, tol).map_err(|kind| {
                 format!(

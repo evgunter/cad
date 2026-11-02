@@ -305,7 +305,7 @@ impl AssertionRelation {
 /// never places. A band is a clearance's alone, so the type admits it
 /// nowhere else.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, untagged)]
 #[serde(bound(serialize = "", deserialize = ""))]
 pub enum Claim<S: crate::expr::Slot = crate::VarId> {
     /// `value relation bound`.

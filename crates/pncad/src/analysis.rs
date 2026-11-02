@@ -125,13 +125,8 @@ pub fn clearances_at_nominal(
     tol: geom_core::Tol,
 ) -> Result<Vec<ClearanceAnswer>, Canceled> {
     use editor_core::{AssertionVerdict, Claim, EvalOutcome, Node, NodeResult, ValuePayload};
-    let ev: editor_core::Evaluation<geom_core::Interval> = editor_core::evaluate(
-        doc,
-        None,
-        cancel,
-        &editor_core::EvalOptions::default(),
-        tol,
-    );
+    let ev: editor_core::Evaluation<geom_core::Interval> =
+        editor_core::evaluate(doc, None, cancel, &editor_core::EvalOptions::default(), tol);
     if ev.outcome == EvalOutcome::Canceled {
         return Err(Canceled);
     }
@@ -142,9 +137,7 @@ pub fn clearances_at_nominal(
         .filter(|&id| {
             matches!(
                 doc.node(id),
-                Some(Node::Assertion {
-                    claim: Claim::Clearance { .. }
-                })
+                Some(Node::Assertion(Claim::Clearance { .. }))
             )
         })
         .map(|assertion| {
