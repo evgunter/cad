@@ -221,7 +221,9 @@ fn one_sense<T: Decide>(
     let nb = turned(normal_at(b, p, band)?, reversed);
     match crate::validate::decide(
         "bool_overlap_senses",
-        Margin::levered(na.dot(nb), T::one()),
+        // Unsourced lever: the cosine of two unit normals is read at unit arm, an angle
+        // with no length behind it.
+        Margin::levered(na.dot(nb), geom_core::Lever::unsourced(T::one())),
         band,
     ) {
         Ok(Sign::Positive) => Ok(()),
@@ -401,7 +403,7 @@ fn half_plane<T: Decide>(
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
     };
     let reach = |ta: T, tb: T| match carrier {
-        geom::Curve3::Line(_) => LeverBounds::Exact((carrier.eval(tb) - p).norm()),
+        geom::Curve3::Line(_) => LeverBounds::Exact(geom_brep::ExtentBall::point(carrier.eval(tb)).lever_from(p)),
         _ => geom_brep::edge_reach_bounds(carrier, ta, tb, p),
     };
     let (ahead, behind) = if forward { (t1, t0) } else { (t0, t1) };
