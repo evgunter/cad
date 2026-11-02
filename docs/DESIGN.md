@@ -1200,8 +1200,9 @@ component of a direction or of a frame's axis, and a 2-D direction is
 an angle. A face reads as a plane and a vertex as a point; no reader
 takes a carrier's reference direction. A 2-D value (a profile's step,
 a revolve's axis line) lives in the node that holds its frame, as
-length and angle slots, and is never a variable of a 2-D kind; its
-lift to a 3-D pose is how it leaves.
+length and angle slots or, inside a profile, as a read of an earlier
+step's geometry (PATHS-DESIGN §1b), and is never a variable of a 2-D
+kind; its lift to a 3-D pose is how it leaves.
 
 ### Operations `[operations]`
 

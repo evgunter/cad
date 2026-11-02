@@ -271,8 +271,7 @@ authoring act.
 
 `Start` is a first-class **directed point** value — the bound
 entry (always both bits by the time the loop returns). It is legal
-wherever a directed-point/position argument goes, and **using it
-is closing — structurally**: the endpoint IS the start point by
+wherever a target goes, and **targeting it closes — structurally**: the endpoint IS the start point by
 reference, authored once; closure never depends on re-typed
 coordinates value-matching.
 
@@ -477,6 +476,44 @@ A rotated or rounded rectangle is a chain.
 
 **Refusals**: `width` or `height` not definitely positive, through the
 same funnel as the other sign gates.
+
+### 1b. A step reads an earlier step's geometry
+
+A point argument is written numbers, or a **read** `Of { step, role }`
+of geometry an earlier step of the same profile emitted, addressed by
+that step's minted id and a role in its fixed list (N1). It holds no
+slot and no variable, it is resolved from the prefix replay at the
+lane scalar, and it lowers to an ordinary argument before the kernel
+sees it, as the trace steps do. Program order (loop order, then step
+order) is the only order a read follows, so no cycle is representable.
+
+What a read reaches:
+
+- `Centre(role)` — the centre of that piece's arc carrier: a `circle`,
+  `circle_split` or `rectangle` centre, an arc leg's centre written or
+  derived, a fillet's arc.
+- `Start(role)` — the vertex where that piece starts, as the replay
+  emitted it.
+- `Anchor` — the point a binder bound: the entry's `at(p)`, a fillet
+  arrival's `.at(p)`, the far end's `.to(p)`.
+
+A centre read stands in any point argument. A vertex or anchor read
+stands only where a centre goes: on the path it would make two loops
+touch or revisit a point. A direction is read by the same family
+through the director `along`, whose source is a trace's tangent at a
+crossing or `Of { step, Direction(role) }`, an earlier straight piece's
+ray, with or against it.
+
+A bored circle is `circle(c, R)` and then `circle(Of(loop 0's circle,
+Centre(Piece(0))), r)`: concentric by construction, the centre stored
+once. A scalar shared between steps is a named variable (`[variables]`).
+
+**Refusals**, typed at the edit door and at load: a read of a later
+step, of itself or of another profile; a role the verb does not draw
+(the centre of a line); piece 0's start read inside its own loop (read
+the entry's `Anchor`); a fillet's piece before its arrival resolves
+(`NotYetEmitted`); a vertex or anchor read on the path. A read whose
+step the program dropped is left unresolved, never re-pointed.
 
 ### 2. The arc through a point — the `Via { q, p }` mode of
 ### `arc_to(spec)` (§2c's unified family; the standalone `arc_via`

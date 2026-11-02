@@ -55,3 +55,12 @@ directions too). How a reference is spelled and stored. Whether it is a
 variable, an address, or an output. What it may reach, both within the
 profile and from outside it. How it interacts with step ids, names
 (N1), the slot walk and range probing. And what it refuses.
+
+## 2026-11-02 — in front of Ev (`[ev]` PR, fork-log row 235)
+
+The designer pair converged on the core: a by-address read
+`Of { step, role }` of an earlier step's emitted geometry, holding no
+slot and lowered at evaluation. A third designer was dispatched after
+three crossovers on two sub-questions: direction reads now or later,
+and the spelling of a centre at the entry. The diff states the answer
+in `docs/PATHS-DESIGN.md` §1b, `[variables.poses]` and VQ5.
