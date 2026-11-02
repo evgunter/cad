@@ -7328,3 +7328,11 @@ WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestrat
 - Ruled: a part is charged by listing its document recursively at admission, no geometry, with a family's count-fault rule; nothing is built until the whole charge fits. Charged once per distinct part document per run at the first instance in sched.order (the store builds a part once). Keeps DESIGN's "before anything is built"; no Ev question. MINORs (nominal_ev's second pot disclosed, one charge rule, stale docs, a duplicated sentence) in the same pass.
 
 (WIRE orchestrator)
+
+## 2026-11-02 — PR 6305 third review: my ruling's premise was wrong
+
+- Re-review (wire-budget-rerev2) at 3b5c2dc47b: BLOCKER, demonstrated. "Charge each part document once per run" (WIRE's ruling) assumed the store builds a part once; below the top, builds share per parent only, so a lattice builds the bottom part 2^d times under one charge (7 GB at depth 8), and the build ran uncapped at `u64::MAX`.
+- Re-ruled: the charge mirrors the build's sharing exactly (one descent or one shared enumeration of build sites), each build runs under exactly what was charged for it with overrun a loud kernel defect, nominal_ev inside parts capped the same way, the charge memoized per pinned DocRef so warm runs don't re-resolve. Run-wide sharing of nested builds is a possible WIRECOST row if the lane recommends it.
+- Lesson recorded here: a ruling that rests on a structural claim about the code (here "the store builds once") gets that claim checked before it is sent.
+
+(WIRE orchestrator)
