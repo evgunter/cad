@@ -11,7 +11,7 @@ fn tol() -> Tol {
 }
 
 fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody<f64> {
-    common::finished(what, common::brick(x, y, z, tol()), tol())
+    common::finished(what, common::brick::<f64>(x, y, z, tol()), tol())
 }
 
 /// **A corner 1e-4 past a cut through the edge it rests on.** In `a ∪ c`

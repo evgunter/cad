@@ -23,7 +23,7 @@ fn plane_y<T: Decide>(c: f64, ny: f64) -> SplitPlane<T> {
     )
 }
 
-fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
+fn body_of<T: topo::AtRestPolicy + geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
 }
 
@@ -100,7 +100,9 @@ const NOTCH_ONLY: &[(f64, f64)] = &[
 /// each side of the both-sided profile, and the volume conserved. Each
 /// tip mints a copy for the side its pieces meet on, whichever side of
 /// the plane that is.
-fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+fn both_sided_pinch_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     for (profile, shells) in [
         (BUMP_ONLY, [1, 2]),
         (NOTCH_ONLY, [2, 1]),
@@ -172,7 +174,9 @@ fn r1_both_sided_pinch_f64() {
 /// Compares volumes, shell/face/edge/vertex counts per assigned side,
 /// and the section-face normal convention (above section m = −n,
 /// below m = +n) that the doc claims survives the swap.
-fn mirror_identity_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+fn mirror_identity_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>() {
     for profile in [MIRRORED, NOTCHED] {
         let fx = prism::<T>(profile, 1.0, Tol::witness());
         let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
@@ -581,7 +585,11 @@ fn r4_extended_sweep_volume_identities() {
 /// and end rows (and the vv lane at delta = 0 corners). For
 /// every delta at or inside ε the validator must REFUSE (finding or
 /// typed escalation) — a silent Ok is the R5 falsification.
-fn straddle_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(delta: f64) {
+fn straddle_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
+    delta: f64,
+) {
     let fx = prism_z::<T>(
         &[
             (0.0, 0.0),

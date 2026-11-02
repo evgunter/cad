@@ -26,7 +26,6 @@ use super::{
     BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult, GlueVerdict,
     GluedPair, Operand, OperandRecords, SweepStrategy,
 };
-use crate::AtRestBody;
 use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::props::AtRestPolicy;
@@ -65,9 +64,9 @@ pub struct MemberInputs {
 
 /// One member of an n-ary operation: its body and what it carries.
 #[derive(Clone, Copy, Debug)]
-pub struct NaryMember<'m, T: Real> {
+pub struct NaryMember<'m, T: crate::props::AtRestPolicy> {
     /// The member's finished body.
-    pub body: &'m AtRestBody<T>,
+    pub body: &'m T::Finished,
     /// Its records and rank.
     pub inputs: &'m MemberInputs,
 }
@@ -259,7 +258,7 @@ impl<'n> FaceDescent<'n> {
 /// **One pairwise judgement**: members `a` (operand A) and `b`
 /// (operand B), run as their own pair boolean.
 #[derive(Debug)]
-pub struct NaryJudgement<T: Real> {
+pub struct NaryJudgement<T: crate::props::AtRestPolicy + Real> {
     /// Operand A's member.
     pub a: usize,
     /// Operand B's member.
@@ -285,7 +284,7 @@ pub struct JudgedRow {
 /// **One fold step**: member `member` joined to the accumulation of
 /// every member before it (operand A) as operand B.
 #[derive(Debug)]
-pub struct NaryStep<T: Real> {
+pub struct NaryStep<T: crate::props::AtRestPolicy + Real> {
     /// The member the step joins.
     pub member: usize,
     /// The pair boolean's result: the accumulation after the step.
@@ -299,7 +298,7 @@ pub struct NaryStep<T: Real> {
     pub lineage: MemberLineage,
 }
 
-impl<T: Real> NaryStep<T> {
+impl<T: crate::props::AtRestPolicy + Real> NaryStep<T> {
     /// The judged rows the step's row `row` restates; `None` for a row
     /// the step decided.
     pub fn restates(&self, row: usize) -> Option<&[JudgedRow]> {
@@ -316,7 +315,7 @@ impl<T: Real> NaryStep<T> {
 /// ran before the stop. With two members there is no judgement apart
 /// from the one step, which is the pair's.
 #[derive(Debug)]
-pub struct NaryRun<T: Real> {
+pub struct NaryRun<T: crate::props::AtRestPolicy + Real> {
     /// Each judgement, in the order judged: every member pair whose
     /// boxes meet, in list order.
     pub judgements: Vec<NaryJudgement<T>>,
@@ -342,7 +341,7 @@ pub enum NaryEnd {
     Refused(NaryRefusal),
 }
 
-impl<T: Real> NaryRun<T> {
+impl<T: crate::props::AtRestPolicy + Real> NaryRun<T> {
     /// The result, where the operation built: the last step's body.
     pub fn result(&self) -> Option<&BooleanBody<T>> {
         match self.end {

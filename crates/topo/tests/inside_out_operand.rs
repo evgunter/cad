@@ -3,18 +3,18 @@
 //! and 2, but its faces point inward: tier 3's check 7 decides its
 //! volume negative, per solid, and the at-rest gate that finishes an
 //! operand refuses it there. Consumed, it would be the complement of the
-//! wedge it bounds, and ∖ and ∩ answered each other's volume. At a dual,
-//! whose policy runs no at-rest gate, the door reads check 7 itself and
-//! refuses the operand typed.
+//! wedge it bounds, and ∖ and ∩ answered each other's volume. A dual's
+//! finish is tier 2 alone, so the rows that read the orientation live at
+//! the certifying scalars.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
 
 use common::brick;
-use geom_core::{Bounds, Decide, Dual64, Interval, Tol};
+use geom_core::{Bounds, Decide, Interval, Tol};
 use topo::{
-    AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanError, BooleanResult, Operand,
-    ValidationError, intersect, mass_properties, subtract, union,
+    AtRestPolicy, Body, BooleanError, BooleanResult, ValidationError, intersect, mass_properties,
+    subtract, union,
 };
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
@@ -30,27 +30,36 @@ fn wedge_profile(ccw: bool) -> [(f64, f64); 3] {
 
 /// The brick `(0,1)×(0,1)×(0.5,1.5)` and the wedge prism over
 /// z ∈ (0.5, 1), flush with it at z = 0.5.
-fn operands<T: Decide + AtRestPolicy>(ccw: bool, tol: Tol) -> (Body<T>, Body<T>) {
+fn operands<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    ccw: bool,
+    tol: Tol,
+) -> (Body<T>, Body<T>) {
     (
         brick::<T>((0.0, 1.0), (0.0, 1.0), (0.5, 1.5), tol),
         common::prism_z::<T>(&wedge_profile(ccw), 0.5, 1.0, tol).body,
     )
 }
 
-type Op<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
+type Op<T> =
+    fn(&topo::AtRestBody<T>, &topo::AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
-fn ops<T: Decide + Bounds + AtRestPolicy>() -> [(&'static str, Op<T>); 3] {
+fn ops<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>()
+-> [(&'static str, Op<T>); 3] {
     [
-        ("∖", subtract::<T>),
-        ("∩", intersect::<T>),
-        ("∪", union::<T>),
+        ("∖", subtract::<topo::AtRestBody<T>>),
+        ("∩", intersect::<topo::AtRestBody<T>>),
+        ("∪", union::<topo::AtRestBody<T>>),
     ]
 }
 
 /// `body`'s at-rest gate refuses exactly the solids in `inside_out`, each
 /// on check 7's negative sign and nothing else.
-fn refused_inside_out<T: Decide + AtRestPolicy>(what: &str, body: &Body<T>, inside_out: usize) {
-    let errors = T::gate_at_rest_kept(body.clone(), Tol::witness())
+fn refused_inside_out<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    what: &str,
+    body: &Body<T>,
+    inside_out: usize,
+) {
+    let errors = topo::finish(body.clone(), Tol::witness())
         .expect_err("an inside-out body is not a finished body");
     assert!(
         errors.len() == inside_out
@@ -64,7 +73,9 @@ fn refused_inside_out<T: Decide + AtRestPolicy>(what: &str, body: &Body<T>, insi
 /// The clockwise wedge refuses at the gate that would finish it for any
 /// op, on its one solid. Red before the type: ∖ answered 0.0352 and ∩
 /// 0.9648, each the other's volume.
-fn refuses_inside_out<T: Decide + Bounds + AtRestPolicy>(scalar: &str) {
+fn refuses_inside_out<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    scalar: &str,
+) {
     let (_, wedge) = operands::<T>(false, Tol::witness());
     refused_inside_out(scalar, &wedge, 1);
 }
@@ -77,66 +88,6 @@ fn an_inside_out_operand_refuses_in_every_op_at_f64() {
 #[test]
 fn an_inside_out_operand_refuses_in_every_op_at_interval() {
     refuses_inside_out::<Interval>("Interval");
-}
-
-/// **At a dual the door reads check 7 itself.** A dual's policy runs no
-/// at-rest gate, so the wedge finishes with no verdict
-/// ([`AtRestOutcome::NotRunAtThisScalar`]) and the door owes it the
-/// orientation read: every op, in both operand orders, refuses it as
-/// the inside-out operand it is, naming the operand. Red without that
-/// read: ∖ answered 0.0352 and ∩ 0.9648, each the other's volume.
-#[test]
-fn an_inside_out_operand_refuses_in_every_op_at_a_dual() {
-    let tol = Tol::witness();
-    let (brick, wedge) = operands::<Dual64>(false, tol);
-    let (brick, wedge) = (
-        Dual64::gate_at_rest_kept(brick, tol).expect("a dual gate runs nothing"),
-        Dual64::gate_at_rest_kept(wedge, tol).expect("a dual gate runs nothing"),
-    );
-    assert_eq!(wedge.outcome(), AtRestOutcome::NotRunAtThisScalar);
-    for (name, op) in ops::<Dual64>() {
-        for (a, b, inside_out) in [(&brick, &wedge, Operand::B), (&wedge, &brick, Operand::A)] {
-            match op(a, b, tol) {
-                Err(BooleanError::InsideOutOperand { operand, .. }) => assert_eq!(
-                    operand, inside_out,
-                    "{name}: the refusal names the inside-out operand"
-                ),
-                other => panic!("{name}: want InsideOutOperand, got {:?}", other.map(|_| ())),
-            }
-        }
-    }
-}
-
-/// **The public reduction reads check 7 at a dual too.**
-/// `boolean_reduce` takes finished operands, and an operand with no verdict passes the door's own
-/// orientation read there: every op, in both operand orders, refuses
-/// the clockwise wedge as the inside-out operand, naming it. Red if
-/// it takes a plain body again without that read (the delta
-/// review's mutant MC, which compiles, every caller's `&AtRestBody`
-/// coercing; its `d_public_boolean_reduce_at_a_dual_refuses_the_inside_out_wedge`).
-#[test]
-fn the_public_reduction_refuses_an_inside_out_operand_at_a_dual() {
-    let tol = Tol::witness();
-    let (brick, wedge) = operands::<Dual64>(false, tol);
-    let (brick, wedge) = (
-        Dual64::gate_at_rest_kept(brick, tol).expect("a dual gate runs nothing"),
-        Dual64::gate_at_rest_kept(wedge, tol).expect("a dual gate runs nothing"),
-    );
-    for op in [
-        topo::BooleanOp::Union,
-        topo::BooleanOp::Subtract,
-        topo::BooleanOp::Intersect,
-    ] {
-        for (a, b, inside_out) in [(&brick, &wedge, Operand::B), (&wedge, &brick, Operand::A)] {
-            match topo::boolean_reduce(op, a, b, tol) {
-                Err(BooleanError::InsideOutOperand { operand, .. }) => assert_eq!(
-                    operand, inside_out,
-                    "{op:?}: the refusal names the inside-out operand"
-                ),
-                other => panic!("{op:?}: want InsideOutOperand, got {:?}", other.map(|_| ())),
-            }
-        }
-    }
 }
 
 /// **The counterclockwise control answers the true volumes**, read off

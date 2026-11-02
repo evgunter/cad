@@ -312,12 +312,12 @@ fn an_edge_on_face_overlap_ending_on_the_faces_edge_is_bounded_by_the_record() {
 fn joined_edge_touch(tol: Tol) -> topo::BooleanBody<f64> {
     let a = common::finished(
         "a",
-        common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
         tol,
     );
     let c = common::finished(
         "c",
-        common::brick((0.5, 1.5), (-1.0, 0.0), (-1.0, 0.0), tol),
+        common::brick::<f64>((0.5, 1.5), (-1.0, 0.0), (-1.0, 0.0), tol),
         tol,
     );
     let topo::BooleanResult::Body(y) = topo::union(&a, &c, tol).expect("a ∪ c") else {
@@ -378,7 +378,7 @@ fn a_vertex_on_edge_record_follows_its_vertex_onto_a_piece_of_a_split_edge() {
         assert_eq!(ends(&y.body, joined), rim, "the joined rim");
         let s = common::finished(
             "slab",
-            common::brick(slab, (-0.5, 0.5), (-0.5, 0.5), tol),
+            common::brick::<f64>(slab, (-0.5, 0.5), (-0.5, 0.5), tol),
             tol,
         );
         let inputs = topo::BooleanInputs {
@@ -436,7 +436,7 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
     let c = crate::union_flush_onto_edge_contact::corner_prism(rays, 0.5, tol);
     let b = common::finished(
         "b",
-        common::brick((0.0, 1.0), (-0.5, 0.5), (0.0, 1.0), tol),
+        common::brick::<f64>((0.0, 1.0), (-0.5, 0.5), (0.0, 1.0), tol),
         tol,
     );
     let topo::BooleanResult::Body(y) = topo::union(&b, &c, tol).expect("b ∪ c") else {
@@ -473,7 +473,7 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
         } else {
             (0.0, 0.5)
         };
-        let s = common::finished("slab", common::brick((-0.5, 0.5), slab, z, tol), tol);
+        let s = common::finished("slab", common::brick::<f64>((-0.5, 0.5), slab, z, tol), tol);
         let inputs = topo::BooleanInputs {
             records_a: carried.clone(),
             ..topo::BooleanInputs::default()
@@ -533,7 +533,7 @@ fn a_vertex_on_edge_record_stays_before_a_split_moves_past_it_and_meets_it() {
 fn skew_crossing(tol: Tol) -> topo::BooleanBody<f64> {
     let cube = common::finished(
         "cube",
-        common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
         tol,
     );
     let r = std::f64::consts::FRAC_1_SQRT_2;
@@ -604,7 +604,7 @@ fn a_crossing_the_join_makes_is_an_edge_edge_record() {
 fn crossing_into(y: &topo::BooleanBody<f64>, slab: (f64, f64), tol: Tol) -> topo::BooleanBody<f64> {
     let s = common::finished(
         "slab",
-        common::brick(slab, (-0.5, 0.5), (0.5, 1.5), tol),
+        common::brick::<f64>(slab, (-0.5, 0.5), (0.5, 1.5), tol),
         tol,
     );
     let inputs = topo::BooleanInputs {
@@ -726,12 +726,12 @@ fn a_split_at_the_other_edges_end_records_a_vertex_vertex_pair() {
     let tol = Tol::witness();
     let a = common::finished(
         "a",
-        common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
         tol,
     );
     let b = common::finished(
         "b",
-        common::brick((0.5, 1.5), (-1.0, 0.0), (1.0, 2.0), tol),
+        common::brick::<f64>((0.5, 1.5), (-1.0, 0.0), (1.0, 2.0), tol),
         tol,
     );
     let topo::BooleanResult::Body(y) = topo::union(&a, &b, tol).expect("a ∪ b") else {
@@ -819,7 +819,7 @@ fn a_carried_edge_edge_row_whose_key_does_not_resolve_refuses_at_the_door() {
     let y = skew_crossing(tol);
     let s = common::finished(
         "slab",
-        common::brick((0.02, 0.08), (-0.5, 0.5), (0.5, 1.5), tol),
+        common::brick::<f64>((0.02, 0.08), (-0.5, 0.5), (0.5, 1.5), tol),
         tol,
     );
     let (live, _) = y
@@ -942,7 +942,7 @@ fn a_carried_vertex_on_edge_row_whose_key_does_not_resolve_refuses_at_the_door()
     let corner = vertex_at(&y.body, [0.5, 0.0, 0.0]);
     let s = common::finished(
         "slab",
-        common::brick((0.2, 0.3), (-0.5, 0.5), (-0.5, 0.5), tol),
+        common::brick::<f64>((0.2, 0.3), (-0.5, 0.5), (-0.5, 0.5), tol),
         tol,
     );
     let inputs = topo::BooleanInputs {

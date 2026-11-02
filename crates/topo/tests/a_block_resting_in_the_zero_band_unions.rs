@@ -53,7 +53,11 @@ fn unites(what: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, tol: Tol) -> (f6
 fn a_block_resting_a_zero_band_gap_above_another_unions_at_its_volume() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let a = finished("A", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol);
+    let a = finished(
+        "A",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
     let ulp = |n: u64| f64::from_bits(1.0f64.to_bits() + n);
     let bottoms = [1e-4, 1e-3, 1e-2, 0.1, 0.5, -1e-3, -0.1]
         .map(|k| (format!("g = {k}ε"), 1.0 + k * eps))
@@ -62,7 +66,7 @@ fn a_block_resting_a_zero_band_gap_above_another_unions_at_its_volume() {
     let mut built = 0;
     for (gap, bottom) in bottoms {
         for (name, fx, fy) in FOOTPRINTS {
-            let b = finished("B", brick(fx, fy, (bottom, bottom + H), tol), tol);
+            let b = finished("B", brick::<f64>(fx, fy, (bottom, bottom + H), tol), tol);
             let area = (fx.1 - fx.0) * (fy.1 - fy.0);
             // The footprint's overlap with `A`'s top: the area glued.
             let glued = (fx.1.min(1.0) - fx.0.max(0.0)) * (fy.1.min(1.0) - fy.0.max(0.0));

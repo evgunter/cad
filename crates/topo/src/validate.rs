@@ -410,7 +410,6 @@ use crate::contact::{ContactPair, ContactRefusal};
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
-use crate::props::AtRestOutcome;
 
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
@@ -6366,42 +6365,6 @@ fn census_finding(
     }
 }
 
-/// **Where `body` holds material wound negative, read as tier 3 reads
-/// it**, at the lane `quad` gives: check 7's
-/// [`ValidationError::NegativeVolume`] verdicts, a solid at a time; then,
-/// behind a clean check 7 as tier 3 runs it, check 10's
-/// [`ValidationError::ShellWinding`] verdicts, a shell at a time
-/// ([`shell_winding_errors`]). The first is a solid whose total is
-/// negative. The second is a shell inside a solid whose total is
-/// positive that bounds a region of winding −1: check 10 reads winding
-/// only where a solid holds at most one decided `Outer` shell, and there
-/// a misplaced shell is a `Void` outside the `Outer` or inside another
-/// `Void`, each an inside-out shell.
-///
-/// Nothing else is named. A sign the lane leaves undecided, or cannot
-/// measure, passes, and check 10 is then not run, as tier 3 runs it
-/// behind a clean check 7 only. A solid with two decided `Outer` shells
-/// ([`ValidationError::SolidOuterShells`]) is a piece count, not an
-/// orientation, and its winding is not read. Premise: tier 1 is clean
-/// ([`check7_subjects`]).
-pub(crate) fn wound_negative<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    body: &Body<T>,
-    band: Band,
-    tol: Tol,
-    quad: Option<crate::props::QuadLane<T>>,
-) -> Vec<ValidationError> {
-    match plus_v_by_sign(body, band, tol, quad, &|_| None) {
-        Ok(_) => shell_winding_errors(body, band, tol, quad)
-            .into_iter()
-            .filter(|e| matches!(e, ValidationError::ShellWinding { .. }))
-            .collect(),
-        Err(errors) => errors
-            .into_iter()
-            .filter(|e| matches!(e, ValidationError::NegativeVolume { .. }))
-            .collect(),
-    }
-}
-
 /// The certificate a CLEAN tier-3 verdict implies.
 ///
 /// INVARIANT: check 7 either hands back a certificate or puts its
@@ -6581,24 +6544,6 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
     errors
 }
 
-/// Tier 3's transience fence on its own: a
-/// [`ValidationError::ScaffoldAtRest`] for every edge whose description
-/// is still a scaffold, in edge-arena order. On a body that passes
-/// tier 2 every edge has two faces, so these are exactly the fence
-/// findings check 2 makes, with no re-certification around them.
-pub(crate) fn scaffolds_at_rest<T: Real>(body: &Body<T>) -> Vec<ValidationError> {
-    body.edges
-        .iter()
-        .filter(|(_, edge)| {
-            body.curves
-                .get(edge.curve)
-                .and_then(CurveGeom::certified)
-                .is_some_and(|curve| curve.description().is_scaffold())
-        })
-        .map(|(edge, _)| ValidationError::ScaffoldAtRest { edge })
-        .collect()
-}
-
 /// Tier 3's local check battery (checks 1–6 + the +V invariant, check
 /// 7), shared verbatim between [`validate_pseudomanifold`] and
 /// [`contact_marks`] (M3 PR 6a: the tier-3′ validator runs the SAME
@@ -6669,31 +6614,6 @@ pub(crate) enum PlusVVerdict {
     /// The sign is undecided about the body itself: in band, carrying
     /// its escalation, or straddling zero by the body's own rounding.
     Undecided(Option<Indeterminate>),
-}
-
-/// **The one spelling of a result the at-rest gate refused for the
-/// kernel's findings** ([`crate::boolean::AtRestRefusal::Kernel`]), at the
-/// Boolean and the split:
-/// `subject` names the result, and the first finding renders with its
-/// own ending.
-pub(crate) fn write_result_not_at_rest(
-    f: &mut fmt::Formatter<'_>,
-    subject: fmt::Arguments<'_>,
-    errors: &[ValidationError],
-) -> fmt::Result {
-    match errors {
-        [first, ..] => write!(
-            f,
-            "{subject} did not pass the at-rest gate, so no body is returned ({} finding(s)); \
-             the first: {first}",
-            errors.len(),
-        ),
-        [] => write!(
-            f,
-            "{subject} did not pass the at-rest gate, so no body is returned. {}",
-            geom_core::KERNEL_DEFECT_ENDING
-        ),
-    }
 }
 
 /// Check 7's names: the bracket's high end under `positive_volume`, the
@@ -10552,27 +10472,26 @@ pub fn validate_pseudomanifold_certificate_structural<
     pseudomanifold_certificate_via(body, contacts, tol, None, None)
 }
 
-/// **A body, and tier 3's verdict on it kept beside it** — so a
-/// tier-3′ pass over the same body pays the census alone.
+/// [`SCAFFOLDING_RECOURSE`], as a literal so [`SCAFFOLDING_REFUSAL`] can
+/// end in it.
+macro_rules! scaffolding_recourse {
+    () => {
+        "finish that edit first"
+    };
+}
+
+/// **A finished body at a scalar with certification rights**, and tier
+/// 3's verdict on it kept beside it — so a tier-3′ pass over the same
+/// body pays the census alone.
 ///
-/// [`validate_pseudomanifold`] is tier 3's whole battery followed by the
-/// census, and a caller that gated a body with [`validate_geometric`]
-/// before declaring its contacts would otherwise pay the battery twice
-/// over one body. What this type holds is the body and what the gate
-/// said about it, and nothing else can reach inside: the body is read
-/// through [`Deref`](core::ops::Deref) and never borrowed mutably, and
-/// [`AtRestBody::into_body`] hands it back only by giving up the
-/// verdict. So a kept verdict cannot be carried to any body other than
-/// the one it was derived on.
-///
-/// **Two states, the ones [`AtRestOutcome`] names.**
-/// [`AtRestOutcome::Validated`] is minted only by
-/// [`AtRestBody::validate`], which runs [`validate_geometric`] and keeps
-/// its `Ok`. [`AtRestOutcome::NotRunAtThisScalar`] is what a dual's
-/// [`crate::AtRestPolicy::gate_at_rest_kept`] carries: nothing was
-/// checked, and the dual's tier-3′ gate checks nothing either. Neither
-/// state is read off a policy's answer, so a policy cannot mint a
-/// verdict its scalar did not derive.
+/// Its one constructor is the certifying scalars' [`AtRestPolicy::finish`]
+/// (`[topology.tiers]`), which runs [`validate_geometric`] and keeps its
+/// `Ok`; a scalar without certification rights cannot construct one
+/// (its finished type is [`crate::Replay`]). Nothing else can reach
+/// inside: the body is read through [`Deref`](core::ops::Deref) and
+/// never borrowed mutably, and [`AtRestBody::into_body`] hands it back
+/// only by giving up the verdict. So a kept verdict cannot be carried to
+/// any body other than the one it was derived on.
 ///
 /// The verdict needs no tolerance beside it: [`Tol`] is the run's one
 /// committed-ε witness, so the tolerance a later door is handed is the
@@ -10581,46 +10500,27 @@ pub fn validate_pseudomanifold_certificate_structural<
 /// whose budget and rules decide which margins discharge as exact, so a
 /// verdict kept under one session and read under another is the first
 /// session's verdict (no caller does that today).
+///
+/// [`AtRestPolicy::finish`]: crate::AtRestPolicy::finish
 #[derive(Clone, Debug)]
 pub struct AtRestBody<T: Real> {
     body: Body<T>,
-    outcome: AtRestOutcome,
 }
 
 impl<T: Real> AtRestBody<T> {
     /// **[`validate_geometric`] over `body`, keeping the verdict** — the
-    /// one constructor of [`AtRestOutcome::Validated`].
+    /// certifying scalars' [`crate::AtRestPolicy::finish`].
     ///
     /// # Errors
     ///
     /// As [`validate_geometric`], verbatim; the body is dropped with the
     /// refusal.
-    pub fn validate(body: Body<T>, tol: Tol) -> Result<Self, Vec<ValidationError>>
+    pub(crate) fn validate(body: Body<T>, tol: Tol) -> Result<Self, Vec<ValidationError>>
     where
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
         validate_geometric_certificate(&body, tol)?;
-        Ok(Self {
-            body,
-            outcome: AtRestOutcome::Validated,
-        })
-    }
-
-    /// A body carried with no verdict: a dual's
-    /// [`crate::AtRestPolicy::gate_at_rest_kept`], whose policy runs no
-    /// gate.
-    pub(crate) fn not_run(body: Body<T>) -> Self {
-        Self {
-            body,
-            outcome: AtRestOutcome::NotRunAtThisScalar,
-        }
-    }
-
-    /// What the gate said: [`AtRestOutcome::Validated`] exactly when
-    /// [`validate_geometric`] passed on this body.
-    #[must_use]
-    pub fn outcome(&self) -> AtRestOutcome {
-        self.outcome
+        Ok(Self { body })
     }
 
     /// The body, the verdict given up.
@@ -10633,21 +10533,14 @@ impl<T: Real> AtRestBody<T> {
     /// the same verdicts, with the local battery taken from the kept
     /// verdict rather than run again.
     ///
-    /// Over an [`AtRestOutcome::Validated`] body the tier-1/2 gate and
-    /// the battery are already known clean: [`validate_geometric`] passed
-    /// on these bits, and the battery [`validate_pseudomanifold`] runs is
-    /// the same eleven checks through the same lanes. The two gate check 7
-    /// differently (the door roster's difference), and a gate only
-    /// decides which refusals a failing body reports: on a body every
-    /// check passes, both run every check through the lanes
-    /// [`CertifiedLanes::held`] spells once for both doors. So what is
-    /// left is the census.
-    ///
-    /// No production path hands this method an
-    /// [`AtRestOutcome::NotRunAtThisScalar`] body: only a dual keeps one,
-    /// and a dual cannot call a door bounded on the certification right.
-    /// The arm keeps the method total without trusting that, by running
-    /// [`validate_pseudomanifold`] whole; this crate's tests reach it.
+    /// The tier-1/2 gate and the battery are already known clean:
+    /// [`validate_geometric`] passed on these bits, and the battery
+    /// [`validate_pseudomanifold`] runs is the same eleven checks through
+    /// the same lanes. The two gate check 7 differently (the door
+    /// roster's difference), and a gate only decides which refusals a
+    /// failing body reports: on a body every check passes, both run every
+    /// check through the lanes [`CertifiedLanes::held`] spells once for
+    /// both doors. So what is left is the census.
     ///
     /// # Errors
     ///
@@ -10660,127 +10553,35 @@ impl<T: Real> AtRestBody<T> {
     where
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
-        match self.outcome {
-            AtRestOutcome::Validated => census_verdict(
-                &self.body,
-                contacts,
-                linear_band(tol)?,
-                tol,
-                Some(CertifiedLanes::<T>::held().region),
-            ),
-            AtRestOutcome::NotRunAtThisScalar => validate_pseudomanifold(&self.body, contacts, tol),
-        }
+        census_verdict(
+            &self.body,
+            contacts,
+            linear_band(tol)?,
+            tol,
+            Some(CertifiedLanes::<T>::held().region),
+        )
     }
 }
 
-/// [`Unfinished::SCAFFOLDING_RECOURSE`], as a literal so
-/// [`Unfinished::SCAFFOLDING_REFUSAL`] can end in it.
-macro_rules! scaffolding_recourse {
-    () => {
-        "finish that edit first"
-    };
-}
+/// What every door refusing an operand with scaffolding at rest says
+/// after naming the operand.
+pub const SCAFFOLDING_REFUSAL: &str = concat!(
+    "is not a finished solid: it still carries what an edit left behind, such as a \
+     strut or an empty loop, so it is refused. Recourse: ",
+    scaffolding_recourse!()
+);
 
-/// **Why an operand that carries no verdict is not a finished body** —
-/// the three promises [`AtRestBody::gate_unverdicted`] reads.
-#[derive(Clone, Debug)]
-pub enum Unfinished {
-    /// Tier 2's findings: scaffolding at rest.
-    Scaffolding(Vec<ValidationError>),
-    /// The orientation read's findings: solids check 7 decides inside-out
-    /// ([`ValidationError::NegativeVolume`]), or shells check 10 finds
-    /// bounding negative material ([`ValidationError::ShellWinding`]).
-    InsideOut(Vec<ValidationError>),
-    /// Tier 3's check 11: a vertex the join would take
-    /// ([`ValidationError::JoinableVertexAtRest`]), or one whose reading
-    /// lands in the sliver band ([`ValidationError::JoinUndecidedAtRest`]).
-    Unjoined(Vec<ValidationError>),
-}
+/// The advice [`SCAFFOLDING_REFUSAL`] ends in, for a refusal that meets
+/// the same scaffolding in a body no door gated.
+pub const SCAFFOLDING_RECOURSE: &str = scaffolding_recourse!();
 
-impl Unfinished {
-    /// What every door refusing an operand with scaffolding at rest says
-    /// after naming the operand.
-    pub const SCAFFOLDING_REFUSAL: &'static str = concat!(
-        "is not a finished solid: it still carries what an edit left behind, such as a \
-         strut or an empty loop, so it is refused. Recourse: ",
-        scaffolding_recourse!()
-    );
-    /// The advice [`Self::SCAFFOLDING_REFUSAL`] ends in, for a refusal
-    /// that meets the same scaffolding in a body no door gated.
-    pub const SCAFFOLDING_RECOURSE: &'static str = scaffolding_recourse!();
-    /// What every door refusing an inside-out operand says after naming
-    /// the operand: true of a solid check 7 decides negative and of a
-    /// shell check 10 finds bounding negative material.
-    pub const INSIDE_OUT_REFUSAL: &'static str = "is inside-out, as a whole or in one of \
-        its shells, so faces there point into its material and bound negative volume, and \
-        it is refused. Recourse: build it with its faces pointing outward, or revert it";
-    /// What every door refusing an operand that holds a joinable vertex
-    /// says after naming the operand: a body every finisher would have
-    /// joined, or one whose join reads in the sliver band (its finding
-    /// names the tolerance that decides it).
-    pub const UNJOINED_REFUSAL: &'static str = "holds a vertex where two edges of one curve \
-        meet and nothing else does, which a finished body has joined into one edge, so it is \
-        refused. Recourse: join its edges first, or, where the finding says whether they are \
-        one edge is undecided, follow its recourse";
-}
-
-impl<T: Real> AtRestBody<T> {
-    /// **What a door owes an operand that carries no verdict** — one
-    /// whose scalar runs no at-rest gate
-    /// ([`AtRestOutcome::NotRunAtThisScalar`], a dual). A
-    /// [`AtRestOutcome::Validated`] operand passes untouched: tier 3's
-    /// verdict holds both reads. Otherwise, in order:
-    ///
-    /// 1. tier 2 over the whole body (`operand_scaffolding`, whose
-    ///    tier-1 panic names `subject`);
-    /// 2. orientation, at the scalar's lane
-    ///    ([`crate::AtRestPolicy::quad_lane`]), read as tier 3 reads it
-    ///    (`wound_negative`): check 7 per solid, then, behind a clean
-    ///    check 7, check 10 per shell. A solid whose total it decides
-    ///    definitely negative refuses, and so does a shell bounding
-    ///    negative material inside a solid whose total is positive; a
-    ///    sign it leaves open passes, as tier 3 passes it;
-    /// 3. tier 3's check 11 (`joinable_at_rest_errors`), which reads no
-    ///    certification arithmetic and so answers at every scalar: a
-    ///    joinable vertex, or one read in the sliver band, refuses, as
-    ///    the dual result gate refuses it (`boolean::ops::structural_gate`).
-    ///
-    /// A total hides a sign at both levels: a body's total hides an
-    /// inside-out solid, and a solid's hides an inside-out shell. So a
-    /// door that reads a several-solid operand as one solid runs this
-    /// before it merges.
-    ///
-    /// # Errors
-    ///
-    /// [`Unfinished`], naming which promise failed.
-    pub fn gate_unverdicted(
-        &self,
-        subject: impl fmt::Display,
-        band: Band,
-        tol: Tol,
-    ) -> Result<(), Unfinished>
-    where
-        T: Decide + crate::props::AtRestPolicy,
-    {
-        if self.outcome == AtRestOutcome::Validated {
-            return Ok(());
-        }
-        let scaffolding = operand_scaffolding(&self.body, subject);
-        if !scaffolding.is_empty() {
-            return Err(Unfinished::Scaffolding(scaffolding));
-        }
-        let wound = wound_negative(&self.body, band, tol, T::quad_lane());
-        if !wound.is_empty() {
-            return Err(Unfinished::InsideOut(wound));
-        }
-        let unjoined = joinable_at_rest_errors(&self.body, band);
-        if unjoined.is_empty() {
-            Ok(())
-        } else {
-            Err(Unfinished::Unjoined(unjoined))
-        }
-    }
-}
+/// What every door refusing an inside-out operand says after naming the
+/// operand: true of a solid check 7 decides negative, of a shell check 10
+/// finds bounding negative material, and of a solid a ray reads
+/// inside-out.
+pub const INSIDE_OUT_REFUSAL: &str = "is inside-out, as a whole or in one of its shells, so \
+    faces there point into its material and bound negative volume, and it is refused. \
+    Recourse: build it with its faces pointing outward, or revert it";
 
 /// **Tier 2's findings on a door's operand.** A tier-1 finding panics
 /// naming `subject` and the first finding: every public door keeps a

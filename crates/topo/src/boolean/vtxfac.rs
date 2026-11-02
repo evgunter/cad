@@ -3958,8 +3958,8 @@ mod tests {
     /// consistency check no mutant of the arm has reached.
     #[test]
     fn a_bisector_run_after_the_other_run_keeps_its_corner() {
+        use crate::mass_properties;
         use crate::test_support_fixtures::{mapped_cube, prism};
-        use crate::{AtRestBody, mass_properties};
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let profile = [
@@ -4005,7 +4005,7 @@ mod tests {
             })
             .expect("the cube's near face, outward along -m");
         let cube_body = cube.clone();
-        let cube = AtRestBody::validate(cube, tol).unwrap();
+        let cube = crate::finish(cube, tol).unwrap();
         let built = prism::<f64>(&profile, 1.0, tol);
         let corner = built.top[3];
         let orbit = built.body.vertex_orbit_linked(corner);
@@ -4041,7 +4041,7 @@ mod tests {
                     .map(|e| e.dangling)
                     .collect::<Vec<_>>(),
             );
-            let body = AtRestBody::validate(body, tol).unwrap();
+            let body = crate::finish(body, tol).unwrap();
             let volume = |r: Result<crate::BooleanResult<f64>, BooleanError>| {
                 r.unwrap().body().map_or(0.0, |b| {
                     mass_properties(&b.body, tol, crate::test_support::pinned_resolution(tol))

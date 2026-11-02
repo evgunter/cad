@@ -283,7 +283,7 @@ const POSES: [Pose; 5] = [
 
 /// Tiers 2 and 3, and the pads within what the reporting target allows,
 /// for one pose at the scalar `T`; returns the measurement.
-fn measured<T: Decide + AtRestPolicy + CertifiedBounds>(
+fn measured<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>> + CertifiedBounds>(
     pose: Pose,
     f: &Frame,
     at: &str,

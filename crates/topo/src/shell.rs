@@ -405,7 +405,6 @@ use crate::live::{BoundaryMember, NAMES_ONLY_LIVE, linked, proven};
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
-use crate::validate::{AtRestBody, ValidationError, validate_geometric};
 
 /// Typed refusal of the shell verb (closed enum, D4 ¶3).
 #[derive(Clone, Debug)]
@@ -674,10 +673,12 @@ pub enum ShellError<T: Real> {
         /// Why the join refused, typed and keyless.
         refusal: crate::boolean::JoinRefusal,
     },
-    /// The assembled result does not validate, so it is discarded.
+    /// The assembled result is not a finished body
+    /// ([`crate::AtRestPolicy::finish`]), so it is discarded: every
+    /// finding, each read through its family.
     NotValid {
-        /// The validator's report.
-        errors: Vec<ValidationError>,
+        /// The finish's findings.
+        findings: crate::NotFinished,
     },
 }
 
@@ -814,11 +815,9 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "a wall seam the rim shortens, {stations}. Recourse: {WALL_OR_GEOMETRY}"
             ),
             Self::Join { refusal } => write!(f, "the assembled thin solid: {refusal}"),
-            Self::NotValid { errors } => write!(
+            Self::NotValid { findings } => write!(
                 f,
-                "the assembled thin solid is not valid ({}) and is discarded. \
-                 {KERNEL_DEFECT_ENDING}",
-                crate::replace_face::error_count(errors.len())
+                "the assembled thin solid is not a finished body, so it is discarded: {findings}"
             ),
         }
     }
@@ -1028,17 +1027,17 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
 /// Everything [`shell`] / [`shell_open`] built: the thin solid and the
 /// birth record its consumers name entities through.
 #[derive(Debug)]
-pub struct Shelled<T: Real> {
-    /// The thin solids — one per operand SHELL of every operand SOLID,
-    /// in one body. A plain single-solid operand yields exactly one; a
-    /// hollow one yields `k + 1` for its `k` voids; a multi-solid
-    /// operand yields every solid's, side by side.
-    pub body: Body<T>,
+pub struct Shelled<T: crate::props::AtRestPolicy> {
+    /// The thin solids, finished — one per operand SHELL of every
+    /// operand SOLID, in one body. A plain single-solid operand yields
+    /// exactly one; a hollow one yields `k + 1` for its `k` voids; a
+    /// multi-solid operand yields every solid's, side by side.
+    pub body: T::Finished,
     /// The mint-time naming facts of the construction that built it.
     pub naming: ShellNaming,
 }
 
-impl<T: Decide> Shelled<T> {
+impl<T: crate::props::AtRestPolicy> Shelled<T> {
     /// `records`, the operand's, carried onto the thin solid through
     /// [`Self::lineage`] ([`crate::ContactRecords::carried_through`], at `band`
     /// through `region`).
@@ -1056,7 +1055,7 @@ impl<T: Decide> Shelled<T> {
     }
 }
 
-impl<T: Real> Shelled<T> {
+impl<T: crate::props::AtRestPolicy> Shelled<T> {
     /// **What the shell made of each operand cell** (D1), read through
     /// the closing join. The outer walls keep their operand keys and
     /// their places. The rim surgery opens each designated chart: on the
@@ -1469,11 +1468,14 @@ pub struct ShellRetired {
 /// rights cannot form the call — there is no arm and no refusal — and
 /// the recourse is not a weaker shell but the ordinary one, built at a
 /// certifying scalar.
-pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
-    body: &AtRestBody<T>,
-    thickness: T,
+pub fn shell<F: crate::FinishedBody>(
+    body: &F,
+    thickness: F::Scalar,
     tol: Tol,
-) -> Result<Shelled<T>, ShellError<T>> {
+) -> Result<Shelled<F::Scalar>, ShellError<F::Scalar>>
+where
+    F::Scalar: geom_core::CertifiedBounds,
+{
     shell_open(body, thickness, &[], tol)
 }
 
@@ -1498,8 +1500,22 @@ pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy
 /// must resolve, be named once, leave a nonempty and connected
 /// remainder) and the rim surgery's own refusal.
 /// The certification bound is [`shell`]'s, for [`shell`]'s reason.
-pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
-    body: &AtRestBody<T>,
+pub fn shell_open<F: crate::FinishedBody>(
+    body: &F,
+    thickness: F::Scalar,
+    open_faces: &[FaceKey],
+    tol: Tol,
+) -> Result<Shelled<F::Scalar>, ShellError<F::Scalar>>
+where
+    F::Scalar: geom_core::CertifiedBounds,
+{
+    shell_open_at(body, thickness, open_faces, tol)
+}
+
+/// [`shell_open`] at its scalar: the body of the door
+/// ([`crate::ShellDoor`] holds it).
+pub(crate) fn shell_open_at<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+    body: &T::Finished,
     thickness: T,
     open_faces: &[FaceKey],
     tol: Tol,
@@ -2308,12 +2324,9 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         .map_err(|refusal| ShellError::Join {
             refusal: crate::boolean::JoinRefusal::of(&refusal),
         })?;
-    validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
     naming.source = crate::SourceGeometry::of(body);
-    Ok(Shelled {
-        body: out_body,
-        naming,
-    })
+    let body = T::finish(out_body, tol).map_err(|findings| ShellError::NotValid { findings })?;
+    Ok(Shelled { body, naming })
 }
 
 /// A rim ring's two row lists: its edge rows and its vertex rows.
@@ -6151,9 +6164,9 @@ mod tests {
         });
         body.surfaces.remove(dead);
         body.get_face_mut(face).unwrap().surface = dead;
-        let errors = AtRestBody::validate(body, tol).expect_err("a torn body is not finished");
+        let errors = crate::finish(body, tol).expect_err("a torn body is not finished");
         assert!(
-            errors.contains(&ValidationError::DanglingGeometry {
+            errors.contains(&crate::ValidationError::DanglingGeometry {
                 from: EntityId::Face(face),
                 to: crate::entity::GeomRef::Surface(dead),
             }),
@@ -6197,7 +6210,8 @@ mod tests {
     #[test]
     fn a_stale_designation_stays_typed() {
         let tol = Tol::witness();
-        let body = crate::test_support_fixtures::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let body =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let stale = FaceKey::default();
         assert!(matches!(
             shell_open(&finished("the brick", body, tol), 0.1, &[stale], tol),

@@ -36,15 +36,19 @@ fn face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
 /// pair of its own.
 #[test]
 fn a_rest_touch_is_the_unions_one_verdict_and_glues_as_given() {
-    let a = finished("a", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()), tol());
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
     let b = finished(
         "b",
-        brick((0.25, 0.75), (0.25, 0.75), (1.0, 2.0), tol()),
+        brick::<f64>((0.25, 0.75), (0.25, 0.75), (1.0, 2.0), tol()),
         tol(),
     );
     let far = finished(
         "far",
-        brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol()),
         tol(),
     );
     let inputs: Vec<MemberInputs> = (0..3)

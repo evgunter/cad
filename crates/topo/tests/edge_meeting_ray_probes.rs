@@ -8,7 +8,7 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::print_stdout)]
 
 use geom_core::{Band, Point3, Tol};
-use topo::{AtRestBody, Body};
+use topo::Body;
 
 use crate::common;
 
@@ -98,7 +98,7 @@ fn probe_boolean_needles_aimed_rays() {
                 let at = |k: usize| c[k] + r[k][0] * p[0] + r[k][1] * p[1] + r[k][2] * p[2];
                 Point3::new(at(0), at(1), at(2))
             };
-            let at_rest = |body| AtRestBody::validate(body, tol).expect("an operand at rest");
+            let at_rest = |body| topo::finish(body, tol).expect("an operand at rest");
             let a = at_rest(common::mapped_cube::<f64>(
                 move |x, y, z| place([x, y, z]),
                 tol,

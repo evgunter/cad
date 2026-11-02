@@ -555,10 +555,10 @@ pub(crate) mod raw_door {
 ///
 /// As [`mass_properties`], plus the closed form's typed refusal on
 /// every face the quadrature lane would have enclosed.
-pub fn mass_properties_structural<T: Decide>(
-    body: &crate::AtRestBody<T>,
+pub fn mass_properties_structural<F: crate::FinishedBody>(
+    body: &F,
     tol: Tol,
-) -> Result<MassProperties<T>, MassPropsError> {
+) -> Result<MassProperties<F::Scalar>, MassPropsError> {
     measure_body_structural(body, tol)
 }
 
@@ -5962,10 +5962,10 @@ pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
 /// [`ShellClassifyError`] — [`classify_shells`]'s, plus the closed
 /// form's typed refusal on every face the quadrature lane would have
 /// enclosed.
-pub fn classify_shells_structural<T: Decide>(
-    body: &crate::AtRestBody<T>,
+pub fn classify_shells_structural<F: crate::FinishedBody>(
+    body: &F,
     tol: Tol,
-) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+) -> Result<Vec<ShellClassification<F::Scalar>>, ShellClassifyError> {
     classify_body_structural(body, tol)
 }
 
@@ -6500,10 +6500,10 @@ impl<T: Decide> QuadLane<T> {
 /// [`QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct ShellDoor<T: Decide> {
+pub struct ShellDoor<T: AtRestPolicy> {
     /// [`ShellDoor::open`]'s body — `crate::shell_open`, and nothing
     /// else can be written here (`wiring_rows` pins the pointer).
-    open: fn(&crate::AtRestBody<T>, T, &[FaceKey], Tol) -> Result<Shelled<T>, ShellError<T>>,
+    open: fn(&T::Finished, T, &[FaceKey], Tol) -> Result<Shelled<T>, ShellError<T>>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds + AtRestPolicy> ShellDoor<T> {
@@ -6514,12 +6514,12 @@ impl<T: Decide + geom_core::CertifiedBounds + AtRestPolicy> ShellDoor<T> {
     #[must_use]
     pub const fn certified() -> Self {
         Self {
-            open: crate::shell::shell_open::<T>,
+            open: crate::shell::shell_open_at::<T>,
         }
     }
 }
 
-impl<T: Decide> ShellDoor<T> {
+impl<T: AtRestPolicy> ShellDoor<T> {
     /// The door's one operation: hollow `body` to `thickness`, opening
     /// the designated faces into rims.
     ///
@@ -6532,7 +6532,7 @@ impl<T: Decide> ShellDoor<T> {
     /// [`ShellError`] — the door's own, verbatim.
     pub fn open(
         self,
-        body: &crate::AtRestBody<T>,
+        body: &T::Finished,
         thickness: T,
         open_faces: &[FaceKey],
         tol: Tol,
@@ -6590,7 +6590,7 @@ mod wiring_rows {
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             ShellDoor::<T>::certified().open,
-            crate::shell::shell_open::<T> as fn(_, _, _, _) -> _,
+            crate::shell::shell_open_at::<T> as fn(_, _, _, _) -> _,
         ) {
             return Err("open is not `shell_open`");
         }
@@ -6719,10 +6719,9 @@ mod wiring_rows {
 /// over any of them), whose impls here
 /// delegate to the validation doors verbatim. At a
 /// [`Dual`](geom_core::Dual) the gate is **structurally absent**:
-/// the impl calls nothing, and its success arm SAYS so — the outcome
-/// type separates [`AtRestOutcome::Validated`] from
-/// [`AtRestOutcome::NotRunAtThisScalar`], so a dual gate's `Ok` can
-/// never be read as a certification at any call site. What makes the
+/// its finished type is [`crate::Replay`], which passed tier 2 alone
+/// and carries no verdict, so nothing that reads a verdict accepts a
+/// dual's body (`[topology.tiers]`). What makes the
 /// absence sound is the PAIRING OBLIGATION: a dual evaluation rides
 /// BESIDE a base-scalar evaluation of the same recipe, whose value
 /// channel is bit-identical (the dual contract) and which these same
@@ -6782,8 +6781,8 @@ pub trait AtRestPolicy: Decide {
     /// at every scalar, so a face carrying one does reach those passes
     /// at a scalar with no door, and each refuses typed rather than
     /// passing. That makes it a different fact from
-    /// [`AtRestOutcome::NotRunAtThisScalar`] below, which is about
-    /// certification rights (DL1).
+    /// [`AtRestPolicy::Finished`] below, which is about certification
+    /// rights (DL1).
     ///
     /// It is a per-scalar seam and not a lane trait of its own
     /// (H5's ratified ruling 3, PR 2701, which keeps this trait
@@ -6954,8 +6953,8 @@ pub trait AtRestPolicy: Decide {
     /// at-rest validator, so a scalar without certification rights
     /// cannot hold one and the lowering refuses TYPED rather than
     /// building an unvalidated hollow. That makes it the same fact as
-    /// [`AtRestOutcome::NotRunAtThisScalar`] below — certification
-    /// rights (DL1) — and a different one from
+    /// [`AtRestPolicy::Finished`] below — certification rights (DL1) —
+    /// and a different one from
     /// [`AtRestPolicy::offset_fit_lane`] above, which is about where a
     /// derivation is written.
     fn shell_door() -> Option<ShellDoor<Self>>;
@@ -6997,7 +6996,7 @@ pub trait AtRestPolicy: Decide {
     /// body returns. [`crate::AtRestBody`] at the scalars with
     /// certification rights; [`crate::Replay`] at a dual, which carries
     /// no verdict (DUAL-DESIGN DL3).
-    type Finished: crate::FinishedBody<Self>;
+    type Finished: crate::FinishedBody<Scalar = Self>;
 
     /// **The one constructor of a finished body**: tier 3, whose first
     /// act is tiers 1 and 2, with the verdict kept beside the body, at a
@@ -7008,46 +7007,17 @@ pub trait AtRestPolicy: Decide {
     /// [`crate::NotFinished`]: every finding, none folded into another.
     fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished>;
 
-    /// The at-rest gate over a body ([`crate::validate_geometric`] at
-    /// certifying scalars; absent at duals, and the outcome says
-    /// which).
-    ///
-    /// # Errors
-    ///
-    /// The validator's own findings, verbatim, where the scalar runs
-    /// it.
-    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>>;
-
-    /// [`AtRestPolicy::gate_at_rest`] over a body the caller hands on,
-    /// keeping the verdict with it ([`crate::AtRestBody::validate`] at
-    /// certifying scalars; the body carried unvalidated at duals), so
-    /// [`AtRestPolicy::gate_at_rest_declared`] over the same body pays
-    /// the census alone.
-    ///
-    /// # Errors
-    ///
-    /// The validator's own findings, verbatim, where the scalar runs
-    /// it.
-    fn gate_at_rest_kept(
-        body: Body<Self>,
-        tol: Tol,
-    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>>;
-
-    /// The at-rest gate over a gated body with contact records — the
-    /// tier-3′ pass ([`crate::AtRestBody::validate_pseudomanifold`],
-    /// which is [`crate::validate_pseudomanifold`] less the battery the
-    /// kept verdict already answers, at certifying scalars; absent at
-    /// duals).
-    ///
-    /// # Errors
-    ///
-    /// The validator's own findings, verbatim, where the scalar runs
-    /// it.
-    fn gate_at_rest_declared(
-        body: &crate::AtRestBody<Self>,
+    /// **The tier-3′ census over a finished body and its contact
+    /// records**: [`crate::AtRestBody::validate_pseudomanifold`]'s
+    /// findings, which pays the census alone, at the scalars with
+    /// certification rights. A replay carries no verdict for a census to
+    /// extend, so at a dual it finds nothing, as [`AtRestPolicy::flush_at_rest`]
+    /// finds nothing there (DUAL-DESIGN DL3).
+    fn census_at_rest(
+        body: &Self::Finished,
         contacts: &ContactRecords,
         tol: Tol,
-    ) -> Result<AtRestOutcome, Vec<ValidationError>>;
+    ) -> Vec<ValidationError>;
 
     /// The flush pairs between the groups `group` partitions a body at
     /// rest into ([`crate::census::flush_at_rest`]), through this
@@ -7058,19 +7028,6 @@ pub trait AtRestPolicy: Decide {
         group: &dyn Fn(crate::SolidKey) -> Option<u32>,
         band: Band,
     ) -> crate::FlushAtRest;
-}
-
-/// What an [`AtRestPolicy`] gate's success MEANS — the word that keeps
-/// a non-certifying scalar's `Ok` from reading as a certification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AtRestOutcome {
-    /// The certified at-rest validator ran on these bits and passed.
-    Validated,
-    /// This scalar's policy runs no validator (a dual): nothing was
-    /// checked here and nothing is granted. The base-scalar evaluation
-    /// beside this one is the validation of record — the DL3 pairing
-    /// obligation, stated at the doors that return this.
-    NotRunAtThisScalar,
 }
 
 impl AtRestPolicy for f64 {
@@ -7180,24 +7137,14 @@ impl AtRestPolicy for f64 {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
 
-    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
-    }
-
-    fn gate_at_rest_kept(
-        body: Body<Self>,
-        tol: Tol,
-    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
-        crate::AtRestBody::validate(body, tol)
-    }
-
-    fn gate_at_rest_declared(
-        body: &crate::AtRestBody<Self>,
+    fn census_at_rest(
+        body: &Self::Finished,
         contacts: &ContactRecords,
         tol: Tol,
-    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+    ) -> Vec<ValidationError> {
         body.validate_pseudomanifold(contacts, tol)
-            .map(|()| AtRestOutcome::Validated)
+            .err()
+            .unwrap_or_default()
     }
 
     fn flush_at_rest(
@@ -7323,24 +7270,14 @@ impl AtRestPolicy for geom_core::Probe {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
 
-    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
-    }
-
-    fn gate_at_rest_kept(
-        body: Body<Self>,
-        tol: Tol,
-    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
-        crate::AtRestBody::validate(body, tol)
-    }
-
-    fn gate_at_rest_declared(
-        body: &crate::AtRestBody<Self>,
+    fn census_at_rest(
+        body: &Self::Finished,
         contacts: &ContactRecords,
         tol: Tol,
-    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+    ) -> Vec<ValidationError> {
         body.validate_pseudomanifold(contacts, tol)
-            .map(|()| AtRestOutcome::Validated)
+            .err()
+            .unwrap_or_default()
     }
 
     fn flush_at_rest(
@@ -7461,24 +7398,14 @@ impl AtRestPolicy for geom_core::interval::Interval {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
 
-    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
-    }
-
-    fn gate_at_rest_kept(
-        body: Body<Self>,
-        tol: Tol,
-    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
-        crate::AtRestBody::validate(body, tol)
-    }
-
-    fn gate_at_rest_declared(
-        body: &crate::AtRestBody<Self>,
+    fn census_at_rest(
+        body: &Self::Finished,
         contacts: &ContactRecords,
         tol: Tol,
-    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+    ) -> Vec<ValidationError> {
         body.validate_pseudomanifold(contacts, tol)
-            .map(|()| AtRestOutcome::Validated)
+            .err()
+            .unwrap_or_default()
     }
 
     fn flush_at_rest(
@@ -7493,8 +7420,8 @@ impl AtRestPolicy for geom_core::interval::Interval {
 /// **The symbolic tier over a certifying scalar**: the gates are the
 /// base scalar's, run at `Sym<T>`. A leaf the driver certifies is
 /// validated at rest exactly as it was before the tier existed —
-/// demoting to the dual's `NotRunAtThisScalar` arm here would quietly
-/// drop the validator from the one replay that certifies.
+/// demoting to the dual's replay here would quietly drop the validator
+/// from the one replay that certifies.
 impl<T> AtRestPolicy for geom_core::Sym<T>
 where
     geom_core::Sym<T>: Decide + geom_core::Bounds,
@@ -7616,24 +7543,14 @@ where
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
 
-    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
-    }
-
-    fn gate_at_rest_kept(
-        body: Body<Self>,
-        tol: Tol,
-    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
-        crate::AtRestBody::validate(body, tol)
-    }
-
-    fn gate_at_rest_declared(
-        body: &crate::AtRestBody<Self>,
+    fn census_at_rest(
+        body: &Self::Finished,
         contacts: &ContactRecords,
         tol: Tol,
-    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+    ) -> Vec<ValidationError> {
         body.validate_pseudomanifold(contacts, tol)
-            .map(|()| AtRestOutcome::Validated)
+            .err()
+            .unwrap_or_default()
     }
 
     fn flush_at_rest(
@@ -7645,10 +7562,10 @@ where
     }
 }
 
-/// The dual arm: STRUCTURALLY ABSENT — no validation door is named,
-/// so nothing runs, nothing refuses, and no error exists to swallow;
-/// the success arm is [`AtRestOutcome::NotRunAtThisScalar`], never a
-/// claim about the geometry (trait docs). The base-scalar evaluation
+/// The dual arm: STRUCTURALLY ABSENT — no certifying door is named, so
+/// nothing certifies and no error exists to swallow; the finished body
+/// is a [`crate::Replay`], tier 2 alone, never a claim about the
+/// geometry beyond it (trait docs). The base-scalar evaluation
 /// of the same recipe is where these bits are validated — the DL3
 /// pairing obligation.
 impl<T> AtRestPolicy for geom_core::Dual<T>
@@ -7784,23 +7701,12 @@ where
         crate::Replay::replay(body)
     }
 
-    fn gate_at_rest(_body: &Body<Self>, _tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        Ok(AtRestOutcome::NotRunAtThisScalar)
-    }
-
-    fn gate_at_rest_kept(
-        body: Body<Self>,
-        _tol: Tol,
-    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
-        Ok(crate::AtRestBody::not_run(body))
-    }
-
-    fn gate_at_rest_declared(
-        _body: &crate::AtRestBody<Self>,
+    fn census_at_rest(
+        _body: &Self::Finished,
         _contacts: &ContactRecords,
         _tol: Tol,
-    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        Ok(AtRestOutcome::NotRunAtThisScalar)
+    ) -> Vec<ValidationError> {
+        Vec::new()
     }
 
     fn flush_at_rest(
@@ -7993,16 +7899,16 @@ mod at_rest_policy_tests {
     //! day by every green corpus gather while an arm gutted into a
     //! grant stays invisible to it. Each certifying (scalar, method)
     //! pair is asserted equal to its door on a body the door refuses,
-    //! so `Ok(Validated)`-without-validating cannot survive these rows.
-    //! The tier-3′ arm over a kept verdict is pinned the same way, on a
-    //! subject tier 3 passes and the census refuses.
+    //! so a finish that grants without validating cannot survive these
+    //! rows. The tier-3′ census over a finished body is pinned the same
+    //! way, on a subject tier 3 passes and the census refuses.
     //! The shell door is the one arm that is not a gate on that
     //! subject: it is a VALUE, so what these rows pin is the arm's
     //! answer — `ShellDoor::certified()` at a certifying scalar, `None`
     //! at a dual — and which function that value holds is
     //! `wiring_rows`' pin, per scalar, beside the quadrature door's.
 
-    use super::{AtRestOutcome, AtRestPolicy};
+    use super::AtRestPolicy;
     use crate::AtRestBody;
     use crate::body::Body;
     use crate::boolean::ContactRecords;
@@ -8019,61 +7925,39 @@ mod at_rest_policy_tests {
         b
     }
 
-    fn certifying_arms_are_the_doors<T: AtRestPolicy + geom_core::CertifiedBounds>() {
+    fn certifying_arms_are_the_doors<
+        T: AtRestPolicy<Finished = AtRestBody<T>> + geom_core::CertifiedBounds,
+    >() {
         let tol = Tol::witness();
         let b = refusing_body::<T>();
         let door = crate::validate::validate_geometric(&b, tol);
         assert!(door.is_err(), "the seed body must refuse validation");
         assert_eq!(
-            T::gate_at_rest(&b, tol),
-            door.map(|()| AtRestOutcome::Validated),
-            "gate_at_rest must be validate_geometric verbatim at a certifying scalar"
+            T::finish(b, tol)
+                .map(|_| ())
+                .map_err(crate::NotFinished::into_findings),
+            door,
+            "finish must refuse as validate_geometric, finding for finding, at a certifying \
+             scalar"
         );
-        assert_eq!(
-            T::gate_at_rest_kept(b.clone(), tol).map(|kept| kept.outcome()),
-            crate::validate::validate_geometric(&b, tol).map(|()| AtRestOutcome::Validated),
-            "gate_at_rest_kept must refuse as validate_geometric at a certifying scalar"
-        );
-        let contacts = ContactRecords::default();
-        // The certified door, and its name is the assertion: a
-        // certifying arm takes the door whose bound names the right it
-        // has, so check 2 re-derives the M7-8 carrier class here.
-        // `validate_pseudomanifold_structural` is the lane-free sibling
-        // a dual takes, and is not what this arm runs. A body carried
-        // with no verdict takes the whole pass.
-        let door = crate::validate::validate_pseudomanifold(&b, &contacts, tol);
-        assert!(door.is_err(), "the seed body must refuse the census door");
-        assert_eq!(
-            T::gate_at_rest_declared(&AtRestBody::not_run(b), &contacts, tol),
-            door.map(|()| AtRestOutcome::Validated),
-            "gate_at_rest_declared must be validate_pseudomanifold verbatim over an unvalidated \
-             body at a certifying scalar"
-        );
-        // Over a KEPT verdict the pass is the census alone, and the
-        // subject must be one the census refuses and tier 3 does not —
+        // Over a finished body the census is the tier-3′ pass alone, and
+        // the subject must be one the census refuses and tier 3 does not —
         // two unit cubes overlapping by half — or a census skipped with
         // the battery would pass here unseen.
+        let contacts = ContactRecords::default();
         let mut overlap = crate::test_support_fixtures::mapped_cube(identity_map::<T>, tol);
         crate::test_support_fixtures::cube_into(
             &mut overlap,
             |x, y, z| identity_map::<T>(x + 0.5, y + 0.5, z + 0.5),
             tol,
         );
-        let door = crate::validate::validate_pseudomanifold(&overlap, &contacts, tol);
-        assert!(
-            door.is_err(),
-            "the overlapping pair must refuse the census door"
-        );
-        let kept = T::gate_at_rest_kept(overlap, tol).expect("tier 3 alone passes the pair");
+        let door = crate::validate::validate_pseudomanifold(&overlap, &contacts, tol)
+            .expect_err("the overlapping pair must refuse the census door");
+        let finished = T::finish(overlap, tol).expect("tier 3 alone passes the pair");
         assert_eq!(
-            kept.outcome(),
-            AtRestOutcome::Validated,
-            "a certifying arm keeps a Validated verdict"
-        );
-        assert_eq!(
-            T::gate_at_rest_declared(&kept, &contacts, tol),
-            door.map(|()| AtRestOutcome::Validated),
-            "gate_at_rest_declared over a kept verdict must refuse as validate_pseudomanifold, \
+            T::census_at_rest(&finished, &contacts, tol),
+            door,
+            "census_at_rest over a finished body must refuse as validate_pseudomanifold, \
              finding for finding"
         );
         // The arm's `Some` is the door's one constructor and not a
@@ -8128,40 +8012,42 @@ mod at_rest_policy_tests {
         certifying_arms_are_the_doors::<geom_core::interval::Interval>();
     }
 
-    /// The dual arm on the SAME refusing subject: the gate does not run
-    /// and says so — [`AtRestOutcome::NotRunAtThisScalar`], never a
-    /// verdict about geometry the door itself refuses.
+    /// The dual arm: its finish is tier 2 alone, a [`crate::Replay`]
+    /// carrying no verdict. The seed body's empty loop is tier 2's, so
+    /// the dual refuses it there; the overlapping pair passes tier 2, so
+    /// the dual finishes it where every certifying scalar's census
+    /// refuses it, and no verdict rides the replay to be misread.
     ///
-    /// The direct door is no longer part of this row's contrast, and
-    /// the reason is the point: `validate_geometric` cannot be CALLED
-    /// at a dual — the composed entry carries the certified half's
-    /// bound, so there is no refusal left to observe here. What a dual
-    /// can still do is the `_structural` twin, and this row pins that
-    /// instead: the seed body's placeholder surface is a check-1
-    /// failure, which is structural, so the dual sees the same refusal
-    /// the certifying scalars see through the same checks.
+    /// `validate_geometric` cannot be CALLED at a dual — the composed
+    /// entry carries the certified half's bound — but the `_structural`
+    /// twin can, and still refuses.
     #[test]
-    fn dual_gate_is_absent_not_a_verdict() {
+    fn dual_finish_is_a_replay_not_a_verdict() {
+        type D = geom_core::Dual64;
         let tol = Tol::witness();
-        let b = refusing_body::<geom_core::Dual64>();
+        let b = refusing_body::<D>();
         assert!(
             crate::validate::validate_geometric_structural(&b, tol).is_err(),
             "the `_structural` twin still runs, and still refuses, at a dual"
         );
+        let refused = <D as AtRestPolicy>::finish(b.clone(), tol)
+            .expect_err("a dual's finish is tier 2, which the seed body's empty loop fails");
         assert_eq!(
-            <geom_core::Dual64 as AtRestPolicy>::gate_at_rest(&b, tol),
-            Ok(AtRestOutcome::NotRunAtThisScalar)
+            refused.into_findings(),
+            crate::validate::validate_closed(&b).expect_err("tier 2 refuses the seed body"),
+            "a dual's finish refuses as tier 2, finding for finding"
         );
-        let kept = <geom_core::Dual64 as AtRestPolicy>::gate_at_rest_kept(b, tol)
-            .expect("a dual keeps every body, gating none");
-        assert_eq!(kept.outcome(), AtRestOutcome::NotRunAtThisScalar);
-        assert_eq!(
-            <geom_core::Dual64 as AtRestPolicy>::gate_at_rest_declared(
-                &kept,
-                &ContactRecords::default(),
-                tol
-            ),
-            Ok(AtRestOutcome::NotRunAtThisScalar)
+        let mut overlap = crate::test_support_fixtures::mapped_cube(identity_map::<D>, tol);
+        crate::test_support_fixtures::cube_into(
+            &mut overlap,
+            |x, y, z| identity_map::<D>(x + 0.5, y + 0.5, z + 0.5),
+            tol,
+        );
+        let replay = <D as AtRestPolicy>::finish(overlap, tol).expect("tier 2 passes the pair");
+        assert!(
+            <D as AtRestPolicy>::census_at_rest(&replay, &ContactRecords::default(), tol)
+                .is_empty(),
+            "a replay carries no verdict for a census to extend"
         );
         // The shell door's absence is the same fact one step earlier:
         // the call is never formed at all, so there is no refusal to

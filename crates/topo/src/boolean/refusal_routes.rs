@@ -333,29 +333,6 @@ pub enum BooleanDecision {
     /// Asked after the operands' coincidences were read, so no
     /// declaration is read.
     EdgeOnFaces,
-    /// Whether a shell of the result bounds material or a cavity (check
-    /// 10, a shell of a solid of several), or which side of a solid's
-    /// faces its material lies on (check 7), at the finished-body gate:
-    /// the side at infinity, read by a ray aimed at one of the shell's
-    /// faces. Raised where the ray met two faces that do not meet in band
-    /// of each other (`side_at_infinity_order`, their gap along it) and
-    /// no other aimed ray read the side: a pair in band, which definite
-    /// cuts can compose, so the operands are ill-conditioned at this ε.
-    /// It names the pair whose gap binds the offer, by its two faces, and
-    /// how many more of the result's readings lie in band, each decided
-    /// by the same tolerance.
-    ShellRole {
-        /// The face of the ray's closest crossing, in the refused result.
-        /// The result is never returned, so the faces are diagnostic only:
-        /// they tell refusals apart and name the pair the lever is about,
-        /// and locate nothing a caller holds
-        /// (`work/tally/the-shell-role-refusal-locates-no-piece.md`).
-        near: crate::entity::FaceKey,
-        /// The face of the crossing in band of it.
-        far: crate::entity::FaceKey,
-        /// How many more of the result's readings lie in band.
-        others: u32,
-    },
     /// A question the curved-extent scan asks of a sphere face, which
     /// takes no declarations.
     Sphere(SphereQuestion),
@@ -887,16 +864,6 @@ pub(super) const SEAM_WEDGE: SizedDecision = SizedDecision {
     passes: SizedPass::NonNegative,
     side: RefusedSide::Lever,
     no_size: None,
-};
-
-/// [`crate::props::AIMED_PAIR`] at the split door
-/// ([`BooleanDecision::render_at_split`]): the same decision on the same
-/// margin, in the split's lever, since the split has one operand and a
-/// plane.
-const SPLIT_AIMED_PAIR: SizedDecision = SizedDecision {
-    lever: "move the split plane or the geometry so the two faces the aimed ray met are clearly \
-            apart",
-    ..crate::props::AIMED_PAIR
 };
 
 /// Whether the faces touching along a seam curve apart or share their
@@ -1476,7 +1443,6 @@ impl BooleanDecision {
             Self::EdgeOnFaces => {
                 crate::merge_faces::edge_on_faces_subject!("an edge of the result")
             }
-            Self::ShellRole { .. } => "whether a shell of the result bounds material or a cavity",
             Self::Sphere(question) => question.subject(),
             Self::SelfCheck(check) => check.subject(),
         }
@@ -1674,7 +1640,6 @@ impl BooleanDecision {
             Self::PartingOrder => Ending::Lever(PARTING_ORDER_LEVER),
             Self::LineWedges => Ending::Lever(LINE_WEDGES_LEVER),
             Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
-            Self::ShellRole { .. } => Ending::Sized(crate::props::AIMED_PAIR),
             Self::Sphere(question) => question.ending(),
             // A broken invariant, as the check's definite refusal says.
             Self::SelfCheck(_) => Ending::Unsized(Unsized::Defect),
@@ -1690,53 +1655,9 @@ impl BooleanDecision {
             .to_string()
     }
 
-    /// [`Self::render`] at the split door ([`crate::SplitFinishError::ResultEscalated`]):
-    /// a reading of the result's side ([`Self::ShellRole`]) ends in the
-    /// split's own spelling of its
-    /// lever, every other decision as at the Boolean.
-    #[must_use]
-    pub(crate) fn render_at_split(self, diag: &Indeterminate) -> String {
-        let ending = match self {
-            Self::ShellRole { .. } => Ending::Sized(SPLIT_AIMED_PAIR),
-            _ => self.ending(diag),
-        };
-        diag.undecided(
-            self.subject(),
-            format!("{}{}", self.evidence(), ending.recourse(diag)),
-        )
-        .to_string()
-    }
-
-    /// The one ending the verdict gives at `diag`, with no subject: a
-    /// result shell's role read in band also counts the shells beside it
-    /// the same tolerance decided.
+    /// The one ending the verdict gives at `diag`, with no subject.
     pub(crate) fn recourse(self, diag: &Indeterminate) -> String {
-        format!("{}{}", self.evidence(), self.ending(diag).recourse(diag))
-    }
-
-    /// **What a reading of the result's side found**, ahead of the
-    /// ending: the pair's two faces, or what no aimed ray read, and how
-    /// many more readings the same tolerance decided. Empty for every
-    /// other decision.
-    pub(crate) fn evidence(self) -> String {
-        let (read, others) = match self {
-            Self::ShellRole {
-                near, far, others, ..
-            } => (
-                format!("an aimed ray met faces {near:?} and {far:?} of the result there. "),
-                others,
-            ),
-            _ => return String::new(),
-        };
-        let more = match others {
-            0 => String::new(),
-            1 => "1 more of the result's readings lies in band, decided by the same tolerance. "
-                .to_owned(),
-            n => format!(
-                "{n} more of the result's readings lie in band, decided by the same tolerance. "
-            ),
-        };
-        format!("{read}{more}")
+        self.ending(diag).recourse(diag)
     }
 }
 
@@ -2024,11 +1945,6 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::PartingOrder => vec![BooleanDecision::PartingOrder],
                 BooleanDecisionKind::LineWedges => vec![BooleanDecision::LineWedges],
                 BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces],
-                BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole {
-                    near: crate::entity::FaceKey::default(),
-                    far: crate::entity::FaceKey::default(),
-                    others: 0,
-                }],
                 BooleanDecisionKind::Sphere => SphereQuestion::iter()
                     .map(BooleanDecision::Sphere)
                     .collect(),
@@ -2426,14 +2342,6 @@ pub(in crate::boolean) mod tests {
                      clear angle",
                 ),
             ),
-            BooleanDecision::ShellRole { .. } => (
-                "whether a shell of the result bounds material or a cavity",
-                Ending::Sized(
-                    "Recourse: move the geometry so the two faces the aimed ray met are clearly \
-                     apart",
-                    SizedPass::Positive,
-                ),
-            ),
             BooleanDecision::Sphere(SphereQuestion::AgainstPlane) => (
                 "whether a sphere of one solid crosses the plane of a face of the other",
                 Ending::Sized(AGAINST, SizedPass::NonZero),
@@ -2680,9 +2588,7 @@ pub(in crate::boolean) mod tests {
                 );
                 let (subject, ending) = want(decision, readable);
                 let head = format!("{subject} is undecided: {}. ", diag.payload());
-                let tail = text
-                    .strip_prefix(&head)
-                    .and_then(|t| t.strip_prefix(&decision.evidence()));
+                let tail = text.strip_prefix(&head);
                 match ending {
                     Ending::Sized(lever, passes) => {
                         assert!(

@@ -441,7 +441,7 @@ fn every_order(
 ) {
     let mut members = Vec::new();
     if plate {
-        let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+        let p = common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t());
         members.push(finished("the plate", p, t()));
     }
     members.extend(prisms.iter().map(Prism::body));
@@ -648,7 +648,7 @@ fn an_edge_crossing_both_wedges_refuses_typed_in_every_op_and_its_recourse_build
     ];
     let mut members = vec![finished(
         "the plate",
-        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t()),
         t(),
     )];
     members.extend(prisms.iter().map(Prism::body));
@@ -751,7 +751,7 @@ fn the_line_less_the_moved_bridge_passes_three_prime_with_its_records() {
     let members = [
         finished(
             "the plate",
-            common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+            common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t()),
             t(),
         ),
         Prism::on_line(0.0, 50.0, (0.5, 2.0)).body(),
@@ -855,7 +855,7 @@ fn a_prism_whose_face_holds_the_line_builds_in_every_member_order() {
     ];
     // The orders whose pair beside a partner along the top is read, and
     // the step that reads it, sound.
-    let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+    let p = common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t());
     let mut members = vec![finished("the plate", p, t())];
     members.extend(prisms.iter().map(Prism::body));
     let probes = probes();
@@ -920,7 +920,7 @@ fn a_prism_against_a_contact_line_on_a_bisector_builds_or_refuses_typed_in_every
         tilt: (0.0, 0.0),
     };
     let held = [Prism::on_line(120.0, 170.0, (0.47, 1.7)), face];
-    let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+    let p = common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t());
     let mut members = vec![finished("the plate", p, t())];
     members.extend(held.iter().map(Prism::body));
     let in_line = |q: [f64; 3]| in_plate(q) || held.iter().any(|p| p.holds(q));
@@ -1013,7 +1013,7 @@ fn a_split_of_an_edge_lying_in_an_earlier_face_reads_its_vertex_against_it() {
     let p120 = Prism::on_line(120.0, 170.0, (0.47, 1.7));
     let plate = finished(
         "the plate",
-        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t()),
         t(),
     );
     let above = |p: &Prism| area(&p.footprint()) * (p.z.1 - PLATE[2].1);
@@ -1075,7 +1075,7 @@ fn the_recourse_of_a_prism_crossing_a_face_beside_a_resting_corner_builds() {
     let p120 = Prism::on_line(120.0, 170.0, (0.47, 1.7));
     let plate = finished(
         "the plate",
-        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t()),
         t(),
     );
     let built = |what: &str, r: Result<BooleanResult<f64>, BooleanError>| match r {
@@ -1304,7 +1304,7 @@ fn a_contact_line_in_a_face_of_the_other_builds_in_every_op() {
         Prism::on_line(0.0, 50.0, (0.5, 2.0)),
         Prism::on_line(120.0, 170.0, (0.47, 1.7)),
     ];
-    let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+    let p = common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t());
     let mut members = vec![finished("the plate", p, t())];
     members.extend(held.iter().map(Prism::body));
     let in_line = |q: [f64; 3]| in_plate(q) || held.iter().any(|p| p.holds(q));
@@ -1392,7 +1392,7 @@ fn a_contact_line_beside_a_face_holding_it_builds_in_every_op() {
     let p120 = Prism::on_line(120.0, 170.0, (0.47, 1.7));
     let plate = finished(
         "the plate",
-        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t()),
         t(),
     );
     let above = |p: &Prism| area(&p.footprint()) * (p.z.1 - PLATE[2].1);
@@ -1506,7 +1506,7 @@ fn the_plate_joins_an_edge_lying_in_a_face_as_one_body() {
     };
     let plate = finished(
         "the plate",
-        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t()),
         t(),
     );
     let r = match union(&body, &plate, t()) {
@@ -1551,7 +1551,7 @@ fn the_plate_against_an_edge_lying_in_a_face_builds_in_every_op() {
     };
     let plate = finished(
         "the plate",
-        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t()),
         t(),
     );
     // The prisms meet along the line alone, and each crosses the
@@ -1615,7 +1615,7 @@ fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() 
     let probes = probes();
     for k in [3.0, 5.0, 100.0] {
         let prisms = three_off(k * eps);
-        let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+        let p = common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t());
         let mut members = vec![finished("the plate", p, t())];
         members.extend(prisms.iter().map(Prism::body));
         let volume = union_volume(&prisms, true);
@@ -1680,7 +1680,7 @@ fn three_prisms_flush_along_one_line_build_undeclared_in_every_member_order() {
         Prism::on_line(120.0, 180.0, (0.47, 1.7)),
         Prism::on_line(240.0, 300.0, (0.44, 1.81)),
     ];
-    let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+    let p = common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t());
     let mut members = vec![finished("the plate", p, t())];
     members.extend(prisms.iter().map(Prism::body));
     for order in orders(members.len()) {
@@ -1708,7 +1708,7 @@ fn the_carried_fold_passes_three_prime_in_every_member_order() {
         ("three, one moved 0.1ε", three_off(0.1 * eps)),
         ("three, one moved 0.5ε", three_off(0.5 * eps)),
     ] {
-        let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+        let p = common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t());
         let mut members = vec![finished("the plate", p, t())];
         members.extend(prisms.iter().map(Prism::body));
         for order in orders(members.len()) {
@@ -1805,7 +1805,7 @@ fn pierces_of_one_point_build_one_body_in_every_member_order() {
         let prisms = hunt(seed, k);
         let mut members = vec![finished(
             "the plate",
-            common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+            common::brick::<f64>(PLATE[0], PLATE[1], PLATE[2], t()),
             t(),
         )];
         members.extend(prisms.iter().map(Prism::body));

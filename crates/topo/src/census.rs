@@ -20519,7 +20519,7 @@ mod edge_pairs_as_segments {
 mod split_wedge_tests {
     use super::*;
     use crate::test_support_fixtures::{brick, split_plane};
-    use crate::{AtRestBody, BooleanResult, SplitPart, split, union};
+    use crate::{BooleanResult, SplitPart, split, union};
     use geom_core::Tol;
 
     /// **The split door hands back no coincident edges whose wedges
@@ -20534,7 +20534,7 @@ mod split_wedge_tests {
     fn a_split_through_a_pinch_keeps_its_wedges_disjoint() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let at_rest = |b| AtRestBody::validate(b, tol).unwrap();
+        let at_rest = |b| crate::finish(b, tol).unwrap();
         let a = at_rest(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol));
         let b = at_rest(brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), tol));
         let BooleanResult::Body(pinch) = union(&a, &b, tol).unwrap() else {

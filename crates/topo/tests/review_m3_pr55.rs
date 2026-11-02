@@ -36,12 +36,12 @@ use topo::{
 /// Described like `prism_z`: an operand still carrying its
 /// conventional chords hands them to every result it keeps them in,
 /// and the result gate refuses a scaffold at rest.
-fn tprism<T: Decide + topo::AtRestPolicy>(
+fn tprism<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     profile: &[(f64, f64)],
     z0: f64,
     z1: f64,
     m: [[f64; 3]; 3],
-) -> AtRestBody<T> {
+) -> topo::AtRestBody<T> {
     let mut body = Body::<T>::new();
     common::prism_ops(
         &mut body,
@@ -63,20 +63,25 @@ fn tprism<T: Decide + topo::AtRestPolicy>(
 }
 
 /// The brick `x × y × z`, finished.
-fn finished_brick<T: Decide + topo::AtRestPolicy>(
+fn finished_brick<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     x: (f64, f64),
     y: (f64, f64),
     z: (f64, f64),
-) -> AtRestBody<T> {
+) -> topo::AtRestBody<T> {
     let tol = Tol::witness();
     finished("brick", brick::<T>(x, y, z, tol), tol)
 }
 
-type BoolOp<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
+type BoolOp<T> =
+    fn(&topo::AtRestBody<T>, &topo::AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
 
 /// Functional run: operands bitwise untouched, result tier-1+2 valid,
 /// D9 bitwise replay.
-fn run<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestBody<T>) -> BooleanResult<T> {
+fn run<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Decide>(
+    op: BoolOp<T>,
+    a: &topo::AtRestBody<T>,
+    b: &topo::AtRestBody<T>,
+) -> BooleanResult<T> {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let r = op(a, b, Tol::witness()).unwrap();
     assert_eq!(format!("{a:?}"), a0, "operand A untouched");
@@ -99,7 +104,9 @@ fn run<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestBody<T>) -> Boolea
     r
 }
 
-fn body_of<T: Decide>(r: &BooleanResult<T>) -> &BooleanBody<T> {
+fn body_of<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Decide>(
+    r: &BooleanResult<T>,
+) -> &BooleanBody<T> {
     match r {
         BooleanResult::Body(b) => b,
         BooleanResult::Empty => panic!("expected a body"),
@@ -145,7 +152,11 @@ fn sub_exact(a: &AtRestBody<f64>, b: &AtRestBody<f64>, volume: f64) -> AtRestBod
 
 /// A refusal must be typed, deterministic, and leave operands bitwise
 /// untouched.
-fn assert_typed_refusal<T: Decide>(op: BoolOp<T>, a: &AtRestBody<T>, b: &AtRestBody<T>) -> String {
+fn assert_typed_refusal<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Decide>(
+    op: BoolOp<T>,
+    a: &topo::AtRestBody<T>,
+    b: &topo::AtRestBody<T>,
+) -> String {
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
     let e1 = op(a, b, Tol::witness()).map(|_| ()).unwrap_err();
     let e2 = op(a, b, Tol::witness()).map(|_| ()).unwrap_err();

@@ -85,12 +85,12 @@ fn assert_ring_senses(body: &Body<f64>, label: &str) -> usize {
 fn control_same_shape_via_subtract() {
     let big = finished(
         "big",
-        brick((0.0, 3.0), (0.0, 1.0), (0.0, 2.0), Tol::witness()),
+        brick::<f64>((0.0, 3.0), (0.0, 1.0), (0.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
     let notch = finished(
         "notch",
-        brick((1.0, 2.0), (-0.5, 1.5), (1.0, 1.5), Tol::witness()),
+        brick::<f64>((1.0, 2.0), (-0.5, 1.5), (1.0, 1.5), Tol::witness()),
         Tol::witness(),
     );
     let BooleanResult::Body(s) = subtract(&big, &notch, Tol::witness()).unwrap() else {
@@ -100,7 +100,7 @@ fn control_same_shape_via_subtract() {
         mass_properties(
             &s.body,
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness())
+            topo::test_support::pinned_resolution::<f64>(Tol::witness())
         )
         .unwrap()
         .met()
@@ -119,12 +119,12 @@ fn control_same_shape_via_subtract() {
 fn control_ring_face_from_interior_pillar() {
     let a = finished(
         "a",
-        brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
     let b = finished(
         "b",
-        brick((0.75, 1.25), (0.75, 1.25), (2.0, 3.0), Tol::witness()),
+        brick::<f64>((0.75, 1.25), (0.75, 1.25), (2.0, 3.0), Tol::witness()),
         Tol::witness(),
     );
     let g = match union(&a, &b, Tol::witness()).unwrap() {
@@ -153,17 +153,17 @@ fn control_ring_face_from_interior_pillar() {
 fn ring_sense_bridge_census() {
     let a = finished(
         "a",
-        brick((0.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        brick::<f64>((0.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     let blank = finished(
         "blank",
-        brick((0.0, 3.0), (0.0, 1.0), (1.0, 2.0), Tol::witness()),
+        brick::<f64>((0.0, 3.0), (0.0, 1.0), (1.0, 2.0), Tol::witness()),
         Tol::witness(),
     );
     let notch = finished(
         "notch",
-        brick((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5), Tol::witness()),
+        brick::<f64>((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5), Tol::witness()),
         Tol::witness(),
     );
     let BooleanResult::Body(bb) = subtract(&blank, &notch, Tol::witness()).unwrap() else {

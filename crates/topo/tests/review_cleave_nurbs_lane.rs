@@ -202,8 +202,8 @@ fn a_plain_cavity_through_the_void_door_decides_nothing() {
 /// this; it costs a debug-build validation of the NURBS wall.
 fn finished_m7_8_cube(tol: Tol) -> topo::AtRestBody<f64> {
     let mut cube = m7_8_cube::<f64>();
-    let unminted = topo::AtRestBody::validate(cube.clone(), tol)
-        .expect_err("the unminted M7-8 cube is not a finished body");
+    let unminted =
+        topo::finish(cube.clone(), tol).expect_err("the unminted M7-8 cube is not a finished body");
     assert!(
         unminted
             .iter()

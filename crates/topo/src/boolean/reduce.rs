@@ -651,9 +651,8 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
 /// has no row for at its own site, naming the edge and the face
 /// ([`BooleanError::EdgeCarrierUnsupported`]).
 ///
-/// Orientation is not read here: a `Validated` operand's tier-3 verdict
-/// includes check 7 per solid, and [`gate_unverdicted_operand`] reads it
-/// for an operand that carries no verdict.
+/// Orientation is not read here: an operand is a finished body, whose
+/// finish at a certifying scalar includes check 7 per solid.
 pub(super) fn gate_operand<T: Decide>(
     body: &Body<T>,
     operand: Operand,
@@ -667,26 +666,6 @@ pub(super) fn gate_operand<T: Decide>(
         });
     }
     Ok(())
-}
-
-/// **The operand gate where no at-rest gate ran**: what the finished-body
-/// type promises, read on an operand that carries no verdict (a dual's,
-/// [`crate::AtRestBody::gate_unverdicted`] — the split's door reads the
-/// same), refused as [`BooleanError::ScaffoldingOperand`],
-/// [`BooleanError::InsideOutOperand`] or [`BooleanError::UnjoinedOperand`].
-/// Its orientation read is check 7's, the reader of a shell's role, so an
-/// inside-out operand refuses here as it does at the at-rest gate. It
-/// runs before the pipeline reads a several-solid operand as one solid
-/// (`ops::one_solid`), since the orientation read's subjects are the
-/// solid and, within it, the shell.
-pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
-    body: &crate::AtRestBody<T>,
-    operand: Operand,
-    band: Band,
-    tol: Tol,
-) -> Result<(), BooleanError> {
-    body.gate_unverdicted(format_args!("operand {operand:?}"), band, tol)
-        .map_err(|unfinished| BooleanError::unfinished(operand, unfinished))
 }
 
 /// An operand edge's certified carrier. Tier 2 refuses a null edge and
@@ -6948,7 +6927,7 @@ mod declaration_order_rows {
         let p = Point3::new(0.5, 0.2, 1.0);
         let block = finished(
             "block",
-            brick((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
+            brick::<f64>((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
             tol,
         );
         let poses: [(&'static str, crate::body::Body<f64>, GlueClass); 2] = [
@@ -7808,48 +7787,6 @@ mod clearance_rows {
             println!(
                 "ε {eps}: {clear} sphere/wall and {torus_clear} torus certified clear, {refused} not"
             );
-        }
-    }
-}
-
-/// **A broken body is a kernel bug at the operand gate.** A tier-1
-/// finding is not scaffolding an edit left behind: the at-rest gate
-/// refuses the torn body with tier 1's own findings, so it never
-/// finishes into an operand; and the operand gate, which runs on a body
-/// carried with no verdict, panics naming the operand and tier 1's
-/// first finding, never refusing as [`BooleanError::ScaffoldingOperand`].
-/// No public door tears a body, so the row tears one in-crate.
-#[cfg(test)]
-#[allow(clippy::expect_used)]
-mod operand_gate_rows {
-    use crate::AtRestBody;
-    use crate::boolean::{BooleanOp, boolean_reduce};
-    use crate::test_support_fixtures::brick;
-    use geom_core::Tol;
-
-    #[test]
-    fn a_tier_one_broken_operand_panics_naming_it() {
-        let tol = Tol::witness();
-        let a = AtRestBody::validate(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol)
-            .expect("the untorn brick finishes");
-        let mut b = brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
-        let vertex = b.vertices().next().expect("a vertex").0;
-        b.vertex_provenance.remove(vertex);
-        let want = crate::validate::validate(&b).expect_err("the tear breaks tier 1");
-        let at_rest =
-            AtRestBody::validate(b.clone(), tol).expect_err("the torn body does not finish");
-        assert_eq!(at_rest, want, "the at-rest refusal is tier 1's own verdict");
-        let b = AtRestBody::not_run(b);
-        let report = crate::surgery::tests::panic_message(|| {
-            let _ = boolean_reduce(BooleanOp::Union, &a, &b, tol);
-        });
-        let first = format!("{:?}", want[0]);
-        for fragment in [
-            "operand B fails tier 1",
-            first.as_str(),
-            "every public door keeps the body tier-1-valid",
-        ] {
-            assert!(report.contains(fragment), "want {fragment:?} in: {report}");
         }
     }
 }

@@ -10,14 +10,13 @@
 //! sink. A build that names none (an `--all-features` build, say) leaves
 //! the meter inert: it times nothing and writes nothing.
 //!
-//! `test op scalar faces door_µs gate_µs outcome gate_verdict a_verdict b_verdict`
+//! `test op scalar faces door_µs gate_µs outcome gate_verdict`
 //!
 //! `door_µs` is the whole call, the result gate included; `gate_µs` is
-//! that gate's tier 3 (`ops::gate`, [`AtRestPolicy::gate_at_rest_kept`]),
-//! zero where the call reached no gate. `outcome` is `empty`, `body`, or
-//! the refusal's variant name; `gate_verdict` is `ok`, `-` where no gate
-//! ran, or the gate's findings; `a_verdict` and `b_verdict` are the
-//! operands' kept outcomes.
+//! that gate's finish (`ops::gate`, [`AtRestPolicy::finish`]), zero where
+//! the call reached no gate. `outcome` is `empty`, `body`, or the
+//! refusal's variant name; `gate_verdict` is `ok`, `-` where no gate ran,
+//! or the gate's findings.
 //!
 //! It changes no result. A line it cannot write panics, so the table
 //! never undercounts in silence.
@@ -27,7 +26,7 @@ use std::io::Write as _;
 use std::time::Duration;
 
 use super::{BooleanError, BooleanOp, BooleanResult};
-use crate::props::{AtRestOutcome, AtRestPolicy};
+use crate::props::AtRestPolicy;
 
 std::thread_local! {
     /// The gate reading the call in flight on this thread took.
@@ -73,15 +72,10 @@ pub(super) fn record<T: AtRestPolicy>(
     op: BooleanOp,
     result: &Result<BooleanResult<T>, BooleanError>,
     door: Duration,
-    operands: [AtRestOutcome; 2],
 ) {
     let gate = GATE.with(|gate| gate.borrow_mut().take());
     let Some(path) = option_env!("CAD_DOOR_TIER3_METER_OUT") else {
         return;
-    };
-    let operand = |outcome| match outcome {
-        AtRestOutcome::Validated => "ok",
-        AtRestOutcome::NotRunAtThisScalar => "not-run",
     };
     let (faces, outcome) = match result {
         Ok(BooleanResult::Empty) => (0, "empty".to_string()),
@@ -99,12 +93,10 @@ pub(super) fn record<T: AtRestPolicy>(
         .as_ref()
         .map_or((0, "-"), |g| (g.time.as_micros(), g.verdict.as_str()));
     let line = format!(
-        "{}\t{op:?}\t{}\t{faces}\t{}\t{gate_us}\t{outcome}\t{verdict}\t{}\t{}\n",
+        "{}\t{op:?}\t{}\t{faces}\t{}\t{gate_us}\t{outcome}\t{verdict}\n",
         std::thread::current().name().unwrap_or("?"),
         T::NAME,
         door.as_micros(),
-        operand(operands[0]),
-        operand(operands[1]),
     );
     let written = std::fs::OpenOptions::new()
         .create(true)

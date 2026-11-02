@@ -105,20 +105,19 @@ use geom_core::Tol;
 // boxing would tax every real-result access to slim the rare Empty.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
-pub enum SplitPart<T: Real> {
-    /// The side's material, as an independent body, finished: the split
-    /// gated it at rest ([`crate::AtRestPolicy::gate_at_rest_kept`]) and
-    /// keeps the verdict, as a Boolean's result does
+pub enum SplitPart<T: crate::props::AtRestPolicy> {
+    /// The side's material, as an independent body, finished
+    /// ([`crate::AtRestPolicy::finish`]), as a Boolean's result is
     /// ([`crate::BooleanBody::body`]). A caller wanting the body by value
-    /// takes [`crate::AtRestBody::into_body`].
-    Body(crate::AtRestBody<T>),
+    /// takes [`crate::FinishedBody::into_body`].
+    Body(T::Finished),
     /// No material on this side.
     Empty,
 }
 
-impl<T: Real> SplitPart<T> {
+impl<T: crate::props::AtRestPolicy> SplitPart<T> {
     /// The body, if this side has material.
-    pub fn body(&self) -> Option<&crate::AtRestBody<T>> {
+    pub fn body(&self) -> Option<&T::Finished> {
         match self {
             Self::Body(b) => Some(b),
             Self::Empty => None,
@@ -149,7 +148,7 @@ pub(crate) struct RawSplit<T: Real> {
 
 /// The result of a plane split: both sides, functionally.
 #[derive(Debug)]
-pub struct SplitResult<T: Real> {
+pub struct SplitResult<T: crate::props::AtRestPolicy> {
     /// The material on the plane normal's side.
     pub above: SplitPart<T>,
     /// The material on the opposite side.
@@ -174,7 +173,7 @@ pub struct SplitContacts {
     pub below: crate::boolean::ContactRecords,
 }
 
-impl<T: Decide> SplitResult<T> {
+impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
     /// `records`, the operand's, carried onto the split's two sides
     /// through [`Self::lineage`] ([`crate::ContactRecords::carried_through`],
     /// at `band` through `region`), each side's records citing the
@@ -284,7 +283,7 @@ impl<T: Decide> SplitResult<T> {
     }
 }
 
-impl<T: Real> SplitResult<T> {
+impl<T: crate::props::AtRestPolicy> SplitResult<T> {
     /// **What the split made of each operand cell** (D1), in the scratch
     /// keys both sides were carved from, read through each side's merges and joins:
     /// a vertex the cut copied is kept under its key and its copies
@@ -908,44 +907,23 @@ pub enum SplitFinishError {
     },
     /// A finished side fails tier 2 ([`crate::validate_closed`]): a
     /// split never returns a body that is not a closed solid. Reached
-    /// by a kernel defect: [`super::split`] reads its operand's tier 2
-    /// at every scalar before it cuts (`gate_finished`). `side` is in the
-    /// caller's orientation.
+    /// by a kernel defect: [`super::split`]'s operand is a finished body.
+    /// `side` is in the caller's orientation.
     ResultInvalid {
         /// The side whose body failed.
         side: PlaneSide,
         /// The validator's findings.
         errors: Vec<crate::validate::ValidationError>,
     },
-    /// A side, sorted into its solids, fails the scalar's at-rest gate
-    /// ([`crate::AtRestPolicy::gate_at_rest`]: [`crate::validate_geometric`]
-    /// at a certifying scalar, nothing at a dual), the gate the Boolean's
-    /// result passes, on findings that are the kernel's: at a certifying
-    /// scalar a split never returns a side its validator refuses. Typed and
-    /// worded as the Boolean's [`crate::BooleanError::ResultInvalid`], each
-    /// finding with its own ending. `side` is in the caller's orientation.
+    /// A side, sorted into its solids, is not a finished body
+    /// ([`crate::AtRestPolicy::finish`], the gate the Boolean's result
+    /// passes): every finding, each read through its family. `side` is
+    /// in the caller's orientation.
     ResultNotAtRest {
         /// The side whose body failed.
         side: PlaneSide,
-        /// The validator's findings.
-        errors: Vec<crate::validate::ValidationError>,
-    },
-    /// A side fails the at-rest gate only on shells whose role it
-    /// certified in band: the Boolean's [`crate::BooleanError::Escalated`]
-    /// on [`crate::BooleanDecision::ShellRole`], at this door and in its
-    /// lever ([`crate::BooleanDecision::render_at_split`]). `side` is in
-    /// the caller's orientation. No split is known to reach it: the
-    /// reduction's input readings refuse an in-band sliver first
-    /// ([`super::SplitReduceError::SliverVertex`], the section's area
-    /// certificate), so the typing's own row (`at_rest_rows`) is its
-    /// guard.
-    ResultEscalated {
-        /// The side whose body failed.
-        side: PlaneSide,
-        /// [`crate::BooleanDecision::ShellRole`] on the binding shell.
-        decision: crate::BooleanDecision,
-        /// The binding shell's certified reading.
-        diag: geom_core::Indeterminate,
+        /// The finish's findings.
+        findings: crate::NotFinished,
     },
     /// The join a side ends with ([`crate::Body::join_edges`](crate::construction::Construct::join_edges)) refused
     /// on that side's body.
@@ -963,25 +941,6 @@ pub enum SplitFinishError {
         /// Why the merge refused.
         error: crate::MergeCoplanarError,
     },
-}
-
-impl SplitFinishError {
-    /// The refusal of `side`, whose body the at-rest gate refused on
-    /// `errors`, typed as the Boolean types its result
-    /// ([`crate::boolean::at_rest_refusal`]).
-    pub(crate) fn not_at_rest(
-        side: PlaneSide,
-        errors: Vec<crate::validate::ValidationError>,
-    ) -> Self {
-        match crate::boolean::at_rest_refusal(errors) {
-            crate::boolean::AtRestRefusal::InBand { decision, diag } => Self::ResultEscalated {
-                side,
-                decision,
-                diag,
-            },
-            crate::boolean::AtRestRefusal::Kernel(errors) => Self::ResultNotAtRest { side, errors },
-        }
-    }
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -1183,20 +1142,11 @@ impl core::fmt::Display for SplitFinishError {
                 "the piece on the {} side of the plane: {error}",
                 side.word()
             ),
-            Self::ResultNotAtRest { side, errors } => crate::validate::write_result_not_at_rest(
+            Self::ResultNotAtRest { side, findings } => write!(
                 f,
-                format_args!("the piece on the {} side of the plane", side.word()),
-                errors,
-            ),
-            Self::ResultEscalated {
-                side,
-                decision,
-                diag,
-            } => write!(
-                f,
-                "the piece on the {} side of the plane: {}",
-                side.word(),
-                decision.render_at_split(diag)
+                "the piece on the {} side of the plane is not a finished body, so no body is \
+                 returned: {findings}",
+                side.word()
             ),
             Self::ResultInvalid { side, errors } => match errors.as_slice() {
                 [first, ..] => write!(
@@ -2889,110 +2839,6 @@ mod joined_lineage_rows {
                 .map(|j| (PlaneSide::Above, j))
                 .collect::<Vec<_>>(),
             "every join, with its side"
-        );
-    }
-}
-
-/// **The split types its at-rest refusal as the Boolean does, in its own
-/// lever.** A side refused only on a reading in band — an aimed ray's
-/// pair — is `ResultEscalated` on it, ending in the split's lever; beside
-/// a definite finding it is the kernel's, `ResultNotAtRest`, and so is a
-/// solid's volume whose certified enclosure holds zero, which is never in
-/// band (D10).
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod at_rest_rows {
-    use super::{PlaneSide, SplitFinishError};
-    use crate::entity::{FaceKey, ShellKey, SolidKey};
-    use crate::{
-        AimedPair, BooleanDecision, OrientationUnread, ShellClassifyError, ValidationError,
-    };
-    use geom_core::{Band, Indeterminate, MarginDiag};
-
-    #[test]
-    fn an_in_band_shell_escalates_in_the_splits_lever() {
-        let band = Band::new(1e-9, 1e-8).unwrap();
-        let read = |margin, predicate| Indeterminate {
-            margin,
-            band,
-            predicate: Some(predicate),
-            terminal_sliver: false,
-        };
-        let gap = read(MarginDiag::value(3.05e-9), "side_at_infinity_order");
-        let shell: ShellKey = slotmap::KeyData::from_ffi((1 << 32) | 1).into();
-        let near: FaceKey = slotmap::KeyData::from_ffi((1 << 32) | 2).into();
-        let role = ValidationError::ShellRoleUndecided {
-            solid: SolidKey::default(),
-            error: ShellClassifyError::RayInBand {
-                shell,
-                pair: Box::new(AimedPair {
-                    shell,
-                    aimed: near,
-                    aim: "(0.5, 0.5, 1.0)".to_owned(),
-                    near,
-                    far: FaceKey::default(),
-                    gap,
-                }),
-            },
-        };
-        let refusal = SplitFinishError::not_at_rest(PlaneSide::Below, vec![role.clone()]);
-        assert!(
-            matches!(
-                &refusal,
-                SplitFinishError::ResultEscalated {
-                    side: PlaneSide::Below,
-                    decision: BooleanDecision::ShellRole { near: n, others: 0, .. },
-                    diag,
-                } if *n == near && *diag == gap
-            ),
-            "an in-band pair alone escalates on it: {refusal:?}"
-        );
-        let msg = refusal.to_string();
-        assert!(
-            msg.starts_with("the piece on the below side of the plane: ")
-                && msg.contains("whether a shell of the result bounds material or a cavity")
-                && msg.contains(
-                    "move the split plane or the geometry so the two faces the aimed ray met are \
-                     clearly apart"
-                )
-                && !msg.contains("move the geometry so the two"),
-            "the split's lever, not the Boolean's: {msg}"
-        );
-        // A solid no aimed ray read, its volume's certified enclosure
-        // holding zero: the kernel's.
-        let holding_zero = ValidationError::OrientationUndecided {
-            solid: SolidKey::default(),
-            reading: OrientationUnread::Volume {
-                margin: Some(read(
-                    MarginDiag::enclosure(-1e-20, 3e-20),
-                    "positive_volume_exact",
-                )),
-                aimed: 0,
-                set_aside: Vec::new(),
-            },
-        };
-        assert!(
-            matches!(
-                SplitFinishError::not_at_rest(PlaneSide::Above, vec![holding_zero]),
-                SplitFinishError::ResultNotAtRest { side: PlaneSide::Above, errors } if errors.len() == 1
-            ),
-            "an enclosure holding zero is the kernel's"
-        );
-        let beside = SplitFinishError::not_at_rest(
-            PlaneSide::Above,
-            vec![
-                role,
-                ValidationError::NegativeVolume {
-                    solid: SolidKey::default(),
-                },
-            ],
-        );
-        assert!(
-            matches!(
-                &beside,
-                SplitFinishError::ResultNotAtRest { side: PlaneSide::Above, errors } if errors.len() == 2
-            ),
-            "beside a definite finding it is the kernel's: {beside:?}"
         );
     }
 }

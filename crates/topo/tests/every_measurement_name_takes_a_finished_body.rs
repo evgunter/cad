@@ -13,10 +13,8 @@ use topo::test_support::brick;
 use topo::{AtRestBody, Body};
 
 fn hollow(tol: Tol) -> AtRestBody<f64> {
-    let outer =
-        AtRestBody::validate(brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 4.0), tol), tol).unwrap();
-    let inner =
-        AtRestBody::validate(brick::<f64>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), tol), tol).unwrap();
+    let outer = topo::finish(brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 4.0), tol), tol).unwrap();
+    let inner = topo::finish(brick::<f64>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), tol), tol).unwrap();
     let r = topo::boolean::subtract(&outer, &inner, tol).unwrap();
     r.body().expect("material").body.clone()
 }
@@ -32,7 +30,7 @@ fn the_reviews_flipped_shell_and_reverted_bodies_do_not_finish() {
             b.flipped_face_sense_for_tests(k).unwrap()
         });
         assert!(
-            AtRestBody::validate(flipped, tol).is_err(),
+            topo::finish(flipped, tol).is_err(),
             "{shell:?} flipped whole finishes"
         );
         refused.push(shell);
@@ -40,7 +38,7 @@ fn the_reviews_flipped_shell_and_reverted_bodies_do_not_finish() {
     assert_eq!(refused.len(), 2, "each shell's flip is refused");
     let reverted = Body::clone(&h).revert().unwrap();
     assert!(
-        AtRestBody::validate(reverted, tol).is_err(),
+        topo::finish(reverted, tol).is_err(),
         "the reverted hollow box finishes"
     );
     // The finished body itself reads alike through every name.

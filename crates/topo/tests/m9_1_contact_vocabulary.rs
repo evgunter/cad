@@ -20,12 +20,12 @@ fn stacked() -> (AtRestBody<f64>, AtRestBody<f64>) {
     (
         finished(
             "the lower brick",
-            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
             tol,
         ),
         finished(
             "the upper brick",
-            brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), tol),
+            brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), tol),
             tol,
         ),
     )

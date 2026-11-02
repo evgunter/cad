@@ -27,15 +27,24 @@ use crate::validate::{AtRestBody, ValidationError};
 /// **What every scalar's finished type is**: a body read through
 /// [`Deref`] and never borrowed mutably, handed back only by
 /// [`FinishedBody::into_body`], which gives up the finish.
-pub trait FinishedBody<T: Real>:
-    Deref<Target = Body<T>> + Clone + fmt::Debug + Send + Sync + 'static
+///
+/// It names its scalar ([`FinishedBody::Scalar`]), whose finished type it
+/// is, so a door generic over the finished body reads its scalar off
+/// the operand it is handed.
+pub trait FinishedBody:
+    Deref<Target = Body<Self::Scalar>> + Clone + fmt::Debug + Send + Sync + 'static
 {
+    /// The scalar this is the finished type of.
+    type Scalar: AtRestPolicy<Finished = Self>;
+
     /// The body, its finish given up: construction state again.
     #[must_use]
-    fn into_body(self) -> Body<T>;
+    fn into_body(self) -> Body<Self::Scalar>;
 }
 
-impl<T: Real> FinishedBody<T> for AtRestBody<T> {
+impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
+    type Scalar = T;
+
     fn into_body(self) -> Body<T> {
         AtRestBody::into_body(self)
     }
@@ -70,7 +79,9 @@ impl<T: Real> Deref for Replay<T> {
     }
 }
 
-impl<T: Real> FinishedBody<T> for Replay<T> {
+impl<T: AtRestPolicy<Finished = Self>> FinishedBody for Replay<T> {
+    type Scalar = T;
+
     fn into_body(self) -> Body<T> {
         self.body
     }
@@ -109,29 +120,10 @@ impl NotFinished {
         Self { findings }
     }
 
-    /// Every finding, in the order the gate made them.
+    /// Every finding, in the order the gate made them; never empty.
     #[must_use]
-    pub fn findings(&self) -> &[ValidationError] {
+    pub fn as_slice(&self) -> &[ValidationError] {
         &self.findings
-    }
-
-    /// The first finding; a refusal has one.
-    #[must_use]
-    pub fn first(&self) -> &ValidationError {
-        &self.findings[0]
-    }
-
-    /// How many findings.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.findings.len()
-    }
-
-    /// Never: a refusal names a finding. Present for the
-    /// `len`-without-`is_empty` lint, which reads the method pair.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        false
     }
 
     /// The findings, the refusal given up.
@@ -153,6 +145,36 @@ impl NotFinished {
             }
         }
         groups
+    }
+}
+
+impl Deref for NotFinished {
+    type Target = [ValidationError];
+
+    /// Every finding, in the order the gate made them; never empty.
+    fn deref(&self) -> &[ValidationError] {
+        &self.findings
+    }
+}
+
+impl PartialEq<Vec<ValidationError>> for NotFinished {
+    fn eq(&self, other: &Vec<ValidationError>) -> bool {
+        self.findings == *other
+    }
+}
+
+impl<const N: usize> PartialEq<[ValidationError; N]> for NotFinished {
+    fn eq(&self, other: &[ValidationError; N]) -> bool {
+        self.findings[..] == other[..]
+    }
+}
+
+impl<'a> IntoIterator for &'a NotFinished {
+    type Item = &'a ValidationError;
+    type IntoIter = core::slice::Iter<'a, ValidationError>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.findings.iter()
     }
 }
 
