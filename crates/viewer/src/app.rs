@@ -1328,7 +1328,7 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let answers = answers_a_save_choice(&op);
-            let mut outcome = self.session.perform(op);
+            let outcome = self.session.perform(op);
             answered_save_choice |= answers && outcome.refusal.is_none();
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
@@ -1343,7 +1343,7 @@ impl ViewerApp {
             // Read before the match below moves the refusal out: a
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.
-            let minted = core::mem::take(&mut outcome.minted);
+            let made = outcome.made;
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),
@@ -1358,14 +1358,14 @@ impl ViewerApp {
                     self.tools.close();
                     self.drafts.accepted(&accepted_op);
                     self.drafts
-                        .creation_landed(self.session.committed_doc(), &minted);
+                        .creation_landed(self.session.committed_doc(), made);
                 }
                 // A form whose op committed comes to rest, for the
                 // tool's reason: a refusal leaves it holding its draft.
                 None => {
                     self.drafts.accepted(&accepted_op);
                     self.drafts
-                        .creation_landed(self.session.committed_doc(), &minted);
+                        .creation_landed(self.session.committed_doc(), made);
                 }
             }
             // After the match, so a replaced document's held picks are

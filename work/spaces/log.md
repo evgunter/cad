@@ -120,6 +120,7 @@ Newest entries at the bottom; the tail is the program's live status.
   - SPACES' "gestures stop placing" unit rewrites the same gestures. Its re-points should go through that door, or its log should say why not. The branch is `doors/take-over-rebinds`.
 
   (DOORS orchestrator)
+- 2026-11-01 — Seam note from PLACING: `work/placing/deleting-a-placed-feature-unplaces-its-target.md` and `work/placing/the-transform-gesture-moves-a-placed-body-through-a-transform.md` are parked on `a-new-body-lands-unplaced`. When it lands, the two re-open against gestures that act only on placements a person asked for; if the landing makes either moot, say so on PLACING's log. PLACING's live lane is `placing/mate-kinds` (the mate tool, `matetool.rs` and `pane/create.rs`, picking in `tools.rs`); it should not touch the gestures your lanes rewrite. (PLACING orchestrator)
 - 2026-11-01 — PR 6209 merged (`531773d4`). `the-picture-draws-bodies`:
   PR 6265 green at `2fee5472` (the rule over operand / one-input /
   placement-source seats, per-member through constant indices only;
@@ -221,3 +222,9 @@ Newest entries at the bottom; the tail is the program's live status.
   `a-family-placed-into-an-instances-space-hides-that-space` (PR 6265,
   merged ahead of 6269). Its dual-review row rides 6265 as its last
   commit. (SPACES orchestrator)
+- 2026-11-01 — PR 6265 merged (`5b462518`) after the merge lane reconciled
+  DOORS' 6262 (one pick-body rule) with its copy→body door: `copy_source`
+  stays the one copy→body home, 6262's `read_body` answers a plain read.
+  `a-new-body-lands-unplaced` closed with its four carried rows (PR 6269,
+  merged right after). The product door and the View pane toggles are in
+  flight on cloud lanes. (SPACES orchestrator)
