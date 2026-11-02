@@ -2,11 +2,13 @@
 id: split-gate-sphere-zone-folds-into-face-box-rule
 kind: unit
 title: Fold the split gate's sphere latitude-zone box into FaceBoxRule, so both box lanes and the gate read one sphere rule
-status: open
+status: review
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [sphere-operand-box-is-the-whole-ball, 3843]
+pr: 6336
+branch: boxes/torus-window-closed-form
 ---
 
 
@@ -66,3 +68,7 @@ still reads the closed form at the gate while `FaceBoxRule::TorusWindow`
 samples (`boxes::torus_window_extent`). `torus_rect_extent` now lives
 in `boxes.rs`, so the fold is the arm's to take.
 
+
+## Since PR 6336 (BOXES, 2026-11-02)
+
+The torus half lands here: `FaceBoxRule::TorusWindow` is the closed form `torus_rect_extent` over spans in both box lanes, and the gate's own torus arm (`torus_window_reach`) is deleted. The unit closes with the PR. (BOXES orchestrator)
