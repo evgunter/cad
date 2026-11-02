@@ -10,7 +10,8 @@
 //!
 //! The forwarding arms are rendered over what they forward: every
 //! `MateFault` arm inside `MateRefused`, every
-//! `StepIdFault` arm an edit door raises inside `StepIdsRefused`, and
+//! `StepIdFault` arm an edit door raises inside `StepIdsRefused`, every
+//! `SectionIdFault` arm one raises inside `SectionIdsRefused`, and
 //! the longest path refusals inside `ProfileProgramRefused` (the
 //! feature tree's rows in `editor-core/tests/refusal_concision_chains.rs`
 //! render every `PathError` arm).
@@ -21,7 +22,8 @@ use editor_core::program::ProgramRefusal;
 use editor_core::{
     AttrKind, ContentPin, Dimension, DimensionError, DistributionFault, DistributionField,
     DocumentId, EditError, EntityKind, EvalError, Label, MateFault, MetaVersionError,
-    NodeErrorKind, RecipeNodeId, SlotId, SpokenName, SpokenNode, StableName, StepIdFault, VarName,
+    NodeErrorKind, RecipeNodeId, SectionIdFault, SlotId, SpokenName, SpokenNode, StableName,
+    StepIdFault, VarName,
 };
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
@@ -759,6 +761,25 @@ fn next_step_id_fault(fault: &StepIdFault) -> Option<StepIdFault> {
     }
 }
 
+fn next_section_id_fault(fault: &SectionIdFault) -> Option<SectionIdFault> {
+    use editor_core::SectionId;
+    match fault {
+        SectionIdFault::Preminted => Some(SectionIdFault::Count {
+            sections: 3,
+            given: 2,
+        }),
+        SectionIdFault::Count { .. } => Some(SectionIdFault::NotThisLofts {
+            section: SectionId::new(0, tagged(7)),
+        }),
+        SectionIdFault::NotThisLofts { .. } => Some(SectionIdFault::Repeated {
+            section: SectionId::new(0, tagged(7)),
+        }),
+        SectionIdFault::Repeated { .. } => None,
+        // No row: no edit door raises it. It is the load door's word.
+        SectionIdFault::NotMinted { .. } => None,
+    }
+}
+
 /// The path refusals a program edit forwards whole, at their longest:
 /// each one the feature tree's census measures over 60 words.
 fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
@@ -902,6 +923,15 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
             format!("StepIdsRefused({})", variant(&fault)),
             EditError::StepIdsRefused {
                 node: s(4, "Profile"),
+                fault,
+            },
+        ));
+    }
+    for fault in witnesses(SectionIdFault::Preminted, next_section_id_fault) {
+        rows.push((
+            format!("SectionIdsRefused({})", variant(&fault)),
+            EditError::SectionIdsRefused {
+                node: s(4, "Loft"),
                 fault,
             },
         ));

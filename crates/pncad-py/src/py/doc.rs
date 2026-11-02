@@ -1324,6 +1324,22 @@ impl Doc {
             .collect())
     }
 
+    /// **The minted id of every section of the loft at `loft`**, first
+    /// to last: what `DocEdit.set_loft_sections` keeps a section by.
+    ///
+    /// Raises `ValueError` for a node that is not a loft.
+    fn section_ids(&self, loft: &NodeId) -> PyResult<Vec<super::step::SectionId>> {
+        match self.inner.node(loft.0) {
+            Some(d::Node::Loft { ids, .. }) => {
+                Ok(ids.iter().copied().map(super::step::SectionId).collect())
+            }
+            _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "{} is not a loft",
+                self.inner.spoken(loft.0)
+            ))),
+        }
+    }
+
     /// **The id the profile at `profile` minted for the step `h`
     /// addresses** in its loop `loop`, which the author states: `h` is
     /// the `.step` of the chain state (or closed loop) the step's verb
@@ -2864,6 +2880,7 @@ impl Node {
                     })
                     .collect(),
                 v_degree: slot_expr(py, d::SlotId::VDegree, &v_degree)?,
+                ids: Vec::new(),
             },
         })
     }
@@ -4269,11 +4286,21 @@ impl DocEdit {
     /// wrong dimension, `loft_shape` for too few sections, an empty
     /// station or a degree outside `1 ≤ d ≤ len − 1`. A node that is
     /// not a loft refuses `set_loft_sections_on_non_loft`.
+    ///
+    /// `keep` says which sections are the old ones: one entry per new
+    /// section, `first` included, the `SectionId` of the old section it
+    /// keeps (`Doc.section_ids` reads them) or `None` for a section it
+    /// adds, which the door mints. A loft's walls, seams and rings are
+    /// named by their sections' ids, so a kept section's names survive
+    /// the edit wherever it moves. Refuses `section_ids_refused` for a
+    /// `keep` that is not one entry per section, keeps an id this loft
+    /// does not hold, or keeps one twice.
     #[staticmethod]
     fn set_loft_sections(
         node: &NodeId,
         first: OperandArg,
         then: Vec<(OperandArg, Vec<StationMove>)>,
+        keep: Vec<Option<super::step::SectionId>>,
     ) -> Self {
         Self {
             inner: d::DocEdit::SetLoftSections {
@@ -4286,6 +4313,7 @@ impl DocEdit {
                         station: station.into_iter().map(|m| m.0).collect(),
                     })
                     .collect(),
+                ids: keep.into_iter().map(|k| k.map(|k| k.0)).collect(),
                 fresh: Vec::new(),
             },
         }

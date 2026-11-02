@@ -2267,6 +2267,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
                     }],
                 }],
                 v_degree: Formula::count(1),
+                ids: Vec::new(),
             },
         ),
         (

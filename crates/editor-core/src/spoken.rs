@@ -140,6 +140,14 @@ impl StepId {
     }
 }
 
+impl SectionId {
+    /// The id shown whole ([`FullId`]).
+    #[must_use]
+    pub fn full(self) -> FullId {
+        FullId(self.0)
+    }
+}
+
 /// `#` and the whole id, `#3:3fa9c1d2a0b1c3d4`: the one spelling of a
 /// variable with no name, the text [`crate::unparse`] writes for its
 /// reader.

@@ -997,6 +997,9 @@ BOUND_AS = {
     # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
     # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # `SectionIdFault` is what `EditError::SectionIdsRefused` carries,
+    # and its arms cross at the carrier's second word.
+    "SectionIdFault": "EditError.inner_variant",
     # `LoftFault` is what `EditError::LoftShape` carries, and its arms
     # cross at the carrier's second word.
     "LoftFault": "EditError.inner_variant",
@@ -1366,6 +1369,7 @@ BOUND_AS = {
     "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
     "StepMap": "SplitOutcome.step_map",
+    "SectionMap": "SplitOutcome.section_map",
     # A profile's pieces cross as opaque text, one per canonical
     # segment, which is what the role-name doors take.
     "ProfilePieces": "Doc.pieces",
@@ -3628,6 +3632,7 @@ MEMBERS_BOUND_AS = {
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::LoftSectionCount": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
+    "EditError::SectionIdsRefused": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::OperandUnresolved": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
@@ -3732,6 +3737,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
+    "InlineError::NameOnDroppedSection": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "FlattenError::UnknownNode": "FlattenError.variant",
     "FlattenError::NotAPlacement": "FlattenError.variant",
@@ -3865,6 +3871,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
+    "SplitError::NameOnDroppedSection": "SplitError.variant",
     "SplitError::BodyNameCrossesCut": "SplitError.variant",
     "SplitError::NameOutsidePartWorld": "SplitError.variant",
     "SplitError::Pin": "SplitError.variant",

@@ -81,7 +81,9 @@
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
 // arm can name what it caught; `LoftFault` is the same for
-// `EditError::LoftShape`.
+// `EditError::LoftShape`. `SectionId` and `SectionIdFault` are the same
+// pair for `DocEdit::SetLoftSections` and
+// `EditError::SectionIdsRefused`.
 // `AuthoredStep` is how an author who recorded a step reaches its id
 // and its pieces (`ProfileProgram::step`, `ProfileProgram::piece`) and
 // keeps it across a reshaping (`keep_grid`); `StepHandleRefusal` is
@@ -90,7 +92,8 @@
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoftFault,
     Maintenance, MaintenanceNet, MetaVersionError, ProductReadFault, ProgramRefusal, Recorded,
-    Recording, SlotValue, StepId, StepIdFault, Took, apply, apply_replayed,
+    Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
+    apply_replayed,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -500,7 +503,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord,
-    NodeMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
+    NodeMap, SectionMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s

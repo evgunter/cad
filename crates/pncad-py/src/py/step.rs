@@ -45,6 +45,28 @@ impl StepId {
     }
 }
 
+/// A minted loft section id: what a loft's wall, seam and ring names
+/// spell, what `Doc.section_ids` answers and what
+/// `DocEdit.set_loft_sections` keeps a section by.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct SectionId(pub(crate) d::SectionId);
+
+#[pymethods]
+impl SectionId {
+    fn __repr__(&self) -> String {
+        format!("SectionId({})", self.0.full())
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    fn __hash__(&self) -> u64 {
+        self.0.0.digest()
+    }
+}
+
 /// **Which of its step's pieces a piece is**: `Role.Leg`,
 /// `Role.RunIn`, `Role.Arc`, `Role.RunOut`, or `Role.piece(k)` on a
 /// carrier form.
@@ -437,6 +459,7 @@ fn install_accessors(py: Python<'_>) -> PyResult<()> {
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StepId>()?;
+    m.add_class::<SectionId>()?;
     m.add_class::<Role>()?;
     m.add_class::<Piece>()?;
     m.add_class::<AuthoredStep>()?;
