@@ -2050,6 +2050,15 @@ fn the_consumers_paths_never_contradict_the_exact_oracle() {
     );
 }
 
+/// What [`line_material`] draws: the sectors, the sheets, the line's
+/// point, and the oracle's faces.
+type LineMaterial = (
+    Vec<BoolSector<f64>>,
+    Vec<crate::boolean::sectors::LineSheet>,
+    [f64; 3],
+    Vec<Vec<Sector>>,
+);
+
 /// **A solid's material about a line, drawn**: the two flanks of its
 /// edge on the line `L` (a sector from `L` to `F1`, and one from `F2`
 /// to `L`, each counterclockwise about its outward normal, the material
@@ -2060,14 +2069,7 @@ fn the_consumers_paths_never_contradict_the_exact_oracle() {
 /// the boolean holds them, the sheets the line cone reads them as, and
 /// the oracle's faces, one list of wedges per cone sector in the line
 /// cone's order.
-fn line_material(
-    rng: &mut Rng,
-) -> Option<(
-    Vec<BoolSector<f64>>,
-    Vec<crate::boolean::sectors::LineSheet>,
-    [f64; 3],
-    Vec<Vec<Sector>>,
-)> {
+fn line_material(rng: &mut Rng) -> Option<LineMaterial> {
     use crate::boolean::sectors::LineSheet;
     let dot = |x: [f64; 3], y: [f64; 3]| x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
     let raw = [0; 3].map(|_| rng.range(-1.0, 1.0));
