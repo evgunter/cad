@@ -1031,7 +1031,7 @@ fn the_lone_host_trim_keeps_the_hosts_key_and_designations() {
                         .certified()
                         .unwrap();
                     match *c.carrier() {
-                        geom::Curve3::Circle { radius, .. } => radius,
+                        geom::Curve3::Circle(geom::Circle { radius, .. }) => radius,
                         _ => f64::NAN,
                     }
                 })

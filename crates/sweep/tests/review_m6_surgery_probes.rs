@@ -642,34 +642,45 @@ fn p6_reversed_pip_walls_carry_through() {
     println!("P6: cap FaceKeys and senses intact through BOTH surgeries");
 }
 
-/// P7 (charter F, dev 1): every-edge fillet on a pipped body refuses
-/// TangentialEdge at margin EXACTLY 0.0, at every radius — the
-/// margin must be structural (co-surface cap meridians), not tuned.
+/// P7 (charter F, dev 1): the pipped body's cap meridians (two half-cap
+/// faces on ONE sphere) read smooth at margin EXACTLY 0.0, at every
+/// radius — the margin is structural, not tuned — and an every-edge
+/// fillet builds what it builds with them left out.
 #[test]
 fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
     let (pipped, _) = one_pip(0.5, 0.5);
-    let every: Vec<_> = pipped.edges().map(|(k, _)| k).collect();
+    let surface = |f: topo::FaceKey| pipped.get_face(f).unwrap().surface;
+    let mut meridians: Vec<EdgeKey> = pipped
+        .edges()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            let (a, b) = topo::readback::edge_sides(&pipped, k).unwrap().faces();
+            surface(a) == surface(b)
+        })
+        .collect();
+    meridians.sort_unstable();
+    assert_eq!(meridians.len(), 2, "the cap's two meridians");
     for r in [1e-4, 5e-3, RIM_R, 0.05, DIE_R] {
-        let err = fillet_edges(
-            &sweep::test_support::at_rest(&pipped, Tol::witness()),
-            &every,
-            r,
-            Tol::witness(),
-        )
-        .expect_err("every-edge on a pipped body must refuse");
-        match err.error {
-            sweep::blend::BlendError::TangentialEdge { margin, .. } => {
-                assert_eq!(margin.predicate, "fillet3_convexity_sign");
-                assert_eq!(
-                    margin.reading.diagnostic_f64_for_error_text().value(),
-                    Some(0.0),
-                    "radius {r}: {margin} is not structural zero"
-                );
-            }
-            other => panic!("radius {r}: expected TangentialEdge, got {other}"),
+        for &m in &meridians {
+            let margin = sweep::test_support::smooth_reading(&pipped, m, r, Tol::witness());
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
+            assert_eq!(
+                margin.reading.diagnostic_f64_for_error_text().value(),
+                Some(0.0),
+                "radius {r}: {margin} is not structural zero"
+            );
         }
     }
-    println!("P7: TangentialEdge margin bit-zero at all radii");
+    let every: Vec<_> = pipped.edges().map(|(k, _)| k).collect();
+    sweep::test_support::assert_blends_as_without(
+        sweep::blend::BlendKind::Fillet,
+        &pipped,
+        &every,
+        &meridians,
+        RIM_R,
+        Tol::witness(),
+    );
+    println!("P7: meridian margins bit-zero at all radii; every-edge builds");
 }
 
 /// P8: a duplicated edge in the request refuses before the battery.

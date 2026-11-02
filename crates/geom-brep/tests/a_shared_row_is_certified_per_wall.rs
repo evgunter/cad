@@ -86,12 +86,12 @@ fn outward_annulus(m: usize, turn: f64) -> Surface<f64> {
 
 /// The circle of radius `r` about `z` in `z = 0`, `t` its angle from `x̂`.
 fn rim(r: f64) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// `wall`'s row image of `carrier` over `(t0, t1)`, as the walls' row pick

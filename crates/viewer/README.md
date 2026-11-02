@@ -605,13 +605,20 @@ writes its cleared value, at one site, by hand. That is the whole
 mechanism — one site to update instead of three, and a compiler error
 instead of a silent omission.
 
-`LandedRun` is the same rule one level down. Its seven fields — the
+`LandedRun` is the same rule one level down. Its eight fields — the
 evaluation, the resolver it ran through, the document it answers, its
-generation, the gather's outcome, the advisory report and the part
-files the resolver could name — are statements about one (document,
-evaluation) pair, taken in that pair's single `land`. As one value
-they cannot come from different runs, which is the property
-`landed_pair` needs: it returns two of the seven, and the two it
+generation, the gather's outcome, the advisory report, the part files
+the resolver could name and the certified clearance answers — are
+statements about one (document, evaluation) pair. A landing may owe
+answers that settle later: the coincidence door's, which the advisory
+report reads pending, and the certifying scalar's for a clearance
+requirement, which reads certifying. Each runs at rest on its own seam,
+keyed by the landing's generation and cancelled by the next request,
+and settles into this same value (`DocSession::settle`,
+`DocSession::certified`); an answer for a landing since replaced is
+dropped. Everything else is taken in the pair's single `land`. As one
+value they cannot come from different runs, which is the property
+`landed_pair` needs: it returns two of the eight, and the two it
 returns are the pair a single run answered. The gather's outcome is
 one `Result`, the refusal or what the gather left (the at-rest badge
 and the body); `LandedRun`'s doc says what that shape does and does not
@@ -707,8 +714,9 @@ history's length and `checks` is its two counts (`ChecksReport` is a
 the thing these walks exist to keep readable); `scratch`, `body`,
 `gesture` and `resolver` are their presence, rendered as the elisions
 `Some(<Doc>)`, `Some(<Body>)`, `Some(<Gesture>)` and
-`Some(<DirResolver>)`; and `index` is the generation it describes
-inside one, `Some(<PickIndex for Generation(4)>)`. Summarising is what
+`Some(<DirResolver>)`; `index` is the generation it describes
+inside one, `Some(<PickIndex for Generation(4)>)`; and `stage` and
+`seeded` are the key and the generation they are for. Summarising is what
 a `#[derive(Debug)]` cannot do at all, which is the reason these are
 written out rather than derived; the recipe and result DAGs are what
 makes that reason bite.
@@ -725,11 +733,12 @@ answered at the field, which is the only place a two-valued marker
 could not have said it. **The sweep behind that list**, and it is a
 reading of four `fmt` bodies rather than a grep: in each of the four
 walks — `Derived`, `LandedRun` and `DocSession` in `session`,
-`PickCache` in `pickcache` — read every `.field(…)` call, **21 of
+`PickCache` in `pickcache` — read every `.field(…)` call, **30 of
 them**, and take the ones whose value argument is not the destructured
-binding itself. **Nine calls, seven fields**: `checks` and `index` each spend two arms, and the absent
-arm renders `None`, which is the whole field. `viewer`'s
-`tests/debug_dumps.rs` holds the seven to their spellings, and is the
+binding itself. **Eleven calls, nine fields**: `checks` and `index`
+each spend two arms, and the absent arm renders `None`, which is the
+whole field. `viewer`'s `tests/debug_dumps.rs` holds seven of them to
+their spellings — all but `stage` and `seeded` — and is the
 only reader of these dumps in the tree. What holds the NEXT summarised
 field to the rule is not a check: the destructuring makes the compiler
 send whoever adds a field to the walk, the rule is stated here and in
@@ -2225,8 +2234,12 @@ inserted part is a fresh `new_space()` and the instance into it by the
 identity bundle (`editor_core::stand`: no mate, and the constant `0` on
 each slide and spin), in one action. A pattern, fused or not, lands
 where the pick was seen and takes the seen body over along the path it
-was seen through (a placement's source, a `⊔` operand, the product
-slot), member 0 standing where that body stood. A split takes the seen
+was seen through: picked on a copy, it reads that copy in the copy's
+space and takes over the `⊔` operands and the product slot that read
+it, writing no placement's source, and the result says it belongs to
+that placed copy, with a way to the original body; picked as the body
+itself, it makes a new body and offers, as one explicit step, to
+re-point the variable the body's placements share onto it, member 0 standing where that body stood. A split takes the seen
 body over the same way, by `above ⊔ below`, its two halves standing
 where that body stood; where nothing reads the body along such a
 path, the split's halves are drawn in its place. A duplicate of a copy

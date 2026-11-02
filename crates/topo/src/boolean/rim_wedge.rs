@@ -557,13 +557,11 @@ fn contains<T: Decide>(
         super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
         _ => unread,
     };
-    let f = body.get_face(face).ok_or(unread)?;
-    let read = match body.get_surface(f.surface) {
-        Some(geom::Surface::Plane { normal, .. }) => {
+    let read = match body.proven_face_surface(face) {
+        geom::Surface::Plane { normal, .. } => {
             super::contain::contfp(body, face, *normal, p, band).map(Some)
         }
-        Some(_) => super::contain::curved_face_containment(body, face, p, band),
-        None => return Err(unread),
+        _ => super::contain::curved_face_containment(body, face, p, band),
     };
     // The boundary pass placed the point at an arc's end and clear of
     // its corners, two definite readings no verdict reconciles at this
@@ -670,9 +668,13 @@ fn curve_sense<T: Decide>(
     band: Band,
 ) -> Result<geom_core::Sign, Indeterminate> {
     match (locus, curve.carrier()) {
-        (Locus::Rim(rim), geom::Curve3::Circle { axis, .. }) => {
-            crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis)), band)
-        }
+        (
+            Locus::Rim(rim),
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { axis, .. },
+                ..
+            }),
+        ) => crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis)), band),
         _ => Ok(geom_core::Sign::Positive),
     }
 }
@@ -789,12 +791,10 @@ fn crossings<T: Decide>(
             Ok(Some(kept))
         }
         (
-            geom::Curve3::Circle {
-                center,
-                axis,
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, axis, .. },
                 radius,
-                ..
-            },
+            }),
             _,
         ) => {
             let (ce, ae, re) = (*center, *axis, *radius);
@@ -885,12 +885,15 @@ fn rides<T: Decide>(
     match (locus, curve.carrier()) {
         (
             Locus::Rim(rim),
-            geom::Curve3::Circle {
-                center,
-                axis,
+            geom::Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            },
+            }),
         ) => same_circle(
             Rim {
                 center: *center,
@@ -954,12 +957,15 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
     face_boundary_arcs(body, face)
         .into_iter()
         .filter_map(|(_, c)| match *c.carrier() {
-            geom::Curve3::Circle {
-                center,
-                axis,
+            geom::Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            } => Some(Rim {
+            }) => Some(Rim {
                 center,
                 axis,
                 radius,
@@ -1808,21 +1814,11 @@ mod boundary_midpoint_rows {
         };
         for alpha in [0.3, 2.0, 4.0] {
             let e = Vec3::new(alpha.cos(), alpha.sin(), 0.0);
-            let small = geom::Curve3::Circle {
-                center: Point3::origin() + e * 0.5,
-                axis: Vec3::unit_z(),
-                radius: 0.5,
-                u_ref: e,
-            };
+            let small = geom::Curve3::circle(Point3::origin() + e * 0.5, Vec3::unit_z(), 0.5, e);
             let (a, fa) = arc_cap(small, (-1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), tol);
             let got = GAPS.map(|gap| {
                 let beta = (2.0 * gap * zero).sqrt();
-                let unit = geom::Curve3::Circle {
-                    center: rim.center,
-                    axis: rim.axis,
-                    radius: rim.radius,
-                    u_ref: rim.u_ref,
-                };
+                let unit = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
                 let (b, fb) = arc_cap(
                     unit,
                     (alpha - 1.0, alpha + 2.0 * beta),

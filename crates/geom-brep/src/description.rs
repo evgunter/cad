@@ -118,6 +118,16 @@ impl<T: Real> EdgeAuthority<T> {
     pub fn is_declared(&self) -> bool {
         matches!(*self, EdgeAuthority::Declared(_))
     }
+
+    /// The declaration a restated description carries
+    /// ([`EdgeDescriptionSpec::declared_by`]), if a modeler made one.
+    #[must_use]
+    pub fn declared(self) -> Option<MappedCurve<T>> {
+        match self {
+            EdgeAuthority::Declared(mc) => Some(mc),
+            EdgeAuthority::Derived => None,
+        }
+    }
 }
 
 /// **Which curve of a pair's intersection an edge is** (D2's selector).

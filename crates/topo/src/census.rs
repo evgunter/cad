@@ -2422,6 +2422,15 @@ fn escalation_pushed(errors: Vec<ValidationError>) -> Indeterminate {
     }
 }
 
+/// **The key of the segment an edge runs along by structure**: its two
+/// ends' point keys, in key order. Two distinct edges with one key lie
+/// on one segment by structure ([`shared_segments`]; the split's slit,
+/// `splitting::join::Tree::slit`), whatever their carriers.
+pub(crate) fn segment_key(ends: [PointKey; 2]) -> [PointKey; 2] {
+    let [p, q] = ends;
+    if p <= q { [p, q] } else { [q, p] }
+}
+
 /// **Every pair of line edges `body` holds on one segment by structure**:
 /// two distinct line edges whose ends lie on the same two point keys
 /// ([`Bound::Shared`] at both bounds of [`ee_collinear_lane`]), which
@@ -2437,7 +2446,7 @@ pub(crate) fn shared_segments<T: Real>(body: &Body<T>) -> Vec<CollinearOverlap<T
         let [Some(p), Some(q)] = e.points else {
             unreachable!("a body's line edge sits on its vertices' point keys")
         };
-        let key = if p <= q { [p, q] } else { [q, p] };
+        let key = segment_key([p, q]);
         ends_of.insert(key, [e.p0, e.p1]);
         by_ends.entry(key).or_default().push(e.key);
     }
@@ -4381,7 +4390,7 @@ fn curved_overlap_cells<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Vec<Point3<T>> {
-    let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
+    let Some(surface) = body.face_surface(f) else {
         return Vec::new();
     };
     match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
@@ -6871,7 +6880,7 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
             face,
             solid: body.solid_of_face(face)?,
             surface: f.surface,
-            kind: body.get_surface(f.surface)?.kind(),
+            kind: body.face_surface_linked(face, f).kind(),
             edges: face_cycles(body, f)
                 .filter_map(Result::ok)
                 .flatten()
@@ -8541,14 +8550,11 @@ impl<T: Decide> FaceSector<T> {
         holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
-        // A face or surface that does not resolve, or a loop that does
-        // not walk, is a defect (tier 1 admits none); a face that
-        // resolves off a plane is curved.
+        // A face that does not resolve, or a loop that does not walk, is
+        // a defect (tier 1 admits none); a face that resolves off a plane
+        // is curved.
         let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = body
-            .get_surface(face.surface)
-            .cloned()
-            .ok_or(TouchUnread::Corrupt)?;
+        let surface = body.face_surface_linked(f, face).clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Unreadable)?;
         if !fg.walked {
             return Err(TouchUnread::Corrupt);
@@ -8743,7 +8749,7 @@ fn round_face<T: Decide>(
     p: Point3<T>,
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
     let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-    let surface = body.get_surface(face.surface).ok_or(TouchUnread::Corrupt)?;
+    let surface = body.face_surface_linked(f, face);
     let Some(round) = crate::link::Round::of(surface, face.sense) else {
         return Ok(None);
     };
@@ -10905,9 +10911,12 @@ fn flush_pairs<T: Decide>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> FlushAtRest {
-    let kind = |f: FaceKey| Some(body.get_surface(body.get_face(f)?.surface)?.kind());
+    let kind = |f: FaceKey| Some(body.face_surface(f)?.kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
-    let edges: Vec<Option<BTreeSet<EdgeKey>>> = faces.iter().map(|&f| edge_set(body, f)).collect();
+    let edges: Vec<BTreeSet<EdgeKey>> = faces
+        .iter()
+        .map(|&f| body.proven_face_edge_set(f))
+        .collect();
     let mut out = FlushAtRest::default();
     for (i, &fa) in faces.iter().enumerate() {
         for j in boxes.later(i) {
@@ -10936,11 +10945,7 @@ fn flush_pairs<T: Decide>(
                 what,
                 reason,
             };
-            let (Some(ea), Some(eb)) = (&edges[i], &edges[j]) else {
-                out.findings
-                    .push(unread(FLUSH_UNREAD, Undecidable::MayOverlap));
-                continue;
-            };
+            let (ea, eb) = (&edges[i], &edges[j]);
             match shared_run(body, ea, eb, band) {
                 Ok(true) => {}
                 Ok(false) => continue,
@@ -11010,17 +11015,8 @@ fn flush_pairs<T: Decide>(
 /// Whether `f` lies on a cylinder or a sphere, the curved kinds Door 1
 /// decides exactly ([`crate::boolean::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
-    body.get_face(f)
-        .and_then(|face| body.get_surface(face.surface))
+    body.face_surface(f)
         .is_some_and(crate::boolean::carrier_eq::exact_curved)
-}
-
-/// Each edge bounding `f`, once (a seam once), `None` where a loop does
-/// not walk.
-fn edge_set<T: Real>(body: &Body<T>, f: FaceKey) -> Option<BTreeSet<EdgeKey>> {
-    crate::boolean::solid_contain::face_edges(body, f)
-        .ok()
-        .map(|edges| edges.into_iter().map(|e| e.edge).collect())
 }
 
 /// **Whether two faces' boundaries share a run**: an edge of each whose
@@ -11199,7 +11195,7 @@ fn shared_interior_witness<T: Decide>(
             false
         }
     };
-    let edges = |f| edge_set(body, f).unwrap_or_default();
+    let edges = |f| body.proven_face_edge_set(f);
     let (edges_a, edges_b) = (edges(fa), edges(fb));
     for (x, y, edges) in [(fa, fb, &edges_a), (fb, fa, &edges_b)] {
         let corners = face_vertices(body, x)
@@ -11303,7 +11299,7 @@ fn arc_interiors_meet<T: Decide>(
         }
     };
     let spans = |f| -> Result<Vec<_>, InteriorsUnread> {
-        let edges = edge_set(body, f).ok_or(InteriorsUnread::Unbuilt)?;
+        let edges = body.proven_face_edge_set(f);
         if edges.is_empty() {
             return Err(InteriorsUnread::Unbuilt);
         }
@@ -12374,7 +12370,7 @@ mod tests {
                 body.get_edge(e)
                     .and_then(|d| body.get_curve_geom(d.curve))
                     .and_then(|g| g.certified())
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
             })
             .expect("the sheet has a rim arc");
         let far = body
@@ -13353,12 +13349,7 @@ mod tests {
         // `(K − 1)·zero` at `K = 1.001`: the witness is sharp at every row.
         let circle = |r: f64| {
             let center = Point3::new(0.31 * r, -0.17 * r, 0.05 * r);
-            let carrier = Curve3::Circle {
-                center,
-                axis,
-                radius: r,
-                u_ref,
-            };
+            let carrier = Curve3::circle(center, axis, r, u_ref);
             let end = carrier.eval(t1);
             let frame_end = center + u_ref * (r * c) + v_ref * (r * s);
             (carrier, center, end, end - frame_end)
@@ -14222,12 +14213,7 @@ mod tests {
                         pair: SurfacePair::new(cyl, plane),
                         selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, 1.0, 0.0)),
                     },
-                    carrier: Curve3::Circle {
-                        center: Point3::origin(),
-                        axis: Vec3::unit_z(),
-                        radius: 1.0,
-                        u_ref: Vec3::unit_x(),
-                    },
+                    carrier: Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
                     param_start: 0.0,
                     param_end: std::f64::consts::PI,
                 },
@@ -16850,12 +16836,12 @@ mod tests {
     fn pass_two_prime_passes_a_clear_vertex_by_unread() {
         use geom_core::k_stats::Bracket;
         let tol = Tol::witness();
-        let c = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let c = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        );
         let (t0, t1) = (0.0, 100.0_f64.to_radians());
         for (q, read) in [
             (Point3::new(0.0, 0.0, 0.0), false),
@@ -17400,12 +17386,15 @@ mod tests {
             (t0, t1): (f64, f64),
         ) -> (Body<f64>, FaceKey) {
             use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-            let geom::Curve3::Ellipse {
-                center,
-                axis,
-                u_ref,
+            let geom::Curve3::Ellipse(geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 ..
-            } = carrier
+            }) = carrier
             else {
                 panic!("an ellipse carrier")
             };
@@ -17513,13 +17502,11 @@ mod tests {
         #[test]
         fn a_steep_ellipse_crossing_near_an_arc_end_is_cut() {
             use std::f64::consts::FRAC_PI_2;
-            let carrier = geom::Curve3::Ellipse {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
-                semi_u: 20.0,
-                semi_v: 1.0,
-                u_ref: Vec3::unit_x(),
-            };
+            let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                20.0,
+                1.0,
+            ));
             let (body, cap) = ellipse_cap(
                 CylFrame::tilted(1.0, 0.05_f64.acos()),
                 carrier,
@@ -17554,13 +17541,15 @@ mod tests {
             use std::f64::consts::FRAC_PI_2;
             let major = 4.01_f64.sqrt();
             let normal = Vec3::new(-20.0, 0.0, 1.0).normalize();
-            let carrier = geom::Curve3::Ellipse {
-                center: Point3::origin(),
-                axis: normal,
-                semi_u: major,
-                semi_v: 0.1,
-                u_ref: Vec3::new(1.0, 0.0, 20.0).normalize(),
-            };
+            let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::origin(),
+                    normal,
+                    Vec3::new(1.0, 0.0, 20.0).normalize(),
+                ),
+                major,
+                0.1,
+            ));
             let d = 8.0 * band().zero();
             let (body, cap) = ellipse_cap(
                 CylFrame::canonical(0.1),
@@ -19760,12 +19749,7 @@ mod curved_edge_edge {
         u_ref: Vec3<f64>,
     ) -> EdgeKey {
         let tol = Tol::witness();
-        let circle = Curve3::Circle {
-            center,
-            axis,
-            radius: 1.0,
-            u_ref,
-        };
+        let circle = Curve3::circle(center, axis, 1.0, u_ref);
         let (p0, p1) = (circle.eval(0.0), circle.eval(std::f64::consts::PI));
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
@@ -19929,7 +19913,7 @@ mod curved_edge_edge {
                         .and_then(|d| body.get_curve_geom(d.curve))
                         .and_then(|g| g.certified())
                         .is_some_and(|c| {
-                            matches!(c.carrier(), Curve3::Circle { center, .. } if center.z == 0.0)
+                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if center.z == 0.0)
                         })
             })
             .expect("the sheet's bottom rim");
@@ -20745,12 +20729,7 @@ mod arc_interiors {
     ) -> FaceKey {
         let (origin, n, u, _) = frame();
         let tol = Tol::witness();
-        let circle = Curve3::Circle {
-            center,
-            axis: n,
-            radius: r,
-            u_ref: u,
-        };
+        let circle = Curve3::circle(center, n, r, u);
         let (p0, p1) = (circle.eval(t0), circle.eval(t1));
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {

@@ -448,7 +448,16 @@ where
                 .iter()
                 .map(|section| section.station.as_slice())
                 .collect();
-            wire_loft(id, &sections, &stations, results, vals, tol)
+            let Some(ids) = node
+                .loft_section_ids()
+                .and_then(|ids| ids.into_iter().collect::<Option<Vec<_>>>())
+            else {
+                unreachable!(
+                    "loft {id} reached evaluation with a section that carries no id: the insert \
+                     door mints one per section and the load door refuses a section without"
+                )
+            };
+            wire_loft(id, &sections, &ids, &stations, results, vals, tol)
                 .and_then(|out| twisted(out, id, env, tol))
         }
         Node::Sweep { profile, path, .. } => {
@@ -1750,7 +1759,11 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
 fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
-            NodeErrorKind::Blend { verb, error }
+            NodeErrorKind::Blend {
+                verb,
+                error,
+                edge: None,
+            }
         }
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
         verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
@@ -1813,7 +1826,23 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     edges.sort_unstable();
     let out = (verb.build)(edges, size)
         .run(&body, tol)
-        .map_err(verb_refused)?;
+        .map_err(|refusal| match verb_refused(refusal) {
+            // The kernel names its edge by key; the reader is told its
+            // name in the operand's table.
+            NodeErrorKind::Blend { verb, error, .. } => NodeErrorKind::Blend {
+                edge: error.edge().and_then(|e| {
+                    target_table
+                        .name_of(&names::EntityRef {
+                            body: 0,
+                            key: names::EntityKey::Edge(e),
+                        })
+                        .map(|name| Box::new(name.clone()))
+                }),
+                verb,
+                error,
+            },
+            other => other,
+        })?;
     // A blend's run produces the blend record by construction; another
     // family here is a kernel bug, refused typed.
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
@@ -2540,7 +2569,7 @@ where
             b,
         );
     }
-    let verdict = crate::clearance::verdict_of(report.verdict.clone(), param, refused);
+    let verdict = crate::clearance::verdict_of(report.verdict.clone(), param, sides, refused);
     answer(ClearanceReport::of(verdict, &report))
 }
 
@@ -4522,6 +4551,7 @@ fn need_count(
 fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
+    ids: &[crate::SectionId],
     stations: &[&[crate::node::StationMove]],
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -4566,8 +4596,9 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     })?;
     // Eager N4 emission, BEFORE the structural handoff is dropped. The
     // skin pairs canonical segment `k` of every section into wall `k`,
-    // so wall `k` is named by one locator per section.
-    let table = names::name_loft(id, &built, &pieces).map_err(NodeErrorKind::Naming)?;
+    // so wall `k` is named by one locator per section it spans, each
+    // with that section's id.
+    let table = names::name_loft(id, &built, &pieces, ids).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(values[0].framed(Arc::new(built.body))),
         table,

@@ -412,15 +412,17 @@ fn wide_box_images_contain_sampled_f64_images() {
 /// EXCLUDES 0 (so the trilean gate escalates/fails, never guesses).
 #[test]
 fn tier3_interval_certification() {
-    let mk = |cx: f64| Curve3::Circle {
-        center: Point3::new(
-            Interval::from_f64(cx),
-            Interval::from_f64(1.0),
-            Interval::from_f64(3.0),
-        ),
-        axis: Vec3::new(Interval::zero(), Interval::zero(), Interval::from_f64(1.0)),
-        radius: Interval::from_f64(2.0),
-        u_ref: Vec3::new(Interval::from_f64(1.0), Interval::zero(), Interval::zero()),
+    let mk = |cx: f64| {
+        Curve3::circle(
+            Point3::new(
+                Interval::from_f64(cx),
+                Interval::from_f64(1.0),
+                Interval::from_f64(3.0),
+            ),
+            Vec3::new(Interval::zero(), Interval::zero(), Interval::from_f64(1.0)),
+            Interval::from_f64(2.0),
+            Vec3::new(Interval::from_f64(1.0), Interval::zero(), Interval::zero()),
+        )
     };
     let cyl_center = Point3::new(
         Interval::from_f64(1.0),

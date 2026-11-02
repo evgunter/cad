@@ -60,8 +60,8 @@ use crate::wire_legal_union_refusals as sunk;
 use editor_core::pose::{PoseRole, RoleRead};
 use editor_core::{
     Bodies, BooleanValue, DocEdit, EntityKey, Entry, Formula, LoopProgram, MintId, Node, NodeMap,
-    Operand, ProfileDoc, RecipeNodeId, StepId, StepMap, TargetAxis, ValuePayload, VarId,
-    remap_name,
+    Operand, ProfileDoc, RecipeNodeId, SectionId, SectionMap, StepId, StepMap, TargetAxis,
+    ValuePayload, VarId, remap_name,
 };
 use geom_core::Tol;
 
@@ -144,7 +144,7 @@ impl Ledger {
 
     /// `doc`'s ids carried to their canonical ids, as [`remap_name`]
     /// takes them.
-    fn maps(&self, doc: &ProfileDoc) -> (NodeMap, StepMap, BTreeMap<VarId, VarId>) {
+    fn maps(&self, doc: &ProfileDoc) -> (NodeMap, StepMap, SectionMap, BTreeMap<VarId, VarId>) {
         let mint = doc.mint();
         let nodes = doc
             .ids()
@@ -155,6 +155,10 @@ impl Ledger {
             .steps()
             .map(|s| (s, StepId(self.canonical(s.0))))
             .collect();
+        let sections = mint
+            .sections()
+            .map(|s| (s, SectionId(self.canonical(s.0))))
+            .collect();
         let mut reads: BTreeMap<VarId, VarId> = mint
             .vars()
             .map(|v| (v, VarId(self.canonical(v.0))))
@@ -162,7 +166,7 @@ impl Ledger {
         // The read no node defines, which a kernel-built name cites.
         let none = VarId(MintId::new(0, 0));
         reads.insert(none, none);
-        (nodes, steps, reads)
+        (nodes, steps, sections, reads)
     }
 
     /// `debug` with every raw minted id in it spelled by its span.
@@ -213,6 +217,7 @@ fn next_ordinal(doc: &ProfileDoc) -> u32 {
     let mint = doc.mint();
     let nodes = doc.ids().into_iter().map(|n| n.0.ordinal());
     let steps = mint.steps().map(|s| s.0.ordinal());
+    let sections = mint.sections().map(|s| s.0.ordinal());
     let vars = mint.vars().map(|v| v.0.ordinal());
     let constraints = doc
         .ids()
@@ -226,6 +231,7 @@ fn next_ordinal(doc: &ProfileDoc) -> u32 {
         .flatten();
     nodes
         .chain(steps)
+        .chain(sections)
         .chain(vars)
         .chain(constraints)
         .max()
@@ -298,7 +304,7 @@ fn published_in(
     if matches!(value.payload, ValuePayload::Boolean(BooleanValue::Empty)) {
         return Published::Empty;
     }
-    let (nodes, steps, reads) = ledger.maps(doc);
+    let (nodes, steps, sections, reads) = ledger.maps(doc);
     let var = ev
         .output_var(node, port)
         .expect("the node defines the port");
@@ -306,7 +312,7 @@ fn published_in(
     let mut names: BTreeMap<(u32, EntityKey), Vec<String>> = BTreeMap::new();
     let mut entries = Vec::new();
     for (n, e) in table.iter() {
-        let spelled = match remap_name(n, &nodes, &steps, &reads) {
+        let spelled = match remap_name(n, &nodes, &steps, &sections, &reads) {
             Ok(c) => spelled_canonical(&format!("{c:?}")),
             Err(err) => format!(
                 "unremappable ({}): {}",

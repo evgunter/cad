@@ -250,7 +250,7 @@ fn split_half_cap(tol: Tol) -> Body<f64> {
         .edges()
         .find_map(|(e, d)| {
             let c = body.get_curve_geom(d.curve)?.certified()?;
-            let geom::Curve3::Circle { radius, .. } = c.carrier() else {
+            let geom::Curve3::Circle(geom::Circle { radius, .. }) = c.carrier() else {
                 return None;
             };
             let (t0, t1) = c.params();

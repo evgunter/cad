@@ -2,10 +2,11 @@
 id: unclaimed-half-edge-read-as-a-minus-half-in-boxes
 kind: issue
 title: a half-edge its own edge does not claim is read as that edge's minus half: 1 site(s) on this ground
-status: open
+status: parked
 opened: 2026-09-30
 priority: P3
 cost: E
+blocked_on: [cover-topo-faces]
 ---
 
 Filed by TOPO's fix pass on PR 3532 (the review's MINOR-3), which
