@@ -359,3 +359,10 @@ Adjudication:
 - The fix pass's charge items (the segment scale, the spiric charge) are on hold until Ev answers.
 - Consequence for the row-to-be: the MAJOR's fix may be the deletion of the charges, not a re-scaled charge.
 - 2026-11-02 — Ev on PR 6383: *"good catch, i missed 'encloses at every scalar' when i approved that"*. The cover follows `[simple.conditioned]`; the re-wording on PR 6383's branch stands; the fix pass deletes the per-piece f64 charges rather than re-scaling them. `[ev]` is off the title. (BOXES orchestrator)
+- 2026-11-02 — PR 6383's first fix pass (head `61c9c16f`) took every item, and the f64 charges were deleted per Ev. A FULL delta review of `82640b3a..61c9c16f` is recorded on the dual row as a post-pair confirmation. It returned APPROVE-WITH-FIXES:
+  - D1 (Gram bounds at Interval, 300 skewed cases) and D2 (signs) confirmed;
+  - M1: deleting the charges exposed the tube's squared-distance near as ill-posed at f64 (1.051e-6 for a true 1e-6). That is the "re-posed as a distance" shape the geom-core README names;
+  - M2: four non-finite screens and the spiric abs unguarded;
+  - D6: two sphere spellings.
+  
+  A second fix pass has been dispatched. The unit file's stale charge and sign text is corrected here. (BOXES orchestrator)

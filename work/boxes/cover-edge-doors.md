@@ -28,3 +28,5 @@ Where an edge door moves a verdict (a ball or box tightens), re-measure; do not 
 Closes `an-edges-extent-has-four-dispatchers`.
 
 - **`geom::spiric_period_box` becomes internal** to the cover reading once `boxes::edge_rule_box` reads the arc cover (PR 6383's review: it was left `pub` for this unit).
+
+- **`geom::spiric_period_box`'s own f64 charge** (`16ε·‖·‖₁`, kept by PR 6383 for `edge_rule_box`) retires with it, under `[simple.conditioned]`.
