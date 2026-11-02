@@ -1434,7 +1434,12 @@ pub(crate) fn face_box_rule<T: Decide>(
             ..
         } => {
             let (read, log) = geom_core::k_stats::detached(|| {
-                UnitVec3::levered(*axis, BOX_CYLINDER_AXIS, band, *radius)
+                UnitVec3::levered(
+                    *axis,
+                    BOX_CYLINDER_AXIS,
+                    band,
+                    geom_core::Lever::curvature_radius(*radius),
+                )
             });
             match read {
                 Ok(unit) => {
@@ -1722,7 +1727,10 @@ fn sphere_window<T: Decide>(
             matches!(
                 crate::validate::decide(
                     BOX_SPHERE_SEAM,
-                    Margin::levered(seam.get().dot(unit.get()), *radius),
+                    Margin::levered(
+                        seam.get().dot(unit.get()),
+                        geom_brep::ExtentBall::of_sphere(*center, *radius).lever()
+                    ),
                     band
                 ),
                 Ok(Sign::Zero)
@@ -3350,7 +3358,13 @@ pub(crate) mod tests {
             ] {
                 let what = format!("[{u0}, {u1}] {what}");
                 assert!(
-                    UnitVec3::levered(*axis, BOX_CYLINDER_AXIS, band, *radius).is_err(),
+                    UnitVec3::levered(
+                        *axis,
+                        BOX_CYLINDER_AXIS,
+                        band,
+                        geom_core::Lever::curvature_radius(*radius)
+                    )
+                    .is_err(),
                     "{what}: the levered axis must not decide, or the row reads the slab"
                 );
                 // Not the band's sweep pad: at these bands it is wider

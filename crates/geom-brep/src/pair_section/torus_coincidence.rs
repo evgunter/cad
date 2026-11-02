@@ -91,7 +91,9 @@ impl<T: Real> TorusDisplacement<T> {
     /// The displacement between `a` and `b`.
     #[must_use]
     pub fn of(a: TorusData<T>, b: TorusData<T>) -> Self {
-        let arm = a.major_radius.max(b.major_radius);
+        let arm = crate::ExtentBall::of_circle(a.center, a.major_radius)
+            .lever()
+            .max(crate::ExtentBall::of_circle(b.center, b.major_radius).lever());
         let apart = a.center - b.center;
         let core = apart.norm()
             + (a.major_radius - b.major_radius).abs()

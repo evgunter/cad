@@ -48,7 +48,7 @@ fn minted_kind(
         normal,
         u_ref,
     };
-    let extent = 2.0 * (RADII.0 + RADII.1) * f.s;
+    let extent = geom_core::test_support::fixture_lever(2.0 * (RADII.0 + RADII.1) * f.s);
     let (section, circles) = match geom_brep::plane_torus_section(&plane, &surface, extent, band) {
         Ok(S::MeridianCircles { c1, c2 }) => ("meridians", vec![c1, c2]),
         Ok(S::ConcentricCircles { c1, c2 }) => ("concentric", vec![c1, c2]),

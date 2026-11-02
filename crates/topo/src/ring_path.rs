@@ -82,7 +82,7 @@
 //! it escalate, and the caller asks another.
 
 use geom::Conic;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, Vec3};
 
 use crate::validate::decide;
 
@@ -167,17 +167,21 @@ impl<T: Decide> Quadric<T> {
     /// cylinder's or the sphere's radius, the radius of the cone's parallel through `p`, or
     /// the torus's tube radius or its parallel's through `p`, whichever
     /// is smaller.
-    pub(crate) fn lever(&self, p: Point3<T>) -> T {
+    pub(crate) fn lever(&self, p: Point3<T>) -> Lever<T> {
         match *self {
-            Self::Cylinder { radius, .. } => radius.abs(),
-            Self::Sphere { radius, .. } => radius,
-            Self::Cone { apex, axis, .. } => Self::axial(apex, axis, p).1.norm(),
+            Self::Cylinder { radius, .. } => Lever::curvature_radius(radius.abs()),
+            Self::Sphere { radius, .. } => Lever::curvature_radius(radius),
+            Self::Cone { apex, axis, .. } => {
+                Lever::curvature_radius(Self::axial(apex, axis, p).1.norm())
+            }
             Self::Torus {
                 centre,
                 axis,
                 minor,
                 ..
-            } => minor.min(Self::axial(centre, axis, p).1.norm()),
+            } => Lever::curvature_radius(minor).min(Lever::curvature_radius(
+                Self::axial(centre, axis, p).1.norm(),
+            )),
         }
     }
 
@@ -293,7 +297,10 @@ impl<T: Decide> Quadric<T> {
                 let sine = m.norm();
                 if decide(
                     "split_ring_path_span",
-                    Margin::levered(charge(sine, slack / radius), radius),
+                    Margin::levered(
+                        charge(sine, slack / radius),
+                        Lever::curvature_radius(radius),
+                    ),
                     band,
                 )? != Sign::Positive
                 {
@@ -366,7 +373,9 @@ impl<T: Decide> Quadric<T> {
                     from,
                     to: start,
                     ruling: Vec3::zero(),
-                    lever: T::zero(),
+                    // Unsourced lever: the lead piece runs along no ruling, so it has no arm;
+                    // zero reads its every sine Zero.
+                    lever: Lever::unsourced(T::zero()),
                 };
                 let radial = |k: Point3<T>| (k - centre) / major;
                 let (ef, et) = (radial(kf), radial(kt));
@@ -450,7 +459,7 @@ impl<T: Decide> Quadric<T> {
                     from: a,
                     to: b,
                     ruling: e / e.norm(),
-                    lever: e.norm(),
+                    lever: geom_brep::ExtentBall::point(base).lever_from(on),
                 }
             }
             _ => Piece::Ruling { from: a, to: b },
@@ -567,7 +576,7 @@ enum Piece<T: Real> {
         from: Point3<T>,
         to: Point3<T>,
         ruling: Vec3<T>,
-        lever: T,
+        lever: Lever<T>,
     },
 }
 
@@ -1097,7 +1106,7 @@ impl<T: Decide> Quadric<T> {
         };
         if decide(
             "split_ring_torus_meridian",
-            Margin::levered(n.dot(axis), radius),
+            Margin::levered(n.dot(axis), Lever::curvature_radius(radius)),
             band,
         )? == Sign::Zero
         {
@@ -1113,7 +1122,7 @@ impl<T: Decide> Quadric<T> {
         }
         if decide(
             "split_ring_torus_parallel",
-            Margin::levered(n.cross(axis).norm(), radius),
+            Margin::levered(n.cross(axis).norm(), Lever::curvature_radius(radius)),
             band,
         )? != Sign::Zero
         {
@@ -1365,7 +1374,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let across = p.axis.dot(dir);
                     if decide_m(
                         "split_ring_path_line_across",
-                        Margin::levered(across, p.radius),
+                        Margin::levered(across, Lever::curvature_radius(p.radius)),
                     )? == Sign::Zero
                     {
                         return Ok(None);
@@ -1453,7 +1462,7 @@ pub(crate) fn path_parity<T: Decide>(
                     // Each direction's sine carries its ends' rounding
                     // over their distance: the ruling's over the lever,
                     // the arc's over its length.
-                    let rounding = slack / lever + slack / (span.1 - span.0);
+                    let rounding = slack / lever.length() + slack / (span.1 - span.0);
                     if decide_m(
                         "split_ring_path_rulings_apart",
                         Margin::levered(charge(ruling.cross(dir).norm(), rounding), lever),
@@ -1537,12 +1546,14 @@ fn spline_crossings<T: Decide>(
         Piece::Arc(p) | Piece::Meridian(p) => (
             geom::Curve3::circle(p.centre, p.axis, p.radius, p.u_ref),
             p.span,
-            p.radius * (p.span.1 - p.span.0),
+            // Unsourced lever: the arc's length, its angular span times its radius, longer
+            // than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
+            Lever::unsourced(p.radius * (p.span.1 - p.span.0)),
         ),
         Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => (
             geom::Curve3::line(from, to - from),
             (T::zero(), T::one()),
-            (to - from).norm(),
+            geom_brep::ExtentBall::point(from).lever_from(to),
         ),
     };
     // A piece of no length (a ruled path's first, from an end already on
@@ -1551,7 +1562,7 @@ fn spline_crossings<T: Decide>(
     // (**`split_ring_path_spline_piece`**, its length).
     if decide(
         "split_ring_path_spline_piece",
-        Margin::of(charge(length, slack)),
+        Margin::of(charge(length.length(), slack)),
         band,
     )? == Sign::Zero
     {
@@ -1577,7 +1588,7 @@ fn spline_crossings<T: Decide>(
         let sine = dp.cross(da).norm() / (dp.norm() * da.norm());
         if decide(
             "split_ring_path_spline_across",
-            Margin::levered(charge(sine, slack / length), length),
+            Margin::levered(charge(sine, slack / length.length()), length),
             band,
         )? != Sign::Positive
         {
@@ -1633,8 +1644,8 @@ impl<T: Decide> ConicArc<T> {
 
 /// **Whether `t` lies inside `span`**, read at each end
 /// (**`split_ring_path_in_span`**: the parameter's distance from the
-/// end, levered at `arm`, charged `slack` metres: `slack / arm` in the
-/// parameter, [`charge`]), each reading kept whole, escalations
+/// end, metered at the rate `arm`, charged `slack` metres: `slack / arm`
+/// in the parameter, [`charge`]), each reading kept whole, escalations
 /// included.
 fn span_readings<T: Decide>(
     t: T,
@@ -1646,7 +1657,7 @@ fn span_readings<T: Decide>(
     let read = |m: T| {
         decide(
             "split_ring_path_in_span",
-            Margin::levered(charge(m, slack / arm), arm),
+            Margin::metered(charge(m, slack / arm), InfSpeed::new(arm)),
             band,
         )
     };
@@ -3042,7 +3053,7 @@ mod tests {
                 from,
                 to,
                 ruling: Vec3::zero(),
-                lever: 0.0,
+                lever: geom_brep::ExtentBall::point(from).lever(),
             };
             for (what, piece) in [
                 ("a parallel along the crest", Piece::Arc(round)),

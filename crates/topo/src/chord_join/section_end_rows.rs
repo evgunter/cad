@@ -359,10 +359,7 @@ fn a_chord_carries_the_tables_reading_of_the_plane() {
         half_angle: 0.5_f64.atan(),
         u_ref: Vec3::unit_x(),
     };
-    let reach = geom_brep::Reach::Measured {
-        at: Point3::new(0.0, 0.0, 1.0),
-        lever: 1.0,
-    };
+    let reach = geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 1.0), 1.0);
     for (tilt, want) in [
         (0.0, SectionEndReading::SquareToAxis),
         (0.3, SectionEndReading::OnPlane),
@@ -426,7 +423,7 @@ fn a_torus_square_to_its_axis_is_read_square() {
             band(),
             &cut,
             &torus,
-            SectionReach::Torus(2.5),
+            SectionReach::Torus(geom_core::test_support::fixture_lever(2.5)),
         ) {
             Ok(SectionCase::Loops { loops, .. }) => {
                 for curve in &loops {

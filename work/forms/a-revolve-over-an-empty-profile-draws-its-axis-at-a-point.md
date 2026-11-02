@@ -2,8 +2,10 @@
 id: a-revolve-over-an-empty-profile-draws-its-axis-at-a-point
 kind: issue
 title: The revolve tool's axis preview over a profile with no loops draws a zero-length axis
-status: open
+status: closed
 opened: 2026-11-02
+closed: 2026-11-02
+pr: 6401
 ---
 
 
@@ -28,3 +30,10 @@ an axis of a fixed screen length. The revolve's default axis "off its
 profile's extent" (`crates/viewer/README.md`, "A create gesture commits
 the node") meets the same question when the extrude-and-revolve unit
 builds it, so settle it there.
+
+## Closed — 2026-11-02, PR 6401
+
+The revolve tool and its axis preview are deleted: a revolve is
+inserted from the selected profile and selected, and its body is its
+own preview. A revolve of an empty profile takes the profile's y axis
+as its default and refuses `EmptyProfile` on its badge.
