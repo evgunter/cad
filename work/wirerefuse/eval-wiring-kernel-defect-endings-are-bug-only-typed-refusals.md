@@ -75,3 +75,7 @@ went with PR 5457's option (a). Two remain:
   which ending a bug-only `NullScaffold` takes there before acting.
 `ProfileRecordMissing` is no longer in `eval/mod.rs`. Re-priced in
 place: two sites, still M for the `#[should_panic]` moves.
+
+## A started draft, handed back (2026-11-02, WIRE)
+
+Dispatched and stopped under the sitting rule; nothing was pushed. Where the draft stood, for a successor (never clippy'd or tested): `NodeErrorKind::MissingSlot` deleted, the station moves, `instance_of` and `member_of` reading their slots through `declared`, with the variant's class, pncad-py tags, viewer arm and test rows gone; the two `transform_rigid` call sites in `eval` through one helper that panics on `NullScaffold` and keeps every other arm typed, with a `#[should_panic]` witness. The `parts.rs` defect endings are on DOCTAIL's part-and-refactor row.

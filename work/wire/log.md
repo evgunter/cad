@@ -7313,3 +7313,11 @@ WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestrat
 - **Handed back:** the two WIREREFUSE D9 row-typing rows, dispatched earlier today in error, are back to `open`; the lane stopped before opening a PR. WIRECOST's name-table (H) and union-fold (M) rows, WIREHOLD's section-of (M), the design rows and the P3/P4 slates go to a successor, who can pick them up as cheaply. WIRECOST goes back to `ready`; WIREHOLD and WIREREFUSE follow once their in-flight rows land.
 
 (WIRE orchestrator)
+
+## 2026-11-02 — 6332 merged; WIREREFUSE handed back
+
+- PR 6332 (dead index clamps: `as usize` from u32, `n as u64`, the loft degree compared as `usize`, the two `zip(0u32..)` sites through `names::to_u32` with `product::GRAFTED_WITHIN_U32`) read by the orchestrator: behaviour identical below every bound, no witness possible since no input reaches the clamps. `gate ok`; merged. Closed `an-indexed-reads-index-position-is-clamped-to-u8`.
+- The two D9 row-typing rows were stopped with nothing pushed; the drafts' state is appended to each row for a successor.
+- WIREREFUSE is `ready` (17/30), handed back.
+
+(WIRE orchestrator)
