@@ -4088,15 +4088,15 @@ where
     T: EvalScalar,
 {
     let prior = prior.and_then(|p| p.value(id));
-    match chains.get(&id) {
-        Some(crate::repetition::Reached::Unrelated(a, b)) => Ok(NodeStep {
+    let step = match chains.get(&id) {
+        Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
                 kind: NodeErrorKind::IndicesUnrelated { a: *a, b: *b },
                 escalations: Arc::new(Vec::new()),
             }),
             reused: false,
-        }),
+        },
         Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
             members::eval_family(
                 doc,
@@ -4108,11 +4108,34 @@ where
                 cancel,
                 op_env,
                 |env, results, prior, op_env, at| {
-                    eval_node(doc, env, id, results, prior, op_env, at, tol)
+                    let member = eval_node(doc, env, id, results, prior, op_env, at, tol);
+                    #[cfg(debug_assertions)]
+                    own_bodies(id, &member);
+                    member
                 },
-            )
+            )?
         }
-        _ => Ok(eval_node(doc, env, id, results, prior, op_env, &[], tol)),
+        _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
+    };
+    #[cfg(debug_assertions)]
+    own_bodies(id, &step);
+    Ok(step)
+}
+
+/// The names' `OWN_BODIES` invariant over a step's value: a body's
+/// tables seat rows at body 0 alone, a family's below its count.
+#[cfg(debug_assertions)]
+fn own_bodies<T: Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
+    let Some(value) = step.result.value() else {
+        return;
+    };
+    let count = match &value.payload {
+        ValuePayload::Body(_) | ValuePayload::Boolean(BooleanValue::Body { .. }) => 1,
+        ValuePayload::Instances(bodies) => bodies.len(),
+        _ => return,
+    };
+    for names in value.outputs.iter() {
+        crate::names::assert_own_bodies(names.table(), count, id);
     }
 }
 

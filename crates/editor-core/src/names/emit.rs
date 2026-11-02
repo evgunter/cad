@@ -1251,7 +1251,8 @@ pub(crate) fn name_assemble<T: geom_core::Real>(
             let moved = rows.iter().map(|e| {
                 let Some(keys) = usize::try_from(e.body).ok().and_then(|b| bridges.get(b)) else {
                     unreachable!(
-                        "assemble {node:?}: read {read:?} names body {} of {}; {OWN_BODIES}",
+                        "assemble {node:?}: read {read:?} names body {}, past its {} (or past a \
+                         usize); {OWN_BODIES}",
                         e.body,
                         bridges.len()
                     )
@@ -1299,16 +1300,36 @@ pub(crate) fn name_assemble<T: geom_core::Real>(
 }
 
 /// Why a value's table names only the output bodies the value holds:
-/// every emitter mints one body's rows at 0 and a family's at each
-/// member's index, and every pass-through (a copy, a lone member, a
-/// projection, a pick) hands a table on beside a value of its count.
+/// a one-body output's rows sit at 0 and a family's at each member's
+/// index. Debug builds check it on every node result the evaluator
+/// writes ([`assert_own_bodies`]).
 const OWN_BODIES: &str = "a value's table names only the output bodies the value holds";
 
-/// Why an assembled member's row has an image in the fused body: a
+/// Why an assembled or gathered row has an image in the grafted body: a
 /// graft's bridge is total over its source's live entities, a rigid
-/// read keeps the member's keys, and a member's rows name only its live
-/// entities.
-const GRAFT_TOTAL: &str = "a graft's bridge is total over the live entities a member's rows name";
+/// read keeps the source's keys, and the source's rows name its live
+/// entities ([`LIVE_ARGUMENT`]'s table leg, which [`check_total`]
+/// checks in debug builds).
+pub(crate) const GRAFT_TOTAL: &str =
+    "a graft's bridge is total over its source's live entities, which its rows name";
+
+/// [`OWN_BODIES`], checked: every row of `table` sits at an output body
+/// below `count`.
+#[cfg(debug_assertions)]
+#[track_caller]
+pub(crate) fn assert_own_bodies(table: &NameTable, count: usize, node: RecipeNodeId) {
+    for (name, row) in table.rows() {
+        for (_, e) in row.pairs() {
+            assert!(
+                usize::try_from(e.body).is_ok_and(|b| b < count),
+                "{node:?}'s value holds {count} bodies, though its table seats {:?} at body {}; \
+                 {OWN_BODIES}",
+                name.kind,
+                e.body
+            );
+        }
+    }
+}
 
 /// Per-body topology walk products the emitters share: half-edge
 /// incidence (vertex → edges, edge → faces) built in ONE deterministic
@@ -1539,13 +1560,31 @@ pub(crate) fn edge_ends<T: geom_core::Real>(body: &Body<T>, e: EdgeKey) -> (Vert
 
 /// TOTALITY (spec D4): every live face/edge/vertex of `body` (output
 /// body index `ix`) is covered by the table, plus the body row
-/// itself.
+/// itself. Debug builds check the converse too: every row at `ix`
+/// names a live entity of `body`, and a body key only under a body
+/// name.
 pub(crate) fn check_total<T: geom_core::Real>(
     table: &NameTable,
     body: &Body<T>,
     ix: u32,
 ) -> Result<(), NamingError> {
     let miss = |kind| NamingError::Unnamed { kind, body: ix };
+    #[cfg(debug_assertions)]
+    for (name, row) in table.rows() {
+        for (_, e) in row.pairs().filter(|(_, e)| e.body == ix) {
+            let live = match e.key {
+                EntityKey::Body => name.kind == EntityKind::Body,
+                EntityKey::Face(f) => body.get_face(f).is_some(),
+                EntityKey::Edge(k) => body.get_edge(k).is_some(),
+                EntityKey::Vertex(v) => body.get_vertex(v).is_some(),
+            };
+            assert!(
+                live,
+                "a {:?} name's row at body {ix} names {:?}, which is not a live entity of it",
+                name.kind, e.key
+            );
+        }
+    }
     if table.name_of(&ent(ix, EntityKey::Body)).is_none() {
         return Err(miss(EntityKind::Body));
     }
