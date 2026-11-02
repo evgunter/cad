@@ -747,6 +747,52 @@ fn near_parallel_walls_refuse_as_a_tangency() {
     assert_eq!(tangent(&classify(&a, &b)), "cc_axes_parallel");
 }
 
+/// **A cylinder pair the region cuts is marched, and its cut arcs clear
+/// as unbounded.** A wall of radius `0.5` about `z` and one `0.05` rad
+/// off it, `0.1` apart: their own ball (about `20` across) straddles a
+/// region of radius `1.5` about the origin, so the pair's components are
+/// the march's, two arcs that end on the region, each unbounded (W1).
+#[test]
+fn a_cylinder_pair_the_region_cuts_marches_two_unbounded_arcs() {
+    let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 0.5);
+    let b = cylinder(p(0.1, 0.0, 0.0), v(0.0, 0.05f64.sin(), 0.05f64.cos()), 0.5);
+    let s = super::classify(
+        &a,
+        &b,
+        super::Reach {
+            centre: p(0.0, 0.0, 0.0),
+            radius: 1.5,
+        },
+        Some(geom_brep::ExtentBall::new(p(0.0, 0.0, 0.0), 1.5)),
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    );
+    let (count, _, _, _, unbounded) = shape(&s);
+    assert_eq!(count, 2, "two arcs: {s:?}");
+    assert_eq!(unbounded, vec![true, true], "each cut by the region: {s:?}");
+}
+
+/// **A tangent ruling is an unbounded component, not a tangency.** Two
+/// parallel walls touching along one ruling, outside (`r₁ + r₂ = d`) and
+/// inside (`|r₁ − r₂| = d`): the ruling runs out of the region at both
+/// ends, so W1 clears it whatever the touch, which the tangent locus
+/// reads (C7).
+#[test]
+fn a_tangent_ruling_reads_as_an_unbounded_component() {
+    let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
+    for (what, b) in [
+        ("outside", cylinder(p(1.5, 0.0, 0.0), Vec3::unit_z(), 0.5)),
+        ("inside", cylinder(p(0.5, 0.0, 0.0), Vec3::unit_z(), 0.5)),
+    ] {
+        let s = classify(&a, &b);
+        assert_eq!(
+            shape(&s),
+            (1, true, vec![false], vec![false], vec![true]),
+            "{what}: {s:?}"
+        );
+    }
+}
+
 /// A plane section of a wall is essential or unbounded on the wall, and
 /// its count is never certified single (two rulings or one ellipse).
 #[test]

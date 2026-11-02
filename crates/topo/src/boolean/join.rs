@@ -947,9 +947,9 @@ fn matched_records<T: Decide>(
 /// used, both name one locus on both operands, and that locus pair's
 /// section is curved, so the record's germs, at one site of one loop of
 /// it, can only match each other. Its A germ and the loop its branch
-/// names, `None` for a pair the section table holds, whose section is
-/// read by its components and not by a frame
-/// ([`super::section_table`]).
+/// names, `None` for a pair the join reads from the section table, whose
+/// section is read by its components and not by a frame
+/// ([`super::section_table::SectionTable::held_at_the_join`]).
 #[allow(clippy::type_complexity)] // (germ, its loop)
 fn one_site<T: Decide>(
     red: &BooleanReduction<T>,
@@ -964,7 +964,7 @@ fn one_site<T: Decide>(
         && g0.b_locus.edge().is_none()
         && red
             .sections
-            .held((&red.a, g0.a_face), (&red.b, g0.b_face))
+            .held_at_the_join((&red.a, g0.a_face), (&red.b, g0.b_face))
             .is_some()
     {
         return Ok(Some((g0, None)));
@@ -1034,9 +1034,10 @@ fn one_site_segments<T: Decide>(
     let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
     let mut out = Vec::new();
     for (r, rec) in open.iter().enumerate() {
-        // A pair the section table holds closes at no one site this join
-        // builds: every closing [`closes_at_its_site`] admits has a planar
-        // partner or a closed edge. Its record is left to the refusal.
+        // A pair the join reads from the section table closes at no one
+        // site this join builds: every closing [`closes_at_its_site`]
+        // admits has a planar partner or a closed edge. Its record is
+        // left to the refusal.
         let Some((g0, Some(frame))) = one_site(red, rec, band)? else {
             continue;
         };

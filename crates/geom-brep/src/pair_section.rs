@@ -1074,6 +1074,23 @@ pub fn serves(kind: SurfaceKind) -> bool {
     }
 }
 
+/// **Whether a pair of kinds `a` and `b` is traced in ℝ³** (C3): each
+/// side enters the section through its implicit residual where it has
+/// one in metres (a plane, a cylinder, a sphere, a torus), else through
+/// its chart, so the pair is traced in ℝ³ where both sides have one. Only
+/// such a pair is read over the operation's region; a chart side's knot
+/// rectangle bounds the pair, and the region never cuts it.
+#[must_use]
+pub fn traced_in_r3(a: SurfaceKind, b: SurfaceKind) -> bool {
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    // The cone's residual is not in metres yet (C2 limb 2).
+    let residual = |kind| match kind {
+        Plane | Cylinder | Sphere | Torus => true,
+        Cone | Nurbs | Approx => false,
+    };
+    residual(a) && residual(b)
+}
+
 /// The C7 note a tangent component carries.
 const TANGENT_COMPONENT: &str =
     "the surfaces are tangent along it or at it, a C7 construction the section does not mint";

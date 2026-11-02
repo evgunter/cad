@@ -197,24 +197,14 @@ impl<T: geom_core::Decide> SectionTable<T> {
     }
 
     /// **The region a pair of `sa` and `sb` is read over** (C3, C5): the
-    /// operation's, for a pair traced in ℝ³ (both sides an implicit
-    /// residual in metres), and none for a pair with a chart side, whose
-    /// knot rectangle bounds it and which the region never cuts.
+    /// operation's, for a pair traced in ℝ³
+    /// ([`geom_brep::pair_section::traced_in_r3`]), and none otherwise.
     pub(crate) fn region_for(
         &self,
         sa: &geom::Surface<T>,
         sb: &geom::Surface<T>,
     ) -> Option<ExtentBall<T>> {
-        let traced_in_r3 = |s: &geom::Surface<T>| match s {
-            geom::Surface::Plane { .. }
-            | geom::Surface::Cylinder { .. }
-            | geom::Surface::Sphere { .. }
-            | geom::Surface::Torus { .. } => true,
-            geom::Surface::Cone { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
-                false
-            }
-        };
-        (traced_in_r3(sa) && traced_in_r3(sb))
+        geom_brep::pair_section::traced_in_r3(sa.kind(), sb.kind())
             .then_some(self.region)
             .flatten()
     }
@@ -252,6 +242,40 @@ impl<T: geom_core::Decide> SectionTable<T> {
         )
     }
 
+    /// **Whether the join reads the pair of `a` and `b` from the table**:
+    /// every pair the table holds but two cylinders, which the join reads
+    /// through its own frame and bisector lanes
+    /// (`join::cylinder_pair_frame`, `node.rs`) and not the value, whose
+    /// bisector arcs a site at a node lies on more than one of. The one
+    /// gate both of the join's readings ([`Self::held_at_the_join`],
+    /// [`Self::carried_at_the_join`]) take.
+    fn join_reads(a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> bool {
+        let cylinder = |(body, f): (&Body<T>, FaceKey)| {
+            body.get_face(f)
+                .and_then(|face| body.get_surface(face.surface))
+                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
+        };
+        !(cylinder(a) && cylinder(b))
+    }
+
+    /// [`Self::held`], for the join ([`Self::join_reads`]).
+    pub(crate) fn held_at_the_join(
+        &self,
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+    ) -> Option<&Result<PairSection<T>, SectionError>> {
+        Self::join_reads(a, b).then(|| self.held(a, b)).flatten()
+    }
+
+    /// [`Self::carried`], for the join ([`Self::join_reads`]).
+    pub(crate) fn carried_at_the_join(
+        &self,
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+    ) -> Option<Result<&CarriedSection<T>, Uncarried<'_>>> {
+        Self::join_reads(a, b).then(|| self.carried(a, b)).flatten()
+    }
+
     /// **Component `k` of the pair's carried section, seated**
     /// ([`PairSection::seat`]) at its parameter `at`, on the first ask
     /// for that component, and held for the operation: every chord cut
@@ -263,27 +287,6 @@ impl<T: geom_core::Decide> SectionTable<T> {
     /// reads it once per component, from the section and its sites alone
     /// (`join::carried_seats`), before any chord is cut, so the seat held
     /// is the one every later ask names, whichever segment asks first.
-    /// **[`Self::carried`], for the join**: every pair the table holds
-    /// but two cylinders, which the join reads through its own frame and
-    /// bisector lanes (`join::cylinder_pair_frame`, `node.rs`) and not
-    /// the value, whose bisector arcs a site at a node lies on more than
-    /// one of.
-    pub(crate) fn carried_at_the_join(
-        &self,
-        a: (&Body<T>, FaceKey),
-        b: (&Body<T>, FaceKey),
-    ) -> Option<Result<&CarriedSection<T>, Uncarried<'_>>> {
-        let cylinder = |(body, f): (&Body<T>, FaceKey)| {
-            body.get_face(f)
-                .and_then(|face| body.get_surface(face.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
-        };
-        if cylinder(a) && cylinder(b) {
-            return None;
-        }
-        self.carried(a, b)
-    }
-
     pub(crate) fn seated(
         &self,
         a: (&Body<T>, FaceKey),

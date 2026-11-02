@@ -224,20 +224,33 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
             .is_some_and(&keep)
     };
     let pad = boxes::sweep_pad(band);
-    let b_keys: Vec<FaceKey> = b.faces().map(|(k, _)| k).filter(|&k| kept(b, k)).collect();
-    let b_boxes = b_keys
-        .iter()
-        .map(|&k| boxes::face_box(b, k, pad, band))
-        .collect::<Result<Vec<_>, BooleanError>>()?;
+    let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
+        body.faces()
+            .map(|(k, _)| k)
+            .filter(|&k| kept(body, k))
+            .map(|k| Ok((k, boxes::face_box(body, k, pad, band)?)))
+            .collect()
+    };
+    pairs_among(&boxed(a)?, &boxed(b)?)
+}
+
+/// **The cross pairs among two lists of face boxes whose boxes
+/// overlap**, in `a`'s order and `b`'s within each.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where the face tree returns
+/// an index past its input.
+fn pairs_among(
+    a: &[(FaceKey, bvh::Aabb)],
+    b: &[(FaceKey, bvh::Aabb)],
+) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
+    let b_boxes: Vec<bvh::Aabb> = b.iter().map(|&(_, bx)| bx).collect();
     let tree = bvh::Bvh::build(&b_boxes);
     let mut out = Vec::new();
-    for (fa, _) in a.faces() {
-        if !kept(a, fa) {
-            continue;
-        }
-        let box_a = boxes::face_box(a, fa, pad, band)?;
+    for &(fa, box_a) in a {
         for i in tree.overlapping(&box_a) {
-            let fb = *b_keys.get(i).ok_or(BooleanError::ClassificationInvariant {
+            let &(fb, _) = b.get(i).ok_or(BooleanError::ClassificationInvariant {
                 what: "the glue door: the face tree returned an index past its input",
             })?;
             out.push((fa, fb));
@@ -298,22 +311,32 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     // operands' boxes, each the hull of its faces' boxes at the sweep's
     // pad, which holds every section point the operation can use; none
     // where the boxes do not overlap, so that no face pair does.
+    // Each face's box once: every face's for the region, the served
+    // faces' for the pairs.
     let pad = boxes::sweep_pad(band);
-    let hull = |body: &Body<T>| -> Result<Option<bvh::Aabb>, BooleanError> {
-        let mut out: Option<bvh::Aabb> = None;
-        for (f, _) in body.faces() {
-            let b = boxes::face_box(body, f, pad, band)?;
-            out = Some(out.map_or(b, |h| h.hull(&b)));
-        }
-        Ok(out)
+    let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
+        body.faces()
+            .map(|(k, _)| Ok((k, boxes::face_box(body, k, pad, band)?)))
+            .collect()
     };
-    let region = match (hull(a)?, hull(b)?) {
+    let (a_boxes, b_boxes) = (boxed(a)?, boxed(b)?);
+    let hull = |boxed: &[(FaceKey, bvh::Aabb)]| {
+        boxed.iter().map(|&(_, bx)| bx).reduce(|h, bx| h.hull(&bx))
+    };
+    let region = match (hull(&a_boxes), hull(&b_boxes)) {
         (Some(ha), Some(hb)) if ha.overlaps(&hb) => Some(overlap_ball(&ha, &hb)),
         _ => None,
     };
+    let served = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)]| -> Vec<(FaceKey, bvh::Aabb)> {
+        boxed
+            .iter()
+            .filter(|&&(k, _)| surface(body, k).is_some_and(|(_, s)| read(&s)))
+            .copied()
+            .collect()
+    };
     let mut table = SectionTable::reader(lane, region, band);
     let mut rows = Vec::new();
-    for (fa, fb) in overlapping_pairs(a, b, read, band)? {
+    for (fa, fb) in pairs_among(&served(a, &a_boxes), &served(b, &b_boxes))? {
         let (Some((ka, sa)), Some((kb, sb))) = (surface(a, fa), surface(b, fb)) else {
             continue;
         };
@@ -416,9 +439,9 @@ mod region_rows {
 
     /// **The operation's region is the ball about the operands' box
     /// overlap**: two unit-high bricks overlapping in `[0.5, 1]` along
-    /// `x` read a ball about the overlap's centre, out to its
-    /// half-diagonal and the pad, which holds the overlap and is far
-    /// short of either brick's own ball; bricks apart read none.
+    /// `x` read a ball about the padded overlap's centre, out to its
+    /// half-diagonal, which holds the overlap and is far short of either
+    /// brick's own ball; bricks apart read none.
     #[test]
     fn the_region_is_the_ball_about_the_operands_box_overlap() {
         let tol = Tol::witness();
@@ -435,12 +458,16 @@ mod region_rows {
         };
         let got = region(&brick::<f64>((0.5, 3.0), (0.0, 1.0), (0.0, 1.0), tol))
             .expect("the boxes overlap");
+        // Each face box is padded by the sweep's pad, so the overlap is
+        // `[0.5 − p, 1 + p] × [−p, 1 + p]²`.
+        let pad = super::boxes::sweep_pad(band);
         let centre = Point3::new(0.75, 0.5, 0.5);
-        assert!((got.center() - centre).norm() < 1e-6, "{got:?}");
-        let half_diagonal = (0.25f64 * 0.25 + 0.5 * 0.5 + 0.5 * 0.5).sqrt();
+        assert!((got.center() - centre).norm() < 1e-12, "{got:?}");
+        let half = |w: f64| 0.5 * (w + 2.0 * pad);
+        let radius = (half(0.5).powi(2) + 2.0 * half(1.0).powi(2)).sqrt();
         assert!(
-            got.radius() >= half_diagonal && got.radius() < half_diagonal + 1e-3,
-            "{got:?}"
+            (got.radius() - radius).abs() < 1e-12,
+            "{got:?} against the padded overlap's half-diagonal {radius}"
         );
         let far = brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol);
         assert!(region(&far).is_none(), "apart: no region");
