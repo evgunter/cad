@@ -11,10 +11,10 @@ refs: [the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar, the-sphere-
 
 ## What
 
-Tier 3 is to read a cone apex's side through the cone door
-(`the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band`
-owes that switch, through `boolean::cycle_side`); the boolean reads a
-point at an apex through it today. At the apex the door walks generators aimed at the
+Tier 3 reads a cone apex's side through the cone door
+(`boolean::cycle_side`, since
+`the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band`),
+as the boolean reads a point at an apex through it. At the apex the door walks generators aimed at the
 boundary (`crates/topo/src/boolean/ruled_region.rs`, `contains`'s
 `at_apex` arm). A generator is a line leg, placed by a dot product, so
 the sphere door's antipode reading has no twin there. But a generator's

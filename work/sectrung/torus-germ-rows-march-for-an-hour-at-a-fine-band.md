@@ -90,3 +90,21 @@ nightly has no 300 s cap.
 - `torus_doors_join::a_rod_off_the_axis_line_stops_at_the_join`
 - `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_join`
 - `verbs_cylsph_opening::a_transversal_pose_reaches_the_join_lane_in_both_poses`
+
+## On the nightly runner, and with debug assertions off (GREEN's slow-test census, 2026-11-02)
+
+Nightly run 41276693129 (11-01, the `full-suite` job's 1e-12 row 40.3
+minutes of 129): the spins row 1 105 s (red), drum × donut 592 s, two
+donuts 574 s, ball × donut (`germ_sphere_torus_placements`) 239 s, ball
+round the axis 144 s, radial hole 132 s; at the default ε 174 s, 99 s,
+103 s, 35 s, 20 s, 19 s. Sweep is 64 % of the 1e-12 row's test-seconds,
+and this file's rows above 60 s are about half of it. On the cancelled
+10-31 run the spins row had passed 960 s and the drum row 720 s when the
+job hit its limit.
+
+Debug assertions are not the cost: at opt-level 2 with assertions and
+overflow checks off, two donuts took 118 s against 121 s on, and the
+spins row 211 s against 217 s at the default ε and 1 388 s against
+1 386 s at 1e-12. The per-operation
+latency this implies on everyday shapes is filed as its own row,
+`a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build`.

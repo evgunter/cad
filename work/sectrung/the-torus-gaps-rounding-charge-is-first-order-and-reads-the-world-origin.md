@@ -91,3 +91,12 @@ The pose is a pipe along the core's tangent, R 81.4, and it reads
 `Tangent("ct_critical_gap")`. It fails identically on the PR's
 merge-base, so the PR did not cause it. It is a large pose read as a
 tangency, the same shape as above. Not traced.
+
+## Another seed (RESTCURVE's two-leg lane, 2026-11-02)
+
+At ε 1e-12, `section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`
+failed once on the same path: `CAD_FUZZ_SEED=0x113c9b6f5c311a58
+CAD_FUZZ_EFFORT=1`, "a pipe along the core's tangent", `R 71.173`,
+`r 39.160`, `z0 −1.71e-10`, tilt 0: R-tan at
+`Degeneracy { tangent: 1.71e-10, top: 1.71e-10 }`:
+`Tangent("ct_critical_gap_straddle")`.

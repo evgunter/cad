@@ -2950,7 +2950,7 @@ fn split_port<T: Decide>(
     });
     let (of, index, projected) = projected(split, value, body, names, half.output_body())?;
     // A half carries its own side's records, keyed in its arena.
-    let at = usize::try_from(half.output_body()).unwrap_or(usize::MAX);
+    let at = half.output_body() as usize;
     let carry = value.carry.member(at).clone();
     Ok(Some((of, index, super::NodeValue { carry, ..projected })))
 }
