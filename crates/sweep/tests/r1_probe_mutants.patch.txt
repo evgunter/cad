@@ -1,0 +1,57 @@
+diff --git a/crates/topo/src/boolean/fan.rs b/crates/topo/src/boolean/fan.rs
+index 099c6e7c..f6978035 100644
+--- a/crates/topo/src/boolean/fan.rs
++++ b/crates/topo/src/boolean/fan.rs
+@@ -262,6 +262,7 @@ pub(super) fn meeting<T: Decide>(
+             match decide("bool_fans_meet", Margin::levered(m.disc, arm), band).map_err(escalate)? {
+                 Sign::Negative => Ok(Meeting::Rays(Vec::new())),
+                 Sign::Zero => Err(tangency()),
++                Sign::Positive if std::env::var("R1_MUT").as_deref() == Ok("M6") => Ok(Meeting::Rays(Vec::new())),
+                 Sign::Positive => Ok(Meeting::Rays(m.rulings().to_vec())),
+             }
+         }
+@@ -315,6 +316,7 @@ fn plane_fan<T: Decide>(
+         }
+         Err(section) => return Err(BooleanError::from(section)),
+     };
++    if std::env::var("R1_MUT").as_deref() == Ok("M5") { return Ok(Meeting::Rays(Vec::new())); }
+     let mut rays = Vec::with_capacity(2);
+     for line in lines {
+         let geom::Curve3::Line { dir, .. } = line else {
+@@ -340,6 +342,7 @@ pub(super) fn fans_overlap<T: Decide>(
+     b: &BoolSector<T>,
+     band: Band,
+ ) -> Result<bool, BooleanError> {
++    if std::env::var("R1_MUT").as_deref() == Ok("M3") { return Ok(false); }
+     let (Some(pa), Some(pb)) = (a.apex(), b.apex()) else {
+         unreachable!("fans_overlap reads two fans")
+     };
+@@ -456,6 +459,7 @@ pub(super) fn nappe_classes<T: Decide>(
+                 Sign::Positive if !apex.material_inside() => SideCode::In,
+                 Sign::Negative | Sign::Positive => SideCode::Out,
+             };
++            let class = if std::env::var("R1_MUT").as_deref() == Ok("M4") { match class { SideCode::In => SideCode::Out, SideCode::Out => SideCode::In, c => c } } else { class };
+             Ok((he, class))
+         })
+         .collect()
+diff --git a/crates/topo/src/boolean/sectors.rs b/crates/topo/src/boolean/sectors.rs
+index 33e23975..29a3410c 100644
+--- a/crates/topo/src/boolean/sectors.rs
++++ b/crates/topo/src/boolean/sectors.rs
+@@ -478,6 +478,7 @@ fn partner_cuts<T: Decide>(
+     faces: &[BoolFace<T>],
+     band: Band,
+ ) -> Result<(), BooleanError> {
++    if std::env::var("R1_MUT").as_deref() == Ok("M1") { return Ok(()); }
+     let mut k = 0;
+     while k < sectors.len() {
+         let s = sectors[k].clone();
+@@ -613,7 +614,7 @@ fn push_apex_corner<T: Decide>(
+     // The vertex–vertex lane's quarters: the window, read from the next
+     // bound in the face's sweep (the whole turn where the bounds are one
+     // ruling), in four equal turns, the own bound's side first.
+-    if !matches!(partners, Partners::Pierced(_)) {
++    if !matches!(partners, Partners::Pierced(_)) && !(std::env::var("R1_MUT").as_deref() == Ok("M2")) {
+         let window = apex.azimuth_from(unit_start, unit_end);
+         rulings = [T::from_f64(0.75), T::from_f64(0.5), T::from_f64(0.25)]
+             .into_iter()

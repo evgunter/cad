@@ -1352,6 +1352,8 @@ mod fallback_rows_review;
 mod a_box_along_a_fillets_line_arc_junction;
 #[path = "a_cone_apex_meets_a_vertex.rs"]
 mod a_cone_apex_meets_a_vertex;
+#[path = "r1_probe_cone_apex.rs"]
+mod r1_probe_cone_apex;
 #[path = "a_cone_apex_on_a_plane_through_it.rs"]
 mod a_cone_apex_on_a_plane_through_it;
 #[path = "a_cylinder_resting_on_a_box_top_grazes_along_a_line.rs"]
