@@ -226,3 +226,29 @@ fn r1_removing_an_unknown_constraint_refuses_typed() {
     std::fs::remove_dir_all(&bench.dir).expect("removable");
     assert!(outcome.refusal.is_some(), "refused");
 }
+
+/// Decided: "a number typed on a freedom that survives is kept". A
+/// number typed on a freedom the draft's mates then take must not leave
+/// the draft with no Apply: the panel has no door that un-types it.
+#[test]
+fn r1_a_number_typed_on_a_freedom_a_later_kind_takes_does_not_wedge_the_draft() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r1-typed", tol);
+    let session = asm::open_bench(&bench, tol);
+    let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), post_top);
+    tool.pick(session.doc(), shelf_bottom);
+    let mut tool = tool.chosen(choice(VarKind::Plane, true)).expect("a rest");
+    tool.type_value(Coord::Slide(TargetAxis::X), common::len(0.01));
+    assert!(
+        common::proposed(&session, &tool, choice(VarKind::Plane, true)).is_ok(),
+        "the premise: the rest leaves x"
+    );
+    let changed = common::proposed(&session, &tool, choice(VarKind::Point, false));
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+    assert!(
+        changed.is_ok(),
+        "the draft has no Apply once a kind takes the typed freedom: {changed:?}"
+    );
+}
