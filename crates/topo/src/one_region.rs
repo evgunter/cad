@@ -167,6 +167,53 @@ enum Read {
     Exempt,
 }
 
+/// **The face's door at `q`, its surface cycles `cut` kept**
+/// ([`crate::boolean::cycle_side`]): `Ok(Some(true))` on the face's side
+/// of them, `Ok(Some(false))` off it, `Ok(None)` unplaced. The one mapping
+/// of the door's answer both of tier 3's region readings take: this
+/// module's cycles, and a chart singularity's side (`crate::validate`'s
+/// check 6). Unplaced, exempt (the module docs): on a kept cycle by the
+/// door's own boundary reading, a face no door reads, no path settled,
+/// an edge whose carrier's reading cannot cross it, or an arc wound past
+/// a turn (which the doors carry as `CorruptFace`, as they carry a
+/// builder's unresolved key, which tiers 1 and 2 refuse first).
+///
+/// # Errors
+///
+/// A reading in band, with its escalation.
+///
+/// # Panics
+///
+/// On an answer the cut reading does not give: an edge or a vertex (it
+/// reads the region alone, whose boundary reading answers `None`), a
+/// carrier, or a door refusal other than those above.
+pub(crate) fn door_side<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    cut: &[usize],
+    q: geom_core::Point3<T>,
+    band: Band,
+) -> Result<Option<bool>, geom_core::Indeterminate> {
+    match crate::boolean::cycle_side(body, face, cut, q, band) {
+        Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => Ok(Some(true)),
+        Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => Ok(Some(false)),
+        Ok(CurvedPlacement::Trim(None)) => Ok(None),
+        Ok(CurvedPlacement::Trim(Some(
+            FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_),
+        ))) => unreachable!("a cut reading reads the region alone, which places no edge"),
+        Ok(CurvedPlacement::OffCarrier) => unreachable!("a cut reading reads no carrier"),
+        Err(ContainError::Escalated { diag, .. }) => Err(diag),
+        Err(
+            ContainError::RayExhausted
+            | ContainError::Curved(
+                PointInSolidError::EdgeCarrierUnsupported { .. }
+                | PointInSolidError::CorruptFace { .. },
+            ),
+        ) => Ok(None),
+        Err(other) => unreachable!("the curved doors answer no {other:?}"),
+    }
+}
+
 /// `cycle` read against the cycles `cut` at each of its vertices in walk
 /// order (module docs).
 fn read_cycle<T: Decide>(
@@ -187,31 +234,14 @@ fn read_cycle<T: Decide>(
         else {
             continue;
         };
-        match crate::boolean::cycle_side(body, face, cut, *q, band) {
-            Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => return Read::Face,
-            Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => return Read::Off(vertex),
-            // On a cycle of the cut, or a face no door reads.
-            Ok(CurvedPlacement::Trim(
-                None | Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)),
-            )) => {}
-            Ok(CurvedPlacement::OffCarrier) => {
-                unreachable!("a cut reading reads no carrier")
-            }
-            Err(ContainError::Escalated { diag, .. }) => {
+        match door_side(body, face, cut, *q, band) {
+            Ok(Some(true)) => return Read::Face,
+            Ok(Some(false)) => return Read::Off(vertex),
+            // On a cycle of the cut, or unplaced.
+            Ok(None) => {}
+            Err(diag) => {
                 in_band.get_or_insert((vertex, diag));
             }
-            // Unplaced, exempt (the module docs): no path settled; an edge
-            // whose carrier's reading cannot cross it; an arc wound past a
-            // turn, which the doors carry as `CorruptFace`, as they carry a
-            // builder's unresolved key (which tiers 1 and 2 refuse first).
-            Err(
-                ContainError::RayExhausted
-                | ContainError::Curved(
-                    PointInSolidError::EdgeCarrierUnsupported { .. }
-                    | PointInSolidError::CorruptFace { .. },
-                ),
-            ) => {}
-            Err(other) => unreachable!("the curved doors answer no {other:?}"),
         }
     }
     in_band.map_or(Read::Exempt, |(at, diag)| Read::InBand(at, diag))
