@@ -196,3 +196,19 @@ AUTHOR's narrative is recoverable from
 - `a-fillet-on-a-drawn-unions-operand-is-drawn-nowhere`: closed — drawn by SPACES' PR 6265; the `∪`-operand re-point is superseded (a `∪` is drawn as its result, not a seen path).
 - `a-split-of-a-drawn-body-is-drawn-unsplit`: live for a *placed* body only (`add_split` writes a bare `Split`, no takeover); P0→P1 M, a faithful elaboration of §5′.3 (a) (take the target over to `⊔[above, below]`, as blend/pattern do). Dispatched as `doors/split-takes-over`. Tier: style review + correctness reviewer (a wrong picture). The lane also fixes two stale texts the re-read found: `INTENT-STAGE3-SPEC.md:493`'s "`⊔`/`∪` operand slot" (6209 made it `⊔` only — a wording consequence of the ratified rule) and `op.rs:777`'s `AddMirror` doc.
 - `the-mirror-keeps-two-pieces-…`: open, design, P1→P2 (a missing feature; adding `⊔` output changes 6209's ratified README sentence). Tail for a successor; not this sitting.
+
+## 2026-11-02 08:45 — P1 `a-split-of-a-drawn-body-is-drawn-unsplit` merges (PR 6331)
+
+- Style + correctness reviews, one fix pass (the shared successor query had been widened for every door; now the split passes its own halves as `intact`), re-verify says merge. CI green at `b572bc4803`.
+- Residue filed: `a-split-half-cannot-be-split` (P3 E), `a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it` (P3 M); `a-takeover-could-re-seat-a-pick-its-result-keeps`'s premise corrected in place.
+
+## 2026-11-02 10:10 — P1 `a-clearance-assertion-is-decided-by-the-sweep` merges (PR 6292)
+
+- Correctness review → fix pass (M1: an upper bound over a box rested on one midpoint pair) → re-verify says merge: every decided verdict probed, at the door and per drive leaf, matches the analytic truth. Two implementer disputes accepted (facet pruning serves lower bounds only; a reversed band refuses at evaluation).
+- The re-verifier would not post its report on its own (its standing brief covered one comment); I posted it verbatim. Briefs for cloud reviewers now name every comment they may post.
+- Residue: R1 (a regression of the fix pass: meeting scopes over a box refuse where topology decides 0) is DOORS' P2 E — this sitting's to do if time allows; R2, R3 to CLEARTAIL with a seam note.
+- The viewer half `the-gui-has-no-clearance-consumer` is un-parked and dispatched (`doors/clearance-consumer`).
+
+## 2026-11-02 11:35 — `a-meeting-scope-over-a-box-refuses-where-topology-decides-zero` merges (PR 6354)
+
+- Orchestrator's read: the 0 is read only for the meeting candidate's own station pair; soundness rests on the meeting being topological over the box (the shared point exists at every realization), not on the fixed stations tracking it. Over-broad mutation (every pair 0) reds the non-meeting rows. CI green.

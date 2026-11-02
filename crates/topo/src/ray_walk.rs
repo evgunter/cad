@@ -1,8 +1,7 @@
 //! **The ray walk** — the one home for how the crate's containment doors
 //! cast rays from a query point `q`: the driver that tries a fixed
 //! schedule's rays in order ([`walk`]), the vocabulary of what one ray
-//! says ([`RayFault`]), the one ranking of what unsettled rays kept
-//! ([`Evidence`]), the one sentence for a schedule no ray settled
+//! says ([`RayFault`]), the one sentence for a schedule no ray settled
 //! ([`NoRaySettled`]), and the two readings a ray takes.
 //!
 //! # The driver
@@ -14,7 +13,7 @@
 //! a member that gave no ray to read, which keep nothing; a reading set
 //! aside for this ray alone — an in-band margin, or a limit it definitely
 //! met — which is kept as the walk's refusal should no ray decide
-//! ([`Evidence`]); or a refusal of the whole query, which ends the walk
+//! ([`Evidence`], the ladder's one ranking); or a refusal of the whole query, which ends the walk
 //! at once. No direction is ever picked
 //! by coordinate comparison — a comparison-picked basis could diverge
 //! between the f64 and interval lanes; a fixed schedule whose degenerate
@@ -71,6 +70,7 @@
 //! exhaustion. [`walk`]'s exhaustion argument receives nothing to
 //! relabel.
 
+use geom_brep::ladder::{Evidence, Ranked};
 use geom_core::{
     Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec2, Vec3,
 };
@@ -150,82 +150,6 @@ impl<E> RayFault<E> {
         reading
             .map_err(|diag| Self::InBand(escalate(diag)))?
             .ok_or(Self::Graze)
-    }
-}
-
-/// **The one ranking of what a run of readings kept** when none of them
-/// decided — over one point's rays ([`walk`]), and over a ladder's
-/// witnesses, each of which kept its own walk's refusal
-/// (`boolean::shell_witness`, `boolean::join`'s loop roles):
-///
-/// 1. the first [`RayFault::Blocked`] — a limit no tolerance moves,
-///    true of every reading it stopped whatever the band, and its own
-///    recourse is the one that frees those readings;
-/// 2. else the first [`RayFault::InBand`] reading — a margin a tighter
-///    tolerance would decide, carried with its value. It is not ranked
-///    first because the reading it stopped went no further: a tighter
-///    tolerance may decide it and still leave it to meet the limit;
-/// 3. else neither, and the caller says what that means (for a walk,
-///    no ray settled: [`NoRaySettled`]).
-#[derive(Debug)]
-pub(crate) struct Evidence<E> {
-    blocked: Option<E>,
-    in_band: Option<E>,
-}
-
-/// [`Evidence`]'s verdict.
-#[derive(Debug)]
-pub(crate) enum Ranked<E> {
-    /// The first limit met.
-    Blocked(E),
-    /// No limit met; the first in-band reading.
-    InBand(E),
-    /// Neither was kept.
-    Neither,
-}
-
-impl<E> Default for Evidence<E> {
-    fn default() -> Self {
-        Self {
-            blocked: None,
-            in_band: None,
-        }
-    }
-}
-
-impl<E> Evidence<E> {
-    /// Keeps `e` as a limit met, if it is the first.
-    pub(crate) fn blocked(&mut self, e: E) {
-        self.blocked.get_or_insert(e);
-    }
-
-    /// Keeps `e` as an in-band reading, if it is the first.
-    pub(crate) fn in_band(&mut self, e: E) {
-        self.in_band.get_or_insert(e);
-    }
-
-    /// `self`'s readings first, then `later`'s: the evidence of two runs
-    /// read in that order.
-    pub(crate) fn then(self, later: Self) -> Self {
-        Self {
-            blocked: self.blocked.or(later.blocked),
-            in_band: self.in_band.or(later.in_band),
-        }
-    }
-
-    /// Whether a limit was kept: [`Self::ranked`] reads
-    /// [`Ranked::Blocked`].
-    pub(crate) const fn met_a_limit(&self) -> bool {
-        self.blocked.is_some()
-    }
-
-    /// The one ranking (the type's docs).
-    pub(crate) fn ranked(self) -> Ranked<E> {
-        match (self.blocked, self.in_band) {
-            (Some(e), _) => Ranked::Blocked(e),
-            (None, Some(e)) => Ranked::InBand(e),
-            (None, None) => Ranked::Neither,
-        }
     }
 }
 
@@ -1046,28 +970,6 @@ mod tests {
         assert_eq!(run(&[Blocked(2), InBand(1), Graze, Verdict(7)]), Ok(7));
         assert_eq!(run(&[InBand(1), Fatal(9), Verdict(7)]), Err(9));
         assert_eq!(run(&[Verdict(7), Fatal(9)]), Ok(7));
-    }
-
-    /// [`Evidence`] over two runs read in order: the first run's of each
-    /// kind, then the second's, ranked as one walk's.
-    #[test]
-    fn evidence_over_two_runs_keeps_each_kinds_first() {
-        let rank = |e: Evidence<u8>| match e.ranked() {
-            Ranked::Blocked(e) => (1, e),
-            Ranked::InBand(e) => (2, e),
-            Ranked::Neither => (3, 0),
-        };
-        let mut a = Evidence::default();
-        a.in_band(1);
-        let mut b = Evidence::default();
-        b.blocked(2);
-        b.in_band(3);
-        assert_eq!(rank(a.then(b)), (1, 2));
-        let (mut a, mut b) = (Evidence::default(), Evidence::default());
-        a.in_band(1);
-        b.in_band(3);
-        assert_eq!(rank(a.then(b)), (2, 1));
-        assert_eq!(rank(Evidence::<u8>::default()), (3, 0));
     }
 
     // ---- The fold ----

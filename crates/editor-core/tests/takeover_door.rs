@@ -274,6 +274,7 @@ fn the_door_evaluates_only_where_something_reads_a_copy() {
         run.take_over(
             &[copy],
             &Operand::Node(u),
+            &[],
             &EvalOptions::default(),
             None,
             held,

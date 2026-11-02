@@ -82,17 +82,17 @@ pub(crate) struct Drafts {
     /// ([`crate::frame::creation_offer`]); shown over the form while the
     /// name field still says it.
     pub(crate) new_variable_offer: Option<VarName>,
-    /// The mate tool's choice, as widget state: an index into
-    /// [`crate::matetool::MATE_KINDS`], each kind's own sense toggle, and for each
-    /// freedom of [`crate::matetool::MateFreedom::ALL`] whether it is set and its number in
-    /// SI units. Draft chrome state only — the typed choice is minted
-    /// at commit.
-    pub(crate) mate_kind: usize,
-    pub(crate) mate_flip: [bool; crate::matetool::MATE_KINDS.len()],
-    /// Whether the mate moves its copy into the space its `to` reads,
-    /// asked by name: off, a mate across two spaces refuses.
-    pub(crate) mate_into_target_space: bool,
-    pub(crate) mate_values: [(bool, f64); crate::matetool::MateFreedom::ALL.len()],
+    /// **The placement editor's last verdict**: the history state and
+    /// the Apply it judged, and what the session answered, said
+    /// ([`crate::session::DocSession::bundle_verdict`]) — asked once per
+    /// draft, not once per frame.
+    pub(crate) mate_verdict: Option<MateVerdict>,
+    /// The placement editor's value fields being typed in, by freedom:
+    /// the text, until the field loses focus and the draft takes it.
+    pub(crate) mate_value_edits: Vec<(pncad::document::Coord, String)>,
+    /// The door the value edits were typed under: a different door, or
+    /// the same one over another bundle (a reload), drops them.
+    pub(crate) mate_value_door: Option<crate::matetool::PlaceDoor>,
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
     /// its commit — a name in flight is a draft, not a document.
@@ -177,21 +177,10 @@ pub(crate) struct Drafts {
     /// reader can take apart. It is a draft like every other field
     /// here: nothing reaches a document until Add profile.
     pub(crate) profile_path: Vec<Step<f64>>,
-    /// The circle form's centre, metres.
+    /// The circle and rectangle forms' centre, metres.
     pub(crate) profile_centre: [f64; 2],
     /// The circle form's radius, metres.
     pub(crate) profile_radius: f64,
-    /// Whether the circle carries a concentric bore (a second loop
-    /// inside the first) — what lets the chrome author the ring
-    /// demo's annulus while staying a template, not a sketcher. The
-    /// form guards bore < radius (see `add_profile_ui`): the loop
-    /// ROLES come from the profile layer's containment forest, so a
-    /// bore at or beyond the outer would not fail — it would swap
-    /// which circle is the hole, silently defeating the form's own
-    /// wording.
-    pub(crate) profile_bored: bool,
-    /// The bore's radius, metres.
-    pub(crate) profile_bore: f64,
     /// The rectangle form's width and height, metres.
     pub(crate) profile_extent: [f64; 2],
     /// **The loops the add-profile form authors after its first**, in
@@ -211,12 +200,6 @@ pub(crate) struct Drafts {
     /// radians. Opens a quarter turn, along the profile's +y, the axis
     /// a profile drawn beside it turns about.
     pub(crate) revolve_axis_heading: f64,
-    /// The transform tool's translation, metres.
-    pub(crate) transform_translation: [f64; 3],
-    /// Its rotation axis (unitless).
-    pub(crate) transform_axis: [f64; 3],
-    /// Its rotation angle, radians.
-    pub(crate) transform_angle: f64,
     /// The pattern tool's rule choice.
     pub(crate) pattern_kind: PatternLayoutChoice,
     /// Its output choice — which of the two doors the commit button
@@ -372,6 +355,18 @@ pub(crate) struct ProfileEdit {
     /// The edit door's report for the last held state it was asked
     /// about ([`Self::report`]).
     report: Option<HeldReport>,
+}
+
+/// **The placement editor's verdict on one Apply**: the history state
+/// and the op it was asked over, and its sentence — `Ok` where the copy
+/// would stand, `Err` with the refusal or the fault.
+#[derive(Debug)]
+pub(crate) struct MateVerdict {
+    pub(crate) at: HistoryId,
+    pub(crate) op: crate::session::SessionOp,
+    pub(crate) said: Result<String, String>,
+    /// Whether the verdict withholds Apply: a copy that would not stand.
+    pub(crate) blocks: bool,
 }
 
 /// What the edit door would report for one held state, and the state:
@@ -942,14 +937,9 @@ impl Default for Drafts {
             new_variable_dimension: None,
             new_variable_value: 0.0,
             new_variable_offer: None,
-            mate_kind: 0,
-            // Each kind opens at its own sense (`matetool::sense_offer`),
-            // so switching kinds carries no plane's rest onto an edge.
-            mate_flip: crate::matetool::MATE_KINDS.map(|(kind, _)| {
-                crate::matetool::sense_offer(kind).is_some_and(|(_, turned)| turned)
-            }),
-            mate_into_target_space: false,
-            mate_values: [(false, 0.0); crate::matetool::MateFreedom::ALL.len()],
+            mate_verdict: None,
+            mate_value_edits: Vec::new(),
+            mate_value_door: None,
             new_doc_name: None,
             profile_open: false,
             sketch_on_face: false,
@@ -974,17 +964,12 @@ impl Default for Drafts {
             ],
             profile_centre: [0.0; 2],
             profile_radius: 0.01,
-            profile_bored: false,
-            profile_bore: 0.005,
             profile_extent: [0.01, 0.01],
             profile_more: Vec::new(),
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
             revolve_axis_through: Point2::origin(),
             revolve_axis_heading: core::f64::consts::FRAC_PI_2,
-            transform_translation: [0.0; 3],
-            transform_axis: [0.0, 0.0, 1.0],
-            transform_angle: 0.0,
             pattern_kind: PatternLayoutChoice::Linear,
             pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,
@@ -1016,11 +1001,6 @@ impl Drafts {
     /// loops separately could draw one shape and author another,
     /// which is the one way a live preview can lie.
     ///
-    /// The bore is a second loop rather than a field on the first —
-    /// which is what makes the ring demo's annulus a template rather
-    /// than a special case — and the form's own guard on it lives at
-    /// the commit ([`ViewerBehavior::add_profile_ui`](crate::app::ViewerBehavior::add_profile_ui)), because it is
-    /// about what the loops MEAN, not about what they are.
     /// The first loop is the chosen shape's, and the loops added after
     /// it ([`Drafts::profile_more`]) follow in order.
     ///
@@ -1033,20 +1013,12 @@ impl Drafts {
             return Vec::new();
         };
         let mut loops = match shape {
-            ShapeKind::Circle => {
-                let mut loops = vec![ProfileShape::Circle {
-                    centre: self.profile_centre,
-                    radius: self.profile_radius,
-                }];
-                if self.profile_bored {
-                    loops.push(ProfileShape::Circle {
-                        centre: self.profile_centre,
-                        radius: self.profile_bore,
-                    });
-                }
-                loops
-            }
+            ShapeKind::Circle => vec![ProfileShape::Circle {
+                centre: self.profile_centre,
+                radius: self.profile_radius,
+            }],
             ShapeKind::Rectangle => vec![ProfileShape::Rectangle {
+                centre: self.profile_centre,
                 width: self.profile_extent[0],
                 height: self.profile_extent[1],
             }],
@@ -1340,18 +1312,21 @@ impl Drafts {
         }
     }
 
-    /// Whether the mate panel turns `to` round for its chosen kind:
-    /// that kind's own toggle, `false` for a kind with no sense.
-    pub(crate) fn mate_turned(&self) -> bool {
-        crate::matetool::sense_offer(self.mate_kind()).is_some()
-            && self.mate_flip.get(self.mate_kind).copied().unwrap_or(false)
-    }
-
-    /// The mate panel's chosen kind ([`crate::matetool::MATE_KINDS`]).
-    pub(crate) fn mate_kind(&self) -> pncad::document::VarKind {
-        crate::matetool::MATE_KINDS
-            .get(self.mate_kind)
-            .map_or(pncad::document::VarKind::Plane, |(kind, _)| *kind)
+    /// **Keep the placement editor's value edits to its draft**: dropped
+    /// when the editor closes (`door` is `None`), opens on another door
+    /// or reloads its bundle, and each edit whose freedom the draft no
+    /// longer lists (`coords`) dropped with its row.
+    pub(crate) fn sync_mate_edits(
+        &mut self,
+        door: Option<&crate::matetool::PlaceDoor>,
+        coords: &[pncad::document::Coord],
+    ) {
+        if self.mate_value_door.as_ref() != door {
+            self.mate_value_edits.clear();
+            self.mate_value_door = door.cloned();
+        }
+        self.mate_value_edits
+            .retain(|(coord, _)| coords.contains(coord));
     }
 
     /// **The face this form holds**: [`Self::sketch_face`] while the
@@ -1473,6 +1448,7 @@ pub(crate) fn fresh_loop(kind: ShapeKind) -> ProfileShape {
             radius: QUARTER * form.profile_radius,
         },
         ShapeKind::Rectangle => ProfileShape::Rectangle {
+            centre: form.profile_centre,
             width: QUARTER * form.profile_extent[0],
             height: QUARTER * form.profile_extent[1],
         },
@@ -1993,6 +1969,63 @@ mod tests {
     /// new base, so the draft is untouched again; going back to the
     /// earlier document (an undo) replaces the draft with the program
     /// held there; and a selection that leaves the node drops it.
+    /// **The placement editor's value edits live with its draft**: a
+    /// freedom's typed text survives frames of the same draft, goes with
+    /// its row when the draft stops listing the freedom, and all of it
+    /// goes when the door changes (a reload's bundle) or the editor closes.
+    #[test]
+    fn the_placement_editors_value_edits_live_with_its_draft() {
+        use crate::matetool::PlaceDoor;
+        use pncad::document::{Coord, Operand, RecipeNodeId, TargetAxis};
+        let x = Coord::Slide(TargetAxis::X);
+        let y = Coord::Slide(TargetAxis::Y);
+        let door = PlaceDoor::Edit {
+            placement: RecipeNodeId::new(0, 7),
+            base: Vec::new(),
+        };
+        let reloaded = PlaceDoor::Edit {
+            placement: RecipeNodeId::new(0, 7),
+            base: pncad::document::stand().bundle(),
+        };
+        let mut drafts = Drafts::default();
+        drafts.sync_mate_edits(Some(&door), &[x, y]);
+        drafts.mate_value_edits = vec![(x, "5 mm".to_owned()), (y, "6 mm".to_owned())];
+        drafts.sync_mate_edits(Some(&door), &[x, y]);
+        assert_eq!(
+            drafts.mate_value_edits.len(),
+            2,
+            "kept across frames of one draft"
+        );
+        drafts.sync_mate_edits(Some(&door), &[x]);
+        assert_eq!(
+            drafts.mate_value_edits,
+            [(x, "5 mm".to_owned())],
+            "y's row left"
+        );
+        drafts.sync_mate_edits(Some(&reloaded), &[x]);
+        assert!(
+            drafts.mate_value_edits.is_empty(),
+            "a reload drops the edits"
+        );
+        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.sync_mate_edits(
+            Some(&PlaceDoor::Create {
+                body: Operand::Node(RecipeNodeId::new(0, 9)),
+            }),
+            &[x],
+        );
+        assert!(
+            drafts.mate_value_edits.is_empty(),
+            "another door drops the edits"
+        );
+        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.sync_mate_edits(None, &[]);
+        assert!(
+            drafts.mate_value_edits.is_empty(),
+            "a closed editor holds none"
+        );
+    }
+
     #[test]
     fn the_edit_draft_reloads_on_undo_and_is_abandoned_off_selection() {
         let (before, mut drafts, profile) = authored_by_the_form();

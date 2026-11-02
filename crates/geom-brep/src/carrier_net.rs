@@ -168,7 +168,7 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>, frame: Option<&Frame>) -> O
                 },
             })
         }
-        Curve3::Line { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Line(_) | Curve3::Nurbs(_) => None,
     }
 }
 
@@ -770,7 +770,7 @@ pub(crate) fn framed_span_net<T: CertifiedBounds>(
 /// net, so neither has one. The one place the kinds are told apart for
 /// limb 2's first reading.
 pub(crate) fn has_span_nets<T: Real>(carrier: &Curve3<T>) -> bool {
-    !matches!(carrier, Curve3::Nurbs(_) | Curve3::Line { .. })
+    !matches!(carrier, Curve3::Nurbs(_) | Curve3::Line(_))
 }
 
 /// **`α` and `β` alone over a span, in Bernstein form**: each one's
@@ -908,13 +908,13 @@ fn enclosing_net<T: CertifiedBounds>(
     if breaks.len() < 2 {
         return Err(refuse(whole));
     }
-    if let Curve3::Line { origin, dir } = carrier {
+    if let Some(geom::Line { origin, dir }) = carrier.as_line() {
         // A line's controls are its points at the breaks, evaluated in
         // place and then framed: there is no expansion for a frame to
         // spare, and an origin and direction framed apart lose what an
         // interval point's channels share (measured: a widened extrude's
         // edge bounds 1.2e-9 framed apart and under 1e-9 framed after).
-        let (o, d) = (lift_p(*origin), lift_v(*dir));
+        let (o, d) = (lift_p(origin), lift_v(dir));
         let mut knots = vec![first];
         knots.extend_from_slice(breaks);
         knots.push(last);
@@ -1199,13 +1199,7 @@ mod tests {
         let u_ref = Vec3::new(1.0, 0.0, 0.0);
         let center = Point3::new(0.3, -0.2, 0.5);
         let kinds = [
-            (
-                "line",
-                Curve3::Line {
-                    origin: center,
-                    dir: Vec3::new(0.2, 0.7, -0.1),
-                },
-            ),
+            ("line", Curve3::line(center, Vec3::new(0.2, 0.7, -0.1))),
             (
                 "circle",
                 Curve3::Circle {
@@ -1439,10 +1433,7 @@ mod tests {
         );
         assert_eq!(net.cuts(), &[0.25, 0.5], "its breaks ride as cuts");
 
-        let line = Curve3::Line {
-            origin: Point3::new(0.0, 1.0, 0.0),
-            dir: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let line = Curve3::line(Point3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
         let net = carrier_net(&line, (0.0, 2.0), &[1.0, 3.0, 1.0]).unwrap();
         let (knots, _, coords) = net.operand();
         assert_eq!(knots.degree(), 1, "a line is degree 1");

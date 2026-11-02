@@ -694,7 +694,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Measure { .. }
-        | Node::Assertion { .. }
+        | Node::Assertion(_)
         | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
@@ -725,7 +725,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::Measure { .. } => "Measure",
-        Node::Assertion { .. } => "Assertion",
+        Node::Assertion(_) => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
     }
 }

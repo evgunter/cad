@@ -211,6 +211,7 @@ fn reads_as_body(seat: OperandSlot) -> bool {
         | OperandSlot::Traced(_)
         | OperandSlot::Side { .. }
         | OperandSlot::Measured(..)
+        | OperandSlot::Cleared(_)
         | OperandSlot::Tool
         | OperandSlot::Input
         | OperandSlot::Of
@@ -584,6 +585,33 @@ pub fn placed_var(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId
 /// ([`copy_source`]) whose placement reads it.
 pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
     copies_where(doc, |copied| copied == var)
+}
+
+/// **Every placement reading `var` whole**, in document order, whatever
+/// space it stands in: the copies the placement editor's doors answer
+/// to. It is wider than [`placements_of_var`], the gesture vocabulary's
+/// copies, which leaves out a copy into a space whose bodies a placement
+/// copies out (a body moved in its own space, a pattern's family): for
+/// the editor that copy is still what places the body, so the body moves
+/// by its Edit door and is never placed a second time by a Create.
+pub fn placements_reading(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
+    doc.placements()
+        .into_iter()
+        .filter(|&placement| {
+            matches!(doc.node(placement), Some(Node::Place { source, .. }) if source.read == var)
+        })
+        .collect()
+}
+
+/// **Whether `placement` repeats its source**: it reaches an index its
+/// source does not, so it is a pattern's family and its values are the
+/// pattern's rule.
+pub fn repeats(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> bool {
+    let Some(Node::Place { source, .. }) = doc.node(placement) else {
+        return false;
+    };
+    let own = doc.node_reach(placement);
+    !own.is_none() && own != doc.var_reach(source.read)
 }
 
 /// **The copies of any output of `node`**, in document order.

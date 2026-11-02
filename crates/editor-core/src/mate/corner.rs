@@ -224,7 +224,7 @@ pub fn corner_frame_in(
     let edge = solid
         .edges()
         .find(|(e, _)| {
-            topo::readback::edge_carrier_kind(solid, *e) == Ok(geom::CurveKind::Line)
+            topo::readback::edge_carrier_ref(solid, *e).is_ok_and(|c| !c.is_curved())
                 && solid.get_edge(*e).is_some_and(|edge| {
                     let start = solid.get_half_edge(edge.he_plus).map(|h| h.start);
                     let end = solid.half_edge_end(edge.he_plus);

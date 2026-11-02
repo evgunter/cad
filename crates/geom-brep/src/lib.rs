@@ -75,7 +75,6 @@ pub mod fitted_lane;
 mod grid_offsets;
 pub mod half_angle;
 pub(crate) mod harmonic;
-pub mod identity;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -143,7 +142,7 @@ pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,
     departure_side_reported, enters_material, enters_material_order2, enters_material_reported,
-    normal_alignment, parting, parting_side, tied_germ_turn,
+    normal_alignment, parting, parting_side, rise, tied_germ_turn,
 };
 pub use extent::{
     ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,
@@ -154,17 +153,16 @@ pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// the spiric carrier's constructor reads it too); re-exported so the
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
-pub use identity::{IdentityWalk, identity_walk};
 pub use implicit::{
     ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, Conic, ConicHarmonics, ConicTorusHarmonics,
     SurfaceSide, circle_arc_residual_range, circle_residual_curvature_bound,
     circle_residual_extremes, circle_sphere_harmonic, cone_elevation, conic_arc_residual_range,
     conic_cone_harmonics, conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual,
     conic_residual_extremes, conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit,
-    conic_torus_jet, conic_torus_residual, curvature_lever_arm, implicit_gradient,
-    implicit_graph_acceleration, implicit_hessian_form, implicit_max_normal_curvature,
-    implicit_outward_normal, implicit_residual, implicit_section_acceleration,
-    min_radius_of_curvature, min_radius_of_curvature_toward,
+    conic_torus_jet, conic_torus_residual, curvature_lever_arm, graph_acceleration,
+    implicit_gradient, implicit_graph_acceleration, implicit_hessian, implicit_hessian_form,
+    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
+    implicit_section_acceleration, min_radius_of_curvature, min_radius_of_curvature_toward,
 };
 pub use intersect::{
     ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection, OpenConic,

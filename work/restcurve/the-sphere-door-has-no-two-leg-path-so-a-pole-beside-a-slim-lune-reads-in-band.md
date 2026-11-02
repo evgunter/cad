@@ -2,11 +2,14 @@
 id: the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band
 kind: issue
 title: The sphere door has no two-leg path, so a pole beside a slim lune reads in band and tier 3's pole side still reads locate
-status: open
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: H
 refs: [the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar, a-loop-the-chart-singularity-walk-cannot-certify-is-exempt, import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave, the-cone-door-reads-an-apex-generators-crossings-through-a-cut-angle]
+branch: restcurve/two-leg
+closed: 2026-11-02
+pr: 6307
 ---
 
 
@@ -81,3 +84,32 @@ distance puts near the face.
    `import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave`.
 
 Filed by RESTCURVE's pole-door lane on the orchestrator's ruling.
+
+## Spec (RESTCURVE orchestrator, 2026-11-01)
+
+Branch `restcurve/two-leg`. Review tier: **dual**, arm **CONCURRENT** (letter H). It changes the method of a door that the boolean shares, and it moves a tier-3 reading onto that door.
+
+1. **The two-leg path** (Owed 1). Reuse `region::Paths` / `Path::Aimed` as the torus and cone doors do; add no second path machinery. Choose the corner and target so that a slim face's arcs are crossed head-on. Show why the choice is sound for every face the sphere door admits: lunes, zones, caps, faces holding a pole, and faces whose vertex is the point's antipode.
+   This follows the existing door pattern. If the choice of corner or target turns out to need a new design decision, for example one that changes an answer the boolean relies on, **stop and report**.
+2. **Then the switch** (Owed 2). Bring back `2608e936`'s `validate.rs` hunk with its prose, onto the door as it now stands, then retire tier 3's use of `walk_loop`.
+3. **Rows** (Owed 1–3):
+   - the blend4 slim-lune body at three ε;
+   - the six interval rows through the switch;
+   - the tilted-cap, near-rim and sliver rows;
+   - the near-pole row;
+   - the in-band body row.
+   Name a mutant per row.
+4. **No false refusal:** topo, step-import, step-export and sweep at ε 1e-6, the default and 1e-12, plus every interval/certified sweep test. **No answer moves:** a base-vs-head differential of `curved_face_containment` on sphere bodies (grid, near-pole, slim lunes, arc-edge points, f64 and Interval), and on torus and ruled bodies if `region` changes.
+5. Close `a-loop-the-chart-singularity-walk-cannot-certify-is-exempt` for tier 3, or say what still reads it.
+
+## The near-pole row, as landed (two-leg lane, 2026-11-02)
+
+Owed 3's near-pole row reads points `1e-4`, `1e-6` and `1e-9` rad off the
+south pole a dome leaves out, off the seam's plane, at each ε where the
+offset clears twice the band
+(`one_region_rows::points_beside_a_domes_far_pole_read_out`). The
+review's ~22 escalations are points exactly ε off the pole in the seam's
+plane: every leg from such a point meets that plane's arc's circle at the
+point itself, ε past the arc's end, a margin whose enclosure straddles
+the band's zero. No path settles that at that width, and the row does
+not claim it.

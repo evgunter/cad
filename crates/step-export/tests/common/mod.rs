@@ -753,7 +753,7 @@ pub fn composed_die() -> Body<f64> {
             pipped
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line(_)))
         })
         .map(|(k, _)| k)
         .collect();

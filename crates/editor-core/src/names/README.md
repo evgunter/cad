@@ -12,7 +12,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 
 | Decisions | Module |
 |---|---|
-| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: split's carried-name test, the mate member walk and the coincidence door's walk to a construction) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
+| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: the mate member walk, the coincidence door's walk to a construction and the takeover door's walk to the nodes carrying a copy's names) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` (an edge its closing join made over several trims, rim trims or survivors `Merged`), `emit_shell.rs` (the shell: survivors `From` the target's read, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`, an edge its closing join made over several input edges `Merged`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
@@ -233,6 +233,8 @@ this rule, and so do profile pieces:
   - a `circle` has `Piece(0)` and `Piece(1)`. It is drawn as the
     `circle_split` with `n = 2` and phase 0: two semicircles, split at the
     circle's `±x` points.
+  - a `rectangle` has `Piece(0)` to `Piece(3)`: its bottom, right, top and
+    left sides, in that order from its lower-left corner (PATHS-DESIGN §1a).
 
   A fillet's pieces belong to the step that authors its radius (the replay's
   `RadiusEmission.step`), not to the later step whose arrival resolves the

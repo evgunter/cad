@@ -1665,9 +1665,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             sa.plan(&red.a, a_halves, seg_a)?,
             sb.plan(&red.b, b_halves, seg_b)?,
         );
-        let line_on = along_edge_conic((&red.a, &red.b), &germ)?.and_then(|along| {
-            matches!(along.carrier, geom::Curve3::Line { .. }).then_some(along.on)
-        });
+        let line_on = along_edge_conic((&red.a, &red.b), &germ)?
+            .and_then(|along| (!along.carrier.is_curved()).then_some(along.on));
         let along_line = |on: Operand| line_on == Some(on);
         let (curve_a, curve_b) = match lane {
             None => (
@@ -2805,7 +2804,7 @@ fn germ_section_loops<T: Decide>(
     // test a curved edge.
     if let Some(along) = along_edge_conic((a, b), germ)? {
         return match along.carrier {
-            geom::Curve3::Line { .. } => Ok(None),
+            geom::Curve3::Line(_) => Ok(None),
             geom::Curve3::Circle { center, axis, .. }
             | geom::Curve3::Ellipse { center, axis, .. } => {
                 Ok(Some(SectionLoops::conic((center, axis))))
@@ -3091,7 +3090,7 @@ fn rulings_are_straight<T: geom_core::Real>(
     for (curve, operand, face) in sides {
         match curve.spec().map(|spec| &spec.carrier) {
             None => {}
-            Some(geom::Curve3::Line { .. }) => {
+            Some(carrier) if !carrier.is_curved() => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
@@ -5856,12 +5855,12 @@ fn loop_roles(
         }
         (Reading::Side(o), _) => Ok(in_first(o, outer, ring)),
         (Reading::Undecided(_), Reading::Side(r)) => Ok(in_first(r, ring, outer)),
-        // One ranking over both loops' witnesses ([`crate::ray_walk::Evidence`]):
+        // One ranking over both loops' witnesses ([`geom_brep::ladder::Evidence`]):
         // a limit is named, an in-band reading is not (it is about one
         // point), so both of those and an empty one read undecided.
         (Reading::Undecided(o), Reading::Undecided(r)) => Err(match o.kept.then(r.kept).ranked() {
-            crate::ray_walk::Ranked::Blocked(e) => BooleanError::Containment(e),
-            crate::ray_walk::Ranked::InBand(_) | crate::ray_walk::Ranked::Neither => {
+            geom_brep::ladder::Ranked::Blocked(e) => BooleanError::Containment(e),
+            geom_brep::ladder::Ranked::InBand(_) | geom_brep::ladder::Ranked::Neither => {
                 BooleanError::from(SplitJoinError::SectionLoopUndecided { face })
             }
         }),
@@ -7963,10 +7962,7 @@ mod radical_plane_rows {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = |n: u64| FaceKey::from(KeyData::from_ffi(n));
         let (fa, fb) = (face(3), face(7));
-        let line = geom::Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let circle = geom::Curve3::Circle {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),

@@ -647,7 +647,7 @@ pub fn wall3_pinned<S: Scalar>(
         let straight = matches!(
             bulb.get_curve_geom(e.curve),
             Some(pncad::topo::CurveGeom::Certified(c))
-                if matches!(c.carrier(), pncad::geom::Curve3::Line { .. })
+                if !c.carrier().is_curved()
         );
         straight
             && matches!(ends, [Some(p), Some(q)]

@@ -328,10 +328,7 @@ fn the_dual_reads_the_value_channel_and_poison_stays_loud() {
         lo.is_nan() && hi.is_nan(),
         "certified door narrowed poison: [{lo}, {hi}]"
     );
-    let line = Curve3::Line {
-        origin: Point3::origin(),
-        dir: Vec3::unit_x(),
-    };
+    let line = Curve3::line(Point3::origin(), Vec3::unit_x());
     assert!(conic_arc_extent_along(&line, 0.0, 1.0, Point3::origin(), n).is_none());
 }
 

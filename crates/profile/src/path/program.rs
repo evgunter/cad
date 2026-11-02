@@ -2006,6 +2006,58 @@ transition_table! {
             }
         }
     }
+
+    #[doc = " `rectangle(centre, width, height)` — the axis-aligned rectangle as written."]
+    verb Rectangle {
+        #[doc = " The rectangle's centre."]
+        centre: Point2<T>,
+        #[doc = " The rectangle's extent along x (definitely positive)."]
+        width: T,
+        #[doc = " The rectangle's extent along y (definitely positive)."]
+        height: T,
+    } = "rectangle" bind { centre, width, height } rows {
+        free {
+            /// The axis-aligned rectangle (PATHS-DESIGN §1a): a **one-step
+            /// complete-loop program form**, as [`circle`] is — the step
+            /// keeps the centre, width and height its author wrote, and
+            /// determines the whole loop.
+            ///
+            /// It lowers to four straight legs, counterclockwise from the
+            /// lower-left corner `centre − (width, height)/2`; its seam sits
+            /// at that corner, a junction, so PQ4 is untouched. Its four
+            /// sides are the step's [`PieceRole::Piece`](crate::PieceRole::Piece)
+            /// `0..3` in that order: bottom, right, top, left. No joint is
+            /// tangent, so the form constructs none.
+            ///
+            /// `width` and `height` must each classify definitely positive
+            /// ([`PathError::NonpositiveRectangleSide`]), through the same
+            /// funnel as the other sign gates.
+            fn rectangle [<T: Decide>(
+                centre: Point2<T>,
+                width: T,
+                height: T,
+                tol: Tol,
+            ) -> Result<ClosedLoop<T>, PathError<T>>] {
+                let loop_ = super::rectangle_kernel(centre, width, height, tol)?;
+                Ok(ClosedLoop {
+                    structure: ReplayStructure::carrier(loop_.vertices.len())?,
+                    loop_: ConstructedLoop {
+                        loop_,
+                        joints: Vec::new(),
+                    },
+                    program: vec![Step::Rectangle {
+                        centre,
+                        width,
+                        height,
+                    }],
+                })
+                .inspect(|closed| closed.structure.check_role_lists(&closed.program))
+            }
+            arms {
+                Entry => Ok(Applied::Closed(rectangle(centre, width, height, tol)?)),
+            }
+        }
+    }
 }
 
 impl<T: Real> Step<T> {
@@ -2081,6 +2133,15 @@ impl<T: Real> Step<T> {
                 radius: f(radius),
                 n,
                 phase: f(phase),
+            },
+            Step::Rectangle {
+                centre,
+                width,
+                height,
+            } => Step::Rectangle {
+                centre: centre.map(&f),
+                width: f(width),
+                height: f(height),
             },
         }
     }
