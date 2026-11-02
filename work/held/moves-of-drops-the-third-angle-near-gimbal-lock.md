@@ -23,3 +23,7 @@ successors on the viewer authoring files. Id and body unchanged.
 ## Moved (2026-11-01)
 
 Cut from DOORS into HELD (DOORS over budget at 52 of 30 once D′3's triggers fired; `work/doors/log.md`, 2026-11-01). Id and body unchanged. (DOORS orchestrator)
+
+## Callers (2026-11-02, PLACING, branch `placing/bundle-editor-transform`)
+
+`gesture_moves` is gone: the Transform tool opens the placement editor, whose value rows are typed, and writes no angles read off a matrix. `moves_of`'s callers are now `frame_off` and the duplicate's `add_duplicate` (its `unmated` bundles over `duplicate_seats`' `combine::copy_motion`).

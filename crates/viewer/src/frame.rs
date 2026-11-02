@@ -811,7 +811,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
-        | SessionOp::AddTransform { .. }
+        | SessionOp::AddClearance { .. }
         | SessionOp::Place { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
@@ -2189,6 +2189,7 @@ pub fn tool_notice(
         ToolNotice::Mate(_)
         | ToolNotice::Blend(_)
         | ToolNotice::Mirror(_)
+        | ToolNotice::Clearance(_)
         | ToolNotice::Seated { .. } => Subject::Document,
     };
     let retold = match notice {
@@ -2196,9 +2197,17 @@ pub fn tool_notice(
             MateToolEvent::PickLost { .. }
             | MateToolEvent::Reloaded { .. }
             | MateToolEvent::PlacementGone { .. }
-            | MateToolEvent::NotPlaceable { .. },
+            | MateToolEvent::NotPlaceable { .. }
+            | MateToolEvent::SeenThroughSeveral { .. }
+            | MateToolEvent::HalfUnchosen { .. }
+            | MateToolEvent::PatternFamily { .. },
         ) => Retold::Never,
         ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
+        ToolNotice::Clearance(crate::combine::ClearanceEvent::FaceLost { .. }) => Retold::Never,
+        // A declined pick: the same pick says it again.
+        ToolNotice::Clearance(crate::combine::ClearanceEvent::SeveralCopies { .. }) => {
+            Retold::Again
+        }
         ToolNotice::Seated {
             event: SeatEvent::PickLost { .. },
             ..
