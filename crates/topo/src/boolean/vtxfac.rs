@@ -3152,7 +3152,11 @@ mod tests {
                 base: o,
                 far: o + z,
             },
-            end_reach: Reach::Conic { extent, bend, arc: None },
+            end_reach: Reach::Conic {
+                extent,
+                bend,
+                arc: None,
+            },
             face: crate::entity::FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 Vec3::new(0.0, -1.0, 0.0),
