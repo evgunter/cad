@@ -5302,31 +5302,23 @@ impl RimSide {
                     band,
                 )
                 .map_err(escalated)?;
-                let mut reads = loop_points(body, outer)?.into_iter().map(|w| {
-                    decide(
+                // The first point read definitely off the plane decides;
+                // an escalation escalates only where none does: the
+                // identity ladder, its answer the side.
+                use geom_brep::ladder::{IdentityLadder, read_identity};
+                let offsets = loop_points(body, outer)?.into_iter().map(|w| {
+                    (
                         "bool_lone_ring_outer_side",
                         Margin::of((w - center).dot(axis)),
-                        band,
                     )
                 });
-                // The first point read definitely off the plane decides;
-                // an escalation escalates only where none does.
-                let mut first_escalation = None;
-                let outer_side = loop {
-                    match reads.next() {
-                        Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => break sign,
-                        Some(Ok(Sign::Zero)) => {}
-                        Some(Err(diag)) => {
-                            first_escalation.get_or_insert(diag);
-                        }
-                        None => {
-                            return Err(match first_escalation {
-                                Some(diag) => escalated(diag),
-                                None => invariant(
-                                    "the old face's outer loop lies on its pierce ring's plane",
-                                ),
-                            });
-                        }
+                let outer_side = match read_identity(offsets, band) {
+                    IdentityLadder::Apart { sign, .. } => sign,
+                    IdentityLadder::Undecided(diag) => return Err(escalated(diag)),
+                    IdentityLadder::Zero(_) => {
+                        return Err(invariant(
+                            "the old face's outer loop lies on its pierce ring's plane",
+                        ));
                     }
                 };
                 match region {

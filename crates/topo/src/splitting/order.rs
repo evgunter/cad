@@ -96,6 +96,7 @@ use geom_core::{
 
 use super::SplitPlane;
 use crate::validate::decide;
+use geom_brep::ladder::{Climb, Rung, climb};
 use geom_brep::order::insertion_sort_by;
 
 /// The exact-order band (module docs; identical to profile's).
@@ -121,14 +122,15 @@ pub(crate) fn exact_band() -> Result<Band, BandError> {
 ///
 /// A frame search, not a ray walk: no member is cast from a point, so
 /// nothing grazes and nothing is crossed, and it is not
-/// [`crate::ray_walk::walk`]'s to drive. A member within the band of
-/// the normal is passed over; one in band of it is kept as the
-/// refusal should no member project definitely.
+/// [`crate::ray_walk::walk`]'s to drive. It is a ladder
+/// ([`geom_brep::ladder::climb`]): a member within the band of the
+/// normal is passed over; one in band of it is kept as the refusal
+/// should no member project definitely.
 ///
 /// # Errors
 ///
 /// [`axis_plane`]'s. When no eligible member projects definitely, the
-/// first in-band arm; else, every member's arm decided Zero, the gate's
+/// ladder's undecided arm; else, every member's arm decided Zero, the gate's
 /// one rejection of the member nearest to passing. Two axes lie in an
 /// axis plane, and no two oblique members lie near one line, so a
 /// normal is near at most one: every arm reads Zero only where `arm`
@@ -147,29 +149,28 @@ pub(super) fn in_plane_frame<T: Decide>(
     } else {
         oblique
     };
-    let mut first_in_band = None;
     let mut nearest: Option<MarginDiag> = None;
-    for r in members {
+    match climb(members, |r| {
         let r = r.map(T::from_f64);
         let d = r - n * n.dot(r);
         match decide_magnitude_reported(FRAME_ARM, Margin::levered(d.norm() / r.norm(), arm), band)
         {
             Ok((Magnitude::Positive, _)) => {
                 let u = d.normalize();
-                return Ok((u, n.cross(u)));
+                Rung::Answers((u, n.cross(u)))
             }
             Ok((Magnitude::Zero, margin)) => {
                 if nearest.is_none_or(|m| m.binds_before(margin)) {
                     nearest = Some(margin);
                 }
+                Rung::Passes
             }
-            Err(diag) => {
-                first_in_band.get_or_insert(diag);
-            }
+            Err(diag) => Rung::kept(diag),
         }
-    }
-    if let Some(diag) = first_in_band {
-        return Err(diag);
+    }) {
+        Climb::Answered { answer, .. } => return Ok(answer),
+        Climb::Undecided(diag) => return Err(diag),
+        Climb::Passed => {}
     }
     let Some(margin) = nearest else {
         unreachable!("the schedule's axis and oblique members are fixed and none is empty")
