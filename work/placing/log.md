@@ -173,3 +173,8 @@ Newest entries at the bottom; the tail is the program's live status.
     - Ev's `[ev]` 6353 (takeover) is pending.
     - Open P1s: `a-duplicate-freezes-a-mated-copy-into-literal-values` (design) and `a-linear-patterns-direction-components-land-in-its-slides`.
     - The two takeover rows wait on 6353. (PLACING orchestrator)
+- 2026-11-02 — **The pattern-direction fork is reconciled** (fork row 242; three designers, two rounds) and all three agree.
+  - **Values name their direction or axis:** `Slide(None)` along the mated direction, a target axis, or a read Direction/Axis; a spin may turn about a read Axis.
+  - **The copy stands at the sum of its slides,** and a row's source is the first copy.
+  - **Only `[placement.values]` changes**, so the fork goes to Ev as an `[ev]` PR whose diff is that change. It also closes MSOLVE's ring twin.
+  - Duplicate's design waits on `[ev]` 6353. (PLACING orchestrator)
