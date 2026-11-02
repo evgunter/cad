@@ -77,9 +77,20 @@ dimension left as your pick.
 The Properties panel at rest is its doors: the creation sections
 (**Add feature**, **Combine bodies**, **Blend edges**, **Assemble
 parts**) fold, and inside each every tool and form is a button that
-opens it. A form whose operation takes the selection is drawn beside
-the selection instead, while its operation would accept it — the
-extrude form while a profile is selected. The toolbar's **Cancel
+opens it. A creation whose operation takes the selection is drawn
+beside the selection instead, while its operation would accept it:
+the **Extrude** and **Revolve** buttons while a profile is selected.
+Each inserts its node at default values, labelled "Extrude N" or
+"Revolve N", and selects it, so its Properties rows are where its
+distance, or its axis point, heading and angle, are written — as a
+number or as a formula over variables. A revolve's default axis runs
+along the profile's +y, at least one profile-width clear of its left
+side and rounded outward to a round number in the working unit, so
+every profile with loops revolves into a ring. The axis is read off
+the profile as the current document evaluates it: while that
+evaluation is outstanding, or for a profile with no loops, the Revolve
+button is disabled and its hover says why. A value written later that
+makes the revolve refuse shows on its badge. The toolbar's **Cancel
 drag** and **Cancel free-move** are there only while their gesture is
 in flight.
 
