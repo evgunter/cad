@@ -120,6 +120,8 @@ mod landing_gathers;
 mod lands_unplaced;
 #[path = "mate_door_and_badge.rs"]
 mod mate_door_and_badge;
+#[path = "mate_kinds.rs"]
+mod mate_kinds;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]
@@ -149,6 +151,8 @@ mod pick_windows;
 mod picture_draws_bodies;
 #[path = "prefs.rs"]
 mod prefs;
+#[path = "product_door.rs"]
+mod product_door;
 #[path = "profile_draw.rs"]
 mod profile_draw;
 #[path = "profile_edit.rs"]

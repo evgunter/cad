@@ -590,8 +590,22 @@ fn check(p: &Pose) -> (Vec<String>, &'static str) {
     let b = band();
     let (torus, wall) = (p.ring.surface(), p.wall.surface());
     let reach = reach_of(&p.ring);
-    let sec = classify(&torus, &wall, reach, Some(geom_brep::SsiLane::marched()), b);
-    let back = classify(&wall, &torus, reach, Some(geom_brep::SsiLane::marched()), b);
+    let sec = classify(
+        &torus,
+        &wall,
+        reach,
+        None,
+        Some(geom_brep::SsiLane::marched()),
+        b,
+    );
+    let back = classify(
+        &wall,
+        &torus,
+        reach,
+        None,
+        Some(geom_brep::SsiLane::marched()),
+        b,
+    );
     let mut bad = Vec::new();
     if !swapped_agrees(&sec, &back) {
         bad.push(format!(
@@ -665,6 +679,7 @@ fn the_square_wall_arm_agrees_with_the_traced_section() {
                 &p.ring.surface(),
                 &p.wall.surface(),
                 reach_of(&p.ring),
+                None,
                 Some(geom_brep::SsiLane::marched()),
                 band(),
             );
@@ -703,6 +718,7 @@ pub(super) fn dump_line(what: &str, ring: &Ring, wall: &Wall) -> String {
         &ring.surface(),
         &wall.surface(),
         reach_of(ring),
+        None,
         Some(geom_brep::SsiLane::marched()),
         band(),
     );
