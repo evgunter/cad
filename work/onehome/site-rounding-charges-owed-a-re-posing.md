@@ -27,7 +27,17 @@ the unit roundoff bare.
   `ψ ≈ 0.1·K·u/ε` (sweep `a_vertex_on_a_grazing_plane`'s
   `a_reading_through_a_vanishing_sine_offers_no_lever` and
   `an_unresolved_section_reading_keeps_the_offsets_verdict`), so
-  `validate::resolved` keeps its share until this is posed.
+  `validate::resolved` keeps its share until this is posed. Since PR 6376
+  the quotient goes through `Rounded::divisor()`: a sine that does not
+  clear its own bound leaves the offset's verdict standing (Ev's PR 4812
+  rule). Re-pose it as a tangency pose decided before any division; do
+  not remove `divisor()` without that.
+- The charges PR 6376 routed through one home each:
+  `Rounded::{room, toward_zero, divisor}` (`geom_core::running`), read by
+  `vertex_section::read_sections`, `section_cert::ruling`'s `shrunk`,
+  `pair_section::gap` and `solid_contain`'s `charged`. Each re-posing
+  deletes one helper's site. `ruling`'s `before` is band-derived, not a
+  rounding charge.
 - `topo::census`, `pierce_span` / `span_reach` / the curve-clear
   charges: the pierce parameter `r0 / (r0 − r1)` and its reach, charged
   through the division by the lever.
