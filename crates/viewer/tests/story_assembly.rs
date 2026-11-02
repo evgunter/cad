@@ -120,9 +120,9 @@ fn open_at(path: &Path, tol: Tol) -> DocSession {
 }
 
 /// Author one box part through the creation ops — a new document, one
-/// centred rectangle, one extrude, the box placed into the world by hand
-/// and its copy the product — assert its volume, and save it. Answers
-/// the part's document id.
+/// centred rectangle, one extrude, the box added to the product through
+/// its one door — assert its volume, and save it. Answers the part's
+/// document id.
 fn author_box_part(
     session: &mut DocSession,
     name: &str,
@@ -139,22 +139,12 @@ fn author_box_part(
         near(body_volume(session, extrude, tol), width * height * depth),
         "the {name} part's volume is its box"
     );
-    common::reopened_with(
-        session,
-        file,
-        |doc| {
-            let (doc, copy) = common::world_copy(doc, extrude, tol);
-            common::edited(
-                &doc,
-                pncad::document::DocEdit::SetProduct {
-                    product: Some(pncad::document::Operand::Node(copy)),
-                },
-                tol,
-            )
-            .0
-        },
-        tol,
-    );
+    let added = session.perform(SessionOp::AddToProduct {
+        node: extrude,
+        body: None,
+    });
+    assert!(added.refusal.is_none(), "{:?}", added.refusal);
+    session.pump();
     let saved = session.perform(SessionOp::Save(file.to_path_buf()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     session.committed_doc().id()
@@ -350,15 +340,16 @@ fn the_windmill_story() {
     }
 
     // ── 4. RESOLVE: two instance rows, both ok. The tower is then
-    // placed into the world by hand — it stands where the product is
-    // made, and an inserted part lands in a space of its own.
+    // added to the product — an inserted part lands in a space of its
+    // own, and nothing there reads it, so the door moves it into the
+    // world where the product is made.
     session.pump();
-    common::reopened_with(
-        &mut session,
-        &asm_path,
-        |doc| common::into_world(doc, tower_i, tol),
-        tol,
-    );
+    let added = session.perform(SessionOp::AddToProduct {
+        node: tower_i,
+        body: None,
+    });
+    assert!(added.refusal.is_none(), "{:?}", added.refusal);
+    session.pump();
     let rows = common::asm::instance_rows(&session);
     assert_eq!(rows.len(), 2);
     for row in &rows {
@@ -374,13 +365,13 @@ fn the_windmill_story() {
         .stats()
         .triangles;
     let history_len = session.history().len();
-    let hidden = session.perform(SessionOp::SetBodyHidden {
+    let hidden = session.perform(SessionOp::SetBodyOn {
         node: hub_i,
-        hidden: true,
+        on: false,
     });
     assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
     assert!(hidden.committed.is_empty(), "hide commits no edit");
-    assert!(session.display().hidden_bodies().contains(&hub_i));
+    assert!(!session.toggles().body_on(hub_i));
     assert!(
         index
             .scene_for(&session.display_view())
@@ -396,12 +387,12 @@ fn the_windmill_story() {
         session.tree_rows().iter().any(|row| row.id == hub_i),
         "so does the tree"
     );
-    let shown = session.perform(SessionOp::SetBodyHidden {
+    let shown = session.perform(SessionOp::SetBodyOn {
         node: hub_i,
-        hidden: false,
+        on: true,
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
-    assert!(session.display().hidden_bodies().is_empty());
+    assert!(session.display().toggled().is_empty());
 
     // ── 6. THE CAMERA AND A REAL PICK. Frame the scene off its own
     // drawn bounds, orbit, re-frame (a fit is not a reset), then aim
@@ -602,7 +593,12 @@ fn the_windmill_story() {
     // identity-placed — and the faces' normals meet opposed. The base,
     // once the author says it is what the document makes, CERTIFIES at
     // rest: one declared contact, nested, answered.
-    common::product_is(&mut session, &[tower_i, hub_i]);
+    let added = session.perform(SessionOp::AddToProduct {
+        node: hub_i,
+        body: None,
+    });
+    assert!(added.refusal.is_none(), "{:?}", added.refusal);
+    session.pump();
     {
         let (_, eval) = session.landed_pair().expect("landed");
         let pose = face_frame(eval, hub_bottom.node, &hub_bottom.name)
@@ -827,7 +823,20 @@ fn the_windmill_story() {
     // induces — the gate's verdict is the truth about this design,
     // shown on the draw path rather than saved for an export — once the
     // author says the four are what the document makes.
-    common::product_is(&mut session, &[tower_i, hub_i, sail_a, sail_b]);
+    for sail in [sail_a, sail_b] {
+        let added = session.perform(SessionOp::AddToProduct {
+            node: sail,
+            body: None,
+        });
+        assert!(added.refusal.is_none(), "{:?}", added.refusal);
+    }
+    session.pump();
+    assert_eq!(
+        viewer::world::product_reads(session.committed_doc()),
+        [tower_i, hub_i, sail_a, sail_b]
+            .map(|copy| session.committed_doc().output(copy, 0).expect("a copy")),
+        "the four copies, in the order the author added them"
+    );
     let rows = session.tree_rows();
     assert_eq!(
         rows.len(),
@@ -904,7 +913,7 @@ fn the_windmill_story() {
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
-    assert!(reopened.display().hidden_bodies().is_empty());
+    assert!(reopened.display().toggled().is_empty());
     assert!(crate::common::asm::frame_of(&reopened, hub_i).is_none());
     assert_eq!(
         reopened.at_rest(),

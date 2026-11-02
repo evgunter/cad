@@ -619,13 +619,37 @@ pub mod file {
 
     use super::{PrefsStore, StoreError, Unusable};
 
-    /// Preferences in a file.
+    /// **What a file store's refusals say it was doing** — the
+    /// [`StoreError::doing`] of each of its acts, so one store serves
+    /// every viewer file and each refusal names its own.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Doing {
+        /// A read that failed.
+        pub read: &'static str,
+        /// A write that failed.
+        pub write: &'static str,
+        /// The file's directory not made.
+        pub create_dir: &'static str,
+    }
+
+    /// The preferences file's acts.
+    pub const PREFERENCES: Doing = Doing {
+        read: "read preferences",
+        write: "write preferences",
+        create_dir: "create the preferences directory",
+    };
+
+    /// A viewer file: preferences ([`FileStore::new`]), or another the
+    /// viewer keeps, such as a document's saved layout
+    /// (`crate::layout`, [`FileStore::with_doing`]).
     #[derive(Debug, Clone)]
     pub struct FileStore {
         /// The document's path; `None` in an environment that names
         /// no config directory, which makes this store unusable
         /// rather than making it guess.
         path: Option<PathBuf>,
+        /// What its refusals say it was doing.
+        doing: Doing,
     }
 
     impl FileStore {
@@ -642,7 +666,20 @@ pub mod file {
         /// against a temporary path rather than a stand-in.
         #[must_use]
         pub fn new(path: Option<PathBuf>) -> Self {
-            Self { path }
+            Self {
+                path,
+                doing: PREFERENCES,
+            }
+        }
+
+        /// A store of another viewer file at `path`, whose refusals say
+        /// `doing`.
+        #[must_use]
+        pub fn with_doing(path: PathBuf, doing: Doing) -> Self {
+            Self {
+                path: Some(path),
+                doing,
+            }
         }
 
         /// A store at an explicit path.
@@ -680,7 +717,7 @@ pub mod file {
                 // ordinary state of a viewer someone just installed.
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
                 Err(e) => Err(StoreError {
-                    doing: "read preferences",
+                    doing: self.doing.read,
                     because: format!("{}: {e}", path.display()),
                 }),
             }
@@ -692,12 +729,12 @@ pub mod file {
             };
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| StoreError {
-                    doing: "create the preferences directory",
+                    doing: self.doing.create_dir,
                     because: e.to_string(),
                 })?;
             }
             std::fs::write(path, document).map_err(|e| StoreError {
-                doing: "write preferences",
+                doing: self.doing.write,
                 because: format!("{}: {e}", path.display()),
             })
         }

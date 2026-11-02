@@ -23,6 +23,7 @@ use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
 
 use crate::display::PruneReport;
+use crate::layout::LayoutReport;
 use crate::props::SlotValue;
 use crate::session::author::{PartSelectSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
@@ -388,11 +389,17 @@ pub enum SessionOp {
     /// the document to get it re-drawn. The memo makes the re-run of an
     /// unchanged document nearly free.
     Reevaluate,
-    /// Replace the session's document with a file's.
+    /// Replace the session's document with a file's, and restore the
+    /// display frames its saved layout holds ([`crate::layout`]); what
+    /// of the layout does not restore is the outcome's
+    /// [`OpOutcome::layout`], and refuses nothing.
     Open(PathBuf),
     /// Write the committed document at a path, identity kept (DI4):
     /// through the store of the folder the file lands in, with no
-    /// edit log (GQ3). Save and Save As… both push this.
+    /// edit log (GQ3). Save and Save As… both push this. The committed
+    /// display frames are kept beside the file, in its layout
+    /// ([`crate::layout`]), never in it; a layout not written is the
+    /// outcome's [`OpOutcome::layout`], and the save stands.
     ///
     /// That folder's scan decides the act before anything is written:
     /// a resave, a create at the chosen name, or a refusal. A folder
@@ -415,20 +422,22 @@ pub enum SessionOp {
     /// new id as one operation, so no undo returns to the original's
     /// identity. The original's file is untouched, and inbound
     /// `DocRef`s keep naming it. Like [`SessionOp::Save`], the session
-    /// is then backed by the path and its resolver follows the folder.
+    /// is then backed by the path and its resolver follows the folder,
+    /// and its layout is written beside the path under the new id.
     SaveAsNewDocument(PathBuf),
-    /// Hide or show the body `node` builds (G3): a DISPLAY operation —
-    /// the scene and the pick index drop what draws it; the document
-    /// and the feature tree keep it, and nothing is persisted
-    /// ([`crate::display::DisplayState::set_body_hidden`]).
-    SetBodyHidden {
+    /// Turn the toggle of the body `node` builds on or off (G3): a
+    /// DISPLAY operation over what the toggle reads now — off drops
+    /// what draws the body, on draws a body the picture leaves out; the
+    /// document and the feature tree keep it either way, and nothing is
+    /// persisted ([`crate::display::DisplayState::set_body_on`]).
+    SetBodyOn {
         /// The node building the body.
         node: RecipeNodeId,
-        /// Hidden, or shown again.
-        hidden: bool,
+        /// On, or off.
+        on: bool,
     },
     /// Hide or show a space, every body drawn in it: a DISPLAY operation
-    /// as [`SessionOp::SetBodyHidden`] is
+    /// as [`SessionOp::SetBodyOn`] is
     /// ([`crate::display::DisplayState::set_space_hidden`]).
     SetSpaceHidden {
         /// The space.
@@ -1027,10 +1036,29 @@ pub enum SessionOp {
     /// the order given, inserted in the same action; to nothing where
     /// `bodies` is empty. One action, one undo. The door refuses a read
     /// whose body is not in the world. The properties pane offers it on a
-    /// selected world copy: add it to the product, or take it out.
+    /// copy the product reads, to take it out; a body joins the product
+    /// through [`SessionOp::AddToProduct`].
     SetProduct {
         /// The bodies the document makes.
         bodies: Vec<Operand>,
+    },
+    /// **Add to the product** (D10 `[operations]`): the one door a body
+    /// reaches the product through, offered on the body under a viewport
+    /// pick, on a drawn body's tree row, and as the action of the
+    /// product's recourses and the `unused` finding's. A copy in the
+    /// world is added to the slot; a placement's copy nothing reads has
+    /// its placement re-targeted into the world, a `new_space()` it
+    /// leaves empty deleted, and is added; any other body is placed into
+    /// the world by the identity bundle and that copy added. One action,
+    /// one undo. A copy the product reads already is refused
+    /// ([`super::Refusal::InTheProduct`]).
+    AddToProduct {
+        /// The node whose body is added: a pick's drawn node
+        /// ([`super::Selection::seat_node`]) or a tree row's.
+        node: RecipeNodeId,
+        /// The output body a viewport pick hit, for a node with several
+        /// outputs (a split's halves); `None` for a tree row.
+        body: Option<u32>,
     },
     /// **A creation, labelled**: the creation's own edits and then a
     /// `DocEdit::SetLabel` on the node it made (`OpOutcome::made`), as
@@ -1267,7 +1295,7 @@ impl SessionOp {
             | Self::Open(_)
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
@@ -1278,6 +1306,7 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
+            | Self::AddToProduct { .. }
             | Self::CreateLabelled { .. } => false,
         }
     }
@@ -1338,7 +1367,7 @@ impl SessionOp {
             | Self::Open(_)
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::AddMate { .. }
             | Self::NewDocument { .. }
@@ -1362,6 +1391,7 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
+            | Self::AddToProduct { .. }
             | Self::CreateLabelled { .. } => None,
         }
     }
@@ -1486,7 +1516,7 @@ impl SessionOp {
     ///   is and not by a row here;
     /// - layer-3 moves that touch neither the document nor the history
     ///   ([`SessionOp::Select`], [`SessionOp::Hover`], the free-move
-    ///   family, [`SessionOp::SetBodyHidden`]) and the evaluation
+    ///   family, [`SessionOp::SetBodyOn`]) and the evaluation
     ///   controls ([`SessionOp::CancelEvaluation`],
     ///   [`SessionOp::Reevaluate`]);
     /// - [`SessionOp::Save`], which has TWO effects and this row is
@@ -1541,7 +1571,7 @@ impl SessionOp {
             | Self::CancelEvaluation
             | Self::Reevaluate
             | Self::Save(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginGesture { .. }
             | Self::BeginVariableGesture { .. }
@@ -1589,7 +1619,8 @@ impl SessionOp {
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
-            | Self::SetProduct { .. } => false,
+            | Self::SetProduct { .. }
+            | Self::AddToProduct { .. } => false,
             // A labelled creation is its creation, labelled.
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_value_gesture(),
         }
@@ -1676,7 +1707,7 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
@@ -1721,7 +1752,8 @@ impl SessionOp {
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
-            | Self::SetProduct { .. } => true,
+            | Self::SetProduct { .. }
+            | Self::AddToProduct { .. } => true,
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
         }
     }
@@ -1750,7 +1782,7 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
@@ -1796,7 +1828,8 @@ impl SessionOp {
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
-            | Self::SetProduct { .. } => false,
+            | Self::SetProduct { .. }
+            | Self::AddToProduct { .. } => false,
             Self::CreateLabelled { creation, .. } => creation.op().replaces_the_document(),
         }
     }
@@ -1905,6 +1938,16 @@ pub struct OpOutcome {
     /// gesture's previews: a preview enters no history, so nothing it
     /// did has happened yet.
     pub maintenance: Vec<Maintenance>,
+    /// **What the document's saved layout came to** — the frames an
+    /// open could not restore and why, or a layout an open could not
+    /// read or a save could not write ([`crate::layout`]). Neither
+    /// refuses the open or the save: the document file never depends on
+    /// its layout, so the document is opened or saved all the same and
+    /// this says what of its layout was not.
+    ///
+    /// Empty on every operation but [`SessionOp::Open`],
+    /// [`SessionOp::Save`] and [`SessionOp::SaveAsNewDocument`].
+    pub layout: LayoutReport,
 }
 
 impl OpOutcome {

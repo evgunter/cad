@@ -810,22 +810,22 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     session.pump();
     let index = plate_index(&session);
     assert!(
-        index.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, common::plate_delta()))
-        ),
+        index.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        ))),
         "freshly built, it describes the run on screen"
     );
 
     session.perform(common::recount_op(&session, pattern, 3));
     session.pump();
     assert!(
-        !index.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, common::plate_delta()))
-        ),
+        !index.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        ))),
         "a re-evaluation invalidates the index — it is DISCARDED, not repaired"
     );
     // A different display tolerance invalidates it too: the parts are
@@ -833,18 +833,18 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     let coarser = common::plate_delta().scaled(2.0).expect("a positive delta");
     let rebuilt = plate_index(&session);
     assert!(
-        rebuilt.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, common::plate_delta()))
-        )
+        rebuilt.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        )))
     );
     assert!(
-        !rebuilt.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, coarser))
-        )
+        !rebuilt.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            coarser,
+            viewer::world::Shown::none()
+        )))
     );
 }
 

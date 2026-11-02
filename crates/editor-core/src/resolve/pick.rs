@@ -1524,6 +1524,30 @@ impl NodePick {
         )
     }
 
+    /// **The vertices boundary polyline `boundary` of [`NodePick::mesh`]
+    /// runs between, as names**: its first point's vertex, then its
+    /// last's ([`mesh::BoundaryPolyline::start_vertex`],
+    /// [`mesh::BoundaryPolyline::end_vertex`]) — the name-level twin of
+    /// a polyline's end keys, for [`NodePick::boundary_names`]' reason.
+    /// `None` for a position the mesh holds no polyline at. Each slot
+    /// holds a name or the lookup's one refusal, per vertex.
+    ///
+    /// # Errors
+    ///
+    /// As [`NodePick::boundary_names`]: the pairing arm, or a standing
+    /// arm.
+    pub fn boundary_end_names(
+        &self,
+        eval: &Evaluation<f64>,
+        boundary: usize,
+    ) -> Result<Option<[Result<StableName, UnnamedEntity>; 2]>, NameLookupError> {
+        self.admitted(eval)?;
+        Ok(self.mesh.boundaries.get(boundary).map(|polyline| {
+            [polyline.start_vertex, polyline.end_vertex]
+                .map(|vertex| self.name_in(eval, EntityKey::Vertex(vertex)))
+        }))
+    }
+
     /// **The rim each boundary polyline of [`NodePick::mesh`] is an arc
     /// of, as names**, in polyline order (one entry per
     /// [`Mesh::boundaries`] element): `Some` of every arc's name, in

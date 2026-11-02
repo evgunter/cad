@@ -88,6 +88,12 @@ impl Drawn {
     pub fn draws(&self, node: RecipeNodeId, body: u32) -> bool {
         self.node == node && self.covers.covers(body)
     }
+
+    /// Whether this is a drawing of `node`'s body: `node`'s own, or a
+    /// piece of `node` when it is a `⊔`.
+    pub fn of_node(&self, node: RecipeNodeId) -> bool {
+        self.node == node || self.within.contains(&node)
+    }
 }
 
 /// **What `var`, read as a body by `reader` with the indices `at`,
@@ -241,6 +247,30 @@ pub fn builds_a_body(node: &Node<ProfileProgram>) -> bool {
     })
 }
 
+/// **The bodies the author's toggles show** beyond what the default
+/// draws ([`Picture::showing`]): display state, and the third part of
+/// the picture's key ([`crate::pickindex::PictureKey`]), compared by
+/// the set it holds. Shared, so a key and a request carry it cheaply.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Shown(std::sync::Arc<BTreeSet<RecipeNodeId>>);
+
+impl Shown {
+    /// No show: the default picture.
+    pub fn none() -> Self {
+        Self::default()
+    }
+
+    /// The show of `nodes`.
+    pub fn of(nodes: BTreeSet<RecipeNodeId>) -> Self {
+        Self(std::sync::Arc::new(nodes))
+    }
+
+    /// The nodes shown, in id order.
+    pub fn nodes(&self) -> &BTreeSet<RecipeNodeId> {
+        &self.0
+    }
+}
+
 /// **The picture a document draws**, computed once (module docs): every
 /// drawing of a body, and the product's pieces among them.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -296,13 +326,48 @@ impl Picture {
         {
             pieces(doc, node, covers, &mut Vec::new(), &mut product);
         }
+        let mut picture = Self {
+            drawn,
+            product: Vec::new(),
+        };
         // The product slot's body is in the picture whatever reads it.
-        for piece in &product {
-            if !drawn.contains(piece) {
-                drawn.push(piece.clone());
+        picture.draw(product.iter().cloned());
+        picture.product = product;
+        picture
+    }
+
+    /// **The picture `doc` draws with `shown` drawn too**: [`Picture::of`],
+    /// and every body of a node `shown` names drawn whole where it
+    /// stands, a `⊔` as its pieces — an operand a boolean took over, a
+    /// fillet's input, a piece of a hidden `⊔` drawn on its own. What a
+    /// show adds is the picture's only: the product is the document's.
+    pub fn showing(doc: &Doc<ProfileProgram>, shown: &Shown) -> Self {
+        let mut picture = Self::of(doc);
+        for &node in shown.nodes() {
+            if !doc.node(node).is_some_and(builds_a_body) {
+                continue;
+            }
+            let mut added = Vec::new();
+            pieces(doc, node, Covers::all(), &mut Vec::new(), &mut added);
+            picture.draw(added);
+        }
+        picture
+    }
+
+    /// Add `drawings`, each one the picture does not already hold: a
+    /// drawing is drawn once however many reasons draw it.
+    fn draw(&mut self, drawings: impl IntoIterator<Item = Drawn>) {
+        for drawn in drawings {
+            if !self.drawn.contains(&drawn) {
+                self.drawn.push(drawn);
             }
         }
-        Self { drawn, product }
+    }
+
+    /// **Whether a drawing is of `node`'s body**: the body itself, or
+    /// for a `⊔` one of its pieces.
+    pub fn draws_node(&self, node: RecipeNodeId) -> bool {
+        self.drawn.iter().any(|drawn| drawn.of_node(node))
     }
 
     /// **The spaces the picture shows** (DI5; D10 `[placement.spaces]`):
@@ -594,12 +659,16 @@ pub fn seat_read(
         Some(source) => (source.operation, Some(source.port)),
         None => (node, body.and_then(|b| u8::try_from(b).ok())),
     };
-    // A port is named only where the node holds several outputs: the
-    // document's own rule for a read naming a node alone
-    // (`Doc::read_of_node`), under which a construction's space is no
-    // second output.
-    let several = doc.read_of_node(node).is_none() && !doc.outputs(node).is_empty();
-    (node, port.filter(|_| several))
+    (node, port.filter(|_| names_a_port(doc, node)))
+}
+
+/// **Whether a read of `node` names its port**: only where the node
+/// holds several outputs — the document's own rule for a read naming a
+/// node alone (`Doc::read_of_node`), under which a construction's space
+/// is no second output. The one naming rule [`seat_read`] and
+/// [`body_read`] share.
+fn names_a_port(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    doc.read_of_node(node).is_none() && !doc.outputs(node).is_empty()
 }
 
 /// **What a feature gesture's result takes over**: the read `target`
@@ -678,6 +747,54 @@ pub fn product_reads(doc: &Doc<ProfileProgram>) -> Vec<VarId> {
 /// ([`Picture::product`]).
 pub fn product_pieces(doc: &Doc<ProfileProgram>) -> Vec<Drawn> {
     Picture::of(doc).product
+}
+
+/// **The read of the body `node` draws**: its one output holding a
+/// body or a family — named alone where the document reads it so
+/// ([`Doc::read_of_node`]), else by its port — or, for a node holding
+/// several (a split's halves), the port `body` names. `None` for a node
+/// that holds no body, and for one holding several where `body` names
+/// none of them.
+pub fn body_read(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    body: Option<u32>,
+) -> Option<Operand> {
+    let ports: Vec<u8> = doc
+        .signature(node)?
+        .into_iter()
+        .enumerate()
+        .filter(|(_, (_, kind))| matches!(kind, VarKind::Body | VarKind::Bodies))
+        .filter_map(|(port, _)| u8::try_from(port).ok())
+        .collect();
+    let port = match (ports.as_slice(), body) {
+        ([one], _) => *one,
+        (several, Some(body)) => *several.iter().find(|&&port| u32::from(port) == body)?,
+        (_, None) => return None,
+    };
+    doc.output(node, port)?;
+    Some(if names_a_port(doc, node) {
+        Operand::Output { node, port }
+    } else {
+        Operand::Node(node)
+    })
+}
+
+/// **The copy the product door moves into the world rather than copy**:
+/// `node`'s copy where `node` is a placement (a `Place` or an instance)
+/// into a space other than the world whose copy nothing reads — no
+/// operand, no mate pose, no pick ([`Doc::reader_counts`]). `None` for
+/// any other node.
+pub fn movable_into_world(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
+    if !matches!(
+        doc.node(node),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+    ) || doc.node_space(node) == Some(VarId::WORLD)
+    {
+        return None;
+    }
+    doc.output(node, 0)
+        .filter(|copy| !doc.reader_counts().contains_key(copy))
 }
 
 /// **The copy a world placement defines**, the body a product can read:
