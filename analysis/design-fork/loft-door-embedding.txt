@@ -3,3 +3,4 @@ protocol: 2126b860b6
 byte1 (arm): 75 -> <86 -> three designers
 byte2 (labels): 43 -> 43 mod 3 = 1 -> Fable = B; Opus = A, Opus = C
 dispatched: 2026-11-02 ~03:00Z, concurrently, same problem statement (scratchpad LOFT-DOOR-PROBLEM)
+sessions: A (Opus) session_018u3gVHt9AgHjSqdoaWzoB5; B (Fable) session_018u3gVGaP3z8JfZuN2fdUBo; C (Opus) session_018u3gVJeUB37UQLqWN5UssX; dispatched 02:46Z
