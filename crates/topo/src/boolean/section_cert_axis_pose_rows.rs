@@ -263,22 +263,17 @@ fn parallel_rows_serve_a_side_on_the_floor() {
 /// from the axis's foot of the region's centre out across the region,
 /// `r + 1`, so it reads the axes crossing. The two walls meet tens to
 /// hundreds of metres along the axis, where the gap closes against the
-/// tilt, so the region holds no component. At `r = 1000` the ruling sweep
-/// decides that: no ruling near the region meets the second wall. At
-/// `r = 100` the rulings near the region do meet it, far off, and their
-/// meetings, levered by `1/sin` of the tilt, straddle the region's sphere
-/// at every cell, so the sweep escalates (R-tan, on `ruling_cut`). The
-/// turn slides the walls
-/// along themselves, which that lever does not credit
+/// tilt, so the region holds no component. The ruling sweep decides that
+/// (no ruling near the region meets the second wall within it), or, where
+/// the rulings' meetings, levered by `1/sin` of the tilt, straddle the
+/// region's sphere at every cell, escalates on `ruling_cut` (R-tan); which
+/// one depends on the pose's conditioning at the run's band. It never
+/// lists a component. The turn slides the walls along themselves, which that lever does not credit
 /// (`sectarms/the-cylinder-pose-levers-a-tilt-from-the-axis-foot-of-the-region`).
 #[test]
 fn wide_walls_tilted_in_the_band_read_crossing_over_a_region_on_the_wall() {
     let z = zero();
-    for (r, gap, decided) in [
-        (100.0, 20.0, false),
-        (100.0, 40.0, false),
-        (1000.0, 200.0, true),
-    ] {
+    for (r, gap) in [(100.0, 20.0), (100.0, 40.0), (1000.0, 200.0)] {
         let s = classify(
             &cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), r),
             &cylinder(p(0.0, 0.0, 0.0), tilted(0.45 * z), r + gap * z),
@@ -290,10 +285,10 @@ fn wide_walls_tilted_in_the_band_read_crossing_over_a_region_on_the_wall() {
             Some(geom_brep::SsiLane::marched()),
             band(),
         );
-        let pinned = if decided {
-            matches!(&s, Section::Components { parts, .. } if parts.is_empty())
-        } else {
-            matches!(&s, Section::Tangent(name) if name.starts_with("ruling_cut"))
+        let pinned = match &s {
+            Section::Components { parts, .. } => parts.is_empty(),
+            Section::Tangent(name) => name.starts_with("ruling_cut"),
+            _ => false,
         };
         assert!(pinned, "r = {r}, gap = {gap}: {s:?}");
     }

@@ -43,9 +43,9 @@ case.
 ## 2026-11-02: since the ruling sweep
 
 The row now reads the pose's crossing verdict on the ruling sweep, not on
-the march (branch `sectarms/cylinder-ruling-sweep`). At `r = 1000` the
-sweep decides there is no component in the region. At `r = 100` the
-rulings near the region meet the second wall far off, levered by
-`1/sin` of the tilt, and the sweep escalates on `ruling_cut` (R-tan).
+the march (branch `sectarms/cylinder-ruling-sweep`). The sweep never lists
+a component in the region. Depending on the pose's conditioning at the
+run's band, it either decides that no ruling near the region meets the
+other wall there, or escalates on `ruling_cut` (R-tan), where the
+meetings, levered by `1/sin` of the tilt, straddle the region's sphere.
 The lever question stands as filed.
-
