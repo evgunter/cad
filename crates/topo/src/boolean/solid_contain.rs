@@ -3548,7 +3548,7 @@ fn wall_crosses_by_turn<T: Decide>(
             return Ok(None);
         };
         let off = match *curve.carrier() {
-            geom::Curve3::Line { dir, .. } => {
+            geom::Curve3::Line(geom::Line { dir, .. }) => {
                 let (t0, t1) = curve.params();
                 (dir / dir.norm()).cross(axis).norm() * ((t1 - t0) * dir.norm()).abs()
             }
@@ -3644,7 +3644,7 @@ fn loop_turn<T: Decide>(
             .and_then(crate::null::CurveGeom::certified)
             .ok_or_else(corrupt)?;
         match *curve.carrier() {
-            geom::Curve3::Line { .. } => turn = turn + angle(a, b),
+            geom::Curve3::Line(_) => turn = turn + angle(a, b),
             geom::Curve3::Circle { .. } => {
                 let on = |f: f64| {
                     along_half(body, e.half, f)
@@ -3781,7 +3781,7 @@ pub(crate) fn edge_clearance<T: Decide>(body: &Body<T>, e: &FaceEdge, m: Point3<
         .and_then(|ed| body.get_curve_geom(ed.curve))
         .and_then(crate::null::CurveGeom::certified)?;
     match *curve.carrier() {
-        geom::Curve3::Line { .. } => Some(crate::sector_shape::point_segment_distance(
+        geom::Curve3::Line(_) => Some(crate::sector_shape::point_segment_distance(
             at(e.ends[0])?,
             at(e.ends[1])?,
             m,

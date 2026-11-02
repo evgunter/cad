@@ -435,10 +435,7 @@ mod tests {
             )
             .unwrap(),
         ));
-        let edge = Curve3::Line {
-            origin: Point3::origin(),
-            dir: Vec3::new(0.0, 1.0, 0.0),
-        };
+        let edge = Curve3::line(Point3::origin(), Vec3::new(0.0, 1.0, 0.0));
         let (a, b) = (Span::new(&spline, (0.0, 1.0)), Span::new(&edge, (0.0, 1.0)));
         let points = witnesses(&Read::of(&a), &Read::of(&b), band).unwrap();
         let off =

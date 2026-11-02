@@ -35,10 +35,7 @@ fn marginal_witness_slack_vs_remint_freshness() {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
     ]);
-    let carrier = Curve3::Line {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
     let (t0, t1) = (0.0, 2.0);
     let mid_i = (CERT_SAMPLES - 1) / 2;
     let mid_t = geom_brep::sample_param(t0, t1, mid_i);

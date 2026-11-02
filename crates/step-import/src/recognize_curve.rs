@@ -358,10 +358,7 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     if !(residual <= eps_in) {
         return None;
     }
-    let line = Curve3::Line {
-        origin: plus_zero_point(*first),
-        dir: plus_zero(dir),
-    };
+    let line = Curve3::line(plus_zero_point(*first), plus_zero(dir));
     Some((line, residual))
 }
 
@@ -1042,7 +1039,7 @@ mod tests {
         let (a, b) = (Point3::new(0.01, 0.02, 0.03), Point3::new(0.05, 0.02, 0.03));
         let chord = NurbsCurve3::new(knots.clone(), vec![a, b], vec![1.0, 1.0]).unwrap();
         let CurveRecognition::Promoted {
-            curve: Curve3::Line { origin, dir },
+            curve: Curve3::Line(geom::Line { origin, dir }),
             residual,
             kind,
         } = recognize(&chord, EPS_LINE)
@@ -1058,7 +1055,7 @@ mod tests {
         assert!((dir.x - 1.0).abs() < 1e-15, "dir {dir:?}");
         let reversed = NurbsCurve3::new(knots, vec![b, a], vec![1.0, 1.0]).unwrap();
         let CurveRecognition::Promoted {
-            curve: Curve3::Line { dir: rdir, .. },
+            curve: Curve3::Line(geom::Line { dir: rdir, .. }),
             ..
         } = recognize(&reversed, EPS_LINE)
         else {
@@ -1155,7 +1152,7 @@ mod tests {
             }
             let line = |w: f64| match recognize(&carrier(w, w), eps) {
                 CurveRecognition::Promoted {
-                    curve: Curve3::Line { origin, dir },
+                    curve: Curve3::Line(geom::Line { origin, dir }),
                     residual,
                     ..
                 } => (
@@ -1219,7 +1216,7 @@ mod tests {
             "a re-timed interior must not certify at the module band"
         );
         let CurveRecognition::Promoted {
-            curve: Curve3::Line { dir, .. },
+            curve: Curve3::Line(geom::Line { dir, .. }),
             residual,
             ..
         } = recognize(&curve, 0.02)
@@ -1279,7 +1276,7 @@ mod tests {
             )
             .unwrap();
             let CurveRecognition::Promoted {
-                curve: Curve3::Line { origin, dir },
+                curve: Curve3::Line(geom::Line { origin, dir }),
                 residual,
                 ..
             } = recognize(&curve, EPS_LINE)

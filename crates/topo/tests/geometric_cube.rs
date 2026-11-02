@@ -157,10 +157,7 @@ fn wrong_cache_is_rejected_at_attachment() {
     let edges_before = body.edges().count();
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
-    spec.carrier = Curve3::Line {
-        origin: Point3::new(0.0, 100.0 * eps, 0.0),
-        dir: Vec3::unit_x(),
-    };
+    spec.carrier = Curve3::line(Point3::new(0.0, 100.0 * eps, 0.0), Vec3::unit_x());
     let err = body
         .mev(
             MevSite::Lone {

@@ -781,9 +781,7 @@ impl<T: Real> Conic<T> {
                 semi_u,
                 semi_v,
             }),
-            geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                None
-            }
+            geom::Curve3::Line(_) | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
         }
     }
 

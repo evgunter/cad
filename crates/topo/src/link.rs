@@ -2062,7 +2062,7 @@ pub(crate) fn clearance<T: Decide>(
         .and_then(|d| body.curves.get(d.curve))
         .and_then(crate::null::CurveGeom::certified)
         .ok_or(TouchUnread::Unreadable)?;
-    if let geom::Curve3::Line { .. } = curve.carrier() {
+    if !curve.carrier().is_curved() {
         let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
         return Ok(to_segment(
             p,
