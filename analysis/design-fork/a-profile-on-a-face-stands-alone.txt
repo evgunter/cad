@@ -1,0 +1,4 @@
+fork: a-profile-on-a-face-stands-alone (vseam, on-the-picked-face-makes-a-profile-and-extrudes-it-in-one-checkbox)
+drawn: 2026-11-02, /dev/urandom one byte
+byte: 199
+mapping: A = Fable, B = Opus
