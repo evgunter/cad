@@ -60,8 +60,8 @@ use crate::wire_legal_union_refusals as sunk;
 use editor_core::pose::{PoseRole, RoleRead};
 use editor_core::{
     Bodies, BooleanValue, DocEdit, EntityKey, Entry, Formula, LoopProgram, MintId, Node, NodeMap,
-    Operand, ProfileDoc, RecipeNodeId, SectionId, SectionMap, StepId, StepMap, TargetAxis, ValuePayload, VarId,
-    remap_name,
+    Operand, ProfileDoc, RecipeNodeId, SectionId, SectionMap, StepId, StepMap, TargetAxis,
+    ValuePayload, VarId, remap_name,
 };
 use geom_core::Tol;
 

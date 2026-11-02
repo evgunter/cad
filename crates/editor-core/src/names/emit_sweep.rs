@@ -148,11 +148,7 @@ impl Sections<'_> {
 
     /// The sections slab `s` of `slabs` spans, as `(id, pieces)`: every
     /// section where it is the only slab, its two otherwise.
-    fn spanned(
-        &self,
-        s: usize,
-        slabs: usize,
-    ) -> impl Iterator<Item = (SectionId, &ProfilePieces)> {
+    fn spanned(&self, s: usize, slabs: usize) -> impl Iterator<Item = (SectionId, &ProfilePieces)> {
         let at = if slabs == 1 {
             0..self.pieces.len()
         } else {
@@ -909,11 +905,8 @@ mod tests {
             node(),
             &lofted,
             &[pieces.clone(), pieces],
-            &[
-                SectionId::new(1, 1),
-                SectionId::new(2, 2),
-            ],
+            &[SectionId::new(1, 1), SectionId::new(2, 2)],
         )
-            .unwrap_or_else(|e| panic!("the loft is named: {e:?}"));
+        .unwrap_or_else(|e| panic!("the loft is named: {e:?}"));
     }
 }

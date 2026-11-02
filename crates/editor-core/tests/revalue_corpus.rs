@@ -570,9 +570,28 @@ rows! {
     // to snap it at rest, the builds would part at `pose_unit_norm`).
     revalue_cut_cylinder: "cut_cylinder", Apart, 1302, [];
     revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
-    revalue_loft_prism: "loft_prism", Apart, 259, [];
     revalue_measured_web: "measured_web", Apart, 716, [];
     revalue_declared_tangency: "declared_tangency", Apart, 1217, [];
+}
+
+/// Apart, a pinned red: a census of the loft's edge pairs reads two
+/// walls' edges as exactly parallel at the nominal (margin `0.0`), so
+/// the apart move flips it at decision 242 of 1539 and the row compares
+/// in step
+/// (`work/inlane/under-the-apart-move-loft-prism-parts-at-an-exactly-parallel-edge-pair.md`).
+#[test]
+fn revalue_loft_prism() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "loft_prism under the apart move",
+        &[
+            "loft_prism: the row compared under another move than its pin",
+            "after_flip: {}, flips: [], mode: Some(InStep), seen: {",
+            "left: Some(InStep)\n right: Some(Apart)",
+        ],
+        || holds("loft_prism", Move::Apart, 259, &[], &[], &[]),
+    );
 }
 
 /// Apart, a pinned red: a point-in-solid plane test the union of the

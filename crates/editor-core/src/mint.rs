@@ -651,7 +651,11 @@ impl Mint {
     }
 
     /// Mints each `None` of `shape` along `chain`, extending the log.
-    fn fill_sections(&mut self, mut chain: [u8; 32], shape: &[Option<SectionId>]) -> Vec<SectionId> {
+    fn fill_sections(
+        &mut self,
+        mut chain: [u8; 32],
+        shape: &[Option<SectionId>],
+    ) -> Vec<SectionId> {
         let ids = shape
             .iter()
             .map(|kept| match *kept {

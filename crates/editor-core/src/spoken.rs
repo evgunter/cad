@@ -449,7 +449,7 @@ impl HoldsNodes for SpokenNameParts {
         self.held.step(id)
     }
 
-    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<usize> {
+    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<(usize, usize)> {
         self.held.section_at(loft, id)
     }
 
@@ -671,9 +671,9 @@ trait HoldsNodes {
     fn constraint_at(&self, _mate: crate::mate::MateRef) -> Option<usize> {
         None
     }
-    /// The 1-based position of the section `id` in the loft `loft`,
-    /// where the document holds it there.
-    fn section_at(&self, _loft: RecipeNodeId, _id: SectionId) -> Option<usize> {
+    /// The 1-based position of the section `id` in the loft `loft`, and
+    /// how many sections the loft has, where the document holds it there.
+    fn section_at(&self, _loft: RecipeNodeId, _id: SectionId) -> Option<(usize, usize)> {
         None
     }
     /// A reader of `id` at `dim` as written ([`Doc::written`]), where
@@ -713,11 +713,13 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
             .map(|k| k + 1)
     }
 
-    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<usize> {
+    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<(usize, usize)> {
         let Some(Node::Loft { ids, .. }) = self.node(loft) else {
             return None;
         };
-        ids.iter().position(|&s| s == id).map(|k| k + 1)
+        ids.iter()
+            .position(|&s| s == id)
+            .map(|k| (k + 1, ids.len()))
     }
 
     fn written(
@@ -892,8 +894,9 @@ enum NodeFact {
     Output(crate::var::VarId, OutputOf),
     /// A constraint, with its 1-based position in its bundle.
     Constraint(crate::mate::MateRef, usize),
-    /// A loft section, with its loft and its 1-based position there.
-    Section(RecipeNodeId, SectionId, usize),
+    /// A loft section, with its loft, its 1-based position there and
+    /// the loft's section count.
+    Section(RecipeNodeId, SectionId, (usize, usize)),
 }
 
 impl NodeFact {
@@ -991,7 +994,7 @@ impl HoldsNodes for HeldNodes {
         })
     }
 
-    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<usize> {
+    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<(usize, usize)> {
         self.facts.iter().find_map(|fact| match *fact {
             NodeFact::Section(of, held, at) if of == loft && held == id => Some(at),
             _ => None,
@@ -1061,7 +1064,7 @@ impl<P: ProfilePayload> HoldsNodes for Recording<'_, P> {
         self.said.borrow_mut().keep(NodeFact::Constraint(mate, at));
         Some(at)
     }
-    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<usize> {
+    fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<(usize, usize)> {
         let at = self.doc.section_at(loft, id)?;
         self.said.borrow_mut().keep(NodeFact::Section(loft, id, at));
         Some(at)
@@ -1401,14 +1404,25 @@ impl<'a> Speaker<'a> {
         self.doc?.step(id)
     }
 
-    /// **A loft section, said**: `section <n>`, `n` its 1-based
-    /// position in `loft` where the document holds it there, and
-    /// `section <id>` where it does not.
-    pub(crate) fn section(self, loft: RecipeNodeId, id: SectionId) -> String {
+    /// **A loft section's numeral**: its 1-based position in `loft`
+    /// where the document holds it there, its tag where it does not.
+    pub(crate) fn section_numeral(self, loft: RecipeNodeId, id: SectionId) -> String {
         match self.doc.and_then(|doc| doc.section_at(loft, id)) {
-            Some(at) => format!("section {at}"),
-            None => format!("section {id}"),
+            Some((at, _)) => at.to_string(),
+            None => id.to_string(),
         }
+    }
+
+    /// **Whether `ids` are every section of `loft`, in order**, as the
+    /// document holds it: a wall that spans the whole loft, said
+    /// without its sections. `false` where the document is not at hand.
+    pub(crate) fn spans_loft(self, loft: RecipeNodeId, ids: &[SectionId]) -> bool {
+        let Some(doc) = self.doc else {
+            return false;
+        };
+        ids.iter()
+            .enumerate()
+            .all(|(k, &id)| doc.section_at(loft, id) == Some((k + 1, ids.len())))
     }
 
     /// The node `id` where the sentence knows what it is: `<noun>

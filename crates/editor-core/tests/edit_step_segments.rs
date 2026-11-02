@@ -750,12 +750,13 @@ fn assert_sections_bound_their_walls(
                     // The slabs section `si` bounds: the one below it
                     // and the one above it.
                     for slab in si.saturating_sub(1)..si.min(last - 1) + 1 {
-                        let face = loft_wall(ev, loft, (ids, &sids), *e, slab).unwrap_or_else(|| {
-                            panic!(
-                                "{id}: section {si} loop {li} step {step}: {e:?} names no wall \
+                        let face =
+                            loft_wall(ev, loft, (ids, &sids), *e, slab).unwrap_or_else(|| {
+                                panic!(
+                                    "{id}: section {si} loop {li} step {step}: {e:?} names no wall \
                                  of slab {slab}"
-                            )
-                        });
+                                )
+                            });
                         walls.insert(face);
                         let pts = face_vertex_points(body.body(), face);
                         for end in ends {
@@ -778,9 +779,13 @@ fn assert_sections_bound_their_walls(
                                 "{id}: section {si} step {step}'s ref {e:?} names no {cap:?} rim"
                             )
                         }),
-                        None => section_edge(ev, loft, sids[si], &pv.pieces, *e).unwrap_or_else(|| {
-                            panic!("{id}: section {si} step {step}'s ref {e:?} names no ring edge")
-                        }),
+                        None => {
+                            section_edge(ev, loft, sids[si], &pv.pieces, *e).unwrap_or_else(|| {
+                                panic!(
+                                    "{id}: section {si} step {step}'s ref {e:?} names no ring edge"
+                                )
+                            })
+                        }
                     };
                     let [a, b] = fixture::ends(body.body(), edge);
                     let got = [

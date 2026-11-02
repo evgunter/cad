@@ -131,10 +131,9 @@ use pncad::document::{
     InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MeasureUnavailableAt, MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind,
     NodeStanding, ParseError, PersistError, PinRefusal, ProductReadFault, ProgramFault,
-    ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault, ShellClassifyError, SlotId,
-    SectionIdFault, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, TargetAxis,
-    Unlocalized,
-    UpdateError,
+    ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault, SectionIdFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
+    TargetAxis, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;

@@ -11,8 +11,7 @@ use std::collections::BTreeSet;
 use crate::fixture::{self, insert, len};
 use editor_core::{
     Axis3, DocEdit, EditError, EvalOptions, Formula, LoftSection, Node, Operand, ProfileDoc,
-    RecipeNodeId, RoleSeg, SectionId, SectionIdFault, SlotId, SlotValue, StableName,
-    StationMove,
+    RecipeNodeId, RoleSeg, SectionId, SectionIdFault, SlotId, SlotValue, StableName, StationMove,
 };
 use geom_core::Tol;
 
@@ -355,7 +354,16 @@ fn the_edit_door_refuses_a_foreign_a_doubled_and_a_miscounted_id() {
             ids: ours.clone(),
         },
     );
-    assert_eq!(fault(preminted), SectionIdFault::Preminted);
+    assert!(
+        matches!(
+            preminted,
+            EditError::SectionIdsRefused {
+                fault: SectionIdFault::Preminted,
+                ..
+            }
+        ),
+        "an inserted loft carrying ids: {preminted:?}"
+    );
     // Every id kept, and the edit is admitted.
     set(&doc, loft, &[(p[0], 0.0), (p[1], 1.0)], &[Some(0), Some(1)])
         .expect("every id kept in place");

@@ -449,7 +449,8 @@ fn carry<E>(
             continue;
         };
         let later = &olds[k..];
-        let forward = |missing: &RemapError| match *missing {
+        let forward = |missing: &RemapError| {
+            match *missing {
             RemapError::Unmapped(Unmapped::Node(n)) => later.contains(&n),
             RemapError::Unmapped(Unmapped::Read(var)) => {
                 source.operation_of(var).is_some_and(|n| later.contains(&n))
@@ -461,6 +462,7 @@ fn carry<E>(
             RemapError::Unmapped(Unmapped::Section(section)) => later.iter().any(|n| {
                 matches!(source.node(*n), Some(Node::Loft { ids, .. }) if ids.contains(&section))
             }),
+        }
         };
         let refuse = |error: RemapMiss| match error {
             RemapMiss::Name { name, missing } if forward(&missing) => {
@@ -481,9 +483,13 @@ fn carry<E>(
         {
             constraints.clear();
         }
-        let (carried, selects) =
-            remap_with_selects(source, &bare, vars, (&node_map, &step_map, &section_map, &out_map))
-                .map_err(&refuse)?;
+        let (carried, selects) = remap_with_selects(
+            source,
+            &bare,
+            vars,
+            (&node_map, &step_map, &section_map, &out_map),
+        )
+        .map_err(&refuse)?;
         let (mut authored, fresh) = vars.author(&carried, &selects);
         if let Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } =
             &mut authored
@@ -3456,7 +3462,7 @@ pub fn split(
                         &names_map,
                         (doc, true),
                     )
-                        .map_err(|missing| SplitError::straddles(doc, name, missing))?,
+                    .map_err(|missing| SplitError::straddles(doc, name, missing))?,
                     home(name, body).ok_or_else(outside)?.0,
                 ),
             };
@@ -4167,7 +4173,7 @@ pub fn inline(
             &host_reads,
             (&part, parted),
         )
-            .map_err(|missing| InlineError::stranded(&part, of, missing))
+        .map_err(|missing| InlineError::stranded(&part, of, missing))
     };
     // A pick's path lands on the spliced variables.
     let host_path = |of: &[VarId]| -> Vec<VarId> {
@@ -5049,8 +5055,14 @@ mod remap_keeps_the_kind {
             EntityKind::Edge,
             EntityKind::Vertex,
         ] {
-            let out = remap_name(&name(kind), &map(), &StepMap::new(), &SectionMap::new(), &mirrored_reads())
-                .expect("the map covers both ids");
+            let out = remap_name(
+                &name(kind),
+                &map(),
+                &StepMap::new(),
+                &SectionMap::new(),
+                &mirrored_reads(),
+            )
+            .expect("the map covers both ids");
             assert_eq!(out.kind, kind, "remap_name must carry the kind through");
             assert_eq!(out.node, RecipeNodeId::new(0, 10), "and renumber the mint");
             assert_eq!(
@@ -5119,8 +5131,8 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
     #[test]
     fn the_rewrite_reports_the_nested_node() {
         let name = nested(EntityKind::Edge);
-        let missing =
-            remap_name(&name, &map(), &StepMap::new(), &SectionMap::new(), &reads()).expect_err("INNER is unmapped");
+        let missing = remap_name(&name, &map(), &StepMap::new(), &SectionMap::new(), &reads())
+            .expect_err("INNER is unmapped");
         assert_eq!(missing, RemapError::Unmapped(Unmapped::Node(INNER)));
         assert_ne!(
             missing,
@@ -5260,7 +5272,14 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             )
         };
         let was = vertex(9, union_edge(9, (1, 2)), 3, 1);
-        let out = remap_name(&was, &map(), &StepMap::new(), &SectionMap::new(), &mirrored_reads()).expect("covered");
+        let out = remap_name(
+            &was,
+            &map(),
+            &StepMap::new(),
+            &SectionMap::new(),
+            &mirrored_reads(),
+        )
+        .expect("covered");
         assert_eq!(
             out,
             vertex(20, union_edge(20, (31, 30)), 32, 31),
@@ -5280,7 +5299,14 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
                 RoleSeg::Fragment(Qualifier::Borders(vec![face(1), face(2)])),
             ],
         );
-        let out = remap_name(&was, &map(), &StepMap::new(), &SectionMap::new(), &mirrored_reads()).expect("covered");
+        let out = remap_name(
+            &was,
+            &map(),
+            &StepMap::new(),
+            &SectionMap::new(),
+            &mirrored_reads(),
+        )
+        .expect("covered");
         assert_eq!(
             out.path,
             vec![
@@ -5293,8 +5319,14 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             5,
             vec![seam(face(1), face(3)), seam(face(2), face(3))],
         );
-        let out =
-            remap_name(&junction, &map(), &StepMap::new(), &SectionMap::new(), &mirrored_reads()).expect("covered");
+        let out = remap_name(
+            &junction,
+            &map(),
+            &StepMap::new(),
+            &SectionMap::new(),
+            &mirrored_reads(),
+        )
+        .expect("covered");
         assert_eq!(
             out.path,
             vec![seam(face(30), face(32)), seam(face(31), face(32))],
@@ -5302,7 +5334,14 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
         );
         // A pair boolean's seam vertex is in name order as a union's is.
         let vertex = name(EntityKind::Vertex, 5, vec![seam(face(2), face(1))]);
-        let out = remap_name(&vertex, &map(), &StepMap::new(), &SectionMap::new(), &mirrored_reads()).expect("covered");
+        let out = remap_name(
+            &vertex,
+            &map(),
+            &StepMap::new(),
+            &SectionMap::new(),
+            &mirrored_reads(),
+        )
+        .expect("covered");
         let (x, y) = (face(31), face(30));
         let (x, y) = if x < y { (x, y) } else { (y, x) };
         assert_eq!(out.path, vec![seam(x, y)], "the pair in name order");
@@ -5346,7 +5385,14 @@ mod remap_moves_the_step {
             .into_iter()
             .collect();
         assert_eq!(
-            remap_name(&wall(2, piece(7)), &nodes, &steps, &SectionMap::new(), &ReadMap::new()).expect("covered"),
+            remap_name(
+                &wall(2, piece(7)),
+                &nodes,
+                &steps,
+                &SectionMap::new(),
+                &ReadMap::new()
+            )
+            .expect("covered"),
             wall(0, piece(1))
         );
         let section = ProfileEdgeRef::Section {
@@ -5354,11 +5400,24 @@ mod remap_moves_the_step {
             role: PieceRole::Piece(0),
         };
         assert_eq!(
-            remap_name(&wall(2, section), &nodes, &steps, &SectionMap::new(), &ReadMap::new()).expect("covered"),
+            remap_name(
+                &wall(2, section),
+                &nodes,
+                &steps,
+                &SectionMap::new(),
+                &ReadMap::new()
+            )
+            .expect("covered"),
             wall(0, section)
         );
         assert_eq!(
-            remap_name(&wall(2, piece(8)), &nodes, &steps, &SectionMap::new(), &ReadMap::new()),
+            remap_name(
+                &wall(2, piece(8)),
+                &nodes,
+                &steps,
+                &SectionMap::new(),
+                &ReadMap::new()
+            ),
             Err(RemapError::Unmapped(Unmapped::Step(StepId::new(0, 8)))),
             "a step no carried profile holds misses on that step"
         );

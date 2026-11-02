@@ -179,7 +179,8 @@ fn union_seam_swapped(
 ) -> bool {
     match (n.path.first(), n2.path.first()) {
         (Some(RoleSeg::Seam { a, b }), Some(RoleSeg::Seam { a: a2, .. })) if a.node == n.node => {
-            remap_name(b, map, steps, &Default::default(), reads).expect("covered") == **a2 && a != b
+            remap_name(b, map, steps, &Default::default(), reads).expect("covered") == **a2
+                && a != b
         }
         _ => false,
     }
@@ -247,7 +248,8 @@ fn remap_every_order(blocks: &[B], ops: &[Op]) -> (Vec<String>, Vec<String>, boo
             assert!(failure(&ev1, t1).is_none() && failure(&ev2, t2).is_none());
             let (tab1, tab2) = (table(&ev1, t1), table(&ev2, t2));
             for (n, e) in tab1.iter() {
-                let n2 = remap_name(n, &map, &steps, &Default::default(), &reads).expect("the map covers every node");
+                let n2 = remap_name(n, &map, &steps, &Default::default(), &reads)
+                    .expect("the map covers every node");
                 union_swapped |= union_seam_swapped(n, &n2, &map, &steps, &reads);
                 assert!(
                     !pair_seam_swapped(n, &n2, &map, &steps, &reads),
