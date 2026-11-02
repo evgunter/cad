@@ -3500,7 +3500,7 @@ mod tests {
             Reach::Conic {
                 extent,
                 bend,
-                arc: None,
+                arc: crate::bound_side::ConicArc::on(&carrier, 0.0, span),
             },
         )
     }
@@ -3758,7 +3758,7 @@ mod tests {
                         let reach = Reach::Conic {
                             extent,
                             bend,
-                            arc: None,
+                            arc: crate::bound_side::ConicArc::on(&carrier, 0.0, span),
                         };
                         if enters_material(dir, n, extent, b) != Ok(EntersMaterial::Tangent) {
                             continue;
@@ -3850,7 +3850,7 @@ mod tests {
                 Reach::Conic {
                     extent,
                     bend,
-                    arc: None
+                    arc: crate::bound_side::ConicArc::on(&carrier, 0.0, span)
                 },
                 n,
                 FaceBend::Plane,

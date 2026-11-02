@@ -3155,7 +3155,7 @@ mod tests {
             end_reach: Reach::Conic {
                 extent,
                 bend,
-                arc: None,
+                arc: crate::bound_side::ConicArc::on(&arc, 0.0, span),
             },
             face: crate::entity::FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(

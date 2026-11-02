@@ -20,13 +20,18 @@
 //!   [`FirstOrder::Off`] the face on that side.
 //! - **A first-order tie** is a [`Tie`], which [`Tie::descend`] reads
 //!   one order down, the bound's bend past the face's normal section
-//!   along it, on the first order's own ladder: decided, the bound leaves
-//!   the face tangent to it, [`Descent::Leaves`]; within the zero band,
-//!   it rides the face, [`Descent::Rides`]; in the gap between the zero
-//!   band and the escalation band, or where the bend is not certified
-//!   (a spline face, a spiric or spline edge against a curved face),
-//!   [`Descent::Unresolved`], which its consumers read as the first
-//!   order's tie until a witness reads it; a poisoned reading refuses.
+//!   along it, on the first order's own ladder; within the zero band,
+//!   it rides the face, [`Descent::Rides`]. A parting off the zero band
+//!   stands on its witness, the bound's own point at the reach the
+//!   parting was read at, against the face's carrier by the carrier's
+//!   residual: decided on the parting's side (on either, where the
+//!   parting lies in the gap), the bound leaves the face tangent to it,
+//!   [`Descent::Leaves`]; within the zero band, it rides it; in the gap
+//!   between the zero band and the escalation band, or where the bend is
+//!   not certified (a spline face, a spiric or spline edge against a
+//!   curved face), [`Descent::Unresolved`], which its consumers read as
+//!   the first order's tie; a witness decided against the parting, none,
+//!   or a poisoned reading refuses.
 //!
 //! A consumer that keys on the first-order tie reads [`read`] and keeps
 //! the [`Tie`] whole; one that wants the side reads
@@ -63,9 +68,11 @@ pub(crate) enum Reach<T: geom_core::Real> {
         extent: T,
         /// The edge's bend at the base vertex.
         bend: ConicBend<T>,
-        /// The edge's arc out of the base vertex, where a point of it is
-        /// read (a circle or an ellipse; `None` for a spiric or a
-        /// spline, whose bend is not certified).
+        /// The edge's arc out of the base vertex, where a witness point
+        /// of it is read ([`Tie::descend`]): a circle's or an ellipse's;
+        /// `None` for a spiric or a spline, whose bend is not certified,
+        /// and for a conic only ever read against a plane, whose lift
+        /// [`geom_brep::conic_bend_side`] certifies.
         arc: Option<ConicArc<T>>,
     },
     /// A subdivision bisector: a direction with no point behind it,
@@ -448,9 +455,7 @@ impl<T: geom_core::Real> Carrier<T> {
                 minor_radius,
                 u_ref,
             }),
-            geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
-                None
-            }
+            _ => None,
         }
     }
 
@@ -554,7 +559,13 @@ impl<T: geom_core::Real> ConicArc<T> {
     pub(crate) fn of(curve: &geom_brep::EdgeCurve<T>, he_plus: bool) -> Option<Self> {
         let (t0, t1) = curve.params();
         let (from, to) = if he_plus { (t0, t1) } else { (t1, t0) };
-        let (center, axis, semi, u_ref, circle) = match *curve.carrier() {
+        Self::on(curve.carrier(), from, to)
+    }
+
+    /// The arc of `carrier` from its parameter `from` to `to`: `None`
+    /// for a carrier that is not a circle or an ellipse.
+    pub(crate) fn on(carrier: &geom::Curve3<T>, from: T, to: T) -> Option<Self> {
+        let (center, axis, semi, u_ref, circle) = match *carrier {
             geom::Curve3::Circle {
                 center,
                 axis,
@@ -702,19 +713,17 @@ pub(crate) enum Descent {
     Rides,
     /// Neither decided nor riding, for a reason no smaller reading here
     /// settles. Its consumers read it as the first order's tie, `On`, as
-    /// they did before the descent; this arm goes when the witness
-    /// (`a-leaves-verdict-carries-no-witness-point`) and a certified
-    /// spline jet read these bounds.
+    /// they did before the descent.
     Unresolved(Unresolved),
 }
 
 /// Why a tie's descent is [`Descent::Unresolved`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Unresolved {
-    /// The parting at the bound's reach is finite and lies between the
-    /// zero band and the escalation band, on one side: the leading term
-    /// is too small there to decide, and a witness point at the edge's
-    /// extent is what would.
+    /// The bound's witness at the reach its parting was read at lies
+    /// between the zero band and the escalation band, on one side: the
+    /// bound stands that far off the face there, which neither rides it
+    /// nor leaves it at this band.
     Gap,
     /// The bend is not certified: a spline face, a bisector of one, or a
     /// spiric or spline edge against a curved face.
@@ -1059,9 +1068,9 @@ impl<T: Decide> Tie<T> {
     /// bound's bend past the face's normal section along it, at the
     /// shortest of the bound's reach, the face's charge lever and its
     /// smallest radius of curvature, on the first order's own ladder:
-    /// decided, [`Descent::Leaves`]; within the zero band,
-    /// [`Descent::Rides`]; finite and in the gap between the zero band
-    /// and the escalation band on one side, [`Unresolved::Gap`]. The
+    /// within the zero band, [`Descent::Rides`]; decided, or finite and
+    /// in the gap between the zero band and the escalation band on one
+    /// side, the verdict is its witness's ([`Self::witnessed`]). The
     /// bound's bend is a conic's curvature, a bisector's sector face's
     /// normal section along it, and nothing for a line edge or a probe,
     /// which are straight; a plane's section is nothing. A bend no reading
@@ -1078,7 +1087,8 @@ impl<T: Decide> Tie<T> {
     /// its first-order residue, or a spiric's or a spline's, which
     /// certify no bend. [`ReadFault::Parting`]: the parting's arm in the
     /// band, or the parting poisoned (a singular point's jet) or
-    /// straddling the zero band.
+    /// straddling the zero band. [`ReadFault::Witness`]: as
+    /// [`Self::witnessed`].
     pub(crate) fn descend(self, band: Band) -> Result<Descent, ReadFault<T>> {
         let (face, reach) = (self.face, self.reach);
         let uncertified = Ok(Descent::Unresolved(Unresolved::Uncertified));
@@ -1120,39 +1130,6 @@ impl<T: Decide> Tie<T> {
             .flatten()
             .fold(reach.length(), T::min);
         let probe = geom_brep::parting_side(own - n * section, face.reference, arm, band);
-        if let Some(path) = std::env::var_os("LW_PROBE") {
-            let w_arm = self.witness_offset(arm);
-            let w_reach = self.witness_offset(reach.length());
-            let kind = match reach {
-                Reach::Chord { .. } => "chord",
-                Reach::Extent(_) => "extent",
-                Reach::Conic { .. } => "conic",
-                Reach::Bisector { .. } => "bisector",
-            };
-            let fk = match face.bend {
-                FaceBend::Plane => "plane".to_string(),
-                FaceBend::Implicit { carrier, .. } => format!("{:?}", carrier.surface().kind()),
-                FaceBend::Fitted => "fitted".to_string(),
-            };
-            let verdict = match &probe {
-                Ok(v) => format!("{v:?}"),
-                Err(e) => format!("ESC({:?})", e.diag().margin),
-            };
-            let parting = geom_brep::parting(own - n * section, face.reference.vec(), arm).value();
-            let line = format!(
-                "LWPROBE test={} kind={kind} face={fk} verdict={verdict} parting={parting:?} arm={arm:?} reach={:?} w_arm={w_arm:?} w_reach={w_reach:?}",
-                std::thread::current().name().unwrap_or("?"),
-                reach.length()
-            );
-            use std::io::Write as _;
-            if let Ok(mut f) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)
-            {
-                let _ = f.write_all(format!("{line}\n").as_bytes());
-            }
-        }
         let leading = match probe {
             Ok(verdict) => match Side::of(verdict) {
                 Some(side) => Some(side),
@@ -1267,7 +1244,7 @@ mod tests {
             Reach::Conic {
                 extent,
                 bend,
-                arc: None,
+                arc: ConicArc::on(&carrier, 0.0, span),
             },
         )
     }
@@ -1322,8 +1299,9 @@ mod tests {
     /// poisoned reading refuses**: a unit line in a ball's tangent plane
     /// parts from it by `l²/2R` at `l = 1`, so the radius sets the
     /// parting. Within the zero band it rides the ball; in the gap
-    /// between the zero band and the escalation band it is unresolved;
-    /// past the escalation band it leaves. A poisoned jet (a NaN
+    /// between the zero band and the escalation band, where its witness
+    /// at `l = 1` stands too, it is unresolved; past the escalation band
+    /// it leaves. A poisoned jet (a NaN
     /// Hessian, and a cone's own apex, where it has no gradient) is no
     /// gap: it refuses.
     #[test]
@@ -1461,7 +1439,9 @@ mod tests {
     /// a bisector of a sphere tangent to the face, each tangent to the
     /// face at a point of it. A `Leaves` verdict names the side a point
     /// of the bound at a small arc length stands on; a `Rides` on a
-    /// curved face is a bound the face holds. A fixed seed: a fixture,
+    /// curved face is a bound the face holds; a witness's refusal is a
+    /// bound a point of which within its reach stands on the other side.
+    /// A fixed seed: a fixture,
     /// not a search (it reads more than a thousand decided verdicts).
     #[test]
     fn the_descent_matches_a_sampled_side_per_face_kind() {
@@ -1484,7 +1464,7 @@ mod tests {
         }
         let b = band();
         let mut st = 0x9e37_79b9_7f4a_7c15u64;
-        let (mut checked, mut wrong) = (0, Vec::new());
+        let (mut checked, mut crossed, mut wrong) = (0, 0, Vec::new());
         for (name, s) in surfaces() {
             for trial in 0..400 {
                 let seed = Point3::new(
@@ -1538,7 +1518,7 @@ mod tests {
                             Reach::Conic {
                                 extent,
                                 bend,
-                                arc: None,
+                                arc: ConicArc::on(&carrier, 0.0, span),
                             },
                             tangent.normalize() * extent,
                             Box::new(move |l| {
@@ -1586,6 +1566,16 @@ mod tests {
                         }
                     }
                     (Ok(Descent::Rides | Descent::Unresolved(_)), _) => {}
+                    // The witness at the arm refuses a bound that comes
+                    // back across the face within its reach.
+                    (Err(ReadFault::Witness(_)), Some(truth))
+                        if (1..=64).any(|i| {
+                            side(at(reach.length() * f64::from(i) / 64.0))
+                                .is_some_and(|there| there != truth)
+                        }) =>
+                    {
+                        crossed += 1;
+                    }
                     (got, truth) => wrong.push(format!("{name} kind {kind}: {got:?}, {truth:?}")),
                 }
             }
@@ -1597,6 +1587,7 @@ mod tests {
             wrong.join("\n")
         );
         assert!(checked > 1000, "{checked} decided verdicts checked");
+        assert!(crossed > 0, "no bound came back across its face");
     }
 
     /// **Each face kind reads the side a bound leaves it to in closed
@@ -1639,7 +1630,7 @@ mod tests {
                 Reach::Conic {
                     extent,
                     bend,
-                    arc: None,
+                    arc: ConicArc::on(&carrier, 0.0, span),
                 },
             )
         };

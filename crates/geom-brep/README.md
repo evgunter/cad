@@ -1161,11 +1161,17 @@ descends through `conic_bend_side`, its lift certified from the
 carrier's curvature bounds less the first-order residue. Any other
 tied bound descends by the parting of its bend past the face's normal
 section along it (a bisector bends as its own sector's face does), on
-the first order's own ladder: decided, it leaves the face; within the
-zero band, it rides it; in the gap between the zero band and the
-escalation band, or where no bend is certified (a spline face, a
-spiric or spline edge against a curved face), it falls back to its
-first-order tie until a witness reads it; a poisoned reading refuses.
+the first order's own ladder: within the zero band, it rides the face.
+A parting off the zero band stands on its witness, the bound's own point
+at the reach the parting was read at (a bisector's carried to its own
+face), whose offset from the face is the carrier's residual
+(`implicit_residual`, the root doors' own): decided on the parting's
+side, or on either where the parting lies in the gap, it leaves the
+face; within the zero band, it rides it; in the gap between the zero
+band and the escalation band, or where no bend is certified (a spline
+face, a spiric or spline edge against a curved face), it falls back to
+its first-order tie; a witness decided against the parting, none, or a
+poisoned reading refuses.
 Readings of different equations are never
 summed: the witness's offset along the shared normal and across the
 locus are perpendicular, and a residual is a defect of its equation, not
