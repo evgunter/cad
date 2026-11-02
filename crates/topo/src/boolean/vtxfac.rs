@@ -332,7 +332,7 @@ pub(crate) fn cone_classes<T: Decide>(
         .collect();
     let cone = crate::link::Cone::gathered(p, corners, touched.map(|(_, normal, _)| normal.vec()))
         .map_err(|_| invariant("a vertex's partners and touched face hold no face at its point"))?;
-    let disc = touched.map(|_| cone.sectors.len() - 1);
+    let disc = cone.inside(0);
     let mut rows = Vec::with_capacity(bounds.len());
     for (he, q) in bounds {
         let given: Vec<_> = disc

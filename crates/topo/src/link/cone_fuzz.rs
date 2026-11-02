@@ -720,7 +720,7 @@ fn read_edge(
                 SideCode::On => Sign::Zero,
                 SideCode::Out => Sign::Positive,
             };
-            (gathered.sectors.len() - 1, side)
+            (gathered.inside(0).expect("the touched disc"), side)
         })
         .into_iter()
         .collect();
@@ -1892,7 +1892,7 @@ fn check_touched(what: &str, band: Band, rng: &mut Rng, family: &mut Family) -> 
             Some(Vec3::new(n[0], n[1], n[2])),
         )
         .expect("a cone of faces");
-        let disc = cone.sectors.len() - 1;
+        let disc = cone.inside(0).expect("the touched disc");
         match cone.reads_tied(Point3::from_array(far), &[(disc, against)], band) {
             Err(why) if why.contradicted() => {}
             got => contradicted.push(format!(
@@ -2426,7 +2426,7 @@ fn a_line_cone_never_contradicts_the_exact_oracle() {
                 m.held.map(Vec3::from_array),
             )
             .expect("a line cone");
-            let plane = m.held.map(|_| cone.sectors.len() - 1);
+            let plane = cone.inside(0);
             let slack = 2.0 * tie.norm();
             let mut probes = probes_about(&mut rng, &flat);
             for _ in 0..2 {
@@ -2518,10 +2518,13 @@ fn a_line_cone_never_contradicts_the_exact_oracle() {
 /// corners off its point by up to `0.9·zero` (a tie, read over it), read
 /// about a representative inside one sector `k`'s face and displaced
 /// `±δ` along its normal, `k`'s side given from the exact oracle, as a
-/// bound's own reading gives it. In half the draws `band ≪ δ ≪` the
-/// geometry, where the cone's own reading of `k` decides and must agree;
-/// in the other half `δ` lies inside the zero band, where the cone reads
-/// `k`'s plane Zero and the given side is taken. Each reading is checked
+/// bound's own reading gives it. In a third of the draws `band ≪ δ ≪`
+/// the geometry, where the cone's own reading of `k` decides and must agree;
+/// in another `δ` lies inside the zero band, where the cone reads `k`'s
+/// plane Zero and the given side is taken; in the third `δ` is about the
+/// tie and the side is given about the bound's own vertex, the apex,
+/// rather than `p`, the mismatch the slack is there for: it is never
+/// refused as contradicted, and is judged where it is `p`'s side too. Each reading is checked
 /// against the exact class of the displaced point, the other sectors'
 /// flips judged over the slack; a given side refused as `Contradicted`
 /// is wrong, since the oracle's side is exact. It prints, per ε, the
@@ -2545,12 +2548,17 @@ fn a_given_side_never_contradicts_the_exact_oracle() {
         // Readings, read nothing with the side given, read nothing
         // without it, and readings whose side the cone takes.
         let (mut read, mut unread, mut unread_bare, mut taken) = (0, 0, 0, 0);
+        let (mut apex_given, mut apex_differs) = (0, 0);
         for c in 0..draws {
-            let within = rng.below(2) == 0;
-            let delta = if within {
-                band.zero() * rng.range(0.05, 0.9)
-            } else {
-                band.escalate() * rng.range(10.0, 100.0)
+            // Within the zero band, well clear of it, or about the tie and
+            // given about the bound's own vertex rather than `p`.
+            let mode = rng.below(3);
+            let within = mode == 0;
+            let own_vertex = mode == 2;
+            let delta = match mode {
+                0 => band.zero() * rng.range(0.05, 0.9),
+                1 => band.escalate() * rng.range(10.0, 100.0),
+                _ => band.zero() * rng.range(0.05, 2.0),
             };
             let tie_len = band.zero() * rng.range(0.0, 0.9);
             let tie = Vec3::from_array(norm3([0; 3].map(|_| rng.range(-1.0, 1.0)))) * tie_len;
@@ -2615,11 +2623,24 @@ fn a_given_side_never_contradicts_the_exact_oracle() {
             let side = if rng.below(2) == 0 { 1.0 } else { -1.0 };
             let far = [0, 1, 2].map(|i| on[i] - h * n[i] + side * delta * n[i]);
             let exact = dot_q(n, far);
-            let given = match exact.sign() {
-                1 => Sign::Positive,
-                -1 => Sign::Negative,
-                _ => continue,
+            // The side about the bound's own vertex, the apex: what a
+            // bound's reading gives, which the slack is there to absorb.
+            let about_apex = dot_q_about(n, far, [apex.x, apex.y, apex.z]);
+            let sign_of = |h: &Q| match h.sign() {
+                1 => Some(Sign::Positive),
+                -1 => Some(Sign::Negative),
+                _ => None,
             };
+            let (Some(at_p), Some(at_apex)) = (sign_of(&exact), sign_of(&about_apex)) else {
+                continue;
+            };
+            let given = if own_vertex { at_apex } else { at_p };
+            if own_vertex {
+                apex_given += 1;
+                if at_apex != at_p {
+                    apex_differs += 1;
+                }
+            }
             let slack = 2.0 * tie_len;
             if within {
                 taken += 1;
@@ -2645,13 +2666,18 @@ fn a_given_side_never_contradicts_the_exact_oracle() {
                 Err(why) => {
                     if why.contradicted() {
                         wrong.push(format!(
-                            "{what}: an exact given side refused as contradicted"
+                            "{what}: a given side within the tie refused as contradicted"
                         ));
                     }
                     unread += 1;
                     continue;
                 }
             };
+            // A side about the apex that is not `p`'s is the slack's to
+            // absorb, and no reading of the cone at `p` judges it.
+            if given != at_p {
+                continue;
+            }
             let class = match got {
                 Material::In => SideCode::In,
                 Material::Out => SideCode::Out,
@@ -2665,7 +2691,8 @@ fn a_given_side_never_contradicts_the_exact_oracle() {
         }
         println!(
             "[fuzz] link_given_side_fuzz at ε {eps:e}: {} wrong; {read} readings, {taken} with \
-             δ in the zero band; read nothing {unread} given, {unread_bare} without",
+             δ in the zero band, {apex_given} given about the apex ({apex_differs} not p's side); \
+             read nothing {unread} given, {unread_bare} without",
             wrong.len() - before,
         );
     }
@@ -2681,4 +2708,10 @@ fn a_given_side_never_contradicts_the_exact_oracle() {
 /// `n·x`, exactly.
 fn dot_q(n: [f64; 3], x: [f64; 3]) -> Q {
     dot(&qv(n), &qv(x))
+}
+
+/// `n·(x − o)`, exactly.
+fn dot_q_about(n: [f64; 3], x: [f64; 3], o: [f64; 3]) -> Q {
+    let (x, o) = (qv(x), qv(o));
+    dot(&qv(n), &[x[0].sub(&o[0]), x[1].sub(&o[1]), x[2].sub(&o[2])])
 }

@@ -3463,4 +3463,9 @@ On the run band alone (every caller but one) a reading is one sample, as
 it was. A cone's reading over its tie (`link::Cone::reading`, read for a
 held face's side at an edge-edge site) decides a definite sign a second
 time, moved by the slack, as `link_plane` does there: such a site adds a
-second sample of the moved distance under the same name.
+second sample of the moved distance under the same name. A tie the slack
+made (a first order the band decided and the slack refused) descends by
+its rise and its parting together (`link::metric::Departure::Jet`),
+sampled under `tangent_sector_order2`; and over a slack the curvature
+charge (`bool_pierce_sector_side_curved`) is sampled a second time, less
+the slack.

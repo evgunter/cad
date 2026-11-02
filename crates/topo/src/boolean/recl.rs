@@ -1769,7 +1769,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             let (own, other) = if own_is_a { (0, 1) } else { (1, 0) };
             let (cone, from) = &cones[other];
             // The held face's side, read on the cone's own reading.
-            let held = from.iter().position(|s| matches!(s, Sheet::Held(_)));
+            let held = cone.inside(0);
             let given: Vec<_> = match (held, holding[other]) {
                 (Some(plane), Some(face)) => {
                     let side = match face.datum.side_on(dir, reach, cone.reading(band))? {
@@ -3019,17 +3019,19 @@ mod tests {
         );
     }
 
-    /// **A held face's side decided within the line cone's tie is no
-    /// side**: A's narrow wedge above a face of A's holding the line `z`
-    /// (outward `+y`), and B's corner below it with one flank dipped under
-    /// the face by `d`, B's vertex `tie` up the line from A's. The flank's
-    /// side of the face is read on the cone's own reading, over its
-    /// tie's slack. With the vertices at one point, or `d` clear of the
-    /// slack, the dipped flank reads under the face and the pass builds.
-    /// With `d = 2·Kε` inside a slack of `4·Kε`, the band decides the
-    /// side and the slack does not: the flank reads on the face, and the
-    /// pass refuses typed, where the face's side taken on the band alone
-    /// built.
+    /// **A held face's side is read on the line cone's own reading**,
+    /// over its tie's slack: A's narrow wedge above a face of A's holding
+    /// the line `z` (outward `+y`), and B's corner below it with one flank
+    /// dipped under the face by `d`, B's vertex `tie` up the line from
+    /// A's, on a band with `K = 1.4`. With the vertices at one point, or
+    /// `d` clear of the slack, the dipped flank reads under the face and
+    /// the pass builds. With the tie `0.9·zero` and `d = 1.5·zero`, the
+    /// band decides the side and the slack (`1.8·zero`) does not: the
+    /// flank reads on the face, and the pass refuses typed. That is the
+    /// reading's conservatism, not a wrong answer it corrects: this tie
+    /// runs in the held plane, and a first-order side decided past
+    /// `K·zero` does not flip under an apex offset within the zero band;
+    /// the cone's reading does not know which way its tie runs.
     #[test]
     fn a_held_faces_side_decided_within_the_cones_tie_is_no_side() {
         use super::super::sectors::{PierceLever, Reach};

@@ -747,12 +747,23 @@ pub(super) fn apex_pair_refusal<T: geom_core::Real>(
 /// Zero is the band's and does not decide. The side is read off a sign,
 /// so `on`, the Zero the bisector's code was decided on, is the nonzero
 /// gate's rejection, on the log under the predicate that decided it.
+///
+/// A tie a reading's slack made carries the sign the band decided, which
+/// the nonzero gate passes: it is refused on the Zero every `On` states,
+/// within `±zero`, as `recl::resolve_bisector_graze` refuses a record's.
 pub(super) fn bisector_zero_refusal(on: OnReading, band: Band) -> BooleanError {
+    let decided = match on.decided.sign {
+        geom_core::Sign::Zero => on.decided,
+        _ => Decided {
+            sign: geom_core::Sign::Zero,
+            margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
+        },
+    };
     BooleanError::Escalated {
         decision: BooleanDecision::BisectorSide,
         diag: geom_core::k_stats::gate_rejection(
             on.predicate,
-            on.decided,
+            decided,
             band,
             geom_core::SizedPass::NonZero,
         ),
@@ -964,9 +975,11 @@ fn read_refusal<T: Decide>(fault: ReadFault<T>, band: Band) -> BooleanError {
 /// predicate that decided it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct OnReading {
-    /// The predicate that decided the Zero.
+    /// The predicate that decided the tie.
     pub(super) predicate: &'static str,
-    /// The Zero, with the margin it was decided on.
+    /// The Zero, with the margin it was decided on; or, for a tie a
+    /// reading's slack made, the sign the band decided and the slack
+    /// refused ([`crate::bound_side::Tie::decided`]).
     pub(super) decided: Decided,
 }
 
@@ -975,7 +988,8 @@ pub(super) struct OnReading {
 pub(super) struct PierceSide {
     /// The bound's side code.
     pub code: SideCode,
-    /// Whether its first-order reading tied (`Zero`).
+    /// Whether its first-order reading tied: a `Zero`, or a side the
+    /// reading's slack refused.
     pub tied: bool,
 }
 
@@ -2884,6 +2898,41 @@ mod tests {
     use crate::contact::GlueClass;
     use geom_brep::ConicBend;
     use geom_core::Tol;
+
+    /// **A bisector's `On` from a tie a slack made refuses typed**: the
+    /// tie carries the sign the band decided (`1.5·zero` at `K = 1.4`),
+    /// which the nonzero gate passes, so it is refused on the Zero every
+    /// `On` states rather than handed to the gate as its rejection.
+    #[test]
+    fn a_slack_ties_bisector_on_refuses_on_the_bands_zero() {
+        let zero = 1e-9;
+        let band = Band::new(zero, 1.4 * zero).unwrap();
+        let decided = crate::validate::decide_reported(
+            "enters_material",
+            geom_core::Margin::of(1.5 * zero),
+            band,
+        )
+        .unwrap();
+        assert_eq!(
+            decided.sign,
+            geom_core::Sign::Positive,
+            "the band decides it"
+        );
+        let on = OnReading {
+            predicate: "enters_material",
+            decided,
+        };
+        assert!(
+            matches!(
+                bisector_zero_refusal(on, band),
+                BooleanError::Escalated {
+                    decision: BooleanDecision::BisectorSide,
+                    ..
+                }
+            ),
+            "refused as the bisector's side"
+        );
+    }
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
