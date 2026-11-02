@@ -1178,8 +1178,8 @@ impl std::fmt::Display for Counts {
 /// **No decided class a gathered cone gives, or the boolean publishes
 /// through it, contradicts the exact oracle or lies in band**, over
 /// random stars, thin fins and slivers, turned stars, and the graze,
-/// bound and long-probe families, and over two partners of each read as
-/// one cone.
+/// bound and long-probe families, each probe read again far short of the
+/// rays' reach, and over two partners of each read as one cone.
 #[test]
 fn a_gathered_cone_never_contradicts_the_exact_oracle() {
     let mut rng = test_utils::fuzz::start("sectors_cone_fuzz");
@@ -1194,6 +1194,8 @@ fn a_gathered_cone_never_contradicts_the_exact_oracle() {
     for eps in eps_set {
         let band = Band::linear_at(Tol::witness(), eps).unwrap();
         let mut counts = [Counts::default(), Counts::default()];
+        let mut short_counts = [Counts::default(), Counts::default()];
+        let mut short_wrong = 0;
         let mut read_cones = Vec::new();
         let before = wrong.len();
         for c in 0..cones {
@@ -1233,13 +1235,35 @@ fn a_gathered_cone_never_contradicts_the_exact_oracle() {
                 &mut rng,
                 &mut counts,
             ));
+            // The same directions far short of the rays' reach, where a
+            // reference out at its own reach stands far beyond `q`.
+            let mut short = Vec::with_capacity(probes.len());
+            for &far in &probes {
+                let l = rng.range(1e-8, 1e-7);
+                short.push(norm3(far).map(|x| x * l));
+            }
+            let found = check_cone(
+                &format!("{what}, short"),
+                &cone,
+                &short,
+                band,
+                &mut rng,
+                &mut short_counts,
+            );
+            short_wrong += found.len();
+            wrong.extend(found);
             read_cones.push((what, cone));
         }
         let [cone, published] = &counts;
         println!(
             "[fuzz] link_cone_fuzz at ε {eps:e}: {} wrong; the cone {cone}; the published \
              rows {published}",
-            wrong.len() - before,
+            wrong.len() - before - short_wrong,
+        );
+        let [cone, published] = &short_counts;
+        println!(
+            "[fuzz] link_cone_fuzz short probes at ε {eps:e}: {short_wrong} wrong; the cone \
+             {cone}; the published rows {published}",
         );
         pair_passes.push((eps, band, read_cones));
     }
