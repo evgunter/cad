@@ -202,3 +202,23 @@ Dispatched on it: the extent-home design fork, three designers (protocol `1b9ac4
 - Already filed, not re-filed: S2 (`torus-extent-overreaches-…`), S3 (`census-lane-span-extents-are-not-self-enclosing`, evidence added).
 - State-sync done here: dated notes on the rows citing the deleted symbols, here and on GAUGE, ORBIT and TOPO (seam notes on their logs). `split-gate-sphere-zone-folds-into-face-box-rule` moves to `review` on PR 6336.
 - **Class finding, logged:** a fix that closes a duplicate mints a new reader of a neighbouring question (here, the ring condition). The style lane's Q1 caught it again.
+
+## 2026-11-02 — U1 (PR 6336) lands
+
+(BOXES orchestrator) The fix pass (head `9ade3aa2`) took every
+adjudicated item:
+- **One ring reader.** `geom::is_ring_torus` is read by both box lanes and by `depth_gap`. The bracket comparison and `boxes::ring_decided` are gone. `face_normal` keeps the declining form, since it needs which half refused.
+- **Guard rows.** The near-horn and spindle rows kill M6 and M8.
+- **An independent 5⁵ family oracle.**
+- **Chord-dip spellings.** One repointed; three are different quantities.
+- **m3** stated in the PR body.
+
+Declined, with reasons:
+- the binding-meet row (M7 survives; the doc is corrected instead), because building a bracketed body with corners off unit norm is not cheap;
+- moving `chord_dip_charge` down for mesh, which has no spelling of the quantity.
+
+Orchestrator's read of the delta: accepted. Closed
+`split-gate-sphere-zone-folds-into-face-box-rule` and
+`the-chord-dip-charge-has-two-homes`.
+
+Accepted near-duplicate, recorded so it is not mistaken for an oversight: `geom::is_ring_torus` (a reading that answers a bool) beside `require_ring_torus` (the declining form that mints the escalation). Both are built on the same two halves. Under the cover design (PR 6334) the box lanes' use becomes a stage of the torus arm, and the pair is re-examined there.
