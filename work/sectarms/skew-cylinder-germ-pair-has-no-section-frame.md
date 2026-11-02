@@ -137,3 +137,17 @@ Stage 2 left two staging seams for stage 3 to retire:
 
 Stage 3 also owns the per-arc `winds` of the bisector arcs, which store a
 fact about their node-joined set.
+
+## 2026-11-02: the ruling sweep (branch `sectarms/cylinder-ruling-sweep`)
+
+Every crossing pose now counts. The thinner wall's ruling sweep
+(`pair_section::ruling`) lists one loop or two, cut by the region:
+- arcs between certified cut ends;
+- loops the region holds whole, each witnessed.
+
+The march seeds from the witnesses and ends at the region's ball. The
+carry matches the branches one to one, which closes exhaustiveness. The
+provisional `Counted`/`Marched` split by the pair's ball is gone.
+Stage 3 (the join) is next. Its seams are unchanged: `join_reads`, and
+the frame lane's reading at `frame_lever`.
+

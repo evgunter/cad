@@ -167,7 +167,7 @@ pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
 
 use enclose::{Box3, NurbsBoxes};
 use exhaust::{RateClause, SweepFloor, UvRect};
-use march::{MarchContext, MarchTol, Readout, Trace, march_both, trace_points};
+use march::{MarchContext, MarchTol, Readout, SlabEnd, Trace, march_both, trace_points};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
 /// The two chart-parameter sample sequences of an ℝ⁴ trace — the
@@ -3175,21 +3175,29 @@ pub fn march_torus_torus(
     )
 }
 
-/// **The ℝ³ march of a decided cylinder × cylinder pose** over `domain`,
-/// in the order the pose was asked of: the cube of the one ball the
-/// pose names ([`crate::CylinderCylinderPose::ball`]), so where that is
-/// the region a branch may end on the cube ([`BranchEnd::Cut`]). The section value marches only a transverse
-/// pose; a tangent one's components are its closed forms or refuse
-/// before any march, so a tangent pose here is the caller's defect.
+/// **The ℝ³ march of a decided cylinder × cylinder pose**, from the
+/// `seeds` its ruling sweep states (the counted components' witnesses),
+/// each branch ending at the ball the sweep cut the section by
+/// ([`crate::CylinderCylinderPose::ball`]) inside `domain`, that ball's
+/// cube. No seeding or accounting sweep runs: the pose counted the
+/// section, and the carry matches these branches one to one to the
+/// count's cut ends and witnesses. The section value marches only a
+/// transverse pose; a tangent one's components are its closed forms or
+/// refuse before any march, so a tangent pose here is the caller's
+/// defect.
+///
+/// In a debug build the count is re-derived by the ruling angle's
+/// coverage ([`ruling_coverage`]).
 ///
 /// # Errors
 ///
-/// [`implicit_pair_r3`]'s; [`SsiError::WrongLane`] for a tangent pose.
+/// [`march_seeds`]'s; [`SsiError::WrongLane`] for a tangent pose.
 pub(crate) fn march_cylinder_cylinder(
     pose: &crate::CylinderCylinderPose<f64>,
+    seeds: &[Point3<f64>],
     domain: SsiDomain,
     band: Band,
-) -> Result<SsiOutcome, SsiError> {
+) -> Result<Vec<SsiBranch>, SsiError> {
     let (a, b) = pose.operands();
     checked([("cylinder", a), ("cylinder", b)], domain)?;
     if pose.tangency().is_some() {
@@ -3197,7 +3205,39 @@ pub(crate) fn march_cylinder_cylinder(
             expected: "a transverse cylinder pair, whose tangent poses are never marched",
         });
     }
-    implicit_pair_r3(a, b, domain, band)
+    let ball = pose.ball();
+    let exit = march::BallExit {
+        center: ball.center(),
+        radius: ball.radius(),
+    };
+    let tol = MarchTol::from_band(band, quadric_readout(a, b, domain.slab()))?;
+    let (branches, tubes) = march_seeds(a, b, seeds, &exit, domain, tol, band)?;
+    // DESIGN's error taxonomy, row 5: a re-derivation, so it runs in
+    // debug builds alone and changes nothing shipped.
+    //
+    // **Calibration** (2026-11-02): over the 17 carries of a crossing
+    // cylinder pair in `tests/cylinder_pair_section.rs`, the carry's
+    // `pair_section::wiring` rows and the cylinder rows of
+    // `topo::boolean::section_cert_rows`, every coverage closed by its
+    // 7th halving of the first cut's 64 cells and within 1324 cells,
+    // against `COVERAGE_DEPTH`'s 30 halvings and `COVERAGE_CELLS`'s 2¹⁸.
+    // Coverage converges once a cell's meetings fit a tube box, so the
+    // depth grows with the log of the section's length over its tube
+    // radius; a firing one is a component the count did not list, or a
+    // branch whose tube box the march's certificate did not hold.
+    #[cfg(debug_assertions)]
+    {
+        let covered = crate::pair_section::ruling::coverage(a, b, ball, &tubes);
+        debug_assert!(
+            covered.is_ok(),
+            "the ruling angle's cells {covered:?} hold meetings inside the ball the march ends \
+             at and in no found branch's tube: the count missed a component, or a tube is not \
+             its branch's"
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = tubes;
+    Ok(branches)
 }
 
 /// **The door's own checks**: the operands, by name, shown finite and
@@ -3241,8 +3281,6 @@ fn implicit_pair_r3(
     domain: SsiDomain,
     band: Band,
 ) -> Result<SsiOutcome, SsiError> {
-    count_march();
-    let sys = ImplicitPairR3 { a, b };
     let slab = domain.slab();
     // Both floors and the march's tolerance are minted over the slab
     // before any sweep or march runs, the proof obligation's first.
@@ -3255,7 +3293,43 @@ fn implicit_pair_r3(
     let seeds = exhaust::seed_r3(a, b, seed_floor)?;
     let seed_count = seeds.len() as u32;
 
-    // ---- march, fit, certify ----
+    let (branches, tubes) = march_seeds(a, b, &seeds, &march::SlabExit, domain, tol, band)?;
+
+    // ---- accounting: the same subdivision, asked for its proof duty.
+    // An empty `tubes` here means nothing was found, so nothing is
+    // proved. ----
+    let exhaustiveness = exhaust::account_r3(a, b, &tubes, account_floor)?;
+    Ok(SsiOutcome {
+        branches,
+        boundary: Vec::new(),
+        exhaustiveness,
+        seeds: seed_count,
+    })
+}
+
+/// **The ℝ³ march from `seeds`**: each one marched both ways to `exit`
+/// (the caller's slab, or a ball inside it), fitted and certified, with
+/// the tube boxes of every branch found. A seed whose landing lies in a
+/// found branch's tube is that branch, and is not marched again.
+///
+/// # Errors
+///
+/// The march's, the fit's and the certificate's refusals.
+fn march_seeds<E>(
+    a: &Surface<f64>,
+    b: &Surface<f64>,
+    seeds: &[Point3<f64>],
+    exit: &E,
+    domain: SsiDomain,
+    tol: MarchTol,
+    band: Band,
+) -> Result<(Vec<SsiBranch>, Vec<Box3>), SsiError>
+where
+    E: for<'s> march::Exit<2, 3, ImplicitPairR3<'s>, End = SlabEnd>,
+{
+    count_march();
+    let sys = ImplicitPairR3 { a, b };
+    let slab = domain.slab();
     let ctx = MarchContext::<3> {
         domain: [
             [slab.x.lo(), slab.x.hi()],
@@ -3269,7 +3343,7 @@ fn implicit_pair_r3(
     };
     let mut branches: Vec<SsiBranch> = Vec::new();
     let mut tubes: Vec<Box3> = Vec::new();
-    for seed in seeds.iter() {
+    for seed in seeds {
         // Dedup against where the seed LANDS, not where it starts.
         //
         // A cell centre is not on the locus — Newton moves it there,
@@ -3294,13 +3368,14 @@ fn implicit_pair_r3(
         {
             continue;
         }
-        let trace = match march_both(&sys, state, ctx, StepperMode::Realized, band) {
+        let trace = match march::march_both_to(&sys, exit, state, ctx, StepperMode::Realized, band)
+        {
             Ok(t) => t,
             // A seed that will not settle, or settles outside the
-            // domain, is not a branch; the subdivision's accounting
-            // pass is what decides whether that was a miss. Every other
-            // refusal propagates, a march that lost its branch mid-trace
-            // included.
+            // domain, is not a branch; the accounting pass (or the
+            // count's match) is what decides whether that was a miss.
+            // Every other refusal propagates, a march that lost its
+            // branch mid-trace included.
             Err(SsiError::SeedRefinementFailed { .. } | SsiError::SeedOffDomain { .. }) => continue,
             Err(e) => return Err(e),
         };
@@ -3308,17 +3383,7 @@ fn implicit_pair_r3(
         tubes.extend(branch_tubes(&branch));
         branches.push(branch);
     }
-
-    // ---- accounting: the same subdivision, asked for its proof duty.
-    // An empty `tubes` here means nothing was found, so nothing is
-    // proved. ----
-    let exhaustiveness = exhaust::account_r3(a, b, &tubes, account_floor)?;
-    Ok(SsiOutcome {
-        branches,
-        boundary: Vec::new(),
-        exhaustiveness,
-        seeds: seed_count,
-    })
+    Ok((branches, tubes))
 }
 
 /// **The certifying seam.** A carrier may not cross from the untrusted

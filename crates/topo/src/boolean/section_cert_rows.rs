@@ -612,18 +612,16 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
 // -------------------------------------------------------------------
 
 /// **The P0 saddle loop**: `r₁ = 1` about `z`, `r₂ = 0.5` about `x` at
-/// `y = 1.3`. One null loop, witnessed at `(±0.6, 0.8, 0)`. Reading the
-/// middle row as the first (two thin-essential loops) would let W2
-/// clear it on the arc face.
+/// `y = 1.3`. One null loop, witnessed on both walls by the ruling
+/// sweep. Reading the middle row as the first (two thin-essential loops)
+/// would let W2 clear it on the arc face.
 #[test]
 fn the_p0_saddle_loop_is_one_null_component() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let b = cylinder(p(-3.0, 1.3, 0.0), Vec3::unit_x(), 0.5);
     let s = classify(&a, &b);
     assert_eq!(shape(&s), (1, true, vec![false], vec![false], vec![false]));
-    let w = witness(&s);
-    on_both(w, &a, &b);
-    assert!((w.y - 0.8).abs() < 1e-12 && w.z.abs() < 1e-12, "{w:?}");
+    on_both(witness(&s), &a, &b);
     // Tilted 0.15 rad about y: the same class, the angle never read.
     let b = cylinder(
         p(0.0, 1.3, 0.0),
@@ -633,17 +631,15 @@ fn the_p0_saddle_loop_is_one_null_component() {
     on_both(witness(&classify(&a, &b)), &a, &b);
 }
 
-/// **The saddle witness's side is decided, per sign of `δ₀`.** Cylinder
+/// **The saddle witness lies on the loop, per sign of `δ₀`.** Cylinder
 /// 2 crosses cylinder 1's axis at `y = ±1.3`, running along `+x` or
 /// `−x`; `m = d₁ × d₂` turns with the run, so the four poses give `δ₀`
 /// of each sign on each side of the axis, taken with either wall the
-/// thinner. The witness is on the arc's middle ruling on cylinder 1's
-/// side of cylinder 2: on both carriers, at `y` of the offset's sign,
-/// `|y| = |offset| − r₂`. The far ruling never meets cylinder 1
-/// (`|δ₀| + r₂ > r₁` wherever the loop is a saddle), so a side chosen
-/// against `δ₀`'s sign reds every pose.
+/// thinner (the ruled wall, so its frame is read both ways). The ruling
+/// sweep's witness lies on both carriers, on the side of cylinder 1's
+/// axis that cylinder 2 stands on.
 #[test]
-fn the_saddle_witness_lies_on_cylinder_1s_side_for_either_sign() {
+fn the_saddle_witness_lies_on_the_loop_for_either_sign() {
     for (r1, r2) in [(1.0, 0.5), (0.5, 1.0)] {
         let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), r1);
         for oy in [1.3, -1.3] {
@@ -654,10 +650,9 @@ fn the_saddle_witness_lies_on_cylinder_1s_side_for_either_sign() {
                 let pose = format!("r₁ = {r1}, r₂ = {r2}, offset y = {oy}, δ₀ = {delta}");
                 let w = witness(&classify(&a, &b));
                 on_both(w, &a, &b);
-                let near = oy.signum() * (oy.abs() - r2);
                 assert!(
-                    (w.y - near).abs() < 1e-12 && w.z.abs() < 1e-12,
-                    "{pose}: the witness {w:?} is not on the near ruling y = {near}"
+                    w.y * oy > 0.0,
+                    "{pose}: the witness {w:?} is not on cylinder 2's side"
                 );
             }
         }
@@ -747,13 +742,13 @@ fn near_parallel_walls_refuse_as_a_tangency() {
     assert_eq!(tangent(&classify(&a, &b)), "cc_axes_parallel");
 }
 
-/// **A cylinder pair the region cuts is marched, and its cut arcs clear
+/// **A cylinder pair the region cuts is counted, and its cut arcs clear
 /// as unbounded.** A wall of radius `0.5` about `z` and one `0.05` rad
 /// off it, `0.1` apart: their own ball (about `20` across) straddles a
-/// region of radius `1.5` about the origin, so the pair's components are
-/// the march's, two arcs that end on the region, each unbounded (W1).
+/// region of radius `1.5` about the origin, and the ruling sweep counts
+/// two arcs that end on the region, each unbounded (W1), with no march.
 #[test]
-fn a_cylinder_pair_the_region_cuts_marches_two_unbounded_arcs() {
+fn a_cylinder_pair_the_region_cuts_counts_two_unbounded_arcs() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 0.5);
     let b = cylinder(p(0.1, 0.0, 0.0), v(0.0, 0.05f64.sin(), 0.05f64.cos()), 0.5);
     let s = super::classify(

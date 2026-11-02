@@ -39,3 +39,13 @@ does move by the full `θ·(r + 1)`. The decided text levers parallelism
 `at the radius L of the operation's region`, which this reading
 overstates for a region off the axis: errs safe, but it loses a served
 case.
+
+## 2026-11-02: since the ruling sweep
+
+The row now reads the pose's crossing verdict on the ruling sweep, not on
+the march (branch `sectarms/cylinder-ruling-sweep`). At `r = 1000` the
+sweep decides there is no component in the region. At `r = 100` the
+rulings near the region meet the second wall far off, levered by
+`1/sin` of the tilt, and the sweep escalates on `ruling_cut` (R-tan).
+The lever question stands as filed.
+

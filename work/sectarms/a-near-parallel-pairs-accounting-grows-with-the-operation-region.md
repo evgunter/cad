@@ -2,8 +2,9 @@
 id: a-near-parallel-pairs-accounting-grows-with-the-operation-region
 kind: issue
 title: A near-parallel ℝ³ pair's accounting sweep runs over the whole operation region, so small near-parallel faces in a large part refuse CellBudget instead of listing their arcs
-status: open
+status: closed
 opened: 2026-10-31
+closed: 2026-11-02
 priority: P1
 cost: H
 ---
@@ -79,3 +80,26 @@ double checking things".
 
 This row closes when the cylinder unit's stage that builds the sweep
 lands.
+
+## Closed (2026-11-02, branch `sectarms/cylinder-ruling-sweep`)
+
+The build items, for two cylinders:
+- `geom_brep::pair_section::ruling`: the sweep over the `Ruled` shape a
+  cone pose will hand it too. It counts the loops, cuts them by the
+  region (cut ends, witnesses) and reads branch points sheet-wise.
+- `PairSection::matched` matches cut ends and witnesses one to one
+  (`ended_by`).
+- The march ends at the region's ball (`ssi::march::BallExit`), seeded
+  from the count's witnesses, with no `seed_r3` or `account_r3`.
+- The extent stays the region's, and the provisional
+  inside-the-region split is retired.
+- The 1-D coverage is a row-5 `debug_assert` read from the operands'
+  general quadratic (`ruling::coverage`).
+
+Two pieces of residue are filed:
+- cylinder × sphere, the next ruled pair
+  (`cylinder-sphere-reads-its-pose-on-the-ruling-sweep`);
+- the thin-rod row's limb-3 refusal, which is the certificate's limit,
+  not the count's
+  (`work/ssimarch/limb-three-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
+
