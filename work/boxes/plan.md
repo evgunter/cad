@@ -16,7 +16,7 @@ the next caller unable to miss it". The order follows from that.
 
 ## Order
 
-1. **The torus window onto its closed form**
+1. **Done (PR 6336).** The torus window onto its closed form
    (`split-gate-sphere-zone-folds-into-face-box-rule`, the torus half).
    `FaceBoxRule::TorusWindow` samples the chart rectangle and pays a
    chord-dip charge; the split gate reads `boxes::torus_rect_extent`,
@@ -26,7 +26,7 @@ the next caller unable to miss it". The order follows from that.
    `the-chord-dip-charge-has-two-homes` (riding with it, `cost: C`).
    Mechanical in shape: DESIGN names the face box rule's home
    (`FaceBoxRule`), and a closed form beats a sampled bound.
-2. **One home for the extent** — `D280` (the two box lanes),
+2. **Ratified (PR 6334), built as the `cover-*` units: one home for the extent** — `D280` (the two box lanes),
    `an-edges-extent-has-four-dispatchers`, and what
    `sphere-operand-box-is-the-whole-ball` leaves. A design signal: a
    survey maps every door that answers the question, then designers

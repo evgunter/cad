@@ -84,3 +84,21 @@ step ever glued, because `m` covered the contact before `c` arrived. No
 binary step meets a coincident pair, so the cut does not reach it; linking
 the two discards needs a reading of coincidence the fold never performs
 (the `(a, c)` judgement's glue of those rims, or geometry).
+
+## Another witness, newly reachable (REFS, PR 6342 review, 2026-11-02)
+
+`Union[Union[plate, boss], c1, c2, bar]` refuses `Emission { what: "a piece of a face held as several borders no recorded discard between them" }` (`names/borders.rs`) in 16 of 24 member orders, and names with one table in the other 8. The parts:
+
+- plate `[0,3]² × [0,1]`; boss of radius 0.3 about (1.5, 1.5), z 0.5 to 1.5, its wall two semicircles;
+- c1 = `block_on(plate, (1.0,1.5), (1.0,2.0), 1.3, 0.5)` and c2 = `block_on(plate, (1.5,2.0), (1.0,2.0), 1.2, 0.6)`, two caps meeting face to face at x = 1.5;
+- bar = `block_on(plate, (1.4,1.6), (0.5,2.5), 0.8, 1.2)`.
+
+The three-member form `[Union[joined, c2], c1, bar]` refuses the same way in 4 of 6 orders.
+
+Controls:
+
+- the caps without the bar name in all 6 orders;
+- the caps 0.1 apart, with the bar, name in all 24 orders;
+- with `Links::judged` restricted to cross-member pairs (main before PR 6342), every order refuses as the typed `UnsupportedUnjudgedGlue`.
+
+So PR 6342's same-member link moves this recipe from a uniform typed refusal into this row's order-dependent class. The reviewer's probe source, with these fixtures, is in the PR 6342 review record; the fixtures above are enough to rebuild it.

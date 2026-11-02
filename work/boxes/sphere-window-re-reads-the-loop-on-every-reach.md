@@ -2,10 +2,11 @@
 id: sphere-window-re-reads-the-loop-on-every-reach
 kind: issue
 title: The sphere window re-walks the loop, the material sign and the chart trim on every reach read, with no memo
-status: open
+status: parked
 opened: 2026-10-06
 priority: P3
 cost: M
+blocked_on: [cover-topo-faces]
 ---
 
 

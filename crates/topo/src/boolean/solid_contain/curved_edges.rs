@@ -47,7 +47,7 @@
 
 use super::{
     Cross, EdgeMeets, FaceGeo, Gap, Mark, Met, PlaneCross, PointInSolidError, RayHit, RayRows,
-    RootCross, face_edges,
+    RootCross,
 };
 use crate::body::Body;
 use crate::entity::FaceKey;
@@ -120,7 +120,7 @@ pub(super) fn read<T: Decide>(
     };
     let mut seen = std::collections::BTreeSet::new();
     for &(face, _) in geos {
-        for fe in face_edges(body, face).map_err(RayFault::Fatal)? {
+        for fe in body.proven_face_edges(face) {
             let (e, other) = (fe.edge, fe.across);
             if meets.lines.contains(&e) || !seen.insert(e) {
                 continue;
@@ -242,7 +242,7 @@ fn narrow<T: Decide>(
     let met = meets.met.clone();
     for m in &met {
         for &face in &m.faces {
-            for fe in face_edges(body, face).map_err(RayFault::Fatal)? {
+            for fe in body.proven_face_edges(face) {
                 let e = fe.edge;
                 // A line edge between two crossed planes is read exactly
                 // ([`super::edge_meets`]), and one met is marked where it
@@ -305,12 +305,13 @@ fn passes<T: Decide>(
     if clear {
         return Passes::Clear;
     }
+    let ray = geom::Line { origin: q, dir: d };
     let mut r = seed;
     for _ in 0..FEET {
         near = carrier.foot(r, near).t();
-        r = q + d * (carrier.eval(near) - q).dot(d);
+        r = ray.foot(carrier.eval(near));
     }
-    let s = (r - q).dot(d);
+    let s = ray.param(r);
     let gap = match carrier.foot(r, near).on_carrier(band) {
         Ok(geom::OnCarrier::Off) => return Passes::Clear,
         Ok(geom::OnCarrier::On { .. }) => Gap::Zero,

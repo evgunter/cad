@@ -295,7 +295,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     // refusal (the surfaces under-determine the
                     // contact — never guess); in-band escalates (F6:
                     // an osculating pair is a sliver at this ε).
-                    let surface = face_surface(body, face);
+                    let surface = body.proven_face_surface(face);
                     let p_base = body.resolve_vertex_point(vertex, Proven);
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
                     // Ledger row F11: the sagitta is metered at the
@@ -455,10 +455,9 @@ impl<T: Decide> ParallelFace<T> {
 /// tangent to a cylinder or a cone makes, along a ruling.
 fn straight<T: Decide>(body: &Body<T>, edge: EdgeKey) -> bool {
     let curve = proven(&body.edges, edge, EntityId::Edge).curve;
-    matches!(
-        body.get_curve_geom(curve).and_then(crate::null::CurveGeom::certified),
-        Some(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
-    )
+    body.get_curve_geom(curve)
+        .and_then(crate::null::CurveGeom::certified)
+        .is_some_and(|c| !c.carrier().is_curved())
 }
 
 /// Rule (b): reclassify every remaining ON entry by its cyclic
@@ -545,7 +544,8 @@ fn edge_wedge<T: Decide>(
         face: mate_face,
         reading: SectorReading::Escalated(diag),
     };
-    let (s_own, s_mate) = (face_surface(body, own_face), face_surface(body, mate_face));
+    let sector_surface = |f| body.proven_face_surface(f);
+    let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
     let (_, along, _) = chord(body, vertex, he)?;
     let extent = along.norm();
     // Both faces are read along the edge's ray: at the vertex where each
@@ -717,7 +717,7 @@ pub(crate) fn face_reach_from<T: Decide>(
     at: Point3<T>,
 ) -> Result<T, UnboundedFace> {
     let over_span = matches!(
-        face_surface(body, face),
+        body.proven_face_surface(face),
         geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. }
     );
     boundary_reach(
@@ -829,7 +829,7 @@ pub(crate) fn cone_axial_window<T: Decide>(
             |p| T::zero() - along(p),
             |curve| T::zero() - span_of(curve).range_along(apex, axis).0,
         )?;
-    let own @ geom::Surface::Cone { .. } = face_surface(body, face) else {
+    let own @ geom::Surface::Cone { .. } = body.proven_face_surface(face) else {
         return Ok((lo, hi));
     };
     let widened = (lo.min(T::zero()), hi.max(T::zero()));
@@ -953,12 +953,6 @@ impl From<UnboundedFace> for SplitReduceError {
     fn from(UnboundedFace { face, vertex }: UnboundedFace) -> Self {
         Self::UnboundedFace { face, vertex }
     }
-}
-
-/// `face`'s surface, for a face the caller resolved: its `surface` is a
-/// link, and a miss panics.
-fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> &geom::Surface<T> {
-    body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face))
 }
 
 #[cfg(test)]

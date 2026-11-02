@@ -297,7 +297,7 @@ impl<T: Decide> Conic<T> {
                 b: semi_v,
                 u: u_ref,
             },
-            geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+            geom::Curve3::Line(_) | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                 unreachable!("a conic edge of a ruled face is a circle or an ellipse")
             }
         }
@@ -375,13 +375,14 @@ type Leg<T> = region::Leg<T, LegShape<T>>;
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a key that does not resolve,
-/// a surface that is neither a cylinder nor a cone, or an outer loop with
+/// [`PointInSolidError::CorruptFace`] for a surface that is neither a
+/// cylinder nor a cone, or an outer loop with
 /// no cycle.
 ///
 /// # Panics
 ///
-/// Where a boundary edge's curve does not resolve (D2 row 4): a torn
+/// Where `face`, a face the kernel enumerated, or a boundary edge's
+/// curve does not resolve (D2 row 4): a torn
 /// curve is not null scaffolding. The links hold at rest and, on the
 /// reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
@@ -390,8 +391,8 @@ pub(crate) fn ruled_face_region<T: Decide>(
     face: FaceKey,
 ) -> Result<Option<RuledFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.get_face(face).ok_or_else(corrupt)?;
-    let surface = match *body.get_surface(f.surface).ok_or_else(corrupt)? {
+    let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+    let surface = match *body.face_surface_linked(face, f) {
         geom::Surface::Cylinder {
             origin,
             axis,
@@ -446,9 +447,7 @@ fn reach_bound<T: Decide>(surface: &Ruled<T>, edges: &[Edge<T>]) -> T {
         Ruled::Cone { apex, .. } => edges
             .iter()
             .map(|e| match e.carrier {
-                geom::Curve3::Line { .. } => {
-                    (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm())
-                }
+                geom::Curve3::Line(_) => (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm()),
                 ref conic => {
                     let c = Conic::of(conic);
                     (c.center - apex).norm() + c.a.max(c.b)
@@ -559,9 +558,10 @@ impl<T: Decide> RuledFaceRegion<T> {
     fn reaches_nappe(&self, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         let own = self.nappe(p, band)?;
         for edge in &self.edges {
-            let (points, at_apex_says_nothing) = match edge.carrier {
-                geom::Curve3::Line { .. } => (vec![edge.at(edge.t0), edge.at(edge.t1)], true),
-                _ => (vec![edge.at(geom::mid_param(edge.t0, edge.t1))], false),
+            let (points, at_apex_says_nothing) = if edge.carrier.is_curved() {
+                (vec![edge.at(geom::mid_param(edge.t0, edge.t1))], false)
+            } else {
+                (vec![edge.at(edge.t0), edge.at(edge.t1)], true)
             };
             for y in points {
                 match decide(
@@ -681,19 +681,18 @@ impl<T: Decide> Region<T> for RuledFaceRegion<T> {
     /// A line as a segment ([`ray_walk::on_segment`]), a conic on its
     /// own carrier.
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
-        match edge.carrier {
-            geom::Curve3::Line { .. } => {
-                ray_walk::on_segment(edge.at(edge.t0), edge.at(edge.t1), p, &LINE, band)
-                    .map_err(RegionRefusal::Escalated)
-            }
-            _ => circle_edge_hit(
+        if edge.carrier.is_curved() {
+            circle_edge_hit(
                 &edge.carrier,
                 edge.turn.as_ref(),
                 BOUNDARY,
                 p,
                 self.outer,
                 band,
-            ),
+            )
+        } else {
+            ray_walk::on_segment(edge.at(edge.t0), edge.at(edge.t1), p, &LINE, band)
+                .map_err(RegionRefusal::Escalated)
         }
     }
 }
@@ -744,8 +743,11 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
             // parallel is the parallel's to read.
             let (corner, gap) = match self.surface {
                 Ruled::Cylinder { axis, .. } => {
-                    let gap = (target - p).dot(axis);
-                    (p + axis * gap, gap)
+                    let ruling = geom::Line {
+                        origin: p,
+                        dir: axis,
+                    };
+                    (ruling.foot(target), ruling.param(target))
                 }
                 Ruled::Cone { apex, .. } => {
                     let (rp, rt) = ((p - apex).norm(), (target - apex).norm());
@@ -803,7 +805,10 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
         let base = self.surface.base();
         let mut out = Vec::new();
         match (&edge.carrier, leg.course) {
-            (&geom::Curve3::Line { origin, dir }, LegShape::Parallel(Round { center, .. })) => {
+            (
+                &geom::Curve3::Line(geom::Line { origin, dir }),
+                LegShape::Parallel(Round { center, .. }),
+            ) => {
                 // A ruling crosses the parallel's plane once, at the
                 // parallel's one point on it.
                 let t = (center - origin).dot(axis) / dir.dot(axis);
@@ -811,7 +816,7 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
                     out.push((origin + dir * t, t, sideless));
                 }
             }
-            (geom::Curve3::Line { .. }, LegShape::Ruling { line, .. }) => {
+            (geom::Curve3::Line(_), LegShape::Ruling { line, .. }) => {
                 let ends = [edge.at(edge.t0), edge.at(edge.t1)];
                 let off_line = |y: Point3<T>| {
                     let w = y - line.start;

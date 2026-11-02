@@ -463,3 +463,13 @@ row's last section says what moved.
     - the PQ4 sentence.
   - **Class finding, filed as a P3 row and not fixed here:** "carrier" names "complete-loop form" in `RoleList::Carrier`, `CarrierInChain` and Python's `CarrierPieces`. That conflation is what produced the soundness bug. (VSEAM)
 - 2026-11-02 — Ev asked on 6346: "isn't this going to be inexact in the cases that we had toward for?" Partly yes, checked in the code. A typed `180 deg` is stored as radians (`Quantity.value` is canonical f64, minted as a free variable, VR6), so only a written `turn/2` lowers exactly. Pythagorean rays are lost under angle-only. Answered with three options; I recommend angle plus the numberless axis form, with exact degree literals filed as their own row. The designers' "exact at a written fraction of a turn" was true but missed that people type degrees. (VSEAM)
+- 2026-11-02 — PR 6340 fix pass, orchestrator's read.
+  - Every ruled item is done. The circle census is one: `carrier_radius`.
+  - The part guard is pinned by `a_parts_wall_names_are_not_read_against_the_hosts_circle`. It goes red with the guard deleted, checked by hand.
+  - The negative-side and straddling-Interval refusals are covered.
+  - Filed: `a-parts-circle-wall-is-no-longer-one-carrier` (P2) and `complete-loop-identifiers-are-named-carrier` (P3). (VSEAM)
+- 2026-11-02 — PR 6352 (`a-profile-edited-in-place-is-picked-by-its-undrawn-outline`, P3/E; orchestrator's read, no separate review at E). The first cut made the pick skip the edited node, so a click on the profile you were editing deselected it and dropped the draft. I ruled against that. Now:
+  - `DisplayView::previewed_profile` carries the node and the preview's drawn outline, set once per frame.
+  - The lane, the pick and the selection mark all read it through `PickIndex::drawn_outline`, so a re-click keeps the draft.
+  - The form's free preview stays unpickable.
+  - The selection-mark follow-up was the same fix and is closed in this PR. (VSEAM)

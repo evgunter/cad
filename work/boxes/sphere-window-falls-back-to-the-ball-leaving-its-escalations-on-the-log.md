@@ -2,8 +2,11 @@
 id: sphere-window-falls-back-to-the-ball-leaving-its-escalations-on-the-log
 kind: issue
 title: sphere_window answers the ball on an undecided read and leaves that read's escalation on the log
-status: open
+status: parked
 opened: 2026-10-14
+blocked_on: [cover-topo-faces]
+priority: P3
+cost: E
 ---
 
 Found by PR 5140's fix pass, in the blind-spot sweep after it moved

@@ -107,6 +107,8 @@ pub enum StepShape {
         /// The subdivision count.
         n: usize,
     },
+    /// `rectangle`.
+    Rectangle,
 }
 
 impl StepShape {
@@ -135,6 +137,7 @@ impl StepShape {
             Self::AlongTrace => Verb::Toward,
             Self::Circle => Verb::Circle,
             Self::CircleSplit { .. } => Verb::CircleSplit,
+            Self::Rectangle => Verb::Rectangle,
         }
     }
 
@@ -144,7 +147,7 @@ impl StepShape {
         RoleList::of(self.verb())
     }
 
-    /// How many pieces a carrier form draws; `0` for every other step,
+    /// How many pieces a complete-loop form draws; `0` for every other step,
     /// whose roles are not indexed ([`profile::carrier_pieces`]).
     #[must_use]
     pub fn pieces(self) -> u32 {
@@ -187,6 +190,7 @@ impl StepShape {
             Step::CloseTo => Self::CloseTo,
             Step::Circle { .. } => Self::Circle,
             Step::CircleSplit { n, .. } => Self::CircleSplit { n: *n },
+            Step::Rectangle { .. } => Self::Rectangle,
         }
     }
 
@@ -271,6 +275,7 @@ impl<S> LoopProgram<S> {
             LoopProgram::Chain(steps) => steps.iter().map(StepShape::of_program).collect(),
             LoopProgram::Circle { .. } => vec![StepShape::Circle],
             LoopProgram::CircleSplit { n, .. } => vec![StepShape::CircleSplit { n: *n as usize }],
+            LoopProgram::Rectangle { .. } => vec![StepShape::Rectangle],
         }
     }
 }

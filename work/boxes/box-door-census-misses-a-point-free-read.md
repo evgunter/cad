@@ -2,10 +2,11 @@
 id: box-door-census-misses-a-point-free-read
 kind: issue
 title: boxes.rs's DOORS census needles end in '(', so a point-free box read goes uncounted
-status: open
+status: parked
 opened: 2026-09-29
 priority: P4
 cost: E
+blocked_on: [cover-kind-match-gate]
 ---
 
 

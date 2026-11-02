@@ -624,6 +624,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Loft {
             first: nid(1).into(),
             then: vec![editor_core::LoftSection {
+                id: None,
                 profile: nid(2).into(),
                 station: vec![editor_core::StationMove::Slide {
                     along: editor_core::Axis3::Z,
@@ -631,6 +632,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                 }],
             }],
             v_degree: Formula::count(1),
+            first_id: None,
         },
         Node::Sweep {
             profile: nid(1).into(),
@@ -738,11 +740,11 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                 b: fixture::cap_ref(nid(1), editor_core::CapEnd::End).into(),
             },
         },
-        Node::Assertion {
+        Node::Assertion(editor_core::Claim::Value {
             value: len(1.0),
             bound: len(1.0),
             relation: AssertionRelation::AtLeast,
-        },
+        }),
     ]);
     nodes
 }

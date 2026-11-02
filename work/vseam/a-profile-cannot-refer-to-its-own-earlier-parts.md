@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-02
 priority: P1
 cost: X
-design: true
 points: 30
 refs: [the-rectangle-and-circle-templates-reopen-as-paths, a-profile-step-cannot-refer-to-its-own-earlier-points]
 ---
@@ -203,7 +202,7 @@ pair before any unit dispatches.
 **Owner load.** doctail is `ready` with no orchestrator, at load 111
 against a budget of 45. U1, U3 and U4 add 19 points to it.
 
-## 2026-11-02 — the residue, weighed (designer pair, five rounds; fork-log row 241)
+## 2026-11-02 — the residue, weighed (designer pair, five rounds; fork-log row 243)
 
 The pair agrees on all fifteen. One of them, Q1, changes ratified text,
 so it waits for Ev on the `[ev]` PR. The rest are build-level: the
@@ -268,3 +267,47 @@ answers are implied by the ruled text, and builders follow them.
 **Still unverified by either designer**, for U2's pin to test:
 - that nothing but the seam close moves an emitted start;
 - that the entry is always `at(p)`.
+
+## 2026-11-02 — Q1 restated after Ev's comments on 6346
+
+Ev's comments on 6346:
+- "isn't this going to be inexact in the cases that we had toward for?"
+- "the design that's supposed to be here is another case of a family of
+  different representations with a shared api, like the arcs".
+
+The kernel already built it that way: one director slot whose payload is
+an angle or a ray (§2a item 5). The document holds the two forms as two
+steps, `ProgramStep::Angle` and `Toward`.
+
+The designers had read `[variables.poses]`' "a 2-D direction is an
+angle" as binding. Under `[recipe.forms]` it is the sentence that
+needed amending, and the director does not. A `Direction2` is one
+value, its unit ray, written as an angle or as a ray, and each form is
+kept as written. This is both designers' round-1 alternative.
+
+So U4 folds `Angle` and `Toward` into one director slot that holds a
+`Direction2` written in either form, plus the reads. The axis form and
+exact degree literals are not needed for exactness, because the ray
+form keeps it.
+
+## 2026-11-02 — ruled (Ev, `[ev]` PR 6346)
+
+The residue is ruled as `[variables.poses]` and PATHS §1b, §2a item 5
+and V2/VQ4 now read:
+
+- **A 2-D direction is one value, its unit ray, written in a family of
+  forms**: an angle (`.angle(θ)`), or a ray (`.toward(dx, dy)`) whose two
+  components are `Length`s. 3-D has no ray form yet.
+- **Q13**: a read resolves from the construction ("constructed").
+- **Q10**: a 2-D slide.
+- **The other thirteen**: as recorded in the 2026-11-02 residue section.
+  The Q1 bullet there is superseded by this ruling.
+
+This changes U4. The director slot holds a `Direction2` written as an
+angle or a ray, with reads added. `Toward`'s components change from
+`Scalar` to `Length`, and the stored formulas migrate. The revolve
+migrates as U7,
+`work/doctail/a-revolves-axis-line-holds-a-point2-and-a-direction2`.
+
+Every unit is unblocked from the residue. The order stays as filed, and
+doctail's load is still open with Ev.
