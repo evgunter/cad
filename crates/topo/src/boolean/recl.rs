@@ -575,7 +575,12 @@ fn flank_read<T: Decide>(
     } else {
         (s.end, s.end_reach)
     };
-    super::sectors::bound_read(bound, reach, reference.datum(), band)
+    super::sectors::bound_read(
+        bound,
+        reach,
+        reference.datum(),
+        crate::link::metric::Reading::plain(band),
+    )
 }
 
 /// A flanker's Table II key, and whether its bound tied with the
@@ -1763,9 +1768,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         |own_is_a: bool, own_idx: usize, (dir, reach): Rep<T>| -> Result<bool, BooleanError> {
             let (own, other) = if own_is_a { (0, 1) } else { (1, 0) };
             let (cone, from) = &cones[other];
-            let given: Vec<_> = match (cone.whole_planes().first(), holding[other]) {
-                (Some(&plane), Some(face)) => {
-                    let side = match face.datum.side(dir, reach, band)? {
+            // The held face's side, read on the cone's own reading.
+            let held = from.iter().position(|s| matches!(s, Sheet::Held(_)));
+            let given: Vec<_> = match (held, holding[other]) {
+                (Some(plane), Some(face)) => {
+                    let side = match face.datum.side_on(dir, reach, cone.reading(band))? {
                         SideCode::In => Sign::Negative,
                         SideCode::On => Sign::Zero,
                         SideCode::Out => Sign::Positive,
@@ -1777,12 +1784,16 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             // The refusal a cone's unread reading carries: the representative
             // on a flank's plane, where in it in band, the two flanks' sense;
             // its side of a face's plane, that side; the parity arc, the
-            // sectors' coincidence; and where no gate's margin refused (no
-            // reference, an unplaced crossing), the line's faces too close to
-            // place it.
+            // sectors' coincidence; the held face's side the cone decided
+            // against, that contradiction; and where no gate's margin
+            // refused (no reference, an unplaced crossing), the line's faces
+            // too close to place it.
             let unread_of = |cause: crate::link::Unread<T>| {
                 use crate::link::Unread;
                 let sheet = cause.sector().map(|k| from[k]);
+                if cause.contradicted() {
+                    return unread(super::LineUnread::Contradicted);
+                }
                 match (cause, sheet, cause.escalation(band)) {
                     (Unread::Place { .. }, Some(Sheet::Sector(oi)), Some(diag)) => {
                         flank_sense(own, own_idx, oi, diag)

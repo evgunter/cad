@@ -97,6 +97,7 @@ use crate::validate::decide;
 use crate::bound_side::Descent;
 use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, ReadFault, Side};
 pub(super) use crate::bound_side::{FaceBend, FaceShape, Reach, sagitta_charge};
+use crate::link::metric::Reading;
 
 /// One (convex) sector of a vertex neighborhood.
 #[derive(Clone, Debug)]
@@ -797,7 +798,7 @@ pub(super) fn datum_code<T: Decide>(
     face: FaceDatum<T>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
-    bound_read(dir, reach, face, band).map(|read| read.code)
+    bound_read(dir, reach, face, Reading::plain(band)).map(|read| read.code)
 }
 
 /// [`datum_code`] against a plane face's normal, charged at `lever`.
@@ -822,6 +823,7 @@ pub(super) fn side_code<T: Decide>(
 /// order tied), which is what the pass's whole-sector lump keys on: a
 /// sector tangent to the face lumps whole, and its second order is the
 /// lump's, read off the two carriers.
+#[cfg(test)]
 pub(super) fn pierce_side<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
@@ -830,11 +832,13 @@ pub(super) fn pierce_side<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<PierceSide, BooleanError> {
-    pierce_side_reported(dir, reach, face_normal, bend, lever, band).map(|(side, _)| side)
+    pierce_side_reported(dir, reach, face_normal, bend, lever, Reading::plain(band))
+        .map(|(side, _)| side)
 }
 
-/// [`pierce_side`], keeping the first-order Zero of a bound that tied:
-/// what a caller that cannot use its `On` refuses through the gate
+/// [`pierce_side`] on the reading `rd` ([`crate::bound_side::read`]),
+/// keeping the first-order Zero of a bound that tied: what a caller that
+/// cannot use its `On` refuses through the gate
 /// ([`bisector_zero_refusal`]). `None` beside a side decided at first
 /// order.
 pub(super) fn pierce_side_reported<T: Decide>(
@@ -843,14 +847,9 @@ pub(super) fn pierce_side_reported<T: Decide>(
     face_normal: OutwardNormal<T>,
     bend: FaceBend<T>,
     lever: T,
-    band: Band,
+    rd: Reading<T>,
 ) -> Result<(PierceSide, Option<OnReading>), BooleanError> {
-    let read = bound_read(
-        dir,
-        reach,
-        FaceDatum::of_face(face_normal, bend, lever),
-        band,
-    )?;
+    let read = bound_read(dir, reach, FaceDatum::of_face(face_normal, bend, lever), rd)?;
     Ok((
         PierceSide {
             code: read.code,
@@ -880,23 +879,24 @@ pub(super) struct BoundTie {
 }
 
 /// The one reading of a bound's side behind [`datum_code`] and
-/// [`pierce_side`].
+/// [`pierce_side`], on the reading `rd`: the run band alone, or a cone's
+/// over its tie where the side is handed to it
+/// ([`crate::link::Cone::reading`]).
 pub(super) fn bound_read<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
     face: FaceDatum<T>,
-    band: Band,
+    rd: Reading<T>,
 ) -> Result<BoundRead, BooleanError> {
+    let band = rd.band;
     let refused = |fault| bound_refusal(fault, band);
-    match crate::bound_side::read(dir, reach, face, band).map_err(refused)? {
+    match crate::bound_side::read(dir, reach, face, rd).map_err(refused)? {
         FirstOrder::Off(side) => Ok(BoundRead {
             code: code_of(side),
             tie: None,
         }),
         FirstOrder::Tied(tie) => {
-            let descent = tie
-                .descend(band)
-                .map_err(|fault| read_refusal(fault, band))?;
+            let descent = tie.descend(rd).map_err(|fault| read_refusal(fault, band))?;
             let code = match descent {
                 Descent::Leaves(side) => code_of(side),
                 Descent::Rides | Descent::Unresolved(_) => SideCode::On,

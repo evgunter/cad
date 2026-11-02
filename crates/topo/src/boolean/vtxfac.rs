@@ -170,9 +170,20 @@ impl<T: Decide> PierceDatum<T> {
         reach: super::sectors::Reach<T>,
         band: Band,
     ) -> Result<SideCode, BooleanError> {
+        self.side_on(dir, reach, crate::link::metric::Reading::plain(band))
+    }
+
+    /// [`Self::side`] on the reading `rd`: a cone's over its tie, where
+    /// the side is handed to that cone ([`crate::link::Cone::reading`]).
+    pub(super) fn side_on(
+        self,
+        dir: Vec3<T>,
+        reach: super::sectors::Reach<T>,
+        rd: crate::link::metric::Reading<T>,
+    ) -> Result<SideCode, BooleanError> {
         let lever = self.lever.within(reach.length());
-        super::sectors::pierce_side(dir, reach, self.normal, self.bend, lever, band)
-            .map(|read| read.code)
+        super::sectors::pierce_side_reported(dir, reach, self.normal, self.bend, lever, rd)
+            .map(|(read, _)| read.code)
     }
 
     /// Whether the face holds a line along `dir`, read off its bound
@@ -321,7 +332,7 @@ pub(crate) fn cone_classes<T: Decide>(
         .collect();
     let cone = crate::link::Cone::gathered(p, corners, touched.map(|(_, normal, _)| normal.vec()))
         .map_err(|_| invariant("a vertex's partners and touched face hold no face at its point"))?;
-    let disc = cone.whole_planes().first().copied();
+    let disc = touched.map(|_| cone.sectors.len() - 1);
     let mut rows = Vec::with_capacity(bounds.len());
     for (he, q) in bounds {
         let given: Vec<_> = disc
@@ -605,7 +616,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 plane,
                 super::sectors::FaceBend::Plane,
                 super::sectors::NO_CURVATURE(),
-                band,
+                crate::link::metric::Reading::plain(band),
             ),
             None => pierce_side_reported(
                 s.end,
@@ -613,7 +624,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 n_pierced,
                 pierced_bend,
                 pierced_lever.within(s.end_reach.length()),
-                band,
+                crate::link::metric::Reading::plain(band),
             ),
         };
         let (read, on) = match side {
@@ -3053,7 +3064,7 @@ mod tests {
                 up,
                 crate::bound_side::FaceBend::Plane,
                 NO_CURVATURE(),
-                band,
+                crate::link::metric::Reading::plain(band),
             )
             .unwrap();
             assert_eq!(side.code, On, "f {f}: the bisector reads On");

@@ -720,7 +720,7 @@ fn read_edge(
                 SideCode::On => Sign::Zero,
                 SideCode::Out => Sign::Positive,
             };
-            (gathered.whole_planes()[0], side)
+            (gathered.sectors.len() - 1, side)
         })
         .into_iter()
         .collect();
@@ -2411,7 +2411,7 @@ fn a_line_cone_never_contradicts_the_exact_oracle() {
                 m.held.map(Vec3::from_array),
             )
             .expect("a line cone");
-            let plane = cone.whole_planes().first().copied();
+            let plane = m.held.map(|_| cone.sectors.len() - 1);
             let slack = 2.0 * tie.norm();
             let mut probes = probes_about(&mut rng, &flat);
             for _ in 0..2 {
