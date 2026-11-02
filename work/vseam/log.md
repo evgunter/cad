@@ -421,3 +421,10 @@ row's last section says what moved.
 
   Stable egui ids were skipped with a reason. A container restart cut the pass partway; the lane clone's uncommitted edits survived and were resumed. Orchestrator's read of the fix pass. (VSEAM)
 - 2026-11-02 — PR 6299 (`a-profile-cannot-be-picked-in-the-viewer`, P1; single FULL review): APPROVE WITH FIXES. M1: a mate's pick dropped a profile, because two lists said which kinds a role admits. The fix makes one `admits` table the only answer. m1: edges and outlines were walked twice for nearness; now one `near` walk serves both. `PreviewLoop::drawn_on` carries the frame an outline is drawn on. Two follow-ups filed: `a-profile-edited-in-place-is-picked-by-its-undrawn-outline` and `a-profile-pick-names-no-profile-piece`. The GQ7 reword (single select admits a profile) is not held for Ev. The sentence it replaces was agent-written, and the behaviour is the one Ev asked for in chat. Orchestrator's read of the fix pass. (VSEAM)
+- 2026-11-02 — PR 6302 (`the-profile-editor-holds-kernel-steps-not-the-authored-program`; single FULL review): APPROVE WITH FIXES, with two MAJOR findings, both fixed in the fix pass.
+  - M1: a unit picked after an edit was lost at Apply, because "unmoved" had two equalities, one of them unit-blind. "Unmoved" now has one home, `sketch::written_as`, and a draft rebases over a unit-only document change.
+  - M2: structural edits around a trace step committed programs that refuse. A new evaluation-free `sketch::pen_order` check now holds Apply with the reason. What only an evaluation can tell was added to the filed P2 `a-step-reading-the-pen-is-shown-but-not-edited-or-previewed`.
+  - Q1, Q7 and Q8: one step-equality vocabulary (`authors_same_loops`), and one row↔committed-step answer (`loaded_at`; `kept`/`kept_at` retired).
+  - N1: a moved literal lands in the unit its field showed.
+
+  The class finding, again: an app-feature test cannot sit in the slow set, because the slow-set name check lists default-feature tests only. The first fix push went red on it. Orchestrator's read of the fix pass. (VSEAM)
