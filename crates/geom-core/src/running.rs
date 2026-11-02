@@ -130,14 +130,25 @@ impl<T: Real> Rounded<T> {
     }
 
     /// An upper bound on `|exact|`: the magnitude plus the bound.
+    #[must_use]
     pub fn magnitude(self) -> T {
         self.value.abs() + self.error
     }
 
     /// A lower bound on `|exact|`: the magnitude less the bound, at
     /// least zero.
+    #[must_use]
     pub fn room(self) -> T {
         (self.value.abs() - self.error).max(T::zero())
+    }
+
+    /// The value moved toward zero by its bound, and no further: the
+    /// [`Rounded::room`] with the value's sign, zero where the bound
+    /// holds zero. A sign decided on it is the exact value's.
+    #[must_use]
+    pub fn toward_zero(self) -> T {
+        let room = self.room();
+        self.value.select_le_zero(T::zero() - room, room)
     }
 }
 

@@ -346,12 +346,7 @@ impl<T: Real> Quadric<T> {
     /// own rounding of zero, where the bound has no bound of its own: a
     /// chart decided off the band near a generator along the partner's
     /// axis can read one there at a fine band and a long lever.
-    fn clearance(
-        &self,
-        u: [Rounded<T>; 3],
-        w: [Rounded<T>; 3],
-        e: Rounded<T>,
-    ) -> Option<Rounded<T>>
+    fn clearance(&self, u: [Rounded<T>; 3], w: [Rounded<T>; 3], e: Rounded<T>) -> Option<Rounded<T>>
     where
         T: Decide,
     {
@@ -424,11 +419,7 @@ fn discriminant<T: Real, S: Ring<T>>([p2, p1, p0]: [S; 3]) -> S {
 /// The value with its rounding bound taken off its magnitude, so that a
 /// sign decided on it is the exact value's; `charged` false, the value.
 fn shrunk<T: Real>(x: Rounded<T>, charged: bool) -> T {
-    if !charged {
-        return x.value;
-    }
-    let mag = x.room();
-    x.value.select_le_zero(T::zero() - mag, mag)
+    if charged { x.toward_zero() } else { x.value }
 }
 
 /// A walk's residual at `θ` with its rounding uncharged: its value, read
@@ -580,13 +571,11 @@ fn before<T: Decide>(
     row: &'static str,
     band: Band,
 ) -> Result<bool, &'static str> {
-    let gap = (y - x) * speed;
-    let mag = (gap.abs() - slacks).max(T::zero());
-    match sign(
-        row,
-        Margin::of(gap.select_le_zero(T::zero() - mag, mag)),
-        band,
-    ) {
+    let gap = Rounded {
+        value: (y - x) * speed,
+        error: slacks,
+    };
+    match sign(row, Margin::of(gap.toward_zero()), band) {
         Some(Sign::Positive) => Ok(true),
         Some(Sign::Negative) => Ok(false),
         _ => Err(row),

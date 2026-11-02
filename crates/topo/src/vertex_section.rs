@@ -43,6 +43,7 @@ use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Unit
 use crate::body::Body;
 use crate::chord_join::{SectionCase, WallSection, wall_section};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::sector_face::SectorFaceError;
 use crate::sector_shape::SlitTips;
 use crate::splitting::{
     EntryFault, PlaneSide, SectorReading, SplitReduceError, entry_side, wide_entries,
@@ -93,8 +94,11 @@ pub(crate) enum VertexRefusal {
     /// band ([`VERTEX_SECTION_SIDE`]): the input's.
     Section(Indeterminate),
     /// The walk refused the vertex's neighbourhood: a sector reading in
-    /// the band, a cone face's apex undecided, or a degenerate one.
+    /// the band, or a degenerate one.
     Walk(SplitReduceError),
+    /// The walk could not resolve a sector of the vertex: a cone face's
+    /// apex undecided.
+    Sector(SectorFaceError),
     /// The door could not read its plane into the section table; the
     /// clause says why.
     Plane(&'static str),
@@ -203,11 +207,13 @@ pub(crate) fn read_sections<T: Decide>(
         return decide_reported(VERTEX_SECTION_SIDE, Margin::of(reading.value), band)
             .map_err(VertexRefusal::Section);
     }
-    // Moved toward zero by its rounding, and no further: past the band
-    // there, it is past it wherever the rounding put it.
-    let (m, e, zero) = (reading.value, reading.error, T::zero());
-    let inward = m.select_le_zero((m + e).min(zero), (m - e).max(zero));
-    match decide_reported(VERTEX_SECTION_CLEAR, Margin::of(inward), band) {
+    // Moved toward zero by its rounding: past the band there, it is past
+    // it wherever the rounding put it.
+    match decide_reported(
+        VERTEX_SECTION_CLEAR,
+        Margin::of(reading.toward_zero()),
+        band,
+    ) {
         Ok(off) if off.sign != Sign::Zero => Ok(off),
         _ => Ok(on_plane),
     }
@@ -295,12 +301,8 @@ fn entered_faces<T: Decide>(
             (PlaneSide::Above, PlaneSide::Above) | (PlaneSide::Below, PlaneSide::Below) => {
                 let resolved = match crate::sector_face::resolve(body, vertex, he, band) {
                     Ok(resolved) => resolved,
-                    Err(crate::sector_face::SectorFaceError::ApexUndecided { face, diag }) => {
-                        return Err(VertexRefusal::Walk(SplitReduceError::ApexUndecided {
-                            vertex,
-                            face,
-                            diag,
-                        }));
+                    Err(e @ SectorFaceError::ApexUndecided { .. }) => {
+                        return Err(VertexRefusal::Sector(e));
                     }
                     Err(e) => {
                         unreachable!("{face:?}: a read face's kind has a sector arm, yet {e:?}")

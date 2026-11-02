@@ -630,6 +630,18 @@ fn a_supporting_slab_at_a_rim_vertex_keeps_the_solid() {
     }
 }
 
+/// `work`'s result, and whether it read a vertex's section reading its
+/// rounding does not admit (decided `vertex_section_clear`).
+fn reading_unadmitted<R>(work: impl FnOnce() -> R) -> (R, bool) {
+    let bracket = geom_core::k_stats::Bracket::open();
+    let r = work();
+    let recorded = bracket.finish();
+    let clear = "vertex_section_clear";
+    let read = recorded.verdicts.iter().any(|v| v.predicate == clear)
+        || recorded.escalations.iter().any(|e| e.predicate() == clear);
+    (r, read)
+}
+
 /// **A reading its own rounding does not admit offers no lever, at
 /// every band and at both doors.** The plane meets the seam vertex at
 /// dihedral `ψ = 4uL/ε`, its stored origin `L` along the rim's tangent:
@@ -641,7 +653,9 @@ fn a_supporting_slab_at_a_rim_vertex_keeps_the_solid() {
 /// `ψ·h ≥ 6Kε`, which at a coarse band takes a tall cylinder and a far
 /// origin (`h = L`). No row refuses on the section reading; what the
 /// join then does with the vertex the offset puts on the plane is its
-/// own gate's.
+/// own gate's. Each row first reaches that reading: it decides
+/// `vertex_section_clear`, which only an unadmitted reading is read
+/// under, so an earlier refusal cannot pass it.
 #[test]
 fn an_unadmitted_section_reading_offers_no_lever_at_either_door() {
     let (e, k) = (tol().eps(), tol().k());
@@ -660,14 +674,22 @@ fn an_unadmitted_section_reading_offers_no_lever_at_either_door() {
         let d = side * k.sqrt() * e * psi.sin();
         let label = format!("ψ {psi:e} L {reach} δ {:+.3}ε", d / e);
         let plane = topo::test_support::split_plane(v + along * reach + n * d, n, tol());
-        let r = split(&cyl, &plane, tol());
+        let (r, unadmitted) = reading_unadmitted(|| split(&cyl, &plane, tol()));
+        assert!(
+            unadmitted,
+            "{label}: the split reads the section unadmitted"
+        );
         assert!(
             !offers_the_section_lever(&r),
             "{label}: the split: {:?}",
             r.err()
         );
         let slab = seam_slab((phi, psi), (3.0, reach), reach, n * d);
-        let r = topo::subtract(&cyl, &slab, tol());
+        let (r, unadmitted) = reading_unadmitted(|| topo::subtract(&cyl, &slab, tol()));
+        assert!(
+            unadmitted,
+            "{label}: the Boolean reads the section unadmitted"
+        );
         assert!(
             !offers_the_section_lever(&r),
             "{label}: the Boolean: {:?}",
