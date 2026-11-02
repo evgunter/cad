@@ -202,3 +202,16 @@ and bodies unchanged. No orchestrator yet.
     - Krawczyk containment: it proves existence and is masked by the 256 cap. Filed `no-row-guards-the-krawczyk-existence-test-on-a-spline-critical-point` (P3 M).
   - Also filed by the lane: the per-piece cell budget (P3 E).
   - Next on the NURBS line: stage 3, the curved whole reading, listing a node's or a touch's neighbouring arcs. It will be dispatched once cylinder stage 3, which shares the join, is up.
+
+- 2026-11-02 13:30 — **NURBS stage 3 plan accepted, held for cylinder stage 3.** Its node arcs ride the cylinder lane's `NodeSet`/`SiteFoot::Node`. Scope:
+  - a new 1×2 implicit-chart lane (`ImplicitSection`);
+  - limb 1–3 certificates;
+  - metres accounting;
+  - the curved whole reading, which retires `curved::unbuilt` and, where arcs are listed, the pinch.
+
+  Forks ruled as re-uses, not new decisions:
+  - an arc meets a node by marching inward, seeded by rim crossings and accounting, and ends on entering the node's box (C5's node end). No outward null-direction march.
+  - a touch keeps stage 2's pad reach (topo's Touch arm allows the band loop). A certified ring would be new scope.
+  - limb 3 generalises the plane's chart tube over `Phi`, one home.
+
+  Tier: H, dual review.
