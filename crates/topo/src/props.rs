@@ -6977,19 +6977,18 @@ pub trait AtRestPolicy: Decide {
     fn region_lane() -> Option<crate::RegionLane<Self>>;
 
     /// **This scalar's clearance engine, or `None` where it does not
-    /// answer** — the ONE seam the `Some` comes from, read by the
-    /// `min_clearance` measure and the document-level clearance query.
+    /// answer** — the ONE seam the `Some` comes from, read by a
+    /// clearance assertion's evaluation, the engine's dials door and the
+    /// shell's cavity gate.
     ///
-    /// The engine's answer is a BRACKET on a minimum over a box, so the
-    /// door answers at the enclosure scalars and wherever the symbolic
-    /// tier wraps one. `None` at a dual is certification rights (DL1),
-    /// as [`AtRestPolicy::shell_door`]'s is. `None` at `f64` and at the
-    /// recording scalar is not a right but a shape: a point build
-    /// evaluates one parameter point, where the engine's walk would
-    /// answer an upper bound on the minimum found by search, not the
-    /// minimum, and that value would sit in the witness build beside
-    /// a leaf's bracket as if the two were one quantity
-    /// (`work/clear/min-separation-tightening-crosses-the-drive.md`).
+    /// The engine's answer is a verdict over a box, decided from
+    /// enclosures, so the door answers at the enclosure scalars and
+    /// wherever the symbolic tier wraps one. `None` at a dual is
+    /// certification rights (DL1), as [`AtRestPolicy::shell_door`]'s
+    /// is. `None` at `f64` and at the recording scalar is not a right
+    /// but a shape: a point build evaluates one parameter point, where a
+    /// search finds a near pair, not a verdict, and a clearance there
+    /// reads its third state naming the certifying lane.
     fn clearance_lane() -> Option<crate::ClearanceLane<Self>>;
 
     /// The at-rest gate over a body ([`crate::validate_geometric`] at

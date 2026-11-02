@@ -751,7 +751,7 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// `drive::certifying_vector` drops `Assertion` rows from the
 /// certification comparison, and that MOVES the `verdict_vector_key`
 /// every certified leaf carries — for every document with an
-/// assertion, including ones with no `min_clearance` anywhere. The
+/// assertion, including ones with no clearance anywhere. The
 /// change is deliberate and argued at `certifying`; what it was
 /// missing is a pin, so the move was invisible in review and a FUTURE
 /// move would be too.
@@ -873,7 +873,7 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
 }
 
 /// A document with an assertion over a PLAIN `Distance` measure — no
-/// `min_clearance` anywhere. It is here because the review's point was
+/// clearance anywhere. It is here because the review's point was
 /// that the key move is not confined to this unit's new primitive: it
 /// reaches every assertion-carrying document in the tree.
 fn plain_distance_doc() -> ProfileDoc {

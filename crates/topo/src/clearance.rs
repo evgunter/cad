@@ -34,15 +34,19 @@
 //! its bracket, so they are taken in [`k_stats::unlogged`]'s scope; that
 //! door's own header carries the argument.
 //!
-//! **The sweep stops at the first VERIFIED violation.** A cell pair the
-//! interval pass classifies as violating is handed to the caller's
-//! verifier ([`Candidate`]), and a witness is the deliverable:
-//! continuing past one buys a bigger receipt and no more truth. What
-//! was on the frontier when it stopped is counted
-//! [`CellReceipt::abandoned`] — never folded into `refused`, which
-//! would be a claim that it was tried. A candidate the verifier does
-//! not confirm is [`EngineRefusal::WitnessUnverified`], and the sweep
-//! goes on.
+//! **The sweep stops once every bound it asks is ANSWERED**: at the
+//! first VERIFIED violation of a lower bound, or, for an upper bound
+//! alone, at its first VERIFIED proof (a band runs on until its lower
+//! bound is cleared or broken too). A cell pair the interval pass
+//! classifies as answering is handed to the caller's verifier
+//! ([`Candidate`]), and a verified pair is the deliverable: continuing
+//! past one buys a bigger receipt and no more truth. What was on the
+//! frontier when it stopped is counted [`CellReceipt::abandoned`] —
+//! never folded into `refused`, which would be a claim that it was
+//! tried. A candidate the verifier does not confirm is
+//! [`EngineRefusal::WitnessUnverified`] (or, for an upper bound the box
+//! decides in part only, [`EngineRefusal::BoxDependent`]), and the
+//! sweep goes on.
 //!
 //! # The one place a verdict is loose, stated at the door
 //!
@@ -2753,7 +2757,8 @@ impl MinSeparation {
 /// a pair that would otherwise be split or floor the bracket. Even so
 /// they are most of a call's work, and the `Outside` test, asked of
 /// every pair the walk would split, is most of that. Measured on
-/// M10-6's `min_clearance` rows (debug build, one test at a time), a
+/// M10-6's measured-minimum rows (debug build, one test at a time; the
+/// measure is retired, the number is the walk's), a
 /// drive over the neck takes about 2.4× the wall time the walk took
 /// with no readings (0.9 s against 2.2 s), and the corpus row that
 /// drives every registered assertion about 1.25×.

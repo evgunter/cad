@@ -326,8 +326,8 @@ impl McReport {
         for m in &self.measures {
             // **A measure NOTHING could sample says so, rather than
             // rendering `NaN`** (M10-6's fix pass; R2's MINOR-14). A
-            // `min_clearance` has no f64 value at any sample, so every
-            // one of its statistics is 0/0 — and `mean NaN σ NaN min
+            // measure every sample refused has no f64 value at any of
+            // them, so each of its statistics is 0/0 — and `mean NaN σ NaN min
             // inf max -inf` is a line a reader has to decode before
             // learning that the answer is "this lane cannot see this
             // measure at all".

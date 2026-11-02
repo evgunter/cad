@@ -1868,8 +1868,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
     ///
     /// # What a reference denotes: the carrier in the body it reads
     ///
-    /// Each reference reads a variable: a `Body` (a whole body, the scope
-    /// `min_clearance` takes), or a `Face` or `Edge` selection, whose body
+    /// Each reference reads a variable: a `Body` (a whole body), or a
+    /// `Face` or `Edge` selection, whose body
     /// read is what makes a measure report placed geometry: a selection
     /// of a transform's output names the moved carrier, since a rigid
     /// transform hands its input's names through unchanged. Deleting the
@@ -1896,9 +1896,9 @@ pub enum Node<P, S: Slot = crate::VarId> {
     ///
     /// What it claims: a variable against a bound, or a clearance
     /// between two seats within its bounds. On the wire the claim's own
-    /// fields are the node's (`Claim` is untagged): an assertion over a
-    /// value reads `{value, bound, relation}`, a clearance `{a, b,
-    /// bounds}`.
+    /// fields are the node's, read in one pass by which keys are present
+    /// (`ClaimWire`): an assertion over a value reads `{value, bound,
+    /// relation}`, a clearance `{a, b, bounds}`.
     Assertion(crate::measure::Claim<S>),
 }
 

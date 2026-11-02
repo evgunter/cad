@@ -1706,10 +1706,10 @@ fn classify_replay<T: geom_core::Decide>(
     // assertion's `assert_bound` flip cannot be why this leaf refused
     // — the comparison never looked at it. Left in, the evidence names
     // a predicate that did not cause the refusal, on exactly the
-    // documents E10 exists for: a `min_clearance` assertion is
-    // `Unevaluated` at every f64 witness and definite over a certified
-    // leaf, so it flips on EVERY leaf and would head the flip list of
-    // every unrelated refusal.
+    // documents E10 exists for: a clearance assertion is `Refused`
+    // (`needs_certifying_lane`) at every f64 witness and decided over a
+    // certified leaf, so it flips on EVERY leaf and would head the flip
+    // list of every unrelated refusal.
     //
     // It is a projection of the engine's answer onto the nodes the
     // question is about, not a second diff: the engine still runs over

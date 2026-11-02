@@ -372,7 +372,7 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
 /// share. Whether the body is embedded is the injectivity question,
 /// `self_intersection`.
 #[test]
-fn min_clearance_of_a_body_against_itself_meets_itself_and_reads_zero() {
+fn a_body_against_itself_meets_itself_at_zero_clearance() {
     let mut r = Recorder::new();
     let solid = prism(
         &mut r,
@@ -982,9 +982,9 @@ fn the_mc_lane_over_a_clearance_document_decides_nothing_and_says_so() {
 // --------------------------------------------- 9. the consumer walk
 
 /// A bracket: a base slab and a post parked above it, the post placed
-/// by `offset` (uniform) and lifted by `lift` (normal). Two measures —
-/// the web between the post's wall and the base's wall, and the
-/// `min_clearance` between the two bodies — each with an assertion.
+/// by `offset` (uniform) and lifted by `lift` (normal). A measure of
+/// the web between the post's wall and the base's wall with an
+/// assertion over it, and a clearance assertion between the two bodies.
 fn bracket(
     offset_law: Distribution,
     lift_law: Distribution,

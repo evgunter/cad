@@ -122,7 +122,7 @@ fn one_axis(doc: &ProfileDoc, n: &'static str, h: f64) -> ParamBox {
 
 // ------------------------------------------------------------------
 // 1. The certifying filter, and what it does to a document that has
-//    nothing to do with `min_clearance`.
+//    nothing to do with a clearance.
 // ------------------------------------------------------------------
 
 /// A block whose x-placement varies, a `Distance` measure between two
@@ -199,8 +199,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
 /// `drive` compares each leaf's verdict vector against the witness's
 /// through `drive::certifying_vector`, which drops `Assertion` rows.
 /// That moves the drive of any document carrying an assertion — a class
-/// that contains no `min_clearance` at all — and is M10-6's deviation
-/// D10.
+/// that contains no clearance at all — and is M10-6's deviation D10.
 ///
 /// The row exhibits the difference two ways: the two vectors are not
 /// equal over this document's witness, and a leaf certifies while its
@@ -235,11 +234,11 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
     );
     // `ParamBoxVerdict::serialize()` prints the witness vector's key and
     // each certified leaf's, so BOTH move for this document — a
-    // document with no `min_clearance` anywhere in it. That is claim
-    // 1's "keys bit-identical" falsified; the masses move too wherever
-    // a leaf's assertion row disagrees with the witness's, which is the
-    // case `drive.rs` describes and which `min_clearance` makes
-    // unconditional.
+    // document with no clearance anywhere in it. That is claim 1's
+    // "keys bit-identical" falsified; the masses move too wherever a
+    // leaf's assertion row disagrees with the witness's, which is the
+    // case `drive.rs` describes and which a clearance assertion (the
+    // third state at every f64 witness) makes unconditional.
     let serialized = verdict.serialize();
     assert!(
         serialized.contains(&format!("witness_vector {:032x}", certifying.key().0)),
