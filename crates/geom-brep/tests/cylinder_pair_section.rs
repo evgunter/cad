@@ -366,14 +366,13 @@ fn walls_touching_outside_are_one_point() {
 /// across the rods' own size (3e-7 rad at ε 1e-9). Over a region that
 /// size they read parallel; over a 1 m region the tilt moves the section
 /// by `300 ε` and they read crossing, the pair's own ball (`2r/θ`, far
-/// past the region) cut by the region, so marched.
+/// past the region) cut by the region.
 ///
-/// The march then refuses typed, at every tolerance row: limb 3 cannot
-/// prove one arc in the tube of either nearly parallel arc
-/// (`ssi_tube_one_arc` undecided). This row pins that refusal; it moves
-/// when the accounting
-/// design (`work/sectarms/a-near-parallel-pairs-accounting-grows-with-the-operation-region.md`)
-/// lands.
+/// The ruling sweep counts that section in two arcs across the region,
+/// each with its two cut ends on the region's sphere, with no 3-D sweep.
+/// The march then refuses typed: limb 3 cannot prove one arc in the tube
+/// of either 2 m, nearly parallel arc (`ssi_tube_one_arc` undecided;
+/// `work/pcert/the-tube-walk-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
 #[test]
 fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
     let r = 1e-3;
@@ -397,15 +396,28 @@ fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
         matches!(pose.stance(), geom_brep::CcStance::Crossing { .. }),
         "levered at the region the tilt reads crossing"
     );
-    eprintln!("PROBE components {:?}", far.components());
+    let arcs = listed(&far);
+    assert_eq!(arcs.len(), 2, "two arcs across the region");
+    for c in arcs {
+        let ends = c
+            .cut_ends
+            .expect("an arc the region cuts names its cut ends");
+        for p in ends {
+            let off = (p - Point3::origin()).norm() - 1.0;
+            assert!(
+                off.abs() <= 10.0 * band().zero(),
+                "on the region's sphere: {off:e}"
+            );
+            near_both(p, 10.0 * band().zero(), &a, &b, "a cut end");
+        }
+    }
     let got = far.carry(Some(SsiLane::marched()), band());
-    eprintln!(
-        "PROBE carry {:?}",
-        got.as_ref().map(|c| c
-            .components()
-            .iter()
-            .map(|c| (c.shape, c.carrier.eval(c.span.0), c.carrier.eval(c.span.1)))
-            .collect::<Vec<_>>())
+    assert!(
+        matches!(
+            got,
+            Err(CarryError::March(geom_brep::SsiError::TubeNotOneArc { .. }))
+        ),
+        "{got:?}"
     );
 }
 
@@ -699,5 +711,51 @@ fn the_carried_loop_lies_within_the_pairs_ball() {
             let out = (c.carrier.eval(t) - ball.center()).norm() - ball.radius();
             assert!(out <= c.pad, "{out:e} past the pair's ball");
         }
+    }
+}
+
+/// **A region through a branch point escalates**: perpendicular walls
+/// `r₁ = 0.5` about `z` and `r₂ = 0.2` about `x`, `e = 0.4` apart, cross
+/// in one loop whose two branch points (where a ruling of the thinner
+/// wall touches the fatter one) stand at `(0, 0.5, ±0.1·√3)`. A region
+/// about the origin whose sphere runs through both cannot say on which
+/// side of it the loop leaves there, and escalates on the branch cell's
+/// reading; a region a millimetre smaller or larger counts the arcs.
+#[test]
+fn a_region_through_a_branch_point_escalates() {
+    let a = drum();
+    let b = wall(Point3::new(0.0, 0.4, 0.0), Vec3::unit_x(), 0.2);
+    let through = (0.25f64 + 0.03).sqrt();
+    match geom_brep::pair_section(
+        &a,
+        &b,
+        Some(ExtentBall::new(Point3::origin(), through)),
+        None,
+        band(),
+    ) {
+        Err(SectionError::Escalated(diag)) => assert!(
+            diag.predicate
+                .is_some_and(|p| p.starts_with("ruling_branch_cut")),
+            "on the branch cell: {diag:?}"
+        ),
+        other => panic!("a sphere through the branch points escalates: {other:?}"),
+    }
+    // Either side of it the sphere cuts the saddle-shaped loop in arcs
+    // the march carries one to one.
+    for (what, radius) in [("smaller", through - 1e-3), ("larger", through + 1e-3)] {
+        let section = built(&a, &b, ExtentBall::new(Point3::origin(), radius));
+        let got = listed(&section);
+        assert!(
+            !got.is_empty() && got.iter().all(|c| c.cut_ends.is_some()),
+            "{what}: arcs the region cuts, {got:?}"
+        );
+        let carried = section
+            .carry(Some(SsiLane::marched()), band())
+            .unwrap_or_else(|e| panic!("{what}: carries: {e:?}"));
+        assert_eq!(
+            carried.components().len(),
+            got.len(),
+            "{what}: one branch per arc"
+        );
     }
 }

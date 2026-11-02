@@ -2479,6 +2479,111 @@ mod wiring {
         );
     }
 
+    /// Two walls of radius `0.5`, about `z` and `0.05` rad off it `0.1`
+    /// apart, over a region of radius `1.5` about the origin, which cuts
+    /// their section in two arcs: the section, and the march's two
+    /// branches.
+    fn two_cut_arcs() -> (super::PairSection<f64>, Vec<super::FittedCarrier<f64>>) {
+        use geom_core::{Point3, Vec3};
+        let wall = |origin: Point3<f64>, axis: Vec3<f64>| geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius: 0.5,
+            u_ref: axis.orthonormal_basis().0,
+        };
+        let a = wall(Point3::origin(), Vec3::unit_z());
+        let b = wall(
+            Point3::new(0.1, 0.0, 0.0),
+            Vec3::new(0.0, 0.05f64.sin(), 0.05f64.cos()),
+        );
+        let region = crate::ExtentBall::new(Point3::origin(), 1.5);
+        let section = match super::pair_section(&a, &b, Some(region), None, band()) {
+            Ok(super::SectionRead::Built(s)) => s,
+            other => panic!("the value builds the pair: {other:?}"),
+        };
+        let fitted = march_over_the_ball(&section, band()).expect("the march");
+        (section, fitted)
+    }
+
+    /// **One cut arc found twice and the other missed is a desync**, in
+    /// either arc's place: the count agrees, and each of the doubled
+    /// arc's cut ends lies on two branches while the missed arc's lie on
+    /// none. The march's own two branches, in either order, match.
+    #[test]
+    fn a_cut_arc_found_twice_and_one_missed_is_a_desync() {
+        use super::{CarryError, PairSection};
+        let (section, fitted) = two_cut_arcs();
+        let listed = section.counted().expect("counted");
+        assert_eq!(listed.len(), 2, "two arcs");
+        assert!(
+            listed.iter().all(|c| c.cut_ends.is_some()),
+            "each names its cut ends"
+        );
+        assert_eq!(fitted.len(), 2, "two branches");
+        for (k, branch) in fitted.iter().enumerate() {
+            let twice = vec![branch.clone(), branch.clone()];
+            assert!(
+                matches!(
+                    PairSection::matched(listed, twice, true, band()),
+                    Err(CarryError::Desync(_))
+                ),
+                "arc {k} twice, the other missed"
+            );
+        }
+        let mut reversed = fitted.clone();
+        reversed.reverse();
+        for (order, branches) in [("in order", fitted), ("reversed", reversed)] {
+            assert!(
+                PairSection::matched(listed, branches, true, band()).is_ok(),
+                "the march's own two, {order}"
+            );
+        }
+    }
+
+    /// **Cut ends matched one to one, not by count or by witness**: each
+    /// arc's witness and count unchanged, but its two cut ends swapped
+    /// with the other arc's one at a time, or both set to one end, or a
+    /// cut arc listed as a loop, is a desync.
+    #[test]
+    fn cut_ends_that_do_not_end_one_branch_are_a_desync() {
+        use super::{CarryError, ComponentShape, PairSection};
+        let (section, fitted) = two_cut_arcs();
+        let listed = section.counted().expect("counted").to_vec();
+        let ends = |k: usize| listed[k].cut_ends.expect("cut ends");
+        let with = |first: [geom_core::Point3<f64>; 2], second: [geom_core::Point3<f64>; 2]| {
+            let mut out = listed.clone();
+            out[0].cut_ends = Some(first);
+            out[1].cut_ends = Some(second);
+            out
+        };
+        let (a, b) = (ends(0), ends(1));
+        let loop_listed = {
+            let mut out = listed.clone();
+            out[0].shape = ComponentShape::Loop;
+            out[0].cut_ends = None;
+            out
+        };
+        for (what, bad) in [
+            (
+                "ends crossed between the arcs",
+                with([a[0], b[1]], [b[0], a[1]]),
+            ),
+            ("one arc's two ends at one end", with([a[0], a[0]], b)),
+            ("a cut arc listed as a loop", loop_listed),
+        ] {
+            let got = PairSection::matched(&bad, fitted.clone(), true, band());
+            assert!(
+                matches!(got, Err(CarryError::Desync(_))),
+                "{what}: {:?}",
+                got.map(|c| c.len())
+            );
+        }
+        assert!(
+            PairSection::matched(&listed, fitted, true, band()).is_ok(),
+            "the arcs as listed"
+        );
+    }
+
     /// **The witnessless matching is not first fit** (an order that
     /// defeats it): the ball round the donut's axis with its two
     /// components claiming `[true, false]` and `[false, true]` against

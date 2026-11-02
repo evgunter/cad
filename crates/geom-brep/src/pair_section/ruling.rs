@@ -58,8 +58,15 @@ const ROW_CUT: &str = "ruling_cut";
 const ROW_MONOTONE: &str = "ruling_cut_monotone";
 /// Both meetings' side of the ball over a branch point's cell.
 const ROW_BRANCH: &str = "ruling_branch_cut";
-/// A floor cell's two bounds straddling the band.
-const ROW_STRADDLE: &str = "ruling_straddle";
+
+/// A row's straddle row: a floor cell's two bounds straddling the band.
+fn straddle_row(name: &'static str) -> &'static str {
+    match name {
+        ROW_DISCRIMINANT => "ruling_discriminant_straddle",
+        ROW_BRANCH => "ruling_branch_cut_straddle",
+        _ => "ruling_cut_straddle",
+    }
+}
 
 /// **A closed interval of a scalar**, its two ends read at the scalar:
 /// the sweep's enclosure of a quantity over a cell of the ruling angle.
@@ -351,23 +358,6 @@ impl<T: Real> RuledCylinders<T> {
     fn root(&self, cell: &Cell<T>) -> Iv<T> {
         self.x(cell).square().from(self.r * self.r).sqrt()
     }
-
-    /// The same frame with each scalar mapped by `f`.
-    pub(crate) fn map<U: Real>(&self, f: impl Fn(T) -> U) -> RuledCylinders<U> {
-        let p = |q: Point3<T>| Point3::new(f(q.x), f(q.y), f(q.z));
-        let w = |q: Vec3<T>| Vec3::new(f(q.x), f(q.y), f(q.z));
-        RuledCylinders {
-            foot: p(self.foot),
-            n: w(self.n),
-            v: w(self.v),
-            axis: w(self.axis),
-            rho: f(self.rho),
-            r: f(self.r),
-            gap: f(self.gap),
-            cos: f(self.cos),
-            beta: f(self.beta),
-        }
-    }
 }
 
 impl<T: Real> Ruled<T> for RuledCylinders<T> {
@@ -579,14 +569,15 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     }
 
     /// **The escalation of a cell no test settled**, on the enclosure
-    /// `reading`: bounds that straddle the band escalate as one straddle,
-    /// bounds both `Zero` as a `Zero` no side passes.
+    /// `reading`: bounds that straddle the band escalate as one straddle
+    /// on the row's own straddle row, bounds both `Zero` as a `Zero` no
+    /// side passes.
     fn escalate(&self, name: &'static str, reading: Iv<T>) -> SweepRefusal {
         let bound = |m: T| decide_reported(name, Margin::of(m), self.band);
         SweepRefusal::Escalated(match (bound(reading.lo), bound(reading.hi)) {
             (Err(e), _) | (_, Err(e)) => e,
             (Ok(lower), Ok(upper)) if lower.sign < upper.sign => {
-                straddle(ROW_STRADDLE, lower, upper, self.band)
+                straddle(straddle_row(name), lower, upper, self.band)
             }
             (Ok(_), Ok(upper)) if upper.sign == Sign::Zero => {
                 gate_rejection(name, upper, self.band, SizedPass::NonZero)
@@ -656,9 +647,8 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     /// two sheets' leaves, and the loop they make cut by the ball.
     fn arc_components(&mut self, arc: &Arc<T>) -> Result<Vec<Swept<T>>, SweepRefusal> {
         let mut smooth = arc.smooth.clone();
-        let (rise, rise_cell) = self.branch_side(arc.rise, true, &mut smooth)?;
-        let (fall, fall_cell) = self.branch_side(arc.fall, false, &mut smooth)?;
-        let _ = (rise_cell, fall_cell);
+        let rise = self.branch_side(arc.rise, true, &mut smooth)?;
+        let fall = self.branch_side(arc.fall, false, &mut smooth)?;
         // Along the loop: the first sheet from the rise to the fall, then
         // the second back.
         let mut events = vec![Event::Side(rise, None)];
@@ -681,14 +671,13 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     /// **A branch point's side of the ball**, read sheet-wise: both
     /// meetings over its cell decided on one side. Otherwise the cell is
     /// halved toward the zero, the half clear of it joining `smooth` at
-    /// the arc's `rising` end. Answers the side and the cell it was read
-    /// on.
+    /// the arc's `rising` end.
     fn branch_side(
         &mut self,
         mut cell: Cell<T>,
         rising: bool,
         smooth: &mut Vec<Cell<T>>,
-    ) -> Result<(bool, Cell<T>), SweepRefusal> {
+    ) -> Result<bool, SweepRefusal> {
         loop {
             let both = self
                 .past(self.ruled.meeting(&cell, Sheet::Plus))
@@ -696,35 +685,54 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             self.spend(ROW_BRANCH, both)?;
             // An arc with no cell clear of its branch points has no stretch
             // to witness it on: split until it has one.
-            if !smooth.is_empty() {
-                if self.positive(ROW_BRANCH, Margin::of(T::zero() - both.hi)) {
-                    return Ok((true, cell));
-                }
-                if self.positive(ROW_BRANCH, Margin::of(both.lo)) {
-                    return Ok((false, cell));
-                }
+            let side = if self.positive(ROW_BRANCH, Margin::of(T::zero() - both.hi)) {
+                Some(true)
+            } else if self.positive(ROW_BRANCH, Margin::of(both.lo)) {
+                Some(false)
+            } else {
+                None
+            };
+            if let (Some(inside), false) = (side, smooth.is_empty()) {
+                return Ok(inside);
             }
             if cell.width() <= FLOOR {
-                return Err(self.escalate(ROW_BRANCH, both));
+                return Err(match side {
+                    None => self.escalate(ROW_BRANCH, both),
+                    Some(_) => self.escalate(ROW_DISCRIMINANT, self.ruled.discriminant(&cell)),
+                });
             }
-            let mid = cell.mid();
-            let m = self.ruled.discriminant(&Cell::at(mid)).lo;
-            let (l, r) = cell.halves();
-            match (self.side(ROW_DISCRIMINANT, m), rising) {
-                // The zero in the left half: a rise's right half is
+            // Cut where `Δ`'s side decides, off the middle where the zero
+            // stands within the band of it.
+            let cut = [0.5, 0.375, 0.625].into_iter().find_map(|f| {
+                let at = cell.lo + f * cell.width();
+                let m = self.ruled.discriminant(&Cell::at(at)).lo;
+                self.side(ROW_DISCRIMINANT, m)
+                    .map(|positive| (at, positive))
+            });
+            let Some((at, positive)) = cut else {
+                // The branch point placed to within the band of the zero:
+                // where its side of the ball is still undecided, a
+                // boundary within band of it.
+                return Err(match side {
+                    None => self.escalate(ROW_BRANCH, both),
+                    Some(_) => self.escalate(ROW_DISCRIMINANT, self.ruled.discriminant(&cell)),
+                });
+            };
+            let (l, r) = (Cell::new(cell.lo, at), Cell::new(at, cell.hi));
+            match (positive, rising) {
+                // The zero in the left part: a rise's right part is
                 // positive and joins the arc's start.
-                (Some(true), true) => {
+                (true, true) => {
                     smooth.insert(0, r);
                     cell = l;
                 }
-                (Some(false), true) => cell = r,
-                // A fall's left half is positive and joins its end.
-                (Some(true), false) => {
+                (false, true) => cell = r,
+                // A fall's left part is positive and joins its end.
+                (true, false) => {
                     smooth.push(l);
                     cell = r;
                 }
-                (Some(false), false) => cell = l,
-                (None, _) => return Err(self.escalate(ROW_DISCRIMINANT, Iv::point(m))),
+                (false, false) => cell = l,
             }
         }
     }
@@ -982,4 +990,259 @@ fn cut_loop<T: Real>(
         return Err(inconsistent);
     }
     Ok(out)
+}
+
+/// **What a coverage read**: the cells, and the deepest halving of the
+/// first cut's.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Coverage {
+    pub(crate) cells: usize,
+    pub(crate) depth: u32,
+}
+
+/// The first cut's cells of the turn, for [`coverage`].
+const COVERAGE_START: i32 = 64;
+/// The halvings of the first cut's cells [`coverage`] takes before it
+/// gives up on a cell.
+pub(crate) const COVERAGE_DEPTH: u32 = 30;
+/// The cells [`coverage`] reads before it gives up.
+pub(crate) const COVERAGE_CELLS: usize = 1 << 18;
+
+/// **The ruling angle's coverage of a cylinder pair**, a second reading
+/// of the count the sweep closed exhaustiveness on (C3): every cell of
+/// `ruled`'s ruling angle has its rulings' meetings with `partner` outside
+/// `ball` (the ball the march ends at), or inside one of `tubes` (the
+/// found branches' tube boxes). A component the count missed has
+/// meetings in no tube. It is read on certified enclosures at `Interval`
+/// and from the operands alone, by the general quadratic `At² + 2Bt + C`
+/// of a ruling `p + t·a` against the partner's axis `(o′, a′)`, with
+/// `w = p − o′`: `A = |a × a′|²`, `B = (w × a′)·(a × a′)`,
+/// `C = |w × a′|² − r²`, roots `(−B ± √(B² − AC))/A`. Neither the
+/// sweep's frame nor its closed form enters it, so a defect in either
+/// does not hide itself here. Either wall may be ruled: every section
+/// point lies on exactly one of its rulings.
+///
+/// # Errors
+///
+/// The first cell it could not cover within [`COVERAGE_DEPTH`] halvings
+/// and [`COVERAGE_CELLS`] cells, `[lo, hi]`.
+pub(crate) fn coverage(
+    ruled: &geom::Surface<f64>,
+    partner: &geom::Surface<f64>,
+    ball: ExtentBall<f64>,
+    tubes: &[crate::ssi::enclose::Box3],
+) -> Result<Coverage, [f64; 2]> {
+    use crate::ssi::enclose::Box3;
+    use geom_core::{Bounds as _, Interval, SpanLocate as _};
+    let (
+        &geom::Surface::Cylinder {
+            origin: o,
+            axis: a,
+            radius: rho,
+            ..
+        },
+        &geom::Surface::Cylinder {
+            origin: q,
+            axis: b,
+            radius: r,
+            ..
+        },
+    ) = (ruled, partner)
+    else {
+        return Err([0.0, core::f64::consts::TAU]);
+    };
+    let lift = Interval::from_f64;
+    let p3 = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
+    let v3 = |v: Vec3<f64>| Vec3::new(lift(v.x), lift(v.y), lift(v.z));
+    let (u, v) = a.orthonormal_basis();
+    let (o, q, a, b, u, v) = (p3(o), p3(q), v3(a), v3(b), v3(u), v3(v));
+    let (rho, r) = (lift(rho), lift(r));
+    let ab = a.cross(b);
+    let big_a = ab.dot(ab);
+    // `w × a′` for the enclosure `w`.
+    let cross = |w: V3<Interval>| V3 {
+        x: w.y.scale(b.z).plus(w.z.scale(Interval::zero() - b.y)),
+        y: w.z.scale(b.x).plus(w.x.scale(Interval::zero() - b.z)),
+        z: w.x.scale(b.y).plus(w.y.scale(Interval::zero() - b.x)),
+    };
+    let along = |k: Vec3<Interval>| V3::along(k, Iv::point(Interval::one()));
+    let hull = |i: Iv<Interval>| i.lo.enclosure_hull(i.hi);
+    let (centre, radius) = (ball.center(), ball.radius());
+    let clear = |bx: Box3| {
+        let gap = |i: Interval, c: f64| {
+            if !i.is_certified() {
+                return f64::NAN;
+            }
+            (i.lo() - c).max(c - i.hi()).max(0.0)
+        };
+        let (gx, gy, gz) = (
+            gap(bx.x, centre.x),
+            gap(bx.y, centre.y),
+            gap(bx.z, centre.z),
+        );
+        (gx * gx + gy * gy + gz * gz).sqrt() * (1.0 - 1e-12) > radius * (1.0 + 1e-12)
+    };
+    let mut hint = 0usize;
+    let mut read = Coverage { cells: 0, depth: 0 };
+    #[allow(clippy::cast_precision_loss)]
+    let cut = |k: i32| core::f64::consts::TAU * f64::from(k) / f64::from(COVERAGE_START);
+    let mut stack: Vec<(f64, f64, u32)> = (0..COVERAGE_START)
+        .map(|k| (cut(k), cut(k + 1), 0))
+        .collect();
+    while let Some((lo, hi, depth)) = stack.pop() {
+        read.cells += 1;
+        read.depth = read.depth.max(depth);
+        let cell = Cell::<Interval>::new(lo, hi);
+        let p = V3::at(o)
+            .plus(V3::along(u, cell.cos.scale(rho)))
+            .plus(V3::along(v, cell.sin.scale(rho)));
+        let wb = cross(p.less(q));
+        let qb = wb.dot(along(ab));
+        let qc = wb.dot(wb).shift(Interval::zero() - r * r);
+        let disc = qb.square().plus(qc.scale(Interval::zero() - big_a));
+        let covered = hull(disc).is_certified() && hull(disc).hi() < 0.0
+            || [Interval::one(), Interval::zero() - Interval::one()]
+                .into_iter()
+                .all(|sign| {
+                    let t = disc
+                        .sqrt()
+                        .scale(sign)
+                        .plus(qb.scale(Interval::zero() - Interval::one()))
+                        .scale(Interval::one() / big_a);
+                    let x = p.plus(V3::along(a, t));
+                    let bx = Box3 {
+                        x: hull(x.x),
+                        y: hull(x.y),
+                        z: hull(x.z),
+                    };
+                    clear(bx)
+                        || tubes.get(hint).is_some_and(|t| bx.contained_in(*t))
+                        || tubes
+                            .iter()
+                            .position(|t| bx.contained_in(*t))
+                            .is_some_and(|k| {
+                                hint = k;
+                                true
+                            })
+                });
+        if covered {
+            continue;
+        }
+        if depth >= COVERAGE_DEPTH || read.cells >= COVERAGE_CELLS {
+            return Err([lo, hi]);
+        }
+        let mid = 0.5 * (lo + hi);
+        stack.push((mid, hi, depth + 1));
+        stack.push((lo, mid, depth + 1));
+    }
+    Ok(read)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{Cell, Ruled, RuledCylinders};
+    use crate::pair_section::{CcStance, CylinderCylinderPose};
+    use crate::{ExtentBall, Reach};
+    use geom::Surface;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn wall(origin: (f64, f64, f64), axis: Vec3<f64>, radius: f64) -> Surface<f64> {
+        let axis = axis.normalize();
+        Surface::Cylinder {
+            origin: Point3::new(origin.0, origin.1, origin.2),
+            axis,
+            radius,
+            u_ref: axis.orthonormal_basis().0,
+        }
+    }
+
+    fn ruled(a: &Surface<f64>, b: &Surface<f64>) -> (RuledCylinders<f64>, f64) {
+        let region = ExtentBall::new(Point3::origin(), 3.0);
+        let pose = CylinderCylinderPose::decide(a, b, &Reach::Ball(region), band())
+            .expect("two cylinders")
+            .expect("a decided pose");
+        let CcStance::Crossing { gap, .. } = pose.stance() else {
+            panic!("crossing axes");
+        };
+        (pose.ruled().expect("a ruled side"), gap.abs())
+    }
+
+    /// **`Δ`'s extremes over the turn are the pose's margins**: the
+    /// discriminant's margin read at every angle of a fine turn (its two
+    /// extremes, at `0` and `π`, among them) reaches `r₁ + r₂ − e` at its
+    /// most (the gap level, `e` at least the ruled radius) and
+    /// `|r₁ − r₂| − e` at its least (the nest level), each the pose's
+    /// closed-form margin negated, for walls that cross in one loop, in
+    /// two, and clear each other, at a right angle and skew, in both
+    /// orders.
+    #[test]
+    fn the_discriminants_extremes_are_the_poses_margins() {
+        let z = Vec3::unit_z();
+        let skew = Vec3::new(1.0, 0.4, 0.3);
+        let poses = [
+            (
+                "one loop",
+                wall((0.0, 0.4, 0.0), Vec3::unit_x(), 0.2),
+                0.5,
+                0.2,
+            ),
+            (
+                "two loops",
+                wall((0.0, 0.1, 0.0), Vec3::unit_x(), 0.2),
+                0.5,
+                0.2,
+            ),
+            (
+                "clear",
+                wall((0.0, 0.9, 0.0), Vec3::unit_x(), 0.2),
+                0.5,
+                0.2,
+            ),
+            (
+                "skew, one loop",
+                wall((0.1, 0.45, -0.2), skew, 0.3),
+                0.5,
+                0.3,
+            ),
+            (
+                "skew, two loops",
+                wall((0.0, 0.05, 0.1), skew, 0.25),
+                0.5,
+                0.25,
+            ),
+        ];
+        for (what, b, r1, r2) in poses {
+            let a = wall((0.0, 0.0, 0.0), z, r1);
+            for (order, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
+                let (ruled, e) = ruled(x, y);
+                let (mut most, mut least) = (f64::NEG_INFINITY, f64::INFINITY);
+                for k in 0..=4096 {
+                    let m = ruled
+                        .discriminant(&Cell::at(core::f64::consts::TAU * f64::from(k) / 4096.0));
+                    most = most.max(m.hi);
+                    least = least.min(m.lo);
+                }
+                let label = format!("{what} ({order})");
+                assert!(
+                    (least - ((r1 - r2).abs() - e)).abs() <= 1e-12,
+                    "{label}: the least is the nest level, {least} against {}",
+                    (r1 - r2).abs() - e
+                );
+                if e >= r1.min(r2) {
+                    assert!(
+                        (most - (r1 + r2 - e)).abs() <= 1e-12,
+                        "{label}: the most is the gap level, {most} against {}",
+                        r1 + r2 - e
+                    );
+                } else {
+                    assert!(most > 0.0, "{label}: the walls cross");
+                }
+            }
+        }
+    }
 }

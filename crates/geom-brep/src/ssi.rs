@@ -3212,97 +3212,35 @@ pub(crate) fn march_cylinder_cylinder(
     };
     let tol = MarchTol::from_band(band, quadric_readout(a, b, domain.slab()))?;
     let (branches, tubes) = march_seeds(a, b, seeds, &exit, domain, tol, band)?;
+    // DESIGN's error taxonomy, row 5: a re-derivation, so it runs in
+    // debug builds alone and changes nothing shipped.
+    //
+    // **Calibration.** Over the cylinder pair rows of
+    // `tests/cylinder_pair_section.rs`, the cylinder rows of
+    // `topo::boolean::section_cert_rows` and the sweep crate's rows that
+    // carry a crossing cylinder pair, every coverage settled within
+    // COVERAGE_TRIP_DEPTH halvings of its first cut (the deepest read
+    // COVERAGE_TRIP_SEEN) against `COVERAGE_DEPTH`'s 30, and read at
+    // most COVERAGE_TRIP_CELLS cells against `COVERAGE_CELLS`'s 2¹⁸. A
+    // firing one is a component the count did not list, or a branch
+    // whose tube box the march's certificate did not hold.
     #[cfg(debug_assertions)]
-    if let Some(ruled) = pose.ruled() {
-        ruling_coverage(&ruled, ball, &tubes);
+    {
+        let covered = crate::pair_section::ruling::coverage(a, b, ball, &tubes);
+        if std::env::var_os("CAD_RULING_COVERAGE_PROBE").is_some() {
+            eprintln!("RULING_COVERAGE {covered:?}");
+        }
+        debug_assert!(
+            covered.is_ok(),
+            "the ruling angle's cells {covered:?} hold meetings inside the ball the march ends \
+             at and in no found branch's tube: the count missed a component, or a tube is not \
+             its branch's"
+        );
     }
     #[cfg(not(debug_assertions))]
     let _ = tubes;
     Ok(branches)
 }
-
-/// **The ruling angle's coverage** (C3; DESIGN's error taxonomy, row 5):
-/// every cell of the turn has its rulings' meetings with the partner
-/// outside the ball the march ends at, or inside a found branch's tube
-/// box, read on certified enclosures ([`crate::pair_section::ruling`]
-/// at `Interval`). It re-derives the count the carry's match closed on:
-/// a component the count missed has meetings in no tube.
-///
-/// **Calibration.** Measured over the cylinder pair rows of
-/// `tests/cylinder_pair_section.rs` and of the boolean and sweep rows
-/// that carry a crossing cylinder pair: every cell settles within
-/// [`COVERAGE_DEPTH`]'s 30 halvings of the first cut's 64 (the deepest
-/// read 21), and no row read more than a fifth of [`COVERAGE_CELLS`].
-/// A firing one is a component the count did not list, or a branch whose
-/// tube the march's certificate did not hold.
-#[cfg(debug_assertions)]
-fn ruling_coverage(
-    ruled: &crate::pair_section::ruling::RuledCylinders<f64>,
-    ball: crate::ExtentBall<f64>,
-    tubes: &[Box3],
-) {
-    use crate::pair_section::ruling::{Cell, Iv, Ruled, Sheet};
-    use geom_core::Interval;
-    let lifted = ruled.map(Interval::from_f64);
-    let (center, radius) = (ball.center(), ball.radius());
-    let hull = |i: Iv<Interval>| geom_core::SpanLocate::enclosure_hull(i.lo, i.hi);
-    let mut hint = 0usize;
-    let mut spent = 0usize;
-    let mut stack: Vec<(f64, f64, u32)> = (0..64)
-        .map(|k| {
-            let cut = |k: i32| core::f64::consts::TAU * f64::from(k) / 64.0;
-            (cut(k), cut(k + 1), 0)
-        })
-        .collect();
-    while let Some((lo, hi, depth)) = stack.pop() {
-        spent += 1;
-        let cell = Cell::<Interval>::new(lo, hi);
-        let disc = hull(lifted.discriminant(&cell));
-        let covered = disc.is_certified() && disc.hi() < 0.0
-            || [Sheet::Plus, Sheet::Minus].into_iter().all(|sheet| {
-                let x = lifted.meeting(&cell, sheet);
-                let b = Box3 {
-                    x: hull(x.x),
-                    y: hull(x.y),
-                    z: hull(x.z),
-                };
-                let near = b.center();
-                let reach = 0.5 * b.width() * 3f64.sqrt();
-                let clear = (near - center).norm() - reach > radius * (1.0 + 1e-12);
-                clear
-                    || tubes.get(hint).is_some_and(|t| b.contained_in(*t))
-                    || tubes.iter().enumerate().any(|(k, t)| {
-                        let inside = b.contained_in(*t);
-                        if inside {
-                            hint = k;
-                        }
-                        inside
-                    })
-            });
-        if covered {
-            continue;
-        }
-        debug_assert!(
-            depth < COVERAGE_DEPTH && spent < COVERAGE_CELLS,
-            "the ruling angle's cell [{lo}, {hi}] (depth {depth}, {spent} cells) has meetings \
-             inside the ball the march ends at and in no found branch's tube: the count \
-             missed a component, or a tube is not the branch's"
-        );
-        if depth >= COVERAGE_DEPTH || spent >= COVERAGE_CELLS {
-            return;
-        }
-        let mid = 0.5 * (lo + hi);
-        stack.push((mid, hi, depth + 1));
-        stack.push((lo, mid, depth + 1));
-    }
-}
-
-/// The halvings [`ruling_coverage`] takes before it fires.
-#[cfg(debug_assertions)]
-const COVERAGE_DEPTH: u32 = 30;
-/// The cells [`ruling_coverage`] reads before it fires.
-#[cfg(debug_assertions)]
-const COVERAGE_CELLS: usize = 1 << 18;
 
 /// **The door's own checks**: the operands, by name, shown finite and
 /// the domain usable, before any pose or rung reads them.
