@@ -744,8 +744,11 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
             // parallel is the parallel's to read.
             let (corner, gap) = match self.surface {
                 Ruled::Cylinder { axis, .. } => {
-                    let gap = (target - p).dot(axis);
-                    (p + axis * gap, gap)
+                    let ruling = geom::Line {
+                        origin: p,
+                        dir: axis,
+                    };
+                    (ruling.foot(target), ruling.param(target))
                 }
                 Ruled::Cone { apex, .. } => {
                     let (rp, rt) = ((p - apex).norm(), (target - apex).norm());

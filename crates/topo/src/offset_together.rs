@@ -392,8 +392,9 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             // The other endpoint is VERIFIED onto that line rather than
             // assumed onto it: it is a different corner solve, and two
             // solves agreeing is the claim being made.
-            let t1 = (p_end - origin).dot(dir);
-            let gap = (origin + dir * t1).distance(p_end);
+            let moved = geom::Line { origin, dir };
+            let t1 = moved.param(p_end);
+            let gap = moved.foot(p_end).distance(p_end);
             match decide("offset_together_edge_agreement", Margin::of(gap), band) {
                 Ok(Sign::Zero) => {}
                 Ok(_) => return Err(ReplaceFaceError::TogetherEdgeDisagreement { edge, gap }),
