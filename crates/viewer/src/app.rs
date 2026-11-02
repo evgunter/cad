@@ -10210,6 +10210,284 @@ mod properties_pane_tests {
             assert!(driven.app.session.committed_doc().bit_eq(&before));
         }
 
+        fn r6390_runs(driven: &mut Driven) -> Vec<String> {
+            driven.quiet().into_iter().map(|(r, _)| r).collect()
+        }
+
+        fn r6390_with(extra: Vec<SessionOp>) -> Driven {
+            let mut ops = vec![SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("w"),
+                value: pncad::document::FreeVar::continuous(
+                    pncad::document::Dimension::Length,
+                    0.07,
+                ),
+            }];
+            ops.extend(extra);
+            ops.push(SessionOp::Select(Selection::Node(profile())));
+            let mut driven = Driven::with(ops);
+            driven.quiet();
+            driven
+        }
+
+        #[test]
+        fn r6390_wrong_dimension_literal() {
+            let mut driven = with_w();
+            let before = driven.app.session.committed_doc().clone();
+            type_into_x(&mut driven, 0, "30 deg");
+            let src = held_source(&driven, 0, StepArg::PointX);
+            let steps = driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .unwrap()
+                .steps(driven.app.session.doc(), pncad::geom_core::Tol::witness());
+            let unread = driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .unwrap()
+                .unread_drivers(driven.app.session.doc());
+            eprintln!(
+                "PROBE dimlit src={src:?} step0={:?} unread={unread:?}",
+                steps[0][0]
+            );
+            let runs = r6390_runs(&mut driven);
+            eprintln!(
+                "PROBE dimlit runs-before-apply={:?}",
+                runs.iter().filter(|r| r.len() > 12).collect::<Vec<_>>()
+            );
+            let hist = driven.app.session.history().len();
+            driven.click("Apply");
+            driven.settle();
+            let runs = r6390_runs(&mut driven);
+            eprintln!(
+                "PROBE dimlit after-apply hist_delta={} doc_eq={} draft={} src={:?}",
+                driven.app.session.history().len() - hist,
+                driven.app.session.committed_doc().bit_eq(&before),
+                driven.app.drafts.profile_edit.is_some(),
+                held_source(&driven, 0, StepArg::PointX)
+            );
+            eprintln!(
+                "PROBE dimlit runs-after={:?}",
+                runs.iter().filter(|r| r.len() > 12).collect::<Vec<_>>()
+            );
+        }
+
+        #[test]
+        fn r6390_wrong_dimension_variable() {
+            let mut driven = r6390_with(vec![SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("a"),
+                value: pncad::document::FreeVar::continuous(
+                    pncad::document::Dimension::Angle,
+                    0.02,
+                ),
+            }]);
+            let before = driven.app.session.committed_doc().clone();
+            type_into_x(&mut driven, 0, "a/2");
+            let src = held_source(&driven, 0, StepArg::PointX);
+            let steps = driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .unwrap()
+                .steps(driven.app.session.doc(), pncad::geom_core::Tol::witness());
+            let unread = driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .unwrap()
+                .unread_drivers(driven.app.session.doc());
+            eprintln!(
+                "PROBE dimvar src={src:?} step0={:?} unread={unread:?}",
+                steps[0][0]
+            );
+            let runs = r6390_runs(&mut driven);
+            eprintln!(
+                "PROBE dimvar runs={:?}",
+                runs.iter().filter(|r| r.len() > 12).collect::<Vec<_>>()
+            );
+            let hist = driven.app.session.history().len();
+            driven.click("Apply");
+            driven.settle();
+            let runs = r6390_runs(&mut driven);
+            eprintln!(
+                "PROBE dimvar after-apply hist_delta={} doc_eq={} draft={}",
+                driven.app.session.history().len() - hist,
+                driven.app.session.committed_doc().bit_eq(&before),
+                driven.app.drafts.profile_edit.is_some()
+            );
+            eprintln!(
+                "PROBE dimvar runs-after={:?}",
+                runs.iter().filter(|r| r.len() > 12).collect::<Vec<_>>()
+            );
+        }
+
+        #[test]
+        fn r6390_undefined_name_and_deleted_var() {
+            let mut driven = with_w();
+            type_into_x(&mut driven, 0, "zz/2");
+            let runs = r6390_runs(&mut driven);
+            eprintln!(
+                "PROBE undef runs={:?} new_var_open={} new_var_name={:?}",
+                runs.iter()
+                    .filter(|r| r.contains("zz") || r.contains("parse"))
+                    .collect::<Vec<_>>(),
+                driven.app.drafts.new_variable_open,
+                driven.app.drafts.new_variable_name
+            );
+            // now a formula reading w, then delete w
+            type_into_x(&mut driven, 0, "w/7");
+            let var = driven
+                .app
+                .session
+                .committed_doc()
+                .var_named("w")
+                .expect("w");
+            let out = driven.app.session.perform(SessionOp::DeleteVar { var });
+            eprintln!(
+                "PROBE delvar refusal={:?}",
+                out.refusal.map(|r| r.to_string())
+            );
+            let runs = r6390_runs(&mut driven);
+            let steps = driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .unwrap()
+                .steps(driven.app.session.doc(), pncad::geom_core::Tol::witness());
+            let unread = driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .unwrap()
+                .unread_drivers(driven.app.session.doc());
+            eprintln!(
+                "PROBE delvar step0={:?} unread={unread:?} src={:?}",
+                steps[0][0],
+                held_source(&driven, 0, StepArg::PointX)
+            );
+            eprintln!(
+                "PROBE delvar runs={:?}",
+                runs.iter().filter(|r| r.len() > 12).collect::<Vec<_>>()
+            );
+        }
+
+        #[test]
+        fn r6390_number_over_draft_only_formula() {
+            let mut driven = with_w();
+            let before = driven.app.session.committed_doc().clone();
+            type_into_x(&mut driven, 0, "w/7");
+            let held = edit(&mut driven).programs().expect("lowers");
+            type_into_x(&mut driven, 0, "0.5");
+            let runs = r6390_runs(&mut driven);
+            eprintln!(
+                "PROBE numover runs={:?}",
+                runs.iter()
+                    .filter(|r| r.contains("driven")
+                        || r.contains("expression")
+                        || r.contains("reads"))
+                    .collect::<Vec<_>>()
+            );
+            assert!(
+                driven.app.session.committed_doc().bit_eq(&before),
+                "doc moved"
+            );
+            assert_eq!(
+                edit(&mut driven).programs().expect("lowers"),
+                held,
+                "draft moved"
+            );
+            // probe door against the draft-driven row
+            let row = driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .unwrap()
+                .held_row(driven.app.session.doc(), (0, 0), StepArg::PointX)
+                .unwrap();
+            let gui = crate::app::ViewerBehavior::probe_refusal(
+                profile(),
+                &row,
+                crate::props::Notation::CANONICAL,
+            );
+            let out = driven.app.session.perform(SessionOp::ProbeBounds {
+                target: BoundsTarget::Slot {
+                    node: profile(),
+                    slot: row.slot,
+                },
+            });
+            eprintln!(
+                "PROBE probe-mismatch gui_refuses={} session_refusal={:?}",
+                gui.is_some(),
+                out.refusal.map(|r| r.to_string())
+            );
+        }
+
+        #[test]
+        fn r6390_reverse_committed_driven_draft_literal() {
+            let mut driven = with_w();
+            type_into_x(&mut driven, 0, "w/7");
+            driven.click("Apply");
+            driven.settle();
+            assert!(
+                driven
+                    .row(profile(), outline(0, StepArg::PointX))
+                    .driver
+                    .is_driven()
+            );
+            let before = driven.app.session.committed_doc().clone();
+            hold_far_y(&mut driven, 0.05);
+            type_into_x(&mut driven, 0, "3 mm");
+            eprintln!(
+                "PROBE reverse src-after-text={:?}",
+                held_source(&driven, 0, StepArg::PointX)
+            );
+            type_into_x(&mut driven, 0, "0.004");
+            let Step::At(anchor) = held_step(&driven, 0) else {
+                panic!()
+            };
+            eprintln!(
+                "PROBE reverse anchor.x={} doc_eq={}",
+                anchor.x,
+                driven.app.session.committed_doc().bit_eq(&before)
+            );
+            let row = driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .unwrap()
+                .held_row(driven.app.session.doc(), (0, 0), StepArg::PointX)
+                .unwrap();
+            let gui = crate::app::ViewerBehavior::probe_refusal(
+                profile(),
+                &row,
+                crate::props::Notation::CANONICAL,
+            );
+            let out = driven.app.session.perform(SessionOp::ProbeBounds {
+                target: BoundsTarget::Slot {
+                    node: profile(),
+                    slot: row.slot,
+                },
+            });
+            eprintln!(
+                "PROBE reverse probe gui_refuses={} session_refusal={:?}",
+                gui.is_some(),
+                out.refusal.map(|r| r.to_string())
+            );
+            assert!(
+                driven.app.session.committed_doc().bit_eq(&before),
+                "doc moved"
+            );
+        }
+
         /// **A live drag in the editor's field moves the drawn outline,
         /// and only the draft.** While the pointer is still down, the
         /// held anchor has moved, the loops the edit door previews are
