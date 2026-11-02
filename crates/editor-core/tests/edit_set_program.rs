@@ -2759,7 +2759,7 @@ fn the_empty_region_and_its_extrude(
     assert!(
         words
             .as_deref()
-            .is_some_and(|w| w.ends_with("profile has no loops — nothing to sweep")),
+            .is_some_and(|w| w.contains("profile has no loops — nothing to sweep")),
         "{what}: in EmptyProfile's words: {words:?}"
     );
 }
@@ -2870,4 +2870,43 @@ fn a_profile_with_no_loops_is_admitted_evaluates_and_round_trips() {
     let text = save(&loaded.doc, &[], tol()).expect("the snapshot saves");
     let reloaded = load(&text, tol()).expect("the snapshot loads");
     assert!(reloaded.doc.bit_eq(&loaded.doc), "the snapshot round-trips");
+}
+
+/// **A program of no loops carries every id it has**, minted or not:
+/// it has no step to carry one. So it names no piece rather than
+/// refusing `Unminted`, which a program of loops with no id list still
+/// does; and the insert door mints it (the row above inserts one).
+#[test]
+fn a_program_of_no_loops_carries_its_ids_and_names_no_piece() {
+    let stored = |doc: &ProfileDoc, node: RecipeNodeId| match doc.node(node) {
+        Some(Node::Profile(p)) => p.clone(),
+        other => panic!("node {} is a profile: {other:?}", node.0),
+    };
+    let r = rod("no-loops-pieces", &[]);
+    let (doc, bare) = insert(
+        r.doc,
+        Node::Profile(ProfileProgram {
+            loops: Vec::new(),
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let env = doc.var_env::<f64>();
+    let empty = stored(&doc, bare);
+    assert!(empty.carries_step_ids(), "no loops, no step without an id");
+    let pieces = empty.pieces(&env, tol()).expect("no loops names no piece");
+    assert!(
+        pieces.edges.is_empty() && pieces.vertices.is_empty(),
+        "{pieces:?}"
+    );
+    let mut unminted = stored(&doc, r.profile);
+    unminted.ids.clear();
+    assert!(!unminted.carries_step_ids(), "loops with no id list");
+    assert!(
+        matches!(
+            unminted.pieces(&env, tol()),
+            Err(editor_core::ProgramRefusal::Unminted)
+        ),
+        "a program of loops with no id list is unminted"
+    );
 }

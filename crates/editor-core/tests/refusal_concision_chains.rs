@@ -312,17 +312,14 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/lathe/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
-    "Extrude/EmptyProfile",
     "Extrude/SidePlane",
     "Loft/CapPlane",
     "Loft/SectionStructure",
     "Revolve/CapPlane",
-    "Revolve/EmptyProfile",
     "Revolve/FullRangeAngle",
     "Revolve/VoidInsertion",
     "Skin/BadDegree",
     "Skin/DomainNotUnit",
-    "Skin/EmptySection",
     "Skin/SectionProfile",
     "Tube/DegenerateWindow",
     "Tube/FullRangeWindow",
@@ -848,7 +845,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `SkinError`'s arms, for the `Skin/` rows.
         pub(super) const SKIN_ERROR: SkinError = [
-            TooFewSections, SectionShapeMismatch, SectionProfile, EmptySection, DomainNotUnit,
+            TooFewSections, SectionShapeMismatch, SectionProfile, EmptyProfile, DomainNotUnit,
             DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
             PathStationsCoincide, PathFoldsBack, PathUndecided, StationNotFinite, Band,
             RowMotionUndecided, ArcSweepUndecided, Fit, KnotAlgebra, Structure,
@@ -3368,7 +3365,8 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
                 source: profile::ProfileError::EmptyLoop { loop_index: 0 },
             },
         ),
-        ("EmptySection", E::EmptySection { section: 2 }),
+        ("EmptyProfile", E::EmptyProfile { section: Some(2) }),
+        ("EmptyProfile", E::EmptyProfile { section: None }),
         (
             "DomainNotUnit",
             E::DomainNotUnit {

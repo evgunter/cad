@@ -46,6 +46,19 @@ fn a_profile_with_no_loops_validates_to_the_empty_region() {
         .validate_guided(tol(), &structure)
         .expect("validate_guided admits no loops");
     assert!(guided.loops().is_empty(), "validate_guided: {guided:?}");
+
+    // The constructed twins: a replay of no loops.
+    let replayed = profile::ConstructedProfile::<f64>::new(SketchPlane::xy(), vec![]);
+    let validated = replayed.validate(tol()).expect("constructed validate");
+    assert!(validated.loops().is_empty(), "constructed validate");
+    let (recorded, structure) = replayed
+        .validate_recording(tol())
+        .expect("constructed validate_recording");
+    assert!(recorded.loops().is_empty() && structure.loops.is_empty());
+    let guided = replayed
+        .validate_guided(tol(), &structure)
+        .expect("constructed validate_guided");
+    assert!(guided.loops().is_empty(), "constructed validate_guided");
 }
 
 /// A plane that is not finite refuses at every validation door, and at
@@ -62,6 +75,14 @@ fn a_plane_that_is_not_finite_is_rejected() {
             p.validate_recording(tol()).map(|_| ()),
             Err(ProfileError::PlaneNotFinite),
             "validate_recording, z = {z}"
+        );
+        // No loops does not excuse the plane: the empty region on it
+        // has no place in space either.
+        let empty = profile::Profile::<f64>::new(at(z), vec![]);
+        assert_eq!(
+            err(&empty),
+            ProfileError::PlaneNotFinite,
+            "no loops, z = {z}"
         );
         let finite = profile::Profile::new(at(0.0), vec![rect(0.0, 0.0, 1.0, 1.0)])
             .validate(tol())

@@ -24,7 +24,7 @@ These rows, raised through `ExtrudeError`, `RevolveError`, `TubeError`, `SkinErr
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
-  16 feature-tree rows.
+  13 feature-tree rows.
 
 Families: `Blend`, `Extrude`, `Loft`, `Revolve`, `Skin`, `Tube`.
 

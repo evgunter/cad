@@ -1591,7 +1591,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::TooFewSections { .. } => "too_few_sections",
         SkinError::SectionShapeMismatch { .. } => "section_shape_mismatch",
         SkinError::SectionProfile { .. } => "section_profile",
-        SkinError::EmptySection { .. } => "empty_section",
+        SkinError::EmptyProfile { .. } => "empty_profile",
         SkinError::DomainNotUnit { .. } => "domain_not_unit",
         SkinError::DegenerateSection { .. } => "degenerate_section",
         SkinError::BadDegree { .. } => "bad_degree",

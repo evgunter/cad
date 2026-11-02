@@ -447,9 +447,9 @@ pub(crate) struct ProfilePre {
 ///
 /// # Errors
 ///
-/// How many loops the record calls outer, where it holds loops and
-/// that is not exactly one: such a record orders no loops, and no
-/// validation records one ([`validated_naming`] says why).
+/// How many loops the record calls outer, where that is not exactly
+/// one: such a record orders no loops, and no validation records one
+/// ([`validated_naming`] says why).
 pub(crate) fn derive_naming(
     canonical: &profile::CanonicalStructure,
 ) -> Result<ProfileNaming, usize> {
@@ -486,17 +486,17 @@ pub(crate) fn derive_naming(
 ///
 /// # Panics
 ///
-/// Where a record of loops does not name exactly one outer loop, which
-/// only a kernel bug reaches: validation refuses a profile with several
-/// outer loops (`ProfileError::MultipleOuterLoops`) before it records
-/// anything, and records one role per loop.
+/// Where [`derive_naming`] refuses, which only a kernel bug reaches:
+/// validation refuses a profile with several outer loops
+/// (`ProfileError::MultipleOuterLoops`) before it records anything, and
+/// records one role per loop.
 #[track_caller]
 pub(crate) fn validated_naming(canonical: &profile::CanonicalStructure) -> ProfileNaming {
     match derive_naming(canonical) {
         Ok(naming) => naming,
         Err(outers) => unreachable!(
-            "a validation recorded {outers} outer loops over {} loops, though it refuses any \
-             profile of loops without exactly one before recording",
+            "a validation recorded {outers} outer loops over {} loops, though it refuses \
+             several before recording",
             canonical.loops.len()
         ),
     }

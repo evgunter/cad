@@ -5736,7 +5736,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_section",
             "domain_not_unit",
-            "empty_section",
+            "empty_profile",
             "fit",
             "knot_algebra",
             "no_parameter_step",
@@ -6303,10 +6303,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // refused at validation, and a body face's empty (scaffolding) loop,
     // refused by the tessellator.
     ("empty_loop", 2),
-    // One fact: the extrude and the revolve each refuse a profile with
-    // no loops at their own door;
-    // `an_empty_profile_is_one_word_at_both_sweeps` pins them.
-    ("empty_profile", 2),
+    // One fact: the extrude, the revolve and the loft or path sweep each
+    // refuse a profile with no loops at their own door;
+    // `an_empty_profile_is_one_word_at_every_sweep` pins them.
+    ("empty_profile", 3),
     ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 5),
@@ -6528,15 +6528,17 @@ fn a_space_mismatch_has_one_word_at_the_door_and_at_evaluation() {
     );
 }
 
-/// `empty_profile` is one fact at both sweeps: a profile with no loops,
-/// refused at the extrude's door and at the revolve's.
+/// `empty_profile` is one fact at every sweep: a profile with no loops,
+/// refused at the extrude's door, the revolve's and the skin's.
 #[test]
-fn an_empty_profile_is_one_word_at_both_sweeps() {
-    use crate::tags::{extrude_error_tag, revolve_error_tag};
-    use pncad::sweep::{ExtrudeError, RevolveError};
+fn an_empty_profile_is_one_word_at_every_sweep() {
+    use crate::tags::{extrude_error_tag, revolve_error_tag, skin_error_tag};
+    use pncad::sweep::{ExtrudeError, RevolveError, SkinError};
+    let word = extrude_error_tag(&ExtrudeError::EmptyProfile);
+    assert_eq!(word, revolve_error_tag(&RevolveError::EmptyProfile));
     assert_eq!(
-        extrude_error_tag(&ExtrudeError::EmptyProfile),
-        revolve_error_tag(&RevolveError::EmptyProfile)
+        word,
+        skin_error_tag(&SkinError::EmptyProfile { section: Some(0) })
     );
 }
 

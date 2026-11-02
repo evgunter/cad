@@ -715,10 +715,10 @@ pub(crate) fn preview_verdict(
         Ok(drawn) => match drawn.hold() {
             Some(hold) => (hold.to_string(), hold.tone()),
             None => {
-                ui.weak(format!(
-                    "{} loop(s), drawn in the viewport",
-                    drawn.loops.len()
-                ));
+                match drawn.loops.len() {
+                    0 => ui.weak(NO_LOOPS),
+                    n => ui.weak(format!("{n} loop(s), drawn in the viewport")),
+                };
                 return false;
             }
         },
@@ -727,6 +727,9 @@ pub(crate) fn preview_verdict(
     crate::widgets::message_toned(ui, sentence, &theme, tone);
     true
 }
+
+/// What the preview of a profile with no loops says: it draws nothing.
+pub(crate) const NO_LOOPS: &str = "no loops yet, so nothing is drawn";
 
 /// **The notation row**: the two pickers every length and angle field
 /// of a path editor is written in.
@@ -1644,6 +1647,14 @@ mod tests {
             Some(voices.weak)
         );
         assert!(!held, "a valid preview holds nothing");
+
+        let (painted, voices, held) = drawn(&previewed(&[]));
+        assert_eq!(find(&painted, super::NO_LOOPS).ink, Some(voices.weak));
+        assert!(
+            !painted.iter().any(|l| l.text.contains("loop(s)")),
+            "no loop count is drawn over no loops"
+        );
+        assert!(!held, "no loops holds nothing");
     }
 
     /// **A preview that is open AND invalid says the open chain,
