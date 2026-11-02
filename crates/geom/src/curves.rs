@@ -686,18 +686,59 @@ pub enum CurveData<'a, T: Real> {
     Nurbs(&'a Arc<NurbsCurve3<T>>),
 }
 
+/// **A straight line** `origin + dir·t`: what [`Curve3::as_line`] reads
+/// off a straight carrier, and the axis of a carrier of revolution (a
+/// cylinder's, a cone's, a torus's, a circle's normal through its
+/// centre), whose readings against a point are [`Self::param`] and
+/// [`Self::foot`].
+///
+/// `dir` is unit by the carriers' convention; the readings divide by
+/// `dir·dir`, so they hold for any nonzero `dir`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Line<T: Real> {
+    /// The point at `t = 0`.
+    pub origin: Point3<T>,
+    /// The direction increasing `t` runs along.
+    pub dir: Vec3<T>,
+}
+
+impl<T: Real> Line<T> {
+    /// The parameter of `p`'s foot: `(p − origin)·dir / (dir·dir)`.
+    #[must_use]
+    pub fn param(&self, p: Point3<T>) -> T {
+        (p - self.origin).dot(self.dir) / self.dir.dot(self.dir)
+    }
+
+    /// **`p`'s foot**: the point of the line nearest `p`.
+    #[must_use]
+    pub fn foot(&self, p: Point3<T>) -> Point3<T> {
+        self.origin + self.dir * self.param(p)
+    }
+}
+
 impl<T: Real> Curve3<T> {
-    /// Whether the carrier bends — every kind but `Line`. Matched
-    /// exhaustively, so a new kind decides here: a curved span's chord
-    /// midpoint is off it, and its chord is not its extent.
-    pub fn is_curved(&self) -> bool {
-        match self {
-            Curve3::Line { .. } => false,
+    /// **Whether the carrier is straight, read as its line**: `Some` for
+    /// a `Line`, whose [`Line`] is the carrier's own parameterization
+    /// (`self.eval(t) == origin + dir·t`), and `None` for every kind that
+    /// bends. The one reading of straightness: matched exhaustively, so a
+    /// new kind, or a kind that comes to read as straight, decides here.
+    #[must_use]
+    pub fn as_line(&self) -> Option<Line<T>> {
+        match *self {
+            Curve3::Line { origin, dir } => Some(Line { origin, dir }),
             Curve3::Circle { .. }
             | Curve3::Ellipse { .. }
             | Curve3::Spiric { .. }
-            | Curve3::Nurbs(_) => true,
+            | Curve3::Nurbs(_) => None,
         }
+    }
+
+    /// Whether the carrier bends: it does not read as a line
+    /// ([`Self::as_line`]). A curved span's chord midpoint is off it, and
+    /// its chord is not its extent.
+    #[must_use]
+    pub fn is_curved(&self) -> bool {
+        self.as_line().is_none()
     }
 
     /// **The carrier's stored data** — the one walk of the analytic

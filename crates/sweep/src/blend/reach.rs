@@ -651,8 +651,11 @@ fn sheet_fn<T: Decide + Bounds>(
             radius,
             ..
         } => {
-            let b = axis.normalize();
-            let foot = *origin + b * (centre - *origin).dot(b);
+            let foot = geom::Line {
+                origin: *origin,
+                dir: *axis,
+            }
+            .foot(centre);
             (
                 SheetFn::Line {
                     alpha: one,
@@ -829,7 +832,7 @@ fn faces_at<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Vec<FaceKey>, Ble
 /// trimline or spine); `None` for any other carrier.
 fn foot_on<T: Real>(curve: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
     match *curve {
-        Curve3::Line { origin, dir } => Some(origin + dir * ((p - origin).dot(dir) / dir.dot(dir))),
+        Curve3::Line { origin, dir } => Some(geom::Line { origin, dir }.foot(p)),
         Curve3::Circle {
             center,
             axis,
@@ -1223,7 +1226,11 @@ fn straight_reach<T: Decide + Bounds>(
     // The box: the spine's window, widened by the cross-section's reach
     // from its spine point (the edge point's for a chamfer).
     let axis_pt = st.c.map_or(st.p, |(c, _)| c);
-    let base = axis_pt + tau * (start - axis_pt).dot(tau);
+    let base = geom::Line {
+        origin: axis_pt,
+        dir: tau,
+    }
+    .foot(start);
     let (a, b) = (base + tau * w_lo, base + tau * w_hi);
     Ok(Reach {
         bounds,

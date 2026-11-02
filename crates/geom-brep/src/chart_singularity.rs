@@ -55,7 +55,7 @@
 //! loop's chart image, its spurs taken out by the caller from the
 //! face's structure (`topo::surface_boundary`): this home sees no keys.
 
-use geom::{ChartArm, ChartInverse, Curve3, Surface};
+use geom::{ChartArm, ChartInverse, Curve3, Line, Surface};
 use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SizedPass, Vec3};
@@ -498,7 +498,7 @@ enum Near<T> {
 /// spelling of the foot, which import's meridian landing cites.
 pub fn foot<T: Real>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
     match *carrier {
-        Curve3::Line { origin, dir } => Some((x - origin).dot(dir) / dir.dot(dir)),
+        Curve3::Line { origin, dir } => Some(Line { origin, dir }.param(x)),
         Curve3::Circle {
             center,
             axis,

@@ -297,13 +297,13 @@ pub(in crate::blend) fn joint_plan<'a, T: Decide>(
                 "a joint's face is not a support of its arriving link",
             ));
         };
-        let Curve3::Line { origin, dir } = *trim else {
+        let Some(line) = trim.as_line() else {
             return Err(unbuilt_geometry(
                 EntityId::Edge(link.edge),
                 "a planar band's trimline is not a line",
             ));
         };
-        *foot = origin + dir * ((p - origin).dot(dir) / dir.dot(dir));
+        *foot = line.foot(p);
     }
     Ok(JointPlan { joint, feet })
 }

@@ -1853,16 +1853,6 @@ fn coplanar_wall_inside<T: Decide>(
     }
 }
 
-/// The way from `p` to its foot on the axis through `origin` along the
-/// unit `axis`, square to the axis.
-fn toward_axis<T: Decide>(
-    origin: Point3<T>,
-    axis: geom_core::Vec3<T>,
-    p: Point3<T>,
-) -> geom_core::Vec3<T> {
-    origin + axis * (p - origin).dot(axis) - p
-}
-
 /// The bend across a straight line on `surface` at `p`, `t` the line's
 /// direction: the curvature vector of the surface's normal section
 /// perpendicular to the line, toward its centre of curvature, in inverse
@@ -1877,8 +1867,8 @@ fn bend_across<T: Decide>(
 ) -> Option<geom_core::Vec3<T>> {
     let toward = match *surface {
         geom::Surface::Plane { .. } => return Some(geom_core::Vec3::zero()),
-        geom::Surface::Cylinder { origin, axis, .. } => toward_axis(origin, axis, p),
-        geom::Surface::Cone { apex, axis, .. } => toward_axis(apex, axis, p),
+        geom::Surface::Cylinder { origin, axis, .. } => geom::Line { origin, dir: axis }.foot(p) - p,
+        geom::Surface::Cone { apex, axis, .. } => geom::Line { origin: apex, dir: axis }.foot(p) - p,
         _ => return None,
     };
     let off = toward - t * toward.dot(t);

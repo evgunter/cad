@@ -65,7 +65,7 @@
 //! lattice operations.
 
 use geom::curves::boxes::ArcWindow;
-use geom::{Curve3, Surface};
+use geom::{Curve3, Line, Surface};
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3, is_finite_length};
 
@@ -142,7 +142,7 @@ impl<T: Real> ExtentBall<T> {
     /// the tilt's lever from it is least.
     #[must_use]
     pub fn foot_on(self, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
-        foot(self.center, origin, axis)
+        Line { origin, dir: axis }.foot(self.center)
     }
 
     /// The ball, if it reads: `None` where its centre or radius is
@@ -194,11 +194,6 @@ impl<T: Real> ExtentBall<T> {
             | Surface::Approx(_) => None,
         }
     }
-}
-
-/// The point of the line `origin + s·axis` (`axis` unit) nearest `p`.
-fn foot<T: Real>(p: Point3<T>, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
-    origin + axis * (p - origin).dot(axis)
 }
 
 /// **How far a circle arc reaches from a point, exactly**: the farthest
@@ -972,9 +967,11 @@ impl<T: Real> Reach<T> {
                     | Curve3::Ellipse { center, .. }
                     | Curve3::Spiric { center, .. },
                 ..
-            } => foot(*center, origin, axis),
-            Self::Ball(ball) => foot(ball.center(), origin, axis),
-            Self::Measured { at, .. } | Self::Face { at, .. } => foot(*at, origin, axis),
+            } => Line { origin, dir: axis }.foot(*center),
+            Self::Ball(ball) => Line { origin, dir: axis }.foot(ball.center()),
+            Self::Measured { at, .. } | Self::Face { at, .. } => {
+                Line { origin, dir: axis }.foot(*at)
+            }
         }
     }
 

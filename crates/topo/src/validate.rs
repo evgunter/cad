@@ -9824,7 +9824,7 @@ fn segments_meet<T: Decide>(
             let e = (b - a).normalize();
             // The foot of the centre on the line, and the half-chord
             // either side of it.
-            let foot = a + e * (center - a).dot(e);
+            let foot = geom::Line { origin: a, dir: e }.foot(center);
             let h = (center - foot).norm();
             let half_chord = ((radius - h) * (radius + h)).max(T::zero()).sqrt();
             let (existence, candidates) =

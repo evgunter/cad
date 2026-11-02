@@ -822,7 +822,7 @@ fn crossings<T: Decide>(
                         candidates.push(origin + dir * (ae.dot(ce - origin) / ad));
                     }
                     if maybe_zero(ad) && maybe_zero(ae.dot(origin - ce)) {
-                        let foot = origin + dir * (ce - origin).dot(dir);
+                        let foot = geom::Line { origin, dir }.foot(ce);
                         let h = (foot - ce).norm();
                         if maybe_not_positive(h - re) {
                             let half = (re.powi(2) - h.powi(2)).max(T::zero()).sqrt();
