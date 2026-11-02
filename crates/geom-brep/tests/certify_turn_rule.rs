@@ -388,7 +388,9 @@ fn the_certified_readers_agree_with_the_reads_they_retired() {
             geom_brep::NurbsLane::certified(),
         )
     };
-    let headroom = |(t0, t1): (f64, f64)| Margin::levered(TAU - (t1 - t0), radius);
+    let headroom = |(t0, t1): (f64, f64)| {
+        Margin::levered(TAU - (t1 - t0), geom_core::Lever::unsourced(radius))
+    };
     let old_split = |span| match decide("bool_split_span_period", headroom(span), band) {
         Ok(Sign::Positive | Sign::Zero) => Read::Proceeds,
         Ok(Sign::Negative) => Read::Refuses,

@@ -197,7 +197,11 @@ fn section_chords<T: Decide>(
             }
             let (u, w) = (u.dir.normalize(), w.dir.normalize());
             let d = u * w.dot(normal).abs() + w * u.dot(normal).abs();
-            match decide("split_germ_line", Margin::levered(d.norm(), arm), band) {
+            match decide(
+                "split_germ_line",
+                Margin::levered(d.norm(), geom_core::Lever::unsourced(arm)),
+                band,
+            ) {
                 Ok(Sign::Positive) => Ok((d.normalize(), arm, None)),
                 Ok(_) => Err(unordered(SectionGermFault::NoLine)),
                 Err(diag) => Err(escalated(SectionGermReading::Line, diag)),
@@ -242,7 +246,7 @@ fn section_chords<T: Decide>(
         let arm = arm.min(r_arm);
         match decide(
             "split_germ_side",
-            Margin::levered(r.cross(g).dot(normal), arm),
+            Margin::levered(r.cross(g).dot(normal), geom_core::Lever::unsourced(arm)),
             band,
         )
         .map_err(order)?
@@ -250,8 +254,12 @@ fn section_chords<T: Decide>(
             Sign::Positive => Ok(1),
             Sign::Negative => Ok(3),
             Sign::Zero => {
-                match decide_nonzero("split_germ_sense", Margin::levered(r.dot(g), arm), band)
-                    .map_err(order)?
+                match decide_nonzero(
+                    "split_germ_sense",
+                    Margin::levered(r.dot(g), geom_core::Lever::unsourced(arm)),
+                    band,
+                )
+                .map_err(order)?
                 {
                     NonzeroSign::Positive => Ok(0),
                     NonzeroSign::Negative => Ok(2),
@@ -282,7 +290,7 @@ fn section_chords<T: Decide>(
             }
             let (h, h_arm, _) = germs[members[0]];
             let arm = g_arm.min(h_arm);
-            let sine = Margin::levered(h.cross(g).dot(normal), arm);
+            let sine = Margin::levered(h.cross(g).dot(normal), geom_core::Lever::unsourced(arm));
             let sign = match decide("split_germ_order", sine, band).map_err(order)? {
                 Sign::Zero => curving(members[0], i, arm)?,
                 sign => sign,

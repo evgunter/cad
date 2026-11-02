@@ -728,7 +728,10 @@ pub fn convexity_at<T: Decide + Bounds>(
 ) -> Result<(Convexity, ClassifiedMargin), BlendError> {
     let site = BlendSite::Link { edge };
     classify_positive(site, BlendDecision::ChainArm, Margin::of(arm), band)?;
-    let margin = Margin::levered(n_a.cross(n_b).dot(tau.normalize()), arm);
+    let margin = Margin::levered(
+        n_a.cross(n_b).dot(tau.normalize()),
+        geom_core::Lever::unsourced(arm),
+    );
     let sign = classify(site, BlendDecision::ConvexitySign, margin, band)?;
     let reading = |s| classified(BlendDecision::ConvexitySign, margin.value(), band, s);
     match sign {
@@ -785,7 +788,7 @@ pub fn chain_g1<T: Decide + Bounds>(
     let site = BlendSite::Joint { vertex };
     classify_positive(site, BlendDecision::ChainArm, Margin::of(arm), band)?;
     let sin_theta = tau_in.normalize().cross(tau_out.normalize()).norm();
-    let margin = Margin::levered(sin_theta, arm);
+    let margin = Margin::levered(sin_theta, geom_core::Lever::unsourced(arm));
     let decided = classify_reported(site, BlendDecision::ChainG1, margin, band)?;
     match decided.sign {
         // A POSITIVE margin is the failure here (a corner), and a
@@ -881,7 +884,7 @@ fn corner_independence<T: Decide>(
     band: Band,
 ) -> Result<(), BlendError> {
     let det = normals[0].dot(normals[1].cross(normals[2]));
-    let margin = Margin::levered(det.abs(), radius);
+    let margin = Margin::levered(det.abs(), geom_core::Lever::unsourced(radius));
     match classify(
         BlendSite::Joint { vertex },
         BlendDecision::CornerIndependence,
@@ -2518,7 +2521,7 @@ pub fn cap_transverse<T: Decide + Bounds>(
     let (n, tau) = (cap_normal.normalize(), ruling.normalize());
     let tilt = tau.cross(n);
     let site = BlendSite::Joint { vertex };
-    let margin = Margin::levered(tilt.norm(), lever);
+    let margin = Margin::levered(tilt.norm(), geom_core::Lever::unsourced(lever));
     match classify(site, BlendDecision::CapTransverse, margin, band)? {
         Sign::Zero => Ok(EndSection::Circle),
         // The margin is a norm: Negative is unreachable, and both

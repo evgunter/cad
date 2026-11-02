@@ -2462,7 +2462,10 @@ fn tube_transversality<T: Decide>(
     boxes: u32,
     band: Band,
 ) -> Result<T, SsiError> {
-    let transversality = Margin::levered(T::from_computed(clearance), arm);
+    let transversality = Margin::levered(
+        T::from_computed(clearance),
+        geom_core::Lever::unsourced(arm),
+    );
     match band_verdict("ssi_tube_transversality", transversality, band) {
         None => Ok(transversality.value()),
         Some(BandVerdict::Refused(verdict)) => Err(SsiError::TubeStraddles { verdict, boxes }),
@@ -3501,7 +3504,8 @@ mod tests {
                 "branch {i}: the recorded pad's chain is not one arc"
             );
             let (margin, boxes) = (probe.margin, probe.boxes);
-            let levered = Margin::levered(margin, domain.extent).value();
+            let levered =
+                Margin::levered(margin, geom_core::Lever::unsourced(domain.extent)).value();
             assert_eq!(
                 (levered.to_bits(), boxes),
                 (

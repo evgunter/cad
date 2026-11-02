@@ -183,7 +183,10 @@ fn same_circle<T: Decide>(
             ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
             (
                 "rim_circle_axis_parallel",
-                Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
+                Margin::levered(
+                    ra.axis.cross(rb.axis).norm(),
+                    geom_core::Lever::unsourced(ra.radius + rb.radius),
+                ),
             ),
         ],
         band,
@@ -441,7 +444,7 @@ impl Cover {
 }
 
 /// Where one face meets a locus, in the locus's own parameter.
-struct Reach<T: Real> {
+struct FaceOnLocus<T: Real> {
     /// Each riding half-edge's span (`lo ≤ hi`; on a rim `lo` in
     /// `[0, 2π)`) and its traversal sign.
     rides: Vec<(T, T, geom_core::Sign)>,
@@ -449,7 +452,7 @@ struct Reach<T: Real> {
     cuts: Vec<T>,
 }
 
-impl<T: Decide> Reach<T> {
+impl<T: Decide> FaceOnLocus<T> {
     /// At locus parameter `s` (a piece's midpoint, never a cut): the
     /// riding edges covering it, every one of them, else whether the
     /// face contains the locus point there. Spans compare in meters
@@ -590,8 +593,8 @@ fn reach<T: Decide>(
     face: FaceKey,
     locus: Locus<T>,
     band: Band,
-) -> Result<Option<Reach<T>>, Indeterminate> {
-    let mut out = Reach {
+) -> Result<Option<FaceOnLocus<T>>, Indeterminate> {
+    let mut out = FaceOnLocus {
         rides: Vec::new(),
         cuts: Vec::new(),
     };
@@ -1160,7 +1163,7 @@ mod cover_rows {
             dir: Vec3::new(1.0, 0.0, 0.0),
         };
         let at = |rides: Vec<(f64, f64, geom_core::Sign)>| {
-            Reach {
+            FaceOnLocus {
                 rides,
                 cuts: Vec::new(),
             }
@@ -1216,7 +1219,10 @@ mod redfirst {
             ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
             (
                 "rim_circle_axis_parallel",
-                Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
+                Margin::levered(
+                    ra.axis.cross(rb.axis).norm(),
+                    geom_core::Lever::unsourced(ra.radius + rb.radius),
+                ),
             ),
         ] {
             match crate::validate::decide(name, margin, band)? {

@@ -253,14 +253,14 @@ pub(crate) fn entry_side<T: Decide, E>(
     far: impl FnOnce(VertexKey) -> Result<PlaneSide, E>,
     band: Band,
 ) -> Result<(Vec3<T>, PlaneSide), EntryFault<E>> {
-    use crate::bound_side::{BoundSide, Descent, Reach, Side};
+    use crate::bound_side::{BoundSide, BoundSupport, Descent, Side};
     let (final_vertex, dir, conic_bend) = chord(body, vertex, he).map_err(EntryFault::Walk)?;
     let Some(bend) = conic_bend else {
         return far(final_vertex)
             .map(|side| (dir, side))
             .map_err(EntryFault::Far);
     };
-    let reach = Reach::Conic {
+    let reach = BoundSupport::Conic {
         extent: dir.norm(),
         bend,
     };
@@ -329,7 +329,7 @@ pub(crate) fn wide_entries<T: Decide>(
         .map(|d: Vec3<T>| {
             let side = match decide(
                 "split_bisector_side",
-                Margin::levered(d.dot(normal), arm),
+                Margin::levered(d.dot(normal), geom_core::Lever::unsourced(arm)),
                 band,
             )
             .map_err(sliver)?

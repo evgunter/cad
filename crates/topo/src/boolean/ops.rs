@@ -1860,12 +1860,8 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
 
 /// The section certificate's [`Reach`](super::section_cert::Reach) of
 /// two overlapping face boxes ([`super::glue::overlap_ball`]).
-fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> super::section_cert::Reach<T> {
-    let ball = super::glue::overlap_ball(box_a, box_b);
-    super::section_cert::Reach {
-        centre: ball.center(),
-        radius: ball.radius(),
-    }
+fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> geom_brep::Reach<T> {
+    geom_brep::Reach::Ball(super::glue::overlap_ball(box_a, box_b))
 }
 
 /// **The section certificate's per-pair rule** for A's face `fa` (the
@@ -1916,7 +1912,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         None => classify_known(
             &fa.surface,
             &fb.surface,
-            overlap_reach(&fa.bbox, &fb.bbox),
+            &overlap_reach(&fa.bbox, &fb.bbox),
             sections.region_for(&fa.surface, &fb.surface),
             T::ssi_lane(),
             band,
@@ -6470,7 +6466,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 for &n in rest {
                     match decide(
                         "bool_sphere_escape_parallel",
-                        Margin::levered(align.cross(n).norm(), radius),
+                        Margin::levered(align.cross(n).norm(), geom_core::Lever::unsourced(radius)),
                         band,
                     )
                     .map_err(esc(SphereQuestion::EscapeParallel))?
@@ -6718,7 +6714,10 @@ pub(super) fn recut_lean<T: Decide>(
 ) -> Result<(), BooleanError> {
     crate::validate::decide_nonzero(
         "bool_sphere_recut_align",
-        Margin::levered(axis.cross(align).norm(), radius),
+        Margin::levered(
+            axis.cross(align).norm(),
+            geom_core::Lever::unsourced(radius),
+        ),
         band,
     )
     .map(|_| ())
@@ -7186,14 +7185,20 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         ));
                     }
                 };
-                let rising =
-                    sign("bool_sphere_cut_span", Margin::levered(t1 - t0, cr))? == Sign::Positive;
+                let rising = sign(
+                    "bool_sphere_cut_span",
+                    Margin::levered(t1 - t0, geom_core::Lever::unsourced(cr)),
+                )? == Sign::Positive;
                 let (lo_t, hi_t) = if rising { (t0, t1) } else { (t1, t0) };
                 for theta in thetas {
-                    let into = |end: T| Margin::levered(theta - end, cr);
+                    let into =
+                        |end: T| Margin::levered(theta - end, geom_core::Lever::unsourced(cr));
                     let (from_lo, to_hi) = (
                         sign("bool_sphere_cut_span", into(lo_t))?,
-                        sign("bool_sphere_cut_span", Margin::levered(hi_t - theta, cr))?,
+                        sign(
+                            "bool_sphere_cut_span",
+                            Margin::levered(hi_t - theta, geom_core::Lever::unsourced(cr)),
+                        )?,
                     );
                     if from_lo == Sign::Negative || to_hi == Sign::Negative {
                         continue;
@@ -7294,7 +7299,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let below_first = match (below_split, over_split) {
             (Some((e1, lo, rising, arm)), Some((e2, hi, _, _))) if e1 == e2 => {
                 let along = if rising { lo - hi } else { hi - lo };
-                sign("bool_sphere_cut_span", Margin::levered(along, arm))? == Sign::Positive
+                sign(
+                    "bool_sphere_cut_span",
+                    Margin::levered(along, geom_core::Lever::unsourced(arm)),
+                )? == Sign::Positive
             }
             _ => true,
         };
@@ -10668,7 +10676,8 @@ mod from_computed_rows {
                 max_z: hi,
             };
             let reach = overlap_reach::<S>(&cube(0.0, p), &cube(0.5 * p, 2.0 * p));
-            vec![reach.centre.x, reach.radius]
+            let ball = reach.ball();
+            vec![ball.center().x, ball.radius()]
         });
         assert_eq!(found.laundered, 0, "{found:?}");
         assert_eq!(found.opaque, 2, "{found:?}");

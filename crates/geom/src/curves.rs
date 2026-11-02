@@ -1013,7 +1013,12 @@ impl<T: Decide> Curve3<T> {
         }
         match decide(
             "spiric_frame_orthogonal",
-            Margin::levered(axis.dot(u_ref), major_radius + minor_radius),
+            // The torus's ball, `R + r` about its centre: the bounded
+            // carrier this curve lies on, minted below the extent's home.
+            Margin::levered(
+                axis.dot(u_ref),
+                geom_core::Lever::of_consumed_extent(major_radius + minor_radius),
+            ),
             band,
         ) {
             Ok(Sign::Zero) => {}

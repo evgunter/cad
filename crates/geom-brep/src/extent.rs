@@ -67,7 +67,7 @@
 use geom::curves::boxes::ArcWindow;
 use geom::{Curve3, Line, Surface};
 use geom_core::spline::SpanLocate;
-use geom_core::{Point3, Real, Vec3, is_finite_length};
+use geom_core::{Lever, Point3, Real, Vec3, is_finite_length};
 
 /// **The farthest a spline carrier reaches from `from`**: the largest
 /// distance from `from` to a point of its control net. With positive
@@ -87,10 +87,10 @@ pub struct ExtentBall<T: Real> {
 }
 
 impl<T: Real> ExtentBall<T> {
-    /// The ball of `radius` about `center`. `radius` is a length the
-    /// caller vouches encloses the region it names.
+    /// The ball of `radius` about `center`, `radius` read off the
+    /// geometry it encloses by the constructors here.
     #[must_use]
-    pub fn new(center: Point3<T>, radius: T) -> Self {
+    pub(crate) fn new(center: Point3<T>, radius: T) -> Self {
         Self { center, radius }
     }
 
@@ -114,7 +114,7 @@ impl<T: Real> ExtentBall<T> {
         let center = first.center + sum / n;
         let radius = parts
             .iter()
-            .fold(T::zero(), |r, b| r.max(b.lever_from(center)));
+            .fold(T::zero(), |r, b| r.max(b.reach_from(center)));
         Some(Self::new(center, radius))
     }
 
@@ -130,11 +130,77 @@ impl<T: Real> ExtentBall<T> {
         self.radius
     }
 
+    /// The ball's radius as a lever: its reach from its own centre.
+    #[must_use]
+    pub fn lever(self) -> Lever<T> {
+        Lever::of_consumed_extent(self.radius)
+    }
+
     /// The farthest the ball reaches from `pivot`: the lever arm at
     /// which an angular datum pinned at `pivot` is metered.
     #[must_use]
-    pub fn lever_from(self, pivot: Point3<T>) -> T {
+    pub fn lever_from(self, pivot: Point3<T>) -> Lever<T> {
+        Lever::of_consumed_extent(self.reach_from(pivot))
+    }
+
+    fn reach_from(self, pivot: Point3<T>) -> T {
         (pivot - self.center).norm() + self.radius
+    }
+
+    /// **The farthest the ball reaches from any point within `apart` of
+    /// `pivot`**: its lever from `pivot` plus `apart`. A reading whose
+    /// pivot is known only to stand within `apart` of `pivot` (a second
+    /// carrier's apex, the other axis's offset) levers here.
+    #[must_use]
+    pub fn lever_from_within(self, pivot: Point3<T>, apart: T) -> Lever<T> {
+        Lever::of_consumed_extent(self.reach_from(pivot) + apart)
+    }
+
+    /// **The farthest the ball reaches from `pivot` and from the plane
+    /// through `p0` with unit normal `n`, summed**: the lever of a reading
+    /// pivoted at both at once (a cone's generator at its apex and a
+    /// plane at its point nearest the ball's centre).
+    #[must_use]
+    pub fn lever_from_point_and_plane(
+        self,
+        pivot: Point3<T>,
+        (p0, n): (Point3<T>, Vec3<T>),
+    ) -> Lever<T> {
+        Lever::of_consumed_extent(
+            (self.center - pivot).norm()
+                + (self.center - p0).dot(n).abs()
+                + self.radius
+                + self.radius,
+        )
+    }
+
+    /// **The ball about the overlap of two boxes** `(lo, hi)`, given as
+    /// computed `f64` corners (a face walk's hulls): its centre, out to
+    /// its half-diagonal, entering as computed values.
+    #[must_use]
+    pub fn of_overlap(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> Self {
+        let lo: [f64; 3] = core::array::from_fn(|i| a.0[i].max(b.0[i]));
+        let hi: [f64; 3] = core::array::from_fn(|i| a.1[i].min(b.1[i]));
+        let mid: [f64; 3] = core::array::from_fn(|i| (lo[i] + hi[i]) * 0.5);
+        let half = Vec3::new(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]).norm() * 0.5;
+        Self::new(
+            Point3::new(
+                T::from_computed(mid[0]),
+                T::from_computed(mid[1]),
+                T::from_computed(mid[2]),
+            ),
+            T::from_computed(half),
+        )
+    }
+
+    /// **The section certificate's tilt lever about `pivot`**: the
+    /// ball's farthest distance from it, doubled, so a tilt decided Zero
+    /// there moves the partner by at most half the band across the ball
+    /// and leaves the other half to an offset (`topo`'s
+    /// `boolean::section_cert` module docs, the lever and its pivot).
+    #[must_use]
+    pub fn twice_lever_from(self, pivot: Point3<T>) -> Lever<T> {
+        Lever::of_consumed_extent(self.reach_from(pivot) * T::from_f64(2.0))
     }
 
     /// The point of the line `origin + s·axis` (`axis` unit) nearest
@@ -165,12 +231,36 @@ impl<T: Real> ExtentBall<T> {
         Self::new(lo + half, half.norm())
     }
 
+    /// **The ball about `at` holding an edge**: the edge's carrier over
+    /// `[t0, t1]`, out to its reach from `at` ([`edge_reach_from`]).
+    #[must_use]
+    pub fn of_edge_from(carrier: &Curve3<T>, (t0, t1): (T, T), at: Point3<T>) -> Self
+    where
+        T: SpanLocate,
+    {
+        Self::new(at, edge_reach(carrier, t0, t1, at))
+    }
+
     /// **The ball holding a ring torus** `(center, R, r)`: every point of
     /// it stands at most `R + r` from its centre. The one spelling of a
     /// torus's ball; a section of the torus with anything lies in it.
     #[must_use]
     pub fn of_torus(center: Point3<T>, major_radius: T, minor_radius: T) -> Self {
         Self::new(center, major_radius + minor_radius)
+    }
+
+    /// **The ball a sphere** `(center, radius)` **is**: its centre, out to
+    /// the radius's magnitude.
+    #[must_use]
+    pub fn of_sphere(center: Point3<T>, radius: T) -> Self {
+        Self::new(center, radius.abs())
+    }
+
+    /// **The ball holding a circle** `(center, radius)`: its centre, out
+    /// to the radius's magnitude.
+    #[must_use]
+    pub fn of_circle(center: Point3<T>, radius: T) -> Self {
+        Self::new(center, radius.abs())
     }
 
     /// The ball a sphere or a torus fits in, which encloses every face
@@ -403,7 +493,11 @@ const SPEED_MARGIN: f64 = 1e-6;
 /// the ends.
 ///
 /// Total and comparison-free (`max` is the [`Real`] lattice operation).
-pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
+pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> Lever<T> {
+    Lever::of_consumed_extent(extent_inf(carrier, t0, t1, chord))
+}
+
+fn extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     let half_span = (t1 - t0) * T::from_f64(0.5);
     let fold = |r: T| r.abs() * (T::one() - half_span.cos());
     let pairs = || farthest_pair(&schedule(carrier, (t0, t1), EXTENT_PIECES));
@@ -473,7 +567,11 @@ pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
 /// operations, which propagate poison: a spline whose speed bound or
 /// control net is poison reads poison here, and the reading levered at
 /// it escalates).
-pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
+pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> Lever<T> {
+    Lever::of_consumed_extent(extent_sup(carrier, t0, t1, chord))
+}
+
+fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     let two = T::from_f64(2.0);
     let span = (t1 - t0).abs();
     // `sin(min(|Δt|, π)/2)`: the half-span folded to a half turn, past
@@ -556,7 +654,16 @@ pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
 ///
 /// Never below the samples' own reach from `pivot`. Comparison-free;
 /// poison propagates as in [`edge_extent_sup`].
-pub fn edge_reach_from<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, pivot: Point3<T>) -> T {
+pub fn edge_reach_from<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    pivot: Point3<T>,
+) -> Lever<T> {
+    Lever::of_consumed_extent(edge_reach(carrier, t0, t1, pivot))
+}
+
+fn edge_reach<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, pivot: Point3<T>) -> T {
     let span = Reach::Span {
         carrier: carrier.clone(),
         t0,
@@ -564,13 +671,11 @@ pub fn edge_reach_from<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, pivot: 
     };
     let sampled = sampled_reach(carrier, (t0, t1), pivot);
     let bound = match carrier {
-        Curve3::Line(_) | Curve3::Circle { .. } | Curve3::Ellipse { .. } => {
-            span.span_reach_from(pivot)
-        }
+        Curve3::Line(_) | Curve3::Circle { .. } | Curve3::Ellipse { .. } => span.span_reach(pivot),
         Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
             let slack =
                 speed_sup(carrier) * (t1 - t0).abs() / T::from_f64(f64::from(2 * EXTENT_PIECES));
-            span.lever_from(pivot).min(sampled + slack)
+            span.reach_from(pivot).min(sampled + slack)
         }
     };
     // Every sample is a point of the edge, so its distance bounds the
@@ -597,29 +702,29 @@ fn sampled_reach<T: SpanLocate>(carrier: &Curve3<T>, span: (T, T), pivot: Point3
 /// in-band reading Positive, so neither bound alone answers for it.
 /// Where they disagree the reading is the bounds' straddle of the band
 /// (`geom_core::k_stats::straddle`), refused as an in-band reading is.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub enum LeverBounds<T> {
     /// The length itself: one reading answers for it.
-    Exact(T),
+    Exact(Lever<T>),
     /// A length known to lie in `[below, above]`.
     Between {
         /// A length never past it.
-        below: T,
+        below: Lever<T>,
         /// A length never short of it.
-        above: T,
+        above: Lever<T>,
     },
 }
 
 impl<T: Real> LeverBounds<T> {
     /// The bound from below (the length itself where exact).
-    pub fn below(self) -> T {
+    pub fn below(self) -> Lever<T> {
         match self {
             Self::Exact(x) | Self::Between { below: x, .. } => x,
         }
     }
 
     /// The bound from above (the length itself where exact).
-    pub fn above(self) -> T {
+    pub fn above(self) -> Lever<T> {
         match self {
             Self::Exact(x) | Self::Between { above: x, .. } => x,
         }
@@ -640,8 +745,8 @@ impl<T: Real> LeverBounds<T> {
 }
 
 /// A length known exactly.
-impl<T> From<T> for LeverBounds<T> {
-    fn from(x: T) -> Self {
+impl<T> From<Lever<T>> for LeverBounds<T> {
+    fn from(x: Lever<T>) -> Self {
         Self::Exact(x)
     }
 }
@@ -664,7 +769,7 @@ pub fn edge_reach_bounds<T: SpanLocate>(
     match carrier {
         Curve3::Line(_) | Curve3::Circle { .. } => LeverBounds::Exact(above),
         Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => LeverBounds::Between {
-            below: sampled_reach(carrier, (t0, t1), pivot),
+            below: Lever::of_consumed_extent(sampled_reach(carrier, (t0, t1), pivot)),
             above,
         },
     }
@@ -753,9 +858,13 @@ impl<T: Real> Reach<T> {
     ///   - a **NURBS** carrier: its control points (the convex-hull
     ///     property of positive weights).
     #[must_use]
-    pub fn lever_from(&self, pivot: Point3<T>) -> T {
+    pub fn lever_from(&self, pivot: Point3<T>) -> Lever<T> {
+        Lever::of_consumed_extent(self.reach_from(pivot))
+    }
+
+    fn reach_from(&self, pivot: Point3<T>) -> T {
         match self {
-            Self::Ball(ball) => ball.lever_from(pivot),
+            Self::Ball(ball) => ball.reach_from(pivot),
             Self::Measured { lever, .. } => *lever,
             Self::Face { across, .. } => *across,
             Self::Span { carrier, .. } => match carrier {
@@ -791,7 +900,11 @@ impl<T: Real> Reach<T> {
     /// (`splitting::rules::face_reach_from` in `topo`); the section
     /// arms' anchors read [`Self::lever_from`].
     #[must_use]
-    pub fn span_reach_from(&self, pivot: Point3<T>) -> T {
+    pub fn span_reach_from(&self, pivot: Point3<T>) -> Lever<T> {
+        Lever::of_consumed_extent(self.span_reach(pivot))
+    }
+
+    fn span_reach(&self, pivot: Point3<T>) -> T {
         match self {
             Self::Span {
                 carrier:
@@ -827,7 +940,7 @@ impl<T: Real> Reach<T> {
                 pivot,
             ),
             Self::Ball(_) | Self::Measured { .. } | Self::Face { .. } | Self::Span { .. } => {
-                self.lever_from(pivot)
+                self.reach_from(pivot)
             }
         }
     }
@@ -903,13 +1016,13 @@ impl<T: Real> Reach<T> {
     /// `max(|above − shift|, |below + shift|)`; every other reach adds
     /// `|shift|` to its lever from the foot.
     #[must_use]
-    pub fn hinge_lever(&self, pivot: Point3<T>, shift: T) -> T {
-        match self {
+    pub fn hinge_lever(&self, pivot: Point3<T>, shift: T) -> Lever<T> {
+        Lever::of_consumed_extent(match self {
             Self::Face { below, above, .. } => (*above - shift).abs().max((*below + shift).abs()),
             Self::Ball(_) | Self::Measured { .. } | Self::Span { .. } => {
-                self.lever_from(pivot) + shift.abs()
+                self.reach_from(pivot) + shift.abs()
             }
-        }
+        })
     }
 
     /// **The plane×cylinder row's lever for the tilt's turn across the
@@ -924,8 +1037,14 @@ impl<T: Real> Reach<T> {
     /// where `cos` read from `c` is not). Returned as a lever,
     /// `(1 − cos)/|c| = |c|/(1 + cos)`, so nothing divides by `c`.
     #[must_use]
-    pub fn turn_lever(&self, hinge: Point3<T>, (n, a): (Vec3<T>, Vec3<T>), c: T, cos: T) -> T {
-        match self {
+    pub fn turn_lever(
+        &self,
+        hinge: Point3<T>,
+        (n, a): (Vec3<T>, Vec3<T>),
+        c: T,
+        cos: T,
+    ) -> Lever<T> {
+        Lever::of_consumed_extent(match self {
             Self::Face { at, across, .. } => {
                 let off = *at - hinge;
                 let off_perp = off - a * off.dot(a);
@@ -937,7 +1056,24 @@ impl<T: Real> Reach<T> {
                 (*across + off_axis.min(along_normal)) * c.abs() / (T::one() + cos)
             }
             Self::Ball(_) | Self::Measured { .. } | Self::Span { .. } => T::zero(),
-        }
+        })
+    }
+
+    /// **The plane×cylinder row's whole lever**: its lever from the
+    /// rulings' hinge ([`Self::hinge_lever`]) plus the tilt's turn across
+    /// the wall ([`Self::turn_lever`]), each read as there.
+    #[must_use]
+    pub fn ruled_lever(
+        &self,
+        (foot, shift): (Point3<T>, T),
+        hinge: Point3<T>,
+        (n, a): (Vec3<T>, Vec3<T>),
+        (c, cos): (T, T),
+    ) -> Lever<T> {
+        Lever::of_consumed_extent(
+            self.hinge_lever(foot, shift).length()
+                + self.turn_lever(hinge, (n, a), c, cos).length(),
+        )
     }
 
     /// The pivot on the line `origin + s·axis` (`axis` unit) the reach
@@ -981,7 +1117,7 @@ impl<T: Real> Reach<T> {
     #[must_use]
     pub fn ball(&self) -> ExtentBall<T> {
         let at = self.reading_point();
-        ExtentBall::new(at, self.lever_from(at))
+        ExtentBall::new(at, self.reach_from(at))
     }
 
     /// A point the reach stands for: a ball's centre, the point a length
@@ -1052,7 +1188,11 @@ impl<T: Real> Reach<T> {
     /// face shorter than the radius would be levered past its own
     /// measure, and a tilt the length leaves in the band served.
     #[must_use]
-    pub fn lever_between(&self, line1: (Point3<T>, Vec3<T>), line2: (Point3<T>, Vec3<T>)) -> T {
+    pub fn lever_between(
+        &self,
+        line1: (Point3<T>, Vec3<T>),
+        line2: (Point3<T>, Vec3<T>),
+    ) -> Lever<T> {
         self.foot_lever(line1).1.min(self.foot_lever(line2).1)
     }
 
@@ -1060,12 +1200,12 @@ impl<T: Real> Reach<T> {
     /// `origin + s·axis` ([`Self::foot_on`]) and its lever, floored at the
     /// foot's distance from the reach's point.
     #[must_use]
-    pub fn foot_lever(&self, (origin, axis): (Point3<T>, Vec3<T>)) -> (Point3<T>, T) {
+    pub fn foot_lever(&self, (origin, axis): (Point3<T>, Vec3<T>)) -> (Point3<T>, Lever<T>) {
         let pivot = self.foot_on(origin, axis);
         let lever = self
-            .lever_from(pivot)
+            .reach_from(pivot)
             .max((self.reading_point() - pivot).norm());
-        (pivot, lever)
+        (pivot, Lever::of_consumed_extent(lever))
     }
 }
 

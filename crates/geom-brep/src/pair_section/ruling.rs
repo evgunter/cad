@@ -901,11 +901,16 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         // `(x − c)·x′` over `|x − c|·|x′|`, the cosine between the sheet's
         // tangent and the ray from the centre, levered by the ruling's.
         let lever = self.ruled.lever();
-        let monotone = self.positive(Row::Monotone, Margin::levered(along.lo / scale, lever))
-            || self.positive(
-                Row::Monotone,
-                Margin::levered((T::zero() - along.hi) / scale, lever),
-            );
+        let monotone = self.positive(
+            Row::Monotone,
+            Margin::levered(along.lo / scale, geom_core::Lever::unsourced(lever)),
+        ) || self.positive(
+            Row::Monotone,
+            Margin::levered(
+                (T::zero() - along.hi) / scale,
+                geom_core::Lever::unsourced(lever),
+            ),
+        );
         if !monotone {
             return Ok(None);
         }

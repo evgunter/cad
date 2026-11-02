@@ -372,7 +372,10 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// leg ([`CircleFamily`]). A margin in band of either question reads
     /// the circle in its own parameter, which serves every circle.
     fn circle_family(&self, axis: Vec3<T>, radius: T, band: Band) -> CircleFamily {
-        let tilt = Margin::levered(axis.cross(self.axis).norm(), radius);
+        let tilt = Margin::levered(
+            axis.cross(self.axis).norm(),
+            geom_core::Lever::unsourced(radius),
+        );
         if !matches!(
             decide("bool_torus_region_family", tilt, band),
             Ok(Sign::Zero)

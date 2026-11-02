@@ -768,7 +768,7 @@ impl RowRefusal {
 /// the same gate as the invalid margin it is, which escalates.
 fn row_crossing_verdict<T: Decide>(
     crossing: crate::ssi::RowCrossing,
-    extent: T,
+    extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(), CertifyError> {
     let escalated = |cause| CertifyError::Escalated {
@@ -2443,7 +2443,7 @@ pub struct NurbsLane<T: Real> {
             (T, T),
             &Surface<T>,
             &geom::NurbsSurface<T>,
-            T,
+            geom_core::Lever<T>,
             Band,
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
@@ -2454,7 +2454,7 @@ pub struct NurbsLane<T: Real> {
             (T, T),
             &geom::NurbsSurface<T>,
             &geom::NurbsSurface<T>,
-            T,
+            geom_core::Lever<T>,
             Band,
         )
             -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal>,
@@ -2663,7 +2663,7 @@ impl<T: Real> NurbsLane<T> {
         params: (T, T),
         plane: &Surface<T>,
         wall: &geom::NurbsSurface<T>,
-        extent: T,
+        extent: geom_core::Lever<T>,
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
         (self.limbs)(carrier, params, plane, wall, extent, band)
@@ -2692,7 +2692,7 @@ impl<T: Real> NurbsLane<T> {
         params: (T, T),
         a: &geom::NurbsSurface<T>,
         b: &geom::NurbsSurface<T>,
-        extent: T,
+        extent: geom_core::Lever<T>,
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
         (self.pair_limbs)(carrier, params, a, b, extent, band)
@@ -3471,7 +3471,7 @@ fn gap_orientation<T: Decide>(
     let (oriented, orientation) = geom_core::k_stats::detached(|| {
         geom_core::k_stats::decide_nonzero(
             "tangent_gap_orientation",
-            Margin::levered(n1.dot(n2), extent),
+            Margin::levered(n1.dot(n2), geom_core::Lever::unsourced(extent)),
             band,
         )
     });
@@ -3511,7 +3511,7 @@ fn gap_orientation<T: Decide>(
 /// the verdict itself.
 #[must_use]
 pub fn folded_parallelism<T: Real>(sin_theta: T, arm: T) -> Margin<T> {
-    Margin::levered(sin_theta, arm)
+    Margin::levered(sin_theta, geom_core::Lever::unsourced(arm))
 }
 
 /// **A refusal already made, named by a definite parallelism defect**

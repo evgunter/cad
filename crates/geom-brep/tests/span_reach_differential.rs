@@ -631,7 +631,11 @@ fn split_cyl_case(rng: &mut Rng, b: geom_core::Band, s: f64) -> Case {
     let tilt = radial.cross(nsp).norm();
     // Rule (a)'s tree at a lever: the verdict, or "esc".
     let tree = |arm: f64| -> &'static str {
-        match decide("split_sector_coplanar", Margin::levered(tilt, arm), b) {
+        match decide(
+            "split_sector_coplanar",
+            Margin::levered(tilt, geom_core::Lever::unsourced(arm)),
+            b,
+        ) {
             Ok(Sign::Positive | Sign::Negative) => return "silent",
             Err(_) => return "esc",
             Ok(Sign::Zero) => {}
@@ -719,7 +723,7 @@ fn plane_case(
     let reach = face.sampled_reach(base).max(1e-300);
     let read = |arm: f64| match decide(
         "split_sector_coplanar",
-        Margin::levered(nf.cross(nsp).norm(), arm),
+        Margin::levered(nf.cross(nsp).norm(), geom_core::Lever::unsourced(arm)),
         b,
     ) {
         Ok(Sign::Zero) => "coplanar",

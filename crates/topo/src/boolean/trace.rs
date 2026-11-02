@@ -183,7 +183,11 @@ pub fn ray_crossings<T: Decide>(
             origin: o, normal, ..
         } => {
             let lead = normal.dot(dir);
-            match sign(TRACE_PLANE_LEAD, Margin::levered(lead, reach), band)? {
+            match sign(
+                TRACE_PLANE_LEAD,
+                Margin::levered(lead, geom_core::Lever::unsourced(reach)),
+                band,
+            )? {
                 Sign::Zero => return on_carrier(),
                 Sign::Positive | Sign::Negative => {}
             }
@@ -365,7 +369,10 @@ fn crossing<T: Decide>(
     let outward = crate::face_normal::surface_outward_normal(surface, point, sense).vec();
     let passage = match sign(
         TRACE_CROSSING_SENSE,
-        Margin::levered(outward.dot(velocity) / outward.norm(), lever),
+        Margin::levered(
+            outward.dot(velocity) / outward.norm(),
+            geom_core::Lever::unsourced(lever),
+        ),
         band,
     )? {
         Sign::Negative => Passage::Enter,
@@ -481,7 +488,7 @@ pub fn plane_misses<T: Decide>(
             let tilt = n.cross(normal).norm();
             match sign(
                 TRACE_PLANE_LEAD,
-                Margin::levered(tilt, (origin - point).norm()),
+                Margin::levered(tilt, geom_core::Lever::unsourced((origin - point).norm())),
                 band,
             )? {
                 Sign::Zero => beyond(),
@@ -493,7 +500,7 @@ pub fn plane_misses<T: Decide>(
         // misses it beyond its radius.
         Surface::Cylinder { axis, radius, .. } => match sign(
             TRACE_PLANE_LEAD,
-            Margin::levered(axis.dot(normal), radius),
+            Margin::levered(axis.dot(normal), geom_core::Lever::unsourced(radius)),
             band,
         )? {
             Sign::Zero => beyond(),

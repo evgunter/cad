@@ -67,7 +67,10 @@ fn hull(lo: f64, hi: f64) -> Extent<f64> {
 #[test]
 fn the_sphere_trim_window_agrees_with_the_old_headroom() {
     fn old<T: Decide>(raw: (T, T), radius: T, band: Band) -> Result<bool, Option<f64>> {
-        let headroom = Margin::levered(T::tau() - (raw.1 - raw.0), radius);
+        let headroom = Margin::levered(
+            T::tau() - (raw.1 - raw.0),
+            geom_core::Lever::unsourced(radius),
+        );
         decide("bool_sphere_trim_period", headroom, band)
             .map(|sign| sign == Sign::Positive)
             .map_err(margin)
@@ -101,7 +104,7 @@ fn the_chart_region_excess_forms_agree_with_the_old_excess() {
     fn old_wrap<T: Decide>(span: T, radius: T, band: Band) -> Result<bool, Option<f64>> {
         decide(
             "chart_region_cyl_wrap",
-            Margin::levered(span - T::tau(), radius),
+            Margin::levered(span - T::tau(), geom_core::Lever::unsourced(radius)),
             band,
         )
         .map(|sign| sign == Sign::Zero)
@@ -110,7 +113,7 @@ fn the_chart_region_excess_forms_agree_with_the_old_excess() {
     fn old_seam<T: Decide>(span: T, radius: T, band: Band) -> Result<bool, Option<f64>> {
         decide(
             "chart_region_seam_span",
-            Margin::levered(span - T::tau(), radius),
+            Margin::levered(span - T::tau(), geom_core::Lever::unsourced(radius)),
             band,
         )
         .map(|sign| sign == Sign::Positive)
@@ -169,7 +172,7 @@ fn the_wrap_band_agrees_with_the_old_excess_through_its_forward_door() {
     fn old<T: Decide>(span: T, radius: T, band: Band) -> Result<bool, Option<f64>> {
         decide(
             "chart_region_cyl_wrap",
-            Margin::levered(span - T::tau(), radius),
+            Margin::levered(span - T::tau(), geom_core::Lever::unsourced(radius)),
             band,
         )
         .map(|sign| sign == Sign::Zero)

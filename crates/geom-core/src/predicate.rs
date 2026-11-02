@@ -648,6 +648,111 @@ impl Band {
     }
 }
 
+/// **A verdict's lever arm**: the length at which a dimensionless
+/// reading (a sine, a cosine, an angle between directions) displaces the
+/// geometry it governs, the arm of [`Margin::levered`]
+/// (`crates/geom-core/README.md`, "Float rounding").
+///
+/// It is built only from its sources, and the type is what says so:
+///
+/// - a read of the consumed extent (`geom_brep::Reach` and its ball
+///   payload `ExtentBall`, its `lever_from` and the two-sided
+///   `LeverBounds`), the one place a length taken from consumed geometry
+///   becomes an arm;
+/// - a curvature arm, [`Lever::curvature`];
+/// - the session box, [`Lever::session_box`], where no geometry is in
+///   hand.
+///
+/// A rate is not a lever: a parameter span crosses to metres through
+/// [`Margin::metered`] or [`Margin::metered_sup`], and a reciprocal arm
+/// through [`Margin::levered_inv`]. There is no door from a bare length:
+/// the extent's own door ([`Lever::of_consumed_extent`]) is read only in
+/// the extent's home, which `scripts/gates/lever-sources.sh` holds.
+///
+/// Reading the arm back as a length ([`Lever::length`]) is the exit, not
+/// an entrance. [`Lever::max`] and [`Lever::min`] fold two reads of
+/// extents: the larger is a read of their union, the lesser a bound that
+/// each read already holds.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+pub struct Lever<T>(pub(crate) T);
+
+impl<T: crate::real::Real> Lever<T> {
+    /// **A curvature arm**: `1 / κ_rel`, the reach at which a relative
+    /// curvature `κ_rel` (1/m) turns a direction through the angle it
+    /// levers (D4 ¶1's tangency lever). One operation, bit-identical to
+    /// the bare quotient.
+    #[must_use]
+    pub fn curvature(kappa_rel: T) -> Self {
+        Self(T::one() / kappa_rel)
+    }
+
+    /// **A curvature arm read as its radius**: a radius of curvature
+    /// `1/κ` the carrier states in closed form (a sphere's, a cylinder's
+    /// or a torus tube's radius, a cone's radial distance, `f64::MAX`
+    /// for a plane).
+    #[must_use]
+    pub fn curvature_radius(radius: T) -> Self {
+        Self(radius)
+    }
+
+    /// **This arm, no longer than the curvature arm `1/κ`**: the lesser
+    /// of the two, spelled `arm / max(1, κ·arm)` so a flat pair (`κ = 0`)
+    /// reads the arm and poison stays poison.
+    #[must_use]
+    pub fn within_curvature(self, kappa: T) -> Self {
+        Self(self.0 / T::one().max(kappa * self.0))
+    }
+
+    /// **The session box's extent**, the conservative universal arm
+    /// where no geometry is in hand (DESIGN `[tolerance.epsilon]`).
+    #[must_use]
+    pub fn session_box() -> Self {
+        Self(T::from_f64(crate::tolerance::SESSION_BOX_EXTENT))
+    }
+
+    /// **The consumed extent's door**: a length the extent's home read
+    /// off consumed geometry. Not a door for anything else, which
+    /// `scripts/gates/lever-sources.sh` holds: its references stand in
+    /// `geom_brep`'s extent home and at the one bounded carrier minted
+    /// below it.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn of_consumed_extent(length: T) -> Self {
+        Self(length)
+    }
+
+    /// **An arm no source is named for**: a length a call site levers at
+    /// that is not yet read from the consumed extent, a curvature or the
+    /// session box. Each reference is pinned with its reason by
+    /// `scripts/gates/lever-sources.sh`, a list that only shrinks.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unsourced(length: T) -> Self {
+        Self(length)
+    }
+
+    /// The arm as a length.
+    #[must_use]
+    pub fn length(self) -> T {
+        self.0
+    }
+
+    /// The larger of two arms: a read of the union of their extents.
+    /// Poison propagates ([`Real::max`](crate::real::Real::max)).
+    #[must_use]
+    pub fn max(self, other: Self) -> Self {
+        Self(crate::real::Real::max(self.0, other.0))
+    }
+
+    /// The lesser of two arms read over one extent: each bounds it, so
+    /// the lesser does. Poison propagates.
+    #[must_use]
+    pub fn min(self, other: Self) -> Self {
+        Self(crate::real::Real::min(self.0, other.0))
+    }
+}
+
 /// A Margin is dimensionally a length, minted only through the blessed
 /// doors.
 ///
@@ -701,17 +806,16 @@ impl<T: crate::real::Real> Margin<T> {
     /// computes `x · arm`. The dimensional argument: `x` is a pure
     /// number (a sine or cosine of unit vectors, an angle between two
     /// directions or frames, a curvature × length product such as
-    /// `κ·L`), and `arm` is the length lever that converts it to the
-    /// point deviation it implies (D4's θ·r form). The arm names the
-    /// geometry that would move: a radius, an extent, a sector chord, a
-    /// curvature arm. Multiplication is the door's one operation, so
+    /// `κ·L`), and `arm` is the [`Lever`] that converts it to the point
+    /// deviation it implies (D4's θ·r form), built only from its
+    /// sources. Multiplication is the door's one operation, so
     /// `levered(x, arm)` is bit-identical to the bare `x * arm`.
     ///
     /// A span or gap in a chart's or curve's PARAMETER is not such an
     /// `x`, radians included: it crosses through the rate pair
     /// ([`Margin::metered`], [`Margin::metered_sup`]; `[tolerance.margins]` clause (iii)).
-    pub fn levered(x: T, arm: T) -> Self {
-        Self(x * arm)
+    pub fn levered(x: T, arm: Lever<T>) -> Self {
+        Self(x * arm.0)
     }
 
     /// Levered door, second-order (sagitta) form: a **relative

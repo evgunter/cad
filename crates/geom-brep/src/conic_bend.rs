@@ -88,8 +88,8 @@ impl<T: Decide> ConicDeparture<T> {
             t1 - t0,
         );
         Self {
-            dir: tangent.normalize() * extent,
-            extent,
+            dir: tangent.normalize() * extent.length(),
+            extent: extent.length(),
             bend,
         }
     }

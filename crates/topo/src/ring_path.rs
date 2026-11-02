@@ -292,7 +292,10 @@ impl<T: Decide> Quadric<T> {
                 let sine = m.norm();
                 if decide(
                     "split_ring_path_span",
-                    Margin::levered(charge(sine, slack / radius), radius),
+                    Margin::levered(
+                        charge(sine, slack / radius),
+                        geom_core::Lever::unsourced(radius),
+                    ),
                     band,
                 )? != Sign::Positive
                 {
@@ -1136,7 +1139,7 @@ impl<T: Decide> Quadric<T> {
         };
         if decide(
             "split_ring_torus_meridian",
-            Margin::levered(n.dot(axis), radius),
+            Margin::levered(n.dot(axis), geom_core::Lever::unsourced(radius)),
             band,
         )? == Sign::Zero
         {
@@ -1152,7 +1155,7 @@ impl<T: Decide> Quadric<T> {
         }
         if decide(
             "split_ring_torus_parallel",
-            Margin::levered(n.cross(axis).norm(), radius),
+            Margin::levered(n.cross(axis).norm(), geom_core::Lever::unsourced(radius)),
             band,
         )? != Sign::Zero
         {
@@ -1409,7 +1412,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let across = p.axis.dot(dir);
                     if decide_m(
                         "split_ring_path_line_across",
-                        Margin::levered(across, p.radius),
+                        Margin::levered(across, geom_core::Lever::unsourced(p.radius)),
                     )? == Sign::Zero
                     {
                         return Ok(None);
@@ -1500,7 +1503,10 @@ pub(crate) fn path_parity<T: Decide>(
                     let rounding = slack / lever + slack / (span.1 - span.0);
                     if decide_m(
                         "split_ring_path_rulings_apart",
-                        Margin::levered(charge(ruling.cross(dir).norm(), rounding), lever),
+                        Margin::levered(
+                            charge(ruling.cross(dir).norm(), rounding),
+                            geom_core::Lever::unsourced(lever),
+                        ),
                     )? != Sign::Positive
                     {
                         return Ok(None);
@@ -1626,7 +1632,10 @@ fn spline_crossings<T: Decide>(
         let sine = dp.cross(da).norm() / (dp.norm() * da.norm());
         if decide(
             "split_ring_path_spline_across",
-            Margin::levered(charge(sine, slack / length), length),
+            Margin::levered(
+                charge(sine, slack / length),
+                geom_core::Lever::unsourced(length),
+            ),
             band,
         )? != Sign::Positive
         {
@@ -1713,7 +1722,7 @@ fn span_readings<T: Decide>(
     let read = |m: T| {
         decide(
             "split_ring_path_in_span",
-            Margin::levered(charge(m, slack / arm), arm),
+            Margin::levered(charge(m, slack / arm), geom_core::Lever::unsourced(arm)),
             band,
         )
     };

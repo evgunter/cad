@@ -42,7 +42,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::super::reduce::{ContactAcc, CurvedEvent, curved_face_arm};
-use super::super::sectors::{NO_CURVATURE, Reach, side_code, tangent_relative_side};
+use super::super::sectors::{BoundSupport, NO_CURVATURE, side_code, tangent_relative_side};
 use super::super::{BooleanError, BooleanErrorKind, Glue, GluedPair, GluedPairs, Operand};
 use super::tests::every_decision;
 use super::*;
@@ -193,18 +193,18 @@ fn sin_deg(x: f64) -> f64 {
 cases! {
     // The reviewer's C1 table (coincfr3), adopted.
     lever_arm_sector_side_in_band: "LeverArm(SectorSide)", D * FRAC_1_SQRT_2, SECTOR_SITE,
-        Valued => sector_side(Vec3::new(1.0, 0.0, 1.0), Reach::Extent(D));
+        Valued => sector_side(Vec3::new(1.0, 0.0, 1.0), BoundSupport::Extent(D));
     lever_arm_sector_side_in_the_zero_band: "LeverArm(SectorSide)", Z * FRAC_1_SQRT_2,
-        SECTOR_SITE, Valued => sector_side(Vec3::new(1.0, 0.0, 1.0), Reach::Extent(Z));
+        SECTOR_SITE, Valued => sector_side(Vec3::new(1.0, 0.0, 1.0), BoundSupport::Extent(Z));
     // A bound in the face's plane: its departure is exactly zero, so the
     // arm binds and its length is quoted (the coincfr4 review's in-plane
     // pose, whose offer the previous head withdrew).
     lever_arm_sector_side_in_the_plane: "LeverArm(SectorSide)", D, SECTOR_SITE, Valued =>
-        sector_side(Vec3::new(1.0, 0.0, 0.0), Reach::Extent(D));
+        sector_side(Vec3::new(1.0, 0.0, 0.0), BoundSupport::Extent(D));
     sector_side_above: "Coincidence(SectorSide)", D, SECTOR_SITE, Valued =>
-        sector_side(Vec3::new(1.0, 0.0, D), Reach::Extent(1.0));
+        sector_side(Vec3::new(1.0, 0.0, D), BoundSupport::Extent(1.0));
     sector_side_below: "Coincidence(SectorSide)", -D, SECTOR_SITE, Valued =>
-        sector_side(Vec3::new(1.0, 0.0, -D), Reach::Extent(1.0));
+        sector_side(Vec3::new(1.0, 0.0, -D), BoundSupport::Extent(1.0));
     pierce_curvature_short_of_its_bend: "PierceCurvature", D, SECTOR_SITE, Valued =>
         pierce_curvature(D);
     conic_bend_short_of_the_band: "ConicBend", D, SECTOR_SITE, Valued => conic_bend(D);
@@ -527,7 +527,7 @@ const GATE_SITE: Door = Door::Site(
 
 /// A corner's bound `dir` read against the face `z = 0` (outward `+z`),
 /// behind it `reach`, at arm 1.
-fn sector_side(dir: Vec3<f64>, reach: Reach<f64>) -> Result<(), BooleanError> {
+fn sector_side(dir: Vec3<f64>, reach: BoundSupport<f64>) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     side_code(dir, reach, n, NO_CURVATURE(), band()).map(|_| ())
 }
@@ -538,7 +538,7 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
-    side_code(dir, Reach::straight_bisector(0.5), n, 1.0, band()).map(|_| ())
+    side_code(dir, BoundSupport::straight_bisector(0.5), n, 1.0, band()).map(|_| ())
 }
 
 /// A unit-radius arc leaving a plane along it, short enough that the
@@ -561,7 +561,7 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
     };
     pierce_side(
         Vec3::new(1.0, 0.0, 0.0),
-        Reach::Conic { extent, bend },
+        BoundSupport::Conic { extent, bend },
         n,
         crate::bound_side::FaceBend::Plane,
         NO_CURVATURE(),
@@ -968,11 +968,11 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         start,
         end,
-        start_reach: Reach::Chord {
+        start_reach: BoundSupport::Chord {
             base: o,
             far: o + start * reach,
         },
-        end_reach: Reach::Chord {
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + end * reach,
         },
@@ -1014,11 +1014,11 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         start: x,
         end: y,
-        start_reach: Reach::Chord {
+        start_reach: BoundSupport::Chord {
             base: o,
             far: o + x,
         },
-        end_reach: Reach::Chord {
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + y,
         },
@@ -1066,11 +1066,11 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         start: x,
         end: y,
-        start_reach: Reach::Chord {
+        start_reach: BoundSupport::Chord {
             base: o,
             far: o + x,
         },
-        end_reach: Reach::Chord {
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + y,
         },
@@ -1474,11 +1474,11 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         he: crate::entity::HalfEdgeKey::default(),
         start,
         end,
-        start_reach: Reach::Chord {
+        start_reach: BoundSupport::Chord {
             base: o,
             far: o + start * reach,
         },
-        end_reach: Reach::Chord {
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + end * reach,
         },
@@ -1545,11 +1545,11 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         start: y,
         end: z,
-        start_reach: Reach::Chord {
+        start_reach: BoundSupport::Chord {
             base: o,
             far: o + y * arm,
         },
-        end_reach: Reach::Chord {
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + z * arm,
         },

@@ -607,7 +607,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 // rim/meridian split, on the parse's own margin.
                 if classify(
                     "props_circle_axis_class",
-                    Margin::levered(n_c.dot(axis), r_c),
+                    Margin::levered(n_c.dot(axis), geom_core::Lever::unsourced(r_c)),
                     band,
                     PropsCheck::Inventory,
                 )? != Sign::Zero
@@ -620,7 +620,11 @@ pub fn require_one_chart_branch<T: Decide>(
                 // the parse's own names.
                 for (m, _) in sphere_meridian_pole_margins(e, center, radius, axis, n_c, band)? {
                     if matches!(
-                        decide("props_meridian_pole", Margin::levered(m, radius), band),
+                        decide(
+                            "props_meridian_pole",
+                            Margin::levered(m, geom_core::Lever::unsourced(radius)),
+                            band
+                        ),
                         Ok(Sign::Positive)
                     ) {
                         return Err(PropsError::NotOneChartBranch {
@@ -847,7 +851,7 @@ fn require_rim_incidence<T: Decide>(
 ) -> Result<(), PropsError> {
     require_zero(
         "props_rim_axis_parallel",
-        Margin::levered(n_c.cross(axis).norm(), r_c),
+        Margin::levered(n_c.cross(axis).norm(), geom_core::Lever::unsourced(r_c)),
         band,
         Premise::Inventory,
     )?;
@@ -1017,7 +1021,7 @@ fn level_coincides<T: Decide>(
     let gap = a.min(b);
     let margin = match level {
         RimLevel::Length(_) => Margin::of(gap),
-        RimLevel::Unit(..) => Margin::levered(gap, arms.level),
+        RimLevel::Unit(..) => Margin::levered(gap, geom_core::Lever::unsourced(arms.level)),
     };
     Ok(classify(name, margin, band, PropsCheck::Inventory)? == Sign::Zero)
 }
@@ -1218,7 +1222,9 @@ fn rim_side<T: Decide>(
 ) -> Result<Sign, PropsError> {
     let margin = match rim.level {
         RimLevel::Length(v) => Margin::of(lo + hi - v - v),
-        RimLevel::Unit(s, _) => Margin::levered(lo + hi - s - s, arms.level),
+        RimLevel::Unit(s, _) => {
+            Margin::levered(lo + hi - s - s, geom_core::Lever::unsourced(arms.level))
+        }
     };
     match classify("props_rim_side", margin, band, PropsCheck::Inventory)? {
         Sign::Positive => Ok(rim.d_u_sign),
@@ -1815,7 +1821,10 @@ fn cylinder_boundary<T: Decide>(
                 // leaves the cylinder to second.
                 require_zero(
                     "props_meridian_axial",
-                    Margin::levered(dir.cross(axis).norm(), e.t1 - e.t0),
+                    Margin::levered(
+                        dir.cross(axis).norm(),
+                        geom_core::Lever::unsourced(e.t1 - e.t0),
+                    ),
                     band,
                     Premise::Inventory,
                 )?;
@@ -1830,7 +1839,7 @@ fn cylinder_boundary<T: Decide>(
             } => {
                 let s = classify(
                     "props_circle_axis_class",
-                    Margin::levered(n_c.dot(axis), r_c),
+                    Margin::levered(n_c.dot(axis), geom_core::Lever::unsourced(r_c)),
                     band,
                     PropsCheck::Inventory,
                 )?;
@@ -1850,7 +1859,10 @@ fn cylinder_boundary<T: Decide>(
                 // one whose centre is `o` off the axis by `o`.
                 require_zero(
                     "props_cylinder_circle_tilt",
-                    Margin::levered(T::one() - n_c.dot(axis).abs(), r_c),
+                    Margin::levered(
+                        T::one() - n_c.dot(axis).abs(),
+                        geom_core::Lever::unsourced(r_c),
+                    ),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -2259,7 +2271,7 @@ fn require_cone_circle<T: Decide>(
 ) -> Result<Sign, PropsError> {
     let s = classify(
         "props_circle_axis_class",
-        Margin::levered(n_c.dot(axis), r_c),
+        Margin::levered(n_c.dot(axis), geom_core::Lever::unsourced(r_c)),
         band,
         PropsCheck::Inventory,
     )?;
@@ -2280,14 +2292,17 @@ fn require_cone_circle<T: Decide>(
         "props_cone_circle_tilt",
         Margin::levered(
             n_c.cross(axis).norm() * sin_a + (T::one() - cos_t) * cos_a,
-            r_c,
+            geom_core::Lever::unsourced(r_c),
         ),
         band,
         Premise::OnSurface,
     )?;
     require_zero(
         "props_cone_circle_off_axis",
-        Margin::levered(cos_a, (w - axis * w.dot(axis)).norm()),
+        Margin::levered(
+            cos_a,
+            geom_core::Lever::unsourced((w - axis * w.dot(axis)).norm()),
+        ),
         band,
         Premise::OnSurface,
     )?;
@@ -2470,7 +2485,7 @@ fn require_cone_generator<T: Decide>(
         "props_meridian_generator",
         Margin::levered(
             cone_offset(dir.cross(axis).norm(), dir.dot(axis).abs(), sin_a, cos_a),
-            (e.p0() - apex).norm().max((e.p1() - apex).norm()),
+            geom_core::Lever::unsourced((e.p0() - apex).norm().max((e.p1() - apex).norm())),
         ),
         band,
         Premise::Inventory,
@@ -2696,7 +2711,7 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
             let rho = (r - axis * r.dot(axis)).norm();
             if classify(
                 "props_cone_loop_vertex_sheet",
-                Margin::levered((a - b).abs() - T::pi(), rho),
+                Margin::levered((a - b).abs() - T::pi(), geom_core::Lever::unsourced(rho)),
                 band,
                 PropsCheck::Inventory,
             )? != Sign::Positive
@@ -2859,7 +2874,7 @@ fn cone_loop_winding<T: Decide>(
         arm = arm.max(a.norm()).max(b.norm());
         let sense = |n: Vec3<T>, rho: T| match classify(
             "props_cone_arc_sense",
-            Margin::levered(n.dot(axis), rho),
+            Margin::levered(n.dot(axis), geom_core::Lever::unsourced(rho)),
             band,
             PropsCheck::Inventory,
         )? {
@@ -2894,7 +2909,7 @@ fn cone_loop_winding<T: Decide>(
                     thirds = thirds
                         + match classify(
                             "props_cone_arc_turn",
-                            Margin::levered(principal * sense, rho),
+                            Margin::levered(principal * sense, geom_core::Lever::unsourced(rho)),
                             band,
                             PropsCheck::Inventory,
                         )? {
@@ -3456,7 +3471,7 @@ fn require_solid_angle<T: Decide>(
 ) -> Result<(), PropsError> {
     match classify(
         name,
-        Margin::levered(angle, radius),
+        Margin::levered(angle, geom_core::Lever::unsourced(radius)),
         band,
         PropsCheck::Inventory,
     )? {
@@ -3702,7 +3717,10 @@ fn require_cusp_free<T: Decide>(
 ) -> Result<(), PropsError> {
     match classify(
         "props_sphere_loop_cusp",
-        Margin::levered((depart + arrive).norm(), radius),
+        Margin::levered(
+            (depart + arrive).norm(),
+            geom_core::Lever::unsourced(radius),
+        ),
         band,
         PropsCheck::Exact,
     )? {
@@ -3769,7 +3787,10 @@ fn side_of_sphere_loops<T: Decide>(
             for (left, side) in [(true, Sign::Positive), (false, Sign::Negative)] {
                 if classify(
                     "props_sphere_face_area",
-                    Margin::levered(claimed_area(center, gauss, left), radius),
+                    Margin::levered(
+                        claimed_area(center, gauss, left),
+                        geom_core::Lever::unsourced(radius),
+                    ),
                     band,
                     PropsCheck::Inventory,
                 )? == Sign::Positive
@@ -4095,7 +4116,10 @@ pub fn sphere_region_cover<T: Decide>(
     // Above the threshold `c` spheres, below it, or in its band.
     let above = |c: f64| match classify(
         "props_sphere_region_cover",
-        Margin::levered(census - T::from_computed(c) * sphere, region.radius),
+        Margin::levered(
+            census - T::from_computed(c) * sphere,
+            geom_core::Lever::unsourced(region.radius),
+        ),
         band,
         PropsCheck::Inventory,
     ) {
@@ -4201,7 +4225,7 @@ fn pole_side<T: Decide>(
     Ok(
         match classify(
             "props_sphere_pole_winding",
-            Margin::levered(turning, radius),
+            Margin::levered(turning, geom_core::Lever::unsourced(radius)),
             band,
             PropsCheck::Inventory,
         )? {
@@ -4422,7 +4446,10 @@ fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
     let rr = arc.radius.powi(2);
     let q = p - arc.centre;
     let (ps, pc) = (q.dot(w0) / rr, q.dot(arc.axis.cross(w0)) / rr);
-    Margin::levered(span_membership(ps, pc, arc.extent.get()), arc.radius)
+    Margin::levered(
+        span_membership(ps, pc, arc.extent.get()),
+        geom_core::Lever::unsourced(arc.radius),
+    )
 }
 
 /// **The rim span door**: [`require_circle_span`] at a coaxial
@@ -4687,7 +4714,11 @@ fn sphere_meridian_span_levels<T: Decide>(
         // poison makes the folded `±r0` poison too, which the extent
         // and level decides downstream refuse typed; a poisoned span
         // is refused upstream by certification before this parse.
-        match decide("props_meridian_pole", Margin::levered(m, radius), band) {
+        match decide(
+            "props_meridian_pole",
+            Margin::levered(m, geom_core::Lever::unsourced(radius)),
+            band,
+        ) {
             Ok(Sign::Positive | Sign::Zero) | Err(_) => {
                 levels.push(extreme);
                 cosines.push(T::zero());
@@ -4737,7 +4768,7 @@ fn sphere_boundary<T: Decide>(
         };
         let s = classify(
             "props_circle_axis_class",
-            Margin::levered(n_c.dot(axis), r_c),
+            Margin::levered(n_c.dot(axis), geom_core::Lever::unsourced(r_c)),
             band,
             PropsCheck::Inventory,
         )?;
@@ -4921,7 +4952,7 @@ fn fold_torus_pieces<T: Decide>(pieces: Vec<TorusPiece<'_, T>>, minor: T) -> Vec
         same && matches!(
             decide(
                 "props_torus_pieces_meet",
-                Margin::levered(gap, minor),
+                Margin::levered(gap, geom_core::Lever::unsourced(minor)),
                 exact_band()
             ),
             Ok(Sign::Zero)
@@ -5444,7 +5475,7 @@ fn torus_classify<'a, T: Decide>(
         };
         let s = classify(
             "props_circle_axis_class",
-            Margin::levered(n_c.dot(axis), r_c),
+            Margin::levered(n_c.dot(axis), geom_core::Lever::unsourced(r_c)),
             band,
             PropsCheck::Inventory,
         )?;
@@ -5455,7 +5486,10 @@ fn torus_classify<'a, T: Decide>(
                 let cos_v = (r_c - major) / minor;
                 require_zero(
                     "props_rim_fit",
-                    Margin::levered((sin_v.powi(2) + cos_v.powi(2)).sqrt() - T::one(), minor),
+                    Margin::levered(
+                        (sin_v.powi(2) + cos_v.powi(2)).sqrt() - T::one(),
+                        geom_core::Lever::unsourced(minor),
+                    ),
                     band,
                     Premise::Inventory,
                 )?;
@@ -5631,7 +5665,7 @@ fn fold_chain<T: Decide>(
             let gap = if forward { b.t0 - a.t1 } else { a.t0 - b.t1 };
             if classify(
                 "props_meridian_pieces_meet",
-                Margin::levered(gap, minor),
+                Margin::levered(gap, geom_core::Lever::unsourced(minor)),
                 exact,
                 PropsCheck::Inventory,
             )? != Sign::Zero
@@ -5687,7 +5721,7 @@ fn torus_meridian_orient<T: Decide>(
 ) -> Result<Sign, PropsError> {
     // The axis is a pure number, levered by the anchor meridian's reach
     // from the torus centre, where the frame it aims is consumed.
-    let reach = (c_c - center).norm() + minor;
+    let reach = crate::ExtentBall::of_circle(c_c, minor).lever_from(center);
     let aim = UnitVec3::levered(axis, "props_torus_axis", band, reach).map_err(|e| match e {
         LeveredUnitError::Direction(e) => {
             torus_frame_refused(e, "props_torus_axis", "torus axis length not measurable")
@@ -5717,7 +5751,7 @@ fn torus_meridian_orient<T: Decide>(
     let tau = frame.v().get();
     let orient = classify(
         "props_meridian_orient",
-        Margin::levered(n_c.dot(tau), minor),
+        Margin::levered(n_c.dot(tau), geom_core::Lever::unsourced(minor)),
         band,
         PropsCheck::Inventory,
     )?;

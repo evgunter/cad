@@ -3687,7 +3687,10 @@ fn seam_arrival_check<T: Decide>(
         Ok((turn, margin)) if turn.sign == Sign::Zero => {
             let side = decide(
                 "path_seam_arrival_side",
-                Margin::levered(arriving.unit.dot(start_ang.unit), arm),
+                Margin::levered(
+                    arriving.unit.dot(start_ang.unit),
+                    geom_core::Lever::unsourced(arm),
+                ),
                 band,
             );
             match side {
@@ -4265,8 +4268,12 @@ impl<T: Decide> Core<T> {
         // (1) parallel/tangent carriers admit no corner: the turn
         // margin sin φ levered by the anchor separation.
         let cross = u1.perp_dot(u2);
-        let turn = decide("path_corner_turn", Margin::levered(cross, wn), band)
-            .map_err(|source| PathError::Escalated { source })?;
+        let turn = decide(
+            "path_corner_turn",
+            Margin::levered(cross, geom_core::Lever::unsourced(wn)),
+            band,
+        )
+        .map_err(|source| PathError::Escalated { source })?;
         let Some((sgn, sense)) =
             crate::sugar::turn_side::<T>(turn).zip(crate::sugar::turn_sense(turn))
         else {

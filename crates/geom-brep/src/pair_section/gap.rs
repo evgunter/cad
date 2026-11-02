@@ -384,7 +384,10 @@ impl<T: Decide> Sweep<'_, T> {
     /// deviation that turning the core by that angle moves.
     fn slope(&self, slope: T, d_hi: T) -> Margin<T> {
         let big = self.core.radius;
-        Margin::levered(slope / (T::from_f64(2.0) * d_hi * big), big)
+        Margin::levered(
+            slope / (T::from_f64(2.0) * d_hi * big),
+            geom_core::Lever::unsourced(big),
+        )
     }
 
     /// **`G‴`'s bound over a window `reach` metres of core about a

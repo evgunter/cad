@@ -501,7 +501,10 @@ pub(super) fn classify_segment<T: Decide>(
                     // beyond π must dip below — a full turn's 2π always
                     // does, before its zero chord is read; the apex pins
                     // which half-circle branch the arc occupies.
-                    let span_margin = Margin::levered(T::pi() - arc_span(turn, arc), radius);
+                    let span_margin = Margin::levered(
+                        T::pi() - arc_span(turn, arc),
+                        geom_core::Lever::unsourced(radius),
+                    );
                     match classify(ClearanceDecision::ArcSpan, span_margin)? {
                         Sign::Positive | Sign::Zero => {}
                         Sign::Negative => {

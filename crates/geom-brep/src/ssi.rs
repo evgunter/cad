@@ -287,9 +287,11 @@ impl PointLever {
 /// It is not [`crate::folded_lever_arm`], whose arms are each carrier
 /// kind's own length scale and poison on a NURBS carrier; the two agree
 /// where that scale is `1/κ`, on a plane, a sphere or a cylinder.
-pub(crate) fn point_arm<T: Real>(kappa: T, extent: T) -> (T, T) {
-    let reach = kappa * extent;
-    (extent / T::one().max(reach), reach)
+pub(crate) fn point_arm<T: Real>(
+    kappa: T,
+    extent: geom_core::Lever<T>,
+) -> (geom_core::Lever<T>, T) {
+    (extent.within_curvature(kappa), kappa * extent.length())
 }
 
 impl core::fmt::Display for PointLever {

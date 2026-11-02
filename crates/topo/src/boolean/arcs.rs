@@ -64,7 +64,7 @@ pub(super) fn arcs_along<T: Decide>(
         // offset. Only an arc neither rules out escalates.
         let off = decide(
             "bool_arc_along",
-            Margin::levered(tangent.cross(d).norm(), radius),
+            Margin::levered(tangent.cross(d).norm(), geom_core::Lever::unsourced(radius)),
             band,
         );
         if off == Ok(Sign::Positive) {
@@ -72,7 +72,7 @@ pub(super) fn arcs_along<T: Decide>(
         }
         match decide(
             "bool_arc_ahead",
-            Margin::levered(tangent.dot(d), radius),
+            Margin::levered(tangent.dot(d), geom_core::Lever::unsourced(radius)),
             band,
         ) {
             Ok(Sign::Positive) => {}

@@ -550,7 +550,7 @@ impl<T: Decide> Section<T> {
     ) -> Option<Self> {
         // `r·|a × n|`: the wall's reach across the locus, a length.
         let across = UnitVec3::new(pc.a.cross(pc.n) * pc.r, ACROSS, band).ok()?;
-        let tilt = frame.c.abs() * reach.lever_from(frame.o);
+        let tilt = frame.c.abs() * reach.lever_from(frame.o).length();
         Some(Self {
             at: across.get().dot(frame.o - Point3::origin()),
             across,
@@ -585,7 +585,7 @@ impl<T: Decide> Section<T> {
             walls: Walls::Cylinders {
                 radii,
                 d: axes.d_vec.norm(),
-                slack: turn * reach.lever_from(foot2),
+                slack: turn * reach.lever_from(foot2).length(),
             },
         })
     }

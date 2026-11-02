@@ -397,10 +397,10 @@ pub fn chart_normal_at<T: Decide>(
         return Err(reading);
     }
     let kappa = crate::shape_operator::max_principal_curvature(jet);
-    let (arm, _) = crate::ssi::point_arm(kappa, reach);
+    let (arm, _) = crate::ssi::point_arm(kappa, geom_core::Lever::unsourced(reach));
     Ok((
         OutwardNormal::from_chart(jet.du.cross(jet.dv).normalize(), sense),
-        arm,
+        arm.length(),
     ))
 }
 

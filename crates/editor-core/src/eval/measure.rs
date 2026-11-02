@@ -557,7 +557,11 @@ fn parallel<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<bool, PrimitiveRefusal> {
-    match decide(predicate, Margin::levered(u.cross(v).norm(), arm), band) {
+    match decide(
+        predicate,
+        Margin::levered(u.cross(v).norm(), geom_core::Lever::unsourced(arm)),
+        band,
+    ) {
         Ok(Sign::Zero) => Ok(true),
         Ok(Sign::Positive | Sign::Negative) => Ok(false),
         Err(source) => Err(PrimitiveRefusal::Escalated { predicate, source }),
@@ -1252,7 +1256,10 @@ fn plane_round<T: Decide>(
             round: r,
             ..
         } => {
-            let tilt = Margin::levered(axis.dot(*outward), arm(plane, round));
+            let tilt = Margin::levered(
+                axis.dot(*outward),
+                geom_core::Lever::unsourced(arm(plane, round)),
+            );
             match decide(GAP_AXIS_PARALLEL_TO_PLANE, tilt, band) {
                 Ok(Sign::Zero) => {}
                 Ok(_) => return not_parallel("gap", GAP_AXIS_PARALLEL_TO_PLANE, plane, round),

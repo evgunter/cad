@@ -1722,7 +1722,10 @@ fn sphere_window<T: Decide>(
             matches!(
                 crate::validate::decide(
                     BOX_SPHERE_SEAM,
-                    Margin::levered(seam.get().dot(unit.get()), *radius),
+                    Margin::levered(
+                        seam.get().dot(unit.get()),
+                        geom_core::Lever::unsourced(*radius)
+                    ),
                     band
                 ),
                 Ok(Sign::Zero)

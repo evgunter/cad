@@ -547,7 +547,11 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
 /// reads zero: carriers the pose read as one curve whose runs read square
 /// to each other, which only a degenerate frame gives.
 fn sense<T: Decide>(cosine: T, lever: T, band: Band) -> Result<Sense, MeetFault> {
-    match decide(row::SENSE, Margin::levered(cosine, lever), band)? {
+    match decide(
+        row::SENSE,
+        Margin::levered(cosine, geom_core::Lever::unsourced(lever)),
+        band,
+    )? {
         Sign::Positive => Ok(Sense::Same),
         Sign::Negative => Ok(Sense::Opposite),
         Sign::Zero => Err(MeetFault::Unsupported {
@@ -696,7 +700,7 @@ impl<T: Decide> Polish<'_, T> {
         let turn = T::from_f64(2.0) * curvature * region;
         metered(
             row::BASIN,
-            Margin::levered(sine - turn, self.lever),
+            Margin::levered(sine - turn, geom_core::Lever::unsourced(self.lever)),
             Sign::Positive,
             band,
         )?;
@@ -794,8 +798,16 @@ fn route<T: Decide>(
     if decide(row::GAP, Margin::of(at.apart()), band) == Ok(Sign::Positive) {
         return Ok(Route::Apart);
     }
-    let level = decide(row::TILT, Margin::levered(tilt, length + e + e), band) == Ok(Sign::Zero)
-        || !definite(row::TILT, Margin::levered(tilt, lever), band)?;
+    let level = decide(
+        row::TILT,
+        Margin::levered(tilt, geom_core::Lever::unsourced(length + e + e)),
+        band,
+    ) == Ok(Sign::Zero)
+        || !definite(
+            row::TILT,
+            Margin::levered(tilt, geom_core::Lever::unsourced(lever)),
+            band,
+        )?;
     if !level {
         return Ok(Route::Crossing);
     }
@@ -886,7 +898,15 @@ fn line_line<T: Decide>(
         // Level where they can meet but apart past the band along a span:
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
-        Route::Level if definite(row::TILT, Margin::levered(s, lever), band)? => Ok(crossing()),
+        Route::Level
+            if definite(
+                row::TILT,
+                Margin::levered(s, geom_core::Lever::unsourced(lever)),
+                band,
+            )? =>
+        {
+            Ok(crossing())
+        }
         Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter)),
     }
 }

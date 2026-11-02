@@ -1183,11 +1183,14 @@ fn stands_on<T: Decide>(
         };
         let arm = crate::wedge_reach(x, [face, face], curve.carrier(), curve.params());
         let cosine = if flips { -n.dot(n_f) } else { n.dot(n_f) };
-        return Ok(
-            decide("bool_rim_face_opposed", Margin::levered(cosine, arm), band).map_err(
-                |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag),
-            )? == Sign::Negative,
-        );
+        return Ok(decide(
+            "bool_rim_face_opposed",
+            Margin::levered(cosine, geom_core::Lever::unsourced(arm)),
+            band,
+        )
+        .map_err(|diag| {
+            BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+        })? == Sign::Negative);
     }
     Ok(false)
 }
@@ -2054,7 +2057,7 @@ fn crossing_germs_have_their_reading<T: Decide>(
 /// [`nearer_along`] among one germ's candidates and by [`nearer`]
 /// between germs.
 #[derive(Clone, Copy)]
-struct Reach<T: geom_core::Real> {
+struct PartnerDistance<T: geom_core::Real> {
     arm: GermArm,
     chord: T,
     turn: Option<Turn<T>>,
@@ -2189,8 +2192,8 @@ fn join_escalate(diag: geom_core::Indeterminate) -> BooleanError {
 /// sign), so a tie is two sites within the band of each other along the
 /// conic. A straight line, and two records at one site, take the chord.
 fn nearer_along<T: Decide>(
-    cand: Reach<T>,
-    best: Reach<T>,
+    cand: PartnerDistance<T>,
+    best: PartnerDistance<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     if let (Some(c), Some(b)) = (cand.along, best.along) {
@@ -2225,7 +2228,11 @@ fn nearer_along<T: Decide>(
 /// first.** Each was already chosen along its own germ line
 /// ([`nearer_along`]), so this picks an order among pairs rather than a
 /// partner: the half-turn, then the chord (`bool_join_nearest`, metres).
-fn nearer<T: Decide>(cand: Reach<T>, best: Reach<T>, band: Band) -> Result<bool, BooleanError> {
+fn nearer<T: Decide>(
+    cand: PartnerDistance<T>,
+    best: PartnerDistance<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
     Ok(nearest_sign(cand, best, band).map_err(join_escalate)? == Sign::Negative)
 }
 
@@ -2235,8 +2242,8 @@ fn nearer<T: Decide>(cand: Reach<T>, best: Reach<T>, band: Band) -> Result<bool,
 /// poisoned margin, an enclosure straddling the band's edge — escalates
 /// as [`nearer`]'s does.
 fn nearer_or_scan<T: Decide>(
-    cand: Reach<T>,
-    best: Reach<T>,
+    cand: PartnerDistance<T>,
+    best: PartnerDistance<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     match nearest_sign(cand, best, band) {
@@ -2248,8 +2255,8 @@ fn nearer_or_scan<T: Decide>(
 
 /// The half-turn, then the chord: [`nearer`]'s one reading.
 fn nearest_sign<T: Decide>(
-    cand: Reach<T>,
-    best: Reach<T>,
+    cand: PartnerDistance<T>,
+    best: PartnerDistance<T>,
     band: Band,
 ) -> Result<Sign, geom_core::Indeterminate> {
     if cand.arm != best.arm {
@@ -2322,7 +2329,10 @@ fn off_conic_slack<T: geom_core::Real>(from: Turn<T>, band: Band) -> Margin<T> {
     let (center, axis) = from.frame();
     let cot = from.tangent().dot(from.site() - center).abs() * axis.norm()
         / turn_of(from.frame(), from.site(), from.tangent()).abs();
-    Margin::levered(cot + cot, T::from_f64(band.zero()))
+    Margin::levered(
+        cot + cot,
+        geom_core::Lever::unsourced(T::from_f64(band.zero())),
+    )
 }
 
 /// **[`turned_past`] decided under `name`, clear of the sites' slack**:
@@ -2437,15 +2447,15 @@ fn rotational_sense<T: Decide>(
 
 /// A germ's nearest partner so far, with the scan position it was met
 /// at and the match it names.
-type Met<T> = (usize, Reach<T>, (Slot, Slot));
+type Met<T> = (usize, PartnerDistance<T>, (Slot, Slot));
 
 /// The nearer of the incumbent `best` and `cand` under `nearer`; the
 /// incumbent keeps a tie (deterministic scan order, D9).
 fn keep_nearer<T, M>(
-    best: Option<(Reach<T>, M)>,
-    cand: (Reach<T>, M),
-    nearer: impl Fn(Reach<T>, Reach<T>) -> Result<bool, BooleanError>,
-) -> Result<Option<(Reach<T>, M)>, BooleanError>
+    best: Option<(PartnerDistance<T>, M)>,
+    cand: (PartnerDistance<T>, M),
+    nearer: impl Fn(PartnerDistance<T>, PartnerDistance<T>) -> Result<bool, BooleanError>,
+) -> Result<Option<(PartnerDistance<T>, M)>, BooleanError>
 where
     T: geom_core::Real,
 {
@@ -2579,7 +2589,7 @@ fn first_pair<T: Decide>(
     let order = if free { nearer_or_scan } else { nearer };
     let mut met: Vec<_> = own.into_values().collect();
     met.sort_by_key(|&(at, ..)| at);
-    let mut best: Option<(Reach<T>, (Slot, Slot))> = None;
+    let mut best: Option<(PartnerDistance<T>, (Slot, Slot))> = None;
     for (_, reach, m) in met {
         best = keep_nearer(best, (reach, m), |c, b| order(c, b, band))?;
     }
@@ -2596,7 +2606,7 @@ fn first_pair<T: Decide>(
 /// locus-aware facing); and the B germs at the same slots mirror them —
 /// same loci, opposed senses — or the join has desynced. `Some(reach)`
 /// when they are partners — how far the partner is along the germ's
-/// line ([`Reach`]). Two slots of one record never are.
+/// line ([`PartnerDistance`]). Two slots of one record never are.
 fn partners<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
@@ -2605,7 +2615,7 @@ fn partners<T: Decide>(
     (cand, cs): (usize, usize),
     (entry, es): (usize, usize),
     band: Band,
-) -> Result<Option<Reach<T>>, BooleanError> {
+) -> Result<Option<PartnerDistance<T>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     if cand == entry {
         return Ok(None);
@@ -2678,7 +2688,7 @@ fn partners<T: Decide>(
         Faced::Along(along) => (None, Some(along)),
         Faced::Apart | Faced::Straight => (None, None),
     };
-    Ok(Some(Reach {
+    Ok(Some(PartnerDistance {
         arm: germ_arm(turn, band)?,
         chord: dist,
         turn,
@@ -2948,7 +2958,7 @@ pub(super) enum FrameExtent<T: geom_core::Real> {
     /// A plane×torus pair's torus face: its farthest distance from `at`,
     /// each edge levered round its whole carrier
     /// ([`face_reach_from`](crate::splitting::rules::face_reach_from)).
-    Reach(T),
+    PartnerDistance(T),
     /// A plane×cone pair's cone face, against the cone's axis
     /// ([`cone_face_reach`](crate::splitting::rules::cone_face_reach)).
     Cone(geom_brep::Reach<T>),
@@ -3063,7 +3073,7 @@ fn face_reach<T: Decide>(
     at: geom_core::Point3<T>,
 ) -> Result<FrameExtent<T>, &'static str> {
     crate::splitting::rules::face_reach_from(body, face, at)
-        .map(FrameExtent::Reach)
+        .map(FrameExtent::PartnerDistance)
         .map_err(|_| LONE_WALL)
 }
 
@@ -3938,7 +3948,7 @@ fn conic_section_frame_at<T: Decide>(
             &geom_brep::Reach::Measured { at, lever: radius },
             band,
         ),
-        FrameExtent::Reach(_) | FrameExtent::Cone(_) => {
+        FrameExtent::PartnerDistance(_) | FrameExtent::Cone(_) => {
             return Err(FrameError::Desync(FACE_REACH_ELSEWHERE));
         }
     };
@@ -3998,7 +4008,7 @@ fn cylinder_pair_axes<T: Decide>(
     let lever = match extent {
         FrameExtent::Span(l) => l.max(r1.max(r2)),
         FrameExtent::Radii | FrameExtent::Wall { .. } => r1.max(r2),
-        FrameExtent::Reach(_) | FrameExtent::Cone(_) => {
+        FrameExtent::PartnerDistance(_) | FrameExtent::Cone(_) => {
             return Err(FrameError::Desync(FACE_REACH_ELSEWHERE));
         }
     };
@@ -4013,7 +4023,7 @@ fn cylinder_pair_axes<T: Decide>(
     }
 }
 
-/// [`FrameExtent::Reach`] or [`FrameExtent::Cone`] handed to a cylinder
+/// [`FrameExtent::PartnerDistance`] or [`FrameExtent::Cone`] handed to a cylinder
 /// pair: only a cone or a torus face's frame is levered at them
 /// ([`frame_extent`]).
 const FACE_REACH_ELSEWHERE: &str = "a curved face's reach levered a pair with no cone or torus";
@@ -4134,14 +4144,14 @@ fn pk_germ_frame<T: Decide>(
 /// margin left undecided.
 ///
 /// Levered at the torus face's reach from the reading point
-/// ([`FrameExtent::Reach`]); any other extent is a desync.
+/// ([`FrameExtent::PartnerDistance`]); any other extent is a desync.
 fn pt_germ_frame<T: Decide>(
     plane: &geom::Surface<T>,
     torus: &geom::Surface<T>,
     extent: FrameExtent<T>,
     band: Band,
 ) -> Result<Option<SectionLoops<T>>, FrameError> {
-    let FrameExtent::Reach(lever) = extent else {
+    let FrameExtent::PartnerDistance(lever) = extent else {
         return Err(FrameError::Desync(
             "a plane×torus frame was levered at no torus face's reach",
         ));
@@ -4547,7 +4557,7 @@ fn along_facing<T: Decide>(
             ));
         }
         let cos = germ.dir.dot(foot.tangent) / foot.tangent.norm();
-        let heading = Margin::levered(cos, section.lever());
+        let heading = Margin::levered(cos, geom_core::Lever::unsourced(section.lever()));
         match decide("bool_join_foot_heading", heading, band) {
             Ok(Sign::Positive) => Ok(GermFoot { foot, up: true }),
             Ok(Sign::Negative) => Ok(GermFoot { foot, up: false }),
@@ -4712,7 +4722,7 @@ fn loose_partners<T: Decide>(
     let mut a_map: LooseMap = SecondaryMap::new();
     let mut b_map: LooseMap = SecondaryMap::new();
     for &(i, s) in &loose {
-        let mut best: Option<(Reach<T>, (usize, usize))> = None;
+        let mut best: Option<(PartnerDistance<T>, (usize, usize))> = None;
         for &(j, t) in &loose {
             // Across records, the matcher's own criterion ([`partners`]):
             // the separation constraint must see the pairs the matcher
@@ -6081,7 +6091,7 @@ mod travel_rows {
     //! axis-plane distance reads `Δ sin ψ`: 0.198Δ at `k = 10`, 0.033Δ at
     //! `k = 60`. `Δ` is in bands of the run's ε.
 
-    use super::{BooleanError, GermArm, Reach, Turn, germ_arm, nearer_along};
+    use super::{BooleanError, GermArm, PartnerDistance, Turn, germ_arm, nearer_along};
     use core::f64::consts::FRAC_PI_4;
     use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -6100,14 +6110,14 @@ mod travel_rows {
     }
 
     /// The partners `[near, far]`, `bands` bands of arc apart.
-    fn partners(k: f64, bands: f64) -> [Reach<f64>; 2] {
+    fn partners(k: f64, bands: f64) -> [PartnerDistance<f64>; 2] {
         let germ = Point3::new(0.0, 1.0, 0.0);
         let near = -FRAC_PI_4;
         let speed = (k * k * 0.5 + 0.5).sqrt();
         let far = near - bands * band().zero() / speed;
         [near, far].map(|t| {
             let (site, tangent) = at(k, t);
-            Reach {
+            PartnerDistance {
                 arm: GermArm::Ahead,
                 chord: (site - germ).norm(),
                 turn: Turn::facing(
@@ -8252,7 +8262,7 @@ mod first_pair_rows {
 
     /// A straight germ's partner at `chord`, met `at`th.
     fn met(at: usize, germ: Slot, partner: Slot, chord: f64) -> Met<f64> {
-        let reach = Reach {
+        let reach = PartnerDistance {
             arm: GermArm::Ahead,
             chord,
             turn: None,
@@ -8335,7 +8345,7 @@ mod first_pair_rows {
             .map(|(at, reach, m)| {
                 (
                     at,
-                    Reach {
+                    PartnerDistance {
                         turn: turn(1.0),
                         ..reach
                     },

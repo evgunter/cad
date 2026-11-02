@@ -6374,7 +6374,10 @@ fn fidelity<T: Decide>(
         Some(twin) => twin,
         None if sphere => match decide(
             "pcurve_fidelity_twin",
-            Margin::levered((p0.x - q0.x).cos(), arm_u.get()),
+            Margin::levered(
+                (p0.x - q0.x).cos(),
+                geom_core::Lever::unsourced(arm_u.get()),
+            ),
             band,
         ) {
             Ok(Sign::Negative) => true,
@@ -6499,7 +6502,10 @@ fn run_focal_section_checks<T: Decide>(
     let arm = azimuth_lever(surface, v_sup);
     match decide(
         "pcurve_focal_section_sense",
-        Margin::levered(image.sense.abs() - T::one(), arm),
+        Margin::levered(
+            image.sense.abs() - T::one(),
+            geom_core::Lever::unsourced(arm),
+        ),
         band,
     )
     .map_err(esc(PcurveCheck::ImageIdentity))?
@@ -6513,7 +6519,10 @@ fn run_focal_section_checks<T: Decide>(
     }
     match decide(
         "pcurve_focal_section_beta",
-        Margin::levered(T::one() - image.beta.abs(), arm),
+        Margin::levered(
+            T::one() - image.beta.abs(),
+            geom_core::Lever::unsourced(arm),
+        ),
         band,
     )
     .map_err(esc(PcurveCheck::ImageIdentity))?
@@ -6528,7 +6537,7 @@ fn run_focal_section_checks<T: Decide>(
     if let Some(r) = tube {
         match decide(
             "pcurve_focal_section_tube_rate",
-            Margin::levered(image.vl.abs() - T::one(), r),
+            Margin::levered(image.vl.abs() - T::one(), geom_core::Lever::unsourced(r)),
             band,
         )
         .map_err(esc(PcurveCheck::ImageIdentity))?
@@ -6877,7 +6886,10 @@ fn run_spiric_checks<T: Decide>(
             let residue = sense.abs() - T::one();
             match decide(
                 "pcurve_spiric_sense",
-                Margin::levered(residue, azimuth_lever(surface, reach)),
+                Margin::levered(
+                    residue,
+                    geom_core::Lever::unsourced(azimuth_lever(surface, reach)),
+                ),
                 band,
             )
             .map_err(esc(PcurveCheck::ImageIdentity))?
@@ -6933,7 +6945,10 @@ fn run_spiric_checks<T: Decide>(
                 ("pcurve_spiric_chart_center", Margin::norm3(d_center)),
                 ("pcurve_spiric_chart_major", Margin::of(s_major - r_major)),
                 ("pcurve_spiric_chart_minor", Margin::of(s_minor - r_minor)),
-                ("pcurve_spiric_chart_tilt", Margin::levered(sin_tilt, arm)),
+                (
+                    "pcurve_spiric_chart_tilt",
+                    Margin::levered(sin_tilt, geom_core::Lever::unsourced(arm)),
+                ),
             ];
             // Read as an identity ladder (`crate::ladder`): a gate
             // decided apart answers past an earlier in-band one.
@@ -9829,7 +9844,7 @@ fn derive_class<T: Decide>(
                     let at_mid = radial(form.a * c_m + form.b * s_m);
                     let toward = |along: Vec3<T>| match decide(
                         "pcurve_sphere_chart_meridian_frame",
-                        Margin::levered(d_hat.dot(along), radius),
+                        Margin::levered(d_hat.dot(along), geom_core::Lever::unsourced(radius)),
                         band,
                     ) {
                         Ok(Sign::Negative) => Some(true),
@@ -10436,7 +10451,10 @@ fn torus_oblique_circle<T: Decide>(
         ("pcurve_torus_villarceau_plane", Margin::of(n.dot(w))),
         (
             "pcurve_torus_villarceau_tilt",
-            Margin::levered(n.cross(axis).norm() - r / big, big),
+            Margin::levered(
+                n.cross(axis).norm() - r / big,
+                geom_core::Lever::unsourced(big),
+            ),
         ),
         ("pcurve_torus_villarceau_radius", Margin::of(radius - big)),
     ];
@@ -10516,9 +10534,19 @@ fn torus_oblique_circle<T: Decide>(
     let reread = |cause| incidence::class_escalated(shown, cause);
     let unit_sign = |name, along: Vec3<T>| -> Result<T, PcurveCertifyError> {
         let part = tangent.dot(along);
-        geom_core::k_stats::decide_positive(name, Margin::levered(part.abs(), big), band)
-            .map_err(reread)?;
-        match decide(name, Margin::levered(part, big), band).map_err(reread)? {
+        geom_core::k_stats::decide_positive(
+            name,
+            Margin::levered(part.abs(), geom_core::Lever::unsourced(big)),
+            band,
+        )
+        .map_err(reread)?;
+        match decide(
+            name,
+            Margin::levered(part, geom_core::Lever::unsourced(big)),
+            band,
+        )
+        .map_err(reread)?
+        {
             Sign::Positive => Ok(T::one()),
             Sign::Negative => Ok(T::zero() - T::one()),
             Sign::Zero => unreachable!("a part whose magnitude decided positive decides a sign"),
@@ -10906,7 +10934,10 @@ fn spiric_chart_pcurve<T: Decide>(
                 // (`Margin::levered`, whose docs name this exact case)
                 // — not `over_lever`, which divides a measure by a
                 // lever and belongs to an oriented area over a radius.
-                Margin::levered(chart_axis.dot(axis), chart_major),
+                Margin::levered(
+                    chart_axis.dot(axis),
+                    geom_core::Lever::unsourced(chart_major),
+                ),
                 band,
             )
             .map_err(|cause| {

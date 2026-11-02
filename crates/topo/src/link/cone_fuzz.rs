@@ -97,7 +97,7 @@ use super::*;
 use crate::boolean::SideCode;
 use crate::boolean::sectors::BoolSector;
 use crate::boolean::vtxfac::{Partner, cone_classes};
-use crate::bound_side::Reach;
+use crate::bound_side::BoundSupport;
 use crate::entity::HalfEdgeKey;
 use geom_brep::OutwardNormal;
 use geom_core::Tol;
@@ -416,11 +416,11 @@ fn bool_sectors(cone: &[Sector]) -> Vec<BoolSector<f64>> {
                 he: HalfEdgeKey::from(key(k as u64 + 1)),
                 start: v(s.start_far).normalize(),
                 end: v(s.end_far).normalize(),
-                start_reach: Reach::Chord {
+                start_reach: BoundSupport::Chord {
                     base: o,
                     far: o + v(s.start_far),
                 },
-                end_reach: Reach::Chord {
+                end_reach: BoundSupport::Chord {
                     base: o,
                     far: o + v(s.end_far),
                 },
@@ -662,8 +662,8 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
         he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
         start: Vec3::new(0.0, 0.0, 1.0),
         end: d.normalize(),
-        start_reach: Reach::straight_bisector(1.0),
-        end_reach: Reach::Chord {
+        start_reach: BoundSupport::straight_bisector(1.0),
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + d,
         },
@@ -701,7 +701,7 @@ fn read_probe(partners: &[Vec<BoolSector<f64>>], far: [f64; 3], band: Band) -> R
 /// where it touches one (`touched`: its outward normal and the side the
 /// edge was read on against it), as the boolean reads the edge
 /// ([`cone_classes`]) and as its cone reads the edge's point at its
-/// reach ([`Reach::point`]).
+/// reach ([`BoundSupport::point`]).
 fn read_edge(
     partners: &[(Vec<BoolSector<f64>>, Point3<f64>)],
     probe: BoolSector<f64>,
@@ -1453,7 +1453,7 @@ enum Bounds {
 }
 
 /// A curved edge's bend, which the cone does not read: its departure
-/// tangent at its extent is its ray ([`Reach::point`]).
+/// tangent at its extent is its ray ([`BoundSupport::point`]).
 fn flat_bend() -> geom_brep::ConicBend<f64> {
     geom_brep::ConicBend {
         curvature: Vec3::new(0.0, 0.0, 0.0),
@@ -1463,33 +1463,33 @@ fn flat_bend() -> geom_brep::ConicBend<f64> {
 
 /// The reach a far point `f` (off the origin) is drawn with, as a
 /// corner's bound (`bound`) or a bisector between two of its pieces.
-fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, Reach<f64>) {
+fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, BoundSupport<f64>) {
     let o = Point3::new(0.0, 0.0, 0.0);
     let v = Vec3::new(f[0], f[1], f[2]);
     let reach = match bound {
-        Some(Bounds::Chord) => Reach::Chord {
+        Some(Bounds::Chord) => BoundSupport::Chord {
             base: o,
             far: o + v,
         },
-        Some(Bounds::Conic) => Reach::Conic {
+        Some(Bounds::Conic) => BoundSupport::Conic {
             extent: v.norm(),
             bend: flat_bend(),
         },
-        None => Reach::straight_bisector(v.norm()),
+        None => BoundSupport::straight_bisector(v.norm()),
     };
     (v.normalize(), reach)
 }
 
 /// The point a reach fixes, as the oracle reads it: a line edge's far
 /// point, and any other bound's direction out to its length, spelled
-/// here apart from the reader's [`Reach::point`] (the same `f64`
+/// here apart from the reader's [`BoundSupport::point`] (the same `f64`
 /// operations, so the same numbers where that reading is right).
-fn fixed(dir: Vec3<f64>, reach: Reach<f64>) -> [f64; 3] {
+fn fixed(dir: Vec3<f64>, reach: BoundSupport<f64>) -> [f64; 3] {
     let x = match reach {
-        Reach::Chord { far, .. } => far,
-        Reach::Conic { extent: l, .. } | Reach::Bisector { arm: l, .. } | Reach::Extent(l) => {
-            Point3::new(0.0, 0.0, 0.0) + dir.normalize() * l
-        }
+        BoundSupport::Chord { far, .. } => far,
+        BoundSupport::Conic { extent: l, .. }
+        | BoundSupport::Bisector { arm: l, .. }
+        | BoundSupport::Extent(l) => Point3::new(0.0, 0.0, 0.0) + dir.normalize() * l,
     };
     [x.x, x.y, x.z]
 }
@@ -1911,8 +1911,8 @@ fn check_offset(
         .into_iter()
         .map(|mut s| {
             for r in [&mut s.start_reach, &mut s.end_reach] {
-                if let Reach::Chord { far, .. } = *r {
-                    *r = Reach::Chord {
+                if let BoundSupport::Chord { far, .. } = *r {
+                    *r = BoundSupport::Chord {
                         base: apex,
                         far: apex + (far - Point3::new(0.0, 0.0, 0.0)),
                     };
@@ -2091,7 +2091,7 @@ enum PlaneAs {
     /// A sector the line runs inside (`LineSheet::Across`).
     Across,
     /// Its two halves parted by a bisector on the line
-    /// (`LineSheet::Start`/`End`, `Reach::Bisector`): a folded face.
+    /// (`LineSheet::Start`/`End`, `BoundSupport::Bisector`): a folded face.
     Halves,
     /// A face the vertex lies on, its whole plane, `q`'s side of it given
     /// as the touch reads it (`Cone::reads_given`): a held face.
@@ -2286,8 +2286,8 @@ fn line_material(rng: &mut Rng) -> Option<LineMaterial> {
     if plane_as == Some(PlaneAs::Halves) {
         let k = secs.len() - 2;
         let len = dot(l, l).sqrt();
-        secs[k].start_reach = Reach::straight_bisector(len);
-        secs[k + 1].end_reach = Reach::straight_bisector(len);
+        secs[k].start_reach = BoundSupport::straight_bisector(len);
+        secs[k + 1].end_reach = BoundSupport::straight_bisector(len);
     }
     Some(LineMaterial {
         secs,

@@ -1116,7 +1116,7 @@ fn constant_pairing<T: Decide>(
             let rel = *o2 - *o1;
             zero(
                 AT_REST_QUIET_AXES_PARALLEL,
-                Margin::levered(a1.cross(*a2).norm(), extent),
+                Margin::levered(a1.cross(*a2).norm(), geom_core::Lever::unsourced(extent)),
             ) && zero(
                 AT_REST_QUIET_CENTRED,
                 Margin::of((rel - *a1 * rel.dot(*a1)).norm()),

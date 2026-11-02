@@ -4478,7 +4478,7 @@ fn edge_in_curved_face<T: Decide>(
     for sheet in [w.own, w.next] {
         match decide(
             "pm_census_ef_curved_wall_side",
-            Margin::levered(sheet.dot(floor), w.arm),
+            Margin::levered(sheet.dot(floor), geom_core::Lever::unsourced(w.arm)),
             band,
         ) {
             Ok(Sign::Positive | Sign::Negative) => {}
@@ -5157,7 +5157,10 @@ fn parallel_reading<T: Decide>(
     let (a, b) = (a.span(), b.span());
     gap_is_zero(
         "pm_census_ee_parallel",
-        Margin::levered(a.dir.cross(b.dir).norm(), a.len().min(b.len())),
+        Margin::levered(
+            a.dir.cross(b.dir).norm(),
+            geom_core::Lever::unsourced(a.len().min(b.len())),
+        ),
         band,
         errors,
     )
@@ -9068,7 +9071,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     // see (a pair is theirs only when BOTH faces are wholly
     // line-bounded, which is what puts a whole boundary in the
     // snapshot — the module docs carry the argument).
-    struct Reach<T: Real> {
+    struct ProximityFace<T: Real> {
         face: crate::entity::FaceKey,
         solid: crate::entity::SolidKey,
         /// The sound reach box (`reach_box` docs), or `None` for a
@@ -9081,7 +9084,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         /// sweeps hold this face's whole boundary.
         line_bounded: bool,
     }
-    let mut reaches: Vec<Reach<T>> = Vec::new();
+    let mut reaches: Vec<ProximityFace<T>> = Vec::new();
     let planar_keys: Vec<FaceKey> = geo.faces.iter().map(|f| f.key).collect();
     for (&f, planar) in geo
         .curved_faces
@@ -9141,7 +9144,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         // faces × vertices, the arena-scan shape of PERF-PLAN §2.1).
         let verts = face_vertices(body, f);
         let boxed = reach_box(f);
-        reaches.push(Reach {
+        reaches.push(ProximityFace {
             face: f,
             solid,
             boxed,
@@ -9169,7 +9172,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     //
     // The narrowing is a narrowing on every body that can reach here,
     // and that rests on a tier-1 fact rather than on the shape of the
-    // test: `Reach::verts` is `{ v : vertex_faces[v] ∋ f }`, and the
+    // test: `ProximityFace::verts` is `{ v : vertex_faces[v] ∋ f }`, and the
     // old test read the solid of `vertex_faces[v]`'s smallest member,
     // so the new test could be true where the old was false ONLY for a
     // vertex incident to faces of two different solids — a vertex

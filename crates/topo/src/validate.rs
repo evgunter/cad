@@ -513,7 +513,11 @@ pub(crate) fn resolved<T: Decide>(
     band: Band,
 ) -> Result<(), geom_core::MarginDiag> {
     let k = T::from_f64(band.escalate() / band.zero());
-    match decide_reported(name, Margin::levered(k, rounding), band) {
+    match decide_reported(
+        name,
+        Margin::levered(k, geom_core::Lever::unsourced(rounding)),
+        band,
+    ) {
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
         }) => Ok(()),
@@ -569,7 +573,12 @@ pub(crate) fn decide_levered<T: Decide>(
     lever: geom_brep::LeverBounds<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    decide_at_lever(names, lever, |arm| Margin::levered(x, arm), band)
+    decide_at_lever(
+        names,
+        lever,
+        |arm| Margin::levered(x, geom_core::Lever::unsourced(arm)),
+        band,
+    )
 }
 
 /// The reading `margin` gives at a length `lever` sets: decided once

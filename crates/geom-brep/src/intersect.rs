@@ -522,28 +522,34 @@ pub fn route_pose<T: Decide>(
     band: Band,
 ) -> Result<PairRoute, SectionError> {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
-    let extent = [a, b].into_iter().fold(T::zero(), |lever, s| match *s {
-        Surface::Cone { apex: anchor, .. }
-        | Surface::Sphere { center: anchor, .. }
-        | Surface::Torus { center: anchor, .. } => lever.max(reach.lever_from(anchor)),
-        Surface::Plane { .. }
-        | Surface::Cylinder { .. }
-        | Surface::Nurbs(_)
-        | Surface::Approx(_) => lever,
-    });
+    let extent = || {
+        [a, b]
+            .into_iter()
+            .filter_map(|s| match *s {
+                Surface::Cone { apex: anchor, .. }
+                | Surface::Sphere { center: anchor, .. }
+                | Surface::Torus { center: anchor, .. } => Some(reach.lever_from(anchor)),
+                Surface::Plane { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Nurbs(_)
+                | Surface::Approx(_) => None,
+            })
+            .reduce(geom_core::Lever::max)
+            .unwrap_or_else(|| unreachable!("a pair with a cone or a torus has an anchor"))
+    };
     let (ka, kb) = (a.kind(), b.kind());
     let arm = route(ka, kb);
     let verdict = match (ka, kb) {
         (Plane, Cone) => plane_cone_section(a, b, reach, band).map(drop),
         (Cone, Plane) => plane_cone_section(b, a, reach, band).map(drop),
-        (Plane, Torus) => plane_torus_section(a, b, extent, band).map(drop),
-        (Torus, Plane) => plane_torus_section(b, a, extent, band).map(drop),
-        (Cone, Cylinder) => cone_cylinder_section(a, b, extent, band).map(drop),
+        (Plane, Torus) => plane_torus_section(a, b, extent(), band).map(drop),
+        (Torus, Plane) => plane_torus_section(b, a, extent(), band).map(drop),
+        (Cone, Cylinder) => cone_cylinder_section(a, b, extent(), band).map(drop),
         (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
         (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) => {
             crate::pair_section(a, b, None, None, band).map(drop)
         }
-        (Cylinder, Cone) => cone_cylinder_section(b, a, extent, band).map(drop),
+        (Cylinder, Cone) => cone_cylinder_section(b, a, extent(), band).map(drop),
         (Cylinder, Sphere) | (Sphere, Cylinder) => {
             match crate::CylinderSpherePose::decide(a, b, band) {
                 Some(pose) => pose.map(drop).map_err(SectionError::from),
@@ -975,8 +981,12 @@ pub fn plane_cylinder_section_read<T: Decide>(
     let sin_norm = sin_vec.norm();
     let t_star = (q - o).dot(n) / c;
     let center = o + a * t_star;
-    let section = match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
-        .map_err(SectionError::Escalated)?
+    let section = match decide(
+        "pc_rim_alignment",
+        Margin::levered(sin_norm, geom_core::Lever::unsourced(r)),
+        band,
+    )
+    .map_err(SectionError::Escalated)?
     {
         Sign::Zero => PlaneCylinderSection::Rim(Curve3::Circle {
             center,
@@ -1108,7 +1118,7 @@ pub(crate) struct RuledFrame<T: Real> {
     pub(crate) o: Point3<T>,
     pub(crate) c: T,
     pub(crate) gap_signed: T,
-    pub(crate) lever: T,
+    pub(crate) lever: geom_core::Lever<T>,
 }
 
 /// [`RuledFrame`] of the pair at `reach`.
@@ -1122,7 +1132,7 @@ pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) ->
     // there (`geom_brep::extent`'s module docs).
     let hinge = o - n * gap_signed;
     let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
-    let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
+    let lever = reach.ruled_lever((o, -(gap_signed * c)), hinge, (n, a), (c, cos));
     RuledFrame {
         o,
         c,
@@ -1305,7 +1315,10 @@ pub fn plane_sphere_section<T: Decide>(
     let seam_cand = n.cross(sph_u);
     let u_ref = match decide(
         "ps_frame_seam",
-        Margin::levered(seam_cand.norm() - T::from_f64(0.5), r),
+        Margin::levered(
+            seam_cand.norm() - T::from_f64(0.5),
+            geom_core::Lever::unsourced(r),
+        ),
         band,
     ) {
         Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
@@ -1518,7 +1531,10 @@ fn ss_frame_seam<T: Decide>(
     let seam_cand = n.cross(u_ref);
     match decide(
         "ss_frame_seam",
-        Margin::levered(seam_cand.norm() - T::from_f64(0.5), r),
+        Margin::levered(
+            seam_cand.norm() - T::from_f64(0.5),
+            geom_core::Lever::unsourced(r),
+        ),
         band,
     ) {
         Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
@@ -1707,7 +1723,7 @@ pub(crate) fn parallel_swing<T: Real>(
 ) -> T {
     let from = |this: (Point3<T>, Vec3<T>), other: (Point3<T>, Vec3<T>)| {
         let (foot, lever) = reach.foot_lever(this);
-        let (dmin, dmax) = separation_range((foot, this.1), other, lever);
+        let (dmin, dmax) = separation_range((foot, this.1), other, lever.length());
         (dmax - d).abs().max((d - dmin).abs())
     };
     from(line1, line2).min(from(line2, line1))
@@ -2242,11 +2258,11 @@ pub fn plane_cone_section<T: Decide>(
             ),
             Sign::Zero => (
                 "pn_apex_tangent_reach",
-                Margin::levered(T::one() / steep, size),
+                Margin::levered(T::one() / steep, geom_core::Lever::unsourced(size)),
             ),
             Sign::Negative => (
                 "pn_apex_point_reach",
-                Margin::levered(T::one() / discr.abs(), size),
+                Margin::levered(T::one() / discr.abs(), geom_core::Lever::unsourced(size)),
             ),
         };
         if decide_magnitude(name, bound, band).map_err(SectionError::Escalated)? == Magnitude::Zero
@@ -2306,7 +2322,9 @@ pub fn plane_cone_section<T: Decide>(
     // `t = −δ/c` from the apex (`c` is ±1 within the band here).
     let t = (T::zero() - apex_gap) / c;
     let rim_r = t.abs() * (sin_a / cos_a);
-    let arm = rim_r.max(extent);
+    let arm = ExtentBall::of_circle(apex + a * t, rim_r)
+        .lever()
+        .max(extent);
     match decide("pn_axis_normal", Margin::levered(s, arm), band)
         .map_err(SectionError::Escalated)?
     {
@@ -2449,8 +2467,8 @@ fn pair_bound<T: Real>(
 ) -> Margin<T> {
     let zero = T::zero();
     let size = gap.abs() + gap_err;
-    let far = Margin::levered(T::one() / d, size).value();
-    let near = Margin::levered(T::one() / m, size).value();
+    let far = Margin::levered(T::one() / d, geom_core::Lever::unsourced(size)).value();
+    let near = Margin::levered(T::one() / m, geom_core::Lever::unsourced(size)).value();
     let (lo, hi) = reach.range_along(apex, a);
     let rho = lo.max(zero - hi).max(zero) / cos_a;
     // `δ·c < 0` puts the near start on `+a`; read only where both signs
@@ -2475,7 +2493,7 @@ fn pair_bound<T: Real>(
     let lean = T::from_f64(2.0) * s * size / (sin_a * rho.max(floor));
     let offset = Margin::levered(
         T::from_f64(2.0) / (sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt()),
-        size,
+        geom_core::Lever::unsourced(size),
     )
     .value();
     // The seam's tilt `τ/u` (step 5): `6` where `width ≥ 16u`, else whole.
@@ -2488,7 +2506,7 @@ fn pair_bound<T: Real>(
         + T::from_f64(4.0);
     let azimuth = Margin::levered(
         T::from_f64(0.5 * f64::EPSILON) * turn,
-        lo.abs().max(hi.abs()) / cos_a,
+        geom_core::Lever::unsourced(lo.abs().max(hi.abs()) / cos_a),
     )
     .value();
     Margin::of(far.min(start + offset) + azimuth)
@@ -2620,7 +2638,7 @@ pub enum PlaneTorusSection<T: Real> {
 pub fn plane_torus_section<T: Decide>(
     plane: &impl SectionPlane<T>,
     torus: &Surface<T>,
-    extent: T,
+    extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<PlaneTorusSection<T>, SectionError> {
     let wrong = || SectionError::WrongLane {
@@ -2723,7 +2741,7 @@ pub fn plane_torus_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            let tilt = Margin::levered(a.cross(n).norm(), big_r + r);
+            let tilt = Margin::levered(a.cross(n).norm(), geom_core::Lever::unsourced(big_r + r));
             match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {
                     // The plane is perpendicular to the axis: the
@@ -3012,7 +3030,7 @@ pub fn cone_cylinder_section<T: Decide>(
     // cross-section, `R·(1 − cos θ) ≤ R·sin²θ`. The swing is that range's
     // reach from `d`, plus the turn.
     let d = (apex - o).reject_from(b).norm();
-    let (near, far) = separation_range((apex, a), (o, b), above);
+    let (near, far) = separation_range((apex, a), (o, b), above.length());
     let swing = (far - d).abs().max((d - near).abs()) + big_r * a.cross(b).norm().powi(2);
     match decide_across(["coc_coaxial", "coc_coaxial_floor"], d, swing, band)
         .map_err(SectionError::Escalated)?
@@ -3034,8 +3052,12 @@ pub fn cone_cylinder_section<T: Decide>(
             // instead: inside it the position error is O(ε·extent),
             // which is what makes the zero-residual claim above a claim
             // about the arm and not about the fixture.
-            match decide("coc_station_reach", Margin::of(below - station.abs()), band)
-                .map_err(SectionError::Escalated)?
+            match decide(
+                "coc_station_reach",
+                Margin::of(below.length() - station.abs()),
+                band,
+            )
+            .map_err(SectionError::Escalated)?
             {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {

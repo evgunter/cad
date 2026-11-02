@@ -310,7 +310,10 @@ impl<T: SolveScalar> Chart<T> {
         };
         let sign = geom_core::k_stats::decide(
             "mate_chart_pole",
-            Margin::levered(chord, T::from_computed(arm.get())),
+            Margin::levered(
+                chord,
+                geom_core::Lever::unsourced(T::from_computed(arm.get())),
+            ),
             band,
         )
         .map_err(|_| backwards())?;
@@ -500,7 +503,10 @@ impl<T: SolveScalar> Chart<T> {
         matches!(
             geom_core::k_stats::decide(
                 "mate_chart_slides_span",
-                Margin::levered(comp, T::from_computed(self.arm.get())),
+                Margin::levered(
+                    comp,
+                    geom_core::Lever::unsourced(T::from_computed(self.arm.get()))
+                ),
                 self.band,
             ),
             Ok(Sign::Positive | Sign::Negative)

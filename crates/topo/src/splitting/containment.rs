@@ -712,7 +712,7 @@ fn walk_schedule<T: Decide>(
             // SCHEDULE triples are bare numbers, so the honest margin is
             // the in-plane displacement the probe direction commands at
             // the loop's own scale.
-            let arm = Margin::levered(d_raw.norm() / r.norm(), extent);
+            let arm = Margin::levered(d_raw.norm() / r.norm(), geom_core::Lever::unsourced(extent));
             match decide(arm_row, arm, band) {
                 Ok(Sign::Positive) => {}
                 // Within the band of the normal: no ray in the plane.
@@ -1178,8 +1178,16 @@ pub(crate) fn arc_trim<T: Decide>(
 ) -> Result<Sign, Indeterminate> {
     let [a, b] = ends;
     let at = [
-        decide(rows.end, Margin::levered((p - a).norm(), lever), band),
-        decide(rows.end, Margin::levered((p - b).norm(), lever), band),
+        decide(
+            rows.end,
+            Margin::levered((p - a).norm(), geom_core::Lever::unsourced(lever)),
+            band,
+        ),
+        decide(
+            rows.end,
+            Margin::levered((p - b).norm(), geom_core::Lever::unsourced(lever)),
+            band,
+        ),
     ];
     if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
         return Ok(Sign::Zero);
@@ -1189,7 +1197,10 @@ pub(crate) fn arc_trim<T: Decide>(
     }
     decide(
         rows.trim,
-        Margin::levered(arc_trim_margin(p, a, apex, anti), lever),
+        Margin::levered(
+            arc_trim_margin(p, a, apex, anti),
+            geom_core::Lever::unsourced(lever),
+        ),
         band,
     )
 }
@@ -2030,12 +2041,14 @@ fn certify_plane<T: Decide>(
     let steps = cycle_steps(body, first);
     let origin = steps.first().ok_or_else(corrupt)?.point;
     let (_, reach) = loop_reach(body, r#loop)?;
-    let unit = Margin::levered(normal.norm() - T::one(), reach);
+    let unit = Margin::levered(normal.norm() - T::one(), geom_core::Lever::unsourced(reach));
     if decide("point_in_loop_normal", unit, band).map_err(escalate)? != Sign::Zero {
         return Err(off_plane(OffPlaneCause::NormalNotUnit));
     }
     let off = |p: Point3<T>| Margin::of((p - origin).dot(normal));
-    let tilt = |axis: Vec3<T>, arm: T| Margin::levered(axis.cross(normal).norm(), arm);
+    let tilt = |axis: Vec3<T>, arm: T| {
+        Margin::levered(axis.cross(normal).norm(), geom_core::Lever::unsourced(arm))
+    };
     for step in &steps {
         let mut margins = vec![off(step.point)];
         match step.curve.map(|c| c.carrier()) {
@@ -2251,7 +2264,10 @@ fn conic_crossings<T: Decide>(
     // conic's smaller semi-axis it is a length (exact for a circle).
     match decide(
         "point_in_arc_loop_conic_disc",
-        Margin::levered(disc * T::from_f64(0.5), k.lever),
+        Margin::levered(
+            disc * T::from_f64(0.5),
+            geom_core::Lever::unsourced(k.lever),
+        ),
         band,
     )? {
         Sign::Positive => {}
@@ -2963,7 +2979,11 @@ mod tests {
         };
         let lever = a.min(b);
         let gap = T::tau() - (t1 - t0);
-        let low = decide_reported(rows.turn, Margin::levered(gap, lever), band);
+        let low = decide_reported(
+            rows.turn,
+            Margin::levered(gap, geom_core::Lever::unsourced(lever)),
+            band,
+        );
         if let Ok(Decided {
             sign: Sign::Negative,
             ..
@@ -2978,7 +2998,11 @@ mod tests {
             && let Ok(Decided {
                 sign: Sign::Negative,
                 ..
-            }) = decide_reported(rows.turn, Margin::levered(gap, speed), band)
+            }) = decide_reported(
+                rows.turn,
+                Margin::levered(gap, geom_core::Lever::unsourced(speed)),
+                band,
+            )
         {
             return SpanRead::Escalated(match low {
                 Err(_) => Escalation::Margin,

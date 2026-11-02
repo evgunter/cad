@@ -48,7 +48,7 @@ use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::refusal_routes::RAY_COLLINEAR;
 use super::sectors::{
-    BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, parallel_same,
+    BoolSector, BoundSupport, Flank, PairRecord, crossing_flank, pair_codes, parallel_same,
 };
 use super::tables::{
     TableIiVerdict, eq15_3_lump, kept_copy, resolve_verdict, table_ii, table_iii_rule,
@@ -239,7 +239,7 @@ fn unglued_tilt<T: Decide>(
     };
     let tilted = decide(
         "bool_plane_parallel",
-        Margin::levered(n1.cross(*n2).norm(), reach),
+        Margin::levered(n1.cross(*n2).norm(), geom_core::Lever::unsourced(reach)),
         band,
     );
     if !matches!(tilted, Ok(Sign::Positive)) {
@@ -262,7 +262,7 @@ fn unglued_tilt<T: Decide>(
 /// bound's base, or else its orbit half-edge's start.
 fn corner_of<T: Decide>(body: &Body<T>, s: &BoolSector<T>) -> geom_core::Point3<T> {
     match (s.start_reach, s.end_reach) {
-        (Reach::Chord { base, .. }, _) | (_, Reach::Chord { base, .. }) => base,
+        (BoundSupport::Chord { base, .. }, _) | (_, BoundSupport::Chord { base, .. }) => base,
         _ => body.resolve_vertex_point(
             proven(&body.half_edges, s.he, EntityId::HalfEdge).start,
             Proven,
@@ -722,8 +722,8 @@ pub(super) fn recl_edges<T: Decide>(
         start_holder: usize,
         real: bool,
         dir: geom_core::Vec3<T2>,
-        /// What lies behind the direction ([`Reach`]).
-        reach: Reach<T2>,
+        /// What lies behind the direction ([`BoundSupport`]).
+        reach: BoundSupport<T2>,
         /// The mentioning sector's arm, which its direction's readings
         /// are metered at.
         arm: T2,
@@ -1323,7 +1323,7 @@ fn place_germ(
 }
 
 /// A flanker's representative direction and the reach behind it.
-type Rep<T> = (Vec3<T>, Reach<T>);
+type Rep<T> = (Vec3<T>, BoundSupport<T>);
 
 /// A wedge's two flankers with their representatives.
 type Flanks<T> = [(usize, Rep<T>); 2];
@@ -1365,7 +1365,12 @@ impl<T: Decide> HeldFace<T> {
     /// face holding the line refuses as a partner along it does
     /// (`PierceDatum::curved_along`), so a face that holds a line is a
     /// plane.
-    fn holds(&self, axis: Vec3<T>, reach: Reach<T>, band: Band) -> Result<bool, BooleanError> {
+    fn holds(
+        &self,
+        axis: Vec3<T>,
+        reach: BoundSupport<T>,
+        band: Band,
+    ) -> Result<bool, BooleanError> {
         let on = self.datum.holds_line(axis, reach, band)?;
         match self.datum.curved_along(on) {
             Some(how) => Err(self.along(how)),
@@ -2139,7 +2144,7 @@ mod tests {
         use geom_core::Point3;
         let o = Point3::new(0.0, 0.0, 0.0);
         let v = |c: [f64; 3]| Vec3::from_array(c).normalize();
-        let chord = |d: Vec3<f64>| Reach::Chord {
+        let chord = |d: Vec3<f64>| BoundSupport::Chord {
             base: o,
             far: o + d * len,
         };
@@ -2360,7 +2365,7 @@ mod tests {
         let band = Band::linear_at(Tol::witness(), 1e-9).unwrap();
         let o = Point3::new(0.0, 0.0, 0.0);
         let v = |x: f64, y: f64, z: f64| Vec3::new(x, y, z);
-        let chord = |far: Vec3<f64>| Reach::Chord {
+        let chord = |far: Vec3<f64>| BoundSupport::Chord {
             base: o,
             far: o + far,
         };
@@ -2436,7 +2441,7 @@ mod tests {
             Vec3::new(1.0, 0.2, 0.0).normalize(),
             Vec3::new(1.0, 0.0, 0.2).normalize(),
         );
-        let chord = |d: Vec3<f64>| Reach::Chord {
+        let chord = |d: Vec3<f64>| BoundSupport::Chord {
             base: o,
             far: o + d,
         };
@@ -2494,12 +2499,12 @@ mod tests {
     /// crossed"; between keys In and Out it is a crossing.
     #[test]
     fn a_grazing_bisector_between_one_sided_keys_refuses() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Tol};
         let band = Band::linear(Tol::witness()).unwrap();
         let o = Point3::new(0.0, 0.0, 0.0);
-        let chord = |v: [f64; 3]| Reach::Chord {
+        let chord = |v: [f64; 3]| BoundSupport::Chord {
             base: o,
             far: Point3::from_array(v),
         };
@@ -2522,7 +2527,7 @@ mod tests {
             [
                 twin(
                     bis,
-                    Reach::straight_bisector(1.0),
+                    BoundSupport::straight_bisector(1.0),
                     Vec3::from_array(far_end).normalize(),
                     chord(far_end),
                 ),
@@ -2530,7 +2535,7 @@ mod tests {
                     Vec3::from_array(far_start).normalize(),
                     chord(far_start),
                     bis,
-                    Reach::straight_bisector(1.0),
+                    BoundSupport::straight_bisector(1.0),
                 ),
             ]
         };
@@ -2541,9 +2546,9 @@ mod tests {
             )),
             ..twin(
                 bis,
-                Reach::straight_bisector(1.0),
+                BoundSupport::straight_bisector(1.0),
                 bis,
-                Reach::straight_bisector(1.0),
+                BoundSupport::straight_bisector(1.0),
             )
         }];
         let one_sided = twins([1.0, 0.0, 0.5], [-1.0, 0.0, 0.5]);
@@ -2611,11 +2616,11 @@ mod tests {
             he: crate::entity::HalfEdgeKey::default(),
             start,
             end,
-            start_reach: Reach::Chord {
+            start_reach: BoundSupport::Chord {
                 base: o,
                 far: o + start,
             },
-            end_reach: Reach::Chord {
+            end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + end,
             },
@@ -2628,8 +2633,8 @@ mod tests {
         };
         let up = Vec3::new(0.0, 1.0, 0.0);
         let mut half_turn = [sector(z, ray(0.0), up), sector(ray(180.0), z, up)];
-        half_turn[0].start_reach = Reach::straight_bisector(1.0);
-        half_turn[1].end_reach = Reach::straight_bisector(1.0);
+        half_turn[0].start_reach = BoundSupport::straight_bisector(1.0);
+        half_turn[1].end_reach = BoundSupport::straight_bisector(1.0);
         let p = prism_z::<f64>(
             &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
             0.0,
@@ -2738,7 +2743,7 @@ mod tests {
     ///   either, and the refusal ends in the corner's lever alone.
     #[test]
     fn an_edge_edge_membership_tie_offers_a_declaration_only_where_one_settles_it() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         use crate::boolean::{BooleanDecision, Glue, GluedPair, GluedPairs};
         use crate::entity::FaceKey;
         use crate::test_support_fixtures::prism_z;
@@ -2760,11 +2765,11 @@ mod tests {
                 he: crate::entity::HalfEdgeKey::default(),
                 start,
                 end,
-                start_reach: Reach::Chord {
+                start_reach: BoundSupport::Chord {
                     base: o,
                     far: o + start * reach,
                 },
-                end_reach: Reach::Chord {
+                end_reach: BoundSupport::Chord {
                     base: o,
                     far: o + end * reach,
                 },
@@ -2935,7 +2940,7 @@ mod tests {
     /// the sense and go on to the membership.
     #[test]
     fn edge_event_mentions_are_grouped_at_their_corners_arm() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         use crate::boolean::{BooleanDecision, Glue, GluedPairs};
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Tol};
@@ -2951,11 +2956,11 @@ mod tests {
             he: crate::entity::HalfEdgeKey::default(),
             start,
             end,
-            start_reach: Reach::Chord {
+            start_reach: BoundSupport::Chord {
                 base: o,
                 far: o + start,
             },
-            end_reach: Reach::Chord {
+            end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + end,
             },
@@ -3033,7 +3038,7 @@ mod tests {
     /// alone places it.
     #[test]
     fn a_solid_with_an_edge_and_a_face_on_the_line_holds_the_half_turn_under_the_face() {
-        use super::super::sectors::{PierceLever, Reach};
+        use super::super::sectors::{BoundSupport, PierceLever};
         use super::super::vtxfac::PierceDatum;
         use crate::boolean::{BooleanDecision, Glue, GluedPairs};
         use geom_brep::OutwardNormal;
@@ -3047,11 +3052,11 @@ mod tests {
             he: crate::entity::HalfEdgeKey::default(),
             start,
             end,
-            start_reach: Reach::Chord {
+            start_reach: BoundSupport::Chord {
                 base: o,
                 far: o + start,
             },
-            end_reach: Reach::Chord {
+            end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + end,
             },
@@ -3193,20 +3198,20 @@ mod tests {
         ));
         let half = |start: Vec3<f64>, end: Vec3<f64>, bisector_first: bool| BoolSector {
             start_reach: if bisector_first {
-                Reach::straight_bisector(1.0)
+                BoundSupport::straight_bisector(1.0)
             } else {
-                Reach::Chord {
+                BoundSupport::Chord {
                     base: o,
                     far: o + start,
                 }
             },
             end_reach: if bisector_first {
-                Reach::Chord {
+                BoundSupport::Chord {
                     base: o,
                     far: o + end,
                 }
             } else {
-                Reach::straight_bisector(1.0)
+                BoundSupport::straight_bisector(1.0)
             },
             face: plane,
             ..sector(start, end, Vec3::new(0.0, 1.0, 0.0))
@@ -3345,7 +3350,7 @@ mod tests {
     /// insertion does not place apart (`CrossingsAlongAContactLine`).
     #[test]
     fn two_crossings_of_one_solids_boundary_along_a_contact_line_refuse_typed() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         use crate::boolean::{Glue, GluedPairs};
         use crate::test_support_fixtures::prism_z;
         use geom_brep::OutwardNormal;
@@ -3361,7 +3366,7 @@ mod tests {
         );
         let he = |body: &crate::body::Body<f64>| body.half_edges.keys().next().unwrap();
         let (ha, hb) = (he(&pa.body), he(&pb.body));
-        let chord = |d: Vec3<f64>| Reach::Chord {
+        let chord = |d: Vec3<f64>| BoundSupport::Chord {
             base: o,
             far: o + d,
         };
@@ -3390,11 +3395,11 @@ mod tests {
             sector(ha, z, at(lo), at(lo - 90.0), none),
             sector(ha, at(hi), z, at(hi + 90.0), none),
             BoolSector {
-                start_reach: Reach::straight_bisector(1.0),
+                start_reach: BoundSupport::straight_bisector(1.0),
                 ..sector(ha, z, x, y, top)
             },
             BoolSector {
-                end_reach: Reach::straight_bisector(1.0),
+                end_reach: BoundSupport::straight_bisector(1.0),
                 ..sector(ha, -x, z, y, top)
             },
         ];
@@ -3552,13 +3557,13 @@ mod tests {
     /// wrapping round the orbit, and none across a real edge.
     #[test]
     fn twins_lie_across_the_bisector_bounds() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         let sector = |start_bisector: bool, end_bisector: bool| {
             let reach = |bisector| {
                 if bisector {
-                    Reach::straight_bisector(1.0)
+                    BoundSupport::straight_bisector(1.0)
                 } else {
-                    Reach::Extent(1.0)
+                    BoundSupport::Extent(1.0)
                 }
             };
             BoolSector {

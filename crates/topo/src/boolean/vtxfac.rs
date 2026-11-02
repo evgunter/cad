@@ -167,7 +167,7 @@ impl<T: Decide> PierceDatum<T> {
     pub(super) fn side(
         self,
         dir: Vec3<T>,
-        reach: super::sectors::Reach<T>,
+        reach: super::sectors::BoundSupport<T>,
         band: Band,
     ) -> Result<SideCode, BooleanError> {
         let lever = self.lever.within(reach.length());
@@ -181,7 +181,7 @@ impl<T: Decide> PierceDatum<T> {
     pub(super) fn holds_line(
         self,
         dir: Vec3<T>,
-        reach: super::sectors::Reach<T>,
+        reach: super::sectors::BoundSupport<T>,
         band: Band,
     ) -> Result<bool, BooleanError> {
         Ok(self.side(dir, reach, band)? == SideCode::On)
@@ -284,7 +284,7 @@ pub(crate) type Touched<'a, T> = (FaceKey, OutwardNormal<T>, &'a [(HalfEdgeKey, 
 /// ([`crate::link::Cone::reads_given`]).
 ///
 /// Each edge of `edges` is read at its bound's point
-/// ([`crate::bound_side::Reach::point`]): in the material `In`, outside it
+/// ([`crate::bound_side::BoundSupport::point`]): in the material `In`, outside it
 /// `Out`, on one face or along the material's boundary `On`. Where some
 /// edge reads in band, no edge is classed: the inner `Err` names the
 /// first such edge and why the cone read nothing of it ([`EdgeInBand`]).
@@ -1515,7 +1515,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     let toward = |t: Vec3<T>| -> Result<Vec3<T>, BooleanError> {
         match decide(
             "bool_node_tangent_toward_axis",
-            Margin::levered(t.dot(run_axis), arm),
+            Margin::levered(t.dot(run_axis), geom_core::Lever::unsourced(arm)),
             band,
         ) {
             Ok(Sign::Positive) => Ok(t),
@@ -1540,7 +1540,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     // tangent turns to `e₂`'s that way.
     let e1_first = match decide(
         "bool_node_run_turn",
-        Margin::levered(g1.cross(g2).dot(normal), arm),
+        Margin::levered(g1.cross(g2).dot(normal), geom_core::Lever::unsourced(arm)),
         band,
     ) {
         Ok(Sign::Positive) => false,
@@ -1993,7 +1993,11 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
             (Some(_), _) => return Err(unbuilt(face, kind_of(piercing_body, face), true)),
         };
         let int = held_normal.cross(plan.normal);
-        match decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
+        match decide(
+            "bool_germ_line",
+            Margin::levered(int.norm(), geom_core::Lever::unsourced(arm)),
+            band,
+        ) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 return Err(BooleanError::ClassificationInvariant {
@@ -2214,7 +2218,7 @@ fn germ_order<T: Decide>(
         let (g, h) = (germs[i].0, germs[j].0);
         let side = Margin::levered(
             g.dir.cross(h.dir).dot(normal),
-            leaned_lever(arm, (g.lean, h.lean)),
+            geom_core::Lever::unsourced(leaned_lever(arm, (g.lean, h.lean))),
         );
         match crate::validate::decide_nonzero("bool_strut_side", side, band) {
             Ok(sign) => Ok(GermSide::Apart(sign)),
@@ -2258,7 +2262,10 @@ fn germ_order<T: Decide>(
     };
     let apart = |g: Leaned<T>, arm: T| -> Result<(), BooleanError> {
         let lever = leaned_lever(arm, (g.lean, from.lean));
-        let side = Margin::levered(g.dir.cross(from.dir).dot(normal), lever);
+        let side = Margin::levered(
+            g.dir.cross(from.dir).dot(normal),
+            geom_core::Lever::unsourced(lever),
+        );
         match crate::validate::decide_nonzero("bool_strut_side", side, band) {
             Err(diag) if super::sectors::direction_sense(g.dir, from.dir, arm, band)? => {
                 Err(refuse(diag))
@@ -2416,7 +2423,10 @@ fn unglued_flat_sector<T: Decide>(
     band: Band,
 ) -> BooleanError {
     let pair = (piercing, s.face, pierced_op, pierced);
-    let m = Margin::levered(s.tangent().vec().cross(n_pierced).norm(), s.span());
+    let m = Margin::levered(
+        s.tangent().vec().cross(n_pierced).norm(),
+        geom_core::Lever::unsourced(s.span()),
+    );
     let tilt = decide("bool_sector_coplanar", m, band);
     if !matches!(tilt, Ok(Sign::Zero)) {
         // The refusal names the one-carrier class the pair's senses make
@@ -2517,10 +2527,10 @@ fn unglued_flat_sector<T: Decide>(
 /// Delta 2's lumps.
 ///
 /// An edge entry's On is a real one for a LINE edge: its far vertex is
-/// within the band of the plane (`pierce_side`, `Reach::Chord`), so the
+/// within the band of the plane (`pierce_side`, `BoundSupport::Chord`), so the
 /// edge lies in it to the tolerance and the resolution is ε-true of it.
 /// A conic edge's On against a plane is as real: its height bound over
-/// the whole arc reads within the band (`Reach::Conic`,
+/// the whole arc reads within the band (`BoundSupport::Conic`,
 /// `crate::bound_side::Tie::descend`); a tie whose bend reads no side is lumped or
 /// refuses before this runs. Against a curved face it is a first-order
 /// tie
@@ -2634,7 +2644,7 @@ pub(super) fn pierce_germ_dir<T: Decide>(
     // pierced plane undecided, which a smaller tolerance decides.
     match decide(
         "bool_germ_line",
-        Margin::levered(int.norm(), s.span()),
+        Margin::levered(int.norm(), geom_core::Lever::unsourced(s.span())),
         band,
     ) {
         Ok(Sign::Positive) => {}
@@ -3019,7 +3029,7 @@ mod tests {
     /// the log under `enters_material`, the predicate that decided it.
     #[test]
     fn a_bisector_on_between_one_sided_bounds_refuses() {
-        use super::super::sectors::{NO_CURVATURE, Reach, pierce_side_reported};
+        use super::super::sectors::{BoundSupport, NO_CURVATURE, pierce_side_reported};
         use geom_brep::OutwardNormal;
         use geom_core::{ErrorTextReading, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
@@ -3029,7 +3039,7 @@ mod tests {
             let dir = Vec3::new((1.0 - rise * rise).sqrt(), 0.0, rise);
             let (side, on) = pierce_side_reported(
                 dir,
-                Reach::straight_bisector(1.0),
+                BoundSupport::straight_bisector(1.0),
                 up,
                 crate::bound_side::FaceBend::Plane,
                 NO_CURVATURE(),
@@ -3108,7 +3118,9 @@ mod tests {
     /// face, and the partner's side is unread (`Along`, which refuses).
     #[test]
     fn a_touching_partner_reads_its_tangent_arc_by_its_bend() {
-        use super::super::sectors::{BoolSector, FaceBend, NO_CURVATURE, PierceLever, Reach};
+        use super::super::sectors::{
+            BoolSector, BoundSupport, FaceBend, NO_CURVATURE, PierceLever,
+        };
         use geom_brep::ConicBend;
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Vec3};
@@ -3128,11 +3140,11 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: z,
             end: x,
-            start_reach: Reach::Chord {
+            start_reach: BoundSupport::Chord {
                 base: o,
                 far: o + z,
             },
-            end_reach: Reach::Conic { extent, bend },
+            end_reach: BoundSupport::Conic { extent, bend },
             face: crate::entity::FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 Vec3::new(0.0, -1.0, 0.0),
@@ -3173,7 +3185,7 @@ mod tests {
     /// with its lever and the tolerance its margin gives.
     #[test]
     fn an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided() {
-        use super::super::sectors::{BoolSector, Reach};
+        use super::super::sectors::{BoolSector, BoundSupport};
         use geom_brep::OutwardNormal;
         use geom_core::{KERNEL_DEFECT_ENDING, Point3, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
@@ -3184,11 +3196,11 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: x,
             end: y,
-            start_reach: Reach::Chord {
+            start_reach: BoundSupport::Chord {
                 base: o,
                 far: o + x,
             },
-            end_reach: Reach::Chord {
+            end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + y,
             },
@@ -3233,7 +3245,7 @@ mod tests {
     /// outward normal), each edge a unit chord, half-edges keyed from
     /// `first`.
     fn corner_about(axis: f64, first: u64) -> Vec<BoolSector<f64>> {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let o = Point3::new(0.0, 0.0, 0.0);
         let rays: Vec<Vec3<f64>> = [0.0f64, 120.0, 240.0]
@@ -3250,11 +3262,11 @@ mod tests {
                     he: HalfEdgeKey::from(key(first + k as u64)),
                     start: start.normalize(),
                     end: end.normalize(),
-                    start_reach: Reach::Chord {
+                    start_reach: BoundSupport::Chord {
                         base: o,
                         far: o + start,
                     },
-                    end_reach: Reach::Chord {
+                    end_reach: BoundSupport::Chord {
                         base: o,
                         far: o + end,
                     },
@@ -3281,7 +3293,7 @@ mod tests {
     /// does every edge beside it.
     #[test]
     fn a_vertexs_edges_are_read_through_one_cone() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         let band = Band::linear(Tol::witness()).unwrap();
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let o = Point3::new(0.0, 0.0, 0.0);
@@ -3289,8 +3301,8 @@ mod tests {
             he: HalfEdgeKey::from(key(n)),
             start: Vec3::new(0.0, 0.0, 1.0),
             end: d.normalize(),
-            start_reach: Reach::straight_bisector(1.0),
-            end_reach: Reach::Chord {
+            start_reach: BoundSupport::straight_bisector(1.0),
+            end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + d,
             },
@@ -3381,7 +3393,7 @@ mod tests {
     /// whose side the face's bend leaves undecided, escalates.
     #[test]
     fn a_partners_side_of_a_face_is_read_off_its_bounds() {
-        use super::super::sectors::{BoolSector, NO_CURVATURE, PierceLever, Reach};
+        use super::super::sectors::{BoolSector, BoundSupport, NO_CURVATURE, PierceLever};
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
@@ -3397,11 +3409,11 @@ mod tests {
                         he: HalfEdgeKey::default(),
                         start: b,
                         end: a,
-                        start_reach: Reach::Chord {
+                        start_reach: BoundSupport::Chord {
                             base: o,
                             far: o + b,
                         },
-                        end_reach: Reach::Chord {
+                        end_reach: BoundSupport::Chord {
                             base: o,
                             far: o + a,
                         },
@@ -3564,7 +3576,9 @@ mod tests {
     /// membership. A graze is a transition under one of its two tilts.
     #[test]
     fn a_pierce_germ_is_the_ray_its_transition_names() {
-        use super::super::sectors::{BoolSector, NO_CURVATURE, Reach, fold_on_bound, side_code};
+        use super::super::sectors::{
+            BoolSector, BoundSupport, NO_CURVATURE, fold_on_bound, side_code,
+        };
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
@@ -3577,7 +3591,7 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
                 Vec3::new(phi.cos(), phi.sin(), 0.0),
             );
-            let chord = |d: Vec3<f64>| Reach::Chord {
+            let chord = |d: Vec3<f64>| BoundSupport::Chord {
                 base: o,
                 far: o + d,
             };

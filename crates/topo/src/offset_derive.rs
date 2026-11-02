@@ -813,7 +813,11 @@ pub(crate) fn analytic_root<T: Decide>(
 ) -> Result<Result<T, CornerVerdict<T>>, Indeterminate> {
     let graze = |sine: T| -> Result<bool, Indeterminate> {
         Ok(matches!(
-            decide("offset_corner_graze", Margin::levered(sine, extent), band)?,
+            decide(
+                "offset_corner_graze",
+                Margin::levered(sine, geom_core::Lever::unsourced(extent)),
+                band
+            )?,
             Sign::Zero
         ))
     };
@@ -852,7 +856,7 @@ pub(crate) fn analytic_root<T: Decide>(
         if !matches!(
             decide(
                 "offset_corner_graze",
-                Margin::levered(sine.abs(), extent),
+                Margin::levered(sine.abs(), geom_core::Lever::unsourced(extent)),
                 band
             ),
             Ok(Sign::Positive)

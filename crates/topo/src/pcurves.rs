@@ -4881,7 +4881,7 @@ fn joint_has_room<T: Decide>(
     matches!(
         decide(
             "loop_windings_joint_room",
-            Margin::levered(quarter_chord, lever),
+            Margin::levered(quarter_chord, geom_core::Lever::unsourced(lever)),
             band,
         ),
         Ok(Sign::Positive)

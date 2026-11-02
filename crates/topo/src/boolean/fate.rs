@@ -519,8 +519,12 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
 
 /// The sign of `x`, a dimensionless reading levered at `arm`.
 fn sign<T: Decide>(x: T, arm: T, band: Band) -> Result<Sign, BooleanError> {
-    crate::validate::decide("bool_fate_corner", Margin::levered(x, arm), band)
-        .map_err(corner_refused)
+    crate::validate::decide(
+        "bool_fate_corner",
+        Margin::levered(x, geom_core::Lever::unsourced(arm)),
+        band,
+    )
+    .map_err(corner_refused)
 }
 
 /// The sign of `x`, a dimensionless reading levered at `arm`, known

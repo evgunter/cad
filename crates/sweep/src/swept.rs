@@ -896,7 +896,10 @@ pub(crate) fn cap_plane<T: Decide>(
     half_perimeter = half_perimeter * T::from_f64(0.5);
     let agrees = decide(
         "cap_plane_orientation",
-        Margin::levered(normal.dot(expected_outward), half_perimeter),
+        Margin::levered(
+            normal.dot(expected_outward),
+            geom_core::Lever::unsourced(half_perimeter),
+        ),
         band,
     )
     .map_err(CapPlaneError::Orientation)?;

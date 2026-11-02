@@ -134,7 +134,11 @@ fn old_range<T: Decide>(arc: Arc2<T>, range: Range, band: Band) -> Outcome {
         Range::Chord => (span * (tau - span) / tau, Sign::Positive),
         Range::FullTurn => (tau - span, Sign::Zero),
     };
-    match decide("arc_sweep_range", Margin::levered(ratio, arc.radius), band) {
+    match decide(
+        "arc_sweep_range",
+        Margin::levered(ratio, geom_core::Lever::unsourced(arc.radius)),
+        band,
+    ) {
         Err(cause) => Outcome::Escalated(cause.predicate),
         Ok(sign) if sign == accept => Outcome::Admitted,
         Ok(_) => Outcome::Refused,

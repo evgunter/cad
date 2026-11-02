@@ -611,7 +611,7 @@ fn perpendicular<T: SolveScalar>(
     Ok(
         match decide(
             "mate_axis_normal_perpendicular",
-            Margin::levered(cosine, lever),
+            Margin::levered(cosine, geom_core::Lever::unsourced(lever)),
             band,
         )? {
             Sign::Zero => None,

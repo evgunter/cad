@@ -761,7 +761,7 @@ pub fn rest_locus<T: Decide>(
     // The ball about the edge's middle at its reach from there encloses
     // it, and is no larger than the edge's own measure from that point.
     let mid = carrier.mid_point(t0, t1);
-    let edge = ExtentBall::new(mid, geom_brep::edge_reach_from(carrier, t0, t1, mid));
+    let edge = ExtentBall::of_edge_from(carrier, (t0, t1), mid);
     let parts: Vec<_> = core::iter::once(edge)
         .chain(on_a.iter().chain(&on_b).map(|&p| ExtentBall::point(p)))
         .collect();

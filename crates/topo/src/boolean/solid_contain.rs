@@ -1409,7 +1409,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         // metres.
         if zero(
             "bool_sphere_iso_meridian",
-            Margin::levered(n_c.dot(axis), r_c),
+            Margin::levered(n_c.dot(axis), geom_core::Lever::unsourced(r_c)),
         )? {
             // A meridian GREAT circle: centred at the sphere centre,
             // at the sphere's own radius.
@@ -1439,7 +1439,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             for pole in [axis, axis * (T::zero() - T::one())] {
                 match decide(
                     "bool_sphere_trim_pole_interior",
-                    Margin::levered(pole.dot(m_hat) - c_h, radius),
+                    Margin::levered(pole.dot(m_hat) - c_h, geom_core::Lever::unsourced(radius)),
                     band,
                 )
                 .map_err(escalate)?
@@ -1626,7 +1626,10 @@ fn latitude_after<T: Decide>(
 ) -> Result<bool, Indeterminate> {
     match decide(
         "bool_sphere_trim_latitude",
-        Margin::levered(latitude_sine(a, b, radius), radius),
+        Margin::levered(
+            latitude_sine(a, b, radius),
+            geom_core::Lever::unsourced(radius),
+        ),
         band,
     )? {
         Sign::Positive => Ok(true),
@@ -1698,7 +1701,10 @@ fn latitude_extremes<T: Decide>(
     if matches!(
         decide(
             "bool_sphere_trim_latitude",
-            Margin::levered(latitude_sine(lo, hi, radius), radius),
+            Margin::levered(
+                latitude_sine(lo, hi, radius),
+                geom_core::Lever::unsourced(radius)
+            ),
             band,
         )?,
         Sign::Zero
@@ -2464,7 +2470,7 @@ pub(super) fn line_wall_roots<T: Decide>(
     let two_r = T::from_f64(2.0) * radius;
     match decide(
         "bool_point_in_solid_denom",
-        Margin::levered(dp.norm(), span),
+        Margin::levered(dp.norm(), geom_core::Lever::unsourced(span)),
         band,
     )
     .map_err(|diag| WallRootFault {
@@ -3905,8 +3911,12 @@ fn carrier_roots<T: Decide>(
                     // A bound on the face's reach from its apex, never under
                     // it — the lever both margins below are metered by.
                     let v_ext = region.reach();
-                    if decide("bool_ray_cone_lead", Margin::levered(a2, v_ext), band)
-                        .map_err(escalate)?
+                    if decide(
+                        "bool_ray_cone_lead",
+                        Margin::levered(a2, geom_core::Lever::unsourced(v_ext)),
+                        band,
+                    )
+                    .map_err(escalate)?
                         == Sign::Zero
                     {
                         return Err(RayFault::Graze); // generator-parallel
@@ -4056,7 +4066,10 @@ fn root_outward<T: Decide>(
             Ok(oriented(
                 decide(
                     "bool_ray_cone_incidence",
-                    Margin::levered(d.dot(chart_normal(body, face, p)?), rho),
+                    Margin::levered(
+                        d.dot(chart_normal(body, face, p)?),
+                        geom_core::Lever::unsourced(rho),
+                    ),
                     band,
                 )
                 .map_err(escalate)?,
@@ -4078,7 +4091,10 @@ fn root_outward<T: Decide>(
         ) => Ok(oriented(
             decide(
                 "bool_ray_torus_incidence",
-                Margin::levered(d.dot(chart_normal(body, face, p)?), minor_radius),
+                Margin::levered(
+                    d.dot(chart_normal(body, face, p)?),
+                    geom_core::Lever::unsourced(minor_radius),
+                ),
                 band,
             )
             .map_err(escalate)?,
@@ -4133,7 +4149,7 @@ fn reach_margin<T: Decide>(
     let tilt = geom_brep::implicit_residual(surface, at).abs()
         / geom_brep::min_radius_of_curvature(surface, at);
     let incidence = d.dot(n).abs() / n.norm() + tilt + geom_core::rounding_charge(T::one());
-    let rise = Margin::levered(incidence, off).value();
+    let rise = Margin::levered(incidence, geom_core::Lever::unsourced(off)).value();
     let clearance = geom_brep::implicit_residual(surface, passage).abs();
     let origin = Point3::origin();
     let terms = m.at.abs()
@@ -4303,7 +4319,12 @@ pub(crate) fn ray_crossings<T: Decide>(
         // The cosine levered by the selection's reach: how far the ray
         // rises off the plane over every length at which it could meet
         // the face ([`selection_reach`]).
-        let outward = decide(rows.denom, Margin::levered(denom, reach), band).map_err(escalate)?;
+        let outward = decide(
+            rows.denom,
+            Margin::levered(denom, geom_core::Lever::unsourced(reach)),
+            band,
+        )
+        .map_err(escalate)?;
         if outward == Sign::Zero {
             // A ray parallel to the plane within the band rises off it
             // by at most the band's zero over the reach. The pre-pass
@@ -4614,7 +4635,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                 let centred = line_cone_quadratic(q, d, apex, axis, half_angle, About::Nearest);
                 if decide(
                     "bool_ray_cone_lead",
-                    Margin::levered(centred.coeffs[0], reach),
+                    Margin::levered(centred.coeffs[0], geom_core::Lever::unsourced(reach)),
                     band,
                 )
                 .map_err(escalate)?

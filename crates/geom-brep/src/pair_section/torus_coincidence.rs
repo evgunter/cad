@@ -95,13 +95,16 @@ impl<T: Real> TorusDisplacement<T> {
         let apart = a.center - b.center;
         let core = apart.norm()
             + (a.major_radius - b.major_radius).abs()
-            + Margin::levered(line_tilt(a.axis, b.axis), arm).value();
+            + Margin::levered(line_tilt(a.axis, b.axis), geom_core::Lever::unsourced(arm)).value();
         let tube = (a.minor_radius - b.minor_radius).abs();
         Self {
             data: [
                 (
                     TorusDatum::AxisTilt,
-                    Margin::levered(a.axis.cross(b.axis).norm(), arm),
+                    Margin::levered(
+                        a.axis.cross(b.axis).norm(),
+                        geom_core::Lever::unsourced(arm),
+                    ),
                 ),
                 (TorusDatum::Centre, Margin::norm3(apart)),
                 (

@@ -1696,7 +1696,7 @@ fn walls_inside<T: Decide>(
         let surface = |face: FaceKey| body.proven_face_surface(face);
         inside[k] = match crate::validate::decide(
             "bool_rider_wall_side",
-            Margin::levered(into.dot(floor), arm),
+            Margin::levered(into.dot(floor), geom_core::Lever::unsourced(arm)),
             band,
         )
         .map_err(sectors)?
@@ -1830,7 +1830,7 @@ fn coplanar_wall_inside<T: Decide>(
 ) -> Result<bool, BooleanError> {
     match crate::validate::decide_nonzero(
         "bool_rider_wall_coplanar",
-        Margin::levered(normal.dot(floor), arm),
+        Margin::levered(normal.dot(floor), geom_core::Lever::unsourced(arm)),
         band,
     )
     .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?

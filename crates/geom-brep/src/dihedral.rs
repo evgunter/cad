@@ -421,9 +421,13 @@ pub fn classify_seam<T: Decide>(
     }
     let sin_theta = a.normal.cross(b.normal).norm() / (a.normal.norm() * b.normal.norm());
     let lo = fold_arms(a.lo, b.lo, reach);
-    decide_positive("dihedral_arm", Margin::levered(sin_theta, lo), band)
-        .map(|()| DihedralClass::Transverse)
-        .map_err(|diag| SeamEscalation::Lever(LeverEscalation::arm(diag)))
+    decide_positive(
+        "dihedral_arm",
+        Margin::levered(sin_theta, geom_core::Lever::unsourced(lo)),
+        band,
+    )
+    .map(|()| DihedralClass::Transverse)
+    .map_err(|diag| SeamEscalation::Lever(LeverEscalation::arm(diag)))
 }
 
 /// A seam face as [`classify_seam`] reads it: its normal at the seam's
@@ -538,7 +542,7 @@ fn wedge_of<T: Decide>(
     decide_positive("dihedral_arm", Margin::of(arm), band).map_err(|gate| {
         WedgeEscalation::Lever(at_wedge(LeverEscalation::arm(gate), arm, sin_theta, band))
     })?;
-    let margin = Margin::levered(sin_theta, arm);
+    let margin = Margin::levered(sin_theta, geom_core::Lever::unsourced(arm));
     // The cause of an invalid margin, read only once the decision has
     // refused, so no verdict can move. Past a certified arm, `sin θ` is
     // invalid only through the gradients: a poisoned one (no implicit
@@ -621,7 +625,10 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
     matches!(
         decide_reported(
             "dihedral_wedge_at_arm",
-            Margin::levered(sin_theta, T::from_f64(band.escalate())),
+            Margin::levered(
+                sin_theta,
+                geom_core::Lever::unsourced(T::from_f64(band.escalate()))
+            ),
             band,
         ),
         Ok(Decided {
@@ -1648,7 +1655,11 @@ fn pairing_reading<T: Decide>(
     let n_plus = implicit_outward_normal(s_plus, sense_plus, p).vec();
     let n_minus = implicit_outward_normal(s_minus, sense_minus, p).vec();
     let cos_theta = n_plus.dot(n_minus);
-    let pairing = match decide_nonzero(name, Margin::levered(cos_theta, arm), band) {
+    let pairing = match decide_nonzero(
+        name,
+        Margin::levered(cos_theta, geom_core::Lever::unsourced(arm)),
+        band,
+    ) {
         Ok(NonzeroSign::Positive) => Ok(MaterialPairing::Aligned),
         Ok(NonzeroSign::Negative) => Ok(MaterialPairing::Opposed),
         Err(refusal) => Err(refusal),
@@ -1693,7 +1704,10 @@ fn wedge_reads_zero_at_the_offer<T: Decide>(sin_theta: T, cos_theta: T, band: Ba
     matches!(
         decide_reported(
             "material_pairing_offer_wedge",
-            Margin::levered(sin_theta / cos_theta.abs(), T::from_f64(band.escalate())),
+            Margin::levered(
+                sin_theta / cos_theta.abs(),
+                geom_core::Lever::unsourced(T::from_f64(band.escalate()))
+            ),
             band,
         ),
         Ok(Decided {

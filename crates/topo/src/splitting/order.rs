@@ -155,7 +155,7 @@ pub(super) fn in_plane_frame<T: Decide>(
     match climb(Answering::First, members, |r| {
         let r = r.map(T::from_f64);
         let d = r - n * n.dot(r);
-        let fraction = Margin::levered(d.norm() / r.norm(), arm);
+        let fraction = Margin::levered(d.norm() / r.norm(), geom_core::Lever::unsourced(arm));
         Rung::decide(FRAME_ARM, fraction, band, |decided| match decided.sign {
             Sign::Positive => {
                 let u = d.normalize();
@@ -213,7 +213,11 @@ fn axis_plane<T: Decide>(n: Vec3<T>, arm: T, exact: Band) -> Result<bool, Indete
     let (mut zero, mut nonzero) = (0, 0);
     let mut undecided = None;
     for c in [n.x, n.y, n.z] {
-        match decide(FRAME_AXIS, Margin::levered(c, arm), exact) {
+        match decide(
+            FRAME_AXIS,
+            Margin::levered(c, geom_core::Lever::unsourced(arm)),
+            exact,
+        ) {
             Ok(Sign::Zero) => zero += 1,
             Ok(_) => nonzero += 1,
             Err(diag) => {

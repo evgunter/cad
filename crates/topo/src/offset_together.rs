@@ -621,7 +621,7 @@ pub(crate) fn solve_planar_corner<T: Decide>(
                 for &arm in arms {
                     match decide(
                         "offset_together_corner",
-                        Margin::levered(det.abs(), arm),
+                        Margin::levered(det.abs(), geom_core::Lever::unsourced(arm)),
                         band,
                     ) {
                         Ok(Sign::Positive) => {}

@@ -94,8 +94,8 @@ pub enum AxisPose<T: Real> {
 /// The lever of a tilt read about the pivot `at` over `ball`: the
 /// ball's farthest distance from it, doubled (the section certificate's
 /// module docs, the lever and its pivot).
-pub fn lever<T: Real>(at: Point3<T>, ball: ExtentBall<T>) -> T {
-    ball.lever_from(at) * T::from_f64(2.0)
+pub fn lever<T: Real>(at: Point3<T>, ball: ExtentBall<T>) -> geom_core::Lever<T> {
+    ball.twice_lever_from(at)
 }
 
 /// Where the turn onto the torus axis is read: the pivot, the axes' tilt
@@ -142,7 +142,7 @@ pub fn axis_pose<T: Decide>(
         return AxisPose::Other;
     }
     let (perp, e) = square_part(at - c, a);
-    let swing = line_tilt(a, d) * ball.lever_from(at)
+    let swing = line_tilt(a, d) * ball.lever_from(at).length()
         + turn(&Turn {
             at,
             tilt,

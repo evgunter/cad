@@ -671,7 +671,11 @@ pub fn trace_marks(
 /// line is `rate` to the point `gap` along that coordinate.
 fn reach<T: Decide>(gap: T, rate: T, band: Band) -> Result<T, TraceStepFault> {
     let escalated = |diag| TraceStepFault::Carrier(TraceFault::Escalated(diag));
-    match geom_core::k_stats::decide(TRACE_REACHES, Margin::levered(rate, gap.abs()), band) {
+    match geom_core::k_stats::decide(
+        TRACE_REACHES,
+        Margin::levered(rate, geom_core::Lever::unsourced(gap.abs())),
+        band,
+    ) {
         Ok(Sign::Positive | Sign::Negative) => {}
         Ok(Sign::Zero) => return Err(TraceStepFault::Unreached),
         Err(diag) => return Err(escalated(diag)),
@@ -882,7 +886,10 @@ fn square(
         geom_core::k_stats::decide(TRACED_FRAME_SQUARE, margin, band)
             .map_err(TracedFrameFault::Escalated)
     };
-    let tilt = decide(Margin::levered(normal.cross(z).norm(), reach))?;
+    let tilt = decide(Margin::levered(
+        normal.cross(z).norm(),
+        geom_core::Lever::unsourced(reach),
+    ))?;
     let off = decide(Margin::of((origin - at).dot(z)))?;
     match (tilt, off) {
         (Sign::Zero, Sign::Zero) => Ok(()),

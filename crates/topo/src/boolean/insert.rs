@@ -1682,10 +1682,12 @@ fn beside_order<T: Decide>(
     };
     let n = s.tangent().vec();
     let off = |x: Vec3<T>| {
-        crate::validate::decide("bool_beside_flush", Margin::levered(n.dot(x), s.arm), band)
-            .map_err(|diag| {
-                BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
-            })
+        crate::validate::decide(
+            "bool_beside_flush",
+            Margin::levered(n.dot(x), geom_core::Lever::unsourced(s.arm)),
+            band,
+        )
+        .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))
     };
     let flush = |b: [Vec3<T>; 2]| -> Result<Option<Vec3<T>>, BooleanError> {
         Ok(match [off(b[0])?, off(b[1])?] {
@@ -1736,7 +1738,10 @@ fn walks_after<T: Decide>(
     band: Band,
 ) -> Result<Sign, BooleanError> {
     let lever = leaned_lever(s.arm, (x.lean, y.lean));
-    let m = Margin::levered(x.dir.cross(y.dir).dot(s.tangent().vec()), lever);
+    let m = Margin::levered(
+        x.dir.cross(y.dir).dot(s.tangent().vec()),
+        geom_core::Lever::unsourced(lever),
+    );
     crate::validate::decide("bool_shared_cut_order", m, band)
         .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))
 }
@@ -2376,7 +2381,10 @@ pub(super) fn strut_order<T: Decide>(
     let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let far = |g: Leaned<T>| -> Result<bool, BooleanError> {
         let lever = leaned_lever(reach, (e.lean, g.lean));
-        let side = Margin::levered(g.dir.cross(e.dir).dot(normal), lever);
+        let side = Margin::levered(
+            g.dir.cross(e.dir).dot(normal),
+            geom_core::Lever::unsourced(lever),
+        );
         match crate::validate::decide("bool_strut_side", side, band).map_err(refuse)? {
             Sign::Positive => Ok(false),
             Sign::Negative => Ok(true),
@@ -2389,7 +2397,10 @@ pub(super) fn strut_order<T: Decide>(
     }
     let (g0, g1) = germs;
     let lever = leaned_lever(arm, (g0.lean, g1.lean));
-    let order = Margin::levered(g0.dir.cross(g1.dir).dot(normal), lever);
+    let order = Margin::levered(
+        g0.dir.cross(g1.dir).dot(normal),
+        geom_core::Lever::unsourced(lever),
+    );
     match crate::validate::decide_nonzero("bool_strut_order", order, band) {
         Ok(sign) => Ok(sign == NonzeroSign::Negative),
         Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => match tie()? {
@@ -2486,7 +2497,11 @@ fn germ_dir<T: Decide>(
     // pair down the crossing path: a pair whose parallelism is Zero or in
     // band there is coplanar or refused, never a crossing record.
     let arm = sa.arm.min(sb.arm);
-    match crate::validate::decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
+    match crate::validate::decide(
+        "bool_germ_line",
+        Margin::levered(int.norm(), geom_core::Lever::unsourced(arm)),
+        band,
+    ) {
         Ok(Sign::Positive) => {}
         Ok(_) => {
             return Err(BooleanError::ClassificationInvariant {
@@ -2878,8 +2893,8 @@ mod tests {
                     he,
                     start,
                     end,
-                    start_reach: crate::boolean::sectors::Reach::Extent(1.0),
-                    end_reach: crate::boolean::sectors::Reach::Extent(1.0),
+                    start_reach: crate::boolean::sectors::BoundSupport::Extent(1.0),
+                    end_reach: crate::boolean::sectors::BoundSupport::Extent(1.0),
                     face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
                     arm: 1.0,
@@ -2889,7 +2904,7 @@ mod tests {
             if twin {
                 let last = secs[secs.len() - 1].clone();
                 secs.push(BoolSector {
-                    end_reach: crate::boolean::sectors::Reach::straight_bisector(1.0),
+                    end_reach: crate::boolean::sectors::BoundSupport::straight_bisector(1.0),
                     ..last
                 });
             }
@@ -2988,7 +3003,7 @@ mod tests {
     /// sector there, and refuses.
     #[test]
     fn walks_before_reads_one_order_from_the_orbits_first_entry() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         use geom_core::Vec3;
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
@@ -2996,7 +3011,7 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: x,
             end: y,
-            start_reach: Reach::Extent(1.0),
+            start_reach: BoundSupport::Extent(1.0),
             end_reach,
             face: FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
@@ -3006,10 +3021,10 @@ mod tests {
             bend: crate::bound_side::FaceBend::Plane,
         };
         let secs = vec![
-            sector(Reach::Extent(1.0)),
-            sector(Reach::straight_bisector(1.0)),
-            sector(Reach::Extent(1.0)),
-            sector(Reach::Extent(1.0)),
+            sector(BoundSupport::Extent(1.0)),
+            sector(BoundSupport::straight_bisector(1.0)),
+            sector(BoundSupport::Extent(1.0)),
+            sector(BoundSupport::Extent(1.0)),
         ];
         let at = |k, d| Cut::apart(k, up(d));
         let before = |p, q| walks_before(&secs, p, q, band);
@@ -3351,8 +3366,8 @@ mod tests {
                     he,
                     start,
                     end,
-                    start_reach: crate::boolean::sectors::Reach::Extent(1.0),
-                    end_reach: crate::boolean::sectors::Reach::Extent(1.0),
+                    start_reach: crate::boolean::sectors::BoundSupport::Extent(1.0),
+                    end_reach: crate::boolean::sectors::BoundSupport::Extent(1.0),
                     face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
                     arm: 1.0,
@@ -3425,7 +3440,7 @@ mod tests {
     /// never as a coincidence with a tolerance.
     #[test]
     fn an_in_band_germ_line_is_the_kernels_own_check() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         use geom_brep::OutwardNormal;
         use geom_core::{KERNEL_DEFECT_ENDING, Point3};
         let band = Band::linear(Tol::witness()).unwrap();
@@ -3436,11 +3451,11 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: x,
             end: y,
-            start_reach: Reach::Chord {
+            start_reach: BoundSupport::Chord {
                 base: o,
                 far: o + x,
             },
-            end_reach: Reach::Chord {
+            end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + y,
             },
@@ -3670,8 +3685,8 @@ mod tests {
                         he: HalfEdgeKey::default(),
                         start: Vec3::new(1.0, -1.0, 0.0),
                         end: Vec3::new(1.0, 1.0, 0.0),
-                        start_reach: crate::boolean::sectors::Reach::Extent(lever),
-                        end_reach: crate::boolean::sectors::Reach::Extent(lever),
+                        start_reach: crate::boolean::sectors::BoundSupport::Extent(lever),
+                        end_reach: crate::boolean::sectors::BoundSupport::Extent(lever),
                         face: FaceKey::default(),
                         at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                             geom_brep::OutwardNormal::from_chart(flat, true),
@@ -3729,7 +3744,7 @@ mod tests {
     /// [`walks_after`] (round the entry) puts first.
     #[test]
     fn the_strut_order_agrees_with_the_walk_within_an_entry() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         let band = Band::linear(Tol::witness()).unwrap();
         let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let at = |deg: f64| {
@@ -3740,8 +3755,8 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: at(1.0),
             end: e,
-            start_reach: Reach::Extent(1.0),
-            end_reach: Reach::Extent(1.0),
+            start_reach: BoundSupport::Extent(1.0),
+            end_reach: BoundSupport::Extent(1.0),
             face: FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(n, true),
@@ -3795,7 +3810,7 @@ mod tests {
     /// lies inside the corner, reads it past a full half-turn.
     #[test]
     fn a_germ_along_the_arrival_tangent_is_met_first() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         let band = Band::linear(Tol::witness()).unwrap();
         let (e, n) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let at = |deg: f64| {
@@ -3816,12 +3831,17 @@ mod tests {
             bend: crate::bound_side::FaceBend::Plane,
         };
         let sectors = [
-            sector(0.0, Reach::Extent(1.0), 90.0, Reach::straight_bisector(1.0)),
+            sector(
+                0.0,
+                BoundSupport::Extent(1.0),
+                90.0,
+                BoundSupport::straight_bisector(1.0),
+            ),
             sector(
                 90.0,
-                Reach::straight_bisector(1.0),
+                BoundSupport::straight_bisector(1.0),
                 180.0,
-                Reach::Extent(1.0),
+                BoundSupport::Extent(1.0),
             ),
         ];
         for inside in [10.0, 45.0, 80.0] {
@@ -3965,7 +3985,7 @@ mod tests {
     /// which refuses.
     #[test]
     fn a_germ_tangent_to_a_bound_reads_in_the_sector_across_it() {
-        use super::super::sectors::{Reach, pair_codes};
+        use super::super::sectors::{BoundSupport, pair_codes};
         use crate::boolean::Locus;
         use geom_brep::OutwardNormal;
         use geom_core::Point3;
@@ -3983,11 +4003,11 @@ mod tests {
             he: HalfEdgeKey::default(),
             start,
             end,
-            start_reach: Reach::Chord {
+            start_reach: BoundSupport::Chord {
                 base: o,
                 far: o + start,
             },
-            end_reach: Reach::Chord {
+            end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + end,
             },

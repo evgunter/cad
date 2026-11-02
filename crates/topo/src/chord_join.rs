@@ -2144,11 +2144,14 @@ fn arc_leaving<T: Decide>(
     let (name, margin) = match leave.datum {
         Datum::Germ => (
             "chord_arc_leave_germ",
-            Margin::levered(along, conic.lever()),
+            Margin::levered(along, geom_core::Lever::unsourced(conic.lever())),
         ),
         Datum::Section => (
             "chord_arc_leave_section",
-            Margin::levered(along, geom_brep::curvature_lever_arm(wall, p1)),
+            Margin::levered(
+                along,
+                geom_core::Lever::unsourced(geom_brep::curvature_lever_arm(wall, p1)),
+            ),
         ),
     };
     match decide(name, margin, band).map_err(escalated)? {
@@ -2159,7 +2162,7 @@ fn arc_leaving<T: Decide>(
                 let cosine = along / leave.dir.norm();
                 match decide(
                     "chord_arc_leave_section_aligned",
-                    Margin::levered(cosine, conic.lever()),
+                    Margin::levered(cosine, geom_core::Lever::unsourced(conic.lever())),
                     band,
                 )
                 .map_err(escalated)?
@@ -2691,8 +2694,12 @@ pub(crate) fn apex_section_ruling<T: Decide>(
         };
         let z = apex.onto_nappe_of(dir, to);
         let into = apex.turn(from, z).min(apex.turn(z, to));
-        match decide("germ_apex", Margin::levered(into, arm), band)
-            .map_err(ApexRulingFault::Escalated)?
+        match decide(
+            "germ_apex",
+            Margin::levered(into, geom_core::Lever::unsourced(arm)),
+            band,
+        )
+        .map_err(ApexRulingFault::Escalated)?
         {
             Sign::Positive if inside.is_none() => inside = Some(z),
             Sign::Positive => {
@@ -3003,7 +3010,7 @@ fn carried_chord_spec<T: Decide>(
     let along = leave.dir.dot(tangent) / tangent.norm();
     let up = match decide(
         "chord_carried_leave",
-        Margin::levered(along, ctx.lever),
+        Margin::levered(along, geom_core::Lever::unsourced(ctx.lever)),
         band,
     )
     .map_err(escalated)?
@@ -4139,7 +4146,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     let n_a = n.dot(axis);
     match decide(
         "split_ring_closure_ruling",
-        Margin::levered(n_a, radius),
+        Margin::levered(n_a, geom_core::Lever::unsourced(radius)),
         band,
     )
     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -4456,7 +4463,7 @@ impl<T: Decide> IslandReading<T> {
             "split_ring_path_lean",
             Margin::levered(
                 -path.arrival.dot(self.left) / self.left.norm(),
-                self.quadric.lever(self.q),
+                geom_core::Lever::unsourced(self.quadric.lever(self.q)),
             ),
             band,
         )?;
@@ -5293,7 +5300,7 @@ impl RimSide {
                 let left = normal.vec().cross(tangent).dot(axis);
                 let region = decide(
                     "bool_lone_ring_region_side",
-                    Margin::levered(left, radius),
+                    Margin::levered(left, geom_core::Lever::unsourced(radius)),
                     band,
                 )
                 .map_err(escalated)?;

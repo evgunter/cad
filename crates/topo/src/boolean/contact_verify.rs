@@ -452,7 +452,7 @@ fn tangent_pass<T: Decide>(
         let arm = geom_brep::folded_lever_arm(s1, s2, p, extent);
         match crate::validate::decide(
             "contact_tangent_opposed",
-            Margin::levered(n1.dot(n2), extent),
+            Margin::levered(n1.dot(n2), geom_core::Lever::unsourced(extent)),
             band,
         ) {
             Ok(Sign::Negative) => {

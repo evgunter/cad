@@ -880,12 +880,9 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             crate::live::proven(&body.half_edges, edge.he_plus, EntityId::HalfEdge).start,
             crate::live::Proven,
         );
-        // The ball about the edge's start that holds all of it: a line's
-        // chord; a circle's farthest point from its start, its far end or
-        // the point opposite, so a closed edge, whose ends are one vertex,
-        // reads its diameter; a fitted carrier's control polygon, whose
-        // hull holds it (its weights are positive); any other carrier's
-        // box.
+        // The ball about the edge's start that holds all of it, out to
+        // the edge's reach from there (`geom_brep::edge_reach_from`): a
+        // closed edge, whose ends are one vertex, reads its diameter.
         let curve = body
             .edge_curve_linked(edge_key, edge)
             .certified()
@@ -895,24 +892,12 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                      certified carrier: the operand gate refuses a null edge as scaffolding"
                 )
             });
-        let end =
-            body.resolve_vertex_point(body.proven_half_edge_end(edge.he_plus), crate::live::Proven);
-        let arm = match curve.carrier() {
-            geom::Curve3::Line(_) => (end - at).norm(),
-            geom::Curve3::Circle { radius, .. } => {
-                let (t0, t1) = curve.params();
-                let half =
-                    ((t1 - t0) * T::from_f64(0.5)).min(T::from_f64(core::f64::consts::FRAC_PI_2));
-                radius.abs() * T::from_f64(2.0) * half.sin()
-            }
-            geom::Curve3::Nurbs(n) => geom_brep::control_net_reach(n.control(), at),
-            _ => crate::census::edge_reach_in(body, edge_key, &super::boxes::BoxFrame::World)
-                .map(|(lo, hi)| geom_brep::ExtentBall::of_box(lo, hi).lever_from(at))
-                .unwrap_or_else(|| {
-                    unreachable!("{operand:?}'s edge {edge_key:?}: a conic carrier has a box")
-                }),
-        };
-        let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::new(at, arm));
+        let (t0, t1) = curve.params();
+        let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::of_edge_from(
+            curve.carrier(),
+            (t0, t1),
+            at,
+        ));
         // One plane, decided by its margin: a pair the producing op
         // should have merged (the merge glues what this decides).
         match super::oriented_plane_eq(&p1, &p2, &extent, band) {
@@ -3822,7 +3807,7 @@ fn sheets_part<T: Decide>(
     );
     let sign = decide(
         "bool_touch_sheets_part",
-        Margin::levered(into_x.dot(into_y), arm),
+        Margin::levered(into_x.dot(into_y), geom_core::Lever::unsourced(arm)),
         band,
     )
     .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?;
@@ -5074,7 +5059,7 @@ fn line_cone_roots<T: Decide>(
     let length = dir.norm() * (t1 - t0).abs();
     match decide(
         "bool_line_cone_lead",
-        Margin::levered(a2 / dd, length),
+        Margin::levered(a2 / dd, geom_core::Lever::unsourced(length)),
         band,
     )
     .map_err(escalate)?

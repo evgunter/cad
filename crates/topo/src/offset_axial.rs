@@ -1117,7 +1117,11 @@ fn classify<T: Decide>(
     // A direction's misalignment is a SINE, levered by the body's own
     // extent — the length that misalignment would move a corner by.
     let sine = |x: T, what: &'static str| -> Result<bool, ReplaceFaceError<T>> {
-        match decide(what, Margin::levered(x, frame.extent), band) {
+        match decide(
+            what,
+            Margin::levered(x, geom_core::Lever::unsourced(frame.extent)),
+            band,
+        ) {
             Ok(Sign::Zero) => Ok(true),
             Ok(_) => Ok(false),
             Err(source) => Err(ReplaceFaceError::Escalated { source }),
@@ -1478,7 +1482,7 @@ fn solve_corner<T: Decide>(
                 Profile::Line { n, c } => {
                     match decide(
                         "offset_axial_pole_station",
-                        Margin::levered(n.1.abs(), frame.extent),
+                        Margin::levered(n.1.abs(), geom_core::Lever::unsourced(frame.extent)),
                         band,
                     ) {
                         Ok(Sign::Positive) => {}
@@ -1549,7 +1553,11 @@ fn solve_corner<T: Decide>(
                 };
                 let mut resolvable = true;
                 for &arm in arms {
-                    match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
+                    match decide(
+                        "offset_axial_corner",
+                        Margin::levered(det.abs(), geom_core::Lever::unsourced(arm)),
+                        band,
+                    ) {
                         Ok(Sign::Positive) => {}
                         Ok(_) => {
                             resolvable = false;
@@ -1772,7 +1780,7 @@ fn cap_pair_corner<T: Decide>(
     for &arm in arms {
         match decide(
             "offset_axial_cap_pair",
-            Margin::levered(sine.abs(), arm),
+            Margin::levered(sine.abs(), geom_core::Lever::unsourced(arm)),
             band,
         ) {
             Ok(Sign::Positive) => {}
@@ -1813,7 +1821,11 @@ fn cap_pair_corner<T: Decide>(
         .unwrap_or_else(|| unreachable!("a line and a circle always have a transversality"));
     let mut resolvable = true;
     for &arm in arms {
-        match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
+        match decide(
+            "offset_axial_corner",
+            Margin::levered(det.abs(), geom_core::Lever::unsourced(arm)),
+            band,
+        ) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 resolvable = false;
@@ -2294,7 +2306,10 @@ fn mint_carrier<T: Decide>(
         };
         return match decide(
             "offset_axial_generator_sense",
-            Margin::levered(old_dir.normalize().dot(dir.normalize()), frame.extent),
+            Margin::levered(
+                old_dir.normalize().dot(dir.normalize()),
+                geom_core::Lever::unsourced(frame.extent),
+            ),
             band,
         ) {
             Ok(Sign::Positive) => Ok(Curve3::Line(geom::Line { origin, dir })),
@@ -2410,7 +2425,10 @@ fn mint_carrier<T: Decide>(
             .unwrap_or_else(|| unreachable!("{edge:?}: a section curve is a circle or a spiric"));
         return match decide(
             "offset_axial_rim_sense",
-            Margin::levered(old_normal.dot(new_normal), frame.extent),
+            Margin::levered(
+                old_normal.dot(new_normal),
+                geom_core::Lever::unsourced(frame.extent),
+            ),
             band,
         ) {
             Ok(Sign::Positive) => Ok(chosen),
@@ -2625,7 +2643,7 @@ fn latitude_posture<T: Decide>(
     let tilt = axis.normalize().cross(frame.dir).norm();
     match decide(
         "offset_axial_latitude_tilt",
-        Margin::levered(tilt, frame.extent),
+        Margin::levered(tilt, geom_core::Lever::unsourced(frame.extent)),
         band,
     ) {
         Ok(Sign::Zero) => Ok(None),
@@ -2730,7 +2748,7 @@ fn param_on<T: Decide>(
     let anchor = match param_speeds(carrier) {
         Some((_, ceiling)) => match decide(
             "offset_axial_edge_carried",
-            Margin::levered(read - t_old, ceiling),
+            Margin::levered(read - t_old, geom_core::Lever::unsourced(ceiling)),
             band,
         ) {
             Ok(Sign::Zero) => t_old,
@@ -2792,7 +2810,7 @@ fn forward_window<T: Decide>(
             // Zero or a whole number of turns, so never near the band.
             match decide(
                 "offset_axial_edge_turn",
-                Margin::levered(kept - (t1 - t0), ceiling),
+                Margin::levered(kept - (t1 - t0), geom_core::Lever::unsourced(ceiling)),
                 band,
             ) {
                 Ok(Sign::Zero) => t1,
@@ -2804,7 +2822,7 @@ fn forward_window<T: Decide>(
     };
     let span = t1 - t0;
     let margin = match speeds {
-        Some((floor, _)) => Margin::levered(span, floor),
+        Some((floor, _)) => Margin::levered(span, geom_core::Lever::unsourced(floor)),
         None => Margin::of(span),
     };
     match decide("offset_axial_edge_window", margin, band) {

@@ -281,7 +281,10 @@ impl<T: Decide> SphereFaceRegion<T> {
             |probe| match probe {
                 Probe::Ray(toward) => {
                     let raw = toward - a * a.dot(toward);
-                    let arm = Margin::levered(raw.norm() / toward.norm(), self.radius);
+                    let arm = Margin::levered(
+                        raw.norm() / toward.norm(),
+                        geom_core::Lever::unsourced(self.radius),
+                    );
                     match decide("bool_sphere_region_arm", arm, band) {
                         Ok(Sign::Positive) => {
                             region::read_leg(self, &self.ray(a, tangent(a, raw)), band)
@@ -429,7 +432,7 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         let sin = across.norm();
         match decide(
             "bool_sphere_region_parallel",
-            Margin::levered(sin, self.radius),
+            Margin::levered(sin, geom_core::Lever::unsourced(self.radius)),
             band,
         ) {
             Ok(Sign::Positive) => {}

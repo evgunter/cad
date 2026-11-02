@@ -431,7 +431,10 @@ pub fn normal_alignment<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<NormalAlignment<T>, Indeterminate> {
-    let sine = Margin::levered(outward_normal.vec().cross(dir).norm(), arm);
+    let sine = Margin::levered(
+        outward_normal.vec().cross(dir).norm(),
+        geom_core::Lever::unsourced(arm),
+    );
     Ok(
         match crate::dihedral::decide_magnitude_reported(name, sine, band)? {
             (Magnitude::Positive, margin) => NormalAlignment::Oblique(margin),
@@ -506,7 +509,10 @@ fn sense_margin<T: Decide>(
 /// `normal`, in metres.
 #[must_use]
 pub fn rise<T: Real>(dir: Vec3<T>, normal: Vec3<T>, arm: T) -> Margin<T> {
-    Margin::levered(dir.normalize().dot(normal), arm)
+    Margin::levered(
+        dir.normalize().dot(normal),
+        geom_core::Lever::unsourced(arm),
+    )
 }
 
 /// **`enters_material_order2`** — the second-order descent of the

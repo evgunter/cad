@@ -133,7 +133,10 @@ pub(super) fn plane_ladder<T: Decide>(
     let d2 = p2.normal.dot(p2.origin - centre);
 
     // Rung 1: definite-different by geometry. Parallelism first.
-    let parallel_margin = Margin::levered(p1.normal.cross(p2.normal).norm(), arm);
+    let parallel_margin = Margin::levered(
+        p1.normal.cross(p2.normal).norm(),
+        geom_core::Lever::unsourced(arm),
+    );
     // The offset's Zero below decides one plane only with this one, so
     // the row's margin stands for both.
     let parallel = match decide_reported("bool_plane_parallel", parallel_margin, band) {
@@ -165,7 +168,7 @@ pub(super) fn plane_ladder<T: Decide>(
     // dimensionless, and the length band wants the displacement the
     // orientation flip induces at the arm (rim-dimensional audit,
     // class (c); |cos| ≈ 1 here so the margin is ≈ ±arm, decisive).
-    let sign_margin = Margin::levered(p1.normal.dot(p2.normal), arm);
+    let sign_margin = Margin::levered(p1.normal.dot(p2.normal), geom_core::Lever::unsourced(arm));
     // `relation` rides beside σ: it is the orientation this decision
     // just made definite, and the relation the offset's Zero glues
     // under. A zero has no side to read, so it is the gate's rejection.
@@ -208,7 +211,11 @@ pub(crate) fn senses<T: Decide>(
     arm: T,
     band: Band,
 ) -> Option<PlaneRelation> {
-    match decide("bool_plane_orient", Margin::levered(n1.dot(n2), arm), band) {
+    match decide(
+        "bool_plane_orient",
+        Margin::levered(n1.dot(n2), geom_core::Lever::unsourced(arm)),
+        band,
+    ) {
         Ok(Sign::Positive) => Some(PlaneRelation::SameOriented),
         Ok(Sign::Negative) => Some(PlaneRelation::SameOpposite),
         Ok(Sign::Zero) | Err(_) => None,

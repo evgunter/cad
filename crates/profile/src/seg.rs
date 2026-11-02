@@ -386,7 +386,10 @@ fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
     check: impl FnOnce(Arc2<T>) -> Result<(), E>,
 ) -> Result<Seg<T>, E> {
     let escalated = |source| E::from(ShapeIssue::Escalated(source));
-    let reach = Margin::levered(arc.sweep / T::tau(), arc.radius + arc.radius);
+    let reach = Margin::levered(
+        arc.sweep / T::tau(),
+        geom_core::Lever::unsourced(arc.radius + arc.radius),
+    );
     let m = reach.value();
     match decide("full_turn_reach", Margin::of(m.abs()), band).map_err(escalated)? {
         Sign::Positive => {}
@@ -689,7 +692,7 @@ pub(crate) const BRANCH_READ: &str = "path_arc_branch";
 /// `segment_straightness`'s margin, read by [`build_seg`] and by the
 /// door's read-back ([`read_back_arc`]).
 fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
-    Margin::levered(bow * T::from_f64(0.5), len)
+    Margin::levered(bow * T::from_f64(0.5), geom_core::Lever::unsourced(len))
 }
 
 /// **The path door's read-back of a constructed arc** from `a` to `b`
@@ -798,7 +801,11 @@ pub(crate) fn read_back_arc<T: Decide>(
         // authored arc and the other one on the carrier span the chord,
         // so each reads at least the chord's length: the authored one
         // Positive, the other Negative.
-        let signed = Margin::levered(arc.sweep * sense.sign::<T>(), arc.radius).value();
+        let signed = Margin::levered(
+            arc.sweep * sense.sign::<T>(),
+            geom_core::Lever::unsourced(arc.radius),
+        )
+        .value();
         let reading = match check_unlogged(BRANCH_READ, signed, band, "F24") {
             Ok(Sign::Positive) => Reading::Passed,
             Ok(Sign::Zero | Sign::Negative) => Reading::Off(signed),
@@ -1134,7 +1141,7 @@ pub(crate) fn junction_reverses<T: Decide>(
     Ok(matches!(
         decide(
             "path_junction_side",
-            Margin::levered(arriving.dot(departing), arm),
+            Margin::levered(arriving.dot(departing), geom_core::Lever::unsourced(arm)),
             band
         )?,
         Sign::Negative
@@ -1235,7 +1242,11 @@ pub(crate) fn junction_turn<T: Decide>(
         TurnSense::Unsigned => turn.abs(),
     };
     Ok((
-        decide_reported(name, Margin::levered(read, arm), band)?,
+        decide_reported(
+            name,
+            Margin::levered(read, geom_core::Lever::unsourced(arm)),
+            band,
+        )?,
         turn * arm,
     ))
 }
