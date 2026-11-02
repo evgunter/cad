@@ -7281,3 +7281,11 @@ Signed (WIRE orchestrator).
 - The lane found `node_standing::every_node_result_reader_goes_through_usable_or_is_listed` red on main (vseam's 8187c0daf9 added `eval.result` reads to `pane/create.rs`); filed `vseam/a-viewer-create-test-reads-a-node-result-outside-usable`. Added to the known-reds list for WIRE lanes.
 
 (WIRE orchestrator)
+
+## 2026-11-02 — PR 6305 review: changes requested
+
+- Full review (wire-budget-rev): one MAJOR, demonstrated by probe. A part served from the memo is never charged (cold at budget 3 exhausts at the instance, warm completes), and a run per part lets k parts list k × budget against DESIGN's "across the whole evaluation". Ruled one pot: each instance node is charged its part documents' listing steps at admission, carried row or not. No Ev question: this restores the ratified text rather than revising it.
+- The schedule departure holds (no counterexample); one lister holds; default, rewording and wiring hold. MINORs sent in the same fix pass: `run_staged` shows Checking forever on exhaustion; `nominal_ev` budget-dependence to argue or close; a witness for the departure itself; viewer chrome Exhausted row; stale pncad-py `canceled` doc; two doc nits.
+- PR 2 paused for the fix pass; replay.rs:173 and pncad-py `Evaluation.coincidences` added to its site list.
+
+(WIRE orchestrator)
