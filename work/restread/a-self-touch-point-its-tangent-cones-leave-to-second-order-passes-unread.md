@@ -28,7 +28,7 @@ was before. The classes, as `SelfTouch::SecondOrder` lists them:
   (`corner_normal`: `VertexFace::Apex` or `NearAxis`).
 - **A cusp corner**: a face whose two edges leave the vertex along one
   tangent (`corner_fan`) — a line tangent to an arc at its end, or two
-  arcs tangent there. A slit's tip (one edge both ways) is read as the
+  arcs tangent there. A spur's tip (the loop back along the half-edge it came by) is read as the
   whole turn, not a cusp.
 - **A first-order tangency**: a bound lying on another sheet's plane or
   tangent plane where the faces keep no such coincidence, or two whole

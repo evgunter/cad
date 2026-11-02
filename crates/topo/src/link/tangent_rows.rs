@@ -385,12 +385,12 @@ fn two_whole_planes_are_read_one_plane_either_way_round() {
     }
 }
 
-/// **A slit's tip is the whole turn**: one edge leaving and coming back
-/// along one direction is four quarter turns, where two edges doing so
-/// are a cusp, refused. Red where a slit's tip reads as a cusp, or a
+/// **A spur's tip is the whole turn**: the loop leaving back along the
+/// half-edge it came in by is four quarter turns, where two departures
+/// along one direction are a cusp, refused. Red where a spur's tip reads as a cusp, or a
 /// cusp as a whole turn.
 #[test]
-fn a_slits_tip_is_the_whole_turn_and_a_cusp_refuses() {
+fn a_spurs_tip_is_the_whole_turn_and_a_cusp_refuses() {
     let z = v(0.0, 0.0, 1.0);
     let d = v(2.0, 0.0, 0.0);
     let tip = corner_fan(Point3::origin(), z, (d, d), true, band()).expect("a spur's tip");

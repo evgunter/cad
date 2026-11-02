@@ -93,8 +93,8 @@
 //!   where a solid touches itself with a curved face or edge in its link
 //!   whose tangent cones leave it unread ([`SelfTouch::SecondOrder`]) —
 //!   a cone's apex or a vertex in the band of its axis, a corner whose
-//!   two edges leave along one tangent (a cusp; a slit's tip, one edge
-//!   both ways, reads as the whole turn), a spline face held off a
+//!   two edges leave along one tangent (a cusp; a spur's tip, the loop back
+//!   along the half-edge it came by, reads as the whole turn), a spline face held off a
 //!   corner, a face whose foot normal, reach or corner face does not
 //!   read, a curved edge with no certified curve, sheets tangent to
 //!   first order there, or sectors read lying on each other (two
@@ -8543,7 +8543,7 @@ enum SelfTouch {
     /// tangent reading cannot build. [`TouchUnread::Unreadable`] for a
     /// face with no tangent plane there (a cone's apex, or a vertex in
     /// the band of its axis), a corner whose two edges leave it along one
-    /// tangent (a cusp) other than a slit's tip, a spline face held off a
+    /// tangent (a cusp) other than a spur's tip, a spline face held off a
     /// corner, a face whose normal at the foot or whose reach does not
     /// read, a corner face [`crate::sector_face::resolve`] refuses, a
     /// curved edge with no certified curve, or a bound or plane lying on
