@@ -1051,9 +1051,8 @@ pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the blend size, enlar
 /// a convexity sign in band. Both verbs meter the dihedral (the strip
 /// needs a wedge to sit in exactly as the ball does), so the sentence
 /// speaks of the blend, not the ball.
-pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; at a cusp or slit, \
-     where the two faces' material meets across one tangent plane, the blend has no side to \
-     sit in, at any size";
+pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; a cusp or slit leaves \
+     the blend no side to sit in, at any size";
 /// The recourse for a spine the rolling ball's own envelope folds on.
 /// Ball language kept deliberately: spine regularity is a rolling-ball
 /// fact, metered on no chamfer run.
@@ -2031,8 +2030,8 @@ impl fmt::Display for BlendError {
             }
             Self::KnifeEdge { margin, .. } => write!(
                 f,
-                "an edge's supports meet tangentially with their material on opposite sides, \
-                 a cusp or slit, so its dihedral has no wedge for a blend ({margin}). {}",
+                "an edge is a cusp or slit, its supports tangent with their material on \
+                 opposite sides ({margin}). {}",
                 BlendDecision::ConvexitySign.recourse(margin.arm())
             ),
             Self::SpineIrregular { margin, radius } => write!(

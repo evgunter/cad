@@ -39,8 +39,8 @@ use std::collections::BTreeSet;
 
 use corpus::die_composed;
 use editor_core::{
-    CancelToken, DocEdit, EntityKind, EvalOptions, Node, NodeErrorKind, NodeResult, RoleSeg,
-    StableName, apply, evaluate,
+    CancelToken, DocEdit, EntityKind, EvalOptions, Node, NodeResult, RoleSeg, StableName, apply,
+    evaluate,
 };
 use geom_core::Tol;
 
@@ -158,10 +158,6 @@ fn every_edge_selected_leaves_the_cavity_meridians_and_names_them() {
     let mut meridians = die_composed::excluded_meridians(&doc.doc, &ev0, ball, target);
     meridians.sort();
     assert_eq!(meridians.len(), 2, "the cavity has two meridians");
-    let radius = match doc.doc.node(fillet) {
-        Some(Node::Fillet { radius, .. }) => radius.clone(),
-        other => panic!("expected the fillet node, got {other:?}"),
-    };
     let every = editor_core::all_edges(&ev0, target);
     assert!(
         meridians.iter().all(|m| every.contains(m)),
@@ -170,7 +166,11 @@ fn every_edge_selected_leaves_the_cavity_meridians_and_names_them() {
     let applied = apply(
         &doc.doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::fillet(target, radius, every)),
+            node: Box::new(Node::fillet(
+                target,
+                crate::fixture::len(die_composed::R),
+                every,
+            )),
             fresh: Vec::new(),
         },
         Tol::witness(),
