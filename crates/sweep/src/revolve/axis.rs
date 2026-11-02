@@ -10,8 +10,8 @@
 //! bulging across the axis).
 
 use geom_core::{
-    Affine3, Arc2, Band, Decide, Margin, Point2, Point3, Real, Sign, UnitVec3, UnitVec3Error, Vec2,
-    Vec3,
+    Affine3, Arc2, Band, Decide, InfSpeed, Margin, Point2, Point3, Real, Sign, UnitVec3,
+    UnitVec3Error, Vec2, Vec3,
 };
 use profile::{SketchPlane, ValidatedProfile};
 
@@ -501,7 +501,8 @@ pub(super) fn classify_segment<T: Decide>(
                     // beyond π must dip below — a full turn's 2π always
                     // does, before its zero chord is read; the apex pins
                     // which half-circle branch the arc occupies.
-                    let span_margin = Margin::levered(T::pi() - arc_span(turn, arc), radius);
+                    let span_margin =
+                        Margin::metered(T::pi() - arc_span(turn, arc), InfSpeed::new(radius));
                     match classify(ClearanceDecision::ArcSpan, span_margin)? {
                         Sign::Positive | Sign::Zero => {}
                         Sign::Negative => {

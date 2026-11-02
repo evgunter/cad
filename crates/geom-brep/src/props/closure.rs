@@ -34,7 +34,7 @@
 //! after this decision has passed it.
 
 use geom_core::interval::{Interval, certified_hi};
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
 use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt, tau_bracket};
 use super::{PropsCheck, PropsError};
@@ -442,7 +442,7 @@ pub(super) fn require_gap_closed<T: Decide>(gap: T, band: Band) -> Result<(), Pr
 /// is the caller's decision ([`closed_form_windings`]).
 fn loop_turns<T: Decide>(w: T, lever: T, band: Band) -> Result<i64, PropsError> {
     let classify = |name, margin| decide(name, margin, band).map_err(escalated);
-    let half = |halves: T| Margin::levered(T::pi() * halves - w.abs(), lever);
+    let half = |halves: T| Margin::metered(T::pi() * halves - w.abs(), InfSpeed::new(lever));
     match classify("props_chart_loop_turns", half(T::one()))? {
         Sign::Positive => return Ok(0),
         Sign::Zero => return Err(PropsError::ChartLoopOpen),
@@ -453,7 +453,10 @@ fn loop_turns<T: Decide>(w: T, lever: T, band: Band) -> Result<i64, PropsError> 
         Sign::Negative => 2,
         Sign::Zero => return Err(PropsError::ChartLoopOpen),
     };
-    match classify("props_chart_loop_sense", Margin::levered(w, lever))? {
+    match classify(
+        "props_chart_loop_sense",
+        Margin::metered(w, InfSpeed::new(lever)),
+    )? {
         Sign::Positive => Ok(k),
         Sign::Negative => Ok(-k),
         Sign::Zero => Err(PropsError::ChartLoopOpen),

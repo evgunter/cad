@@ -72,7 +72,7 @@ use core::ops::Neg;
 
 use crate::k_stats::decide;
 use crate::linalg::Vec3;
-use crate::predicate::{Band, Decide, Indeterminate, Margin, Sign};
+use crate::predicate::{Band, Decide, Indeterminate, Lever, Margin, Sign};
 use crate::real::{Real, is_finite_length, is_underflowed_length};
 use crate::spline::SpanLocate;
 
@@ -494,12 +494,12 @@ impl<T: Decide> UnitVec3<T> {
         v: Vec3<T>,
         site: &'static str,
         band: Band,
-        arm: T,
+        arm: Lever<T>,
     ) -> Result<Self, LeveredUnitError> {
-        if !is_finite_length(arm) {
+        if !is_finite_length(arm.length()) {
             return Err(LeveredUnitError::Arm(None));
         }
-        match decide(UNIT_DIRECTION_ARM, Margin::of(arm), band) {
+        match decide(UNIT_DIRECTION_ARM, Margin::of(arm.length()), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => return Err(LeveredUnitError::Arm(None)),
             Err(source) => return Err(LeveredUnitError::Arm(Some(source))),
@@ -538,7 +538,7 @@ mod tests {
     #[test]
     fn the_levered_door_decides_the_arm_then_the_levered_length() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let ask = |v: Vec3<f64>, arm: f64| UnitVec3::levered(v, "test_direction", band, arm);
+        let ask = |v: Vec3<f64>, arm: f64| UnitVec3::levered(v, "test_direction", band, Lever(arm));
         let z = |len: f64| Vec3::new(0.0, 0.0, len);
         let up = ask(z(1.0), 1e-3)
             .expect("a unit normal over a 1 mm reach")
