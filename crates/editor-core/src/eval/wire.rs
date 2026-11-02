@@ -4412,14 +4412,13 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
         .iter()
         .map(|pid| section_value(results, *pid))
         .collect::<Result<Vec<_>, _>>()?;
-    // The v degree admits `1 ..= sections − 1` (`Node::Loft`). Fewer
-    // than two sections admit no degree at all, and what is wrong then
-    // is the section count, which the skin's own door names.
+    // The v degree admits `1 ..= sections − 1` (`Node::Loft`).
     if profiles.len() < 2 {
-        return Err(NodeErrorKind::Skin(sweep::SkinError::TooFewSections {
-            have: profiles.len(),
-            need: 2,
-        }));
+        unreachable!(
+            "loft {id} reached evaluation through {} section(s): every edit door that writes a \
+             loft and the load door refuse fewer than two (`edit::loft_structure_fault`)",
+            profiles.len()
+        );
     }
     let v_degree = need_count(vals, SlotId::VDegree, 1, profiles.len() - 1)?;
     // The first section is the loft's own plane; each after it stands
