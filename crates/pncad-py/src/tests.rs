@@ -5635,11 +5635,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "section_id_fault_tag",
-        values: &[
-            "not_this_lofts",
-            "preminted",
-            "repeated",
-        ],
+        values: &["not_this_lofts", "preminted", "repeated"],
         delegates: &[],
     },
     TagEntry {
