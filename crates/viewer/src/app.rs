@@ -2135,11 +2135,23 @@ impl eframe::App for ViewerApp {
         // Both doors draw on the profile's own plane
         // ([`sketch::profile_plane`]).
         let (tol, delta) = (self.session.tol(), self.delta.get());
-        let mut profile_previews = held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
-            held.as_ref()
-                .filter(|_| drawn)
-                .map(|held| sketch::preview(sketch::profile_plane(), &held.loops, tol, delta))
-        });
+        let ProfileDoors { create, edit } =
+            held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
+                held.as_ref()
+                    .filter(|_| drawn)
+                    .map(|held| sketch::drawn(sketch::profile_plane(), &held.loops, tol, delta))
+                    .map_or((None, None), |(preview, built)| {
+                        (Some(preview), Some(built))
+                    })
+            });
+        let mut profile_previews = ProfileDoors {
+            create: create.0,
+            edit: edit.0,
+        };
+        let mut profile_constructions = ProfileDoors {
+            create: create.1,
+            edit: edit.1,
+        };
         // A traced path runs onto the trace at evaluation, which no
         // replay here can draw: the create door shows the trace instead.
         let landed = self.session.evaluation_arc().cloned();
@@ -2157,6 +2169,7 @@ impl eframe::App for ViewerApp {
                 .as_ref()
                 .and_then(|shown| shown.read.as_ref().ok())
                 .map(|marks| Ok(sketch::trace_preview(marks)));
+            profile_constructions.create = None;
         }
         // The committed node the edit door is previewing in its place,
         // which the committed-profile pass leaves out.
@@ -2218,6 +2231,7 @@ impl eframe::App for ViewerApp {
                     tools: &mut self.tools,
                     part_chooser: &mut self.part_chooser,
                     profile_previews: &profile_previews,
+                    profile_constructions: &profile_constructions,
                     profile_drawn: &mut profile_drawn,
                     profile_was_drawn: self.profile_drawn,
                     profile_edited,
@@ -2401,6 +2415,10 @@ pub(crate) struct ViewerBehavior<'a> {
     /// preview that WAS taken and drew nothing, and which the form is
     /// entitled to say so about.
     pub(crate) profile_previews: &'a ProfileDoors<Option<Result<ProfilePreview, PreviewError>>>,
+    /// What each door's fused fillet steps construct, taken with its
+    /// preview ([`sketch::drawn`]) and drawn whether or not the preview
+    /// is. `None` where no preview was taken.
+    pub(crate) profile_constructions: &'a ProfileDoors<Option<sketch::Construction>>,
     /// Set by each door's editor while it draws; read next frame.
     pub(crate) profile_drawn: &'a mut ProfileDoors<bool>,
     /// What [`Self::profile_drawn`] said on the last frame: which doors

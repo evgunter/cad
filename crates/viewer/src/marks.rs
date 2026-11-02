@@ -369,6 +369,14 @@ pub struct EdgeOverlay {
     /// requirement), so a wireframe can never be mistaken for a
     /// selection of something that exists.
     pub preview: Vec<[f32; 3]>,
+    /// **What a preview's fused fillet steps construct**: each step's
+    /// whole carriers and its fillet circle, in the theme's
+    /// construction colour, under the preview's kept pieces.
+    ///
+    /// A lane of its own because it is not the profile: most of it is
+    /// what the step trims away, and a step whose fit refuses draws
+    /// this and no piece at all.
+    pub construction: Vec<[f32; 3]>,
     /// **Profiles the document holds**: the loops of every profile
     /// node the landed evaluation validated, drawn where they lie.
     ///
@@ -398,6 +406,8 @@ vocabulary! {
     ///
     /// - A committed profile is first: it is the backdrop the rest is
     ///   placed against.
+    /// - A construction is over the committed profiles and under the
+    ///   preview: it is what the preview's kept pieces were cut from.
     /// - A preview is over the committed profiles: it is what the person
     ///   is composing now, possibly on top of one.
     /// - The marks are last, in [`Held`]'s precedence: a mark is the
@@ -407,6 +417,8 @@ vocabulary! {
     pub enum EdgeLane {
         /// [`EdgeOverlay::profiles`].
         Profile,
+        /// [`EdgeOverlay::construction`].
+        Construction,
         /// [`EdgeOverlay::preview`].
         Preview,
         /// [`EdgeOverlay::held`].
@@ -442,6 +454,7 @@ impl EdgeOverlay {
     pub fn lane(&self, lane: EdgeLane) -> &[[f32; 3]] {
         match lane {
             EdgeLane::Profile => &self.profiles,
+            EdgeLane::Construction => &self.construction,
             EdgeLane::Preview => &self.preview,
             EdgeLane::Held => &self.held,
             EdgeLane::Hovered => &self.hovered,
@@ -457,7 +470,7 @@ impl EdgeOverlay {
             EdgeLane::Held => self.held_probed,
             EdgeLane::Hovered => self.hovered_probed,
             EdgeLane::Selected => self.selected_probed,
-            EdgeLane::Profile | EdgeLane::Preview => false,
+            EdgeLane::Profile | EdgeLane::Construction | EdgeLane::Preview => false,
         }
     }
 }
@@ -538,6 +551,7 @@ pub fn edge_overlay(
         held_refused: None,
         held_probed: false,
         preview: Vec::new(),
+        construction: Vec::new(),
         profiles: Vec::new(),
     }
 }

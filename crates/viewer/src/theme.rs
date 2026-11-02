@@ -324,6 +324,15 @@ pub struct Theme {
     /// line across it rather than by its hue — the same redundancy
     /// argument [`Theme::actionable`] makes.
     pub profile: Rgba8,
+    /// **What a preview's fused fillet steps construct**: their whole
+    /// carriers and fillet circles, drawn under the preview's kept
+    /// pieces (`crate::marks::EdgeOverlay::construction`).
+    ///
+    /// A line colour, for [`Theme::profile`]'s reason, held to the
+    /// ground check for the same one, and told from both the preview
+    /// and the committed profile by `tests/theme.rs`: a carrier that
+    /// reads as a kept piece hides what the step trimmed.
+    pub construction: Rgba8,
     /// This palette's legibility claim.
     pub safety: Safety,
 }
@@ -416,6 +425,10 @@ const DARK_NEUTRAL: Theme = Theme {
     // A mid green, away from the selection amber, the hover blue and
     // the probe violet the preview is drawn in.
     profile: Rgba8::opaque(40, 170, 80),
+    // A light orange, away from the profile green and the preview
+    // violet; light, because protanopia takes a mid orange to the
+    // green's own yellow.
+    construction: Rgba8::opaque(255, 170, 60),
     safety: Safety::Unchecked,
 };
 
@@ -465,6 +478,8 @@ const LIGHT_NEUTRAL: Theme = Theme {
     // A deep green: the dark palette's hue, dark enough to stand on
     // the pale ground.
     profile: Rgba8::opaque(22, 124, 64),
+    // The dark palette's orange, a step darker for the pale ground.
+    construction: Rgba8::opaque(232, 140, 48),
     safety: Safety::Unchecked,
 };
 
@@ -628,6 +643,9 @@ const COLORBLIND_SAFE: Theme = Theme {
     // near-black-on-grey tint: a purple at the preview's lightness
     // loses to it once dichromacy takes the hue.
     profile: Rgba8::opaque(110, 20, 80),
+    // Okabe–Ito's orange: lighter than both the preview and the
+    // profile, which is the channel every dichromacy keeps.
+    construction: Rgba8::opaque(230, 159, 0),
     safety: Safety::ColorblindSafe,
 };
 

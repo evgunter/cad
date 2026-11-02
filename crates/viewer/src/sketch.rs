@@ -53,6 +53,7 @@ use pncad::document::{
     WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
+use pncad::profile::path::program::{FusedConstruction, fused_constructions};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, ConstructedLoop, ConstructedProfile, PathErrorKind,
     PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms,
@@ -1275,6 +1276,63 @@ pub fn preview(
     tol: Tol,
     chord: f64,
 ) -> Result<ProfilePreview, PreviewError> {
+    preview_resolved(plane, &written_steps(shapes, tol)?, tol, chord)
+}
+
+/// **[`preview`], and what the loops' fused fillet steps construct**,
+/// from one resolution of `shapes`.
+///
+/// The construction is drawn whether or not the preview is: a fused
+/// step whose fit refuses leaves its carriers, and a chain refused at
+/// its first leg has no prefix to draw but still has them. A
+/// resolution that refuses constructs nothing.
+pub fn drawn(
+    plane: SketchPlane<f64>,
+    shapes: &[ProfileShape],
+    tol: Tol,
+    chord: f64,
+) -> (Result<ProfilePreview, PreviewError>, Construction) {
+    match written_steps(shapes, tol) {
+        Ok(resolved) => (
+            preview_resolved(plane, &resolved, tol, chord),
+            Construction {
+                plane,
+                steps: resolved
+                    .iter()
+                    .flat_map(|steps| fused_constructions(steps, tol))
+                    .collect(),
+            },
+        ),
+        Err(refused) => (Err(refused), Construction::none(plane)),
+    }
+}
+
+/// **What a door's fused fillet steps construct**, on the plane its
+/// preview is placed on: each step's carriers and its fillet circle,
+/// as far as the replay reached them
+/// ([`pncad::profile::path::program::fused_constructions`]).
+#[derive(Clone, Debug)]
+pub struct Construction {
+    /// The plane the preview the steps belong to is placed on.
+    pub plane: SketchPlane<f64>,
+    /// Every loop's fused steps, in loop order and then program order.
+    pub steps: Vec<FusedConstruction<f64>>,
+}
+
+impl Construction {
+    /// Nothing constructed, on `plane`.
+    #[must_use]
+    pub fn none(plane: SketchPlane<f64>) -> Self {
+        Self {
+            plane,
+            steps: Vec::new(),
+        }
+    }
+}
+
+/// The loops `shapes` write, lowered and resolved — the first half of
+/// [`preview`]'s ladder.
+fn written_steps(shapes: &[ProfileShape], tol: Tol) -> Result<Vec<Vec<Step<f64>>>, PreviewError> {
     let mut programs = Vec::with_capacity(shapes.len());
     for shape in shapes {
         // CANONICAL, and it makes no difference which: a display unit
@@ -1287,7 +1345,7 @@ pub fn preview(
     // arrives as a placement ([`profile_plane`]). Nor a document: each
     // number the form wrote is the variable the insert door would mint
     // for it, in a scratch document of the resolver's own.
-    let resolved = resolve_written_loops(&programs, tol).map_err(|fault| match fault {
+    resolve_written_loops(&programs, tol).map_err(|fault| match fault {
         WrittenLoopFault::Resolve { slot, source } => PreviewError::Resolve { slot, source },
         // A form writes numbers, never a name, and no step reading a
         // trace.
@@ -1297,7 +1355,16 @@ pub fn preview(
         WrittenLoopFault::Trace(refusal) => {
             unreachable!("a form's program reads no trace, yet {refusal}")
         }
-    })?;
+    })
+}
+
+/// [`preview`]'s drawing of loops already resolved.
+fn preview_resolved(
+    plane: SketchPlane<f64>,
+    resolved: &[Vec<Step<f64>>],
+    tol: Tol,
+    chord: f64,
+) -> Result<ProfilePreview, PreviewError> {
     let mut loops: Vec<ConstructedLoop<f64>> = Vec::with_capacity(resolved.len());
     let mut ends: Vec<LoopEnd> = Vec::with_capacity(resolved.len());
     // Every refusal met, in loop order: the refused loops' and the

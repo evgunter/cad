@@ -2,8 +2,10 @@
 id: a-fused-fillet-verb-draws-nothing-of-its-parts-so-a-refusal-is-unreadable
 kind: issue
 title: arc_fillet_arc (and the fused fillet family) draws none of its component arcs, so when it refuses to draw nothing shows what went wrong
-status: open
+status: closed
 opened: 2026-11-02
+closed: 2026-11-02
+pr: 6306
 priority: P1
 cost: M
 ---
@@ -50,3 +52,25 @@ reach), the person sees nothing of the geometry the refusal is about.
 P1: a GUI defect Ev reported as making a verb nearly unusable.
 `pane/viewport.rs` is also VNEWS's and VGEOM's ground; the marks layer
 (`marks.rs`) is VGEOM's.
+
+## Closed (2026-11-02)
+
+Reproduced on main at `4e574c9677`: `push_preview` drew the preview's
+loops and nothing else, and a fused step refused with nothing before it
+(the vesica's `arc_fillet_arc` from the entry at a radius too large)
+left `sketch::preview` an `Err` and the viewport blank.
+
+Fixed: `profile::path::program::fused_constructions` walks the replay
+and reports, per fused step, the incoming carrier (the side the
+table's own opening row opens on a copy of the tip), the arrival circle
+a `Center` spec fixes or the run out the step drew, and the fillet
+circle off the step's emitted `Arc` piece. `sketch::drawn` takes it
+beside the preview, so it exists when the preview refuses; the
+viewport draws it in a new `EdgeLane::Construction`, under the kept
+pieces and outside the fit, in `Theme::construction`.
+
+The third bullet above needs nothing new for the radius-too-large
+case: the refusal already reads "no circle of that radius touches both
+carriers here — the radius is too large", and the carriers it names
+are now on screen. An arrival a later step completes draws no carrier
+yet: `an-arrival-a-later-step-completes-draws-no-construction`.

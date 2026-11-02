@@ -1538,7 +1538,12 @@ box of the `f32` corners that crossed the display seam, widened back.
 A preview that failed to replay draws nothing and frames nothing; a
 loop of one vertex frames its point. The previews' step marks are not
 in it, nor is anything else sized by the view: a fit that framed them
-would depend on the camera it is choosing. So a frame builds the
+would depend on the camera it is choosing. Nor is a preview's
+construction — each fused fillet step's whole carriers and its fillet
+circle (`sketch::drawn`), drawn in their own lane under the kept
+pieces, and drawn when the step's fit refuses too: a carrier is a
+whole circle, and one large enough to fillet against would frame the
+profile as a speck. So a frame builds the
 geometry lanes, derives the extent, fits, folds the pointer's events,
 and only then sizes the marks against the camera that settled — one
 pure function, `pane::viewport::frame_camera`, whose order a row
