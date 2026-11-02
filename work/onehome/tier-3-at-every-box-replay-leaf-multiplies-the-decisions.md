@@ -39,6 +39,15 @@ PR 6371 (CI, opt-1):
   which at `f64` ends in the placement's finish.
 - `mesh` `probe_review::z1_fixtures_still_tessellate_with_the_falsifier_gated_out`
   took 1.05 s. It lofts a prism, which the `f64` door finishes.
+- 19 `sweep` loft and sweep rows, at `f64`, which the loft door
+  finishes: `pinned_corners_at_the_loft_door::an_elbow_builds_from_every_spelling`
+  38 s, `one_segment_loop::a_one_segment_strut_…` 27 s,
+  `…::a_tight_bend_tube_sweeps_from_any_start` 10.6 s,
+  `bool6_per_slab_stacking::a_planar_arc_spine_lofts_past_pi` 8.0 s, and
+  15 more between 1.0 and 5.0 s (the line in `.config/nextest.toml` lists
+  them). These are the `f64` finish the ruling keeps, so they are not the
+  switch's to take away. They belong to this row's question of what
+  tier 3 costs at a door.
 
 **The test that says it is closed.** With the switch's box arm deleted,
 those rows run within the 1.0 s slow-test budget (or each is in the slow

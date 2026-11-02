@@ -4396,12 +4396,14 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         named.push((read, table, bridges));
     }
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
-    let fused =
-        T::finish(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    // The graft of its members is its scalar's leaf
+    // (`topo::AtRestPolicy::leaf`), as they are: finished at `f64`, tier
+    // 2 at the box scalars, where a taker finishes it.
+    let fused = T::leaf(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let frame = computing.map_or(super::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(super::Pieces { by: id, pieces });
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::in_frame(Arc::new(fused), frame)),
+        ValuePayload::Body(super::Framed::in_frame_leaf(Arc::new(fused), frame)),
         table,
     )
     .carrying(super::Carry {
