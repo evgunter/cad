@@ -578,10 +578,10 @@ fn flank_read<T: Decide>(
 /// **A representative's side of a sheet's face in a line cone**
 /// ([`resolve_edge_edge`]): the one bound-side reading, on the cone's
 /// reading, as [`flank_read`] reads a flanker against its reference. A
-/// bound its descent leaves unresolved on the face is on it, as
-/// [`flank_read`] keys it, and the coincidence ladder reads it
-/// ([`crate::link::Material::On`]); `None` where the reading is in band
-/// ([`super::sectors::Ungiven::Undecided`]).
+/// bound its descent leaves unresolved, on the band or over the cone's
+/// slack, is on the face, as [`flank_read`] keys it, and the coincidence
+/// ladder reads it ([`crate::link::Material::On`]); `None` where the
+/// reading is in band ([`super::sectors::Ungiven::Undecided`]).
 fn sheet_side<T: Decide>(
     (dir, reach): Rep<T>,
     sheet: &BoolSector<T>,
@@ -590,7 +590,7 @@ fn sheet_side<T: Decide>(
     use super::sectors::Ungiven;
     match super::sectors::given_side(dir, reach, sheet.datum(), rd) {
         Ok(side) => Some(side),
-        Err(Ungiven::Unresolved) => Some(Sign::Zero),
+        Err(Ungiven::Unresolved | Ungiven::Slack) => Some(Sign::Zero),
         Err(Ungiven::Undecided) => None,
     }
 }
@@ -3058,6 +3058,212 @@ mod tests {
             diag.margin.diagnostic_f64_for_error_text().value(),
             Some(arm),
             "the sense is metered at the corners' arm"
+        );
+    }
+
+    /// **A curved flank pair tied at first order is decided alike at the
+    /// edge-sector and the edge-edge sites, by its descent**, undeclared:
+    /// A's quarter-turn corner about the line `z` (faces on the planes
+    /// `y = 0` and `x = 0`, its material `x > 0, y < 0`), and B's corner
+    /// about the same line, a face on the plane at 135° and a bore's wall
+    /// (the cylinder about `(0, −1)`, B's material outside it) tangent to
+    /// A's plane `y = 0` along the line. Each solid's flank there lies in
+    /// the other's face's tangent plane: B's along the bore's circle,
+    /// bending into A; A's along `x`, which the bore bends away from. The
+    /// edge-sector site reads each flank against the other's face on the
+    /// band ([`flank_read`]), the edge-edge site hands the line cone the
+    /// same reading on the cone's own ([`sheet_side`]), and the cone's
+    /// membership is that side's: each flank in the other's material, a
+    /// germ. Read at first order alone (the flank's tangent ray on the
+    /// face's plane) it would be the coincidence ladder's, which cannot
+    /// meet a plane and a cylinder.
+    #[test]
+    fn a_curved_flank_pair_tied_at_first_order_reads_alike_at_both_sites() {
+        use super::super::sectors::Reach;
+        use crate::boolean::{Glue, GluedPairs};
+        use geom_brep::{ConicBend, OutwardNormal};
+        use geom_core::{Point3, Tol};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let (pa, fa) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
+        let bore = geom::Surface::Cylinder {
+            origin: Point3::new(0.0, -1.0, 0.0),
+            axis: z,
+            radius: 1.0,
+            u_ref: y,
+        };
+        let bend_b = crate::bound_side::FaceBend::at(&bore, o);
+        let (cb, fb) = face_on(bore);
+        // The bore's circle through the point, leaving along `x`.
+        let circle = geom::Curve3::circle(Point3::new(0.0, -1.0, 0.0), -z, 1.0, y);
+        let span = std::f64::consts::FRAC_PI_4;
+        let extent = geom_brep::edge_extent_inf(&circle, 0.0, span, 2.0 * (span / 2.0).sin());
+        let tangent = circle.deriv(0.0);
+        let arc = (
+            tangent.normalize() * extent,
+            Reach::Conic {
+                extent,
+                bend: ConicBend::of(&circle, tangent, circle.deriv2(0.0), span),
+            },
+        );
+        let chord = |d: Vec3<f64>| (d, Reach::Chord { base: o, far: o + d });
+        let sector = |(start, start_reach): (Vec3<f64>, Reach<f64>),
+                      (end, end_reach): (Vec3<f64>, Reach<f64>),
+                      face,
+                      bend| BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start,
+            end,
+            start_reach,
+            end_reach,
+            face,
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                start.cross(end).normalize(),
+                true,
+            )),
+            arm: 1.0,
+            bend,
+        };
+        let plane = crate::bound_side::FaceBend::Plane;
+        let sa = [
+            sector(chord(z), chord(x), fa, plane),
+            sector(chord(-y), chord(z), fa, plane),
+        ];
+        let d2 = Vec3::new(-1.0, 1.0, 0.0).normalize();
+        let sb = [
+            sector(chord(z), chord(d2), fb, plane),
+            sector(arc, chord(z), fb, bend_b),
+        ];
+        // The edge-sector site: each flank against the other's face.
+        let b_flank = flank_read(&sb, 1, true, &sa[0], band).expect("B's flank reads");
+        let a_flank = flank_read(&sa, 0, false, &sb[1], band).expect("A's flank reads");
+        for (what, read) in [("B's bore flank", b_flank), ("A's flank along x", a_flank)] {
+            assert!(read.tie.is_some(), "{what} ties at first order");
+            assert_eq!(read.code, In, "{what} descends into the other's material");
+        }
+        // The edge-edge site: the same reading, handed to each line cone.
+        let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
+        let (read, [a_in, b_in]) = resolve_edge_edge(
+            &sa,
+            &sb,
+            &pa,
+            &cb,
+            BooleanOp::Union,
+            &declared,
+            band,
+            [None, None],
+            [&[], &[]],
+            Wedge::at_bound(&sa, 0),
+            Wedge::at_bound(&sb, 0),
+            None,
+        )
+        .expect("the curved flank pair reads by its descent");
+        assert_eq!(
+            (a_in[0], b_in[1]),
+            (true, true),
+            "each tied flank lies in the other's material, as the edge-sector site reads it"
+        );
+        assert_eq!(
+            (a_in[1], b_in[0]),
+            (false, false),
+            "the flanks decided at first order lie outside"
+        );
+        assert!(
+            matches!(read, EdgeEdge::Germ(_)),
+            "each solid crosses the other along the line: {read:?}"
+        );
+    }
+
+    /// **A sheet's side is read on the line cone's own reading**, over its
+    /// tie's slack: A's quarter-turn corner about the line `z` under its
+    /// face on `y = 0` (outward `+y`), and B's corner over it, B's face on
+    /// that plane, face to face with A's, its flank dipped under A's face
+    /// by `d`, B's vertex `tie` up the line from A's, on a band with
+    /// `K = 1.4`. Flush at one point, the flank lies on A's face and the
+    /// coincidence ladder asks for the faces' `Rest`. Dipped `1.5·zero` at
+    /// one point, the band decides the flank into A's material, and the
+    /// pass goes on to a parity arc read in band. With the tie `0.9·zero`,
+    /// the band decides the dip and the slack (`1.8·zero`) does not: the
+    /// flank's side is unresolved, so it lies on A's face to the orders
+    /// read, and the ladder asks for the faces' `Rest`, as flush.
+    #[test]
+    fn a_sheets_side_decided_within_the_cones_tie_is_the_ladders() {
+        use super::super::sectors::Reach;
+        use crate::boolean::{BooleanDecision, Glue, GluedPairs};
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let tol = Tol::witness();
+        let zero = Band::linear(tol).unwrap().zero();
+        let band = Band::new(zero, 1.4 * zero).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let (pa, fa) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
+        let (pb, fb) = face_on(crate::test_support_fixtures::plane(&[o, o + z, o + x], tol));
+        let sector = |base: Point3<f64>, start: Vec3<f64>, end: Vec3<f64>, face| BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start,
+            end,
+            start_reach: Reach::Chord {
+                base,
+                far: base + start,
+            },
+            end_reach: Reach::Chord {
+                base,
+                far: base + end,
+            },
+            face,
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                start.cross(end).normalize(),
+                true,
+            )),
+            arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
+        };
+        let sa = [sector(o, z, x, fa), sector(o, -y, z, fa)];
+        let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
+        let run = |tie: f64, d: f64| {
+            let at = o + z * tie;
+            let flank = Vec3::new(1.0, -d, 0.0).normalize();
+            let sb = [sector(at, z, -x, fb), sector(at, flank, z, fb)];
+            match resolve_edge_edge(
+                &sa,
+                &sb,
+                &pa,
+                &pb,
+                BooleanOp::Union,
+                &declared,
+                band,
+                [None, None],
+                [&[], &[]],
+                Wedge::at_bound(&sa, 0),
+                Wedge::at_bound(&sb, 0),
+                None,
+            ) {
+                Err(BooleanError::Escalated { decision, .. }) => decision,
+                other => panic!("a typed escalation: {other:?}"),
+            }
+        };
+        let carriers = |d: &BooleanDecision| {
+            matches!(d, BooleanDecision::Coincidence(Coincide::Carriers, _))
+        };
+        let flush = run(0.0, 0.0);
+        assert!(carriers(&flush), "flush, the ladder's question: {flush:?}");
+        let dipped = run(0.0, 1.5 * zero);
+        assert!(!carriers(&dipped), "dipped at one point, decided: {dipped:?}");
+        assert_eq!(
+            run(0.9 * zero, 1.5 * zero),
+            flush,
+            "dipped within the slack, on the face to the orders read, as flush"
         );
     }
 

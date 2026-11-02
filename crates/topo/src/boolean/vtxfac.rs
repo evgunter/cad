@@ -373,11 +373,13 @@ pub(crate) fn cone_classes<T: Decide>(
                 .find(|&&(h, _)| h == he)
                 .ok_or(invariant("a touched face carries no datum for an edge"))?;
             // A bound tied with the face that parts from it to no order
-            // read is held on it, as the pierce holds it.
+            // the band reads is held on it, as the pierce holds it. One
+            // whose side the cone's slack hides is handed none: its class
+            // would be published on the face.
             match datum.given(dir, reach, rd) {
                 Ok(side) => given.push((disc, side)),
                 Err(Ungiven::Unresolved) => given.push((disc, Sign::Zero)),
-                Err(Ungiven::Undecided) => {}
+                Err(Ungiven::Slack | Ungiven::Undecided) => {}
             }
         }
         let class = match cone.reads_tied(reach.point(p, dir), &given, band) {
@@ -3180,6 +3182,91 @@ mod tests {
         );
     }
 
+    /// **A partner's bounds are read over its offset from the touch
+    /// point** (`vtxfac-partner-side-reads-a-partners-bounds-on-the-band-beside-its-tie`):
+    /// a ball's face through the point (outward `+z`, radius `R`), and a
+    /// partner `0.9·zero` off the point with a line edge up `+z` and a
+    /// short line edge tied with the face at first order, its far vertex
+    /// `0.5·zero` over the tangent plane, on a band with `K = 1.4`. The
+    /// ball parts from the tied edge by `2·zero` at its reach: clear of
+    /// `K·zero` on the band, by less than the residue and the offset
+    /// beside it. On the band alone the edge leaves the face and the
+    /// partner reads off it; over the offset the parting is the slack's
+    /// tie, the edge's side unresolved, and the partner's side unread on
+    /// the curved face.
+    #[test]
+    fn a_partners_descended_bound_is_read_over_its_offset() {
+        use super::super::sectors::{BoolSector, FaceBend, PierceLever, Reach};
+        use crate::link::metric::Reading;
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Vec3};
+        let zero = Band::linear(Tol::witness()).unwrap().zero();
+        let band = Band::new(zero, 1.4 * zero).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let (l, radius) = (1e-4, 2.5);
+        let tied = Vec3::new(l, 0.0, 0.5 * zero);
+        let partner = [BoolSector {
+            he: HalfEdgeKey::default(),
+            start: z,
+            end: tied.normalize(),
+            start_reach: Reach::Chord { base: o, far: o + z },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + tied,
+            },
+            face: crate::entity::FaceKey::default(),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                Vec3::new(0.0, -1.0, 0.0),
+                true,
+            )),
+            arm: l,
+            bend: FaceBend::Plane,
+        }];
+        let datum = PierceDatum {
+            normal: OutwardNormal::from_chart(z, true),
+            bend: FaceBend::ball(z, radius),
+            lever: PierceLever::Everywhere(radius),
+        };
+        let (plain, offset) = (Reading::plain(band), Reading::tied(band, 0.9 * zero));
+        let edge = |rd| {
+            super::super::sectors::pierce_side(
+                partner[0].end,
+                partner[0].end_reach,
+                datum.normal,
+                datum.bend,
+                radius,
+                rd,
+            )
+            .map(|(side, _)| side)
+            .unwrap()
+        };
+        assert_eq!(
+            edge(plain),
+            super::super::sectors::PierceSide {
+                code: SideCode::Out,
+                tied: true
+            },
+            "tied at first order, the edge leaves the ball's face on the band"
+        );
+        assert_eq!(
+            edge(offset).code,
+            SideCode::On,
+            "over the offset its parting is unresolved"
+        );
+        let read = |rd| partner_side(&partner, datum, false, rd).unwrap();
+        assert_eq!(
+            read(plain),
+            PartnerRead::Side { along: false },
+            "on the band, off the face"
+        );
+        assert_eq!(
+            read(offset),
+            PartnerRead::Along(AlongFace::Curved),
+            "over the offset, unread on the curved face"
+        );
+    }
+
     /// **A touching partner's side reads its conic bound by its bend.**
     /// The partner's corner lies in `y = 0` over the face `z = 0`: a line
     /// edge up `+z`, and a unit arc leaving along `+x`, tangent to the
@@ -3343,6 +3430,66 @@ mod tests {
                 }
             })
             .collect()
+    }
+
+    /// **The touched face is read on the cone's reading**, over the
+    /// partners' tie: the face `z = 0` (outward `+z`) the vertex touches,
+    /// a partner's convex corner standing on it `tie` off the point, and
+    /// an edge along the face `1.5·zero` over its plane, on a band with
+    /// `K = 1.4`. With the partner at the point the edge reads `Out`.
+    /// With the tie `0.9·zero` the band decides the edge's side of the
+    /// face and the slack (`1.8·zero`) does not: its side is the slack's
+    /// tie, handed to the cone as no side, and the cone, reading the edge
+    /// in band of the face's plane, reads nothing. That is the reading's
+    /// conservatism: the face's plane and the edge both stand at the
+    /// vertex's own point, which the partner's offset does not move.
+    #[test]
+    fn the_touched_faces_side_is_read_on_the_cones_reading() {
+        use super::super::sectors::Reach;
+        let zero = Band::linear(Tol::witness()).unwrap().zero();
+        let band = Band::new(zero, 1.4 * zero).unwrap();
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let normal = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let d = Vec3::new(-1.0, 0.2, 1.5 * zero);
+        let own = [BoolSector {
+            he: HalfEdgeKey::from(key(1)),
+            start: Vec3::new(0.0, -1.0, 0.0),
+            end: d.normalize(),
+            start_reach: Reach::straight_bisector(1.0),
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + d,
+            },
+            face: crate::entity::FaceKey::from(key(901)),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
+            arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
+        }];
+        let against = [(
+            own[0].he,
+            PierceDatum {
+                normal,
+                bend: crate::bound_side::FaceBend::Plane,
+                lever: PierceLever::Everywhere(super::super::sectors::NO_CURVATURE()),
+            },
+        )];
+        let touched = Some((crate::entity::FaceKey::from(key(999)), normal, &against[..]));
+        let read = |tie: f64| {
+            let partner = Partner {
+                vertex: VertexKey::from(key(2)),
+                at: o + Vec3::new(tie, 0.0, 0.0),
+                sectors: corner_about(1.0, 10),
+            };
+            cone_classes(o, &own, &[own[0].he], &[partner], touched, band).unwrap()
+        };
+        assert_eq!(read(0.0), Ok(vec![(own[0].he, Out)]), "at the point, Out");
+        let unread = read(0.9 * zero).expect_err("over the tie, the edge reads nothing");
+        assert_eq!(
+            (unread.edge, unread.face),
+            (own[0].he, Some(crate::entity::FaceKey::from(key(999)))),
+            "the edge in band of the touched face"
+        );
     }
 
     /// **A vertex's edges are read through one cone of the other solid at

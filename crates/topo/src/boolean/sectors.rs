@@ -937,6 +937,9 @@ pub(crate) fn given_side<T: Decide>(
         Ok(FirstOrder::Tied(tie)) => match tie.descend() {
             Ok(Descent::Leaves(side)) => side,
             Ok(Descent::Rides) => return Ok(Sign::Zero),
+            Ok(Descent::Unresolved(crate::bound_side::Unresolved::Slack)) => {
+                return Err(Ungiven::Slack);
+            }
             Ok(Descent::Unresolved(_)) | Err(ReadFault::Bend(_)) => {
                 return Err(Ungiven::Unresolved);
             }
@@ -952,10 +955,16 @@ pub(crate) fn given_side<T: Decide>(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Ungiven {
     /// The bound tied with the face at first order and its descent
-    /// parted from it to no order read: a parting the band or the slack
-    /// leaves undecided, or a conic's bend on a plane that reads no side
-    /// ([`BooleanDecision::ConicBend`]). What [`bound_read`] reads `On`.
+    /// parted from it to no order read on the band: a parting in the
+    /// band's gap, an uncertified bend, or a conic's bend on a plane that
+    /// reads no side ([`BooleanDecision::ConicBend`]). What
+    /// [`bound_read`] reads `On`, and the vertex-on-face pass holds on the
+    /// face.
     Unresolved,
+    /// The descent reads no side clear of the reading's slack
+    /// ([`crate::bound_side::Unresolved::Slack`]): a side a tie's offset
+    /// could move. What [`bound_read`] reads `On`.
+    Slack,
     /// Any other reading in band: at first order, its charge, or the
     /// descent's own arm.
     Undecided,
