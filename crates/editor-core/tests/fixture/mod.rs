@@ -4117,6 +4117,27 @@ pub fn clearance_within(
     }
 }
 
+/// **The `Selection` door's metric question**, `clearance ≥ c` between
+/// two selections through [`editor_core::clearance::clearance_with`] — the
+/// door a document assertion does not replace for rows that read the
+/// selection's own refusals, or a pair no assertion's seats admit
+/// (`work/cleartail/the-metric-clearance-dials-door-outlives-the-assertion.md`).
+pub fn selection_clearance(
+    doc: &ProfileDoc,
+    leaf: &editor_core::analysis::ParamBox,
+    a: &editor_core::clearance::Selection,
+    b: &editor_core::clearance::Selection,
+    c: f64,
+    tol: Tol,
+) -> editor_core::clearance::ClearanceReport {
+    use editor_core::clearance::{ClearanceBound, ClearanceQuery};
+    let query = ClearanceQuery {
+        bound: ClearanceBound::at_least(c),
+        ..ClearanceQuery::strictly_positive(tol)
+    };
+    editor_core::clearance::clearance_with(doc, leaf, a, b, &query)
+}
+
 /// [`clearance_within`] at `clearance ≥ c`, the seats' kinds admitted.
 pub fn clearance(
     doc: &ProfileDoc,

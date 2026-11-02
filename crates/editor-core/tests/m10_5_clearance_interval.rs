@@ -805,7 +805,7 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
         faces: FaceScope::Named(vec![fixture::ename(at, fixture::wall(&doc, at, 0))]),
     };
     let whole = Selection::body_of(at);
-    let report = clearance(
+    let report = crate::fixture::selection_clearance(
         &doc,
         &box_of(&doc, "place"),
         &sel,
@@ -825,7 +825,7 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
 fn a_node_that_does_not_exist_refuses_at_the_selection() {
     let (doc, _minted, _at) = hexagon();
     let sel = Selection::body_of(RecipeNodeId::new(0, 9999));
-    let report = clearance(
+    let report = crate::fixture::selection_clearance(
         &doc,
         &box_of(&doc, "place"),
         &sel,
@@ -1301,20 +1301,30 @@ fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
     let (doc, minted, _at) = dumbbell();
     let sel = Selection::body_of(minted);
     let leaf = box_of(&doc, "place");
-    for c in [f64::NAN, f64::INFINITY, -1.0] {
-        let report = clearance(&doc, &leaf, &sel, &sel, c, Tol::witness());
-        match report.verdict() {
-            ClearanceVerdict::Refused(ClearanceRefusal::NotADistance { .. }) => {}
-            other => panic!("expected NotADistance for c = {c}, got {other:?}"),
-        }
-        assert_eq!(report.receipt(), CellReceipt::default());
+    // A bound that is no number at all is no literal a document holds:
+    // the formula refuses it before any assertion is authored.
+    for c in [f64::NAN, f64::INFINITY] {
+        assert!(
+            editor_core::Formula::literal(c, editor_core::Dimension::Length).is_err(),
+            "c = {c} is refused as a literal"
+        );
     }
+    // A negative one is a length the document holds and the assertion
+    // refuses as no distance, before any cell pair is read.
+    let report = clearance(&doc, &leaf, &sel, &sel, -1.0, Tol::witness());
+    match report.verdict() {
+        ClearanceVerdict::Refused(ClearanceRefusal::NotADistance { .. }) => {}
+        other => panic!("expected NotADistance for c = -1, got {other:?}"),
+    }
+    assert_eq!(report.receipt(), CellReceipt::default());
     let empty = Selection {
         at: minted,
         body: 0,
         faces: FaceScope::Named(Vec::new()),
     };
-    match clearance(&doc, &leaf, &empty, &sel, 0.2, Tol::witness()).verdict() {
+    match crate::fixture::selection_clearance(&doc, &leaf, &empty, &sel, 0.2, Tol::witness())
+        .verdict()
+    {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
             refusal: EngineRefusal::EmptyScope { side: Which::First },
             ..

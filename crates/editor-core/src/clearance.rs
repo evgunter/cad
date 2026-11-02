@@ -1152,6 +1152,17 @@ fn clearance_on(
     query: &ClearanceQuery<'_>,
     lane: crate::eval::LeafLane,
 ) -> ClearanceReport {
+    // Not a distance. Refused at the door: subdividing against a NaN
+    // bound classifies nothing, burns the whole budget and comes back
+    // `Budget`, which is the wrong name for it.
+    if let Some(c) = [query.bound.lower(), query.bound.upper()]
+        .into_iter()
+        .flatten()
+        .flat_map(|e| [geom_core::Bounds::lo(e), geom_core::Bounds::hi(e)])
+        .find(|c| !c.is_finite() || *c < 0.0)
+    {
+        return ClearanceReport::refused(ClearanceRefusal::NotADistance { c });
+    }
     for (sel, side) in [(a, Which::First), (b, Which::Second)] {
         if sel.is_empty_scope() {
             return ClearanceReport::refused(ClearanceRefusal::Engine {

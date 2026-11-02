@@ -652,7 +652,7 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
     );
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let started = std::time::Instant::now();
-    let report = clearance(
+    let report = crate::fixture::selection_clearance(
         &r.doc,
         &box_of(&r.doc, "place"),
         &sq,
@@ -775,7 +775,8 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         body: 0,
         faces: FaceScope::Named(vec![]),
     };
-    let vacuous = clearance(&doc, &leaf, &nothing, &sb, 0.1, Tol::witness());
+    let vacuous =
+        crate::fixture::selection_clearance(&doc, &leaf, &nothing, &sb, 0.1, Tol::witness());
     println!("[r1] empty selection: {}", vacuous.serialize());
     assert!(
         matches!(
@@ -1034,7 +1035,8 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     };
     for (c, expect) in [(0.3, "Holds"), (0.45, "Holds"), (0.55, "Violated")] {
         let started = std::time::Instant::now();
-        let report = clearance(&doc, &leaf, &inner, &ss, c, Tol::witness());
+        let report =
+            crate::fixture::selection_clearance(&doc, &leaf, &inner, &ss, c, Tol::witness());
         println!(
             "[r1 e2e] c = {c}: {:?} {}",
             started.elapsed(),

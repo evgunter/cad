@@ -354,7 +354,6 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
 /// body, which here has no resolver to build.
 #[test]
 fn the_clearance_door_refuses_two_selections_in_different_spaces() {
-    use crate::fixture::clearance;
     use editor_core::clearance::{ClearanceRefusal, ClearanceVerdict, Selection, SelectionRefusal};
     let p = parts("r2-clear");
     let doc = ProfileDoc::empty(DocumentId::derive("r2-clear"), Tol::witness());
@@ -362,7 +361,7 @@ fn the_clearance_door_refuses_two_selections_in_different_spaces() {
         fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &p.opts());
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, space) = fixture::into_new_space(doc, top);
-    let report = clearance(
+    let report = crate::fixture::selection_clearance(
         &doc,
         &ParamBox::from_axes(BTreeMap::new()),
         &Selection::body_of(base),
