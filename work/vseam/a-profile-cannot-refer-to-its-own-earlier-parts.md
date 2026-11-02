@@ -202,3 +202,69 @@ pair before any unit dispatches.
 
 **Owner load.** doctail is `ready` with no orchestrator, at load 111
 against a budget of 45. U1, U3 and U4 add 19 points to it.
+
+## 2026-11-02 — the residue, weighed (designer pair, five rounds; fork-log row 241)
+
+The pair agrees on all fifteen. One of them, Q1, changes ratified text,
+so it waits for Ev on the `[ev]` PR. The rest are build-level: the
+answers are implied by the ruled text, and builders follow them.
+
+- **Q1.** A written `Direction2` holds no components. It is one `Angle`
+  from the profile's +x, lowered exactly at a written fraction of a turn
+  through `geom_core::Angle`. Today only the revolve's heading reads
+  through that; the profile director's `Dir::from_angle` must be wired
+  to it. `toward(dx, dy)` leaves the document and stays the kernel's
+  ray door. "30° off an edge" is a `Spin { of: read, by }`, admitted
+  when a reader asks. Ev's residual preference: whether the profile's
+  axes also get a numberless `Axis { x | y, sense }` form.
+- **Q2.** Nothing of a read is stored. The pin is that a `Heading`'s
+  value is the read piece's ray, unchanged, at every scalar.
+  `Against` negates it exactly.
+- **Q3.** Only the seam-fillet close moves an emitted start, and it
+  moves the entry vertex. A same-loop `Vertex` read of a chain's first
+  piece refuses; the recourse is to name the `at` point.
+- **Q4.** All of a point's readers share one coordinate system: one
+  profile, or profiles drawn on one frame, plus nodes that read those.
+  This is checked at the save and load door.
+- **Q5 and Q7.**
+  - A read stores its locator only; the node is derived from the step
+    id.
+  - The node DAG drops a profile's edge to itself.
+  - Step order is checked through everything a definition reaches.
+  - A read resolves wherever its profile resolves (check, pieces,
+    preview, load). The one exception is a read of a piece after a
+    trace step, which resolves only in an evaluation.
+- **Q6.** A point argument is one slot. The coordinate `StepArg`s go,
+  and the definition's own `Length`s are edited by id.
+- **Q8.** Order is the stored order.
+- **Q9.** These refuse at the `SetProgram` door, because §1b's
+  refusals are save and load invariants (`validate_snapshot`):
+  - a `SetProgram` that reorders a read piece after its reader;
+  - one that keeps a step id on a verb lacking the read role.
+
+  Only a dropped step strands its read.
+- **Q10.** A 2-D `Slide { point, along: Direction2, by: Length }`, with
+  `p.offset(w, 0)` as façade sugar.
+- **Q11.** The revolve's axis line migrates to `Point2`/`Direction2` now,
+  as its own unit. The lift waits for a reader.
+- **Q12.** `TraceTangent { piece, sense }`, a `Direction2` definition;
+  the `AlongTrace` step goes.
+- **Q13.** A read of a role the values do not draw resolves from the
+  construction (§1b "constructed"), so U2 reports each role from the
+  trims. A name on that role still vanishes.
+- **Q14.** An authored address for a step the same edit adds, lowered to
+  its id when minted.
+- **Q15.** A read lowers as a leaf `(kind, step id, role)`. `Centre` of a
+  verb that holds its centre as a `Point2` expands to that point.
+
+**Cut corrections.**
+- U1 changes addressing as well as representation, and carries Q4's
+  check.
+- U4 folds `Angle` and `Toward` into one `Direction2` director, adds
+  `Spin`, `Slide` and `TraceTangent`, and wires the director through
+  `geom_core::Angle`. It is cost M without the lift.
+- A U7 for the revolve's axis follows U4. It is filed when Ev rules.
+
+**Still unverified by either designer**, for U2's pin to test:
+- that nothing but the seam close moves an emitted start;
+- that the entry is always `at(p)`.

@@ -410,12 +410,14 @@ safe to migrate a byte-identical corpus onto:
    Nothing computed is ever re-typed by the author, which is why the
    algebra and a hand-built chain given the same authored points agree
    bit for bit, not merely to tolerance.
-2. **Direction-exact rays.** A director may fix an ANGLE (and derive
-   its ray) or fix a RAY directly. The second spelling exists because
-   the first cannot be exact: `sin_cos` quantizes, so `.angle(PI)`
-   yields `(-1, 1.2246e-16)` and carries that ulp into every corner
-   downstream. Where a ray is what the author means, the ray is what
-   gets stored.
+2. **Direction-exact rays.** A director's value is a unit ray, and
+   where the direction is exact the ray is exact. `sin_cos` of a raw
+   radian quantizes (`.angle(PI)` yields `(-1, 1.2246e-16)` and carries
+   that ulp into every corner downstream), so an angle written as a
+   fraction of a turn lowers through `geom_core::Angle`, exact at that
+   fraction, and a direction read off a piece is that piece's ray,
+   never normalized again. The kernel's `toward(dx, dy)` (item 5) is the
+   door these rays lower through.
 
 ### 1. `circle(center, r)` — a complete-loop program form
 
@@ -481,17 +483,23 @@ same funnel as the other sign gates.
 
 Every point argument of a step (`at`, a target point, `Center` c, `Via`
 q, a circle's or rectangle's centre) holds one `Point2` variable, and
-every director (`toward`) one `Direction2`, in the profile's own
-coordinates (`[variables.poses]`). A written `(x, y)` mints an
-anonymous `Point2` whose `x` and `y` are anonymous `Length`s it owns;
-naming it lets two steps share it. Other 2-D poses are DEFINED by a
-read off a piece an earlier step drew, addressed by its N1 locator
-(step id and role):
+every director one `Direction2`, in the profile's own coordinates
+(`[variables.poses]`). A written `(x, y)` mints an anonymous `Point2`
+whose `x` and `y` are anonymous `Length`s it owns; naming it lets two
+steps share it. A written direction is one `Angle` from the profile's
++x: it holds no components, and `toward(dx, dy)` is the kernel's
+lowering of a direction, not a document step (§2a item 5). Other 2-D
+poses are DEFINED by a read off a piece an earlier step drew, addressed
+by its N1 locator (step id and role), or moved from one by a slide
+along a `Direction2` by a `Length` (`[variables.poses]`):
 
 - `Centre { piece }` — the centre of that piece's arc carrier, written
   or derived;
-- `Vertex { piece }` — where that piece starts, as the replay emitted
-  it;
+- `Vertex { piece }` — where that piece starts, as the replay
+  constructed it: a role the current values do not draw as its own
+  segment (a `Zero` fit's run, a run N1 merges onto its neighbour) still
+  has the start its construction gives it, though a name on it
+  vanishes;
 - `Heading { piece, sense }` — a straight piece's ray, with or against
   it; `AlongTrace` is the same read off a traced face's tangent.
 
@@ -611,6 +619,9 @@ one appears, it is an addition here, not an improvisation at the call
 site.
 
 ### 5. `toward(dx, dy)` — the exact director
+
+`toward` is a kernel verb. The document does not store it: a written
+director is an angle (§1b), and every director lowers to this door.
 
 **Consumes** the same angular DOF as `.angle(θ)` — the SAME lattice
 slot, set at most once per side, with the same §4 item 1 junction check
