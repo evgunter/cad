@@ -2,7 +2,8 @@
 id: measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload
 kind: issue
 title: NodeErrorKind::MeasureClearanceRefused renders a class name and the goldening payload, and none of its eleven arms states a recourse
-status: open
+status: closed
+closed: 2026-11-02
 opened: 2026-10-20
 priority: P4
 cost: M
@@ -53,3 +54,14 @@ admissions.
 fourth, `NoAdmittedPair`: scopes that meet read 0). The other seven rows and the `NotADistance` and
 `Budget` admissions are gone, and the census rows are
 `MeasureClearanceRefused/<arm>`.
+
+## Closed (2026-11-02, DOORS' `a-clearance-assertion-is-decided-by-the-sweep`)
+
+`NodeErrorKind::MeasureClearanceRefused` is gone with the `min_clearance`
+measure it was raised by: a clearance is an assertion now, and an engine
+refusal is its verdict's third state (`ClearanceRefusal`), never a node
+error. The three `MeasureClearanceRefused/…` census rows and their two
+admissions left `refusal_concision_chains.rs`. The third state's own
+sentences end in their recourse (`ClearanceRefusal::NotADistance`,
+`NeedsCertifyingLane`); the engine arms carried inside `Engine` still
+say no recourse, which is `ClearanceRefusal`'s, not this row's.

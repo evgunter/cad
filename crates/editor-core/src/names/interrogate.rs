@@ -686,7 +686,6 @@ pub(crate) fn output_body<T: Decide>(
         // `ValuePayload::kind_name` speaks.
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
-        | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_)
         | ValuePayload::Family => none(payload.kind_name()),
     }

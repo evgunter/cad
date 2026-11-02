@@ -2,7 +2,8 @@
 id: measure-refusal-class-is-a-rung-under-refusal-reason
 kind: issue
 title: MeasureRefusalClass is a payload rung under RefusalReason that no curated list carries
-status: open
+status: closed
+closed: 2026-11-02
 opened: 2026-10-03
 ---
 
@@ -41,3 +42,11 @@ Either carry it on the analysis list with `ClearanceRefusal` beside it,
 or argue the non-carriage with its falsifier where the other interior
 rungs' arguments live, and move the `DISPOSITIONS` row from `filed` to
 `argued` in the same change.
+
+## Closed (2026-11-02, DOORS' `a-clearance-assertion-is-decided-by-the-sweep`)
+
+`MeasureRefusalClass` and `RefusalReason::MeasureRefused` are gone: only
+the retired `min_clearance` measure's engine refusals inhabited them,
+and a clearance is an assertion now, whose refusal is its verdict's
+third state rather than a node error the driver classes. The sweep's
+`DISPOSITIONS` row left with it.

@@ -2,11 +2,14 @@
 id: mate-tool-commits-one-mate
 kind: issue
 title: the mate tool commits one mate and its values, not a placement's whole bundle
-status: open
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: H
 refs: [the-viewers-mate-remove-takes-the-structural-door, removing-a-value-constraint-is-a-second-spelling-of-setting-it]
+pr: 6300
+branch: placing/bundle-editor
+closed: 2026-11-02
 ---
 
 
@@ -103,3 +106,20 @@ Two designers weighed this, reconciled over two rounds, and agreed. No ratified 
 - Filed for DOCTAIL: `removing-a-value-constraint-is-a-second-spelling-of-setting-it`.
 
 **From PR 6284's review (2026-11-02, MINOR-2, likely).** Under the point kind's pick rule, a click that misses a vertex falls back to an edge or a face. On a prismatic part every such pick is accepted and lands a copy that fails (`SideUnevaluated`, typed and undoable). That follows the tool's present rule ("the placement's own refusal where it evaluates, never a pre-check"). The editor's live verdict before Apply is the answer, so that verdict covers every kind's unreadable picks, not only overconstraint.
+
+## Closed (2026-11-02, PR 6300)
+
+**Built as decided.** The editor has both doors, all five kinds (`Frame` as an axis seat plus a point seat), picks routed by body, named senses, a live verdict, the tree's remove reworked, and derived value rows.
+
+**What review added.** Dual review (concurrent, tally 2), a targeted re-check, and two fix passes added:
+- one kernel chain read with its pole (`chain_turns`);
+- editable value rows that show names;
+- every drop of what the person wrote, said before Apply;
+- a failing Apply withheld;
+- the viewer's copies of the chart rules replaced by kernel doors;
+- a value carried across a change of freedom set only where the kernel states the identity (`spin_as_chain_turn`).
+
+**Out of this close:**
+- **Transform's retirement**, which is its own stacked unit (`the-transform-gesture-moves-a-placed-body-through-a-transform`, branch `placing/bundle-editor-transform`).
+- **The draft's preview**, filed as `the-placement-editor-draws-no-preview-of-its-draft`.
+- **Three NOTE rows**, filed by the lane.

@@ -2,11 +2,12 @@
 id: the-mate-panel-names-no-slide-a-plane-leaves
 kind: issue
 title: The mate panel offers every slide and refuses by count, naming none of the two a plane leaves
-status: open
+status: closed
 opened: 2026-10-26
 priority: P2
 cost: M
 rides_with: mate-tool-commits-one-mate
+closed: 2026-11-02
 ---
 
 
@@ -23,3 +24,7 @@ So a person can still name `Slide(Y)` on a wall whose mate fixes `y`. They learn
 ## Rides with the bundle editor (2026-11-01, PLACING orchestrator)
 
 The decision on `mate-tool-commits-one-mate` derives the value rows from the kernel: the panel lists exactly the freedoms the draft's mates leave, with the door's verdict live before Apply. That is this row's "done when", so it closes with that unit.
+
+## Closed (2026-11-02, PR 6300)
+
+Answered by the bundle editor as merged, with its dual review's fix passes; see `mate-tool-commits-one-mate`'s Closed section and `docs/dual-review-log/rows/PR-6300.md`.
