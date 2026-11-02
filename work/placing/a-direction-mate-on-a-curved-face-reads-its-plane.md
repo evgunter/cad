@@ -2,7 +2,8 @@
 id: a-direction-mate-on-a-curved-face-reads-its-plane
 kind: issue
 title: a direction mate picked on a cylinder's face reads its plane, which refuses, not its axis
-status: open
+status: closed
+closed: 2026-11-02
 opened: 2026-11-02
 priority: P3
 cost: E
@@ -28,3 +29,14 @@ the plane or the axis is the placement's refusal, never a pre-check).
 direction, chosen by something the tool may read (the surface kind the
 pick index already holds, or a second choice on the panel), and a row
 mates a peg's side parallel to an edge.
+
+## Closed
+
+A face picked for a direction reads its carrier's axis where its carrier
+is no plane: `MateReading::at_site` (`crates/viewer/src/matetool.rs`)
+asks the kernel's tag read `face_carrier_kind` at the pick's site and,
+for a face that is not planar, takes the first admitted reading that is
+not its plane. A tag that does not read keeps the plane reading, and the
+placement states its refusal. Row:
+`mate_kinds::a_cylinder_face_mated_as_a_direction_runs_parallel`, a
+peg's side mated parallel to a block's edge.

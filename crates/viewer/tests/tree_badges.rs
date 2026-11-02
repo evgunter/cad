@@ -692,6 +692,13 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
              before commit, said in the panel and nowhere the tree draws",
         ),
         (
+            "matetool.rs",
+            "face_carrier_kind(",
+            "`MateReading::at_site` asks only whether a picked face's carrier is no plane, to \
+             choose its reading; a refusal keeps the plane reading, and the placement the mate \
+             is committed into states its own refusal on its row",
+        ),
+        (
             "features.rs",
             ".usable(",
             "a unit test's premise: reads the measure's payload to name the reason it expects, \
