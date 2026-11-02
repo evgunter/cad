@@ -157,3 +157,8 @@ AUTHOR's narrative is recoverable from
 - Head `1eef5d4ffa`, CI green. `name_run` now chooses by identity (landed / seeded / abstain, decided once per request); extra rebind rounds only where a chain link could not evaluate; timing table re-measured (door 25 ms when nothing reads the copy; ~100 ms fillet / ~360 ms union on the die, debug, when something does).
 - Merged main's generic `HeldPick<P>` and `VertexSelection`; `Holds` adapted.
 - Filed by the lane: `name-carrying-chain-walks-restate-verbatim-edge-by-hand` (P3). Re-verify 4 aims at the round condition's proxy ("no table") and the verdict cache.
+
+## 2026-11-02 04:25 — 6292 style review in
+
+- Style review (`doors-review-clearance-s/review-style.md`): mergeable from style alone; fix pass recommended for S-M1 (the retired measured-minimum vocabulary survives in module headers, examples and test names) and S-M2 (the retired `ClearanceQuery::at_least` comes back as a hand-written idiom at ~8 sites; the dial door is unfenced and returns the assertion's own verdict types), plus row hygiene (rows citing deleted sites; residues with no row). S-m4 (`combine` drops an upper-bound proof) and S-m2 (two drivers of one sweep) forwarded to the correctness reviewer.
+- Correction: the diff is 127 files +3.5k/−3.6k against its base; my 04:00 size came from a stale `origin/main`. The fix pass waits for the correctness review so both land in one brief.
