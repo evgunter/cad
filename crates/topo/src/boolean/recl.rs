@@ -1499,11 +1499,16 @@ fn common_line<T: geom_core::Real>(
 /// touch's own reading (`vtxfac::PierceDatum::side`). A face is read only
 /// where it holds the line to a decided zero; a line within the band of
 /// it refuses typed. A representative the cone reads on one face is the
-/// ladder's; on two, or on a bound, the solid touches itself along the
-/// line ([`BooleanError::CrossingsAlongAContactLine`]); in band of a
-/// face, the reading's escalation refuses as that face's: its plane, the
-/// face's side ([`Coincide::SectorSide`]); its place in the plane, the
-/// membership tie between the two flanks ([`Coincide::FlankSense`]).
+/// ladder's; on two, or on a bound, it runs along the line or the other
+/// solid touches itself there ([`super::LineUnread::Along`]). A reading
+/// that refuses refuses by its cause ([`crate::link::Unread`]): the
+/// representative on a flank's plane, where in it in band, the
+/// membership tie between the two flanks ([`Coincide::FlankSense`]); its
+/// side of a face's plane in band, that side ([`Coincide::SectorSide`]);
+/// the parity arc in band, the sectors' coincidence; and where no gate's
+/// margin refused (no reference to read by, an arc's crossing left
+/// unplaced), the faces about the line too close to place it
+/// ([`super::LineUnread::Unplaced`]).
 ///
 /// With no germ, the event is a touch where the op keeps every
 /// flanking face, which leaves both edges on the result's boundary
