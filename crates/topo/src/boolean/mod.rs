@@ -289,7 +289,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         slit::RIDER_ON_PLANE => Coincide::EdgeOnPlane.subject(),
         "bool_sector_within"
         | "bool_fan_side"
-        | "bool_fan_side_bend"
         | "bool_fan_nappe"
         | "bool_fans_coaxial"
         | "bool_fans_one_cone"

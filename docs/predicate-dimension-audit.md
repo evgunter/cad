@@ -617,7 +617,6 @@ which is what actually moves the number.
 | boolean/reduce.rs (`line_cone_roots`) | bool_line_cone_depth | `disc/(\|A\|·R)`: `−disc/A` is the negated quadric form `G` at the vertex (m²), over `R ≥ \|q(t*)\|`, a ceiling on the form's factor `ρ cos α + \|h\| sin α` there: a lower bound on the residual's magnitude at the vertex (m) | m | OK |
 | boolean/reduce.rs (`line_cone_roots`) | bool_line_cone_root_slack | `\|dir\|·NOISE_ULPS·u/2·(\|w₀\| + \|dir\|\|t\|)²/(2√disc)` less the root's arc distance outside the span: `G`'s rounding (m²) over `\|G′\|` (m²/param) at the line's speed (m/param) | m | OK |
 | boolean/fan.rs (`face_side_code`, `nappe_classes`) | bool_fan_side | `nappe_offset`: `ρ cos α − z sin α` at the bound's reach point, its signed distance from the nappe (m, `Margin::of`) | m | OK |
-| boolean/fan.rs (`face_side_code`, a conic bound) | bool_fan_side_bend | `\|nappe_offset\| − rise`: the offset less the bound's certified rise off its tangent (m, `Margin::of`) | m | OK |
 | boolean/fan.rs (`meeting`, `nappe_classes`) | bool_fans_coaxial | `‖a₁ × a₂‖` of the two nappes' unit axes, levered by the sectors' arm (dimensionless × m) | m | OK |
 | boolean/fan.rs (`meeting`, `nappe_classes`, `fan_within_signs`) | bool_fan_nappe | `a₁ · a₂` of the nappes' unit axes, or the direction's along the nappe's, levered by the arm (dimensionless × m) | m | OK |
 | boolean/fan.rs (`meeting`, `nappe_classes`) | bool_fans_one_cone | `α₁ − α₂`, the half-angles' difference (rad), levered by the arm | m | OK |

@@ -60,22 +60,24 @@ pub(super) fn nappe_axis<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>) -> Vec3<T
 
 /// **A bound's side of a sector's face** at the base vertex: a plane's
 /// side ([`super::sectors::plane_side_code`]), or a fan's — the side of
-/// the face's nappe its point at its reach lies on ([`nappe_offset`],
-/// `bool_fan_side`), In where that is the face's material
-/// ([`ConeApex::material_inside`]). A curved bound against a fan is read
-/// at its departure tangent, its bend charged as the sagitta it can
-/// carry over its extent: a reading within that charge refuses rather
-/// than guess.
+/// the face's nappe its departure ray lies on, read at the bound's reach
+/// ([`nappe_offset`], `bool_fan_side`), In where that is the face's
+/// material ([`ConeApex::material_inside`]).
+///
+/// The verdict is the bound's side NEAR THE VERTEX, as
+/// [`crate::bound_side::read`]'s is: a curved bound is read at its
+/// departure tangent, whatever its own bend. Against a fan that ray needs
+/// no face charge either: the cone is homogeneous about its apex, so the
+/// ray's offset from the nappe is linear along it, `l·offset(d̂)`, and a
+/// definite sign at the reach is the sign at every distance.
 ///
 /// # Errors
 ///
-/// The plane reading's; [`BooleanError::coincidence`] on an escalation;
-/// [`BooleanError::CurvedBooleanUnsupported`] on the fan's face where a
-/// curved bound reads within its bend's charge.
+/// The plane reading's; [`BooleanError::coincidence`] on an escalation.
 pub(super) fn face_side_code<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
-    (operand, other): (Operand, &BoolSector<T>),
+    (_, other): (Operand, &BoolSector<T>),
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let apex = match &other.at_vertex {
@@ -86,34 +88,8 @@ pub(super) fn face_side_code<T: Decide>(
     };
     let q = reach.point(apex.apex, dir);
     let offset = nappe_offset(apex, other.start, q);
-    // A curved bound's point is its tangent's: the edge lies within its
-    // carrier's rise of that tangent over its extent, which a definite
-    // reading must clear. A bound with no certified rise reads nothing.
-    let charge = match reach {
-        Reach::Conic { bend, .. } => Some(match bend.bounds {
-            geom_brep::BendBounds::Planar { rise, .. } => Some(rise),
-            geom_brep::BendBounds::Unbounded => None,
-        }),
-        Reach::Chord { .. } | Reach::Extent(_) | Reach::Bisector(_) => None,
-    };
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    let unbuilt = || BooleanError::CurvedBooleanUnsupported {
-        operand,
-        face: other.face,
-        kind: geom::SurfaceKind::Cone,
-    };
     let sign = decide("bool_fan_side", Margin::of(offset), band).map_err(escalate)?;
-    match charge {
-        Some(None) => return Err(unbuilt()),
-        Some(Some(rise)) if sign != Sign::Zero => {
-            let clear = decide("bool_fan_side_bend", Margin::of(offset.abs() - rise), band)
-                .map_err(escalate)?;
-            if clear != Sign::Positive {
-                return Err(unbuilt());
-            }
-        }
-        Some(Some(_)) | None => {}
-    }
     let inside = sign == Sign::Negative;
     Ok(match sign {
         Sign::Zero => SideCode::On,
