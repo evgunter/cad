@@ -462,3 +462,4 @@ row's last section says what moved.
     - the negative-side tests and the decision subject;
     - the PQ4 sentence.
   - **Class finding, filed as a P3 row and not fixed here:** "carrier" names "complete-loop form" in `RoleList::Carrier`, `CarrierInChain` and Python's `CarrierPieces`. That conflation is what produced the soundness bug. (VSEAM)
+- 2026-11-02 — Ev asked on 6346: "isn't this going to be inexact in the cases that we had toward for?" Partly yes, checked in the code. A typed `180 deg` is stored as radians (`Quantity.value` is canonical f64, minted as a free variable, VR6), so only a written `turn/2` lowers exactly. Pythagorean rays are lost under angle-only. Answered with three options; I recommend angle plus the numberless axis form, with exact degree literals filed as their own row. The designers' "exact at a written fraction of a turn" was true but missed that people type degrees. (VSEAM)
