@@ -2,8 +2,9 @@
 id: the-full-suite-jobs-three-eps-rows-outgrow-its-180-minutes
 kind: issue
 title: The nightly's full-suite job runs its three ε rows in one 180-minute job, and since PR 6011 they no longer fit
-status: open
+status: closed
 opened: 2026-10-30
+closed: 2026-11-02
 priority: P1
 cost: E
 ---
@@ -102,6 +103,22 @@ is the sum of every result line.
   seven runs of six of the slowest tests; the numbers are on
   `work/sectrung/a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build.md`.
 
-The split into per-row jobs this row asks for brings the job to about
-build + 40 minutes + 6 on a night like 11-01, and about build + 70 on a
-10-31 runner, inside 180 either way.
+Under the split below, the 1e-12 leg is that row alone: about 40
+minutes on an 11-01 runner and about 70 on a 10-31 one, inside its
+120-minute limit, with the build paid once before it.
+
+## Closed
+
+`green/full-suite-split` (2026-11-02). `nightly.yml`'s `full-suite-build`
+builds once at opt-level 2 (the same env and `nightly-opt2` cache key),
+writes a `cargo nextest archive`, uploads it as `full-suite-archive` (one
+day), then runs the steps that were after the rows: doc-tests, the slow-set
+name check, the topo scalpel, wasm32. `full-suite` is a matrix over default,
+1e-6 and 1e-12: each leg checks out the tree, downloads the archive and runs
+`cargo nextest run --archive-file … --workspace-remap "$GITHUB_WORKSPACE"
+--profile ci --ignore-default-filter --no-fail-fast`, with
+`scripts/nextest-failures.py` and the failing-tests step per leg and a
+120-minute limit each. Each leg uploads its junit report as
+`full-suite-junit-<eps>`, so per-test times outlive the log. The steps after
+the rows sit in the build job rather than the default row's: they need the
+warm target directory, and the default leg has none.

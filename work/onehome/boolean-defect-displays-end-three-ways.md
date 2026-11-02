@@ -2,10 +2,11 @@
 id: boolean-defect-displays-end-three-ways
 kind: issue
 title: TornComponent, SeamOrientation and ZipCorrespondence end '(kernel bug)', not the defect ending, so offer_key reads them as typed refusals
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: E
+closed: 2026-11-02
 ---
 
 
@@ -63,3 +64,15 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P3 → P1: the defect ending is spelled four ways and `offer_key` reads one: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Closed (ONEHOME, 2026-11-02)
+
+Not duplication, on INTENT's reading, which this orchestrator checked and
+accepts: what is owed is classifying `TornComponent`, `SeamOrientation`,
+`ZipCorrespondence` and `JoinDesync` as bug-only (panic) or input-reachable
+(a lever), after which `offer_key`'s kind list goes on its own. That is
+`work/cleavetail/classification-invariant-family-types-bug-only-states-against-d9-row-4.md`'s
+work (its "prose-ending arms" paragraph names all four), with ENCL's census
+(`a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids`, "The prose
+channel") as its evidence. A note on that row records that `offer_key` is the
+reader that mis-sorts them today.
