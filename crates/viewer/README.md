@@ -2010,6 +2010,65 @@ field, the variable field and the free-move probe; the stake is
 largest at the first two, where a commit reaches the document and costs
 an undo step.
 
+### A create gesture commits the node
+
+Every node kind has one implementation of authoring it (Ev,
+2026-11-01): **a create gesture inserts the node, and the node's edit
+surface takes it from there.**
+
+A create gesture asks for two things and nothing else:
+
+- **which kind of node.** The button pressed says it. A choice that
+  decides the node's kind, or which nodes exist, is a button and not a
+  field: union, intersect or subtract; fillet or chamfer; a pattern's
+  rule and whether its copies are fused; a clearance bound's shape.
+- **what the node reads**: the selection, or the tool's picks. These
+  are the profile an extrude or revolve sweeps, a boolean's members, a
+  split's target, a blend's edge set, and the face a profile is drawn
+  on. A live node's reads change only by the slot door or
+  `SetMembers` (DM6, `crates/editor-core/REFERENCES.md`), so they are
+  stated at insert.
+
+It inserts the node with default values and selects the node its noun
+names (the pattern, not the pattern's placement). A default is worked
+out from the reads where it can be: the split plane through the
+target's centre, a revolve's axis off its profile's extent.
+
+Every value is edited afterwards on the node's one edit surface: its
+Properties slot rows, the profile editor, or the placement editor.
+That covers a number or formula, a unit, a label, and a profile's
+loops. A value the insert writes into a variable it mints for the
+node, which that node alone reads, is edited from the node's own
+rows. No create path holds a value field, stages an evaluation, or
+previews a node that is not yet inserted; the node's own evaluation
+is its preview.
+
+- **Undo reaches what was done while creating, and edits land live**
+  (Ev, on the PR that wrote this section). The insert is one undo step
+  and every later edit is another. The profile and placement editors
+  commit each change as the person makes it, when the edited program or
+  bundle passes the document's edit door: a field when it is committed
+  (Enter, focus leaving it, a drag released), a row added, removed or
+  re-ordered. A change the door refuses is not applied. The editor
+  keeps it as a draft over the document, shows the door's refusal, and
+  commits the draft whole on the first later change that makes it pass.
+  So an unclosed chain is a draft that waits, never a document state,
+  and nothing waits on an Apply button.
+- **No node is "awaiting values".** A default is a value. A default
+  that refuses shows its refusal on the node's badge, like any other.
+- **New profile** inserts a profile with no loops, on a picked face's
+  frame when a face is picked, and opens the profile editor on it. A
+  profile with no loops is the empty region: it evaluates and draws
+  nothing, and a sweep of it refuses `EmptyProfile` at the sweep's own
+  door. The editor's add-loop choices (circle, rectangle, path) are
+  the templates.
+- **Place** on an unplaced body inserts its placement with no mates
+  and opens the placement editor on it. Every mate is added there.
+- **A creation proposes no label.** The insert stores "Kind N", and
+  the node's label row renames it.
+- **Variables**: `New variable` adds the variable's row. Its name and
+  dimension are what it is (VR2, VR3), and the row edits its value.
+
 ### One open tool, not one optional value per tool
 
 `Tools` holds one `Option<OpenTool>`, an enum with one variant per tool
@@ -2148,15 +2207,16 @@ and a placement's constraints are its mates and the values that set
 their freedoms. Every bundle pins its copy. The mate tool is the
 **placement editor** (`matetool::MateTool`), whose draft is one
 placement's whole bundle, as the profile editor's is one profile's
-program, with two doors (`matetool::PlaceDoor`): **Create**, on a body
-not yet placed, whose Apply inserts one placement of it holding the
-whole bundle (`SessionOp::Place`, taking over what read the body along
-a seen path, never a copy's source); and **Edit**, on a placement —
-opened from its tree row (`edit placement`), a mate row's `remove`, or
-a pick on its copy — whose Apply writes the bundle whole
+program. A body not yet placed is placed by one gesture, **Place**,
+which inserts its placement standing where the body is, with no mates
+and every slide and spin at zero (taking over what read the body along
+a seen path, never a copy's source), and opens the editor on it
+(**A create gesture commits the node**, above). The editor opens on a
+placement — from Place, its tree row (`edit placement`), a mate row's
+`remove`, or a pick on its copy — and its Apply writes the bundle whole
 (`SessionOp::SetBundle`, `DocEdit::SetConstraints`), keeping the id of
-every constraint it loaded. Either Apply is one undo step; nothing
-enters the document before it; a draft over a bundle the document has
+every constraint it loaded. Place and each Apply are one undo step;
+nothing enters the document before them; a draft over a bundle the document has
 since changed reloads, said (`MateToolEvent::Reloaded`), and its old
 Apply is refused (`Refusal::BundleStale`).
 
