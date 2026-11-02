@@ -167,6 +167,9 @@ pub(crate) mod metric {
                 Departure::Jet(dir, bend) => {
                     geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()
                 }
+                Departure::Charge { slope, lever } => {
+                    crate::bound_side::sagitta_charge(slope, lever, arm)
+                }
             })
         }
     }
@@ -182,6 +185,12 @@ pub(crate) mod metric {
         /// Its direction and its bend: the rise and the parting together,
         /// for a bound whose first order a slack hid.
         Jet(Vec3<T>, Vec3<T>),
+        /// Its tangent ray's least separation from a curved face within
+        /// the reach `arm`, the ray leaving at `slope` (a sine) past a
+        /// bend of radius `lever`: the curvature charge
+        /// ([`crate::bound_side::sagitta_charge`]), which the plane's
+        /// normal does not enter.
+        Charge { slope: T, lever: T },
     }
 
     impl<T: Decide> Distance<T> {
@@ -210,7 +219,7 @@ pub(crate) mod metric {
     /// distance, not drawn in to the ray's real point first — the cone's
     /// own reading, for a point the cone is carried out to
     /// ([`Link::offset`](super::Link::offset)); the census reads drawn in.
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     pub(crate) struct Reading<T> {
         pub(crate) band: Band,
         pub(crate) slack: Option<T>,
@@ -287,11 +296,18 @@ pub(crate) mod metric {
         /// Decided by the band, as this, and read another way over the
         /// slack: no escalation.
         Slack(Decided),
+        /// Decided by the band, as `decided`, and in band once the slack
+        /// moved it: the moved reading's escalation.
+        Moved {
+            decided: Decided,
+            why: Indeterminate,
+        },
     }
 
     /// [`sign_over`], keeping why it read nothing ([`Refusal`]): the
-    /// escalation of a reading in band, or [`Refusal::Slack`] where the
-    /// band decided it and the slack moved it to another reading.
+    /// escalation of a reading in band, or, where the band decided it
+    /// and the slack moved it to another reading, [`Refusal::Slack`] (a
+    /// decided one) or [`Refusal::Moved`] (in band).
     pub(crate) fn settle<T: Decide>(
         name: &'static str,
         d: Distance<T>,
@@ -318,7 +334,7 @@ pub(crate) mod metric {
         match decided(name, moved, r.band) {
             Ok(m) if m.sign == got.sign => Ok(got),
             Ok(_) => Err(Refusal::Slack(got)),
-            Err(why) => Err(Refusal::InBand(why)),
+            Err(why) => Err(Refusal::Moved { decided: got, why }),
         }
     }
 
@@ -363,7 +379,9 @@ use metric::{Distance, Reading};
 impl<T> From<metric::Refusal> for Unsettled<T> {
     fn from(why: metric::Refusal) -> Unsettled<T> {
         match why {
-            metric::Refusal::InBand(diag) => Unsettled::InBand(diag),
+            metric::Refusal::InBand(diag) | metric::Refusal::Moved { why: diag, .. } => {
+                Unsettled::InBand(diag)
+            }
             metric::Refusal::Slack(_) => Unsettled::Slack,
         }
     }

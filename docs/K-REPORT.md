@@ -3467,5 +3467,9 @@ second sample of the moved distance under the same name. A tie the slack
 made (a first order the band decided and the slack refused) descends by
 its rise and its parting together (`link::metric::Departure::Jet`),
 sampled under `tangent_sector_order2`; and over a slack the curvature
-charge (`bool_pierce_sector_side_curved`) is sampled a second time, less
-the slack.
+charge (`bool_pierce_sector_side_curved`) is decided at the same door
+and sampled a second time, less the slack. Where the moved distance lands
+in the band's gap, its sample is an escalation on the log under the
+reading's name (`bool_chord_side`, `enters_material`,
+`bool_pierce_sector_side_curved`), while the reading is no refusal: the
+bound is the slack's tie (`bound_side::TiedBy::Slack`).

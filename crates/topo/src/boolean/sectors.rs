@@ -913,7 +913,7 @@ pub(super) fn bound_read<T: Decide>(
             tie: None,
         }),
         FirstOrder::Tied(tie) => {
-            let descent = tie.descend(rd).map_err(|fault| read_refusal(fault, band))?;
+            let descent = tie.descend().map_err(|fault| read_refusal(fault, band))?;
             let code = match descent {
                 Descent::Leaves(side) => code_of(side),
                 Descent::Rides | Descent::Unresolved(_) => SideCode::On,

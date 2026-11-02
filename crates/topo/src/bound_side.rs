@@ -42,7 +42,7 @@
 
 use geom_brep::recourse::Refused;
 use geom_brep::{ConicBend, EntersMaterial, LeverEscalation, OutwardNormal, ReferenceNormal};
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Mat3, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Indeterminate, Mat3, Point3, Sign, Vec3};
 
 use crate::link::metric::{self, Departure, Distance, Reading, Refusal};
 
@@ -412,11 +412,25 @@ pub(crate) struct Tie<T: geom_core::Real> {
     dir: Vec3<T>,
     reach: Reach<T>,
     face: FaceDatum<T>,
+    /// The reading the tie was decided on, which its descent is read on.
+    rd: Reading<T>,
+    /// What made the tie.
+    pub by: TiedBy,
     /// The predicate that decided the tie.
     pub predicate: &'static str,
-    /// The Zero, with the margin it was decided on; or the sign the band
-    /// decided where the reading's slack refused it, a tie of the slack's.
+    /// The Zero, with the margin it was decided on; or, for a tie the
+    /// slack made, the sign the band decided.
     pub decided: Decided,
+}
+
+/// **What made a first-order tie** ([`Tie::by`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TiedBy {
+    /// The band read the first order Zero.
+    Band,
+    /// The band decided a side and the reading's slack refused it: the
+    /// first order is the band's side, hidden in the slack.
+    Slack,
 }
 
 /// Why a reading with no curvature charge read no side: the first
@@ -501,11 +515,13 @@ fn first_order<T: Decide>(
             )
         }
     };
-    let tie = |decided| {
+    let tie = |by, decided| {
         Ok(Err(Tie {
             dir,
             reach,
             face,
+            rd,
+            by,
             predicate,
             decided,
         }))
@@ -514,10 +530,13 @@ fn first_order<T: Decide>(
         Ok(Decided {
             sign: Sign::Zero,
             margin,
-        }) => tie(Decided {
-            sign: Sign::Zero,
-            margin,
-        }),
+        }) => tie(
+            TiedBy::Band,
+            Decided {
+                sign: Sign::Zero,
+                margin,
+            },
+        ),
         Ok(decided) => Ok(Ok((
             if decided.sign == Sign::Negative {
                 Side::Below
@@ -528,7 +547,9 @@ fn first_order<T: Decide>(
             predicate,
             decided,
         ))),
-        Err(Refusal::Slack(decided)) => tie(decided),
+        Err(Refusal::Slack(decided) | Refusal::Moved { decided, .. }) => {
+            tie(TiedBy::Slack, decided)
+        }
         Err(Refusal::InBand(diag)) => Err(match reach {
             Reach::Chord { .. } => ReadFault::Chord(diag),
             _ => ReadFault::Departure {
@@ -625,30 +646,26 @@ pub(crate) fn read<T: Decide>(
     // where the distance is a large fraction of the radius. Dropping
     // the ½ gives `l²/R`, an upper bound unconditionally (`l* ≤ R/2`
     // here, inside the circle's reach).
+    // Over a slack the separation clears it too ([`metric::settle`]), or
+    // the side is the slack's tie, read one order down.
     let slope = displacement / length;
-    let charge = sagitta_charge(slope, lever, length);
-    let charged = |margin| crate::validate::decide_reported(CHARGE, Margin::of(margin), band);
-    match charged(charge) {
+    let charge = Distance::departure(
+        Departure::Charge { slope, lever },
+        face.reference.vec(),
+        length,
+    );
+    match metric::settle_reported(CHARGE, charge, rd) {
         Ok(cleared) => match Refused::of(cleared, band) {
-            None => {}
-            Some(refused) => return Err(BoundSideFault::Charge(refused)),
+            None => Ok(FirstOrder::Off(side)),
+            Some(refused) => Err(BoundSideFault::Charge(refused)),
         },
-        Err(diag) => return Err(BoundSideFault::ChargeEscalated(diag)),
-    }
-    // Over a slack the separation clears it too, or the side is the
-    // slack's tie, read one order down.
-    let Some(slack) = rd.slack else {
-        return Ok(FirstOrder::Off(side));
-    };
-    match charged(charge - slack) {
-        Ok(Decided {
-            sign: Sign::Positive,
-            ..
-        }) => Ok(FirstOrder::Off(side)),
-        _ => Ok(FirstOrder::Tied(Tie {
+        Err(Refusal::InBand(diag)) => Err(BoundSideFault::ChargeEscalated(diag)),
+        Err(Refusal::Slack(_) | Refusal::Moved { .. }) => Ok(FirstOrder::Tied(Tie {
             dir,
             reach,
             face,
+            rd,
+            by: TiedBy::Slack,
             predicate,
             decided,
         })),
@@ -670,7 +687,7 @@ pub(crate) fn read_side<T: Decide>(
     match read(dir, reach, face, rd)? {
         FirstOrder::Off(side) => Ok(BoundSide::Off(side)),
         FirstOrder::Tied(tie) => tie
-            .descend(rd)
+            .descend()
             .map(BoundSide::Tied)
             .map_err(BoundSideFault::Read),
     }
@@ -692,9 +709,9 @@ pub(crate) fn read_plane_side<T: Decide>(
     let tie = match first_order(dir, reach, face, rd) {
         Ok(Ok((side, ..))) => return Ok(BoundSide::Off(side)),
         Ok(Err(tie)) => tie,
-        Err(fault) => Tie::of_unread_reach(dir, reach, face, fault).ok_or(fault)?,
+        Err(fault) => Tie::of_unread_reach(dir, reach, face, fault, rd).ok_or(fault)?,
     };
-    tie.descend(rd).map(BoundSide::Tied)
+    tie.descend().map(BoundSide::Tied)
 }
 
 /// **The curvature charge**: the least separation from a face that a
@@ -721,6 +738,7 @@ impl<T: Decide> Tie<T> {
         reach: Reach<T>,
         face: FaceDatum<T>,
         fault: ReadFault<T>,
+        rd: Reading<T>,
     ) -> Option<Self> {
         match fault {
             ReadFault::Departure { escalation, .. }
@@ -730,6 +748,8 @@ impl<T: Decide> Tie<T> {
                     dir,
                     reach,
                     face,
+                    rd,
+                    by: TiedBy::Band,
                     predicate: "enters_material_arm",
                     decided: Decided {
                         sign: Sign::Zero,
@@ -759,12 +779,14 @@ impl<T: Decide> Tie<T> {
     /// edge within the band of the plane; a line edge or a probe against
     /// a plane rides it.
     ///
-    /// The parting is decided on `rd`, the first order's reading
+    /// The parting is decided on the reading the tie was decided on
     /// ([`metric::settle`]): one the band decides and the slack does not
-    /// is [`Unresolved::Slack`]. The certified lift reads on the band
-    /// alone, so over a positive slack it reads no side
-    /// ([`Unresolved::Slack`]); and a tie of the slack's rides nothing,
-    /// its first order being the band's side.
+    /// is [`Unresolved::Slack`]. A tie the slack made
+    /// ([`TiedBy::Slack`]) descends by its rise at the arm and its parting
+    /// together ([`Departure::Jet`]), its point's displacement to second
+    /// order, and rides nothing, its first order being the band's side.
+    /// The certified lift reads on the band alone, so over a positive
+    /// slack it reads no side ([`Unresolved::Slack`]).
     ///
     /// # Errors
     ///
@@ -773,13 +795,14 @@ impl<T: Decide> Tie<T> {
     /// certify no bend. [`ReadFault::Parting`]: the parting's arm in the
     /// band, or the parting poisoned (a singular point's jet) or
     /// straddling the zero band.
-    pub(crate) fn descend(self, rd: Reading<T>) -> Result<Descent, ReadFault<T>> {
-        let (face, reach, band) = (self.face, self.reach, rd.band);
+    pub(crate) fn descend(self) -> Result<Descent, ReadFault<T>> {
+        let (face, reach, rd) = (self.face, self.reach, self.rd);
+        let band = rd.band;
         let uncertified = Ok(Descent::Unresolved(Unresolved::Uncertified));
         // A tie of the slack's has a first order the band decided: the
         // descent's riding is no reading of it, nor a side read on the
         // band alone.
-        let slack_tie = self.decided.sign != Sign::Zero;
+        let slack_tie = self.by == TiedBy::Slack;
         let slack = Descent::Unresolved(Unresolved::Slack);
         let rides = if slack_tie { slack } else { Descent::Rides };
         // A slack that is not structurally nothing (a cone's tie of zero).
@@ -843,7 +866,7 @@ impl<T: Decide> Tie<T> {
             Ok(Sign::Zero) => Ok(rides),
             Ok(Sign::Negative) => Ok(Descent::Leaves(Side::Below)),
             Ok(Sign::Positive) => Ok(Descent::Leaves(Side::Above)),
-            Err(Refusal::Slack(_)) => Ok(slack),
+            Err(Refusal::Slack(_) | Refusal::Moved { .. }) => Ok(slack),
             Err(Refusal::InBand(diag)) if in_one_gap(diag) => {
                 Ok(Descent::Unresolved(Unresolved::Gap))
             }
@@ -933,7 +956,7 @@ mod tests {
                 panic!("a line in the tangent plane ties at first order");
             };
             assert_eq!(tie.predicate, "bool_chord_side", "the chord's tie");
-            assert_eq!(tie.descend(Reading::plain(b)).unwrap(), want, "{bend:?}");
+            assert_eq!(tie.descend().unwrap(), want, "{bend:?}");
         }
         let (dir, arc) = quarter_arc(Vec3::new(0.0, 0.0, -1.0), 0.0);
         for (bend, want) in [
@@ -973,7 +996,7 @@ mod tests {
             else {
                 panic!("a line in the tangent plane ties at first order");
             };
-            tie.descend(Reading::plain(b))
+            tie.descend()
         };
         let parting_at = |margin: f64| {
             let radius = 0.5 / margin;
@@ -1142,9 +1165,9 @@ mod tests {
             "the band decided the rise below"
         );
         assert!(
-            matches!(tie.descend(rd).unwrap(), Descent::Unresolved(_)),
+            matches!(tie.descend().unwrap(), Descent::Unresolved(_)),
             "rise + parting 1.7·zero < slack 1.8·zero: {:?}",
-            tie.descend(rd)
+            tie.descend()
         );
     }
 
@@ -1186,10 +1209,58 @@ mod tests {
             "the band decided the rise"
         );
         assert!(
-            matches!(tie.descend(rd).unwrap(), Descent::Unresolved(_)),
+            matches!(tie.descend().unwrap(), Descent::Unresolved(_)),
             "the rise and the parting together read no side: {:?}",
-            tie.descend(rd)
+            tie.descend()
         );
+    }
+
+    /// **A first order read over a slack is monotone in the rise** (the
+    /// second review's probe): a line edge rising `m·zero` above a plane
+    /// on `K = 1.4`, read for a cone whose apex is `0.9·zero` off (slack
+    /// `1.8·zero`). Every rise the band decides and the slack does not
+    /// is the slack's tie, whether the moved rise reads another side
+    /// (`m ≤ 2.8`) or lands in the band's gap (`2.8 < m < 3.2`); past
+    /// `3.2·zero` the side clears the slack too. None refuses.
+    #[test]
+    fn a_first_order_over_a_slack_is_monotone_in_the_rise() {
+        let zero = 1e-9;
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let k14 = Band::new(zero, 1.4 * zero).unwrap();
+        let rd = tied_reading(0.9 * zero, k14);
+        let plane = FaceDatum::of_plane(geom_brep::ReferenceNormal::of_face_outward(
+            OutwardNormal::from_chart(z, true),
+        ));
+        for m in [1.5, 2.0, 2.6, 2.9, 3.0, 3.1, 3.3, 3.5, 4.0] {
+            let far = Point3::new(1.0, 0.0, m * zero);
+            let line = Reach::Chord {
+                base: Point3::origin(),
+                far,
+            };
+            let dir = (far - Point3::origin()).normalize();
+            let got = read(dir, line, plane, rd);
+            if m < 3.2 {
+                assert!(
+                    matches!(
+                        got,
+                        Ok(FirstOrder::Tied(Tie {
+                            by: TiedBy::Slack,
+                            decided: Decided {
+                                sign: Sign::Positive,
+                                ..
+                            },
+                            ..
+                        }))
+                    ),
+                    "rise {m}·zero: the slack's tie, {got:?}"
+                );
+            } else {
+                assert!(
+                    matches!(got, Ok(FirstOrder::Off(Side::Above))),
+                    "rise {m}·zero: above, clear of the slack, {got:?}"
+                );
+            }
+        }
     }
 
     /// **A slope hidden in a cone's tie is no side, at either order**: a
@@ -1221,17 +1292,12 @@ mod tests {
             panic!("over the slack the rise is a tie");
         };
         assert_eq!(
-            tie.decided.sign,
-            Sign::Positive,
+            (tie.by, tie.decided.sign),
+            (TiedBy::Slack, Sign::Positive),
             "the tie is the slack's: the band decided the rise"
         );
         assert_eq!(
-            tie.descend(Reading::plain(band)).unwrap(),
-            Descent::Leaves(Side::Above),
-            "on the band alone, the rise and the parting together read above"
-        );
-        assert_eq!(
-            tie.descend(tied_reading(1e-7, band)).unwrap(),
+            tie.descend().unwrap(),
             Descent::Unresolved(Unresolved::Slack),
             "over the slack: unresolved"
         );
@@ -1398,7 +1464,7 @@ mod tests {
                         * geom_brep::implicit_gradient(&s, p).dot(n).signum();
                     (v.abs() >= 1e-13).then_some(if v > 0.0 { Side::Above } else { Side::Below })
                 };
-                match (tie.descend(Reading::plain(b)), side(at(2e-3))) {
+                match (tie.descend(), side(at(2e-3))) {
                     (Ok(Descent::Leaves(got)), Some(truth)) => {
                         checked += 1;
                         if got != truth {
@@ -1622,11 +1688,7 @@ mod tests {
             else {
                 panic!("a bisector in the tangent plane ties");
             };
-            assert_eq!(
-                tie.descend(Reading::plain(band())).unwrap(),
-                b,
-                "bisector, own normal {own:?}"
-            );
+            assert_eq!(tie.descend().unwrap(), b, "bisector, own normal {own:?}");
         }
     }
 }

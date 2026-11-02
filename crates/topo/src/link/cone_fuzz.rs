@@ -2524,7 +2524,9 @@ fn a_line_cone_never_contradicts_the_exact_oracle() {
 /// plane Zero and the given side is taken; in the third `δ` is about the
 /// tie and the side is given about the bound's own vertex, the apex,
 /// rather than `p`, the mismatch the slack is there for: it is never
-/// refused as contradicted, and is judged where it is `p`'s side too. Each reading is checked
+/// refused as contradicted, and where it is not `p`'s side it is judged
+/// as the point mirrored across `k`'s plane, where the other sectors
+/// stand clear of both. Each reading is checked
 /// against the exact class of the displaced point, the other sectors'
 /// flips judged over the slack; a given side refused as `Contradicted`
 /// is wrong, since the oracle's side is exact. It prints, per ε, the
@@ -2548,7 +2550,7 @@ fn a_given_side_never_contradicts_the_exact_oracle() {
         // Readings, read nothing with the side given, read nothing
         // without it, and readings whose side the cone takes.
         let (mut read, mut unread, mut unread_bare, mut taken) = (0, 0, 0, 0);
-        let (mut apex_given, mut apex_differs) = (0, 0);
+        let (mut apex_given, mut apex_differs, mut apex_judged) = (0, 0, 0);
         for c in 0..draws {
             // Within the zero band, well clear of it, or about the tie and
             // given about the bound's own vertex rather than `p`.
@@ -2673,11 +2675,23 @@ fn a_given_side_never_contradicts_the_exact_oracle() {
                     continue;
                 }
             };
-            // A side about the apex that is not `p`'s is the slack's to
-            // absorb, and no reading of the cone at `p` judges it.
-            if given != at_p {
-                continue;
-            }
+            // A side about the apex that is not `p`'s is judged as the
+            // point mirrored across `k`'s plane, which stands on the given
+            // side: determinate where the other sectors stand clear of
+            // both points by more than the band and the slack.
+            let (truth, flip, in_band, on_band) = if given == at_p {
+                (truth, flip, in_band, on_band)
+            } else {
+                let h = dot(far, n);
+                let mirror = [0, 1, 2].map(|i| far[i] - 2.0 * h * n[i]);
+                let flip = least_flip(&others, far).min(least_flip(&others, mirror));
+                if flip <= band.zero() + slack {
+                    continue;
+                }
+                apex_judged += 1;
+                let truth = oracle.class(mirror, &mut rng);
+                (truth, flip, truth == SideCode::On, truth == SideCode::On)
+            };
             let class = match got {
                 Material::In => SideCode::In,
                 Material::Out => SideCode::Out,
@@ -2691,7 +2705,8 @@ fn a_given_side_never_contradicts_the_exact_oracle() {
         }
         println!(
             "[fuzz] link_given_side_fuzz at ε {eps:e}: {} wrong; {read} readings, {taken} with \
-             δ in the zero band, {apex_given} given about the apex ({apex_differs} not p's side); \
+             δ in the zero band, {apex_given} given about the apex ({apex_differs} not p's side, \
+             {apex_judged} of those judged); \
              read nothing {unread} given, {unread_bare} without",
             wrong.len() - before,
         );
