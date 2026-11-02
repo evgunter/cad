@@ -2,7 +2,7 @@
 id: eval-wiring-kernel-defect-endings-are-bug-only-typed-refusals
 kind: issue
 title: editor-core: seven eval wiring and profile-anchor refusals end in KERNEL_DEFECT_ENDING for states only a kernel bug reaches
-status: dispatched
+status: open
 opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
 priority: P3

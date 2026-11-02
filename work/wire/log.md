@@ -7304,3 +7304,12 @@ Signed (WIRE orchestrator).
 - The board read WIREHOLD, WIRECOST and WIREREFUSE as `ready` with nothing dispatched while lanes were on them (Ev noticed). Set the three `active`; marked `a-family-has-no-member-ceiling` `review` (PR 6305), and `kernel-run-evaluations-mint-their-own-cancel-token` and WIREREFUSE's two D9 row-typing rows `dispatched`. From here a row is set `dispatched` when its lane goes out and `review` when its PR opens. WIRE continues the P2 rows and then the P3 slates; WIREREST and WIRETAIL stay `ready` for a successor unless WIRE reaches them.
 
 (WIRE orchestrator)
+
+## 2026-11-02 — the sitting ends at P0/P1: what WIRE finishes, what it hands back
+
+WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestration-model.md`) the tail goes back to the board except rows this sitting is best placed for. Ev asked which of the remaining P2s are that; most are not, so:
+
+- **Finished here (in flight, or a direct follow-up of one):** `wirehold/a-family-has-no-member-ceiling` (PR 6305, Ev-approved design); `wirecost/kernel-run-evaluations-mint-their-own-cancel-token` (PR 2 of the same build, on 6305's types, WIP pushed); the dead-clamp half of `wirerefuse/an-indexed-reads-index-position-is-clamped-to-u8` (E, follow-up to 6297).
+- **Handed back:** the two WIREREFUSE D9 row-typing rows, dispatched earlier today in error, are back to `open`; the lane stopped before opening a PR. WIRECOST's name-table (H) and union-fold (M) rows, WIREHOLD's section-of (M), the design rows and the P3/P4 slates go to a successor, who can pick them up as cheaply. WIRECOST goes back to `ready`; WIREHOLD and WIREREFUSE follow once their in-flight rows land.
+
+(WIRE orchestrator)
