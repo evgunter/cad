@@ -29,7 +29,7 @@ use pncad::profile::{
     TipState, Verb,
 };
 use viewer::props::Notation;
-use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
+use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::sketch::{self, LoopEnd, PreviewError, admits_at, preview};
 
 /// The flattening tolerance the rows read at — a tenth of a
@@ -50,16 +50,14 @@ fn session(tol: Tol) -> DocSession {
 
 /// A closed square, authored the way the form does: bind the entry,
 /// three legs, then a leg that targets the start.
-fn square(side: f64) -> ProfileShape {
-    ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(0.0, 0.0)),
-            Step::LineTo(Target::Point(Point2::new(side, 0.0))),
-            Step::LineTo(Target::Point(Point2::new(side, side))),
-            Step::LineTo(Target::Point(Point2::new(0.0, side))),
-            Step::LineTo(Target::Start),
-        ],
-    }
+fn square(side: f64) -> Vec<Step<f64>> {
+    vec![
+        Step::At(Point2::new(0.0, 0.0)),
+        Step::LineTo(Target::Point(Point2::new(side, 0.0))),
+        Step::LineTo(Target::Point(Point2::new(side, side))),
+        Step::LineTo(Target::Point(Point2::new(0.0, side))),
+        Step::LineTo(Target::Start),
+    ]
 }
 
 /// **A chain previews as the polygon it spells**, and the same chain
@@ -121,16 +119,14 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
     let tol = Tol::witness();
     let radius = 0.01;
     // A half turn: b = tan(θ/4) = tan(π/4) = 1 over the diameter.
-    let template = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(-radius, 0.0)),
-            Step::ArcTo(ArcData::Bulge {
-                target: Target::Point(Point2::new(radius, 0.0)),
-                b: 1.0,
-            }),
-            Step::LineTo(Target::Start),
-        ],
-    };
+    let template = vec![
+        Step::At(Point2::new(-radius, 0.0)),
+        Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(radius, 0.0)),
+            b: 1.0,
+        }),
+        Step::LineTo(Target::Start),
+    ];
     let drawn = preview(
         SketchPlane::xy(),
         std::slice::from_ref(&template),
@@ -182,9 +178,7 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
 #[test]
 fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     let tol = Tol::witness();
-    let template = ProfileShape::Path {
-        steps: vec![Step::At(Point2::new(0.0, 0.0)), Step::Tangent],
-    };
+    let template = vec![Step::At(Point2::new(0.0, 0.0)), Step::Tangent];
     let refusal = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),
@@ -257,13 +251,11 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
 #[test]
 fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     let tol = Tol::witness();
-    let template = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(0.0, 0.0)),
-            Step::LineTo(Target::Point(Point2::new(0.01, 0.0))),
-            Step::LineTo(Target::Point(Point2::new(0.01, 0.01))),
-        ],
-    };
+    let template = vec![
+        Step::At(Point2::new(0.0, 0.0)),
+        Step::LineTo(Target::Point(Point2::new(0.01, 0.0))),
+        Step::LineTo(Target::Point(Point2::new(0.01, 0.01))),
+    ];
     let drawn = preview(
         SketchPlane::xy(),
         std::slice::from_ref(&template),
@@ -319,9 +311,7 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
 #[test]
 fn an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written() {
     let tol = Tol::witness();
-    let template = ProfileShape::Path {
-        steps: vec![Step::At(Point2::new(0.0, 0.0)), Step::Angle(0.0)],
-    };
+    let template = vec![Step::At(Point2::new(0.0, 0.0)), Step::Angle(0.0)];
     let refusal = preview(
         SketchPlane::xy(),
         std::slice::from_ref(&template),
@@ -352,14 +342,14 @@ fn an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written() {
 fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
     let tol = Tol::witness();
     let overlapping = vec![
-        ProfileShape::Circle {
-            centre: [0.0, 0.0],
+        vec![Step::Circle {
+            centre: Point2::from_array([0.0, 0.0]),
             radius: 0.01,
-        },
-        ProfileShape::Circle {
-            centre: [0.015, 0.0],
+        }],
+        vec![Step::Circle {
+            centre: Point2::from_array([0.015, 0.0]),
             radius: 0.01,
-        },
+        }],
     ];
     let drawn = preview(SketchPlane::xy(), &overlapping, tol, CHORD).expect("both loops replay");
     assert_eq!(drawn.loops.len(), 2, "both are drawn");
@@ -370,7 +360,7 @@ fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
 
     let mut session = session(tol);
     let out = session.perform(SessionOp::AddProfile {
-        loops: overlapping.iter().map(shape).collect(),
+        loops: overlapping.iter().map(|steps| shape(steps)).collect(),
     });
     assert!(out.refusal.is_some(), "the door refuses what it drew");
 }
@@ -410,7 +400,7 @@ fn every_authoring_verb_lowers_to_its_recorded_step() {
     }
     for step in steps {
         let verb = step.verb();
-        let program = shape(&ProfileShape::Path { steps: vec![step] });
+        let program = shape(&vec![step]);
         // A verb the lift misfiles is caught as a count: the complete-
         // loop verbs become their own program forms, and every other
         // verb one step of a chain.
@@ -438,18 +428,17 @@ fn a_path_authored_in_millimetres_remembers_its_notation() {
         length: pncad::quantity::MM,
         angle: pncad::quantity::DEG,
     };
-    let path = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(0.0, 0.001)),
-            Step::Angle(0.5),
-            Step::Toward { dx: 1.0, dy: 0.0 },
-            Step::ArcTo(ArcData::Bulge {
-                target: Target::Point(Point2::new(0.01, 0.0)),
-                b: 0.5,
-            }),
-        ],
-    };
-    let LoopProgram::Chain(lowered) = sketch::loop_program(&path, mm).expect("finite literals")
+    let path = vec![
+        Step::At(Point2::new(0.0, 0.001)),
+        Step::Angle(0.5),
+        Step::Toward { dx: 1.0, dy: 0.0 },
+        Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(0.01, 0.0)),
+            b: 0.5,
+        }),
+    ];
+    let LoopProgram::Chain(lowered) =
+        sketch::path_program(&path, mm, &|_, _| None).expect("finite literals")
     else {
         panic!("a chain lowers to a chain");
     };
@@ -517,15 +506,8 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
         Step::ContinueTo(Target::Point(Point2::new(0.0, 0.0))),
         Step::LineTo(Target::StartArriving),
     ];
-    let drawn = preview(
-        SketchPlane::xy(),
-        &[ProfileShape::Path {
-            steps: steps.clone(),
-        }],
-        tol,
-        CHORD,
-    )
-    .expect("the declared seam previews");
+    let drawn = preview(SketchPlane::xy(), &[steps.clone()], tol, CHORD)
+        .expect("the declared seam previews");
     assert!(drawn.invalid.is_none(), "{:?}", drawn.invalid);
     assert!(drawn.loops[0].end.closes());
 
@@ -535,13 +517,8 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     // the refused close.
     let mut undeclared = steps.clone();
     undeclared[6] = Step::LineTo(Target::Start);
-    let cut = preview(
-        SketchPlane::xy(),
-        &[ProfileShape::Path { steps: undeclared }],
-        tol,
-        CHORD,
-    )
-    .expect("the steps before an undeclared seam still draw");
+    let cut = preview(SketchPlane::xy(), &[undeclared], tol, CHORD)
+        .expect("the steps before an undeclared seam still draw");
     let refusal = cut.loops[0]
         .end
         .refusal()
@@ -578,7 +555,7 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     session_insert(
         &mut session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Path { steps })],
+            loops: vec![shape(&steps)],
         },
     );
 }
@@ -657,9 +634,7 @@ fn an_arc_spec_verb_starts_in_a_form_its_row_takes() {
 /// this layer judges.
 #[test]
 fn a_non_finite_field_refuses_at_the_lowering() {
-    let template = ProfileShape::Path {
-        steps: vec![Step::At(Point2::new(f64::NAN, 0.0))],
-    };
+    let template = vec![Step::At(Point2::new(f64::NAN, 0.0))];
     let refusal = preview(
         SketchPlane::xy(),
         std::slice::from_ref(&template),
@@ -690,17 +665,15 @@ fn a_non_finite_field_refuses_at_the_lowering() {
 #[test]
 fn an_arc_whose_radius_is_not_a_number_refuses_at_the_preview() {
     let tol = Tol::witness();
-    let template = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(0.0, 0.0)),
-            Step::ArcTo(ArcData::Bulge {
-                target: Target::Point(Point2::new(0.01, 0.0)),
-                b: 1.0e-320,
-            }),
-            Step::LineTo(Target::Point(Point2::new(0.005, 0.01))),
-            Step::LineTo(Target::Start),
-        ],
-    };
+    let template = vec![
+        Step::At(Point2::new(0.0, 0.0)),
+        Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(0.01, 0.0)),
+            b: 1.0e-320,
+        }),
+        Step::LineTo(Target::Point(Point2::new(0.005, 0.01))),
+        Step::LineTo(Target::Start),
+    ];
     let refusal = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),
@@ -743,17 +716,15 @@ fn an_arc_whose_radius_is_not_a_number_refuses_at_the_preview() {
 #[test]
 fn an_arc_whose_centre_overflows_refuses_at_the_preview() {
     let tol = Tol::witness();
-    let template = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(1.6e308, 0.0)),
-            Step::ArcTo(ArcData::Bulge {
-                target: Target::Point(Point2::new(1.5e308, 0.0)),
-                b: 1.0,
-            }),
-            Step::LineTo(Target::Point(Point2::new(1.55e308, 1.0e307))),
-            Step::LineTo(Target::Start),
-        ],
-    };
+    let template = vec![
+        Step::At(Point2::new(1.6e308, 0.0)),
+        Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(1.5e308, 0.0)),
+            b: 1.0,
+        }),
+        Step::LineTo(Target::Point(Point2::new(1.55e308, 1.0e307))),
+        Step::LineTo(Target::Start),
+    ];
     let refusal = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),
@@ -783,17 +754,15 @@ fn an_arc_whose_centre_overflows_refuses_at_the_preview() {
 #[test]
 fn an_undrawable_arc_is_refused_and_not_skipped() {
     let tol = Tol::witness();
-    let template = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(0.0, 0.0)),
-            Step::ArcTo(ArcData::Bulge {
-                target: Target::Point(Point2::new(0.01, 0.0)),
-                b: 1.0e-320,
-            }),
-            Step::LineTo(Target::Point(Point2::new(0.005, 0.01))),
-            Step::LineTo(Target::Start),
-        ],
-    };
+    let template = vec![
+        Step::At(Point2::new(0.0, 0.0)),
+        Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(0.01, 0.0)),
+            b: 1.0e-320,
+        }),
+        Step::LineTo(Target::Point(Point2::new(0.005, 0.01))),
+        Step::LineTo(Target::Start),
+    ];
     let drawn = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),
@@ -839,15 +808,13 @@ fn an_undrawable_arcs_refusal_says_which_vertex_and_why() {
 #[test]
 fn a_vertex_past_the_exponent_range_refuses_at_the_preview() {
     let tol = Tol::witness();
-    let template = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(1.0e308, 0.0)),
-            Step::Toward { dx: 1.0, dy: 0.0 },
-            Step::Line(1.0e308),
-            Step::LineTo(Target::Point(Point2::new(0.0, 1.0e307))),
-            Step::LineTo(Target::Start),
-        ],
-    };
+    let template = vec![
+        Step::At(Point2::new(1.0e308, 0.0)),
+        Step::Toward { dx: 1.0, dy: 0.0 },
+        Step::Line(1.0e308),
+        Step::LineTo(Target::Point(Point2::new(0.0, 1.0e307))),
+        Step::LineTo(Target::Start),
+    ];
     let refusal = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),
@@ -889,17 +856,15 @@ fn a_vertex_past_the_exponent_range_refuses_at_the_preview() {
 #[test]
 fn an_arcs_far_side_past_the_range_refuses_though_its_frame_is_finite() {
     let tol = Tol::witness();
-    let template = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(8.0e307, -1.0e307)),
-            Step::ArcTo(ArcData::Bulge {
-                target: Target::Point(Point2::new(8.0e307, 1.0e307)),
-                b: 10.0,
-            }),
-            Step::LineTo(Target::Point(Point2::new(0.0, 0.0))),
-            Step::LineTo(Target::Start),
-        ],
-    };
+    let template = vec![
+        Step::At(Point2::new(8.0e307, -1.0e307)),
+        Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(8.0e307, 1.0e307)),
+            b: 10.0,
+        }),
+        Step::LineTo(Target::Point(Point2::new(0.0, 0.0))),
+        Step::LineTo(Target::Start),
+    ];
     let refusal = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),
@@ -939,14 +904,12 @@ fn an_arcs_far_side_past_the_range_refuses_though_its_frame_is_finite() {
 #[test]
 fn a_leg_whose_separation_overflows_gets_no_heading() {
     let tol = Tol::witness();
-    let template = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(-7.0e307, -7.0e307)),
-            Step::LineTo(Target::Point(Point2::new(7.0e307, 7.0e307))),
-            Step::LineTo(Target::Point(Point2::new(0.0, 7.0e307))),
-            Step::LineTo(Target::Start),
-        ],
-    };
+    let template = vec![
+        Step::At(Point2::new(-7.0e307, -7.0e307)),
+        Step::LineTo(Target::Point(Point2::new(7.0e307, 7.0e307))),
+        Step::LineTo(Target::Point(Point2::new(0.0, 7.0e307))),
+        Step::LineTo(Target::Start),
+    ];
     let drawn = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),
@@ -986,15 +949,13 @@ fn a_leg_whose_separation_overflows_gets_no_heading() {
 #[test]
 fn a_vertexs_second_coordinate_is_asked_the_question_too() {
     let tol = Tol::witness();
-    let template = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(0.0, 1.0e308)),
-            Step::Toward { dx: 0.0, dy: 1.0 },
-            Step::Line(1.0e308),
-            Step::LineTo(Target::Point(Point2::new(1.0e307, 0.0))),
-            Step::LineTo(Target::Start),
-        ],
-    };
+    let template = vec![
+        Step::At(Point2::new(0.0, 1.0e308)),
+        Step::Toward { dx: 0.0, dy: 1.0 },
+        Step::Line(1.0e308),
+        Step::LineTo(Target::Point(Point2::new(1.0e307, 0.0))),
+        Step::LineTo(Target::Start),
+    ];
     let refusal = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),
@@ -1028,17 +989,15 @@ fn a_vertexs_second_coordinate_is_asked_the_question_too() {
 #[test]
 fn a_far_millimetre_arc_refuses_at_the_door() {
     let tol = Tol::witness();
-    let template = ProfileShape::Path {
-        steps: vec![
-            Step::At(Point2::new(1.6e308, 0.0)),
-            Step::ArcTo(ArcData::Bulge {
-                target: Target::Point(Point2::new(1.6e308, 1.0e-3)),
-                b: 0.5,
-            }),
-            Step::LineTo(Target::Point(Point2::new(1.0e307, 5.0e-4))),
-            Step::LineTo(Target::Start),
-        ],
-    };
+    let template = vec![
+        Step::At(Point2::new(1.6e308, 0.0)),
+        Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(1.6e308, 1.0e-3)),
+            b: 0.5,
+        }),
+        Step::LineTo(Target::Point(Point2::new(1.0e307, 5.0e-4))),
+        Step::LineTo(Target::Start),
+    ];
     let refusal = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),

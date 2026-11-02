@@ -2498,10 +2498,10 @@ mod tone_tests {
     /// one kind, the earlier.
     #[test]
     fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
-        let frame = Withheld::Waiting("pick a face to draw on");
-        let chain = Withheld::Waiting("add a step to the chain");
-        let refused = Withheld::Refused("the traced chain is the profile's one loop");
-        let later = Withheld::Refused("the traced frame does not read");
+        let frame = Withheld::Waiting("pick the face whose plane the sketch is on");
+        let chain = Withheld::Waiting("pick the face to trace");
+        let refused = Withheld::Refused("the traced frame does not read");
+        let later = Withheld::Refused("a later refusal");
         assert_eq!(withheld_for([frame, chain]), Some(frame));
         assert_eq!(withheld_for([frame, refused]), Some(refused));
         assert_eq!(withheld_for([refused, frame]), Some(refused));
@@ -2510,7 +2510,7 @@ mod tone_tests {
         assert_eq!(withheld_for([]), None);
     }
 
-    /// **The add-profile form's withholding reason**: a refused input is loud,
+    /// **The traced-profile form's withholding reason**: a refused input is loud,
     /// the form waiting for one is quiet.
     #[test]
     fn a_withheld_profile_button_says_why_in_the_reasons_own_voice() {
@@ -2520,14 +2520,14 @@ mod tone_tests {
                 theme,
                 Withheld::Refused("the traced frame does not read"),
             );
-            withheld_line(ui, theme, Withheld::Waiting("choose a shape to add"));
+            withheld_line(ui, theme, Withheld::Waiting("pick the face to trace"));
         });
         assert_eq!(
             find(&painted, "the traced frame does not read").ink,
             Some(voices.actionable)
         );
         assert_eq!(
-            find(&painted, "choose a shape to add").ink,
+            find(&painted, "pick the face to trace").ink,
             Some(voices.weak)
         );
     }
@@ -2591,7 +2591,7 @@ mod creation_nouns {
     }
 }
 
-/// **The add-profile form's held face across a selection that moved
+/// **The traced-profile form's held face across a selection that moved
 /// on** ([`ViewerBehavior::sketch_face_rows`]'s pick, and
 /// `Drafts::respeak` after each op).
 #[cfg(test)]
@@ -2605,9 +2605,9 @@ mod sketch_face_said {
     use crate::drafts::Drafts;
     use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
 
-    /// **The add-profile form keeps its latches' nodes past the
-    /// selection**: once the selection moves on, the on-face row and
-    /// both trace latches still say their face's minting node by the
+    /// **The traced-profile form keeps its latches' nodes past the
+    /// selection**: once the selection moves on, both trace latches
+    /// still say their face's minting node by the
     /// last label it had, after a rename and a delete, where the
     /// selection's snapshot no longer names it. Each row is read as the
     /// form draws it (`latch_said`, by the landed speaker).
@@ -2646,7 +2646,6 @@ mod sketch_face_said {
             &mut drafts,
             SessionOp::Select(Selection::Face(face.clone())),
         );
-        crate::drafts::latch(&mut drafts.sketch_face, session.doc(), &face);
         crate::drafts::latch(&mut drafts.trace_plane, session.doc(), &face);
         crate::drafts::latch(&mut drafts.trace_face, session.doc(), &face);
         perform(
@@ -2672,9 +2671,9 @@ mod sketch_face_said {
         let by = crate::frame::landed_speaker(session.landed_pair());
         let last = format!("the end cap of Extrude \"plinth\" ({t})");
         assert_eq!(
-            [&drafts.sketch_face, &drafts.trace_plane, &drafts.trace_face]
+            [&drafts.trace_plane, &drafts.trace_face]
                 .map(|held| crate::drafts::latch_said(held.as_ref(), by)),
-            [last.clone(), last.clone(), last],
+            [last.clone(), last],
             "each latch says its face's node by its last label"
         );
         assert_eq!(

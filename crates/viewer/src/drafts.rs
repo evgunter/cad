@@ -1350,17 +1350,16 @@ pub(crate) fn template_steps(kind: ShapeKind) -> Vec<Step<f64>> {
 }
 
 /// **The chain a traced profile starts as**, and the row the trace's
-/// steps follow: from the origin heading `+y` onto the trace, then
-/// along it 10 mm, across to `(10 mm, 0)` and home. Every number is
-/// the editor's to change once the profile is in.
+/// steps follow: from the frame's origin heading `+y` onto the trace,
+/// on along it 10 mm, and home — a triangle whichever way the trace
+/// heads. Every number is the editor's to change once the profile is
+/// in.
 pub(crate) fn traced_template() -> (Vec<Step<f64>>, usize) {
-    const SIDE: f64 = 0.01;
     (
         vec![
             Step::At(Point2::origin()),
             Step::Toward { dx: 0.0, dy: 1.0 },
-            Step::Line(SIDE),
-            Step::LineTo(Target::Point(Point2::new(SIDE, 0.0))),
+            Step::Line(0.01),
             Step::LineTo(Target::Start),
         ],
         1,
@@ -1471,8 +1470,7 @@ mod tests {
     #![allow(clippy::panic)]
 
     use pncad::document::{
-        CancelToken, Doc, DocEdit, EvalOptions, Formula, Node, ProfileProgram, RecipeNodeId,
-        evaluate,
+        CancelToken, Doc, DocEdit, EvalOptions, Node, ProfileProgram, RecipeNodeId, evaluate,
     };
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{ArcData, Step, Target};
@@ -1482,8 +1480,8 @@ mod tests {
     use super::{Drafts, ProfileEdit, RowEdit};
     use crate::forms::ShapeKind;
     use crate::props::Notation;
+    use crate::session::FaceSelection;
     use crate::session::SessionOp;
-    use crate::session::{FaceSelection, ProfileShape};
     use crate::sketch;
     use crate::test_support::{inserted, try_edited, try_inserted};
 
@@ -1512,33 +1510,43 @@ mod tests {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("drafts-creation-landed", tol);
         let mut drafts = Drafts {
-            profile_shape: Some(ShapeKind::Circle),
+            traced_open: true,
             ..Drafts::default()
         };
         drafts
             .creation_labels
             .insert("Profile", "sketch".to_owned());
         drafts.creation_labels.insert("Extrude", "plate".to_owned());
-        let loops = drafts
-            .profile_programs(Notation::DEFAULT)
-            .expect("the default circle lowers");
         let (doc, profile) = inserted(
             &doc,
             Node::Profile(ProfileProgram {
-                loops: loops.clone(),
+                loops: Vec::new(),
                 ids: Vec::new(),
                 on: None,
             }),
             tol,
         );
-        let creation = crate::session::Creation::of(SessionOp::AddProfile { loops })
-            .expect("adding a profile creates a node");
+        let face = FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: profile,
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
+            },
+            node: profile,
+            body: 0,
+        };
+        let creation = crate::session::Creation::of(SessionOp::AddDrawnProfile {
+            plane: face.clone(),
+            traced: vec![face],
+            chains: Vec::new(),
+        })
+        .expect("a traced profile creates a node");
         drafts.accepted(&SessionOp::CreateLabelled {
             creation,
             label: pncad::document::Label::new("sketch").expect("a label"),
         });
-        assert_eq!(
-            drafts.profile_shape, None,
+        assert!(
+            !drafts.traced_open,
             "the labelled add settles the form as the bare one does"
         );
         drafts.creation_landed(&doc, Some(profile));
@@ -1569,93 +1577,29 @@ mod tests {
         ));
     }
 
-    /// **A profile the add form just committed is drawn once**, as the
-    /// document's, and not a second time as the form's preview.
-    ///
-    /// The form's drafts are what the preview replays every frame, so
-    /// a form still holding the shape it committed drew that shape in
-    /// the probe tint over the committed drawing of its own node. This
-    /// commits the form's own programs as the node `AddProfile` inserts,
-    /// hands the op to `Drafts::accepted` as the app's batch does on an
-    /// accepted op, and then asks both drawings the viewport makes: the
-    /// committed pass holds the circle, and the preview replayed from
-    /// the settled drafts holds nothing. The control is an op that adds
-    /// no profile, which must leave the draft being composed.
+    /// **Loops added as templates preview every one, holes included.**
+    /// A 20 × 10 mm rectangle with two circle templates moved apart:
+    /// the preview draws three whole loops in description order, each
+    /// hole's polyline on its own circle, and validation passes —
+    /// containment makes the two circles holes.
     #[test]
-    fn a_committed_profile_is_not_drawn_again_as_its_preview() {
+    fn template_loops_preview_each_and_their_holes() {
         let tol = Tol::witness();
         let chord = 1.0e-4;
-        let doc = Doc::empty_derived("drafts-accepted", tol);
-        let mut drafts = Drafts {
-            profile_shape: Some(ShapeKind::Circle),
-            ..Drafts::default()
-        };
-
-        // The control: an accepted op that adds no profile leaves the
-        // form composing.
-        drafts.accepted(&SessionOp::Hover(None));
-        assert!(!drafts.profile_loops().is_empty(), "the draft was dropped");
-
-        let loops = drafts
-            .profile_programs(Notation::DEFAULT)
-            .expect("the default circle lowers");
-        let (doc, _) = inserted(
-            &doc,
-            Node::Profile(ProfileProgram {
-                loops: loops.clone(),
-                ids: Vec::new(),
-                on: None,
-            }),
-            tol,
-        );
-        drafts.accepted(&SessionOp::AddProfile { loops });
-        let evaluation = evaluate(
-            &doc,
-            None,
-            &CancelToken::default(),
-            &EvalOptions::default(),
-            tol,
-        );
-        let placement = sketch::profile_plane();
-        let committed = sketch::committed(&doc, &evaluation, chord, None);
-        assert_eq!(
-            committed.drawn.len(),
-            1,
-            "the circle is drawn as the document's"
-        );
-        let preview = sketch::preview(placement, &drafts.profile_loops(), tol, chord)
-            .expect("an empty form previews");
-        assert!(
-            preview.loops.is_empty(),
-            "the committed circle is drawn again as the form's preview"
-        );
-    }
-
-    /// **A draft of several loops previews every one, holes included,
-    /// and lowers as one profile of them.** A 20 × 10 mm rectangle with
-    /// two circles added and moved apart: the preview draws three
-    /// whole loops in description order, each hole's polyline on its
-    /// own circle, and validation passes — containment makes the two
-    /// circles holes. Settling the form drops the added loops with
-    /// the shape.
-    #[test]
-    fn a_draft_of_several_loops_previews_each_and_its_holes() {
-        let tol = Tol::witness();
-        let chord = 1.0e-4;
-        let mut drafts = Drafts {
-            profile_shape: Some(ShapeKind::Rectangle),
-            profile_extent: [0.02, 0.01],
-            ..Drafts::default()
-        };
         let holes = [[-0.005, 0.0], [0.005, 0.0]];
+        let mut loops = vec![vec![Step::Rectangle {
+            centre: Point2::origin(),
+            width: 0.02,
+            height: 0.01,
+        }]];
         for centre in holes {
-            let mut hole = super::fresh_loop(ShapeKind::Circle);
-            if let ProfileShape::Circle { centre: at, .. } = &mut hole {
-                *at = centre;
+            let mut hole = super::template_steps(ShapeKind::Circle);
+            if let [Step::Circle { centre: at, .. }] = hole.as_mut_slice() {
+                *at = Point2::from_array(centre);
             }
-            drafts.profile_more.push(hole);
+            loops.push(hole);
         }
-        let preview = sketch::preview(sketch::profile_plane(), &drafts.profile_loops(), tol, chord)
+        let preview = sketch::preview(sketch::profile_plane(), &loops, tol, chord)
             .expect("the plate with two holes previews");
         assert_eq!(preview.loops.len(), 3, "the outer and both holes are drawn");
         assert!(
@@ -1674,115 +1618,29 @@ mod tests {
                 drawn.points
             );
         }
-        let loops = drafts
-            .profile_programs(Notation::DEFAULT)
-            .expect("the draft lowers");
-        assert_eq!(loops.len(), 3, "one program entry per loop");
-        drafts.accepted(&SessionOp::AddProfile { loops });
-        assert!(
-            drafts.profile_more.is_empty() && drafts.profile_loops().is_empty(),
-            "the settled form holds no added loop"
-        );
     }
 
-    /// **A sketch on a face lowers the held pick, the depth and the
-    /// spin in the form's notation**, and waits for a face while none is
-    /// held.
-    ///
-    /// The face pick's node-valued answers are DIFFERENT ids here,
-    /// deliberately: the ray met node 2 and the name was minted by node
-    /// 1, so a lowering that carried the feature instead of the face as
-    /// picked is red. The spin is not zero: a lowering that dropped it,
-    /// or wrote it in canonical radians while the form said degrees, is
-    /// red too.
-    #[test]
-    fn a_sketch_on_a_face_lowers_its_pick_its_depth_and_its_spin() {
-        let face = FaceSelection {
-            name: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, 1),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            },
-            node: RecipeNodeId::new(0, 2),
-            body: 0,
-        };
-        let notation = Notation {
-            angle: pncad::quantity::DEG,
-            ..Notation::DEFAULT
-        };
-        let waiting = Drafts {
-            profile_shape: Some(ShapeKind::Circle),
-            sketch_on_face: true,
-            ..Drafts::default()
-        };
-        assert!(
-            matches!(waiting.profile_op(notation), Ok(None)),
-            "no face held: the form waits"
-        );
-        let doc = Doc::<ProfileProgram>::empty_derived("sketch-face", Tol::witness());
-        let drafts = Drafts {
-            sketch_face: Some(crate::tree::HeldPick::new(&doc, face.clone())),
-            sketch_spin: core::f64::consts::FRAC_PI_2,
-            ..waiting
-        };
-        let Ok(Some(SessionOp::SketchOnFace {
-            face: held,
-            distance,
-            spin,
-            ..
-        })) = drafts.profile_op(notation)
-        else {
-            panic!("a held face lowers");
-        };
-        assert_eq!(held, face, "the face as picked");
-        assert_eq!(distance.literal_value(), Some(drafts.sketch_depth));
-        let want = Formula::written_angle(pncad::quantity::WrittenAngle::canonical_in(
-            core::f64::consts::FRAC_PI_2,
-            pncad::quantity::DEG,
-        ))
-        .expect("a finite angle");
-        assert!(
-            spin.bit_eq(&want),
-            "the spin is written in degrees: {spin:?}"
-        );
-        let off = Drafts {
-            sketch_on_face: false,
-            ..drafts
-        };
-        assert!(
-            matches!(
-                off.profile_op(notation),
-                Ok(Some(SessionOp::AddProfile { .. }))
-            ),
-            "off the face, the profile on its own plane"
-        );
-    }
-
-    /// A document holding the profile the add-profile form's DEFAULT
-    /// path authors, lowered by the form's own
-    /// `profile_programs` and inserted through the edit door the
-    /// create button's op reaches. Answers the document, the drafts
-    /// that authored it, and the profile node.
-    fn authored_by_the_form() -> (Doc<ProfileProgram>, Drafts, RecipeNodeId) {
-        use crate::forms::ShapeKind;
-
+    /// A document holding one loop of the editor's path template
+    /// ([`super::template_steps`]), lowered in the default notation.
+    /// Answers the document, fresh drafts, and the profile node.
+    fn authored_by_the_template() -> (Doc<ProfileProgram>, Drafts, RecipeNodeId) {
         let tol = Tol::witness();
         let doc = Doc::empty_derived("drafts-edit", tol);
-        let drafts = Drafts {
-            profile_shape: Some(ShapeKind::Path),
-            ..Drafts::default()
-        };
-        let loops = drafts
-            .profile_programs(Notation::DEFAULT)
-            .expect("the default path lowers");
+        let loops = vec![
+            sketch::path_program(
+                &super::template_steps(ShapeKind::Path),
+                Notation::DEFAULT,
+                &|_, _| None,
+            )
+            .expect("the path template lowers"),
+        ];
         let node = Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
             on: None,
         });
-        let (doc, profile) =
-            try_inserted(&doc, node, tol).expect("the form's default path is a profile");
-        (doc, drafts, profile)
+        let (doc, profile) = try_inserted(&doc, node, tol).expect("the path template is a profile");
+        (doc, Drafts::default(), profile)
     }
 
     /// **Refused text held for a profile slot is released when the
@@ -1795,7 +1653,7 @@ mod tests {
     fn a_held_refused_expression_is_released_when_its_program_may_reshape() {
         use pncad::document::{SlotId, StepArg};
 
-        let (doc, mut drafts, profile) = authored_by_the_form();
+        let (doc, mut drafts, profile) = authored_by_the_template();
         let base = drafts
             .profile_edit(&doc, profile)
             .expect("held")
@@ -1844,13 +1702,13 @@ mod tests {
             .0
     }
 
-    /// **The create form's profile opens in the edit door untouched**:
-    /// the draft holds the form's own steps, says nothing moved, and
-    /// what its Apply would send writes no argument.
+    /// **A template's profile opens in the editor untouched**: the
+    /// draft holds the template's own steps, says nothing moved, and
+    /// what it would commit writes no argument.
     #[test]
-    fn the_forms_profile_opens_untouched_and_would_write_nothing() {
-        let (doc, mut drafts, profile) = authored_by_the_form();
-        let authored = drafts.profile_loops();
+    fn a_templates_profile_opens_untouched_and_would_write_nothing() {
+        let (doc, mut drafts, profile) = authored_by_the_template();
+        let authored = vec![super::template_steps(ShapeKind::Path)];
         let edit = drafts
             .profile_edit(&doc, profile)
             .expect("the editor holds the form's profile");
@@ -1937,12 +1795,12 @@ mod tests {
 
     #[test]
     fn the_edit_draft_reloads_on_undo_and_is_abandoned_off_selection() {
-        let (before, mut drafts, profile) = authored_by_the_form();
+        let (before, mut drafts, profile) = authored_by_the_template();
         let moved_to = Step::LineTo(Target::Point(Point2::new(0.02, 0.0)));
         let same_step = |a: Step<f64>, b: Step<f64>| {
             sketch::authors_same_loops(
-                &sketch::path_shapes(&[vec![Step::At(Point2::origin()), a]]),
-                &sketch::path_shapes(&[vec![Step::At(Point2::origin()), b]]),
+                &[vec![Step::At(Point2::origin()), a]],
+                &[vec![Step::At(Point2::origin()), b]],
             )
         };
         let edit = drafts.profile_edit(&before, profile).expect("held");
@@ -1968,7 +1826,7 @@ mod tests {
             !same_step(edit.step_at(&before, (0, 1)), moved_to),
             "the undone number is gone from the draft"
         );
-        // Revert puts typed numbers back.
+        // Discarding puts typed numbers back.
         let moved = Step::LineTo(Target::Point(Point2::new(0.03, 0.03)));
         edit.set_step(&before, (0, 2), moved);
         assert!(edit.differs_from_base());
@@ -1992,13 +1850,8 @@ mod tests {
     fn held_path(steps: Vec<Step<f64>>) -> (Doc<ProfileProgram>, Drafts, RecipeNodeId) {
         let tol = Tol::witness();
         let doc = Doc::empty_derived("drafts-ids", tol);
-        let loops = vec![
-            sketch::loop_program(
-                &crate::session::ProfileShape::Path { steps },
-                Notation::CANONICAL,
-            )
-            .expect("finite"),
-        ];
+        let loops =
+            vec![sketch::path_program(&steps, Notation::CANONICAL, &|_, _| None).expect("finite")];
         let node = Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
@@ -2015,7 +1868,7 @@ mod tests {
     /// combo is a fresh step, and so is a verb changed any other way.
     #[test]
     fn a_held_step_keeps_its_id_through_row_edits_and_loses_it_with_its_verb() {
-        let (doc, mut drafts, profile) = authored_by_the_form();
+        let (doc, mut drafts, profile) = authored_by_the_template();
         let edit = drafts.profile_edit(&doc, profile).expect("held");
         let &[a, b, c, d, e] = edit.base().ids[0].as_slice() else {
             panic!("the form's default chain is five steps")
@@ -2147,7 +2000,7 @@ mod tests {
     fn the_edited_profile_is_drawn_only_as_its_preview() {
         let tol = Tol::witness();
         let chord = 1.0e-4;
-        let (doc, mut drafts, profile) = authored_by_the_form();
+        let (doc, mut drafts, profile) = authored_by_the_template();
         let evaluation = evaluate(
             &doc,
             None,
@@ -2170,8 +2023,7 @@ mod tests {
         drafts.profile_edit(&doc, profile).expect("held");
         let held = drafts
             .door_loops(&doc, tol)
-            .edit
-            .expect("the edit door holds loops");
+            .expect("the editor holds loops");
         let placement = sketch::profile_plane();
         let preview = sketch::preview(placement, &held.loops, tol, chord);
         assert!(
