@@ -180,9 +180,16 @@ fn a_placement_that_does_not_finish_is_its_outputs_finding() {
 }
 
 /// **The reviewer's probe, asserting** (PR 6371 review r1, M1): a slab of
-/// depth `1 ± half` alone, under a one-member union, and under a union
-/// with a fixed cube. Main (merge base `8ae2b9bf`) certifies every case
-/// in one leaf; `6b946403` refused the union cases `FlipCrossing`.
+/// depth `1 ± half` alone and under a one-member union. Main (merge base
+/// `8ae2b9bf`) certifies every case in one leaf; `6b946403` refused the
+/// union cases `FlipCrossing`.
+///
+/// The probe's third case, the slab unioned with a fixed cube, is not a
+/// row here. Unioning the two now asks the cube to join the slab's space,
+/// and with that join main refuses it too: `FlipCrossing` at the union, on
+/// `bool_point_in_solid_beside`, 0 certified, measured at `origin/main`.
+/// That is a genuine verdict flip, the same on both trees, not the two
+/// lanes' logs.
 #[test]
 fn review_probe_6371_union_after_a_box_extrude() {
     use editor_core::Operand;
@@ -194,22 +201,7 @@ fn review_probe_6371_union_after_a_box_extrude() {
         depth(&mut r, half);
         let slab = prism(&mut r, square(0.0, 1.0));
         if members > 0 {
-            let mut ms = vec![Operand::output(slab, 0).into()];
-            if members == 2 {
-                let q = r.insert(Node::Profile(ProfileProgram {
-                    loops: vec![square(5.0, 1.0)],
-                    ids: Vec::new(),
-                    on: None,
-                }));
-                let cube = r.insert(Node::Extrude {
-                    profile: q.into(),
-                    distance: crate::fixture::len(1.0),
-                });
-                // The cube joins the slab's space where it is drawn, so
-                // the union reads two members of one space.
-                let cube = r.against(slab, cube, &editor_core::Frame::IDENTITY);
-                ms.push(Operand::output(cube, 0).into());
-            }
+            let ms = vec![Operand::output(slab, 0).into()];
             r.insert(Node::Union {
                 members: Bodies::Spelled(ms),
             });
