@@ -186,7 +186,10 @@ is a document, and the kernel has no assembly type ([assemblies]); a
 copy, a pattern and a moved body are all placements ([placement]); a
 pattern is an index, not an operation ([repetition]). Two ways of deciding one fact can decide it
 differently inside the band; two places stating one fact can drift
-apart. A family of authored forms is not a second way when every form
+apart. Two types never carry the same fields: where kinds share part
+of what they are, that part is named for what it means and is one
+type each kind holds, so a reader of the shared part reads that type
+and never assembles its own. A family of authored forms is not a second way when every form
 lowers through one reading ([recipe.forms]). The canonical places are
 the next section.
 
@@ -248,7 +251,6 @@ of them is a defect.
 | The tolerance | one ε per run (`geom_core::Tolerance`); angles derived from it at a named lever arm | [tolerance.epsilon] |
 | A topology-determining decision | a named predicate returning a trilean and a margin | [verdicts] |
 | A question about carriers | one reading per question | [one-way.readings] |
-| A carrier kind's data and its views | one `geom` type beside the kind; fields kinds share are one type each holds (a conic's `ConicFrame`), and readings both kinds answer are one trait (`Conic`) | [one-way.readings] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
@@ -310,18 +312,6 @@ without first refusing on kind. Readings over bare carriers live in the
 lowest crate that can state them, `geom` for one carrier and a point
 and `geom-brep` for carrier pairs; readings over trimmed faces and
 solids live in `topo` and reach carrier facts only through those.
-A carrier kind's data, and every view of it a reading takes as input,
-is a `geom` type beside the kind, and fields several kinds share are
-one type that each holds: no crate declares a second struct whose
-fields are a carrier's fields. A circle and an ellipse stay two kinds,
-`Curve3::Circle` and `Curve3::Ellipse`, each holding one
-`ConicFrame` (center, axis, `u_ref`: the placement alone) beside its
-own shape (one radius; two semi-axes in stored order, the seam's), so
-circle-ness is never read off two equal numbers. A reading of the
-placement alone takes the `ConicFrame`; a reading either kind can
-answer is a method of the `Conic` trait both implement; which
-semi-axis is larger is a reading of the ellipse. Both semi-axes are
-positive at every door.
 Exempt: kind-agnostic methods (boxes, BVH, subdivision, clearance),
 identity of stored bits on which no topology decision depends, test
 oracles, and reading a record (a declaration, or an edge that already
@@ -2115,7 +2105,7 @@ Each layer depends only on the layers below it.
 | `geom-core` | The `Real` scalar trait (`f64`, `Interval`, `Dual<T>`, `Sym`), points/vectors/transforms (hand-rolled, fixed-dim), the predicate vocabulary (`Decide`, `Margin<T>`, `MarginDiag`), `Tolerance`, root finding, the bisection walk the kernel's localizations share (`bisect`), spline hulls |
 | `interval-transcendentals` | The interval scalar's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
-| `geom` | Analytic + NURBS types and each kind's data views (a conic's placement, `ConicFrame`, and the `Conic` trait), evaluators, closest-point and the other one-carrier readings ([one-way.readings]): a point's foot on a curve (`Curve3::foot`) and whether it lies on the carrier (`Curve3::on_carrier`), and a carrier's rate bounds (`carrier_speed`). Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
+| `geom` | Analytic + NURBS types, evaluators, closest-point and the other one-carrier readings ([one-way.readings]): a point's foot on a curve (`Curve3::foot`) and whether it lies on the carrier (`Curve3::on_carrier`), and a carrier's rate bounds (`carrier_speed`). Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
 | `geom-brep` | The B-rep geometry layer: [edges]'s `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, the curve-pair meeting reader (the point-on-span reading, composing `geom`'s one-carrier readings with the span's reading of its ends; one total curve-kind-pair table) and the machinery under it (the half-angle ladder and its subdivision, `half_angle`; the depressed quartic's sign ladder, `quartic`), the carrier-pair pose and the curve×surface crossing (D3), certified mass properties, offset surfaces |
 | `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
 | `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/contact-record machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
