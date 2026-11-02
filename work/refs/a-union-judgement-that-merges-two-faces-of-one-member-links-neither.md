@@ -6,6 +6,7 @@ status: spec
 opened: 2026-10-17
 priority: P1
 cost: M
+pr: 6342
 ---
 
 ## What
