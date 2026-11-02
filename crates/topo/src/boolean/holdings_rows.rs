@@ -313,8 +313,8 @@ fn rejoin_oracle(
     all: bool,
 ) -> usize {
     let mut built = 0;
-    for i in 0..bodies.len() {
-        let rejoin = match super::union(result, &bodies[i], tol()) {
+    for (i, member) in bodies.iter().enumerate() {
+        let rejoin = match super::union(result, member, tol()) {
             Ok(BooleanResult::Body(rj)) => rj,
             other => {
                 assert!(

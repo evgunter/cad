@@ -90,7 +90,7 @@ pub enum VerbRecord<T: Real> {
         verdicts: Vec<GlueVerdict<T>>,
         /// Per result face, and per discarded face, the operand faces
         /// whose area it holds.
-        holdings: topo::Holdings,
+        holdings: Box<topo::Holdings>,
     },
     /// The extrude door's whole bundle — body, solid, shell, caps,
     /// side walls per loop, struts per loop.
@@ -305,7 +305,7 @@ impl Boolean {
                         contacts,
                         naming,
                         verdicts,
-                        holdings,
+                        holdings: Box::new(holdings),
                     },
                     coincidences,
                 }))

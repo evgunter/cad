@@ -6,8 +6,9 @@
 //! It looks for a witness that their regions share area, of three kinds:
 //!
 //! - a vertex of one face strictly inside the other (the containment
-//!   doors: [`contfp`] on a plane, [`curved_face_placement`] on a curved
-//!   carrier);
+//!   doors through the kernel's one point dispatch, `face_placement`:
+//!   [`super::contfp`] on a plane, [`super::curved_face_containment`]'s
+//!   reading on a curved carrier);
 //! - a point of one face's boundary edge strictly inside the other: each
 //!   edge is cut where it meets the other face's boundary (the curve ×
 //!   face boundary pass, [`geom_brep::curve_face::read`], which reads curve against
@@ -31,11 +32,11 @@
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::{Hit, Span};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
 use super::contain::{
-    ContainError, CurvedPlacement, FaceContainment, contfp, curved_face_placement,
+    ContainError, CurvedPlacement, FaceContainment, PlacementError, face_placement,
 };
 use super::fate::{Holds, Leaving, corner_holds, departure};
 use crate::body::Body;
@@ -59,6 +60,8 @@ pub enum OverlapRefusal {
     /// A point's placement in a face refused: in band, or a reading of
     /// the containment door with no verdict.
     Placement(ContainError),
+    /// A point of one face read in band of the other's plane.
+    OnPlane(Indeterminate),
     /// The boundary pass over an edge refused: a meeting in band, or a
     /// reading that could not run.
     Meeting(BoundaryRefusal),
@@ -80,6 +83,7 @@ impl core::fmt::Display for OverlapRefusal {
             ),
             Self::StaleFace { face } => write!(f, "face {face:?} does not resolve"),
             Self::Placement(e) => write!(f, "placing a point in a face: {e}"),
+            Self::OnPlane(d) => write!(f, "a point read in band of a face's plane: {d:?}"),
             Self::Meeting(e) => write!(f, "reading an edge against a face's boundary: {e:?}"),
             Self::Corner(e) => write!(f, "reading two corners against each other: {e}"),
             Self::Unread { what } => write!(f, "no verdict: {what}"),
@@ -131,25 +135,23 @@ fn place<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<FaceContainment, OverlapRefusal> {
-    let f = body
-        .get_face(face)
-        .ok_or(OverlapRefusal::StaleFace { face })?;
-    match *body.face_surface_linked(face, f) {
-        geom::Surface::Plane { normal, .. } => {
-            contfp(body, face, normal, q, band).map_err(OverlapRefusal::Placement)
-        }
-        _ => match curved_face_placement(body, face, q, band).map_err(OverlapRefusal::Placement)? {
-            CurvedPlacement::Trim(Some(at)) => Ok(at),
-            CurvedPlacement::Trim(None) => Err(OverlapRefusal::Unread {
-                what: "the curved face's region reading has no verdict for the point",
-            }),
-            CurvedPlacement::OffCarrier => Err(OverlapRefusal::Unread {
-                what: "a point of one face lies definitely off the other's carrier, which a \
-                       verdict put both on",
-            }),
-        },
+    match face_placement(body, face, q, band, "bool_overlap_on_plane") {
+        Ok(CurvedPlacement::Trim(Some(at))) => Ok(at),
+        Ok(CurvedPlacement::Trim(None)) => Err(OverlapRefusal::Unread {
+            what: "the curved face's region reading has no verdict for the point",
+        }),
+        Ok(CurvedPlacement::OffCarrier) => Err(OverlapRefusal::Unread {
+            what: "a point of one face lies definitely off the other's carrier, which a verdict \
+                   put both on",
+        }),
+        Err(PlacementError::OnPlane(diag)) => Err(OverlapRefusal::OnPlane(diag)),
+        Err(PlacementError::Door(e)) => Err(OverlapRefusal::Placement(e)),
     }
 }
+
+/// An open corner at a point: swept counterclockwise about the face's
+/// outward normal from its first bound to its second.
+type Corner<T> = (Leaving<T>, Leaving<T>);
 
 /// Each loop of `face`, as its edge half-edges in walk order.
 fn loops<T: Decide>(
@@ -192,7 +194,7 @@ fn start<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> (VertexKey, Point3<T>) {
 fn vertex_corners<T: Decide>(
     (body, face): (&Body<T>, FaceKey),
     v: VertexKey,
-) -> Result<Vec<(Leaving<T>, Leaving<T>)>, OverlapRefusal> {
+) -> Result<Vec<Corner<T>>, OverlapRefusal> {
     let unread = || OverlapRefusal::Unread {
         what: "a corner bound with no certified curve",
     };
@@ -220,7 +222,7 @@ fn edge_corners<T: Decide>(
     (body, face): (&Body<T>, FaceKey),
     e: EdgeKey,
     p: Point3<T>,
-) -> Result<Vec<(Leaving<T>, Leaving<T>)>, OverlapRefusal> {
+) -> Result<Vec<Corner<T>>, OverlapRefusal> {
     let mut out = Vec::new();
     for cycle in loops((body, face))? {
         for &he in &cycle {
@@ -238,7 +240,7 @@ fn half_plane<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
     p: Point3<T>,
-) -> Result<(Leaving<T>, Leaving<T>), OverlapRefusal> {
+) -> Result<Corner<T>, OverlapRefusal> {
     let unread = |what| OverlapRefusal::Unread { what };
     let h = body
         .half_edges
@@ -294,7 +296,7 @@ fn corners_at<T: Decide>(
     y: (&Body<T>, FaceKey),
     at: FaceContainment,
     q: Point3<T>,
-) -> Result<Vec<(Leaving<T>, Leaving<T>)>, OverlapRefusal> {
+) -> Result<Vec<Corner<T>>, OverlapRefusal> {
     match at {
         FaceContainment::OnVertex(v) => vertex_corners(y, v),
         FaceContainment::OnEdge(e) => edge_corners(y, e, q),
@@ -306,8 +308,8 @@ fn corners_at<T: Decide>(
 /// `x`'s carrier, overlap.
 fn any_corners_meet<T: Decide>(
     x: (&Body<T>, FaceKey),
-    xs: &[(Leaving<T>, Leaving<T>)],
-    ys: &[(Leaving<T>, Leaving<T>)],
+    xs: &[Corner<T>],
+    ys: &[Corner<T>],
     p: Point3<T>,
     band: Band,
 ) -> Result<bool, OverlapRefusal> {
@@ -337,8 +339,8 @@ fn any_corners_meet<T: Decide>(
 /// Two corners that meet do one of these, since the ends of their
 /// meeting are bounds of one lying inside or on the other.
 fn corners_meet<T: Decide>(
-    x: (Leaving<T>, Leaving<T>),
-    y: (Leaving<T>, Leaving<T>),
+    x: Corner<T>,
+    y: Corner<T>,
     n: Vec3<T>,
     band: Band,
 ) -> Result<bool, OverlapRefusal> {
