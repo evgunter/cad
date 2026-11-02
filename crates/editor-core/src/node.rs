@@ -77,6 +77,71 @@ pub struct RecipeNodeId(pub MintId);
 )]
 pub struct StepId(pub MintId);
 
+/// **A loft section's identity** (`names/README.md`, N1): minted from
+/// the document's mint chain ([`crate::Mint`]) when the section is
+/// authored — by `InsertNode`, or by `SetLoftSections` for a section
+/// it adds — never reused, never positional, and unique across the
+/// document. A loft's walls, seams and interior rings are named by the
+/// ids of the sections they lie at, so a section inserted or dropped
+/// elsewhere renames none of them.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub struct SectionId(pub MintId);
+
+impl SectionId {
+    /// The section id with mint ordinal `ordinal` and digest head
+    /// `digest` ([`MintId::new`]).
+    #[must_use]
+    pub const fn new(ordinal: u32, digest: u64) -> Self {
+        Self(MintId::new(ordinal, digest))
+    }
+}
+
+/// **Why an edit door refused a loft's section ids**
+/// (`names/README.md`, N1): `Preminted` at `InsertNode`, the others at
+/// `SetLoftSections`. The load door's refusal is
+/// `SnapshotError::SectionIds`, with its own faults: a save's ids are
+/// no edit's to correct.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SectionIdFault {
+    /// A loft entering the document by `InsertNode` already carries
+    /// ids: they are minted by the door, never supplied.
+    Preminted,
+    /// A section `SetLoftSections` was given keeps an id that is not a
+    /// section of the loft the node holds.
+    NotThisLofts {
+        /// The id.
+        section: SectionId,
+    },
+    /// `SetLoftSections` keeps one id on two sections.
+    Repeated {
+        /// The id.
+        section: SectionId,
+    },
+}
+
+impl core::fmt::Display for SectionIdFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Preminted => f.write_str(
+                "the loft already carries section ids; a loft entering the document carries \
+                 none, and the insert mints them",
+            ),
+            Self::NotThisLofts { section } => write!(
+                f,
+                "section id {section} is not a section of the loft this node holds, so there is \
+                 nothing for it to keep; a new section carries no id"
+            ),
+            Self::Repeated { section } => {
+                write!(f, "section id {section} stands for two sections")
+            }
+        }
+    }
+}
+
+impl core::error::Error for SectionIdFault {}
+
 /// **A constraint's identity** (D10, FORK-S3M): minted from the
 /// document's mint chain ([`crate::Mint`]) by the edit that adds it to
 /// a placement ([`crate::DocEdit::AddConstraint`]), never reused and
@@ -965,6 +1030,12 @@ pub struct LoftSection<R = crate::VarId, S = crate::VarId> {
     pub profile: R,
     /// The moves from the first section's plane to this one's.
     pub station: Vec<StationMove<S>>,
+    /// The section's minted id ([`SectionId`]): the id it keeps
+    /// through an edit, or `None` where none is minted yet — a section
+    /// an `InsertNode` or a `SetLoftSections` adds, which that door
+    /// mints. Every section of a loft the document holds carries one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<SectionId>,
 }
 
 macro_rules! station_rows {
@@ -1022,6 +1093,7 @@ impl<R, S> LoftSection<R, S> {
         f: &mut impl FnMut(&S) -> Result<S2, E>,
     ) -> Result<LoftSection<R2, S2>, E> {
         Ok(LoftSection {
+            id: self.id,
             profile: read(&self.profile)?,
             station: self
                 .station
@@ -1618,6 +1690,10 @@ pub enum Node<P, S: Slot = crate::VarId> {
     Loft {
         /// The first section's profile node.
         first: S::Read,
+        /// The first section's minted id, as [`LoftSection::id`] is
+        /// each later section's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        first_id: Option<SectionId>,
         /// The sections after the first, in skin order (≥ 1). Order is
         /// data: reversing it reverses the produced surface's
         /// v-direction.
@@ -2074,6 +2150,7 @@ macro_rules! node_rows {
             }
             Node::Loft {
                 first: _,
+                first_id: _,
                 then,
                 v_degree,
             } => {
@@ -2144,6 +2221,24 @@ impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
     /// rows.
     pub fn slots(&self) -> Vec<SlotId> {
         self.rows().into_iter().map(|(slot, _)| slot).collect()
+    }
+
+    /// **A slot's name on this node**: [`SlotId::label`], except that a
+    /// value's number is named by the freedom it sets
+    /// ([`crate::mate::Coord::value_label`]), which its address does not
+    /// carry.
+    pub fn slot_label(&self, slot: SlotId) -> String {
+        let value = match slot {
+            SlotId::ValueSlide { constraint } | SlotId::ValueSpin { constraint } => {
+                crate::mate::solve::bundle_of(self)
+                    .into_iter()
+                    .flatten()
+                    .find(|c| c.id == constraint)
+                    .and_then(crate::mate::Constraint::value)
+            }
+            _ => None,
+        };
+        value.map_or_else(|| slot.label(), |value| value.coord.value_label())
     }
 
     /// The expression in a named slot, `None` if this node type does
@@ -2242,6 +2337,7 @@ impl<P> Node<P> {
             Node::Tube { .. } | Node::HollowTube { .. } => Vec::new(),
             Node::Loft {
                 first,
+                first_id: _,
                 then,
                 v_degree: _,
             } => core::iter::once(*first)
@@ -2339,6 +2435,7 @@ impl<P> Node<P> {
             Node::Tube { .. } | Node::HollowTube { .. } => Vec::new(),
             Node::Loft {
                 first,
+                first_id: _,
                 then,
                 v_degree: _,
             } => core::iter::once(first)
@@ -2624,6 +2721,31 @@ impl OutputPort {
 }
 
 impl<P, S: Slot> Node<P, S> {
+    /// **A loft's section ids**, first to last, each `None` where the
+    /// section carries none yet; `None` for a node that is not a loft.
+    #[must_use]
+    pub fn loft_section_ids(&self) -> Option<Vec<Option<SectionId>>> {
+        match self {
+            Self::Loft { first_id, then, .. } => Some(
+                core::iter::once(*first_id)
+                    .chain(then.iter().map(|section| section.id))
+                    .collect(),
+            ),
+            _ => None,
+        }
+    }
+
+    /// **Writes a door's minted `ids` onto a loft's sections**, first to
+    /// last, one per section; a node that is not a loft is untouched.
+    pub(crate) fn set_loft_section_ids(&mut self, ids: Vec<SectionId>) {
+        if let Self::Loft { first_id, then, .. } = self {
+            let mut ids = ids.into_iter();
+            for id in core::iter::once(first_id).chain(then.iter_mut().map(|s| &mut s.id)) {
+                *id = ids.next();
+            }
+        }
+    }
+
     /// **The operation's output signature** (D10, Operations): the
     /// fixed list of named, typed ports its variant defines, in port
     /// order, possibly none. The insert door mints one variable per
@@ -2742,10 +2864,12 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::Loft {
                 first,
+                first_id,
                 then,
                 v_degree,
             } => Node::Loft {
                 first: read(O::Section(0), first)?,
+                first_id: *first_id,
                 then: then
                     .iter()
                     .enumerate()

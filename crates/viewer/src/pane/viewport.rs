@@ -719,6 +719,9 @@ mod composed {
     ///
     /// The seated tools hold NODES, and no mark draws a held node
     /// (`work/held/a-seated-tools-held-node-is-drawn-nowhere`).
+    ///
+    /// A clearance row's witness pair is marked while the row is the
+    /// selection or `row_hovered` names it ([`marks::witness`]).
     pub(crate) fn frame_marks(
         on_screen: Option<&PickIndex>,
         display: &DisplayView,
@@ -726,6 +729,7 @@ mod composed {
         tools: &Tools,
         drafts: &Drafts,
         create_drawn: bool,
+        row_hovered: Option<pncad::document::RecipeNodeId>,
     ) -> Composed {
         let Some(index) = on_screen else {
             return Composed {
@@ -734,14 +738,15 @@ mod composed {
             };
         };
         // One tool is open at a time, so the placement editor's active
-        // row's two held faces
-        // and the mirror tool's plane share these two slots.
+        // row's two held faces, the mirror tool's plane and the
+        // clearance tool's face seats share these two slots.
         // The mate tool's edge and vertex picks are drawn as geometry.
         let mate = tools.mate().map(crate::matetool::MateTool::active_picks);
-        let [a, b] = match (mate, tools.mirror()) {
-            (Some(picks), _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
-            (None, Some(tool)) => [tool.plane(), None],
-            (None, None) => [None, None],
+        let [a, b] = match (mate, tools.mirror(), tools.clearance()) {
+            (Some(picks), _, _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
+            (None, Some(tool), _) => [tool.plane(), None],
+            (None, None, Some(tool)) => [tool.face(0), tool.face(1)],
+            (None, None, None) => [None, None],
         };
         let entities = mate.map_or([None, None], |picks| {
             picks.map(|pick| match pick.map(crate::tree::HeldPick::pick) {
@@ -757,8 +762,30 @@ mod composed {
             edges: tools.blend().and_then(crate::blend::BlendTool::held_edges),
             entities,
         };
-        let (highlight, edges) =
+        let (mut highlight, mut edges) =
             marks::compose(index, display, session.selection(), session.hover(), &held);
+        let selected = match session.selection() {
+            crate::session::Selection::Node(node) => Some(*node),
+            _ => None,
+        };
+        let rows = [
+            (selected, marks::WitnessLit::Selected),
+            (
+                row_hovered.filter(|&row| Some(row) != selected),
+                marks::WitnessLit::Hovered,
+            ),
+        ];
+        for (row, lit) in rows {
+            if let Some(witnessed) = row.and_then(|row| session.witness(row)) {
+                marks::witness(
+                    index,
+                    display,
+                    &witnessed,
+                    lit,
+                    (&mut highlight, &mut edges),
+                );
+            }
+        }
         Composed { highlight, edges }
     }
 }
@@ -1375,6 +1402,7 @@ impl ViewerBehavior<'_> {
             self.tools,
             self.drafts,
             self.profile_was_drawn.create,
+            self.row_was_hovered,
         );
         let landed = self.session.landed_pair().map(|(doc, _)| doc);
         // Held names are mapped onto the drawn picture; while they are
@@ -4311,6 +4339,126 @@ mod tests {
         assert!(
             joins(&drawn, [0.0, 0.0], [0.01, 0.0]) && joins(&drawn, [0.01, 0.0], [0.01, 0.01]),
             "refused at step 3: the legs before it are painted: {drawn:?}"
+        );
+    }
+
+    /// **Two blocks placed side by side, 10 mm apart, and a requirement
+    /// that they clear each other by 20 mm**, landed and certified:
+    /// answering the session, the violated requirement, and the index
+    /// the picture is drawn from.
+    fn violated_clearance(tol: Tol) -> (DocSession, pncad::document::RecipeNodeId, PickIndex) {
+        use crate::session::ClearedSeat;
+        use crate::test_support::len;
+        use pncad::document::ClearanceBounds;
+        let (doc, blocks, _) = crate::test_support::two_blocks_apart(tol);
+        let mut session = DocSession::inline(doc, tol);
+        let added = session.perform(SessionOp::AddClearance {
+            a: ClearedSeat::Body(blocks[0].into()),
+            b: ClearedSeat::Body(blocks[1].into()),
+            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        });
+        assert!(added.refusal.is_none(), "{:?}", added.refusal);
+        let violated = added.made.expect("the requirement is a node");
+        session.pump();
+        let (doc, eval) = session.landed_pair().expect("landed");
+        let index = PickIndex::build(
+            doc,
+            eval,
+            PictureKey::of(
+                session.generation(),
+                crate::test_support::plate_delta(),
+                crate::world::Shown::none(),
+            ),
+            tol,
+        )
+        .expect("the blocks index");
+        (session, violated, index)
+    }
+
+    /// The marks a frame draws over `session` with `row` hovered in the
+    /// tree.
+    fn marks_with(
+        session: &DocSession,
+        index: &PickIndex,
+        row: Option<pncad::document::RecipeNodeId>,
+    ) -> super::Composed {
+        super::frame_marks(
+            Some(index),
+            &session.display_view(),
+            session,
+            &crate::tools::Tools::new(),
+            &crate::drafts::Drafts::default(),
+            false,
+            row,
+        )
+    }
+
+    /// **A clearance row's witness is marked only while the row is
+    /// selected or hovered, and only from the picture's own run**: its
+    /// two faces lit in the selection's lanes and its leg in the selected
+    /// edge lane while the row is the selection; in the hover's while
+    /// the pointer is over it; and nothing at all once the shown document
+    /// moves past the landing the pair was certified for.
+    ///
+    /// Red if `frame_marks` marks a witness for a row that is neither, or
+    /// `DocSession::witness` answers off a landing that no longer answers
+    /// the shown document.
+    #[test]
+    fn a_clearance_witness_is_marked_only_while_its_row_is_selected_or_hovered_over_its_landing() {
+        let tol = Tol::witness();
+        let (mut session, violated, index) = violated_clearance(tol);
+        let quiet = marks_with(&session, &index, None);
+        let lit = |marks: &super::Composed| {
+            let h = marks.highlight();
+            (
+                [h.selected, h.selected_second],
+                [h.hovered, h.hovered_second],
+                marks.edges().selected.len(),
+                marks.edges().hovered.len(),
+            )
+        };
+        let none = [IdMap::NOTHING; 2];
+        assert_eq!(
+            lit(&quiet),
+            (none, none, 0, 0),
+            "an unselected row marks nothing"
+        );
+
+        let hovered = marks_with(&session, &index, Some(violated));
+        let (selected, faces, sel_leg, hov_leg) = lit(&hovered);
+        assert_eq!((selected, sel_leg), (none, 0), "a hover is not a selection");
+        assert!(
+            faces.iter().all(|&id| id != IdMap::NOTHING) && faces[0] != faces[1],
+            "both witness faces are lit as hovered: {faces:?}"
+        );
+        assert_eq!(hov_leg, 2, "one leg, two ends, in the hover's lane");
+        let leg = &hovered.edges().hovered;
+        assert!(
+            (leg[0][0] - 0.02).abs() < 1e-6 && (leg[1][0] - 0.03).abs() < 1e-6,
+            "the leg spans the gap between the facing walls: {leg:?}"
+        );
+
+        session.perform(SessionOp::Select(crate::session::Selection::Node(violated)));
+        let selected = marks_with(&session, &index, None);
+        let (faces, hovered_faces, sel_leg, hov_leg) = lit(&selected);
+        assert!(
+            faces.iter().all(|&id| id != IdMap::NOTHING),
+            "both witness faces are lit as selected: {faces:?}"
+        );
+        assert_eq!((hovered_faces, sel_leg, hov_leg), (none, 2, 0));
+
+        // The next edit's request: the shown document moves past the
+        // landing whose pair this is.
+        let label = pncad::document::Label::new("gap").expect("a label");
+        let edit = session.perform(SessionOp::SetLabel {
+            node: violated,
+            label: Some(label),
+        });
+        assert!(edit.refusal.is_none(), "{:?}", edit.refusal);
+        assert_eq!(
+            lit(&marks_with(&session, &index, Some(violated))),
+            (none, none, 0, 0),
+            "no witness of an older document is drawn over a newer one"
         );
     }
 }

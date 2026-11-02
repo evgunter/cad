@@ -309,6 +309,8 @@ mod load_door_payload_param_ref;
 mod load_door_program_validate;
 #[path = "load_door_slot_dimension.rs"]
 mod load_door_slot_dimension;
+#[path = "loft_section_ids.rs"]
+mod loft_section_ids;
 #[path = "m10_1_analysis.rs"]
 mod m10_1_analysis;
 #[path = "m10_1_distribution_wire.rs"]

@@ -449,7 +449,9 @@ jobs:
     # opt-level 2: the suite runs three times from this one build, so it is
     # execution-bound, and on the hosted runner opt-2 beat opt-1 over build +
     # execution (docs/perf-data/opt-level, 2026-09-27: 1859 s against
-    # 2053 s). The PR gate stays at opt-1, where the build dominates.
+    # 2053 s). The PR gate, where the build dominates, keeps its libraries
+    # at opt-1 and builds its integration-test binaries at opt-0
+    # (scripts/rustc-test-crates-opt0.sh).
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only

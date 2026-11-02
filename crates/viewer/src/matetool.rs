@@ -256,8 +256,8 @@ impl From<VertexSelection> for MatePick {
 /// **How a pick of one entity kind is read as a pose**: the pose
 /// definition its one read sits in, and the role a direction is read
 /// through. A plane, an axis and a point are the pose itself; a
-/// direction is a face's plane read through its normal, or an edge's
-/// axis read through its direction — the kernel's own spelling of a
+/// direction is a face's plane read through its normal, or a round
+/// face's or an edge's axis read through its direction — the kernel's own spelling of a
 /// direction mate's side, the flip of the role read, so both sides of
 /// a direction carry one flip.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -291,6 +291,38 @@ impl MateReading {
     /// a vertex.
     #[must_use]
     pub fn of(kind: VarKind, seat: MateSeat, entity: EntityKind) -> Option<Self> {
+        Self::admitted(kind, seat, entity).first().copied()
+    }
+
+    /// **The reading of a pick of `entity` at `seat`, sited at `site`
+    /// in `ev`**: [`Self::of`], except that a face whose carrier is no
+    /// plane takes the first reading that is not its plane where one
+    /// admits it — a direction picked on a cylinder's face reads its
+    /// carrier's axis. The carrier is the kernel's tag
+    /// ([`pncad::select::face_carrier_kind`]); a tag that does not read
+    /// leaves [`Self::of`]'s reading, and the placement states its
+    /// refusal.
+    fn at_site(
+        kind: VarKind,
+        seat: MateSeat,
+        entity: EntityKind,
+        ev: &Evaluation<f64>,
+        site: &SitedRef,
+    ) -> Option<Self> {
+        let admitted = Self::admitted(kind, seat, entity);
+        let planeless = entity == EntityKind::Face
+            && pncad::select::face_carrier_kind(ev, site.at, &site.name)
+                .is_ok_and(|carrier| carrier != pncad::geom::SurfaceKind::Plane);
+        admitted
+            .iter()
+            .copied()
+            .find(|reading| planeless && reading.pose != ReadPose::Plane)
+            .or_else(|| admitted.first().copied())
+    }
+
+    /// The readings of `entity` at `seat` of a mate of `kind` whose
+    /// seat admits it, in preference order.
+    fn admitted(kind: VarKind, seat: MateSeat, entity: EntityKind) -> Vec<Self> {
         let reading = |pose, role| Self { pose, role };
         let candidates: &[Self] = match (kind, seat) {
             (VarKind::Plane, MateSeat::One) => &[reading(ReadPose::Plane, None)],
@@ -311,7 +343,8 @@ impl MateReading {
         candidates
             .iter()
             .copied()
-            .find(|reading| reading.seat().selection_kind(entity).is_some())
+            .filter(|reading| reading.seat().selection_kind(entity).is_some())
+            .collect()
     }
 
     /// The pose definition this reading puts `read` in.
@@ -1996,6 +2029,7 @@ impl MateTool {
     /// bundle wrote them, `to` in the row's sense.
     fn row_mate(
         doc: &Doc<ProfileProgram>,
+        ev: &Evaluation<f64>,
         at: usize,
         row: &MateRow,
     ) -> Result<ProposedMate, MateToolError> {
@@ -2029,7 +2063,11 @@ impl MateTool {
                     });
                 }
                 let entity = pick.entity();
-                let reading = MateReading::of(row.kind, seat, entity).ok_or(
+                let (site, read) = match side {
+                    MateSide::On => on_read(doc, pick),
+                    MateSide::To => to_read(doc, pick),
+                };
+                let reading = MateReading::at_site(row.kind, seat, entity, ev, &site).ok_or(
                     MateToolError::KindDoesNotRead {
                         row: at,
                         side,
@@ -2037,10 +2075,6 @@ impl MateTool {
                         entity,
                     },
                 )?;
-                let (site, read) = match side {
-                    MateSide::On => on_read(doc, pick),
-                    MateSide::To => to_read(doc, pick),
-                };
                 sites.push(site);
                 reads.push((reading, read));
             }
@@ -2100,7 +2134,7 @@ impl MateTool {
         }
         let mut mates = live
             .iter()
-            .map(|&(at, row)| Self::row_mate(doc, at, row))
+            .map(|&(at, row)| Self::row_mate(doc, ev, at, row))
             .collect::<Result<Vec<_>, _>>()?;
         let base: &[Constraint<Formula>] = match &draft.door {
             PlaceDoor::Edit { base, .. } => base,

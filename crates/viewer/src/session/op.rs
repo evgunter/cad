@@ -829,6 +829,19 @@ pub enum SessionOp {
         /// The face whose plane it is reflected across.
         plane: FaceSelection,
     },
+    /// **Add a clearance requirement** — the clearance tool's one
+    /// committed action: an assertion that `clearance(a, b)` lies within
+    /// `bounds` (`Node::clearance`), each seat a body or a face. The
+    /// bounds are written as typed: a reversed band and a negative
+    /// bound are the evaluation's to refuse, on the requirement's row.
+    AddClearance {
+        /// The first seat.
+        a: ClearedSeat,
+        /// The second seat.
+        b: ClearedSeat,
+        /// The bounds, each a length.
+        bounds: pncad::document::ClearanceBounds<Formula>,
+    },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit: an index `k = index(count)` and one placement of
     /// the body in its own space whose values read it (D10
@@ -1269,6 +1282,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
+            | Self::AddClearance { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1398,6 +1412,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
+            | Self::AddClearance { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1628,6 +1643,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
+            | Self::AddClearance { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1762,6 +1778,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
+            | Self::AddClearance { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1839,6 +1856,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
+            | Self::AddClearance { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1854,6 +1872,16 @@ impl SessionOp {
             Self::CreateLabelled { creation, .. } => creation.op().replaces_the_document(),
         }
     }
+}
+
+/// **One seat of a clearance requirement** ([`SessionOp::AddClearance`]):
+/// a body, all of its faces, or one face picked in the picture.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClearedSeat {
+    /// A body read.
+    Body(Operand),
+    /// A face, read on the body it was picked on.
+    Face(FaceSelection),
 }
 
 /// **An operation that creates a node** — the only operation

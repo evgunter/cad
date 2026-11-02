@@ -704,8 +704,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // recorded, and neither reads the sector's tilt again.
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         if class == Some(GlueClass::Tangent) {
-            let s_sector = super::sectors::tangent_carrier(piercing_body, s.face)?;
-            let s_pierced = super::sectors::tangent_carrier(pierced_body, contact.face)?;
+            let s_sector = piercing_body.proven_face_surface(s.face).clone();
+            let s_pierced = pierced_body.proven_face_surface(contact.face).clone();
             let read = declared.read(
                 &[(piercing, s.face, pierced_op, contact.face)],
                 Coincide::TangentSide,
@@ -914,8 +914,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // face.
     let bend_of = |t: usize, d: Vec3<T>| {
         let face = sectors[t].face;
-        let surface = piercing_body
-            .face_surface_linked(face, proven(&piercing_body.faces, face, EntityId::Face));
+        let surface = piercing_body.proven_face_surface(face);
         // At a cone's apex the germ is a ruling, which the pierced plane
         // holds: the section runs straight along it.
         let bend = match sectors[t].apex() {
@@ -1774,13 +1773,8 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                     for earlier in reads.iter().filter(|r| r.face == read.face) {
                         match super::one_vertex_at(earlier.point, read.point, band) {
                             Ok(Some(_)) => {
-                                let kind = |body: &Body<T>, face| {
-                                    body.face_surface_linked(
-                                        face,
-                                        proven(&body.faces, face, EntityId::Face),
-                                    )
-                                    .kind()
-                                };
+                                let kind =
+                                    |body: &Body<T>, face| body.proven_face_surface(face).kind();
                                 return Err(BooleanError::HeldPierceUnbuilt {
                                     operand: read.piercing,
                                     face: read.face,
@@ -1864,10 +1858,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
             what: "a pierce ring's pierce has no run",
         })?;
     let faces: Vec<_> = piercing_body.faces().map(|(k, _)| k).collect();
-    let kind_of = |body: &Body<T>, face| {
-        body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face))
-            .kind()
-    };
+    let kind_of = |body: &Body<T>, face| body.proven_face_surface(face).kind();
     let unbuilt = |face, kind, placed| BooleanError::HeldPierceUnbuilt {
         operand: piercing,
         face,
@@ -1897,8 +1888,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 // Off the carrier, the face holds nothing: decided first,
                 // as the plane arm decides its plane first. A spline face
                 // has no residual, and its trim is asked.
-                let surface = piercing_body
-                    .face_surface_linked(face, proven(&piercing_body.faces, face, EntityId::Face));
+                let surface = piercing_body.proven_face_surface(face);
                 let side = (!matches!(
                     surface.kind(),
                     geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
@@ -1997,16 +1987,9 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
             (None, geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx) => {
                 return Err(unbuilt(face, geom::SurfaceKind::Plane, true));
             }
-            (None, _) => Some(
-                PierceLever::of(
-                    pierced_body.face_surface_linked(
-                        pierced,
-                        proven(&pierced_body.faces, pierced, EntityId::Face),
-                    ),
-                    p,
-                )
-                .within(arm),
-            ),
+            (None, _) => {
+                Some(PierceLever::of(pierced_body.proven_face_surface(pierced), p).within(arm))
+            }
             (Some(_), _) => return Err(unbuilt(face, kind_of(piercing_body, face), true)),
         };
         let int = held_normal.cross(plan.normal);
@@ -2174,7 +2157,7 @@ fn one_carrier<T: Decide>(
             Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite)
         );
     }
-    let surface = |f| body.face_surface_linked(f, proven(&body.faces, f, EntityId::Face));
+    let surface = |f| body.proven_face_surface(f);
     match surface(a).paired_with(surface(b)) {
         geom::SurfacePairing::Analytic(data) => data.pairs().all(|(_, x, y)| {
             x.scalars().zip(y.scalars()).all(|(p, q)| {
@@ -2452,10 +2435,7 @@ fn unglued_flat_sector<T: Decide>(
         };
     }
     let curved = |body: &Body<T>, operand, face| {
-        let kind = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
+        let kind = body.proven_face_surface(face).kind();
         BooleanError::CurvedBooleanUnsupported {
             operand,
             face,

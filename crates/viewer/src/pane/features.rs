@@ -3,7 +3,6 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::analysis::ClearanceVerdict;
 use pncad::document::{AssertionVerdict, MateRef, RecipeNodeId, SpokenNode, UnevaluatedReason};
 
 use crate::app::{GLYPH_WORLD, ViewerBehavior, toned};
@@ -117,9 +116,11 @@ pub(crate) fn feature_row_ui(
 ) -> RowClicks {
     let mut clicks = RowClicks::default();
     ui.horizontal(|ui| {
-        if row_label(ui, row, selected).clicked() {
+        let label = row_label(ui, row, selected);
+        if label.clicked() {
             clicks.select = Some(row.id);
         }
+        clicks.hovered = label.hovered();
         if row.spoken.kind() == Some("InstantiatePart") {
             let mut shown = !hidden;
             let toggle = ui.add_enabled(
@@ -212,6 +213,9 @@ pub(crate) struct RowClicks {
     /// Whether the placement's `edit` button was clicked: the placement
     /// editor's Edit door on the row's node.
     pub(crate) edit: bool,
+    /// Whether the pointer is over the row's label: a clearance row's
+    /// witness is drawn while it is ([`crate::marks::witness`]).
+    pub(crate) hovered: bool,
 }
 
 /// **The lines under a row that a failure writes, drawn** — and the
@@ -290,6 +294,14 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
                     ui.label(comparison);
                 }
             }
+            // A clearance reads as its equation, then its answer.
+            Some(Readout::Clearance(cleared)) => {
+                ui.label(cleared.equation(notation));
+                ui.label(toned(cleared.state(), theme, row.tone()));
+                if let Some(detail) = cleared.detail(notation) {
+                    ui.label(detail);
+                }
+            }
             // A sentence, drawn under the row.
             Some(Readout::LeftAlone(_)) | None => {}
         },
@@ -313,14 +325,16 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
             AssertionVerdict::Unevaluated {
                 reason: reason @ UnevaluatedReason::Indeterminate { .. },
             } => advisory_line(ui, &reason.to_string(), theme),
-            // A clearance's third state is a sentence with its recourse.
-            AssertionVerdict::Clearance(report) => {
-                if let ClearanceVerdict::Refused(refusal) = report.verdict() {
-                    advisory_line(ui, &refusal.to_string(), theme);
-                }
-            }
-            AssertionVerdict::Holds { .. } | AssertionVerdict::Violated { .. } => {}
+            AssertionVerdict::Holds { .. }
+            | AssertionVerdict::Violated { .. }
+            | AssertionVerdict::Clearance(_) => {}
         },
+        // A clearance's third state is a sentence with its recourse.
+        Some(Readout::Clearance(cleared)) => {
+            if let Some(sentence) = cleared.sentence() {
+                advisory_line(ui, sentence, theme);
+            }
+        }
         Some(Readout::Value(_) | Readout::Empty(_)) | None => {}
     }
     clicked
@@ -392,6 +406,9 @@ impl ViewerBehavior<'_> {
             &self.theme,
             *self.notation,
         );
+        if clicks.hovered {
+            *self.row_hovered = Some(row.id);
+        }
         if let Some(to) = clicks.select {
             self.ops.push(SessionOp::Select(Selection::Node(to)));
         }
@@ -1062,7 +1079,8 @@ mod tests {
     /// names the lane that certifies it.
     ///
     /// Red if `lines_under` drops a clearance's refusal, if the sentence
-    /// is re-spelled, or if the line is drawn loud.
+    /// is re-spelled, if the line is drawn loud, or if the row stops
+    /// reading as its equation.
     #[test]
     fn a_clearance_at_f64_paints_its_third_state_under_its_row() {
         let fixture = measure_fixture();
@@ -1078,6 +1096,10 @@ mod tests {
             "the premise: the kernel's words name the lane that answers: {reason}"
         );
         let row = fixture.row(fixture.clearance);
+        let Some(Readout::Clearance(cleared)) = &row.readout else {
+            panic!("a clearance row reads as its equation: {:?}", row.readout);
+        };
+        let equation = cleared.equation(Notation::DEFAULT);
         let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
             feature_row_drawn(ui, &row, theme)
         });
@@ -1101,10 +1123,15 @@ mod tests {
                     test_utils::refusal::tag(fixture.clearance.0.digest())
                 )
                 .as_str(),
+                equation.as_str(),
                 "Refused",
                 reason.as_str(),
             ],
-            "the state beside the row, the sentence under it, and no badge"
+            "the equation and the state beside the row, the sentence under it, and no badge"
+        );
+        assert!(
+            equation.starts_with("clearance(the start cap of ") && equation.ends_with(" ≥ 0.01 m"),
+            "the claim reads as an equation over the two caps: {equation}"
         );
     }
 
@@ -1326,6 +1353,80 @@ mod tests {
         assert_eq!(find(&painted, state).ink, Some(voices.actionable));
     }
 
+    /// **A certified clearance row paints its equation, then its
+    /// answer**: a violated requirement's state loud and the pair that
+    /// violates it beside it, a passing one quiet, an owed one
+    /// `certifying…` — and no refusal line under any of them.
+    ///
+    /// Red if `row_result` drops the equation or the pair's distance, or
+    /// `Cleared::tone` reads a violation as advisory.
+    #[test]
+    fn a_certified_clearance_row_paints_its_equation_and_its_answer() {
+        use pncad::analysis::{ClearanceOutcome, PairOfPoints};
+        use pncad::document::ClearanceBounds;
+        use tree::{Bound, Certified, Cleared};
+        let id = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
+        let row = |answer| TreeRow {
+            readout: Some(Readout::Clearance(Cleared {
+                a: "Extrude \"left\" (0009)".to_owned(),
+                b: "Extrude \"right\" (000a)".to_owned(),
+                bounds: ClearanceBounds::AtLeast(Bound::Value(crate::props::Computed {
+                    canonical: 0.02,
+                    dimension: pncad::document::Dimension::Length,
+                })),
+                answer,
+            })),
+            ..placer_refused_row(None)
+        };
+        let violated = Certified::Answered(ClearanceOutcome::Violated(PairOfPoints {
+            a: [0.02, 0.0, 0.0],
+            b: [0.03, 0.0, 0.0],
+            distance: 0.01,
+            face_a: pncad::topo::FaceKey::default(),
+            face_b: pncad::topo::FaceKey::default(),
+            bodies: [(id, 0); 2],
+        }));
+        let equation = "clearance(Extrude \"left\" (0009), Extrude \"right\" (000a)) ≥ 0.02 m";
+        for (answer, state, detail, loud) in [
+            (
+                violated,
+                "Violated",
+                Some("a violating pair 0.01 m apart"),
+                true,
+            ),
+            (
+                Certified::Answered(ClearanceOutcome::Holds),
+                "Holds",
+                None,
+                false,
+            ),
+            (Certified::Certifying, tree::CERTIFYING, None, false),
+        ] {
+            let row = TreeRow {
+                id,
+                status: RowStatus::Ok,
+                ..row(answer)
+            };
+            let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+                feature_row_drawn(ui, &row, theme)
+            });
+            let texts = texts(&painted);
+            assert_eq!(&texts[1..3], &[equation, state], "{state}");
+            assert_eq!(texts.get(3).copied(), detail, "{state}: {texts:?}");
+            assert_eq!(
+                texts.len(),
+                3 + usize::from(detail.is_some()),
+                "{state}: {texts:?}"
+            );
+            let ink = find(&painted, state).ink;
+            if loud {
+                assert_eq!(ink, Some(voices.actionable), "{state} is drawn loud");
+            } else {
+                assert_ne!(ink, Some(voices.actionable), "{state} is drawn quiet");
+            }
+        }
+    }
+
     /// **An assertion's numbers are spelled in its measure's
     /// dimension**, and its relation is the one it records.
     ///
@@ -1383,6 +1484,7 @@ mod tests {
         let assertion = fixture.row(fixture.holds);
         let driven = SlotRow {
             slot: SlotId::Distance,
+            label: SlotId::Distance.label(),
             dimension: Dimension::Length,
             structural: false,
             driver: SlotDriver::Expression {
@@ -1513,6 +1615,7 @@ mod tests {
             accept: None,
             remove: remove.get(),
             edit: false,
+            hovered: false,
         }
     }
 
