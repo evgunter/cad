@@ -193,6 +193,16 @@ const FEATURES_SLACK: f32 = 8.0;
 /// on screen (`frame::Progress::Canceled`).
 const CANCELED_LINE: &str = "canceled — showing an older result";
 
+/// What the toolbar says while a run that ran out of its member budget
+/// leaves an older picture on screen (`frame::Progress::Exhausted`),
+/// spoken from `doc`.
+fn exhausted_line(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    out: crate::session::OutOfBudget,
+) -> String {
+    format!("showing an older result: the run {}", out.said(doc))
+}
+
 /// `color` as the toolkit's own colour type.
 ///
 /// The one place a [`Rgba8`] becomes an `egui::Color32`, matching
@@ -1955,6 +1965,16 @@ impl ViewerApp {
                         ui.ctx().request_repaint();
                     }
                 }
+                // No Re-evaluate beside it: the same document runs out
+                // at the same family again.
+                Some(frame::Progress::Exhausted { index, out }) => {
+                    ui.separator();
+                    if index == IndexSeam::Building {
+                        ui.spinner();
+                        ui.ctx().request_repaint();
+                    }
+                    crate::widgets::message(ui, exhausted_line(self.session.doc(), out));
+                }
                 // No Cancel button beside it, and that is the
                 // seam's promise showing through the chrome: the
                 // build cannot be stopped, only outrun by a newer
@@ -3209,16 +3229,36 @@ mod tests {
         use crate::pickcache::IndexSeam;
         use crate::session::{DocSession, Outstanding};
 
-        const WORDS: [&str; 5] = [
+        let tol = pncad::tolerance::witness();
+        // The plate, and the plate with a row of `u32::MAX` copies of it,
+        // which runs out of the default member budget at the row.
+        let (plate, body) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let (huge, row) = crate::test_support::row_of_copies(
+            &plate,
+            body,
+            i64::from(u32::MAX),
+            (pncad::document::TargetAxis::X, 0.05),
+            tol,
+        );
+        let out = crate::session::OutOfBudget {
+            at: row,
+            held: 0,
+            budget: pncad::document::DEFAULT_MEMBER_BUDGET,
+        };
+        let out_line = crate::app::exhausted_line(&huge, out);
+        let words = [
             "evaluating…",
             "Cancel",
             CANCELED_LINE,
             "Re-evaluate",
             "indexing…",
+            &out_line,
         ];
-        let tol = pncad::tolerance::witness();
         let session = |outstanding: Outstanding| {
-            let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+            let document = match outstanding {
+                Outstanding::Exhausted(_) => huge.clone(),
+                _ => plate.clone(),
+            };
             let mut session = DocSession::inline(document, tol);
             session.pump();
             match outstanding {
@@ -3231,6 +3271,7 @@ mod tests {
                     session.perform(SessionOp::CancelEvaluation);
                     session.pump();
                 }
+                Outstanding::Exhausted(_) => {}
             }
             assert_eq!(
                 session.outstanding(),
@@ -3263,7 +3304,7 @@ mod tests {
             );
             row.painted
                 .into_iter()
-                .filter(|text| WORDS.contains(&text.as_str()))
+                .filter(|text| words.contains(&text.as_str()))
                 .collect::<Vec<_>>()
         };
         for (outstanding, index, expected) in [
@@ -3288,6 +3329,13 @@ mod tests {
                 Outstanding::Canceled,
                 IndexSeam::Building,
                 vec![CANCELED_LINE, "Re-evaluate", "indexing…"],
+            ),
+            // No picture lands for the row, so no index is built behind
+            // it: the one pair is the idle one.
+            (
+                Outstanding::Exhausted(out),
+                IndexSeam::Idle,
+                vec![out_line.as_str()],
             ),
         ] {
             assert_eq!(
