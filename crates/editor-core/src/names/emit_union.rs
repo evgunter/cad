@@ -44,7 +44,8 @@
 //! - a face is named for its PARENT, the member faces the pairwise
 //!   judgements consumed together, transitively ([`Links`]), which a
 //!   finished face takes from the member faces it descends from by
-//!   entity through the fold ([`Fold`], [`Parents`]): the parent
+//!   entity through the fold ([`Fold`], [`Parents`]; a face whose
+//!   member faces no judgement links refuses): the parent
 //!   itself when the finished body holds it as one face, and
 //!   otherwise the parent and one `Borders`
 //!   over the divider walls each piece borders; a seam edge is named
