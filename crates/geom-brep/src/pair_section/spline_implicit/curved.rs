@@ -275,3 +275,6 @@ pub(super) fn door(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod rows;

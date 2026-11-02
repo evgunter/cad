@@ -59,7 +59,7 @@ would clear a real loop).
 
 ## Closed
 
-The plane × spline arm (`geom_brep::pair_section::plane_spline`)
+The plane × spline arm (`geom_brep::pair_section::spline_implicit`)
 classifies the pair in C5's order before C3's whole reading:
 
 1. the hull (`PlaneSplinePose::hull`, W0 moved out of `section_cert`),
@@ -72,7 +72,7 @@ classifies the pair in C5's order before C3's whole reading:
    door and handed on to `all()` (carried on the pose for a later
    `read_whole`): a graze refuses by name, and its crossings and
    regions are where the section ends;
-3. the regularity sweep (`plane_spline::sweep`) on the chart lane's one
+3. the regularity sweep (`spline_implicit::sweep`) on the chart lane's one
    recursion (`exhaust::sweep_chart_regular`, a third duty beside
    seeding and accounting): each cell excluded (its height decided past
    the band) or regular (its slope off the plane decided off zero,

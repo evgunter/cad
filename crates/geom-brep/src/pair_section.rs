@@ -11,7 +11,8 @@
 //! elsewhere ([`SectionRead::Elsewhere`], with [`crate::route`]'s arm):
 //! its match on kinds is exhaustive with no wildcard arm, so a kind added
 //! to [`SurfaceKind`] is a compile-time visit here as it is at `route`.
-//! With no march door it refuses a plane and a spline
+//! With no march door it refuses a spline against an implicit surface
+//! its hull does not decide, and every curved one
 //! ([`SectionError::NoMarch`]).
 //!
 //! A [`PairSection`] holds:
@@ -33,7 +34,7 @@
 //!   ([`Components::Marched`]: a general cylinder × torus or torus ×
 //!   torus pose), the components are the march's, listed only once
 //!   carried. An empty count is the surfaces disjoint; `Marched` never
-//!   reads as that. Where a plane × spline pose's regularity sweep
+//!   reads as that. Where a spline × implicit pose's regularity sweep
 //!   proves no component closed ([`Components::Reaching`]), none is
 //!   counted or listed: each ends on a side of the wall's chart the
 //!   verdict names, and a reader that needs the list reads the pose
@@ -71,8 +72,9 @@
 //! Cylinder × sphere, the three torus pairs (a ring torus against a
 //! sphere, a cylinder or another ring torus, [`torus`]) and two
 //! cylinders ([`cylinders`]), which have no bounded side and are read
-//! over the operation's region; and, through the march door, a plane
-//! against a NURBS or approximating surface ([`spline_implicit`],
+//! over the operation's region; and, through the march door, a plane,
+//! cylinder, sphere or torus against a NURBS or approximating surface
+//! ([`spline_implicit`],
 //! [`SplineImplicitPose`], read by the section certificate alone). Each
 //! analytic pair's pose
 //! ([`CylinderSpherePose`], [`SphereTorusPose`], [`CylinderTorusPose`],
@@ -783,7 +785,7 @@ pub enum Components<T: Real> {
     /// Some component, and none closed: each is open, its ends on the
     /// sides of each surface's chart [`Reached`] names, and none is
     /// counted or listed. No component at all is an empty
-    /// [`Components::Counted`]. A plane × spline pose's regularity sweep
+    /// [`Components::Counted`]. A spline × implicit pose's regularity sweep
     /// answers it ([`spline_implicit`]); a reader that needs the list reads
     /// the pose whole ([`PairSection::read_whole`]).
     Reaching(Reached),
@@ -812,7 +814,7 @@ pub enum PairPose<T: Real> {
     TorusTorus(TorusTorusPose<T>),
     /// Cylinder × cylinder.
     CylinderCylinder(CylinderCylinderPose<T>),
-    /// A plane and a spline wall.
+    /// A spline wall and an implicit surface.
     SplineImplicit(Box<SplineImplicitPose<T>>),
     /// Two spline walls.
     SplinePair(Box<SplinePairPose<T>>),
@@ -917,7 +919,7 @@ fn domain_about(center: Point3<f64>, half_extent: f64, extent: f64) -> SsiDomain
 }
 
 /// **A whole reading's refusal as the section value's**, for both spline
-/// lanes (plane × spline, two spline walls): a tangency the reading
+/// lanes (spline × implicit, two spline walls): a tangency the reading
 /// reports ([`SsiError::tangency`]: the march's transversality, a graze
 /// or a side held tangent, a tangency along a handed-in row, a section
 /// touching a side of two charts that nothing handed in covers) is a
@@ -962,9 +964,10 @@ pub enum SectionRead<T: Real> {
 /// ([`SectionError::CoincidentSurfaces`]), a closed-form count refused
 /// ([`SectionError::Pinched`], [`SectionError::Unordered`]); a pair with
 /// no bounded side asked with no `region` ([`SectionError::NoRegion`]);
-/// a plane and a spline asked with no `lane` ([`SectionError::NoMarch`]),
-/// and with one, the whole reading's refusal, mapped by name
-/// ([`spline_implicit`]).
+/// a spline and an implicit surface asked with no `lane`
+/// ([`SectionError::NoMarch`]), and with one, the pass's and the whole
+/// reading's refusals, mapped by name, and a curved partner's declined
+/// sweep ([`SectionError::RoutesToGeneralRung`]; [`spline_implicit`]).
 ///
 /// `region` is the operation's (C5): the ball about the overlap of the
 /// two operands' boxes, padded, which holds every section point the
@@ -972,9 +975,10 @@ pub enum SectionRead<T: Real> {
 /// read over it; a pair with a sphere or a torus side is read over that
 /// side's own ball and does not read it.
 ///
-/// `lane` is the march door: a plane and a spline wall (an approximating
-/// surface read as its fit) are read through it, since their section is
-/// C3's whole reading, a march ([`spline_implicit`]). No other pair reads it.
+/// `lane` is the march door: a spline wall (an approximating surface read
+/// as its fit) and an implicit surface (a plane, cylinder, sphere or
+/// torus) are classified through it ([`spline_implicit`]), and two spline
+/// walls read whole. No other pair reads it.
 pub fn pair_section<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
@@ -1554,7 +1558,8 @@ impl<T: Decide> FittedCarrier<T> {
 }
 
 /// **The general rung's door** (module docs): the ℝ³ march of a
-/// decided pose over its ball, and a plane and a spline's whole reading,
+/// decided pose over its ball, a spline and an implicit surface's
+/// classification and a plane and a spline's whole reading,
 /// written at `f64`. Holding one is the statement that the scalar may
 /// march; [`SsiLane::marched`], at `f64`, is its one constructor.
 #[derive(Clone, Copy, Debug)]
@@ -1564,12 +1569,14 @@ pub struct SsiLane<T: Real> {
     /// One closed fitted component seated at a parameter, re-certified
     /// against the pose's operands ([`PairSection::seat`]).
     seat: fn(&PairPose<T>, &CarriedComponent<T>, T, Band) -> Seated<T>,
-    /// A plane and a spline wall's classification past the door
-    /// ([`spline_implicit`]): the boundary pass, the regularity sweep, and
-    /// where it declines the whole reading.
+    /// A spline wall and an implicit surface's classification past what
+    /// the scalar reads ([`spline_implicit`]): a curved partner's hull and
+    /// door, the boundary pass, the regularity sweep, and where it
+    /// declines a plane's whole reading.
     spline: fn(SplineImplicitPose<T>, Band) -> Result<PairSection<T>, SectionError>,
-    /// A plane and a spline wall's section read whole, on the pass its
-    /// classification carried.
+    /// A spline wall and an implicit surface's section read whole, on the
+    /// pass its classification carried: a plane's; a curved partner's
+    /// is unbuilt.
     whole: fn(&SplineImplicitPose<T>, Band) -> Result<PairSection<T>, SectionError>,
     /// Two spline walls' section, read whole ([`spline_pair`]).
     spline_pair: fn(SplinePairPose<T>, Band) -> Result<PairSection<T>, SectionError>,

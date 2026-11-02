@@ -2,11 +2,12 @@
 id: a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm
 kind: issue
 title: A NURBS face against a cone or sphere face has no C5 section arm, and no boolean reads a rung-3 section, so klein wall 3 and teapot wall 3 cannot join
-status: open
+status: dispatched
 opened: 2026-10-25
 priority: P0
 cost: H
 refs: [c5-plane-torus-cone-cylinder-arms, nurbs-edge-crossing-rung-is-the-ring-composite, joining-a-spline-carrier-is-unbuilt]
+branch: sectarms/nurbs-implicit-arm-build
 ---
 
 

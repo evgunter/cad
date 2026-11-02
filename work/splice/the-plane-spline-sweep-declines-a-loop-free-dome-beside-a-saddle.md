@@ -12,10 +12,10 @@ refs: [6150]
 
 ## What
 
-The regularity sweep (`geom_brep::pair_section::plane_spline::sweep`,
+The regularity sweep (`geom_brep::pair_section::spline_implicit::sweep`,
 `sweep`/`joined`) declines a pose whose section has no closed loop:
 the review's dome beside a saddle
-(`plane_spline/sweep/rows_review.rs`, `dome_and_saddle`) cut at
+(`spline_implicit/sweep/rows_review.rs`, `dome_and_saddle`) cut at
 `z = 0.012`, below the saddle. It reads `Declined(Enclosed(..))` at the
 dome's top (printed by `review_dome_and_saddle_below_the_saddle`, run
 with `--run-ignored only`).
