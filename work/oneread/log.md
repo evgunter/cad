@@ -46,3 +46,5 @@
   - s7 (three pierce spellings) goes to lane 2.
   - `conic_bend_side`'s unthreaded slack gets a P3 row.
   - The fix pass is sent to lane 1.
+
+- 2026-11-02 — PR 6363 merged (`c627fdd4`); the edge-sector row is closed. TANGRIM has its filed join row (P2) for the bore's In side, whose disabled red pin is in `pi_seam_and_kiss_through_the_boolean.rs`.
