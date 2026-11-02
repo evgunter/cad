@@ -6,6 +6,11 @@
 //! from the slot rows (`ProfileEdit::reading`, `edit_door_ui`'s
 //! `noted`).
 
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
+#![allow(clippy::unwrap_used)]
+#![allow(clippy::panic)]
+
 use crate::corpus;
 use pncad::document::{
     Doc, Formula, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId, StepArg,

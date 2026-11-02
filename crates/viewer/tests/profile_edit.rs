@@ -21,7 +21,7 @@ use common::{session_insert, shape};
 use pncad::document::{Dimension, Doc, FreeVar, VarName};
 use pncad::document::{
     DocEdit, EditError, Formula, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
-    RecipeNodeId, SlotId, StepArg, StepId, WrittenLoopFault, apply,
+    RecipeNodeId, SlotId, StepArg, StepId, apply,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{ArcData, ArcMode, Step, Target, TargetKind, Verb};
@@ -332,8 +332,9 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
                 on: None,
             },
         );
-        let held = sketch::held_program(pncad::document::SpokenNode::absent(node), &program, &doc)
+        sketch::held_program(pncad::document::SpokenNode::absent(node), &program)
             .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
+        let held = sketch::held_rows(&sketch::written_program(&doc, &program));
         let back = written_back(&held, MM);
         assert_eq!(back, held, "{verb}: came back as {back:?}");
         let written = sketch::written_program(&doc, &program);
@@ -357,12 +358,13 @@ fn committed_expr(
         .unwrap_or_else(|| panic!("node {node} has no {}", slot.label()))
 }
 
-/// **A moved number is one undoable edit, written in the editor's
-/// notation, and what did not move keeps its own.** The square,
+/// **A moved number is one undoable edit, written in the unit its
+/// field shows, and what did not move keeps its own.** The square,
 /// authored in metres, has its second corner moved out by an editor
-/// writing millimetres: the door commits one `SetProgram` keeping
-/// every step, whose moved argument reads millimetres and whose
-/// unmoved ones still read as authored; undo and redo walk it.
+/// writing millimetres: the field over a literal shows the unit the
+/// literal is written in, so the door commits one `SetProgram` keeping
+/// every step, whose moved argument still reads metres and whose
+/// unmoved ones read as authored; undo and redo walk it.
 #[test]
 fn a_moved_number_is_one_edit_and_undoes() {
     let loops = [ProfileShape::Path {
@@ -399,9 +401,10 @@ fn a_moved_number_is_one_edit_and_undoes() {
     let written = committed_expr(&session, profile, moved);
     assert_eq!(written.literal_value(), Some(0.015));
     assert_eq!(
-        written.display_unit().map(|unit| unit.symbol()),
-        Some("mm"),
-        "what moved is written as the editor wrote it"
+        written.display_unit(),
+        authored_unit,
+        "what moved is written in the unit its field showed it in, the one it was written in, \
+         not the editor's notation"
     );
     assert_eq!(
         committed_expr(&session, profile, unmoved).display_unit(),
@@ -683,10 +686,7 @@ fn a_step_running_to_a_written_coordinate_opens_and_its_neighbours_edit() {
     let mut held = held(&session, profile);
     let pen = &held[0][2];
     assert!(
-        matches!(
-            pen.step(&|_| None, Tol::witness()),
-            Err(HeldStepFault::Resolve(WrittenLoopFault::Trace(_)))
-        ),
+        matches!(pen.step(&|_| None, Tol::witness()), Err(HeldStepFault::Pen)),
         "the pen step has no view outside an evaluation"
     );
     assert!(pen.words().starts_with("line_to"), "{}", pen.words());

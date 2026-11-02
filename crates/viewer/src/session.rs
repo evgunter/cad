@@ -273,15 +273,15 @@ fn guard_driven(
 }
 
 /// **A profile editor's program with every unmoved argument of every
-/// kept step carried from the committed program** — the argument as
-/// the document holds it, so an argument the editor re-minted in its
-/// own notation but did not move keeps the notation it was written
-/// in, and only what moved is written in the editor's.
+/// kept step carried from the committed program** — the variable the
+/// document holds, so its identity and its distribution survive the
+/// reshaping; what moved is written as the program holds it.
 ///
 /// A step is the committed one when `ids` keeps its id; the argument
 /// is the same one when it has the same
-/// [`pncad::document::StepArg`] on that step, and unmoved when its
-/// value is the committed one at the bits (`Expr::bit_eq`).
+/// [`pncad::document::StepArg`] on that step, and unmoved when it reads
+/// the committed variable or is written as the committed argument is
+/// written ([`sketch::written_as`]: the bits and the unit).
 ///
 /// # Errors
 ///
@@ -360,7 +360,9 @@ fn carry_unmoved(
         let written =
             Formula::from(doc.written(&pncad::document::Expr::var(committed, arg.dimension())));
         match new.expr_mut(moved) {
-            Some(held) if held.bit_eq(&reader) || held.bit_eq(&written) => *held = reader,
+            Some(held) if held.bit_eq(&reader) || sketch::written_as(held, &written) => {
+                *held = reader;
+            }
             _ if doc.is_typed_value(committed) => {}
             _ => guard_driven(doc, node, slot, notation)?,
         }

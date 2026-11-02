@@ -37,3 +37,19 @@ evaluation's traced faces, which the evaluation builds privately in
 `eval::wire::trace::drawn`) reachable from the viewer, or the edit
 door's preview read off a scratch evaluation of the held program; and
 the pen step's own arguments drawn through their slot doors.
+
+## 2026-11-02 — what the edit door checks of a structural edit (PR 6302 fix pass)
+
+A remove, move or insert around a pen step is checked for the order
+rules the resolution reads, before Apply (`sketch::pen_order`,
+`ProfileEdit::pen_order`): a heading along a trace directly after a
+run onto one (`OffTrace`), and a straight run to a crossing or a
+written coordinate from a pen with a position (`NoPen`) and a heading
+of its kind (`NoHeading`). Apply waits on them and the door says why.
+What it cannot check without an evaluation stays the evaluation's: a
+run that makes fewer crossings than it names (`NoSuchCrossing`), a
+coordinate the heading never reaches (`Unreached`), anything past an
+arc run to a crossing (its endpoint is the trace's), and any order
+question past a prefix that does not replay at the views' numbers. An
+edit that breaks one of those still applies, and the profile then
+refuses at evaluation.

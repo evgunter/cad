@@ -11,10 +11,10 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{RecipeNodeId, SlotId, StepArg};
+use pncad::document::{Dimension, RecipeNodeId, SlotId, StepArg};
 use pncad::geom_core::Tol;
 use pncad::profile::{Step, TipState, Verb};
-use pncad::quantity::{AngleUnit, LengthUnit};
+use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior};
 use crate::drafts::{ProfileEdit, RowEdit};
@@ -169,17 +169,21 @@ pub(crate) trait SlotDoors {
     fn under(&mut self, ui: &mut egui::Ui, slots: &[(SlotId, String)]);
 }
 
-/// **The edit door's arguments**, for one held loop. A row the draft
-/// keeps as a committed step draws each argument through the slot
-/// doors as the committed slot it is — its committed position
-/// ([`ProfileEdit::kept_at`]) and its role. A row that is no committed
-/// step, a role its committed step does not have, or a door drawn with
-/// no slot doors, draws the plain field in the editor's notation.
+/// **The edit door's arguments**, for one held loop. A row loaded as a
+/// committed step draws each argument through the slot doors as the
+/// committed slot it is — the position it was loaded from
+/// ([`ProfileEdit::loaded_at`]) and its role. A row the editor made, a
+/// role its committed step does not have, or a door drawn with no slot
+/// doors, draws the plain field: in the unit the literal is written
+/// in, which is the unit it lands in ([`ProfileEdit::units_at`]), and
+/// otherwise in the editor's notation.
 struct HeldArgs<'d, 'o> {
     slots: Option<&'d mut (dyn SlotDoors + 'o)>,
     plain: WrittenIn,
-    /// Per held row, the committed `(loop, step)` it is kept as.
+    /// Per held row, the committed `(loop, step)` it was loaded from.
     kept: Vec<Option<(u32, u32)>>,
+    /// Per held row, the unit each literal argument is written in.
+    units: Vec<Vec<(StepArg, UnitDef)>>,
     /// The slot fields drawn in the row being drawn, with their names.
     drawn: Vec<(usize, SlotId, String)>,
 }
@@ -198,7 +202,20 @@ impl ArgDoors for HeldArgs<'_, '_> {
             self.drawn.push((row, slot, name.to_owned()));
             return;
         }
-        self.plain.field(ui, row, arg, name, value);
+        let written = self
+            .units
+            .get(row)
+            .and_then(|units| units.iter().find(|(each, _)| *each == arg))
+            .map(|(_, unit)| *unit);
+        let mut plain = self.plain;
+        if let Some(unit) = written {
+            match arg.dimension() {
+                Dimension::Length => plain.length = unit,
+                Dimension::Angle => plain.angle = unit,
+                Dimension::Scalar | Dimension::Count => {}
+            }
+        }
+        plain.field(ui, row, arg, name, value);
     }
 
     fn unit(&mut self, ui: &mut egui::Ui, row: usize, args: &[StepArg]) {
@@ -294,7 +311,8 @@ pub(crate) fn edit_door_ui(
         let mut args = HeldArgs {
             slots: slots.as_deref_mut(),
             plain: WrittenIn::of(notation),
-            kept: edit.kept_at(index),
+            kept: edit.loaded_at(index),
+            units: edit.units_at(index),
             drawn: Vec::new(),
         };
         // A step with no view at plain numbers is shown as written.
@@ -340,10 +358,16 @@ pub(crate) fn edit_door_ui(
     if let Some(error) = refusals.first() {
         return Err(frame::tool_news(&FormKind::EditProfile.refuses(error)));
     }
-    if edit.runs_from_the_pen(tol) {
+    if edit.runs_from_the_pen() {
         crate::widgets::message_toned(ui, PEN_UNDRAWN, &theme, frame::Tone::Advisory);
     }
     let refused = preview_verdict(ui, theme, preview);
+    let out_of_order = edit.pen_order(landed, tol);
+    if let Some(refusal) = &out_of_order {
+        let sentence = format!("Apply waits on the step order: {refusal}");
+        crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
+    }
+    let refused = refused || out_of_order.is_some();
     let held_up = drivers_hold(edit, session.doc());
     if let Some(sentence) = &held_up {
         crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
@@ -2939,6 +2963,11 @@ mod tests {
         eprintln!(
             "review_6302: fresh row made in mm, applied under canonical: {:?}",
             op_unit_of(&op, 0, 4, StepArg::TargetX)
+        );
+        assert_eq!(
+            op_unit_of(&op, 0, 4, StepArg::TargetX),
+            Some(pncad::quantity::MM.def()),
+            "a fresh row lands in the unit it was made, and is shown, in"
         );
     }
 }

@@ -8543,10 +8543,6 @@ mod properties_pane_tests {
                     "remove the trace run row 2",
                     crate::drafts::RowEdit::Remove(2),
                 ),
-                (
-                    "remove the along-trace row 3",
-                    crate::drafts::RowEdit::Remove(3),
-                ),
             ] {
                 let (session, _, cylinder) = cylinder(0.0);
                 let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
@@ -8582,6 +8578,15 @@ mod properties_pane_tests {
                 eprintln!(
                     "review_6302 trace [{name}]: pen notice {pen}; notices {stranding:?}; Apply committed {moved}; node error {err:?}"
                 );
+                assert!(
+                    painted.iter().any(|run| run.contains("Apply waits")),
+                    "[{name}] the door says why before Apply: {painted:?}"
+                );
+                assert!(
+                    !moved,
+                    "[{name}] Apply committed a profile the evaluation refuses"
+                );
+                assert_eq!(err, None, "[{name}] the committed profile still evaluates");
             }
         }
 
