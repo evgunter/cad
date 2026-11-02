@@ -2,11 +2,13 @@
 id: identity-data-reads-its-ladder-from-geom-brep
 kind: issue
 title: carrier_eq::identity_data carries its own copy of the identity-ladder rule geom_brep::ladder::read_identity now owns
-status: dispatched
+status: closed
 opened: 2026-10-14
 priority: P1
 cost: E
 branch: onehome/identity-ladder
+closed: 2026-11-02
+pr: 6333
 ---
 
 
@@ -80,3 +82,7 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P4 → P1: `identity_data` spells out `read_identity`'s rule by hand: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Closed (ONEHOME, 2026-11-02, PR 6333)
+
+`geom_brep::ladder` is the one home of the identity-ladder rule: `climb(answering, rungs, read)` with the caller-declared `Answering::{Any, First}`, `Rung::decide` as the one non-finite rule, `read_identity` on top, and `Evidence` (moved from topo) the one ranker. Deleted: `geom_brep::identity::identity_walk`, a third copy that appeared after filing; `carrier_eq::identity_data`; `ladder::Kept::refusing_cause`; and ray_walk's `Evidence`. Repointed: the pcurve ladders, `tori_coincide`, `carrier_eq::data_rungs`, `rim_wedge::shared_rim` (now First, reversing main) and `same_circle`, `edge_nurbs::first_within`, `census::points_on_surface`, `splitting::order::in_plane_frame` and the lone-ring side. FULL review FIX-THEN-MERGE (M1: supersession at first-of searches, closed by `Answering`); delta MERGE. Follow-ups: `the-ladders-follow-ups-from-its-review`, `witness-and-door-searches-hand-roll-the-ladder`, and CIW's `probe-gated-lib-unit-tests-never-run-in-ci`.

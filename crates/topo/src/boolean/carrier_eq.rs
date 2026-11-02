@@ -61,6 +61,7 @@
 //! document's coincidence door's question, never the kernel's. A datum
 //! in band is a sliver and refuses ([`CarrierEqError::Undecided`]).
 
+use geom_brep::ladder::IdentityLadder;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::validate::decide_reported;
@@ -810,10 +811,11 @@ fn reading<T: Decide>(
     })
 }
 
-/// The curved arms' rungs, driven by the
-/// kind's margin list ([`identity_data`]): a definitely-nonzero margin
-/// means `Distinct`, every datum decided Zero is one carrier, and a
-/// datum in band or poisoned is the typed `Undecided` refusal.
+/// The curved arms' rungs: the kind's margin list read as an identity
+/// ladder ([`geom_brep::ladder::read_identity`]). A datum decided apart
+/// means `Distinct`, every datum decided Zero is one carrier, and
+/// otherwise the ladder's undecided datum is the typed `Undecided`
+/// refusal.
 fn data_rungs<T: Decide>(
     margins: &[Datum<T>],
     aligned: bool,
@@ -824,42 +826,14 @@ fn data_rungs<T: Decide>(
     } else {
         CarrierRelation::SameOpposite
     };
-    match identity_data(margins.iter().copied(), band) {
-        IdentityData::Distinct => Ok((CarrierRelation::Distinct, None)),
-        IdentityData::One(first_zero) => Ok((same, first_zero)),
-        IdentityData::Undecided(coincidence) => Err(CarrierEqError::Undecided {
-            coincidence,
+    match geom_brep::ladder::read_identity(margins.iter().copied(), band) {
+        IdentityLadder::Apart { .. } => Ok((CarrierRelation::Distinct, None)),
+        IdentityLadder::Zero(joint) => Ok((same, joint)),
+        IdentityLadder::Undecided(diag) => Err(CarrierEqError::Undecided {
+            coincidence: CoincidenceMeasure::not_zero(diag),
             // The alignment this traversal was run under.
             relation: same,
         }),
-    }
-}
-
-/// What a list of identity data reads ([`identity_data`]).
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum IdentityData {
-    /// Some datum decided definitely nonzero: two things.
-    Distinct,
-    /// Every datum decided Zero: one thing, the data's decided margins
-    /// taken jointly (`None` for no data).
-    One(Option<geom_core::MarginDiag>),
-    /// No datum decided nonzero and one did not decide: the first that
-    /// cannot be read, else the first in band.
-    Undecided(CoincidenceMeasure),
-}
-
-/// **The identity ladder's rule** ([`geom_brep::identity_walk`]), its
-/// refusal read as the coincidence it leaves undecided.
-pub(crate) fn identity_data<T: Decide>(
-    data: impl IntoIterator<Item = (&'static str, Margin<T>)>,
-    band: Band,
-) -> IdentityData {
-    match geom_brep::identity_walk(data, band) {
-        geom_brep::IdentityWalk::Distinct => IdentityData::Distinct,
-        geom_brep::IdentityWalk::One(joint) => IdentityData::One(joint),
-        geom_brep::IdentityWalk::Undecided(diag) => {
-            IdentityData::Undecided(CoincidenceMeasure::not_zero(diag))
-        }
     }
 }
 
