@@ -8450,7 +8450,17 @@ fn sweep_self_touch_points<T: Decide>(
             // corner, a spline edge, or a hold inside a curved edge, in
             // the link: genuinely undetected (the module doc's class
             // list), not refused.
-            Err(TouchUnread::Unreadable) => continue,
+            Err(TouchUnread::Unreadable) => {
+                let v = match Link::tangent_at_point(body, geo, &ties, s, &keys, at, band) {
+                    Ok(link) => rest::one_material(&link, band),
+                    Err(why) => {
+                        crate::link::stc_note(format!("BUILD {why:?}"));
+                        TouchVerdict::Unread(why)
+                    }
+                };
+                stc_measure(body, geo, &ties, s, &keys, at, &v);
+                v
+            }
             Err(why) => TouchVerdict::Unread(why),
         };
         match verdict {
@@ -8467,6 +8477,74 @@ fn sweep_self_touch_points<T: Decide>(
                 });
             }
         }
+    }
+}
+
+
+/// MEASUREMENT ONLY (stc lane): dump a skipped self-touch point.
+fn stc_measure<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    ties: &Ties,
+    solid: crate::SolidKey,
+    keys: &BTreeSet<PointKey>,
+    p: Point3<T>,
+    verdict: &TouchVerdict,
+) {
+    let Ok(path) = std::env::var("CAD_STC_DUMP") else { return };
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let name = std::thread::current().name().unwrap_or("?").to_string();
+    let _ = write!(out, "POINT\t{name}\t{solid:?}\t{:?}\t{:?}\t{:?}", p.x, p.y, p.z);
+    let on = |v: &VertexKey| geo.vpoint.get(v).is_some_and(|k| keys.contains(k));
+    let mine = |id: EntityId| census_entity_solid(body, id) == Some(solid);
+    let verts: BTreeSet<VertexKey> = geo.verts.iter().map(|&(v, _)| v)
+        .filter(|v| on(v) && mine(EntityId::Vertex(*v))).collect();
+    let mut holds: std::collections::BTreeMap<FaceKey, Vec<String>> = Default::default();
+    for &v in &verts {
+        for &f in geo.vertex_faces.get(&v).into_iter().flatten() {
+            holds.entry(f).or_default().push(format!("C{v:?}"));
+        }
+    }
+    for (v, e) in &ties.ve {
+        if !on(v) || !mine(EntityId::Edge(*e)) { continue; }
+        match geo.line_edge(*e) {
+            Some(edge) => {
+                if verts.contains(&edge.v0) || verts.contains(&edge.v1) { continue; }
+                for f in [edge.f_plus, edge.f_minus] {
+                    holds.entry(f).or_default().push(format!("L{e:?}"));
+                }
+            }
+            None => {
+                let _ = write!(out, "\tCURVEDEDGE {e:?}");
+                if let Some(ed) = body.get_edge(*e) {
+                    let _ = write!(out, " {:?}", ed);
+                }
+            }
+        }
+    }
+    for (v, f) in &ties.vf {
+        if on(v) && mine(EntityId::Face(*f)) {
+            holds.entry(*f).or_default().push("I".into());
+        }
+    }
+    for (f, hs) in &holds {
+        let face = body.get_face(*f);
+        let surf = face.and_then(|fc| body.get_surface(fc.surface));
+        let desc = match surf {
+            Some(geom::Surface::Nurbs(_)) => "Nurbs".to_string(),
+            Some(geom::Surface::Approx(_)) => "Approx".to_string(),
+            Some(s) => format!("{s:?}"),
+            None => "?".into(),
+        };
+        let planar = planar_face(geo, *f).map(|g| g.polygon);
+        let _ = write!(out, "\tFACE {f:?} sense={:?} planar={planar:?} holds={hs:?} surf={desc}", face.map(|f| f.sense));
+    }
+    let _ = write!(out, "\tVERDICT {verdict:?}");
+    out.push('\n');
+    if let Ok(mut fh) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        use std::io::Write as _;
+        let _ = fh.write_all(out.as_bytes());
     }
 }
 
@@ -8643,6 +8721,265 @@ impl<T: Decide> Germ<T> {
         }
         Link::of(p, sectors).map(Germ::Link)
     }
+}
+
+/// Where a face of a tangent link holds the touch point
+/// ([`Link::tangent_at_point`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TangentHold {
+    /// At its corner, this vertex.
+    Corner(VertexKey),
+    /// Inside this edge of it.
+    Edge(EdgeKey),
+    /// Inside the face.
+    Inside,
+}
+
+impl<T: Decide> Link<T> {
+    /// **Solid `solid`'s link at the touch point of `keys` as its faces'
+    /// tangent cones** ([`FaceSector::tangent`]), gathered as
+    /// [`Link::touch_at_point`] gathers it but over any carrier: every
+    /// face of the solid at a corner on the keys, at that corner; both
+    /// faces of each edge a tie holds the point inside; each face a tie
+    /// names, inside it. A face is read at every pass of its loops
+    /// through the point, a corner before an edge before its inside, and
+    /// every face of the link is read so, planar or curved, so that each
+    /// bound of the cone is named by its edge ([`rest::one_material`]
+    /// holds the cone to the coincidences its faces keep).
+    ///
+    /// A face with no tangent plane at the point (a cone's apex, or near
+    /// its axis), a spline face held anywhere but a corner, a curved edge
+    /// with no certified curve, or a carrier with no normal arm is
+    /// [`TouchUnread::Unreadable`]; a reading of it in band,
+    /// [`TouchUnread::InBand`].
+    #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
+    fn tangent_at_point(
+        body: &Body<T>,
+        geo: &Geo<T>,
+        ties: &Ties,
+        solid: crate::SolidKey,
+        keys: &BTreeSet<PointKey>,
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<Self, TouchUnread> {
+        let on = |v: &VertexKey| geo.vpoint.get(v).is_some_and(|k| keys.contains(k));
+        let mine = |id: EntityId| census_entity_solid(body, id) == Some(solid);
+        let verts: BTreeSet<VertexKey> = geo
+            .verts
+            .iter()
+            .map(|&(v, _)| v)
+            .filter(|v| on(v) && mine(EntityId::Vertex(*v)))
+            .collect();
+        let mut holds: std::collections::BTreeMap<FaceKey, Vec<TangentHold>> =
+            std::collections::BTreeMap::new();
+        for &v in &verts {
+            for &f in geo.vertex_faces.get(&v).ok_or(TouchUnread::Corrupt)? {
+                holds.entry(f).or_default().push(TangentHold::Corner(v));
+            }
+        }
+        for (v, e) in &ties.ve {
+            if !on(v) || !mine(EntityId::Edge(*e)) {
+                continue;
+            }
+            let edge = body.get_edge(*e).ok_or(TouchUnread::Corrupt)?;
+            for he in [edge.he_plus, edge.he_minus] {
+                let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
+                if verts.contains(&half.start) {
+                    continue;
+                }
+                let f = body
+                    .get_loop(half.parent_loop)
+                    .ok_or(TouchUnread::Corrupt)?
+                    .face;
+                holds.entry(f).or_default().push(TangentHold::Edge(*e));
+            }
+        }
+        for (v, f) in &ties.vf {
+            if on(v) && mine(EntityId::Face(*f)) {
+                holds.entry(*f).or_default().push(TangentHold::Inside);
+            }
+        }
+        let mut sectors = Vec::new();
+        for (f, all) in holds {
+            sectors.extend(tangent_sectors(body, geo, f, p, &all, band)?);
+        }
+        Self::of(p, sectors)
+    }
+}
+
+/// **Face `f`'s tangent sectors at `p`**, held as `holds` say
+/// ([`Link::tangent_at_point`]): one per pass of its loops through a
+/// corner it is held at, then one per pass along an edge it is held
+/// inside whose ends are no such corner, and where neither holds it,
+/// its whole tangent plane.
+fn tangent_sectors<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    f: FaceKey,
+    p: Point3<T>,
+    holds: &[TangentHold],
+    band: Band,
+) -> Result<Vec<FaceSector<T>>, TouchUnread> {
+    use crate::link::TangentFan;
+    let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
+    let surface = body
+        .get_surface(face.surface)
+        .cloned()
+        .ok_or(TouchUnread::Corrupt)?;
+    let corner = |v: VertexKey| holds.contains(&TangentHold::Corner(v));
+    let mut out = Vec::new();
+    for cycle in face_cycles(body, face) {
+        for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
+            let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
+            if !corner(half.start) {
+                continue;
+            }
+            let into = half.prev;
+            let back = body.mate(into).ok_or(TouchUnread::Corrupt)?;
+            let normal = corner_normal(body, half.start, back, band)?;
+            let (d0, l0) = departure(body, he)?;
+            let (d1, l1) = departure(body, back)?;
+            let e_in = body.get_half_edge(into).ok_or(TouchUnread::Corrupt)?.edge;
+            let apex = *geo.vmap.get(&half.start).ok_or(TouchUnread::Corrupt)?;
+            let fan = TangentFan::Corner {
+                d0,
+                d1,
+                bounds: [(half.edge, l0), (e_in, l1)],
+            };
+            out.push(FaceSector::tangent(
+                surface.clone(),
+                face.sense,
+                normal,
+                apex,
+                fan,
+                band,
+            )?);
+        }
+    }
+    let reach = || {
+        crate::splitting::rules::face_reach_from(body, f, p).map_err(|_| { crate::link::stc_note("B reach".into()); TouchUnread::Unreadable })
+    };
+    let held_edge = |e: EdgeKey| holds.contains(&TangentHold::Edge(e));
+    for cycle in face_cycles(body, face) {
+        for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
+            let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
+            let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
+            if !held_edge(half.edge) || corner(half.start) || corner(end) {
+                continue;
+            }
+            let (along, line) = direction_at(body, he, p)?;
+            let fan = TangentFan::Edge {
+                along,
+                reach: reach()?,
+                edge: (half.edge, line),
+            };
+            out.push(FaceSector::tangent(
+                surface.clone(),
+                face.sense,
+                foot_normal(body, f, p, band)?,
+                p,
+                fan,
+                band,
+            )?);
+        }
+    }
+    if out.is_empty() && holds.contains(&TangentHold::Inside) {
+        let fan = TangentFan::Inside { reach: reach()? };
+        out.push(FaceSector::tangent(
+            surface,
+            face.sense,
+            foot_normal(body, f, p, band)?,
+            p,
+            fan,
+            band,
+        )?);
+    }
+    if out.is_empty() {
+        return Err(TouchUnread::Corrupt);
+    }
+    Ok(out)
+}
+
+/// The outward unit normal of the face whose corner at `v` the orbit
+/// half-edge `he` leaves along ([`crate::sector_face::resolve`]): its
+/// tangent plane's there, where it has one.
+fn corner_normal<T: Decide>(
+    body: &Body<T>,
+    v: VertexKey,
+    he: HalfEdgeKey,
+    band: Band,
+) -> Result<Vec3<T>, TouchUnread> {
+    use crate::sector_face::{SectorFaceError, VertexFace};
+    match crate::sector_face::resolve(body, v, he, band) {
+        Ok(face) => match face.at_vertex {
+            VertexFace::Tangent(n) => Ok(n.vec()),
+            VertexFace::NearAxis(_) | VertexFace::Apex(_) => { crate::link::stc_note("B apex".into()); Err(TouchUnread::Unreadable) }
+        },
+        Err(SectorFaceError::ApexUndecided { .. }) => Err(TouchUnread::InBand),
+        Err(e) => { crate::link::stc_note(format!("B resolve {e:?}")); Err(TouchUnread::Unreadable) }
+    }
+}
+
+/// The outward unit normal of face `f` at the foot of `p`
+/// ([`crate::face_normal::face_outward_normal_at_foot`]).
+fn foot_normal<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Vec3<T>, TouchUnread> {
+    match crate::face_normal::face_outward_normal_at_foot(body, f, p, band) {
+        Ok(Some(n)) => Ok(n.vec()),
+        Ok(None) => Err(TouchUnread::Corrupt),
+        Err(e) => { crate::link::stc_note(format!("B foot {e:?}")); Err(TouchUnread::Unreadable) }
+    }
+}
+
+/// Where half-edge `he` leaves its start, scaled to its reach, and
+/// whether it is a line: a line's chord, a curve's tangent there scaled
+/// to its extent ([`geom_brep::ConicDeparture`]).
+fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<(Vec3<T>, bool), TouchUnread> {
+    let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
+    let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
+    let at = |v: VertexKey| {
+        body.get_vertex(v)
+            .and_then(|x| body.points.get(x.point).copied())
+            .ok_or(TouchUnread::Corrupt)
+    };
+    let (start, end) = (at(half.start)?, at(end)?);
+    let edge = body.get_edge(half.edge).ok_or(TouchUnread::Corrupt)?;
+    let curve = body
+        .curves
+        .get(edge.curve)
+        .and_then(crate::null::CurveGeom::certified)
+        .ok_or(TouchUnread::Unreadable)?;
+    if let geom::Curve3::Line { .. } = curve.carrier() {
+        return Ok((end - start, true));
+    }
+    let d = geom_brep::ConicDeparture::of(curve, he == edge.he_plus, end.distance(start));
+    Ok((d.dir, false))
+}
+
+/// Half-edge `he`'s unit direction at `p`, a point inside its edge, and
+/// whether the edge is a line: a line's chord, a curve's tangent at
+/// `p`'s foot on its carrier.
+fn direction_at<T: Decide>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+    p: Point3<T>,
+) -> Result<(Vec3<T>, bool), TouchUnread> {
+    let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
+    let edge = body.get_edge(half.edge).ok_or(TouchUnread::Corrupt)?;
+    let curve = body
+        .curves
+        .get(edge.curve)
+        .and_then(crate::null::CurveGeom::certified)
+        .ok_or(TouchUnread::Unreadable)?;
+    let (t0, t1) = curve.params();
+    let line = matches!(curve.carrier(), geom::Curve3::Line { .. });
+    let t = curve.carrier().foot(p, geom::mid_param(t0, t1)).t();
+    let d = curve.carrier().deriv(t).normalize();
+    Ok((if he == edge.he_plus { d } else { -d }, line))
 }
 
 impl<T: Decide> Link<T> {
