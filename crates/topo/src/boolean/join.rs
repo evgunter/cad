@@ -3507,6 +3507,16 @@ pub(super) fn section_unbuilt(
         why,
     };
     match why {
+        // The cylinder pose's parallelism, the axes' own decision with
+        // its lever a turn.
+        Uncarried::Section(SectionError::Escalated(diag))
+            if diag.predicate == Some(geom_brep::CcDecision::Parallel.name()) =>
+        {
+            BooleanError::Escalated {
+                decision: BooleanDecision::CylinderAxes,
+                diag: *diag,
+            }
+        }
         Uncarried::Section(SectionError::Escalated(diag))
         | Uncarried::Carry(CarryError::Escalated(diag)) => section_undecided(*diag),
         Uncarried::Section(SectionError::RadiusEscalated { radius, diag }) => {
@@ -3607,7 +3617,7 @@ pub(super) fn cylinder_read<T: Decide>(
 /// **The bisector pose's two loops**: one per bisector plane, the
 /// `â₁ − â₂` plane's on the split's positive side, told apart by the
 /// planes ([`LoopSplit::Bisector`]).
-fn bisector_loops<T: geom_core::Real>(
+pub(super) fn bisector_loops<T: geom_core::Real>(
     [(center, n1), (_, n2)]: [(Point3<T>, Vec3<T>); 2],
 ) -> SectionLoops<T> {
     let lp = |axis| SectionLoop {

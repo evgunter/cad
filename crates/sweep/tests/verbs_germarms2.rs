@@ -252,13 +252,10 @@ fn every_pose_of_the_family_builds_at_its_closed_form() {
 ///
 /// - Unequal radii: the axes still intersect, but the radii decide
 ///   unequal, so the locus is a space quartic, the skew pair's class:
-///   the dispatch has no arm (`GermFrameUnsupported`).
-/// - Skew axes: the locus is a space quartic, canal territory; the
-///   general rung has not retired, and the dispatch has no arm
-///   (`GermFrameUnsupported`). Its verdict on this pose is pinned at
-///   both radii by
-///   `the_non_parallel_cylinder_pair_splits_on_coplanarity_then_radius`
-///   (`boolean::join`).
+///   the join reads it on the section value and carries it, marched,
+///   and the result gate refuses the body, whose spline-chorded walls
+///   have no volume lane.
+/// - Skew axes: the same, the locus a space quartic.
 /// - Parallel equal radii: the crossing events are a rim CIRCLE against
 ///   a wall, certified by the circle × cylinder root lane; at one height
 ///   the two pairs of cap discs then overlap in their planes, one plane
@@ -271,15 +268,8 @@ fn the_fenced_poses_keep_their_own_outcomes() {
     let unequal = spin(&cyl(0.6, 2.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
     let e = union_err(&a, &unequal);
     assert!(
-        matches!(
-            e,
-            BooleanError::GermFrameUnsupported {
-                a_kind: geom::SurfaceKind::Cylinder,
-                b_kind: geom::SurfaceKind::Cylinder,
-                ..
-            }
-        ),
-        "unequal radii: the space quartic has no section arm, got {e:?}"
+        at_the_volume_lane(&e),
+        "unequal radii: the space quartic is carried to the volume lane, got {e:?}"
     );
     assert_same_door(
         &e,
@@ -299,15 +289,8 @@ fn the_fenced_poses_keep_their_own_outcomes() {
     .unwrap();
     let e = union_err(&a, &skew);
     assert!(
-        matches!(
-            e,
-            BooleanError::GermFrameUnsupported {
-                a_kind: geom::SurfaceKind::Cylinder,
-                b_kind: geom::SurfaceKind::Cylinder,
-                ..
-            }
-        ),
-        "skew axes: no section arm, got {e:?}"
+        at_the_volume_lane(&e),
+        "skew axes: carried to the volume lane, got {e:?}"
     );
     assert_same_door(&e, &union_err(&repose(&a), &repose(&skew)), "skew axes");
 
@@ -377,16 +360,15 @@ fn same_door_tells_a_decided_zero_from_a_coincidence_in_band() {
     );
 }
 
-/// **A face-interior cylinder record keeps the join's frame lane**: a
-/// thin rod through a drum's one-face wall, its axis square to the
-/// drum's and off it, cuts the wall in two loops round the rod, each
-/// meeting the rod's wrap edge at one site. The section table holds the
-/// pair, but the join reads two cylinders through its own frame, so
-/// every operation answers the frame's verdict on the skew pair
-/// (`GermFrameUnsupported`), as before the table held it, and never the
-/// one-site loop's refusal.
+/// **A face-interior cylinder record rides the section value**: a thin
+/// rod through a drum's one-face wall, its axis square to the drum's and
+/// off it, cuts the wall in two loops round the rod, each meeting the
+/// rod's wrap edge at one site. The join reads the pair on the section
+/// table's value, its two loops marched and carried, so every operation
+/// reaches the result gate, which refuses the body whose spline-chorded
+/// walls have no volume lane, and never the one-site loop's refusal.
 #[test]
-fn a_rod_through_a_drum_wall_keeps_the_frames_verdict() {
+fn a_rod_through_a_drum_wall_reaches_the_volume_lane() {
     let tol = Tol::witness();
     let drum = finished("the drum", cyl(0.5, 1.0), tol);
     let rod = spin(
@@ -411,8 +393,17 @@ fn a_rod_through_a_drum_wall_keeps_the_frames_verdict() {
         ("drum ∩ rod", topo::intersect(&drum, &rod, tol)),
     ] {
         assert!(
-            matches!(r, Err(BooleanError::GermFrameUnsupported { .. })),
-            "{op}: the frame's verdict on the skew pair, got {r:?}"
+            r.as_ref().is_err_and(at_the_volume_lane),
+            "{op}: the carried skew pair at the volume lane, got {r:?}"
         );
     }
+}
+
+/// **The result a carried cylinder pair reaches today**: the join cuts
+/// the marched section's chords and the result gate refuses the body,
+/// whose spline-chorded wall has no volume lane
+/// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
+fn at_the_volume_lane(e: &BooleanError) -> bool {
+    matches!(e, BooleanError::ResultInvalid { errors }
+        if errors.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. })))
 }

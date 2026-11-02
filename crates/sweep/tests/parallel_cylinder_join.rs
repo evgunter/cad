@@ -499,23 +499,26 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
     }
 }
 
-/// **The join reads the axes of a pair no frame read, at the frame's
-/// lever, and refuses an in-band reading as their angle.**
-/// [`seams_on_the_walls`] upright builds SOUND in every op and order.
-/// Tipped `1.5·zero / 3.2` about `x` or about `y`, the tip reads about
-/// `1.7·zero` over the walls' span (about 3.7, the diameter of their
-/// faces' vertices), in the band, and every op escalates
-/// `cc_axes_parallel` as the axes' own decision, whose lever is a turn;
-/// at the radius it would read `0.47·zero`, parallel, and take the
-/// rulings arm with the axes apart. The lever names the parallel side
-/// alone, the one that passes: turned back to `0.5·zero / 3.2` every op
-/// builds SOUND. Turned clearly apart, a fifth of a radian, every op
+/// **The join reads the axes of a pair no frame read on the section
+/// value, levered across the operation's region, and refuses an in-band
+/// reading as their angle.** [`seams_on_the_walls`] upright builds
+/// SOUND in every op and order. The region is the ball about the
+/// operands' boxes' overlap, `[0, 1]² × [−0.5, 0.5]`, of radius `√3/2`
+/// about `(0.5, 0.5, 0)`, so each axis's foot of its centre levers the
+/// tip by `√2/2 + √3/2 ≈ 1.57`. Tipped `3·zero / 3.2` about `x` or about
+/// `y`, the tip reads about `1.5·zero` there, in the band, and every op
+/// escalates `cc_axes_parallel` as the axes' own decision, whose lever
+/// is a turn. Tipped `1.5·zero / 3.2`, it reads `0.74·zero` across the
+/// region (over the walls' span, about 3.7, it read `1.7·zero`, in the
+/// band, before the join read the value), parallel, and every op builds
+/// SOUND, as at `0.5·zero / 3.2`. Turned clearly apart, a fifth of a radian, every op
 /// ends at a frontier, the same at the three gated tolerances (1e-9,
 /// 1e-6, 1e-12; at 1e-5, 3e-5 and 1e-4 the tilt about `x` escalates
-/// first, on `PierceCurvature` or `ArcCylinderRoots`): about `x` the germ
-/// frame has no arm for the skew walls (`GermFrameUnsupported`), about
-/// `y` an edge pierces a curved face the Boolean cannot yet read
-/// (`CurvedPierceUnsupported`).
+/// first, on `PierceCurvature` or `ArcCylinderRoots`): about `x` the join
+/// carries the skew walls' marched section and the result gate refuses
+/// the body, whose spline-chorded walls have no volume lane
+/// (`ResultInvalid`), and about `y` an edge pierces a curved face the
+/// Boolean cannot yet read (`CurvedPierceUnsupported`).
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
     let tol = Tol::witness();
@@ -523,13 +526,14 @@ fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
     let axes = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)];
     let mut building = vec![seams_on_the_walls(axes[0], 0.0)];
     building.extend(axes.map(|axis| seams_on_the_walls(axis, 0.5 * zero / 3.2)));
+    building.extend(axes.map(|axis| seams_on_the_walls(axis, 1.5 * zero / 3.2)));
     let bad = unsound(&building);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
     for (axis, frontier) in axes.into_iter().zip([
-        BooleanErrorKind::GermFrameUnsupported,
+        BooleanErrorKind::ResultInvalid,
         BooleanErrorKind::CurvedPierceUnsupported,
     ]) {
-        let tipped = seams_on_the_walls(axis, 1.5 * zero / 3.2);
+        let tipped = seams_on_the_walls(axis, 3.0 * zero / 3.2);
         for (op, r, _) in tipped.runs() {
             assert!(
                 matches!(
@@ -613,11 +617,13 @@ fn one_face_walls(az: f64, theta: f64) -> Pose {
     }
 }
 
-/// **The frame reads one-face walls' axes as an angle too.**
+/// **The join reads one-face walls' axes as an angle too.**
 /// [`one_face_walls`] tipped `0.2·zero` builds SOUND in every op and
-/// order; tipped `0.6·zero`, read over the walls' span, the tip is in
-/// the band and every op escalates `cc_axes_parallel` as the axes' own
-/// decision, its lever a turn.
+/// order; tipped `0.6·zero`, read across the operation's region (the
+/// ball about the boxes' overlap, `[0.2, 1] × [−1, 1] × [−0.3, 0.3]`,
+/// which levers it by `0.6 + √1.25 ≈ 1.72`), the tip reads `1.03·zero`,
+/// in the band, and every op escalates `cc_axes_parallel` as the axes'
+/// own decision, its lever a turn.
 #[test]
 fn one_face_walls_read_their_axes_as_an_angle() {
     let tol = Tol::witness();
