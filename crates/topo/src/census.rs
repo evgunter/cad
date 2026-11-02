@@ -4190,29 +4190,29 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
 }
 
 /// **Whether every one of `points` lies on `surface`**, each one's
-/// implicit residual decided on the band under `name`: `Ok(false)` where
-/// one reads definitely off, whatever the others read (every point is
-/// read first, so a point in band ahead of it does not pre-empt it);
-/// `Ok(true)` where all read `Zero`; and the first in-band reading where
-/// none is off.
+/// implicit residual decided on the band under `name`, read as an
+/// identity ladder ([`geom_brep::ladder::read_identity`]): `Ok(false)`
+/// where one reads definitely off, whatever the others read (a point in
+/// band ahead of it does not pre-empt it); `Ok(true)` where all read
+/// `Zero`; and the ladder's undecided reading where none is off.
 pub(crate) fn points_on_surface<T: Decide>(
     surface: &geom::Surface<T>,
     points: &[Point3<T>],
     name: &'static str,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let mut in_band = None;
-    for &q in points {
-        let r = geom_brep::implicit::implicit_residual(surface, q);
-        match decide(name, Margin::of(r), band) {
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => return Ok(false),
-            Err(cause) => {
-                in_band.get_or_insert(cause);
-            }
-        }
+    use geom_brep::ladder::{IdentityLadder, read_identity};
+    let residuals = points.iter().map(|&q| {
+        (
+            name,
+            Margin::of(geom_brep::implicit::implicit_residual(surface, q)),
+        )
+    });
+    match read_identity(residuals, band) {
+        IdentityLadder::Apart { .. } => Ok(false),
+        IdentityLadder::Zero(_) => Ok(true),
+        IdentityLadder::Undecided(cause) => Err(cause),
     }
-    in_band.map_or(Ok(true), Err)
 }
 
 /// **One point definitely off a quadric decides that a line or a conic
@@ -7115,7 +7115,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             minor_radius,
             u_ref,
         } => {
-            use crate::boolean::boxes::{Span, SpanBox, meet, torus_extent, torus_window_extent};
+            use crate::boolean::boxes::{Span, SpanBox, meet, ring_window_extent, torus_extent};
             let (c, ax) = (
                 SpanBox::point(frame.point(center)),
                 SpanBox::vector(frame.vector(axis)),
@@ -7124,24 +7124,29 @@ pub(crate) fn face_reach_in<T: Decide>(
             // The chart window from the boundary's own stored
             // certified pcurves: the same walk, the same guards and
             // the same extent as the boolean lane, at this lane's
-            // scalar ([`torus_chart_window`]).
-            Some(span_pts(
-                match torus_chart_window(body, f, major_radius, minor_radius) {
-                    None => whole,
-                    Some((u, v)) => meet(
-                        torus_window_extent(
-                            &c,
-                            &ax,
+            // scalar ([`torus_chart_window`]), once the ring
+            // convention the extent reads is decided.
+            let window = if geom::is_ring_torus(major_radius, minor_radius, band) {
+                torus_chart_window(body, f, major_radius, minor_radius)
+            } else {
+                None
+            };
+            Some(span_pts(match window {
+                None => whole,
+                Some(window) => meet(
+                    ring_window_extent(
+                        &c,
+                        (
                             &SpanBox::vector(frame.vector(u_ref)),
                             &SpanBox::vector(frame.vector(axis.cross(u_ref))),
-                            Span::exact(major_radius),
-                            Span::exact(minor_radius),
-                            (u, v),
+                            &ax,
                         ),
-                        whole,
+                        (Span::exact(major_radius), Span::exact(minor_radius)),
+                        window,
                     ),
-                },
-            ))
+                    whole,
+                ),
+            }))
         }
         crate::boolean::boxes::FaceBoxRule::CylinderSlab {
             origin,

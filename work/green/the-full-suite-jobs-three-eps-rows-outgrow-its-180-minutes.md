@@ -74,6 +74,39 @@ these nights, and the build is paid once. A matrix over ε that builds
 in each leg is the smaller edit at three times the build minutes.
 Raising the limit only moves the date this row is filed again.
 
+## The per-row split (GREEN's slow-test census, 2026-11-02)
+
+Read from the full job logs through the jobs API (`gh api
+repos/evgunter/cad/actions/jobs/<id>/logs`, which the session proxy
+serves). Each row's wall clock is its nextest `Summary`; test-seconds
+is the sum of every result line.
+
+| night (run) | build | default | 1e-6 | 1e-12 | after | job |
+|---|---|---|---|---|---|---|
+| 10-31 (41172334943, cancelled) | 76 | 31.3 | 23.3 | > 48.6, cancelled at 10 864 of 16 745 tests | — | 180 |
+| 11-01 (41276693129) | 52 | 17.2 | 13.4 | 40.3 | 6 | 129 |
+
+- **The rows are saturated, not tail-bound**: on 11-01 every row's wall
+  clock is its test-seconds over four threads to the tenth of a minute
+  (4 122, 3 209 and 9 672 test-s). No single test sets a floor, so
+  every test-second taken out is a quarter-second of wall clock off.
+- **The 10-31 runner was about 1.75× slower per test** than 11-01's
+  (the median ratio over the 154 tests above 5 s at the default ε is
+  1.78, at 1e-6 1.72), as well as 24 minutes slower to build. The job's
+  fit is a coin toss on the runner it draws.
+- **1e-12 is the row to cut**: 40 of 71 row-minutes on 11-01, and
+  sweep is 64 % of it (6 153 test-s). The 25 tests at or above 60 s are
+  5 234 test-s, 54 % of the row; the top three (the tilted-rod spins row
+  1 105 s, drum × donut 592 s, two donuts 574 s) are 23 %.
+- **Debug assertions are not the cost**: side-by-side runs at opt-level
+  2 with assertions and overflow checks on and off agree within 2 % on
+  seven runs of six of the slowest tests; the numbers are on
+  `work/sectrung/a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build.md`.
+
+Under the split below, the 1e-12 leg is that row alone: about 40
+minutes on an 11-01 runner and about 70 on a 10-31 one, inside its
+120-minute limit, with the build paid once before it.
+
 ## Closed
 
 `green/full-suite-split` (2026-11-02). `nightly.yml`'s `full-suite-build`
