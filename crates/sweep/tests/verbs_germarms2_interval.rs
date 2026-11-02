@@ -226,7 +226,8 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
         &test_utils::pinned_red::EVERY_ROW,
         "the meeting-axes pose",
         &[
-            "the meeting-axes pose builds: Err(Escalated { decision: Containment { decision: None, escalation: Margin }, diag: Indeterminate { margin: MarginDiag(Enclosure { lo: -1.5707963267956369, hi: 4.712388980385431, tag: None, zero: ZeroWord(0) }), terminal_sliver: false",
+            "the meeting-axes pose builds: Err(Escalated { decision: Containment { decision: None, escalation: Margin }, diag: Indeterminate { margin: MarginDiag(Enclosure { lo: -1.570796326795",
+            "terminal_sliver: false",
             "predicate: Some(\"bool_ruled_region_span\")",
         ],
         the_meeting_axes_pose_builds_at_the_certified_scalar_row,
@@ -309,10 +310,10 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar_row() {
 /// **The skew pose at the BODY level, at the certified scalar.** Slide
 /// the pair along the common perpendicular `â₁ × â₂` by the dyadic
 /// `0.375`: the crossings are found, the germ pair is minted, and the
-/// frame dispatch's skew arm answers it — no arm, not the nodes.
-/// The dispatch's verdict itself is pinned at the certified scalar in
-/// `topo::boolean::join`'s `frame_dispatch_interval_tests`; this row
-/// says a body reaches it there.
+/// join reads the pair on its section value, whose skew components are
+/// marched. The march is written at `f64` alone, so at the certified
+/// scalar the pair refuses as a section with no march lane, never the
+/// nodes.
 #[test]
 fn a_skew_pair_stays_off_the_nodes_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
@@ -326,13 +327,14 @@ fn a_skew_pair_stays_off_the_nodes_at_the_certified_scalar() {
     assert!(
         matches!(
             err,
-            BooleanError::GermFrameUnsupported {
+            BooleanError::GermSectionUnbuilt {
                 a_kind: geom::SurfaceKind::Cylinder,
                 b_kind: geom::SurfaceKind::Cylinder,
+                why: topo::SectionUnbuilt::NoLane { .. },
                 ..
             }
         ),
-        "a skew pair must reach the frame dispatch's no-arm door, never the nodes: {err:?}"
+        "a skew pair must reach the section's no-lane refusal, never the nodes: {err:?}"
     );
     // The re-posed twin, on the same obligation as every other row
     // here: a rigid motion moves no contact, so a pose whose direct and

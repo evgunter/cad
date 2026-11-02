@@ -141,8 +141,9 @@ pub use edge_nurbs::{
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,
-    departure_side_reported, enters_material, enters_material_order2, enters_material_reported,
-    normal_alignment, parting, parting_side, rise, tied_germ_turn,
+    departure_arm, departure_side_reported, enters_material, enters_material_order2,
+    enters_material_reported, normal_alignment, parting, parting_arm, parting_side, rise,
+    tied_germ_turn,
 };
 pub use extent::{
     ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,
@@ -196,13 +197,13 @@ pub use pair_section::{
     AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
     ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, CsDecision,
     CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier,
-    Gap, KnownPair, KnownRow, PairPose, PairSection, PoseRefusal, Reached, RegionPlacement, Ring,
-    Seated, SectionComponent, SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose,
-    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
-    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
-    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
-    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,
-    tori_coincide,
+    Gap, KnownPair, KnownRow, NodeSet, PairPose, PairSection, PoseRefusal, Reached,
+    RegionPlacement, Ring, Seated, SectionComponent, SectionDecision, SectionRead, SiteFoot,
+    SiteRefusal, SphereTorusPose, SplineImplicitPose, SplinePairPose, SquareWall, SsiLane,
+    StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum,
+    TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn,
+    Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section,
+    spline_pair_section, square_part, tori_coincide,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,

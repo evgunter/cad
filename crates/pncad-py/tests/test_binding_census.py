@@ -3035,6 +3035,11 @@ NOT_BOUND = {
     "ExtrudeSide": INTERIOR,
     "SketchPlane": INTERIOR,
     "validated": INTERIOR,
+    # The edit door's one dimension check, public so a GUI draft can
+    # ask it before it writes (FORMS, PR 6390). A Python caller writes
+    # through the door itself, which refuses a wrong-dimension formula
+    # in the same words.
+    "slot_admits": INTERIOR,
     # **The MC lane's reduction, which `monte_carlo` has already
     # applied by the time anything crosses.** `summarize` is public so
     # that a Rust consumer holding its OWN replay of the lane's draws
