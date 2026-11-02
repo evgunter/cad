@@ -256,3 +256,9 @@ closed-row routing and #6093's re-bless).
     p90 24.6 min, n=193 (nightly 11-01). The lane measures the p90 tail
     and proposes levers that cut wall clock without adding runner-minutes
     or jobs. FULL review per lever.
+- A fifth lane, `green/slow-test-census` (the user, in chat, 2026-11-02:
+  the full suite's runtime suggests the kernel code is "pretty unusable
+  unless there's an insane amount of debug_assert going on"): a
+  per-test, per-ε time census from nightly 11-01's log, debug assertions
+  on vs off for the costliest tests, and speed rows filed on the programs
+  that own the slow code. Tracker-only PR; orchestrator's read.
