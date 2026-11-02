@@ -3,6 +3,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
+use pncad::analysis::ClearanceVerdict;
 use pncad::document::{AssertionVerdict, MateRef, RecipeNodeId, SpokenNode, UnevaluatedReason};
 
 use crate::app::{GLYPH_WORLD, ViewerBehavior, toned};
@@ -138,6 +139,14 @@ pub(crate) fn feature_row_ui(
     if let Some(mate) = constraint_lines(ui, row) {
         clicks.remove = Some(mate);
     }
+    if !row.constraints.is_empty() {
+        clicks.edit = ui
+            .horizontal(|ui| {
+                ui.add_space(INDENT_STEP);
+                ui.small_button(EDIT_PLACEMENT).clicked()
+            })
+            .inner;
+    }
     if let Some(to) = lines_under(ui, row, theme) {
         clicks.select = Some(to);
     }
@@ -150,15 +159,16 @@ pub(crate) fn feature_row_ui(
 }
 
 /// **A placement's constraints, drawn as its children**: one line per
-/// constraint, one step in, each with the button that removes it. The
-/// constraint whose button was clicked.
+/// constraint, one step in, a mate's with the button that opens the
+/// placement editor with it struck out — a value's freedom is always
+/// set, so a value row has none. The mate whose button was clicked.
 fn constraint_lines(ui: &mut egui::Ui, row: &TreeRow) -> Option<MateRef> {
     let mut clicked = None;
     for child in &row.constraints {
         ui.horizontal(|ui| {
             ui.add_space(INDENT_STEP);
             ui.label(&child.said);
-            if ui.small_button(REMOVE_CONSTRAINT).clicked() {
+            if child.is_mate && ui.small_button(REMOVE_CONSTRAINT).clicked() {
                 clicked = Some(child.mate);
             }
         });
@@ -168,6 +178,9 @@ fn constraint_lines(ui: &mut egui::Ui, row: &TreeRow) -> Option<MateRef> {
 
 /// The label on a constraint child's remove button.
 pub(crate) const REMOVE_CONSTRAINT: &str = "remove";
+
+/// The label on a placement row's button that opens its editor.
+pub(crate) const EDIT_PLACEMENT: &str = "edit placement";
 
 /// **The accept a pin-mismatched instance row offers, drawn** under
 /// its failure: the question, and the button that is the edit the
@@ -196,6 +209,9 @@ pub(crate) struct RowClicks {
     /// The constraint whose remove button was clicked, among the row's
     /// [`TreeRow::constraints`].
     pub(crate) remove: Option<MateRef>,
+    /// Whether the placement's `edit` button was clicked: the placement
+    /// editor's Edit door on the row's node.
+    pub(crate) edit: bool,
 }
 
 /// **The lines under a row that a failure writes, drawn** — and the
@@ -274,8 +290,7 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
                     ui.label(comparison);
                 }
             }
-            // Each is a sentence, drawn under the row.
-            Some(Readout::Unavailable(_)) | None => {}
+            None => {}
         },
         RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
             ui.label(toned(row.status.badge(), theme, row.tone()));
@@ -284,26 +299,22 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
 }
 
 /// **Every line drawn under a row**, in order: a failure's
-/// ([`failure_lines`]), why a measure has no value or an assertion no
-/// verdict, and the node's standing caveat. Answers the node a click
+/// ([`failure_lines`]), why an assertion has no verdict, and the node's
+/// standing caveat. Answers the node a click
 /// selects, as [`failure_lines`] does.
 fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<RecipeNodeId> {
-    let mut clicked = failure_lines(ui, row, theme);
+    let clicked = failure_lines(ui, row, theme);
     match &row.readout {
-        Some(Readout::Unavailable(reason)) => {
-            advisory_line(ui, &reason.to_string(), theme);
-        }
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
-            AssertionVerdict::Unevaluated {
-                reason: UnevaluatedReason::MeasureUnavailable(_),
-            } => {
-                if let Some(measure) = &asserted.measure {
-                    clicked = link_to(ui, measure).or(clicked);
-                }
-            }
             AssertionVerdict::Unevaluated {
                 reason: reason @ UnevaluatedReason::Indeterminate { .. },
             } => advisory_line(ui, &reason.to_string(), theme),
+            // A clearance's third state is a sentence with its recourse.
+            AssertionVerdict::Clearance(report) => {
+                if let ClearanceVerdict::Refused(refusal) = report.verdict() {
+                    advisory_line(ui, &refusal.to_string(), theme);
+                }
+            }
             AssertionVerdict::Holds { .. } | AssertionVerdict::Violated { .. } => {}
         },
         Some(Readout::Value(_) | Readout::Empty(_)) | None => {}
@@ -389,8 +400,21 @@ impl ViewerBehavior<'_> {
         if let Some(accept) = clicks.accept {
             self.ops.push(accept);
         }
+        if clicks.edit {
+            match crate::matetool::MateTool::edit(self.session.committed_doc(), row.id) {
+                Ok(tool) => self.tools.open_mate(tool),
+                Err(error) => self.notices.push(frame::tool_news(
+                    &crate::tools::ToolKind::Mate.refuses(&error),
+                )),
+            }
+        }
         if let Some(mate) = clicks.remove {
-            self.ops.push(SessionOp::RemoveConstraint { mate });
+            match crate::matetool::MateTool::edit_striking(self.session.committed_doc(), mate) {
+                Ok(tool) => self.tools.open_mate(tool),
+                Err(error) => self.notices.push(frame::tool_news(
+                    &crate::tools::ToolKind::Mate.refuses(&error),
+                )),
+            }
         }
     }
 }
@@ -740,14 +764,14 @@ mod tests {
 
     /// **A box's height, measured three ways over its two caps**, as
     /// `tree::rows` builds the rows off a real evaluation: a
-    /// `distance`, which has a value; a `min_clearance`, which has none
-    /// at `f64`; a distance read at the profile, which holds no face, so
-    /// its node fails; and the right angle between a cap and a side. And
-    /// assertions: the height, measured a second time, at least 0.01 m
-    /// (holds), at least 0.02 m (violated), and at least itself and 2ε,
-    /// in the band between ε and K·ε (indeterminate); the clearance and
-    /// the failed measure at least 0.01 m; the angle at most 2 rad; and
-    /// the height equal to itself.
+    /// `distance`, which has a value; a distance read at the profile,
+    /// which holds no face, so its node fails; and the right angle
+    /// between a cap and a side. And assertions: the height, measured a
+    /// second time, at least 0.01 m (holds), at least 0.02 m (violated),
+    /// and at least itself and 2ε, in the band between ε and K·ε
+    /// (indeterminate); the failed measure at least 0.01 m; the angle at
+    /// most 2 rad; the height equal to itself; and the clearance between
+    /// the caps at least 0.01 m, which `f64` cannot certify.
     /// A measure or an assertion defines no body, so its row never
     /// carries the world badge.
     struct MeasureFixture {
@@ -760,7 +784,6 @@ mod tests {
         holds: RecipeNodeId,
         violated: RecipeNodeId,
         indeterminate: RecipeNodeId,
-        unavailable: RecipeNodeId,
         poisoned: RecipeNodeId,
         angle_holds: RecipeNodeId,
         equal_holds: RecipeNodeId,
@@ -822,12 +845,14 @@ mod tests {
             b: end.clone(),
         };
         let (doc, distance) = measure(&doc, across());
-        let (doc, clearance) = measure(
+        let (doc, clearance) = inserted(
             &doc,
-            MeasurePrimitive::MinClearance {
-                a: start.clone(),
-                b: end.clone(),
-            },
+            Node::clearance(
+                start.clone(),
+                end.clone(),
+                pncad::document::ClearanceBounds::AtLeast(len(0.01)),
+            ),
+            tol,
         );
         // A cap the profile never minted, read at the solid: the name
         // does not resolve there, and the measure fails.
@@ -857,11 +882,11 @@ mod tests {
                 let value = doc.output(measure, 0).expect("a measure defines its value");
                 inserted(
                     doc,
-                    Node::Assertion {
+                    Node::Assertion(editor_core::Claim::Value {
                         value: Formula::var(value, bound.dim()),
                         bound,
                         relation,
-                    },
+                    }),
                     tol,
                 )
             };
@@ -874,7 +899,6 @@ mod tests {
             len(HEIGHT + 2.0 * tol.eps()),
             AssertionRelation::AtLeast,
         );
-        let (doc, unavailable) = assertion(&doc, clearance, len(0.01), AssertionRelation::AtLeast);
         let (doc, poisoned) = assertion(&doc, failed, len(0.01), AssertionRelation::AtLeast);
         let (doc, angle_holds) = assertion(&doc, angle, ang(2.0), AssertionRelation::AtMost);
         let (doc, equal_holds) = assertion(&doc, height, len(HEIGHT), AssertionRelation::Equal);
@@ -889,7 +913,6 @@ mod tests {
             holds,
             violated,
             indeterminate,
-            unavailable,
             poisoned,
             angle_holds,
             equal_holds,
@@ -1029,28 +1052,26 @@ mod tests {
         }
     }
 
-    /// **A measure with no value at this scalar paints the kernel's
-    /// reason under its row, byte for byte**, quietly: the node
-    /// evaluated, so there is no badge, and the line is a report.
+    /// **A clearance at `f64` paints its third state and the kernel's
+    /// sentence under its row, byte for byte**, quietly: the node
+    /// evaluated, so there is no badge, and the line is a report that
+    /// names the lane that certifies it.
     ///
-    /// Red if `lines_under` drops `Readout::Unavailable`, if the
-    /// reason is re-spelled, or if the line is drawn loud.
+    /// Red if `lines_under` drops a clearance's refusal, if the sentence
+    /// is re-spelled, or if the line is drawn loud.
     #[test]
-    fn a_measure_with_no_value_paints_the_kernels_reason_under_its_row() {
-        use pncad::document::{MeasureUnavailableAt, ValuePayload};
-
+    fn a_clearance_at_f64_paints_its_third_state_under_its_row() {
         let fixture = measure_fixture();
-        let unavailable = match fixture.payload(fixture.clearance) {
-            Some(ValuePayload::MeasureUnavailable { reason, .. }) => *reason,
-            other => panic!("the premise: `min_clearance` has no value at f64: {other:?}"),
+        let reason = match verdict_of(&fixture, fixture.clearance) {
+            pncad::document::AssertionVerdict::Clearance(report) => match report.verdict() {
+                pncad::analysis::ClearanceVerdict::Refused(refusal) => refusal.to_string(),
+                other => panic!("the premise: f64 cannot certify a clearance: {other:?}"),
+            },
+            other => panic!("the premise: a clearance's verdict: {other:?}"),
         };
-        let MeasureUnavailableAt::NeedsEnclosure { door, .. } = unavailable else {
-            panic!("the premise: at f64 the measure needs an enclosure: {unavailable:?}")
-        };
-        let reason = unavailable.to_string();
         assert!(
-            reason.contains(door),
-            "the premise: the kernel's words name the door that answers: {reason}"
+            reason.contains("the interval lane"),
+            "the premise: the kernel's words name the lane that answers: {reason}"
         );
         let row = fixture.row(fixture.clearance);
         let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
@@ -1061,7 +1082,7 @@ mod tests {
             find(
                 &painted,
                 &format!(
-                    "Measure {}",
+                    "Assertion {}",
                     test_utils::refusal::tag(fixture.clearance.0.digest())
                 ),
             ),
@@ -1069,10 +1090,17 @@ mod tests {
         );
         assert_eq!(line.ink, Some(voices.weak), "said quietly");
         assert_eq!(
-            painted.len(),
-            2,
-            "no badge and no value beside the row: {:?}",
-            texts(&painted)
+            texts(&painted),
+            vec![
+                format!(
+                    "Assertion {}",
+                    test_utils::refusal::tag(fixture.clearance.0.digest())
+                )
+                .as_str(),
+                "Refused",
+                reason.as_str(),
+            ],
+            "the state beside the row, the sentence under it, and no badge"
         );
     }
 
@@ -1122,10 +1150,12 @@ mod tests {
                 tree::ConstraintRow {
                     mate: constraint(8),
                     said: "constraint 1: mate".to_owned(),
+                    is_mate: true,
                 },
                 tree::ConstraintRow {
                     mate: constraint(9),
                     said: "constraint 2: mate".to_owned(),
+                    is_mate: true,
                 },
             ],
             ..placer_refused_row(None)
@@ -1146,6 +1176,7 @@ mod tests {
                 super::REMOVE_CONSTRAINT,
                 "constraint 2: mate",
                 super::REMOVE_CONSTRAINT,
+                super::EDIT_PLACEMENT,
             ],
             "the row, its constraints with their buttons, and no badge"
         );
@@ -1193,7 +1224,9 @@ mod tests {
     /// with the kernel's relation for the side assertion `id` records.
     fn compared(fixture: &MeasureFixture, id: RecipeNodeId, measured: &str, bound: &str) -> String {
         match fixture.doc.node(id) {
-            Some(pncad::document::Node::Assertion { relation, .. }) => {
+            Some(pncad::document::Node::Assertion(editor_core::Claim::Value {
+                relation, ..
+            })) => {
                 format!("{measured} {} {bound}", relation.symbol())
             }
             other => panic!("the premise: {id:?} is an assertion: {other:?}"),
@@ -1422,50 +1455,6 @@ mod tests {
         assert_eq!(find(&painted, state).ink, Some(voices.weak));
     }
 
-    /// **An assertion whose measure has no value points at the
-    /// measure's row** — which draws the kernel's reason — and does not
-    /// draw that reason a second time. The pointer selects the measure.
-    ///
-    /// Red if `lines_under` draws the kernel's `UnevaluatedReason`
-    /// `Display` for this arm, drops the pointer, or points elsewhere.
-    #[test]
-    fn an_assertion_whose_measure_has_no_value_points_at_the_measures_row() {
-        use pncad::document::{AssertionVerdict, UnevaluatedReason};
-
-        let fixture = measure_fixture();
-        let unavailable = match verdict_of(&fixture, fixture.unavailable) {
-            AssertionVerdict::Unevaluated {
-                reason: UnevaluatedReason::MeasureUnavailable(unavailable),
-            } => unavailable.to_string(),
-            other => panic!("the premise: `min_clearance` has no value at f64: {other:?}"),
-        };
-        let row = fixture.row(fixture.unavailable);
-        let pointer = format!(
-            "see Measure {}",
-            test_utils::refusal::tag(fixture.clearance.0.digest())
-        );
-        let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
-        assert_eq!(
-            drawn,
-            vec![
-                format!(
-                    "Assertion {}",
-                    test_utils::refusal::tag(fixture.unavailable.0.digest())
-                ),
-                state_of(&fixture, fixture.unavailable).to_owned(),
-                pointer.clone()
-            ],
-        );
-        assert!(
-            drawn.iter().all(|text| !text.contains(&unavailable)),
-            "the measure's row owns the kernel's reason: {drawn:?}"
-        );
-        assert_eq!(
-            row_clicked(&row, &pointer, false).select,
-            Some(fixture.clearance)
-        );
-    }
-
     /// **An assertion over a failed measure is poisoned**: the badge
     /// and the pointer at the measure's row, and no verdict.
     #[test]
@@ -1519,6 +1508,7 @@ mod tests {
             hide: hide.get(),
             accept: None,
             remove: remove.get(),
+            edit: false,
         }
     }
 
@@ -1690,6 +1680,7 @@ mod tests {
                 ConstraintId(MintId::new(0, test_utils::refusal::tagged(n))),
             ),
             said: said.to_owned(),
+            is_mate: said.ends_with(": mate"),
         };
         let repair = spoken(
             RecipeNodeId::new(0, test_utils::refusal::tagged(3)),

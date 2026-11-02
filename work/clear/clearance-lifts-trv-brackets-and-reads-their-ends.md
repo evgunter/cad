@@ -29,7 +29,7 @@ pcurve points, iso values, harmonic coefficients and carriers. At
 endpoints under a `Trv` decoration (`crates/geom-core/src/interval.rs`
 `from_certified`, `:317`), and nothing downstream refuses it.
 `T = Interval` is a production path: `lane.min_separation` in
-`editor-core`'s `wire.rs`, the `m10_6_min_clearance_interval` row. The
+`editor-core`'s `wire.rs`, the `m10_6_clearance_assertion_interval` row. The
 same code asks the question in some places and not in others:
 `extent_of` (`clearance.rs:3083`) asks `is_certified()` of the lifted
 pcurve ends, and `iso_bounded_domain` asks it of knots and joins.
