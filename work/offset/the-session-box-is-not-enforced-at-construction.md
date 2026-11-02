@@ -38,3 +38,15 @@ tori and the far placements still reach the limit.
 
 **Wanted.** Enforce the box at construction as the clause says, or
 re-state the clause. That is Ev's call: it moves rows that build today.
+
+## 2026-11-02: the box is asked at the finished-body gate (ONEHOME, PR 6380)
+
+PR 6380 (`onehome/run-owns-rounding`) builds the session-box predicate of
+`crates/geom-core/README.md`, "Float rounding" (Ev, PR 6329, split 2 B):
+`topo::session_box::in_session_box`, over a body's vertices and its edges'
+spans, asked first in the at-rest gate's structural pass, refusing
+`ValidationError::OutsideSessionBox`. The 6 km bar's rows in
+`crates/topo/tests/long_edges_on_one_line.rs` are now one box-refusal row.
+The sweep rows named above (`verbs_tubewall_r1_probes.rs`' 1300 m torus,
+`sym11_far_placement_rows.rs`' far placements) are refused there too
+wherever they reach the gate; that PR's body lists how each moved.

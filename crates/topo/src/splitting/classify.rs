@@ -1178,7 +1178,7 @@ mod tests {
     /// parallel gate passes `R = 2ε`, the belly decides the graze
     /// (`R − |D| = ε`), and the graze's side `D = ±ε` decides zero, which
     /// only K ≤ 2 reaches. The nonzero gate rejects it carrying `D`, at
-    /// every ε, either side, either normal. Read as a margin, it ends as
+    /// every ε a run at K = 2 admits, either side, either normal. Read as a margin, it ends as
     /// one: the split's lever; the Boolean's edge-on-plane gap with
     /// its tighter tolerance; the census's coincidence menu, not the
     /// defect ending a poisoned margin takes.
@@ -1186,7 +1186,7 @@ mod tests {
     fn a_graze_side_decided_zero_keeps_its_margin() {
         use super::{ConicRootFault, conic_plane_candidates};
         use crate::boolean::refusal_routes::{BooleanDecision, DeclarationRead};
-        for e in [1e-3, 1e-6, 1e-9, 1e-12] {
+        for e in [1e-3, 1e-6, 1e-9, 1e-11] {
             let band = Band::new(e, 2.0 * e).unwrap();
             for (off, nz) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
                 let label = format!("ε = {e:e}, centre {off}·ε, normal {nz}·z");

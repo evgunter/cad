@@ -147,14 +147,15 @@ fn a_resolved_carriers_pin_is_the_inputs_by_provenance() {
 
 /// **The section's own rounding is never offered as the input's.** A
 /// far centre resolves its arc only to `u` times its distance, so an
-/// in-band pin is a kernel limitation exactly where that resolution, `K`
-/// times over, passes ε, whichever reading of the plane, and its words
-/// name no lever and no defect. Both sides of the line are read:
-/// `x = 1e4` resolves (`ρ ≈ 7e-11`), `x = 3e4` does not (`ρ ≈ 2e-10`).
+/// in-band pin is a kernel limitation exactly where that resolution
+/// passes the run's headroom `(K − 1)·ε`, whichever reading of the plane,
+/// and its words name no lever and no defect. Both sides of the line are
+/// read: `x = 1e6` resolves (`ρ ≈ 7e-9`), `x = 3e6` does not
+/// (`ρ ≈ 2e-8`).
 #[test]
 fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
     let k = band().escalate() / band().zero();
-    for x in [1e4, 3e4, 1e5, 1e6] {
+    for x in [1e4, 1e5, 1e6, 3e6, 1e7] {
         let spec = far_centre(x);
         let rho = geom_brep::carrier_resolution::resolution(
             &spec.carrier,
@@ -162,8 +163,8 @@ fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
             spec.param_end,
         )
         .unwrap();
-        let unresolved = k * rho > EPS;
-        assert_eq!(unresolved, x > 2e4, "x {x:e}: ρ {rho:e}");
+        let unresolved = rho > (k - 1.0) * EPS;
+        assert_eq!(unresolved, x > 2e6, "x {x:e}: ρ {rho:e}");
         for reading in [SectionEndReading::OnPlane, SectionEndReading::SquareToAxis] {
             let got = read(
                 reading,
@@ -185,7 +186,7 @@ fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
                     true,
                 ) => {
                     assert_eq!(*diag, cause(), "x {x:e}");
-                    assert_eq!(*resolution, MarginDiag::value(k * rho), "x {x:e}");
+                    assert_eq!(*resolution, MarginDiag::value(rho / (k - 1.0)), "x {x:e}");
                     let text = got.to_string();
                     assert!(
                         text.starts_with(
@@ -270,7 +271,7 @@ fn a_definite_miss_within_the_resolution_is_the_carriers() {
 #[test]
 fn what_no_reading_explains_stays_the_gates() {
     let gates = |got: &SplitJoinError| matches!(got, SplitJoinError::Euler(_));
-    let far = far_centre(1e6);
+    let far = far_centre(1e7);
     for check in [residual(), CertCheck::WitnessMidpoint] {
         let got = read(
             SectionEndReading::OnPlane,

@@ -947,7 +947,7 @@ mod tests {
             (point(0.0), noted.clone()),
             (point(-5e-10), noted.clone()),
             (
-                point(2e-12),
+                point(1.5e-12),
                 format!("Recourse: L; {}", floor_note("length")),
             ),
             (

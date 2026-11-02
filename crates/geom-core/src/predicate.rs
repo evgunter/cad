@@ -485,8 +485,10 @@ impl Band {
     ///   K = 1 + 2⁻⁵² clears the half-ulp) and a K near 1. **No normal ε
     ///   collapses at any admitted K**, so no run's ε does (the floor
     ///   [`EPS_MIN`](crate::tolerance::EPS_MIN) is normal): this arm is reached only through
-    ///   [`Band::linear_at`] and [`Band::angular_at`], at a scale the
-    ///   caller names. The repair is to raise that scale, or K.
+    ///   [`Band::linear_at`], at a scale the caller names: a K near 1 is
+    ///   admitted only with an ε whose angle over any finite arm is
+    ///   normal, so [`Band::angular_at`] never reaches it at an admitted
+    ///   run. The repair is to raise that scale, or K.
     ///
     /// Neither is a panic and neither is a silently invalid band: D9
     /// makes the residue a typed error.
@@ -3201,13 +3203,13 @@ mod tests {
             (Positive, e(2e-9, 5e-9), Shows::Offer(2e-10)),
             (Positive, e(-5e-9, -2e-9), Shows::NoSize),
             (Positive, e(-2e-9, 3e-9), Shows::Unresolved),
-            (Positive, e(-2e-12, 6e-12), Shows::Unresolved),
+            (Positive, e(-1.5e-12, 6e-12), Shows::Unresolved),
             (Positive, e(-5e-10, 0.0), Shows::NoSize),
             (Positive, v(0.0), Shows::NoSize),
             (Positive, v(-5e-10), Shows::NoSize),
             (Positive, v(5e-10), Shows::Offer(5e-11)),
-            (Positive, v(2e-12), Shows::Floor),
-            (Positive, e(2e-12, 3e-12), Shows::Floor),
+            (Positive, v(1.5e-12), Shows::Floor),
+            (Positive, e(1.5e-12, 3e-12), Shows::Floor),
             (Positive, v(5e-8), Shows::Past),
             (Positive, v(-5e-8), Shows::Refused),
             (Positive, e(-5e-8, -2e-8), Shows::Refused),
@@ -3220,7 +3222,7 @@ mod tests {
             (Negative, e(-5e-9, -2e-9), Shows::Offer(2e-10)),
             (Negative, e(2e-9, 5e-9), Shows::NoSize),
             (Negative, e(-2e-9, 0.0), Shows::Unresolved),
-            (AnySign, v(-2e-12), Shows::Floor),
+            (AnySign, v(-1.5e-12), Shows::Floor),
             (AnySign, MarginDiag::INVALID, Shows::Unreadable),
             // A set that passes zero reads zero as passing, as `admits`
             // does, so a reading at or across zero shows some size; its
@@ -3229,7 +3231,7 @@ mod tests {
             (NonNegative, e(0.0, 3e-9), Shows::Unresolved),
             (NonNegative, v(0.0), Shows::Unresolved),
             (AnySign, e(-2e-9, 3e-9), Shows::Unresolved),
-            (AnySign, e(-2e-12, 3e-12), Shows::Unresolved),
+            (AnySign, e(-1.5e-12, 3e-12), Shows::Unresolved),
             (AnySign, v(-0.0), Shows::Unresolved),
         ];
         for (pass, margin, want) in rows {
@@ -3287,8 +3289,8 @@ mod tests {
         let margins = [
             MarginDiag::value(5e-9),
             MarginDiag::value(-5e-10),
-            MarginDiag::value(2e-12),
-            MarginDiag::enclosure(-2e-12, 6e-12),
+            MarginDiag::value(1.5e-12),
+            MarginDiag::enclosure(-1.5e-12, 6e-12),
             MarginDiag::value(1.0),
             MarginDiag::value(-1.0),
             MarginDiag::enclosure(-5e-8, -2e-8),
@@ -3444,7 +3446,7 @@ mod tests {
                 "Recourse: L; n".to_owned(),
             ),
             (
-                MarginDiag::value(2e-12),
+                MarginDiag::value(1.5e-12),
                 words(Some("n")),
                 format!("Recourse: L; {}", floor_note("length")),
             ),

@@ -31,7 +31,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::tolerance::{DEFAULT_K, EPS_MIN, Tolerance, ToleranceError};
+use geom_core::tolerance::{DEFAULT_K, EPS_MIN, Tolerance, ToleranceError, eps_min};
 use geom_core::{Band, BandError, BandField, Decide, MarginDiag, Sign};
 
 #[test]
@@ -179,12 +179,13 @@ fn probe_overflow_arm_on_linear() {
 }
 
 /// PROBE (own process). The boundary and the region, read through
-/// `Band::linear_at` at an ORDINARY committed ε with the least admitted
-/// K — so the run itself is sane and only the named scale is not.
+/// `Band::linear_at` with the least K and the least ε that K admits
+/// (its headroom `(K − 1)·ε` covering the admission floor) — so the run
+/// itself is admitted and only the named scale is not.
 #[test]
 #[ignore]
 fn probe_collapse_region_through_linear_at() {
-    let tol = commit(1e-9, least_k());
+    let tol = commit(eps_min(least_k()), least_k());
     let boundary = collapse_boundary_eps();
     let above = f64::from_bits((1u64 << 51) + 1);
     let min_subnormal = f64::from_bits(1);
@@ -234,29 +235,22 @@ fn probe_collapse_region_through_linear_at() {
     println!("PROBE linear_at-region OK: boundary 2^-1023, no normal ε collapses");
 }
 
-/// PROBE (own process). `Band::angular_at` reaches the collapse arm at
-/// an ORDINARY ε, through the LEVER ARM — a caller argument, not a run
-/// setting, and the session-box extent the method recommends is the
-/// documented road to a large one.
+/// PROBE (own process). `Band::angular_at` never collapses at an
+/// admitted run, whatever the LEVER ARM: a K near 1 is admitted only
+/// with an ε its headroom covers the floor at, and over the largest arm
+/// there is that ε still derives a normal angle, which no admitted K
+/// collapses.
 #[test]
 #[ignore]
-fn probe_angular_collapse_through_the_lever_arm() {
-    let tol = commit(1e-9, least_k());
-    let arm = 1e300;
-    let theta = tol.eps() / arm;
+fn probe_angular_never_collapses_at_an_admitted_run() {
+    let tol = commit(eps_min(least_k()), least_k());
+    let theta = tol.eps() / f64::MAX;
+    assert!(theta >= f64::MIN_POSITIVE, "a normal angle: {theta:e}");
     assert!(
-        theta > 0.0 && theta < f64::MIN_POSITIVE,
-        "the derived angle is a nonzero subnormal: {theta:e}"
+        Band::angular_at(tol, f64::MAX).is_ok(),
+        "the least admitted K at its least ε forms an angular band over the largest arm"
     );
-    assert_eq!(
-        Band::angular_at(tol, arm),
-        Err(BandError::Empty {
-            zero: theta,
-            escalate: theta,
-        }),
-        "an ordinary ε and a large arm reach Empty through angular_at"
-    );
-    println!("PROBE angular-collapse OK: theta={theta:e}");
+    println!("PROBE angular-never-collapses OK: theta={theta:e}");
 }
 
 /// PROBE (own process). `angular_at`'s derived angle never underflows
@@ -286,8 +280,8 @@ fn probe_angular_never_underflows_at_a_runs_eps() {
 
 /// **Both arms of the constructors' `# Errors` are reachable from a
 /// tolerance the run's own validator admits** — overflow through
-/// `Band::linear`, collapse through `linear_at` and `angular_at` at a
-/// scale the caller names — the claim `Band::linear`'s `# Errors`
+/// `Band::linear`, collapse through `linear_at` at a scale the caller
+/// names (`angular_at`'s lever arm reaches it at no admitted run) — the claim `Band::linear`'s `# Errors`
 /// makes, and the reason a refusal carries the `BandError` instead of
 /// discarding it: the two ends want opposite repairs (lower ε; raise
 /// the scale or K).
@@ -301,7 +295,7 @@ fn both_band_error_arms_are_reachable() {
     for probe in [
         "probe_overflow_arm_on_linear",
         "probe_collapse_region_through_linear_at",
-        "probe_angular_collapse_through_the_lever_arm",
+        "probe_angular_never_collapses_at_an_admitted_run",
         "probe_angular_never_underflows_at_a_runs_eps",
     ] {
         spawn_probe(probe);
