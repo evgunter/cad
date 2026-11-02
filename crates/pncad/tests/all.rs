@@ -7596,6 +7596,63 @@ mod pattern_presets_are_recognised_as_themselves {
     }
 }
 
+/// **A clearance report's payloads are nameable from the façade** (the
+/// closure property): each refusal a [`pncad::analysis::ClearanceReport`]
+/// can carry is matched, and what each arm holds is handed to a sink
+/// whose signature spells its type by its `pncad::analysis` path — the
+/// engine's refusal and its budget, shared cell, certificate arm and
+/// side; the selection's refusal; the receipt and the widths. If one
+/// stops being nameable that way, this stops compiling.
+#[test]
+fn a_clearance_reports_payloads_are_nameable_from_the_facade() {
+    use pncad::analysis::{
+        CellBudget, CellReceipt, CertificateArm, ClearanceRefusal, DischargeWidths,
+        EngineRefusal, SelectionRefusal, SharedCell, Which,
+    };
+    fn budget(b: &CellBudget) -> String {
+        format!("{b:?}")
+    }
+    fn shared(c: &SharedCell) -> String {
+        c.payload()
+    }
+    fn arm(a: &CertificateArm) -> &'static str {
+        a.name()
+    }
+    fn side(w: &Which) -> &'static str {
+        w.name()
+    }
+    fn selection(r: &SelectionRefusal) -> String {
+        r.payload()
+    }
+    fn receipt(r: CellReceipt) -> bool {
+        r.holds()
+    }
+    fn widths(w: DischargeWidths) -> u32 {
+        w.deepest
+    }
+    fn caught(r: &ClearanceRefusal) -> String {
+        match r {
+            ClearanceRefusal::Engine { refusal, .. } => match refusal {
+                EngineRefusal::Budget(b) => budget(b),
+                EngineRefusal::Uncertified { shared: c, arm: a, .. } => {
+                    format!("{} {}", shared(c), arm(a))
+                }
+                EngineRefusal::EmptyScope { side: w } => side(w).to_owned(),
+                other => other.name().to_owned(),
+            },
+            ClearanceRefusal::Selection(s) => selection(s),
+            other => other.name().to_owned(),
+        }
+    }
+    let empty = ClearanceRefusal::Engine {
+        refusal: EngineRefusal::EmptyScope { side: Which::First },
+        sides: [(pncad::document::RecipeNodeId::new(0, 1), 0); 2],
+    };
+    assert_eq!(caught(&empty), "first");
+    assert!(receipt(CellReceipt::default()));
+    assert_eq!(widths(DischargeWidths::empty()), 0);
+}
+
 /// **The nominal clearance door answers each clearance assertion in
 /// plain numbers, and stops on its cancel token.** The plate against
 /// itself meets itself, so `clearance ≥ 1 mm` is violated by a pair 0

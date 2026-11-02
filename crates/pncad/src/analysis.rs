@@ -110,6 +110,18 @@ pub use editor_core::clearance::{
     ClearanceRefusal, ClearanceReport, ClearanceVerdict, GeometryWitness, ParamWitness, Witness,
 };
 
+/// **What the report's payloads carry**, so a consumer can match each
+/// refusal and name what it caught (the closure property): the
+/// engine's refusals and the payloads they hold, the selection's, and
+/// the receipt and widths a report reads out. A selection refusal's
+/// candidate list holds the document layer's sealed `EntityRef`s;
+/// what this list owes is its discriminant, as it is for every other
+/// carrier of a sealed key.
+pub use editor_core::clearance::{
+    CellBudget, CellReceipt, CertificateArm, DischargeWidths, EngineRefusal, SelectionRefusal,
+    SharedCell, Which,
+};
+
 /// **Every clearance requirement of `doc`, answered at nominal**: the
 /// document evaluated at the certifying scalar over no parameter box,
 /// and each clearance assertion's verdict read back in plain numbers,

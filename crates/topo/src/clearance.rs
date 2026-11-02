@@ -308,43 +308,52 @@ impl Ask {
         }
     }
 
-    /// **Whether a measured separation `d` answers this question**,
-    /// decided at the bound's own funnel site with the run's band: `d`
-    /// definitely below the lower bound (or definitely `0` under the
-    /// strict question), or definitely within the upper one. The one
-    /// rule every verifier applies to the pair it found.
+    /// The bound this question asks as the sweep names it, whose funnel
+    /// site ([`ClearanceBound::predicate`]) it is decided at.
+    fn as_bound(self) -> ClearanceBound {
+        match self {
+            Self::Below { strict: true, .. } => ClearanceBound::StrictlyPositive,
+            Self::Below { bound, .. } => ClearanceBound::AtLeast(bound),
+            Self::Within { bound } => ClearanceBound::AtMost(bound),
+        }
+    }
+
+    /// **The one sign table**: a separation `d` read against this
+    /// question at its bound's funnel site with the run's band. A lower
+    /// bound is answered (violated) below it, and at it too for the
+    /// strict question, whose `Zero` is a coincidence; an upper bound is
+    /// answered (proved) at or below it. Both the sweep's reading of a
+    /// cell pair's enclosure ([`Bound::read`]) and a verifier's reading
+    /// of the pair it found ([`Self::confirms`]) are this table.
+    fn reading(self, d: Interval, band: Band) -> Reading {
+        match decide(self.as_bound().predicate(), Margin::of(d - self.bound()), band) {
+            Err(source) => Reading::Undecided(source),
+            Ok(sign) => match (self, sign) {
+                (Self::Below { .. }, Sign::Negative)
+                | (Self::Below { strict: true, .. }, Sign::Zero)
+                | (Self::Within { .. }, Sign::Negative | Sign::Zero) => Reading::Answers,
+                (Self::Below { .. } | Self::Within { .. }, _) => Reading::Clear,
+            },
+        }
+    }
+
+    /// **Whether a measured separation `d` answers this question**:
+    /// [`Self::reading`]'s table, `Ok` where it answers.
     ///
     /// # Errors
     ///
     /// The funnel's indeterminacy, or the definite sign that does not
     /// answer, in words.
     pub fn confirms(self, d: Interval, band: Band) -> Result<(), String> {
-        let (predicate, margin) = match self {
-            Self::Below { bound, strict } => (
-                if strict {
-                    SELF_INTERSECTION_GAP
-                } else {
-                    CLEARANCE_MARGIN
-                },
-                d - bound,
-            ),
-            Self::Within { bound } => (CLEARANCE_MARGIN, d - bound),
-        };
-        let sign = decide(predicate, Margin::of(margin), band).map_err(|source| {
-            format!("the separation {d:?} against {:?}: {source}", self.bound())
-        })?;
-        let answers = match (self, sign) {
-            (Self::Below { .. }, Sign::Negative)
-            | (Self::Below { strict: true, .. }, Sign::Zero)
-            | (Self::Within { .. }, Sign::Negative | Sign::Zero) => true,
-            (Self::Below { .. } | Self::Within { .. }, _) => false,
-        };
-        if answers {
-            Ok(())
-        } else {
-            Err(format!(
+        match self.reading(d, band) {
+            Reading::Answers => Ok(()),
+            Reading::Clear => Err(format!(
                 "the separation {d:?} does not answer {self:?} at this run's tolerance"
-            ))
+            )),
+            Reading::Undecided(source) => Err(format!(
+                "the separation {d:?} against {:?}: {source}",
+                self.bound()
+            )),
         }
     }
 }
@@ -1770,27 +1779,10 @@ impl<W, F> Bound<'_, W, F> {
     /// examined for, each at its own funnel site.
     fn read(&self, open: Open, d: Interval) -> Readings {
         let (bound, band) = (self.sweep.bound, self.sweep.band);
-        let below = bound
-            .lower()
-            .filter(|_| open.below && self.violation.is_none())
-            .map(
-                |lo| match decide(bound.predicate(), Margin::of(d - lo), band) {
-                    Ok(Sign::Positive) => Reading::Clear,
-                    Ok(Sign::Zero) if bound.zero_discharges() => Reading::Clear,
-                    Ok(Sign::Zero | Sign::Negative) => Reading::Answers,
-                    Err(source) => Reading::Undecided(source),
-                },
-            );
-        let above = bound
-            .upper()
-            .filter(|_| open.above && self.within.is_none())
-            .map(
-                |hi| match decide(CLEARANCE_MARGIN, Margin::of(d - hi), band) {
-                    Ok(Sign::Positive) => Reading::Clear,
-                    Ok(Sign::Zero | Sign::Negative) => Reading::Answers,
-                    Err(source) => Reading::Undecided(source),
-                },
-            );
+        let below = (bound.lower().is_some() && open.below && self.violation.is_none())
+            .then(|| self.below().reading(d, band));
+        let above = (bound.upper().is_some() && open.above && self.within.is_none())
+            .then(|| self.above().reading(d, band));
         Readings { below, above }
     }
 
