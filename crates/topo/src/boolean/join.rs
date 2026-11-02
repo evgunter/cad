@@ -3085,6 +3085,59 @@ fn cone_reach<T: Decide>(
         .map_err(|_| LONE_WALL)
 }
 
+/// **A plane×cone surface pair's reach**, the one the glue door reads
+/// the pair at (`glue::section_door`): the measure [`cone_reach`] takes
+/// of one face pair, taken over every met face pair on the surface pair
+/// (`pairs`, each its cone face then its plane face) from one point, the
+/// centre of the ball about all their cone faces' boundary vertices.
+/// How far any of them reaches either way along the cone's axis and
+/// from that point, each cone face narrowed to its plane face's window,
+/// so no one face's extent sets the lever for its pieces and siblings.
+///
+/// # Errors
+///
+/// A pair list with no boundary vertex, or a cone face whose reach does
+/// not read (a lone loop).
+pub(super) fn surface_pair_reach<T: Decide>(
+    (cone_body, plane_body): (&Body<T>, &Body<T>),
+    pairs: &[(FaceKey, FaceKey)],
+    cone: &geom::Surface<T>,
+    band: Band,
+) -> Result<geom_brep::Reach<T>, &'static str> {
+    let corners: Vec<geom_brep::ExtentBall<T>> = pairs
+        .iter()
+        .filter_map(|&(fc, _)| super::carrier_pair::face_witnesses(cone_body, fc))
+        .flatten()
+        .map(geom_brep::ExtentBall::point)
+        .collect();
+    let at = geom_brep::ExtentBall::enclosing(&corners)
+        .ok_or("a plane×cone surface pair's cone faces have no boundary vertices")?
+        .center();
+    let mut most: Option<(T, T, T)> = None;
+    for &(fc, fp) in pairs {
+        let FrameExtent::Cone(geom_brep::Reach::Face {
+            below,
+            above,
+            across,
+            ..
+        }) = cone_reach((cone_body, fc), (plane_body, fp), at, cone, band)?
+        else {
+            return Err("a cone face's reach is no face's");
+        };
+        most = Some(match most {
+            None => (below, above, across),
+            Some((b, a, c)) => (b.max(below), a.max(above), c.max(across)),
+        });
+    }
+    let (below, above, across) = most.ok_or("a plane×cone surface pair with no face pair")?;
+    Ok(geom_brep::Reach::Face {
+        at,
+        below,
+        above,
+        across,
+    })
+}
+
 /// [`frame_extent`]'s plane×torus arm: the torus face's reach from `at`.
 fn face_reach<T: Decide>(
     body: &Body<T>,

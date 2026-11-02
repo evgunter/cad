@@ -21,12 +21,14 @@
 //!   once per germ ([`SectionTable::germ_foot`]), keyed by the germ's
 //!   operand, its half-edge and the pair it was read on.
 //!
-//! It also holds each plane×cone pair whose faces' boxes meet, read once
-//! at the glue door at the cone surface's reach (the ball about every
-//! face of the operand on that surface), not one face's: the pair's
-//! frame or its apex line pair ([`SectionTable::plane_cone`]). The germ
-//! mint and the join's frame read take it; the value does not build the
-//! pair, so it is held beside the sections, not among them.
+//! It also holds each plane×cone surface pair whose faces' boxes meet,
+//! read once at the glue door at the surface pair's reach (taken over
+//! every met face pair on it, `join::surface_pair_reach`), not one
+//! face's: the pair's frame or its apex line pair
+//! ([`SectionTable::plane_cone`]). The germ mint and the join's frame
+//! read take it. The value does not build the pair (neither a plane
+//! nor a cone is served), so no section of it is held among the
+//! sections, and the two maps never hold one pair.
 //!
 //! The table is classified when it is built, and a pair is carried on
 //! its first read that needs a carrier or a list no closed form counts,
