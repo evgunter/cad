@@ -2,11 +2,13 @@
 id: recl-edge-edge-composes-the-other-solids-material-beside-the-cone
 kind: issue
 title: recl::resolve_edge_edge composes the other solid's material at a vertex from its wedge and the faces holding the line, a second gathered reading beside the boolean's cone
-status: dispatched
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: H
 branch: oneread/recl-line-cone
+pr: 6282
+closed: 2026-11-02
 ---
 
 Filed by `the-boolean-reads-the-other-operand-through-one-cone`'s sweep
@@ -56,3 +58,7 @@ The final state:
 4. **Deleted**: `Half`, `in_wedge_of`'s half-space combination, `wedge_is_reflex`, `link_of`'s composition and `compose`, `Part::bounding`, `HeldFace::under`, `flank_rep`'s projection, the K names `bool_wedge_reflex`, `bool_flank_offset` and recl's `bool_dir_same`. Kept as construction: `HeldFace::holds`, `Folded::of`, `read_twice`, the two-faces invariant, the one-side check (renamed for what it checks), and the germ placing (`crossings`, `pick`, `onto_inside`, the slit rules).
 
 Not now: folding `resolve_edge_sector` into the same reading, and one line cone across every wedge on a contact line. Both are named by the designers and owed a row if the lane confirms them.
+
+## Closed (2026-11-02)
+
+Merged as PR 6282: `membership` reads the other solid's line cone (`boolean::sectors::line_fans`) through the one `Cone` reader; the composition is gone; the `Cone`'s refusal carries a typed cause, so recl refuses typed with recourse (`LineMaterialUnread`). Dual review, adjudicated; record `docs/dual-review-log/rows/PR-6282.md`. Filed by the lane: `resolve-edge-sector-reads-the-other-solids-face-about-the-line-by-table-ii` (P1), `recl-reads-one-wedge-pair-at-a-time-on-a-contact-line` (P2), `the-split-rule-b-reads-an-in-plane-edges-material-by-convexity` (P3), and ATREST's `line-wedges-reads-material-about-a-line-by-the-wedges-turn-beside-the-line-cone`.

@@ -483,7 +483,7 @@ fn the_windmill_story() {
     assert!(session.standing().live(), "the selection resolves");
     session.perform(SessionOp::Hover(Some(Hovered::Face(picked.clone()))));
     assert_eq!(
-        session.hover().map(Hovered::name),
+        session.hover().and_then(Hovered::name),
         Some(&picked.name),
         "hover is its own transient value"
     );

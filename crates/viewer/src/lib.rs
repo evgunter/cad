@@ -63,6 +63,7 @@ pub mod generation;
 pub mod history;
 pub mod idpass;
 pub mod input;
+pub mod layout;
 pub mod marks;
 pub mod matetool;
 pub mod narrowing;

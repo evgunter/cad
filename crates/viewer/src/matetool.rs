@@ -91,7 +91,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{EntityKind, Resolution};
 
-use crate::pickindex::PickKinds;
+use crate::pickindex::{PickKinds, PickedKind};
 use crate::session::select::resolves;
 use crate::session::{EdgeSelection, FaceSelection, SessionOp, VertexSelection};
 use crate::tree::{DrawnBody, HeldPick, PickedEntity};
@@ -138,21 +138,21 @@ partial_mirror! {
 /// **What the cursor may pick while the editor's active row reads
 /// `kind`**: of every rule ([`PickKinds::ALL`]) admitting each entity
 /// the kind reads ([`reads`]), the one admitting fewest — so a kind that
-/// reads faces alone picks faces alone, and a narrow shelf or a small
+/// reads faces alone picks faces alone, no kind is offered a profile
+/// (none reads one), and a narrow shelf or a small
 /// hole's wall stays pickable however near its own boundary the cursor
 /// is. A pick already held that the kind chosen since does not read is
 /// named by the verdict ([`MateToolError::KindDoesNotRead`]).
 #[must_use]
 pub fn pick_kinds(kind: VarKind) -> PickKinds {
-    let read = reads(kind);
-    let entities = [EntityKind::Face, EntityKind::Edge, EntityKind::Vertex];
+    let read: Vec<PickedKind> = reads(kind).into_iter().filter_map(PickedKind::of).collect();
     PickKinds::ALL
         .into_iter()
-        .filter(|rule| read.iter().all(|&entity| rule.admits(entity)))
+        .filter(|rule| read.iter().all(|&picked| rule.admits(picked)))
         .min_by_key(|rule| {
-            entities
+            PickedKind::ALL
                 .iter()
-                .filter(|&&entity| rule.admits(entity))
+                .filter(|&&picked| rule.admits(picked))
                 .count()
         })
         .unwrap_or_default()

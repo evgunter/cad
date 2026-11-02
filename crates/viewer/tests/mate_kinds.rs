@@ -23,7 +23,7 @@ use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::ViewportSize;
 use viewer::matetool::{MateChoice, MateToolError};
-use viewer::pickindex::{PickIndex, PickKinds};
+use viewer::pickindex::{PickIndex, PickKinds, PickedKind};
 use viewer::session::{DocSession, Hovered, ProfileShape, SessionOp};
 use viewer::tools::{ToolKind, Tools};
 
@@ -147,7 +147,7 @@ fn the_cursors_rule_admits_what_the_chosen_kind_reads() {
         let rule = tools.pick_kinds_choosing(kind);
         let admitted: Vec<EntityKind> = entities
             .into_iter()
-            .filter(|&entity| rule.admits(entity))
+            .filter(|&entity| PickedKind::of(entity).is_some_and(|picked| rule.admits(picked)))
             .collect();
         let reads = viewer::matetool::reads(kind);
         assert!(
@@ -163,6 +163,10 @@ fn the_cursors_rule_admits_what_the_chosen_kind_reads() {
                 "{kind:?}: the rule {rule:?} admits nothing more"
             );
         }
+        assert!(
+            !rule.admits(PickedKind::Profile),
+            "{kind:?}: no mate reads a profile, so the rule {rule:?} offers none"
+        );
     }
     assert_eq!(
         viewer::matetool::reads(VarKind::Plane),
