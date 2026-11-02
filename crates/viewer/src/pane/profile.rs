@@ -1814,13 +1814,13 @@ mod tests {
         );
     }
 
-    /// **Review probe (PR 6340): a document written before the rectangle
-    /// form, holding a corner-polygon rectangle, opens and edits as the
-    /// path it is.** No migration and no guess: the door holds its five
+    /// **An old corner-polygon rectangle edits as a path**: a document
+    /// written before the rectangle form, holding a rectangle as its
+    /// corners, opens and edits as the path it is. No migration and no guess: the door holds its five
     /// chain steps, draws `line_to`, and an edit of one corner lands as
     /// one `SetProgram` that keeps the loop a chain.
     #[test]
-    fn review_6340_an_old_corner_polygon_rectangle_edits_as_a_path() {
+    fn an_old_corner_polygon_edits_as_a_path() {
         use pncad::document::{DocEdit, LoopProgram};
         let tol = Tol::witness();
         let doc = Doc::empty_derived("old-rectangle", tol);

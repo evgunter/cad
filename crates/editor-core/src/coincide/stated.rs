@@ -247,8 +247,9 @@ impl Stated {
 /// the symbolic evaluation by `coincidence_door`'s pin of every corpus
 /// revolve). Any other cell's axis is its own. A part's entity is named
 /// in the part's ids, which this document does not hold, so a band
-/// the walk stopped at an instance for is its own wall's: a curved
-/// wall's faces are one carrier ([`carrier`]).
+/// the walk stopped at an instance for is its own wall's, piece by
+/// piece: [`carrier`] cannot read the part's loop, so it does not
+/// merge that wall's pieces into one carrier.
 pub(crate) fn axis_of<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     cell: &Construction,
@@ -324,7 +325,8 @@ pub(crate) fn carrier<P: crate::ProfilePayload>(
 }
 
 /// **Whether `step` of the profile `sweep` sweeps is a circle form**,
-/// whose pieces are arcs of one carrier.
+/// whose pieces are arcs of one carrier: the loops
+/// [`crate::LoopProgram::carrier_radius`] answers one radius for.
 fn on_one_carrier(doc: &crate::ProfileDoc, sweep: RecipeNodeId, step: &crate::StepId) -> bool {
     let (Some(Node::Extrude { profile, .. }) | Some(Node::Revolve { profile, .. })) =
         doc.node(sweep)
@@ -334,13 +336,11 @@ fn on_one_carrier(doc: &crate::ProfileDoc, sweep: RecipeNodeId, step: &crate::St
     let Some(Node::Profile(program)) = doc.operation_of(*profile).and_then(|p| doc.node(p)) else {
         return false;
     };
-    program.ids.iter().zip(&program.loops).any(|(ids, loop_)| {
-        ids.contains(step)
-            && matches!(
-                loop_,
-                crate::LoopProgram::Circle { .. } | crate::LoopProgram::CircleSplit { .. }
-            )
-    })
+    program
+        .ids
+        .iter()
+        .zip(&program.loops)
+        .any(|(ids, loop_)| ids.contains(step) && loop_.carrier_radius().is_some())
 }
 
 /// **Whether the walk to `cell` stopped at a part's instance**, so its

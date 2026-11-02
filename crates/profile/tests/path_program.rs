@@ -568,18 +568,53 @@ fn rectangle_is_a_one_step_program_from_its_lower_left_corner() {
 }
 
 /// `rectangle` refuses a width or height that is not definitely
-/// positive, naming the side (funnel row `path_rectangle_side`).
+/// positive, naming the side (funnel row `path_rectangle_side`): zero
+/// and negative are refusals, and a side the funnel cannot classify —
+/// an `f64` inside the band, an interval straddling zero — escalates
+/// on that row.
 #[test]
 fn rectangle_refuses_a_nonpositive_side() {
-    let _tol = Tol::witness().get();
+    use geom_core::Interval;
+    let eps = Tol::witness().get().eps;
     let o = Point2::new(0.0, 0.0);
-    for (w, h, which) in [(0.0, 1.0, "width"), (1.0, -2.0, "height")] {
+    for (w, h, which) in [
+        (0.0, 1.0, "width"),
+        (-1.0, 1.0, "width"),
+        (1.0, -2.0, "height"),
+        (1.0, 0.0, "height"),
+    ] {
         match profile::rectangle(o, w, h, Tol::witness()) {
             Err(PathError::NonpositiveRectangleSide { side, .. }) => {
                 assert_eq!(side, which, "w = {w}, h = {h} refuses on its {which}");
             }
             other => panic!("w = {w}, h = {h} must refuse NonpositiveRectangleSide, got {other:?}"),
         }
+    }
+    match profile::rectangle(o, 5.0 * eps, 1.0, Tol::witness()) {
+        Err(PathError::Escalated { source }) => assert_eq!(
+            source.predicate,
+            Some("path_rectangle_side"),
+            "an f64 width inside the band escalates on the rectangle's row"
+        ),
+        other => panic!("an f64 width inside the band must escalate, got {other:?}"),
+    }
+    let at = Point2::new(
+        Interval::from_bounds(0.0, 0.0),
+        Interval::from_bounds(0.0, 0.0),
+    );
+    let straddle = Interval::from_bounds(-1e-3, 1e-3);
+    match profile::rectangle(
+        at,
+        Interval::from_bounds(1.0, 1.0),
+        straddle,
+        Tol::witness(),
+    ) {
+        Err(PathError::Escalated { source }) => assert_eq!(
+            source.predicate,
+            Some("path_rectangle_side"),
+            "a height straddling zero escalates on the rectangle's row"
+        ),
+        other => panic!("a height straddling zero must escalate, got {other:?}"),
     }
 }
 

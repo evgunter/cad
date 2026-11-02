@@ -1557,7 +1557,9 @@ impl<S> LoopProgram<S> {
     /// The address is the loop's `Radius` slot
     /// (`SlotId::Profile { loop_, step: 0, arg: StepArg::Radius }`);
     /// this hands back the expression that slot holds, which is what a
-    /// lowering needs to lower.
+    /// lowering needs to lower. Whether it answers is also the one test
+    /// of whether a loop's pieces are arcs of one carrier, which the
+    /// coincidence door reads to name a swept wall's pieces as one.
     #[must_use]
     pub fn carrier_radius(&self) -> Option<&S> {
         match self {

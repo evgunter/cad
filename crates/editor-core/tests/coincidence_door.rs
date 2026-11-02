@@ -4235,3 +4235,74 @@ fn a_rectangles_walls_are_four_carriers_and_a_circles_two_are_one() {
         }
     }
 }
+
+/// **A wall read through a part's instance is not merged into one
+/// carrier**, even when the name it carries spells a `circle` wall of
+/// this document. The walk stops at an instance with the part's own
+/// name, whose ids this document does not hold, so a coincidence of
+/// ids with a host circle says nothing about the part's loop: the two
+/// halves stay two cells, while the same two names read in the host,
+/// with no instance on the way, are one carrier.
+///
+/// *Breaks if* the carrier merge reads a part's names against the
+/// host's program.
+#[test]
+fn a_parts_wall_names_are_not_read_against_the_hosts_circle() {
+    use coincide::{Construction, Map, Origin};
+    use editor_core::{ContentPin, DocRef, DocumentId, EntityKind, PieceRole, ProfileEdgeRef};
+    let doc = ProfileDoc::empty_derived("coincide-part-carrier", Tol::witness());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("a circle")],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+        },
+    );
+    let (doc, instance) = insert(
+        doc,
+        crate::fixture::mated_instance(DocRef {
+            id: DocumentId::derive("coincide-part-carrier-part"),
+            pin: ContentPin([0u8; 32]),
+        }),
+    );
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("a profile")
+    };
+    let step = program.ids[0][0];
+    let half = |k: u32, maps: Vec<Map>| {
+        let wall = Construction {
+            origin: Origin::Minted(StableName {
+                kind: EntityKind::Face,
+                node: extrude,
+                path: vec![RoleSeg::Lateral(
+                    ProfileEdgeRef::Piece {
+                        step,
+                        role: PieceRole::Piece(k),
+                    }
+                    .into(),
+                )],
+            }),
+            maps,
+        };
+        coincide::axis_of(&doc, &wall)
+    };
+    assert_eq!(
+        half(0, Vec::new()),
+        half(1, Vec::new()),
+        "the host's own circle walls are one carrier"
+    );
+    let through = vec![Map::World(instance)];
+    assert_ne!(
+        half(0, through.clone()),
+        half(1, through),
+        "read through the instance, the halves are the part's, and two"
+    );
+}
