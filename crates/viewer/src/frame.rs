@@ -792,7 +792,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::Open(_)
         | SessionOp::Save(_)
         | SessionOp::SaveAsNewDocument(_)
-        | SessionOp::SetBodyHidden { .. }
+        | SessionOp::SetBodyOn { .. }
         | SessionOp::SetSpaceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
@@ -1270,6 +1270,12 @@ vocabulary! {
         /// adds is the chrome's own subject — that the hide went with what
         /// it was on.
         DroppedHide,
+        /// **A HIDE's mirror.** The user asked for a body the picture
+        /// left out to be drawn, and the document made the question
+        /// unaskable: what was shown is gone. Worded apart from a dropped
+        /// hide because it is the other news — a body brought out, not
+        /// one put away.
+        DroppedShow,
         /// **Neither of the above, and the only one the user's hand was
         /// on.** A drag was in flight and the document stopped admitting
         /// the body under it, so the gesture ended where it stood.
@@ -1327,11 +1333,13 @@ impl<'a> Withdrawal<'a> {
         let PruneReport {
             superseded,
             dropped_hides,
+            dropped_shows,
             killed_gesture,
         } = report;
         [
             Self::superseded(superseded),
             Self::dropped_hide(dropped_hides),
+            Self::of(WithdrawalKind::DroppedShow, dropped_shows),
             Self::killed_gesture(killed_gesture.as_ref()),
         ]
         .into_iter()
@@ -1379,7 +1387,7 @@ impl<'a> Withdrawal<'a> {
     pub fn notice(&self) -> Message {
         let retold = match self.kind {
             WithdrawalKind::Superseded => Retold::Never,
-            WithdrawalKind::DroppedHide => Retold::Never,
+            WithdrawalKind::DroppedHide | WithdrawalKind::DroppedShow => Retold::Never,
             WithdrawalKind::KilledGesture => Retold::Never,
         };
         Message::new(Subject::Document, self.to_string(), retold)
@@ -1530,6 +1538,11 @@ impl core::fmt::Display for Withdrawal<'_> {
                 "hide",
                 "a hide was dropped with what it was on",
                 Some("hides were dropped with what they were on"),
+            ),
+            WithdrawalKind::DroppedShow => (
+                "show",
+                "a show was dropped with what it was on",
+                Some("shows were dropped with what they were on"),
             ),
             WithdrawalKind::KilledGesture => ("free move", "the drag in flight was ended", None),
         };
@@ -2139,7 +2152,7 @@ pub fn tool_notice(
 ) -> Message {
     // A miss is about the open tool, so it retires with it.
     let subject = match notice {
-        ToolNotice::Missed(_) => Subject::Tool,
+        ToolNotice::Missed { .. } => Subject::Tool,
         ToolNotice::Mate(_)
         | ToolNotice::Blend(_)
         | ToolNotice::Mirror(_)
@@ -2157,7 +2170,7 @@ pub fn tool_notice(
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
         // A declined click, like the blend tool's other-target pick:
         // the same miss says it again.
-        ToolNotice::Missed(_) => Retold::Again,
+        ToolNotice::Missed { .. } => Retold::Again,
         ToolNotice::Blend(
             BlendEvent::NoEdgesOnTarget { .. }
             | BlendEvent::EdgesUnnamed { .. }
@@ -3894,6 +3907,7 @@ mod tests {
         let report = PruneReport {
             superseded: vec![pinned(7)],
             dropped_hides: vec![pinned(11)],
+            dropped_shows: vec![pinned(13)],
             killed_gesture: Some(pinned(3)),
         };
         let produced: Vec<WithdrawalKind> = Withdrawal::all(&report)

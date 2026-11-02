@@ -974,7 +974,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
             far: o + end,
         },
         face,
-        normal: OutwardNormal::from_chart(y, true),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(y, true)),
         arm,
         bend: crate::bound_side::FaceBend::Plane,
     };
@@ -1017,7 +1017,10 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
             far: o + y,
         },
         face: crate::entity::FaceKey::default(),
-        normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            Vec3::new(0.0, 0.0, 1.0),
+            true,
+        )),
         arm: 1.0,
         bend: crate::bound_side::FaceBend::Plane,
     };
@@ -1066,7 +1069,10 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
             far: o + y,
         },
         face: crate::entity::FaceKey::default(),
-        normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            Vec3::new(0.0, 0.0, 1.0),
+            true,
+        )),
         arm: 1.0,
         bend: crate::bound_side::FaceBend::Plane,
     };
@@ -1469,7 +1475,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
             far: o + end,
         },
         face,
-        normal: OutwardNormal::from_chart(y, true),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(y, true)),
         arm,
         bend: crate::bound_side::FaceBend::Plane,
     };
@@ -1531,7 +1537,10 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
             far: o + z * arm,
         },
         face,
-        normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        )),
         arm,
         bend: crate::bound_side::FaceBend::Plane,
     };
@@ -2146,6 +2155,10 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::NormalAtConeApex
+        | BooleanErrorKind::VertexPairAtConeApex
+        | BooleanErrorKind::VertexNearConeAxis
+        | BooleanErrorKind::ResultPinchedAtConeApex
+        | BooleanErrorKind::ApexSection
         | BooleanErrorKind::NormalAtSplineCrease
         | BooleanErrorKind::PierceLeverUnread
         | BooleanErrorKind::EdgeCarrierUnsupported
@@ -2892,7 +2905,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::BisectorSide",
         1,
     ),
-    ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
+    ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "crescent", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),
@@ -3004,6 +3017,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
+    ("vtxfac.rs", "pierce_apex_germ", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
         "ring_groups",

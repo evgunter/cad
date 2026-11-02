@@ -75,6 +75,7 @@ fn answers_within(what: &str, ring: &Ring, wall: &Wall, want: &[Class], reach: R
         &ring.surface(),
         &wall.surface(),
         reach,
+        None,
         Some(geom_brep::SsiLane::marched()),
         band(),
     );
@@ -91,6 +92,7 @@ fn answers_within(what: &str, ring: &Ring, wall: &Wall, want: &[Class], reach: R
         &wall.surface(),
         &ring.surface(),
         reach,
+        None,
         Some(geom_brep::SsiLane::marched()),
         band(),
     );

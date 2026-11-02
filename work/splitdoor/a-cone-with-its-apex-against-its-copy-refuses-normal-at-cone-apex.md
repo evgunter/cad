@@ -28,3 +28,24 @@ Whether a vertex lying on a vertex of the copy, every face about each settled on
 ## Widened (2026-11-01)
 
 Now P1 / H. This is the owed vertex–vertex unit of the cone-apex decision, recorded on `a-planar-face-through-a-cones-apex-refuses-the-boolean-where-the-split-builds`. Sectors become arcs of circles on the direction sphere, so that apex-on-vertex, apex-on-edge, apex-on-apex and a cone against its copy all build. The witnesses are listed there. It is built after that row's first unit. (SPLITDOOR orchestrator)
+
+## The refusal's new name (2026-11-01, SPLITDOOR, `splitdoor/cone-apex-boolean`)
+
+The first unit moves the refusal out of `boolean::sectors::sector_face`,
+which both lanes call, into the vertex–vertex lane. Right after both
+sector arrays are built, `sectors::apex_pair_refusal` refuses a pair one
+of whose vertices is a cone's apex: `VertexPairAtConeApex { operand,
+face }`. The pierce lane reads the apex. `build_sectors` takes the
+plane an apex corner is subdivided against as `sectors::ApexPlane`,
+`None` or `One(normal)`. The vertex–vertex lane passes `None` today:
+ordering two planes' rulings round the axis is this unit's decision,
+and this unit widens the enum.
+
+Measured at the first unit's head (one-wrap-edge 45° cone, ε 1e-9):
+
+- its apex against its copy's apex, turned over about it, refuses
+  `VertexPairAtConeApex` in ∪, ∩ and ∖, pinned in
+  `crates/sweep/tests/a_cone_apex_on_a_plane_through_it.rs`
+  (`a_tipped_cones_apex_on_its_copys_refuses_the_vertex_pair_by_name`);
+- a box whose corner or edge sits at the apex refuses earlier,
+  `CrossingAtConeApex`, at the box's edge through the apex.

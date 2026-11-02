@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-26
 priority: P2
 cost: M
+rides_with: mate-tool-commits-one-mate
 ---
 
 
@@ -18,3 +19,7 @@ So a person can still name `Slide(Y)` on a wall whose mate fixes `y`. They learn
 **Owed.** Once the panel has both picks, it should read the orientation the snap would write (`crates/viewer/src/session/snap.rs`, `snapped`) and name the two slides the plane leaves (the one an axis mate leaves). It should offer those and grey the third, with its reason.
 
 **Done when** a row picks a wall face, sees the panel offer the two slides across the wall's normal, and sees the fixed one refused at the panel, not at evaluation.
+
+## Rides with the bundle editor (2026-11-01, PLACING orchestrator)
+
+The decision on `mate-tool-commits-one-mate` derives the value rows from the kernel: the panel lists exactly the freedoms the draft's mates leave, with the door's verdict live before Apply. That is this row's "done when", so it closes with that unit.

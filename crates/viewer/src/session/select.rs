@@ -97,6 +97,28 @@ impl EdgeSelection {
     }
 }
 
+/// A picked vertex: the stable name it is, and the node whose body
+/// carried it when it was picked — the edge selection's twin, for the
+/// same reason it is a type of its own: a mate's point reads a vertex,
+/// and nothing that takes a face or an edge does.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VertexSelection {
+    /// The picked vertex's stable name — what survives re-evaluation.
+    pub name: StableName,
+    /// The node whose body was hit.
+    pub node: RecipeNodeId,
+    /// The output body index within that node's value.
+    pub body: u32,
+}
+
+impl VertexSelection {
+    /// **The feature this vertex is**: [`FaceSelection::feature`]'s
+    /// argument, unchanged.
+    pub fn feature(&self) -> RecipeNodeId {
+        crate::tree::feature_of(&self.name)
+    }
+}
+
 /// What the cursor is over — the one transient pick, whichever kind of
 /// entity it landed on.
 ///
@@ -112,6 +134,11 @@ pub enum Hovered {
     /// [`crate::pickindex::EDGE_PICK_RADIUS_PX`] of it, which is what makes
     /// an edge reachable at all where its own face fills the pixel.
     Edge(EdgeSelection),
+    /// A vertex under the cursor — within
+    /// [`crate::pickindex::VERTEX_PICK_RADIUS_PX`] of an end of the edge
+    /// that won it, where the cursor's rule admits vertices
+    /// ([`crate::pickindex::PickKinds::WithVertices`]).
+    Vertex(VertexSelection),
 }
 
 impl Hovered {
@@ -120,6 +147,7 @@ impl Hovered {
         match self {
             Self::Face(face) => &face.name,
             Self::Edge(edge) => &edge.name,
+            Self::Vertex(vertex) => &vertex.name,
         }
     }
 
@@ -128,6 +156,7 @@ impl Hovered {
         match self {
             Self::Face(face) => face.node,
             Self::Edge(edge) => edge.node,
+            Self::Vertex(vertex) => vertex.node,
         }
     }
 
@@ -136,6 +165,7 @@ impl Hovered {
         match self {
             Self::Face(face) => face.feature(),
             Self::Edge(edge) => edge.feature(),
+            Self::Vertex(vertex) => vertex.feature(),
         }
     }
 
@@ -143,7 +173,7 @@ impl Hovered {
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {
             Self::Face(face) => Some(face),
-            Self::Edge(_) => None,
+            Self::Edge(_) | Self::Vertex(_) => None,
         }
     }
 
@@ -151,7 +181,15 @@ impl Hovered {
     pub fn edge(&self) -> Option<&EdgeSelection> {
         match self {
             Self::Edge(edge) => Some(edge),
-            Self::Face(_) => None,
+            Self::Face(_) | Self::Vertex(_) => None,
+        }
+    }
+
+    /// The hovered vertex, when the cursor is over one.
+    pub fn vertex(&self) -> Option<&VertexSelection> {
+        match self {
+            Self::Vertex(vertex) => Some(vertex),
+            Self::Face(_) | Self::Edge(_) => None,
         }
     }
 
@@ -160,6 +198,7 @@ impl Hovered {
         match self {
             Self::Face(face) => Selection::Face(face.clone()),
             Self::Edge(edge) => Selection::Edge(edge.clone()),
+            Self::Vertex(vertex) => Selection::Vertex(vertex.clone()),
         }
     }
 }
@@ -192,6 +231,8 @@ pub enum Selection {
     /// An edge, picked in the viewport — what a blend is authored
     /// against.
     Edge(EdgeSelection),
+    /// A vertex, picked in the viewport — what a mate's point reads.
+    Vertex(VertexSelection),
 }
 
 impl Selection {
@@ -209,6 +250,7 @@ impl Selection {
             Self::Node(id) => Some(*id),
             Self::Face(face) => Some(face.feature()),
             Self::Edge(edge) => Some(edge.feature()),
+            Self::Vertex(vertex) => Some(vertex.feature()),
             Self::None | Self::Variable(_) => None,
         }
     }
@@ -236,6 +278,7 @@ impl Selection {
             Self::Node(id) => Some(*id),
             Self::Face(face) => Some(face.node),
             Self::Edge(edge) => Some(edge.node),
+            Self::Vertex(vertex) => Some(vertex.node),
             Self::None | Self::Variable(_) => None,
         }
     }
@@ -246,6 +289,7 @@ impl Selection {
         match self {
             Self::Face(face) => Some(face.body),
             Self::Edge(edge) => Some(edge.body),
+            Self::Vertex(vertex) => Some(vertex.body),
             Self::None | Self::Node(_) | Self::Variable(_) => None,
         }
     }
@@ -254,7 +298,9 @@ impl Selection {
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {
             Self::Face(face) => Some(face),
-            Self::None | Self::Node(_) | Self::Variable(_) | Self::Edge(_) => None,
+            Self::None | Self::Node(_) | Self::Variable(_) | Self::Edge(_) | Self::Vertex(_) => {
+                None
+            }
         }
     }
 
@@ -262,7 +308,17 @@ impl Selection {
     pub fn edge(&self) -> Option<&EdgeSelection> {
         match self {
             Self::Edge(edge) => Some(edge),
-            Self::None | Self::Node(_) | Self::Variable(_) | Self::Face(_) => None,
+            Self::None | Self::Node(_) | Self::Variable(_) | Self::Face(_) | Self::Vertex(_) => {
+                None
+            }
+        }
+    }
+
+    /// The picked vertex, when the selection is one.
+    pub fn vertex(&self) -> Option<&VertexSelection> {
+        match self {
+            Self::Vertex(vertex) => Some(vertex),
+            Self::None | Self::Node(_) | Self::Variable(_) | Self::Face(_) | Self::Edge(_) => None,
         }
     }
 
@@ -278,6 +334,7 @@ impl Selection {
             Self::Node(id) => vec![*id],
             Self::Face(face) => vec![face.name.node, face.feature(), face.node],
             Self::Edge(edge) => vec![edge.name.node, edge.feature(), edge.node],
+            Self::Vertex(vertex) => vec![vertex.name.node, vertex.feature(), vertex.node],
             Self::None | Self::Variable(_) => Vec::new(),
         }
     }
@@ -289,6 +346,7 @@ impl Selection {
         match self {
             Self::Face(face) => Some(&face.name),
             Self::Edge(edge) => Some(&edge.name),
+            Self::Vertex(vertex) => Some(&vertex.name),
             Self::None | Self::Node(_) | Self::Variable(_) => None,
         }
     }
@@ -360,6 +418,15 @@ pub enum Standing {
         /// to answer against yet.
         resolution: Option<Box<Resolution>>,
     },
+    /// A vertex selection, and the resolution verdict its name got —
+    /// [`Standing::Edge`]'s argument, unchanged.
+    Vertex {
+        /// The selection.
+        vertex: VertexSelection,
+        /// What the shipped resolution machinery answered, read as
+        /// [`Standing::Face`]'s is.
+        resolution: Option<Box<Resolution>>,
+    },
 }
 
 /// **Whether a picked name's verdict still denotes its entity** — the
@@ -388,9 +455,9 @@ impl Standing {
         match self {
             Self::Empty => false,
             Self::Node { present, .. } | Self::Variable { present, .. } => *present,
-            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
-                resolution.as_deref().is_some_and(resolves)
-            }
+            Self::Face { resolution, .. }
+            | Self::Edge { resolution, .. }
+            | Self::Vertex { resolution, .. } => resolution.as_deref().is_some_and(resolves),
         }
     }
 
@@ -438,12 +505,12 @@ impl Standing {
                     Tone::Actionable
                 }
             }
-            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
-                match resolution.as_deref() {
-                    None | Some(Resolution::Resolved(_)) => Tone::Advisory,
-                    Some(Resolution::Failed(_) | Resolution::Indeterminate(_)) => Tone::Actionable,
-                }
-            }
+            Self::Face { resolution, .. }
+            | Self::Edge { resolution, .. }
+            | Self::Vertex { resolution, .. } => match resolution.as_deref() {
+                None | Some(Resolution::Resolved(_)) => Tone::Advisory,
+                Some(Resolution::Failed(_) | Resolution::Indeterminate(_)) => Tone::Actionable,
+            },
         }
     }
 
@@ -454,7 +521,9 @@ impl Standing {
     /// render distinctly, for a face and for an edge alike.
     pub fn unresolved(&self) -> Option<&Resolution> {
         match self {
-            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => resolution
+            Self::Face { resolution, .. }
+            | Self::Edge { resolution, .. }
+            | Self::Vertex { resolution, .. } => resolution
                 .as_deref()
                 .filter(|resolution| !resolves(resolution)),
             Self::Empty | Self::Node { .. } | Self::Variable { .. } => None,
