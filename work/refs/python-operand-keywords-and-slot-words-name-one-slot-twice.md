@@ -5,6 +5,7 @@ title: Python's subtract tool=, place target= and assertion value= set_param und
 status: open
 opened: 2026-11-02
 priority: P3
+cost: M
 ---
 
 Found by the sweep that closed `python-profile-keyword-says-plane-for-a-frame`:

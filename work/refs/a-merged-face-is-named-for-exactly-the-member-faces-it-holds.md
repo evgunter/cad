@@ -6,7 +6,8 @@ status: open
 opened: 2026-11-02
 priority: P1
 cost: H
-design: true
+pr: 6381
+branch: reads/per-face-parent
 ---
 
 Filed by the REFS orchestrator (2026-11-02), from the fork `merged-parent-class-or-per-face` that Ev raised on PR 6342 (fork-log row 243). Both designers converged on **per-face exact**: a result face's name cites exactly the member faces whose area it holds, for the union, the intersect and the subtract. It replaces N2's class reading (PRs 3222 and 3734) and N3's union piece sentence. `design: true` stays until Ev rules on PR 6342.
