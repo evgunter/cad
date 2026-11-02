@@ -371,6 +371,7 @@ mod on_verdict_rows;
 mod onb_seam_class_interval;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
+#[path = "onehome_switch_parity_interval.rs"]
 mod onehome_switch_parity_interval;
 #[path = "rv_payloadrefs_probes.rs"]
 mod rv_payloadrefs_probes;

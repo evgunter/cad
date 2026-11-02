@@ -1763,7 +1763,7 @@ let ValuePayload::Body(body) = &value.payload else {
 // An evaluated value holds the body in its own coordinates; at `f64`
 // it is finished already (`Framed::finished` hands back the same body),
 // which is what the measurement reads.
-let body = (*body.finished(tol).expect("an f64 value holds a finished body")).clone();
+let body = (*body.holding().finished(tol).expect("an f64 value holds a finished body")).clone();
 let props = mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
 assert!((props.volume - expected).abs() < 1e-9);
@@ -1935,7 +1935,7 @@ let volume = |ev: &Evaluation<f64>, node: RecipeNodeId| {
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("a union yields a body");
     };
-    let body = (*body.finished(tol).expect("an f64 value holds a finished body")).clone();
+    let body = (*body.holding().finished(tol).expect("an f64 value holds a finished body")).clone();
     mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6))).expect("mass properties").met().expect("mass properties").volume
 };
 
