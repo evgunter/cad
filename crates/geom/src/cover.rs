@@ -255,11 +255,8 @@ enum Piece<T: Real> {
     /// The solid tube of radius `minor` about the circle of radius
     /// `major` round `axis` through `center`.
     Tube(Tube<T>),
-    /// The convex hull of the points, at least one, widened by `slack`
-    /// along each world coordinate: a point of the region lies within
-    /// `slack` of a hull point in every world coordinate, so along `e`
-    /// the support grows by `slack·‖e‖₁`.
-    Net { points: Vec<Point3<T>>, slack: T },
+    /// The convex hull of the points, at least one.
+    Net(Vec<Point3<T>>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -270,6 +267,24 @@ struct Arc<T: Real> {
     semi_u: T,
     semi_v: T,
     window: ParamWindow<T>,
+}
+
+/// An arc's mean circle as [`Arc::circle_about`] reads it about a point.
+struct Circle<T: Real> {
+    u_hat: Vec3<T>,
+    v_hat: Vec3<T>,
+    rho: T,
+    dev: T,
+    w: Vec3<T>,
+    at: (T, T, T),
+}
+
+impl<T: Real> Circle<T> {
+    /// The distance from the point to the circle's point at `t`.
+    fn end(&self, t: T) -> T {
+        let (s, c) = t.sin_cos();
+        (self.w - (self.u_hat * c + self.v_hat * s) * self.rho).norm()
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -324,11 +339,6 @@ fn finite_point<T: Real>(p: Point3<T>) -> bool {
 
 fn finite_vec<T: Real>(v: Vec3<T>) -> bool {
     finite(&[v.x, v.y, v.z])
-}
-
-/// `‖e‖₁`: what a per-coordinate widening adds along `e`.
-fn l1<T: Real>(e: Vec3<T>) -> T {
-    e.x.abs() + e.y.abs() + e.z.abs()
 }
 
 /// `√λ_max` of the Gram matrix of `x` and `y`: the longest
@@ -560,14 +570,8 @@ impl<T: Real> Cover<T> {
     /// The convex hull of a control net's points. `None` for no point or
     /// a coordinate that is not a finite number.
     pub fn net(points: Vec<Point3<T>>) -> Option<Self> {
-        Self::widened_net(points, T::zero())
-    }
-
-    /// The net's hull widened by `slack` on every coordinate, for the
-    /// readings whose corners are computed.
-    pub(crate) fn widened_net(points: Vec<Point3<T>>, slack: T) -> Option<Self> {
-        (!points.is_empty() && points.iter().all(|&p| finite_point(p)) && finite(&[slack]))
-            .then(|| Self::piece(Piece::Net { points, slack }))
+        (!points.is_empty() && points.iter().all(|&p| finite_point(p)))
+            .then(|| Self::piece(Piece::Net(points)))
     }
 
     /// What lies in both.
@@ -815,20 +819,23 @@ impl<T: Real> Arc<T> {
         hi
     }
 
-    /// **The distance range from a site.** The farthest is the squared
-    /// distance bounded by its harmonics: with `w` the centre from the
-    /// site and `P`, `Q` the semi-axis vectors, all read as the site
-    /// reads them, `|x − site|²` is `|w|² + (|P|² + |Q|²)/2` plus a first
-    /// harmonic `2w·P cos t + 2w·Q sin t` plus a second
+    /// **The distance range from a site.** From a point both ends are
+    /// posed as distances ([`Arc::point_near`], [`Arc::point_far`]): the
+    /// squared form below cancels where the point is near the arc, and
+    /// on a short arc far from its centre.
+    ///
+    /// From a line the squared form stands, since a line's distance to a
+    /// circle is a quartic's root with no closed form to pose it as: with
+    /// `w` the centre from the site and `P`, `Q` the semi-axis vectors,
+    /// all read as the site reads them, `|x − site|²` is
+    /// `|w|² + (|P|² + |Q|²)/2` plus a first harmonic
+    /// `2w·P cos t + 2w·Q sin t` plus a second
     /// `(|P|² − |Q|²)/2·cos 2t + P·Q·sin 2t`, each bounded over the window
     /// by [`ArcWindow`] and their sum by the sum of the bounds.
-    ///
-    /// The nearest from a point is posed as a distance
-    /// ([`Arc::point_near`]): the squared form cancels where the point
-    /// is near the arc. From a line the squared form stands, since a
-    /// line's distance to a circle is a quartic's root with no closed
-    /// form to pose it as.
     fn range(&self, site: &Site<T>) -> (T, T) {
+        if let Site::Point(at) = site {
+            return (self.point_near(*at), self.point_far(*at));
+        }
         let w = site.relative(vec_of(self.center));
         let p = site.direction(self.u_ref * self.semi_u);
         let q = site.direction(self.v_ref * self.semi_v);
@@ -846,24 +853,18 @@ impl<T: Real> Arc<T> {
             p.dot(q),
         );
         let far = (k + one.1 + two_t.1).max(T::zero()).sqrt();
-        let near = match site {
-            Site::Point(at) => self.point_near(*at),
-            Site::Line(_) => (k + one.0 + two_t.0).max(T::zero()).sqrt(),
-        };
+        let near = (k + one.0 + two_t.0).max(T::zero()).sqrt();
         (near, far)
     }
 
-    /// **The nearest distance from `at`, as a distance.** The arc lies
-    /// within `dev` of the circular arc of radius `ρ̄` over the same window
-    /// in the orthonormalized frame `(û, v̂)`: `ρ̄` the mean of the two
-    /// semi-axes as that frame reads them, `dev` the Gram bound of the
-    /// two semi-axis vectors' departures from it (zero for a circle in an
-    /// orthonormal frame, half the axes' difference for an ellipse). The
-    /// circular arc's nearest point is the one in `at`'s azimuth where
-    /// the window holds that azimuth, `√(h² + (ρ_at − |ρ̄|)²)`, and the
-    /// nearer end where it does not; every term is a distance, so none
-    /// cancels near the arc.
-    fn point_near(&self, at: Point3<T>) -> T {
+    /// The circle [`Arc::point_near`] and [`Arc::point_far`] read the arc
+    /// against, and `at` in its frame: the orthonormalized `(û, v̂)`, the
+    /// mean radius `ρ̄` as that frame reads the two semi-axes, the Gram
+    /// bound `dev` of the semi-axis vectors' departures from it (zero for
+    /// a circle in an orthonormal frame, half the axes' difference for an
+    /// ellipse), and `at − centre`'s components `(x, y, h)` along `û`,
+    /// `v̂` and their normal.
+    fn circle_about(&self, at: Point3<T>) -> Circle<T> {
         let half = T::from_f64(0.5);
         let u_len = self.u_ref.norm();
         let u_hat = self.u_ref / u_len;
@@ -874,18 +875,81 @@ impl<T: Real> Arc<T> {
         let dq = self.v_ref * self.semi_v - v_hat * rho;
         let dev = gram_top(dp.dot(dp), dq.dot(dq), dp.dot(dq));
         let w = at - self.center;
-        let (x, y, h) = (w.dot(u_hat), w.dot(v_hat), w.dot(u_hat.cross(v_hat)));
+        Circle {
+            u_hat,
+            v_hat,
+            rho,
+            dev,
+            w,
+            at: (w.dot(u_hat), w.dot(v_hat), w.dot(u_hat.cross(v_hat))),
+        }
+    }
+
+    /// **The nearest distance from `at`, as a distance.** The arc lies
+    /// within `dev` of the circular arc of radius `ρ̄` over the same window
+    /// ([`Arc::circle_about`]). That arc's nearest point is the one in
+    /// `at`'s azimuth where the window holds that azimuth,
+    /// `√(h² + (ρ_at − |ρ̄|)²)`, and the nearer end where it does not;
+    /// every term is a distance, so none cancels near the arc.
+    fn point_near(&self, at: Point3<T>) -> T {
+        let c = self.circle_about(at);
+        let (x, y, h) = c.at;
         let off_axis = (x.powi(2) + y.powi(2)).sqrt();
-        let in_azimuth = (h.powi(2) + (off_axis - rho.abs()).powi(2)).sqrt();
-        let end = |t: T| {
-            let (s, c) = t.sin_cos();
-            (w - (u_hat * c + v_hat * s) * rho).norm()
-        };
-        let ends = end(self.window.lo).min(end(self.window.hi));
+        let in_azimuth = (h.powi(2) + (off_axis - c.rho.abs()).powi(2)).sqrt();
+        let ends = c.end(self.window.lo).min(c.end(self.window.hi));
         let near = ArcWindow::new(self.window.lo, self.window.hi)
-            .crest_outside(rho * x, rho * y)
+            .crest_outside(c.rho * x, c.rho * y)
             .select_le_zero(in_azimuth, ends);
-        (near - dev).max(T::zero())
+        (near - c.dev).max(T::zero())
+    }
+
+    /// **The farthest distance from `at`, as a distance**: the lesser of
+    /// two bounds whose every term is a distance, so neither cancels on a
+    /// short arc read from near it.
+    ///
+    /// - The circular arc of [`Arc::circle_about`], widened by `dev`: its
+    ///   farthest point is the crest opposite `at`'s azimuth where the
+    ///   window holds it, `√(h² + (ρ_at + |ρ̄|)²)`, and the farther end
+    ///   where it does not. Exact for a circle in an orthonormal frame.
+    /// - The arc cut into four pieces of half-width `h ≤ π/4` (the window
+    ///   capped at one turn either way). The arc is an affine image of
+    ///   the unit circle, on which a piece about its middle `m` lies in
+    ///   the rectangle its chord spans out to its crest, so the piece lies
+    ///   in the parallelogram on its ends shifted by its bulge
+    ///   `(1 − cos h)·(x(m) − c)`, and a distance from a point is convex,
+    ///   so it peaks at a corner. Past the arc by at most a piece's bulge.
+    fn point_far(&self, at: Point3<T>) -> T {
+        let c = self.circle_about(at);
+        let (x, y, h) = c.at;
+        let off_axis = (x.powi(2) + y.powi(2)).sqrt();
+        let crest = (h.powi(2) + (off_axis + c.rho.abs()).powi(2)).sqrt();
+        let (lo, hi) = (self.window.lo, self.window.hi);
+        let ends = c.end(lo).max(c.end(hi));
+        let circle = ends.max(
+            ArcWindow::new(lo, hi)
+                .crest_outside(T::zero() - c.rho * x, T::zero() - c.rho * y)
+                .select_le_zero(crest, T::zero()),
+        ) + c.dev;
+        let turn = T::tau();
+        let quarter = ((hi - lo).max(T::zero() - turn).min(turn)) * T::from_f64(0.25);
+        let shift = T::one() - (quarter * T::from_f64(0.5)).abs().cos();
+        let point = |t: T| self.point(t);
+        let pieces = (0..4).fold((point(lo) - at).norm(), |far, k| {
+            let s0 = lo + quarter * T::from_f64(f64::from(k));
+            let s1 = s0 + quarter;
+            let bulge = (point(s0 + quarter * T::from_f64(0.5)) - self.center) * shift;
+            let (x0, x1) = (point(s0), point(s1));
+            [x0 + bulge, x1, x1 + bulge]
+                .into_iter()
+                .fold(far, |far, p| far.max((p - at).norm()))
+        });
+        circle.min(pieces)
+    }
+
+    /// The arc's point at `t`.
+    fn point(&self, t: T) -> Point3<T> {
+        let (s, c) = t.sin_cos();
+        self.center + self.u_ref * (self.semi_u * c) + self.v_ref * (self.semi_v * s)
     }
 
     fn ball(&self, world: (Point3<T>, Point3<T>)) -> Ball<T> {
@@ -899,9 +963,8 @@ impl<T: Real> Arc<T> {
 impl<T: Real> Piece<T> {
     fn support(&self, e: Vec3<T>) -> T {
         match self {
-            Piece::Points(points) => points_support(points, e, T::zero()),
-            Piece::Net { points, slack } => points_support(points, e, T::zero()) + *slack * l1(e),
-            Piece::Segment(ends) => points_support(ends, e, T::zero()),
+            Piece::Points(points) | Piece::Net(points) => points_support(points, e),
+            Piece::Segment(ends) => points_support(ends, e),
             Piece::Arc(arc) => arc.support(e),
             Piece::Slab(slab) => slab.support(e),
             Piece::Frustum(f) => f.support(e),
@@ -916,7 +979,7 @@ impl<T: Real> Piece<T> {
 
     fn distance_range(&self, site: &Site<T>) -> (T, T) {
         match self {
-            Piece::Points(points) => points_range(points, site, T::zero()),
+            Piece::Points(points) => points_range(points, site),
             Piece::Segment([a, b]) => segment_range(*a, *b, site),
             Piece::Arc(arc) => arc.range(site),
             Piece::Slab(slab) => match site {
@@ -940,8 +1003,8 @@ impl<T: Real> Piece<T> {
                 Site::Line(_) => patch.tube.range(site),
             },
             Piece::Tube(tube) => tube.range(site),
-            Piece::Net { points, slack } => {
-                let (_, far) = points_range(points, site, *slack * root3());
+            Piece::Net(points) => {
+                let (_, far) = points_range(points, site);
                 let near = match site {
                     Site::Point(q) => box_range(self.world_box(), *q).0,
                     Site::Line(_) => ball_range(self.ball(), site).0,
@@ -953,9 +1016,8 @@ impl<T: Real> Piece<T> {
 
     fn ball(&self) -> Ball<T> {
         match self {
-            Piece::Points(points) => points_ball(points, T::zero()),
-            Piece::Net { points, slack } => points_ball(points, *slack * root3()),
-            Piece::Segment(ends) => points_ball(ends, T::zero()),
+            Piece::Points(points) | Piece::Net(points) => points_ball(points),
+            Piece::Segment(ends) => points_ball(ends),
             Piece::Arc(arc) => arc.ball(self.world_box()),
             Piece::Slab(slab) => slab.ball(),
             Piece::Frustum(f) => smaller(f.slab().ball(), box_ball(self.world_box())),
@@ -965,32 +1027,25 @@ impl<T: Real> Piece<T> {
     }
 }
 
-/// `√3`: a per-coordinate widening's length.
-fn root3<T: Real>() -> T {
-    T::from_f64(3.0).sqrt()
-}
-
-/// The greatest `p·e` over the points, widened by `slack·|e|`.
-fn points_support<T: Real>(points: &[Point3<T>], e: Vec3<T>, slack: T) -> T {
+/// The greatest `p·e` over the points.
+fn points_support<T: Real>(points: &[Point3<T>], e: Vec3<T>) -> T {
     let best = points[1..]
         .iter()
         .fold(vec_of(points[0]).dot(e), |best, &p| {
             best.max(vec_of(p).dot(e))
         });
-    best + slack * e.norm()
+    best
 }
 
-/// The least and greatest distance of the points from the site, each
-/// widened by `slack`, which is what a net's hull reaches: a
-/// distance from a point or a line is convex, so its greatest over a
+/// The least and greatest distance of the points from the site; the
+/// greatest is also a net's hull's: a distance from a point or a line is convex, so its greatest over a
 /// hull is at a point of it.
-fn points_range<T: Real>(points: &[Point3<T>], site: &Site<T>, slack: T) -> (T, T) {
+fn points_range<T: Real>(points: &[Point3<T>], site: &Site<T>) -> (T, T) {
     let d0 = site.offset(points[0]);
-    let (near, far) = points[1..].iter().fold((d0, d0), |(near, far), &p| {
+    points[1..].iter().fold((d0, d0), |(near, far), &p| {
         let d = site.offset(p);
         (near.min(d), far.max(d))
-    });
-    ((near - slack).max(T::zero()), far + slack)
+    })
 }
 
 /// The segment's range: its farther end, and its nearest point, the
@@ -1008,9 +1063,8 @@ fn segment_range<T: Real>(a: Point3<T>, b: Point3<T>, site: &Site<T>) -> (T, T) 
     ((a_rel + d * s).norm(), a_rel.norm().max(b_rel.norm()))
 }
 
-/// The ball about the points' box centre, out to the farthest, widened
-/// by `slack`.
-fn points_ball<T: Real>(points: &[Point3<T>], slack: T) -> Ball<T> {
+/// The ball about the points' box centre, out to the farthest.
+fn points_ball<T: Real>(points: &[Point3<T>]) -> Ball<T> {
     let (lo, hi) = points[1..]
         .iter()
         .fold((points[0], points[0]), |(lo, hi), &p| {
@@ -1018,5 +1072,5 @@ fn points_ball<T: Real>(points: &[Point3<T>], slack: T) -> Ball<T> {
         });
     let c = lo + (hi - lo) * T::from_f64(0.5);
     let r = points.iter().fold(T::zero(), |r, &p| r.max((p - c).norm()));
-    (c, r + slack)
+    (c, r)
 }

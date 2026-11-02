@@ -1381,3 +1381,43 @@ fn the_nearest_distance_just_off_the_surface_is_the_offset() {
         );
     }
 }
+
+/// **The farthest distance from a point near a short arc of a large
+/// conic is posed as a distance.** A circle and an ellipse of size `1e3`
+/// placed `1e3` from the origin, an arc of `1e-6` rad (about `1e-3` m)
+/// read from a point on it: the farthest is the chord to the far end.
+/// The squared harmonic form reads it as the root of `|w|² + …` with
+/// `|w|² ≈ 1e6`, whose rounding (about `1e-10`) is a relative `1e-4` of
+/// the chord's square, and goes red here; each distance form holds it to
+/// a few ulps of the arc's own size. The interval lane encloses it.
+#[test]
+fn the_farthest_distance_from_a_point_by_a_short_arc_is_the_chord() {
+    let (x, z) = (Vec3::unit_x(), Vec3::unit_z());
+    let c = Point3::new(700.0, -400.0, 500.0);
+    let (t0, t1) = (0.3_f64, 0.3 + 1e-6);
+    let circle = Curve3::Circle(crate::Circle::new(crate::Frame::new(c, z, x), 1e3));
+    let ellipse = Curve3::Ellipse(crate::Ellipse::new(
+        crate::Frame::new(c, z, x),
+        1.3e3,
+        0.9e3,
+    ));
+    for (what, carrier) in [("circle", circle), ("ellipse", ellipse)] {
+        let (a, b) = (carrier.eval(t0), carrier.eval(t1));
+        let chord = (b - a).norm();
+        let f = carrier.cover_over(ParamWindow::new(t0, t1)).unwrap();
+        let (_, far) = f.distance_range(&Site::Point(a));
+        assert!(
+            far >= chord * (1.0 - 1e-9) && far <= chord * (1.0 + 1e-6),
+            "{what}: the f64 farthest {far:e} against the chord {chord:e}"
+        );
+        let i = carrier
+            .map_scalar(iv)
+            .cover_over(ParamWindow::new(iv(t0), iv(t1)))
+            .unwrap();
+        let (_, far) = i.distance_range(&Site::Point(ipt(a)));
+        assert!(
+            far.hi() >= chord,
+            "{what}: the interval farthest {far:?} against the chord {chord:e}"
+        );
+    }
+}

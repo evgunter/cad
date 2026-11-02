@@ -58,8 +58,8 @@ impl<T: Real> Curve3<T> {
     /// **The region the curve occupies over `window`**: a line's segment
     /// between its points at the two ends, a circle's or an ellipse's arc
     /// over the span, a spiric's tube met with its period's rectangle
-    /// (the construction [`crate::spiric_period_box`] reads), a spline's
-    /// control net.
+    /// (the period's whole range of `f` and of the axial channel), a
+    /// spline's control net.
     ///
     /// # Errors
     ///
@@ -102,10 +102,8 @@ impl<T: Real> Curve3<T> {
                     *center,
                     *axis,
                     *u_ref,
-                    *minor_radius,
+                    (*major_radius, *minor_radius),
                     *offset,
-                    crate::spiric_f_range(*major_radius, *minor_radius, *offset),
-                    T::zero(),
                 );
                 tube.zip(rectangle)
                     .map(|(tube, rectangle)| tube.meet(rectangle))

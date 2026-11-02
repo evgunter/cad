@@ -940,114 +940,43 @@ impl<T: Real> Curve3<T> {
 
 /// The range of a spiric's `f = √(ρ² − offset²)` over one period, as
 /// `(f_min, f_max)` at `ρ = R ∓ r` — `f` is monotone in `ρ` and
-/// `ρ ∈ [R − r, R + r]`. The plain roots of [`spiric_radicands`]
-/// (`topo`'s chord join, `geom-brep`'s pcurve cache); the enclosing
-/// reading is [`spiric_period_box`]'s. Off-regime data (`ρ_min² <
-/// offset²`) yields poison in `f_min`, as every evaluator does.
+/// `ρ ∈ [R − r, R + r]`. The plain roots of [`spiric_radicands`], read
+/// by `topo`'s chord join, `geom-brep`'s pcurve cache and the spiric's
+/// cover (`Curve3::cover_over`). Off-regime data (`ρ_min² < offset²`)
+/// yields poison in `f_min`, as every evaluator does.
 pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
     let (inner, outer) = spiric_radicands(major, minor, offset);
     (inner.sqrt(), outer.sqrt())
 }
 
 /// `(ρ_min² − offset², ρ_max² − offset²)` at `ρ = R ∓ r`: the two
-/// radicands whose roots bound a spiric's `f` over a period — the one
-/// spelling [`spiric_f_range`] and [`spiric_period_box`] read.
+/// radicands whose roots bound a spiric's `f` over a period. Each is
+/// posed as the product `(ρ − |d|)·(ρ + |d|)`, never as a difference of
+/// squares: near the fold (`ρ_min` close to `|d|`) the squares cancel
+/// and their rounding at the scale `ρ² + d²` swamps the radicand, while
+/// the factor `ρ − |d|` carries only the rounding of `ρ` itself.
 fn spiric_radicands<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
-    let d2 = offset.powi(2);
-    ((major - minor).powi(2) - d2, (major + minor).powi(2) - d2)
+    let d = offset.abs();
+    let at = |rho: T| (rho - d) * (rho + d);
+    (at(major - minor), at(major + minor))
 }
 
-/// **A spiric's whole-period box, enclosing at every scalar**, as its
-/// low and high corners. Per coordinate `e`:
-/// `(c + n·d)_e + m_e·[f_min, f_max] ± |a_e|·r`, with `n = u_ref`,
-/// `m = axis × u_ref` and `a = axis` — `f` ranges over
-/// [`spiric_f_range`]'s two numbers in a period and the `sin v` channel
-/// over its whole range. It is the world box of [`spiric_rectangle`],
-/// the one construction, which the spiric's cover reads too:
-/// `curves::boxes`' `spiric_arc_aabb` runs it in its scalar's own
-/// arithmetic and brackets the result, and `topo`'s two box lanes run it
-/// at their scalars on the description's components along their frame's
-/// rows, so its box is the box in that frame.
-///
-/// **It encloses by itself, because a reader's pad cannot.** `f_min` is
-/// the root of a cancelling difference: a radicand rounded by `u·W` at
-/// its scale `W` moves its root by about `u·W / (2·f_min)`, which near
-/// the fold (`R − r − |d|` a few `escalate`) is far above any pad. So
-/// the construction charges for it, `u = ε/2` throughout:
-///
-/// - **The radicands** are computed as [`spiric_radicands`] states:
-///   `fl(R ∓ r)` is rounded relative to `R ∓ r` itself, then squared,
-///   less a rounded `d²`, each step rounded once, so each radicand's
-///   error is under `4.1·u·W` at its OWN scale
-///   `W = (R ∓ r)² + d²`. Each is widened by `8·u·W` before its root,
-///   which covers that error and the widening's own rounding; charging
-///   the inner one at the outer one's scale would over-widen a fat
-///   torus's `f_min` a hundredfold. A widened inner radicand whose span
-///   reaches below zero roots at zero (`f ≥ 0` — the arc's least `f` is
-///   not below it); one whose UPPER end is below zero is poison at both
-///   ends of `f` (the clamp is `min(max(lo, 0), hi)`, which needs no
-///   comparison), as off-regime data, which the deciding door refuses,
-///   is everywhere else.
-/// - **The coordinates** carry a few roundings each, every one at most
-///   `u` of a term whose magnitude the scale
-///   `S = ‖c‖₁ + ‖n‖₁·|d| + ‖a‖₁·‖n‖₁·f_max + ‖a‖₁·|r|` bounds: the
-///   derivation gives under `10·u·S`, and as much again for inputs
-///   carried a few ulps off the data they stand for (a point or
-///   direction turned into a frame's rows). Each end is moved out by
-///   `32·u·S`. Measured over 11k admitted spirics (world and aimed
-///   frames, `f64` and `Interval`, the bracket door) the error reached
-///   `3·u·S`, so the charge's margin over what was seen is `29·u·S`.
-///
-/// The box is wider than the exact one by at most `48·u·S` per end (the
-/// charge and the arithmetic it covers), and on the `m` channel by
-/// `‖a‖₁·‖n‖₁` times the radicands' widening at the root:
-/// `f_min − √(max(f_min² − 16·u·W_min, 0))` below and
-/// `√(f_max² + 16·u·W_max) − f_max` above. An `Interval` scalar's own
-/// enclosure is kept, and the charges only widen it; off-regime or
-/// poisoned data gives NaN ends.
-pub fn spiric_period_box<T: Real>(
-    center: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
-    major: T,
-    minor: T,
-    offset: T,
-) -> (Point3<T>, Point3<T>) {
-    let (f_lo, f_hi) = spiric_f_enclosed(major, minor, offset);
-    let norm1 = |v: Vec3<T>| v.x.abs() + v.y.abs() + v.z.abs();
-    let (na, nn) = (norm1(axis), norm1(u_ref));
-    let scale = norm1(Vec3::new(center.x, center.y, center.z))
-        + nn * offset.abs()
-        + na * nn * f_hi
-        + na * minor.abs();
-    let charge = scale * T::from_f64(16.0 * f64::EPSILON);
-    match spiric_rectangle(center, axis, u_ref, minor, offset, (f_lo, f_hi), charge) {
-        Some(rectangle) => rectangle.box_in(&crate::cover::Frame::World),
-        None => {
-            let poison = (T::zero() - T::one()).sqrt();
-            let p = Point3::new(poison, poison, poison);
-            (p, p)
-        }
-    }
-}
-
-/// **The spiric's period rectangle as a cover**, the one construction
-/// [`spiric_period_box`] and `Curve3::cover_over`'s spiric arm read:
-/// the four corners `c + n·d + m·f ± a·r` at the two ends of `f`'s
-/// range, widened on every coordinate by `slack`. The cover reads
-/// [`spiric_f_range`] with no slack (`[simple.conditioned]`); the box
-/// reads [`spiric_f_enclosed`] and its charge, which its callers in
-/// `topo` keep until their edge doors read the cover. `None` where a
-/// corner is not a finite number (off-regime data roots at poison).
+/// **The spiric's period rectangle as a cover**, the construction
+/// `Curve3::cover_over`'s spiric arm meets with its tube: the convex
+/// hull of the four corners `c + n·d + m·f ± a·r` at the two ends of
+/// `f`'s range ([`spiric_f_range`]), `n = u_ref`, `m = axis × u_ref`,
+/// `a = axis`. `f` ranges between those ends over a period and the
+/// `sin v` channel over its whole range, so the oval lies in it. `None`
+/// where a corner is not a finite number (off-regime data roots at
+/// poison).
 pub(crate) fn spiric_rectangle<T: Real>(
     center: Point3<T>,
     axis: Vec3<T>,
     u_ref: Vec3<T>,
-    minor: T,
+    (major, minor): (T, T),
     offset: T,
-    (f_lo, f_hi): (T, T),
-    slack: T,
 ) -> Option<crate::cover::Cover<T>> {
+    let (f_lo, f_hi) = spiric_f_range(major, minor, offset);
     let m = axis.cross(u_ref);
     let base = center + u_ref * offset;
     // The corners come in `±tip` pairs, so `r`'s sign names the same set.
@@ -1058,22 +987,7 @@ pub(crate) fn spiric_rectangle<T: Real>(
         base + m * f_hi + tip,
         base + m * f_hi - tip,
     ];
-    crate::cover::Cover::widened_net(corners, slack)
-}
-
-/// [`spiric_period_box`]'s `[f_min, f_max]`, each radicand widened by
-/// its own charge before its root (that function's docs carry the
-/// derivation), so it holds the oval's `f` over a period at every
-/// scalar. The cover's spiric rectangle reads the same two numbers.
-pub(crate) fn spiric_f_enclosed<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
-    let charge_at = |rho: T| (rho.powi(2) + offset.powi(2)) * T::from_f64(4.0 * f64::EPSILON);
-    let (slack_in, slack_out) = (charge_at(major - minor), charge_at(major + minor));
-    let (inner, outer) = spiric_radicands(major, minor, offset);
-    let f_lo = (inner - slack_in)
-        .max(T::zero())
-        .min(inner + slack_in)
-        .sqrt();
-    (f_lo, (outer + slack_out).sqrt())
+    crate::cover::Cover::net(corners)
 }
 
 /// **Bounds on a spiric's speed and acceleration over a stretch of the
@@ -2349,44 +2263,28 @@ mod tests {
         }
     }
 
-    /// **`spiric_period_box`'s inner root has two arms, and each is
-    /// pinned.** A torus `R = 100, r = 1` cut at `d` against its inner
-    /// equator `ρ_min = 99`:
-    ///
-    /// - `d = 99 − 1e-14`: the inner radicand (about `2e-12`) lies
-    ///   inside its charge (`8·u·W ≈ 1.7e-11`), so its widened span
-    ///   reaches below zero and the root clamps at zero: the box's `y`
-    ///   (the `m = ẑ × x̂ = ŷ` channel) starts at zero less the coordinate
-    ///   charge, finite. A plain root of the widened radicand is poison.
-    /// - `d = 99.001`: the radicand's whole widened span is below zero
-    ///   (off-regime data), so the root is poison and so is every end
-    ///   the `m` channel reaches, `y` included. A clamp at zero with no
-    ///   upper end to answer to would return a finite box.
+    /// **The inner radicand is posed as a product, not a difference of
+    /// squares.** A torus `R = 100, r = 1` cut at `d = 99 − 1e-10`, just
+    /// inside its inner equator `ρ_min = 99`: `99 − d` is exact (Sterbenz),
+    /// so the true radicand is `(99 − d)·(99 + d)` to two roundings, about
+    /// `2e-8`. Spelled `99² − d²` it is off by the rounding of `d²` at
+    /// `≈ 9801`, about `1e-12`, a relative error near `5e-5`, which the
+    /// root halves but does not remove.
     #[test]
-    fn the_spiric_period_boxs_inner_root_clamps_in_its_charge_and_poisons_past_it() {
-        let boxed = |d: f64| {
-            super::spiric_period_box(
-                Point3::origin(),
-                Vec3::unit_z(),
-                Vec3::unit_x(),
-                100.0,
-                1.0,
-                d,
-            )
-        };
-        let (lo, hi) = boxed(99.0 - 1e-14);
+    fn the_inner_radicand_keeps_its_digits_at_the_fold() {
+        let d = 99.0 - 1e-10;
+        let gap = 99.0 - d;
+        let want = (gap * (99.0 + d)).sqrt();
+        let (f_min, _) = super::spiric_f_range(100.0, 1.0, d);
         assert!(
-            lo.y.is_finite() && lo.y <= 0.0 && lo.y > -1e-11 && hi.y.is_finite(),
-            "a radicand inside its charge roots at zero: y ∈ [{}, {}]",
-            lo.y,
-            hi.y
+            (f_min - want).abs() <= 4.0 * f64::EPSILON * want,
+            "f_min {f_min:e} vs the product form's {want:e}: relative {:e}",
+            (f_min - want).abs() / want
         );
-        let (lo, hi) = boxed(99.001);
+        let squares = (99.0_f64.powi(2) - d.powi(2)).sqrt();
         assert!(
-            lo.y.is_nan() && hi.y.is_nan(),
-            "a radicand wholly below zero is poison: y ∈ [{}, {}]",
-            lo.y,
-            hi.y
+            (squares - want).abs() > 1e3 * f64::EPSILON * want,
+            "the fixture no longer separates the two forms: {squares:e} vs {want:e}"
         );
     }
 

@@ -3,8 +3,7 @@
 //! the carrier's true locus over the stated span lies inside it — and
 //! every computation here errs outward only: by the certified
 //! [`Interval`] arithmetic the conic doors run in, or, for the spiric,
-//! by the charge [`crate::spiric_period_box`] states for its own
-//! arithmetic.
+//! by its scalar's own arithmetic on its cover.
 //!
 //! **Outward is the only sound direction; it is not a free one.** A
 //! wider box is a weaker answer, not a cheaper one: a consumer that
@@ -297,15 +296,15 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     Some(conic_frame_aabb(conic, theta0, theta1, end0, end1))
 }
 
-/// The certified-conservative box of a SPIRIC arc — the whole
-/// period's ([`crate::spiric_period_box`], the one construction, which
-/// charges for its own rounding), run in `T`'s own arithmetic, its two
-/// corners then bracketed, and seeded with the endpoint hull exactly as
-/// [`ellipse_arc_aabb`] is. A
-/// C10 superset: the exact per-axis extremes need a transcendental root
-/// and are not owed; a wider box is a weaker answer, never a wrong one.
-/// Off-regime data (`ρ_min² < d²` beyond the construction's charge) is
-/// poison, and poison flows to the poison box.
+/// The box of a SPIRIC arc: the bracketed world box of its cover
+/// ([`Curve3::cover_over`], the tube met with the period's rectangle,
+/// whatever the span), run in `T`'s own arithmetic, so an enclosure at
+/// `Interval` and the real-number box at `f64`
+/// (`[simple.conditioned]`), and hulled with the endpoints exactly as
+/// [`ellipse_arc_aabb`] is. A C10 superset: the exact per-axis extremes
+/// need a transcendental root and are not owed; a wider box is a weaker
+/// answer, never a wrong one. Off-regime data (`ρ_min² < d²`) has no
+/// cover, and gives the poison box.
 ///
 /// `None` when `carrier` is not a `Spiric` (wrong lane — refuse loudly
 /// rather than guess). Residual padding stays the caller's
@@ -315,27 +314,14 @@ pub fn spiric_arc_aabb<T: Bounds>(
     end0: Point3<T>,
     end1: Point3<T>,
 ) -> Option<Aabb> {
-    let Curve3::Spiric {
-        center,
-        axis,
-        u_ref,
-        major_radius,
-        minor_radius,
-        offset,
-    } = carrier
-    else {
+    let Curve3::Spiric { .. } = carrier else {
         return None;
     };
-    let (lo, hi) = crate::spiric_period_box(
-        *center,
-        *axis,
-        *u_ref,
-        *major_radius,
-        *minor_radius,
-        *offset,
-    );
+    let window = crate::cover::ParamWindow::new(T::zero(), T::zero());
+    let period = carrier
+        .cover_over(window)
+        .map_or_else(|_| Aabb::poison(), |cover| cover.aabb(0.0));
     let ends = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
-    let period = Aabb::from_points([lo, hi]).unwrap_or_else(Aabb::poison);
     Some(ends.hull(&period))
 }
 
