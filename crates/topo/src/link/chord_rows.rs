@@ -366,3 +366,27 @@ fn the_chord_is_the_half_plane_through_the_arcs_point() {
     );
     assert!((chord.sector.face.clear.unwrap() - 0.5).abs() < 1e-12, "the ball");
 }
+
+/// **The lever stays inside the section's circle.** A cylinder of radius
+/// `0.1` whose other edges stand `10` off: the arc's point is read at
+/// half the radius, not half the clearance, which no circle of that
+/// radius reaches; the wedge from `60°` to `120°` rests. Red if the
+/// lever outruns the circle (its point unread, the edge in band).
+#[test]
+fn the_lever_stays_inside_the_sections_circle() {
+    for p in AT {
+        assert!(
+            rests(&judged(
+                p,
+                (FRAC_PI_3, 2.0 * FRAC_PI_3),
+                Carrier::Cylinder,
+                true,
+                0.1,
+                v(0.0, 1.0, 0.0),
+                10.0,
+                [p - Z * 20.0, p + Z * 20.0]
+            )),
+            "at {p:?}"
+        );
+    }
+}
