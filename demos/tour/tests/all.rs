@@ -22,6 +22,8 @@ mod chaintol;
 mod eps_regression;
 #[path = "gallery.rs"]
 mod gallery;
+#[path = "r1_impeller_probe.rs"]
+mod r1_impeller_probe;
 #[path = "heatsink.rs"]
 mod heatsink;
 #[path = "k_probe_brackets.rs"]
