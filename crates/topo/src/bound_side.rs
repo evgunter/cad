@@ -852,3 +852,277 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_probes {
+    //! R2's probes (PR 6253 review): a bound leaving each face kind to a
+    //! side known in closed form, read through `FaceBend::at` on the real
+    //! carrier.
+    use super::*;
+    use geom_brep::ConicBend;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+    fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
+        Vec3::new(x, y, z)
+    }
+    fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
+        Point3::new(x, y, z)
+    }
+    fn line(p: Point3<f64>, t: Vec3<f64>, l: f64) -> (Vec3<f64>, Reach<f64>) {
+        (
+            t * l,
+            Reach::Chord {
+                base: p,
+                far: p + t * l,
+            },
+        )
+    }
+    /// An arc of `radius` leaving `p` along unit `t`, its centre toward
+    /// unit `c` (square to `t`), over `span` radians.
+    fn arc(
+        p: Point3<f64>,
+        t: Vec3<f64>,
+        c: Vec3<f64>,
+        radius: f64,
+        span: f64,
+    ) -> (Vec3<f64>, Reach<f64>) {
+        let u_ref = -c;
+        let carrier = geom::Curve3::Circle {
+            center: p + c * radius,
+            axis: u_ref.cross(t),
+            radius,
+            u_ref,
+        };
+        let chord = 2.0 * radius * (span / 2.0).sin();
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, chord);
+        let tangent = carrier.deriv(0.0);
+        assert!(
+            (tangent.normalize() - t).norm() < 1e-12,
+            "{tangent:?} vs {t:?}"
+        );
+        let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
+        (tangent.normalize() * extent, Reach::Conic { extent, bend })
+    }
+    fn side(
+        surface: &geom::Surface<f64>,
+        p: Point3<f64>,
+        outward: Vec3<f64>,
+        (d, r): (Vec3<f64>, Reach<f64>),
+    ) -> BoundSide {
+        let face = FaceDatum::of_face(
+            OutwardNormal::from_chart(outward, true),
+            FaceBend::at(surface, p),
+            f64::MAX,
+        );
+        read_side(d, r, face, band()).unwrap()
+    }
+    const A: BoundSide = BoundSide::Leaves(Side::Above);
+    const B: BoundSide = BoundSide::Leaves(Side::Below);
+
+    #[test]
+    fn r2_every_face_kind_reads_the_closed_form_side() {
+        let q = core::f64::consts::FRAC_PI_4;
+        let (x, y, z) = (v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0));
+        // Plane z = 0, material below.
+        let plane = geom::Surface::Plane {
+            origin: pt(0.0, 0.0, 0.0),
+            normal: z,
+            u_ref: x,
+        };
+        let o = pt(0.0, 0.0, 0.0);
+        assert_eq!(side(&plane, o, z, line(o, x, 1.0)), BoundSide::Rides);
+        assert_eq!(side(&plane, o, z, arc(o, x, z, 1.0, q)), A);
+        assert_eq!(side(&plane, o, z, arc(o, x, -z, 1.0, q)), B);
+        // Cylinder r = 1 about z; p on +x.
+        let cyl = geom::Surface::Cylinder {
+            origin: o,
+            axis: z,
+            radius: 1.0,
+            u_ref: x,
+        };
+        let p = pt(1.0, 0.0, 0.0);
+        for (outward, along_y, arc_wide, arc_tight) in [(x, A, A, B), (-x, B, B, A)] {
+            assert_eq!(
+                side(&cyl, p, outward, line(p, y, 0.5)),
+                along_y,
+                "cyl line ⟂ axis {outward:?}"
+            );
+            assert_eq!(
+                side(&cyl, p, outward, line(p, z, 0.5)),
+                BoundSide::Rides,
+                "cyl ruling"
+            );
+            assert_eq!(
+                side(&cyl, p, outward, arc(p, y, -x, 2.0, q)),
+                arc_wide,
+                "cyl wide arc {outward:?}"
+            );
+            assert_eq!(
+                side(&cyl, p, outward, arc(p, y, -x, 0.5, q)),
+                arc_tight,
+                "cyl tight arc {outward:?}"
+            );
+            assert_eq!(
+                side(&cyl, p, outward, arc(p, y, -x, 1.0, q)),
+                BoundSide::Rides,
+                "cyl own circle"
+            );
+        }
+        // Sphere r = 1 at origin; p on +z.
+        let sph = geom::Surface::Sphere {
+            center: o,
+            radius: 1.0,
+            axis: z,
+            u_ref: x,
+        };
+        let p = pt(0.0, 0.0, 1.0);
+        assert_eq!(side(&sph, p, z, line(p, x, 0.3)), A);
+        assert_eq!(side(&sph, p, -z, line(p, x, 0.3)), B);
+        assert_eq!(side(&sph, p, z, arc(p, x, -z, 0.5, q)), B);
+        assert_eq!(side(&sph, p, z, arc(p, x, -z, 3.0, q)), A);
+        assert_eq!(side(&sph, p, z, arc(p, y, -z, 1.0, q)), BoundSide::Rides);
+        // Cone apex origin, axis z, 45°: p = (1, 0, 1), solid cone outward (1,0,-1)/√2.
+        let cone = geom::Surface::Cone {
+            apex: o,
+            axis: z,
+            half_angle: q,
+            u_ref: x,
+        };
+        let p = pt(1.0, 0.0, 1.0);
+        let n = v(1.0, 0.0, -1.0).normalize();
+        assert_eq!(
+            side(&cone, p, n, line(p, y, 0.3)),
+            A,
+            "cone line along the circle's tangent"
+        );
+        assert_eq!(side(&cone, p, -n, line(p, y, 0.3)), B, "cone hollow");
+        assert_eq!(
+            side(&cone, p, n, line(p, v(1.0, 0.0, 1.0).normalize(), 0.3)),
+            BoundSide::Rides,
+            "cone ruling"
+        );
+        // The cone's parallel circle at p: radius 1 about the axis. A
+        // tighter arc in the same plane (radius 0.5) bends into the solid.
+        assert_eq!(
+            side(&cone, p, n, arc(p, y, -x, 0.5, q)),
+            B,
+            "cone tight arc"
+        );
+        assert_eq!(
+            side(&cone, p, n, arc(p, y, -x, 1.0, q)),
+            BoundSide::Rides,
+            "the cone's own parallel (Meusnier)"
+        );
+        assert_eq!(side(&cone, p, n, arc(p, y, -x, 2.0, q)), A, "cone wide arc");
+        // Torus R = 2, r = 1, axis z.
+        let tor = geom::Surface::Torus {
+            center: o,
+            axis: z,
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            u_ref: x,
+        };
+        let p = pt(3.0, 0.0, 0.0);
+        assert_eq!(
+            side(&tor, p, x, line(p, y, 0.3)),
+            A,
+            "torus outer, along the parallel"
+        );
+        assert_eq!(
+            side(&tor, p, x, line(p, z, 0.3)),
+            A,
+            "torus outer, along the meridian"
+        );
+        assert_eq!(
+            side(&tor, p, x, arc(p, z, -x, 1.0, q)),
+            BoundSide::Rides,
+            "torus outer meridian circle"
+        );
+        assert_eq!(
+            side(&tor, p, x, arc(p, z, -x, 0.5, q)),
+            B,
+            "torus outer, tighter than the meridian"
+        );
+        let p = pt(1.0, 0.0, 0.0);
+        assert_eq!(
+            side(&tor, p, -x, line(p, y, 0.3)),
+            B,
+            "torus inner, along the parallel"
+        );
+        assert_eq!(
+            side(&tor, p, -x, line(p, z, 0.3)),
+            A,
+            "torus inner, along the meridian"
+        );
+        assert_eq!(
+            side(&tor, p, -x, arc(p, z, x, 1.0, q)),
+            BoundSide::Rides,
+            "torus inner meridian circle"
+        );
+        // Bisector: own face the unit sphere at (0,0,1) (outward +z),
+        // partner the plane z = 1 (outward +z): the bisector along x bends
+        // down, below the plane.
+        let p = pt(0.0, 0.0, 1.0);
+        let face = FaceDatum::of_plane(geom_brep::ReferenceNormal::of_face_outward(
+            OutwardNormal::from_chart(z, true),
+        ));
+        let bis = Reach::bisector(0.5, x, z, FaceBend::at(&sph, p));
+        let FirstOrder::Tied(tie) = read(x, bis, face, band()).unwrap() else {
+            panic!()
+        };
+        assert_eq!(
+            tie.descend(band()).unwrap(),
+            B,
+            "bisector of a ball's sector under its tangent plane"
+        );
+        // Hollow sphere as own face (outward −z): its bisector bends ... the
+        // surface is the same, so it still bends down: below.
+        let bis = Reach::bisector(0.5, x, -z, FaceBend::at(&sph, p));
+        let FirstOrder::Tied(tie) = read(x, bis, face, band()).unwrap() else {
+            panic!()
+        };
+        assert_eq!(
+            tie.descend(band()).unwrap(),
+            B,
+            "bisector of a hollow's sector: the same surface bends down"
+        );
+    }
+
+    /// A poison face bend (a NaN Hessian, as `implicit_hessian_form`
+    /// gives on a cone's or torus's axis) is not the ruling's "gap":
+    /// what does the descent read?
+    #[test]
+    fn r2_a_poison_parting_reads() {
+        let z = v(0.0, 0.0, 1.0);
+        let nan = f64::NAN;
+        let bend = FaceBend::Implicit {
+            gradient: z,
+            hessian: Mat3::from_cols(v(nan, 0.0, 0.0), v(0.0, nan, 0.0), v(0.0, 0.0, nan)),
+        };
+        let o = pt(0.0, 0.0, 0.0);
+        let face = FaceDatum::of_face(OutwardNormal::from_chart(z, true), bend, f64::MAX);
+        let (d, r) = line(o, v(1.0, 0.0, 0.0), 1.0);
+        let FirstOrder::Tied(tie) = read(d, r, face, band()).unwrap() else {
+            panic!()
+        };
+        let got = tie.descend(band());
+        eprintln!("R2 poison parting: {got:?}");
+        assert_eq!(
+            got.unwrap(),
+            BoundSide::Unresolved,
+            "poison reads as the gap arm"
+        );
+        // A cone's apex, through FaceBend::at.
+        let cone = geom::Surface::Cone {
+            apex: o,
+            axis: z,
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: v(1.0, 0.0, 0.0),
+        };
+        eprintln!("R2 cone apex bend: {:?}", FaceBend::at(&cone, o));
+    }
+}
