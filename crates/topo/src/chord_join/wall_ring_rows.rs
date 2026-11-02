@@ -794,7 +794,9 @@ fn a_carried_ruling_chord_runs_back_where_it_leaves_back() {
 /// over `[4, 0.5 + τ]`, the end's foot read in the seat's turn, not at
 /// 0.5; from 0.5 back to 4 it is the circle run back over
 /// `[−0.5 − τ, −4]`; from angle 1 back to 0.6, the circle run back over
-/// `[−1 − τ, −0.6 − τ]`.
+/// `[−1 − τ, −0.6 − τ]`; and from angle 2.5, just before the seat,
+/// whose foot the carrier reads at 2.5 and the turn at `2.5 + τ`, back to
+/// 1, over `[−2.5 − τ, −1 − τ]`.
 #[test]
 fn a_carried_circle_chord_runs_back_where_it_leaves_back() {
     use core::f64::consts::TAU;
@@ -829,6 +831,12 @@ fn a_carried_circle_chord_runs_back_where_it_leaves_back() {
             (1.0, 0.6),
             -tangent(1.0),
             (-1.0 - TAU, -0.6 - TAU),
+        ),
+        (
+            "back from just before the seat",
+            (2.5, 1.0),
+            -tangent(2.5),
+            (-2.5 - TAU, -1.0 - TAU),
         ),
     ] {
         let comp = closed_form(

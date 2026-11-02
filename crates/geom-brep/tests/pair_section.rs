@@ -920,3 +920,29 @@ fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
     // sites read at every ε when it landed.
     assert!(read >= 2500, "{read} sites read, {refused} refusals");
 }
+
+/// **A closed form is seated by its span**: each of the coaxial pose's
+/// circles, seated at any angle, is its own carrier over that angle to
+/// a turn on, with no lane asked for and no certificate. Its seat point
+/// is the circle's point at that angle, so a chord cut from it starts
+/// there.
+#[test]
+fn a_closed_form_is_seated_by_its_span() {
+    let (cyl, sph) = (cylinder(1.0), sphere(0.0, 2.0));
+    let section = built(&cyl, &sph);
+    let carried = section.carry(None, band()).expect("closed forms carry");
+    for c in carried.components() {
+        let (lo, hi) = c.span;
+        assert!(c.closed() && c.certificate.is_none(), "a closed form");
+        for at in [lo, lo + 1.0, lo + 3.0, lo - 2.5, hi + 0.5] {
+            let seated = section
+                .seat(None, c, at, band())
+                .unwrap_or_else(|e| panic!("seat {at}: {e:?}"));
+            assert_eq!(seated.span, (at, at + (hi - lo)), "seated at {at}");
+            assert!(
+                (seated.carrier.eval(at) - c.carrier.eval(at)).norm() == 0.0,
+                "seat {at}: the carrier is as it was"
+            );
+        }
+    }
+}
