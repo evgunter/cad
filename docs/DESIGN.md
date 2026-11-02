@@ -252,7 +252,7 @@ of them is a defect.
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one constructor of a finished body, which types its own refusal; doors take and return finished bodies, and none re-gates | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one constructor of a finished body; doors take and return finished bodies, and none re-gates | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -812,11 +812,14 @@ tiers".
   `Interval` and `Sym` the stored brackets carry the family instead.
   It passes both once, at the door that
   built it; construction state becomes a finished body only through
-  that gate. The gate types its refusal (`AtRestRefusal`: every
-  finding a shell-role reading in band, escalated on the binding one
-  with its lever, or the kernel's findings, carried), and a door
-  varies only the subject it names (import names the file,
-  [tolerance.recourse]). A door that returns a body returns the
+  that gate, whose refusal has two arms. **In band**: every finding
+  is a reading inside the band (an aimed ray meets two faces closer
+  than K·ε, so the shell's side cannot be told), and the refusal is
+  the binding reading's decision with its margin, recourse a smaller
+  tolerance or moved geometry. **Kernel**: any other finding (a
+  volume whose enclosure holds zero, a broken face, a limit), every
+  finding carried with its own ending. A door names only its subject
+  (import names the file, [tolerance.recourse]). A door that returns a body returns the
   scalar's finished type, named in its at-rest policy, and the
   evaluator keeps it with the value, so no consumer gates an operand.
   At a scalar without certification rights the finished type is a
