@@ -4577,7 +4577,7 @@ impl DocSession {
                 Operand::Var(target),
                 constraints,
             ))?;
-            Ok((placement, None))
+            Ok(Wrote::one(placement))
         }))
     }
 
