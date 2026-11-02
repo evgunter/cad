@@ -274,6 +274,11 @@ mod test_support_fixtures;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 mod test_support_meeting;
+// The n-ary union's holdings read back for a row, and the rejoin
+// oracle, shared with sweep's rows over curved members.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_holdings;
 // One `ValidationError` of every arm, for the rows that render them —
 // this crate's Display-coverage row and a downstream refusal-budget
 // row — so it sits behind the same door, on the same gate.
@@ -622,6 +627,12 @@ pub mod test_support {
             })
             .collect()
     }
+    /// The n-ary union's holdings read back for a row
+    /// ([`crate::test_support_holdings`]).
+    pub mod holdings {
+        pub use crate::test_support_holdings::{Table, rejoin_oracle, union_in};
+    }
+
     /// Holes meeting at one vertex of a plate's top
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {

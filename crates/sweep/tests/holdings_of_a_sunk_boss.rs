@@ -1,19 +1,20 @@
 //! **A union's holdings over a curved run only several members open**:
 //! a plate, a boss sunk through its top whose wall is two half-cylinders,
-//! and a bar over the boss. The bar cuts the wall the plate leaves into
-//! two pieces, each holding area of both half-cylinders, which no fold
-//! step glued by itself (`topo::Holdings`, `topo::overlap`).
+//! and bars over the boss. A bar across the boss cuts the wall the plate
+//! leaves into pieces, each holding area of both half-cylinders, which
+//! no fold step glued by itself; a second bar over both seams cuts each
+//! piece again, so each holds one half-cylinder (`topo::Holdings`,
+//! `topo::overlap`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use geom_core::{Point2, Tol};
 use sweep::test_support::{brick, cylinder_of_arcs_at, finished};
-use topo::{
-    AtRestBody, Body, BooleanResult, FaceKey, Held, MemberInputs, NaryEnd, NaryMember, NaryOp,
-    Operand, Surface, SweepStrategy,
-};
+use topo::test_support::holdings::{rejoin_oracle, union_in};
+use topo::test_support::meeting::orders;
+use topo::{AtRestBody, Body, FaceKey, Surface};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -26,89 +27,19 @@ fn curved(body: &Body<f64>) -> Vec<FaceKey> {
         .collect()
 }
 
-type Table = BTreeMap<FaceKey, BTreeSet<(usize, FaceKey)>>;
-
-/// The union of `bodies` in `order`: the finished body and what each of
-/// its faces holds, each member face read back to its place in
-/// `bodies`.
-fn union_in(bodies: &[AtRestBody<f64>], order: &[usize]) -> (AtRestBody<f64>, Table) {
-    let inputs: Vec<MemberInputs> = order
-        .iter()
-        .map(|&i| MemberInputs {
-            rank: u32::try_from(i).unwrap(),
-            ..MemberInputs::default()
-        })
-        .collect();
-    let members: Vec<NaryMember<'_, f64>> = order
-        .iter()
-        .zip(&inputs)
-        .map(|(&i, inputs)| NaryMember {
-            body: &bodies[i],
-            inputs,
-        })
-        .collect();
-    let run = topo::nary_boolean(NaryOp::Union, &members, SweepStrategy::Realized, tol());
-    assert!(
-        matches!(run.end, NaryEnd::Built),
-        "order {order:?}: {:?}",
-        run.end
-    );
-    let step = run.steps.into_iter().last().unwrap();
-    let table = step
-        .holdings
-        .faces()
-        .map(|(f, held)| {
-            let Held::Faces(set) = held else {
-                panic!("order {order:?}: face {f:?} refused its holdings: {held:?}");
-            };
-            (f, set.iter().map(|&(m, k)| (order[m], k)).collect())
-        })
-        .collect();
-    (step.body.body, table)
-}
-
-/// Each member rejoined to the finished body, wherever that builds:
-/// what its substitution rows say each finished face holds of it must
-/// be what the holdings say. Returns how many rejoins built.
-fn rejoin_oracle(
-    bodies: &[AtRestBody<f64>],
-    order: &[usize],
-    result: &AtRestBody<f64>,
-    table: &Table,
-) -> usize {
-    let mut built = 0;
-    for (i, member) in bodies.iter().enumerate() {
-        let Ok(BooleanResult::Body(rejoin)) = topo::union(result, member, tol()) else {
-            continue;
-        };
-        built += 1;
-        let n = &rejoin.naming;
-        let read: BTreeSet<(FaceKey, FaceKey)> = n
-            .substituted
-            .iter()
-            .map(|s| {
-                let (a, b) = match s.operand {
-                    Operand::A => (s.face, s.by),
-                    Operand::B => (s.by, s.face),
-                };
-                (n.face_fragments_a.root(a), n.face_fragments_b.root(b))
-            })
-            .collect();
-        let holds: BTreeSet<(FaceKey, FaceKey)> = table
-            .iter()
-            .flat_map(|(&f, set)| {
-                set.iter()
-                    .filter(move |(m, _)| *m == i)
-                    .map(move |&(_, k)| (f, k))
-            })
-            .collect();
-        assert_eq!(
-            holds, read,
-            "order {order:?}: what the finished faces hold of member {i} is what its rejoin \
-             substitutes"
-        );
-    }
-    built
+/// The plate, the two-arc boss sunk through its top, and the bar across
+/// it over neither seam.
+fn plate_boss_bar() -> Vec<AtRestBody<f64>> {
+    let t = tol();
+    vec![
+        finished("plate", brick((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), t), t),
+        finished(
+            "boss",
+            cylinder_of_arcs_at(2, 0.5, Point2::new(1.5, 1.5), 0.5, 1.0, t),
+            t,
+        ),
+        finished("bar", brick((1.4, 1.6), (0.5, 2.5), (0.8, 2.0), t), t),
+    ]
 }
 
 /// **Every member order reads one holdings table**, in which each piece
@@ -118,28 +49,13 @@ fn rejoin_oracle(
 #[test]
 fn a_bar_over_a_sunk_boss_holds_both_wall_halves_in_every_order() {
     let t = tol();
-    let bodies = [
-        finished("plate", brick((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), t), t),
-        finished(
-            "boss",
-            cylinder_of_arcs_at(2, 0.5, Point2::new(1.5, 1.5), 0.5, 1.0, t),
-            t,
-        ),
-        finished("bar", brick((1.4, 1.6), (0.5, 2.5), (0.8, 2.0), t), t),
-    ];
+    let bodies = plate_boss_bar();
     let walls: BTreeSet<(usize, FaceKey)> =
         curved(&bodies[1]).into_iter().map(|k| (1, k)).collect();
     assert_eq!(walls.len(), 2, "the boss's wall is two half-cylinders");
     let mut tables = BTreeSet::new();
-    for order in [
-        [0, 1, 2],
-        [0, 2, 1],
-        [1, 0, 2],
-        [1, 2, 0],
-        [2, 0, 1],
-        [2, 1, 0],
-    ] {
-        let (result, table) = union_in(&bodies, &order);
+    for order in orders(bodies.len()) {
+        let (result, table, _) = union_in(&bodies, &order, t);
         let pieces = curved(&result);
         assert_eq!(
             pieces.len(),
@@ -152,11 +68,55 @@ fn a_bar_over_a_sunk_boss_holds_both_wall_halves_in_every_order() {
                 "order {order:?}: wall piece {f:?} holds both half-cylinders"
             );
         }
-        let built = rejoin_oracle(&bodies, &order, &result, &table);
+        let built = rejoin_oracle(&bodies, &order, &result, &table, (false, t));
         assert!(
             built >= 2,
             "order {order:?}: the boss's and the bar's rejoins build"
         );
+        let mut rows: Vec<_> = table.into_values().collect();
+        rows.sort();
+        tables.insert(rows);
+    }
+    assert_eq!(tables.len(), 1, "one holdings table in every member order");
+}
+
+/// **A second bar over both seams leaves each wall piece holding one
+/// half-cylinder, in every member order**: where the fold glues the
+/// halves before a bar cuts them, each piece of the glued wall is read
+/// against each half (`topo::overlap`), and holds only the half it lies
+/// on.
+#[test]
+fn two_bars_over_a_sunk_boss_leave_each_wall_piece_one_half_in_every_order() {
+    let t = tol();
+    let mut bodies = plate_boss_bar();
+    bodies.push(finished(
+        "bar over the seams",
+        brick((0.5, 2.5), (1.4, 1.6), (0.8, 1.9), t),
+        t,
+    ));
+    let walls: BTreeSet<(usize, FaceKey)> =
+        curved(&bodies[1]).into_iter().map(|k| (1, k)).collect();
+    let mut tables = BTreeSet::new();
+    for order in orders(bodies.len()) {
+        let (result, table, _) = union_in(&bodies, &order, t);
+        let pieces = curved(&result);
+        assert_eq!(
+            pieces.len(),
+            4,
+            "order {order:?}: the bars cut the wall in four"
+        );
+        let mut per_half = [0, 0];
+        for f in &pieces {
+            let held = &table[f];
+            assert!(
+                held.len() == 1 && held.is_subset(&walls),
+                "order {order:?}: wall piece {f:?} holds one half-cylinder: {held:?}"
+            );
+            let half = walls.iter().position(|w| held.contains(w)).unwrap();
+            per_half[half] += 1;
+        }
+        assert_eq!(per_half, [2, 2], "order {order:?}: two pieces on each half");
+        rejoin_oracle(&bodies, &order, &result, &table, (false, t));
         let mut rows: Vec<_> = table.into_values().collect();
         rows.sort();
         tables.insert(rows);

@@ -776,13 +776,47 @@ pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
         clone_a,
         ..Glue::of(inputs, given)
     };
-    let result = boolean_door(op, a, b, &glue, strategy, tol);
+    let mut result = boolean_door(op, a, b, &glue, strategy, tol);
+    // The one place a result leaves the door: its naming is final here,
+    // past every rewrite (a sphere cut-in's, after its re-entry), so its
+    // holdings are read here and nowhere else.
+    if let Ok(BooleanResult::Body(out)) = &mut result {
+        let band = Band::linear(tol)?;
+        out.holdings = Holdings::of_records(&out.naming, &out.body, [a, b], band);
+        holdings_name_input_faces(&out.holdings, [a, b]);
+    }
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     if let Ok(BooleanResult::Body(out)) = &result {
         rows_name_input_cells(&out.coincidences, [a, b]);
     }
     result
+}
+
+/// **Every operand face a boolean's holdings name is a face of its
+/// operand**, and every finished face holds one.
+///
+/// # Panics
+///
+/// For a face that is not: the holdings are read from the naming's
+/// final rows, each read back to its operand ([`Holdings::of_records`]).
+fn holdings_name_input_faces<T: Real>(holdings: &Holdings, inputs: [&Body<T>; 2]) {
+    for (place, f) in holdings.named() {
+        if inputs[place].get_face(f).is_none() {
+            unreachable!(
+                "a boolean's holdings name operand {place}'s face {f:?}, which that operand does \
+                 not hold, though they are read from the naming's final rows"
+            );
+        }
+    }
+    for (f, held) in holdings.faces() {
+        if held.faces().is_some_and(BTreeSet::is_empty) {
+            unreachable!(
+                "finished face {f:?} holds no operand face, though every finished face is a \
+                 piece of one"
+            );
+        }
+    }
 }
 
 /// **Every input cell a row names is live in its input**, a meeting's
@@ -1206,7 +1240,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     };
     decls.keep_clone_a(|| fin.clone_a);
     Ok(BooleanResult::Body(BooleanBody {
-        holdings: Holdings::of_records(&naming, &body),
+        holdings: Holdings::unread(),
         body,
         kind: BooleanResultKind::Seamed,
         contacts,
@@ -7861,9 +7895,11 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 discards,
                 ..BooleanNaming::default()
             };
-            decls.keep_clone_a(|| red.a.clone());
+            if naming.discards.iter().any(|d| d.operand == Operand::A) {
+                decls.keep_clone_a(|| red.a.clone());
+            }
             Ok(BooleanResult::Body(BooleanBody {
-                holdings: Holdings::of_records(&naming, &body),
+                holdings: Holdings::unread(),
                 body,
                 kind,
                 contacts,
@@ -8202,9 +8238,11 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             ..BooleanNaming::default()
         },
     };
-    decls.keep_clone_a(|| red.a.clone());
+    if naming.discards.iter().any(|d| d.operand == Operand::A) {
+        decls.keep_clone_a(|| red.a.clone());
+    }
     Ok(BooleanResult::Body(BooleanBody {
-        holdings: Holdings::of_records(&naming, &body),
+        holdings: Holdings::unread(),
         body,
         kind,
         contacts,

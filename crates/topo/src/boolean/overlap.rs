@@ -1,33 +1,40 @@
 //! **Whether two faces on one carrier meet in area** ([`overlap`]).
 //!
-//! The two faces are ones a verdict already put on one carrier, in one
-//! sense: two faces of an n-ary union's members a merge glued, or a kept
-//! face and the coincident face it holds. The door never re-decides that.
-//! It looks for a witness that their regions share area, of three kinds:
+//! The two faces are ones a verdict already put on one carrier: two faces
+//! of an n-ary union's members a merge glued, or a kept face and the
+//! coincident face it holds. The door never re-decides the carrier. It
+//! does read the two faces' senses at one point, and refuses two of
+//! opposite sense ([`OverlapRefusal::OppositeSenses`]): their sides of a
+//! shared boundary are read about one normal, which that premise makes
+//! the same.
 //!
-//! - a vertex of one face strictly inside the other (the containment
-//!   doors through the kernel's one point dispatch, `face_placement`:
-//!   [`super::contfp`] on a plane, [`super::curved_face_containment`]'s
-//!   reading on a curved carrier);
-//! - a point of one face's boundary edge strictly inside the other: each
-//!   edge is cut where it meets the other face's boundary (the curve ×
-//!   face boundary pass, [`geom_brep::curve_face::read`], which reads curve against
-//!   curve on any carrier) and each piece's middle is placed, so a proper
-//!   crossing of two boundaries is found as the piece of either edge that
-//!   runs inside the other face;
-//! - a boundary point of one face lying on the other's boundary, at a
-//!   vertex or along an edge, where the two faces' corners there overlap,
-//!   read as the boolean's fate cuts read a direction against a corner
-//!   (`fate::corner_holds`): an inscribed triangle in a hexagon has
-//!   no vertex strictly inside and no crossing, and two faces meeting
-//!   along a shared edge from one side are the same corner.
+//! Each boundary edge of either face is cut where it meets the other
+//! face's boundary (the curve × face boundary pass,
+//! [`geom_brep::curve_face::read`], which reads curve against curve on
+//! any carrier), and each piece's middle is placed in the other face
+//! through the kernel's one point dispatch (`face_placement`). A piece
+//! strictly inside the other face is a witness: the face's area beside
+//! it lies in the other's. A piece lying along the other face's boundary
+//! is a witness where the two faces lie on one side of it, read as the
+//! boolean's fate cuts read a direction against a corner
+//! (`fate::corner_holds`).
 //!
-//! With no witness the regions share no area: a positive-area meeting of
-//! two regions either holds a boundary point of one inside the other, or
-//! is bounded only by boundary they share, whose corners the third kind
-//! reads. Every margin is decided through `k_stats` at the caller's band;
-//! one in band refuses typed ([`OverlapRefusal`]), as does a face on a
-//! spline carrier, whose trim is read on its chart.
+//! With no witness the regions share no area. Where two regions meet in
+//! area, their meeting is bounded by boundary of one or the other; a
+//! stretch of one face's boundary inside the other's region is a piece
+//! some cut leaves strictly inside it, and a meeting bounded only by
+//! boundary the two share has its sides read along that boundary. So a
+//! vertex of one face strictly inside the other is never needed: the
+//! pieces of its edges beside it are inside too, and are read. The pieces
+//! of both faces are read, so a refusal at one piece does not stop the
+//! search: the door answers `true` wherever a witness decides, and
+//! refuses only where none decides and some reading refused.
+//!
+//! Every margin is decided through `k_stats` at the caller's band; one in
+//! band refuses typed ([`OverlapRefusal`]), as does a face on a spline
+//! carrier, whose trim is read on its chart.
+
+use std::sync::Arc;
 
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
@@ -35,12 +42,11 @@ use geom_brep::curve_pair::{Hit, Span};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
-use super::contain::{
-    ContainError, CurvedPlacement, FaceContainment, PlacementError, face_placement,
-};
+use super::contain::{CurvedPlacement, FaceContainment, PlacementError, face_placement};
 use super::fate::{Holds, Leaving, corner_holds, departure};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
+use crate::face_normal::NormalAtError;
 use crate::live::BoundaryMember;
 
 /// **Why [`overlap`] gave no answer.**
@@ -57,16 +63,26 @@ pub enum OverlapRefusal {
         /// The face.
         face: FaceKey,
     },
+    /// The two faces face opposite ways where their carrier is read: the
+    /// door's premise, one sense, does not hold.
+    OppositeSenses,
+    /// The two faces' senses read in band against each other.
+    Senses(Indeterminate),
     /// A point's placement in a face refused: in band, or a reading of
     /// the containment door with no verdict.
-    Placement(ContainError),
+    Placement(super::ContainError),
     /// A point of one face read in band of the other's plane.
     OnPlane(Indeterminate),
     /// The boundary pass over an edge refused: a meeting in band, or a
     /// reading that could not run.
     Meeting(BoundaryRefusal),
+    /// A face's boundary could not be read as the boundary pass reads it.
+    Boundary(Arc<BooleanError>),
     /// Two corners' bounds read in band against each other.
-    Corner(std::sync::Arc<BooleanError>),
+    Corner(Arc<BooleanError>),
+    /// A face's outward normal at a point of its boundary could not be
+    /// read.
+    Normal(NormalAtError),
     /// A reading the door has no verdict for: what it is.
     Unread {
         /// The reading.
@@ -82,10 +98,49 @@ impl core::fmt::Display for OverlapRefusal {
                 "face {face:?} lies on a spline carrier, whose trim the overlap door does not read"
             ),
             Self::StaleFace { face } => write!(f, "face {face:?} does not resolve"),
+            Self::OppositeSenses => {
+                write!(f, "the two faces face opposite ways on their one carrier")
+            }
+            Self::Senses(d) => write!(f, "the two faces' senses read in band: {d}"),
             Self::Placement(e) => write!(f, "placing a point in a face: {e}"),
-            Self::OnPlane(d) => write!(f, "a point read in band of a face's plane: {d:?}"),
-            Self::Meeting(e) => write!(f, "reading an edge against a face's boundary: {e:?}"),
+            Self::OnPlane(d) => write!(f, "a point read in band of a face's plane: {d}"),
+            Self::Meeting(r) => match r {
+                BoundaryRefusal::Escalated(d) => {
+                    write!(f, "a boundary vertex's place on an edge read in band: {d}")
+                }
+                BoundaryRefusal::Meeting(d) => {
+                    write!(
+                        f,
+                        "an edge's meeting with a boundary edge read in band: {d}"
+                    )
+                }
+                BoundaryRefusal::Touch(d) => {
+                    write!(f, "an edge and a boundary edge meet in band: {d}")
+                }
+                BoundaryRefusal::Unread(_) => {
+                    write!(f, "an edge's meeting with the boundary could not be read")
+                }
+                BoundaryRefusal::Fault(_) => {
+                    write!(f, "the meeting table misread a carrier (a kernel fault)")
+                }
+            },
+            Self::Boundary(e) => write!(f, "reading a face's boundary: {e}"),
             Self::Corner(e) => write!(f, "reading two corners against each other: {e}"),
+            Self::Normal(e) => match e {
+                NormalAtError::Escalated { diag, .. } => {
+                    write!(f, "a face's normal at a point read in band: {diag}")
+                }
+                NormalAtError::DegenerateTorus { .. } => {
+                    write!(f, "a face's torus has no regular normal on its tube")
+                }
+                NormalAtError::OffSurface => write!(f, "a point lies off the face's surface"),
+                NormalAtError::AtConeApex { .. } => {
+                    write!(f, "a point at a cone's apex, where the face has no normal")
+                }
+                NormalAtError::SplineCrease { .. } | NormalAtError::SplineIrregular { .. } => {
+                    write!(f, "a point where a spline face's chart has no one normal")
+                }
+            },
             Self::Unread { what } => write!(f, "no verdict: {what}"),
         }
     }
@@ -93,14 +148,15 @@ impl core::fmt::Display for OverlapRefusal {
 
 impl core::error::Error for OverlapRefusal {}
 
-/// **Whether faces `a` and `b`, which a verdict put on one carrier in one
-/// sense, meet in positive area** (module docs). The two may be faces of
-/// two bodies.
+/// **Whether faces `a` and `b`, which a verdict put on one carrier,
+/// meet in positive area** (module docs). The two may be faces of two
+/// bodies.
 ///
 /// # Errors
 ///
-/// [`OverlapRefusal`]: a decision in band, a face on a spline carrier, a
-/// key that does not resolve, or a reading with no verdict.
+/// [`OverlapRefusal`]: two faces of opposite sense, a face on a spline
+/// carrier, a key that does not resolve, or, where no witness decides, a
+/// decision in band or a reading with no verdict.
 ///
 /// # Panics
 ///
@@ -121,12 +177,56 @@ pub fn overlap<T: Decide>(
             return Err(OverlapRefusal::SplineCarrier { face });
         }
     }
+    one_sense(a, b, band)?;
+    let mut refused = None;
     for (x, y) in [(a, b), (b, a)] {
-        if vertex_witness(x, y, band)? || edge_witness(x, y, band)? {
+        if edge_witness(x, y, band, &mut refused)? {
             return Ok(true);
         }
     }
-    Ok(false)
+    refused.map_or(Ok(false), Err)
+}
+
+/// The middle of `a`'s first boundary edge, and a's and b's outward
+/// normals there, which must face one way.
+fn one_sense<T: Decide>(
+    a: (&Body<T>, FaceKey),
+    b: (&Body<T>, FaceKey),
+    band: Band,
+) -> Result<(), OverlapRefusal> {
+    let Some(&he) = loops(a)?.iter().flatten().next() else {
+        return Err(OverlapRefusal::Unread {
+            what: "a face with no boundary edge",
+        });
+    };
+    let (carrier, (t0, t1)) = edge_span(a.0, he)?;
+    let p = carrier.eval(geom::mid_param(t0, t1));
+    let na = normal_at(a, p, band)?;
+    let nb = normal_at(b, p, band)?;
+    match crate::validate::decide(
+        "bool_overlap_senses",
+        Margin::levered(na.dot(nb), T::one()),
+        band,
+    ) {
+        Ok(Sign::Positive) => Ok(()),
+        Ok(Sign::Negative) => Err(OverlapRefusal::OppositeSenses),
+        Ok(Sign::Zero) => Err(OverlapRefusal::Unread {
+            what: "the two faces' normals stand square to each other, so no one carrier holds both",
+        }),
+        Err(diag) => Err(OverlapRefusal::Senses(diag)),
+    }
+}
+
+/// Face `face`'s outward normal at `p`, a point of its carrier.
+fn normal_at<T: Decide>(
+    (body, face): (&Body<T>, FaceKey),
+    p: Point3<T>,
+    band: Band,
+) -> Result<Vec3<T>, OverlapRefusal> {
+    crate::face_normal::face_outward_normal_at(body, face, p, band)
+        .map_err(OverlapRefusal::Normal)?
+        .map(geom_brep::OutwardNormal::vec)
+        .ok_or(OverlapRefusal::StaleFace { face })
 }
 
 /// Where point `q`, on face `face`'s carrier, lies against the face.
@@ -178,15 +278,20 @@ fn loops<T: Decide>(
     Ok(out)
 }
 
-/// A half-edge's start vertex and its point.
-fn start<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> (VertexKey, Point3<T>) {
-    let h = body.get_half_edge(he).unwrap_or_else(|| {
-        unreachable!("half-edge {he:?} of a resolved face's loop does not resolve")
-    });
-    let p = body.half_edge_start_point(he).unwrap_or_else(|| {
-        unreachable!("half-edge {he:?} of a resolved face's loop has no start point")
-    });
-    (h.start, p)
+/// The certified carrier and span of half-edge `he`'s edge.
+fn edge_span<T: Decide>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+) -> Result<(&geom::Curve3<T>, (T, T)), OverlapRefusal> {
+    let curve = body
+        .get_half_edge(he)
+        .and_then(|h| body.get_edge(h.edge))
+        .and_then(|e| body.get_curve_geom(e.curve))
+        .and_then(|c| c.certified())
+        .ok_or(OverlapRefusal::Unread {
+            what: "a boundary edge with no certified curve",
+        })?;
+    Ok((curve.carrier(), curve.params()))
 }
 
 /// The corner of `face` at its vertex `v`: each, where its loops pass `v`
@@ -201,7 +306,7 @@ fn vertex_corners<T: Decide>(
     let mut out = Vec::new();
     for cycle in loops((body, face))? {
         for (i, &he) in cycle.iter().enumerate() {
-            if start(body, he).0 != v {
+            if body.get_half_edge(he).is_none_or(|h| h.start != v) {
                 continue;
             }
             let into = cycle[(i + cycle.len() - 1) % cycle.len()];
@@ -235,32 +340,29 @@ fn edge_corners<T: Decide>(
 }
 
 /// The half-turn on the left of half-edge `he` at `p`, a point inside its
-/// edge: the edge's tangent there forward, then back.
+/// edge: the edge's tangent there forward, then back, each with the
+/// edge's curvature vector there.
+///
+/// `fate::leaving` reads the same at an edge's end, from the conic's own
+/// departure there; this reads it at any point of the span, from the
+/// carrier's derivatives, so the two do not share a home.
 fn half_plane<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
     p: Point3<T>,
 ) -> Result<Corner<T>, OverlapRefusal> {
-    let unread = |what| OverlapRefusal::Unread { what };
-    let h = body
-        .half_edges
-        .get(he)
-        .ok_or_else(|| unread("a boundary half-edge that does not resolve"))?;
-    let edge = body
-        .get_edge(h.edge)
-        .ok_or_else(|| unread("a boundary edge that does not resolve"))?;
-    let curve = body
-        .get_curve_geom(edge.curve)
-        .and_then(|c| c.certified())
-        .ok_or_else(|| unread("a boundary edge with no certified curve"))?;
-    let carrier = curve.carrier();
-    let (t0, t1) = curve.params();
+    let forward = body
+        .get_half_edge(he)
+        .and_then(|h| body.get_edge(h.edge))
+        .is_some_and(|e| e.he_plus == he);
+    let (carrier, (t0, t1)) = edge_span(body, he)?;
     let t = carrier
         .param_near(p, geom::mid_param(t0, t1))
-        .ok_or_else(|| unread("a boundary edge whose carrier places no parameter"))?;
+        .ok_or(OverlapRefusal::Unread {
+            what: "a boundary edge whose carrier places no parameter",
+        })?;
     let d = carrier.deriv(t);
     let speed = d.norm();
-    let forward = he == edge.he_plus;
     let unit = if forward { d / speed } else { -(d / speed) };
     let bend = match carrier {
         geom::Curve3::Line(_) => Some(Vec3::new(T::zero(), T::zero(), T::zero())),
@@ -304,34 +406,6 @@ fn corners_at<T: Decide>(
     }
 }
 
-/// Whether some corner of `xs` and some of `ys`, both at `p` on face
-/// `x`'s carrier, overlap.
-fn any_corners_meet<T: Decide>(
-    x: (&Body<T>, FaceKey),
-    xs: &[Corner<T>],
-    ys: &[Corner<T>],
-    p: Point3<T>,
-    band: Band,
-) -> Result<bool, OverlapRefusal> {
-    if xs.is_empty() || ys.is_empty() {
-        return Ok(false);
-    }
-    let n = crate::face_normal::face_outward_normal_at(x.0, x.1, p, band)
-        .map_err(|_| OverlapRefusal::Unread {
-            what: "the face's outward normal at a boundary point",
-        })?
-        .ok_or(OverlapRefusal::StaleFace { face: x.1 })?
-        .vec();
-    for &cx in xs {
-        for &cy in ys {
-            if corners_meet(cx, cy, n, band)? {
-                return Ok(true);
-            }
-        }
-    }
-    Ok(false)
-}
-
 /// **Whether two open corners at one point meet**, each swept
 /// counterclockwise about `n` from its first bound to its second: one's
 /// bound lies strictly inside the other, or the two share a first bound
@@ -351,7 +425,7 @@ fn corners_meet<T: Decide>(
         (x.1, false, y),
     ] {
         match corner_holds(d.ray(), corner, || Ok(false), n, band)
-            .map_err(|e| OverlapRefusal::Corner(std::sync::Arc::new(e)))?
+            .map_err(|e| OverlapRefusal::Corner(Arc::new(e)))?
         {
             Holds::In => return Ok(true),
             Holds::Tied { along_out } if along_out == first => return Ok(true),
@@ -366,40 +440,47 @@ fn corners_meet<T: Decide>(
     Ok(false)
 }
 
-/// Whether a vertex of face `x` is a witness in face `y`: strictly
-/// inside it, or on its boundary where their corners meet.
-fn vertex_witness<T: Decide>(
+/// Whether the piece of half-edge `he` of face `x` about `q`, a point
+/// inside it that no cut of `y`'s boundary reaches, is a witness in face
+/// `y`: strictly inside it, or along its boundary with the two faces on
+/// one side.
+fn piece_witness<T: Decide>(
     x: (&Body<T>, FaceKey),
+    he: HalfEdgeKey,
     y: (&Body<T>, FaceKey),
+    q: Point3<T>,
     band: Band,
 ) -> Result<bool, OverlapRefusal> {
-    for cycle in loops(x)? {
-        for he in cycle {
-            let (v, p) = start(x.0, he);
-            let at = place(y, p, band)?;
-            if at == FaceContainment::In {
-                return Ok(true);
-            }
-            let ys = corners_at(y, at, p)?;
-            if !ys.is_empty() && any_corners_meet(x, &vertex_corners(x, v)?, &ys, p, band)? {
-                return Ok(true);
-            }
+    let at = place(y, q, band)?;
+    if at == FaceContainment::In {
+        return Ok(true);
+    }
+    let ys = corners_at(y, at, q)?;
+    if ys.is_empty() {
+        return Ok(false);
+    }
+    let n = normal_at(x, q, band)?;
+    let mine = half_plane(x.0, he, q)?;
+    for cy in ys {
+        if corners_meet(mine, cy, n, band)? {
+            return Ok(true);
         }
     }
     Ok(false)
 }
 
-/// Whether a point inside a boundary edge of face `x` is a witness in
-/// face `y`: each edge cut where it meets `y`'s boundary, and each
-/// piece's middle placed in `y`, a witness strictly inside or on `y`'s
-/// boundary where their corners meet.
+/// Whether a piece of a boundary edge of face `x` is a witness in face
+/// `y` (module docs). A piece whose reading refused is passed over, the
+/// first such refusal kept in `refused`; a boundary of `x` or `y` that
+/// cannot be read refuses at once.
 fn edge_witness<T: Decide>(
     x: (&Body<T>, FaceKey),
     y: (&Body<T>, FaceKey),
     band: Band,
+    refused: &mut Option<OverlapRefusal>,
 ) -> Result<bool, OverlapRefusal> {
     let boundary = super::carrier_cross::face_boundary(y.0, y.1)
-        .map_err(|_| OverlapRefusal::StaleFace { face: y.1 })?
+        .map_err(|e| OverlapRefusal::Boundary(Arc::new(e)))?
         .ok_or(OverlapRefusal::Unread {
             what: "a boundary edge with no certified curve",
         })?;
@@ -408,26 +489,20 @@ fn edge_witness<T: Decide>(
             what: "a face holding a lone vertex",
         });
     }
+    let mut keep = |r: OverlapRefusal| {
+        refused.get_or_insert(r);
+    };
     for cycle in loops(x)? {
         for he in cycle {
-            let h = x.0.get_half_edge(he).unwrap_or_else(|| {
-                unreachable!("half-edge {he:?} of a resolved face's loop does not resolve")
-            });
-            let Some(curve) =
-                x.0.get_edge(h.edge)
-                    .and_then(|e| x.0.get_curve_geom(e.curve))
-                    .and_then(|c| c.certified())
-            else {
-                return Err(OverlapRefusal::Unread {
-                    what: "a boundary edge with no certified curve",
-                });
-            };
-            let carrier = curve.carrier();
-            let (t0, t1) = curve.params();
+            let (carrier, (t0, t1)) = edge_span(x.0, he)?;
             let span = Span::new(carrier, (t0, t1));
-            let reading = boundary
-                .read(&span, band)
-                .map_err(OverlapRefusal::Meeting)?;
+            let reading = match boundary.read(&span, band) {
+                Ok(reading) => reading,
+                Err(r) => {
+                    keep(OverlapRefusal::Meeting(r));
+                    continue;
+                }
+            };
             let mut cuts: Vec<T> = reading
                 .meetings
                 .iter()
@@ -437,19 +512,18 @@ fn edge_witness<T: Decide>(
                 })
                 .collect();
             let speed = carrier.deriv(geom::mid_param(t0, t1)).norm();
-            sort_params(&mut cuts, speed, band)?;
+            if let Err(r) = sort_params(&mut cuts, speed, band) {
+                keep(r);
+                continue;
+            }
             cuts.insert(0, t0);
             cuts.push(t1);
             for w in cuts.windows(2) {
                 let q = carrier.eval(geom::mid_param(w[0], w[1]));
-                let at = place(y, q, band)?;
-                if at == FaceContainment::In {
-                    return Ok(true);
-                }
-                let ys = corners_at(y, at, q)?;
-                if !ys.is_empty() && any_corners_meet(x, &[half_plane(x.0, he, q)?], &ys, q, band)?
-                {
-                    return Ok(true);
+                match piece_witness(x, he, y, q, band) {
+                    Ok(true) => return Ok(true),
+                    Ok(false) => {}
+                    Err(r) => keep(r),
                 }
             }
         }

@@ -1,18 +1,18 @@
-//! Rows for the booleans' [`Holdings`] and the [`overlap`] door.
+//! Rows for the booleans' [`Holdings`](super::Holdings) and the
+//! [`overlap`] door.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use geom_core::{Band, Tol};
 
-use super::holdings::{Held, Holdings};
-use super::nary::{MemberInputs, NaryEnd, NaryMember, NaryOp, nary_boolean};
+use super::holdings::Held;
 use super::overlap::{OverlapRefusal, overlap};
-use super::{BooleanResult, Operand, SweepStrategy};
-use crate::AtRestBody;
+use super::{BooleanResult, MemberFace};
 use crate::body::Body;
 use crate::entity::FaceKey;
+use crate::test_support::holdings::{rejoin_oracle, union_in};
 use crate::test_support::meeting::orders;
 use crate::test_support::{brick, finished, prism_z};
 
@@ -24,10 +24,16 @@ fn band() -> Band {
     Band::linear(tol()).unwrap()
 }
 
-/// The top face of a prism over `profile`, z 0 to 1, in its own body.
-fn top(profile: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
-    let p = prism_z::<f64>(profile, 0.0, 1.0, tol());
-    (p.body, p.top_face)
+/// The face of a prism over `profile`, z 0 to 1 (`up`) or 1 to 2, on
+/// the plane z = 1: its top, facing +z, or its bottom, facing −z.
+fn at_one(profile: &[(f64, f64)], up: bool) -> (Body<f64>, FaceKey) {
+    if up {
+        let p = prism_z::<f64>(profile, 0.0, 1.0, tol());
+        (p.body, p.top_face)
+    } else {
+        let p = prism_z::<f64>(profile, 1.0, 2.0, tol());
+        (p.body, p.bottom_face)
+    }
 }
 
 fn rect(x: (f64, f64), y: (f64, f64)) -> Vec<(f64, f64)> {
@@ -46,13 +52,22 @@ fn regular(n: usize, step: usize) -> Vec<(f64, f64)> {
         .collect()
 }
 
+/// `overlap` of the tops over `x` and `y`, read both ways round, which
+/// must agree.
 fn overlaps(x: &[(f64, f64)], y: &[(f64, f64)]) -> Result<bool, OverlapRefusal> {
-    let (bx, fx) = top(x);
-    let (by, fy) = top(y);
-    let there = overlap((&bx, fx), (&by, fy), band())?;
-    let back = overlap((&by, fy), (&bx, fx), band())?;
-    assert_eq!(there, back, "overlap reads alike in either order");
-    Ok(there)
+    let (bx, fx) = at_one(x, true);
+    let (by, fy) = at_one(y, true);
+    let there = overlap((&bx, fx), (&by, fy), band());
+    let back = overlap((&by, fy), (&bx, fx), band());
+    match (&there, &back) {
+        (Ok(a), Ok(b)) => assert_eq!(a, b, "overlap reads alike in either order"),
+        _ => assert_eq!(
+            there.is_ok(),
+            back.is_ok(),
+            "overlap answers or refuses alike in either order: {there:?} / {back:?}"
+        ),
+    }
+    there
 }
 
 /// **`overlap` finds each kind of witness, and none where the regions
@@ -77,6 +92,11 @@ fn overlap_reads_each_witness_kind_and_no_area_as_false() {
         "crossings alone: a cross, no vertex of either inside the other",
         rect((0.0, 3.0), (1.0, 2.0)),
         rect((1.0, 2.0), (0.0, 3.0)),
+    );
+    yes(
+        "crossings alone, every whole edge's middle outside the other face",
+        rect((0.0, 10.0), (0.0, 1.0)),
+        rect((3.0, 4.0), (-10.0, 1.5)),
     );
     yes(
         "a triangle inscribed in a hexagon: no vertex inside, no crossing",
@@ -115,10 +135,46 @@ fn overlap_reads_each_witness_kind_and_no_area_as_false() {
     );
 }
 
-/// **A margin in band refuses typed**: a face whose vertex lies in the
-/// band off the other's edge, neither on it nor clear of it.
+/// **Two faces of opposite sense refuse**: the door reads both faces'
+/// sides about one normal, which only one sense makes the same.
 #[test]
-fn overlap_refuses_a_vertex_in_band_of_the_others_edge() {
+fn overlap_refuses_faces_of_opposite_sense() {
+    for (what, x, y) in [
+        (
+            "one square",
+            rect((0.0, 1.0), (0.0, 1.0)),
+            rect((0.0, 1.0), (0.0, 1.0)),
+        ),
+        (
+            "a sub-square",
+            rect((0.0, 2.0), (0.0, 2.0)),
+            rect((0.5, 1.0), (0.5, 1.0)),
+        ),
+        (
+            "an edge shared",
+            rect((0.0, 1.0), (0.0, 1.0)),
+            rect((1.0, 2.0), (0.0, 1.0)),
+        ),
+    ] {
+        let (bx, fx) = at_one(&x, true);
+        let (by, fy) = at_one(&y, false);
+        for got in [
+            overlap((&bx, fx), (&by, fy), band()),
+            overlap((&by, fy), (&bx, fx), band()),
+        ] {
+            assert!(
+                matches!(got, Err(OverlapRefusal::OppositeSenses)),
+                "{what}: a top and a bottom on one plane refuse: {got:?}"
+            );
+        }
+    }
+}
+
+/// **A margin in band refuses typed where no witness decides**: a face
+/// whose edge lies in the band off the other's edge, neither on it nor
+/// clear of it.
+#[test]
+fn overlap_refuses_a_face_in_band_of_the_others_edge() {
     let t = tol();
     let gap = t.eps() * (1.0 + t.k()) / 2.0;
     let got = overlaps(
@@ -126,27 +182,58 @@ fn overlap_refuses_a_vertex_in_band_of_the_others_edge() {
         &rect((1.0 + gap, 2.0), (0.0, 1.0)),
     );
     assert!(
-        matches!(got, Err(OverlapRefusal::Placement(_))),
-        "a vertex {gap} off the other face's edge is in band: {got:?}"
+        matches!(
+            got,
+            Err(OverlapRefusal::Placement(_) | OverlapRefusal::Meeting(_))
+        ),
+        "an edge {gap} off the other face's edge is in band: {got:?}"
     );
 }
 
-/// What `held` holds, refusing the row where it could not be read.
-fn faces(held: &Held, what: &str) -> BTreeSet<(usize, FaceKey)> {
-    match held {
-        Held::Faces(f) => f.clone(),
-        Held::Refused(r) => panic!("{what} refused its holdings: {r:?}"),
+/// **A reading in band does not hide a witness that decides**: a
+/// triangle mostly inside a rectangle, one corner in the band outside
+/// its edge, meets it in area whichever face is read first and wherever
+/// its loop starts; so does a rectangle whose first edge runs in the
+/// band beside the other's.
+#[test]
+fn overlap_answers_where_a_witness_decides_beside_a_reading_in_band() {
+    let t = tol();
+    let gap = t.eps() * (1.0 + t.k()) / 2.0;
+    let r = rect((0.0, 2.0), (0.0, 1.0));
+    let (p, q, s) = ((0.5, 0.2), (1.5, 0.2), (1.0, 1.0 + gap));
+    for tri in [vec![p, q, s], vec![s, p, q]] {
+        assert!(
+            overlaps(&tri, &r).unwrap(),
+            "the triangle {tri:?} meets the rectangle in area"
+        );
     }
+    // The first edge each face's loop reads runs in band beside the
+    // other's, and refuses; a later piece lies inside.
+    let low = rect((0.5, 1.5), (-gap, 0.5));
+    assert!(
+        overlaps(&low, &r).unwrap(),
+        "a face whose first edge runs in band beside the other's, a later piece inside it"
+    );
 }
 
-/// The face of `body` on the plane z = `z` facing +z.
+/// The faces of `body` on the plane z = `z` facing +z, read through the
+/// face-normal door.
 fn tops_at(body: &Body<f64>, z: f64) -> Vec<FaceKey> {
+    facing_at(body, 2, z)
+}
+
+/// The faces of `body` on the plane `axis` = `at` facing up that axis.
+fn facing_at(body: &Body<f64>, axis: usize, at: f64) -> Vec<FaceKey> {
+    let coord = |p: geom_core::Point3<f64>| [p.x, p.y, p.z][axis];
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
-                Some(crate::Surface::Plane { origin, normal, .. })
-                    if normal.z * if f.sense { 1.0 } else { -1.0 } > 0.5
-                        && (origin.z - z).abs() < 1e-9)
+        .filter(|&(k, f)| {
+            let Some(n) = crate::face_normal::face_outward_normal(body, k) else {
+                return false;
+            };
+            let n = n.vec();
+            [n.x, n.y, n.z][axis] > 0.5
+                && matches!(body.get_surface(f.surface),
+                    Some(crate::Surface::Plane { origin, .. }) if (coord(*origin) - at).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .collect()
@@ -163,28 +250,24 @@ fn the_pair_door_holds_a_sunk_tiles_top_through_its_substitution() {
     let Ok(BooleanResult::Body(out)) = super::union(&p, &tile, t) else {
         panic!("the union builds");
     };
+    let root_b = |f| out.naming.face_fragments_b.root(f);
     assert!(
         out.naming
             .substituted
             .iter()
-            .any(|s| s.operand == Operand::B
-                && tops_at(&tile, 1.0).contains(&out.naming.face_fragments_b.root(s.face))),
+            .any(|s| tops_at(&tile, 1.0).contains(&root_b(s.face))),
         "the tile's top reaches the result through a substitution row"
     );
     let finished_tops = tops_at(&out.body, 1.0);
     assert_eq!(finished_tops.len(), 1, "one top face");
-    let expected = BTreeSet::from([(0, tops_at(&p, 1.0)[0]), (1, tops_at(&tile, 1.0)[0])]);
     assert_eq!(
-        faces(out.holdings.of(finished_tops[0]).unwrap(), "the top"),
-        expected,
+        out.holdings.of(finished_tops[0]),
+        Some(&Held::Faces(BTreeSet::from([
+            (0, tops_at(&p, 1.0)[0]),
+            (1, tops_at(&tile, 1.0)[0]),
+        ]))),
         "the top holds the brick's top and the tile's"
     );
-    for (f, held) in out.holdings.faces() {
-        assert!(
-            !faces(held, "a face").is_empty(),
-            "face {f:?} holds some operand face"
-        );
-    }
     assert_eq!(
         out.holdings.lost_rows().len(),
         out.naming.discards.len(),
@@ -192,59 +275,128 @@ fn the_pair_door_holds_a_sunk_tiles_top_through_its_substitution() {
     );
 }
 
-/// What each finished face holds, each member face by its place in the
-/// list the union was given.
-type Table = BTreeMap<FaceKey, BTreeSet<(usize, FaceKey)>>;
-
-/// Runs the n-ary union of `bodies` in `order`: its finished body, the
-/// last step's holdings, and every member face some step's discarded
-/// face held, each member face read back to its place in `bodies`.
-fn union_in(
-    bodies: &[AtRestBody<f64>],
-    order: &[usize],
-) -> (AtRestBody<f64>, Table, BTreeSet<(usize, FaceKey)>) {
-    let inputs: Vec<MemberInputs> = order
+/// **The pair door reads an uncut row's kept face as holding the dropped
+/// face, as it reads a substitution's**, and keys the region the dropped
+/// face lost outside its kept faces to that face: the sunk tile's union
+/// with its substitution rows restated as the uncut row a containment
+/// fallback records where it cannot divide the tile's top.
+#[test]
+fn the_pair_door_reads_an_uncut_row_as_a_substitution() {
+    let t = tol();
+    let p = finished("P", brick::<f64>((0.0, 1.0), (0.0, 2.0), (0.0, 1.0), t), t);
+    let tile = finished("T", brick::<f64>((0.2, 0.6), (0.5, 1.5), (0.5, 1.0), t), t);
+    let Ok(BooleanResult::Body(mut out)) = super::union(&p, &tile, t) else {
+        panic!("the union builds");
+    };
+    let tile_top = tops_at(&tile, 1.0)[0];
+    let n = &mut out.naming;
+    let (rows, kept): (Vec<_>, Vec<_>) = n.substituted.drain(..).partition(|s| {
+        s.operand == super::Operand::B && n.face_fragments_b.root(s.face) == tile_top
+    });
+    n.substituted = kept;
+    assert!(!rows.is_empty(), "the tile's top is substituted");
+    n.uncut = rows
         .iter()
-        .map(|&i| MemberInputs {
-            rank: u32::try_from(i).unwrap(),
-            ..MemberInputs::default()
+        .map(|s| super::UncutFace {
+            operand: s.operand,
+            face: tile_top,
+            by: s.by,
+            kind: super::BooleanErrorKind::JoinDesync,
+            what: "restated for the row".to_owned(),
         })
         .collect();
-    let members: Vec<NaryMember<'_, f64>> = order
-        .iter()
-        .zip(&inputs)
-        .map(|(&i, inputs)| NaryMember {
-            body: &bodies[i],
-            inputs,
-        })
-        .collect();
-    let run = nary_boolean(NaryOp::Union, &members, SweepStrategy::Realized, tol());
-    assert!(
-        matches!(run.end, NaryEnd::Built),
-        "order {order:?}: {:?}",
-        run.end
+    n.uncut.dedup();
+    let holdings = super::Holdings::of_records(&out.naming, &out.body, [&p, &tile], band());
+    let top = tops_at(&out.body, 1.0)[0];
+    assert_eq!(
+        holdings.of(top),
+        Some(&Held::Faces(BTreeSet::from([
+            (0, tops_at(&p, 1.0)[0]),
+            (1, tile_top),
+        ]))),
+        "the top holds the tile's top through the uncut row"
     );
-    let mut lost = BTreeSet::new();
-    for step in &run.steps {
-        for (row, held) in step.holdings.lost_rows().iter().enumerate() {
-            let what = format!("order {order:?}'s step {}'s discard row {row}", step.member);
-            lost.extend(faces(held, &what).into_iter().map(|(m, k)| (order[m], k)));
+    assert_eq!(
+        holdings.uncut_rows(),
+        vec![Held::Faces(BTreeSet::from([(1, tile_top)])); out.naming.uncut.len()],
+        "each uncut row keys the tile's top"
+    );
+}
+
+/// A prism over the `(x, y)` `profile`, z 0 to 2: a tile sunk under the
+/// plane y = 1, its top there, joined by a bridge to a keel whose tip
+/// line lies in that plane at x = `tip`.
+fn tile_and_keel(mirror: bool) -> Body<f64> {
+    let profile = [
+        (0.2, 0.5),
+        (0.6, 0.5),
+        (0.6, 1.0),
+        (1.3, 1.5),
+        (1.5, 1.0),
+        (1.7, 1.5),
+        (1.7, 2.0),
+        (0.4, 2.0),
+        (0.4, 1.0),
+        (0.2, 1.0),
+    ];
+    let mut profile: Vec<(f64, f64)> = profile.to_vec();
+    if mirror {
+        profile = profile.iter().rev().map(|&(x, y)| (2.0 - x, y)).collect();
+    }
+    prism_z::<f64>(&profile, 0.0, 2.0, tol()).body
+}
+
+/// **A face the parting divides after a substitution holds the dropped
+/// face only where its region meets it**: a brick under a body holding a
+/// tile sunk under the brick's face y = 1 and a keel whose tip lies in
+/// that face from edge to edge. The keel parts the face in two, and of
+/// the two only the piece over the tile holds the tile's top, the tile
+/// on either side of the keel.
+#[test]
+fn a_face_parted_after_a_substitution_holds_the_tile_only_where_it_lies() {
+    let t = tol();
+    let block = finished(
+        "block",
+        brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 2.0), t),
+        t,
+    );
+    for mirror in [false, true] {
+        let other = finished("tile and keel", tile_and_keel(mirror), t);
+        let Ok(BooleanResult::Body(out)) = super::union(&block, &other, t) else {
+            panic!("mirror {mirror}: the union builds");
+        };
+        let tile_top = facing_at(&other, 1, 1.0);
+        assert_eq!(tile_top.len(), 1, "mirror {mirror}: the tile has one top");
+        let faces_up = facing_at(&out.body, 1, 1.0);
+        assert_eq!(
+            faces_up.len(),
+            2,
+            "mirror {mirror}: the keel parts the block's face in two"
+        );
+        let tile_x = if mirror { 1.7 } else { 0.3 };
+        let block_top = (0, facing_at(&block, 1, 1.0)[0]);
+        for f in faces_up {
+            let xs: Vec<f64> = out
+                .body
+                .vertex_points()
+                .filter(|&(v, _)| out.body.faces_of_vertex(v).unwrap().contains(&f))
+                .map(|(_, p)| p.x)
+                .collect();
+            let (lo, hi) = xs
+                .iter()
+                .fold((f64::MAX, f64::MIN), |(a, b), &x| (a.min(x), b.max(x)));
+            let over_tile = lo < tile_x && tile_x < hi;
+            let mut want = BTreeSet::from([block_top]);
+            if over_tile {
+                want.insert((1, tile_top[0]));
+            }
+            assert_eq!(
+                out.holdings.of(f),
+                Some(&Held::Faces(want)),
+                "mirror {mirror}: the piece over x {lo}..{hi} holds the tile's top: {over_tile}"
+            );
         }
     }
-    let mut steps = run.steps;
-    let step = steps.pop().unwrap();
-    let holdings: &Holdings = &step.holdings;
-    let held = holdings
-        .faces()
-        .map(|(f, h)| {
-            let set = faces(h, &format!("order {order:?}'s face {f:?}"))
-                .into_iter()
-                .map(|(m, k)| (order[m], k))
-                .collect();
-            (f, set)
-        })
-        .collect();
-    (step.body.body, held, lost)
 }
 
 /// **A union's holdings read alike in every member order**, and match
@@ -264,7 +416,7 @@ fn a_unions_holdings_read_alike_in_every_member_order() {
     let mut tables = BTreeSet::new();
     let mut losses = BTreeSet::new();
     for order in orders(bodies.len()) {
-        let (result, held, lost) = union_in(&bodies, &order);
+        let (result, held, lost) = union_in(&bodies, &order, t);
         assert!(
             lost.contains(&top_of(0)) && lost.contains(&top_of(1)),
             "order {order:?}: P's top and Q's lose the strip under the bar"
@@ -275,7 +427,7 @@ fn a_unions_holdings_read_alike_in_every_member_order() {
              holds it"
         );
         losses.insert(lost);
-        let mut tops: Vec<BTreeSet<(usize, FaceKey)>> = tops_at(&result, 1.0)
+        let mut tops: Vec<BTreeSet<MemberFace>> = tops_at(&result, 1.0)
             .into_iter()
             .map(|f| held[&f].clone())
             .collect();
@@ -288,8 +440,8 @@ fn a_unions_holdings_read_alike_in_every_member_order() {
             ],
             "order {order:?}: the left top holds P's top and T's, the right Q's"
         );
-        rejoin_oracle(&bodies, &order, &result, &held, true);
-        let mut table: Vec<BTreeSet<(usize, FaceKey)>> = held.into_values().collect();
+        rejoin_oracle(&bodies, &order, &result, &held, (true, t));
+        let mut table: Vec<BTreeSet<MemberFace>> = held.into_values().collect();
         table.sort();
         tables.insert(table);
     }
@@ -299,57 +451,4 @@ fn a_unions_holdings_read_alike_in_every_member_order() {
         1,
         "the same member faces lose area in every member order"
     );
-}
-
-/// **The rejoin oracle**: each member rejoined to the finished body
-/// holds, through its substitution rows, exactly the member faces the
-/// holdings say each finished face holds of it, wherever the rejoin
-/// builds. With `all`, every rejoin must build.
-fn rejoin_oracle(
-    bodies: &[AtRestBody<f64>],
-    order: &[usize],
-    result: &AtRestBody<f64>,
-    held: &Table,
-    all: bool,
-) -> usize {
-    let mut built = 0;
-    for (i, member) in bodies.iter().enumerate() {
-        let rejoin = match super::union(result, member, tol()) {
-            Ok(BooleanResult::Body(rj)) => rj,
-            other => {
-                assert!(
-                    !all,
-                    "order {order:?}: rejoining member {i} builds: {other:?}"
-                );
-                continue;
-            }
-        };
-        built += 1;
-        let n = &rejoin.naming;
-        let read: BTreeSet<(FaceKey, FaceKey)> = n
-            .substituted
-            .iter()
-            .map(|s| {
-                let (af, bf) = match s.operand {
-                    Operand::A => (s.face, s.by),
-                    Operand::B => (s.by, s.face),
-                };
-                (n.face_fragments_a.root(af), n.face_fragments_b.root(bf))
-            })
-            .collect();
-        let holds: BTreeSet<(FaceKey, FaceKey)> = held
-            .iter()
-            .flat_map(|(&f, set)| {
-                set.iter()
-                    .filter(move |(m, _)| *m == i)
-                    .map(move |&(_, k)| (f, k))
-            })
-            .collect();
-        assert_eq!(
-            holds, read,
-            "order {order:?}: what each finished face holds of member {i} is what the rejoin \
-             substitutes"
-        );
-    }
-    built
 }
