@@ -805,7 +805,7 @@ tiers".
   read against itself, the local reading (how the faces leave their
   shared edge or vertex, or a face's own turning) passes by more than
   that band. What is built lies within ε of what its values
-  describe ([tolerance.epsilon]), so a body embedded with that margin
+  describe (ε_precision, [tolerance.recourse]), so a body embedded with that margin
   is one whose written values describe an embedded body too. At
   `Interval` and `Sym` the stored brackets carry the family instead.
   It passes both once, at the door that
