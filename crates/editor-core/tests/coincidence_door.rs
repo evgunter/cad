@@ -4166,3 +4166,143 @@ fn a_stated_axis_proves_a_wall_pair_the_fold_does_not() {
         "the bore and the shaft: one axis by the mate, one bore, one sense"
     );
 }
+
+/// **A circle's walls are one carrier and a rectangle's four are four**
+/// (`coincide::axis_of`, which reads a wall's carrier): every lateral
+/// wall an extrude sweeps over a `circle`'s pieces reads as the loop's
+/// first, and each wall over a `rectangle`'s pieces as itself, though
+/// both forms name their sides `Piece(k)`.
+///
+/// *Breaks if* the carrier is read off the role alone, so that two
+/// sides of a rectangle read as one wall.
+#[test]
+fn a_rectangles_walls_are_four_carriers_and_a_circles_two_are_one() {
+    use coincide::{Construction, Origin};
+    use editor_core::{EntityKind, PieceRole, ProfileEdgeRef};
+    let walls = |loop_: LoopProgram<Formula>, pieces: u32| {
+        let doc = ProfileDoc::empty_derived("coincide-carriers", Tol::witness());
+        let (doc, profile) = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![loop_],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        let (doc, extrude) = insert(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+            },
+        );
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            panic!("a profile")
+        };
+        let step = program.ids[0][0];
+        (0..pieces)
+            .map(|k| {
+                let wall = Construction {
+                    origin: Origin::Minted(StableName {
+                        kind: EntityKind::Face,
+                        node: extrude,
+                        path: vec![RoleSeg::Lateral(
+                            ProfileEdgeRef::Piece {
+                                step,
+                                role: PieceRole::Piece(k),
+                            }
+                            .into(),
+                        )],
+                    }),
+                    maps: Vec::new(),
+                };
+                coincide::axis_of(&doc, &wall)
+            })
+            .collect::<Vec<_>>()
+    };
+    let circle = walls(LoopProgram::circle(0.0, 0.0, 0.5).expect("a circle"), 2);
+    assert_eq!(circle[0], circle[1], "a circle's two walls are one carrier");
+    let rectangle = walls(
+        LoopProgram::rectangle(0.0, 0.0, 2.0, 1.0).expect("a rectangle"),
+        4,
+    );
+    for a in 0..4 {
+        for b in a + 1..4 {
+            assert_ne!(
+                rectangle[a], rectangle[b],
+                "a rectangle's walls {a} and {b} are two carriers"
+            );
+        }
+    }
+}
+
+/// **A wall read through a part's instance is not merged into one
+/// carrier**, even when the name it carries spells a `circle` wall of
+/// this document. The walk stops at an instance with the part's own
+/// name, whose ids this document does not hold, so a coincidence of
+/// ids with a host circle says nothing about the part's loop: the two
+/// halves stay two cells, while the same two names read in the host,
+/// with no instance on the way, are one carrier.
+///
+/// *Breaks if* the carrier merge reads a part's names against the
+/// host's program.
+#[test]
+fn a_parts_wall_names_are_not_read_against_the_hosts_circle() {
+    use coincide::{Construction, Map, Origin};
+    use editor_core::{ContentPin, DocRef, DocumentId, EntityKind, PieceRole, ProfileEdgeRef};
+    let doc = ProfileDoc::empty_derived("coincide-part-carrier", Tol::witness());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("a circle")],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+        },
+    );
+    let (doc, instance) = insert(
+        doc,
+        crate::fixture::mated_instance(DocRef {
+            id: DocumentId::derive("coincide-part-carrier-part"),
+            pin: ContentPin([0u8; 32]),
+        }),
+    );
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("a profile")
+    };
+    let step = program.ids[0][0];
+    let half = |k: u32, maps: Vec<Map>| {
+        let wall = Construction {
+            origin: Origin::Minted(StableName {
+                kind: EntityKind::Face,
+                node: extrude,
+                path: vec![RoleSeg::Lateral(
+                    ProfileEdgeRef::Piece {
+                        step,
+                        role: PieceRole::Piece(k),
+                    }
+                    .into(),
+                )],
+            }),
+            maps,
+        };
+        coincide::axis_of(&doc, &wall)
+    };
+    assert_eq!(
+        half(0, Vec::new()),
+        half(1, Vec::new()),
+        "the host's own circle walls are one carrier"
+    );
+    let through = vec![Map::World(instance)];
+    assert_ne!(
+        half(0, through.clone()),
+        half(1, through),
+        "read through the instance, the halves are the part's, and two"
+    );
+}
