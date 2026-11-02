@@ -1,0 +1,6 @@
+fork: exact-descent-home (REFS, a-union-whose-fold-glues-a-run-no-judgement-opened, prerequisite of the per-face unit)
+drawn: 2026-11-02T15:46:55Z, od -tu1 /dev/urandom
+bytes: 140 41
+arm: two designers (140 >= 86)
+mapping: A = Fable designer, B = Opus designer (41 odd)
+protocol: 2126b860b6
