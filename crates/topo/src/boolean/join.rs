@@ -231,7 +231,9 @@ enum GermLane<T: geom_core::Real> {
     /// A segment along a conic edge of the solid `on` only, lying inside
     /// the other's curved face: `on`'s chord copies its edge, and the
     /// other's is its face cut by the edge's plane, which meets that
-    /// face's carrier in the edge's conic. `root` is the edge's split
+    /// face's carrier in the edge's conic; or along a straight edge
+    /// lying in the other's cylinder wall, a ruling of it, whose plane
+    /// holds the wall's axis. `root` is the edge's split
     /// root, which every piece of it shares.
     EdgePlane {
         on: Operand,
@@ -1456,7 +1458,11 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // curved face, has a section whatever the pair's kinds: the
         // edge's plane. It is the lane of a pair no other arm takes. A
         // planar face holding the edge lies in that plane, which cuts
-        // it in no curve.
+        // it in no curve. A straight edge inside a cylinder wall is one
+        // of the wall's rulings, and its plane is the one through it
+        // holding the wall's axis, which cuts the wall in that ruling
+        // and the one opposite it: the seam of a cylinder lying on a
+        // parallel wall, whose pair names no kind arm.
         // A one-sided germ only: a germ along an edge of both solids
         // takes no kind lane (`SegmentLane::AlongEdge`, below). A pair
         // with a kind arm keeps it ([`kind_arm`]).
@@ -1473,20 +1479,33 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => &gb,
                 Operand::B => &ga,
             };
-            let (geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
-                ..
-            })
-            | geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { center, axis, .. },
-                ..
-            })) = along.carrier
-            else {
-                return Err(no_arm());
+            let (center, axis) = match (&along.carrier, holder) {
+                (_, Sf::Plane { .. }) => return Err(no_arm()),
+                (
+                    geom::Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, axis, .. },
+                        ..
+                    })
+                    | geom::Curve3::Ellipse(geom::Ellipse {
+                        frame: geom::Frame { center, axis, .. },
+                        ..
+                    }),
+                    _,
+                ) => (*center, *axis),
+                (
+                    geom::Curve3::Line(geom::Line { origin, dir }),
+                    Sf::Cylinder {
+                        origin: o, axis: w, ..
+                    },
+                ) => {
+                    // The edge's point less its foot on the wall's axis:
+                    // the radial, `±r` long, square to the ruling.
+                    let off = *origin - *o;
+                    let radial = off - *w * (off.dot(*w) / w.dot(*w));
+                    (*origin, dir.cross(radial))
+                }
+                _ => return Err(no_arm()),
             };
-            if matches!(holder, Sf::Plane { .. }) {
-                return Err(no_arm());
-            }
             Ok(GermLane::EdgePlane {
                 on: along.on,
                 root: along.root,

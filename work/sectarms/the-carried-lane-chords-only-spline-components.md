@@ -47,3 +47,31 @@ A carried chord on a closed-form component:
 
 After that, the rulings and bisector lanes, and the plane-lane rows that
 pin them, retire into the carried lane.
+
+## 2026-11-02: split into 3b-i (landing) and 3b-ii (waits on F1)
+
+**3b-i**, branch `sectarms/cylinder-carried-closed-form`:
+- `chord_join::carried_chord_spec` gains a closed-form arm. The chord on
+  a line, circle or ellipse component is the carrier itself, over the
+  two sites' parameters, run back by `Curve3::reversed` where it leaves
+  back. It has no spline arc, since an exact carrier is its own
+  evidence, and the ring lane reads its arc as the curve it is.
+- `PairSection::seat` seats a closed circle or ellipse by its span.
+- The join admits a closed form to the carried lane on any pair with no
+  torus (`join::chord_spec_carries`). A torus pair's closed forms are
+  filed apart: `a-torus-pairs-closed-form-circles-take-no-join-lane`.
+- The parallel pose's rulings lane retires: `GermLane::Rulings`,
+  `KindArm::Cylinders`, `rulings_are_straight`, `rulings_normal` and
+  `CylinderCylinderPose::rulings_plane`.
+- Cylinder × sphere's coaxial circles now build every op. Before, they
+  refused at the join (`CurvedBooleanUnsupported`); the correction to
+  the paragraph above is that the frame lane never read them.
+- The probe the plan named reads: a cylinder island closed by a ruling
+  winds by a path (`chord_join::wall_ring_rows`), so no new reading was
+  needed.
+
+**3b-ii**, the bisector lane's retirement, waits on the node-germ fork
+F1. That fork decides how a germ at a node names its arc once the
+bisector planes no longer do. The orchestrator is running it through the
+design-fork procedure. Until then the bisector pose keeps
+`GermLane::Bisector` exactly as before.

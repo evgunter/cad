@@ -63,3 +63,19 @@ sites are not measured here (`memories/refusal-text-is-not-cause.md`):
 **Done when** each union evaluates, or refuses at a site that says why,
 and the pins above are flipped: the two `shaft_and_bearing` scenes then
 join the registry, and stage 6's census counts their coaxial rows.
+
+## 2026-11-02: the cylinder × coaxial sphere union builds at f64 (SECTARMS stage 3b-i)
+
+On branch `sectarms/cylinder-carried-closed-form`, the join's carried
+lane chords closed-form components (`chord_join::carried_chord_spec`).
+The coaxial pair's two circles are now cut as the circles they are, so
+`corpus::shaft_and_bearing::with_a_ball`'s union builds at `f64` at all
+three ε.
+- The door records four `OnCarrier` rows at `CoaxialSphere`, so a
+  document now reaches that site. Pinned by
+  `coincidence_door::the_shaft_and_ball_union_is_green_at_f64_on_its_coaxial_rows`.
+- At `Interval` the union escalates, so the scene stays beside the
+  registry.
+- The cylinder × coaxial torus and tangent cone scenes refuse as before.
+  The torus pair's closed forms are filed as
+  `sectarms/a-torus-pairs-closed-form-circles-take-no-join-lane`.
