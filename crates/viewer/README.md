@@ -2035,15 +2035,20 @@ A create gesture asks for two things and nothing else:
   rule and whether its copies are fused; a clearance bound's shape.
 - **what the node reads**: the selection, or the tool's picks. These
   are the profile an extrude or revolve sweeps, a boolean's members, a
-  split's target, a blend's edge set, and the face a profile is drawn
-  on. A live node's reads change only by the slot door or
+  split's target and the face its plane is read off, a blend's edge
+  set, and the face a profile is drawn on. A live node's reads change only by the slot door or
   `SetMembers` (DM6, `crates/editor-core/REFERENCES.md`), so they are
   stated at insert.
 
 It inserts the node with default values and selects the node its noun
 names (the pattern, not the pattern's placement). A default is worked
-out from the reads where it can be: the split plane through the
-target's centre, a revolve's axis off its profile's extent.
+out from the reads where it can be: a split's plane is the picked
+face's plane slid along its normal to the target's middle, and a
+revolve's axis lies off its profile's extent. A pattern's row slides
+along its target space's x by the body's extent, and its ring spins
+about the target space's z; a ring's count is 4 and its step a
+quarter turn. A plane or axis is never typed as coordinates: no
+space holds a plane or axis a reader takes as a pose.
 
 Every value is edited afterwards on the node's one edit surface: its
 Properties slot rows, the profile editor, or the placement editor.
@@ -2075,6 +2080,13 @@ is its preview.
   the templates.
 - **Place** on an unplaced body inserts its placement with no mates
   and opens the placement editor on it. Every mate is added there.
+- **A pose a seat reads is the node's.** A pose minted at a node's
+  seat has that node as its one reader (VR7), so its scalars are the
+  node's slot rows, each addressed through the seat
+  (`SlotId::PoseScalar`) and taking a number or a formula. Its reads
+  are re-picked through the slot door, which keeps its scalars. A
+  fused pattern's union, which is what the gesture selects, also shows
+  its own placement's rows and its index's count.
 - **A creation proposes no label.** The insert stores "Kind N", and
   the node's label row renames it.
 - **Variables**: `New variable` adds the variable's row. Its name and
