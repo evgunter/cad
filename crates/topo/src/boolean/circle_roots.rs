@@ -341,20 +341,36 @@ pub(super) struct HarmonicRoot<T> {
     /// `(cos_part, sin_part)/A₁` turned by the half-chord, with no angle
     /// in it.
     pub(super) direction: (T, T),
-    /// `θ` itself, unreduced (`φ ± half-chord`), its phase read on the
-    /// branch whose cut is a half turn from it: a reader takes it
-    /// relative to a point it already knows lies near the root, where it
-    /// keeps its relative precision.
-    pub(super) raw: T,
+    /// `θ` itself, `φ ± half-chord`, with the phase `φ` read by `atan2`
+    /// (its cut where the phase is a half turn, `cos_part < 0`) and read
+    /// from the opposite vector (its cut where `cos_part > 0`):
+    /// [`HarmonicRoot::from`] reads the one off its cut.
+    raw: (T, T),
+    cos_part: T,
+}
+
+impl<T: Decide> HarmonicRoot<T> {
+    /// **The root's signed angle from the parameter `t`**, in `(−π, π]`:
+    /// the raw root less `t`, a difference of two near numbers where the
+    /// root lies near `t`, which keeps its relative precision there. Each
+    /// raw reading is reduced first, so the two agree where their phases
+    /// meet, and the one whose phase is off its cut is kept.
+    pub(super) fn from(&self, t: T) -> T {
+        let tau = T::tau();
+        let (base, opposite) = self.raw;
+        (T::zero() - self.cos_part).select_le_zero(
+            (base - t).reduce_periodic_centred(tau),
+            (opposite - t).reduce_periodic_centred(tau),
+        )
+    }
 }
 
 /// **The roots of a first harmonic as directions**, each with its raw
-/// angle: the decisions of [`first_harmonic_roots_in_band`] with their
-/// rows. A phase or a root reduced onto a window has a cut, where an
-/// enclosing scalar holds it as a whole turn's hull; the direction has
-/// none, and the raw angle's phase is read by `atan2` on the half plane
-/// of its own sign of `cos_part`, so its cut is a half turn from the
-/// phase.
+/// angle ([`HarmonicRoot`]): the decisions of
+/// [`first_harmonic_roots_in_band`] with their rows. A phase or a root
+/// reduced onto a window has a cut, where an enclosing scalar holds it as
+/// a whole turn's hull; the direction has none, and the raw angle is read
+/// off its cut ([`HarmonicRoot::from`]).
 ///
 /// # Errors
 ///
@@ -373,19 +389,18 @@ pub(super) fn first_harmonic_root_directions<T: Decide>(
             let amplitude = (c.powi(2) + s.powi(2)).sqrt();
             let (pc, ps) = (c / amplitude, s / amplitude);
             let (sin, cos) = half_chord.sin_cos();
-            // `atan2` where `cos_part ≥ 0`; past that, the same angle
-            // read from the opposite vector, whose cut lies where
-            // `cos_part > 0`.
-            let phi = (T::zero() - c)
-                .select_le_zero(s.atan2(c), T::pi() + (T::zero() - s).atan2(T::zero() - c));
+            let base = s.atan2(c);
+            let opposite = T::pi() + (T::zero() - s).atan2(T::zero() - c);
             Roots::all([
                 HarmonicRoot {
                     direction: (pc * cos + ps * sin, ps * cos - pc * sin),
-                    raw: phi - half_chord,
+                    raw: (base - half_chord, opposite - half_chord),
+                    cos_part: c,
                 },
                 HarmonicRoot {
                     direction: (pc * cos - ps * sin, ps * cos + pc * sin),
-                    raw: phi + half_chord,
+                    raw: (base + half_chord, opposite + half_chord),
+                    cos_part: c,
                 },
             ])
         }
@@ -577,12 +592,12 @@ mod tests {
         for root in found.roots() {
             let (cos, sin) = root.direction;
             assert!(
-                width(cos) < 1e-9 && width(sin) < 1e-9 && width(root.raw) < 1e-9,
+                width(cos) < 1e-9 && width(sin) < 1e-9 && width(root.from(i(0.0))) < 1e-9,
                 "a tight root: {root:?}"
             );
             assert!(cos.hi().abs() < 1e-9, "on the y axis: {root:?}");
             let mid = |x: Interval| 0.5 * (x.lo() + x.hi());
-            let (s, c) = mid(root.raw).sin_cos();
+            let (s, c) = mid(root.from(i(0.0))).sin_cos();
             assert!(
                 (s - mid(sin)).abs() < 1e-9 && (c - mid(cos)).abs() < 1e-9,
                 "{root:?}"

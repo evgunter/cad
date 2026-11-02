@@ -663,10 +663,10 @@ fn a_cycle_read_in_band_escalates_with_its_margin() {
 }
 
 /// **A sliver beside a pole passes** (PR 6054's near-pole false refusal,
-/// on a body): a window face 10 µm tall, 1 cm from the ball's south pole,
-/// holds neither pole and lies in its lune, its plug and the lune both
-/// read by the region arm and the chart-singularity arm, and the body
-/// validates.
+/// read now through the doors): a window face 10 µm tall, 1 cm from the
+/// ball's south pole, holds neither pole and lies in its lune, and the
+/// body validates. The pole's side of the sliver is the sphere door's
+/// reading at the pole, which no chart polygon approximates.
 #[test]
 fn a_sliver_beside_a_pole_passes() {
     let (height, eps) = (1e-5, tol().eps());
@@ -1191,4 +1191,68 @@ fn points_a_band_off_a_lunes_pole_vertex_read_at_the_ends_precision() {
             );
         }
     }
+}
+
+/// The dome — the quarter disc right of `y` and above `x` revolved about
+/// `y` — through `angle` (a full turn where `None`), at `T`.
+fn dome_by<T: Scalar>(angle: Option<f64>) -> Body<T> {
+    let q = (core::f64::consts::PI / 8.0).tan();
+    let pts = [(0.0, 0.0, 0.0), (1.0, 0.0, q), (0.0, 1.0, 0.0)];
+    let meridian = bulge_loop(
+        pts.iter()
+            .map(|&(x, y, b)| (Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b)))
+            .collect(),
+    );
+    let profile = Profile::new(SketchPlane::xy(), vec![meridian])
+        .validate(tol())
+        .expect("the dome's profile");
+    let revolution = angle.map_or(Revolution::Full, |a| Revolution::Partial(T::from_f64(a)));
+    revolve(
+        &profile,
+        RevolveAxis {
+            origin: Point2::new(T::zero(), T::zero()),
+            dir: Vec2::new(T::zero(), T::one()),
+        },
+        revolution,
+        tol(),
+    )
+    .expect("the dome revolves")
+    .body
+}
+
+/// **Points near the pole a dome's face leaves out read out, at `f64` and
+/// at the certified scalar.** On the dome (the upper half ball) revolved
+/// a full turn, a half turn and a degree, points `1e-4` rad off the south
+/// pole at eight azimuths, off the seam's plane, are out of every sphere
+/// face. Every great circle through such a point passes near the north
+/// pole, the faces' vertex at its antipode, which a place read by `atan2`
+/// on its branch cut enclosed over a whole turn at `Interval`.
+fn points_beside_a_domes_far_pole<T: Scalar>(scalar: &str) {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    for angle in [None, Some(core::f64::consts::PI), Some(1f64.to_radians())] {
+        let at_f64 = dome_by::<f64>(angle);
+        let body = dome_by::<T>(angle);
+        for (k, f) in at_f64.faces() {
+            if !matches!(at_f64.get_surface(f.surface), Some(Surface::Sphere { .. })) {
+                continue;
+            }
+            let face = same_face(&at_f64, k, &body);
+            for i in 0..8 {
+                let az = f64::from(i) * core::f64::consts::FRAC_PI_4 + 0.3;
+                let d = 1e-4_f64;
+                let q = Point3::new(d.sin() * az.cos(), -d.cos(), d.sin() * az.sin());
+                assert_eq!(
+                    topo::curved_face_containment(&body, face, pt::<T>(q), band),
+                    Ok(Some(topo::FaceContainment::Out)),
+                    "{q:?} beside the south pole, dome revolved {angle:?}, at {scalar}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn points_beside_a_domes_far_pole_read_out() {
+    points_beside_a_domes_far_pole::<f64>("f64");
+    points_beside_a_domes_far_pole::<geom_core::Interval>("Interval");
 }
