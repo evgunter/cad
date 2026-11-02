@@ -5447,9 +5447,9 @@ mod pair_over_its_span_rows {
             u_ref: Vec3::unit_y(),
         };
         let start = 0.4 * eps * 64.0;
-        let old = geom_brep::Reach::Measured {
-            at: Point3::new(0.0, 0.0, 0.5),
-            lever: 0.5 - 2.0 * start,
+        let old = {
+            let lever = 0.5 - 2.0 * start;
+            geom_brep::Reach::of_frame(Point3::new(0.0, 0.0, 0.5), None, (lever, lever))
         };
         let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
             geom_brep::plane_cone_section(&plane, &cone, &old, band)
@@ -5531,10 +5531,7 @@ mod pair_over_its_span_rows {
                 normal: n,
                 u_ref: Vec3::unit_y(),
             };
-            let old = geom_brep::Reach::Measured {
-                at: Point3::new(0.0, 0.0, 0.75),
-                lever: 0.25,
-            };
+            let old = geom_brep::Reach::of_frame(Point3::new(0.0, 0.0, 0.75), None, (0.25, 0.25));
             let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
                 geom_brep::plane_cone_section(&plane, &cone, &old, band)
             else {

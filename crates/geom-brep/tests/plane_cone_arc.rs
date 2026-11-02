@@ -40,10 +40,7 @@ fn plane(q: Point3<f64>, n: Vec3<f64>) -> Surface<f64> {
 
 /// A reach of `lever` metres about the apex.
 fn reach(lever: f64) -> Reach<f64> {
-    Reach::Measured {
-        at: Point3::new(0.0, 0.0, 1.0),
-        lever,
-    }
+    Reach::of_frame(Point3::new(0.0, 0.0, 1.0), None, (lever, lever))
 }
 
 /// A point's distance from the double cone `cone(alpha)`: exact for a

@@ -66,10 +66,7 @@ fn the_c5_table_classifies_the_authored_pair_as_a_tangent_line() {
     let out = geom_brep::plane_cylinder_section(
         &tangent_plane(),
         &cylinder(),
-        &geom_brep::Reach::Measured {
-            at: Point3::origin(),
-            lever: 1.0,
-        },
+        &geom_brep::Reach::of_frame(Point3::origin(), None, (1.0, 1.0)),
         band(),
     )
     .expect("a clean tangency classifies definitely");

@@ -1,2 +1,7 @@
 # Unsourced levers (Lever::unsourced, ExtentBall::unsourced): references per crate
 # (scripts/gates/lever-sources.sh), pinned; the list only falls.
+crates/editor-core 9
+crates/geom-brep 22
+crates/profile 6
+crates/sweep 1
+crates/topo 36

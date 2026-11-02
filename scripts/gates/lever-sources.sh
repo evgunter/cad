@@ -61,7 +61,9 @@ gate() {
     gate_error "Lever::of_consumed_extent is read outside the extent's home: build the lever from a geom_brep::Reach or ExtentBall read, a curvature arm or the session box"
     exit 1
   fi
-  if ! report=$(python3 "$CENSUS" "$BASELINE" unsourced --reasons '--marker=// Unsourced lever:' <<<"$code"); then
+  # The two doors' own definitions are not references.
+  if ! report=$(grep -vE '\bfn unsourced\b' <<<"$code" \
+    | python3 "$CENSUS" "$BASELINE" unsourced --reasons '--marker=// Unsourced lever:'); then
     gate_error "$(gate_name): the counter failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
     exit 1
   fi

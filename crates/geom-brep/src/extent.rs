@@ -950,6 +950,8 @@ pub enum Reach<T: Real> {
     /// larger radius, [`Self::of_frame`]), read at the foot of `at`. Its lever
     /// is that length ([`Self::lever_from`]), floored for the cylinder
     /// pair at the foot's distance from `at` ([`Self::lever_between`]).
+    /// Built only by [`Self::of_frame`].
+    #[non_exhaustive]
     Measured {
         /// The point the caller measured from.
         at: Point3<T>,
@@ -1902,7 +1904,7 @@ mod tests {
             lever >= want * (1.0 - 1e-12),
             "a normal on the axis to rounding: lever {lever}, the point's turn {want}"
         );
-        let measured = Reach::Measured { at, lever: 1.0 };
+        let measured = Reach::of_frame(at, None, (1.0, 1.0));
         let n = Vec3::new(0.0, 0.0, 1.0);
         assert_eq!(
             measured

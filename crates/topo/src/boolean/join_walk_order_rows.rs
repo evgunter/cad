@@ -304,10 +304,7 @@ fn a_tilted_ellipse_on_a_cylinder_walks_one_order_in_both_lanes() {
         normal,
         u_ref: Vec3::unit_z().cross(normal).normalize(),
     };
-    let reach = geom_brep::Reach::Measured {
-        at: origin,
-        lever: 4.0,
-    };
+    let reach = geom_brep::Reach::of_frame(origin, None, (4.0, 4.0));
     let conic = match geom_brep::plane_cylinder_section(&plane, &wall, &reach, band()).unwrap() {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c) => c,
         other => panic!("{other:?}"),
@@ -375,10 +372,7 @@ fn steep() -> (Surface<f64>, Curve3<f64>) {
         normal,
         u_ref: Vec3::unit_z().cross(normal).normalize(),
     };
-    let reach = geom_brep::Reach::Measured {
-        at: origin,
-        lever: 64.0,
-    };
+    let reach = geom_brep::Reach::of_frame(origin, None, (64.0, 64.0));
     let conic = match geom_brep::plane_cylinder_section(&plane, &wall, &reach, band()).unwrap() {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c) => c,
         other => panic!("{other:?}"),

@@ -51,10 +51,7 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
 /// A reach of `lever` about [`cone_z`]'s apex: the scalar extent these
 /// rows read a pose at before `route_pose` took a [`Reach`].
 fn at_apex(lever: f64) -> Reach<f64> {
-    Reach::Measured {
-        at: Point3::new(0.0, 0.0, 1.0),
-        lever,
-    }
+    Reach::of_frame(Point3::new(0.0, 0.0, 1.0), None, (lever, lever))
 }
 
 /// The `z`-axis cone, apex at `(0, 0, 1)`.
