@@ -87,17 +87,55 @@ impl TakenOver {
     }
 }
 
-/// **An evaluation with the document it answers**, kept together as
-/// one value from where the evaluation is made: what a reader asks
-/// names of is the pair, never the evaluation alone. A takeover's last
+/// **An evaluation with the document it answers**, and the resolver it
+/// resolved parts through, kept together as one value from where the
+/// evaluation is made: what a reader asks names of is the pair, never
+/// the evaluation alone.
+///
+/// **Provenance is held by the type.** The fields are private and the
+/// one constructor evaluates ([`Answered::evaluate`]), so no value pairs
+/// an evaluation with a document it is not a run of. A takeover's last
 /// round may write rebinds after its last evaluation, so the document
 /// the action finishes with need not be the one this answers.
 #[derive(Clone, Debug)]
 pub struct Answered {
+    evaluation: Arc<Evaluation<f64>>,
+    doc: Arc<Doc<ProfileProgram>>,
+    resolver: Option<Arc<dyn crate::part::PartResolver>>,
+}
+
+impl Answered {
+    /// **`doc` evaluated**, from `prior` as its memo, under `opts`: the
+    /// one way to make an `Answered`.
+    pub fn evaluate(
+        doc: Arc<Doc<ProfileProgram>>,
+        prior: Option<&Evaluation<f64>>,
+        cancel: &crate::CancelToken,
+        opts: &EvalOptions,
+        tol: Tol,
+    ) -> Self {
+        let evaluation = Arc::new(crate::evaluate(&doc, prior, cancel, opts, tol));
+        Self {
+            evaluation,
+            doc,
+            resolver: opts.resolver.clone(),
+        }
+    }
+
     /// The evaluation.
-    pub evaluation: Arc<Evaluation<f64>>,
+    pub fn evaluation(&self) -> &Arc<Evaluation<f64>> {
+        &self.evaluation
+    }
+
     /// The document it is an evaluation of.
-    pub doc: Arc<Doc<ProfileProgram>>,
+    pub fn doc(&self) -> &Arc<Doc<ProfileProgram>> {
+        &self.doc
+    }
+
+    /// The resolver it resolved `InstantiatePart` nodes through.
+    pub fn resolver(&self) -> &Option<Arc<dyn crate::part::PartResolver>> {
+        &self.resolver
+    }
 }
 
 /// **Where a takeover moved the names a copy holds**: per copy, each
@@ -209,12 +247,23 @@ impl Recording<'_, ProfileProgram> {
         // so where nothing reads such a body the door evaluates once.
         // Each round takes the names it moved out of the document, so the
         // rounds end within the depth of the reads.
-        let mut ev: Evaluation<f64> =
-            crate::evaluate(doc, prior, &crate::CancelToken::new(), opts, self.tol());
-        let mut answers = Arc::new(doc.clone());
+        let mut run = Answered::evaluate(
+            Arc::new(doc.clone()),
+            prior,
+            &crate::CancelToken::new(),
+            opts,
+            self.tol(),
+        );
         loop {
             let doc = self.doc();
-            let round = rebinds_of(doc, &ev, &taken, &chains, &bodies);
+            let ev = run.evaluation();
+            let mut round = rebinds_of(doc, ev, &taken, &chains, &bodies);
+            // A pick held outside the document on a chain node is a
+            // reader too: where the node's body did not evaluate, where
+            // its names went is unchecked as a site's would be.
+            round.unchecked |= chains.keys().any(|&node| {
+                held(node) && doc.outputs(node).iter().any(|&var| ev.table(var).is_none())
+            });
             for edit in &round.edits {
                 self.apply(edit.clone())?;
             }
@@ -222,10 +271,9 @@ impl Recording<'_, ProfileProgram> {
                 taken.moved = round.moved;
                 break;
             }
-            answers = Arc::new(self.doc().clone());
-            ev = crate::evaluate(
-                &answers,
-                Some(&ev),
+            run = Answered::evaluate(
+                Arc::new(self.doc().clone()),
+                Some(run.evaluation()),
                 &crate::CancelToken::new(),
                 opts,
                 self.tol(),
@@ -233,10 +281,7 @@ impl Recording<'_, ProfileProgram> {
         }
         // The last run answers the document it ran on, which the last
         // round's rebinds, where it wrote any, have moved on from.
-        taken.evaluation = Some(Answered {
-            evaluation: Arc::new(ev),
-            doc: answers,
-        });
+        taken.evaluation = Some(run);
         Ok(taken)
     }
 }

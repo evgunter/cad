@@ -937,7 +937,7 @@ fn a_panic_inside_an_egui_frame_is_not_swallowed() {
 fn a_seeded_request_starts_from_its_seed() {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
-    let seeded = seeded_run(&doc, Some((&doc, &beside(&doc))));
+    let seeded = seeded_run(&doc, Some(&doc));
     assert_eq!(seeded.recomputed, 0, "every node read off the seed");
     let unseeded = seeded_run(&doc, None);
     assert!(
@@ -961,7 +961,7 @@ fn a_wrong_seed_recomputes_and_answers_as_a_direct_run() {
     let (other, _, _) = common::broken_document(tol);
     let direct = beside(&doc);
     for (what, of) in [("another document", &other), ("an earlier state", &earlier)] {
-        let run = seeded_run(&doc, Some((of, &beside(of))));
+        let run = seeded_run(&doc, Some(of));
         assert!(
             run.recomputed > 0,
             "{what}: the seed does not answer the new nodes"
@@ -989,14 +989,11 @@ fn beside(doc: &pncad::document::Doc<ProfileProgram>) -> Arc<pncad::document::Ev
     ev
 }
 
-/// `doc` through a fresh seam, started from `seed` (an evaluation, and
-/// the document it is one of) where one is given.
+/// `doc` through a fresh seam, started from a seed made by evaluating
+/// `seed_of` (a seed is made only by evaluating), where one is given.
 fn seeded_run(
     doc: &pncad::document::Doc<ProfileProgram>,
-    seed: Option<(
-        &pncad::document::Doc<ProfileProgram>,
-        &Arc<pncad::document::Evaluation<f64>>,
-    )>,
+    seed_of: Option<&pncad::document::Doc<ProfileProgram>>,
 ) -> Arc<pncad::document::Evaluation<f64>> {
     let mut seam = InlineEvaluator::new();
     seam.submit(EvalRequest {
@@ -1004,10 +1001,16 @@ fn seeded_run(
         doc: doc.clone(),
         tol: Tol::witness(),
         resolver: None,
-        seed: seed.map(|(of, evaluation)| viewer::evalseam::Seed {
-            evaluation: Arc::clone(evaluation),
-            answers: Arc::new(of.clone()),
-            resolver: None,
+        seed: seed_of.map(|of| {
+            let answered = pncad::document::Answered::evaluate(
+                Arc::new(of.clone()),
+                None,
+                &CancelToken::new(),
+                &EvalOptions::default(),
+                Tol::witness(),
+            );
+            assert_eq!(answered.evaluation().outcome, EvalOutcome::Completed);
+            viewer::evalseam::Seed::of(answered)
         }),
     });
     seam.poll().expect("the run answers").evaluation

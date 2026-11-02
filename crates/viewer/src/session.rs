@@ -947,7 +947,7 @@ impl DocSession {
                     // (the preview draws what its rebinds seat, so it
                     // keeps them), else the landed one.
                     prime: seed
-                        .map(|seed| seed.evaluation)
+                        .map(|seed| Arc::clone(seed.evaluation()))
                         .or_else(|| self.memo_under(&resolver)),
                     resolver,
                     tol: self.tol,
@@ -4333,6 +4333,27 @@ impl DocSession {
     /// its names: the session's selection and each pick `outside` holds,
     /// their words spoken from the document the commit made. The one
     /// place a held name follows (`Holds::follow`).
+    ///
+    /// **The selection's last verdict follows with it, and only where
+    /// `moved` names it.** `moved` names a pick only where the door's last
+    /// run held the pick's successor as one entity of the pick's own body
+    /// (the copy's successor, kept only where that body's table holds it
+    /// whole and once). That run is of the document before the door's
+    /// last rebinds at most. Those rebinds rewrite selections; a body
+    /// they change is one that reads a rewritten selection, and such a
+    /// body did not evaluate in that run (it read a name the copy no
+    /// longer holds), so `moved` names nothing on it, and the door ran
+    /// another round where a pick was held on it. So the body a followed
+    /// name is read in, and that body's table, is the same in the made
+    /// document as in that run. The followed name denotes there the one
+    /// entity the takeover carried the picked one onto: the same face,
+    /// so the verdict the picked name had stands for it. A pick `moved`
+    /// does not name keeps its name, and its verdict with it.
+    ///
+    /// The carried verdict is not a verdict on the made document: none
+    /// is asked while no run answers it (`name_run` abstains), and the
+    /// landing judges the followed name afresh, as it judges every held
+    /// name.
     fn follow(&mut self, moved: &pncad::document::Moved, outside: &mut dyn Holds) {
         if moved.is_empty() {
             return;
@@ -4341,10 +4362,8 @@ impl DocSession {
         let was = self.derived.selection.clone();
         select::follow(&mut self.derived.selection, moved, doc);
         select::follow(outside, moved, doc);
-        // A followed pick is the same pick: its last verdict follows it,
-        // and stands until a run of the shown document answers it
-        // (`name_run` abstains where the door's run predates its own
-        // rebinds).
+        // The selection moved only where `moved` named it (above): its
+        // last verdict follows it, until the landing judges it.
         if let Some((selection, _)) = self.derived.verdict.as_mut()
             && *selection == was
         {
@@ -4471,11 +4490,11 @@ impl DocSession {
             // round wrote rebinds, or a run the action went on past (a
             // label, a combine's deletes), ran on an earlier one, which
             // the run of this one only starts from.
-            Some(seed) if *seed.answers == *self.requested_doc => {
+            Some(seed) if **seed.answers() == *self.requested_doc => {
                 self.derived.seeded = Some(SeededRun {
                     generation: self.generation,
                     doc: Arc::clone(&self.requested_doc),
-                    evaluation: Arc::clone(&seed.evaluation),
+                    evaluation: Arc::clone(seed.evaluation()),
                 });
                 Names::Seeded
             }
@@ -4914,17 +4933,10 @@ impl Takeover {
         for placement in self.dropped {
             run.apply(DocEdit::DeleteNode { id: placement })?;
         }
-        // The door's run, with the document it ran on and the resolver
-        // it ran under: the seed the run of the recorded document starts
-        // from.
-        let seed = taken
-            .evaluation
-            .take()
-            .map(|answered| crate::evalseam::Seed {
-                evaluation: answered.evaluation,
-                answers: answered.doc,
-                resolver: self.reads.resolver,
-            });
+        // The door's run, which carries the document it ran on and the
+        // resolver it ran under: the seed the run of the recorded document
+        // starts from.
+        let seed = taken.evaluation.take().map(crate::evalseam::Seed::of);
         Ok(Made {
             node: result,
             moved: taken.moved,

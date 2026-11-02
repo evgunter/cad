@@ -162,21 +162,41 @@ pub struct EvalRequest {
 }
 
 /// **A completed evaluation a request starts from**
-/// ([`EvalRequest::seed`]), with the resolver it was made under: the
-/// seam's priming rule holds a seed to the request's resolver as it
-/// holds its own run ([`same_resolver`]), and a seed under another one
-/// is a caller's error, refused loudly.
+/// ([`EvalRequest::seed`]), with the document it is an evaluation of and
+/// the resolver it resolved parts through. A run may start from an
+/// evaluation of an earlier document (only what changed is evaluated
+/// again), but it answers names only of its own
+/// (`DocSession::name_run`). The seam's priming rule holds a seed to the
+/// request's resolver as it holds its own run ([`same_resolver`]), and a
+/// seed under another one is a caller's error, refused loudly.
+///
+/// **Provenance is held by the type**: its one constructor takes an
+/// [`Answered`](pncad::document::Answered), which is made only by
+/// evaluating, so a seed's document and resolver are the ones its
+/// evaluation ran on.
 #[derive(Clone, Debug)]
-pub struct Seed {
+pub struct Seed(pncad::document::Answered);
+
+impl Seed {
+    /// The seed `answered` is.
+    pub fn of(answered: pncad::document::Answered) -> Self {
+        Self(answered)
+    }
+
     /// The evaluation.
-    pub evaluation: Arc<Evaluation<f64>>,
-    /// The document it is an evaluation of, taken where it was made: a
-    /// run may start from an evaluation of an earlier document (only
-    /// what changed is evaluated again), but it answers names only of
-    /// this one (`DocSession::name_run`).
-    pub answers: Arc<Doc<ProfileProgram>>,
+    pub fn evaluation(&self) -> &Arc<Evaluation<f64>> {
+        self.0.evaluation()
+    }
+
+    /// The document it is an evaluation of.
+    pub fn answers(&self) -> &Arc<Doc<ProfileProgram>> {
+        self.0.doc()
+    }
+
     /// The resolver it resolved `InstantiatePart` nodes through.
-    pub resolver: Option<Arc<dyn PartResolver>>,
+    pub fn resolver(&self) -> &Option<Arc<dyn PartResolver>> {
+        self.0.resolver()
+    }
 }
 
 /// A finished run.
@@ -321,14 +341,14 @@ fn run_once(
     // completed run.
     if let Some(seed) = &request.seed {
         assert!(
-            same_resolver(&seed.resolver, &request.resolver),
+            same_resolver(seed.resolver(), &request.resolver),
             "a seed evaluated under another resolver than its request's"
         );
     }
     let seeded = request
         .seed
         .as_ref()
-        .map(|seed| seed.evaluation.as_ref())
+        .map(|seed| seed.evaluation().as_ref())
         .filter(|seed| seed.outcome == EvalOutcome::Completed);
     let prime = seeded.or_else(|| {
         prior

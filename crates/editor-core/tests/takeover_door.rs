@@ -506,7 +506,7 @@ fn the_door_evaluates_again_only_for_a_link_it_could_not_answer() {
         .expect("a reader: the door evaluated")
     };
     assert!(
-        seed(&shell_doc).evaluation.node_error(shell).is_some(),
+        seed(&shell_doc).evaluation().node_error(shell).is_some(),
         "one round: the run predates the shell's rebind"
     );
     let plane = crate::fixture::plane_on(&doc, copy, [0.0, 1.0, 0.5], [1.0, 0.0, 0.0]);
@@ -526,7 +526,7 @@ fn the_door_evaluates_again_only_for_a_link_it_could_not_answer() {
         },
     );
     assert!(
-        seed(&mirror_doc).evaluation.table(mirror_out).is_some(),
+        seed(&mirror_doc).evaluation().table(mirror_out).is_some(),
         "a second round answers the mirror once its plane is rebound"
     );
 }
@@ -702,13 +702,13 @@ fn the_doors_evaluation_answers_the_document_it_names() {
     let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
     let answered = done.taken.evaluation.expect("the door evaluated");
     assert!(
-        *answered.doc != done.doc,
+        **answered.doc() != done.doc,
         "the rebind came after the door's run"
     );
-    let of_labelled = crate::fixture::run(&answered.doc, &o);
+    let of_labelled = crate::fixture::run(answered.doc(), &o);
     let of_made = crate::fixture::run(&done.doc, &o);
     assert_eq!(
-        answered.evaluation.value(shell).is_some(),
+        answered.evaluation().value(shell).is_some(),
         of_labelled.value(shell).is_some(),
         "the door's run answers as a run of the document it is labelled with"
     );
@@ -717,7 +717,47 @@ fn the_doors_evaluation_answers_the_document_it_names() {
         "the made document's shell evaluates"
     );
     assert!(
-        answered.evaluation.value(shell).is_none(),
+        answered.evaluation().value(shell).is_none(),
         "the door's run predates it"
+    );
+}
+
+/// **A pick held on a chain link that reads the copy follows**: a
+/// mirror of the copy whose plane is a selection on the copy, nothing in
+/// the document reading the mirror, and a reader outside the document
+/// holding names on every chain node (the free door's `held`). The
+/// mirror does not evaluate until its plane is rebound, so where its
+/// held pick went is unchecked in the first round: the door runs a
+/// second, and the mirror's top is answered moved, onto a name that
+/// resolves on the mirror in the made document. Goes red if only the
+/// document's readers count toward a further round.
+#[test]
+fn a_held_pick_on_a_mirror_whose_plane_reads_the_copy_follows() {
+    let doc = ProfileDoc::empty_derived("takeover-held-mirror", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
+    let (doc, f) = block_on(doc, b, (3.0, 6.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, u) = union(doc, vec![b, f]);
+    let (doc, copy) = insert(doc, stood(b));
+    let plane = crate::fixture::plane_on(&doc, copy, [0.0, 1.0, 0.5], [1.0, 0.0, 0.0]);
+    let (doc, mirror) = insert(
+        doc,
+        Node::Mirror {
+            body: copy.into(),
+            plane,
+        },
+    );
+    let o = EvalOptions::default();
+    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    let to = done
+        .taken
+        .moved
+        .of(mirror, &cap(b, CapEnd::End))
+        .expect("the mirror's held top follows")
+        .clone();
+    let ev = crate::fixture::run(&done.doc, &o);
+    assert!(
+        ev.table(out(&done.doc, mirror))
+            .is_some_and(|table| table.lookup(&to).is_some()),
+        "and resolves on the mirror in the made document"
     );
 }
