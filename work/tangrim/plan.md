@@ -23,7 +23,7 @@ CLEAVE's PR 6177 (one-segment cylinder through a plate tangent to a hole) is in 
 | P2 | open | `a-cone-boss-over-a-hole-tangent-at-its-rim-refuses-in-every-pose` | M | A cone boss over a hole whose rim is tangent to the hole's refuses CurvedPierceUnsupported in every op, whatever the vertices' azimuths |
 | P2 | open | `a-flush-closed-rim-at-its-vertex-is-joined-reversed` | M | A closed rim lying flush in a partner face, tangent inside its boundary at its one vertex, is refused at the join: joined there, the walled-off piece takes the copy's reversed half |
 | P2 | open | `a-rod-union-refuses-at-interval-on-a-poison-ruled-region-span` | M | A rod union refuses at Interval on a poison bool_ruled_region_span margin, so the self-intersection tee row has no Interval body |
-| P1 | open | `a-union-across-a-tangent-crescent-refuses-unbuilt` | H | A union of two plane faces overlapping in a crescent tangent at a vertex refuses TangentCrescentUnsupported: no germ runs along a region of zero angle |
+| P1 | review | `a-union-across-a-tangent-crescent-refuses-unbuilt` | H | A union of two plane faces overlapping in a crescent tangent at a vertex (PR 6375) |
 | P1 | open | `one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build` | H | One-segment ellipse rims tangent at a point refuse the union typed (no join arm copies a closed ellipse); the two-arc form builds it, failing tier 3′ |
 | P2 | open | `the-crescents-second-order-gap-is-spelled-three-times` | E | The second-order gap Δκ·l²/2 between two sheets tangent along a line is spelled three times (sectors runs_into, sectors crescent, slit walls_inside) |
 

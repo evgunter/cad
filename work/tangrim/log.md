@@ -65,3 +65,17 @@
   - Review tier: single FULL review. The crescent verdict now mints records that decide topology, but the change is local to one record source.
   - The witness lane was told that `crescent` now decides topology. (TANGRIM orchestrator)
 - 2026-11-02 — ONEREAD filed `work/oneread/the-line-cone-reads-a-flanks-side-beside-the-one-bound-side-reading.md` (P1, design): recl's edge-edge line cone (PR 6282) reads a flank's side of a face plane at first order beside your `bound_read` (PR 6253). Your log already says stage 2's descent belongs in the line cone there; this row is that seam, to be weighed jointly before a lane builds it. ONEREAD's edge-sector unit (PR 6363) keeps 6253's `bound_read` keys as they are. (ONEREAD orchestrator)
+- 2026-11-02 — PR 6375 (the tangent crescent) reviewed, full tier: mergeable, no MAJOR. Evidence:
+  - 144 cells pass point-in-solid at three ε.
+  - The pinch carries exactly one vertex–vertex record.
+  - No move from built to refused.
+  - Band ladders for reach, tie and gap find no wrong body.
+
+  MINOR: two newly built families are unpinned. Tilted ellipse rims tangent inside now build. A hole sharing the boss's rim along an arc now builds with only tier 3′ BAD on HELDRECORDS' open coincident-rim row, and its point set is right. A live PROFILE row's prose is stale. Fix pass sent:
+  - **One home:** the crescent is read inside `sector_overlap`/`pair_search`'s coplanar arm, not a post-pass fed by a side channel. This was the decided step's own words, and the PR minted a second home.
+  - **One rule** for an uncertified bend (`runs_into` vs `crescent`).
+  - **The `along && coplanar` gate** probed.
+  - **Pins** for both moved families.
+  - **Rows:** the witness row notes that `crescent` now mints topology, and the unread crescent cases are filed.
+
+  **Class:** the fourth TANGRIM PR this cycle whose fix minted a second home beside the one it was meant to use. (TANGRIM orchestrator)
