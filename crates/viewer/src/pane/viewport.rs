@@ -56,28 +56,21 @@ fn push_segment(
 /// walked the chain under and nobody authored, so the wrap is dropped
 /// and what is drawn is the authored legs exactly. A loop of one
 /// vertex has no leg and is held as its point ([`marks::LegLane::point`]),
-/// so a fit still frames it.
+/// so a fit still frames it. The polyline is
+/// [`sketch::PreviewLoop::drawn_on`]'s, which the pick index measures
+/// against too.
 fn push_loop(
     lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
     polyline: &PreviewLoop,
 ) {
-    let points = &polyline.points;
-    let segments = if polyline.end.closes() {
-        points.len()
-    } else {
-        points.len().saturating_sub(1)
-    };
-    for index in 0..segments {
-        push_segment(
-            lane,
-            plane,
-            points[index],
-            points[(index + 1) % points.len()],
-        );
-    }
-    if let (0, Some(&[x, y])) = (segments, points.first()) {
-        lane.point(plane.to_world(pncad::geom_core::Point2::new(x, y)));
+    match polyline.drawn_on(plane).as_slice() {
+        [point] => lane.point(*point),
+        points => {
+            for leg in points.windows(2) {
+                lane.leg(leg[0], leg[1]);
+            }
+        }
     }
 }
 
@@ -3764,7 +3757,7 @@ mod tests {
             .profile_edit(&doc, profile)
             .expect("the square is held");
         assert!(
-            drafts.door_loops().edit.is_some(),
+            drafts.door_loops(&doc, tol).edit.is_some(),
             "the edit door holds the square"
         );
         let placement = sketch::profile_plane();
@@ -3778,11 +3771,14 @@ mod tests {
         // the committed lane, the preview lane.
         let mut frame_with = |loops: Vec<Step<f64>>| {
             let edit = drafts.profile_edit.as_mut().expect("held");
-            edit.edit_row(0, RowEdit::Clear);
+            let notation = crate::props::Notation::CANONICAL;
+            edit.edit_row(0, RowEdit::Clear, notation)
+                .expect("a clear makes no row");
             for (at, step) in loops.into_iter().enumerate() {
-                edit.edit_row(0, RowEdit::Insert { at, step });
+                edit.edit_row(0, RowEdit::Insert { at, step }, notation)
+                    .expect("finite");
             }
-            let held = drafts.door_loops().edit.expect("held");
+            let held = drafts.door_loops(&doc, tol).edit.expect("held");
             let preview = sketch::preview(placement, &held.loops, tol, chord);
             let previews = ProfileDoors {
                 create: None,
