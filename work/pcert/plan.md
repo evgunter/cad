@@ -143,8 +143,8 @@ Cut from PCERT on 2026-10-01 along its priority seam
 | P3 | `line-seam-limbs-partial-and-rational-column-corners-have-no-measured-caller` | M | the LINE seam limb's partial and rational corners have no caller |
 | P3 | `D305` | E | the sole-`T: Bounds` doors of the D1 census in `geom-brep` |
 | P3 | `S83` | E | `seam_tol` / `MarchTolMismatch` is unreachable by construction |
-| (none) | `pcurve-certify-error-arms-with-no-ending` | (none) | `PcurveCertifyError::decided` ends a group of arms in one `return None` |
-| (none) | `a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one` | (none) | `ring_path`'s parity rests on a premise the mint does not refuse |
+| P1 | `pcurve-certify-error-arms-with-no-ending` | M | `PcurveCertifyError::decided` ends a group of arms in one `return None` |
+| P3 | `a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one` | M | `ring_path`'s parity rests on a premise the mint does not refuse |
 | P4 | `pcert-refusal-prose-outgrows-the-viewer` | E | `FittedCertificate` runs past 50 words |
 
 ### Order
@@ -162,3 +162,11 @@ closes. The guard rows (`pcurve-posture-guard-is-blind-to-body-producing-doors`,
 Per unit, at dispatch, by the review tiers of
 `memories/orchestration-model.md`; the log names each tier and its
 reason.
+
+### Where it runs in PCERT's order
+
+After PCERT's own E1e → E2 → E3 → E4 (E5 beside). The exception is
+`pcurve-certify-error-arms-with-no-ending`, the slate's one P1, which
+runs before the rest of the refusal-vocabulary lane: E1c gives
+`IncidenceRead::ending` its door rule, and the arms it fixes are the
+same `PcurveCertifyError::ending` the rest of the lane renders.
