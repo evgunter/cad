@@ -196,3 +196,8 @@ AUTHOR's narrative is recoverable from
 - `a-fillet-on-a-drawn-unions-operand-is-drawn-nowhere`: closed — drawn by SPACES' PR 6265; the `∪`-operand re-point is superseded (a `∪` is drawn as its result, not a seen path).
 - `a-split-of-a-drawn-body-is-drawn-unsplit`: live for a *placed* body only (`add_split` writes a bare `Split`, no takeover); P0→P1 M, a faithful elaboration of §5′.3 (a) (take the target over to `⊔[above, below]`, as blend/pattern do). Dispatched as `doors/split-takes-over`. Tier: style review + correctness reviewer (a wrong picture). The lane also fixes two stale texts the re-read found: `INTENT-STAGE3-SPEC.md:493`'s "`⊔`/`∪` operand slot" (6209 made it `⊔` only — a wording consequence of the ratified rule) and `op.rs:777`'s `AddMirror` doc.
 - `the-mirror-keeps-two-pieces-…`: open, design, P1→P2 (a missing feature; adding `⊔` output changes 6209's ratified README sentence). Tail for a successor; not this sitting.
+
+## 2026-11-02 08:45 — P1 `a-split-of-a-drawn-body-is-drawn-unsplit` merges (PR 6331)
+
+- Style + correctness reviews, one fix pass (the shared successor query had been widened for every door; now the split passes its own halves as `intact`), re-verify says merge. CI green at `b572bc4803`.
+- Residue filed: `a-split-half-cannot-be-split` (P3 E), `a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it` (P3 M); `a-takeover-could-re-seat-a-pick-its-result-keeps`'s premise corrected in place.
