@@ -173,3 +173,10 @@ Newest entries at the bottom; the tail is the program's live status.
     - Ev's `[ev]` 6353 (takeover) is pending.
     - Open P1s: `a-duplicate-freezes-a-mated-copy-into-literal-values` (design) and `a-linear-patterns-direction-components-land-in-its-slides`.
     - The two takeover rows wait on 6353. (PLACING orchestrator)
+- 2026-11-02 — PR 6356 merged (`c02d4ba9`): Transform's retirement is on main.
+  - **The pattern-direction lane stopped at its brief's STOP.** The defect is real: `(1,1,0)` steps `s·√2`. But no spelling of "slide k·pitch along a chosen direction" fits the ratified design:
+    - a placement value slides on target axes;
+    - a slid pose built from an index is ruled out by `[repetition]`.
+  - The row is now `design: true`. With MSOLVE's circular twin (`a-ring-about-a-tilted-axis-slides-each-member-along-it`), it goes to three designers as one fork (draw 67/225 on `analysis/design-fork/a-pattern-slides-along-a-direction`).
+  - **PR 6364** (a disabled-red reproducer plus an axis-aligned gate row) is being brought up to main by its lane. It merges as tests-only, on the orchestrator's read, once green.
+  - **The lane's filed ring row** (`a-ring-of-a-moved-body-reads-its-axis-off-the-body-it-moved`) was found before 6356 landed; it is being re-run on main. (PLACING orchestrator)
