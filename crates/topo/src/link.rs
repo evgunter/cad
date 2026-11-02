@@ -80,8 +80,8 @@ const LINK_WEDGE: &str = "link_wedge";
 /// metres — ahead of `p` or behind it, read no further out than the
 /// ray's point.
 const LINK_AHEAD: &str = "link_ahead";
-/// K name: a parity arc's two ends read against the plane through `p`
-/// normal to their bisector, in metres — the arc under half a turn.
+/// K name: a parity arc's clearance of `p`, its segment's nearest point's
+/// distance from `p`, in metres — the arc under half a turn.
 const LINK_ARC: &str = "link_arc";
 /// K name, building a face's piece: one edge's crossing of a probe ray
 /// read against another's along the ray, in metres — which edge the ray
@@ -1032,6 +1032,23 @@ pub(crate) fn to_segment<T: Real>(p: Point3<T>, (a, b): Segment<T>) -> T {
     (a + ab * t - p).norm()
 }
 
+/// **How far the parity arc `q`–`w` clears `p`**: `p`'s distance from
+/// the segment, read at the segment's point nearest it. A segment clear of
+/// `p` is seen from it as the minor arc between its ends' directions,
+/// whatever their distances, so it meets each plane through `p` at most
+/// once, and the plane through `p` and `w` only at `w` where `q` is off
+/// it; that is all the parity needs of the arc. Holding one end and
+/// carrying the other out along its ray only moves the segment off `p`,
+/// so each end stands at its own reach, never nearer than `q`.
+fn arc_clearance<T: Real>(p: Point3<T>, (q, w): Segment<T>) -> Distance<T> {
+    let qw = w - q;
+    let s = ((p - q).dot(qw) / qw.dot(qw))
+        .max(T::zero())
+        .min(T::from_f64(1.0));
+    let m = q + qw * s;
+    Distance::of(m, p, (m - p).normalize())
+}
+
 /// The point of the segment `x`–`y` where a quantity affine along it,
 /// `ox` at `x` and `oy` at `y`, vanishes — a construction, read only
 /// where the quantity is decided to change sign between them, or to
@@ -1470,15 +1487,14 @@ impl<T: Decide> Cone<T> {
     /// ([`Cone::crossing`]). Otherwise `q` is
     /// read along the minor arc to a reference `w`, a wedge's centroid on
     /// one sector `T` (or, where that reads nothing, its rays' bisector)
-    /// carried out to `q`'s distance (planes are read at
-    /// one scale; rays at their own, [`wedge_side`]), where the link's
-    /// material is the side behind `T`:
+    /// at the wedge's shorter ray's reach, or at `q`'s distance where that
+    /// is farther, where the link's material is the side behind `T`:
     /// the material holds `q` iff `q` lies behind `T` and the arc crosses
     /// the other sectors an even number of times, or in front and odd.
     /// The arc is the segment `q`–`w` seen from `p`, under half a turn
-    /// (both ends ahead of the plane normal to their bisector), so it
-    /// meets each plane through `p` at most once and `T`'s only at `w`,
-    /// and each other sector is read as [`Cone::crossing`] reads it.
+    /// (the segment clear of `p`, [`arc_clearance`]), so it meets each
+    /// plane through `p` at most once and `T`'s only at `w`, and each
+    /// other sector is read as [`Cone::crossing`] reads it.
     /// Parity is the material only where the cone's winding takes two
     /// values ([`rest::one_material`]). A reference any reading of which
     /// is in band, on a sector's bound, or on a second sector at `w` is
@@ -1580,23 +1596,20 @@ impl<T: Decide> Cone<T> {
             // Each wedge's centroid, then its rays' bisector: a needle
             // wedge's centroid lies along its long ray, within the band
             // of the sector across it.
-            let references = s0
-                .wedges
-                .iter()
-                .flat_map(|&(a, b)| [(a - p) + (b - p), (a - p).normalize() + (b - p).normalize()]);
-            'reference: for c in references {
-                // Carried along its ray to `q`'s distance: a plane is a
-                // surface, read at one scale for both ends of the arc.
-                let w = p + c * ((q - p).norm() / c.norm());
-                let half = ((q - p).normalize() + (w - p).normalize()).normalize();
-                for x in [q, w] {
-                    match metric::settle(LINK_ARC, Distance::of(x, p, half), rd) {
-                        Ok(Sign::Positive) => {}
-                        Ok(_) => continue 'reference,
-                        Err(why) => {
-                            first.get_or_insert(Unread::Arc { sector: None, why });
-                            continue 'reference;
-                        }
+            let references = s0.wedges.iter().flat_map(|&(a, b)| {
+                let ray = (a - p).norm().min((b - p).norm());
+                [(a - p) + (b - p), (a - p).normalize() + (b - p).normalize()].map(|c| (c, ray))
+            });
+            'reference: for (c, ray) in references {
+                // At its wedge's shorter ray's reach, or out to `q`'s
+                // distance where `q` stands farther ([`arc_clearance`]).
+                let w = p + c * ((q - p).norm().max(ray) / c.norm());
+                match metric::settle(LINK_ARC, arc_clearance(p, (q, w)), rd) {
+                    Ok(Sign::Positive) => {}
+                    Ok(_) => continue 'reference,
+                    Err(why) => {
+                        first.get_or_insert(Unread::Arc { sector: None, why });
+                        continue 'reference;
                     }
                 }
                 let mut held = base == Sign::Negative;
@@ -1672,8 +1685,8 @@ impl<T: Decide> Cone<T> {
     /// winding just in front of sector `from` at `w`**, each point
     /// strictly inside its own sector: the signed sum of
     /// [`Cone::crossing`] along the minor arc from `w` to `q`, `w`
-    /// carried along its ray to `q`'s distance as [`Cone::reads_over`]
-    /// carries its reference. The arc leaves `from` on `q`'s side and
+    /// carried out along its ray to `q`'s distance where `q` stands
+    /// farther, as [`Cone::reads_over`] carries its reference. The arc leaves `from` on `q`'s side and
     /// reaches `on` from `w`'s, and the material behind a sector winds
     /// one more than the side in front of it. `None` where a reading is
     /// in band, the arc is not under half a turn, an end lies on the
@@ -1691,12 +1704,9 @@ impl<T: Decide> Cone<T> {
             return None;
         }
         let p = self.p;
-        let w = p + (w - p) * ((q - p).norm() / (w - p).norm());
-        let half = ((q - p).normalize() + (w - p).normalize()).normalize();
-        for x in [q, w] {
-            if metric::sign_over(LINK_ARC, Distance::of(x, p, half), rd) != Some(Sign::Positive) {
-                return None;
-            }
+        let w = p + (w - p) * ((q - p).norm().max((w - p).norm()) / (w - p).norm());
+        if metric::sign_over(LINK_ARC, arc_clearance(p, (q, w)), rd) != Some(Sign::Positive) {
+            return None;
         }
         let behind = |sign: Sign| match sign {
             Sign::Negative => Some(1),
