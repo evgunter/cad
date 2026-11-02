@@ -5456,21 +5456,26 @@ mod properties_pane_tests {
     }
 
     /// Which of three withholding reasons the app paints — the face prompt,
-    /// the empty chain's, the bore's refusal — drawing `on_face` with no
-    /// face held, `shape` chosen, a bore planted as wide as the radius and
-    /// the chain planted empty.
-    fn withheld_reason_said(on_face: bool, shape: crate::forms::ShapeKind) -> Vec<&'static str> {
+    /// the empty chain's, the traced chain's refusal of an added loop —
+    /// drawing `on_face` with no face held, a path chosen with its chain
+    /// planted empty, and, where `traced`, the chain traced along a face
+    /// with a loop added under it.
+    fn withheld_reason_said(on_face: bool, traced: bool) -> Vec<&'static str> {
         const SAID: [&str; 3] = [
             crate::pane::create::PICK_A_FACE,
             "add a step to the chain",
-            "the bore must be smaller than the radius",
+            "a chain traced along a face is the profile's one loop",
         ];
         let painted = painted_adding_a_profile(|drafts| {
             drafts.sketch_on_face = on_face;
-            drafts.profile_shape = Some(shape);
-            drafts.profile_bored = true;
-            drafts.profile_bore = drafts.profile_radius;
+            drafts.profile_shape = Some(crate::forms::ShapeKind::Path);
             drafts.profile_path.clear();
+            if traced {
+                drafts.trace_on = true;
+                drafts
+                    .profile_more
+                    .push(crate::drafts::fresh_loop(crate::forms::ShapeKind::Circle));
+            }
         });
         assert!(
             painted
@@ -5485,28 +5490,24 @@ mod properties_pane_tests {
 
     /// **The add-profile form says one withholding reason, and which one is
     /// decided once**: drawing on a face with none held and an empty
-    /// chain, the face prompt, which comes first in the form; with an
-    /// over-wide bore, the refusal, on a face or not.
+    /// chain, the face prompt, which comes first in the form; off the
+    /// face, the empty chain's; and with a traced chain refusing its
+    /// added loop, the refusal over the empty chain.
     #[test]
     fn the_add_profile_form_says_a_refusal_before_a_missing_input_and_the_face_first() {
-        use crate::forms::ShapeKind;
         assert_eq!(
-            withheld_reason_said(true, ShapeKind::Path),
+            withheld_reason_said(true, false),
             [crate::pane::create::PICK_A_FACE]
-        );
-        assert_eq!(
-            withheld_reason_said(true, ShapeKind::Circle),
-            ["the bore must be smaller than the radius"]
-        );
-        assert_eq!(
-            withheld_reason_said(false, ShapeKind::Circle),
-            ["the bore must be smaller than the radius"]
         );
         // The empty chain is said off the face, so the first case above
         // held it back rather than never drawing it.
         assert_eq!(
-            withheld_reason_said(false, ShapeKind::Path),
+            withheld_reason_said(false, false),
             ["add a step to the chain"]
+        );
+        assert_eq!(
+            withheld_reason_said(false, true),
+            ["a chain traced along a face is the profile's one loop"]
         );
     }
 
@@ -5627,6 +5628,7 @@ mod properties_pane_tests {
         driven.click(&circ);
         driven.app.drafts.profile_more = vec![
             ProfileShape::Rectangle {
+                centre: [0.0, 0.0],
                 width: 0.01,
                 height: 0.003,
             },

@@ -177,21 +177,10 @@ pub(crate) struct Drafts {
     /// reader can take apart. It is a draft like every other field
     /// here: nothing reaches a document until Add profile.
     pub(crate) profile_path: Vec<Step<f64>>,
-    /// The circle form's centre, metres.
+    /// The circle and rectangle forms' centre, metres.
     pub(crate) profile_centre: [f64; 2],
     /// The circle form's radius, metres.
     pub(crate) profile_radius: f64,
-    /// Whether the circle carries a concentric bore (a second loop
-    /// inside the first) — what lets the chrome author the ring
-    /// demo's annulus while staying a template, not a sketcher. The
-    /// form guards bore < radius (see `add_profile_ui`): the loop
-    /// ROLES come from the profile layer's containment forest, so a
-    /// bore at or beyond the outer would not fail — it would swap
-    /// which circle is the hole, silently defeating the form's own
-    /// wording.
-    pub(crate) profile_bored: bool,
-    /// The bore's radius, metres.
-    pub(crate) profile_bore: f64,
     /// The rectangle form's width and height, metres.
     pub(crate) profile_extent: [f64; 2],
     /// **The loops the add-profile form authors after its first**, in
@@ -974,8 +963,6 @@ impl Default for Drafts {
             ],
             profile_centre: [0.0; 2],
             profile_radius: 0.01,
-            profile_bored: false,
-            profile_bore: 0.005,
             profile_extent: [0.01, 0.01],
             profile_more: Vec::new(),
             extrude_distance: 0.01,
@@ -1016,11 +1003,6 @@ impl Drafts {
     /// loops separately could draw one shape and author another,
     /// which is the one way a live preview can lie.
     ///
-    /// The bore is a second loop rather than a field on the first —
-    /// which is what makes the ring demo's annulus a template rather
-    /// than a special case — and the form's own guard on it lives at
-    /// the commit ([`ViewerBehavior::add_profile_ui`](crate::app::ViewerBehavior::add_profile_ui)), because it is
-    /// about what the loops MEAN, not about what they are.
     /// The first loop is the chosen shape's, and the loops added after
     /// it ([`Drafts::profile_more`]) follow in order.
     ///
@@ -1033,20 +1015,12 @@ impl Drafts {
             return Vec::new();
         };
         let mut loops = match shape {
-            ShapeKind::Circle => {
-                let mut loops = vec![ProfileShape::Circle {
-                    centre: self.profile_centre,
-                    radius: self.profile_radius,
-                }];
-                if self.profile_bored {
-                    loops.push(ProfileShape::Circle {
-                        centre: self.profile_centre,
-                        radius: self.profile_bore,
-                    });
-                }
-                loops
-            }
+            ShapeKind::Circle => vec![ProfileShape::Circle {
+                centre: self.profile_centre,
+                radius: self.profile_radius,
+            }],
             ShapeKind::Rectangle => vec![ProfileShape::Rectangle {
+                centre: self.profile_centre,
                 width: self.profile_extent[0],
                 height: self.profile_extent[1],
             }],
@@ -1473,6 +1447,7 @@ pub(crate) fn fresh_loop(kind: ShapeKind) -> ProfileShape {
             radius: QUARTER * form.profile_radius,
         },
         ShapeKind::Rectangle => ProfileShape::Rectangle {
+            centre: form.profile_centre,
             width: QUARTER * form.profile_extent[0],
             height: QUARTER * form.profile_extent[1],
         },
