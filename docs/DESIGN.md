@@ -1228,8 +1228,10 @@ construction over one variable, never a check between two.
 
 Every number a pose, a construction's axis or a placement holds is a
 `Length` along one freedom or an `Angle` about one: no slot holds a
-component of a direction or of a frame's axis, and a 2-D direction is
-an angle. A face reads as a plane and a vertex as a point; no reader
+component of a direction or of a frame's axis. A 2-D direction is one
+value, its unit ray, written in a family of forms (`[recipe.forms]`): an
+angle, or a ray whose two components are the ratio its author wrote
+(PATHS-DESIGN §1b). A face reads as a plane and a vertex as a point; no reader
 takes a carrier's reference direction. A 2-D value (a profile's step,
 a revolve's axis line) is a `Point2` or `Direction2` in the
 coordinates of one profile, scoped to it as a selection is to its body:

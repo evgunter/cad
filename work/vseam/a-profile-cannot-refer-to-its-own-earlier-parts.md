@@ -268,3 +268,25 @@ answers are implied by the ruled text, and builders follow them.
 **Still unverified by either designer**, for U2's pin to test:
 - that nothing but the seam close moves an emitted start;
 - that the entry is always `at(p)`.
+
+## 2026-11-02 — Q1 restated after Ev's comments on 6346
+
+Ev's comments on 6346:
+- "isn't this going to be inexact in the cases that we had toward for?"
+- "the design that's supposed to be here is another case of a family of
+  different representations with a shared api, like the arcs".
+
+The kernel already built it that way: one director slot whose payload is
+an angle or a ray (§2a item 5). The document holds the two forms as two
+steps, `ProgramStep::Angle` and `Toward`.
+
+The designers had read `[variables.poses]`' "a 2-D direction is an
+angle" as binding. Under `[recipe.forms]` it is the sentence that
+needed amending, and the director does not. A `Direction2` is one
+value, its unit ray, written as an angle or as a ray, and each form is
+kept as written. This is both designers' round-1 alternative.
+
+So U4 folds `Angle` and `Toward` into one director slot that holds a
+`Direction2` written in either form, plus the reads. The axis form and
+exact degree literals are not needed for exactness, because the ray
+form keeps it.
