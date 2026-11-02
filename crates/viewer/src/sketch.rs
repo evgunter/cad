@@ -47,10 +47,11 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, EvalError, Evaluation, Formula, LoopProgram, Node,
-    ProfileProgram, ProgramResolveFault, RecipeNodeId, RecordedNotation, RecordedProgramError,
-    SlotId, SpokenNode, StepArg, StepId, TraceCrossing, TracePassage, TraceSense, ValuePayload,
-    WrittenLoopFault, resolve_loops, resolve_written_loops,
+    ArcShape, Dimension, DimensionError, Doc, Evaluation, Formula, LoopProgram, Node,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation,
+    RecordedProgramError, SlotId, SpokenNode, StepArg, StepId, StepShape, TargetShape,
+    TraceCrossing, TracePassage, TraceRefusal, TraceSense, TraceStepFault, ValuePayload,
+    WrittenLoopFault, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Point3, Tol};
 use pncad::profile::{
@@ -364,10 +365,9 @@ pub fn loop_programs(
         .collect()
 }
 
-/// **Held loops as the shapes the preview and the lowering take** —
-/// one [`ProfileShape::Path`] per loop, in authoring order. The path
-/// editor holds the kernel's steps loop by loop; this is the one place
-/// that list becomes the form's currency.
+/// **Loops of steps at plain numbers as the shapes the preview and the
+/// lowering take** — one [`ProfileShape::Path`] per loop, in authoring
+/// order.
 pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
     loops
         .iter()
@@ -413,116 +413,566 @@ pub fn shape_steps(shape: &ProfileShape) -> Vec<Step<f64>> {
 // The edit door: a committed program into the editor, and back
 // ------------------------------------------------------------------
 
-/// **A committed profile as the editor holds it**: the kernel's own
-/// [`Step`] at plain numbers, per loop — the currency the create form
-/// authors in — and beside them every argument an expression drives.
+/// **One step of a profile as the editor holds it**: the step as the
+/// program writes it, each argument the formula it is written as — a
+/// literal in the unit it was written in, or the expression that
+/// drives it — held as a one-step loop program, so a complete-loop
+/// carrier (`circle`, `circle_split`) is a row like any other, and one
+/// written into a chain is held until the lowering refuses it
+/// ([`Self::program`]).
 ///
-/// A driven argument's number is its expression's value under the
-/// document, which is what the step replays and the preview draws; its
-/// expression is what a commit writes back while the step is kept
-/// ([`crate::drafts::ProfileEdit`]), so the number is a reading and
-/// never a literal written over a computation.
-#[derive(Clone, Debug)]
-pub struct HeldLoops {
-    /// The loops, in description order.
-    pub loops: Vec<Vec<Step<f64>>>,
-    /// Every argument an expression drives, in slot order.
-    pub driven: Vec<SlotId>,
+/// The kernel's [`Step`] at plain numbers is a VIEW of it
+/// ([`Self::step`]), taken to draw a row's fields and to preview; a
+/// step written in the view comes back through [`Self::written`],
+/// which keeps every argument the view did not move as it was written.
+/// A step that lowers against the pen — a trace's crossing or heading,
+/// a written coordinate along a heading — has no view outside an
+/// evaluation, and is held, shown and committed as written.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HeldStep(LoopProgram<Formula>);
+
+/// Why a held step has no view at plain numbers ([`HeldStep::step`]).
+#[derive(Clone, Debug, PartialEq)]
+pub enum HeldStepFault {
+    /// The step lowers against the pen its prefix leaves
+    /// ([`HeldStep::runs_from_the_pen`]), which only an evaluation
+    /// replays.
+    Pen,
+    /// A driven argument reads no one value.
+    Unread(StepArg),
+    /// A reading of a driven argument is not a number a literal holds.
+    Reading(DimensionError),
+    /// The resolver refused the step.
+    Resolve(WrittenLoopFault),
 }
 
-/// **The loops of a committed profile as the editor holds them**
-/// ([`HeldLoops`]).
+impl HeldStep {
+    /// **Every step of `program`**, in authoring order.
+    #[must_use]
+    pub fn rows(program: &LoopProgram<Formula>) -> Vec<Self> {
+        match program {
+            LoopProgram::Chain(steps) => steps
+                .iter()
+                .map(|step| Self(LoopProgram::Chain(vec![step.clone()])))
+                .collect(),
+            carrier @ (LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. }) => {
+                vec![Self(carrier.clone())]
+            }
+        }
+    }
+
+    /// **The loop program `rows` write**: a carrier row alone is its
+    /// carrier form, and every other list is the chain of its steps.
+    ///
+    /// # Errors
+    ///
+    /// [`RecordedProgramError::CarrierInChain`] for a carrier among
+    /// other rows — the lift's refusal of the same list.
+    pub fn program(rows: &[Self]) -> Result<LoopProgram<Formula>, RecordedProgramError> {
+        if let [Self(carrier @ (LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. }))] =
+            rows
+        {
+            return Ok(carrier.clone());
+        }
+        let mut chain = Vec::with_capacity(rows.len());
+        for Self(row) in rows {
+            match row {
+                LoopProgram::Chain(steps) => chain.extend(steps.iter().cloned()),
+                LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => {
+                    return Err(RecordedProgramError::CarrierInChain);
+                }
+            }
+        }
+        Ok(LoopProgram::Chain(chain))
+    }
+
+    /// **`step` written fresh**: every argument a literal, in the unit
+    /// `noted` names for its role, else in `notation` ([`path_program`]).
+    ///
+    /// # Errors
+    ///
+    /// [`path_program`]'s: a non-finite field.
+    pub fn fresh(
+        step: Step<f64>,
+        notation: Notation,
+        noted: &dyn Fn(StepArg) -> Option<UnitDef>,
+    ) -> Result<Self, RecordedProgramError> {
+        path_program(&[step], notation, &|_, arg| noted(arg)).map(Self)
+    }
+
+    /// The step as one loop's program, its arguments addressed by role
+    /// (`SlotId::Profile` at loop 0, step 0).
+    fn node(&self) -> Node<ProfileProgram<Formula>, Formula> {
+        Node::Profile(ProfileProgram {
+            loops: vec![self.0.clone()],
+            ids: Vec::new(),
+            on: None,
+        })
+    }
+
+    fn of_node(node: Node<ProfileProgram<Formula>, Formula>) -> Self {
+        let Node::Profile(ProfileProgram { mut loops, .. }) = node else {
+            unreachable!("a held step is addressed as a profile node")
+        };
+        let (Some(program), true) = (loops.pop(), loops.is_empty()) else {
+            unreachable!("a held step is addressed as a one-loop program")
+        };
+        Self(program)
+    }
+
+    /// **Each argument, by role, as it is written.**
+    #[must_use]
+    pub fn args(&self) -> Vec<(StepArg, Formula)> {
+        let node = self.node();
+        node.slots()
+            .into_iter()
+            .filter_map(|slot| match slot {
+                SlotId::Profile { arg, .. } => Some((arg, node.expr(slot)?.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The step's verb and structural tags, values erased.
+    fn shape(&self) -> StepShape {
+        let [shape] = self.0.shape()[..] else {
+            unreachable!("a held step is a one-step program")
+        };
+        shape
+    }
+
+    /// **Whether `now` draws the pieces `self` drew**: the same verb,
+    /// whose role list it draws from, and the same piece count.
+    #[must_use]
+    pub fn draws_as(&self, now: &Self) -> bool {
+        let (was, now) = (self.shape(), now.shape());
+        was.verb() == now.verb() && was.pieces() == now.pieces()
+    }
+
+    /// **Whether the step lowers against the pen its prefix leaves** —
+    /// heads along a trace, or runs to a trace's crossing or a written
+    /// coordinate — read off its shape: only an evaluation replays the
+    /// prefix such a step reads.
+    #[must_use]
+    pub fn runs_from_the_pen(&self) -> bool {
+        let pen = |target: TargetShape| {
+            matches!(
+                target,
+                TargetShape::OnTrace | TargetShape::AtX | TargetShape::AtY
+            )
+        };
+        let spec = |spec: ArcShape| match spec {
+            ArcShape::Bulge(target) | ArcShape::Via(target) | ArcShape::Center(_, target) => {
+                pen(target)
+            }
+            ArcShape::Radius(_) | ArcShape::Sweep(_) | ArcShape::ArcLen(_) => false,
+        };
+        match self.shape() {
+            StepShape::AlongTrace => true,
+            StepShape::LineTo(target)
+            | StepShape::ContinueTo(target)
+            | StepShape::TangentArcTo(target)
+            | StepShape::ArcOnto(target) => pen(target),
+            StepShape::ArcTo(arc) | StepShape::FilletArc(arc) | StepShape::ArcFillet(arc) => {
+                spec(arc)
+            }
+            StepShape::ArcFilletArc(arc, arc2) => spec(arc) || spec(arc2),
+            StepShape::At
+            | StepShape::Angle
+            | StepShape::Toward
+            | StepShape::Tangent
+            | StepShape::Cusp
+            | StepShape::Turn
+            | StepShape::Line
+            | StepShape::Fillet
+            | StepShape::FarEndTo
+            | StepShape::CloseTo
+            | StepShape::Circle
+            | StepShape::CircleSplit { .. } => false,
+        }
+    }
+
+    /// **This step over a document that re-wrote `was` as `now`** —
+    /// the committed step it was loaded as, before and after a change
+    /// that moved no value (a unit picked at a slot's door). Every
+    /// argument still written as `was` wrote it ([`written_as`]) takes
+    /// `now`'s formula; every other literal at a role whose unit `now`
+    /// changed is written in the new unit, since that is the unit its
+    /// field now shows.
+    #[must_use]
+    pub fn rebased(&self, was: &Self, now: &Self) -> Self {
+        let (old, new) = (was.node(), now.node());
+        let mut held = self.node();
+        for slot in held.slots() {
+            let (Some(old), Some(new)) = (old.expr(slot), new.expr(slot)) else {
+                continue;
+            };
+            let SlotId::Profile { arg, .. } = slot else {
+                continue;
+            };
+            let Some(formula) = held.expr_mut(slot) else {
+                unreachable!("`Node::slots` is the domain of `Node::expr_mut`")
+            };
+            if written_as(formula, old) {
+                *formula = new.clone();
+                continue;
+            }
+            let (Some(quantity), Some(unit)) = (formula.as_quantity(), new.display_unit()) else {
+                continue;
+            };
+            if old.display_unit() == Some(unit) {
+                continue;
+            }
+            let renamed = Formula::literal_with_unit(quantity.value(), arg.dimension(), unit)
+                .ok()
+                .and_then(|f| f.with_distribution(quantity.distribution().cloned()).ok());
+            if let Some(renamed) = renamed {
+                *formula = renamed;
+            }
+        }
+        Self::of_node(held)
+    }
+
+    /// **The step at plain numbers** — what its row's fields draw and
+    /// the preview replays: each literal the value it is written as,
+    /// each other argument `reading` of its role, resolved through the
+    /// document layer's own resolver ([`resolve_written_loops`]).
+    ///
+    /// # Errors
+    ///
+    /// [`HeldStepFault`]: a step that lowers against the pen, a driven
+    /// argument with no reading, a reading no literal holds, or a step
+    /// the resolver refuses.
+    pub fn step(
+        &self,
+        reading: &dyn Fn(StepArg) -> Option<f64>,
+        tol: Tol,
+    ) -> Result<Step<f64>, HeldStepFault> {
+        if self.runs_from_the_pen() {
+            return Err(HeldStepFault::Pen);
+        }
+        let mut node = self.node();
+        for slot in node.slots() {
+            let SlotId::Profile { arg, .. } = slot else {
+                continue;
+            };
+            let Some(formula) = node.expr_mut(slot) else {
+                unreachable!("`Node::slots` is the domain of `Node::expr_mut`")
+            };
+            if formula.literal_value().is_none() {
+                let value = reading(arg).ok_or(HeldStepFault::Unread(arg))?;
+                *formula =
+                    Formula::literal(value, arg.dimension()).map_err(HeldStepFault::Reading)?;
+            }
+        }
+        let Self(read) = Self::of_node(node);
+        let resolved = resolve_written_loops(&[read], tol).map_err(HeldStepFault::Resolve)?;
+        let Some(step) = resolved.into_iter().flatten().next() else {
+            unreachable!("a one-step program resolves to one step")
+        };
+        Ok(step)
+    }
+
+    /// **`step` written over this step** — what a row's fields write
+    /// back. Every argument at a role this step also has keeps its
+    /// formula where the view did not move it: a literal whose value is
+    /// `step`'s, or an expression whose `reading` is (a driven field is
+    /// locked, so its number is the reading; with no reading, it is
+    /// kept). The view is a function of the formula, so a number it did
+    /// not move IS the argument as written. Every other argument is a
+    /// literal of `step`'s number, in the unit its field showed it in:
+    /// the unit the literal it replaces is written in, else the one
+    /// `noted` names for its role, else `notation`'s.
+    ///
+    /// # Errors
+    ///
+    /// [`path_program`]'s: a non-finite field.
+    pub fn written(
+        &self,
+        step: Step<f64>,
+        reading: &dyn Fn(StepArg) -> Option<f64>,
+        notation: Notation,
+        noted: &dyn Fn(StepArg) -> Option<UnitDef>,
+    ) -> Result<Self, RecordedProgramError> {
+        let was = self.node();
+        let shown = |arg| {
+            was.expr(SlotId::Profile {
+                loop_: 0,
+                step: 0,
+                arg,
+            })
+            .filter(|old| old.literal_value().is_some())
+            .and_then(Formula::display_unit)
+            .or_else(|| noted(arg))
+        };
+        let mut now = Self::fresh(step, notation, &shown)?.node();
+        for slot in now.slots() {
+            let (SlotId::Profile { arg, .. }, Some(old)) = (slot, was.expr(slot)) else {
+                continue;
+            };
+            let Some(new) = now.expr_mut(slot) else {
+                unreachable!("`Node::slots` is the domain of `Node::expr_mut`")
+            };
+            let number = new.literal_value().map(f64::to_bits);
+            let unmoved = match old.literal_value() {
+                Some(value) => number == Some(value.to_bits()),
+                None => reading(arg).is_none_or(|value| number == Some(value.to_bits())),
+            };
+            if unmoved {
+                *new = old.clone();
+            }
+        }
+        Ok(Self::of_node(now))
+    }
+
+    /// **The step in words, as it is written** — what the editor shows
+    /// for a step it has no view of: its verb, any trace it reads, and
+    /// each argument's formula.
+    #[must_use]
+    pub fn words(&self) -> String {
+        let mut said = match &self.0 {
+            LoopProgram::Chain(steps) => match steps.as_slice() {
+                [ProgramStep::AlongTrace { sense }] => format!(
+                    "along the trace, {}",
+                    match sense {
+                        TraceSense::With => "with it",
+                        TraceSense::Against => "against it",
+                    }
+                ),
+                [step] => {
+                    let mut said = self.shape().verb().to_string();
+                    for target in step_targets(step) {
+                        if let Some(words) = trace_target_words(target) {
+                            said.push_str(&format!(" {words}"));
+                        }
+                    }
+                    said
+                }
+                _ => unreachable!("a held step is a one-step program"),
+            },
+            _ => self.shape().verb().to_string(),
+        };
+        for (arg, formula) in self.args() {
+            said.push_str(&format!(", {} {formula}", arg.label()));
+        }
+        said
+    }
+}
+
+/// **Whether two steps at plain numbers are one step** — what tells
+/// the edit door a row's fields moved: two one-step paths that author
+/// the same loop ([`authors_same_loops`]).
+#[must_use]
+pub fn same_step(a: &Step<f64>, b: &Step<f64>) -> bool {
+    let path = |step: &Step<f64>| ProfileShape::Path { steps: vec![*step] };
+    authors_same_loops(&[path(a)], &[path(b)])
+}
+
+/// **Whether `held` is written as `was`**: the same formula at the
+/// bits, in the same unit. The one test of an argument "unmoved, kept
+/// as written" between a held program and the program it was loaded
+/// from — the session's carry of a kept step's variables and the
+/// draft's rebase over a re-written document both ask it.
+#[must_use]
+pub fn written_as(held: &Formula, was: &Formula) -> bool {
+    held.bit_eq(was) && held.display_unit() == was.display_unit()
+}
+
+/// **Whether `a` is written as `b`, argument for argument**
+/// ([`written_as`]) — `==` tells programs apart by value alone, blind
+/// to the unit each argument is written in.
+#[must_use]
+pub fn programs_written_as(a: &ProfileProgram<Formula>, b: &ProfileProgram<Formula>) -> bool {
+    if a != b {
+        return false;
+    }
+    let (a, b) = (Node::Profile(a.clone()), Node::Profile(b.clone()));
+    a.slots()
+        .into_iter()
+        .all(|slot| match (a.expr(slot), b.expr(slot)) {
+            (Some(a), Some(b)) => written_as(a, b),
+            (a, b) => a.is_none() && b.is_none(),
+        })
+}
+
+/// **Where one loop's held steps put a step that lowers against the
+/// pen out of order** — the order rules the evaluation's resolution
+/// reads (`editor_core::trace`), asked without one, so the edit door
+/// refuses what Apply would only learn from a broken profile:
 ///
-/// The inverse of [`loop_program`], read through the document layer's
-/// own resolver ([`resolve_loops`]) rather than a second verb-by-verb
-/// walk: a resolved literal IS its recorded number, so a program the
-/// form authored comes back as the steps it was authored from, bit
-/// for bit, and a verb the vocabulary gains reaches here through the
-/// resolver's own arm for it.
+/// - a heading along a trace directly after a piece that ran onto one
+///   ([`TraceStepFault::OffTrace`]);
+/// - a straight run to a trace's crossing or a written coordinate from
+///   a pen with a position ([`TraceStepFault::NoPen`]) and a heading of
+///   its kind — a bound director for `line_to`, the incoming tangent
+///   for `continue_to` ([`TraceStepFault::NoHeading`]).
+///
+/// The prefix is replayed from `views`, each row's view at plain
+/// numbers, and each pen step in it stands in as the kernel verb it
+/// lowers to with a number no evaluation read: enough to say what kind
+/// of heading the pen has, and nothing about where it is. So the check
+/// ends, answering nothing further, at a prefix that does not replay, a
+/// row with no view, an arc run to a crossing, or a pen target in any
+/// other verb; what lies past those is the evaluation's.
+#[must_use]
+pub fn pen_order(
+    rows: &[HeldStep],
+    views: &[Result<Step<f64>, HeldStepFault>],
+    loop_: u32,
+    tol: Tol,
+) -> Option<TraceRefusal> {
+    let mut prefix: Vec<Step<f64>> = Vec::with_capacity(rows.len());
+    let mut ran_onto = false;
+    for (i, (row, view)) in rows.iter().zip(views).enumerate() {
+        let onto = core::mem::take(&mut ran_onto);
+        let refuse = |fault| {
+            Some(TraceRefusal {
+                loop_,
+                step: u32::try_from(i).ok()?,
+                face: None,
+                fault,
+            })
+        };
+        if !row.runs_from_the_pen() {
+            prefix.push(*view.as_ref().ok()?);
+            continue;
+        }
+        let LoopProgram::Chain(steps) = &row.0 else {
+            return None;
+        };
+        match steps.as_slice() {
+            [ProgramStep::AlongTrace { .. }] => {
+                if !onto {
+                    return refuse(TraceStepFault::OffTrace);
+                }
+                prefix.push(Step::Toward { dx: 1.0, dy: 0.0 });
+            }
+            [step @ (ProgramStep::LineTo(target) | ProgramStep::ContinueTo(target))] => {
+                let pen = pncad::profile::path::program::pen(&prefix, None, tol).ok()?;
+                let Some(pen) = pen else {
+                    return refuse(TraceStepFault::NoPen);
+                };
+                let wants_director = matches!(step, ProgramStep::LineTo(_));
+                if pen.heading.is_none() || pen.directed != wants_director {
+                    return refuse(TraceStepFault::NoHeading);
+                }
+                ran_onto = matches!(target, ProgramTarget::OnTrace { .. });
+                prefix.push(Step::Line(1.0));
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+/// The targets a step runs to, in field order.
+fn step_targets(step: &ProgramStep<Formula>) -> Vec<&ProgramTarget<Formula>> {
+    fn of_spec(spec: &ProgramArcData<Formula>) -> Option<&ProgramTarget<Formula>> {
+        match spec {
+            ProgramArcData::Bulge { target, .. }
+            | ProgramArcData::Via { target, .. }
+            | ProgramArcData::Center { target, .. } => Some(target),
+            ProgramArcData::Radius { .. }
+            | ProgramArcData::Sweep { .. }
+            | ProgramArcData::ArcLen { .. } => None,
+        }
+    }
+    match step {
+        ProgramStep::LineTo(target)
+        | ProgramStep::ContinueTo(target)
+        | ProgramStep::TangentArcTo(target)
+        | ProgramStep::ArcOnto(target) => vec![target],
+        ProgramStep::ArcTo(spec)
+        | ProgramStep::FilletArc { spec, .. }
+        | ProgramStep::ArcFillet { spec, .. } => of_spec(spec).into_iter().collect(),
+        ProgramStep::ArcFilletArc { spec, spec2, .. } => {
+            of_spec(spec).into_iter().chain(of_spec(spec2)).collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// The words for a target the pen's run finds: a trace's crossing.
+/// A written coordinate is an argument, said with the others.
+fn trace_target_words(target: &ProgramTarget<Formula>) -> Option<String> {
+    match target {
+        ProgramTarget::OnTrace { face, crossing } => Some(format!(
+            "until it {} traced face {face} (crossing {})",
+            crossing.passage.word(),
+            crossing.nth
+        )),
+        _ => None,
+    }
+}
+
+/// **The loops of a committed profile as the editor holds them** —
+/// each loop's steps as written ([`held_rows`] of [`held_written`]),
+/// so every stored profile opens, a step that reads a trace or the pen
+/// included.
 ///
 /// # Errors
 ///
-/// [`HeldRefusal`]: the node is not a profile; the node lists an
-/// argument it carries no expression for; or the resolver refused a
-/// stored expression.
-pub fn held_loops(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<HeldLoops, HeldRefusal> {
+/// [`held_written`]'s.
+pub fn held_loops(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Result<Vec<Vec<HeldStep>>, HeldRefusal> {
+    held_written(doc, node).map(|written| held_rows(&written))
+}
+
+/// **A committed profile's program as the editor loads it** — as
+/// written ([`written_program`]), once it is known to be a profile
+/// whose every argument is written.
+///
+/// # Errors
+///
+/// [`HeldRefusal`]: the node is not a profile, or lists an argument it
+/// carries no expression for.
+pub fn held_written(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Result<ProfileProgram<Formula>, HeldRefusal> {
     let Some(Node::Profile(program)) = doc.node(node) else {
         return Err(HeldRefusal::NotAProfile {
             node: doc.spoken(node),
         });
     };
-    held_program(doc.spoken(node), program, doc)
+    held_program(doc.spoken(node), program).map(|()| written_program(doc, program))
 }
 
-/// [`held_loops`] of a program in hand — `node` only names it in a
-/// refusal, spoken by the caller from the document that holds it, and
-/// `doc` is the document whose variables it reads: they resolve under
-/// its environment, and a driven argument's source is written by its
-/// names.
+/// **Whether the editor can hold `program`**, a program in hand —
+/// `node` only names it in a refusal, spoken by the caller from the
+/// document that holds it.
 ///
 /// # Errors
 ///
-/// As [`held_loops`].
-pub fn held_program(
-    node: SpokenNode,
-    program: &ProfileProgram,
-    doc: &Doc<ProfileProgram>,
-) -> Result<HeldLoops, HeldRefusal> {
+/// [`HeldRefusal::Unwritten`] for an argument the node lists and
+/// carries no expression for.
+pub fn held_program(node: SpokenNode, program: &ProfileProgram) -> Result<(), HeldRefusal> {
+    // An address the slot walk lists and `expr` denies is the node
+    // layer's broken postcondition, which `props::slot_row` reports as
+    // a row; here it refuses.
     let held = Node::Profile(program.clone());
-    // Every argument, asked of the node's own slot walk: an anonymous
-    // free variable is a number the editor holds, anything else an
-    // expression held beside the number it reads. An address the walk
-    // lists and `expr` denies is the node layer's broken postcondition,
-    // which `props::slot_row` reports as a row; here it refuses.
-    let mut driven = Vec::new();
-    let mut unwritten = Vec::new();
-    for slot in held.slots() {
-        match held.expr(slot) {
-            Some(&var) if doc.is_typed_value(var) => {}
-            Some(_) => driven.push(slot),
-            None => unwritten.push(slot),
-        }
-    }
-    if !unwritten.is_empty() {
-        return Err(HeldRefusal::Unwritten {
+    let unwritten: Vec<SlotId> = held
+        .slots()
+        .into_iter()
+        .filter(|slot| held.expr(*slot).is_none())
+        .collect();
+    if unwritten.is_empty() {
+        Ok(())
+    } else {
+        Err(HeldRefusal::Unwritten {
             node,
             slots: unwritten,
-        });
+        })
     }
-    let loops =
-        resolve_loops(&program.loops, &doc.var_env::<f64>()).map_err(|fault| match fault {
-            ProgramResolveFault::Expr { slot, source } => HeldRefusal::Resolve { slot, source },
-            ProgramResolveFault::Trace(refusal) => HeldRefusal::Traced(refusal),
-        })?;
-    Ok(HeldLoops { loops, driven })
 }
 
-/// **`step` with each of `readings` written at its role** — one
-/// held step's arguments set by role, through the document layer's own
-/// role table: the step lifted alone, each role's argument replaced by
-/// a literal of its reading, and resolved back. Every other argument
-/// is the literal it was, so it comes back bit for bit. `None` where
-/// the step does not lift alone or a role is not the step's.
+/// **A program as written, held step by step** ([`HeldStep::rows`] of
+/// each loop).
 #[must_use]
-pub fn with_readings(step: Step<f64>, readings: &[(StepArg, f64)], tol: Tol) -> Option<Step<f64>> {
-    let mut lifted = Node::Profile(ProfileProgram {
-        loops: vec![LoopProgram::from_recorded(&[step]).ok()?],
-        ids: Vec::new(),
-        on: None,
-    });
-    for &(arg, reading) in readings {
-        let slot = SlotId::Profile {
-            loop_: 0,
-            step: 0,
-            arg,
-        };
-        *lifted.expr_mut(slot)? = Formula::literal(reading, arg.dimension()).ok()?;
-    }
-    let Node::Profile(ProfileProgram { loops, .. }) = lifted else {
-        unreachable!("lifted as a profile node")
-    };
-    let resolved = resolve_written_loops(&loops, tol).ok()?;
-    resolved.into_iter().next()?.into_iter().next()
+pub fn held_rows(written: &ProfileProgram<Formula>) -> Vec<Vec<HeldStep>> {
+    written.loops.iter().map(HeldStep::rows).collect()
 }
 
 /// **`program` as it was written** ([`Node::written`]): each argument
@@ -683,17 +1133,6 @@ pub enum HeldRefusal {
         /// Every such argument, in slot order.
         slots: Vec<SlotId>,
     },
-    /// A stored expression did not resolve under the document's
-    /// parameters.
-    Resolve {
-        /// The argument that refused.
-        slot: SlotId,
-        /// The evaluator's own reason.
-        source: EvalError,
-    },
-    /// A step reads a face's trace, which the editor's plain-number
-    /// steps cannot hold: the trace is the evaluation's.
-    Traced(editor_core::TraceRefusal),
 }
 
 impl core::fmt::Display for HeldRefusal {
@@ -708,10 +1147,6 @@ impl core::fmt::Display for HeldRefusal {
                     labels.join(", ")
                 )
             }
-            Self::Resolve { slot, source } => {
-                write!(f, "{} did not resolve: {source}", slot.label())
-            }
-            Self::Traced(refusal) => write!(f, "the program reads a trace: {refusal}"),
         }
     }
 }

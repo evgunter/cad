@@ -26,5 +26,5 @@ and offers no add-loop row while it traces.
 A profile drawn tangent to a face's trace therefore cannot carry a
 hole from the GUI. A fix lowers each added loop as an untraced chain
 of the drawn profile (or says why the trace door cannot take one).
-The edit door does not hold a traced program at all
-(`sketch::held_loops` refuses it), which is its own limit.
+The edit door holds a traced program as written
+(`sketch::held_loops`).

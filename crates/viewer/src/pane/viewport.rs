@@ -3753,7 +3753,7 @@ mod tests {
             .profile_edit(&doc, profile)
             .expect("the square is held");
         assert!(
-            drafts.door_loops().edit.is_some(),
+            drafts.door_loops(&doc, tol).edit.is_some(),
             "the edit door holds the square"
         );
         let placement = sketch::profile_plane();
@@ -3767,11 +3767,14 @@ mod tests {
         // the committed lane, the preview lane.
         let mut frame_with = |loops: Vec<Step<f64>>| {
             let edit = drafts.profile_edit.as_mut().expect("held");
-            edit.edit_row(0, RowEdit::Clear);
+            let notation = crate::props::Notation::CANONICAL;
+            edit.edit_row(0, RowEdit::Clear, notation)
+                .expect("a clear makes no row");
             for (at, step) in loops.into_iter().enumerate() {
-                edit.edit_row(0, RowEdit::Insert { at, step });
+                edit.edit_row(0, RowEdit::Insert { at, step }, notation)
+                    .expect("finite");
             }
-            let held = drafts.door_loops().edit.expect("held");
+            let held = drafts.door_loops(&doc, tol).edit.expect("held");
             let preview = sketch::preview(placement, &held.loops, tol, chord);
             let previews = ProfileDoors {
                 create: None,
