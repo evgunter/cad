@@ -706,12 +706,8 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
 /// that is one member face, and otherwise those of them the region in
 /// question meets in area ([`overlap`]): the finished face's own, or a
 /// discarded face's in `clone_a`, the step's A clone before its discards.
-/// A refusal in `prev` carries to every face read through it.
-///
-/// # Panics
-///
-/// Where an operand-A face the step's records name has no holdings in
-/// `prev`: every face of every accumulation the door builds has them.
+/// A refusal in `prev` carries to every face read through it, and an
+/// operand-A face `prev` does not hold refuses ([`HeldRefusal::Unrooted`]).
 fn lift<T: Decide>(
     prev: &Holdings,
     member: usize,
@@ -735,11 +731,7 @@ fn lift<T: Decide>(
                 Some(Held::Faces(h)) if h.len() == 1 => exact.extend(h.iter().copied()),
                 Some(Held::Faces(h)) => maybe.extend(h.iter().copied()),
                 Some(refused @ Held::Refused(_)) => return refused.clone(),
-                None => unreachable!(
-                    "the fold step joining member {member} names accumulation face {f:?}, which \
-                     has no holdings, though the door reads them for every face of every \
-                     accumulation it builds"
-                ),
+                None => return Held::Refused(HeldRefusal::Unrooted { face: f }),
             }
         }
         for m in maybe {
@@ -747,7 +739,7 @@ fn lift<T: Decide>(
                 continue;
             }
             let refused = |refusal| {
-                Held::Refused(HeldRefusal {
+                Held::Refused(HeldRefusal::Overlap {
                     member_face: m,
                     refusal,
                 })

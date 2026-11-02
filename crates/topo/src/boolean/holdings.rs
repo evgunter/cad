@@ -38,19 +38,28 @@ use crate::entity::FaceKey;
 pub enum Held {
     /// The member faces, each one whose area the face holds.
     Faces(BTreeSet<MemberFace>),
-    /// A member face whose area the face might hold could not be read
-    /// against it.
+    /// What the face holds could not be read.
     Refused(HeldRefusal),
 }
 
-/// **Why a face's holdings could not be read**: the member face it was
-/// read against, and the overlap door's refusal.
+/// **Why a face's holdings could not be read.**
 #[derive(Clone, Debug)]
-pub struct HeldRefusal {
-    /// The member face.
-    pub member_face: MemberFace,
-    /// The refusal.
-    pub refusal: OverlapRefusal,
+pub enum HeldRefusal {
+    /// A member face whose area the face might hold could not be read
+    /// against it: the member face, and the overlap door's refusal.
+    Overlap {
+        /// The member face.
+        member_face: MemberFace,
+        /// The refusal.
+        refusal: OverlapRefusal,
+    },
+    /// The step's records read a piece back to an operand-A face the
+    /// accumulation does not hold (a face a sphere's re-chart minted in
+    /// its clone), so what that face held is unknown.
+    Unrooted {
+        /// The operand-A face, in the step's clone keys.
+        face: FaceKey,
+    },
 }
 
 impl Held {

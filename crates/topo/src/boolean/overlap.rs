@@ -267,7 +267,7 @@ fn half_plane<T: Decide>(
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let dd = carrier.deriv2(t);
             let u = d / speed;
-            Some((dd - u * dd.dot(u)) / (speed * speed))
+            Some((dd - u * dd.dot(u)) / speed.powi(2))
         }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
     };
