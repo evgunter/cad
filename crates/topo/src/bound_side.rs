@@ -757,7 +757,7 @@ impl<T: Decide> Tie<T> {
             Ok(verdict) => Ok(Side::of(verdict).map_or(Descent::Rides, Descent::Leaves)),
             Err(escalation)
                 if escalation.rung() == geom_brep::LeverRung::Reading
-                    && in_one_gap(escalation.diag(), band) =>
+                    && in_one_gap(escalation.diag()) =>
             {
                 Ok(Descent::Unresolved(Unresolved::Gap))
             }
@@ -766,22 +766,17 @@ impl<T: Decide> Tie<T> {
     }
 }
 
-/// Whether an indeterminate margin is finite and lies wholly between the
-/// zero band and the escalation band on one side: the gap a smaller
-/// reading of the same term would not decide either. Poison, and an
-/// enclosure that straddles the zero band or reaches past the
-/// escalation band, are not the gap.
-fn in_one_gap(diag: Indeterminate, band: Band) -> bool {
-    let (zero, escalate) = (band.zero(), band.escalate());
-    let gap = |lo: f64, hi: f64| {
-        lo.is_finite()
-            && hi.is_finite()
-            && ((zero < lo && hi < escalate) || (-escalate < lo && hi < -zero))
-    };
-    match diag.margin.diagnostic_f64_for_error_text() {
-        geom_core::ErrorTextReading::Value(m) => gap(m, m),
-        geom_core::ErrorTextReading::Enclosure { lo, hi } => gap(lo, hi),
-        geom_core::ErrorTextReading::Invalid => false,
+/// Whether the classifier's escalation is the gap: a point margin it
+/// read between the zero band and the escalation band, or an enclosure
+/// it found wholly inside one of those slivers
+/// ([`Indeterminate::terminal_sliver`]), which no smaller reading of the
+/// same term decides either. A poisoned margin, and an enclosure that
+/// straddles the zero band, are not the gap.
+fn in_one_gap(diag: Indeterminate) -> bool {
+    match diag.margin.kind() {
+        geom_core::MarginKind::Value => true,
+        geom_core::MarginKind::Enclosure => diag.terminal_sliver,
+        geom_core::MarginKind::Invalid => false,
     }
 }
 
