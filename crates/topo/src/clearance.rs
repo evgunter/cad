@@ -326,7 +326,11 @@ impl Ask {
     /// cell pair's enclosure ([`Bound::read`]) and a verifier's reading
     /// of the pair it found ([`Self::confirms`]) are this table.
     fn reading(self, d: Interval, band: Band) -> Reading {
-        match decide(self.as_bound().predicate(), Margin::of(d - self.bound()), band) {
+        match decide(
+            self.as_bound().predicate(),
+            Margin::of(d - self.bound()),
+            band,
+        ) {
             Err(source) => Reading::Undecided(source),
             Ok(sign) => match (self, sign) {
                 (Self::Below { .. }, Sign::Negative)

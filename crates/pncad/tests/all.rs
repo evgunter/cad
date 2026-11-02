@@ -7606,8 +7606,8 @@ mod pattern_presets_are_recognised_as_themselves {
 #[test]
 fn a_clearance_reports_payloads_are_nameable_from_the_facade() {
     use pncad::analysis::{
-        CellBudget, CellReceipt, CertificateArm, ClearanceRefusal, DischargeWidths,
-        EngineRefusal, SelectionRefusal, SharedCell, Which,
+        CellBudget, CellReceipt, CertificateArm, ClearanceRefusal, DischargeWidths, EngineRefusal,
+        SelectionRefusal, SharedCell, Which,
     };
     fn budget(b: &CellBudget) -> String {
         format!("{b:?}")
@@ -7634,7 +7634,9 @@ fn a_clearance_reports_payloads_are_nameable_from_the_facade() {
         match r {
             ClearanceRefusal::Engine { refusal, .. } => match refusal {
                 EngineRefusal::Budget(b) => budget(b),
-                EngineRefusal::Uncertified { shared: c, arm: a, .. } => {
+                EngineRefusal::Uncertified {
+                    shared: c, arm: a, ..
+                } => {
                     format!("{} {}", shared(c), arm(a))
                 }
                 EngineRefusal::EmptyScope { side: w } => side(w).to_owned(),

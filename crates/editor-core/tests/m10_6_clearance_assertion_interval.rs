@@ -716,3 +716,26 @@ fn a_file_holding_the_retired_measure_refuses_naming_its_replacement() {
         "the refusal names the measure and its replacement: {said}"
     );
 }
+
+/// **Row 11**: an assertion's wire form is one claim or the other. A
+/// file whose clearance assertion also carries a value claim's key
+/// refuses by name, rather than reading one claim and dropping the
+/// other's field.
+#[test]
+fn a_saved_assertion_mixing_two_claims_refuses_by_name() {
+    let f = facing(&[ClearanceBounds::AtLeast(0.3)]);
+    let text = editor_core::persist::save(&f.doc, &[], Tol::witness()).expect("the document saves");
+    let needle = "\"Assertion\": {";
+    assert_eq!(text.matches(needle).count(), 1, "one assertion: {text}");
+    // The clearance alone loads.
+    editor_core::persist::load(&text, Tol::witness()).expect("a clearance assertion loads");
+    let mixed = text.replace(needle, "\"Assertion\": {\"relation\": \"AtLeast\",");
+    let Err(refusal) = editor_core::persist::load(&mixed, Tol::witness()) else {
+        panic!("a mixed claim does not load");
+    };
+    let said = refusal.to_string();
+    assert!(
+        said.contains("nothing of the other"),
+        "the refusal names the two claims' fields: {said}"
+    );
+}

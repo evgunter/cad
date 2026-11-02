@@ -1394,3 +1394,81 @@ fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
         report.serialize()
     );
 }
+
+/// **A band is one subdivision, and a split's children carry only the
+/// bound it left open** (the fused sweep). On the tube, `≥ 0.1` is
+/// cleared within a few splits while `≤ 0.4` (the walls are 0.5 apart)
+/// is exceeded only deep down. Asked as one band, the sweep splits as
+/// often as its costlier bound alone, not as often as both together,
+/// and it decides each cell pair against a bound no more often than
+/// the two bounds asked apart do between them: a child that kept the
+/// bound its parent had cleared would re-decide it at every cell of
+/// the deep subtree.
+#[test]
+fn a_band_costs_its_costlier_bound_and_its_children_drop_a_decided_one() {
+    let (doc, minted, _) = tube();
+    let (outer, inner) = tube_walls(&doc, minted);
+    let leaf = box_of(&doc, "place");
+    let run = |bound: ClearanceBound| {
+        let bracket = geom_core::k_stats::Bracket::open();
+        let report = clearance_at_dials(
+            &doc,
+            &leaf,
+            &outer,
+            &inner,
+            &ClearanceQuery::at_dials(bound, Tol::witness()),
+        );
+        let decisions = bracket
+            .finish()
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == editor_core::clearance::CLEARANCE_MARGIN)
+            .count();
+        (report, decisions)
+    };
+    let at = |c: f64| geom_core::Interval::from_bounds(c, c);
+    let (lower, lower_n) = run(ClearanceBound::AtLeast(at(0.1)));
+    let (upper, upper_n) = run(ClearanceBound::AtMost(at(0.4)));
+    let (band, band_n) = run(ClearanceBound::Within {
+        lo: at(0.1),
+        hi: at(0.4),
+    });
+    assert_eq!(
+        lower.verdict(),
+        &ClearanceVerdict::Holds,
+        "{}",
+        lower.render()
+    );
+    assert_eq!(
+        upper.verdict(),
+        &ClearanceVerdict::Exceeded,
+        "{}",
+        upper.render()
+    );
+    assert_eq!(
+        band.verdict(),
+        &ClearanceVerdict::Exceeded,
+        "{}",
+        band.render()
+    );
+    let splits = |r: &ClearanceReport| r.receipt().splits;
+    assert!(
+        splits(&lower) < splits(&upper),
+        "the fixture's point: the upper bound is the costlier ({} against {})",
+        splits(&lower),
+        splits(&upper)
+    );
+    assert_eq!(
+        splits(&band),
+        splits(&upper),
+        "a band splits as its costlier bound does: lower {}, upper {}, band {}",
+        splits(&lower),
+        splits(&upper),
+        splits(&band)
+    );
+    assert!(
+        band_n <= lower_n + upper_n,
+        "a child decides only the bound its parent left open: band {band_n} decisions, \
+         lower {lower_n} + upper {upper_n}"
+    );
+}
