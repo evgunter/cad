@@ -772,3 +772,74 @@ fn a_loop_round_a_ridges_top_declines() {
         "the sphere cutting the ridge's top reads {got:?}"
     );
 }
+
+/// The saddle `z = (x − ½)² − (y − ½)²` over the unit square.
+fn saddle() -> Surface<f64> {
+    let g = [0.25, -0.25, 0.25];
+    #[allow(clippy::cast_precision_loss)]
+    patch(2, 2, &|i, j| {
+        (pt(0.5 * i as f64, 0.5 * j as f64, g[i] - g[j]), 1.0)
+    })
+}
+
+/// The one touch a section reads, at its witness, or the reason it is
+/// not one.
+fn touch(a: &Surface<f64>, b: &Surface<f64>) -> Result<Point3<f64>, String> {
+    let s = section(a, b).map_err(|e| format!("{e:?}"))?;
+    match s.components() {
+        Components::Counted(c) => match c.as_slice() {
+            [p] if p.shape == crate::ComponentShape::Point && s.tangency().is_some() => {
+                p.witness.ok_or_else(|| "no witness".to_owned())
+            }
+            other => Err(format!("{other:?}")),
+        },
+        other => Err(format!("{other:?}")),
+    }
+}
+
+/// **A small partner resting on a saddle's centre touches it.** The
+/// saddle's curvature is `±2` along its axes; a sphere of radius `0.15`
+/// resting on its centre curves `1/0.15` every way, so `φ`'s Hessian
+/// there, the partner's own Hessian `∇²f` read along the saddle's
+/// tangents plus `∇f` against the saddle's second partials, is definite:
+/// a touch. Without the partner's `∇²f` only the saddle's curvature is
+/// read, the Hessian is indefinite, and the point reads a node, which
+/// pinches. The same holds for a cylinder of that radius lying along `y`,
+/// and for a ring torus about the `x` axis whose tube, of that radius,
+/// rests on the centre at its outer equator, its core circle of radius 1
+/// standing up in the plane `x = ½`. Red against each form's
+/// `frame_hessian` read as zero.
+#[test]
+fn a_small_partner_resting_on_a_saddle_touches_it() {
+    let r = 0.15;
+    let partners = [
+        ("sphere", sphere(pt(0.5, 0.5, r), r)),
+        (
+            "cylinder",
+            Surface::Cylinder {
+                origin: pt(0.5, 0.0, r),
+                axis: Vec3::unit_y(),
+                u_ref: Vec3::unit_x(),
+                radius: r,
+            },
+        ),
+        (
+            "torus",
+            Surface::Torus {
+                center: pt(0.5, 0.5, 1.0 + r),
+                axis: Vec3::unit_x(),
+                u_ref: Vec3::unit_y(),
+                major_radius: 1.0,
+                minor_radius: r,
+            },
+        ),
+    ];
+    for (what, partner) in partners {
+        let got = touch(&saddle(), &partner);
+        assert!(
+            got.as_ref()
+                .is_ok_and(|w| w.distance(pt(0.5, 0.5, 0.0)) <= 1e-6),
+            "the {what} on the saddle reads {got:?}"
+        );
+    }
+}

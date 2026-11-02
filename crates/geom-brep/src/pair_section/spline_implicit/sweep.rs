@@ -160,7 +160,14 @@ pub(super) fn sweep(
     let net = boxes.surface();
     let (ud, vd) = (net.knot_values_u().domain(), net.knot_values_v().domain());
     let root = UvRect { u: ud, v: vd };
-    if root.window().is_none() || floor.root() != root {
+    // Both callers mint the floor over the wall's own knot rectangle
+    // (`PlaneSection::of`, `ImplicitWall::of`).
+    debug_assert_eq!(
+        floor.root(),
+        root,
+        "the floor is minted over the wall's rectangle"
+    );
+    if root.window().is_none() {
         return Sweep::Declined(Declined::Unread);
     }
     let arm = Interval::from_certified(extent);
@@ -194,8 +201,12 @@ pub(super) fn sweep(
             return false;
         }
         let d = boxes.deriv_box_closed(w, along_u);
-        let slope =
-            (d.x * n.x + d.y * n.y + d.z * n.z) / (length * Interval::from_certified(speed));
+        let slope = sine(
+            n,
+            length,
+            Vec3::new(d.x, d.y, d.z),
+            Interval::from_certified(speed),
+        );
         off("spline_sweep_regular", Margin::levered(slope, arm))
     };
     let regular = |cell: UvRect| {
@@ -289,7 +300,12 @@ pub(super) fn sweep(
         .map(|&k| (UvRect { u: (k, k), v: vd }, false))
         .chain(cv.iter().map(|&k| (UvRect { u: ud, v: (k, k) }, true)));
     // Each axis's interior knots, at which a line is cut before it is
-    // read: the jet reads one span's polynomial at a time.
+    // read. A piece is read open at a knot it is cut at, one float in, so
+    // the jet reads that span's polynomial alone: at a closed knot it would
+    // hull the next span's too. A crossing of two creases is then read by
+    // the crossing pass below and by no line piece, and an extremum at a
+    // knot that is no crease has a derivative along the line that is
+    // continuous and zero there, which the pieces beside it read.
     let knots = |k: &geom_core::spline::Knots<f64>, d: (f64, f64)| {
         k.runs()
             .map(|(t, _)| t)
@@ -317,10 +333,19 @@ pub(super) fn sweep(
             let Some(jets) = &jets else {
                 return Sweep::Declined(Declined::Unread);
             };
-            let (metres, slope) =
-                critical::along_line(jets, phi, (iv(piece.u), iv(piece.v)), along_u);
-            // A stretch over a knot of the line's own axis reads nothing
-            // through the jet, and is halved as an undecided one is.
+            let open = |(a, b): (f64, f64)| {
+                let a = if cuts.contains(&a) { a.next_up() } else { a };
+                let b = if cuts.contains(&b) { b.next_down() } else { b };
+                Interval::from_bounds(a, b.max(a))
+            };
+            let at = if along_u {
+                (open(piece.u), iv(piece.v))
+            } else {
+                (iv(piece.u), open(piece.v))
+            };
+            let (metres, slope) = critical::along_line(jets, phi, at, along_u);
+            // A reading that does not certify is halved as an undecided
+            // one is, down to the floor.
             let read = metres.is_certified() && slope.is_certified();
             let along = read && off("spline_sweep_regular", Margin::levered(slope, arm));
             if let Some(above) = side(piece, metres).filter(|_| read) {
@@ -402,6 +427,24 @@ pub(super) fn sweep(
     }
 }
 
+/// **The wall's slope off the partner along a direction `d`**, a sine:
+/// `∇f·d` over an upper bound `g_len` on `‖∇f‖` times one, `d_len`, on
+/// `‖d‖`. The sweep's cells and the crease pass's line pieces read it
+/// alike, the one levered by the feature extent against the band.
+pub(super) fn sine(
+    g: Vec3<Interval>,
+    g_len: Interval,
+    d: Vec3<Interval>,
+    d_len: Interval,
+) -> Interval {
+    g.dot(d) / (g_len * d_len)
+}
+
+/// How far a cluster's box reaches past each of its cells' centres, in
+/// floor widths ([`clusters`]): half a width covers the cell, the rest is
+/// room for the Krawczyk test.
+const CLUSTER_REACH: f64 = 1.5;
+
 /// The creases of `knots` strictly inside `domain`, ascending.
 fn creases(knots: &geom_core::spline::Knots<f64>, domain: (f64, f64)) -> Vec<f64> {
     let mut out: Vec<f64> = knots
@@ -432,8 +475,17 @@ fn pieces(root: UvRect, cu: &[f64], cv: &[f64]) -> Vec<UvRect> {
 /// **The floor cells clustered**: cells within two floor widths of each
 /// other in both coordinates, in one sub-rectangle, are one cluster, its
 /// box their cells' hull widened by a floor width each way and cut to
-/// the sub-rectangle. A cell at the floor is at most `width` across, so
-/// it lies within half a width of its centre.
+/// the sub-rectangle.
+///
+/// The box must cover every cell of its cluster, since what the Krawczyk
+/// test proves is about the box (its one zero of `∇φ`, and none beside
+/// it), and a cell left partly outside it would leave part of an
+/// unread cell undecided. A cell reaches the floor only once its widest
+/// side is at most `width` (the shared recursion's floor test,
+/// `cell.width() <= width`), so it lies within half a width of its centre
+/// on both axes: the reach of [`CLUSTER_REACH`] widths covers it with a
+/// width to spare, the room the test needs about a zero on a cell's
+/// edge.
 fn clusters(cells: &[((f64, f64), UvRect)], width: f64) -> Vec<(UvRect, UvRect)> {
     let mut parent: Vec<usize> = (0..cells.len()).collect();
     for i in 0..cells.len() {
@@ -448,7 +500,7 @@ fn clusters(cells: &[((f64, f64), UvRect)], width: f64) -> Vec<(UvRect, UvRect)>
     let mut out: Vec<(usize, UvRect, UvRect)> = Vec::new();
     for (i, &(c, sub)) in cells.iter().enumerate() {
         let r = find(&mut parent, i);
-        let reach = 1.5 * width;
+        let reach = CLUSTER_REACH * width;
         let cell = UvRect {
             u: ((c.0 - reach).max(sub.u.0), (c.0 + reach).min(sub.u.1)),
             v: ((c.1 - reach).max(sub.v.0), (c.1 + reach).min(sub.v.1)),

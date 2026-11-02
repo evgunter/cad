@@ -12,24 +12,30 @@
 //! its `∇²f` zero). With `m` the box's middle and `Y` the inverse of the
 //! Hessian's midpoint,
 //! `K = m − Y·∇φ(m) + (I − Y·∇²φ(X))·(X − m)` holds every zero of `∇φ` in
-//! `X`, and where `K` lies strictly inside `X` it holds exactly one, and
-//! every matrix in `∇²φ(X)` is invertible (`crate::krawczyk`'s operator,
-//! two dimensions down). A box `K` does not fit is cut to `K ∩ X` and
-//! read again, a fixed number of times.
+//! `X`, and where `K` lies strictly inside `X` it holds one: **existence**
+//! is what containment proves, and with it every matrix in `∇²φ(X)` is
+//! invertible, so the zero is the only one (`crate::krawczyk`'s operator,
+//! two dimensions down). Without it, a box over a regular stretch where
+//! `∇φ` is small but nowhere zero would be read as a critical point that
+//! is not there. A box `K` does not fit is cut to `K ∩ X` and read again,
+//! a fixed number of times; each cut keeps every zero of the first box,
+//! so the one zero found is the first box's only one.
 //!
 //! The point found is then decided:
 //!
-//! - **its value**, `φ` over the last box in metres, read on a ceiling
+//! - **its value**, `φ` over the final box in metres, read on a ceiling
 //!   against the band (`spline_critical_value`): decided zero, the point
 //!   is a tangency decided Zero; in band or past it, the cluster is not
 //!   decided here and the sweep declines;
-//! - **its Hessian's determinant** over that box: positive, a definite
+//! - **its Hessian's determinant** over the final box: positive, a definite
 //!   Hessian, a **touch**; negative, an indefinite one, a **node**, the
 //!   arcs of the section crossing there; straddling zero, the sweep
 //!   declines.
 //!
-//! A cluster whose first box leaves the sub-rectangle it lies in, or
-//! straddles a knot, is not decided either.
+//! A box over a knot reads the jets of every span it touches, hulled, so
+//! a cluster at a knot reads a hull the Krawczyk test may not fit, and
+//! is then not decided. The caller declines a decided point whose final
+//! box is not strictly inside its piece of the rectangle.
 
 use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
@@ -106,10 +112,7 @@ fn read(jets: &Jets, phi: Phi<'_>, u: Interval, v: Interval) -> Read {
     let (g, h, value, ceiling, frame): (Vec3<Interval>, [[Interval; 3]; 3], Interval, f64, _) =
         match phi {
             Phi::Plane(origin, normal) => {
-                let n = normal.map(Interval::point);
-                let length = Certification::sqrt(n.x.sqr() + n.y.sqr() + n.z.sqr());
-                let n = Vec3::new(n.x / length, n.y / length, n.z / length);
-                let o = Vec3::new(origin.x, origin.y, origin.z).map(Interval::point);
+                let (o, n) = plane(origin, normal);
                 let value = (p - o).dot(n);
                 let ceiling = value.lo().abs().max(value.hi().abs());
                 let zero = Interval::point(0.0);
@@ -177,10 +180,7 @@ pub(super) fn along_line(
     let d = if along_u { jet.du } else { jet.dv };
     let (metres, g, d) = match phi {
         Phi::Plane(origin, normal) => {
-            let n = normal.map(Interval::point);
-            let length = Certification::sqrt(n.x.sqr() + n.y.sqr() + n.z.sqr());
-            let n = Vec3::new(n.x / length, n.y / length, n.z / length);
-            let o = Vec3::new(origin.x, origin.y, origin.z).map(Interval::point);
+            let (o, n) = plane(origin, normal);
             ((p - o).dot(n), n, d)
         }
         Phi::Curved(curved) => {
@@ -196,9 +196,21 @@ pub(super) fn along_line(
             )
         }
     };
-    let norm = |w: Vec3<Interval>| Certification::sqrt(w.x.sqr() + w.y.sqr() + w.z.sqr());
-    let scale = Interval::point(norm(g).hi()) * Interval::point(norm(d).hi());
-    (metres, g.dot(d) / scale)
+    let norm = |w: Vec3<Interval>| {
+        Interval::point(Certification::sqrt(w.x.sqr() + w.y.sqr() + w.z.sqr()).hi())
+    };
+    (metres, super::sine(g, norm(g), d, norm(d)))
+}
+
+/// A plane's origin and its unit normal, as enclosures: its `∇f`, and the
+/// point its height is read from.
+fn plane(origin: geom_core::Point3<f64>, normal: Vec3<f64>) -> (Vec3<Interval>, Vec3<Interval>) {
+    let n = normal.map(Interval::point);
+    let length = Certification::sqrt(n.x.sqr() + n.y.sqr() + n.z.sqr());
+    (
+        Vec3::new(origin.x, origin.y, origin.z).map(Interval::point),
+        Vec3::new(n.x / length, n.y / length, n.z / length),
+    )
 }
 
 /// The inverse of a 2×2 matrix, `None` where it is singular or not
@@ -263,7 +275,8 @@ fn krawczyk(jets: &Jets, phi: Phi<'_>, x: [Interval; 2]) -> Option<([Interval; 2
 
 /// **The cluster in `x` decided** (module docs): the critical point it
 /// holds decided Zero, or `None` where it is not decided here. `x` lies
-/// inside `root`, a rectangle over which `∇φ` is continuous.
+/// inside one piece of the rectangle between its creases, over which
+/// `∇φ` is continuous.
 pub(super) fn decide(jets: &Jets, phi: Phi<'_>, x: UvRect, band: Band) -> Option<Critical> {
     let mut b = [range(x.u)?, range(x.v)?];
     let mut proved = false;

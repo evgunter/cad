@@ -876,8 +876,9 @@ impl SweepTally {
 /// places: at (ii), what accounts for a cell (nothing when seeding, a
 /// tube, region or clear cell when accounting, a regular cell for the
 /// regularity sweep), and at the floor, where seeding banks the
-/// survivor, accounting refuses, and the regularity sweep returns its
-/// first survivor, which declines it. Every other line — the budget,
+/// survivor, accounting refuses, and the regularity sweep banks it too,
+/// to be decided as a critical point, up to [`REGULAR_SURVIVORS`].
+/// Every other line — the budget,
 /// the bookkeeping, the exclude/account/refine ladder — is written once,
 /// so the never-silence refusal cannot be edited in one lane and
 /// forgotten in the other.

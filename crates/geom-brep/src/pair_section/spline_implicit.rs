@@ -26,10 +26,14 @@
 //!    section ends;
 //! 3. **the regularity sweep** ([`sweep`]): where `∇φ` is bounded off
 //!    zero, past the band's exclusions, no component closes in the
-//!    wall's chart. That verdict is the section, no component where the
-//!    pass found no end and otherwise [`Components::Reaching`] on the
-//!    sides it found them on; the interior-loop guard's loop-free stage
-//!    is it. Where the sweep declines, a plane's pose is read whole on
+//!    wall's chart outside the critical points it decides Zero. That
+//!    verdict is the section: no component where the pass found no end
+//!    and no point was decided, [`Components::Reaching`] on the sides the
+//!    pass found ends on, the touches as point components where they are
+//!    all the section has, and a pinch ([`SectionError::Pinched`]) where a
+//!    node, or a touch beside components with ends, meets arcs the march
+//!    would list; the interior-loop guard's loop-free stage is it. Where
+//!    the sweep declines, a plane's pose is read whole on
 //!    the same pass, the pass carried on the pose; a curved partner's
 //!    whole reading over the rectangle is not built, and its pose refuses
 //!    as the general rung's ([`SectionError::RoutesToGeneralRung`]).
@@ -221,10 +225,20 @@ impl<T: Real> SplineImplicitPose<T> {
 
     /// The pair's section with these components, nothing decided Zero.
     fn section(self, components: Components<T>) -> PairSection<T> {
+        self.section_deciding(components, Vec::new())
+    }
+
+    /// The pair's section with these components and these `Zero`
+    /// verdicts.
+    fn section_deciding(
+        self,
+        components: Components<T>,
+        decided: Vec<super::ZeroVerdict>,
+    ) -> PairSection<T> {
         let lever = self.ball().radius();
         PairSection {
             pose: PairPose::SplineImplicit(Box::new(self)),
-            decided: Vec::new(),
+            decided,
             components,
             nodes: Vec::new(),
             lever,
@@ -795,15 +809,14 @@ pub(super) fn loop_free(
             witness: witness.map(|(q, _)| q),
             pad: witness.map_or(0.0, |(_, pad)| pad),
             carrier: ClassCarrier::Unminted(TOUCH),
+            cut_ends: None,
         });
         verdicts.push(super::ZeroVerdict {
             decision: super::SectionDecision::Tangency(CRITICAL),
             margin: c.margin,
         });
     }
-    let mut section = pose.section(Components::Counted(components));
-    section.decided = verdicts;
-    Ok(section)
+    Ok(pose.section_deciding(Components::Counted(components), verdicts))
 }
 
 /// **The section read whole** (module docs): C3's reading, every
