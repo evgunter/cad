@@ -115,7 +115,10 @@ fn values(along: RoleRead<Operand>, by: f64) -> Vec<(Coord<Operand>, editor_core
     vec![
         (Coord::SlideAlong(along), len(by)),
         (Coord::slide(TargetAxis::X), len(0.0)),
-        (Coord::SPIN, editor_core::Formula::zero(editor_core::Dimension::Angle)),
+        (
+            Coord::SPIN,
+            editor_core::Formula::zero(editor_core::Dimension::Angle),
+        ),
     ]
 }
 
@@ -132,7 +135,11 @@ fn r2_a_read_slide_beside_a_plane_mate_steps_its_value_in_the_plane() {
     let want = [0.3 * h, 0.3 * h, 0.0];
     eprintln!("r2 plane read: a {:?} b {:?}", a.translation, b.translation);
     for i in 0..3 {
-        assert!((a.translation[i] - want[i]).abs() < 1e-12, "{:?}", a.translation);
+        assert!(
+            (a.translation[i] - want[i]).abs() < 1e-12,
+            "{:?}",
+            a.translation
+        );
         assert!((b.translation[i] - a.translation[i] - want[i]).abs() < 1e-12);
     }
 }
@@ -174,13 +181,19 @@ fn r2_the_mated_slide_beside_a_plane_mate_refuses() {
             (Coord::SLIDE, len(0.1)),
             (Coord::slide(TargetAxis::X), len(0.0)),
             (Coord::slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, editor_core::Formula::zero(editor_core::Dimension::Angle)),
+            (
+                Coord::SPIN,
+                editor_core::Formula::zero(editor_core::Dimension::Angle),
+            ),
         ],
     }
     .bundle();
     let fault = fixture::bundle_refusal(&doc, placement, bundle);
     eprintln!("r2 mated slide beside plane: {fault:?}");
-    assert!(matches!(fault, MateFault::Overconstrained { .. }), "{fault:?}");
+    assert!(
+        matches!(fault, MateFault::Overconstrained { .. }),
+        "{fault:?}"
+    );
 }
 
 /// A read of the wrong kind at a value's seat: a plane read plainly at
@@ -189,10 +202,15 @@ fn r2_the_mated_slide_beside_a_plane_mate_refuses() {
 /// never reach the fold's `unreachable!` in `heading_of`.
 #[test]
 fn r2_a_read_of_the_wrong_kind_at_a_values_seat_is_refused_not_a_panic() {
-    let cases: Vec<(&str, Box<dyn Fn(&ProfileDoc, RecipeNodeId) -> Coord<Operand>>)> = vec![
+    let cases: Vec<(
+        &str,
+        Box<dyn Fn(&ProfileDoc, RecipeNodeId) -> Coord<Operand>>,
+    )> = vec![
         (
             "plain plane at Along",
-            Box::new(|doc, w| Coord::SlideAlong(RoleRead::plain(wedge_plane(doc, w, [1.0, 1.0, 0.0])))),
+            Box::new(|doc, w| {
+                Coord::SlideAlong(RoleRead::plain(wedge_plane(doc, w, [1.0, 1.0, 0.0])))
+            }),
         ),
         (
             "plane's origin role at Along",
@@ -218,7 +236,14 @@ fn r2_a_read_of_the_wrong_kind_at_a_values_seat_is_refused_not_a_panic() {
         let space = fixture::space(&doc, wedge);
         let c = coord(&doc, wedge);
         let is_slide = c.is_slide();
-        let mut moves = vec![(c, if is_slide { len(0.1) } else { editor_core::test_support::ang(0.1) })];
+        let mut moves = vec![(
+            c,
+            if is_slide {
+                len(0.1)
+            } else {
+                editor_core::test_support::ang(0.1)
+            },
+        )];
         if is_slide {
             moves.push((Coord::slide(TargetAxis::Z), len(0.0)));
         }
@@ -240,7 +265,10 @@ fn r2_a_read_of_the_wrong_kind_at_a_values_seat_is_refused_not_a_panic() {
             Ok(applied) => {
                 let poses = solve(&applied.doc, &EvalOptions::default(), Tol::witness());
                 let p = *applied.doc.placements().last().unwrap();
-                eprintln!("r2 wrong kind [{label}]: admitted; fold: {:?}", poses.fault(p));
+                eprintln!(
+                    "r2 wrong kind [{label}]: admitted; fold: {:?}",
+                    poses.fault(p)
+                );
             }
         }
     }

@@ -3,16 +3,20 @@
 //! be compared numerically: every evaluated body's volume and its vertex
 //! points, in full precision. Writes to `$REVIEW_6394_DUMP` when set.
 
-use pncad::document::{
-    BooleanValue, CancelToken, EvalOptions, Evaluation, ValuePayload, evaluate,
-};
+use pncad::document::{BooleanValue, CancelToken, EvalOptions, Evaluation, ValuePayload, evaluate};
 use pncad::geom_core::Tol;
 
 #[test]
 fn impeller_geometry_dump() {
     let tol = Tol::witness();
     let doc = demo_tour::impeller::gallery_document(tol);
-    let ev: Evaluation<f64> = evaluate(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+    let ev: Evaluation<f64> = evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
     let mut out = String::new();
     for id in doc.ids() {
         let Some(value) = ev.value(id) else { continue };
@@ -28,7 +32,10 @@ fn impeller_geometry_dump() {
         .map(|m| m.enclosure.volume);
         let mut pts: Vec<[f64; 3]> = body.vertex_points().map(|(_, p)| [p.x, p.y, p.z]).collect();
         pts.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        out.push_str(&format!("node {id:?} volume {vol:?} vertices {}\n", pts.len()));
+        out.push_str(&format!(
+            "node {id:?} volume {vol:?} vertices {}\n",
+            pts.len()
+        ));
         for p in pts {
             out.push_str(&format!("  {:?}\n", p));
         }
