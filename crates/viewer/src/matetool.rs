@@ -86,12 +86,16 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Constraint, ConstraintId, ConstraintKind, Coord, Dimension, Doc, Evaluation, Formula, Mate,
-    MateRef, MateSide, Node, Operand, Orientation, Placed, ProfileProgram, RecipeNodeId, Said, Say,
+    Constraint, ConstraintId, ConstraintKind, Dimension, Doc, Evaluation, Formula, Mate, MateRef,
+    MateSide, Node, Operand, Orientation, Placed, ProfileProgram, RecipeNodeId, Said, Say,
     SitedRef, SlideAxes, SlotKind, Speaker, SpokenNode, Value, VarId, VarKind, member_of, pose,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
+
+/// A freedom as the tool writes it: its read, where it reads one, as
+/// authored.
+type Coord = pncad::document::Coord<Operand>;
 use pncad::select::{EntityKind, Resolution};
 
 use crate::pickindex::{PickKinds, PickedKind};
@@ -1371,7 +1375,7 @@ fn carried_turn(
         }
         // A loaded chain's last turn onto the new chart's spin.
         Coord::Spin(None) => {
-            let chain: Vec<Coord> = loaded.iter().map(|(_, v)| v.coord).collect();
+            let chain: Vec<Coord> = loaded.iter().map(|(_, v)| v.coord.clone()).collect();
             let turn = snap?.chain_turn(orient, &chain)?;
             let (id, v) = loaded
                 .iter()
@@ -1393,7 +1397,7 @@ fn carried_turn(
             });
             exact.then_some((*id, *v, turn, true))?
         }
-        Coord::Slide(_) => return None,
+        Coord::Slide(_) | Coord::SlideAlong(_) | Coord::SpinAbout(_) => return None,
     };
     let signed = if turn.sign > 0 {
         Some(v.by.clone())
@@ -2178,7 +2182,7 @@ impl MateTool {
         let loaded_slides = || {
             SlideAxes::of(base.iter().filter_map(|c| match c.value()?.coord {
                 Coord::Slide(Some(axis)) => Some(axis),
-                Coord::Spin(_) => None,
+                _ => None,
             }))
         };
         let along = if chart.is_some() && chart_kept {
@@ -2199,10 +2203,10 @@ impl MateTool {
             .collect();
         let mut values = Vec::new();
         let mut landed: Vec<ConstraintId> = Vec::new();
-        for (&coord, measured) in coords.iter().zip(&measured) {
-            if let Some((_, by)) = draft.typed.iter().find(|(c, _)| *c == coord) {
+        for (coord, measured) in coords.iter().zip(&measured) {
+            if let Some((_, by)) = draft.typed.iter().find(|(c, _)| c == coord) {
                 values.push(ValueRow {
-                    coord,
+                    coord: coord.clone(),
                     by: by.clone(),
                     from: ValueFrom::Typed,
                 });
@@ -2210,13 +2214,13 @@ impl MateTool {
             }
             let same = loaded
                 .iter()
-                .find(|(id, v)| v.coord == coord && !landed.contains(id));
+                .find(|(id, v)| v.coord == *coord && !landed.contains(id));
             if let Some(&(id, v)) = same
                 && (chart_kept || measured.is_none() || !written_constant(doc, placement, id))
             {
                 landed.push(id);
                 values.push(ValueRow {
-                    coord,
+                    coord: coord.clone(),
                     by: v.by.clone(),
                     from: ValueFrom::Loaded(id),
                 });
@@ -2233,7 +2237,7 @@ impl MateTool {
                 // the kernel's fill rule (the constant `0`,
                 // [`Placed::of`]), and the verdict names the mate's fault.
                 values.push(ValueRow {
-                    coord,
+                    coord: coord.clone(),
                     by: Formula::zero(coord.dimension()),
                     from: ValueFrom::Unmeasured,
                 });
@@ -2247,7 +2251,7 @@ impl MateTool {
                 doc,
                 ev,
                 tol,
-                coord,
+                coord.clone(),
                 &coords,
                 &loaded,
                 &landed,
@@ -2260,15 +2264,18 @@ impl MateTool {
             {
                 landed.push(id);
                 values.push(ValueRow {
-                    coord,
+                    coord: coord.clone(),
                     by: carried,
                     from: ValueFrom::Loaded(id),
                 });
                 continue;
             }
             values.push(ValueRow {
-                coord,
-                by: number(by, coord.dimension()).ok_or(MateToolError::Unwritable { coord, by })?,
+                coord: coord.clone(),
+                by: number(by, coord.dimension()).ok_or_else(|| MateToolError::Unwritable {
+                    coord: coord.clone(),
+                    by,
+                })?,
                 from: ValueFrom::Measured,
             });
         }
@@ -2279,7 +2286,7 @@ impl MateTool {
         let (retired, read): (Vec<_>, Vec<_>) =
             gone.partition(|(id, _)| written_constant(doc, placement, *id));
         let row = |&(id, v): &(ConstraintId, &Value<Formula>)| ValueRow {
-            coord: v.coord,
+            coord: v.coord.clone(),
             by: v.by.clone(),
             from: ValueFrom::Loaded(id),
         };
@@ -2289,7 +2296,7 @@ impl MateTool {
             .iter()
             .map(row)
             .chain(typed_gone.map(|(coord, by)| ValueRow {
-                coord: *coord,
+                coord: coord.clone(),
                 by: by.clone(),
                 from: ValueFrom::Typed,
             }))
@@ -2325,7 +2332,7 @@ impl MateTool {
             bundle.push(Constraint::of_value(
                 id,
                 Value {
-                    coord: row.coord,
+                    coord: row.coord.clone(),
                     by: row.by.clone(),
                 },
             ));

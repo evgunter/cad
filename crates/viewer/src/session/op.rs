@@ -521,7 +521,7 @@ pub enum SessionOp {
         /// The mate, `on` read off that copy.
         mate: Box<Mate<Formula>>,
         /// The freedoms it leaves that are set, each to its number.
-        values: Vec<(Coord, Formula)>,
+        values: Vec<(Coord<Operand>, Formula)>,
         /// Whether the author asked, by name, to move the copy into the
         /// space the mate's `to` reads where that is not its target:
         /// the placement is first stood by the identity bundle, then

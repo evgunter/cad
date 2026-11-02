@@ -1775,7 +1775,7 @@ impl ViewerBehavior<'_> {
         crate::widgets::message(
             ui,
             ToolKind::Pattern
-                .says(&"pick the body; a circular rule's axis is in its own coordinates"),
+                .says(&"pick the body, then an edge or a face for the direction or the axis"),
         );
         if let Some((seat, half)) = seats_row(
             ui,
@@ -1804,14 +1804,30 @@ impl ViewerBehavior<'_> {
                     .range(MIN_PATTERN_COUNT..=i64::MAX),
             );
         });
+        let picked = tool.picked().cloned();
+        let picked_said = match &picked {
+            Some(crate::combine::DirectionPick::Edge(_)) => "the picked edge",
+            Some(crate::combine::DirectionPick::Face(_)) => "the picked face",
+            None => "a picked edge or face",
+        };
+        let along_row =
+            |ui: &mut egui::Ui, label: &str, along: &mut Option<pncad::document::TargetAxis>| {
+                ui.horizontal(|ui| {
+                    ui.label(label);
+                    for axis in pncad::document::TargetAxis::ALL {
+                        let word = match axis {
+                            pncad::document::TargetAxis::X => "x",
+                            pncad::document::TargetAxis::Y => "y",
+                            pncad::document::TargetAxis::Z => "z",
+                        };
+                        ui.radio_value(along, Some(axis), word);
+                    }
+                    ui.radio_value(along, None, picked_said);
+                });
+            };
         match self.drafts.pattern_kind {
             PatternLayoutChoice::Linear => {
-                vec3_row(
-                    ui,
-                    "direction",
-                    UNIT_DRAG_SPEED,
-                    &mut self.drafts.pattern_direction,
-                );
+                along_row(ui, "direction", &mut self.drafts.pattern_along);
                 ui.horizontal(|ui| {
                     ui.label("spacing");
                     unit_field(
@@ -1824,22 +1840,7 @@ impl ViewerBehavior<'_> {
                 });
             }
             PatternLayoutChoice::Circular => {
-                ui.horizontal(|ui| {
-                    unit_vec3_row(
-                        ui,
-                        "axis through",
-                        self.notation.length.def(),
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.pattern_through,
-                    );
-                    length_picker(ui, "pattern_through", &mut self.notation.length);
-                });
-                vec3_row(
-                    ui,
-                    "axis direction",
-                    UNIT_DRAG_SPEED,
-                    &mut self.drafts.pattern_axis,
-                );
+                along_row(ui, "axis", &mut self.drafts.pattern_about);
                 ui.horizontal(|ui| {
                     ui.label("step");
                     unit_field(
@@ -1852,19 +1853,25 @@ impl ViewerBehavior<'_> {
                 });
             }
         }
+        let direction = |along: Option<pncad::document::TargetAxis>| match along {
+            Some(axis) => Ok(crate::session::PatternDirection::Axis(axis)),
+            None => picked
+                .as_ref()
+                .map(crate::combine::DirectionPick::direction)
+                .ok_or(CommitFault::NoDirection),
+        };
         self.tool_commit_row(ui, ToolKind::Pattern, |drafts, notation| {
             match drafts.pattern_kind {
                 PatternLayoutChoice::Linear => Ok(tool.linear_op(
                     drafts.pattern_output,
                     drafts.pattern_count,
-                    scalars(drafts.pattern_direction)?,
+                    direction(drafts.pattern_along)?,
                     notation.length_literal(drafts.pattern_spacing)?,
                 )?),
                 PatternLayoutChoice::Circular => Ok(tool.circular_op(
                     drafts.pattern_output,
                     drafts.pattern_count,
-                    notation.length_literals(drafts.pattern_through)?,
-                    scalars(drafts.pattern_axis)?,
+                    direction(drafts.pattern_about)?,
                     notation.angle_literal(drafts.pattern_step)?,
                 )?),
             }

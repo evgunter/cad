@@ -210,17 +210,16 @@ pub(crate) struct Drafts {
     /// because the slot it lands in is Count-typed and a number that
     /// was rounded on the way could differ from the one on screen.
     pub(crate) pattern_count: i64,
-    /// The linear rule's step direction (unitless).
-    pub(crate) pattern_direction: [f64; 3],
+    /// The linear rule's direction: one of the space's axes, or `None`
+    /// for the edge or face the tool holds picked.
+    pub(crate) pattern_along: Option<pncad::document::TargetAxis>,
     /// The linear rule's spacing, metres.
     pub(crate) pattern_spacing: f64,
     /// The circular rule's angular step, radians.
     pub(crate) pattern_step: f64,
-    /// The circular rule's axis: a point on it, metres, in the
-    /// patterned body's own coordinates.
-    pub(crate) pattern_through: [f64; 3],
-    /// The circular rule's axis direction (unitless).
-    pub(crate) pattern_axis: [f64; 3],
+    /// The circular rule's axis: one of the space's axes through its
+    /// origin, or `None` for the edge or face the tool holds picked.
+    pub(crate) pattern_about: Option<pncad::document::TargetAxis>,
     /// Which instance of a pattern it projects — an INTEGER all the
     /// way from the field, for [`Drafts::pattern_count`]'s reason: the
     /// slot it lands in is Count-typed and a number rounded on the way
@@ -981,11 +980,10 @@ impl Default for Drafts {
             pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,
             // The one home both stepping gestures open on.
-            pattern_direction: crate::combine::STEP_DIRECTION,
+            pattern_along: Some(pncad::document::TargetAxis::X),
             pattern_spacing: 0.02,
             pattern_step: core::f64::consts::FRAC_PI_2,
-            pattern_through: [0.0; 3],
-            pattern_axis: [0.0, 0.0, 1.0],
+            pattern_about: Some(pncad::document::TargetAxis::Z),
             // The FIRST instance, which is the copy rather than the
             // original: a projection of instance 0 is the master where
             // it already stands, so the index a person opening this
@@ -1513,6 +1511,8 @@ pub(crate) enum CommitFault {
     Program(RecordedProgramError),
     /// A traced path does not lower.
     Traced(sketch::TracedLoopError),
+    /// A pattern's direction is the picked geometry, and none is picked.
+    NoDirection,
 }
 
 impl From<SeatError> for CommitFault {
@@ -1540,6 +1540,10 @@ impl std::fmt::Display for CommitFault {
             Self::Dimension(error) => error.fmt(f),
             Self::Program(error) => error.fmt(f),
             Self::Traced(error) => error.fmt(f),
+            Self::NoDirection => f.write_str(
+                "no direction is picked: pick an edge or a face of the body, or choose one of \
+                 the space's axes",
+            ),
         }
     }
 }

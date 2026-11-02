@@ -161,6 +161,9 @@ pub enum RingAxis {
     /// An `Axis` read off a body in the target space: each member spun
     /// about that line, with no mate, from where the source stands.
     About(RoleRead<Operand>),
+    /// The target space's axis, through its origin: each member spun
+    /// about it, with no mate, from where the source stands.
+    Target(TargetAxis),
 }
 
 /// **A ring**: `source` copied into `target`, member `index` spun
@@ -194,6 +197,7 @@ pub fn circular_pattern(
             vec![(Coord::SPIN, spun), (Coord::SLIDE, slide)],
         ),
         RingAxis::About(about) => Placed::unmated(vec![(Coord::SpinAbout(about), spun)]),
+        RingAxis::Target(axis) => Placed::unmated(vec![(Coord::spin(axis), spun)]),
     };
     Ok(Node::place(source, target, placed.bundle()))
 }
@@ -305,7 +309,9 @@ pub fn recognise(doc: &ProfileDoc, placement: RecipeNodeId) -> Option<Recognised
                 step,
             )),
             Coord::Spin(None) if mates == 1 && spin.is_none() => spin = Some(step),
-            Coord::SpinAbout(_) if mates == 0 && spin.is_none() => spin = Some(step),
+            Coord::SpinAbout(_) | Coord::Spin(Some(_)) if mates == 0 && spin.is_none() => {
+                spin = Some(step);
+            }
             _ => return None,
         }
     }

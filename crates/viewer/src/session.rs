@@ -96,7 +96,7 @@ pub mod refuse;
 pub mod select;
 pub(crate) mod snap;
 
-pub use author::{BooleanSpec, PartSelectSpec, PatternRuleSpec, ProfileShape};
+pub use author::{BooleanSpec, PartSelectSpec, PatternDirection, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
 pub use op::{
     CancelDoor, ClearedSeat, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp,
@@ -3906,29 +3906,40 @@ impl DocSession {
         let source = pncad::document::BodyRead::plain(input.clone());
         let placement = match rule {
             PatternRuleSpec::Linear { direction, spacing } => {
-                combine::row_steps(&direction, &spacing).and_then(|steps| {
-                    pncad::pattern::linear_pattern(&index, source, Operand::Var(target), &steps)
-                })
+                let (along, across) = match direction {
+                    PatternDirection::Axis(axis) => {
+                        (pncad::pattern::RowDirection::Axis(axis), None)
+                    }
+                    picked => {
+                        let (read, heading) =
+                            self.picked_heading(&input, target, &picked, false)?;
+                        (
+                            pncad::pattern::RowDirection::Read(read),
+                            Some(pncad::document::slides_across(&[heading])),
+                        )
+                    }
+                };
+                pncad::pattern::linear_pattern(
+                    &index,
+                    source,
+                    Operand::Var(target),
+                    &[(along, spacing)],
+                    across,
+                )
             }
-            PatternRuleSpec::Circular {
-                through,
-                direction,
-                step,
-            } => {
-                let axis = axis_operand(self.read_off(
-                    &input,
-                    &through,
-                    &direction,
-                    "pattern axis",
-                    PoseRole::Z,
-                )?);
-                let along = combine::ring_slide_axis(&direction);
+            PatternRuleSpec::Circular { axis, step } => {
+                let axis = match axis {
+                    PatternDirection::Axis(axis) => pncad::pattern::RingAxis::Target(axis),
+                    picked => pncad::pattern::RingAxis::About(
+                        self.picked_heading(&input, target, &picked, true)?.0,
+                    ),
+                };
                 pncad::pattern::circular_pattern(
                     doc,
                     &index,
                     source,
                     Operand::Var(target),
-                    (axis.clone(), axis, along),
+                    axis,
                     pncad::pattern::RingStep::By(step),
                 )
             }
@@ -3975,6 +3986,93 @@ impl DocSession {
                 }
             }
         }))
+    }
+
+    /// **The read a pattern's picked geometry is, and the direction it
+    /// reads where the committed document stands**: an edge's line, a
+    /// flat face's normal or a round face's axis — for a ring (`axis`),
+    /// an edge's or a face's axis alone. Each is read as a value of a
+    /// placement of `input` into `target` reads it, and the first that
+    /// evaluates is the one written, so its direction is the one the
+    /// row's other slides are chosen across
+    /// ([`pncad::document::slides_across`]).
+    ///
+    /// # Errors
+    ///
+    /// [`GestureFrameFault::NoHeading`] where none evaluates.
+    fn picked_heading(
+        &self,
+        input: &Operand,
+        target: VarId,
+        picked: &PatternDirection,
+        axis: bool,
+    ) -> Result<(RoleRead<Operand>, pncad::geom_core::linalg::Vec3<f64>), Refusal> {
+        use pncad::document::pose::{PoseDef, PoseValue};
+        let doc = self.committed_doc();
+        let field = if axis {
+            "pattern axis"
+        } else {
+            "pattern direction"
+        };
+        let pose = |def: PoseDef<Operand, Formula>| Operand::Pose(Box::new(def));
+        let candidates: Vec<RoleRead<Operand>> = match picked {
+            PatternDirection::Axis(_) => Vec::new(),
+            PatternDirection::Edge(edge) => vec![RoleRead::plain(pose(PoseDef::Axis {
+                of: pick_read(doc, edge),
+            }))],
+            PatternDirection::Face(face) => {
+                let of = pick_read(doc, face);
+                let normal =
+                    RoleRead::through(pose(PoseDef::Plane { face: of.clone() }), PoseRole::Normal);
+                let carrier = RoleRead::plain(pose(PoseDef::Axis { of }));
+                if axis {
+                    vec![carrier]
+                } else {
+                    vec![normal, carrier]
+                }
+            }
+        };
+        let opts = self.eval_options();
+        let ev: Evaluation<f64> = pncad::document::evaluate(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &opts,
+            self.tol,
+        );
+        let read = |read: &RoleRead<Operand>| {
+            let coord = if axis {
+                pncad::document::Coord::SpinAbout(read.clone())
+            } else {
+                pncad::document::Coord::SlideAlong(read.clone())
+            };
+            let zero = Formula::zero(coord.dimension());
+            let mut run = Recording::start(doc, self.tol);
+            let probe = run
+                .insert(Node::place(
+                    pncad::document::BodyRead::plain(input.clone()),
+                    Operand::Var(target),
+                    pncad::document::Placed::unmated(vec![(coord, zero)]).bundle(),
+                ))
+                .ok()?;
+            let scratch = run.doc();
+            let Some(Node::Place { constraints, .. }) = scratch.node(probe) else {
+                return None;
+            };
+            let (id, coord) = constraints
+                .iter()
+                .find_map(|c| Some((c.id, c.value()?.coord)).filter(|(_, c)| c.read().is_some()))?;
+            let at = *coord.read()?;
+            match editor_core::eval::bound_pose(scratch, &ev, coord.seat(id), at, self.tol).ok()? {
+                PoseValue::Axis(line) => Some(line.dir().get()),
+                PoseValue::Direction { dir } if !axis => Some(dir.get()),
+                _ => None,
+            }
+        };
+        candidates
+            .into_iter()
+            .find_map(|candidate| read(&candidate).map(|heading| (candidate, heading)))
+            .ok_or_else(|| Refusal::Frame(Box::new(GestureFrameFault::NoHeading { field })))
     }
 
     /// Insert one read of a family's member ([`SessionOp::AddPart`]).
@@ -4658,7 +4756,7 @@ impl DocSession {
         &mut self,
         placement: RecipeNodeId,
         mate: &pncad::document::Mate<Formula>,
-        values: Vec<(pncad::document::Coord, Formula)>,
+        values: Vec<(pncad::document::Coord<Operand>, Formula)>,
         into_target_space: bool,
     ) -> OpOutcome {
         let doc = self.committed_doc();
@@ -5799,7 +5897,7 @@ fn frame_along(
 /// permutation of the space's, else the kernel's chain read of them
 /// (`editor_core::mate::chain_turns`) — and the slides its origin makes,
 /// each turn and slide that is not zero.
-fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
+fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord<Operand>, Formula)> {
     use pncad::document::{Coord, TargetAxis};
     let exact = (0..3).all(|j| {
         let column = at.columns[j];
@@ -6049,10 +6147,15 @@ fn frame_off(
         .into_iter()
         .map(|(coord, by)| match coord {
             pncad::document::Coord::Spin(Some(axis)) => FrameMove::Spin(axis, by),
-            pncad::document::Coord::Spin(None) => {
-                unreachable!("a frame's moves are a chain about its own axes")
-            }
             pncad::document::Coord::Slide(Some(axis)) => FrameMove::Slide(axis, by),
+            pncad::document::Coord::Spin(None)
+            | pncad::document::Coord::Slide(None)
+            | pncad::document::Coord::SlideAlong(_)
+            | pncad::document::Coord::SpinAbout(_) => {
+                unreachable!(
+                    "a frame's moves are a chain about its own axes, and its slides along them"
+                )
+            }
         })
         .collect::<Vec<_>>();
     Ok(pncad::document::moved_frame(base, &moves))
@@ -6254,20 +6357,6 @@ impl core::fmt::Debug for DocSession {
             .field("derived", derived)
             .field("notation", notation)
             .finish_non_exhaustive()
-    }
-}
-
-/// **An axis read as a mate's operand**: a plain read as it is, and a
-/// read through a role (a frame's `z`) as the axis slid zero along
-/// itself, which is that axis.
-fn axis_operand(axis: RoleRead<Operand>) -> Operand {
-    match axis.role {
-        None => axis.read,
-        Some(_) => Operand::Pose(Box::new(pncad::document::pose::PoseDef::Slide {
-            pose: axis.clone(),
-            along: axis,
-            by: Formula::zero(Dimension::Length),
-        })),
     }
 }
 
