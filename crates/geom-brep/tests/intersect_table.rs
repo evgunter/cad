@@ -181,13 +181,11 @@ fn plane_cylinder_tilted_is_the_exact_ellipse() {
         panic!("expected the tilted ellipse, got {s:?}");
     };
     // Axes: a = r/cos φ, b = r.
-    let Curve3::Ellipse {
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::ConicFrame { center, axis, .. },
         semi_u,
         semi_v,
-        center,
-        axis,
-        ..
-    } = e
+    }) = e
     else {
         panic!("carrier is an ellipse");
     };
@@ -226,12 +224,10 @@ fn plane_cylinder_rim_stays_rung_1_circle() {
     let PlaneCylinderSection::Rim(c) = s else {
         panic!("expected the rim circle, got {s:?}");
     };
-    let Curve3::Circle {
-        center,
-        axis,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame { center, axis, .. },
         radius,
-        ..
-    } = c
+    }) = c
     else {
         panic!("carrier is a circle");
     };
@@ -314,7 +310,10 @@ fn plane_cylinder_axis_angle_trios() {
         u_ref: Vec3::unit_y(),
     };
     let got = plane_cylinder_section(&plane, &cyl, &metre_on(&cyl), band()).unwrap();
-    let PlaneCylinderSection::TiltedEllipse(Curve3::Ellipse { semi_u, semi_v, .. }) = got else {
+    let PlaneCylinderSection::TiltedEllipse(Curve3::Ellipse(geom::Ellipse {
+        semi_u, semi_v, ..
+    })) = got
+    else {
         panic!("the tilted ellipse, got {got:?}");
     };
     let want = 2.0 / (1.0 - s * s).sqrt() - 2.0;
@@ -387,7 +386,12 @@ fn equal_cylinders_split_into_two_ellipses() {
     }
     // Both are genuine ellipses centered at the axes' intersection.
     for e in [&e1, &e2] {
-        let Curve3::Ellipse { center, semi_v, .. } = e else {
+        let Curve3::Ellipse(geom::Ellipse {
+            frame: geom::ConicFrame { center, .. },
+            semi_v,
+            ..
+        }) = e
+        else {
             panic!("carrier is an ellipse");
         };
         assert!(center.x.abs() < 1e-12 && center.y.abs() < 1e-12 && center.z.abs() < 1e-12);
@@ -610,12 +614,10 @@ fn plane_cone_axis_normal_circle() {
     let PlaneConeSection::AxisNormalCircle(c) = s else {
         panic!("expected the circle, got {s:?}");
     };
-    let Curve3::Circle {
-        center,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame { center, axis, .. },
         radius,
-        axis,
-        ..
-    } = c
+    }) = c
     else {
         panic!("carrier is a circle");
     };
@@ -652,13 +654,16 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
         let PlaneConeSection::TiltedEllipse(e) = s else {
             panic!("phi {phi}: expected the ellipse, got {s:?}");
         };
-        let Curve3::Ellipse {
-            center,
-            axis,
+        let Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } = e
+        }) = e
         else {
             panic!("phi {phi}: the carrier is an ellipse");
         };
@@ -699,7 +704,10 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
     for phi in [0.04f64, 0.02, 0.01, 1e-4, 1e-5] {
         let s =
             plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band()).unwrap();
-        let PlaneConeSection::TiltedEllipse(Curve3::Ellipse { semi_u, semi_v, .. }) = s else {
+        let PlaneConeSection::TiltedEllipse(Curve3::Ellipse(geom::Ellipse {
+            semi_u, semi_v, ..
+        })) = s
+        else {
             panic!("phi {phi}: expected the ellipse, got {s:?}");
         };
         for axis in [semi_u, semi_v] {
@@ -903,12 +911,10 @@ pub(crate) fn cs_circles<T: geom_core::Decide>(s: &PairSection<T>) -> Vec<(Point
         .expect("a counted section")
         .iter()
         .map(|c| match c.carrier {
-            ClassCarrier::Closed(Curve3::Circle {
-                center,
-                axis,
+            ClassCarrier::Closed(Curve3::Circle(geom::Circle {
+                frame: geom::ConicFrame { center, axis, .. },
                 radius,
-                ..
-            }) => (center, axis, radius),
+            })) => (center, axis, radius),
             ref other => panic!("a coaxial circle, got {other:?}"),
         })
         .collect()
@@ -1769,12 +1775,10 @@ fn plane_sphere_cut_is_the_exact_circle_zero_residual() {
     let PlaneSphereSection::Circle(c) = s else {
         panic!("expected the circle, got {s:?}");
     };
-    let Curve3::Circle {
-        center,
-        axis,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame { center, axis, .. },
         radius,
-        ..
-    } = c
+    }) = c
     else {
         panic!("carrier is a circle");
     };
@@ -1857,12 +1861,14 @@ fn sphere_sphere_cut_is_the_exact_circle_zero_residual() {
     let SphereSphereSection::Circle(c) = sphere_sphere_section(&a, &b, band()).unwrap() else {
         panic!("expected the circle");
     };
-    let Curve3::Circle {
-        center,
-        axis,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    } = c
+    }) = c
     else {
         panic!("carrier is a circle");
     };
@@ -2064,12 +2070,15 @@ fn plane_torus_meridian_cut_is_two_exact_circles_zero_residual() {
     };
     let centre = Point3::new(1.0, 2.0, 3.0);
     for (which, c, sign) in [("c1", &c1, 1.0), ("c2", &c2, -1.0)] {
-        let Curve3::Circle {
-            center,
-            axis,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } = *c
+        }) = *c
         else {
             panic!("{which}: carrier is a circle");
         };
@@ -2120,12 +2129,15 @@ fn plane_torus_axis_normal_cut_is_two_concentric_circles_zero_residual() {
     let w = (r * r - h * h).sqrt();
     let centre = Point3::new(1.0, 2.0 + h, 3.0);
     for (which, c, want_r) in [("outer", &c1, big_r + w), ("inner", &c2, big_r - w)] {
-        let Curve3::Circle {
-            center,
-            axis,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } = *c
+        }) = *c
         else {
             panic!("{which}: carrier is a circle");
         };
@@ -2181,7 +2193,11 @@ fn plane_torus_cap_gap_trilean_trio() {
     let PlaneTorusSection::TangentCircle(c) = s else {
         panic!("expected the tangency circle, got {s:?}");
     };
-    let Curve3::Circle { radius, center, .. } = c else {
+    let Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame { center, .. },
+        radius,
+    }) = c
+    else {
         panic!("carrier is a circle");
     };
     assert!((radius - big_r).abs() < 1e-15);
@@ -2530,7 +2546,11 @@ fn plane_torus_negative_station_pins_the_centre_sign() {
     let centre = Point3::new(1.0, 2.0 + h, 3.0);
     let w = (r * r - h * h).sqrt();
     for (which, c, want_r) in [("outer", &c1, big_r + w), ("inner", &c2, big_r - w)] {
-        let Curve3::Circle { center, radius, .. } = *c else {
+        let Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { center, .. },
+            radius,
+        }) = *c
+        else {
             panic!("{which}: carrier is a circle");
         };
         assert!((radius - want_r).abs() < 1e-15, "{which}: radius R ± w");
@@ -2555,7 +2575,11 @@ fn plane_torus_negative_station_pins_the_centre_sign() {
     let PlaneTorusSection::TangentCircle(c) = s else {
         panic!("expected the tangency circle, got {s:?}");
     };
-    let Curve3::Circle { center, radius, .. } = c else {
+    let Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame { center, .. },
+        radius,
+    }) = c
+    else {
         panic!("carrier is a circle");
     };
     assert!((radius - big_r).abs() < 1e-15);
@@ -2682,7 +2706,11 @@ fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
             ("cylinder c2", &c2, &cyl),
             ("plane", &c3, &plane),
         ] {
-            let Curve3::Circle { u_ref: c_u, .. } = *c else {
+            let Curve3::Circle(geom::Circle {
+                frame: geom::ConicFrame { u_ref: c_u, .. },
+                ..
+            }) = *c
+            else {
                 panic!("{which}, {arm}: carrier is a circle");
             };
             assert!(
@@ -2744,12 +2772,15 @@ fn cone_cylinder_coaxial_cut_is_two_exact_circles_zero_residual() {
     let ConeCylinderSection::CoaxialCircles { c1, c2 } = s;
     let station = big_r * 0.75;
     for (which, c, sign) in [("c1", &c1, 1.0), ("c2", &c2, -1.0)] {
-        let Curve3::Circle {
-            center,
-            axis: c_axis,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis: c_axis,
+                    u_ref: c_u,
+                },
             radius,
-            u_ref: c_u,
-        } = *c
+        }) = *c
         else {
             panic!("{which}: carrier is a circle");
         };
@@ -2836,11 +2867,15 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
     let ConeCylinderSection::CoaxialCircles { c1, .. } =
         cone_cylinder_section(&cone, &anti, 1.0, band())
             .expect("an antiparallel coaxial cylinder still cuts");
-    let Curve3::Circle {
-        center,
-        axis: c_axis,
+    let Curve3::Circle(geom::Circle {
+        frame:
+            geom::ConicFrame {
+                center,
+                axis: c_axis,
+                ..
+            },
         ..
-    } = c1
+    }) = c1
     else {
         panic!("carrier is a circle");
     };
@@ -3019,7 +3054,7 @@ fn cone_cylinder_parallel_lever_is_live_at_a_non_unit_arm() {
         cone_cylinder_section(&cone, &small, 0.01, band())
             .expect("the small arm reads the same sine as Zero");
     for c in [&c1, &c2] {
-        let Curve3::Circle { radius, .. } = *c else {
+        let Curve3::Circle(geom::Circle { radius, .. }) = *c else {
             panic!("carrier is a circle");
         };
         assert!((radius - 0.002).abs() < 1e-15, "the cylinder's own radius");
@@ -3119,7 +3154,11 @@ fn cone_cylinder_station_reach_is_the_admission_criterion() {
     let ConeCylinderSection::CoaxialCircles { c1, .. } =
         cone_cylinder_section(&cone_43(apex, axis, u_ref), &cyl_r(0.5), 1.0, band())
             .expect("a station well inside the reach mints");
-    let Curve3::Circle { center, .. } = c1 else {
+    let Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame { center, .. },
+        ..
+    }) = c1
+    else {
         panic!("carrier is a circle");
     };
     assert!(

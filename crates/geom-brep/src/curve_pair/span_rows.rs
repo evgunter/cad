@@ -25,22 +25,20 @@ fn line() -> Curve3<f64> {
 }
 
 fn circle() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
-        radius: 2.0,
-        u_ref: Vec3::unit_x(),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::unit_z(),
+        2.0,
+        Vec3::unit_x(),
+    )
 }
 
 fn ellipse() -> Curve3<f64> {
-    Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
-        semi_u: 3.0,
-        semi_v: 0.5,
-        u_ref: Vec3::unit_x(),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        3.0,
+        0.5,
+    ))
 }
 
 /// What a contact reads as, for the table: its variant's name.
@@ -358,12 +356,12 @@ fn a_point_on_a_circles_axis_is_off_with_no_place_read() {
     use geom_core::Real;
     use geom_core::k_stats::{self, Probe};
     let p = Probe::from_f64;
-    let c = Curve3::Circle {
-        center: Point3::new(p(0.0), p(0.0), p(1.0)),
-        axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
-        radius: p(2.0),
-        u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
-    };
+    let c = Curve3::circle(
+        Point3::new(p(0.0), p(0.0), p(1.0)),
+        Vec3::new(p(0.0), p(0.0), p(1.0)),
+        p(2.0),
+        Vec3::new(p(1.0), p(0.0), p(0.0)),
+    );
     let centre = Point3::new(p(0.0), p(0.0), p(1.0));
     let antipode = c.foot(centre, p(4.0 * PI / 3.0)).t().0;
     assert_eq!(

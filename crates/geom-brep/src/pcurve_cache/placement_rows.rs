@@ -15,12 +15,14 @@ fn band() -> Band {
 }
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle {
-        center,
-        axis,
+    Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    }
+    })
 }
 
 /// A named arm: its chart, its carrier, and an edge's span on it.
@@ -349,12 +351,15 @@ fn line_arms() -> Vec<Arm> {
 /// carrier at `t − by` is the first at `t`.
 fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
     match *carrier {
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => circle(
+        }) => circle(
             center,
             axis,
             radius,
@@ -383,7 +388,7 @@ fn a_carrier_restarted_derives_one_placed_image() {
     let band = band();
     let restartable = arms()
         .into_iter()
-        .filter(|(_, _, c, _)| matches!(c, Curve3::Circle { .. }))
+        .filter(|(_, _, c, _)| matches!(c, Curve3::Circle(..)))
         .chain(line_arms());
     for (name, surface, carrier, (t0, t1)) in restartable {
         let derive = |carrier: &Curve3<f64>, (a, b): (f64, f64)| {

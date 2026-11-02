@@ -70,15 +70,15 @@ pub fn loop_vector_area<T: SpanLocate>(
                 let b = e.p1() - ref_point;
                 a.cross(b) * half
             }
-            Curve3::Circle { axis, radius, .. } => {
-                arc_vector_area(e, ref_point, axis, radius.powi(2)) * half
-            }
-            Curve3::Ellipse {
-                axis,
+            Curve3::Circle(geom::Circle {
+                frame: geom::ConicFrame { axis, .. },
+                radius,
+            }) => arc_vector_area(e, ref_point, axis, radius.powi(2)) * half,
+            Curve3::Ellipse(geom::Ellipse {
+                frame: geom::ConicFrame { axis, .. },
                 semi_u,
                 semi_v,
-                ..
-            } => arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half,
+            }) => arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half,
             Curve3::Nurbs(ref payload) => nurbs_vector_area(payload, e.t0, e.t1, ref_point)?,
             // The spiric's sector integral `∫ P × P′ dv` carries
             // `√((R + r cos v)² − d²)` against `sin v` and `cos v` — an
@@ -167,7 +167,7 @@ fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
 #[must_use]
 pub fn vector_area_reads<T: SpanLocate>(carrier: &Curve3<T>) -> bool {
     match carrier {
-        Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => true,
+        Curve3::Line { .. } | Curve3::Circle(..) | Curve3::Ellipse(..) => true,
         Curve3::Nurbs(c) => !is_rational(c) && gauss_rule(c.degree().max(1)).is_some(),
         Curve3::Spiric { .. } => false,
     }
@@ -398,22 +398,24 @@ mod tests {
                 true,
             ),
             (
-                Curve3::Circle {
-                    center: p(0.0, 0.0),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    radius: 1.0,
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
-                },
+                Curve3::circle(
+                    p(0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    1.0,
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 true,
             ),
             (
-                Curve3::Ellipse {
-                    center: p(0.0, 0.0),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    semi_u: 2.0,
-                    semi_v: 1.0,
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
-                },
+                Curve3::Ellipse(geom::Ellipse::new(
+                    geom::ConicFrame::new(
+                        p(0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                    2.0,
+                    1.0,
+                )),
                 true,
             ),
             (spline(2, vec![1.0; 3]), true),
@@ -463,12 +465,12 @@ mod tests {
     fn full_circle_vector_area_is_pi_r_squared_axis() {
         let r = 2.0;
         let e = LoopEdge::hand_built(
-            Curve3::Circle {
-                center: Point3::new(1.0, 2.0, 3.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: r,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                Point3::new(1.0, 2.0, 3.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                r,
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             0.0,
             core::f64::consts::TAU,
             true,

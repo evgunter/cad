@@ -1758,7 +1758,11 @@ impl<T: Real> EdgeCurveSpec<T> {
         T: SpanLocate,
     {
         use geom_core::{Affine3, Point2, Point3};
-        let Curve3::Circle { center, axis, .. } = carrier else {
+        let Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { center, axis, .. },
+            ..
+        }) = carrier
+        else {
             return None;
         };
         let start = carrier.eval(t0);
@@ -1947,13 +1951,12 @@ impl<T: Real> EdgeCurveSpec<T> {
                     angle: T::tau(),
                 },
             )),
-            carrier: Curve3::Circle {
+            carrier: Curve3::circle(
                 center,
-                axis: Vec3::unit_z(),
-                radius: T::one(),
-                // u_ref points from the center back at p.
-                u_ref: Vec3::new(T::zero() - T::one(), T::zero(), T::zero()),
-            },
+                Vec3::unit_z(),
+                T::one(),
+                Vec3::new(T::zero() - T::one(), T::zero(), T::zero()),
+            ),
             param_start: T::zero(),
             param_end: T::tau(),
         }
@@ -3853,12 +3856,12 @@ fn decide_turn<T: Decide>(
     // 8kτ sample-alias argument about the parameter period, which all
     // three share.
     Ok(match &spec.carrier {
-        periodic @ (Curve3::Circle { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. }) => {
+        periodic @ (Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. }) => {
             let Some(floor) = geom::carrier_speed::speed_floor(periodic) else {
                 unreachable!("check 2: `speed_floor` answers every periodic carrier")
             };
             let extent = Extent::forward(FORWARD_ROW, t0, t1, floor, band).map_err(not_forward)?;
-            let turn = if let Curve3::Circle { .. } = periodic {
+            let turn = if let Curve3::Circle(..) = periodic {
                 let rows = TurnRows::exact(WINDING_ROWS.turn);
                 one_turn.turn(rows, extent, Exact::new(floor.get()), band)
             } else {
@@ -6922,12 +6925,7 @@ mod tests {
                     angle: TAU,
                 },
             )),
-            carrier: Curve3::Circle {
-                center,
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: Curve3::circle(center, Vec3::unit_z(), 1.0, Vec3::unit_x()),
             param_start: 0.0,
             param_end: TAU,
         };
@@ -6965,12 +6963,12 @@ mod tests {
                     place,
                 },
             )),
-            carrier: Curve3::Circle {
-                center: Point3::new(0.0, 0.0, 1.0),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: Curve3::circle(
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::unit_z(),
+                1.0,
+                Vec3::unit_x(),
+            ),
             param_start: 0.0,
             param_end: FRAC_PI_2,
         };
@@ -7448,12 +7446,12 @@ mod tests {
     /// refuses it alike.
     #[test]
     fn a_stored_arc_past_a_turn_at_a_callers_finer_band_ends_typed() {
-        let circle = Curve3::Circle {
-            center: Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: geom_core::Vec3::unit_x(),
-        };
+        let circle = Curve3::circle(
+            Point3::origin(),
+            geom_core::Vec3::unit_z(),
+            1.0,
+            geom_core::Vec3::unit_x(),
+        );
         let t1 = core::f64::consts::TAU + 5e-7;
         let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1).unwrap();
         let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
@@ -7562,12 +7560,12 @@ mod tests {
                 EdgeCurve::mint(spec, |_| None, band).map(|_| ())
             }),
         ];
-        let circle = Curve3::Circle {
-            center: Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: geom_core::Vec3::unit_x(),
-        };
+        let circle = Curve3::circle(
+            Point3::origin(),
+            geom_core::Vec3::unit_z(),
+            1.0,
+            geom_core::Vec3::unit_x(),
+        );
         let past = EdgeCurveSpec::arc_of_circle(circle, 0.0, 3.0 * core::f64::consts::PI).unwrap();
         let file = FileCoincidence::new(1e-12);
         let span = "Recourse: move the geometry so this edge runs forward over a clear length";
@@ -7659,12 +7657,12 @@ mod tests {
     fn no_public_door_panics_on_a_span_it_refuses() {
         let fine = Band::new(1e-9, 1e-8).unwrap();
         let coarse = Band::new(1e-6, 1e-5).unwrap();
-        let circle = Curve3::Circle {
-            center: Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: geom_core::Vec3::unit_x(),
-        };
+        let circle = Curve3::circle(
+            Point3::origin(),
+            geom_core::Vec3::unit_z(),
+            1.0,
+            geom_core::Vec3::unit_x(),
+        );
         let arc = |t1: f64| EdgeCurveSpec::arc_of_circle(circle.clone(), 0.0, t1).unwrap();
         let p = Point3::new(1.0, 2.0, 3.0);
         let slightly_past = core::f64::consts::TAU + 5e-7;

@@ -83,22 +83,20 @@ fn dense(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> (f64, f64, f64) {
 }
 
 fn circle(r: f64) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.3, -0.2, 0.1),
-        axis: Vec3::unit_z(),
-        radius: r,
-        u_ref: Vec3::unit_x(),
-    }
+    Curve3::circle(
+        Point3::new(0.3, -0.2, 0.1),
+        Vec3::unit_z(),
+        r,
+        Vec3::unit_x(),
+    )
 }
 
 fn ellipse(a: f64, b: f64) -> Curve3<f64> {
-    Curve3::Ellipse {
-        center: Point3::new(-0.4, 0.2, 1.0),
-        axis: Vec3::unit_z(),
-        semi_u: a,
-        semi_v: b,
-        u_ref: Vec3::unit_x(),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(Point3::new(-0.4, 0.2, 1.0), Vec3::unit_z(), Vec3::unit_x()),
+        a,
+        b,
+    ))
 }
 
 fn spline(

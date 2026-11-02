@@ -37,12 +37,7 @@ fn cylinder() -> Surface<f64> {
 /// surface.
 fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, v),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(p3(0.0, 0.0, v), v3(0.0, 0.0, 1.0), 1.0, v3(1.0, 0.0, 0.0)),
         u0,
         u1,
         a,
@@ -148,12 +143,7 @@ fn an_oblique_sphere_section_is_refused_by_the_door_and_measured_by_the_flux_lan
     let n = v3(a.sin(), 0.0, a.cos());
     let section = |t0: f64, t1: f64, s: u32, e: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, 0.0) + n * d,
-                axis: n,
-                radius: r,
-                u_ref: v3(a.cos(), 0.0, -a.sin()),
-            },
+            Curve3::circle(p3(0.0, 0.0, 0.0) + n * d, n, r, v3(a.cos(), 0.0, -a.sin())),
             t0,
             t1,
             s,

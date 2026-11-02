@@ -68,12 +68,12 @@ fn cone_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<
     let gen_dir = |u: f64| v3(u.cos() * sin_a, u.sin() * sin_a, cos_a);
     let rim = |v: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
         LoopEdge::hand_built(
-            Curve3::Circle {
-                center: p(0.0, 0.0, v * cos_a),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: Probe(v * sin_a),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p(0.0, 0.0, v * cos_a),
+                v3(0.0, 0.0, 1.0),
+                Probe(v * sin_a),
+                v3(1.0, 0.0, 0.0),
+            ),
             Probe(t0),
             Probe(t1),
             forward,
@@ -124,12 +124,12 @@ fn sphere_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdg
     let (u1, u2) = (0.6_f64, 1.2_f64);
     let rim = |v: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
         LoopEdge::hand_built(
-            Curve3::Circle {
-                center: p(0.0, 0.0, scale * v.sin()),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: Probe(scale * v.cos()),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p(0.0, 0.0, scale * v.sin()),
+                v3(0.0, 0.0, 1.0),
+                Probe(scale * v.cos()),
+                v3(1.0, 0.0, 0.0),
+            ),
             Probe(t0),
             Probe(t1),
             forward,
@@ -139,12 +139,12 @@ fn sphere_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdg
     };
     let meridian = |u: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
         LoopEdge::hand_built(
-            Curve3::Circle {
-                center: p(0.0, 0.0, 0.0),
-                axis: v3(u.sin(), -u.cos(), 0.0),
-                radius: Probe(scale),
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
+            Curve3::circle(
+                p(0.0, 0.0, 0.0),
+                v3(u.sin(), -u.cos(), 0.0),
+                Probe(scale),
+                v3(u.cos(), u.sin(), 0.0),
+            ),
             Probe(t0),
             Probe(t1),
             forward,
@@ -345,12 +345,12 @@ fn cone_trunc_loop(scale: f64, verts: &[(f64, f64)]) -> Vec<LoopEdge<Probe>> {
                 (ub, ua, false)
             };
             LoopEdge::hand_built(
-                Curve3::Circle {
-                    center: p(0.0, 0.0, va * cos_a),
-                    axis: v3(0.0, 0.0, 1.0),
-                    radius: Probe(va * sin_a),
-                    u_ref: v3(1.0, 0.0, 0.0),
-                },
+                Curve3::circle(
+                    p(0.0, 0.0, va * cos_a),
+                    v3(0.0, 0.0, 1.0),
+                    Probe(va * sin_a),
+                    v3(1.0, 0.0, 0.0),
+                ),
                 Probe(t0),
                 Probe(t1),
                 forward,
@@ -385,12 +385,12 @@ fn whole_rim(scale: f64, h: f64, forward: bool) -> Vec<LoopEdge<Probe>> {
     let (sin_a, cos_a) = 0.5_f64.atan().sin_cos();
     let v = h * scale / cos_a;
     vec![LoopEdge::hand_built(
-        Curve3::Circle {
-            center: p(0.0, 0.0, v * cos_a),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: Probe(v * sin_a),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            p(0.0, 0.0, v * cos_a),
+            v3(0.0, 0.0, 1.0),
+            Probe(v * sin_a),
+            v3(1.0, 0.0, 0.0),
+        ),
         Probe(0.0),
         Probe(core::f64::consts::TAU),
         forward,
@@ -512,12 +512,12 @@ fn torus_axis_margins(scale: f64) -> Vec<f64> {
         minor_radius: s(1.0),
         u_ref: v3(1.0, 0.0, 0.0),
     };
-    let meridian = Curve3::Circle {
-        center: p(3.0 * scale, 0.0, 0.0),
-        axis: v3(0.0, 1.0, 0.0),
-        radius: s(1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
-    };
+    let meridian = Curve3::circle(
+        p(3.0 * scale, 0.0, 0.0),
+        v3(0.0, 1.0, 0.0),
+        s(1.0),
+        v3(1.0, 0.0, 0.0),
+    );
     let edges = vec![LoopEdge::hand_built(
         meridian,
         Probe(0.0),

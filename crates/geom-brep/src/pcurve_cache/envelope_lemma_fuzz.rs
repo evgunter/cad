@@ -72,12 +72,14 @@ fn sign(s: &mut fuzz::Rng) -> f64 {
 }
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle {
-        center,
-        axis,
+    Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    }
+    })
 }
 
 /// A size of move, from all three regimes the decisions read: inside
@@ -244,13 +246,11 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             let major_dir = normal.cross(tang).normalize();
             (
                 chart,
-                Curve3::Ellipse {
-                    center: at + axis * v0,
-                    axis: normal,
-                    semi_u: radius / theta.cos(),
-                    semi_v: radius,
-                    u_ref: major_dir,
-                },
+                Curve3::Ellipse(geom::Ellipse::new(
+                    geom::ConicFrame::new(at + axis * v0, normal, major_dir),
+                    radius / theta.cos(),
+                    radius,
+                )),
             )
         }
         Class::CylinderRuling => {
@@ -533,12 +533,15 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
             origin: origin + nudge(s, 1),
             dir: dir + nudge(s, 3) * dir.norm(),
         },
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => {
+        }) => {
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
             let center = center + nudge(s, 1);
@@ -552,37 +555,31 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
                 } else {
                     (minor, major, axis.cross(u_ref))
                 };
-                return Curve3::Ellipse {
+                return Curve3::Ellipse(geom::Ellipse::new(
+                    geom::ConicFrame::new(center, axis, u_ref),
+                    major,
+                    minor,
+                ));
+            }
+            Curve3::circle(center, axis, scaled(s, radius), u_ref)
+        }
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::ConicFrame {
                     center,
                     axis,
-                    semi_u: major,
-                    semi_v: minor,
                     u_ref,
-                };
-            }
-            Curve3::Circle {
-                center,
-                axis,
-                radius: scaled(s, radius),
-                u_ref,
-            }
-        }
-        Curve3::Ellipse {
-            center,
-            axis,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => {
+        }) => {
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
-            Curve3::Ellipse {
-                center: center + nudge(s, 1),
-                axis,
-                semi_u: scaled(s, semi_u),
-                semi_v: scaled(s, semi_v),
-                u_ref,
-            }
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::ConicFrame::new(center + nudge(s, 1), axis, u_ref),
+                scaled(s, semi_u),
+                scaled(s, semi_v),
+            ))
         }
         Curve3::Spiric { .. } | Curve3::Nurbs(_) => unreachable!("on_chart builds neither"),
     }
@@ -1075,12 +1072,12 @@ fn the_envelope_dominates_where_no_circle_reaches() {
             u_ref: Vec3::unit_x(),
         };
         let v = z * 10f64.powf(s.range(2.0, 4.0));
-        let carrier = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, v * alpha.cos()),
-            axis: Vec3::unit_z(),
-            radius: v * alpha.sin(),
-            u_ref: Vec3::unit_x(),
-        };
+        let carrier = Curve3::circle(
+            Point3::new(0.0, 0.0, v * alpha.cos()),
+            Vec3::unit_z(),
+            v * alpha.sin(),
+            Vec3::unit_x(),
+        );
         let Ok(image @ Pcurve::Harmonic { .. }) = chart_pcurve(&carrier, &cone, band()) else {
             continue;
         };
@@ -1812,13 +1809,15 @@ fn the_phase_remainder_carries_a_carrier_that_is_the_harmonic_part() {
     let d0 = rad(axis, u_ref, image.u0);
     let d1 = axis.cross(d0) * image.sense;
     let (x, y) = (d0 * big, d1 * (big * q) + axis * (image.vl * minor));
-    let carrier = Curve3::Ellipse {
-        center: Point3::origin() - d0 * (big * e),
-        axis: x.cross(y).normalize(),
-        semi_u: x.norm(),
-        semi_v: y.norm(),
-        u_ref: x.normalize(),
-    };
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(
+            Point3::origin() - d0 * (big * e),
+            x.cross(y).normalize(),
+            x.normalize(),
+        ),
+        x.norm(),
+        y.norm(),
+    ));
     let (t0, t1) = (-0.5, 0.5);
     let envelope = focal_section_envelope(
         &stored_image,
@@ -1867,12 +1866,15 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
         else {
             unreachable!("villarceau draws a torus")
         };
-        let Curve3::Circle {
-            center,
-            axis: n,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis: n,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } = carrier
+        }) = carrier
         else {
             unreachable!("villarceau draws a circle")
         };

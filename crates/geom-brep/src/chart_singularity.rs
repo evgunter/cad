@@ -499,12 +499,15 @@ enum Near<T> {
 pub fn foot<T: Real>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
     match *carrier {
         Curve3::Line { origin, dir } => Some((x - origin).dot(dir) / dir.dot(dir)),
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             ..
-        } => {
+        }) => {
             let w = x - center;
             let t = w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref));
             Some(from + (t - from).reduce_periodic(T::tau()))
@@ -522,7 +525,7 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
     let (t0, t1) = (e.t0, e.t1);
     let speed = match e.carrier {
         Curve3::Line { dir, .. } => dir.norm(),
-        Curve3::Circle { radius, .. } => radius,
+        Curve3::Circle(geom::Circle { radius, .. }) => radius,
         _ => return sampled_near(e, x, band),
     };
     let Some(t) = foot(&e.carrier, x, t0) else {
@@ -1088,9 +1091,10 @@ impl<T: Decide> EdgeShape<T> {
                 line: true,
                 height: None,
             },
-            Curve3::Circle {
-                axis: n, radius, ..
-            } => Self {
+            Curve3::Circle(geom::Circle {
+                frame: geom::ConicFrame { axis: n, .. },
+                radius,
+            }) => Self {
                 speed,
                 line: false,
                 height: Some(radius.abs() * T::from_f64(2.0) * axis.cross(n / n.norm()).norm()),

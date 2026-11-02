@@ -42,12 +42,12 @@ fn corner_pair(r: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
         radius: r,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let circle = Curve3::Circle {
-        center: p(r, r, r),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let circle = Curve3::circle(
+        p(r, r, r),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     (sphere, cylinder, circle)
 }
 
@@ -80,13 +80,15 @@ fn circle_carriers_are_in_the_certified_lane_on_every_revolution_kind() {
     assert!(!tangent_certificate_lane(&line, &torus, &plane));
     assert!(tangent_certificate_lane(&line, &cylinder, &plane));
     // A carrier kind outside both arms stays outside.
-    let ellipse = Curve3::Ellipse {
-        center: p(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: 2.0,
-        semi_v: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(
+            p(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        2.0,
+        1.0,
+    ));
     assert!(!tangent_certificate_lane(&ellipse, &sphere, &plane));
 }
 
@@ -185,12 +187,12 @@ fn cap_crossing(r: f64, h: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
         radius: r,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let circle = Curve3::Circle {
-        center: p(0.0, 0.0, h),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let circle = Curve3::circle(
+        p(0.0, 0.0, h),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     (plane, cylinder, circle)
 }
 

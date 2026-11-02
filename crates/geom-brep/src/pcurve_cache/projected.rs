@@ -1091,8 +1091,8 @@ pub(crate) fn chart_at<T: Decide>(
 pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bool {
     match carrier {
         Curve3::Nurbs(_) => crate::edge_nurbs::is_analytic(surface),
-        Curve3::Circle { .. } => matches!(surface, Surface::Sphere { .. }),
-        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => false,
+        Curve3::Circle(..) => matches!(surface, Surface::Sphere { .. }),
+        Curve3::Line { .. } | Curve3::Ellipse(..) | Curve3::Spiric { .. } => false,
     }
 }
 
@@ -1157,7 +1157,7 @@ pub(crate) fn project<T: Decide>(
     };
     let framed = match carrier {
         Curve3::Nurbs(net) => FramedCarrier::Net(Arc::new(framed_net(net, origin, &e))),
-        Curve3::Circle { .. } => {
+        Curve3::Circle(..) => {
             let Some(form) = super::carrier_harmonic(carrier) else {
                 unreachable!("a circle has a harmonic form")
             };
@@ -1170,7 +1170,7 @@ pub(crate) fn project<T: Decide>(
                 span: t1 - t0,
             }
         }
-        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
+        Curve3::Line { .. } | Curve3::Ellipse(..) | Curve3::Spiric { .. } => {
             unreachable!("project: `has_lane` admits no line, ellipse or spiric")
         }
     };
@@ -2137,7 +2137,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 net_incidence(&hull, (t0, t1), &image.chart, &twin, d, band, false)?;
             (incidence, d, rho_floor)
         }
-        (FramedCarrier::Circle { centre, a, b, .. }, Curve3::Circle { .. }) => {
+        (FramedCarrier::Circle { centre, a, b, .. }, Curve3::Circle(..)) => {
             let Some(form) = super::carrier_harmonic(carrier) else {
                 unreachable!("a circle has a harmonic form")
             };
@@ -2369,7 +2369,7 @@ pub(super) fn run_projected_checks<T: Decide>(
                 }
             }
         }
-        (FramedCarrier::Circle { .. }, Curve3::Circle { .. }) if has_lane(carrier, surface) => {}
+        (FramedCarrier::Circle { .. }, Curve3::Circle(..)) if has_lane(carrier, surface) => {}
         _ => {
             return Err(refuse(
                 "the stored carrier is not the edge's carrier kind (a spline's net, or a \

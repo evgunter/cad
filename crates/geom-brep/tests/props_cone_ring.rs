@@ -34,12 +34,12 @@ fn cone() -> Surface<f64> {
 /// The rim at slant `v`, traversed in azimuth from `u0` to `u1`.
 fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     topo::edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, APEX_Z + v * SIN_A),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: v * SIN_A,
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            p3(0.0, 0.0, APEX_Z + v * SIN_A),
+            v3(0.0, 0.0, 1.0),
+            v * SIN_A,
+            v3(1.0, 0.0, 0.0),
+        ),
         u0,
         u1,
         a,

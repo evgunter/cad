@@ -467,12 +467,12 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
                 Vec2::new(0.0, 1.0),
                 Vec2::new(0.0, 0.0),
             ),
-            Curve3::Circle {
-                center: Point3::new(0.3, 0.4, 0.0),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            Curve3::circle(
+                Point3::new(0.3, 0.4, 0.0),
+                Vec3::unit_z(),
+                1.0,
+                Vec3::unit_x(),
+            ),
             0.2,
             1.4,
         ),

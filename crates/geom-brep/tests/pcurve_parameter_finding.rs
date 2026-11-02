@@ -49,13 +49,15 @@ fn cylinder() -> Surface<f64> {
 }
 
 fn section() -> Curve3<f64> {
-    Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, H),
-        axis: Vec3::new(TILT.sin(), 0.0, TILT.cos()),
-        semi_u: R / TILT.cos(),
-        semi_v: R,
-        u_ref: Vec3::new(TILT.cos(), 0.0, -TILT.sin()),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(
+            Point3::new(0.0, 0.0, H),
+            Vec3::new(TILT.sin(), 0.0, TILT.cos()),
+            Vec3::new(TILT.cos(), 0.0, -TILT.sin()),
+        ),
+        R / TILT.cos(),
+        R,
+    ))
 }
 
 /// The section plane of that ellipse, as a chart.

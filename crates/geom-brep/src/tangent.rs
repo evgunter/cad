@@ -213,7 +213,7 @@ pub fn tangent_certificate_lane<T: Real>(
         |s: &Surface<T>| straight(s) || matches!(s, Surface::Torus { .. } | Surface::Cone { .. });
     match carrier {
         Curve3::Line { .. } => straight(s1) && straight(s2),
-        Curve3::Circle { .. } => round(s1) && round(s2),
+        Curve3::Circle(..) => round(s1) && round(s2),
         _ => false,
     }
 }
@@ -231,12 +231,14 @@ pub fn tangent_span_bounds<T: Real>(
         return None;
     }
     let step = (t1 - t0) / T::from_f64(f64::from(crate::certify::CERT_SAMPLES - 1));
-    if let Curve3::Circle {
-        center,
-        axis,
+    if let Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    } = *carrier
+    }) = *carrier
     {
         return circle_span_bounds(s1, s2, center, axis, radius, u_ref, step);
     }

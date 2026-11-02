@@ -61,12 +61,12 @@ fn off_cone(alpha: f64, v: f64, d: f64) -> (f64, f64) {
 /// The rim at slant `v`, `d` off the cone.
 fn rim(alpha: f64, v: f64, d: f64) -> (Curve3<f64>, f64) {
     let (rho, h) = off_cone(alpha, v, d);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, h),
-        axis: Vec3::unit_z(),
-        radius: rho,
-        u_ref: Vec3::unit_x(),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, h),
+        Vec3::unit_z(),
+        rho,
+        Vec3::unit_x(),
+    );
     (rim, core::f64::consts::TAU)
 }
 
@@ -88,7 +88,10 @@ fn ruling(alpha: f64, (v0, v1): (f64, f64), d: f64) -> (Curve3<f64>, f64) {
 fn size(carrier: &Curve3<f64>, t1: f64) -> f64 {
     match carrier {
         Curve3::Line { origin, dir } => (*origin + *dir * t1 - Point3::origin()).norm(),
-        Curve3::Circle { center, radius, .. } => (*center - Point3::origin()).norm() + radius,
+        Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { center, .. },
+            radius,
+        }) => (*center - Point3::origin()).norm() + radius,
         _ => unreachable!(),
     }
 }

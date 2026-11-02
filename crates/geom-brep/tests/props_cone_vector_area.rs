@@ -55,12 +55,12 @@ fn chart(u: f64, v: f64) -> [f64; 3] {
 fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     let (s, c) = ALPHA.sin_cos();
     topo::edge(
-        Curve3::Circle {
-            center: p3(APEX.0, APEX.1, APEX.2 + v * c),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: v.abs() * s,
-            u_ref: v3(v.signum(), 0.0, 0.0),
-        },
+        Curve3::circle(
+            p3(APEX.0, APEX.1, APEX.2 + v * c),
+            v3(0.0, 0.0, 1.0),
+            v.abs() * s,
+            v3(v.signum(), 0.0, 0.0),
+        ),
         u0,
         u1,
         a,
@@ -487,12 +487,12 @@ fn an_edge_off_the_cone_refuses_as_incidence() {
     let (s, c) = ALPHA.sin_cos();
     let mut wide = good.clone();
     wide[2] = topo::edge(
-        Curve3::Circle {
-            center: p3(APEX.0, APEX.1, APEX.2 + 2.0 * c),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: 1.1 * 2.0 * s,
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            p3(APEX.0, APEX.1, APEX.2 + 2.0 * c),
+            v3(0.0, 0.0, 1.0),
+            1.1 * 2.0 * s,
+            v3(1.0, 0.0, 0.0),
+        ),
         1.0,
         0.0,
         2,
@@ -721,12 +721,12 @@ fn wall_on<T: geom_core::Real>(
     let rim = |v: f64, u0: f64, u1: f64, i: u32, j: u32| {
         let o = at(a, v * c, k);
         topo::edge(
-            Curve3::Circle {
-                center: p3(o[0], o[1], o[2]),
-                axis: v3(k[0], k[1], k[2]),
-                radius: T::from_f64(v.abs() * s),
-                u_ref: v3(e1[0], e1[1], e1[2]),
-            },
+            Curve3::circle(
+                p3(o[0], o[1], o[2]),
+                v3(k[0], k[1], k[2]),
+                T::from_f64(v.abs() * s),
+                v3(e1[0], e1[1], e1[2]),
+            ),
             u0,
             u1,
             i,
@@ -890,12 +890,12 @@ fn a_rim_off_or_tilted_against_the_axis_refuses_as_incidence() {
     let (s, c) = ALPHA.sin_cos();
     let rim2 = |center: [f64; 3], axis: [f64; 3]| {
         topo::edge(
-            Curve3::Circle {
-                center: p3(center[0], center[1], center[2]),
-                axis: v3(axis[0], axis[1], axis[2]),
-                radius: 2.0 * s,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p3(center[0], center[1], center[2]),
+                v3(axis[0], axis[1], axis[2]),
+                2.0 * s,
+                v3(1.0, 0.0, 0.0),
+            ),
             1.0,
             0.0,
             2,

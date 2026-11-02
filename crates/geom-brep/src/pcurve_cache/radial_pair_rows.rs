@@ -30,13 +30,11 @@ fn ellipse(
     minor: f64,
     u_ref: Vec3<f64>,
 ) -> Curve3<f64> {
-    Curve3::Ellipse {
-        center,
-        axis,
-        semi_u: major,
-        semi_v: minor,
-        u_ref,
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(center, axis, u_ref),
+        major,
+        minor,
+    ))
 }
 
 /// The quarter of the circle about `+z` through `(0, 0, h)` of radius

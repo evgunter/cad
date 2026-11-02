@@ -86,13 +86,16 @@ impl Pose {
     /// tilted ellipse.
     fn miss_in_ulps(&self) -> Option<f64> {
         let (cone, plane) = self.surfaces();
-        let Ok(PlaneConeSection::TiltedEllipse(Curve3::Ellipse {
-            center,
-            axis,
+        let Ok(PlaneConeSection::TiltedEllipse(Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        })) = plane_cone_section(&plane, &cone, &at_apex(&cone, self.lever), band())
+        }))) = plane_cone_section(&plane, &cone, &at_apex(&cone, self.lever), band())
         else {
             return None;
         };
@@ -108,7 +111,8 @@ impl Pose {
             (p(origin), w(normal)),
         );
         let miss = cut.ellipse_miss(p(center), w(axis), semi_u, semi_v, w(u_ref));
-        let size = Curve3::semi_axes_by_size(semi_u, semi_v)
+        let size = geom::Ellipse::new(geom::ConicFrame::new(center, axis, u_ref), semi_u, semi_v)
+            .semi_axes_by_size()
             .0
             .max(center.distance(Point3::origin()))
             .max(self.apex.distance(Point3::origin()));

@@ -41,13 +41,15 @@ fn steep(ratio: f64) -> Steep {
         radius: 1.0,
         u_ref: Vec3::new(0.0, 1.0, 0.0),
     });
-    let ellipse = Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: 1.0 / alpha.cos(),
-        semi_v: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        1.0 / alpha.cos(),
+        1.0,
+    ));
     Steep {
         surfaces,
         pair: SurfacePair::new(plane, cyl),
@@ -193,12 +195,12 @@ fn certification_agrees_with_the_old_winding_check() {
     let band = Band::linear(geom_core::Tol::witness()).unwrap();
     let eps = band.zero();
     let fixture = steep(16.0);
-    let circle = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let circle = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let certify_circle = |(t0, t1): (f64, f64)| {
         let spec = EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1).unwrap();
         let (start, end) = (spec.carrier.eval(t0), spec.carrier.eval(t1));
@@ -288,12 +290,12 @@ fn certification_agrees_with_the_old_winding_check() {
 fn the_stored_turn_is_the_edges_own_interval() {
     let band = Band::linear(geom_core::Tol::witness()).unwrap();
     let fixture = steep(16.0);
-    let circle = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let circle = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let whole = EdgeCurveSpec::arc_of_circle(circle.clone(), 0.3, 0.3 + TAU).unwrap();
     let edges = [
         fixture.certify(0.2, 0.2 + HALF_PI, band).unwrap(),
@@ -369,12 +371,12 @@ fn the_certified_readers_agree_with_the_reads_they_retired() {
     let band = Band::linear(geom_core::Tol::witness()).unwrap();
     let eps = band.zero();
     let radius = 2.0;
-    let circle = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+    let circle = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 1.0),
         radius,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let certify = |(t0, t1): (f64, f64)| {
         let spec = EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1).unwrap();
         let (start, end) = (spec.carrier.eval(t0), spec.carrier.eval(t1));

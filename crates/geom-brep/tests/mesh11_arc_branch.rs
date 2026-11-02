@@ -225,12 +225,12 @@ fn cone<T: Real>() -> Surface<T> {
 fn cone_rim<T: Real>(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<T> {
     let s = core::f64::consts::FRAC_1_SQRT_2;
     edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, v * s),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: T::from_f64((v * s).abs()),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            p3(0.0, 0.0, v * s),
+            v3(0.0, 0.0, 1.0),
+            T::from_f64((v * s).abs()),
+            v3(1.0, 0.0, 0.0),
+        ),
         u0,
         u1,
         a,
@@ -341,12 +341,7 @@ fn a_cylinder_has_no_chart_singularity_for_an_arc_to_cross() {
     };
     let rim_at = |z: f64, t0: f64, t1: f64, a, b| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, z),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: 1.0,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(p3(0.0, 0.0, z), v3(0.0, 0.0, 1.0), 1.0, v3(1.0, 0.0, 0.0)),
             t0,
             t1,
             a,
@@ -392,12 +387,12 @@ fn a_torus_minor_circle_arc_stays_on_one_meridian_at_any_span() {
     };
     let minor = |u: f64, t0: f64, t1: f64, a, b| {
         edge(
-            Curve3::Circle {
-                center: p3(u.cos(), u.sin(), 0.0),
-                axis: v3(-u.sin(), u.cos(), 0.0),
-                radius: 0.25,
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
+            Curve3::circle(
+                p3(u.cos(), u.sin(), 0.0),
+                v3(-u.sin(), u.cos(), 0.0),
+                0.25,
+                v3(u.cos(), u.sin(), 0.0),
+            ),
             t0,
             t1,
             a,

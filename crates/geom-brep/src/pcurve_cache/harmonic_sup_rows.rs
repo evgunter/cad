@@ -145,12 +145,14 @@ pub(super) fn circle(
     radius: f64,
     u_ref: Vec3<f64>,
 ) -> Curve3<f64> {
-    Curve3::Circle {
-        center,
-        axis,
+    Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    }
+    })
 }
 
 /// The circle about `+z` through `center`, tilted by `phi` about
@@ -229,13 +231,11 @@ fn cylinder_meridian_a_radial_circle_reads_once() {
     };
     let a = Vec3::new(d, 0.0, rise);
     let u_ref = a.normalize();
-    let carrier = Curve3::Ellipse {
-        center: Point3::new(r, 0.0, 1.0),
-        axis: u_ref.cross(Vec3::unit_y()),
-        semi_u: a.norm(),
-        semi_v: d,
-        u_ref,
-    };
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(Point3::new(r, 0.0, 1.0), u_ref.cross(Vec3::unit_y()), u_ref),
+        a.norm(),
+        d,
+    ));
     let image = chart_pcurve(&carrier, &cyl, band()).unwrap();
     let span = (0.0, 2.0 * band().escalate() / d);
     certifies("cylinder meridian", &image, span, &carrier, &cyl);
@@ -576,12 +576,12 @@ fn shift_frame<T: Real>(
 fn general_sphere_circle(shift: Vec3<f64>) -> Curve3<f64> {
     let tilt: f64 = 0.7;
     let n = Vec3::new(tilt.sin(), 0.0, tilt.cos());
-    Curve3::Circle {
-        center: Point3::origin() + n * 0.6 + shift,
-        axis: n,
-        radius: 0.8,
-        u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
-    }
+    Curve3::circle(
+        Point3::origin() + n * 0.6 + shift,
+        n,
+        0.8,
+        Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+    )
 }
 
 fn unit_sphere() -> Surface<f64> {
@@ -625,7 +625,11 @@ fn projected_circle_a_moved_frame_reads_once() {
 #[test]
 fn projected_circle_an_off_sphere_pair_reads_once() {
     let sphere = unit_sphere();
-    let Curve3::Circle { u_ref, axis, .. } = general_sphere_circle(Vec3::zero()) else {
+    let Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame { u_ref, axis, .. },
+        ..
+    }) = general_sphere_circle(Vec3::zero())
+    else {
         unreachable!()
     };
     let v_ref = axis.cross(u_ref);
@@ -789,12 +793,12 @@ fn a_circle_near_a_pole_the_general_lane_cannot_image_ends_not_yet() {
         n: Vec3<f64>,
         h: f64,
     ) -> Result<(), PcurveCertifyError> {
-        let carrier = Curve3::Circle {
-            center: Point3::origin() + n * h,
-            axis: n,
-            radius: (1.0 - h * h).sqrt(),
-            u_ref: Vec3::unit_y(),
-        }
+        let carrier = Curve3::circle(
+            Point3::origin() + n * h,
+            n,
+            (1.0 - h * h).sqrt(),
+            Vec3::unit_y(),
+        )
         .map_scalar(&at);
         let sphere = unit_sphere().map_scalar(&at);
         let image = chart_pcurve(&carrier, &sphere, band())?;
@@ -880,13 +884,8 @@ fn an_in_band_class_on_the_sphere_takes_the_projected_lane() {
         let theta = (mid / rho).asin();
         let (s, c) = theta.sin_cos();
         let n = Vec3::new(0.0, -s, c);
-        let carrier = Curve3::Circle {
-            center: Point3::origin() + n * h,
-            axis: n,
-            radius: rho,
-            u_ref: Vec3::unit_x(),
-        }
-        .map_scalar(&at);
+        let carrier =
+            Curve3::circle(Point3::origin() + n * h, n, rho, Vec3::unit_x()).map_scalar(&at);
         let sphere = unit_sphere().map_scalar(&at);
         let image = chart_pcurve(&carrier, &sphere, band())?;
         let tau = at(core::f64::consts::TAU);

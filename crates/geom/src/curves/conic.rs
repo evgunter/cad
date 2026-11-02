@@ -37,6 +37,11 @@
 //!   **eccentric anomaly**, not arc length and not the polar angle of the
 //!   point: `|dP/dθ|² = semi_u²sin²θ + semi_v²cos²θ` varies between the
 //!   two semi-axes.
+//! - **A unit frame, unchecked.** Nothing that reads a conic normalizes
+//!   its frame, and nothing can afford to: the sizes are the lengths
+//!   every speed and curvature bound is stated at, so a non-unit `u_ref`
+//!   rescales the curve without rescaling the bound. A caller
+//!   synthesising a frame owes the normalization.
 //! - **Positive sizes.** A radius and both semi-axes are positive
 //!   lengths, in metres. [`Curve3::ellipse`] refuses a non-positive
 //!   semi-axis, certification's span meter refuses one ([`speed_floor`]),
@@ -164,17 +169,35 @@ pub struct MajorFrame<T: Real> {
 
 /// **`t` moved by whole turns onto the branch of `span`'s middle**, into
 /// `(mid − τ/2, mid + τ/2]`: the one rule that unwinds an angle onto the
-/// span it is read against. A `t` already on that branch comes back bit
-/// for bit, since only a whole number of turns is added.
+/// span it is read against. Only whole turns are added, so a `t` already
+/// on that branch comes back bit for bit.
 ///
-/// A parameter inside the span lies within half the span of the middle
-/// and lands on its own branch, so a raw pick is sound whichever way it
-/// falls. Only a parameter half a turn from the middle is in doubt: on a
-/// span shorter than a turn it is outside the span on either branch, by at
-/// least half the span's complement; on a whole-turn span it IS the span's
-/// end, `lo` and `hi` being one point, and it lands on `hi`. At `Interval`
-/// an enclosure straddling the half turn spans both branches, and the
-/// in-span reading that reads it escalates or declines.
+/// **The window re-centring argument**, which the sites that re-centre
+/// a parameter on a span's middle and read it only against the span's
+/// ends cite. A raw pick, sound whichever way it falls. A parameter
+/// inside the span lies within half the span of the middle and lands on
+/// its own branch. Only a parameter half a turn from the middle is in
+/// doubt:
+/// - on a span shorter than a turn (a piece's), it is outside the span
+///   on either branch, by at least half the span's complement;
+/// - on a whole-turn span (a loop arc over a closed edge), it IS the
+///   span's end, `lo` and `hi` being one point. It lands on `hi`, and
+///   every reader of an end reads `lo` and `hi` alike.
+///
+/// Over the scalars:
+/// - at `f64` the half-turn parameter is reached (adversarial path grids
+///   do) and lands as above;
+/// - at `Interval` an enclosure straddling it spans both branches and
+///   the in-span reading escalates or declines;
+/// - at `Sym` the `floor` folds only where its argument's form is the
+///   zero polynomial, the exact tie, where the fold is the true `⌊0⌋`
+///   and agrees with `f64`. Elsewhere it is an atom keyed by its
+///   argument's form, so floors of form-equal arguments cancel, and a
+///   reading is numeric unless such a fold or cancellation makes it an
+///   identity.
+///
+/// No reader reads the pick as an identity: the parameter is compared
+/// only with span ends of another provenance.
 pub fn on_span_branch<T: Real>(t: T, (lo, hi): (T, T)) -> T {
     let mid = (lo + hi) * T::from_f64(0.5);
     let tau = T::tau();
@@ -187,7 +210,7 @@ pub fn on_span_branch<T: Real>(t: T, (lo, hi): (T, T)) -> T {
 /// The evaluators are each kind's own formula, fixed in its evaluation
 /// order (D9), and [`Curve3`]'s evaluators call them, so a reader through
 /// this trait builds the very bits [`Curve3::eval`] does.
-pub trait Conic<T: Real> {
+pub trait Conic<T: Real>: core::fmt::Debug {
     /// The placement.
     fn frame(&self) -> &ConicFrame<T>;
 
@@ -272,6 +295,59 @@ pub trait Conic<T: Real> {
         ((a * s).powi(2) + (b * c).powi(2))
             .sqrt()
             .min(self.speed_hi())
+    }
+}
+
+/// A borrowed conic reads as the conic, so a `&dyn Conic` held by value
+/// passes where a conic is asked for.
+impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
+    fn frame(&self) -> &ConicFrame<T> {
+        (**self).frame()
+    }
+    fn semi_axes(&self) -> (T, T) {
+        (**self).semi_axes()
+    }
+    fn point_at(&self, theta: T) -> Point3<T> {
+        (**self).point_at(theta)
+    }
+    fn derivative_at(&self, theta: T) -> Vec3<T> {
+        (**self).derivative_at(theta)
+    }
+    fn jet_at(&self, theta: T) -> (Point3<T>, Vec3<T>) {
+        (**self).jet_at(theta)
+    }
+    fn second_derivative_at(&self, theta: T) -> Vec3<T> {
+        (**self).second_derivative_at(theta)
+    }
+    fn angle_of(&self, p: Point3<T>) -> T {
+        (**self).angle_of(p)
+    }
+    fn param_near(&self, p: Point3<T>, near: T) -> T {
+        (**self).param_near(p, near)
+    }
+    fn speed_lo(&self) -> T {
+        (**self).speed_lo()
+    }
+    fn speed_hi(&self) -> T {
+        (**self).speed_hi()
+    }
+    fn speed_at(&self, theta: T) -> T {
+        (**self).speed_at(theta)
+    }
+    fn major_frame(&self) -> MajorFrame<T> {
+        (**self).major_frame()
+    }
+    fn param_in(&self, p: Point3<T>, span: (T, T)) -> T {
+        (**self).param_in(p, span)
+    }
+    fn semi_axis_vectors(&self) -> (Vec3<T>, Vec3<T>) {
+        (**self).semi_axis_vectors()
+    }
+    fn curvature_hi(&self) -> T {
+        (**self).curvature_hi()
+    }
+    fn speed_over(&self, span: (T, T)) -> T {
+        (**self).speed_over(span)
     }
 }
 

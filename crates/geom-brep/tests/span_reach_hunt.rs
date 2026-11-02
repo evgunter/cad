@@ -80,20 +80,13 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
             a = -a;
         }
         let carrier = if ecc == 0.0 && g.unit() < 0.5 {
-            Curve3::Circle {
-                center,
-                axis,
-                radius: r,
-                u_ref,
-            }
+            Curve3::circle(center, axis, r, u_ref)
         } else {
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u: a,
-                semi_v: b,
-                u_ref,
-            }
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::ConicFrame::new(center, axis, u_ref),
+                a,
+                b,
+            ))
         };
         let big = a.abs().max(b.abs());
         let span = if g.unit() < 0.1 {
@@ -126,7 +119,7 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
             let scale = (center - Point3::origin()).norm() + (p - Point3::origin()).norm() + big;
             let tol = 16.0 * f64::EPSILON * scale;
             let slack = match carrier {
-                Curve3::Circle { .. } => 0.0,
+                Curve3::Circle(..) => 0.0,
                 _ => (1.0 - ((t1 - t0).abs().min(core::f64::consts::TAU) / 8.0).cos()) * big,
             };
             let label = format!("{carrier:?} over [{t0}, {t1}] from {p:?}");

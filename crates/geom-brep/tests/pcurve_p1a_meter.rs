@@ -183,13 +183,11 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
         u_ref: Vec3::unit_x(),
     };
     let (keys, lookup) = table(vec![sphere]);
-    let carrier = Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
-        semi_u: 1.0,
-        semi_v: 0.5,
-        u_ref: Vec3::unit_x(),
-    };
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
+        1.0,
+        0.5,
+    ));
     let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
     let err = EdgeCurve::certify(
         EdgeCurveSpec {

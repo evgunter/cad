@@ -14,7 +14,7 @@
 //! level's `Zero` a node pose: the bisector ellipses where the radii
 //! decide equal and the axes meet, the pinch otherwise.
 
-use geom::{Curve3, Surface};
+use geom::{Conic, Curve3, Surface};
 use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use super::{
@@ -595,16 +595,8 @@ fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) 
 /// A closed conic's ball: its centre, out to its larger semi-axis.
 fn conic_ball<T: Real>(curve: &Curve3<T>) -> Option<ExtentBall<T>> {
     match *curve {
-        Curve3::Ellipse {
-            center,
-            semi_u,
-            semi_v,
-            ..
-        } => Some(ExtentBall::new(
-            center,
-            Curve3::semi_axes_by_size(semi_u, semi_v).0,
-        )),
-        Curve3::Circle { center, radius, .. } => Some(ExtentBall::new(center, radius.abs())),
+        Curve3::Ellipse(e) => Some(ExtentBall::new(e.frame.center, e.speed_hi())),
+        Curve3::Circle(c) => Some(ExtentBall::new(c.frame.center, c.radius)),
         Curve3::Line { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }

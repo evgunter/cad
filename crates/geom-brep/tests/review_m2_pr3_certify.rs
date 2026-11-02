@@ -65,12 +65,7 @@ fn fixed_winding_aliased_arc_interval_refused() {
     });
     let mk = |t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Scaffold(desc),
-        carrier: Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         param_end: t1,
     };
@@ -124,12 +119,7 @@ fn fixed_winding_aliased_full_period_refused() {
                 angle: TAU,
             },
         )),
-        carrier: Curve3::Circle {
-            center,
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(center, Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         // WRONG: nine revolutions; the description makes one.
         param_end: 9.0 * TAU,
@@ -182,12 +172,7 @@ fn survives_wrong_carriers_are_rejected() {
     // possible for r != 1 through both endpoints + circular samples;
     // plain wrong radius fails at pinning already).
     let wrong_radius = base(
-        Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.5,
-            u_ref: Vec3::unit_x(),
-        },
+        Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.5, Vec3::unit_x()),
         0.0,
         FRAC_PI_2,
     );
@@ -208,12 +193,7 @@ fn survives_wrong_carriers_are_rejected() {
     // Interior samples leave the described locus -> rejected.
     let c = Point3::new(-0.5, -0.5, 0.0);
     let wrong_center = base(
-        Curve3::Circle {
-            center: c,
-            axis: Vec3::unit_z(),
-            radius: c.distance(p0),
-            u_ref: (p0 - c) / c.distance(p0),
-        },
+        Curve3::circle(c, Vec3::unit_z(), c.distance(p0), (p0 - c) / c.distance(p0)),
         0.0,
         // Angle subtended at the false center.
         2.0 * ((p0.distance(p1) / 2.0) / c.distance(p0)).asin(),
@@ -232,12 +212,7 @@ fn survives_wrong_carriers_are_rejected() {
     );
     // A 1-turn (not 8k) extra winding IS caught by the interior samples.
     let one_turn = base(
-        Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         0.0,
         FRAC_PI_2 + TAU,
     );
@@ -276,12 +251,7 @@ fn survives_wrong_carriers_are_rejected() {
     // Interval affinely misaligned with s ∈ [0,1]: same correct circle,
     // parameters shifted a quarter turn — endpoint pinning fires.
     let shifted = base(
-        Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         FRAC_PI_2,
         PI,
     );
@@ -332,12 +302,7 @@ fn survives_plane_cylinder_partial_rim_certifies() {
             pair: SurfacePair::new(keys[0], keys[1]),
             selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, 1.0, 0.0)),
         },
-        carrier: Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         param_end: PI,
     };
@@ -390,12 +355,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
             pair: SurfacePair::new(keys[0], keys[1]),
             selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, 1.0, 0.0)),
         },
-        carrier: Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         param_end: t1,
     };
@@ -514,12 +474,7 @@ fn fixed_full_period_rim_intersection_certifies() {
             // The mid-parameter point of t: 0 → tau is carrier(pi).
             selector: geom_brep::CurveSelector::Witness(Point3::new(-1.0, 0.0, 0.0)),
         },
-        carrier: Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         param_end: TAU,
     };
@@ -1115,12 +1070,12 @@ mod interval_lane {
                     angle: Interval::from_f64(core::f64::consts::TAU),
                 },
             )),
-            carrier: Curve3::Circle {
+            carrier: Curve3::circle(
                 center,
-                axis: v3(0.0, 0.0, 1.0),
-                radius: Interval::from_f64(1.0),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+                v3(0.0, 0.0, 1.0),
+                Interval::from_f64(1.0),
+                v3(1.0, 0.0, 0.0),
+            ),
             param_start: Interval::from_f64(0.0),
             param_end: Interval::from_f64(9.0 * core::f64::consts::TAU),
         };

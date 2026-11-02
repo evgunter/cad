@@ -42,13 +42,11 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
     });
     let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
     let certify = |major: f64, minor: f64, u_ref: Vec3<f64>| {
-        let e = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: major,
-            semi_v: minor,
-            u_ref,
-        };
+        let e = Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), u_ref),
+            major,
+            minor,
+        ));
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(plane, cyl),
