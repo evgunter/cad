@@ -5919,6 +5919,218 @@ mod properties_pane_tests {
             );
             assert_ne!(hole_radius(&driven, profile), was, "the radius moved");
         }
+
+        /// Delta-review probes (not for merge).
+        mod delta_probes {
+            use super::*;
+            use crate::pane::profile::REMOVE_LOOP;
+
+            fn label(driven: &Driven) -> Option<String> {
+                driven
+                    .app
+                    .session
+                    .committed_doc()
+                    .label(extrude())
+                    .map(|l| format!("{l:?}"))
+            }
+
+            /// P1: a radius typed, then the toolbar's Undo clicked (the
+            /// click takes the field's focus). Neither the typed radius
+            /// nor the earlier label may vanish unsaid.
+            #[test]
+            fn p1_typed_field_then_undo_button() {
+                let (mut driven, profile) = plate_open();
+                driven.app.perform_batch(vec![SessionOp::SetLabel {
+                    node: extrude(),
+                    label: pncad::document::Label::new("plinth").ok(),
+                }]);
+                driven.settle();
+                let was = hole_radius(&driven, profile);
+                let painted = driven.quiet();
+                let field = runs(&painted, "radius ")[0];
+                driven.click_at(field);
+                driven.frame(vec![key(egui::Key::A)]);
+                driven.frame(vec![egui::Event::Text("0.01".to_owned())]);
+                driven.click("Undo");
+                driven.settle();
+                let said = status(&driven);
+                eprintln!(
+                    "P1: radius was {was:?} now {:?}; label {:?}; pending {}; status {said:?}",
+                    hole_radius(&driven, profile),
+                    label(&driven),
+                    pending(&driven)
+                );
+                let redo = crate::session::Refusal::nothing_to_step(
+                    driven.app.session.history(),
+                    crate::session::Step::Redo,
+                );
+                eprintln!(
+                    "P1: redo blocked: {redo:?}; history len {}",
+                    driven.app.session.history().len()
+                );
+                let radius_kept = hole_radius(&driven, profile) == Some(0.01) || pending(&driven);
+                let label_kept = label(&driven).is_some();
+                assert!(
+                    (radius_kept && label_kept) || said.contains("discarded"),
+                    "lost unsaid: radius {:?} label {:?} status {said:?}",
+                    hole_radius(&driven, profile),
+                    label(&driven)
+                );
+            }
+
+            /// P6: a field that lands says nothing was discarded.
+            #[test]
+            fn p6_a_landed_field_says_nothing_dropped() {
+                let (mut driven, profile) = plate_open();
+                let painted = driven.quiet();
+                let field = runs(&painted, "radius ")[0];
+                driven.click_at(field);
+                driven.frame(vec![key(egui::Key::A)]);
+                driven.frame(vec![egui::Event::Text("0.01".to_owned())]);
+                driven.frame(vec![key(egui::Key::Enter)]);
+                driven.settle();
+                assert_eq!(hole_radius(&driven, profile), Some(0.01));
+                assert!(
+                    !status(&driven).contains("discarded"),
+                    "{}",
+                    status(&driven)
+                );
+            }
+
+            /// P7: a radius typed, then Redo clicked while a redo of
+            /// this profile's own edit waits: the typed value's op goes
+            /// stale behind the redo. Is its loss said?
+            #[test]
+            fn p7_typed_field_then_redo_of_the_same_profile() {
+                let (mut driven, profile) = plate_open();
+                let painted = driven.quiet();
+                let field = runs(&painted, "radius ")[0];
+                driven.click_at(field);
+                driven.frame(vec![key(egui::Key::A)]);
+                driven.frame(vec![egui::Event::Text("0.01".to_owned())]);
+                driven.frame(vec![key(egui::Key::Enter)]);
+                driven.settle();
+                driven.app.perform_batch(vec![SessionOp::Undo]);
+                driven.settle();
+                assert_eq!(hole_radius(&driven, profile), Some(0.012));
+                let painted = driven.quiet();
+                let field = runs(&painted, "radius ")[0];
+                driven.click_at(field);
+                driven.frame(vec![key(egui::Key::A)]);
+                driven.frame(vec![egui::Event::Text("0.005".to_owned())]);
+                driven.click("Redo");
+                driven.settle();
+                let said = status(&driven);
+                eprintln!(
+                    "P7: radius {:?}, pending {}, status {said:?}",
+                    hole_radius(&driven, profile),
+                    pending(&driven)
+                );
+                assert!(
+                    hole_radius(&driven, profile) == Some(0.005)
+                        || pending(&driven)
+                        || said.contains("discarded"),
+                    "the typed 0.005 vanished; status {said:?}"
+                );
+            }
+
+            /// P2: a radius typed, then `Remove loop` on the hole clicked:
+            /// the radius lands, the removal is deferred and made once.
+            #[test]
+            fn p2_typed_field_then_remove_the_hole() {
+                let (mut driven, profile) = plate_open();
+                let steps = driven.app.session.history().len();
+                let painted = driven.quiet();
+                let field = runs(&painted, "radius ")[0];
+                let remove = runs(&painted, REMOVE_LOOP);
+                assert_eq!(remove.len(), 2, "{painted:?}");
+                driven.click_at(field);
+                driven.frame(vec![key(egui::Key::A)]);
+                driven.frame(vec![egui::Event::Text("0.01".to_owned())]);
+                driven.click_at(remove[1]);
+                driven.settle();
+                eprintln!(
+                    "P2: history +{}, loops {}, pending {}, status {:?}",
+                    driven.app.session.history().len() - steps,
+                    loop_count(&driven, profile),
+                    pending(&driven),
+                    status(&driven)
+                );
+                assert_eq!(loop_count(&driven, profile), 1, "the hole removed once");
+                assert_eq!(driven.app.session.history().len(), steps + 2);
+                driven.app.perform_batch(vec![SessionOp::Undo]);
+                driven.settle();
+                assert_eq!(loop_count(&driven, profile), 2);
+                assert_eq!(hole_radius(&driven, profile), Some(0.01));
+            }
+
+            /// P3: a batch carrying a selection away and then Undo, over a
+            /// pending draft. Does the undo spend itself on a draft of a
+            /// profile no longer selected?
+            #[test]
+            fn p3_select_away_then_undo_in_one_batch() {
+                let (mut driven, _profile, steps) = pending_rectangle();
+                let state = driven.app.session.history().current();
+                driven.app.perform_batch(vec![
+                    SessionOp::Select(Selection::Node(extrude())),
+                    SessionOp::Undo,
+                ]);
+                driven.settle();
+                eprintln!(
+                    "P3: stepped {}, len {} (was {steps}), status {:?}",
+                    driven.app.session.history().current() != state,
+                    driven.app.session.history().len(),
+                    status(&driven)
+                );
+            }
+
+            /// P4: a pending draft, then the profile deleted.
+            #[test]
+            fn p4_delete_the_profile_under_a_pending_draft() {
+                let (mut driven, profile, _) = pending_rectangle();
+                driven
+                    .app
+                    .perform_batch(vec![SessionOp::DeleteNode { node: profile }]);
+                eprintln!("P4 delete status {:?}", status(&driven));
+                driven.settle();
+                eprintln!(
+                    "P4: editor {:?}; status {:?}",
+                    driven.app.drafts.profile_edit.as_ref().map(|e| e.node),
+                    status(&driven)
+                );
+            }
+
+            /// P5: the field's change itself refused (radius across the
+            /// outline), then `Add rectangle loop` in the same frame.
+            #[test]
+            fn p5_refused_field_then_click() {
+                let (mut driven, profile) = plate_open();
+                let steps = driven.app.session.history().len();
+                let painted = driven.quiet();
+                let field = runs(&painted, "radius ")[0];
+                driven.click_at(field);
+                driven.frame(vec![key(egui::Key::A)]);
+                driven.frame(vec![egui::Event::Text("0.03".to_owned())]);
+                driven.click(&add_loop_label(ShapeKind::Rectangle));
+                driven.settle();
+                let edit = driven.app.drafts.profile_edit.as_ref().expect("open");
+                eprintln!(
+                    "P5: radius {:?} history +{}, held loops {}, pending {:?}, status {:?}",
+                    hole_radius(&driven, profile),
+                    driven.app.session.history().len() - steps,
+                    edit.loops().len(),
+                    edit.pending().map(ToString::to_string),
+                    status(&driven)
+                );
+                assert_eq!(driven.app.session.history().len(), steps);
+                assert_eq!(
+                    edit.loops().len(),
+                    3,
+                    "the click made once over the pending draft"
+                );
+                let _ = profile;
+            }
+        }
     }
 
     /// **A field committed lands as one undo step, and not before**,
