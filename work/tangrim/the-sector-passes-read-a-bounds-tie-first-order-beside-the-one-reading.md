@@ -142,3 +142,120 @@ were already crate-level, and the boolean's subdivided sectors reach the
 cone through a neutral `link::Fan`.
 
 **What stage 2 must do at the cone (2026-11-01, PR 6247's review):** `Cone::reads_given` takes a given side only for a whole-plane sector (`link::WholePlane`), so the bound-side reading cannot be given for a partner's fan sector as the seam stands. `Cone::crossing` places the arc's crossing of a sector's plane from `q`'s plane distance and `w`'s, so where a given sign differs from `q`'s plane distance (a curved tie read one order down) that point can leave the q–w arc. That is harmless only on a whole plane, which holds every point of it. To give a fan sector's side, stage 2 must first make the crossing consistent with it: for example, read the crossing against the face's own reading of the arc, or refuse where the given sign and the plane distance's sign disagree, and only then widen `WholePlane` to admit fan sectors.
+
+## Lane finding (2026-11-01, stage 2, PR 6253)
+
+Item 3 (the vertex-pair charge) was built and backed out: charging the
+vertex-pair pass as the pierce lane is charged refuses short arcs at a
+crescent's tip that main builds valid. The measurement and what it
+needs are on `vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces`,
+which stays open. PR 6253's body lists what of items 1–13 landed and
+where the rest is filed.
+
+## Lane finding (2026-11-01, stage 2, PR 6253): the descent moves six built rows to refusals
+
+Stage 2 built items 1, 2, 6, 7, 9 (bar `split_bisector_side`), 10, 11
+(the sector callers), 12 and 13 (PR 6253 lists them), and the
+outcome diff at the default ε (`cargo nextest run -p sweep -p topo`,
+slow set included, main `e669a2f8` against the branch at `1ceb3cf6`)
+stopped the lane at a point where the design, as specified, moves
+bodies main builds valid to refusals.
+
+**1. An in-band second-order tie escalates (the design's item 2, fourth
+bullet).** Six rows that build on main refuse
+`Escalated { Coincidence(TangentSide, Moot), "tangent_sector_order2" }`,
+the parting of a bound main read `On` at first order landing in the
+ambiguity band at its reach:
+
+| row | the parting's margin |
+|---|---|
+| `germ_plane_torus_frame::a_band_pose_under_the_tubes_top_reaches_the_donuts_door` (δ = 1e-6, the one-face torus, T ∪ P) | −2.0e-9 |
+| `near_circular_sections::a_near_square_rod_minus_a_box_builds` (r 1e-2, sin θ 4e-6) | −5.0e-9 |
+| `near_circular_sections::a_turned_near_square_rod_minus_a_box_builds` (r 1, sin θ 6e-8) | −7.5e-9 |
+| `pi_seam_and_kiss_through_the_boolean::a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders` (k = 0.5) | −1.0e-9 |
+| `spheres_crossing_off_every_edge::a_trimmed_face_cut_beside_its_pole_builds` (δ 1e-5, a ∪ b) | 5.0e-9 |
+| `tilted_sphere_pair::a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed` (δ 1e-4) | 9.6e-9 |
+
+Each bound's first order already tied (`|d̂·n̂·l| ≤ zero`), and its
+second-order separation at its reach is a few bands: it lies within the
+escalation band of the face over its whole reach, which main read as
+riding it, and built from. Measured, not landed: reading an in-band
+parting (the reading rung of `parting_side`'s escalation) as `Rides`
+builds all six again, every one passing its own checks. So the rule
+"an in-band second-order tie escalates" is not landable with the
+descent: either an in-band parting rides (the bound stays within the
+band of the face to the orders read, which is `Rides`' own definition),
+or these six move to refusals by design. That is a decision on the
+design, not the lane's.
+
+**2. A tangent flanker in the edge-on-sector rule (resolved on the
+branch).** `pi_seam_and_kiss_through_the_boolean::the_stadium_answers_every_op`
+went from building to `Join(SectionInvariant)` when both of the rule's
+Table II keys (`recl::flank_key`) descended. PR 6219's narrowing is
+restored: the keys descend only where both flankers tie, and one tied
+flanker stays `On` for Table III's lump. The stadium builds again.
+
+Also moved, refused to refused:
+`a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`
+now stops earlier, `Escalated { ConicBend, "enters_material" }`, a rim
+arc tied with the other lens's spline wall it lies in
+(`ReadFault::Unbent`: a spline face's bend is not certified, the
+design's item 2, fourth bullet), where main read it `On` and reached
+the rim's description (`EdgeUndescribed`). That row's tripwire (the rim
+certifying) can no longer fire.
+
+And one refusal now builds:
+`a_minted_vertex_on_a_curved_face` (two wedges sharing the wall's
+tangent-plane face), every op in both orders at its closed form, tier 3
+clean (TANG's `two-wedges-sharing-a-tangent-plane-face-on-a-ruling-refuse-unpaired-loose-ends`).
+
+### Ruling (TANGRIM orchestrator, 2026-11-01) and outcome
+
+A tie's second order reads the first order's own three-way ladder:
+decided off the band → `Leaves(side)`; within the zero band → `Rides`
+(coincidence is then the carrier ladder's to certify or refuse); in the
+gap between the zero band and the escalation band → typed refusal. The
+branch already reads it so: `geom_brep::parting_side` decides the
+parting through `geom_core::k_stats::decide`, the ladder
+`bool_chord_side` decides a bound's first-order distance through.
+`bound_side`'s `a_ties_parting_reads_zero_gap_and_decided_as_first_order_does`
+pins the three rungs.
+
+All six rows land in the gap (band: zero `1e-9`, escalation `1e-8`),
+none in Zero, so all six refuse as the ruling says:
+
+| row | margin | past zero by |
+|---|---|---|
+| `a_band_pose_under_the_tubes_top_reaches_the_donuts_door` | −2.0e-9 | 1.0e-9 |
+| `a_near_square_rod_minus_a_box_builds` | −5.0e-9 | 4.0e-9 |
+| `a_turned_near_square_rod_minus_a_box_builds` | −7.5e-9 | 6.5e-9 |
+| `a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders` | −1.0000000827e-9 | 8.3e-17 |
+| `a_trimmed_face_cut_beside_its_pole_builds` | 5.0e-9 | 4.0e-9 |
+| `a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed` | 9.6e-9 | 8.6e-9 (0.4e-9 short of decided) |
+
+Each builds on main and refuses here; their pins are unchanged. The
+rim-offset row sits `8.3e-17` past the zero band, which is rounding in
+the parting's own arithmetic; it is not a distinct case.
+
+### Second ruling (TANGRIM orchestrator, 2026-11-01) and outcome
+
+Refusing the six gap rows is a regression stage 2 may not ship: the gap
+is the leading term read at the capped reach, too small to decide, which
+is the witness's job (`a-leaves-verdict-carries-no-witness-point`).
+Until the witness lands, a parting in the gap reads
+`BoundSide::Unresolved`, which every consumer reads as the first order's
+`On`, as main did. A decided parting reads `Leaves`, a zero-band one
+`Rides`. All six rows build again; the witness row names them as its
+witnesses and says the arm goes with it.
+
+Measured after the second ruling and the merge of ONEREAD's cone
+(default ε, `-p sweep -p topo`, slow set; main `c7656c82` against
+`b5f3c6dd`, 7266 tests): the six gap rows build, the two wedges build
+(re-pinned), and one row stays moved,
+`a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`
+(slow set): refused on both sides, but here `Escalated { ConicBend,
+"enters_material" }`, a rim arc tied with the spline wall it lies in
+(`ReadFault::Unbent`), where main read it `On` and reached the rim's
+`EdgeUndescribed`. Its pin is red and unchanged. The second ruling's
+fallback covers the gap only; whether `Unbent` falls back to `On` the
+same way until a spline face's bend is certified is a ruling owed.

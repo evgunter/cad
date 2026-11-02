@@ -538,14 +538,14 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
-    side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
+    side_code(dir, Reach::straight_bisector(0.5), n, 1.0, band()).map(|_| ())
 }
 
 /// A unit-radius arc leaving a plane along it, short enough that the
 /// least lift its bend gives it at its extent, `2·sin²(extent/2)`, is
 /// `margin`.
 fn conic_bend(margin: f64) -> Result<(), BooleanError> {
-    use super::super::sectors::{FaceShape, pierce_side};
+    use super::super::sectors::pierce_side;
     use geom_brep::{BendBounds, ConicBend};
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let extent = 2.0 * (margin / 2.0).sqrt().asin();
@@ -563,7 +563,7 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
         Vec3::new(1.0, 0.0, 0.0),
         Reach::Conic { extent, bend },
         n,
-        FaceShape::Plane,
+        crate::bound_side::FaceBend::Plane,
         NO_CURVATURE(),
         band(),
     )
@@ -976,6 +976,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         face,
         at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(y, true)),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
@@ -1021,6 +1022,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
             true,
         )),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     super::super::vtxfac::pierce_germ_dir(
         &s,
@@ -1072,6 +1074,7 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
             true,
         )),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
 }
@@ -1474,6 +1477,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         face,
         at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(y, true)),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let flank = if against { -x } else { x };
     let decls = Glue {
@@ -1538,6 +1542,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
             true,
         )),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     super::super::recl::require_same(
@@ -2890,7 +2895,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "sectors.rs",
-        "bound_refusal",
+        "read_refusal",
         "BooleanDecision::ConicBend",
         1,
     ),
@@ -2918,8 +2923,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PierceCurvature",
         1,
     ),
-    ("sectors.rs", "bound_refusal", "Coincide::SectorSide", 1),
-    ("sectors.rs", "bound_refusal", "LeverArm::SectorSide", 1),
+    ("sectors.rs", "read_refusal", "Coincide::SectorSide", 1),
+    ("sectors.rs", "read_refusal", "LeverArm::SectorCurving", 1),
+    ("sectors.rs", "read_refusal", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
     ("sectors.rs", "sector_overlap", "Coincide::Sectors", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),

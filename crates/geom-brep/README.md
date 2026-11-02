@@ -1142,8 +1142,11 @@ so is a bisector bound in the boolean's sector passes; the split's
 subdivision bisectors (`wide_entries`, `split_bisector_side`) read
 their side of the plane outside it. A conic edge against a plane
 descends through `conic_bend_side`, its lift certified from the
-carrier's curvature bounds less the first-order residue. An in-band
-second-order tie escalates. Readings of different equations are never
+carrier's curvature bounds less the first-order residue. Any other
+tied bound descends by the parting of its bend past the face's normal
+section along it (a bisector bends as its own sector's face does); a
+spline face, or a spiric or spline edge against a curved face, carries
+no certified bend and refuses. An in-band second-order tie escalates. Readings of different equations are never
 summed: the witness's offset along the shared normal and across the
 locus are perpendicular, and a residual is a defect of its equation, not
 a distance to the locus (as for `Intersection`). Two terms are summed

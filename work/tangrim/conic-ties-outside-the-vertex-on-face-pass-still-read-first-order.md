@@ -2,12 +2,15 @@
 id: conic-ties-outside-the-vertex-on-face-pass-still-read-first-order
 kind: issue
 title: Outside the vertex-on-face pass a conic tangent to a face still reads On at first order: the sector passes, recl's flank readings, curved faces and fitted edges
-status: open
+status: closed
 opened: 2026-10-10
 priority: P2
 cost: H
 refs: [boolean-conic-side-code-zero-is-first-order, vtxfac-tangent-sector-should-descend-per-bound]
 parent: the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading
+closed: 2026-11-01
+pr: 6253
+branch: tangrim/sector-passes-descend
 ---
 
 
@@ -127,3 +130,19 @@ That test holds the refusal, and goes red into its full checks (tiers
 one order down.
 
 **2026-11-01 (ONEREAD, PR 6247):** `wedge_classes`, `cone_side` and `arc_side` (`bool_cone_arc`) are deleted. The vertex-vertex rows read each own edge through one gathered `link::Cone` (`boolean::vtxfac::cone_classes`), its signs a point's distance from a plane (`link_plane`, `link_wedge`, `link_ahead`, `link_arc`). Item 1's list keeps `pair_codes` and recl's flank readings; the direction-only arc reading is gone.
+
+## Closed
+
+2026-11-01, PR 6253 (`tangrim/sector-passes-descend`). Every sector
+pass reads a tied bound one order down through `bound_side::Tie::descend`
+(`sectors::bound_read`): item 1's sector passes and recl's flank
+readings, with the on-edge gateways re-keyed on the tie (the graze and
+on-entry bisector guards, the edge-edge membership); item 2's curved
+face, by `(κ_b·n̂ − II_F(d̂, d̂))·l²/2` against the face's own surface
+(`FaceBend`, carried on `BoolSector`); item 5's tangent sectors read
+their bounds' own descended sides. CONTACTHOLD's hazard set builds as on
+main (most of its 15 rows were the descent reading a curved face's
+tangent plane as a plane, item 10 of the parent). Item 3 (a fitted
+edge's chord) refuses typed (`ConicBend`); item 4 (`flank_rep`) and the
+witness are residue on `the-edge-edge-rule-descends-a-flanks-projection-not-its-bound`
+and `a-leaves-verdict-carries-no-witness-point`.

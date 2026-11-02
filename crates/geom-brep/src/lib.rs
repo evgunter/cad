@@ -142,7 +142,7 @@ pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,
     departure_side_reported, enters_material, enters_material_order2, enters_material_reported,
-    normal_alignment, parting, parting_side, tied_germ_turn,
+    normal_alignment, parting, parting_side, rise, tied_germ_turn,
 };
 pub use extent::{
     ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,

@@ -265,14 +265,10 @@ pub(crate) fn entry_side<T: Decide, E>(
         bend,
     };
     let side = match crate::bound_side::read_plane_side(dir, reach, reference, band) {
-        Ok(BoundSide::Off(Side::Below) | BoundSide::Tangent(Side::Below)) => PlaneSide::Below,
-        Ok(BoundSide::Off(Side::Above) | BoundSide::Tangent(Side::Above)) => PlaneSide::Above,
-        Ok(BoundSide::Rides | BoundSide::Unread) => PlaneSide::On,
-        Err(fault) => {
-            return Err(EntryFault::Undecided(fault.diag().unwrap_or_else(|| {
-                unreachable!("a plane's datum carries no curvature charge to refuse")
-            })));
-        }
+        Ok(BoundSide::Off(Side::Below) | BoundSide::Leaves(Side::Below)) => PlaneSide::Below,
+        Ok(BoundSide::Off(Side::Above) | BoundSide::Leaves(Side::Above)) => PlaneSide::Above,
+        Ok(BoundSide::Rides | BoundSide::Unresolved) => PlaneSide::On,
+        Err(fault) => return Err(EntryFault::Undecided(fault.diag())),
     };
     Ok((dir, side))
 }

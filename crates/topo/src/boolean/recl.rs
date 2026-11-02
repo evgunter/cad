@@ -48,7 +48,7 @@ use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::refusal_routes::RAY_COLLINEAR;
 use super::sectors::{
-    BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, parallel_same, side_code,
+    BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, parallel_same,
 };
 use super::tables::{
     TableIiVerdict, eq15_3_lump, kept_copy, resolve_verdict, table_ii, table_iii_rule,
@@ -567,22 +567,16 @@ fn flank_key<T: Decide>(
     own: &[BoolSector<T>],
     idx: usize,
     key_from_start: bool, // true: the noncoplanar bound is the START
-    ref_normal: geom_brep::OutwardNormal<T>,
+    reference: &BoolSector<T>,
     band: Band,
-) -> Result<SideCode, BooleanError> {
+) -> Result<super::sectors::BoundRead, BooleanError> {
     let s = &own[idx];
     let (bound, reach) = if key_from_start {
         (s.start, s.start_reach)
     } else {
         (s.end, s.end_reach)
     };
-    side_code(
-        bound,
-        reach,
-        ref_normal,
-        super::sectors::NO_CURVATURE(),
-        band,
-    )
+    super::sectors::bound_read(bound, reach, reference.datum(), band)
 }
 
 /// Rewrites EVERY On code of a surviving germ record to the transition
@@ -898,14 +892,13 @@ pub(super) fn recl_edges<T: Decide>(
             // line's ray, or the line read On it: a definite side of its
             // plane contradicts that reading.
             let split = |ws: Vec<Wedge>,
-                         secs: &[BoolSector<T>],
-                         body: &Body<T>|
+                         secs: &[BoolSector<T>]|
              -> Result<(Vec<Wedge>, Vec<Folded<T>>), BooleanError> {
                 let has_edge = ws.iter().any(|w| w.edge);
                 let (mut met, mut folded) = (Vec::new(), Vec::new());
                 for w in ws {
                     let face = if has_edge && !w.edge {
-                        Folded::of(secs, body, w)?
+                        Folded::of(secs, w)
                     } else {
                         None
                     };
@@ -923,8 +916,8 @@ pub(super) fn recl_edges<T: Decide>(
                 }
                 Ok((met, folded))
             };
-            let (a_ws, a_faces) = split(wedges(&a_ms, &b_ms, true)?, a_sectors, a_body)?;
-            let (b_ws, b_faces) = split(wedges(&b_ms, &a_ms, false)?, b_sectors, b_body)?;
+            let (a_ws, a_faces) = split(wedges(&a_ms, &b_ms, true)?, a_sectors)?;
+            let (b_ws, b_faces) = split(wedges(&b_ms, &a_ms, false)?, b_sectors)?;
             let mut germs = Vec::new();
             for (i, &aw) in a_ws.iter().enumerate() {
                 for (j, &bw) in b_ws.iter().enumerate() {
@@ -1482,23 +1475,17 @@ pub(super) struct Folded<T: geom_core::Real> {
 
 impl<T: Decide> Folded<T> {
     /// The face of the half-turn wedge `w` (no edge's), where it lies on
-    /// a plane; `None` for a curved face. A face with no carrier is an
-    /// invariant, as it is to the touch's partners.
-    fn of(secs: &[BoolSector<T>], body: &Body<T>, w: Wedge) -> Result<Option<Self>, BooleanError> {
+    /// a plane; `None` for a curved face.
+    fn of(secs: &[BoolSector<T>], w: Wedge) -> Option<Self> {
         let sector = &secs[w.flankers[0]];
-        let shape = super::sectors::FaceShape::of_face(
-            body,
-            sector.face,
-            "a face holding a contact line has no carrier",
-        )?;
-        Ok((shape == super::sectors::FaceShape::Plane).then(|| Self {
+        (sector.bend.shape() == super::sectors::FaceShape::Plane).then(|| Self {
             wedge: w,
             datum: super::vtxfac::PierceDatum {
                 normal: sector.tangent(),
-                shape,
+                bend: sector.bend,
                 lever: super::sectors::PierceLever::Everywhere(super::sectors::NO_CURVATURE()),
             },
-        }))
+        })
     }
 }
 
@@ -1675,16 +1662,10 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         };
         let mut halves = [Half::Off(true); 2];
         for (inside, &(oi, (ow, _))) in halves.iter_mut().zip(other) {
-            match side_code(
-                w,
-                reach,
-                other_secs[oi].tangent(),
-                super::sectors::NO_CURVATURE(),
-                band,
-            )? {
-                SideCode::In => {}
-                SideCode::Out => *inside = Half::Off(false),
-                SideCode::On => {
+            let read = super::sectors::bound_read(w, reach, other_secs[oi].datum(), band)?;
+            match (read.code, read.tie) {
+                (code, None) => *inside = Half::Off(code == SideCode::In),
+                (code, Some(tie)) => {
                     // On the flanking plane: overlap-tie or touch. No
                     // declaration the door verifies settles it: two
                     // planar flanks are conformal, and its screen refuses
@@ -1727,6 +1708,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                     })? == NonzeroSign::Positive;
                     if !same {
                         *inside = Half::Away;
+                    } else if let super::sectors::BoundSide::Leaves(_) = tie.descent {
+                        // Tangent to the flank and leaving it one order
+                        // down: along the flank, on the side it leaves
+                        // to, which no coincidence settles.
+                        *inside = Half::Along(code == SideCode::In);
                     } else {
                         let comparison = if own_is_a { Operand::A } else { Operand::B };
                         // Declared-`Tangent` flanking pairs (distinct
@@ -2055,39 +2041,24 @@ fn resolve_edge_sector<T: Decide>(
                 what: "edge-sector site lost its point",
             })
     };
-    // A flanker glued tangent to the reference reads On at first order
-    // though it meets the reference only along the tangency locus. Keyed
-    // by the side its carrier curves to along its key bound, it holds the
-    // transition beside a coplanar flanker that lumps the other way.
-    let curving = |idx: usize, key_from_start: bool| -> Result<SideCode, BooleanError> {
-        let own_sec = &own_secs[idx];
-        if !declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
-            return Ok(SideCode::On);
-        }
-        let read = tangent_read(own_sec.face);
-        let p = site_point(own_sec)?;
-        let [start, end] = own_sec.reached_bounds();
-        let (d, reached) = if key_from_start { start } else { end };
-        super::sectors::tangent_relative_side(
-            &super::sectors::tangent_carrier(own_body, own_sec.face)?,
-            &super::sectors::tangent_carrier(ref_body, ref_sector.face)?,
-            ref_sector.tangent(),
-            p,
-            d,
-            reached,
-            read,
-            band,
-        )
-    };
-    let (mut k1, mut k2) = (
-        flank_key(own_secs, f_s, false, ref_sector.tangent(), band)?,
-        flank_key(own_secs, f_e, true, ref_sector.tangent(), band)?,
+    // One flanker tied with the reference stays `On`: Table III lumps it
+    // whole and the germ stays on the other (`the_stadium_answers_every_op`).
+    // Both tied, each keys by the side it leaves the reference to, one
+    // order down ([`flank_key`]): a flanker tangent to the reference
+    // holds the transition beside a coplanar one that lumps the other
+    // way.
+    let (r1, r2) = (
+        flank_key(own_secs, f_s, false, ref_sector, band)?,
+        flank_key(own_secs, f_e, true, ref_sector, band)?,
     );
-    // One On flanker stays On: Table III lumps it whole and the germ
-    // stays on the other (`the_stadium_answers_every_op`).
-    if (k1, k2) == (SideCode::On, SideCode::On) {
-        (k1, k2) = (curving(f_s, false)?, curving(f_e, true)?);
-    }
+    let first = |r: super::sectors::BoundRead| match r.tie {
+        Some(_) => SideCode::On,
+        None => r.code,
+    };
+    let (k1, k2) = match (r1.tie, r2.tie) {
+        (Some(_), Some(_)) => (r1.code, r2.code),
+        _ => (first(r1), first(r2)),
+    };
     let (v1, v2) = table_ii(k1, k2);
     let comparison = if a_side { Operand::A } else { Operand::B };
     // Table III's rule: whether the on-flanker lumps Out. A glued
@@ -2221,8 +2192,8 @@ fn resolve_bisector_graze<T: Decide>(
     } else {
         &a_sectors[ref_idx]
     };
-    let k1 = flank_key(own_secs, f_s, false, ref_sector.tangent(), band)?;
-    let k2 = flank_key(own_secs, f_e, true, ref_sector.tangent(), band)?;
+    let k1 = flank_key(own_secs, f_s, false, ref_sector, band)?;
+    let k2 = flank_key(own_secs, f_e, true, ref_sector, band)?;
     // Both outer keys definitely on one side: the grazing bisector
     // cannot read Zero when K > 2 (the argument at `vtxfac`'s on-edge
     // resolution — the keys are the physical sector's own bounds, read
@@ -2233,8 +2204,10 @@ fn resolve_bisector_graze<T: Decide>(
     // The bisector's `On` rides a record's code, which keeps no margin
     // (a coplanar pair's codes are `On` with no bound read at all), so
     // the Zero the gate rejects is the one every `On` states: within
-    // `±zero`.
-    if k1 == k2 && k1 != SideCode::On {
+    // `±zero`. A key tied at first order leaves the bisector's Zero
+    // its sector's tangency, not the band's: the keys' sides are their
+    // second order, which the argument does not bound.
+    if k1.code == k2.code && k1.code != SideCode::On && k1.tie.is_none() && k2.tie.is_none() {
         let on = super::sectors::OnReading {
             predicate: "bool_sector_bisector_side",
             decided: geom_core::Decided {
@@ -2245,7 +2218,7 @@ fn resolve_bisector_graze<T: Decide>(
         return Err(super::sectors::bisector_zero_refusal(on, band));
     }
     let crossing = matches!(
-        (k1, k2),
+        (k1.code, k2.code),
         (SideCode::In, SideCode::Out) | (SideCode::Out, SideCode::In)
     );
     if !crossing {
@@ -2285,14 +2258,15 @@ mod tests {
             he: crate::entity::HalfEdgeKey::default(),
             start,
             end,
-            start_reach: Reach::Bisector(1.0),
-            end_reach: Reach::Bisector(1.0),
+            start_reach: Reach::straight_bisector(1.0),
+            end_reach: Reach::straight_bisector(1.0),
             face: crate::entity::FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 v(normal),
                 true,
             )),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         // Material lies off the first plane's +y side; `second` and its
         // outward normal bound the wedge's other side.
@@ -2303,8 +2277,8 @@ mod tests {
                 sector(v(second), axis, second_normal),
             ];
             let fl = [
-                (0, (secs[0].end, Reach::Bisector(1.0))),
-                (1, (secs[1].start, Reach::Bisector(1.0))),
+                (0, (secs[0].end, Reach::straight_bisector(1.0))),
+                (1, (secs[1].start, Reach::straight_bisector(1.0))),
             ];
             wedge_is_reflex(&secs, &fl, 1.0, band)
         };
@@ -2354,13 +2328,14 @@ mod tests {
                 true,
             )),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let bis = Vec3::new(0.0, 0.0, -1.0);
         let twins = |far_end: [f64; 3], far_start: [f64; 3]| {
             [
                 twin(
                     bis,
-                    Reach::Bisector(1.0),
+                    Reach::straight_bisector(1.0),
                     Vec3::from_array(far_end).normalize(),
                     chord(far_end),
                 ),
@@ -2368,7 +2343,7 @@ mod tests {
                     Vec3::from_array(far_start).normalize(),
                     chord(far_start),
                     bis,
-                    Reach::Bisector(1.0),
+                    Reach::straight_bisector(1.0),
                 ),
             ]
         };
@@ -2377,7 +2352,12 @@ mod tests {
                 Vec3::new(0.0, 0.0, 1.0),
                 true,
             )),
-            ..twin(bis, Reach::Bisector(1.0), bis, Reach::Bisector(1.0))
+            ..twin(
+                bis,
+                Reach::straight_bisector(1.0),
+                bis,
+                Reach::straight_bisector(1.0),
+            )
         }];
         let one_sided = twins([1.0, 0.0, 0.5], [-1.0, 0.0, 0.5]);
         let bracket = geom_core::k_stats::Bracket::open();
@@ -2521,11 +2501,12 @@ mod tests {
                 normal, true,
             )),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let up = Vec3::new(0.0, 1.0, 0.0);
         let mut half_turn = [sector(z, ray(0.0), up), sector(ray(180.0), z, up)];
-        half_turn[0].start_reach = Reach::Bisector(1.0);
-        half_turn[1].end_reach = Reach::Bisector(1.0);
+        half_turn[0].start_reach = Reach::straight_bisector(1.0);
+        half_turn[1].end_reach = Reach::straight_bisector(1.0);
         let p = prism_z::<f64>(
             &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
             0.0,
@@ -2664,6 +2645,7 @@ mod tests {
                 y, true,
             )),
             arm,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let run = |a: (&crate::body::Body<f64>, FaceKey),
                    b: (&crate::body::Body<f64>, FaceKey),
@@ -2853,6 +2835,7 @@ mod tests {
                 y, true,
             )),
             arm,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let corner = [sector(z, x), sector(x, z)];
         let mut records = vec![rec(0, 0, (On, Out), (On, Out))];
@@ -2920,7 +2903,7 @@ mod tests {
     /// alone places it.
     #[test]
     fn a_solid_with_an_edge_and_a_face_on_the_line_holds_the_half_turn_under_the_face() {
-        use super::super::sectors::{FaceShape, PierceLever, Reach};
+        use super::super::sectors::{PierceLever, Reach};
         use super::super::vtxfac::PierceDatum;
         use crate::boolean::{BooleanDecision, Glue, GluedPairs};
         use geom_brep::OutwardNormal;
@@ -2947,6 +2930,7 @@ mod tests {
                 normal, true,
             )),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         // Each corner's two faces through the line, the wedge between
         // `p` and `q` its material.
@@ -2987,7 +2971,7 @@ mod tests {
         let face = |n: Vec3<f64>| HeldFace {
             datum: PierceDatum {
                 normal: OutwardNormal::from_chart(n, true),
-                shape: FaceShape::Plane,
+                bend: crate::bound_side::FaceBend::Plane,
                 lever: PierceLever::Everywhere(super::super::sectors::NO_CURVATURE()),
             },
             operand: Operand::B,
@@ -3059,7 +3043,7 @@ mod tests {
             assert_eq!(along(err), super::super::AlongFace::Flush, "{op:?}");
             let curved = HeldFace {
                 datum: PierceDatum {
-                    shape: FaceShape::Curved,
+                    bend: crate::bound_side::FaceBend::cylinder(Vec3::new(0.0, 1.0, 0.0), z, 1.0),
                     ..flat.datum
                 },
                 ..flat
@@ -3078,7 +3062,7 @@ mod tests {
         ));
         let half = |start: Vec3<f64>, end: Vec3<f64>, bisector_first: bool| BoolSector {
             start_reach: if bisector_first {
-                Reach::Bisector(1.0)
+                Reach::straight_bisector(1.0)
             } else {
                 Reach::Chord {
                     base: o,
@@ -3091,7 +3075,7 @@ mod tests {
                     far: o + end,
                 }
             } else {
-                Reach::Bisector(1.0)
+                Reach::straight_bisector(1.0)
             },
             face: plane,
             ..sector(start, end, Vec3::new(0.0, 1.0, 0.0))
@@ -3261,6 +3245,7 @@ mod tests {
                 normal, true,
             )),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let at = |deg: f64| {
             let (s, c) = deg.to_radians().sin_cos();
@@ -3274,11 +3259,11 @@ mod tests {
             sector(ha, z, at(lo), at(lo - 90.0), none),
             sector(ha, at(hi), z, at(hi + 90.0), none),
             BoolSector {
-                start_reach: Reach::Bisector(1.0),
+                start_reach: Reach::straight_bisector(1.0),
                 ..sector(ha, z, x, y, top)
             },
             BoolSector {
-                end_reach: Reach::Bisector(1.0),
+                end_reach: Reach::straight_bisector(1.0),
                 ..sector(ha, -x, z, y, top)
             },
         ];
@@ -3440,7 +3425,7 @@ mod tests {
         let sector = |start_bisector: bool, end_bisector: bool| {
             let reach = |bisector| {
                 if bisector {
-                    Reach::Bisector(1.0)
+                    Reach::straight_bisector(1.0)
                 } else {
                     Reach::Extent(1.0)
                 }
@@ -3456,6 +3441,7 @@ mod tests {
                     geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
                 ),
                 arm: 1.0,
+                bend: crate::bound_side::FaceBend::Plane,
             }
         };
         // Two halved sectors, one split across the wrap.
