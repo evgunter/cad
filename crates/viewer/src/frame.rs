@@ -874,6 +874,14 @@ pub fn batch_refusal(
     })
 }
 
+/// **A pending profile draft let go of, as the line carries it**: the
+/// changes it held are gone from the editor, and the person is told
+/// which and why ([`crate::drafts::Dropped`]). [`Retold::Never`]: the
+/// draft is gone, and nothing will drop it again.
+pub(crate) fn dropped_draft(dropped: &crate::drafts::Dropped) -> Message {
+    Message::new(Subject::Document, dropped.to_string(), Retold::Never)
+}
+
 /// **A [`Refusal`] as the line carries it** — the one place a refusal
 /// becomes a [`Message`], whichever way it reached the frame.
 ///

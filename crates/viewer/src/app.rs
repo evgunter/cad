@@ -1368,6 +1368,14 @@ impl ViewerApp {
         // seam just landed — is exactly the frame that needs its
         // notice shown.
         let mut notices = core::mem::take(&mut self.notices);
+        // A pending profile draft let go of since the last batch (the
+        // selection left it, the document moved under it) is said.
+        notices.extend(
+            self.drafts
+                .take_dropped()
+                .iter()
+                .map(frame::dropped_draft),
+        );
         // A tool opened, closed or swapped since the last batch — a
         // Cancel in its panel, the previous batch's commit — retires
         // what the line says about the tool that was open. Before the
@@ -1389,6 +1397,17 @@ impl ViewerApp {
         let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
         let mut answered_save_choice = false;
         for op in ops {
+            // Undo takes back a pending profile draft first, and says
+            // so; the next undo steps the history.
+            if matches!(op, SessionOp::Undo) && self.drafts.undo_pending() {
+                notices.extend(
+                    self.drafts
+                        .take_dropped()
+                        .iter()
+                        .map(frame::dropped_draft),
+                );
+                continue;
+            }
             performed.push(op.clone());
             let replaced = op.replaces_the_document();
             let tool_edit = self.tools.commits_open_tool(&op);
@@ -1447,10 +1466,16 @@ impl ViewerApp {
             }
             // A creation under the create rule selects what it made,
             // which opens that node's edit surface.
+            // Its outcome is heard like the op's: a selection that
+            // refuses (a gesture in flight) is said, never dropped.
             if let Some(node) = made.filter(|_| selects && committed) {
-                let _selected = self
+                let selected = self
                     .session
                     .perform(SessionOp::Select(crate::session::Selection::Node(node)));
+                notices.extend(frame::outcome_notices(&selected));
+                if let Some(next) = selected.refusal {
+                    refusal = Refusal::preferred(refusal, next);
+                }
             }
             // After the match, so a replaced document's held picks are
             // dropped before anything is spoken from it.
@@ -4587,6 +4612,20 @@ mod properties_pane_tests {
                 let events = pointer.map(egui::Event::PointerMoved).into_iter().collect();
                 Self::drawn(ctx, app, frame, time, events)
             })
+        }
+
+        /// **The profile editor's draft offered**, as a field's commit
+        /// offers it: a change marked on the draft made directly, then
+        /// quiet frames, in which the editor lands it or keeps it
+        /// pending.
+        fn settle_draft(&mut self) {
+            self.app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("the editor is open")
+                .changed();
+            self.quiet();
         }
 
         /// Quiet frames until the app is [`quiescent`].
@@ -8261,25 +8300,16 @@ mod properties_pane_tests {
                 .expect("the form added a drawn profile")
         }
 
-        /// The editor's held draft offered to the document, as a
-        /// field's commit offers it.
-        fn settle_draft(pane: &mut Driven) {
-            pane.app
-                .drafts
-                .profile_edit
-                .as_mut()
-                .expect("held")
-                .unsettled = true;
-            pane.quiet();
-        }
 
-        /// **The boss's footprint, authored as a person does**: the
-        /// form's commit inserts the traced template, which the
-        /// creation opens in the editor; there the start moves to
-        /// `(0, BACK)`, the run along the trace becomes `REACH`, and a
-        /// corner at `(REACH, BACK)` is inserted before home, landing
-        /// as one edit. The trace's two steps follow row 1. Answers the
-        /// profile.
+        /// **The boss's footprint**: the form's commit (a real click)
+        /// inserts the traced template, and the creation opens it in
+        /// the editor. The footprint is then written into the editor's
+        /// draft directly, standing in for typing each number: the
+        /// start moves to `(0, BACK)`, the run along the trace becomes
+        /// `REACH`, and a corner at `(REACH, BACK)` is inserted before
+        /// home. The draft is offered as a field's commit offers it
+        /// ([`Driven::settle_draft`]) and lands as one edit. The trace's
+        /// two steps follow row 1. Answers the profile.
         fn add(pane: &mut Driven) -> RecipeNodeId {
             pane.click(NEW_TRACED_PROFILE);
             pane.quiet();
@@ -8303,7 +8333,7 @@ mod properties_pane_tests {
                 crate::props::Notation::CANONICAL,
             )
             .expect("finite");
-            settle_draft(pane);
+            pane.settle_draft();
             profile
         }
 
@@ -8605,7 +8635,7 @@ mod properties_pane_tests {
                     Step::LineTo(Target::Point(Point2::new(REACH, BACK - 0.05))),
                 );
             }
-            settle_draft(&mut pane);
+            pane.settle_draft();
             let (_, after) = added(&pane);
             let ([LoopProgram::Chain(was)], [LoopProgram::Chain(now)]) =
                 (before.loops.as_slice(), after.loops.as_slice())
@@ -8713,7 +8743,7 @@ mod properties_pane_tests {
             pane.app
                 .perform_batch(vec![SessionOp::CommitVariableGesture { var: w }]);
             pane.quiet();
-            settle_draft(&mut pane);
+            pane.settle_draft();
             let (x, xs) = review_6302_far_x(&pane, profile, StepArg::TargetX);
             eprintln!(
                 "review_6302 e2e: second change far x {x:?} src {xs:?}, y {:?}",
@@ -8769,7 +8799,7 @@ mod properties_pane_tests {
                     .filter(|r| r.contains("strand") || r.contains("refus") || r.contains("cannot"))
                     .collect();
                 let state = pane.app.session.history().current();
-                settle_draft(&mut pane);
+                pane.settle_draft();
                 let moved = pane.app.session.history().current() != state;
                 let (_, ev) = pane.app.session.landed_pair().expect("landed");
                 let err = ev.node_error(profile).map(|e| e.kind.to_string());
@@ -8779,7 +8809,7 @@ mod properties_pane_tests {
                 assert!(
                     painted
                         .iter()
-                        .any(|run| run.starts_with(crate::pane::profile::HELD_BACK)),
+                        .any(|run| run.starts_with(crate::pane::profile::PENDING)),
                     "[{name}] the editor says why it holds the change: {painted:?}"
                 );
                 assert!(
@@ -9052,14 +9082,7 @@ mod properties_pane_tests {
         fn apply(driven: &mut Driven) -> Vec<String> {
             let before = driven.app.session.history().len();
             let pre: Vec<String> = driven.quiet().into_iter().map(|(r, _)| r).collect();
-            driven
-                .app
-                .drafts
-                .profile_edit
-                .as_mut()
-                .expect("held")
-                .unsettled = true;
-            driven.settle();
+            driven.settle_draft();
             let painted = driven.quiet();
             eprintln!(
                 "apply: history {} -> {}; status {:?}",

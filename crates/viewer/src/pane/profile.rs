@@ -6,13 +6,13 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{RecipeNodeId, SlotId, StepArg};
+use pncad::document::{Formula, LoopProgram, ProfileProgram, RecipeNodeId, SlotId, StepArg, StepId};
 use pncad::geom_core::Tol;
 use pncad::profile::{Step, TipState, Verb};
 use pncad::quantity::{AngleUnit, LengthUnit};
 
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior};
-use crate::drafts::{ProfileEdit, RowEdit};
+use crate::drafts::{Change, ProfileEdit, RowEdit};
 use crate::forms::ShapeKind;
 use crate::frame;
 use crate::pane::properties::slot_showing;
@@ -99,10 +99,8 @@ impl ViewerBehavior<'_> {
             &mut news,
         );
         self.drafts.profile_edit = Some(edit);
-        match formed {
-            Ok(Some(op)) => self.ops.push(op),
-            Ok(None) => {}
-            Err(notice) => self.notices.push(notice),
+        if let Some(op) = formed {
+            self.ops.push(op);
         }
         self.notices.append(&mut news.notices);
         match news.standing {
@@ -360,7 +358,7 @@ pub(crate) struct FieldNews {
     pub(crate) notices: Vec<frame::Message>,
 }
 
-/// **The edit door's body, once its draft is held**: one step list
+/// **The edit door's body, over its draft**: one step list
 /// per loop, the preview's verdict, and the discard control — a free
 /// function over the `Ui`, so a row can drive the door a person uses
 /// rather than a copy of it.
@@ -369,13 +367,14 @@ pub(crate) struct FieldNews {
 /// removed, reordered and re-verbed, and its arcs, targets and split
 /// counts changed. **Each change lands as it is made**: a field once
 /// it is committed (Enter, focus leaving it, a drag released), a row
-/// or a loop at its click. The whole held program is offered to the
+/// or a loop at its click, each its own offer in the order it was
+/// made ([`ProfileEdit::offer`]). The whole draft is offered to the
 /// document's edit door ([`DocSession::edit_profile_report`]) and,
 /// taken, answered as ONE [`SessionOp::EditProfile`] saying which
-/// committed step each held step is ([`ProfileEdit::ids`]) — one undo
-/// step. A program the door refuses is held, its refusal said under
-/// the list ([`ProfileEdit::refused`]), until a later change makes the
-/// whole of it pass or [`DISCARD`] drops it. A name on a step the
+/// committed step each draft step is ([`ProfileEdit::ids`]) — one undo
+/// step. A program the door refuses is **pending**, its refusal said
+/// under the list ([`ProfileEdit::pending`]), until a later change
+/// makes the whole of it pass or [`DISCARD`] drops it. A name on a step the
 /// program drops, or on a kept step's piece it stops drawing, is
 /// stranded, and the op's outcome reports each.
 ///
@@ -390,9 +389,9 @@ pub(crate) struct FieldNews {
 /// slot is written in, so the number a slot field shows is the number
 /// that lands; what did not move is committed as it is written.
 ///
-/// Answers the op a change formed, or the notice for what could not
-/// form one (a field that does not lower, a program that is not a
-/// loop's shape).
+/// Answers the op a change formed. A change that does not lower (a
+/// non-finite field) is said on `news`, and the frame's other changes
+/// stand.
 pub(crate) fn edit_door_ui(
     ui: &mut egui::Ui,
     session: &DocSession,
@@ -401,7 +400,7 @@ pub(crate) fn edit_door_ui(
     preview: Option<&Result<ProfilePreview, PreviewError>>,
     mut slots: Option<&mut dyn SlotDoors>,
     news: &mut FieldNews,
-) -> Result<Option<SessionOp>, frame::Message> {
+) -> Option<SessionOp> {
     let node = edit.node;
     let (landed, tol) = (session.doc(), session.tol());
     ui.label(format!("profile {}", landed.spoken(node)));
@@ -510,26 +509,29 @@ pub(crate) fn edit_door_ui(
         }
     }
     let added = add_loop_row(ui);
-    // Fields first: their rows are the list as drawn, before its
-    // shape changes.
-    let committed = props::slot_rows(session.committed_doc(), node);
-    let noted = |slot: SlotId| committed.iter().find(|row| row.slot == slot)?.unit;
-    let mut refusals = Vec::new();
-    let mut changed =
-        !written.is_empty() || !rows.is_empty() || removed.is_some() || added.is_some();
     // Any change to the draft releases a refused text standing in a
     // field: the rows it was typed among may move.
-    if changed {
+    if !written.is_empty() || !rows.is_empty() || removed.is_some() || added.is_some() {
         news.standing = None;
     }
+    // **The fields first**: a field's commit (focus leaving it, Enter)
+    // is the change a person made before the click that took the focus
+    // from it, and their rows are the list as drawn, before its shape
+    // changes.
+    let committed = props::slot_rows(session.committed_doc(), node);
+    let noted = |slot: SlotId| committed.iter().find(|row| row.slot == slot)?.unit;
+    let mut faults = Vec::new();
     for (at, step) in written {
-        refusals.extend(edit.write_step(at, step, landed, notation, &noted).err());
+        match edit.write_step(at, step, landed, notation, &noted) {
+            Ok(()) => edit.changed(),
+            Err(fault) => faults.push(fault),
+        }
     }
     for (at, arg, text) in typed {
         match edit.write_text(at, arg, &text, landed) {
             Ok(()) => {
                 news.standing = None;
-                changed = true;
+                edit.changed();
             }
             Err(refusal @ crate::session::Refusal::NoSuchSlot { .. }) => {
                 news.notices.push(frame::refusal_message(&refusal));
@@ -541,80 +543,96 @@ pub(crate) fn edit_door_ui(
             }
         }
     }
-    for (index, row) in rows {
-        refusals.extend(edit.edit_row(index, row, notation).err());
+    let within = drawn_extent(preview);
+    let clicks: Vec<Change> = rows
+        .into_iter()
+        .map(|(index, row)| Change::Row(index, row))
+        .chain(removed.map(Change::RemoveLoop))
+        .chain(added.map(|kind| Change::AddLoop(crate::drafts::template_steps(kind, within))))
+        .collect();
+    // **Each change is its own offer, in the order it was made.** The
+    // draft goes to the document's edit door once it settles (no drag
+    // still moving a number); taken, it is one `SetProgram`, and a
+    // click made in the same frame waits for the next, over the program
+    // that lands. Refused, the draft is pending, and the click is made
+    // on top of it and offered with it.
+    let dragging = ui.ctx().dragged_id().is_some();
+    let door = |base: &ProfileProgram<Formula>,
+                loops: Vec<LoopProgram<Formula>>,
+                ids: Vec<Vec<Option<StepId>>>| {
+        session
+            .edit_profile_report(node, base, loops, ids)
+            .map(|_| ())
+    };
+    let held_back =
+        |edit: &ProfileEdit| edit.pen_order(landed, tol).is_some() || drivers_hold(edit, landed).is_some();
+    let mut formed = edit.offer(dragging, held_back(edit), &door);
+    for change in clicks {
+        if formed.is_some() {
+            edit.defer(change);
+            continue;
+        }
+        match edit.apply(change, notation) {
+            Ok(()) => edit.changed(),
+            Err(fault) => faults.push(fault),
+        }
     }
-    if let Some(index) = removed {
-        edit.remove_loop(index);
+    if formed.is_none() {
+        formed = edit.offer(dragging, held_back(edit), &door);
     }
-    if let Some(kind) = added {
-        refusals.extend(
-            edit.add_loop(crate::drafts::template_steps(kind), notation)
-                .err(),
-        );
-    }
-    if let Some(error) = refusals.first() {
-        return Err(frame::tool_news(&FormKind::EditProfile.refuses(error)));
-    }
-    edit.unsettled |= changed;
+    // A change that did not lower is said, and every other change of
+    // its frame stands.
+    news.notices.extend(
+        faults
+            .iter()
+            .map(|fault| frame::tool_news(&FormKind::EditProfile.refuses(fault))),
+    );
     if edit.runs_from_the_pen() {
         crate::widgets::message_toned(ui, PEN_UNDRAWN, &theme, frame::Tone::Advisory);
     }
     preview_verdict(ui, theme, preview);
-    let out_of_order = edit.pen_order(landed, tol);
-    if let Some(refusal) = &out_of_order {
-        let sentence = format!("{HELD_BACK} the step order — {refusal}");
+    if let Some(refusal) = edit.pen_order(landed, tol) {
+        let sentence = format!("{PENDING} the step order — {refusal}");
         crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
     }
-    let held_up = drivers_hold(edit, session.doc());
-    if let Some(sentence) = &held_up {
+    if let Some(sentence) = drivers_hold(edit, landed) {
         crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
     }
-    // **A change lands as it is made**: once it has settled — no drag
-    // still moving a number — the draft is offered to the document's
-    // edit door whole. What the door takes is one `SetProgram`; what
-    // it refuses stays held here with its refusal, and the next change
-    // offers the whole draft again.
-    let settled = edit.unsettled && ui.ctx().dragged_id().is_none();
-    let mut formed = None;
-    if settled {
-        edit.unsettled = false;
-        edit.refused = None;
-        if out_of_order.is_none() && held_up.is_none() && edit.differs_from_base() {
-            match edit.programs() {
-                Ok(loops) => {
-                    let (base, ids) = (edit.base().clone(), edit.ids());
-                    match session.edit_profile_report(node, &base, loops.clone(), ids.clone()) {
-                        Ok(_) => {
-                            formed = Some(SessionOp::EditProfile {
-                                node,
-                                base,
-                                loops,
-                                ids,
-                            });
-                        }
-                        Err(refusal) => edit.refused = Some(refusal.to_string()),
-                    }
-                }
-                Err(error) => edit.refused = Some(error.to_string()),
-            }
-        }
-    }
-    let differs = edit.differs_from_base();
-    if let Some(refusal) = edit.refused.as_ref().filter(|_| differs) {
-        let sentence = format!("{HELD_BACK} {refusal}");
+    if let Some(refusal) = edit.pending() {
+        let sentence = format!("{PENDING} {refusal}");
         crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
     }
-    if discard_control(ui, differs && formed.is_none()) {
+    if discard_control(ui, edit.differs_from_base() && formed.is_none()) {
         edit.revert();
         news.standing = None;
     }
-    Ok(formed)
+    formed
 }
 
-/// What the editor says ahead of why the draft it holds is not in the
-/// document.
-pub(crate) const HELD_BACK: &str = "held here, not in the document:";
+/// **The box the drawn loops span**, `[min, max]`, where the preview
+/// drew any: what a loop added to the profile is placed inside
+/// ([`crate::drafts::template_steps`]).
+fn drawn_extent(preview: Option<&Result<ProfilePreview, PreviewError>>) -> Option<[[f64; 2]; 2]> {
+    let Some(Ok(drawn)) = preview else {
+        return None;
+    };
+    drawn
+        .loops
+        .iter()
+        .flat_map(|each| each.points.iter())
+        .fold(None, |span: Option<[[f64; 2]; 2]>, &[x, y]| {
+            Some(match span {
+                None => [[x, y], [x, y]],
+                Some([lo, hi]) => [[lo[0].min(x), lo[1].min(y)], [hi[0].max(x), hi[1].max(y)]],
+            })
+        })
+        .filter(|[lo, hi]| hi[0] > lo[0] && hi[1] > lo[1])
+}
+
+/// What the editor says ahead of why its draft is **pending** — shown
+/// over the document and not in it, until a later change makes it pass
+/// or it is discarded.
+pub(crate) const PENDING: &str = "pending, not in the document:";
 
 /// What the edit door says while a held step lowers against the pen.
 pub(crate) const PEN_UNDRAWN: &str = "a step reads a trace or runs to a coordinate along its \
@@ -672,7 +690,7 @@ fn drivers_hold(
     let dropped = edit.dropped_drivers();
     if !dropped.is_empty() {
         return Some(format!(
-            "{HELD_BACK} {} is driven by an expression, and the step no longer has that argument \
+            "{PENDING} {} is driven by an expression, and the step no longer has that argument \
              — discard the changes, write a number over the expression, then change the step",
             labels(&dropped)
         ));
@@ -686,7 +704,7 @@ fn drivers_hold(
         .map(|(slot, fault)| format!("{}: {fault}", slot.label()))
         .collect();
     Some(format!(
-        "{HELD_BACK} an expression driving this profile does not evaluate — {}",
+        "{PENDING} an expression driving this profile does not evaluate — {}",
         said.join("; ")
     ))
 }
@@ -963,22 +981,22 @@ fn step_control(ui: &mut egui::Ui, glyph: &str, action: &str, blocked: Option<&s
     }
 }
 
-/// The control that drops a held draft.
-pub(crate) const DISCARD: &str = "Discard changes";
+/// The control that drops a pending draft.
+pub(crate) const DISCARD: &str = "Discard pending changes";
 
-/// **The editor's one way out of a held draft**: live only while the
-/// editor holds changes the document does not (`held`), which undo
-/// cannot reach because they never landed. Answers whether it was
-/// clicked, which a disabled control never is.
-fn discard_control(ui: &mut egui::Ui, held: bool) -> bool {
-    let button = ui.add_enabled(held, egui::Button::new(DISCARD));
-    if held {
+/// **The editor's one way out of a pending draft**: live only while the
+/// editor has changes the document does not (`pending`), which never
+/// landed. Answers whether it was clicked, which a disabled control
+/// never is.
+fn discard_control(ui: &mut egui::Ui, pending: bool) -> bool {
+    let button = ui.add_enabled(pending, egui::Button::new(DISCARD));
+    if pending {
         button
-            .on_hover_text("drop the changes held here and show the profile as the document has it")
+            .on_hover_text("drop the pending changes and show the profile as the document has it")
             .clicked()
     } else {
         button
-            .on_disabled_hover_text("nothing is held: every change is in the document")
+            .on_disabled_hover_text("nothing is pending: every change is in the document")
             .clicked()
     }
 }
@@ -1280,22 +1298,22 @@ mod tests {
         );
     }
 
-    /// **The discard control says why while nothing is held**, and
+    /// **The discard control says why while nothing is pending**, and
     /// live says what it drops.
     #[test]
-    fn discard_says_there_is_nothing_held_until_a_draft_is() {
+    fn discard_says_there_is_nothing_pending_until_a_draft_is() {
         let idle = painted_while_hovering(super::DISCARD, 0, |ui| {
             let _clicked = super::discard_control(ui, false);
         });
         assert!(
-            idle.contains("nothing is held: every change is in the document"),
+            idle.contains("nothing is pending: every change is in the document"),
             "{idle}"
         );
         let held = painted_while_hovering(super::DISCARD, 0, |ui| {
             let _clicked = super::discard_control(ui, true);
         });
-        assert!(held.contains("drop the changes held here"), "{held}");
-        assert!(!held.contains("nothing is held"), "{held}");
+        assert!(held.contains("drop the pending changes"), "{held}");
+        assert!(!held.contains("nothing is pending"), "{held}");
     }
 
     /// A chord fine enough that nothing here is short of points.
@@ -1633,7 +1651,7 @@ mod tests {
         let doc = Doc::empty_derived("edit-door", tol);
         let loops = vec![
             sketch::path_program(
-                &crate::drafts::template_steps(crate::forms::ShapeKind::Path),
+                &crate::drafts::template_steps(crate::forms::ShapeKind::Path, None),
                 Notation::CANONICAL,
                 &|_, _| None,
             )
@@ -1702,7 +1720,7 @@ mod tests {
             let edit = drafts
                 .profile_edit(session.committed_doc(), profile)
                 .expect("the editor holds the profile");
-            match super::edit_door_ui(
+            if let Some(op) = super::edit_door_ui(
                 ui,
                 session,
                 (Theme::DEFAULT, Notation::CANONICAL),
@@ -1711,9 +1729,7 @@ mod tests {
                 None,
                 &mut super::FieldNews::default(),
             ) {
-                Ok(Some(op)) => formed = Some(op),
-                Ok(None) => {}
-                Err(notice) => panic!("the door could not form its op: {notice:?}"),
+                formed = Some(op);
             }
         });
         (painted, formed)
@@ -1733,8 +1749,8 @@ mod tests {
             let edit = drafts
                 .profile_edit(session.committed_doc(), profile)
                 .expect("the editor holds the profile");
-            edit.unsettled = true;
-            match super::edit_door_ui(
+            edit.changed();
+            if let Some(op) = super::edit_door_ui(
                 ui,
                 session,
                 (Theme::DEFAULT, Notation::CANONICAL),
@@ -1743,9 +1759,7 @@ mod tests {
                 None,
                 &mut super::FieldNews::default(),
             ) {
-                Ok(Some(op)) => formed = Some(op),
-                Ok(None) => {}
-                Err(notice) => panic!("the door could not form its op: {notice:?}"),
+                formed = Some(op);
             }
         });
         (painted, formed)
@@ -2448,7 +2462,7 @@ mod tests {
         let mut drafts = Drafts::default();
         let (painted, formed) = unclose(&session, &mut drafts, profile);
         assert!(formed.is_none(), "the door refuses the unclosed chain");
-        assert!(painted.contains(super::HELD_BACK), "{painted}");
+        assert!(painted.contains(super::PENDING), "{painted}");
         assert!(
             drafts
                 .profile_edit
@@ -2585,7 +2599,7 @@ mod tests {
         let doc = Doc::empty_derived("held-slots", tol);
         let loops = vec![
             sketch::path_program(
-                &crate::drafts::template_steps(crate::forms::ShapeKind::Path),
+                &crate::drafts::template_steps(crate::forms::ShapeKind::Path, None),
                 Notation::CANONICAL,
                 &|_, _| None,
             )
@@ -3052,7 +3066,7 @@ mod tests {
         use pncad::profile::{ArcData, ArcMode};
 
         let tol = Tol::witness();
-        let mut steps = crate::drafts::template_steps(crate::forms::ShapeKind::Path);
+        let mut steps = crate::drafts::template_steps(crate::forms::ShapeKind::Path, None);
         steps[1] = Step::ArcTo(ArcData::Bulge {
             target: Target::Point(Point2::new(0.01, 0.0)),
             b: 0.3,
@@ -3178,29 +3192,17 @@ mod tests {
 
     // ---------------- review 6295 probes ----------------
 
-    /// Remove the given held loops (each nth REMOVE_LOOP, in order),
-    /// add one, then settle the draft: the outcome of the op it formed,
-    /// or what the door painted when it held the draft instead.
-    fn remove_then_settle(
+    /// The `nth` loop removed by its `Remove loop`, as a person clicks
+    /// it: the click's own offer, performed — the outcome when the door
+    /// took it, or what the door painted when the draft went pending.
+    fn remove_and_land(
         session: &mut crate::session::DocSession,
+        drafts: &mut Drafts,
         profile: pncad::document::RecipeNodeId,
-        removals: &[usize],
-        add: Option<(crate::forms::ShapeKind, Step<f64>)>,
+        nth: usize,
     ) -> Result<crate::session::OpOutcome, String> {
-        let mut drafts = Drafts::default();
-        for nth in removals {
-            click_door(session, &mut drafts, profile, super::REMOVE_LOOP, *nth);
-        }
-        if let Some((kind, step)) = add {
-            let added = super::add_loop_label(kind);
-            click_door(session, &mut drafts, profile, &added, 0);
-            let edit = drafts
-                .profile_edit(session.committed_doc(), profile)
-                .expect("held");
-            let n = edit.loops().len();
-            edit.set_step(session.doc(), (n - 1, 0), step);
-        }
-        match settle_door(session, &mut drafts, profile) {
+        drafts.sync_profile_edit(session.committed_doc(), Some(profile));
+        match click_door(session, drafts, profile, super::REMOVE_LOOP, nth) {
             (_, Some(op)) => Ok(session.perform(op)),
             (painted, None) => Err(painted),
         }
@@ -3236,9 +3238,9 @@ mod tests {
             matches!(&preview, Ok(p) if p.invalid.is_some()),
             "the preview refuses: {preview:?}"
         );
-        let held = remove_then_settle(&mut session, profile, &[0], None)
+        let held = remove_and_land(&mut session, &mut Drafts::default(), profile, 0)
             .expect_err("two outers refuse at the door");
-        assert!(held.contains(super::HELD_BACK), "{held}");
+        assert!(held.contains(super::PENDING), "{held}");
         assert!(session.committed_doc().bit_eq(&before), "nothing landed");
     }
 
@@ -3246,7 +3248,8 @@ mod tests {
     fn review_6295_remove_the_driven_loop() {
         let (mut session, profile, _driven) = three_loop_plate();
         let ids = loop_ids(&session, profile);
-        let out = remove_then_settle(&mut session, profile, &[2], None).expect("lands");
+        let out =
+            remove_and_land(&mut session, &mut Drafts::default(), profile, 2).expect("lands");
         assert_eq!(strands(&out), 0, "the shell names loop 1, which is kept");
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         assert_eq!(
@@ -3255,27 +3258,42 @@ mod tests {
         );
     }
 
+    /// **A removal lands on its own, and an added loop the door refuses
+    /// lands once a later change makes it pass.** Loop 1 removed is one
+    /// step, stranding the shell's name. A circle added at the origin
+    /// crosses the remaining hole, so it is pending; moved clear, the
+    /// draft lands as one more step with fresh ids, loop 1 still reading
+    /// `w`. Each step undoes on its own.
     #[test]
-    fn review_6295_remove_and_add_in_one_draft() {
+    fn review_6295_a_removal_lands_and_a_pending_added_loop_lands_once_moved() {
         use crate::forms::ShapeKind;
         use pncad::document::SlotId;
         let (mut session, profile, driven) = three_loop_plate();
         let ids = loop_ids(&session, profile);
         let before = session.committed_doc().clone();
-        let out = remove_then_settle(
-            &mut session,
-            profile,
-            &[1],
-            Some((
-                ShapeKind::Circle,
-                Step::Circle {
-                    centre: Point2::new(0.0, 0.006),
-                    radius: 0.002,
-                },
-            )),
-        )
-        .expect("lands");
-        assert_eq!(strands(&out), 1);
+        let mut drafts = Drafts::default();
+        let out = remove_and_land(&mut session, &mut drafts, profile, 1).expect("lands");
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert_eq!(strands(&out), 1, "the removal strands the shell's name");
+        let removed = session.committed_doc().clone();
+        drafts.sync_profile_edit(session.committed_doc(), Some(profile));
+        let added = super::add_loop_label(ShapeKind::Circle);
+        let (painted, formed) = click_door(&session, &mut drafts, profile, &added, 0);
+        assert!(formed.is_none(), "the circle crosses the hole: {painted}");
+        assert!(painted.contains(super::PENDING), "{painted}");
+        let edit = drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("open");
+        edit.set_step(
+            session.doc(),
+            (2, 0),
+            Step::Circle {
+                centre: Point2::new(0.0, 0.006),
+                radius: 0.002,
+            },
+        );
+        let (_, formed) = settle_door(&session, &mut drafts, profile);
+        let out = session.perform(formed.expect("moved clear, the draft lands"));
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         let now = loop_ids(&session, profile);
         assert_eq!(now.len(), 3);
@@ -3297,40 +3315,46 @@ mod tests {
             },
         );
         assert_eq!(row.source.as_deref(), Some("w"));
-        let after = session.committed_doc().clone();
-        assert!(
-            session
-                .perform(crate::session::SessionOp::Undo)
-                .refusal
-                .is_none()
-        );
-        assert!(session.committed_doc().bit_eq(&before));
-        assert!(
-            session
-                .perform(crate::session::SessionOp::Redo)
-                .refusal
-                .is_none()
-        );
-        assert!(session.committed_doc().bit_eq(&after));
+        let undo = |session: &mut crate::session::DocSession| {
+            assert!(
+                session
+                    .perform(crate::session::SessionOp::Undo)
+                    .refusal
+                    .is_none()
+            );
+        };
+        undo(&mut session);
+        assert!(session.committed_doc().bit_eq(&removed), "undo takes the add");
+        undo(&mut session);
+        assert!(session.committed_doc().bit_eq(&before), "and then the removal");
     }
 
+    /// **Every hole removed, each removal one undo step**: loop 2 goes
+    /// stranding nothing (the shell names loop 1), then loop 1 goes
+    /// stranding the shell's name; one undo brings loop 1 back, the
+    /// next the plate.
     #[test]
-    fn review_6295_remove_every_hole() {
+    fn review_6295_remove_every_hole_one_step_each() {
         let (mut session, profile, _driven) = three_loop_plate();
         let ids = loop_ids(&session, profile);
         let before = session.committed_doc().clone();
-        // remove loop 2 then loop 1 (both nth 1 after the first, since loop 1 is nth 1)
-        let out = remove_then_settle(&mut session, profile, &[2, 1], None).expect("lands");
+        let mut drafts = Drafts::default();
+        let out = remove_and_land(&mut session, &mut drafts, profile, 2).expect("lands");
+        assert_eq!(strands(&out), 0);
+        let one_hole = session.committed_doc().clone();
+        let out = remove_and_land(&mut session, &mut drafts, profile, 1).expect("lands");
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
-        assert_eq!(loop_ids(&session, profile), vec![ids[0].clone()]);
         assert_eq!(strands(&out), 1);
-        assert!(
-            session
-                .perform(crate::session::SessionOp::Undo)
-                .refusal
-                .is_none()
-        );
-        assert!(session.committed_doc().bit_eq(&before));
+        assert_eq!(loop_ids(&session, profile), vec![ids[0].clone()]);
+        for (was, said) in [(&one_hole, "loop 1 back"), (&before, "the plate back")] {
+            assert!(
+                session
+                    .perform(crate::session::SessionOp::Undo)
+                    .refusal
+                    .is_none()
+            );
+            assert!(session.committed_doc().bit_eq(was), "{said}");
+        }
     }
 
     // ---- review 6302 probes ----
