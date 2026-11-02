@@ -251,8 +251,7 @@ pub use voids::{
 /// decisions has no words here, since neither decision's words are
 /// true of it: `bool_contact_vertex` (the contact sweep's
 /// [`BooleanDecision::VertexOnVertex`], and containment's boundary
-/// pre-pass), `bool_contact_arc` (the split point on its circle, and
-/// the same pre-pass) and `bool_sector_crescent` (the sectors'
+/// pre-pass) and `bool_sector_crescent` (the sectors'
 /// coincidence where its crescent reads in band, and
 /// [`BooleanDecision::ConicBend`] where a bound's bend carries no
 /// bound).

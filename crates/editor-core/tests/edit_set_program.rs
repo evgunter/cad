@@ -2081,6 +2081,7 @@ fn drawable_roles<S: std::fmt::Debug>(lp: &LoopProgram<S>) -> Vec<Vec<PieceRole>
             .collect(),
         LoopProgram::CircleSplit { n, .. } => vec![(0..*n).map(PieceRole::Piece).collect()],
         LoopProgram::Circle { .. } => panic!("the sweep authors no circle"),
+        LoopProgram::Rectangle { .. } => panic!("the sweep authors no rectangle"),
     }
 }
 

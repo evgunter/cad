@@ -16,9 +16,10 @@ orchestrator checked it against the code; it has not been probed.
 
 The box driver reads a failed leaf in three steps
 (`crates/editor-core/src/drive.rs`, `classify_replay`'s leaf read):
-first the box-independent measure classes, then the escalation log,
-then the error-enum arms. A mate fault is not in
-`box_independent_measure_class`. In the enum match it falls to
+first the escalation log, then the error-enum arms. (A third step
+before them, the box-independent measure classes, went with the
+`min_clearance` measure in PR 6292, the only measure that had them.)
+A mate fault has no box-independent arm. In the enum match it falls to
 `_ => return LeafVerdict::Bisect`.
 
 Today the solve runs once, at the nominal. So every sub-box re-solves

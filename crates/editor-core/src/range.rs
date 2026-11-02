@@ -266,8 +266,8 @@ pub enum RangeSide {
     /// NO leaf outward was decided definitely otherwise, and the
     /// first uncertified one is [`RefusalReason::Budget`],
     /// [`RefusalReason::SliverTerminal`],
-    /// [`RefusalReason::Bifurcation`], [`RefusalReason::Infeasible`]
-    /// or [`RefusalReason::MeasureRefused`]: the driver could not
+    /// [`RefusalReason::Bifurcation`] or [`RefusalReason::Infeasible`]:
+    /// the driver could not
     /// DECIDE `within`, and found nothing beyond it either.
     ///
     /// **Not a bound**, and never to be rendered as one. It is also

@@ -3889,10 +3889,12 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 ///   mid-arc is such a meeting: (a) reads the whole circle, which the
 ///   ruling meets wherever the rim is turned, and (b) has no chain.
 ///
-/// Where the interior question reads the boundary, (a) is a fast path:
-/// what it certifies the interior question would too. It still decides alone
-/// where a boundary ellipse lies in the arc's own plane, which (a) reads
-/// through its plane crossings and the interior question leaves unread.
+/// (a) and the interior question are one reading, the boundary pass
+/// ([`geom_brep::curve_face::read`]), over two spans: (a) over the
+/// whole circle, the interior question over the arc. So where the
+/// interior question reads the boundary, (a) is a fast path: what it
+/// certifies the interior question would too. It still decides alone on
+/// a face with a lone vertex, which the interior question leaves unread.
 ///
 /// The interior question's candidates overlap. On a surface of
 /// revolution a boundary ruling's end vertex lies on the arc at the
@@ -3940,13 +3942,8 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
         .ok_or_else(|| lost("an arc on a carrier: the edge's curve is lost"))?;
     // A ruling or an ellipse has no circle for (a) and (b) to read: the
     // interior question alone decides it.
-    let circle = match *curve.carrier() {
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            ..
-        } => Some((center, axis, radius)),
+    let circle = match curve.carrier() {
+        c @ geom::Curve3::Circle { .. } => Some(c),
         geom::Curve3::Line(_) | geom::Curve3::Ellipse { .. } => None,
         _ => return Ok(None),
     };
@@ -4039,15 +4036,15 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
 /// Whether `y` has a chain of circle arcs from `from` to `to`, the
 /// first leaving `from` along `dir` and each next one along the last
 /// one's arrival tangent ([`super::arcs::arcs_along`]), every vertex it
-/// passes on the way decided on the circle (`center`, unit `axis`,
-/// `radius`). `to` itself is not decided: the caller paired it with an
-/// end of an arc on that circle.
+/// passes on the way decided on `circle` ([`geom::Curve3::on_carrier`]).
+/// `to` itself is not decided: the caller paired it with an end of an
+/// arc on that circle.
 fn arc_chain_reaches<T: Decide>(
     y: &Body<T>,
     from: VertexKey,
     to: VertexKey,
     mut dir: geom_core::Vec3<T>,
-    (center, axis, radius): (Point3<T>, geom_core::Vec3<T>, T),
+    circle: &geom::Curve3<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let escalated =
@@ -4069,10 +4066,10 @@ fn arc_chain_reaches<T: Decide>(
             .ok_or(BooleanError::ClassificationInvariant {
                 what: "an arc on a carrier: a chain vertex has no point",
             })?;
-        let miss = crate::splitting::containment::circle_miss(p, center, axis, radius);
-        match decide("bool_arc_chain_on_circle", Margin::of(miss), band).map_err(escalated)? {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => return Ok(false),
+        match circle.on_carrier(p, T::zero(), band) {
+            Ok(geom::OnCarrier::On { .. }) => {}
+            Ok(geom::OnCarrier::Off) => return Ok(false),
+            Err(refusal) => return Err(circle_refusal(refusal, escalated)),
         }
         at = step.to;
         dir = step.arrival;
@@ -4080,42 +4077,41 @@ fn arc_chain_reaches<T: Decide>(
     Ok(false)
 }
 
-/// Where a boundary vertex sits against the arc's plane, as
-/// [`boundary_meets_circle_only_at`] reads it.
-#[derive(Clone, Copy, PartialEq)]
-enum PlaneSide {
-    /// Decided strictly on this side.
-    Off(Sign),
-    /// One of the vertices the arc's ends were paired with.
-    At,
-    /// Decided in the plane, and decided off the circle.
-    InPlaneOffCircle,
+/// A circle's on-carrier refusal ([`geom::Curve3::on_carrier`]): its
+/// escalation, by `escalated`. Only a spline's walk runs past its budget
+/// or lacks a speed bound, so on a circle those are a misread carrier.
+fn circle_refusal(
+    refusal: geom::CarrierRefusal,
+    escalated: impl FnOnce(geom_core::Indeterminate) -> BooleanError,
+) -> BooleanError {
+    match refusal {
+        geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag) => {
+            escalated(diag)
+        }
+        geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded => {
+            BooleanError::ClassificationInvariant {
+                what: "a circle's on-carrier reading refused as a spline's walk",
+            }
+        }
+    }
 }
 
-/// Whether `face`'s boundary meets the circle (`center`, unit `axis`,
-/// `radius`) nowhere but at the vertices `at`. The circle lies in the
-/// plane through `center` normal to `axis`, so the boundary is read
-/// against that plane, and each point where it meets the plane must be
-/// decided off the circle or be one of `at`:
+/// Whether `face`'s boundary meets `circle`, the whole carrier, nowhere
+/// but at the vertices `at`: the boundary pass
+/// ([`geom_brep::curve_face::read`]) over the circle, every meeting at one
+/// of `at` — a vertex of the walk or a lone vertex, or an end of a
+/// boundary edge — and no boundary edge on the circle's own curve.
 ///
-/// - a vertex: decided strictly off the plane, or decided in it and off
-///   the circle. One whose side escalates is placed nowhere, and fails;
-/// - a line: no crossing between two ends on one side; its one crossing
-///   between the two sides decided off the circle; an end in the plane
-///   with the other strictly off. A line lying in the plane is a chord
-///   only between two of `at`, and is certified when its midpoint is
-///   decided off the circle;
-/// - a conic: its crossings strictly inside its span (the splitting
-///   lane's certified roots,
-///   [`crate::splitting::plane_crossing_lane`]) each decided off
-///   the circle, or a plane of its own decided parallel and off.
+/// Everything else answers `false`: a meeting inside a boundary edge or
+/// at a vertex that is not one of `at`, a boundary edge along the circle,
+/// a pass that escalates or cannot run, and a boundary edge whose curve
+/// is not certified.
 ///
-/// Everything else answers `false`: an undecided point, a conic lying
-/// in the plane, and any boundary edge the certificate cannot place (a
-/// NURBS or spiric carrier, or a curve that is not certified).
+/// # Errors
 ///
-/// `face` is a key the caller carries: its miss refuses
-/// [`BooleanError::ClassificationInvariant`].
+/// [`BooleanError::ClassificationInvariant`] where `face`, a key the
+/// caller carries, does not resolve, or where the pass reports a kernel
+/// fault ([`super::carrier_cross::boundary_fault`]).
 ///
 /// # Panics
 ///
@@ -4126,106 +4122,38 @@ enum PlaneSide {
 fn boundary_meets_circle_only_at<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
-    (center, axis, radius): (Point3<T>, geom_core::Vec3<T>, T),
+    circle: &geom::Curve3<T>,
     at: &[VertexKey],
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let lost = || BooleanError::ClassificationInvariant {
-        what: "an arc on a carrier: the face's boundary is not walkable",
+    use geom_brep::curve_face::{BoundaryRefusal, OnBoundary};
+    use geom_brep::curve_pair::{Hit, Span, SpanEnd};
+    let Some(boundary) = super::carrier_cross::face_boundary(y, face)? else {
+        return Ok(false);
     };
-    let f = y.get_face(face).ok_or_else(lost)?;
-    let height = |p: Point3<T>| (p - center).dot(axis);
-    let off_circle = |p: Point3<T>| {
-        matches!(
-            decide(
-                "bool_arc_boundary_off_circle",
-                Margin::of(crate::splitting::containment::circle_miss(
-                    p, center, axis, radius
-                )),
-                band
-            ),
-            Ok(Sign::Positive)
-        )
+    let whole = Span::new(circle, (T::zero(), T::tau())).endless();
+    let reading = match boundary.read(&whole, band) {
+        Ok(reading) => reading,
+        Err(BoundaryRefusal::Fault(fault)) => {
+            return Err(super::carrier_cross::boundary_fault(fault));
+        }
+        Err(
+            BoundaryRefusal::Escalated(_)
+            | BoundaryRefusal::Meeting(_)
+            | BoundaryRefusal::Touch(_)
+            | BoundaryRefusal::Unread(_),
+        ) => return Ok(false),
     };
-    // Every vertex placed is a link of a record the walk resolved.
-    let point = |v: VertexKey| y.resolve_vertex_point(v, crate::live::Proven);
-    let place = |v: VertexKey| -> Option<PlaneSide> {
-        if at.contains(&v) {
-            return Some(PlaneSide::At);
-        }
-        let p = point(v);
-        match decide("bool_arc_plane_side", Margin::of(height(p)), band) {
-            Ok(s @ (Sign::Positive | Sign::Negative)) => Some(PlaneSide::Off(s)),
-            Ok(Sign::Zero) => off_circle(p).then_some(PlaneSide::InPlaneOffCircle),
-            Err(_) => None,
-        }
-    };
-    for member in y.face_boundary_linked(face, f) {
-        match member {
-            crate::live::BoundaryMember::Isolated { vertex, .. } => {
-                if place(vertex).is_none() {
-                    return Ok(false);
-                }
-            }
-            crate::live::BoundaryMember::Edge { ek, edge: e, .. } => {
-                let end = |h, field| {
-                    crate::live::linked(
-                        &y.half_edges,
-                        h,
-                        EntityId::HalfEdge,
-                        EntityId::Edge(ek),
-                        field,
-                    )
-                    .start
-                };
-                let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
-                let (Some(sa), Some(sb)) = (place(a), place(b)) else {
-                    return Ok(false);
-                };
-                let Some(c) = y.edge_curve_linked(ek, e).certified() else {
-                    return Ok(false);
-                };
-                let (t0, t1) = c.params();
-                let clear = match crate::splitting::plane_crossing_lane(
-                    c.carrier(),
-                    t0,
-                    t1,
-                    center,
-                    axis,
-                    band,
-                ) {
-                    PlaneCrossingLane::Line => {
-                        let (pa, pb) = (point(a), point(b));
-                        match (sa, sb) {
-                            (PlaneSide::Off(s), PlaneSide::Off(t)) if s != t => {
-                                let (ha, hb) = (height(pa), height(pb));
-                                off_circle(pa + (pb - pa) * (ha / (ha - hb)))
-                            }
-                            (PlaneSide::Off(_), _) | (_, PlaneSide::Off(_)) => true,
-                            (PlaneSide::At, PlaneSide::At) => {
-                                off_circle(pa.lerp(pb, T::from_f64(0.5)))
-                            }
-                            _ => false,
-                        }
-                    }
-                    PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => true,
-                    PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => {
-                        roots.iter().all(|&t| off_circle(c.carrier().eval(t)))
-                    }
-                    PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { offset }) => matches!(
-                        decide("bool_arc_plane_side", Margin::of(offset), band),
-                        Ok(Sign::Positive | Sign::Negative)
-                    ),
-                    PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(_)))
-                    | PlaneCrossingLane::Unlaned => false,
-                };
-                if !clear {
-                    return Ok(false);
-                }
-            }
-        }
-    }
-    Ok(true)
+    let only_at = reading.meetings.iter().all(|m| {
+        at.contains(&match m.on_boundary {
+            OnBoundary::Vertex(i) => boundary.edges[i].start.0,
+            OnBoundary::Lone(i) => boundary.lone[i].0,
+            OnBoundary::Edge(i, Hit::End(SpanEnd::Start)) => boundary.edges[i].ends[0],
+            OnBoundary::Edge(i, Hit::End(SpanEnd::Stop)) => boundary.edges[i].ends[1],
+            OnBoundary::Edge(_, Hit::On { .. }) => return false,
+        })
+    });
+    Ok(reading.shared.is_empty() && only_at)
 }
 
 /// Whether the carrier ladder decides EVERY surface of a face the edge
@@ -5693,9 +5621,9 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 /// reads one point whichever operand's point the merge keeps. `by` is
 /// the cell of the splitting operand that meets the edge at `p`.
 ///
-/// The parameter is [`geom::Curve3::param_near`] anchored at the span's
-/// MIDPOINT: a line's projection `t = (p − origin)·dir`, a circle's
-/// azimuth, an ellipse's eccentric anomaly, a spiric's tube angle. That
+/// Off a circle, the parameter is [`geom::Curve3::param_near`] anchored
+/// at the span's MIDPOINT: a line's projection `t = (p − origin)·dir`,
+/// an ellipse's eccentric anomaly, a spiric's tube angle. That
 /// function carries the derivations and the reason an anchored read
 /// needs no branch selection; the midpoint is this site's anchor because
 /// the parameter wanted is the one INSIDE the stored span, and within a
@@ -5711,12 +5639,13 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 /// (`spline_face_rows::a_split_of_a_thin_ellipse_lands_where_it_was_read_or_refuses`).
 ///
 /// On a circle, `p` must lie ON the carrier for the azimuth to name the
-/// event: the distance from `p` to the circle (radial and axial misses
-/// folded, the exact hypotenuse) is classified on `bool_contact_arc`
-/// before the parameter is taken, and the span is checked to be at most
-/// a period. The angular half of "on the ARC" is not repeated here:
-/// `split_edge`'s interiority gate is exactly that question, metered in
-/// metres at the radius.
+/// event. One foot ([`geom::Curve3::foot`]) answers both: the carrier's
+/// own reading at it decides that `p` is on the circle
+/// ([`geom::Foot::on_carrier`]), and its azimuth, on the branch about the
+/// span's middle ([`geom_brep::curve_pair::Span::branch`]), is the
+/// parameter. The angular half of "on the ARC" is not repeated here: `split_edge`'s
+/// interiority gate is exactly that question, metered in metres at the
+/// radius.
 ///
 /// A `Nurbs` carrier has no point parameter and keeps the typed refusal
 /// [`BooleanError::PointSplitCarrierUnsupported`], its own variant
@@ -5733,41 +5662,33 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
     let curve = certified(y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)))?.clone();
-    // The circle's two preconditions, both of them this site's and
-    // neither of them the shared arithmetic's.
-    if let geom::Curve3::Circle {
-        center,
-        axis,
-        radius,
-        ..
-    } = *curve.carrier()
-    {
-        // On the carrier? `point_on_circle` is the row's body, with its
-        // impossible-negative arm.
-        match super::contain::point_on_circle(p, center, axis, radius, band) {
-            Ok(Some(_)) => {}
+    let t = if let circle @ geom::Curve3::Circle { .. } = curve.carrier() {
+        let (t0, t1) = curve.params();
+        let foot = circle.foot(p, geom::mid_param(t0, t1));
+        match foot.on_carrier(band) {
+            Ok(geom::OnCarrier::On { .. }) => {}
             // The caller placed the event ON this edge; a point
-            // definitely off its carrier means two exact rows disagree,
+            // definitely off its carrier means two readings disagree,
             // which is a broken invariant, not a frontier.
-            Ok(None) => {
+            Ok(geom::OnCarrier::Off) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "split point definitely off the circle carrier it was placed on",
                 });
             }
-            Err(diag) => {
-                return Err(BooleanError::Escalated {
+            Err(refusal) => {
+                return Err(circle_refusal(refusal, |diag| BooleanError::Escalated {
                     decision: BooleanDecision::SplitPointOnCircle,
                     diag,
-                });
+                }));
             }
         }
-        // A span of at most one period is what makes the MIDPOINT
-        // anchor's branch the right one (past a period the azimuth
-        // aliases by 2π silently, and `split_edge`'s interiority gate
-        // cannot see it): the edge's certificate holds its turn, which
-        // is never over one ([`geom_brep::CertifiedTurn`]).
-    }
-    let t = point_param(y, y_is, edge, &curve, p)?;
+        // The edge's certificate holds its turn, which is never over one
+        // ([`geom_brep::CertifiedTurn`]), so the branch about the span's
+        // middle is the one inside it.
+        geom_brep::curve_pair::Span::new(circle, (t0, t1)).branch(foot.t())
+    } else {
+        point_param(y, y_is, edge, &curve, p)?
+    };
     split_logged(y, y_is, edge, t, Some(p), by, tol, contacts)
 }
 
@@ -7318,14 +7239,28 @@ mod lying_on_rows {
             .expect("an edge between the two vertices")
     }
 
+    /// The circle about unit `axis` through `center` of `radius`.
+    fn circle((center, axis, radius): (Point3<f64>, Vec3<f64>, f64)) -> geom::Curve3<f64> {
+        let across = if axis.x.abs() < 0.9 {
+            Vec3::unit_x()
+        } else {
+            Vec3::unit_y()
+        };
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref: axis.cross(across).normalize(),
+        }
+    }
+
     fn meets(
         y: &Body<f64>,
         face: FaceKey,
-        (center, axis, radius): (Point3<f64>, Vec3<f64>, f64),
+        c: (Point3<f64>, Vec3<f64>, f64),
         at: &[VertexKey],
     ) -> bool {
-        boundary_meets_circle_only_at(y, face, (center, axis, radius), at, band())
-            .expect("a walkable boundary")
+        boundary_meets_circle_only_at(y, face, &circle(c), at, band()).expect("a walkable boundary")
     }
 
     /// A conic edge crossing the circle's plane ON the circle meets it
@@ -7347,11 +7282,12 @@ mod lying_on_rows {
         );
     }
 
-    /// A conic lying in the circle's plane does not certify, even ON
-    /// the circle between two of `at`: the sheet's bottom arc is the
-    /// circle itself.
+    /// A conic lying along the circle does not certify, even between two
+    /// of `at`: the sheet's bottom arc is the circle itself, every other
+    /// meeting at one of `at`, so only the shared run refuses it. Conics
+    /// in parallel planes meet it nowhere.
     #[test]
-    fn a_conic_in_the_plane_does_not_certify() {
+    fn a_conic_along_the_circle_does_not_certify() {
         let (y, face) = sheet(FRAC_PI_2);
         let at = [
             vertex_at(&y, Point3::new(1.0, 0.0, 0.0)),
@@ -7369,12 +7305,11 @@ mod lying_on_rows {
         );
     }
 
-    /// A line lying in the circle's plane certifies only as a chord
-    /// between two of `at` whose midpoint is decided off the circle. The
-    /// prism side's edge `x = 1` lies in the plane `x = 1`; the circles
-    /// are in that plane.
+    /// A line lying in the circle's plane certifies only where it meets
+    /// the circle at its ends, both of `at`. The prism side's edge `x = 1`
+    /// lies in the plane `x = 1`; the circles are in that plane.
     #[test]
-    fn a_line_in_the_plane_certifies_only_as_a_chord_decided_off_the_circle() {
+    fn a_line_in_the_plane_certifies_only_as_a_chord_between_two_of_at() {
         let (y, face, v) = side();
         let crossed = (Point3::new(1.0, 0.0, 0.5), Vec3::unit_x(), 0.2);
         assert!(
@@ -7391,37 +7326,104 @@ mod lying_on_rows {
             meets(&y, face, chord, &[v[1], v[2]]),
             "a chord of the circle is clear"
         );
+        assert!(
+            !meets(&y, face, chord, &[v[1]]),
+            "and not where one of its ends is not one of `at`"
+        );
     }
 
-    /// A vertex whose side of the plane escalates is placed nowhere,
-    /// even when the line to it leaves the plane at once: its real
-    /// crossing can lie `|h| / sin θ` away. The plane is tilted through
-    /// `(1, 0, 0)` and offset from it in band.
+    /// Where the boundary lies against the circle's plane plays no part:
+    /// a corner within the band of a tilted plane whose circle is far
+    /// from the face certifies, and a corner within the band of the
+    /// circle itself does not.
     #[test]
-    fn a_vertex_in_band_of_the_plane_does_not_certify() {
-        let (y, face, _) = side();
+    fn only_the_circle_decides_not_its_plane() {
+        let (y, face, v) = side();
         let b = band();
         let n = Vec3::new(1.0, 0.0, 0.1).normalize();
         let h = (b.zero() + b.escalate()) / 2.0;
-        let near = (Point3::new(1.0, 0.0, 0.0) + n * h, n, 5.0);
-        assert!(!meets(&y, face, near, &[]), "the corner's side escalates");
-        let clear = (Point3::new(1.0, 0.0, 0.0) + n * 0.25, n, 5.0);
+        let corner = Point3::new(1.0, 0.0, 0.0);
+        let far = (corner + n * h, n, 5.0);
         assert!(
-            meets(&y, face, clear, &[]),
-            "the same plane off the corner is clear"
+            meets(&y, face, far, &[]),
+            "a corner in band of the plane, the circle 5 m off"
+        );
+        // A circle through the corner, its centre off the face's plane.
+        let through = |miss: f64| {
+            let toward = Vec3::new(0.0, 1.0, 0.0);
+            (
+                corner + toward * (0.5 + miss),
+                n.cross(toward).normalize(),
+                0.5,
+            )
+        };
+        assert!(
+            !meets(&y, face, through(0.0), &[]),
+            "a corner on the circle, not one of `at`"
+        );
+        assert!(
+            meets(&y, face, through(0.0), &[v[1]]),
+            "the same corner, one of `at`"
+        );
+        assert!(
+            !meets(&y, face, through(h), &[]),
+            "a corner in band of the circle"
         );
     }
 
-    /// An edge the certificate cannot place does not certify: the prism
-    /// side's top edge re-described as a degree-1 NURBS line.
+    /// A lone vertex of the boundary is a meeting where it lies on the
+    /// circle, which certifies only when it is one of `at`. The prism
+    /// side carries a lone vertex at `(1/2, 0, 1/2)` (a strut from a
+    /// corner, its edge killed); the circle in the plane `x = 1/2`
+    /// touches the face's plane there and meets no edge.
     #[test]
-    fn a_nurbs_boundary_edge_does_not_certify() {
+    fn a_lone_vertex_on_the_circle_certifies_only_as_one_of_at() {
         let (mut y, face, v) = side();
-        let plane = (Point3::new(0.0, 0.0, 0.5), Vec3::unit_z(), 5.0);
-        assert!(
-            meets(&y, face, plane, &[]),
-            "the line-bounded face is clear"
+        let tol = Tol::witness();
+        let corner = y
+            .half_edges()
+            .find(|(_, h)| h.start == v[0] && y.get_loop(h.parent_loop).unwrap().face == face)
+            .map(|(k, _)| k)
+            .expect("the corner's half-edge in the face");
+        let lone_at = Point3::new(0.5, 0.0, 0.5);
+        let strut = y
+            .mev_line(
+                crate::construction::MevSite::Fan {
+                    he1: corner,
+                    he2: corner,
+                },
+                lone_at,
+                tol,
+            )
+            .unwrap();
+        let ring = y.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
+        assert_eq!(
+            y.get_loop(ring).unwrap().boundary,
+            crate::entity::LoopBoundary::Empty {
+                vertex: strut.vertex
+            },
+            "the strut's far vertex is stranded as a ring of the face"
         );
+        let through = (Point3::new(0.5, 0.3, 0.5), Vec3::unit_x(), 0.3);
+        assert!(
+            !meets(&y, face, through, &[]),
+            "the lone vertex on the circle, not one of `at`"
+        );
+        assert!(
+            meets(&y, face, through, &[strut.vertex]),
+            "the lone vertex, one of `at`"
+        );
+        let past = (Point3::new(0.5, 0.3, 0.5), Vec3::unit_x(), 0.2);
+        assert!(meets(&y, face, past, &[]), "a circle clear of it");
+    }
+
+    /// A boundary edge on a NURBS carrier is read by the meeting
+    /// reading's walk: the prism side's top edge re-described as a
+    /// degree-1 NURBS line, against a circle crossing it and one clear
+    /// of it.
+    #[test]
+    fn a_nurbs_boundary_edge_is_read_by_the_walk() {
+        let (mut y, face, v) = side();
         let top = edge_between(&y, v[2], v[3]);
         let (p0, p1) = (Point3::new(1.0, 0.0, 1.0), Point3::new(0.0, 0.0, 1.0));
         let plus_start = y
@@ -7449,7 +7451,16 @@ mod lying_on_rows {
         };
         y.set_edge_curve(top, spec, Tol::witness())
             .expect("the NURBS line attaches");
-        assert!(!meets(&y, face, plane, &[]), "a NURBS edge is not placed");
+        let clear = (Point3::new(0.5, 0.0, 0.5), Vec3::unit_y(), 0.75);
+        assert!(
+            meets(&y, face, clear, &[]),
+            "a circle in the face's plane round every edge"
+        );
+        let crossing = (Point3::new(0.5, 0.0, 1.0), Vec3::unit_y(), 0.25);
+        assert!(
+            !meets(&y, face, crossing, &[]),
+            "a circle crossing the NURBS top edge twice"
+        );
     }
 
     /// An arc's parents count as distinct from a face's carrier only on
@@ -7515,8 +7526,9 @@ mod lying_on_rows {
             &mut super::ContactAcc::default(),
         )
         .expect("the arc splits");
-        let reach = |circle| {
-            arc_chain_reaches(&y, from, to, Vec3::unit_y(), circle, band()).expect("no escalation")
+        let reach = |c| {
+            arc_chain_reaches(&y, from, to, Vec3::unit_y(), &circle(c), band())
+                .expect("no escalation")
         };
         assert!(
             !reach((Point3::new(-1.0, 0.0, 0.0), Vec3::unit_z(), 2.0)),
@@ -8055,8 +8067,14 @@ mod torn_hop_rows {
         let band = Band::linear(Tol::witness()).unwrap();
         let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         let face = body.faces().next().map(|(k, _)| k).unwrap();
-        // A circle in a plane every vertex of the cube is decided off.
-        let circle = (Point3::new(0.5, 0.5, 10.0), Vec3::unit_z(), 0.25);
+        // A circle far from every edge of the cube.
+        let circle = geom::Curve3::Circle {
+            center: Point3::new(0.5, 0.5, 10.0),
+            axis: Vec3::unit_z(),
+            radius: 0.25,
+            u_ref: Vec3::unit_x(),
+        };
+        let circle = &circle;
         assert!(
             boundary_meets_circle_only_at(&body, face, circle, &[], band).unwrap(),
             "the sound boundary meets the far circle nowhere"

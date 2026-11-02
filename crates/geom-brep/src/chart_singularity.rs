@@ -4,10 +4,13 @@
 //! closure ([`locate`]).
 //!
 //! Every chart singularity in a face's closure is a vertex of it (DESIGN
-//! `[topology.tiers]`, tier 3). Two doors read that statement through
-//! [`locate`]: `step-import`'s normalization, which makes each such point
-//! a vertex of the face it lies in, and tier 3, which refuses a face
-//! where one is not. The reading is form-neutral: it never asks whether
+//! `[topology.tiers]`, tier 3). Two doors read that statement:
+//! `step-import`'s normalization, through [`locate`], which makes each
+//! such point a vertex of the face it lies in; and tier 3, which refuses
+//! a face where one is not, placing the point on the boundary by
+//! [`place_on_boundary`] (the one incidence reading, [`locate`]'s first)
+//! and its side by the face's point-in-face door, the one reading of a
+//! point's place in a face. The reading is form-neutral: it never asks whether
 //! a loop has a meridian, since a tilted cap holds a pole with none and
 //! a meridian spur that stops short of the pole has one and still holds
 //! it.
@@ -209,7 +212,9 @@ pub enum SideUnread {
     /// decides it.
     Straddle,
     /// A band decision of the reading is in band: an arc's span within
-    /// the band of a whole turn, read by the closed form.
+    /// the band of a whole turn, read by the closed form, or, at tier 3,
+    /// any reading of the face's point-in-face door in band, carried
+    /// with its escalation.
     Banded(Indeterminate),
 }
 
@@ -253,9 +258,10 @@ pub enum Unread<T> {
     },
 }
 
-/// **A reading in band**, owned: what tier 3 and import refuse a point
-/// [`locate`] could not place on its boundary or a side of it, and the
-/// one ending each refusal carries ([`Undecided::recourse`]). The
+/// **A reading in band**, owned: what import refuses a point [`locate`]
+/// could not place on its boundary or a side of it, and tier 3 one
+/// [`place_on_boundary`] or the face's point-in-face door could not, and
+/// the one ending each refusal carries ([`Undecided::recourse`]). The
 /// exempt readings ([`Unread::Carrier`], [`Unread::Loop`]) are not one.
 /// Not on a curated `pncad` list, argued at [`SideUnread`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -423,7 +429,7 @@ fn locate_one<T: Decide>(
 /// A distance in band ([`Unread::Boundary`]), answered before a sampled
 /// edge that does not settle ([`Unread::Carrier`]), and each only where
 /// no other vertex or edge places `x` on the boundary.
-pub(crate) fn place_on_boundary<T: Decide>(
+pub fn place_on_boundary<T: Decide>(
     loops: &[FaceLoop<'_, T>],
     x: Point3<T>,
     band: Band,

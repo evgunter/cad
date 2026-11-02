@@ -82,7 +82,8 @@ impl Role {
         Self(pf::PieceRole::RunOut)
     }
 
-    /// Piece `k` of a carrier form (`circle`, `circle_split`).
+    /// Piece `k` of a complete-loop form (`circle`, `circle_split`,
+    /// `rectangle`).
     #[staticmethod]
     fn piece(k: u32) -> Self {
         Self(pf::PieceRole::Piece(k))

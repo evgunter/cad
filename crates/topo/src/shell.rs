@@ -865,6 +865,11 @@ fn cavity_refusal_said(
         R::CollapsedChart { .. } => "a wall's chart collapses an edge to a point".into(),
         R::TorusNotRing { .. } => "a wall lies on a torus that meets itself".into(),
         R::EmptyScope { .. } => "the cavity has no face".into(),
+        R::BoxDependent { .. } => {
+            "an upper bound's pair was confirmed at one point only, which the cavity's \
+             question never asks"
+                .into()
+        }
     }
 }
 
@@ -885,7 +890,11 @@ fn cavity_refusal_ending(
         | R::Uncertified { .. }
         | R::CollapsedChart { .. }
         | R::TorusNotRing { .. } => NOT_YET_ENDING.into(),
-        R::PoisonEnclosure { .. } | R::EmptyScope { .. } => KERNEL_DEFECT_ENDING.into(),
+        // The cavity asks the strict question, which has no upper bound
+        // to prove, so a pointwise-only proof is the engine's defect.
+        R::PoisonEnclosure { .. } | R::EmptyScope { .. } | R::BoxDependent { .. } => {
+            KERNEL_DEFECT_ENDING.into()
+        }
     }
 }
 
@@ -4290,9 +4299,8 @@ fn cavity_embedded<T: Decide + crate::props::AtRestPolicy>(
     };
     let uncertified = |refusal| ShellError::CavityUncertified { refusal };
     let windows = lane.windows(&side, Which::First).map_err(uncertified)?;
-    let bound = ClearanceBound::StrictlyPositive;
     let sweep = Sweep {
-        bound,
+        bound: ClearanceBound::StrictlyPositive,
         band,
         budgets: Budgets {
             max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
@@ -4301,6 +4309,7 @@ fn cavity_embedded<T: Decide + crate::props::AtRestPolicy>(
     };
     let report = lane.sweep(&sweep, &windows, &windows, true, |candidate| {
         let (face, other) = candidate.faces();
+        let ask = candidate.ask();
         let chart = |f: FaceKey| {
             cavity
                 .face_surface_linked(f, proven(&cavity.faces, f, EntityId::Face))
@@ -4322,14 +4331,8 @@ fn cavity_embedded<T: Decide + crate::props::AtRestPolicy>(
             }
         }
         let (stations, distance) = best.ok_or("no station of either cell is on its face")?;
-        match decide(bound.predicate(), Margin::of(distance), band) {
-            Ok(Sign::Zero | Sign::Negative) => Ok((face, other, stations, distance.hi())),
-            Ok(Sign::Positive) => Err(format!(
-                "the closest station pair is {:?} m apart",
-                distance.hi()
-            )),
-            Err(source) => Err(format!("the closest station pair's separation: {source}")),
-        }
+        ask.confirms(distance, band)
+            .map(|()| (face, other, stations, distance.hi()))
     });
     match report.verdict {
         BoundVerdict::Holds => Ok(()),
@@ -4342,6 +4345,9 @@ fn cavity_embedded<T: Decide + crate::props::AtRestPolicy>(
             })
         }
         BoundVerdict::Refused(refusal) => Err(uncertified(refusal)),
+        BoundVerdict::Within(_) | BoundVerdict::Exceeded => {
+            unreachable!("the strict question has no upper bound")
+        }
     }
 }
 

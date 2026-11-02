@@ -1151,33 +1151,35 @@ pub fn probe_pick<T: Decide>(
     })
 }
 
-/// **The first candidate whose margin decides Zero**, in order. A
-/// candidate whose margin is in band does not stop the search: its
-/// escalation is deferred, and the first deferred one is answered only
-/// where no candidate decides Zero. `Ok(None)` where every margin is
-/// decided off.
+/// **The first candidate whose margin decides Zero**, in order: the
+/// ladder ([`crate::ladder::climb`], [`Answering::First`]: which
+/// candidate answers is the answer) whose answer is a margin decided
+/// within. A candidate whose margin is in band does not stop the search,
+/// and refuses only where no candidate decides Zero; where a later one
+/// does, the in-band one's escalation stays live, since it may truly be
+/// within and the answer. `Ok(None)` where every margin is decided off.
+///
+/// [`Answering::First`]: crate::ladder::Answering::First
 ///
 /// # Errors
 ///
-/// The first in-band candidate's [`Indeterminate`], where none decides
-/// Zero.
+/// The ladder's ranked [`Indeterminate`] (an unreadable margin, else the
+/// first in band), where none decides Zero.
 pub fn first_within<C, T: Decide>(
     name: &'static str,
     candidates: impl IntoIterator<Item = C>,
     band: Band,
     margin: impl Fn(&C) -> geom_core::Margin<T>,
 ) -> Result<Option<C>, Indeterminate> {
-    let mut deferred = None;
-    for cand in candidates {
-        match geom_core::k_stats::decide(name, margin(&cand), band) {
-            Ok(Sign::Zero) => return Ok(Some(cand)),
-            Ok(Sign::Positive | Sign::Negative) => {}
-            Err(cause) => {
-                deferred.get_or_insert(cause);
-            }
-        }
+    use crate::ladder::{Answering, Climb, Rung, climb};
+    match climb(Answering::First, candidates, |cand| {
+        let m = margin(&cand);
+        Rung::decide(name, m, band, |d| (d.sign == Sign::Zero).then_some(cand))
+    }) {
+        Climb::Answered { answer, .. } => Ok(Some(answer)),
+        Climb::Passed => Ok(None),
+        Climb::Undecided(cause) => Err(cause),
     }
-    deferred.map_or(Ok(None), Err)
 }
 
 /// **Incidence alone on a plane × NURBS pair**: [`plane_nurbs_limbs`]'

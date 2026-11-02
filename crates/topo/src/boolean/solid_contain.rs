@@ -4935,7 +4935,7 @@ fn as_ray_fault(e: PointInSolidError) -> RayFault<PointInSolidError> {
 /// ([`VolumeReads`]); the quadrature's refusal supersedes the closed
 /// form's. An aimed reading in band refuses as the far face's
 /// escalation. Where neither the rays nor the volume read, the refusal
-/// is ranked as a walk ranks ([`ray_walk::Evidence`]): the first limit
+/// is ranked as a walk ranks ([`geom_brep::ladder::Evidence`]): the first limit
 /// an aimed ray met, or the volume's own refusal.
 ///
 /// A selection read as given ([`SolidFaces::read_as_given`]) whose side at
@@ -4980,7 +4980,7 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
                 volume, set_aside, ..
             },
         )) => {
-            let mut kept = ray_walk::Evidence::default();
+            let mut kept = geom_brep::ladder::Evidence::default();
             match as_ray_fault(volume.clone()) {
                 RayFault::Fatal(e) => return Err(RayFault::Fatal(e)),
                 RayFault::InBand(e) => kept.in_band(e),
@@ -5003,9 +5003,9 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
             return Err(match kept.ranked() {
-                ray_walk::Ranked::Blocked(e) => RayFault::Blocked(e),
-                ray_walk::Ranked::InBand(e) => RayFault::InBand(e),
-                ray_walk::Ranked::Neither => RayFault::Unread,
+                geom_brep::ladder::Ranked::Blocked(e) => RayFault::Blocked(e),
+                geom_brep::ladder::Ranked::InBand(e) => RayFault::InBand(e),
+                geom_brep::ladder::Ranked::Neither => RayFault::Unread,
             });
         }
     };
