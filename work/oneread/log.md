@@ -97,3 +97,11 @@
   - Lane's candidate A′: q strictly inside one sector k's plane and sector, on no other sector, with k's side given and taken → the material is that side's. This is On(k) read to the orders read (item 4), and is sound by local geometry.
   - Directed: prototype A′ without A, with exact-oracle rows and fuzz, and re-take both diffs. Take A′ alone if all 13 build as main. Otherwise measure A′+A and report.
   - Once measured, I amend item 3 on this branch.
+
+- 2026-11-02 — Lane 2 measured A′ alone, with A reverted (head `3c0f0b5e`).
+  - All 13 kiss tests build exactly as main does, `review_4704` included. 0 ops moved across 9,339 tests.
+  - recl germs and memberships are unchanged; 26 readings moved On(k) → Out/In, and each followed main's tangent-lump membership.
+  - `cone_classes`: 59 moved readings, 0 disagreements with `point_in_solid`.
+  - Fuzz: 0 wrong at three ε.
+  - Taken: A′ alone. Item 3 of the line-cone side's `## Decided` is amended with the A′ clause; lane 1's "no parity base" rule stands.
+  - Lane 2 carries on: the slow-set three-ε diff, the `pick` germ, K-REPORT, item 4's re-wording, the sweep, then the PR.
