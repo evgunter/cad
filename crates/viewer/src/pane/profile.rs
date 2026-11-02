@@ -420,17 +420,18 @@ pub(crate) fn edit_door_ui(
     // so a reading under a field follows a drag of what it reads.
     let committed_rows = props::slot_rows(landed, node);
     for (index, view) in views.into_iter().enumerate() {
-        // A loop header only where there is more than one: "loop 0"
-        // over the only loop is a number with nothing to tell apart,
-        // and a profile has at least one loop to remove.
-        if loops > 1 {
-            ui.horizontal(|ui| {
+        // Every loop can be removed, the last one too: a profile with
+        // no loops is the empty region. The loop's number only where
+        // there is more than one: "loop 0" over the only loop is a
+        // number with nothing to tell apart.
+        ui.horizontal(|ui| {
+            if loops > 1 {
                 ui.label(format!("loop {index}"));
-                if ui.button(REMOVE_LOOP).clicked() {
-                    removed = Some(index);
-                }
-            });
-        }
+            }
+            if ui.button(REMOVE_LOOP).clicked() {
+                removed = Some(index);
+            }
+        });
         let salt = format!("edit_{}_{index}", node.full());
         let held_rows = edit.loops()[index]
             .iter()
@@ -714,10 +715,10 @@ pub(crate) fn preview_verdict(
         Ok(drawn) => match drawn.hold() {
             Some(hold) => (hold.to_string(), hold.tone()),
             None => {
-                ui.weak(format!(
-                    "{} loop(s), drawn in the viewport",
-                    drawn.loops.len()
-                ));
+                match drawn.loops.len() {
+                    0 => ui.weak(NO_LOOPS),
+                    n => ui.weak(format!("{n} loop(s), drawn in the viewport")),
+                };
                 return false;
             }
         },
@@ -726,6 +727,9 @@ pub(crate) fn preview_verdict(
     crate::widgets::message_toned(ui, sentence, &theme, tone);
     true
 }
+
+/// What the preview of a profile with no loops says: it draws nothing.
+pub(crate) const NO_LOOPS: &str = "no loops yet, so nothing is drawn";
 
 /// **The notation row**: the two pickers every length and angle field
 /// of a path editor is written in.
@@ -1643,6 +1647,14 @@ mod tests {
             Some(voices.weak)
         );
         assert!(!held, "a valid preview holds nothing");
+
+        let (painted, voices, held) = drawn(&previewed(&[]));
+        assert_eq!(find(&painted, super::NO_LOOPS).ink, Some(voices.weak));
+        assert!(
+            !painted.iter().any(|l| l.text.contains("loop(s)")),
+            "no loop count is drawn over no loops"
+        );
+        assert!(!held, "no loops holds nothing");
     }
 
     /// **A preview that is open AND invalid says the open chain,
@@ -1659,7 +1671,7 @@ mod tests {
                 vertices: vec![0, 1, 2],
                 end: LoopEnd::Unfinished(None),
             }],
-            invalid: Some(ProfileError::EmptyProfile),
+            invalid: Some(ProfileError::PlaneNotFinite),
         });
         let (painted, voices, held) = drawn(&planted);
         assert_eq!(
@@ -2569,6 +2581,43 @@ mod tests {
         );
         assert_eq!(session.history().current(), state, "in one undo");
         assert!(session.committed_doc().bit_eq(&before), "the plate is back");
+    }
+
+    /// **The last loop is removed like any other**: the one-loop
+    /// square's header offers `Remove loop`, and Apply lands the
+    /// profile with no loops as one `SetProgram`, one undo from the
+    /// square.
+    #[test]
+    fn the_last_loop_is_removed_and_lands_the_empty_region() {
+        use crate::session::SessionOp;
+        use pncad::document::DocEdit;
+
+        let (mut session, profile) = square_session();
+        let before = session.committed_doc().clone();
+        let mut drafts = Drafts::default();
+        let (_, formed) = click_door(&session, &mut drafts, profile, super::REMOVE_LOOP, 0);
+        assert!(formed.is_none(), "removing a loop forms no op");
+        let edit = drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held");
+        assert!(edit.loops().is_empty(), "the click removed the only loop");
+        let (_, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
+        let out = session.perform(formed.expect("Apply formed the op"));
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert!(
+            matches!(out.committed.as_slice(), [DocEdit::SetProgram { loops, .. }] if loops.is_empty()),
+            "one whole-program edit to no loops: {:?}",
+            out.committed
+        );
+        assert!(loop_ids(&session, profile).is_empty(), "no loop is left");
+        assert!(
+            session.perform(SessionOp::Undo).refusal.is_none(),
+            "the removal undoes"
+        );
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "the square is back"
+        );
     }
 
     /// A session over the form's default 10 mm square as a committed
