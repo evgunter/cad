@@ -190,3 +190,9 @@ AUTHOR's narrative is recoverable from
 
 - PR 6264 merged (`a285cdbf7d`). The P0 row is closed on it; the three rows other programs had parked on it (CHROME `a-findings-face-reference-reads-as-stale`, PLACING `a-feature-gesture-re-points-every-copy-of-its-target` and `deleting-a-placed-feature-unplaces-its-target`) were un-parked in the state-sync, with seam notes on both logs answering PLACING's two questions (every placement is re-pointed; the takeover is recorded in memory at commit, not in the document, and offers no inverse).
 - PR 6209 (SPACES) merged 2026-11-01 with Ev's answers. The three DOORS rows parked on it (split drawn unsplit P0, fillet on a drawn union's operand P1, mirror two pieces P1) are being re-read against the ratified "picture draws bodies" rule and SPACES' landed units before any dispatch.
+
+## 2026-11-02 07:20 — 6209 re-read: one fixed, one dispatched, one to the tail
+
+- `a-fillet-on-a-drawn-unions-operand-is-drawn-nowhere`: closed — drawn by SPACES' PR 6265; the `∪`-operand re-point is superseded (a `∪` is drawn as its result, not a seen path).
+- `a-split-of-a-drawn-body-is-drawn-unsplit`: live for a *placed* body only (`add_split` writes a bare `Split`, no takeover); P0→P1 M, a faithful elaboration of §5′.3 (a) (take the target over to `⊔[above, below]`, as blend/pattern do). Dispatched as `doors/split-takes-over`. Tier: style review + correctness reviewer (a wrong picture). The lane also fixes two stale texts the re-read found: `INTENT-STAGE3-SPEC.md:493`'s "`⊔`/`∪` operand slot" (6209 made it `⊔` only — a wording consequence of the ratified rule) and `op.rs:777`'s `AddMirror` doc.
+- `the-mirror-keeps-two-pieces-…`: open, design, P1→P2 (a missing feature; adding `⊔` output changes 6209's ratified README sentence). Tail for a successor; not this sitting.
