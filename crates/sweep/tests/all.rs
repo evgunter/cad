@@ -54,6 +54,8 @@
 mod common;
 mod mate2_common;
 mod revolve_common;
+#[path = "zz_probe_b.rs"]
+mod zz_probe_b;
 mod seam_region_common;
 
 #[path = "a_carried_record_no_reading_covers.rs"]

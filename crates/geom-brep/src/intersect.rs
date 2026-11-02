@@ -3161,6 +3161,7 @@ pub fn cone_cylinder_section<T: Decide>(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod apex_fan_rows {
     use super::*;
     use geom_core::Point3;
