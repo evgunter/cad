@@ -2,8 +2,9 @@
 id: refusals-forwarding-a-name-state-no-marked-recourse
 kind: issue
 title: Six refusals that forward a name state their recourse in words the refusal standard does not read as one
-status: open
+status: closed
 opened: 2026-10-03
+closed: 2026-11-02
 priority: P3
 cost: E
 ---

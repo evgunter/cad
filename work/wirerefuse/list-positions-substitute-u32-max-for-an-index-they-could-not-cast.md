@@ -2,8 +2,9 @@
 id: list-positions-substitute-u32-max-for-an-index-they-could-not-cast
 kind: issue
 title: editor-core: a list position past u32 is clamped to u32::MAX, so two positions alias one slot
-status: open
+status: closed
 opened: 2026-10-19
+closed: 2026-11-02
 priority: P3
 cost: M
 ---

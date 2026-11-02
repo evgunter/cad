@@ -2,8 +2,9 @@
 id: a-loft-of-fewer-than-two-sections-refuses-at-evaluation
 kind: issue
 title: A loft of fewer than two sections refuses at evaluation though its section count is authored data the doors hold
-status: open
+status: closed
 opened: 2026-10-20
+closed: 2026-11-02
 priority: P3
 cost: E
 ---
