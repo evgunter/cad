@@ -2531,11 +2531,12 @@ pub(crate) fn import_step(
 /// token that had to be borrowed mutably could not be held by a
 /// running evaluation at all.
 ///
-/// **Cooperative, at NODE granularity.** The kernel reads the flag
-/// between nodes (or between levels on the parallel schedule) and
-/// never inside a kernel op, so `cancel()` does not abort the boolean
-/// or the tessellation already in flight; it stops the run before the
-/// next node starts. The token is one-way — there is no `reset`,
+/// **Cooperative, between nodes and between a family's members.** The
+/// kernel reads the flag between nodes (or between levels on the
+/// parallel schedule) and before each member of a family, and never
+/// inside a kernel op, so `cancel()` does not abort the boolean or the
+/// tessellation already in flight; it stops the run before the next
+/// node or member starts. The token is one-way — there is no `reset`,
 /// because the flag a canceled run observed cannot be un-observed and
 /// a reusable token would let two runs disagree about what it meant.
 /// Mint a new one per launch, which is what `evaluate` does when no
@@ -2650,10 +2651,11 @@ impl CancelToken {
 /// resolve against the store as it stands".
 ///
 /// `cancel` is the COOPERATIVE STOP: a [`CancelToken`] the caller
-/// keeps a handle on, checked between nodes, so a run already under
-/// way can be abandoned. Omitted, this door mints a fresh token
-/// nobody holds — which is exactly what it did before the keyword
-/// existed, and is why an evaluation without one is never canceled.
+/// keeps a handle on, checked between nodes and a family's members,
+/// so a run already under way can be abandoned. Omitted, this door
+/// mints a fresh token nobody holds — which is exactly what it did
+/// before the keyword existed, and is why an evaluation without one is
+/// never canceled.
 /// A canceled run is a PARTIAL ANSWER and not a raise: it returns
 /// normally with `Evaluation.canceled` true, the full `order()`, and
 /// results for the completed prefix only.

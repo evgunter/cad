@@ -174,9 +174,9 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     assert_eq!(hit.node, bench.post_b);
 
     // Hide it.
-    let outcome = session.perform(SessionOp::SetInstanceHidden {
-        instance: bench.post_b,
-        hidden: true,
+    let outcome = session.perform(SessionOp::SetBodyOn {
+        node: bench.post_b,
+        on: false,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let view = session.display_view();
@@ -210,9 +210,9 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     );
 
     // Show it again: the picture is restored.
-    session.perform(SessionOp::SetInstanceHidden {
-        instance: bench.post_b,
-        hidden: false,
+    session.perform(SessionOp::SetBodyOn {
+        node: bench.post_b,
+        on: true,
     });
     let restored = index.scene_for(&session.display_view()).expect("a scene");
     assert_eq!(restored.stats().triangles, full.stats().triangles);
@@ -234,6 +234,7 @@ fn a_held_face_on_a_hidden_instance_is_not_marked() {
     let held = marks::Held {
         faces: [Some(&face), None, None],
         edges: None,
+        entities: [None, None],
     };
     let read = |session: &DocSession| {
         let view = session.display_view();
@@ -243,9 +244,9 @@ fn a_held_face_on_a_hidden_instance_is_not_marked() {
     let mark = read(&session);
     assert_ne!(mark, IdMap::NOTHING, "a drawn held face is marked");
 
-    let outcome = session.perform(SessionOp::SetInstanceHidden {
-        instance: bench.post_b,
-        hidden: true,
+    let outcome = session.perform(SessionOp::SetBodyOn {
+        node: bench.post_b,
+        on: false,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let mark = read(&session);
@@ -253,10 +254,9 @@ fn a_held_face_on_a_hidden_instance_is_not_marked() {
 }
 
 /// Two instances of one part consumed by a single boolean, which is
-/// placed: the drawn copy fuses their material, so no display operation
-/// can address either separately. The session, the two instances and
-/// the fusing boolean — one fixture, because two hand-built copies of it is how two
-/// rows come to disagree about what "fused" is.
+/// placed into the world: the union reads both as bodies, so neither is
+/// drawn, and the placement's copy of the union is. The session, the two
+/// instances and the placement.
 fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let bench = asm::bench(tag, tol);
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the store opens");
@@ -274,172 +274,75 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         },
         tol,
     );
-    let doc = common::placed_read(&doc, weld.into(), tol).0;
+    let (doc, place) = common::placed_read(&doc, weld.into(), tol);
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
     let mut session = DocSession::inline(
         pncad::document::Doc::empty_derived(&format!("gui4-{tag}-boot"), tol),
         tol,
     );
     assert!(session.perform(SessionOp::Open(path)).refusal.is_none());
+    // The product the copy of the union alone, so no `⊔` draws the
+    // instances as its pieces.
+    let product = session.perform(SessionOp::SetProduct {
+        bodies: vec![place.into()],
+    });
+    assert!(product.refusal.is_none(), "{:?}", product.refusal);
     session.pump();
-    (session, a, b, weld)
+    (session, a, b, place)
 }
 
-#[test]
-fn fused_geometry_refuses_both_display_ops_typed() {
-    // Neither instance can be hidden or probed separately, and both
-    // ops say so typed instead of accepting and drawing nothing
-    // different (the propagation rule's refusing half).
-    let tol = Tol::witness();
-    let (mut session, a, b, weld) = fused_pair("fused", tol);
-    for (label, op) in [
-        (
-            "hide a",
-            SessionOp::SetInstanceHidden {
-                instance: a,
-                hidden: true,
-            },
-        ),
-        (
-            "hide b",
-            SessionOp::SetInstanceHidden {
-                instance: b,
-                hidden: true,
-            },
-        ),
-        ("probe a", SessionOp::BeginFreeMove { instance: a }),
-        ("probe b", SessionOp::BeginFreeMove { instance: b }),
-    ] {
-        match session.perform(op).refusal {
-            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::FusedGeometry {
-                instance,
-                body,
-                others,
-            }))) => {
-                assert!(instance.id() == a || instance.id() == b);
-                assert_eq!(body.id(), weld, "the refusal names the fusing body");
-                assert_eq!(others.len(), 1, "…and the other instance");
-            }
-            other => panic!("{label}: expected FusedGeometry, got {other:?}"),
-        }
-    }
-}
-
-/// **A fused instance's refusal lists the others in document order**,
-/// which is id order.
-#[test]
-fn a_fused_instances_refusal_lists_the_others_in_document_order() {
-    let tol = Tol::witness();
-    let bench = asm::bench("fusedorder", tol);
-    let fused = |n: usize| {
-        let mut doc = pncad::document::ProfileDoc::empty(
-            pncad::document::DocumentId::derive("gui4-fusedorder"),
-            tol,
-        );
-        let members: Vec<RecipeNodeId> = (0..n)
-            .map(|_| asm::instance_at(&mut doc, bench.post, [0.0; 3], &bench.opts(), tol))
-            .collect();
-        let reads = members
-            .iter()
-            .map(|&member| asm::copy(&bench, &doc, member))
-            .collect();
-        let union = common::insert_into(
-            &mut doc,
-            pncad::document::Node::Union {
-                members: Bodies::Spelled(reads),
-            },
-            tol,
-        );
-        let doc = common::placed_read(&doc, union.into(), tol).0;
-        (doc, members, union)
-    };
-    let (doc, members, union) = fused(4);
-    assert!(
-        members.windows(2).all(|w| w[0] < w[1]),
-        "ids run in document order"
-    );
-    match display::display_check(&doc, members[0]) {
-        Err(AdmissionFault::FusedGeometry {
-            instance,
-            body,
-            others,
-        }) => {
-            assert_eq!(instance.id(), members[0]);
-            assert_eq!(body.id(), union);
-            assert_eq!(
-                others.iter().map(|o| o.id()).collect::<Vec<_>>(),
-                members[1..],
-                "the others, as the document holds them"
-            );
-        }
-        other => panic!("expected FusedGeometry, got {other:?}"),
-    }
-}
-
-/// **The per-instance section is drawn for a fused instance and its
-/// display controls are not** — the two gates are two different tests,
-/// and the properties pane reads both.
+/// **A fused instance is not drawn, and the body that draws its
+/// material is the one a hide takes off the picture.** The union reads
+/// both instances as bodies, so the picture draws the placement's copy
+/// of the union and neither instance; hiding an instance is accepted (it
+/// is the state of that body's toggle) and leaves the picture as it was,
+/// and hiding the copy empties it.
 ///
-/// `display::instance_check` is the KIND test: it decides whether
-/// there is a section at all, and a fused instance is a live instance
-/// of a part, so there is one. What the hide toggle inside it pushes
-/// runs the FULL admission test, which refuses it. A toggle gated on
-/// the section's test alone is therefore drawn usable over a refusal
-/// the op will give — the state this row pins, together with the
-/// sentence the reader gets for it.
+/// The runtime values that make it false: an instance drawn beside the
+/// union (the scene's triangles change when it is hidden), or a hide
+/// that does not reach the copy (the scene keeps its triangles).
 #[test]
-fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
+fn a_fused_instance_is_drawn_through_the_body_that_reads_it() {
     let tol = Tol::witness();
-    let (mut session, a, b, weld) = fused_pair("fusedgate", tol);
-
-    assert!(
-        display::instance_check(session.doc(), a).is_ok(),
-        "a fused instance is still an instance, so the section has a subject"
-    );
-    let fault = display::display_check(session.doc(), a)
-        .expect_err("…and no display operation can address it separately");
-    assert!(
-        matches!(&fault, AdmissionFault::FusedGeometry { instance, body, .. }
-            if instance.id() == a && body.id() == weld),
-        "{fault:?}"
-    );
-
-    // The disabled toggle's words and the refused click's are ONE
-    // sentence: the control shows this fault, and the op answers it.
-    let refusal = session
-        .perform(SessionOp::SetInstanceHidden {
-            instance: a,
-            hidden: true,
-        })
-        .refusal
-        .expect("the op refuses a fused instance");
+    let (mut session, a, b, place) = fused_pair("fused", tol);
+    let doc = session.doc().clone();
     assert_eq!(
-        fault.to_string(),
-        refusal.to_string(),
-        "the pre-click sentence is the post-click one"
+        viewer::world::drawn_nodes(&doc),
+        vec![place],
+        "the copy of the union is the one drawn body"
     );
-    // The mapping itself, planted: what a reader is told under the
-    // disabled toggle. The coupling above survives any rewording of
-    // the fault; this line does not.
+    let index = asm::index_of(&session);
+    let full = index.scene_for(&session.display_view()).expect("a scene");
+    assert!(full.stats().triangles > 0, "the copy draws");
+    for instance in [a, b] {
+        let outcome = session.perform(SessionOp::SetBodyOn {
+            node: instance,
+            on: false,
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
     assert_eq!(
-        fault.to_string(),
-        format!(
-            "InstantiatePart {}'s geometry is fused into Union {} together with InstantiatePart \
-             {} — a display operation cannot address it separately",
-            test_utils::refusal::tag(a.0.digest()),
-            test_utils::refusal::tag(weld.0.digest()),
-            test_utils::refusal::tag(b.0.digest())
-        )
+        index
+            .scene_for(&session.display_view())
+            .expect("a scene")
+            .stats()
+            .triangles,
+        full.stats().triangles,
+        "hiding a body the picture does not draw takes nothing off it"
     );
-
-    // And the free-move probe below the toggle answers the SAME fault
-    // — `free_move_check` runs the display test first — which is why
-    // the section says it once rather than under the probe's heading.
+    let outcome = session.perform(SessionOp::SetBodyOn {
+        node: place,
+        on: false,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
-        display::free_move_check(session.doc(), session.space_evaluation(), a)
-            .expect_err("the probe refuses it too")
-            .to_string(),
-        fault.to_string()
+        index
+            .scene_for(&session.display_view())
+            .expect("a scene")
+            .stats()
+            .triangles,
+        0,
+        "hiding the copy takes the fused material off the picture"
     );
 }
 
@@ -484,9 +387,9 @@ fn hide_refuses_an_id_the_document_does_not_hold() {
     let tol = Tol::witness();
     let bench = asm::bench("hidewrong", tol);
     let mut session = asm::open_bench(&bench, tol);
-    let outcome = session.perform(SessionOp::SetInstanceHidden {
-        instance: RecipeNodeId::new(0, 9_999),
-        hidden: true,
+    let outcome = session.perform(SessionOp::SetBodyOn {
+        node: RecipeNodeId::new(0, 9_999),
+        on: false,
     });
     assert!(
         matches!(
@@ -502,71 +405,57 @@ fn hide_refuses_an_id_the_document_does_not_hold() {
     );
 }
 
-/// **The admission test's kind half answers the two states apart**,
-/// which is the whole of its signature: an absent id and a node of
-/// another kind are different news, and a door that answered `bool`
-/// could not say which it had met. Asserted at `instance_check`
-/// itself rather than only through the ops above, because the door is
-/// `pub` and the next caller is the one that will need them apart.
+/// **The body admission answers the two states apart**: an absent id
+/// and a node that builds no body are different news, and a door that
+/// answered `bool` could not say which it had met. Asserted at
+/// `body_check` itself rather than only through the ops above, because
+/// the door is `pub` and the next caller is the one that will need them
+/// apart.
 #[test]
-fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
+fn body_check_tells_an_absent_node_from_one_that_builds_no_body() {
     let tol = Tol::witness();
     let bench = asm::bench("instcheck", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // One node of another kind, authored through the ordinary door so
-    // the wrong-kind arm is driven by a node a user can really select.
+    // A node that builds no body, authored through the ordinary door so
+    // the arm is driven by a node a user can really select.
     let profile = common::rectangle_in(&mut session, 0.01, 0.01);
     session.pump();
     let doc = session.doc();
 
     assert_eq!(
-        display::instance_check(doc, bench.post_b),
+        display::body_check(doc, bench.post_b),
         Ok(()),
-        "a live InstantiatePart is admitted"
+        "an instance builds a body"
     );
     assert_eq!(
-        display::instance_check(doc, profile),
-        Err(AdmissionFault::NotAnInstance {
+        display::body_check(doc, profile),
+        Err(AdmissionFault::NotABody {
             node: doc.spoken(profile)
         }),
-        "a node that IS in the document and is not an instance is the \
-         wrong-kind refusal, naming itself"
+        "a node that IS in the document and builds no body names itself"
     );
     let absent = RecipeNodeId::new(0, test_utils::refusal::tagged(9_999));
     assert_eq!(
-        display::instance_check(doc, absent),
+        display::body_check(doc, absent),
         Err(AdmissionFault::NoSuchNode {
             node: doc.spoken(absent)
         }),
-        "an id the document does not hold is the ABSENT refusal, not \
-         the wrong-kind one — the two are the sentences a person reads"
-    );
-
-    // **The point of the split, asserted as the thing a person reads.**
-    // Two arms of one enum prove nothing on their own; what the door
-    // exists to buy is that the two states reach an operation's reader
-    // as DIFFERENT sentences, so the renderings are pinned here and not
-    // only the variants.
-    let absent_says = display::instance_check(doc, absent)
-        .expect_err("absent refuses")
-        .to_string();
-    let wrong_kind_says = display::instance_check(doc, profile)
-        .expect_err("a profile is not an instance")
-        .to_string();
-    assert_eq!(
-        absent_says, "node 00000000270f is not in the document",
-        "the absent id's sentence says the id denotes nothing"
+        "an id the document does not hold is the ABSENT refusal"
     );
     assert_eq!(
-        wrong_kind_says,
-        format!("{} is not a part instance", doc.spoken(profile)),
-        "the wrong-kind sentence says something IS there and is the \
-         wrong thing"
+        display::body_check(doc, absent)
+            .expect_err("absent refuses")
+            .to_string(),
+        "node 00000000270f is not in the document",
     );
-    assert_ne!(
-        absent_says, wrong_kind_says,
-        "a door that collapsed these two would render one sentence for \
-         both, which is the whole defect this signature closes"
+    assert_eq!(
+        display::body_check(doc, profile)
+            .expect_err("a profile builds no body")
+            .to_string(),
+        format!(
+            "{} builds no body, so the picture draws nothing of it",
+            doc.spoken(profile)
+        ),
     );
 }
 
@@ -575,16 +464,16 @@ fn hide_is_never_persisted() {
     let tol = Tol::witness();
     let bench = asm::bench("hidesave", tol);
     let mut session = asm::open_bench(&bench, tol);
-    session.perform(SessionOp::SetInstanceHidden {
-        instance: bench.post_b,
-        hidden: true,
+    session.perform(SessionOp::SetBodyOn {
+        node: bench.post_b,
+        on: false,
     });
     // Save the document OVER its own file and reopen it: the hidden
     // set is display state of the closed session, not of the file.
     let outcome = session.perform(SessionOp::Save(bench.asm_path.clone()));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let reopened = asm::open_bench(&bench, tol);
-    assert!(reopened.display().hidden().is_empty());
+    assert!(reopened.display().toggled().is_empty());
 }
 
 // --- free-move (deliverable 3) ------------------------------------
@@ -610,10 +499,10 @@ fn free_move_accepts_only_a_space_other_than_the_world() {
     // world still pins all live in the world's space and refuse,
     // naming the instance.
     for pinned in [bench.post_a, bench.shelf_i, bench.post_b] {
-        let outcome = session.perform(SessionOp::BeginFreeMove { instance: pinned });
+        let outcome = session.perform(SessionOp::BeginFreeMove { node: pinned });
         match outcome.refusal {
             Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::InTheWorld {
-                instance,
+                node: instance,
             }))) => {
                 assert_eq!(instance.id(), pinned);
             }
@@ -622,22 +511,19 @@ fn free_move_accepts_only_a_space_other_than_the_world() {
     }
     // Its pin off, the second post is in a space of its own and is admitted.
     asm::unpin(&mut session, bench.post_b);
-    let outcome = session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    let outcome = session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.perform(SessionOp::CancelFreeMove);
-    // A node that EXISTS and is not an instance — the world — refuses
-    // for being the wrong KIND. That is the arm the block below was
-    // labelled for and never drove.
+    // A node that EXISTS and builds no body — the world — refuses for
+    // that.
     let outcome = session.perform(SessionOp::BeginFreeMove {
-        instance: RecipeNodeId::WORLD,
+        node: RecipeNodeId::WORLD,
     });
     assert!(
         matches!(
             outcome.refusal,
             Some(Refusal::Display(DisplayFault::Admission(
-                AdmissionFault::NotAnInstance { .. }
+                AdmissionFault::NotABody { .. }
             )))
         ),
         "{:?}",
@@ -645,7 +531,7 @@ fn free_move_accepts_only_a_space_other_than_the_world() {
     );
     // And an id the document does not hold refuses for being ABSENT.
     let outcome = session.perform(SessionOp::BeginFreeMove {
-        instance: RecipeNodeId::new(0, 9_999),
+        node: RecipeNodeId::new(0, 9_999),
     });
     assert!(
         matches!(
@@ -689,16 +575,12 @@ fn two_copies_in_one_space_free_move_as_one() {
 
     let probe = Frame::translation([0.0, 0.0, 0.05]);
     for op in [
-        SessionOp::BeginFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::BeginFreeMove { node: bench.post_b },
         SessionOp::PreviewFreeMove {
-            instance: bench.post_b,
+            node: bench.post_b,
             frame: probe,
         },
-        SessionOp::CommitFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::CommitFreeMove { node: bench.post_b },
     ] {
         let outcome = session.perform(op.clone());
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
@@ -712,13 +594,13 @@ fn two_copies_in_one_space_free_move_as_one() {
     let view = session.display_view();
     for copy in [bench.post_b, bench.shelf_i] {
         assert_eq!(
-            view.moved_placements.get(&copy),
+            view.moved_nodes.get(&copy),
             Some(&probe),
             "the one frame moves every copy in the space"
         );
     }
     assert!(
-        !view.moved_placements.contains_key(&bench.post_a),
+        !view.moved_nodes.contains_key(&bench.post_a),
         "and nothing placed into the world"
     );
 
@@ -727,14 +609,14 @@ fn two_copies_in_one_space_free_move_as_one() {
     let again = Frame::translation([0.0, 0.0, 0.07]);
     for op in [
         SessionOp::BeginFreeMove {
-            instance: bench.shelf_i,
+            node: bench.shelf_i,
         },
         SessionOp::PreviewFreeMove {
-            instance: bench.shelf_i,
+            node: bench.shelf_i,
             frame: again,
         },
         SessionOp::CommitFreeMove {
-            instance: bench.shelf_i,
+            node: bench.shelf_i,
         },
     ] {
         let outcome = session.perform(op.clone());
@@ -742,7 +624,7 @@ fn two_copies_in_one_space_free_move_as_one() {
     }
     assert_eq!(session.display().free_move_of(space), Some(&again));
     assert_eq!(
-        session.display_view().moved_placements.get(&bench.post_b),
+        session.display_view().moved_nodes.get(&bench.post_b),
         Some(&again),
         "one space, one frame"
     );
@@ -766,7 +648,8 @@ fn two_copies_in_one_space_free_move_as_one() {
         )
     };
     assert_eq!(
-        withdrawn.instance, bench.shelf_i,
+        withdrawn.held,
+        viewer::display::Held::Node(bench.shelf_i),
         "named by the instance that committed it"
     );
     assert!(
@@ -778,7 +661,7 @@ fn two_copies_in_one_space_free_move_as_one() {
         withdrawn.cause
     );
     assert!(session.display().free_move_of(space).is_none());
-    assert!(session.display_view().moved_placements.is_empty());
+    assert!(session.display_view().moved_nodes.is_empty());
 }
 
 /// **A frame whose copy joins another space goes, and says so** (DI5):
@@ -793,16 +676,12 @@ fn a_frame_whose_space_empties_into_another_goes_saying_so() {
     let own = asm::unpin(&mut session, bench.post_b);
     asm::unpin(&mut session, bench.shelf_i);
     for op in [
-        SessionOp::BeginFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::BeginFreeMove { node: bench.post_b },
         SessionOp::PreviewFreeMove {
-            instance: bench.post_b,
+            node: bench.post_b,
             frame: Frame::translation([0.0, 0.0, 0.05]),
         },
-        SessionOp::CommitFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::CommitFreeMove { node: bench.post_b },
     ] {
         let outcome = session.perform(op.clone());
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
@@ -830,7 +709,7 @@ fn a_frame_whose_space_empties_into_another_goes_saying_so() {
             outcome.withdrawn.superseded
         )
     };
-    assert_eq!(withdrawn.instance, bench.post_b);
+    assert_eq!(withdrawn.held, viewer::display::Held::Node(bench.post_b));
     assert!(
         matches!(
             &withdrawn.cause,
@@ -858,9 +737,7 @@ fn gesture_on_a_non_root_copy(name: &str, tol: Tol) -> (asm::Bench, DocSession, 
     let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
         .expect("the mated post is in the shelf's space");
     assert_eq!(Some(space), session.doc().node_space(bench.shelf_i));
-    let outcome = session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    let outcome = session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     (bench, session, space)
 }
@@ -887,11 +764,11 @@ fn a_gesture_whose_copy_leaves_the_space_dies_at_the_edit() {
         .killed_gesture
         .as_ref()
         .expect("the edit kills the gesture");
-    assert_eq!(killed.instance, bench.post_b);
+    assert_eq!(killed.held, viewer::display::Held::Node(bench.post_b));
     assert!(
         matches!(
             &killed.cause,
-            AdmissionFault::MovedSpace { instance, into }
+            AdmissionFault::MovedSpace { node: instance, into }
                 if instance.id() == bench.post_b && into.id() == own
         ),
         "{}",
@@ -901,7 +778,7 @@ fn a_gesture_whose_copy_leaves_the_space_dies_at_the_edit() {
     assert!(matches!(
         session
             .perform(SessionOp::PreviewFreeMove {
-                instance: bench.post_b,
+                node: bench.post_b,
                 frame: Frame::translation([0.0, 0.0, 0.01]),
             })
             .refusal,
@@ -922,7 +799,7 @@ fn deleting_a_gestures_copy_kills_it_at_the_edit() {
         .killed_gesture
         .as_ref()
         .expect("the delete kills the gesture");
-    assert_eq!(killed.instance, bench.post_b);
+    assert_eq!(killed.held, viewer::display::Held::Node(bench.post_b));
     assert!(
         matches!(&killed.cause, AdmissionFault::NoSuchNode { node } if node.id() == bench.post_b),
         "{}",
@@ -959,9 +836,7 @@ fn a_replacement_takes_the_landings_untaken_report() {
         }
         session.pump();
         for op in [
-            SessionOp::BeginFreeMove {
-                instance: bench.post_b,
-            },
+            SessionOp::BeginFreeMove { node: bench.post_b },
             asm::no_centre_op(&bench, bench.post_a),
         ] {
             let outcome = session.perform(op.clone());
@@ -1003,12 +878,12 @@ fn drag_slot(session: &mut DocSession, _bench: &asm::Bench) -> VarId {
 /// A committed free-move frame on `instance`'s space.
 fn commit_frame(session: &mut DocSession, instance: RecipeNodeId) {
     for op in [
-        SessionOp::BeginFreeMove { instance },
+        SessionOp::BeginFreeMove { node: instance },
         SessionOp::PreviewFreeMove {
-            instance,
+            node: instance,
             frame: Frame::translation([0.0, 0.0, 0.05]),
         },
-        SessionOp::CommitFreeMove { instance },
+        SessionOp::CommitFreeMove { node: instance },
     ] {
         let outcome = session.perform(op.clone());
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
@@ -1064,7 +939,7 @@ fn an_undo_before_a_value_drag_drops_the_frame_on_the_edit() {
             outcome.withdrawn.superseded
         )
     };
-    assert_eq!(withdrawn.instance, bench.post_b);
+    assert_eq!(withdrawn.held, viewer::display::Held::Node(bench.post_b));
     assert!(
         matches!(
             &withdrawn.cause,
@@ -1127,9 +1002,7 @@ fn a_refused_gestures_copy_waits_for_the_committed_landing() {
         &mut session,
         asm::seat_op(bench, bench.post_b, asm::own_space_seat_values()),
     );
-    let outcome = session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    let outcome = session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let seat = session.perform(asm::no_centre_op(bench, bench.post_a));
     assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
@@ -1157,7 +1030,7 @@ fn a_refused_gestures_copy_waits_for_the_committed_landing() {
     assert!(
         matches!(
             &killed.cause,
-            AdmissionFault::NoSpace { instance } if instance.id() == bench.post_b
+            AdmissionFault::NoSpace { node: instance } if instance.id() == bench.post_b
         ),
         "{}",
         killed.cause
@@ -1217,9 +1090,7 @@ fn an_undo_that_moves_a_gestures_copy_kills_it_at_the_edit() {
         Ok(shelf_space),
         "post_b is placed into the second shelf's space"
     );
-    let outcome = session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    let outcome = session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 
     let outcome = session.perform(SessionOp::Undo);
@@ -1231,7 +1102,7 @@ fn an_undo_that_moves_a_gestures_copy_kills_it_at_the_edit() {
     assert!(
         matches!(
             &killed.cause,
-            AdmissionFault::MovedSpace { instance, into }
+            AdmissionFault::MovedSpace { node: instance, into }
                 if instance.id() == bench.post_b && into.id() == own
         ),
         "{}",
@@ -1254,19 +1125,15 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     assert!(baseline.flags().iter().all(|&f| f == 0));
 
     // Begin, preview twice (previews replace), commit once.
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     for dx in [0.02, 0.05] {
         let outcome = session.perform(SessionOp::PreviewFreeMove {
-            instance: bench.post_b,
+            node: bench.post_b,
             frame: asm::where_b_stood(Frame::translation([dx, 0.0, 0.0])),
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     }
-    let outcome = session.perform(SessionOp::CommitFreeMove {
-        instance: bench.post_b,
-    });
+    let outcome = session.perform(SessionOp::CommitFreeMove { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let committed =
         crate::common::asm::frame_of(&session, bench.post_b).expect("the probe committed");
@@ -1337,11 +1204,9 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     );
 
     // A cancel restores the committed picture.
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_b,
+        node: bench.post_b,
         frame: Frame::translation([0.0, 0.0, 0.3]),
     });
     session.perform(SessionOp::CancelFreeMove);
@@ -1364,9 +1229,7 @@ fn a_non_rigid_preview_refuses_typed() {
     let bench = asm::bench("fmrigid", tol);
     let mut session = asm::open_bench(&bench, tol);
     asm::unpin(&mut session, bench.post_b);
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     for bad in [
         // A scale: lengths not preserved.
         Frame {
@@ -1382,7 +1245,7 @@ fn a_non_rigid_preview_refuses_typed() {
         Frame::translation([f64::NAN, 0.0, 0.0]),
     ] {
         let outcome = session.perform(SessionOp::PreviewFreeMove {
-            instance: bench.post_b,
+            node: bench.post_b,
             frame: bad,
         });
         assert!(
@@ -1396,7 +1259,7 @@ fn a_non_rigid_preview_refuses_typed() {
     }
     // A rotation IS admitted (the probe is any rigid motion).
     let outcome = session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_b,
+        node: bench.post_b,
         frame: Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.5, [0.01, 0.0, 0.0], common::band())
             .expect("a literal axis has a definite direction"),
     });
@@ -1418,16 +1281,12 @@ fn a_mate_that_moves_the_copy_discards_the_probe_value() {
     let own = asm::unpin(&mut session, bench.post_b);
     // Probe post_b somewhere.
     for op in [
-        SessionOp::BeginFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::BeginFreeMove { node: bench.post_b },
         SessionOp::PreviewFreeMove {
-            instance: bench.post_b,
+            node: bench.post_b,
             frame: Frame::translation([0.04, 0.0, 0.0]),
         },
-        SessionOp::CommitFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::CommitFreeMove { node: bench.post_b },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -1453,7 +1312,8 @@ fn a_mate_that_moves_the_copy_discards_the_probe_value() {
         )
     };
     assert_eq!(
-        superseded.instance, bench.post_b,
+        superseded.held,
+        viewer::display::Held::Node(bench.post_b),
         "the supersession is reported, not inferred"
     );
     // The PAYLOAD, not the variant: what would go red if `prune` paired
@@ -1493,26 +1353,19 @@ fn a_mate_that_moves_the_copy_discards_the_probe_value() {
 /// says so** — the second half of what `DisplayState::prune` withdraws,
 /// and the half that used to be undone in silence.
 ///
-/// The DELETE arm: the instance goes with the hide, and the outcome
-/// says the node is absent rather than of the wrong kind.
+/// The instance goes with the hide, and the outcome says the node is
+/// absent rather than one that builds no body.
 #[test]
 fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     let tol = Tol::witness();
 
-    // The FUSE arm — a union putting a hidden instance's material back
-    // into the picture — has no session door to reach it: the boolean
-    // form reads whole bodies and an instance's output is its copies.
-    // `fused_geometry_refuses_both_display_ops_typed` holds the fused
-    // refusal over a union authored in the file.
-    // ── The DELETE arm. Same class of fact, different sentence: the
-    // instance is not drawn again, it is gone.
     let bench = asm::bench("hidedeleted", tol);
     let mut session = asm::open_bench(&bench, tol);
     assert!(
         session
-            .perform(SessionOp::SetInstanceHidden {
-                instance: bench.post_b,
-                hidden: true,
+            .perform(SessionOp::SetBodyOn {
+                node: bench.post_b,
+                on: false,
             })
             .refusal
             .is_none()
@@ -1525,14 +1378,14 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
             outcome.withdrawn.dropped_hides
         )
     };
-    assert_eq!(dropped.instance, bench.post_b);
+    assert_eq!(dropped.held, viewer::display::Held::Node(bench.post_b));
     assert!(
         matches!(dropped.cause, AdmissionFault::NoSuchNode { .. }),
         "an absent node is spelled apart from a wrong-kind one, because \
          the sentence the user reads is the difference: {}",
         dropped.cause
     );
-    assert!(session.display().hidden().is_empty());
+    assert!(session.display().toggled().is_empty());
 }
 
 /// **A document REPLACEMENT takes every hide and every placement and
@@ -1578,36 +1431,32 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
     // COMMITTED free-move placement, and a drag still in flight.
     assert!(
         session
-            .perform(SessionOp::SetInstanceHidden {
-                instance: bench.post_a,
-                hidden: true,
+            .perform(SessionOp::SetBodyOn {
+                node: bench.post_a,
+                on: false,
             })
             .refusal
             .is_none()
     );
     for op in [
-        SessionOp::BeginFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::BeginFreeMove { node: bench.post_b },
         SessionOp::PreviewFreeMove {
-            instance: bench.post_b,
+            node: bench.post_b,
             frame: Frame::translation([0.02, 0.0, 0.0]),
         },
-        SessionOp::CommitFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::CommitFreeMove { node: bench.post_b },
         SessionOp::BeginFreeMove {
-            instance: bench.shelf_i,
+            node: bench.shelf_i,
         },
         SessionOp::PreviewFreeMove {
-            instance: bench.shelf_i,
+            node: bench.shelf_i,
             frame: Frame::translation([0.0, 0.03, 0.0]),
         },
     ] {
         let outcome = session.perform(op.clone());
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
     }
-    assert_eq!(session.display().hidden().len(), 1);
+    assert_eq!(session.display().toggled().len(), 1);
     assert!(crate::common::asm::frame_of(&session, bench.post_b).is_some());
     assert_eq!(session.display().probing(), Some(bench.shelf_i));
 
@@ -1627,7 +1476,7 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
         refused.refusal
     );
     assert!(
-        session.display().hidden().len() == 1
+        session.display().toggled().len() == 1
             && crate::common::asm::frame_of(&session, bench.post_b).is_some()
             && session.display().probing() == Some(bench.shelf_i)
             && session.display().revision() == held,
@@ -1655,7 +1504,7 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
         outcome.withdrawn
     );
     assert!(
-        session.display().hidden().is_empty()
+        session.display().toggled().is_empty()
             && crate::common::asm::frame_of(&session, bench.post_b).is_none(),
         "…and it took the hide and the committed placement anyway, which \
          is the asymmetry this row records as decided"
@@ -1668,17 +1517,20 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
     );
 }
 
-/// **A frame on a space whose copies a placed product fuses goes at
-/// the edit, saying so.** The shelf and post_b share a space with a
-/// frame held on it; placing a union of the two reads that space's
-/// bodies, so the space is no longer shown and the frame is dropped,
-/// rather than kept on copies whose sections can no longer offer the
-/// probe that resets it (each refuses `FusedGeometry`).
+/// **A frame on a space whose bodies a union reads stays while the
+/// product draws them as its pieces, and goes, saying so, once nothing
+/// draws them.** The shelf and post_b share a space with a frame held on
+/// it; a placed union of the two reads both as bodies, but the
+/// product's `⊔` still reads them, so the picture draws them as its
+/// pieces and the space stays shown. Emptying the product leaves nothing
+/// drawing them: the space is no longer shown, and that edit drops the
+/// frame.
 #[test]
-fn a_frame_whose_copies_are_fused_goes_saying_so() {
+fn a_frame_whose_bodies_are_fused_goes_once_nothing_draws_them() {
     let tol = Tol::witness();
     let bench = asm::bench("fmfuse", tol);
     let union = asm::store_union(&bench, &[bench.shelf_i, bench.post_b], tol);
+    asm::store_world_copy(&bench, union, tol);
     let mut session = asm::open_bench(&bench, tol);
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
@@ -1687,22 +1539,16 @@ fn a_frame_whose_copies_are_fused_goes_saying_so() {
     );
     session.pump();
     let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
-        .expect("the mated post is in the shelf's space");
+        .expect("the mated post is in the shelf's space: the product draws it as its piece");
     commit_frame(&mut session, bench.post_b);
     assert!(session.display().free_move_of(space).is_some());
 
-    let outcome = session.perform(SessionOp::Duplicate {
-        input: union.into(),
-        beside: None,
-    });
+    let outcome = session.perform(SessionOp::SetProduct { bodies: vec![] });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     for instance in [bench.shelf_i, bench.post_b] {
         assert!(
-            matches!(
-                display::display_check(session.doc(), instance),
-                Err(AdmissionFault::FusedGeometry { .. })
-            ),
-            "the family's union fuses {instance:?}"
+            !viewer::world::is_drawn(session.committed_doc(), instance),
+            "the union reads {instance:?} as a body and nothing else draws it"
         );
     }
     let [withdrawn] = &outcome.withdrawn.superseded[..] else {
@@ -1711,13 +1557,13 @@ fn a_frame_whose_copies_are_fused_goes_saying_so() {
             outcome.withdrawn.superseded
         )
     };
-    assert_eq!(withdrawn.instance, bench.post_b);
+    assert_eq!(withdrawn.held, viewer::display::Held::Node(bench.post_b));
     assert!(
         matches!(
             &withdrawn.cause,
             AdmissionFault::NotShown { space: left, .. } if left.id() == space
         ),
-        "the cause names the space the fuse reads: {}",
+        "the cause names the space the union reads: {}",
         withdrawn.cause
     );
     assert!(session.display().free_move_of(space).is_none());

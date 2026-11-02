@@ -622,19 +622,13 @@ a length; a dimensionless quantity levered by an arm; a norm; a
 measure over the lever at which it is a point's displacement, never a
 mean such as 2A/P or V/A, [intrinsic.epsilon]); the sagitta and reciprocal
 forms are the levered door applied at named arms; there is no raw
-construction door. Consistency backstops between integral results
-decide on bare `T` through `k_stats::decide_invariant`, no Margin
-minted, and a certified violation is a Corrupt-class kernel-invariant
-error, never a validity refusal. A site where no door honestly fits
+construction door. A site where no door honestly fits
 is a finding, not a cast. The vector/linalg interior stays bare `T`.
 (ii) **No dimensionally-heterogeneous uniform payloads**: a field
 whose dimension depends on a runtime kind tag is illegal;
 kind-dependent data lives in per-kind enum variants. (iii)
 **Parameter-space values cross to model space only through per-kind
-metric doors.** (iv) **Inequality gates split sign from magnitude**:
-a certified sign-certain violation refuses with no ε involved; the
-banded comparison governs only the near-zero region, and both arms
-consume the same metered comparand. Extension is opportunistic as
+metric doors.** Extension is opportunistic as
 signatures get touched; the migration ledger is
 `docs/predicate-dimension-audit.md`, whose flagged rows ride
 `k_stats::decide_flagged` — visible typed debt, not casts.
@@ -1663,7 +1657,9 @@ defect (`ResultInvalid`).
 
 **An assertion checks and never places.** `Assert { measure,
 relation, bound }` (`≤`, `≥`, `=`, the bound a variable) states a
-relation the author claims and the kernel checks.
+relation the author claims and the kernel checks. Its subject may be `clearance(a, b)` between two
+selections, decided by ERROR-DESIGN E7's sweep at the bound without
+computing the minimum.
 
 **The at-rest census.** The census is each `⊔`'s door: at rest it
 examines the meetings between that operator's operands pairwise, and
@@ -2166,10 +2162,18 @@ these. All are shipped in `editor-core` except where noted:
   decides a pick: not a claim's width, not where the model sits, not
   the order the targets were offered in. `NodePick` pairs a mesh with
   its node by construction.
-- **Cancelation** (`CancelToken`, yielding between nodes/levels; a
-  canceled run returns the completed prefix as a typed outcome).
-  Remaining: progress reporting (nothing exists) and in-op yield points
-  — a long single boolean or fillet is still uninterruptible.
+- **Cancelation** (`CancelToken`, yielding between nodes/levels and
+  before each member of a family; a canceled run returns the completed
+  prefix as a typed outcome, a family canceled part-way holding no
+  result). A run stops by cancelation or by exhausting its member
+  budget (one recorded default in the evaluation options, which a
+  caller may raise or lower), and either returns the completed prefix
+  as a typed outcome. The budget counts the index values bound while
+  families are listed, across the whole evaluation, charged at
+  admission in the schedule's order before anything is built; no
+  document caps a family. Remaining: progress reporting (nothing exists) and in-op
+  yield points — a long single boolean or fillet, a union folding a
+  family's members among them, is still uninterruptible.
 - **Selection stability across edits** — the user face of [identity]'s
   persistent naming: ONE `StableName` type for recipe references and
   selections, with resolution, the diagnosis ladder, tombstones, and

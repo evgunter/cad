@@ -90,9 +90,9 @@ fn the_exit_demo_walk() {
         .expect("a scene")
         .stats()
         .triangles;
-    session.perform(SessionOp::SetInstanceHidden {
-        instance: bench.post_a,
-        hidden: true,
+    session.perform(SessionOp::SetBodyOn {
+        node: bench.post_a,
+        on: false,
     });
     let view = session.display_view();
     assert!(
@@ -125,16 +125,12 @@ fn the_exit_demo_walk() {
     // stood it, displaced.
     asm::unpin(&mut session, bench.post_b);
     let index = asm::index_of(&session);
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_b,
+        node: bench.post_b,
         frame: asm::where_b_stood(Frame::translation([0.03, 0.0, 0.0])),
     });
-    let outcome = session.perform(SessionOp::CommitFreeMove {
-        instance: bench.post_b,
-    });
+    let outcome = session.perform(SessionOp::CommitFreeMove { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let probed = index.scene_for(&session.display_view()).expect("a scene");
     assert_eq!(probed.stats().probe_parts, 1, "one probed part");
@@ -197,7 +193,8 @@ fn the_exit_demo_walk() {
         )
     };
     assert_eq!(
-        superseded.instance, bench.post_b,
+        superseded.held,
+        viewer::display::Held::Node(bench.post_b),
         "the mate's edit discards the probe"
     );
     assert!(
@@ -285,14 +282,14 @@ fn the_exit_demo_walk() {
     // round-trips, every row re-resolves, and the solved placement is
     // reproduced.
     assert!(
-        !session.display().hidden().is_empty(),
+        !session.display().toggled().is_empty(),
         "the walk still holds layer-3 state at save time"
     );
     let outcome = session.perform(SessionOp::Save(bench.asm_path.clone()));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let reopened = asm::open_bench(&bench, tol);
     assert!(
-        reopened.display().hidden().is_empty(),
+        reopened.display().toggled().is_empty(),
         "hide died with the session (documentation, not a gate — see above)"
     );
     assert!(

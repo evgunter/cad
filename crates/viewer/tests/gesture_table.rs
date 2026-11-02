@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 59;
+const OP_COUNT: usize = 61;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -227,16 +227,25 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::Open(save_to.with_file_name("no-such-document.pncad")),
         SessionOp::Save(save_to.to_path_buf()),
         SessionOp::SaveAsNewDocument(save_to.with_file_name("forked.pncad")),
-        SessionOp::SetInstanceHidden {
-            instance: node,
+        SessionOp::Stage {
+            creation: viewer::session::Creation::of(SessionOp::AddSplit {
+                target: node.into(),
+                origin: len3([0.0; 3]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            })
+            .expect("a split creates a node"),
+        },
+        SessionOp::SetBodyOn { node, on: false },
+        SessionOp::SetSpaceHidden {
+            space: VarId::WORLD,
             hidden: true,
         },
-        SessionOp::BeginFreeMove { instance: node },
+        SessionOp::BeginFreeMove { node },
         SessionOp::PreviewFreeMove {
-            instance: node,
+            node,
             frame: Frame::translation([0.0, 0.0, 0.02]),
         },
-        SessionOp::CommitFreeMove { instance: node },
+        SessionOp::CommitFreeMove { node },
         SessionOp::CancelFreeMove,
         SessionOp::AddMate {
             placement: node,
@@ -438,7 +447,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // all is an open question; this row records today's answer and
         // makes a change to it visible.
         SessionOp::Save(_) => (21, true),
-        SessionOp::SetInstanceHidden { .. } => (22, true),
+        SessionOp::SetBodyOn { .. } => (22, true),
         // The free-move gesture is a SECOND drag with its own state
         // and its own in-flight refusal; a value gesture says nothing
         // about it in either direction.
@@ -501,6 +510,11 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // The fork re-identifies every state of the history the drag
         // previews against.
         SessionOp::SaveAsNewDocument(_) => (58, false),
+        // A draft's question: it stages on the committed document and
+        // records nothing, so a drag has nothing to protect from it.
+        SessionOp::Stage { .. } => (59, true),
+        // A display operation, as `SetBodyOn` is.
+        SessionOp::SetSpaceHidden { .. } => (60, true),
     }
 }
 
@@ -701,8 +715,8 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// predicate reads, and every assertion below would hold for any
 /// implementation of them.
 ///
-/// The row and the read stand in a space of their own and draw nothing
-/// (A10), so `drawn_targets` resolves the instance to its own copy.
+/// The row and the read stand in a space of their own, apart from the
+/// probed instance's.
 ///
 /// Where it goes red: give a value gesture an edit that changes the
 /// node graph and the identity block fails outright (`free_move_check`
@@ -742,8 +756,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     // A row over the other post, and a read of one of its members: the
     // member's index is the node slot a value gesture can open on in an
     // assembly of bare instances. Both stand in a space of their own,
-    // which no placement reaches the world from, so they draw nothing
-    // and the probed instance's display state stays on its own copy. No
+    // apart from the probed instance's. No
     // session door authors a member read that stays out of the world
     // (the part door places its read), so the two are written into the
     // bench's stored assembly and the bench reopened.
@@ -777,10 +790,9 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     ws.resave(&doc, tol).expect("the assembly stores");
     let mut session = common::asm::open_bench(&bench, tol);
     session.pump();
-    assert_eq!(
-        viewer::display::drawn_targets(session.doc(), post),
-        Ok(std::iter::once(bench.post_a).collect()),
-        "the probe on the instance is drawn on the instance's own copy"
+    assert!(
+        viewer::world::is_drawn(session.doc(), post),
+        "the probed instance is drawn"
     );
 
     // The node-writing gesture door.
@@ -837,10 +849,14 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             viewer::display::free_move_check(session.committed_doc(), spaces, post),
             "{slot:?}: the shown and committed documents admit the same probes"
         );
+        // The member the read takes is the dragged value, so the two
+        // documents draw different members of the family; the spaces
+        // they show, which the probe's admission and the prune read,
+        // are the graph's.
         assert_eq!(
-            viewer::display::drawn_targets(session.doc(), post),
-            viewer::display::drawn_targets(session.committed_doc(), post),
-            "{slot:?}: the two documents draw the probe on the same copies"
+            viewer::world::shown_spaces(session.doc()),
+            viewer::world::shown_spaces(session.committed_doc()),
+            "{slot:?}: the two documents show the same spaces"
         );
 
         // And once the SCRATCH lands, its landing answers the committed
@@ -864,20 +880,20 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         // A whole free-move gesture, mid-value-gesture, through
         // `perform` — and the view, resolved against the SCRATCH
         // document, puts the previewed frame on the instance's copy.
-        perform(&mut session, SessionOp::BeginFreeMove { instance: post });
+        perform(&mut session, SessionOp::BeginFreeMove { node: post });
         perform(
             &mut session,
             SessionOp::PreviewFreeMove {
-                instance: post,
+                node: post,
                 frame: probe,
             },
         );
         assert_eq!(
-            session.display_view().moved_placements.get(&bench.post_a),
+            session.display_view().moved_nodes.get(&bench.post_a),
             Some(&probe),
             "{slot:?}: the previewed probe reaches its drawn copy under a scratch document"
         );
-        perform(&mut session, SessionOp::CommitFreeMove { instance: post });
+        perform(&mut session, SessionOp::CommitFreeMove { node: post });
         assert_eq!(crate::common::asm::frame_of(&session, post), Some(&probe));
 
         // The value gesture lands its own value over a committed
@@ -913,7 +929,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         // kills outright rather than reporting. The committed value
         // lands first: admission reads a landing's spaces.
         session.pump();
-        perform(&mut session, SessionOp::BeginFreeMove { instance: post });
+        perform(&mut session, SessionOp::BeginFreeMove { node: post });
         perform(
             &mut session,
             SessionOp::BeginGesture {
@@ -990,7 +1006,9 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Open(_)
         | SessionOp::Save(_)
         | SessionOp::SaveAsNewDocument(_)
-        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::Stage { .. }
+        | SessionOp::SetBodyOn { .. }
+        | SessionOp::SetSpaceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
         | SessionOp::CommitFreeMove { .. }
@@ -1092,10 +1110,10 @@ fn sample_names() -> Vec<GestureName> {
         GestureName::Value(ValueGestureName::Variable(VarId::new(0, 0x68))),
         GestureName::Value(ValueGestureName::Variable(VarId::new(0, 0x77))),
         GestureName::FreeMove(FreeMoveName {
-            instance: RecipeNodeId::new(0, 3),
+            node: RecipeNodeId::new(0, 3),
         }),
         GestureName::FreeMove(FreeMoveName {
-            instance: RecipeNodeId::new(0, 4),
+            node: RecipeNodeId::new(0, 4),
         }),
     ];
     let covered: BTreeSet<usize> = names.iter().map(family).collect();
@@ -1263,7 +1281,7 @@ fn a_names_cancel_is_its_own_drags() {
     assert!(
         matches!(
             GestureName::FreeMove(FreeMoveName {
-                instance: RecipeNodeId::new(0, 3)
+                node: RecipeNodeId::new(0, 3)
             })
             .cancel(),
             SessionOp::CancelFreeMove
@@ -1272,16 +1290,16 @@ fn a_names_cancel_is_its_own_drags() {
     );
 }
 
-/// **A door that cannot act says the refusal its OWN operation gives.**
+/// **A door is closed exactly when its OWN operation refuses.**
 ///
-/// The sentence a disabled control shows is composed from the refusal
-/// the operation answers with rather than written beside the button, so
-/// the two cannot come to disagree — the defect
-/// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
-/// reason-elsewhere.md` is open about one facility over. Both doors,
-/// with no gesture of either kind open.
+/// The toolbar draws a door while `CancelDoor::blocked` is `None`, so
+/// what decides whether the door is on screen is the refusal the
+/// operation answers with, not a test written beside the button — the
+/// two cannot come to disagree, and a door is never drawn where its
+/// click would be refused. Both doors, with no gesture of either kind
+/// open: each is closed, on its operation's own refusal.
 #[test]
-fn a_closed_door_says_what_its_own_operation_refuses() {
+fn a_door_is_closed_exactly_when_its_own_operation_refuses() {
     let tol = Tol::witness();
     for door in fixture(tol).0.cancel_doors() {
         let CancelDoor { label, op, blocked } = door;
@@ -1294,7 +1312,7 @@ fn a_closed_door_says_what_its_own_operation_refuses() {
         assert_eq!(
             blocked.to_string(),
             refusal.to_string(),
-            "{label}: the disabled control's words"
+            "{label}: the door's closing reason is its operation's refusal"
         );
         assert_eq!(
             format!("{blocked:?}"),
@@ -1455,7 +1473,7 @@ fn a_drags_own_preview_can_strand_it_and_the_door_closes_it() {
 ///
 /// The value drag's stranding trace above does not carry over to this
 /// gesture and this row does not claim it does: the probe's field is
-/// drawn off the shown document (`display::instance_check` and
+/// drawn off the shown document (`display::body_check` and
 /// `display::free_move_check`), not off the landed evaluation, and a
 /// document change while a probe is in flight is pruned rather than
 /// stranded. What holds here is the other half of the item — the
@@ -1485,7 +1503,7 @@ fn the_free_move_door_is_live_exactly_while_the_probe_is() {
 
     assert!(
         session
-            .perform(SessionOp::BeginFreeMove { instance: post })
+            .perform(SessionOp::BeginFreeMove { node: post })
             .refusal
             .is_none()
     );
@@ -1493,7 +1511,7 @@ fn the_free_move_door_is_live_exactly_while_the_probe_is() {
     assert!(
         session
             .perform(SessionOp::PreviewFreeMove {
-                instance: post,
+                node: post,
                 frame: probe,
             })
             .refusal
@@ -1617,7 +1635,7 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
         common::asm::unpin(&mut session, instance);
         assert!(
             session
-                .perform(SessionOp::BeginFreeMove { instance })
+                .perform(SessionOp::BeginFreeMove { node: instance })
                 .refusal
                 .is_none(),
             "the fixture's probe opens"
@@ -1720,6 +1738,7 @@ fn committed_distance(
         .find(|row| row.slot == SlotId::Distance)
         .expect("the extrude's distance row")
         .value
+        .map(|reading| reading.one().expect("one value"))
 }
 
 /// **A drag that could not open cannot steer the one that did**, at
@@ -1952,7 +1971,7 @@ fn a_probe_on_another_instance_cannot_steer_the_open_one() {
 
     assert!(
         session
-            .perform(SessionOp::BeginFreeMove { instance: open })
+            .perform(SessionOp::BeginFreeMove { node: open })
             .refusal
             .is_none()
     );
@@ -1960,7 +1979,7 @@ fn a_probe_on_another_instance_cannot_steer_the_open_one() {
     assert!(
         session
             .perform(SessionOp::PreviewFreeMove {
-                instance: open,
+                node: open,
                 frame: held,
             })
             .refusal
@@ -1970,7 +1989,7 @@ fn a_probe_on_another_instance_cannot_steer_the_open_one() {
     assert!(
         matches!(
             session
-                .perform(SessionOp::BeginFreeMove { instance: other })
+                .perform(SessionOp::BeginFreeMove { node: other })
                 .refusal,
             Some(Refusal::Display(DisplayFault::FreeMoveInFlight))
         ),
@@ -1980,7 +1999,7 @@ fn a_probe_on_another_instance_cannot_steer_the_open_one() {
         matches!(
             session
                 .perform(SessionOp::PreviewFreeMove {
-                    instance: other,
+                    node: other,
                     frame: Frame::translation([0.02, 0.0, 0.0]),
                 })
                 .refusal,
@@ -1998,7 +2017,7 @@ fn a_probe_on_another_instance_cannot_steer_the_open_one() {
     );
     assert!(matches!(
         session
-            .perform(SessionOp::CommitFreeMove { instance: other })
+            .perform(SessionOp::CommitFreeMove { node: other })
             .refusal,
         Some(Refusal::Display(DisplayFault::WrongFreeMove))
     ));
@@ -2059,7 +2078,7 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
 
     assert!(
         session
-            .perform(SessionOp::BeginFreeMove { instance: probed })
+            .perform(SessionOp::BeginFreeMove { node: probed })
             .refusal
             .is_none()
     );
@@ -2067,7 +2086,7 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
     assert!(
         session
             .perform(SessionOp::PreviewFreeMove {
-                instance: probed,
+                node: probed,
                 frame: held,
             })
             .refusal
@@ -2107,7 +2126,7 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
     assert!(
         matches!(
             session
-                .perform(SessionOp::BeginFreeMove { instance: probed })
+                .perform(SessionOp::BeginFreeMove { node: probed })
                 .refusal,
             Some(Refusal::Display(DisplayFault::FreeMoveInFlight))
         ),
@@ -2117,14 +2136,14 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
     assert!(
         session
             .perform(SessionOp::PreviewFreeMove {
-                instance: probed,
+                node: probed,
                 frame: again,
             })
             .refusal
             .is_none(),
         "and its preview names the probe that is open"
     );
-    let landed = session.perform(SessionOp::CommitFreeMove { instance: probed });
+    let landed = session.perform(SessionOp::CommitFreeMove { node: probed });
     assert!(landed.refusal.is_none());
     assert!(
         landed.committed.is_empty(),
@@ -2396,14 +2415,14 @@ fn the_free_move_probe_answers_the_three_shared_rules() {
     the_three_shared_rules("the free-move probe", None, &mut |step| {
         let op = match step {
             Step::Begin(subject) => SessionOp::BeginFreeMove {
-                instance: instance_of(subject),
+                node: instance_of(subject),
             },
             Step::Preview(subject, um) => SessionOp::PreviewFreeMove {
-                instance: instance_of(subject),
+                node: instance_of(subject),
                 frame: Frame::translation([0.0, 0.0, um as f64 * 1.0e-6]),
             },
             Step::Commit(subject) => SessionOp::CommitFreeMove {
-                instance: instance_of(subject),
+                node: instance_of(subject),
             },
             Step::Cancel => SessionOp::CancelFreeMove,
         };

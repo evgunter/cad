@@ -19,6 +19,10 @@
 //!   on the shared cell, and their minimum separation is `[0, 0]`;
 //! - large curved bodies certify within the default budget, their
 //!   cell-pair counts printed;
+//! - lofts whose walls reach every extreme in one half of an axis are
+//!   admitted and decided: the arc spine past a full turn, the closed
+//!   spine and the carvetail loft read `Violated`, and the arc spine
+//!   short of a full turn runs past the pair budget;
 //! - kernel-built oblique cuts, whose arcs meet seam lines at corners,
 //!   hold, some certificates read through a corner, and SHELL-4's vessel
 //!   holds, on one receipt at both scalars as an axis-aligned body; a
@@ -27,7 +31,10 @@
 //!   shares with a cap and nothing else;
 //! - of the three bodies the shell's cavity gate asks, the corpus pot
 //!   and the cone frustum's cavity hold at both scalars, and the klein
-//!   elbow's cavity refuses typed at a spiric cap edge.
+//!   elbow's cavity refuses typed at a spiric cap edge;
+//! - a lens loft's cap refuses typed at the depth budget against a wall
+//!   at the lens tip, while a twisted loft's seams and the half-turn
+//!   helix's caps hold against their walls.
 //!
 //! Every row builds its body twice, by the same generic builders: at
 //! `f64`, whose verdict and receipt the row pins, and at `Interval`, the
@@ -48,13 +55,13 @@ use std::collections::BTreeSet;
 use sweep::test_support::revolved_about_y_at;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve, sweep_body};
 use topo::clearance::{
-    BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CertificateArm,
+    BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CellReceipt, CertificateArm,
     ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep, Which,
     min_separation,
 };
 use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
-use crate::common::{normal_start_place, quad};
+use crate::common::{arc_spine_places, normal_start_place, quad};
 use crate::revolve_common::donut_profile;
 
 /// The default whole-query budget the document door runs at
@@ -438,40 +445,44 @@ fn a_370_degree_flat_ribbon_reads_violated() {
     );
 }
 
-/// **The carvetail fold reads `Violated`, its witness at `v ≈ ½`.** Two
-/// pentagons lofted at `v_degree = 1`; joint 1 turns +170° in one
-/// section and −170° in the other, so the seam between walls 0 and 1
+/// **The carvetail loft**: two pentagons at `z = 0` and `z = 1`,
+/// lofted at `v_degree = 1`; joint 1 turns +170° in one section and
+/// −170° in the other.
+fn carvetail<T: Scalar>() -> sweep::Lofted<T> {
+    let pent = |pts: [(f64, f64); 5]| {
+        lifted(&[ProfileLoop::polygon(
+            pts.iter().map(|&(x, y)| Point2::new(x, y)),
+        )])
+    };
+    let sections = [
+        pent([
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (0.03, 0.347),
+            (-2.0, 1.0),
+            (-2.0, -1.0),
+        ]),
+        pent([
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (0.03, -0.347),
+            (3.0, -3.0),
+            (3.0, 3.0),
+        ]),
+    ];
+    let places = [0.0, 1.0].map(|z| plane_at(&SketchPlane::xy_at(Point3::new(0.0, 0.0, z))));
+    loft_body::<T>(&sections, &places, 1, tol()).expect("the carvetail lofts")
+}
+
+/// **The carvetail fold reads `Violated`, its witness at `v ≈ ½`.** In
+/// the [`carvetail`] loft the seam between walls 0 and 1
 /// passes through wedge 0 at `v = ½`, where wall 1 lies along wall 0
 /// and crosses it. The two walls share that seam, so the pair is the
 /// one the global drop never examined.
 #[test]
 fn the_carvetail_fold_reads_violated_at_its_middle_station() {
     fn fold<T: Scalar>() -> (sweep::Lofted<T>, Vec<FaceKey>) {
-        let pent = |pts: [(f64, f64); 5]| {
-            vec![ProfileLoop::polygon(
-                pts.iter().map(|&(x, y)| Point2::new(x, y)),
-            )]
-        };
-        let sections = [
-            pent([
-                (0.0, 0.0),
-                (2.0, 0.0),
-                (0.03, 0.347),
-                (-2.0, 1.0),
-                (-2.0, -1.0),
-            ]),
-            pent([
-                (0.0, 0.0),
-                (2.0, 0.0),
-                (0.03, -0.347),
-                (3.0, -3.0),
-                (3.0, 3.0),
-            ]),
-        ];
-        let places = [0.0, 1.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
-        let sections = sections.map(|s| lifted(&s));
-        let places = places.map(|p| plane_at(&p));
-        let lofted = loft_body::<T>(&sections, &places, 1, tol()).expect("the fold lofts");
+        let lofted = carvetail::<T>();
         // Walls 0 and 1: the two whose boundary holds the seam over (2, 0).
         let on_seam = |f: FaceKey| {
             let s = surface(&lofted.body, f);
@@ -732,7 +743,8 @@ fn a_full_torus_certifies_by_kind() {
 
 /// **A long helical sweep certifies within the default budget**: a
 /// square tube two turns round a helix of pitch 0.4, its four walls
-/// sharing helical seams.
+/// sharing helical seams. Each wall's enclosure extremes lie in one
+/// half of an axis, so it is admitted by the other half narrowing.
 #[test]
 fn a_long_helical_sweep_certifies_within_the_default_budget() {
     fn helical<T: Scalar>() -> Body<T> {
@@ -749,6 +761,298 @@ fn a_long_helical_sweep_certifies_within_the_default_budget() {
             .body
     }
     holds_at_both("the helical sweep", helical::<f64>(), helical::<Interval>());
+}
+
+// ------------------------------------- walls one half of an axis spans
+
+/// A loft face's role: `top`, `bottom`, or `wall j` of the outer loop.
+fn role<T: Real>(lofted: &sweep::Lofted<T>, f: FaceKey) -> String {
+    if f == lofted.top {
+        return "top".into();
+    }
+    if f == lofted.bottom {
+        return "bottom".into();
+    }
+    lofted.side_faces[0]
+        .iter()
+        .position(|seg| seg.contains(&f))
+        .map_or_else(|| format!("{f:?}"), |j| format!("wall {j}"))
+}
+
+/// **The body's every face has a window, and the sweep reads one
+/// verdict class at `f64` and at `Interval`** within `budget` pairs:
+/// the `f64` report, for the row's pins.
+fn decided_at_both(
+    what: &str,
+    float: &sweep::Lofted<f64>,
+    interval: &sweep::Lofted<Interval>,
+    budget: usize,
+) -> BoundReport<Witness> {
+    let report = injective(&float.body, None, budget);
+    let twin = injective(&interval.body, None, budget);
+    same_class(what, &report, &twin);
+    if let BoundVerdict::Violated(w) = &report.verdict {
+        println!(
+            "[selfx] {what}: {} x {} at {:?} | {:?}",
+            role(float, w.a),
+            role(float, w.b),
+            w.pa,
+            report.receipt
+        );
+    }
+    report
+}
+
+/// A 0.1 square lofted along [`arc_spine_places`] at 17 stations,
+/// `v`-degree 3.
+fn arc_spine<T: Scalar>(curl: f64) -> sweep::Lofted<T> {
+    let square = quad([(-0.05, -0.05), (0.05, -0.05), (0.05, 0.05), (-0.05, 0.05)]);
+    let sections: Vec<_> = (0..17).map(|_| lifted(&square)).collect();
+    let places: Vec<_> = arc_spine_places(curl, 17).iter().map(plane_at).collect();
+    loft_body::<T>(&sections, &places, 3, tol()).expect("the arc spine lofts")
+}
+
+/// The station-angle of a point on the arc spine, folded into one turn.
+fn arc_angle(p: Point3<f64>) -> f64 {
+    p.x.atan2(1.0 - p.z).rem_euclid(TAU)
+}
+
+/// **An arc spine past a full turn reads `Violated`, a wall against
+/// itself where the arc passes twice.** The walls reach every extreme
+/// of `x` and `z` at the profile's `-0.05` edge, so each is admitted by
+/// its upper `u` half narrowing; at 9 and 13 rad the sweep then finds a
+/// wall over itself.
+#[test]
+fn an_arc_spine_past_a_full_turn_reads_violated() {
+    for (curl, first_pass) in [(9.0, 1.0..=2.0), (13.0, 4.0..=5.0)] {
+        let what = format!("the {curl} rad arc spine");
+        let lofted = arc_spine::<f64>(curl);
+        let report = decided_at_both(&what, &lofted, &arc_spine::<Interval>(curl), BUDGET);
+        let BoundVerdict::Violated(w) = report.verdict else {
+            panic!("{what} overlaps itself: {:?}", report.verdict)
+        };
+        assert_eq!(w.a, w.b, "{what}: one face against itself: {w:?}");
+        assert!(
+            role(&lofted, w.a).starts_with("wall"),
+            "{what}: a wall: {w:?}"
+        );
+        let station = arc_angle(w.pa) / (curl / 16.0);
+        assert!(
+            first_pass.contains(&station) && arc_angle(w.pa) < curl - TAU,
+            "{what}: the witness lies where the arc passes twice, between stations \
+             {first_pass:?} on its first pass: station {station}, {w:?}"
+        );
+    }
+}
+
+/// **An arc spine short of a full turn holds within the default
+/// budget.** Its walls are admitted as the 9 and 13 rad ones are, and
+/// each carries interior knots a few ulps off a bisection point, which
+/// the monotone arm reads through ([`walls_hold_against_themselves`]).
+#[test]
+fn an_arc_spine_short_of_a_full_turn_holds() {
+    for curl in [3.5, 6.0] {
+        let what = format!("the {curl} rad arc spine");
+        let report = decided_at_both(
+            &what,
+            &arc_spine::<f64>(curl),
+            &arc_spine::<Interval>(curl),
+            BUDGET,
+        );
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "{what}: holds within the default budget: {:?}",
+            report.verdict
+        );
+    }
+}
+
+/// **A closed spine reads `Violated`, top against bottom where its ends
+/// meet**: a 0.5 square swept round a radius-3 circle at 9 stations. The
+/// two caps lie on one plane at `(3, 0, 0)`.
+#[test]
+fn a_closed_spine_reads_violated_top_against_bottom() {
+    fn closed<T: Scalar>() -> sweep::Lofted<T> {
+        let pts: Vec<Point3<f64>> = (0..=32)
+            .map(|k| {
+                let a = TAU * f64::from(k % 32) / 32.0;
+                Point3::new(3.0 * a.cos(), 3.0 * a.sin(), 0.0)
+            })
+            .collect();
+        let path = NurbsCurve3::<f64>::interpolate(&pts, 3).unwrap();
+        let place = plane_at(&normal_start_place(&path));
+        let profile = lifted(&quad([
+            (-0.25, -0.25),
+            (0.25, -0.25),
+            (0.25, 0.25),
+            (-0.25, 0.25),
+        ]));
+        sweep_body::<T>(&profile, place, &path, 9, 3, tol()).expect("the closed spine sweeps")
+    }
+    let lofted = closed::<f64>();
+    let report = decided_at_both("the closed spine", &lofted, &closed::<Interval>(), BUDGET);
+    let BoundVerdict::Violated(w) = report.verdict else {
+        panic!("the closed spine meets itself: {:?}", report.verdict)
+    };
+    let mut caps = [role(&lofted, w.a), role(&lofted, w.b)];
+    caps.sort();
+    assert_eq!(caps, ["bottom", "top"], "the two caps: {w:?}");
+    assert!(
+        (w.pa.x - 3.0).abs() < 0.3 && w.pa.y.abs() < 1e-6 && w.pa.z.abs() <= 0.25 + 1e-6,
+        "the witness is on the plane the caps share: {w:?}"
+    );
+}
+
+/// **The carvetail loft reads `Violated` over the whole body**: the fold
+/// of [`the_carvetail_fold_reads_violated_at_its_middle_station`], every
+/// face asked. Wall 0 crosses wall 3.
+#[test]
+fn the_carvetail_loft_reads_violated_over_every_face() {
+    let lofted = carvetail::<f64>();
+    let report = decided_at_both(
+        "the carvetail loft",
+        &lofted,
+        &carvetail::<Interval>(),
+        BUDGET,
+    );
+    let BoundVerdict::Violated(w) = report.verdict else {
+        panic!("the carvetail loft crosses itself: {:?}", report.verdict)
+    };
+    let mut walls = [role(&lofted, w.a), role(&lofted, w.b)];
+    walls.sort();
+    assert_eq!(walls, ["wall 0", "wall 3"], "{w:?}");
+}
+
+/// Each interior `v` knot of `wall`'s surface that lies within four ulps
+/// of the dyadic `m/2^d` (`d ≤ 6`) nearest it without being on it: the
+/// bisection lands on `m/2^d`, and a cell ending there meets the next
+/// span over those few ulps.
+fn knots_ulps_off_a_split<T: Scalar>(body: &Body<T>, wall: FaceKey) -> Vec<f64> {
+    let Surface::Nurbs(net) = surface(body, wall) else {
+        panic!("a loft wall is a spline")
+    };
+    net.knot_values_v()
+        .values()
+        .iter()
+        .map(|k| k.lo())
+        .filter(|&k| {
+            let split = (k * 64.0).round() / 64.0;
+            k != split && k.to_bits().abs_diff(split.to_bits()) <= 4
+        })
+        .collect()
+}
+
+/// **Each wall against itself holds where its knots sit ulps off its
+/// splits**: `body`'s walls, each alone, at the default budget; the
+/// count of those examined with such a knot. A derivative enclosure
+/// read off a cell's few-ulp meet with a span reads that meet's rounding
+/// as slope, never shrinks along the line, and the monotone arm splits
+/// the line until the budget refuses.
+fn walls_hold_against_themselves<T: Scalar>(
+    what: &str,
+    body: &Body<T>,
+    walls: &[FaceKey],
+) -> usize {
+    let mut examined = 0;
+    for &wall in walls {
+        let report = injective(body, Some(vec![wall]), BUDGET);
+        println!(
+            "[sliver] {what}: {wall:?} {} deepest {} {:?}",
+            class(&report.verdict),
+            report.widths.deepest,
+            report.receipt
+        );
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "{what}: a wall against itself holds within the default budget, got {} {:?}",
+            class(&report.verdict),
+            report.receipt
+        );
+        if !knots_ulps_off_a_split(body, wall).is_empty() {
+            examined += 1;
+        }
+    }
+    examined
+}
+
+/// **An arc-spine loft's walls hold against themselves at the curls
+/// whose chord-length knots round a few ulps off `k/16`**: 3.2, 3.4,
+/// 3.5, 3.6 and 6.0 rad, at both scalars.
+#[test]
+fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
+    for curl in [3.2, 3.4, 3.5, 3.6, 6.0] {
+        let float = arc_spine::<f64>(curl);
+        let walls: Vec<FaceKey> = float
+            .side_faces
+            .iter()
+            .flatten()
+            .flatten()
+            .copied()
+            .collect();
+        let what = format!("the {curl} rad arc spine");
+        assert!(
+            walls_hold_against_themselves(&what, &float.body, &walls) > 0,
+            "{what}: the row examines a wall with a knot a few ulps off a split point"
+        );
+        let twin = arc_spine::<Interval>(curl);
+        let walls: Vec<FaceKey> = twin
+            .side_faces
+            .iter()
+            .flatten()
+            .flatten()
+            .copied()
+            .collect();
+        let what = format!("{what} at Interval");
+        assert!(
+            walls_hold_against_themselves(&what, &twin.body, &walls) > 0,
+            "{what}: the row examines a wall with a knot a few ulps off a split point"
+        );
+    }
+}
+
+/// **The tour's S-duct walls hold against themselves**: the square swept
+/// along the tour's `skinned` S path (two quarter arcs of radius 2, 17
+/// points, cubic) at 13 stations. A regression row for a body the tour
+/// renders, not a sliver row: its interior knots are `k/12` with `½`
+/// exact, so none sits ulps off a split point.
+#[test]
+fn the_s_duct_walls_hold_against_themselves() {
+    fn duct<T: Scalar>() -> sweep::Lofted<T> {
+        let (r, h) = (2.0, 0.25);
+        let quarter = core::f64::consts::FRAC_PI_2;
+        let points: Vec<Point3<f64>> = (0..=8)
+            .map(|k| {
+                let th = quarter * f64::from(k) / 8.0;
+                Point3::new(0.0, r * (1.0 - th.cos()), r * th.sin())
+            })
+            .chain((1..=8).map(|k| {
+                let ph = quarter * f64::from(k) / 8.0;
+                Point3::new(0.0, r + r * ph.sin(), 2.0 * r - r * ph.cos())
+            }))
+            .collect();
+        let path = NurbsCurve3::interpolate(&points, 3).expect("the S path interpolates");
+        let place = plane_at(&normal_start_place(&path));
+        let profile = lifted(&quad([(-h, -h), (h, -h), (h, h), (-h, h)]));
+        sweep_body::<T>(&profile, place, &path, 13, 3, tol()).expect("the S path sweeps")
+    }
+    let float = duct::<f64>();
+    let walls: Vec<FaceKey> = float
+        .side_faces
+        .iter()
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
+    walls_hold_against_themselves("the S duct", &float.body, &walls);
+    let twin = duct::<Interval>();
+    let walls: Vec<FaceKey> = twin
+        .side_faces
+        .iter()
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
+    walls_hold_against_themselves("the S duct at Interval", &twin.body, &walls);
 }
 
 /// **A big thin-walled cylinder shell**: the tube `r ∈ [0.96, 1]`, two
@@ -1223,12 +1527,15 @@ fn a_cylinder_cylinder_tee_refuses_typed_at_a_vertex_its_junction_shares_alone()
     }
     // The known divergence `a-rod-union-refuses-at-interval-on-a-poison-ruled-region-span`
     // (CLEAVE): at `Interval` the union does not build, so there is no
-    // body to ask.
+    // body to ask. Which decision refuses first moves with ε; that the
+    // union refuses, naming its cause rather than a kernel defect, does
+    // not.
     match tee_at::<Interval>() {
-        Err(topo::BooleanError::Escalated { diag, .. })
-            if diag.predicate == Some("bool_ruled_region_span") && diag.margin.is_invalid() => {}
+        Err(e) if !topo::test_support::offer_key(&e).1 => {
+            println!("[corner] tee at Interval refuses {e:?}");
+        }
         other => panic!(
-            "the tee's known divergence at Interval is the union's poison span: {:?}",
+            "the tee's known divergence at Interval is a typed refusal of the union: {:?}",
             other.map(|_| ())
         ),
     }
@@ -1432,46 +1739,52 @@ fn klein_elbow<T: Scalar>() -> Body<T> {
     revolve(&profile, axis, quarter, tol()).unwrap().body
 }
 
-/// **The klein elbow's cavity refuses typed at both scalars, unsplit**,
-/// shelled `0.05`. The cavity's caps are the operand's moved `0.05`
-/// along their normals, off the torus's axis, so each meets the
+/// **The klein elbow's cavity holds across its spiric caps at both
+/// scalars**, shelled `0.05`. The cavity's caps are the operand's moved
+/// `0.05` along their normals, off the torus's axis, so each meets the
 /// cavity's torus in a spiric section: no conic of the cap's plane and
-/// no harmonic row of the torus's chart. Neither face is presented
-/// beside it, and the pair refuses `Uncertified { Departure }` at the
-/// shared edge at the root. The operand holds. Pinned, not fixed: the
-/// row `shell-cavity-gate-over-refuses-three-valid-bodies` states what a
-/// presentation across that edge would have to argue.
+/// no harmonic row of the torus's chart. The torus is presented beside
+/// it by the edge's wall image, a graph over the minor angle, and the
+/// cap's own plane separates; where a spiric arc meets the parallel
+/// splitting the torus, each torus half is read through the corner, by
+/// the arc continued past it against a cap and by the parallel against
+/// the other half. Holds, every face pair sharing a vertex certified
+/// across, each spiric edge's cap and torus among them, and some
+/// certificates read a corner. Red if the wall presentation is
+/// withdrawn (the pair refuses `Uncertified { Departure }` at the root),
+/// or either torus corner reading is.
 #[test]
-fn the_klein_elbows_cavity_refuses_at_its_spiric_caps() {
+fn the_klein_elbows_cavity_holds_across_its_spiric_caps() {
     holds_at_both("the klein elbow", klein_elbow(), klein_elbow());
     fn cavity_at<T: Scalar>() -> BoundReport<Witness> {
         let (hollow, faces) = cavity_of(klein_elbow::<T>(), 0.05);
+        let spiric: Vec<(FaceKey, FaceKey)> = spiric_pairs(&hollow)
+            .into_iter()
+            .filter(|(a, b)| faces.contains(a) && faces.contains(b))
+            .collect();
+        assert_eq!(spiric.len(), 4, "two spiric arcs on each cap");
+        for &(a, b) in &spiric {
+            let mut kinds = [kind(&hollow, a), kind(&hollow, b)];
+            kinds.sort_unstable();
+            assert_eq!(kinds, ["plane", "torus"], "a cap and a torus half");
+        }
         let report = injective(&hollow, Some(faces), BUDGET);
-        let BoundVerdict::Refused(EngineRefusal::Uncertified {
-            a,
-            b,
-            shared: SharedCell::Edge(e),
-            arm: CertificateArm::Departure,
-        }) = report.verdict
-        else {
-            panic!(
-                "the elbow's cavity refuses at a cap's edge: {:?}",
-                report.verdict
-            )
-        };
-        let mut kinds = [kind(&hollow, a), kind(&hollow, b)];
-        kinds.sort_unstable();
-        assert_eq!(kinds, ["plane", "torus"], "a cap and the torus");
-        let carrier = hollow
-            .get_curve_geom(hollow.get_edge(e).unwrap().curve)
-            .and_then(|c| c.certified())
-            .map(|c| c.carrier().kind());
-        assert_eq!(
-            carrier,
-            Some(geom::CurveKind::Spiric),
-            "the shared edge is a spiric section"
+        println!(
+            "[spiric] the elbow's cavity: {:?} {:?} cornered = {} across = {:?}",
+            report.verdict, report.receipt, report.cornered, report.across
         );
-        assert_eq!(report.receipt.splits, 0, "refused at the root");
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "the elbow's cavity holds: {:?}",
+            report.verdict
+        );
+        for p in &spiric {
+            assert!(
+                report.across.get(p).is_some_and(|&n| n > 0),
+                "a cap and its torus half certified across their spiric arc: {p:?}"
+            );
+        }
+        assert!(report.cornered > 0, "a corner of the torus is read through");
         report
     }
     same_class(
@@ -1479,6 +1792,220 @@ fn the_klein_elbows_cavity_refuses_at_its_spiric_caps() {
         &cavity_at::<f64>(),
         &cavity_at::<Interval>(),
     );
+}
+
+/// **The ring torus `(2, 0.5)` about `y`, less the half-space `x < 0.3`**:
+/// a plane parallel to the axis, `0.3` off it, cuts the tube in two
+/// spiric ovals, each a planar cap of the arc of torus left. The
+/// profile's two vertices stand `0.3` rad round the tube from its
+/// equator, so the parallels splitting the torus lie off the window's
+/// bisections (`spiric-extent-overshoots-the-sheet-slack-at-interval`
+/// has the body whose parallels lie on them).
+fn torus_cut_off_its_axis<T: Scalar>() -> topo::AtRestBody<T> {
+    use core::f64::consts::FRAC_PI_2;
+    use geom_core::{Affine3, Vec3};
+    use sweep::test_support::finished;
+    let (c, s) = (0.5 * 0.3f64.cos(), 0.5 * 0.3f64.sin());
+    let lp = profile::test_support::bulge_loop(vec![
+        (Point2::new(2.0 + c, s).map(T::from_f64), T::one()),
+        (Point2::new(2.0 - c, -s).map(T::from_f64), T::one()),
+    ]);
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
+        .validate(tol())
+        .unwrap();
+    let ring = revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body;
+    let ring = finished("the torus", ring, tol());
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
+    built(topo::subtract(&ring, &moved(&slab(0.3), &turn), tol()))
+}
+
+/// **A torus cut off its axis holds across its spiric caps at both
+/// scalars** ([`torus_cut_off_its_axis`]): each cap meets the torus on
+/// two spiric arcs, which the torus halves present by their wall images,
+/// the cap's own plane separating, and read through the corners where
+/// the arcs meet the parallels. Holds, every face pair sharing a vertex
+/// certified across, some of them through a corner. Red if the wall
+/// presentation, or either torus corner reading, is withdrawn.
+#[test]
+fn a_torus_cut_off_its_axis_holds_across_its_spiric_caps() {
+    let cut = torus_cut_off_its_axis::<f64>();
+    let spirics = cut
+        .edges()
+        .filter(|(_, e)| {
+            cut.get_curve_geom(e.curve)
+                .and_then(|c| c.certified())
+                .is_some_and(|c| c.carrier().kind() == geom::CurveKind::Spiric)
+        })
+        .count();
+    assert_eq!(spirics, 4, "two spiric arcs on each cap");
+    for report in holds_at_both(
+        "the torus cut off its axis",
+        cut.into_body(),
+        torus_cut_off_its_axis::<Interval>().into_body(),
+    ) {
+        assert!(report.cornered > 0, "a corner of the torus is read through");
+    }
+}
+
+/// The spiric edges of `body`: each one's carrier sampled at 512
+/// points of its span.
+fn spiric_points(body: &Body<f64>) -> Vec<Point3<f64>> {
+    body.edges()
+        .filter_map(|(_, e)| body.get_curve_geom(e.curve).and_then(|c| c.certified()))
+        .filter(|c| c.carrier().kind() == geom::CurveKind::Spiric)
+        .flat_map(|c| {
+            let (t0, t1) = c.params();
+            (0..=512).map(move |k| c.carrier().eval(t0 + (t1 - t0) * f64::from(k) / 512.0))
+        })
+        .collect()
+}
+
+/// **A folded torus cut reads `Violated` off its spiric edges.** Two
+/// [`torus_cut_off_its_axis`]es in one body, the second moved `0.2`
+/// along `x` and grafted in as a solid of its own: its caps stand inside
+/// the first's tube, so each cap face crosses the first's torus faces.
+/// Faces of the two solids share nothing in M, so the crossing is found
+/// by distance, and the witness is clear of every spiric edge. As for the
+/// folded oblique cut, a fold across a shared spiric is a crossing of two
+/// faces that share the edge, which no kernel operation builds; the
+/// arm's own fold is `injective`'s
+/// `a_torus_folded_back_across_its_caps_plane_is_not_certified`.
+#[test]
+fn a_folded_torus_cut_reads_violated_off_its_spiric_edges() {
+    fn folded_at<T: Scalar>() -> Body<T> {
+        use geom_core::{Affine3, Vec3};
+        let cut = torus_cut_off_its_axis::<T>();
+        let mut folded = cut.clone().into_body();
+        let over = Affine3::translation(Vec3::new(0.2, 0.25, 0.0)).map(T::from_f64);
+        let rigid = geom_core::test_support::rigid(&over, tol());
+        let copy = topo::transform_rigid(&cut, &rigid, tol()).unwrap();
+        topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+        folded
+    }
+    let folded = folded_at::<f64>();
+    let report = injective(&folded, None, BUDGET);
+    same_class(
+        "the folded torus cut",
+        &report,
+        &injective(&folded_at::<Interval>(), None, BUDGET),
+    );
+    let BoundVerdict::Violated(w) = report.verdict else {
+        panic!("the two cuts cross: {:?}", report.verdict)
+    };
+    assert!(w.d < 1e-9, "a coincidence: {w:?}");
+    let edges = spiric_points(&folded);
+    assert!(!edges.is_empty(), "the spiric edges are sampled");
+    for p in [w.pa, w.pb] {
+        let off = edges
+            .iter()
+            .map(|q| (*q - p).norm())
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            off >= 0.01,
+            "the witness {p:?} is off every spiric edge: {off}"
+        );
+    }
+}
+
+/// **The one-face torus `(2, 0.5)` about `y`, less the half-space
+/// `x < 0.3`**: the profile one circle from profile angle `0.3`, so the
+/// torus closes on itself across a meridian and a parallel through that
+/// point. The cut splits it into two faces across the meridian, each
+/// holding one whole spiric oval, closed at a vertex on its parallel
+/// seam, beside one cap.
+fn one_face_torus_cut<T: Scalar>() -> topo::AtRestBody<T> {
+    use core::f64::consts::FRAC_PI_2;
+    use geom_core::{Affine3, Vec3};
+    use sweep::test_support::finished;
+    let phase = 0.3f64;
+    let lp: ProfileLoop<T> = RawLoop::new([(
+        Point2::new(2.0 + 0.5 * phase.cos(), 0.5 * phase.sin()).map(T::from_f64),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(2.0, 0.0).map(T::from_f64),
+            radius: T::from_f64(0.5),
+            sweep: T::from_f64(TAU),
+        }),
+    )]);
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
+        .validate(tol())
+        .unwrap();
+    let ring = revolve(&profile, axis_y(), Revolution::Full, tol())
+        .unwrap()
+        .body;
+    let ring = finished("the one-face torus", ring, tol());
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
+    built(topo::subtract(&ring, &moved(&slab(0.3), &turn), tol()))
+}
+
+/// **A one-face torus cut certifies its caps by the wall alone**
+/// ([`one_face_torus_cut`]): each cap shares a whole oval with its torus
+/// face, with no corner on it, so each cap–torus pair is certified across
+/// by the plain wall presentation, none through a corner. The body
+/// refuses `Departure` across the meridian the two torus faces share,
+/// pinned typed at both scalars
+/// (`one-face-torus-cut-refuses-across-its-meridian`). Red if the plain
+/// wall presentation is withdrawn.
+#[test]
+fn a_one_face_torus_cut_certifies_its_caps_by_the_wall_alone() {
+    fn at<T: Scalar>() -> BoundReport<Witness> {
+        let body = one_face_torus_cut::<T>().into_body();
+        let cut = spiric_pairs(&body);
+        let report = injective(&body, None, BUDGET);
+        let BoundVerdict::Refused(EngineRefusal::Uncertified {
+            a,
+            b,
+            shared: SharedCell::Edge(e),
+            arm: CertificateArm::Departure,
+        }) = report.verdict
+        else {
+            panic!("the cut refuses at its meridian: {:?}", report.verdict)
+        };
+        assert_eq!(
+            [kind(&body, a), kind(&body, b)],
+            ["torus", "torus"],
+            "the two torus faces"
+        );
+        let carrier = body
+            .get_curve_geom(body.get_edge(e).unwrap().curve)
+            .and_then(|c| c.certified())
+            .map(|c| c.carrier().kind());
+        assert_eq!(
+            carrier,
+            Some(geom::CurveKind::Circle),
+            "across the meridian"
+        );
+        assert_eq!(cut.len(), 2, "two caps, each on one whole oval");
+        for p in &cut {
+            assert!(
+                report.across.get(p).is_some_and(|&n| n > 0),
+                "a cap and its torus face certified across their oval: {p:?}"
+            );
+        }
+        assert_eq!(report.cornered, 0, "no corner is read");
+        report
+    }
+    same_class("the one-face torus cut", &at::<f64>(), &at::<Interval>());
+}
+
+/// The face pairs of `body` sharing a spiric edge, in key order.
+fn spiric_pairs<T: Real>(body: &Body<T>) -> Vec<(FaceKey, FaceKey)> {
+    body.edges()
+        .filter(|(_, e)| {
+            body.get_curve_geom(e.curve)
+                .and_then(|c| c.certified())
+                .is_some_and(|c| c.carrier().kind() == geom::CurveKind::Spiric)
+        })
+        .map(|(_, e)| {
+            let face = |he| {
+                let l = body.get_half_edge(he).unwrap().parent_loop;
+                body.get_loop(l).unwrap().face
+            };
+            let (a, b) = (face(e.he_plus), face(e.he_minus));
+            (a.min(b), a.max(b))
+        })
+        .collect()
 }
 
 /// **A frustum** of base radius `4/64`, top radius `r1` and height
@@ -1540,4 +2067,556 @@ fn a_cone_frustum_and_its_cavity_hold_at_both_scalars() {
         &cavity_at::<f64>("the frustum's cavity"),
         &cavity_at::<Interval>("the frustum's cavity at Interval"),
     );
+}
+
+// ------------------------------------- cap corners and twisted seams
+
+/// **Two faces of `body` asked alone**, each in its own window, at the
+/// default depth and the pair budget `budget`. No candidate is
+/// witnessed: the verdict is the certificates'.
+fn pair_report<T: Scalar>(
+    body: &Body<T>,
+    a: FaceKey,
+    b: FaceKey,
+    budget: usize,
+) -> BoundReport<()> {
+    let window = |f| {
+        Side {
+            body,
+            faces: vec![f],
+        }
+        .windows(Which::First)
+        .expect("every face has a window")
+    };
+    let sweep = Sweep {
+        bound: ClearanceBound::StrictlyPositive,
+        band: band(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: budget,
+        },
+    };
+    sweep.run(&window(a), &window(b), true, |_| {
+        Err::<(), _>("no witness asked".to_owned())
+    })
+}
+
+/// Whether `f` of `body` is a plane.
+fn is_plane<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
+    matches!(surface(body, f), Surface::Plane { .. })
+}
+
+/// The face pairs of `body` sharing a vertex, of a plane and a spline
+/// (`caps`) or of two splines.
+fn adjacent<T: Real>(body: &Body<T>, caps: bool) -> Vec<(FaceKey, FaceKey)> {
+    touching_pairs(body)
+        .into_iter()
+        .filter(|&(a, b)| (is_plane(body, a) != is_plane(body, b)) == caps)
+        .filter(|&(a, b)| caps || !(is_plane(body, a) || is_plane(body, b)))
+        .collect()
+}
+
+/// Two unit lens sections, two arcs on one chord, stacked one apart three
+/// times: `lily_leaf_a`'s section, lofted straight.
+fn lens_loft<T: Scalar>() -> Body<T> {
+    let lens = vec![profile::test_support::bulge_loop(vec![
+        (Point2::new(0.5, 0.0), -0.3),
+        (Point2::new(-0.5, 0.0), -0.3),
+    ])];
+    let sections = sweep::test_support::lift_sections::<T>(&[lens.clone(), lens.clone(), lens]);
+    let places = sweep::test_support::lift_places::<T>(
+        &sweep::test_support::stacked_at(&[0.0, 1.0, 2.0]),
+        tol(),
+    );
+    loft_body::<T>(&sections, &places, 2, tol())
+        .expect("the lens loft lofts")
+        .body
+}
+
+/// **A lens loft's rational walls hold against themselves, at both
+/// scalars and moved off the origin**: each wall alone at the default
+/// budget, at the origin and moved by `(10, 10, 10)`, certifying a
+/// cell-pair count within 1% of its unmoved twin's. The lens arcs are
+/// rational, so the monotone arm reads each wall through a rational
+/// net's derivative over a cell; read in the absolute frame, the moved
+/// walls' derivative carries the distance times the weight's slope.
+/// The `Interval` twin of the tour's `lily_leaf_a` wall rows, which
+/// build at `f64` only.
+#[test]
+fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars() {
+    fn row<T: Scalar>(what: &str) {
+        let home = lens_loft::<T>();
+        let by = geom_core::Vec3::new(10.0, 10.0, 10.0).map(T::from_f64);
+        let motion = geom_core::RigidMotion::translation(by).expect("a translation");
+        let away = topo::transform_rigid(&home, &motion, tol()).expect("the loft moves");
+        let walls: Vec<FaceKey> = home
+            .faces()
+            .map(|(k, _)| k)
+            .filter(|&f| matches!(surface(&home, f), Surface::Nurbs(_)))
+            .collect();
+        assert_eq!(walls.len(), 2, "{what}: two lens walls");
+        for wall in walls {
+            let (a, b) = (
+                injective(&home, Some(vec![wall]), BUDGET),
+                injective(&away, Some(vec![wall]), BUDGET),
+            );
+            println!(
+                "[jet frame] {what}: {wall:?} {} {:?}; moved {} {:?}",
+                class(&a.verdict),
+                a.receipt,
+                class(&b.verdict),
+                b.receipt
+            );
+            for (at, r) in [("at the origin", &a), ("moved", &b)] {
+                assert!(
+                    matches!(r.verdict, BoundVerdict::Holds),
+                    "{what}: {wall:?} {at} holds against itself, got {} {:?}",
+                    class(&r.verdict),
+                    r.receipt
+                );
+            }
+            let (x, y) = (a.receipt.certified, b.receipt.certified);
+            #[allow(clippy::cast_precision_loss)]
+            let close = (x as f64 - y as f64).abs() <= 0.01 * (x.max(y) as f64);
+            assert!(close, "{what}: {wall:?} certifies {y} moved against {x}");
+        }
+    }
+    row::<f64>("the lens loft");
+    row::<Interval>("the lens loft at Interval");
+}
+
+/// **A lens loft's caps hold against its walls at the lens tip, at both
+/// scalars.** Two unit lens sections, two arcs on one chord, one above
+/// the other: each cap is a plane bounded by two circles meeting at the
+/// two tips. A cap cell holding a tip holds both arcs, and no
+/// presentation reads a corner of two curved edges on a plane; the
+/// wall's departure from the cap's plane certifies it, the wall's side
+/// on the shared edge read off its own restricted iso net, which lies
+/// in the cap's plane. This is the tour's `lily_leaf_a` cap corner
+/// (`demos/tour/tests/lily.rs`), built here at both scalars.
+#[test]
+fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
+    fn receipts<T: Scalar>(what: &str, body: &Body<T>) -> Vec<(usize, u32)> {
+        adjacent(body, true)
+            .into_iter()
+            .map(|(a, b)| {
+                let report = pair_report(body, a, b, 8192);
+                assert!(
+                    matches!(report.verdict, BoundVerdict::Holds),
+                    "{what}: {a:?} against {b:?} holds: {:?} {:?}",
+                    report.verdict,
+                    report.receipt
+                );
+                (report.receipt.splits, report.widths.deepest)
+            })
+            .collect()
+    }
+    let (float, interval) = (lens_loft::<f64>(), lens_loft::<Interval>());
+    let pairs = adjacent(&float, true);
+    assert_eq!(pairs.len(), 4, "two caps against two walls: {pairs:?}");
+    assert_eq!(
+        adjacent(&interval, true),
+        pairs,
+        "one topology at both scalars"
+    );
+    let pinned = [(0, 0), (0, 0), (0, 0), (0, 0)];
+    assert_eq!(
+        receipts("the lens loft", &float),
+        pinned,
+        "each cap-wall pair's (splits, deepest cell)"
+    );
+    assert_eq!(
+        receipts("the lens loft at Interval", &interval),
+        pinned,
+        "each cap-wall pair's (splits, deepest cell) at Interval"
+    );
+}
+
+/// **A twisted loft holds along its seams, at both scalars.** The
+/// prism's sections, the top square authored from its second corner, so
+/// every strut runs a quarter turn round (the tour's `twisted_loft`,
+/// `demos/tour/src/skinned.rs`). Across a seam the departure arm's
+/// graph separator bisects the two faces' headings about the seam; two
+/// cells offset along it, at this seam's dihedral (about 51°), read
+/// opposite sides of it. Every seam holds, well under the depth budget.
+#[test]
+fn a_twisted_loft_holds_along_its_seams_at_both_scalars() {
+    fn twisted<T: Scalar>() -> Body<T> {
+        use sweep::test_support::{
+            PRISM_SQUARE, PRISM_TRAPEZOID, lift_places, lift_sections, stacked_at,
+        };
+        let mut top = PRISM_SQUARE;
+        top.rotate_left(1);
+        let sections = lift_sections::<T>(&[quad(PRISM_SQUARE), quad(PRISM_TRAPEZOID), quad(top)]);
+        let places = lift_places::<T>(&stacked_at(&[0.0, 1.0, 2.0]), tol());
+        loft_body::<T>(&sections, &places, 2, tol())
+            .expect("the twisted sections loft")
+            .body
+    }
+    /// Each seam's receipt and depth, every one holding, nothing
+    /// refused, well under the depth budget.
+    fn holds<T: Scalar>(
+        what: &str,
+        body: &Body<T>,
+        seams: &[(FaceKey, FaceKey)],
+    ) -> Vec<(CellReceipt, u32)> {
+        seams
+            .iter()
+            .map(|&(a, b)| {
+                let report = pair_report(body, a, b, 8192);
+                let (r, deepest) = (report.receipt, report.widths.deepest);
+                println!(
+                    "[heading] {what}: {a:?} against {b:?}: {:?} {r:?} deepest {deepest}",
+                    report.verdict
+                );
+                assert!(
+                    matches!(report.verdict, BoundVerdict::Holds)
+                        && r.refused == 0
+                        && r.certified > 0
+                        && deepest < 30,
+                    "{what}: {a:?} against {b:?} holds, certified, nothing refused, well \
+                     under the depth budget {DEFAULT_MAX_CELL_DEPTH}: {:?} {r:?} deepest {deepest}",
+                    report.verdict
+                );
+                (r, deepest)
+            })
+            .collect()
+    }
+    let (float, interval) = (twisted::<f64>(), twisted::<Interval>());
+    let seams = adjacent(&float, false);
+    assert_eq!(seams.len(), 4, "four walls meet at four seams: {seams:?}");
+    assert_eq!(
+        adjacent(&interval, false),
+        seams,
+        "one topology at both scalars"
+    );
+    assert_eq!(
+        holds("the twisted loft at Interval", &interval, &seams),
+        holds("the twisted loft", &float, &seams),
+        "every seam reads one receipt at both scalars"
+    );
+}
+
+/// **The half-turn helix's caps hold against its walls, at both
+/// scalars.** `m8_14_long_turn_sweep`'s half-turn helix at 33 stations,
+/// a 0.16 square swept along it: CARVE's measurement found two of its
+/// top cap's four wall pairs refusing Departure at depth
+/// (`injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams`), on a branch from before the carried frame
+/// and the clip sides' run-on past a corner. Every cap–wall pair now
+/// holds, at a depth far under the budget.
+#[test]
+fn the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars() {
+    fn helical<T: Scalar>() -> Body<T> {
+        let path = helix(0.5, 0.4);
+        let place = plane_at(&normal_start_place(&path));
+        let profile = lifted(&quad([
+            (-0.08, -0.08),
+            (0.08, -0.08),
+            (0.08, 0.08),
+            (-0.08, 0.08),
+        ]));
+        sweep_body::<T>(&profile, place, &path, 33, 3, tol())
+            .expect("the helix sweeps")
+            .body
+    }
+    fn holds<T: Scalar>(what: &str, body: &Body<T>) -> usize {
+        let pairs = adjacent(body, true);
+        for &(a, b) in &pairs {
+            let report = pair_report(body, a, b, 8192);
+            assert!(
+                matches!(report.verdict, BoundVerdict::Holds) && report.widths.deepest < 20,
+                "{what}: {a:?} against {b:?} holds well under the depth budget: {:?} {:?} \
+                 deepest {}",
+                report.verdict,
+                report.receipt,
+                report.widths.deepest
+            );
+        }
+        pairs.len()
+    }
+    assert_eq!(
+        holds("the half-turn helix", &helical::<f64>()),
+        8,
+        "two caps against four walls"
+    );
+    assert_eq!(
+        holds("the half-turn helix at Interval", &helical::<Interval>()),
+        8,
+        "two caps against four walls"
+    );
+}
+
+// ----------------------------------- two walls apart along a direction
+
+/// **A thin curved slab**: the section `(-0.4, 0.4) × (-g/2, g/2)`
+/// lofted at five stations along a unit-radius arc turning `curl` in
+/// the `xz` plane, the whole turned `phi` about the world `y` axis.
+/// Its two wide walls are near-parallel sheets `g` apart with a radius
+/// of about 1, sharing no vertex; they are returned with the body.
+fn slab_wall_pair<T: Scalar>(g: f64, curl: f64, phi: f64) -> (sweep::Lofted<T>, [FaceKey; 2]) {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let section = quad([
+        (-0.4, -g / 2.0),
+        (0.4, -g / 2.0),
+        (0.4, g / 2.0),
+        (-0.4, g / 2.0),
+    ]);
+    let turn = Mat3::rotation_about(Vec3::new(0.0, 1.0, 0.0), phi);
+    let places: Vec<SketchPlane<T>> = (0..5)
+        .map(|i| {
+            let theta = curl * f64::from(i) / 4.0;
+            let (s, c) = theta.sin_cos();
+            let linear = Mat3::from_cols(
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(-s, 0.0, c),
+                Vec3::new(c, 0.0, s),
+            );
+            let at = Affine3::from_parts(turn * linear, turn * Vec3::new(s, 0.0, 1.0 - c));
+            plane_at(&crate::common::plane_of(&at))
+        })
+        .collect();
+    let sections: Vec<_> = (0..5).map(|_| lifted(&section)).collect();
+    let lofted = loft_body::<T>(&sections, &places, 3, tol()).expect("the slab lofts");
+    let walls = [lofted.side_faces[0][0][0], lofted.side_faces[0][2][0]];
+    (lofted, walls)
+}
+
+/// The bound question between `walls[0]` and `walls[1]` of `body`, at
+/// the default depth and pair budget.
+fn wall_against_wall<T: Scalar>(
+    body: &Body<T>,
+    walls: [FaceKey; 2],
+    bound: ClearanceBound,
+) -> BoundReport<Witness> {
+    let window = |f, which| {
+        Side {
+            body,
+            faces: vec![f],
+        }
+        .windows(which)
+        .expect("a wall has a window")
+    };
+    let sweep = Sweep {
+        bound,
+        band: band(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    };
+    let report = sweep.run(
+        &window(walls[0], Which::First),
+        &window(walls[1], Which::Second),
+        true,
+        verify(body, bound),
+    );
+    assert!(
+        report.receipt.holds(),
+        "the receipt adds up: {:?}",
+        report.receipt
+    );
+    report
+}
+
+/// **Two near-parallel walls cost about the same pairs however they are
+/// turned against the axes.** The slab's walls `0.005` apart, turning
+/// 0.5 rad, hold under the strict question at both scalars, upright
+/// (`phi = 0`, the walls facing within 0.5 rad of `x`) and turned 45°
+/// about `y`. Each examines at most 512 cell pairs, and the turned pair
+/// at most 1.5 times the upright one's, at each scalar. Red where the distance arm
+/// separates axis-aligned boxes only: the boxes of walls tilted against
+/// the axes stay apart only for cells about as small as the gap.
+#[test]
+fn near_parallel_walls_cost_the_same_pairs_turned_45_degrees() {
+    let examined =
+        |r: &BoundReport<Witness>| r.receipt.discharged + r.receipt.refused + r.receipt.violated;
+    let mut counts = Vec::new();
+    for phi in [0.0, core::f64::consts::FRAC_PI_4] {
+        let (float, walls) = slab_wall_pair::<f64>(0.005, 0.5, phi);
+        let (twin, twin_walls) = slab_wall_pair::<Interval>(0.005, 0.5, phi);
+        let report = wall_against_wall(&float.body, walls, ClearanceBound::StrictlyPositive);
+        let interval = wall_against_wall(&twin.body, twin_walls, ClearanceBound::StrictlyPositive);
+        println!(
+            "[dirsupport] slab turned {phi}: f64 {:?} deepest {} | Interval {:?} deepest {}",
+            report.receipt, report.widths.deepest, interval.receipt, interval.widths.deepest
+        );
+        for (what, r) in [("f64", &report), ("Interval", &interval)] {
+            assert!(
+                matches!(r.verdict, BoundVerdict::Holds),
+                "the slab's walls turned {phi} hold at {what}: {:?} {:?}",
+                r.verdict,
+                r.receipt
+            );
+        }
+        for (what, r) in [("f64", &report), ("Interval", &interval)] {
+            assert!(
+                examined(r) <= 512,
+                "the slab's walls turned {phi} examine at most 512 pairs at {what}: {:?}",
+                r.receipt
+            );
+        }
+        counts.push([examined(&report), examined(&interval)]);
+    }
+    let [upright, turned] = counts[..] else {
+        unreachable!("two turns")
+    };
+    for (k, what) in ["f64", "Interval"].iter().enumerate() {
+        let (upright, turned) = (upright[k], turned[k]);
+        assert!(
+            2 * turned <= 3 * upright,
+            "the turned walls examine at most 1.5× the upright walls' pairs at {what}: {turned} \
+             against {upright}"
+        );
+    }
+}
+
+/// **A wall pair closer than the bound is never separated.** The slab's
+/// walls turned 45° are `0.05` apart: `AtLeast(0.08)` reads `Violated`
+/// with a verified witness closer than `0.08`, at both scalars, and
+/// `AtLeast(0.03)` holds. Red if the support gap is compared without
+/// the bound.
+#[test]
+fn a_wall_pair_closer_than_the_bound_is_violated_not_separated() {
+    let phi = core::f64::consts::FRAC_PI_4;
+    let (float, walls) = slab_wall_pair::<f64>(0.05, 0.3, phi);
+    let (twin, twin_walls) = slab_wall_pair::<Interval>(0.05, 0.3, phi);
+    for (what, report) in [
+        (
+            "f64",
+            wall_against_wall(&float.body, walls, ClearanceBound::AtLeast(0.08)),
+        ),
+        (
+            "Interval",
+            wall_against_wall(&twin.body, twin_walls, ClearanceBound::AtLeast(0.08)),
+        ),
+    ] {
+        let BoundVerdict::Violated(w) = report.verdict else {
+            panic!(
+                "{what}: walls 0.05 apart violate AtLeast(0.08): {:?} {:?}",
+                report.verdict, report.receipt
+            )
+        };
+        assert!(
+            w.d < 0.08,
+            "{what}: the witness is closer than the bound: {w:?}"
+        );
+    }
+    let report = wall_against_wall(&float.body, walls, ClearanceBound::AtLeast(0.03));
+    assert!(
+        matches!(report.verdict, BoundVerdict::Holds),
+        "walls 0.05 apart hold AtLeast(0.03): {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+}
+
+/// The bound question between `walls[0]` and `walls[1]` of `body`, with
+/// a verifier that confirms no witness: no candidate ends the walk, so
+/// every pair the support does not separate is refined.
+fn wall_against_wall_unwitnessed<T: Scalar>(
+    body: &Body<T>,
+    walls: [FaceKey; 2],
+    bound: ClearanceBound,
+    budget: usize,
+) -> BoundReport<()> {
+    let window = |f, which| {
+        Side {
+            body,
+            faces: vec![f],
+        }
+        .windows(which)
+        .expect("a wall has a window")
+    };
+    let sweep = Sweep {
+        bound,
+        band: band(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: budget,
+        },
+    };
+    let report = sweep.run(
+        &window(walls[0], Which::First),
+        &window(walls[1], Which::Second),
+        true,
+        |_| Err::<(), _>("no witness confirmed".to_owned()),
+    );
+    assert!(
+        report.receipt.holds(),
+        "the receipt adds up: {:?}",
+        report.receipt
+    );
+    report
+}
+
+/// **The support at depth never separates a pair closer than the
+/// bound.** The slab's walls turned 45° are `0.05` apart. With no
+/// witness confirmed, the exhibit arm ends nothing, so the walk refines
+/// every pair the support does not separate. `AtLeast(0.045)` holds
+/// below the root, and `AtLeast(0.08)`, at a 2048-pair budget, does not
+/// hold, refined below the root. Red if the support gap is compared
+/// without the bound, or if it reads a pair farther apart than it is.
+#[test]
+fn the_support_at_depth_never_separates_a_pair_closer_than_the_bound() {
+    let phi = core::f64::consts::FRAC_PI_4;
+    let (float, walls) = slab_wall_pair::<f64>(0.05, 0.3, phi);
+    let held =
+        wall_against_wall_unwitnessed(&float.body, walls, ClearanceBound::AtLeast(0.045), BUDGET);
+    println!(
+        "[dirsupport] held at depth: {:?} {:?} deepest {}",
+        held.verdict, held.receipt, held.widths.deepest
+    );
+    assert!(
+        matches!(held.verdict, BoundVerdict::Holds) && held.receipt.splits > 0,
+        "walls 0.05 apart hold AtLeast(0.045) below the root: {:?} {:?}",
+        held.verdict,
+        held.receipt
+    );
+    let broken =
+        wall_against_wall_unwitnessed(&float.body, walls, ClearanceBound::AtLeast(0.08), 2048);
+    println!(
+        "[dirsupport] broken at depth: {:?} {:?} deepest {}",
+        broken.verdict, broken.receipt, broken.widths.deepest
+    );
+    assert!(
+        !matches!(broken.verdict, BoundVerdict::Holds) && broken.receipt.splits > 0,
+        "walls 0.05 apart do not hold AtLeast(0.08), read at depth: {:?} {:?}",
+        broken.verdict,
+        broken.receipt
+    );
+}
+
+/// **A gap over a metre is read in metres.** The slab's walls `1.6`
+/// apart, upright and turned 45°, read `Violated` under `AtLeast(1.62)`
+/// with a verified witness closer than `1.62`, at both scalars. The
+/// line between two cells' centres is about `1.6` long here, so a
+/// support gap read along it and not divided by its length would read
+/// the walls `1.6` times as far apart as they are, and hold.
+#[test]
+fn a_gap_over_a_metre_is_read_in_metres() {
+    for phi in [0.0, core::f64::consts::FRAC_PI_4] {
+        let (float, walls) = slab_wall_pair::<f64>(1.6, 0.3, phi);
+        let (twin, twin_walls) = slab_wall_pair::<Interval>(1.6, 0.3, phi);
+        for (what, report) in [
+            (
+                "f64",
+                wall_against_wall(&float.body, walls, ClearanceBound::AtLeast(1.62)),
+            ),
+            (
+                "Interval",
+                wall_against_wall(&twin.body, twin_walls, ClearanceBound::AtLeast(1.62)),
+            ),
+        ] {
+            let BoundVerdict::Violated(w) = report.verdict else {
+                panic!(
+                    "{what}: walls 1.6 apart turned {phi} violate AtLeast(1.62): {:?} {:?}",
+                    report.verdict, report.receipt
+                )
+            };
+            assert!(
+                w.d < 1.62,
+                "{what} turned {phi}: the witness is closer than the bound: {w:?}"
+            );
+        }
+    }
 }

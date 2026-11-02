@@ -100,22 +100,17 @@ const MERLON_OFF: f64 = 0.009;
 /// profile is drawn on its own plane, so each body the rook stacks
 /// above the plinth is moved up its axis before it is combined.
 const CARVED_STATES: usize = 22;
-/// The world's own edits among the carving actions (A10, D10), each
-/// riding in the action that caused it: five extrudes each placed into
-/// the world, the placement inserted with its identity bundle as one
-/// edit (5); the chamfer re-pointing the plinth's placement (1); five
-/// moves, each placement inserted with its values as its own edit, four
-/// of them re-pointing the world placement of what they moved (4); five
-/// booleans each re-targeting its moved second operand into the
-/// plinth's space, its values as written (5); four of them re-pointing
-/// their first operand's placement and deleting the second's (8); and
-/// the last, whose second operand nothing places, re-pointing only (1).
-const WORLD_EDITS: usize = 24;
+/// The placing edits among the carving actions (D10), each riding in
+/// the action that caused it: five booleans each re-targeting its moved
+/// second operand into the plinth's space, its values as written (5).
+/// Every body lands unplaced, so no action writes or re-points a world
+/// placement.
+const PLACING_EDITS: usize = 5;
 /// Edits on the session's FINAL path: the twenty-two carving actions'
 /// own edits (`CARVED_STATES` less the root), the world's edits among
 /// them, and the taller-drum edit — edits, where `CARVED_STATES`
 /// counts states.
-const PATH_EDITS: usize = (CARVED_STATES - 1) + WORLD_EDITS + 1;
+const PATH_EDITS: usize = (CARVED_STATES - 1) + PLACING_EDITS + 1;
 
 // --- closed forms ---------------------------------------------------
 
@@ -337,10 +332,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert_eq!(session.history().len(), CARVED_STATES);
     assert_eq!(
-        common::world(session.committed_doc()),
+        viewer::world::drawn_nodes(session.committed_doc()),
         [carved],
-        "the world is one copy: the rook: {:?}",
-        common::world(session.committed_doc())
+        "the picture is one body: the rook, unplaced: {:?}",
+        viewer::world::drawn_nodes(session.committed_doc())
             .into_iter()
             .map(|node| session.committed_doc().spoken(node).to_string())
             .collect::<Vec<_>>()
@@ -458,9 +453,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
 
     // ── Deleting the experiment: the affordance prices the cascade
     //    BEFORE the click, the delete takes the cone as one action ───
-    // The crenellated rook's world placement reads the union, so it is
-    // in the cone too (A10): the cascade takes the copy with the body.
-    let rook_copy = common::copy_of(session.committed_doc(), crenellated);
+    // The crenellated rook lands unplaced: no copy of it is in the cone.
     // The fused door's family: the placement its union reads whole.
     let Some(pncad::document::Node::Union {
         members: pncad::document::Bodies::Family(family),
@@ -476,13 +469,13 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert_eq!(
         affordance.label,
         format!(
-            "Delete Extrude {} and 6 dependent features",
+            "Delete Extrude {} and 5 dependent features",
             test_utils::refusal::tag(block.0.digest())
         )
     );
     assert!(
         affordance.hover.as_deref().is_some_and(|hover| {
-            ["2 × Union", "4 × Place"]
+            ["2 × Union", "3 × Place"]
                 .iter()
                 .all(|kind| hover.contains(kind))
         }),
@@ -491,22 +484,14 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert_eq!(
         affordance.cascade,
-        vec![
-            rook_copy,
-            crenellated,
-            crowning,
-            merlons,
-            fused_family,
-            pattern,
-            block
-        ],
+        vec![crenellated, crowning, merlons, fused_family, pattern, block],
         "consumers first, the target last"
     );
     let deleted = session.perform(SessionOp::DeleteNode { node: block });
     assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
     assert_eq!(
         deleted.committed.len(),
-        7,
+        6,
         "one delete per doomed node, recorded as ONE action"
     );
     for (edit, want) in deleted.committed.iter().zip(&affordance.cascade) {
@@ -632,8 +617,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         let rows = session.tree_rows();
         assert_eq!(
             rows.len(),
-            CARVED_STATES,
-            "one row per feature, and the rook's world placement"
+            CARVED_STATES - 1,
+            "one row per feature: the rook lands unplaced"
         );
         assert!(
             rows.iter().all(|row| row.status == RowStatus::Ok),

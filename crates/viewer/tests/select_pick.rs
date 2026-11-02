@@ -810,22 +810,22 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     session.pump();
     let index = plate_index(&session);
     assert!(
-        index.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, common::plate_delta()))
-        ),
+        index.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        ))),
         "freshly built, it describes the run on screen"
     );
 
     session.perform(common::recount_op(&session, pattern, 3));
     session.pump();
     assert!(
-        !index.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, common::plate_delta()))
-        ),
+        !index.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        ))),
         "a re-evaluation invalidates the index — it is DISCARDED, not repaired"
     );
     // A different display tolerance invalidates it too: the parts are
@@ -833,18 +833,18 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     let coarser = common::plate_delta().scaled(2.0).expect("a positive delta");
     let rebuilt = plate_index(&session);
     assert!(
-        rebuilt.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, common::plate_delta()))
-        )
+        rebuilt.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        )))
     );
     assert!(
-        !rebuilt.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, coarser))
-        )
+        !rebuilt.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            coarser,
+            viewer::world::Shown::none()
+        )))
     );
 }
 
@@ -979,7 +979,7 @@ fn a_moved_face_in_front_of_a_tied_batch_is_the_answer() {
     // The premise: with the second copy free-moved out of the ray, the
     // unmoved batch is the first box alone and it REFUSES.
     let away = DisplayView {
-        moved_placements: BTreeMap::from([(second, Frame::translation([0.0, 0.5, 0.0]))]),
+        moved_nodes: BTreeMap::from([(second, Frame::translation([0.0, 0.5, 0.0]))]),
         ..DisplayView::none()
     };
     let refusal = index
@@ -996,7 +996,7 @@ fn a_moved_face_in_front_of_a_tied_batch_is_the_answer() {
 
     // The second copy, put in front of that tie along the same ray.
     let ahead = DisplayView {
-        moved_placements: BTreeMap::from([(second, Frame::translation([0.29, 0.0, 1.0]))]),
+        moved_nodes: BTreeMap::from([(second, Frame::translation([0.29, 0.0, 1.0]))]),
         ..DisplayView::none()
     };
     let hit = index
@@ -1029,7 +1029,7 @@ fn two_coincident_faces_across_groups_refuse_with_both() {
     // The identity displacement: the copy is drawn where it always
     // was, and is its own group because the display view holds it.
     let held = DisplayView {
-        moved_placements: BTreeMap::from([(second, Frame::translation([0.0, 0.0, 0.0]))]),
+        moved_nodes: BTreeMap::from([(second, Frame::translation([0.0, 0.0, 0.0]))]),
         ..DisplayView::none()
     };
     let refusal = index

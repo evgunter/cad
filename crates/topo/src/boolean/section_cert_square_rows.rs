@@ -75,6 +75,7 @@ fn answers_within(what: &str, ring: &Ring, wall: &Wall, want: &[Class], reach: R
         &ring.surface(),
         &wall.surface(),
         reach,
+        None,
         Some(geom_brep::SsiLane::marched()),
         band(),
     );
@@ -91,6 +92,7 @@ fn answers_within(what: &str, ring: &Ring, wall: &Wall, want: &[Class], reach: R
         &wall.surface(),
         &ring.surface(),
         reach,
+        None,
         Some(geom_brep::SsiLane::marched()),
         band(),
     );
@@ -354,7 +356,7 @@ fn a_square_wall_is_read_within_the_band_only() {
 /// Whether the section value reads the pair's components from the march:
 /// no closed form counts them.
 fn marched(f: &geom::Surface<f64>, g: &geom::Surface<f64>) -> bool {
-    match geom_brep::pair_section(f, g, None, band()) {
+    match geom_brep::pair_section(f, g, None, None, band()) {
         Ok(geom_brep::SectionRead::Built(s)) => s.counted().is_none(),
         other => panic!("the value builds the pair: {other:?}"),
     }

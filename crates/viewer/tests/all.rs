@@ -88,6 +88,8 @@ mod doc_io;
 mod docm9_range_vs_probe;
 #[path = "door_at_rest.rs"]
 mod door_at_rest;
+#[path = "drive.rs"]
+mod drive;
 #[path = "duplicate_beside.rs"]
 mod duplicate_beside;
 #[path = "edge_pick.rs"]
@@ -114,8 +116,12 @@ mod input_mapping;
 mod instance_authoring;
 #[path = "landing_gathers.rs"]
 mod landing_gathers;
+#[path = "lands_unplaced.rs"]
+mod lands_unplaced;
 #[path = "mate_door_and_badge.rs"]
 mod mate_door_and_badge;
+#[path = "mate_kinds.rs"]
+mod mate_kinds;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]
@@ -141,6 +147,8 @@ mod path_authoring;
 mod pick3_acceptance;
 #[path = "pick_windows.rs"]
 mod pick_windows;
+#[path = "picture_draws_bodies.rs"]
+mod picture_draws_bodies;
 #[path = "prefs.rs"]
 mod prefs;
 #[path = "profile_draw.rs"]
@@ -198,6 +206,8 @@ mod tree_shape;
 mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
+#[path = "view_toggles.rs"]
+mod view_toggles;
 #[path = "whole_rim_pick.rs"]
 mod whole_rim_pick;
 

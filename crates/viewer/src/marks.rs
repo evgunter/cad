@@ -65,7 +65,7 @@ use pncad::prelude::{NameOrigin, StableName, attribute};
 use crate::display::DisplayView;
 use crate::narrowing::Narrow;
 use crate::pickindex::{EdgeId, EdgeNamesRefused, IdMap, PickIndex};
-use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection};
+use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection, VertexSelection};
 use crate::vocab::vocabulary;
 
 /// Which drawn patches the viewport should mark, and how.
@@ -140,13 +140,13 @@ fn face_id(index: &PickIndex, face: &FaceSelection) -> u32 {
 
 /// **The patch a face pick is drawn as, if the picture draws it**:
 /// its id on its own (node, body) ([`highlight`]'s narrowing), on a
-/// copy the display does not hide — the rule
+/// body the display does not hide — the rule
 /// [`PickIndex::edge_polyline_for`] applies to an edge.
 ///
 /// The one answer to "is this pick in the picture": the held mark
 /// lights what this answers.
 pub fn drawn_patch(index: &PickIndex, display: &DisplayView, face: &FaceSelection) -> Option<u32> {
-    if display.hidden_placements.contains(&face.node) {
+    if display.hides(face.node, face.body) {
         return None;
     }
     Some(face_id(index, face)).filter(|&id| id != IdMap::NOTHING)
@@ -193,6 +193,18 @@ pub struct Held<'a> {
     pub faces: [Option<&'a FaceSelection>; HELD_FACES],
     /// A held edge SET, if a tool holds one.
     pub edges: Option<HeldEdges<'a>>,
+    /// The held picks that are no face — a mate's edge or vertex — a
+    /// slot per pick, drawn in the held edge lane.
+    pub entities: [Option<HeldEntity<'a>>; 2],
+}
+
+/// **A held pick drawn as geometry**: an edge, or a vertex.
+#[derive(Clone, Copy, Debug)]
+pub enum HeldEntity<'a> {
+    /// A held edge.
+    Edge(&'a EdgeSelection),
+    /// A held vertex.
+    Vertex(&'a VertexSelection),
 }
 
 /// **A held edge set, as the marks read it**: the drawn body the edges
@@ -260,23 +272,32 @@ pub fn compose(
         }),
         ..highlight(index, selection, hover)
     };
-    let (held_segments, held_refused) = held
+    let (mut held_segments, held_refused) = held
         .edges
         .map(|set| set.mark(index, display))
         .unwrap_or_default();
+    let mut entity_probed = false;
+    for entity in held.entities.iter().flatten() {
+        let (legs, node) = match entity {
+            HeldEntity::Edge(edge) => (edge_segments(index, display, edge), edge.node),
+            HeldEntity::Vertex(vertex) => (vertex_segments(index, display, vertex), vertex.node),
+        };
+        held_segments.extend(legs);
+        entity_probed |= moved(display, node);
+    }
     let edges = EdgeOverlay {
         held: held_segments,
         held_refused,
-        held_probed: held.edges.is_some_and(|set| moved(display, set.node)),
+        held_probed: entity_probed || held.edges.is_some_and(|set| moved(display, set.node)),
         ..edge_overlay(index, display, selection, hover)
     };
     (highlight, edges)
 }
 
-/// Whether `node` is a free-moved placement — the one read behind every
-/// probe flag on an [`EdgeOverlay`].
+/// Whether `node` is drawn in a free-moved space — the one read behind
+/// every probe flag on an [`EdgeOverlay`].
 fn moved(display: &DisplayView, node: RecipeNodeId) -> bool {
-    display.moved_placements.contains_key(&node)
+    display.moved_nodes.contains_key(&node)
 }
 
 /// The edge marks a frame draws: the drawn polylines of the marked
@@ -332,7 +353,7 @@ pub struct EdgeOverlay {
     pub held_refused: Option<EdgeNamesRefused>,
     /// Whether the held edges belong to a free-moved instance — one
     /// flag, because a held set is on one body
-    /// ([`crate::blend::BlendTarget`]). See
+    /// ([`crate::tree::DrawnBody`]). See
     /// [`EdgeOverlay::selected_probed`].
     pub held_probed: bool,
     /// **Segments that are not in the document at all**: the
@@ -480,12 +501,33 @@ pub fn edge_overlay(
         // The one already marked as selected is not marked twice.
         selected_edge != Some(*edge)
     });
-    let probed = |edge: &EdgeSelection| moved(display, edge.node);
+    // A vertex is drawn in the edge lanes, by the same rule: it is a
+    // mark of geometry, not of a patch.
+    let selected_vertex = selection.vertex();
+    let hovered_vertex = hover
+        .and_then(Hovered::vertex)
+        .filter(|vertex| selected_vertex != Some(*vertex));
+    let probed = |node: RecipeNodeId| moved(display, node);
+    let lane = |edge: Option<&EdgeSelection>, vertex: Option<&VertexSelection>| {
+        let mut legs = edge.map(mark).unwrap_or_default();
+        legs.extend(
+            vertex
+                .map(|vertex| vertex_segments(index, display, vertex))
+                .unwrap_or_default(),
+        );
+        legs
+    };
     EdgeOverlay {
-        selected: selected_edge.map(mark).unwrap_or_default(),
-        hovered: hovered_edge.map(mark).unwrap_or_default(),
-        selected_probed: selected_edge.is_some_and(probed),
-        hovered_probed: hovered_edge.is_some_and(probed),
+        selected: lane(selected_edge, selected_vertex),
+        hovered: lane(hovered_edge, hovered_vertex),
+        selected_probed: selected_edge
+            .map(|edge| edge.node)
+            .or(selected_vertex.map(|v| v.node))
+            .is_some_and(probed),
+        hovered_probed: hovered_edge
+            .map(|edge| edge.node)
+            .or(hovered_vertex.map(|v| v.node))
+            .is_some_and(probed),
         // Nothing a SELECTION implies: a held pick is added by
         // [`compose`], from whoever holds it; a preview is about
         // something that is not in the document, so it is added by
@@ -517,6 +559,22 @@ pub fn edge_segments(
         .first()
         .map(|id| edge_id_segments(index, display, *id))
         .unwrap_or_default()
+}
+
+/// **One vertex selection's drawn mark**, as line-list pairs: its
+/// cross ([`PickIndex::vertex_legs_for`]) through the display seam's
+/// rule ([`LegLane`]), empty for a vertex this index does not draw
+/// there.
+pub fn vertex_segments(
+    index: &PickIndex,
+    display: &DisplayView,
+    vertex: &VertexSelection,
+) -> Vec<[f32; 3]> {
+    let mut lane = LegLane::default();
+    for [from, to] in index.vertex_legs_for(vertex, display) {
+        lane.leg(from, to);
+    }
+    lane.into_segments()
 }
 
 /// **One DRAWN edge's segments**, addressed by the id this index
@@ -682,7 +740,7 @@ impl LegLane {
 ///
 /// **Made, not merely drawn under.** A patch belongs to the node that
 /// MINTED the entity its name denotes, which
-/// [`pncad::select::attribute`] reads off the name's own
+/// [`crate::tree::feature_of`] reads off the name's own
 /// carry-through segments: a fillet's `From { of: f }` face is still
 /// the target's face `f`, so a fillet's extent is the blends and
 /// corners it created and nothing else. Which node DRAWS a patch is a
@@ -698,12 +756,12 @@ impl LegLane {
 /// did not: what an op that contributes no role segment carries is
 /// what was minted below it ([`crate::display::derives_from`]).
 /// Failing that, a node no drawn name mentions at all — a profile —
-/// marks the drawn copies deriving from it
-/// ([`crate::display::placements_deriving_from`]): a profile's line and the wall it
-/// swept are one thing seen twice. That last step is also where a name
-/// the vocabulary walk cannot classify degrades to, so an
-/// unclassified role costs the whole-body picture rather than an empty
-/// one.
+/// marks the drawn bodies deriving from it
+/// ([`crate::display::drawn_deriving_from`]): a profile's line and the wall it
+/// swept are one thing seen twice. Which node minted a patch is the one
+/// feature rule ([`crate::tree::feature_of`]), so the focus of a face pick
+/// is the feature the tree and the property header name, a name the
+/// attribution walk cannot classify included.
 ///
 /// **What it does NOT do yet (issue 1182)**, stated so the gap is not
 /// mistaken for a decision: the marking is per NODE, so selecting a
@@ -734,6 +792,7 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
         // the same kind of picked entity a face is, and selecting one
         // shows the same feature's rows.
         Selection::Edge(edge) => vec![edge.feature()],
+        Selection::Vertex(vertex) => vec![vertex.feature()],
         // Every node the variable drives. A variable is the one
         // selection with no geometry of its own, and the useful
         // question about it is exactly "what does this number move".
@@ -750,10 +809,13 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
     // One walk of the names per call, not one per selected node: a
     // variable selection asks the same question of every node it
     // drives.
-    let made: Vec<(u32, NameOrigin)> = index
+    let made: Vec<Made> = index
         .ids()
         .ids()
-        .filter_map(|id| Some((id, attribute(index.name_of(id).ok()?))))
+        .filter_map(|id| {
+            let name = index.name_of(id).ok()?;
+            Some((id, attribute(name), crate::tree::feature_of(name)))
+        })
         .collect();
     let mut out = BTreeSet::new();
     for node in nodes {
@@ -762,21 +824,25 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
     out
 }
 
+/// A drawn patch, the nodes its name passes through, and the feature it
+/// is ([`crate::tree::feature_of`]).
+type Made = (u32, NameOrigin, RecipeNodeId);
+
 /// The patches ONE node is responsible for: what it minted, else what
 /// passes through it, else the copies built from it (see [`focus`]).
 fn marked_for(
     index: &PickIndex,
     doc: &Doc<ProfileProgram>,
-    made: &[(u32, NameOrigin)],
+    made: &[Made],
     node: RecipeNodeId,
 ) -> BTreeSet<u32> {
-    let pick = |keep: &dyn Fn(&NameOrigin) -> bool| -> BTreeSet<u32> {
+    let pick = |keep: &dyn Fn(&NameOrigin, RecipeNodeId) -> bool| -> BTreeSet<u32> {
         made.iter()
-            .filter(|(_, at)| keep(at))
-            .map(|(id, _)| *id)
+            .filter(|(_, at, feature)| keep(at, *feature))
+            .map(|(id, _, _)| *id)
             .collect()
     };
-    let minted = pick(&|at| at.minted_by() == Some(node));
+    let minted = pick(&|_, feature| feature == node);
     if !minted.is_empty() {
         return minted;
     }
@@ -786,19 +852,18 @@ fn marked_for(
     // entities it carries are the ones minted anywhere below it.
     let below: BTreeSet<RecipeNodeId> = made
         .iter()
-        .filter_map(|(_, at)| at.minted_by())
+        .map(|(_, _, feature)| *feature)
         .collect::<BTreeSet<_>>()
         .into_iter()
         .filter(|&minter| crate::display::derives_from(doc, node, minter))
         .collect();
-    let through =
-        pick(&|at| at.passes_through(node) || at.minted_by().is_some_and(|m| below.contains(&m)));
+    let through = pick(&|at, feature| at.passes_through(node) || below.contains(&feature));
     if !through.is_empty() {
         return through;
     }
-    crate::display::placements_deriving_from(doc, node)
+    crate::display::drawn_deriving_from(doc, node)
         .into_iter()
-        .flat_map(|placement| index.ids_of_node(placement))
+        .flat_map(|drawn| index.ids_of_node(drawn))
         .collect()
 }
 
@@ -847,7 +912,7 @@ mod tests {
     /// The view that puts `node`'s drawn geometry `shift` metres out.
     fn moved(node: RecipeNodeId, shift: f64) -> DisplayView {
         DisplayView {
-            moved_placements: BTreeMap::from([(node, Frame::translation([shift, 0.0, 0.0]))]),
+            moved_nodes: BTreeMap::from([(node, Frame::translation([shift, 0.0, 0.0]))]),
             ..DisplayView::none()
         }
     }
@@ -980,6 +1045,7 @@ mod tests {
             .collect();
         let held = |body| Held {
             faces: [None; HELD_FACES],
+            entities: [None, None],
             edges: Some(HeldEdges {
                 node: copy,
                 body,

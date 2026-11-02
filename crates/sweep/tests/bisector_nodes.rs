@@ -628,6 +628,95 @@ fn the_near_node_poses_at_the_witness_band() {
     }
 }
 
+/// **A single cap just past the band builds as the parting leaves it**:
+/// A's or B's cap `δ = √(2·c·K·ε)` off the other rod's axis, `c` 1.1,
+/// 1.2 and 1.3, and `δ = 1e-4`. The cap's rim arcs from each pierce to
+/// the node lie within about `δ²/2 = c·K·ε` of the other rod's wall,
+/// in band of it, and the arc's two faces leave it on opposite sides of
+/// the wall: the parting's gate reads that as the arc not lying in the
+/// wall (`Crossed`), the wall's side read at its carrier's foot, and
+/// leaves it alone. Every op, both orders and both poses, at
+/// every ε: no cell refuses at the parting (`EdgeInFace`), and each
+/// that builds is at its closed form. At ε 1e-9 and 1e-6 every cell
+/// builds; at 1e-12 the merge refuses some, as it does without the
+/// parting.
+#[test]
+fn a_single_cap_just_past_the_band_builds_as_the_parting_leaves_it() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    // At ε 1e-9 and coarser every cell builds; at 1e-12 the merge
+    // refuses some.
+    let at_witness = band.zero() >= 1e-9;
+    let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
+    let v = |d: f64| PI * (2.0 - d);
+    let beyond = |d: f64| {
+        let s = (1.0 - d * d).sqrt();
+        2.0 * (s.powi(3) / 3.0 - d * d.acos() + s)
+    };
+    let ds = [1.1, 1.2, 1.3]
+        .map(|c: f64| (2.0 * c * band.escalate()).sqrt())
+        .into_iter()
+        .chain([1e-4]);
+    for d in ds {
+        for (what, a, b, va, vb) in [
+            (
+                "A's cap",
+                rod(d, 2.0),
+                across(&rod(-2.0, 2.0)),
+                v(d),
+                4.0 * PI,
+            ),
+            (
+                "B's cap",
+                rod(-2.0, 2.0),
+                across(&rod(d, 2.0)),
+                4.0 * PI,
+                v(d),
+            ),
+        ] {
+            let cap = beyond(d);
+            for (pose, a, b) in [
+                ("direct", a.clone(), b.clone()),
+                ("re-posed", repose(&a), repose(&b)),
+            ] {
+                let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+                for (order, x, y, vx, vy) in [("A, B", &a, &b, va, vb), ("B, A", &b, &a, vb, va)] {
+                    for (op, r, closed) in [
+                        ("∪", topo::union(x, y, tol), vx + vy - cap),
+                        ("∩", topo::intersect(x, y, tol), cap),
+                        ("∖", topo::subtract(x, y, tol), vx - cap),
+                    ] {
+                        let cut = format!("{what} δ = {d:e}, {pose} ({order}), {op}");
+                        let out = match r {
+                            Ok(BooleanResult::Body(out)) => out,
+                            Err(e) if !at_witness => {
+                                assert!(
+                                    !matches!(e, topo::BooleanError::EdgeInFace { .. }),
+                                    "{cut}: the parting refuses, {e:?}"
+                                );
+                                continue;
+                            }
+                            r => panic!("{cut}: builds, got {r:?}"),
+                        };
+                        let m = topo::mass_properties(
+                            &out.body,
+                            tol,
+                            topo::test_support::pinned_resolution(tol),
+                        )
+                        .unwrap();
+                        assert!(
+                            (m.enclosure.volume - closed).abs() <= m.enclosure.volume_pad + 1e-9,
+                            "{cut}: volume {} ± {}, want {closed}",
+                            m.enclosure.volume,
+                            m.enclosure.volume_pad
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// **A pierce whose branch the sweep did not record keeps the tangent
 /// plane.** With every recorded branch forgotten
 /// ([`topo::forget_branches`]), A's cap `30·escalate` off the station
@@ -1243,8 +1332,9 @@ fn slanted_bores_build_every_operation_one_difference_pinched_to_itself_row() {
 /// boxes overlap, so a reading that refuses for such a pair (here the
 /// parallelism, in band) must pre-empt nothing: at every `α` and every
 /// operation the boolean answers what its own route does — the body, or
-/// at the witness band and `α = 3e-10` the fallback extent's refusal —
-/// and never the node reading's escalation.
+/// at the witness band and `α = 3e-9` the fallback extent's refusal, the
+/// tilt read across the operation's region (`7e-9` there) in band — and
+/// never the node reading's escalation.
 #[test]
 fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
     let tol = Tol::witness();
@@ -1270,7 +1360,7 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
             ("pin ∖ bore", topo::subtract(&b, &a, tol)),
         ] {
             let what = format!("α = {alpha:e}, {op}");
-            if witness && alpha == 3e-10 {
+            if witness && alpha == 3e-9 {
                 assert!(
                     matches!(r, Err(topo::BooleanError::FallbackExtentUnsupported { .. })),
                     "{what}: the fallback extent's refusal, got {r:?}"

@@ -43,18 +43,18 @@ use crate::node::RecipeNodeId;
 ///    [`Self::UnsupportedTurnedCell`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::ChordOffRim`], [`Self::MemberEdgeTied`],
-///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`],
-///    [`Self::CarrierUnplaced`] and [`Self::PartnerUnread`],
-///    reached from recipes nothing is wrong with,
+///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`] and
+///    [`Self::CarrierUnplaced`], reached from recipes nothing is wrong
+///    with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
 ///    because telling an author to file a kernel bug over their own
 ///    legal document fails in the expensive direction. A variant that
 ///    several constructions reach carries a shape naming which.
 /// 5. A PRECISION LIMIT the model controls: [`Self::WayInZeroBand`],
-///    [`Self::JoinedPieceOffRoot`] and [`Self::BandVerdictsDisagree`], a
-///    verdict the tolerance band cannot give on a sound result. Each
-///    ends in the model's lever alone.
+///    [`Self::JoinedPieceOffRoot`], [`Self::BandVerdictsDisagree`] and
+///    [`Self::PartnerUnread`], a verdict the tolerance band cannot give
+///    on a sound result. Each ends in the model's lever alone.
 ///
 /// **Three of the five categories are readable off the opening
 /// words.** Three framings are written once each —
@@ -304,12 +304,12 @@ pub enum NamingError {
     },
     /// A **crossing at a vertex whose partner the boolean read nothing
     /// of** ([`topo::UnreadPartner`]): the vertex sits in one pair with
-    /// a vertex of the other operand whose neighbourhood no wedge or
-    /// corner reading classes its edges against, so the boolean holds no
-    /// class for them, and the crossing's senses cannot be read. The
-    /// boolean builds such a result soundly; what is missing is a rule
-    /// that reads the edges against the partner's neighbourhood
-    /// (`work/tang/a-lone-unread-partner-has-no-class-rule`).
+    /// a vertex of the other operand, and some edge of it reads within
+    /// the band of the partner's faces at the point, so the cone the
+    /// boolean reads the edges through classes none of them, and the
+    /// crossing's senses cannot be read. The boolean builds such a result
+    /// soundly; the band gives no verdict there, so it is a precision
+    /// limit, whose lever is moving the edge clear of the faces.
     PartnerUnread {
         /// The result-body vertex.
         vertex: VertexKey,
@@ -683,6 +683,12 @@ const JOINED_PIECE_LEVER: &str = concat!(
     " so the joined piece lies clearly on or clearly off that operand edge"
 );
 
+/// The lever of [`NamingError::PartnerUnread`].
+const PARTNER_UNREAD_LEVER: &str = concat!(
+    geom_core::coincidence_move_arm!(),
+    " so each edge at the vertex lies clearly on or off the other operand's faces"
+);
+
 /// What a shared-rim derivation found instead of the one edge it asked
 /// for — the fact a free-text sentence would have hidden.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -887,23 +893,14 @@ impl crate::spoken::Say for NamingError {
                 unread,
             } => write!(
                 f,
-                "{UNRULED_FRAMING}: operand {}'s vertex {vertex:?} meets the other operand's \
-                 vertex {partner:?}, which lies {} and which the boolean read nothing of, so it \
-                 classed none of the vertex's edges and the crossing has no senses to name it \
-                 by (work/tang/a-lone-unread-partner-has-no-class-rule)",
+                "{LIMIT_FRAMING}: operand {}'s vertex {vertex:?} meets the other operand's \
+                 vertex {partner:?}, and some edge of it reads within the tolerance of the \
+                 partner's faces, so no edge there is classed and the crossing has no senses to \
+                 name it by",
                 match unread.operand {
                     topo::Operand::A => "A",
                     topo::Operand::B => "B",
                 },
-                match unread.neighbourhood {
-                    topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
-                    topo::UnreadNeighbourhood::NoBisector => {
-                        "on an edge whose two faces hold no bisector"
-                    }
-                    topo::UnreadNeighbourhood::ConeUnread => {
-                        "at a polygon cone, some edge of which no reference decides"
-                    }
-                }
             ),
             Self::ConventionalVertex { vertex, body } => write!(
                 f,
@@ -995,7 +992,6 @@ impl NamingError {
             | Self::ConventionalVertex { .. }
             | Self::ClosedCarrierUnread { .. }
             | Self::CarrierUnplaced { .. }
-            | Self::PartnerUnread { .. }
             | Self::MemberEdgeTied { .. }
             | Self::UnsupportedCrossingSenses { .. }
             | Self::UnsupportedSeamSides { .. }
@@ -1004,7 +1000,8 @@ impl NamingError {
             | Self::UnsupportedTurnedCell { .. } => Some(Category::Unruled),
             Self::WayInZeroBand { .. }
             | Self::JoinedPieceOffRoot { .. }
-            | Self::BandVerdictsDisagree { .. } => Some(Category::Limit),
+            | Self::BandVerdictsDisagree { .. }
+            | Self::PartnerUnread { .. } => Some(Category::Limit),
             Self::Band(_) | Self::Escalated { .. } => None,
         }
     }
@@ -1027,8 +1024,9 @@ impl NamingError {
             Self::WayInZeroBand { .. } => AMBIGUITY_FACTOR_LEVER,
             Self::JoinedPieceOffRoot { .. } => JOINED_PIECE_LEVER,
             Self::BandVerdictsDisagree { shape, .. } => shape.lever(),
+            Self::PartnerUnread { .. } => PARTNER_UNREAD_LEVER,
             other => unreachable!(
-                "{other:?} has no lever: `NamingError::category` puts exactly the three \
+                "{other:?} has no lever: `NamingError::category` puts exactly the four \
                  precision-limit variants in `Category::Limit`, and only those ask for one"
             ),
         }
@@ -1152,13 +1150,15 @@ pub(crate) fn name_family<T: geom_core::Real>(
         // at a time seals in `upstream_name`.
         member.seal_order();
         let body = output_body(at_body)?;
-        let place = |e: &EntityRef| -> Result<EntityRef, NamingError> {
+        let place = |e: &EntityRef| -> EntityRef {
             if e.body != 0 {
-                return Err(NamingError::Emission {
-                    what: "a family's member names a body the member does not have",
-                });
+                unreachable!(
+                    "family {node:?}: member {at_body} names its body {}; {OWN_BODIES}, and a \
+                     member is one body",
+                    e.body
+                )
             }
-            Ok(ent(body, e.key))
+            ent(body, e.key)
         };
         for (name, entry) in member.iter_refs() {
             let wrapped = StableName {
@@ -1170,10 +1170,9 @@ pub(crate) fn name_family<T: geom_core::Real>(
                 }],
             };
             match entry {
-                super::table::Entry::Unique(e) => t.insert(wrapped, place(e)?)?,
+                super::table::Entry::Unique(e) => t.insert(wrapped, place(e))?,
                 super::table::Entry::Tied(es) => {
-                    let rows = es.iter().map(place).collect::<Result<Vec<_>, _>>()?;
-                    t.insert_tied(wrapped, rows)?;
+                    t.insert_tied(wrapped, es.iter().map(place).collect())?
                 }
             }
         }
@@ -1245,27 +1244,38 @@ pub(crate) fn name_assemble<T: geom_core::Real>(
             if name.kind == EntityKind::Body {
                 continue;
             }
-            let rows: Vec<EntityRef> = match entry {
-                super::table::Entry::Unique(e) => vec![*e],
-                super::table::Entry::Tied(es) => es.clone(),
+            let rows: &[EntityRef] = match entry {
+                super::table::Entry::Unique(e) => core::slice::from_ref(e),
+                super::table::Entry::Tied(es) => es,
             };
-            let moved = rows
-                .into_iter()
-                .map(|e| {
-                    let keys = bridges.get(e.body as usize).ok_or(NamingError::Emission {
-                        what: "a member's table names a body the member does not have",
-                    })?;
-                    let key = match e.key {
-                        EntityKey::Body => None,
-                        EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
-                        EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
-                        EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
-                    };
-                    key.map(|key| ent(0, key)).ok_or(NamingError::Emission {
-                        what: "a member's graft bridge is not total over its entities",
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let moved = rows.iter().map(|e| {
+                let Some(keys) = usize::try_from(e.body).ok().and_then(|b| bridges.get(b)) else {
+                    unreachable!(
+                        "assemble {node:?}: read {read:?} names body {}, past its {} (or past a \
+                         usize); {OWN_BODIES}",
+                        e.body,
+                        bridges.len()
+                    )
+                };
+                let key = match e.key {
+                    EntityKey::Body => unreachable!(
+                        "assemble {node:?}: read {read:?} seats a body row under a {:?} name; \
+                         a table seats each row at its name's kind",
+                        name.kind
+                    ),
+                    EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
+                    EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
+                    EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
+                };
+                let Some(key) = key else {
+                    unreachable!(
+                        "assemble {node:?}: read {read:?}'s graft bridge has no image for {:?}; \
+                         {GRAFT_TOTAL}",
+                        e.key
+                    )
+                };
+                ent(0, key)
+            });
             let keyed = StableName {
                 kind: name.kind,
                 node,
@@ -1287,6 +1297,38 @@ pub(crate) fn name_assemble<T: geom_core::Real>(
     }
     check_total(&t, fused, 0)?;
     Ok(Arc::new(t))
+}
+
+/// Why a value's table names only the output bodies the value holds:
+/// a one-body output's rows sit at 0 and a family's at each member's
+/// index. Debug builds check it on every node result the evaluator
+/// writes ([`assert_own_bodies`]).
+const OWN_BODIES: &str = "a value's table names only the output bodies the value holds";
+
+/// Why an assembled or gathered row has an image in the grafted body: a
+/// graft's bridge is total over its source's live entities, a rigid
+/// read keeps the source's keys, and the source's rows name its live
+/// entities ([`LIVE_ARGUMENT`]'s table leg, which [`check_total`]
+/// checks in debug builds).
+pub(crate) const GRAFT_TOTAL: &str =
+    "a graft's bridge is total over its source's live entities, which its rows name";
+
+/// [`OWN_BODIES`], checked: every row of `table` sits at an output body
+/// below `count`.
+#[cfg(debug_assertions)]
+#[track_caller]
+pub(crate) fn assert_own_bodies(table: &NameTable, count: usize, node: RecipeNodeId) {
+    for (name, row) in table.rows() {
+        for (_, e) in row.pairs() {
+            assert!(
+                usize::try_from(e.body).is_ok_and(|b| b < count),
+                "{node:?}'s value holds {count} bodies, though its table seats {:?} at body {}; \
+                 {OWN_BODIES}",
+                name.kind,
+                e.body
+            );
+        }
+    }
 }
 
 /// Per-body topology walk products the emitters share: half-edge
@@ -1518,13 +1560,31 @@ pub(crate) fn edge_ends<T: geom_core::Real>(body: &Body<T>, e: EdgeKey) -> (Vert
 
 /// TOTALITY (spec D4): every live face/edge/vertex of `body` (output
 /// body index `ix`) is covered by the table, plus the body row
-/// itself.
+/// itself. Debug builds check the converse too: every row at `ix`
+/// names a live entity of `body`, and a body key only under a body
+/// name.
 pub(crate) fn check_total<T: geom_core::Real>(
     table: &NameTable,
     body: &Body<T>,
     ix: u32,
 ) -> Result<(), NamingError> {
     let miss = |kind| NamingError::Unnamed { kind, body: ix };
+    #[cfg(debug_assertions)]
+    for (name, row) in table.rows() {
+        for (_, e) in row.pairs().filter(|(_, e)| e.body == ix) {
+            let live = match e.key {
+                EntityKey::Body => name.kind == EntityKind::Body,
+                EntityKey::Face(f) => body.get_face(f).is_some(),
+                EntityKey::Edge(k) => body.get_edge(k).is_some(),
+                EntityKey::Vertex(v) => body.get_vertex(v).is_some(),
+            };
+            assert!(
+                live,
+                "a {:?} name's row at body {ix} names {:?}, which is not a live entity of it",
+                name.kind, e.key
+            );
+        }
+    }
     if table.name_of(&ent(ix, EntityKey::Body)).is_none() {
         return Err(miss(EntityKind::Body));
     }
@@ -1889,13 +1949,12 @@ mod display_tests {
                         operand: topo::Operand::B,
                         vertex: two_vertices().0,
                         partner: two_vertices().1,
-                        neighbourhood: topo::UnreadNeighbourhood::OneFace,
                     },
                 },
                 vec![
-                    "inside one smooth face",
-                    "classed none of the vertex's edges",
-                    "work/tang/a-lone-unread-partner-has-no-class-rule",
+                    "reads within the tolerance of the partner's faces",
+                    "no edge there is classed",
+                    "clearly on or off the other operand's faces",
                 ],
             ),
             (

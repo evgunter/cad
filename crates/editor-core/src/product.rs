@@ -604,9 +604,9 @@ impl ProductError {
 /// reading a `Part` of a pattern is that one copy.
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     // The records and findings a body carries are keyed in its arena:
-    // each member of a family brings its own ([`crate::Carry::member`]).
+    // each member of a family, and each half of a split, brings its own
+    // ([`crate::Carry::member`]).
     let carried = || Arc::clone(&value.carry.contacts);
-    let none = || Arc::new(ContactRecords::default());
     let rows = || Arc::clone(&value.carry.findings);
     let norows = || Arc::new(crate::checks::at_rest::CarriedFindings::default());
     match &value.payload {
@@ -646,7 +646,9 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                 .into_iter()
                 .filter_map(|(half, side)| match side {
                     SplitSide::Body(body) => {
-                        Some((half.output_body(), body.clone(), none(), norows()))
+                        let at = usize::try_from(half.output_body()).unwrap_or(usize::MAX);
+                        let records = Arc::clone(&value.carry.member(at).contacts);
+                        Some((half.output_body(), body.clone(), records, norows()))
                     }
                     SplitSide::Empty => None,
                 })
@@ -1646,11 +1648,20 @@ fn carry_names(
     ix: u32,
     keys: &topo::GraftKeys,
 ) {
-    let carried = rows.carry(from, ix, |key| match key {
-        EntityKey::Body => None,
-        EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
-        EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
-        EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
+    let carried = rows.carry(from, ix, |key| {
+        let image = match key {
+            EntityKey::Body => return None,
+            EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
+            EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
+            EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
+        };
+        let Some(image) = image else {
+            unreachable!(
+                "{node:?}: the gather's graft has no image for {key:?}; {}",
+                crate::names::GRAFT_TOTAL
+            )
+        };
+        Some(image)
     });
     if let Err(e) = carried {
         unreachable!(

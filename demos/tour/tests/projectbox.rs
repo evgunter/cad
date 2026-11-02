@@ -88,10 +88,12 @@ mod tests {
     /// **The coil's gap to `A·L` is discretization, not a volume
     /// error.** The stop caps the gap at [`COIL_GAP`]; a cap alone
     /// cannot tell a skinning gap from a wrong volume, so this doubles
-    /// the stations a turn and asserts the gap stays negative (the
-    /// slabs fall short of the tube), shrinks at least at second order
-    /// (measured: 21×), and lands under an absolute cap: a volume bias
-    /// of either sign larger than the cap reds it.
+    /// the stations a turn up to [`PER_TURN`] and asserts the gap stays
+    /// negative (the slabs fall short of the tube), shrinks at least at
+    /// second order (measured: 13×), and lands under an absolute cap: a
+    /// volume bias of either sign larger than the cap reds it. The
+    /// doubling stops at [`PER_TURN`]: past it the gap meets the
+    /// spine's own 1.8e-6 shortfall, which no station count moves.
     #[test]
     fn the_coils_volume_gap_converges_at_least_at_second_order() {
         let tol = Tol::witness();
@@ -108,16 +110,16 @@ mod tests {
             .volume;
             (v - want) / want
         };
-        let (coarse, fine) = (gap(PER_TURN), gap(2 * PER_TURN));
+        let (coarse, fine) = (gap(PER_TURN / 2), gap(PER_TURN));
         assert!(
-            (-COIL_GAP..0.0).contains(&coarse)
-                && (-FINE_GAP..0.0).contains(&fine)
+            (-COARSE_GAP..0.0).contains(&coarse)
+                && (-COIL_GAP..0.0).contains(&fine)
                 && fine.abs() <= coarse.abs() / 4.0,
             "the coil's A·L gap went {coarse:.3e} -> {fine:.3e} on doubling the stations"
         );
     }
 
-    /// The cap on the gap at twice [`PER_TURN`] stations a turn, measured
-    /// 1.7e-4.
-    const FINE_GAP: f64 = 5e-4;
+    /// The cap on the gap at half [`PER_TURN`] stations a turn, measured
+    /// 5.4e-5.
+    const COARSE_GAP: f64 = 7e-5;
 }

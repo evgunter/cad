@@ -170,10 +170,11 @@ pub fn coil_volume(area: f64) -> f64 {
 
 /// The kernel's coil against [`coil_volume`]: the body is a stack of
 /// station-to-station skinned slabs, not the continuum tube, and falls
-/// SHORT of it (the gap is negative) by a discretization gap, measured 3.6e-3 at [`PER_TURN`]
-/// stations a turn (1.7e-4 at twice that, 1.1e-5 at four times). The
-/// spine's own length is 1.8e-6 short of the helix's, below all three.
-pub const COIL_GAP: f64 = 5e-3;
+/// SHORT of it (the gap is negative) by a discretization gap, measured
+/// 4.1e-6 at [`PER_TURN`] stations a turn and 5.4e-5 at half that. The
+/// spine's own length is 1.8e-6 short of the helix's, and that is the
+/// floor: at twice [`PER_TURN`] the gap reads 2.0e-6.
+pub const COIL_GAP: f64 = 6e-6;
 
 /// The round-wire coil BODY's volume (m³) and area (m²): the slab
 /// stack's own, not the continuum tube's, as an independent quadrature
@@ -181,8 +182,8 @@ pub const COIL_GAP: f64 = 5e-3;
 /// (`tests/projectbox.rs`'s `the_round_coils_own_quadrature_is_the_pinned_oracle`
 /// re-derives both from the body on every test run). Where wall 1 is
 /// retired, the kernel's certified bracket is held to these.
-pub const ROUND_COIL_V: f64 = 0.010_360_121_170_116;
-pub const ROUND_COIL_A: f64 = 0.835_189_181_993_04;
+pub const ROUND_COIL_V: f64 = 0.010_405_810_587_853;
+pub const ROUND_COIL_A: f64 = 0.836_392_790_468_53;
 
 /// The spring: a square-wire compression spring of [`TURNS`] turns,
 /// one `sweep_body` along the whole coil, standing on [`SPRING_AXIS`]'s
@@ -190,13 +191,12 @@ pub const ROUND_COIL_A: f64 = 0.835_189_181_993_04;
 ///
 /// Round wire is the natural section, and it was wall 1: the swept
 /// `circle_split` wire builds, and its volume meets the tour's printed
-/// precision at every ε (0.01036012 ± 1.9e-7 at the default ε; at
-/// ε = 1e-12 its enclosure is 2.74e-8 m wide after 7 rounds, under the
-/// precision). The wall is RETIRED, kept live: it asserts the bracket
+/// precision at every ε (0.01040581 ± 2.1e-7 at the default ε and at
+/// ε = 1e-12 alike). The wall is RETIRED, kept live: it asserts the bracket
 /// holds the body's own [`ROUND_COIL_V`] and [`ROUND_COIL_A`]. Neither bracket holds [`coil_volume`]`(π WIRE_H²)`,
 /// the continuum tube's: the body is a stack of slabs, as the square
 /// wire's is, and the retired wall asserts the same slab gap against
-/// it, inside [`COIL_GAP`] (measured −4.40e-3).
+/// it, inside [`COIL_GAP`] (measured −4.11e-6).
 fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
     let round: Vec<ConstructedLoop<f64>> = vec![
         circle_split(p2(0.0, 0.0), WIRE_H, 4, 0.0, tol)

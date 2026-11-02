@@ -78,10 +78,12 @@ fn donut() -> Surface<f64> {
     torus(p(0.0, 0.0, 0.0), 2.0, 0.5)
 }
 
-/// The rows' reach: a ball of diameter [`LEVER`] about the origin,
-/// where every row's torus and walls stand. A torus pair's section value
-/// reads its own ball and not this one (`geom_brep::pair_section::torus`),
-/// so it serves the rows of every pair alike.
+/// The rows' reach, a ball of diameter [`LEVER`] about the origin, where
+/// every row's torus and walls stand, and their region, the ball of
+/// radius [`LEVER`] there, across which two cylinders' pose levers a
+/// tilt by [`LEVER`] from an axis through the origin, as the reach's
+/// diameter does. A torus pair's section value reads its own ball and
+/// neither of these (`geom_brep::pair_section::torus`).
 pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
@@ -90,7 +92,23 @@ pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
             centre: p(0.0, 0.0, 0.0),
             radius: LEVER / 2.0,
         },
+        Some(geom_brep::ExtentBall::new(p(0.0, 0.0, 0.0), LEVER)),
         Some(geom_brep::SsiLane::marched()),
+        band(),
+    )
+}
+
+/// [`classify`] with no march door.
+fn unmarched(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
+    super::classify(
+        f,
+        g,
+        super::Reach {
+            centre: p(0.0, 0.0, 0.0),
+            radius: LEVER / 2.0,
+        },
+        None,
+        None,
         band(),
     )
 }
@@ -375,7 +393,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
         };
         assert_eq!((parts.len(), *single), (count, count == 1), "{what}");
         let Ok(geom_brep::SectionRead::Built(section)) =
-            geom_brep::pair_section(&donut(), &partner, None, band())
+            geom_brep::pair_section(&donut(), &partner, None, None, band())
         else {
             panic!("{what}: the value builds the pair");
         };
@@ -388,7 +406,10 @@ fn a_general_torus_pose_is_read_from_its_march() {
                 (w - k.witness).norm() == 0.0,
                 "{what}: the witness is the carrier's middle"
             );
-            assert_eq!(c.pad, k.pad, "{what}: the witness's pad is its loop's");
+            assert_eq!(
+                c.pad, k.reach,
+                "{what}: the witness's pad is its loop's reach"
+            );
             // Closeness: the witness lies on the carrier, within its
             // certified limb-2 bound of each surface.
             let sup = k.certificate.as_ref().expect("a fitted loop").hull_sup;
@@ -408,6 +429,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
             centre: p(0.0, 0.0, 0.0),
             radius: LEVER / 2.0,
         },
+        None,
         None,
         band(),
     );
@@ -472,6 +494,7 @@ fn a_marched_witness_is_placed_padded() {
                 essential_f: false,
                 essential_g: false,
                 witness: Some(p(0.0, 0.0, 0.0)),
+                reaches: None,
                 pad,
             }],
             single: true,
@@ -540,14 +563,19 @@ fn bump() -> Surface<f64> {
     ))
 }
 
-/// **NURBS × plane: W0 on the control net, else R-reach**, in both
-/// orders. A plane clear of every control point, on either side and
-/// either orientation, is apart; a plane that cuts the net, one that
-/// touches its top row, and a placeholder's poison net have no arm. Red
-/// against W0 reading any one point clear rather than all (the cut and
-/// touching planes), and against W0 dropped (the clear ones).
+/// **NURBS × plane with no march door: W0 on the control net, else
+/// R-lane**, in both orders. A plane clear of every control point, on
+/// either side and either orientation, is apart before any reading; a
+/// plane that cuts the net and one that touches its top row are read
+/// whole (`section_cert_spline_rows`), which a scalar with no march door
+/// does not; a placeholder's poison net is refused at the hull, with or
+/// without a door (R-reach). Two spline patches are read whole too
+/// (`section_cert_spline_pair_rows`), so with no door they are R-lane.
+/// Red against W0 reading any one point clear rather than all (the cut
+/// and touching planes), against W0 dropped (the clear ones), and against
+/// the poison read past the hull (R-lane).
 #[test]
-fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_on_reach() {
+fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
     let placeholder = Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder()));
     let apart =
         |s: &Section<f64>| matches!(s, Section::Components { parts, .. } if parts.is_empty());
@@ -563,17 +591,20 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_on_reach() {
         ("cutting", plane(p(0.0, 0.0, 0.8), v(0.0, 0.0, 1.0)), false),
         ("touching", plane(p(0.0, 0.0, 2.0), v(0.0, 0.0, 1.0)), false),
     ] {
-        for s in [classify(&bump(), &pl), classify(&pl, &bump())] {
+        for s in [unmarched(&bump(), &pl), unmarched(&pl, &bump())] {
             if want_apart {
                 assert!(apart(&s), "{what}: {s:?}");
             } else {
-                assert!(matches!(s, Section::Intractable), "{what}: {s:?}");
+                assert!(matches!(s, Section::NoLane("f64")), "{what}: {s:?}");
             }
         }
     }
     let pl = plane(p(0.0, 0.0, 2.5), v(0.0, 0.0, 1.0));
-    assert!(matches!(classify(&placeholder, &pl), Section::Intractable));
-    assert!(matches!(classify(&bump(), &bump()), Section::Intractable));
+    assert!(matches!(unmarched(&placeholder, &pl), Section::Intractable));
+    assert!(matches!(
+        unmarched(&bump(), &bump()),
+        Section::NoLane("f64")
+    ));
 }
 
 // -------------------------------------------------------------------
@@ -650,17 +681,17 @@ fn cylinder_pairs_every_class() {
         )
     );
     assert_eq!(shape(&classify(&rod, &a)).2, vec![true, true]);
-    // Parallel walls: rulings.
+    // Parallel walls: two rulings, each unbounded.
     let s = classify(&a, &cylinder(p(1.2, 0.0, 0.0), Vec3::unit_z(), 0.5));
-    assert_eq!(shape(&s).4, vec![true]);
-    // Coaxial walls of different radii: parallel, nothing shared.
+    assert_eq!(shape(&s).4, vec![true, true]);
+    // Coaxial walls of different radii: nested, nothing shared.
     let s = classify(&a, &cylinder(p(0.0, 0.0, 3.0), Vec3::unit_z(), 0.5));
-    assert_eq!(shape(&s).4, vec![true]);
+    assert_eq!(shape(&s).0, 0);
     // ONE carrier (same axis, same radius): the section is the surface
     // itself, not a curve, so it refuses as a tangency rather than
     // clearing as rulings.
     let s = classify(&a, &cylinder(p(0.0, 0.0, 3.0), v(0.0, 0.0, -1.0), 1.0));
-    assert_eq!(tangent(&s), "section_cylinder_pair_coincident");
+    assert_eq!(tangent(&s), "pair_section_coincident");
     // Apart.
     let s = classify(&a, &cylinder(p(0.0, 2.0, 0.0), Vec3::unit_x(), 0.5));
     assert_eq!(shape(&s).0, 0);
@@ -669,7 +700,7 @@ fn cylinder_pairs_every_class() {
         &a,
         &cylinder(p(0.0, 1.5, 0.0), Vec3::unit_x(), 0.5),
     ));
-    assert_eq!(t.name, "section_cylinder_pair_reach");
+    assert_eq!(t.name, "cc_crossing_gap");
     assert!(
         (t.at - p(0.0, 1.0, 0.0)).norm() < 1e-12,
         "touch at {:?}",
@@ -679,10 +710,11 @@ fn cylinder_pairs_every_class() {
 
 /// **Two equal walls whose axes meet** cut each other in the two
 /// bisector-plane ellipses, which cross at the nodes `p ± r·n̂`: one
-/// component, essential on both walls, witnessed at a node, at a right
-/// angle and at a slant, the second axis through a point off the first
-/// wall's origin. A nest pinch at unequal radii — the thinner wall
-/// inside the fatter, touching — still refuses R-tan.
+/// component, the four arcs joined at the nodes, essential on both
+/// walls, witnessed on an arc, at a right angle and at a slant, the
+/// second axis through a point off the first wall's origin. A nest
+/// pinch at unequal radii — the thinner wall inside the fatter,
+/// touching — still refuses R-tan.
 #[test]
 fn equal_walls_with_meeting_axes_are_one_component_essential_on_both() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
@@ -697,17 +729,10 @@ fn equal_walls_with_meeting_axes_are_one_component_essential_on_both() {
             (1, true, vec![true], vec![true], vec![false]),
             "axis {d2:?}"
         );
-        let w = witness(&s);
-        on_both(w, &a, &b);
-        let n = Vec3::unit_z().cross(d2).normalize();
-        let node = |sign: f64| p(0.0, 0.0, 0.4) + n * sign;
-        assert!(
-            (w - node(1.0)).norm() < 1e-12 || (w - node(-1.0)).norm() < 1e-12,
-            "axis {d2:?}: the witness {w:?} is a node"
-        );
+        on_both(witness(&s), &a, &b);
     }
     let thin = cylinder(p(0.0, 0.5, 0.0), Vec3::unit_x(), 0.5);
-    assert_eq!(tangent(&classify(&a, &thin)), "section_cylinder_pair_nest");
+    assert_eq!(tangent(&classify(&a, &thin)), "cc_crossing_nest");
 }
 
 /// **The `|d₁ × d₂|` decision**: two walls whose tilt, levered by the
@@ -719,7 +744,53 @@ fn equal_walls_with_meeting_axes_are_one_component_essential_on_both() {
 fn near_parallel_walls_refuse_as_a_tangency() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let b = cylinder(p(1.3, 0.0, 0.0), v(0.0, in_sliver() / LEVER, 1.0), 0.5);
-    assert_eq!(tangent(&classify(&a, &b)), "section_cylinder_axes_tilt");
+    assert_eq!(tangent(&classify(&a, &b)), "cc_axes_parallel");
+}
+
+/// **A cylinder pair the region cuts is marched, and its cut arcs clear
+/// as unbounded.** A wall of radius `0.5` about `z` and one `0.05` rad
+/// off it, `0.1` apart: their own ball (about `20` across) straddles a
+/// region of radius `1.5` about the origin, so the pair's components are
+/// the march's, two arcs that end on the region, each unbounded (W1).
+#[test]
+fn a_cylinder_pair_the_region_cuts_marches_two_unbounded_arcs() {
+    let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 0.5);
+    let b = cylinder(p(0.1, 0.0, 0.0), v(0.0, 0.05f64.sin(), 0.05f64.cos()), 0.5);
+    let s = super::classify(
+        &a,
+        &b,
+        super::Reach {
+            centre: p(0.0, 0.0, 0.0),
+            radius: 1.5,
+        },
+        Some(geom_brep::ExtentBall::new(p(0.0, 0.0, 0.0), 1.5)),
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    );
+    let (count, _, _, _, unbounded) = shape(&s);
+    assert_eq!(count, 2, "two arcs: {s:?}");
+    assert_eq!(unbounded, vec![true, true], "each cut by the region: {s:?}");
+}
+
+/// **A tangent ruling is an unbounded component, not a tangency.** Two
+/// parallel walls touching along one ruling, outside (`r₁ + r₂ = d`) and
+/// inside (`|r₁ − r₂| = d`): the ruling runs out of the region at both
+/// ends, so W1 clears it whatever the touch, which the tangent locus
+/// reads (C7).
+#[test]
+fn a_tangent_ruling_reads_as_an_unbounded_component() {
+    let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
+    for (what, b) in [
+        ("outside", cylinder(p(1.5, 0.0, 0.0), Vec3::unit_z(), 0.5)),
+        ("inside", cylinder(p(0.5, 0.0, 0.0), Vec3::unit_z(), 0.5)),
+    ] {
+        let s = classify(&a, &b);
+        assert_eq!(
+            shape(&s),
+            (1, true, vec![false], vec![false], vec![true]),
+            "{what}: {s:?}"
+        );
+    }
 }
 
 /// A plane section of a wall is essential or unbounded on the wall, and
@@ -948,14 +1019,14 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
         let one = cylinder(origin, Vec3::unit_z(), 1.0);
         let pair = |delta: f64| (one.clone(), cylinder(p(0.0, delta, 0.0), u, 0.5));
         let (a, b) = pair(1.5);
-        let t = touch_both_ways(&a, &b, "section_cylinder_pair_reach");
+        let t = touch_both_ways(&a, &b, "cc_crossing_gap");
         assert!(
             (t.at - p(0.0, 1.0, 0.0)).norm() < 1e-12,
             "walls {tilt}: tangent at {:?}",
             t.at
         );
         let (a, b) = pair(1.5 - push);
-        let t = touch_both_ways(&a, &b, "section_cylinder_pair_reach");
+        let t = touch_both_ways(&a, &b, "cc_crossing_gap");
         centres(
             &format!("walls tilted {tilt}"),
             &t,
@@ -978,15 +1049,9 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     assert_eq!(tangent(&classify(&ball, &girdle)), "cs_far_reach");
     let fat = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let inner = cylinder(p(0.0, 0.8, 0.0), Vec3::unit_x(), 0.2);
-    assert_eq!(
-        tangent(&classify(&fat, &inner)),
-        "section_cylinder_pair_nest"
-    );
+    assert_eq!(tangent(&classify(&fat, &inner)), "cc_crossing_nest");
     let same = cylinder(p(0.0, 0.0, 3.0), Vec3::unit_z(), 1.0);
-    assert_eq!(
-        tangent(&classify(&fat, &same)),
-        "section_cylinder_pair_coincident"
-    );
+    assert_eq!(tangent(&classify(&fat, &same)), "pair_section_coincident");
     // A ball about a wall's axis touches it all round, and two spheres
     // one inside the other about one centre stand within the band of
     // each other everywhere: neither is the extreme of a level clear of
@@ -1215,13 +1280,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
 
 fn lone_at(w: Point3<f64>) -> Section<f64> {
     Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: false,
-            essential_g: false,
-            witness: Some(w),
-            pad: 0.0,
-        }],
+        parts: vec![Component::closed_form(false, [false, false], Some(w))],
         single: true,
     }
 }
@@ -1269,13 +1328,7 @@ fn w4_clears_only_a_certified_single_component() {
         certify(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
         Ok(vec![Cleared::LoneEvented])
     );
-    let c = Component {
-        unbounded: false,
-        essential_f: false,
-        essential_g: false,
-        witness: Some(p(0.0, 0.0, 0.0)),
-        pad: 0.0,
-    };
+    let c = Component::closed_form(false, [false, false], Some(p(0.0, 0.0, 0.0)));
     let two = Section::Components {
         parts: vec![c, c],
         single: false,
@@ -1323,13 +1376,11 @@ fn w2_clears_only_where_the_face_describes() {
         Err(Refusal::Unread)
     );
     let witnessed = Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: true,
-            essential_g: false,
-            witness: Some(p(1.0, 0.0, 0.5)),
-            pad: 0.0,
-        }],
+        parts: vec![Component::closed_form(
+            false,
+            [true, false],
+            Some(p(1.0, 0.0, 0.5)),
+        )],
         single: false,
     };
     assert_eq!(
@@ -3166,6 +3217,7 @@ fn a_plane_touch_near_the_top_parallel_stands_on_both_carriers() {
                     &tor.surface(),
                     &pl.surface(),
                     reach,
+                    None,
                     Some(geom_brep::SsiLane::marched()),
                     band,
                 ) {
@@ -3238,6 +3290,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                             &ball.surface(),
                             &wall.surface(),
                             reach,
+                            None,
                             Some(geom_brep::SsiLane::marched()),
                             band,
                         ),
@@ -3245,6 +3298,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                             &wall.surface(),
                             &ball.surface(),
                             reach,
+                            None,
                             Some(geom_brep::SsiLane::marched()),
                             band,
                         ),
@@ -3358,6 +3412,7 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
                         &t.surface(),
                         &partner.surface(),
                         reach,
+                        None,
                         Some(geom_brep::SsiLane::marched()),
                         band,
                     ),
@@ -3365,6 +3420,7 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
                         &partner.surface(),
                         &t.surface(),
                         reach,
+                        None,
                         Some(geom_brep::SsiLane::marched()),
                         band,
                     ),

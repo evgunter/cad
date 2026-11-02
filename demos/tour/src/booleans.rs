@@ -82,8 +82,8 @@ pub enum Verdict<S: Scalar> {
     /// dyadic scenes are observed bit-exact and say so).
     Good(BooleanBody<S>, bool),
     /// Op "succeeded" (tier 1+2 legal) with the WRONG volume — the
-    /// silent wrong-component defect class (extinct since the PR 5
-    /// fix pass; the oracle stays armed anyway).
+    /// silent wrong-component defect class, which no kernel gate
+    /// checks for.
     Wrong(f64, BooleanResultKind),
     Refused(BooleanError),
     /// The op returned the typed EMPTY success (F8: the empty set is

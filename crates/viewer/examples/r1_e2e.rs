@@ -28,18 +28,13 @@ fn banner(text: &str) {
 
 fn show_tree(session: &DocSession) {
     for row in session.tree_rows() {
-        let indent = "  ".repeat(row.depth);
         let world = if row.placed { " ▸world" } else { "" };
         let message = row
             .status
             .message()
             .map(|m| format!("  [{m}]"))
             .unwrap_or_default();
-        println!(
-            "   {indent}{} {}{world}{message}",
-            row.status.badge(),
-            row.spoken
-        );
+        println!("   {} {}{world}{message}", row.status.badge(), row.spoken);
     }
 }
 
@@ -103,8 +98,14 @@ fn main() {
         .into_iter()
         .find(|row| !row.driver.is_driven() && !row.structural)
         .expect("the revolve has an editable continuous slot");
-    let base = match editable.value.as_ref().expect("it evaluates") {
-        SlotValue::Continuous(v) => *v,
+    let base = match editable
+        .value
+        .as_ref()
+        .expect("it evaluates")
+        .one()
+        .expect("one value")
+    {
+        SlotValue::Continuous(v) => v,
         SlotValue::Count(_) => panic!("expected continuous"),
     };
     for factor in [1.5, 2.0] {
@@ -252,8 +253,14 @@ fn main() {
         })
         .expect("some node carries an editable literal slot");
     let (node, slot) = (gesture_target.0, gesture_target.1.clone());
-    let base = match slot.value.as_ref().expect("it evaluates") {
-        SlotValue::Continuous(v) => *v,
+    let base = match slot
+        .value
+        .as_ref()
+        .expect("it evaluates")
+        .one()
+        .expect("one value")
+    {
+        SlotValue::Continuous(v) => v,
         SlotValue::Count(_) => panic!("expected continuous"),
     };
     let states_before = session.history().len();

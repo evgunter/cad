@@ -96,6 +96,24 @@ impl CcDecision {
     }
 }
 
+impl SectionError {
+    /// **Whether this is two parallel walls' gap or nest read in band**
+    /// ([`CcDecision::ParallelGap`], [`CcDecision::ParallelNest`]): the
+    /// walls meet in rulings, a tangent ruling or nothing, so every
+    /// component the section could have is a line.
+    #[must_use]
+    pub fn parallel_walls_undecided(&self) -> bool {
+        let Self::Escalated(diag) = self else {
+            return false;
+        };
+        diag.predicate.is_some_and(|p| {
+            [CcDecision::ParallelGap, CcDecision::ParallelNest]
+                .into_iter()
+                .any(|d| p == d.name() || p == d.floor())
+        })
+    }
+}
+
 /// **Where a ball stands against the region**: wholly inside it, wholly
 /// clear of it, or across its boundary (or undecided there, which reads
 /// as across: the region is padded, so nothing the operation uses lies
@@ -686,12 +704,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
     let [r1, r2] = pose.radii;
     let axis = pose.lines[0].1;
     let mut decided = Vec::new();
-    let component = |shape, winds, witness, carrier| SectionComponent {
-        shape,
-        winds,
-        witness,
-        carrier,
-    };
+    let component = SectionComponent::closed_form;
     let cut = ComponentShape::Open {
         ends: ComponentEnds::cut(),
     };
@@ -796,7 +809,9 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                                     ..ComponentEnds::nodes(from, to)
                                 },
                             },
-                            [false, false],
+                            // The two ellipses joined at their nodes,
+                            // each a plane section round both axes.
+                            [true, true],
                             Some(curve.eval((span.0 + span.1) * T::from_f64(0.5))),
                             ClassCarrier::Span {
                                 curve: curve.clone(),

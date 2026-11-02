@@ -682,5 +682,8 @@ CARVE implementer brief that changes a law every caller reads names
 running the reached crates' whole slow set before the PR opens.
 Single FULL review stays this program's default; the reviewer caught
 it by doing exactly that.
+## 2026-10-31 — `sweep-frame-is-a-minimal-rotation-from-the-start-tangent` closed (PR 6138), with the half-turn P0
+
+The sweep frame is now the rotation-minimizing frame, built by double reflection and pivoting at the path's start point. A sweep's v is its path parameter. The rows have the detail. The review found six slow rows that the change reached and nobody ran; that is the class logged above. Eighteen sweep slow rows are red on main independently of this change (cylinder–sphere, torus joins, rulings, pierces, conics, a germ), and seven of them fail on `QuadratureUnsupported`. They are filed on TINT as `eighteen-sweep-slow-rows-are-red-on-main`, with a first bisect suggestion.
 
 Signed: (CARVE orchestrator)

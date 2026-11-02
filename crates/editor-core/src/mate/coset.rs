@@ -255,6 +255,16 @@ impl SubgroupFamily {
         }
     }
 
+    /// **Whether a residual of this family leaves `coord`** (D10
+    /// `[placement.values]`): the one question a value is asked of its
+    /// bundle, the solve's own ([`super::solve`]). Where no direction is
+    /// fixed a spin is a link of a chain about the target space's axes;
+    /// where one is, the spin is the one about the target's own direction.
+    #[must_use]
+    pub fn leaves(self, coord: super::Coord) -> bool {
+        super::solve::leaves(self, coord)
+    }
+
     /// The family's name, for messages and table rows.
     #[must_use]
     pub fn name(self) -> &'static str {

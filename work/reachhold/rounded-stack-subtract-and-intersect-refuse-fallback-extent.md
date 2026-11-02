@@ -2,7 +2,8 @@
 id: rounded-stack-subtract-and-intersect-refuse-fallback-extent
 kind: issue
 title: The rounded two-plate stack's subtract and intersect refuse FallbackExtentUnsupported with every finding declared
-status: open
+status: closed
+closed: 2026-11-01
 opened: 2026-10-01
 priority: P3
 cost: M
@@ -128,3 +129,29 @@ the upper vertex turned off the lower's. So do the puck `r = 1`,
 (`pi_seam_and_kiss_through_the_boolean.rs`'s pose), whose walls lie on
 one cylinder. The unions are pinned in
 `crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`.
+
+## Closed — the aligned continuations build (SPLITDOOR, 2026-11-01)
+
+PR 6070 answers a settled one-carrier pair the section pass cannot
+certify from both faces' shells' verdicts (`ops::OnDeferred`). That is
+the certificate this row asked for. Every pose above now builds,
+measured on `splitdoor/sided-followups` (origin/main `60c8f1f0` plus
+the PR 6070 follow-ups):
+
+- The rounded stack, and the thin rounded plate sunk inside the thick
+  one's wall or flush with its top or bottom: every op, in both orders
+  (`reach_continuation::rounded_continuations_inside_a_wall_build_every_op`).
+- The two-half rod stack at every seam turn: `∩` empty, each difference
+  `π`
+  (`reach_aligned_half_rods::a_half_rod_stack_intersects_and_subtracts_at_every_seam_turn`).
+- The equal coaxial cylinders `z ∈ [0, 1]` and `[1, 2]`, with the upper
+  vertex at azimuth 0 and at 2 rad: every op in both orders, sound at
+  its closed form (`∪` 2π, `∩` empty, each difference π)
+  (`a_closed_conic_in_the_partners_face::coaxial_equal_cylinders_build_every_op`).
+
+The one pose left is the puck and its rounding ring. Its refusal is not
+an aligned continuation: it is the ring's torus, tangent to the puck's
+top along its rim. It has its own row,
+`a-puck-and-its-rounding-ring-refuse-intersect-and-difference-on-the-tangent-top`.
+The split walls of `B ∪ A` are
+`a-union-over-a-declared-continuation-keeps-its-walls-split`.

@@ -209,9 +209,7 @@ fn just_after_a_fork_the_landed_run_is_the_old_identity_until_it_lands() {
         "the window: the landed run is the old id"
     );
     assert!(session.busy(), "and the session reads busy");
-    let early = session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    let early = session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(
         matches!(
             early.refusal,
@@ -227,9 +225,7 @@ fn just_after_a_fork_the_landed_run_is_the_old_identity_until_it_lands() {
         session.landed_pair().expect("landed").0.id(),
         session.committed_doc().id()
     );
-    let later = session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    let later = session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(later.refusal.is_none(), "{:?}", later.refusal);
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
@@ -245,9 +241,7 @@ fn a_fork_during_a_free_move_keeps_the_move_and_the_new_identity() {
     session.pump();
     assert!(
         session
-            .perform(SessionOp::BeginFreeMove {
-                instance: bench.post_b
-            })
+            .perform(SessionOp::BeginFreeMove { node: bench.post_b })
             .refusal
             .is_none()
     );
@@ -255,9 +249,7 @@ fn a_fork_during_a_free_move_keeps_the_move_and_the_new_identity() {
     let forked = session.perform(SessionOp::SaveAsNewDocument(fork));
     assert!(forked.refusal.is_none(), "{:?}", forked.refusal);
     let id = session.committed_doc().id();
-    let committed = session.perform(SessionOp::CommitFreeMove {
-        instance: bench.post_b,
-    });
+    let committed = session.perform(SessionOp::CommitFreeMove { node: bench.post_b });
     assert!(committed.refusal.is_none(), "{:?}", committed.refusal);
     session.pump();
     assert_eq!(session.committed_doc().id(), id);
@@ -369,6 +361,58 @@ fn a_save_over_a_file_holding_a_third_document_refuses_and_offers_no_fork() {
         file_id(&other, tol),
         third.id(),
         "the third document survives"
+    );
+    std::fs::remove_dir_all(&dir).expect("removable");
+}
+
+/// **Two documents created under one name are two parts**: each
+/// `NewDocument` mints its own id, so the second, saved at the first's
+/// file, refuses that it would replace another document instead of
+/// resaving over it.
+#[test]
+fn a_second_new_document_of_one_name_refuses_to_save_over_the_first() {
+    let tol = Tol::witness();
+    let new_bracket = || {
+        let mut session = DocSession::inline(Doc::empty_derived("save-fork-name-start", tol), tol);
+        let created = session.perform(SessionOp::NewDocument {
+            name: "bracket".to_owned(),
+        });
+        assert!(created.refusal.is_none(), "{:?}", created.refusal);
+        session
+    };
+    let mut first = new_bracket();
+    let mut second = new_bracket();
+    let first_id = first.committed_doc().id();
+    assert_ne!(
+        first_id,
+        second.committed_doc().id(),
+        "one name, two identities"
+    );
+
+    let dir = common::tempdir("save-fork-one-name");
+    let file = dir.join("bracket.pncad");
+    let saved = first.perform(SessionOp::Save(file.clone()));
+    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+    common::box_in(&mut second, [0.04, 0.02, 0.01]);
+    let refusal = second
+        .perform(SessionOp::Save(file.clone()))
+        .refusal
+        .expect("refuses: bracket.pncad holds the first document");
+    assert!(
+        matches!(
+            refusal,
+            Refusal::Workspace(ref error)
+                if matches!(**error, WorkspaceError::SaveWouldReplaceDocument { id, .. } if id == first_id)
+        ),
+        "{refusal:?}"
+    );
+    assert_eq!(file_id(&file, tol), first_id, "the first document survives");
+    assert!(
+        docio::open(&file, tol)
+            .expect("the file opens")
+            .doc()
+            .is_empty(),
+        "and its content is the first's, not the second's box"
     );
     std::fs::remove_dir_all(&dir).expect("removable");
 }

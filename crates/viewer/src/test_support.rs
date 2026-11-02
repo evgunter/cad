@@ -647,7 +647,11 @@ pub fn plate_indexed(tol: Tol) -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
     let index = PickIndex::build(
         &doc,
         &eval,
-        PictureKey::of(Generation::FIRST, plate_delta()),
+        PictureKey::of(
+            Generation::FIRST,
+            plate_delta(),
+            crate::world::Shown::none(),
+        ),
         tol,
     )
     .expect("the plate indexes");
@@ -655,6 +659,51 @@ pub fn plate_indexed(tol: Tol) -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
         panic!("the plate is placed once")
     };
     (eval, index, placement)
+}
+
+/// **An index seam that refuses the whole index on demand**: it answers
+/// what `inner` answers, except that while its switch is on every build
+/// is [`crate::pickindex::PickIndexError::DrawnTwice`]. A refusal of the
+/// index as a whole is a fault of the index itself, which no document
+/// produces, so a row about one injects it here.
+pub struct RefusingIndexer<S> {
+    inner: S,
+    refusing: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl<S> RefusingIndexer<S> {
+    /// A seam over `inner` that refuses from the start, and the switch.
+    pub fn new(inner: S) -> (Self, std::sync::Arc<std::sync::atomic::AtomicBool>) {
+        let refusing = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        (
+            Self {
+                inner,
+                refusing: std::sync::Arc::clone(&refusing),
+            },
+            refusing,
+        )
+    }
+}
+
+impl<S: crate::evalseam::IndexService> crate::evalseam::IndexService for RefusingIndexer<S> {
+    fn submit(&mut self, request: crate::evalseam::IndexRequest) {
+        self.inner.submit(request);
+    }
+
+    fn poll(&mut self) -> Option<crate::evalseam::IndexDone> {
+        let mut done = self.inner.poll()?;
+        if self.refusing.load(std::sync::atomic::Ordering::Relaxed) {
+            done.index = Err(crate::pickindex::PickIndexError::DrawnTwice {
+                node: RecipeNodeId::new(0, 3),
+                body: 0,
+            });
+        }
+        Some(done)
+    }
+
+    fn busy(&self) -> bool {
+        self.inner.busy()
+    }
 }
 
 /// **The naming layer's refusal for a drawn edge of `node`'s output

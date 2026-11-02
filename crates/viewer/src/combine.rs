@@ -24,7 +24,7 @@
 use pncad::document::AuthoredNode;
 use pncad::document::{
     Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, Operand, ProfileProgram, RecipeNodeId,
-    Said, Speaker, SpokenNode, held_by,
+    Said, Say, Speaker, SpokenNode, held_by,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::prelude::StableName;
@@ -36,6 +36,7 @@ use crate::seats::{
 };
 use crate::session::refuse::one_body;
 use crate::session::{BooleanSpec, FaceSelection, PartSelectSpec, PatternRuleSpec, SessionOp};
+use crate::tree::HeldPick;
 use crate::vocab::vocabulary;
 
 /// **The boolean tool**: one operation choice and the body picks it
@@ -140,18 +141,19 @@ impl BooleanTool {
     /// **The panel's held-picks line**: a subtraction's two seats by
     /// role ([`crate::seats::seat_line`]), a member list as `member 1`,
     /// `member 2`, … in pick order — the same composition
-    /// ([`crate::seats::picks_line`]), each pick as `doc` speaks it.
-    pub fn line(&self, doc: &Doc<ProfileProgram>) -> String {
+    /// ([`crate::seats::picks_line`]), each pick said by `by` as a seat
+    /// says one ([`crate::seats::pick_said`]).
+    pub fn line(&self, by: Speaker<'_>) -> String {
         match &self.held {
             BooleanPicks::Members(members) => {
                 picks_line(members.iter().enumerate().map(|(i, (node, port))| {
                     (
                         format!("{} {}", Seat::Member.name(), i + 1),
-                        Some(pick_said(doc, node.id(), *port)),
+                        Some(pick_said(by, node, *port)),
                     )
                 }))
             }
-            BooleanPicks::Pair(seats) => seat_line(seats, doc),
+            BooleanPicks::Pair(seats) => seat_line(seats, by),
         }
     }
 
@@ -390,10 +392,12 @@ impl SplitTool {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MirrorTool {
     seats: Seats,
-    plane: Option<FaceSelection>,
-    /// The plane's node as the document last spoke it
-    /// ([`Self::respeak`]).
-    plane_said: Option<SpokenNode>,
+    /// The plane: the face, said on the copy it was clicked on
+    /// ([`HeldPick::new`]), with the nodes its words name
+    /// as the document last spoke them ([`Self::respeak`]). The line and
+    /// the drop both say the plane from it, so a drop after the copy it
+    /// was clicked on is deleted says what the line said.
+    plane: Option<HeldPick>,
 }
 
 impl Default for MirrorTool {
@@ -408,7 +412,6 @@ impl MirrorTool {
         Self {
             seats: Seats::one(Seat::MirrorBody),
             plane: None,
-            plane_said: None,
         }
     }
 
@@ -424,7 +427,7 @@ impl MirrorTool {
 
     /// The held plane face.
     pub fn plane(&self) -> Option<&FaceSelection> {
-        self.plane.as_ref()
+        self.plane.as_ref().map(HeldPick::face)
     }
 
     /// Feed one node pick: it REPLACES the body.
@@ -438,8 +441,7 @@ impl MirrorTool {
         if self.seats.is_empty() {
             self.seats.pick_at(doc, face.node, Some(face.body));
         }
-        self.plane_said = Some(doc.spoken(plane_node(doc, &face)));
-        self.plane = Some(face);
+        self.plane = Some(HeldPick::new(doc, face));
     }
 
     /// The half the body seat reads, when it holds a split picked
@@ -452,7 +454,6 @@ impl MirrorTool {
     pub fn clear(&mut self) {
         self.seats.clear();
         self.plane = None;
-        self.plane_said = None;
     }
 
     /// The body seat's survival step ([`crate::seats`]).
@@ -468,18 +469,15 @@ impl MirrorTool {
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
     ) -> Option<MirrorEvent> {
-        let face = self.plane.as_ref()?;
+        let face = self.plane.as_ref()?.face();
         let verdict = crate::tree::pick_resolution(doc, eval, face.node, face.body, &face.name);
         if crate::session::select::resolves(&verdict) {
             return None;
         }
-        let face = self.plane.take()?;
-        let node = self
-            .plane_said
-            .take()
-            .unwrap_or_else(|| doc.spoken(plane_node(doc, &face)));
+        // Said on the body kept at the pick: read again here, a deleted
+        // copy would answer its own node, which the line never said.
         Some(MirrorEvent::PlaneLost {
-            node,
+            plane: self.plane.take()?,
             resolution: Box::new(verdict),
         })
     }
@@ -487,17 +485,20 @@ impl MirrorTool {
     /// The held picks spoken again from `doc` ([`Seats::respeak`]).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         self.seats.respeak(doc);
-        crate::seats::respeak_each(core::slice::from_mut(&mut self.plane_said), doc);
+        if let Some(plane) = &mut self.plane {
+            *plane = plane.respoken(doc);
+        }
     }
 
-    /// **The panel's held-picks line**: the body seat as [`seat_line`]
-    /// says it and the plane as the mate tool says a face pick.
-    pub fn line(&self, doc: &Doc<ProfileProgram>) -> String {
-        let body = self.seats.said(doc, 0);
-        let plane = self
-            .plane
-            .as_ref()
-            .map(|face| crate::matetool::face_of(&doc.spoken(plane_node(doc, face))));
+    /// **The panel's held-picks line**: the body seat and the plane,
+    /// each said by `by` — the body seat's node (the body a click on a
+    /// copy seats), and the plane as the chrome says a held pick
+    /// ([`HeldPick`]), on the copy it was clicked on, since the plane
+    /// was taken there. A node `by` does not hold is said as the tool
+    /// kept it.
+    pub fn line(&self, by: Speaker<'_>) -> String {
+        let body = self.seats.said(by, 0);
+        let plane = self.plane.as_ref().map(|plane| Said(plane, by).to_string());
         picks_line([
             (Seat::MirrorBody.name(), body),
             (FaceRole::MirrorPlane.name(), plane),
@@ -513,18 +514,11 @@ impl MirrorTool {
     /// plane until a face is.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
         let body = self.seats.require_read(0)?;
-        let plane = self.plane.clone().ok_or(SeatError::NoFace {
+        let plane = self.plane().cloned().ok_or(SeatError::NoFace {
             role: FaceRole::MirrorPlane,
         })?;
         Ok(SessionOp::AddMirror { body, plane })
     }
-}
-
-/// **The node a held plane is said by**: the body the face is on, as
-/// a body seat says a pick on a copy ([`crate::world::on_body`]), so
-/// one click is named by one node in both of the tool's items.
-fn plane_node(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> RecipeNodeId {
-    crate::world::on_body(doc, face.node, face.body, &face.name).0
 }
 
 /// A typed mirror-tool event the chrome renders: the plane's drop. The
@@ -534,19 +528,31 @@ pub enum MirrorEvent {
     /// The held plane face no longer resolves against the landed
     /// evaluation; the tool dropped it.
     PlaneLost {
-        /// The face's node by the last label the tool kept for it.
-        node: SpokenNode,
+        /// The plane that was held, said on the body the panel line said
+        /// it on, by the last labels the tool kept for its nodes.
+        plane: HeldPick,
         /// The resolution machinery's own verdict.
         resolution: Box<pncad::select::Resolution>,
     },
 }
 
+/// A node `by` does not hold is said as the tool kept it.
+impl Say for MirrorEvent {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            Self::PlaneLost { plane, .. } => {
+                crate::matetool::pick_lost(f, FaceRole::MirrorPlane.name(), plane, by)
+            }
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node as the tool
+/// kept it.
 impl core::fmt::Display for MirrorEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PlaneLost { node, .. } => {
-                crate::matetool::face_lost(f, FaceRole::MirrorPlane.name(), node)
-            }
+            Self::PlaneLost { plane, .. } => self.say(f, Speaker::held(plane.said())),
         }
     }
 }
@@ -1279,19 +1285,8 @@ pub fn duplicate_step(
             }
         })
     };
-    let floor = measured(crate::scene::SCALE_PROBE_DELTA)?;
-    // The floor mesh's box diagonal: the body's size, read before a
-    // chord can be chosen for it.
-    let scale = Vec3::from_array(
-        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-            .map(|axis| width_along(&floor.positions, axis).unwrap_or(0.0)),
-    )
-    .norm();
-    if !(scale.is_finite() && scale > 0.0) {
-        return Err(DuplicateFault::NoExtent { input: spoken() });
-    }
-    let chord = scale * MEASURE_CHORD;
-    let mesh = measured(chord)?;
+    let (mesh, chord) = measured_at_scale(measured, |mesh| mesh.positions.clone())?
+        .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
     // The step is stated in the body's space; the body is measured in
     // its own frame, along that heading read into it.
     let heading = body
@@ -1301,7 +1296,48 @@ pub fn duplicate_step(
     let width = width_along(&mesh.positions, heading)
         .filter(|w| w.is_finite() && *w > 0.0)
         .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
-    Ok((width + 2.0 * (chord + tol.eps())) * (1.0 + DUPLICATE_GAP))
+    Ok(clearance(width, width, chord, tol))
+}
+
+/// **Something measured off meshes cut fine for its own size**: `at`
+/// at [`crate::scene::SCALE_PROBE_DELTA`] reads its size — the diagonal
+/// of the box around the probe's `points` — and `at` again at
+/// [`MEASURE_CHORD`] of that size is the measure, answered with the
+/// chord it was cut at. `Ok(None)` where the probe has no extent. The
+/// one measurement a duplicate's step ([`duplicate_step`]) and an
+/// inserted part's frame ([`crate::pickindex::clear_of_drawn`]) take.
+///
+/// # Errors
+///
+/// `at`'s.
+pub fn measured_at_scale<M, E>(
+    mut at: impl FnMut(f64) -> Result<M, E>,
+    points: impl Fn(&M) -> Vec<pncad::geom_core::Point3<f64>>,
+) -> Result<Option<(M, f64)>, E> {
+    let probe = points(&at(crate::scene::SCALE_PROBE_DELTA)?);
+    let scale = Vec3::from_array(
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+            .map(|axis| width_along(&probe, axis).unwrap_or(0.0)),
+    )
+    .norm();
+    if !(scale.is_finite() && scale > 0.0) {
+        return Ok(None);
+    }
+    let chord = scale * MEASURE_CHORD;
+    Ok(Some((at(chord)?, chord)))
+}
+
+/// **How far to step a body whose near side is `span` behind the far
+/// side of what it must clear**, measured off meshes at `chord`: `span`
+/// widened by the meshes' sag on both sides, 2(δ + ε) — the true extent
+/// is at most the mesh's plus that ([`duplicate_step`] carries the
+/// argument) — then [`DUPLICATE_GAP`] of the stepped body's own `width`,
+/// widened the same way, on top. A duplicate clears its original
+/// (`span` = `width`); an inserted part clears everything drawn
+/// ([`crate::pickindex::clear_of_drawn`]).
+pub fn clearance(span: f64, width: f64, chord: f64, tol: Tol) -> f64 {
+    let sag = 2.0 * (chord + tol.eps());
+    span + sag + (width + sag) * DUPLICATE_GAP
 }
 
 impl DuplicateFault {
@@ -1412,20 +1448,21 @@ pub fn copy_motion(
 /// exact integer, the structural/continuous split being typed rather
 /// than emergent (spec D3).
 ///
-/// Total: whether the index suits the family it reads is evaluation's
-/// question, asked of authored and hand-written documents alike.
+/// `None` for a family in no space. Whether the index suits the family
+/// it reads is evaluation's question, asked of authored and hand-written
+/// documents alike.
 pub fn part_node(
     doc: &Doc<ProfileProgram>,
     of: RecipeNodeId,
     select: PartSelectSpec,
-) -> AuthoredNode {
+) -> Option<AuthoredNode> {
     let PartSelectSpec::Instance(index) = select;
-    let target = doc.node_space(of).unwrap_or(pncad::document::VarId::WORLD);
-    Node::place(
+    let target = doc.node_space(of)?;
+    Some(Node::place(
         pncad::document::BodyRead::indexed(of, vec![Formula::count(index)]),
         Operand::Var(target),
         pncad::document::stand().bundle(),
-    )
+    ))
 }
 
 /// **Whether a node, named alone, reads as a single body** — the
