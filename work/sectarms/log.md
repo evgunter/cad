@@ -307,3 +307,11 @@ and bodies unchanged. No orchestrator yet.
   - NURBS 3a had uncommitted edits and was told to commit and push its work in progress first.
   
   The lost "wait for CI" task needed no recreation. Ev's PR 6398 is still unanswered.
+
+- 2026-11-02 22:55 — **Cylinder 3b-i is up as PR 6405.** The carried lane now chords closed-form components: lines, circles and ellipses, on pairs with no torus face.
+  - **What it retires:** the parallel rulings lane.
+  - **Probe:** a cylinder island closed by a ruling winds through the existing `IslandReading`, so no F2 arises.
+  - **Added beyond the brief:** `GermLane::EdgePlane` now also takes a straight edge lying in a cylinder wall. It used to be served by the rulings lane, and only the seams row at 1e-6 holds it. The dual review is asked to examine it hardest, as possibly a second reading.
+  - **Moved outcomes:** coaxial cylinder × sphere builds every op at exact volumes, and INTENT's shaft-and-ball union is green at f64.
+  - **Filed:** torus closed forms are held off the carried lane (P2).
+  - **Review:** the dual review is dispatched to two cloud sessions.
