@@ -71,3 +71,5 @@ boss wall pieces:
 
 Each flips to naming when clause 3 lands, with one table in every member
 order.
+
+**One more thing for the audit (PR 6342 delta review, unsure).** `off_members` reads as a seam any `Merged` edge row that lies in neither `flush.edges` nor `flush.spans`. That would include a `Merged` of a member-edge piece and a seam lying partly along a member edge. For planar members this is argued impossible: a face ends at its own member's edge or under another member's material. Curved members are unchecked. No test reads such a mixed edge.
