@@ -1,11 +1,11 @@
 ---
 id: the-rectangle-and-circle-templates-reopen-as-paths
 kind: issue
-title: A profile authored from the rectangle or circle template reopens in the editor as a path, not as the template
-status: open
+title: A rectangle profile stores its corners, not the width and height written, and a bored circle stores its centre twice
+status: parked
 opened: 2026-09-19
 priority: P1
-design: true
+blocked_on: [the-gui-cannot-author-a-profile-of-several-loops]
 cost: M
 ---
 
@@ -45,3 +45,35 @@ annoyance, P1's GUI band, and not a shape the GUI cannot author (P0).
 The choice under "What would close it" (record the template on the
 node, or recognise it on load) is open, so `design` is set. The first
 option is a document change.
+
+## 2026-10-31 — the premise, corrected by the designer pair (`[ev]` PR, fork-log row 234)
+
+The circle already reopens as itself: `circle(centre, r)` stores what
+was written, and the edit door shows that one step's centre and radius.
+There are two real defects, both of the kind `[recipe.forms]` names:
+a derived number stored in place of the one written.
+
+- **The rectangle stores its corners.** `sketch::loop_program` stores
+  `(±w/2, ±h/2)`, eight numbers derived from the two that were typed.
+  The width cannot be driven, and the template cannot be recovered
+  without a guess.
+- **The bore stores its centre twice.** "Circle with bore" lowers to two
+  `circle` loops, each with its own copy of the centre. Moving one
+  leaves the bore off-centre.
+
+Ev's answers on PR 6143:
+- `rectangle(centre, width, height)` as a complete-loop form
+  (`docs/PATHS-DESIGN.md` §1a), with VQ5 restated.
+- **Drop the bore preset.** A profile already holds any number of
+  loops, so a bore is a second circle loop authored like any other.
+- How part of a profile refers to earlier parts of the same profile
+  (written values and derived ones, such as an arc's centre) is its own
+  question: `work/vseam/a-profile-cannot-refer-to-its-own-earlier-parts`.
+
+## 2026-11-02 — parked on multi-loop authoring
+
+Ruled on PR 6143. The build is: a `rectangle` step through the
+`profile` crate, editor-core, pncad-py and the viewer, and the bore
+preset dropped. Dropping the preset removes the GUI's only way to make
+a second loop until `the-gui-cannot-author-a-profile-of-several-loops`
+lands, so the row waits on it.

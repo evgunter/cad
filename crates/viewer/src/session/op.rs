@@ -417,18 +417,19 @@ pub enum SessionOp {
     /// `DocRef`s keep naming it. Like [`SessionOp::Save`], the session
     /// is then backed by the path and its resolver follows the folder.
     SaveAsNewDocument(PathBuf),
-    /// Hide or show the body `node` builds (G3): a DISPLAY operation —
-    /// the scene and the pick index drop what draws it; the document
-    /// and the feature tree keep it, and nothing is persisted
-    /// ([`crate::display::DisplayState::set_body_hidden`]).
-    SetBodyHidden {
+    /// Turn the toggle of the body `node` builds on or off (G3): a
+    /// DISPLAY operation over what the toggle reads now — off drops
+    /// what draws the body, on draws a body the picture leaves out; the
+    /// document and the feature tree keep it either way, and nothing is
+    /// persisted ([`crate::display::DisplayState::set_body_on`]).
+    SetBodyOn {
         /// The node building the body.
         node: RecipeNodeId,
-        /// Hidden, or shown again.
-        hidden: bool,
+        /// On, or off.
+        on: bool,
     },
     /// Hide or show a space, every body drawn in it: a DISPLAY operation
-    /// as [`SessionOp::SetBodyHidden`] is
+    /// as [`SessionOp::SetBodyOn`] is
     /// ([`crate::display::DisplayState::set_space_hidden`]).
     SetSpaceHidden {
         /// The space.
@@ -813,11 +814,11 @@ pub enum SessionOp {
     /// that member.
     ///
     /// The count is an `i64` and lands as the index's exact Count
-    /// literal, edited afterwards by redefining the index. A count of
-    /// zero or less is admitted here and refuses at evaluation on the
-    /// placement's own badge — the same division of labour a
-    /// degenerate profile takes, one rule for authored and
-    /// hand-written documents.
+    /// literal, edited afterwards by redefining the index. Any count is
+    /// admitted here: zero is a family of no member, and a count below
+    /// zero refuses at evaluation on the family's own badge — the same
+    /// division of labour a degenerate profile takes, one rule for
+    /// authored and hand-written documents.
     AddPattern {
         /// The body replicated.
         input: Operand,
@@ -1286,7 +1287,7 @@ impl SessionOp {
             | Self::Open(_)
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
@@ -1358,7 +1359,7 @@ impl SessionOp {
             | Self::Open(_)
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::AddMate { .. }
             | Self::NewDocument { .. }
@@ -1507,7 +1508,7 @@ impl SessionOp {
     ///   is and not by a row here;
     /// - layer-3 moves that touch neither the document nor the history
     ///   ([`SessionOp::Select`], [`SessionOp::Hover`], the free-move
-    ///   family, [`SessionOp::SetBodyHidden`]) and the evaluation
+    ///   family, [`SessionOp::SetBodyOn`]) and the evaluation
     ///   controls ([`SessionOp::CancelEvaluation`],
     ///   [`SessionOp::Reevaluate`]);
     /// - [`SessionOp::Save`], which has TWO effects and this row is
@@ -1562,7 +1563,7 @@ impl SessionOp {
             | Self::CancelEvaluation
             | Self::Reevaluate
             | Self::Save(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginGesture { .. }
             | Self::BeginVariableGesture { .. }
@@ -1698,7 +1699,7 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
@@ -1773,7 +1774,7 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }

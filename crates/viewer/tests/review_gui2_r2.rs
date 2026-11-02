@@ -896,6 +896,7 @@ fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
     let held = marks::Held {
         faces: [None, Some(&face), Some(&twin)],
         edges: None,
+        entities: [None, None],
     };
     let (marked, _) = marks::compose(&index, &DisplayView::none(), &Selection::None, None, &held);
     assert_eq!(marked.selected, IdMap::NOTHING, "nothing is selected");
@@ -937,6 +938,7 @@ fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
     let held = marks::Held {
         faces: [Some(&face), None, None],
         edges: None,
+        entities: [None, None],
     };
     let (marked, _) = marks::compose(&index, &DisplayView::none(), &Selection::None, None, &held);
     assert_eq!(
@@ -1584,11 +1586,19 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     //    and a rebuilt one describes the new generation.
     let generation = session.landed_generation().expect("a generation");
     assert!(
-        !index.current_for(Some(PictureKey::of(generation, common::ring_delta()))),
+        !index.current_for(Some(PictureKey::of(
+            generation,
+            common::ring_delta(),
+            viewer::world::Shown::none()
+        ))),
         "the pre-edit index is stale after two evaluations"
     );
     let rebuilt = common::index_of(&session, common::ring_delta());
-    assert!(rebuilt.current_for(Some(PictureKey::of(generation, common::ring_delta()))));
+    assert!(rebuilt.current_for(Some(PictureKey::of(
+        generation,
+        common::ring_delta(),
+        viewer::world::Shown::none()
+    ))));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1605,19 +1615,24 @@ fn an_index_is_current_for_exactly_one_generation_and_delta() {
     session.pump();
     let index = landed_index(&session);
     let generation = session.landed_generation().expect("a generation");
-    let key = PictureKey::of(generation, delta());
-    assert!(index.current_for(Some(key)));
+    let key = PictureKey::of(generation, delta(), viewer::world::Shown::none());
+    assert!(index.current_for(Some(key.clone())));
     assert_eq!(index.key(), key, "and it says so itself");
     assert!(!index.current_for(None), "no picture is not this picture");
     assert!(
         !index.current_for(Some(PictureKey::of(
             generation,
-            DisplayTolerance::new(1.0e-3).expect("positive")
+            DisplayTolerance::new(1.0e-3).expect("positive"),
+            viewer::world::Shown::none()
         ))),
         "a different δ is a different tessellation"
     );
     assert!(
-        !index.current_for(Some(PictureKey::of(generation.next(), delta()))),
+        !index.current_for(Some(PictureKey::of(
+            generation.next(),
+            delta(),
+            viewer::world::Shown::none()
+        ))),
         "a later generation is not current"
     );
     // **The key is the pair, and each half separates on its own.** A
@@ -1625,12 +1640,16 @@ fn an_index_is_current_for_exactly_one_generation_and_delta() {
     // equalities true, and both comparisons above read through it.
     assert_ne!(
         key,
-        PictureKey::of(generation.next(), delta()),
+        PictureKey::of(generation.next(), delta(), viewer::world::Shown::none()),
         "the generation half separates two keys"
     );
     assert_ne!(
         key,
-        PictureKey::of(generation, DisplayTolerance::new(1.0e-3).expect("positive")),
+        PictureKey::of(
+            generation,
+            DisplayTolerance::new(1.0e-3).expect("positive"),
+            viewer::world::Shown::none()
+        ),
         "and so does the δ half"
     );
 
@@ -1646,12 +1665,20 @@ fn an_index_is_current_for_exactly_one_generation_and_delta() {
     let moved = session.landed_generation().expect("a new generation");
     assert_ne!(moved, generation);
     assert!(
-        !index.current_for(Some(PictureKey::of(moved, delta()))),
+        !index.current_for(Some(PictureKey::of(
+            moved,
+            delta(),
+            viewer::world::Shown::none()
+        ))),
         "the stale index is not current for the new run"
     );
     // And the rebuilt one describes the new run.
     let rebuilt = landed_index(&session);
-    assert!(rebuilt.current_for(Some(PictureKey::of(moved, delta()))));
+    assert!(rebuilt.current_for(Some(PictureKey::of(
+        moved,
+        delta(),
+        viewer::world::Shown::none()
+    ))));
     assert!(
         rebuilt.ids().len() > index.ids().len(),
         "a third copy draws more patches"

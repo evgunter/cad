@@ -235,7 +235,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             })
             .expect("a split creates a node"),
         },
-        SessionOp::SetBodyHidden { node, hidden: true },
+        SessionOp::SetBodyOn { node, on: false },
         SessionOp::SetSpaceHidden {
             space: VarId::WORLD,
             hidden: true,
@@ -448,7 +448,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // all is an open question; this row records today's answer and
         // makes a change to it visible.
         SessionOp::Save(_) => (21, true),
-        SessionOp::SetBodyHidden { .. } => (22, true),
+        SessionOp::SetBodyOn { .. } => (22, true),
         // The free-move gesture is a SECOND drag with its own state
         // and its own in-flight refusal; a value gesture says nothing
         // about it in either direction.
@@ -514,7 +514,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // A draft's question: it stages on the committed document and
         // records nothing, so a drag has nothing to protect from it.
         SessionOp::Stage { .. } => (59, true),
-        // A display operation, as `SetBodyHidden` is.
+        // A display operation, as `SetBodyOn` is.
         SessionOp::SetSpaceHidden { .. } => (60, true),
         // What the document makes, as `SetProduct` is.
         SessionOp::AddToProduct { .. } => (61, false),
@@ -1010,7 +1010,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Save(_)
         | SessionOp::SaveAsNewDocument(_)
         | SessionOp::Stage { .. }
-        | SessionOp::SetBodyHidden { .. }
+        | SessionOp::SetBodyOn { .. }
         | SessionOp::SetSpaceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
