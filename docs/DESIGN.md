@@ -793,9 +793,13 @@ tiers".
      never scanning to bless.
 
   A **finished body** (`AtRestBody`) passes tier 3′ against its own
-  contact records, none for a body that touches nothing, once, at the
-  door that built it; construction state becomes a finished body only
-  through that gate. The validity class rides the result wrapper
+  contact records, none for a body that touches nothing, and its
+  boundary is **embedded** off those records (it meets itself only
+  along its own edges and its recorded contacts), certified by the
+  clearance engine's body-level injectivity question at every scalar
+  with certification rights. It passes both once, at the door that
+  built it; construction state becomes a finished body only through
+  that gate. The validity class rides the result wrapper
   (`BooleanBody`, body and contacts), never a mutable `Body` field.
 - **The census reads one number per cell pair.** `[topology.census]`
   A census finding decides one number per pair of cells (two edges,
