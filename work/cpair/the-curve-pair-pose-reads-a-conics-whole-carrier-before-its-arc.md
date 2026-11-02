@@ -64,3 +64,34 @@ In the same bodies as `two-coplanar-ellipses-have-no-meeting-method`'s 2026-11-0
 ## Evidence: the coplanar touch no longer escalates off the arc (2026-11-01, `tangrim/coplanar-conic-touch`)
 
 The 2026-11-01 census instance above no longer escalates. The coplanar subdivision now places the carriers' touch as a candidate (`two-coplanar-ellipses-have-no-meeting-method`), and the candidate is read on both spans, so a touch off the arc reads no meeting. `sheets_part_on_slanted_rims::rims_crossing_on_tangent_walls_build_every_op` passes tier 3′ on every op at three ε. The row's own two poses (two arcs on near-one circles, and a line beside a circle) take other arms and are unchanged.
+
+## Evidence: a loft door's clearance reaches it on embedded bodies (2026-11-02, PR 6141)
+
+CARVE's loft stacking door (`crates/sweep/src/loft/stacking.rs`,
+`arc_pair_meets`) reads each pair of segments of a slab's two
+sections through `meet`, on their placed arc spans. Two arcs whose
+carriers come near each other off both spans refused there. The
+witnesses are from that PR's second review
+(`zz_pin_review2_probe.rs`'s `probe_j` and `probe_i`):
+
+- **The D whose arc's circle is tangent to the axis on the half no section holds.**
+  Section 0 is the D on the line x = 0 from (0, 1) to (0, −1), with
+  its semicircle through (1, 0) in z = 0. Section 1 is the same D
+  turned −0.1, −0.4 or −1.2 rad about the axis through (−1 − d, 0, 0)
+  along (0, cos t, sin t), for t ∈ {0, 0.3, 0.6, 1.0}. The arc's carrier
+  circle touches that axis at (−1, 0, 0) when d = 0, on the half the
+  arc does not hold. The sections are apart by about the turn: 0.05 to
+  1.13. `meet` on the two arcs refuses `MeetFault::Unsettled`
+  (the meter) at d = 0, and `MeetFault::Escalated`
+  (`curve_pair_pose_extreme`) at d = 1e-8 to 1e-7.
+- **The same pose near a real tangency is not monotone.** The unit
+  circle elbow turned about the axis through (1 + d, 0, 0) along
+  (0, cos 1, sin 1), by 0.1 rad: its rims are 1.6e-8, 5.4e-8 and 1.6e-7
+  apart at d = 3e-7, 1e-6 and 3e-6. `meet` read apart, then refused
+  without a verdict, then apart again.
+
+The loft door now decides nothing on an arc pair `meet` cannot settle,
+so these bodies build. Its refusals near the band therefore wait on
+this row. The question for CPAIR: does span-restricted posing (this
+row's "shape to give") belong in the reader, so a caller handing
+`meet` two spans gets a verdict about the spans and not the carriers?

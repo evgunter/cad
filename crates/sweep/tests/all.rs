@@ -296,6 +296,8 @@ mod parallel_cylinder_join;
 mod pcurve_p1b_r2_probes;
 #[path = "pieces_oblique_bore.rs"]
 mod pieces_oblique_bore;
+#[path = "pinned_corners_at_the_loft_door.rs"]
+mod pinned_corners_at_the_loft_door;
 #[path = "pipeline_null_edge_rows.rs"]
 mod pipeline_null_edge_rows;
 #[path = "pis_arc_capped_poses.rs"]
