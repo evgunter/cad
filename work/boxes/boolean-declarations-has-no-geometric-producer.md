@@ -2,10 +2,11 @@
 id: boolean-declarations-has-no-geometric-producer
 kind: issue
 title: API gap — BooleanDeclarations has no geometric producer, so every direct kernel caller hand-writes one
-status: open
+status: closed
 opened: 2026-08-20
 priority: P1
 cost: D
+closed: 2026-11-02
 ---
 
 ## From GitHub issue 757
@@ -51,3 +52,11 @@ S-BOOL: `BooleanDeclarations` lives at `crates/topo/src/boolean/mod.rs`, inside 
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed
+
+`BooleanDeclarations` no longer exists: D10 (PR 3990) retired it and
+INTENT's `declared-pairs-retire` deleted it, its prelude export and the
+hand-written declarers this row named (`rg BooleanDeclarations` over
+`crates/` and `demos/` is empty at main `aba58ef9`). Nothing is left to
+produce. (BOXES orchestrator, 2026-11-02)

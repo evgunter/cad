@@ -270,13 +270,16 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     let (pending, meta) =
         core.take_pending("arc-carrier fillet arrival without an opened fillet")?;
     let merge = merge_of(&pending, &meta);
-    let trims = resolver(
-        core.guide_mut(),
-        pending.side(),
-        arc_fillet::FilletSide {
-            anchor,
-            carrier: arc_fillet::SideCarrier::Circle { centre, winding },
-        },
+    let trims = core.fit_arc_fillet(
+        resolver,
+        meta.bound_at,
+        [
+            pending.side(),
+            arc_fillet::FilletSide {
+                anchor,
+                carrier: arc_fillet::SideCarrier::Circle { centre, winding },
+            },
+        ],
         pending.radius(),
         tol,
     )?;
@@ -370,13 +373,16 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     let end_ang = carrier_tangent(start_pos, centre, winding, band)?;
     let (pending, meta) = core.take_pending("arc-carrier close without an opened fillet")?;
     let merge = merge_of(&pending, &meta);
-    let trims = resolver(
-        core.guide_mut(),
-        pending.side(),
-        arc_fillet::FilletSide {
-            anchor: start_pos,
-            carrier: arc_fillet::SideCarrier::Circle { centre, winding },
-        },
+    let trims = core.fit_arc_fillet(
+        resolver,
+        meta.bound_at,
+        [
+            pending.side(),
+            arc_fillet::FilletSide {
+                anchor: start_pos,
+                carrier: arc_fillet::SideCarrier::Circle { centre, winding },
+            },
+        ],
         pending.radius(),
         tol,
     )?;

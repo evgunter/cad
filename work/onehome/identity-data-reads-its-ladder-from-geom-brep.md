@@ -2,10 +2,11 @@
 id: identity-data-reads-its-ladder-from-geom-brep
 kind: issue
 title: carrier_eq::identity_data carries its own copy of the identity-ladder rule geom_brep::ladder::read_identity now owns
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: E
+branch: onehome/identity-ladder
 ---
 
 
