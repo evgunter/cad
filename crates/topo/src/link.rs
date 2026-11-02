@@ -59,7 +59,12 @@
 //! the face's reach so that its readings are taken where the face's
 //! would be ([`FaceSector::cleared`]). A curved face, or such a face held at
 //! its corner, refuses ([`TouchUnread::Unreadable`]); a sphere or
-//! cylinder face is read by its carrier instead, as above.
+//! cylinder face is read by its carrier instead, as above. Where a solid
+//! touches itself, a link with a curved face or edge in it is read once
+//! more as its faces' tangent cones ([`FaceSector::tangent`]), which
+//! [`rest::one_material`] reads only where its first order decides; no
+//! other reading takes such a link ([`rest::judge`] and
+//! [`rest::by_round`] refuse it).
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
@@ -331,7 +336,12 @@ pub enum TouchUnread {
     /// A curved face or edge takes part: a face off a plane, or a planar
     /// face with an edge that is not a line where [`FaceSector::cleared`]
     /// does not read it — held at a corner, or bounded by a curve no
-    /// clearance reads. (A tied edge whose key does not
+    /// clearance reads; and where the faces' tangent cones are read
+    /// ([`FaceSector::tangent`]), a face with no tangent plane at the
+    /// point (a cone's apex), a corner whose edges leave it along one
+    /// tangent (a cusp), or a bound or plane lying on another sheet's to
+    /// first order only (a tangency), which a reading of second order
+    /// would part. (A tied edge whose key does not
     /// resolve reads the same; tier 1, which the census runs behind,
     /// admits none. A face whose surface or loops do not resolve reads
     /// [`Self::Corrupt`].)
@@ -394,14 +404,16 @@ pub(crate) struct Sector<T: Real> {
 }
 
 /// **One face's sector at the touch point `p`**, spanning the face's
-/// whole sector at `p`: either the face's piece there ([`face_piece`]),
-/// whose wedges are real points of the face, or the disc its edges clear
+/// whole sector at `p`: the face's piece there ([`face_piece`]), whose
+/// wedges are real points of the face; the disc its edges clear
 /// ([`FaceSector::cleared`]), the face's own inside `clear` and carried
-/// past the face beyond it.
+/// past the face beyond it; or the face's tangent cone there
+/// ([`FaceSector::tangent`]), the face only to first order, which only
+/// [`rest::one_material`] reads ([`Tangent`]).
 ///
 /// Its fields are this module's: a face sector is built only by its
-/// builders off a face ([`FaceSector::of_face`], [`FaceSector::cleared`]),
-/// so a cone that is not a body's faces (a tangent cone) can be a
+/// builders off a face ([`FaceSector::of_face`], [`FaceSector::cleared`],
+/// [`FaceSector::tangent`]), so a cone that is no body's faces can be a
 /// [`Cone`] and never a [`Link`].
 pub(crate) struct FaceSector<T: Real> {
     sector: Sector<T>,
@@ -1785,6 +1797,12 @@ impl<T: Decide> Link<T> {
         })
     }
 
+    /// Whether a sector of the link is a face's tangent cone
+    /// ([`FaceSector::tangent`]).
+    fn tangent(&self) -> bool {
+        self.faces.iter().any(|f| f.tangent.is_some())
+    }
+
     /// The link's cone.
     #[cfg(test)]
     pub(crate) fn cone(&self) -> &Cone<T> {
@@ -2070,9 +2088,11 @@ impl<T: Decide> FaceSector<T> {
     ) -> Result<Self, TouchUnread> {
         let plane_exact = matches!(surface, geom::Surface::Plane { .. });
         let (wedges, closed, bounds) = match fan_of {
-            TangentFan::Corner { d0, d1, bounds } => {
-                (corner_fan(apex, outward, d0, d1, band)?, false, Some(bounds))
-            }
+            TangentFan::Corner { d0, d1, bounds } => (
+                corner_fan(apex, outward, d0, d1, band)?,
+                false,
+                Some(bounds),
+            ),
             TangentFan::Edge { along, reach, edge } => (
                 fan(apex, outward, along, reach, true),
                 false,
@@ -2146,11 +2166,6 @@ fn corner_fan<T: Decide>(
     }
     rays.push(b);
     Ok(rays.windows(2).map(|w| (w[0], w[1])).collect())
-}
-
-
-pub(crate) fn stc_note(m: String) {
-    rest::stc_why(m);
 }
 
 /// The fan about `p` normal to `outward` whose every chord stands past
@@ -3045,6 +3060,9 @@ pub(crate) mod rest {
     /// crossing that only a skipped piece would show refuses rather than
     /// clears.
     pub(crate) fn judge<T: Decide>(a: &Link<T>, b: &Link<T>, band: Band) -> TouchVerdict {
+        if a.tangent() || b.tangent() {
+            return TouchVerdict::Unread(TouchUnread::Unreadable);
+        }
         // Every reading over the pair is taken about `p`, while each
         // sector stands on its own apex, off `p` by at most its link's
         // tie: one link's point read against the other's planes and rays
@@ -3235,6 +3253,9 @@ pub(crate) mod rest {
         reach: T,
         band: Band,
     ) -> TouchVerdict {
+        if a.tangent() {
+            return TouchVerdict::Unread(TouchUnread::Unreadable);
+        }
         let rd = Reading::tied(band, a.cone.tie);
         if let Some(open) = held_closed(&[a], rd) {
             return open;
@@ -3386,24 +3407,14 @@ pub(crate) mod rest {
             .is_some_and(|d| metric::sign(LINK_ROUND, d, band) == Some(Sign::Zero))
     }
 
-    pub(crate) fn stc_why(m: String) {
-        if let Ok(path) = std::env::var("CAD_STC_DUMP") {
-            use std::io::Write as _;
-            if let Ok(mut fh) = std::fs::OpenOptions::new().create(true).append(true).open(format!("{path}.why")) {
-                let _ = writeln!(fh, "{}\t{m}", std::thread::current().name().unwrap_or("?"));
-            }
-        }
-    }
-
     fn first_order<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Option<TouchUnread> {
-        if link.faces.iter().all(|f| f.tangent.is_none()) {
+        if !link.tangent() {
             return None;
         }
         let (p, sectors) = (link.cone.p, &link.cone.sectors);
         let tangent = |k: usize| link.faces[k].tangent;
         for (k, s) in sectors.iter().enumerate() {
-            let (Some(bounds), Some(rays)) = (tangent(k).and_then(|t| t.bounds), s.bounds())
-            else {
+            let (Some(bounds), Some(rays)) = (tangent(k).and_then(|t| t.bounds), s.bounds()) else {
                 continue;
             };
             for ((edge, line), r) in bounds.into_iter().zip(rays) {
@@ -3427,7 +3438,6 @@ pub(crate) mod rest {
                         Err(_) => return Some(TouchUnread::InBand),
                     };
                     if !kept {
-                        stc_why(format!("ray {k} edge {edge:?} line {line} on plane of {j} (exact {:?}, closed {}) place {:?} dir {:?}", other.map(|o| o.plane_exact), t.closed, t.place(p, r, rd).map_err(|_| ()), (r - p).normalize()));
                         return Some(TouchUnread::Unreadable);
                     }
                 }
@@ -3455,7 +3465,6 @@ pub(crate) mod rest {
                 {
                     continue;
                 }
-                stc_why(format!("closed {k} and {j} one plane"));
                 return Some(if read.contains(&None) {
                     TouchUnread::InBand
                 } else {

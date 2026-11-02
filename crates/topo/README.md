@@ -1137,8 +1137,11 @@ of an edge lying in a face of its own solid (`edge_in_own_face`, by
 solid touches itself, its whole link there (`sweep_self_touch_points`,
 by `rest::one_material`), a link holding a curved face, a face with a
 curved edge held at its corner, a planar face with a spline edge, or a
-point tied inside a curved edge, left unread. Every other use of a face's normal in the coincidence sweeps is
-sense-invariant.
+point tied inside a curved edge read as its faces' tangent cones
+(`FaceSector::tangent`) where their first order decides, and left
+unread where it does not (a cone's apex, a cusp corner, sheets tangent
+to first order). Every other use of a face's normal in the coincidence
+sweeps is sense-invariant.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
 vertex–vertex, vertex–edge, vertex–face and edge–edge lanes,

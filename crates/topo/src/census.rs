@@ -90,9 +90,10 @@
 //!   no one material ([`sweep_self_touch_points`]).
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
 //!   distinct-key curved pairs (the backstop is cross-solid); a point
-//!   where a solid touches itself with a curved face in its link there,
-//!   a face with a curved edge held at its corner, a planar face with a
-//!   spline edge, or the point tied inside a curved edge, which
+//!   where a solid touches itself with a curved face or edge in its link
+//!   whose tangent cones leave it to second order — a cone's apex, a
+//!   corner whose edges leave along one tangent, a spline face held off
+//!   a corner, or sheets tangent to first order there — which
 //!   [`sweep_self_touch_points`] leaves unread
 //!   (`work/restread/tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face.md`);
 //!   and one
@@ -8390,15 +8391,16 @@ fn edge_in_own_face<T: Decide>(
 /// other unread verdict its undecided twin. A point a line touch of the
 /// solid reaches is read whole here too, every sheet through it, the
 /// line's own included; the line's sides along it are its rules' (pass
-/// 4's [`edge_in_own_face`], read at each cell's middle). A link holding
-/// a curved face, a face with a curved edge held at its corner, a planar
-/// face with a spline edge (no clearance reads one), or a point tied
-/// inside a curved edge, is left unread, wherever in the link it stands ([`Link::touch_at_point`]
-/// answers `Unreadable` before any other refusal): no sector reads one
-/// yet. A planar face with a curved edge held inside it or inside a
-/// line edge is read, as the disc its edges clear
-/// ([`crate::link::FaceSector::cleared`]), and its refusals are the
-/// undecided twin's like any other's.
+/// 4's [`edge_in_own_face`], read at each cell's middle). A planar face
+/// with a curved edge held inside it or inside a line edge is read as the
+/// disc its edges clear ([`crate::link::FaceSector::cleared`]). A link
+/// holding a curved face, a face with a curved edge held at its corner, a
+/// planar face with a spline edge, or a point tied inside a curved edge
+/// ([`Link::touch_at_point`] answers `Unreadable` before any other
+/// refusal) is read as its faces' tangent cones ([`self_touch_verdict`]),
+/// wherever their first order decides. Where it does not, the point is
+/// left unread ([`SelfTouch::SecondOrder`]): no reading of second order
+/// parts it yet.
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8446,7 +8448,12 @@ fn sweep_self_touch_points<T: Decide>(
         if !read.insert((s, least)) {
             continue;
         }
-        let verdict = self_touch_verdict(body, geo, &ties, s, &keys, at, band);
+        let verdict = match self_touch_verdict(body, geo, &ties, s, &keys, at, band) {
+            SelfTouch::Read(verdict) => verdict,
+            // Left to second order: genuinely undetected (the module
+            // doc's class list), not refused.
+            SelfTouch::SecondOrder(_) => continue,
+        };
         match verdict {
             TouchVerdict::Rest(_) => {}
             TouchVerdict::Crossing => errors.push(ValidationError::BoundaryCrossesItself {
@@ -8464,72 +8471,21 @@ fn sweep_self_touch_points<T: Decide>(
     }
 }
 
-
-/// MEASUREMENT ONLY (stc lane): dump a skipped self-touch point.
-fn stc_measure<T: Decide>(
-    body: &Body<T>,
-    geo: &Geo<T>,
-    ties: &Ties,
-    solid: crate::SolidKey,
-    keys: &BTreeSet<PointKey>,
-    p: Point3<T>,
-    verdict: &TouchVerdict,
-) {
-    let Ok(path) = std::env::var("CAD_STC_DUMP") else { return };
-    use std::fmt::Write as _;
-    let mut out = String::new();
-    let name = std::thread::current().name().unwrap_or("?").to_string();
-    let _ = write!(out, "POINT\t{name}\t{solid:?}\t{:?}\t{:?}\t{:?}", p.x, p.y, p.z);
-    let on = |v: &VertexKey| geo.vpoint.get(v).is_some_and(|k| keys.contains(k));
-    let mine = |id: EntityId| census_entity_solid(body, id) == Some(solid);
-    let verts: BTreeSet<VertexKey> = geo.verts.iter().map(|&(v, _)| v)
-        .filter(|v| on(v) && mine(EntityId::Vertex(*v))).collect();
-    let mut holds: std::collections::BTreeMap<FaceKey, Vec<String>> = Default::default();
-    for &v in &verts {
-        for &f in geo.vertex_faces.get(&v).into_iter().flatten() {
-            holds.entry(f).or_default().push(format!("C{v:?}"));
-        }
-    }
-    for (v, e) in &ties.ve {
-        if !on(v) || !mine(EntityId::Edge(*e)) { continue; }
-        match geo.line_edge(*e) {
-            Some(edge) => {
-                if verts.contains(&edge.v0) || verts.contains(&edge.v1) { continue; }
-                for f in [edge.f_plus, edge.f_minus] {
-                    holds.entry(f).or_default().push(format!("L{e:?}"));
-                }
-            }
-            None => {
-                let _ = write!(out, "\tCURVEDEDGE {e:?}");
-                if let Some(ed) = body.get_edge(*e) {
-                    let _ = write!(out, " {:?}", ed);
-                }
-            }
-        }
-    }
-    for (v, f) in &ties.vf {
-        if on(v) && mine(EntityId::Face(*f)) {
-            holds.entry(*f).or_default().push("I".into());
-        }
-    }
-    for (f, hs) in &holds {
-        let face = body.get_face(*f);
-        let surf = face.and_then(|fc| body.get_surface(fc.surface));
-        let desc = match surf {
-            Some(geom::Surface::Nurbs(_)) => "Nurbs".to_string(),
-            Some(geom::Surface::Approx(_)) => "Approx".to_string(),
-            Some(s) => format!("{s:?}"),
-            None => "?".into(),
-        };
-        let planar = planar_face(geo, *f).map(|g| g.polygon);
-        let _ = write!(out, "\tFACE {f:?} sense={:?} planar={planar:?} holds={hs:?} surf={desc}", face.map(|f| f.sense));
-    }
-    let _ = write!(out, "\tVERDICT {verdict:?}");
-    out.push('\n');
-    if let Ok(mut fh) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-        use std::io::Write as _;
-        let _ = fh.write_all(out.as_bytes());
-    }
+/// **What the self-touch reading made of a point** ([`self_touch_verdict`]).
+#[derive(Debug, PartialEq, Eq)]
+enum SelfTouch {
+    /// The link's verdict.
+    Read(TouchVerdict),
+    /// A curved face or edge takes part and its first order does not
+    /// decide: the faces' tangent cones leave the point to a reading of
+    /// second order, which there is none of yet. The reason is the
+    /// tangent reading's: [`TouchUnread::Unreadable`] for a face with no
+    /// tangent plane there (a cone's apex), a corner whose edges leave it
+    /// along one tangent (a cusp), a spline face held off a corner, or a
+    /// bound or plane on another sheet's to first order only (a
+    /// tangency); [`TouchUnread::Degenerate`] for two tangent sectors on
+    /// each other.
+    SecondOrder(TouchUnread),
 }
 
 /// **Solid `s`'s whole link at the touch point of `keys`, read for
@@ -8537,7 +8493,8 @@ fn stc_measure<T: Decide>(
 /// sectors where every face reads one ([`Link::touch_at_point`]), and
 /// where a curved face or edge takes part, the link of their tangent
 /// cones ([`Link::tangent_at_point`]), which the reading holds to the
-/// coincidences the faces keep.
+/// coincidences the faces keep. What the tangent cones leave to second
+/// order is [`SelfTouch::SecondOrder`].
 #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
 fn self_touch_verdict<T: Decide>(
     body: &Body<T>,
@@ -8547,24 +8504,22 @@ fn self_touch_verdict<T: Decide>(
     keys: &BTreeSet<PointKey>,
     at: Point3<T>,
     band: Band,
-) -> TouchVerdict {
-    let link = match Link::touch_at_point(body, geo, ties, s, keys, at, band) {
+) -> SelfTouch {
+    match Link::touch_at_point(body, geo, ties, s, keys, at, band) {
+        Ok(link) => SelfTouch::Read(rest::one_material(&link, band)),
         Err(TouchUnread::Unreadable) => {
-            let v = match Link::tangent_at_point(body, geo, ties, s, keys, at, band) {
-                Ok(link) => rest::one_material(&link, band),
-                Err(why) => {
-                    crate::link::stc_note(format!("BUILD {why:?}"));
-                    TouchVerdict::Unread(why)
-                }
-            };
-            stc_measure(body, geo, ties, s, keys, at, &v);
-            return v;
+            match Link::tangent_at_point(body, geo, ties, s, keys, at, band)
+                .map(|link| rest::one_material(&link, band))
+            {
+                Ok(TouchVerdict::Unread(
+                    why @ (TouchUnread::Unreadable | TouchUnread::Degenerate),
+                ))
+                | Err(why @ TouchUnread::Unreadable) => SelfTouch::SecondOrder(why),
+                Ok(verdict) => SelfTouch::Read(verdict),
+                Err(why) => SelfTouch::Read(TouchVerdict::Unread(why)),
+            }
         }
-        built => built,
-    };
-    match link {
-        Ok(link) => rest::one_material(&link, band),
-        Err(why) => TouchVerdict::Unread(why),
+        Err(why) => SelfTouch::Read(TouchVerdict::Unread(why)),
     }
 }
 
@@ -8877,7 +8832,7 @@ fn tangent_sectors<T: Decide>(
         }
     }
     let reach = || {
-        crate::splitting::rules::face_reach_from(body, f, p).map_err(|_| { crate::link::stc_note("B reach".into()); TouchUnread::Unreadable })
+        crate::splitting::rules::face_reach_from(body, f, p).map_err(|_| TouchUnread::Unreadable)
     };
     let held_edge = |e: EdgeKey| holds.contains(&TangentHold::Edge(e));
     for cycle in face_cycles(body, face) {
@@ -8933,10 +8888,10 @@ fn corner_normal<T: Decide>(
     match crate::sector_face::resolve(body, v, he, band) {
         Ok(face) => match face.at_vertex {
             VertexFace::Tangent(n) => Ok(n.vec()),
-            VertexFace::NearAxis(_) | VertexFace::Apex(_) => { crate::link::stc_note("B apex".into()); Err(TouchUnread::Unreadable) }
+            VertexFace::NearAxis(_) | VertexFace::Apex(_) => Err(TouchUnread::Unreadable),
         },
         Err(SectorFaceError::ApexUndecided { .. }) => Err(TouchUnread::InBand),
-        Err(e) => { crate::link::stc_note(format!("B resolve {e:?}")); Err(TouchUnread::Unreadable) }
+        Err(_) => Err(TouchUnread::Unreadable),
     }
 }
 
@@ -8951,7 +8906,7 @@ fn foot_normal<T: Decide>(
     match crate::face_normal::face_outward_normal_at_foot(body, f, p, band) {
         Ok(Some(n)) => Ok(n.vec()),
         Ok(None) => Err(TouchUnread::Corrupt),
-        Err(e) => { crate::link::stc_note(format!("B foot {e:?}")); Err(TouchUnread::Unreadable) }
+        Err(_) => Err(TouchUnread::Unreadable),
     }
 }
 

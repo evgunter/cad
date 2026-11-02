@@ -73,7 +73,8 @@ fn seat(c: Point3<f64>, at: Seat, edges: [[f64; 3]; 3]) -> (Body<f64>, VertexKey
         body.solids[keep].shells.push(sh);
     }
     body.solid_provenance.remove(gone);
-    let near = |body: &Body<f64>, v: VertexKey| (body.points[body.vertices[v].point] - p).norm() < 1e-9;
+    let near =
+        |body: &Body<f64>, v: VertexKey| (body.points[body.vertices[v].point] - p).norm() < 1e-9;
     let corner = body
         .vertices
         .keys()
@@ -127,7 +128,7 @@ fn seat(c: Point3<f64>, at: Seat, edges: [[f64; 3]; 3]) -> (Body<f64>, VertexKey
 
 /// The self-touch reading of the corner as `ties` hold it: what the
 /// planar reading answered, and the solid's verdict.
-fn read(body: &Body<f64>, corner: VertexKey, ties: &Ties) -> (TouchUnread, TouchVerdict) {
+fn read(body: &Body<f64>, corner: VertexKey, ties: &Ties) -> (TouchUnread, SelfTouch) {
     let geo = snapshot(body);
     let keys = touch_keys(&geo, ties, &[corner]).expect("the corner's keys");
     let at = geo.vmap[&corner];
@@ -154,7 +155,7 @@ fn read(body: &Body<f64>, corner: VertexKey, ties: &Ties) -> (TouchUnread, Touch
 /// reads as a rest, or a tangency reads at all.
 #[test]
 fn a_corner_on_its_own_curved_post_reads_the_posts_tangent_cone() {
-    use TouchVerdict::{Crossing, Unread};
+    use TouchVerdict::Crossing;
     let off = [[0.3, 0.1, -0.05], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
     let into = [[-0.3, 0.1, 0.15], [-0.3, -0.1, 0.1], [-0.2, 0.05, 0.3]];
     let straddle = [[-0.2, 0.2, 0.1], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
@@ -162,10 +163,10 @@ fn a_corner_on_its_own_curved_post_reads_the_posts_tangent_cone() {
     let ruling_into = [[0.0, 0.0, 0.3], [0.3, -0.1, 0.1], [-0.3, 0.15, 0.1]];
     let circle = [[0.0, 0.3, 0.0], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
     let corner_into = [[-0.3, 0.1, 0.15], [-0.1, 0.3, 0.1], [-0.2, 0.05, 0.3]];
-    let rest = |v: &TouchVerdict| v.is_rest();
-    let crossing = |v: &TouchVerdict| *v == Crossing;
-    let tangency = |v: &TouchVerdict| *v == Unread(TouchUnread::Unreadable);
-    type Reads = fn(&TouchVerdict) -> bool;
+    let rest = |v: &SelfTouch| matches!(v, SelfTouch::Read(TouchVerdict::Rest(_)));
+    let crossing = |v: &SelfTouch| *v == SelfTouch::Read(Crossing);
+    let tangency = |v: &SelfTouch| *v == SelfTouch::SecondOrder(TouchUnread::Unreadable);
+    type Reads = fn(&SelfTouch) -> bool;
     let rows: [(Seat, &str, [[f64; 3]; 3], Reads); 12] = [
         (Seat::Corner, "off", off, rest),
         (Seat::Corner, "into", corner_into, crossing),
@@ -187,7 +188,9 @@ fn a_corner_on_its_own_curved_post_reads_the_posts_tangent_cone() {
             let (body, corner, ties) = seat(c, at, edges);
             let (planar, verdict) = read(&body, corner, &ties);
             if planar != TouchUnread::Unreadable || !reads(&verdict) {
-                bad.push(format!("{at:?}, {what}, {far} off: planar {planar:?}, {verdict:?}"));
+                bad.push(format!(
+                    "{at:?}, {what}, {far} off: planar {planar:?}, {verdict:?}"
+                ));
             }
         }
     }
@@ -222,10 +225,16 @@ fn an_edge_leaves_its_vertex_along_its_tangent_there() {
         let (d, line) = departure(&body, he).unwrap();
         let d = d.normalize();
         if line {
-            assert!((d - (to - from).normalize()).norm() < 1e-12, "a chord: {d:?}");
+            assert!(
+                (d - (to - from).normalize()).norm() < 1e-12,
+                "a chord: {d:?}"
+            );
         } else {
             arcs += 1;
-            assert!(d.dot(from - center).abs() < 1e-12, "square to the radius: {d:?}");
+            assert!(
+                d.dot(from - center).abs() < 1e-12,
+                "square to the radius: {d:?}"
+            );
             assert!(d.dot(to - from) > 0.1, "toward the other end: {d:?}");
         }
     }

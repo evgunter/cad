@@ -5,7 +5,7 @@
 //! planar link reads it, a line along a cylinder's ruling kept, two
 //! line edges on one ray kept, and a ray along a sphere's tangent plane,
 //! a curve's tangent on a line, or two whole tangent planes on one
-//! plane refused.
+//! plane refused; and no other reading of a link takes a tangent one.
 
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
@@ -96,7 +96,10 @@ fn corner(
 }
 
 fn read(sectors: Vec<FaceSector<f64>>) -> TouchVerdict {
-    rest::one_material(&Link::of(Point3::origin(), sectors).expect("a link"), band())
+    rest::one_material(
+        &Link::of(Point3::origin(), sectors).expect("a link"),
+        band(),
+    )
 }
 
 /// **A corner's fan turns as its departures do**: one wedge under half
@@ -117,11 +120,20 @@ fn a_corners_fan_turns_as_its_departures_do() {
         assert_eq!(fan.len(), wedges, "{deg}°: {fan:?}");
         for &(a, b) in &fan {
             let (a, b) = (a - Point3::origin(), b - Point3::origin());
-            assert!(a.cross(b).dot(z) > 0.0, "{deg}°: ({a:?}, {b:?}) under half a turn");
+            assert!(
+                a.cross(b).dot(z) > 0.0,
+                "{deg}°: ({a:?}, {b:?}) under half a turn"
+            );
         }
         let (first, last) = (fan[0].0, fan[wedges - 1].1);
-        assert!(((first - Point3::origin()) - at(0.0)).norm() < 1e-12, "{deg}°: starts at d0");
-        assert!(((last - Point3::origin()) - at(deg)).norm() < 1e-12, "{deg}°: ends at d1");
+        assert!(
+            ((first - Point3::origin()) - at(0.0)).norm() < 1e-12,
+            "{deg}°: starts at d0"
+        );
+        assert!(
+            ((last - Point3::origin()) - at(deg)).norm() < 1e-12,
+            "{deg}°: ends at d1"
+        );
     }
     assert!(
         matches!(
@@ -158,13 +170,23 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
     let flat = [v(1.0, 0.0, 0.0), v(-0.2, 0.3, 1.0), v(-0.1, -0.4, 1.0)];
     let mut on_ball = corner(&flat, true, &k, &[]);
     on_ball.push(whole(sphere(-1.0), true));
-    assert_eq!(read(on_ball), Unread(TouchUnread::Unreadable), "along a ball");
+    assert_eq!(
+        read(on_ball),
+        Unread(TouchUnread::Unreadable),
+        "along a ball"
+    );
     let mut on_ruling = corner(&flat, true, &k, &[]);
     on_ruling.push(whole(cylinder(), true));
-    assert!(matches!(read(on_ruling), TouchVerdict::Rest(_)), "along a pin's ruling");
+    assert!(
+        matches!(read(on_ruling), TouchVerdict::Rest(_)),
+        "along a pin's ruling"
+    );
     let mut on_floor = corner(&flat, true, &k, &[]);
     on_floor.push(whole(plane(v(0.0, 0.0, 1.0)), true));
-    assert!(matches!(read(on_floor), TouchVerdict::Rest(_)), "along a floor");
+    assert!(
+        matches!(read(on_floor), TouchVerdict::Rest(_)),
+        "along a floor"
+    );
     let mut arc_on_floor = corner(&flat, true, &k, &[0]);
     arc_on_floor.push(whole(plane(v(0.0, 0.0, 1.0)), true));
     assert_eq!(
@@ -190,7 +212,11 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
         s.extend(low);
         read(s)
     };
-    assert!(matches!(pinch(true, true), TouchVerdict::Rest(_)), "two lines on one ray: {:?}", pinch(true, true));
+    assert!(
+        matches!(pinch(true, true), TouchVerdict::Rest(_)),
+        "two lines on one ray: {:?}",
+        pinch(true, true)
+    );
     assert_eq!(
         pinch(false, true),
         Unread(TouchUnread::Unreadable),
@@ -206,4 +232,17 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
         let s = vec![whole(sphere(-1.0), true), whole(sphere(c), up)];
         assert_eq!(read(s), Unread(TouchUnread::Unreadable), "two balls, {c}");
     }
+    // No reading but the one-material one takes a tangent link.
+    let tangent = Link::of(Point3::origin(), corner(&up, true, &k, &[])).unwrap();
+    let ball = Round::of(&sphere(-1.0), true).unwrap();
+    assert_eq!(
+        rest::judge(&tangent, &tangent, band()),
+        Unread(TouchUnread::Unreadable),
+        "judged"
+    );
+    assert_eq!(
+        rest::by_round(&tangent, &ball, 1.0, band()),
+        Unread(TouchUnread::Unreadable),
+        "against a ball"
+    );
 }
