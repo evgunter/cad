@@ -473,3 +473,16 @@ row's last section says what moved.
   - The lane, the pick and the selection mark all read it through `PickIndex::drawn_outline`, so a re-click keeps the draft.
   - The form's free preview stays unpickable.
   - The selection-mark follow-up was the same fix and is closed in this PR. (VSEAM)
+- 2026-11-02 — Ev ruled on `[ev]` 6346, which is merged. Ev's comments:
+  - "another case of a family of different representations with a shared api, like the arcs";
+  - `toward`'s components should be `Length`s;
+  - 3-D has no ray form "yet".
+
+  My restatement after Ev's first question had first retired `toward`, which was wrong. The kernel had already built the family, and the designers had read `[variables.poses]`' FORK-MOVE sentence as binding, when `[recipe.forms]` admits a family. That correction was made on the PR.
+  - The fork-log row is renumbered to 243 after another collision.
+  - The units are unblocked from the residue, and U7 (the revolve's axis line) is filed on doctail.
+- 2026-11-02 — **Track handed back (`ready`).** Its P0/P1 rows are done or blocked on other programs:
+  - the on-face viewer unit waits on doctail and lib;
+  - U6 of the self-reference build waits on doctail U3/U4.
+
+  The open question for Ev is who builds doctail's units: doctail has no orchestrator and is at 111/45, holding U1, U3, U4, U7 and the on-face frame. The P2/P3 tail is a successor's. Merged this sitting: 6119, 6123, 6124, 6125, 6128, 6129, 6135, 6143, 6144, 6145, 6149, 6285, 6286, 6289, 6290, 6295, 6298, 6299, 6302, 6306, 6322, 6340, 6346, 6352. (VSEAM)
