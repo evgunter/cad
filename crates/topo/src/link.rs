@@ -3310,71 +3310,6 @@ pub(crate) mod rest {
         }
     }
 
-    /// **Whether one solid's link at a point where it touches itself
-    /// bounds one material** (D1 tier 3, `crates/topo/README.md`): no two
-    /// of its sheets cross, and its winding over the sphere of directions
-    /// takes two consecutive values. Each sector is cut into pieces at
-    /// every ray of the link, as [`judge`] cuts them. Then:
-    ///
-    /// 1. **Crossing** if a piece crosses another sector of the link off
-    ///    the link's rays ([`crosses`], the link read against itself less
-    ///    the piece's own sector), confirmed inside the ball.
-    /// 2. Otherwise **Crossing** if a ray of the link — any ray a wedge of
-    ///    any sector ends on, cuts included — lies strictly inside two
-    ///    sectors, confirmed inside the ball: two sheets run on across it.
-    /// 3. Otherwise **Crossing** if two pieces read different windings
-    ///    just in front of them ([`Cone::winds`], probed along the
-    ///    [`ladder`]), the same difference read again with both probes
-    ///    drawn into the ball.
-    /// 4. Otherwise **Rest** where every probe is tied to the first by
-    ///    readings of difference zero, or the link is one sector (one
-    ///    region in front of it and one behind).
-    ///
-    /// **Sound.** No sheet crosses a piece off the rays it is cut at (1),
-    /// nor along one (2), so each piece has one region in front of it and
-    /// one behind, the one behind winding one more. Every region borders a
-    /// piece, so a common winding `m` in front of every piece leaves every
-    /// region `m` or `m + 1`. **Complete.** Two sheets crossing meet along
-    /// a line inside both. Off the link's rays, a piece of one straddles
-    /// the other there, which (1) reads. On one, that ray lies strictly
-    /// inside both sectors, which (2) reads: the rays are every wedge's
-    /// ends, so every cut and every ray a fan turns on is one of them. Two
-    /// values in front of two pieces are three values between them, which
-    /// (3) reads on any reading that decides. Sheets that end on one ray
-    /// from either side (the faces of coincident edges) do not cross
-    /// there by this reading; how their wedges pair is the line rule's.
-    ///
-    /// A probe on another sector of the link (a slit, or a sheet doubled)
-    /// refuses [`TouchUnread::Degenerate`]; a reading in band, or a probe
-    /// no decided reading ties to the others, [`TouchUnread::InBand`].
-    /// The link is first held to close ([`Cone::closes`]).
-    /// **Whether a link of tangent sectors reads its faces' germ**
-    /// ([`FaceSector::tangent`]): `None` where it does, the refusal
-    /// otherwise. A face is its tangent sector only to first order, so a
-    /// reading of the cone stands for the faces' only where it is stable:
-    /// every coincidence it reads is one the faces keep. One is kept
-    /// where two sectors share a bound along one edge, or where the ray
-    /// and the plane read are both the faces' own (a line edge on a
-    /// planar face); every other is first order only. So each bound of
-    /// each sector is read against every other sector's plane: off it,
-    /// or on it outside the sector, is stable (the faces part there at
-    /// every small enough scale), and on it inside the sector or on its
-    /// bound is a tangency, [`TouchUnread::Unreadable`], unless kept.
-    /// Two closed sectors have no bounds, so each pair of them with a
-    /// plane not the face's own is read for one plane: two in-plane
-    /// directions of one on the other's plane.
-    ///
-    /// **Sound.** Under the blow-up `q ↦ p + (q − p)/t` the faces about
-    /// `p` tend, as `t → 0`, to their tangent sectors, planes and bounds
-    /// both. Where no bound lies on another sector's plane but as the
-    /// faces keep it, and no two whole planes are one, every pair of
-    /// sectors either meets in a ray of both (an edge they share), or
-    /// meets along a line inside one or both of them transversally, or
-    /// meets nowhere but `p` — each of which every small enough
-    /// perturbation of the planes and rays keeps. So the cone the
-    /// reading decides is the faces' at every small enough scale, and
-    /// its decided readings, each a strict sign or a kept coincidence,
-    /// are theirs: its verdict is the germ's.
     /// Whether the ray through `r`, along `edge` (a line where `line`),
     /// lying on a bound of sector `j`, lies there as the faces keep it:
     /// the bound is the same edge, or both are lines.
@@ -3407,6 +3342,34 @@ pub(crate) mod rest {
             .is_some_and(|d| metric::sign(LINK_ROUND, d, band) == Some(Sign::Zero))
     }
 
+    /// **Whether a link of tangent sectors reads its faces' germ**
+    /// ([`FaceSector::tangent`](super::FaceSector::tangent)): `None` where
+    /// it does, the refusal otherwise. A face is its tangent sector only to
+    /// first order, so a reading of the cone stands for the faces' only
+    /// where it is stable: every coincidence it reads is one the faces
+    /// keep. A line edge's ray read against a planar face's plane is the
+    /// faces' own geometry, read as the planar link reads it. Every other
+    /// bound of each sector is read against every other sector's plane:
+    /// off it, or on it outside the sector, is stable (the faces part there
+    /// at every small enough scale); on it, it is kept where it lies on
+    /// the other's bound along the same edge, or along a line edge where
+    /// it is one too ([`kept_bound`]), or inside a sphere's or a cylinder's
+    /// sector as a line on its carrier, a ruling ([`on_carrier`]); else it
+    /// is a tangency, [`TouchUnread::Unreadable`]. Two closed sectors have
+    /// no bounds, so each pair of them with a plane not its face's own is
+    /// read for one plane: two in-plane directions of one on the other's.
+    ///
+    /// **Sound.** Under the blow-up `q ↦ p + (q − p)/t` the faces about
+    /// `p` tend, as `t → 0`, to their tangent sectors, planes and bounds
+    /// both. Where no bound lies on another sector's plane but as the
+    /// faces keep it, and no two whole planes are one, every pair of
+    /// sectors either meets in a ray of both (an edge they share), or
+    /// meets along a line inside one or both of them transversally, or
+    /// meets nowhere but `p` — each of which every small enough
+    /// perturbation of the planes and rays keeps. So the cone the
+    /// reading decides is the faces' at every small enough scale, and
+    /// its decided readings, each a strict sign or a kept coincidence,
+    /// are theirs: its verdict is the germ's.
     fn first_order<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Option<TouchUnread> {
         if !link.tangent() {
             return None;
@@ -3475,6 +3438,44 @@ pub(crate) mod rest {
         None
     }
 
+    /// **Whether one solid's link at a point where it touches itself
+    /// bounds one material** (D1 tier 3, `crates/topo/README.md`): no two
+    /// of its sheets cross, and its winding over the sphere of directions
+    /// takes two consecutive values. Each sector is cut into pieces at
+    /// every ray of the link, as [`judge`] cuts them. Then:
+    ///
+    /// 1. **Crossing** if a piece crosses another sector of the link off
+    ///    the link's rays ([`crosses`], the link read against itself less
+    ///    the piece's own sector), confirmed inside the ball.
+    /// 2. Otherwise **Crossing** if a ray of the link — any ray a wedge of
+    ///    any sector ends on, cuts included — lies strictly inside two
+    ///    sectors, confirmed inside the ball: two sheets run on across it.
+    /// 3. Otherwise **Crossing** if two pieces read different windings
+    ///    just in front of them ([`Cone::winds`], probed along the
+    ///    [`ladder`]), the same difference read again with both probes
+    ///    drawn into the ball.
+    /// 4. Otherwise **Rest** where every probe is tied to the first by
+    ///    readings of difference zero, or the link is one sector (one
+    ///    region in front of it and one behind).
+    ///
+    /// **Sound.** No sheet crosses a piece off the rays it is cut at (1),
+    /// nor along one (2), so each piece has one region in front of it and
+    /// one behind, the one behind winding one more. Every region borders a
+    /// piece, so a common winding `m` in front of every piece leaves every
+    /// region `m` or `m + 1`. **Complete.** Two sheets crossing meet along
+    /// a line inside both. Off the link's rays, a piece of one straddles
+    /// the other there, which (1) reads. On one, that ray lies strictly
+    /// inside both sectors, which (2) reads: the rays are every wedge's
+    /// ends, so every cut and every ray a fan turns on is one of them. Two
+    /// values in front of two pieces are three values between them, which
+    /// (3) reads on any reading that decides. Sheets that end on one ray
+    /// from either side (the faces of coincident edges) do not cross
+    /// there by this reading; how their wedges pair is the line rule's.
+    ///
+    /// A probe on another sector of the link (a slit, or a sheet doubled)
+    /// refuses [`TouchUnread::Degenerate`]; a reading in band, or a probe
+    /// no decided reading ties to the others, [`TouchUnread::InBand`].
+    /// The link is first held to close ([`Cone::closes`]).
     pub(crate) fn one_material<T: Decide>(link: &Link<T>, band: Band) -> TouchVerdict {
         // The link is read against its own planes and rays: the reading
         // over the pair it makes with itself.
