@@ -795,7 +795,7 @@ fn vertex_face_side<T: Decide>(
             )),
             band,
         )
-        .map_err(VertexRefusal::Undecided)?;
+        .map_err(VertexRefusal::Offset)?;
         Ok(match decided.sign {
             Sign::Negative => SplitSide::Below,
             Sign::Positive => SplitSide::Above,
@@ -816,12 +816,28 @@ fn vertex_face_side<T: Decide>(
     )
 }
 
-/// The Boolean's refusal of a vertex the rule could not place on a
-/// planar face, `read` being the declaration read of the pair.
-fn vertex_refusal(refusal: VertexRefusal, read: DeclarationRead) -> BooleanError {
+/// The Boolean's refusal of a vertex of operand `x_is` the rule could
+/// not place on a planar face, `read` being the declaration read of the
+/// pair: the refusal of the decision that refused it.
+fn vertex_refusal(
+    refusal: VertexRefusal,
+    x_is: Operand,
+    read: DeclarationRead,
+    band: Band,
+) -> BooleanError {
     match refusal {
-        VertexRefusal::Undecided(diag) => {
+        VertexRefusal::Offset(diag) => {
             BooleanError::coincidence(Coincide::VertexOnFace, read, diag)
+        }
+        VertexRefusal::Section(diag) => {
+            BooleanError::coincidence(Coincide::VertexOnSection, read, diag)
+        }
+        VertexRefusal::Walk(crate::splitting::SplitReduceError::ApexUndecided { face, .. }) => {
+            BooleanError::VertexNearConeAxis {
+                operand: x_is,
+                face,
+                band,
+            }
         }
         VertexRefusal::Walk(crate::splitting::SplitReduceError::SliverSector {
             reading: crate::splitting::SectorReading::Escalated(diag),
@@ -1340,7 +1356,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             (chart_origin, chart_normal),
                             band,
                         )
-                        .map_err(|refusal| vertex_refusal(refusal, read))
+                        .map_err(|refusal| vertex_refusal(refusal, x_is, read, band))
                     };
                     let (d1, d2) = (side(u, pu)?, side(v, pv)?);
                     let (s1, s2) = (d1.sign, d2.sign);
@@ -1572,7 +1588,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 )
             };
             let read = edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
-            let on_face = |refusal| vertex_refusal(refusal, read);
+            let on_face = |refusal| vertex_refusal(refusal, x_is, read, band);
             let d1 = side(u, pu).map_err(on_face)?;
             let d2 = side(v, pv).map_err(on_face)?;
             match (d1.sign, d2.sign) {
@@ -5874,7 +5890,7 @@ fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
         (plane.origin, plane.normal),
         band,
     )
-    .map_err(|refusal| vertex_refusal(refusal, read))?;
+    .map_err(|refusal| vertex_refusal(refusal, x_is, read, band))?;
     if on.sign != Sign::Zero {
         return Ok(false);
     }

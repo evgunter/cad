@@ -340,8 +340,24 @@ impl<T: Real> Quadric<T> {
     /// discriminant `e`, with its running bound: `r − δ` against a
     /// cylinder, `E/16d` against a cone. `d` is at least the apex's
     /// distance from the chart's carrier, which the caller decides off
-    /// the band's zero, so the division is well conditioned.
-    fn clearance(&self, u: [Rounded<T>; 3], w: [Rounded<T>; 3], e: Rounded<T>) -> Rounded<T> {
+    /// the band's zero, so the division is well conditioned; `|w × d|`
+    /// is `√p₂`, which the caller's chart keeps from zero.
+    ///
+    /// # Panics
+    ///
+    /// Where a divisor is within its own rounding of zero: the caller's
+    /// decisions above rule that out, so it is a kernel bug.
+    fn clearance(&self, u: [Rounded<T>; 3], w: [Rounded<T>; 3], e: Rounded<T>) -> Rounded<T>
+    where
+        T: Decide,
+    {
+        let divisor = |d: Rounded<T>| {
+            d.divisor().unwrap_or_else(|| {
+                unreachable!(
+                    "a ruling's clearance divides by {d:?}, within its own rounding of zero"
+                )
+            })
+        };
         match *self {
             Self::Cylinder { d, r, .. } => {
                 let m = running::cross(w, running::exact_vec(d));
@@ -350,13 +366,13 @@ impl<T: Real> Quadric<T> {
                     value: reach.value.abs(),
                     ..reach
                 };
-                Rounded::exact(r) - reach.quotient(running::dot(m, m).sqrt())
+                Rounded::exact(r) - reach.quotient(divisor(running::dot(m, m).sqrt()))
             }
             Self::Cone { .. } => {
                 let along = running::dot(u, w);
                 let perp = [0, 1, 2].map(|i| u[i] - w[i] * along);
                 let apart = running::dot(perp, perp).sqrt();
-                e.quotient(apart * Rounded::exact(T::from_f64(16.0)))
+                e.quotient(divisor(apart * Rounded::exact(T::from_f64(16.0))))
             }
         }
     }
