@@ -248,7 +248,7 @@ of them is a defect.
 | The tolerance | one ε per run (`geom_core::Tolerance`); angles derived from it at a named lever arm | [tolerance.epsilon] |
 | A topology-determining decision | a named predicate returning a trilean and a margin | [verdicts] |
 | A question about carriers | one reading per question | [one-way.readings] |
-| The region a face or an edge can occupy | one cover per entity: `geom`'s reading of a carrier over a span, `topo`'s of a trimmed face; every box, support, reach and ball is a method on it, never a second reading | [one-way.readings] |
+| The region a carrier, an edge or a face can occupy | one cover per entity: `geom`'s reading of a bounded carrier, whole or over a span, `topo`'s of an edge with its vertices and of a trimmed face; every box, support, reach and ball is a method on it, never a second reading | [one-way.readings] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
@@ -313,8 +313,9 @@ solids live in `topo` and reach carrier facts only through those.
 **The region an entity can occupy is a reading**, whose answer is a
 cover: the carrier's cover met with every trim constraint the reading
 proves, one arm per kind, each constraint a stage of that one rule. A
-constraint left in band adds nothing to the meet and hands to no second
-method; a reading whose meet is still the whole space answers a typed
+constraint the reading does not prove (one left in band, or one it
+cannot read) adds nothing to the meet and hands to no second method;
+a reading whose meet is still the whole space answers a typed
 `Uncovered` naming the entity and what was not known, which a meet
 takes as its identity and a hull as its absorber, inside a reading and
 between readers alike. Every bound on where the entity is (a box in
