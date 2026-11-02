@@ -48,3 +48,21 @@ Parked on the row in `blocked_on`, a live lane rewriting the same gesture code; 
 ## Unparked and dispatched (2026-11-01, PLACING orchestrator)
 
 `a-new-body-lands-unplaced` closed in PR 6269: no gesture writes a world `Place` on the person's behalf, and one `Takeover` re-points a copy's source. The lane `placing/gesture-placements` re-reads this row against that code first.
+
+## Re-read (2026-11-01, `placing/gesture-placements`, PR 6280) and weighed by three designers
+
+**Still true on main, stated against the code as it now stands.**
+- `add_transform` (`crates/viewer/src/session.rs`) no longer inserts a `Node::Transform`. On a copy it commits `Place { source: the copy, target: the copy's space, values }`, then re-points the copy's `⊔` operands, the product slot and its copies onto it (`Takeover`).
+- The result is a copy of the copy, and the copy's own bundle is untouched, so its pose has two homes.
+- The `Takeover` never re-points a mate's pose or a pick. So parts mated to the moved copy stay where it was (traced, not run).
+- The premise above that "no door edits a placement's pose in place" is stale. Value slots (`SlotId::ValueSlide`/`ValueSpin`, written by `SessionOp::SetSlot`) and `SetConstraints` both exist.
+
+**The designers' agreed recommendation.** Transform retires into the placement editor `mate-tool-commits-one-mate` decided:
+- **On a copy**, it is the editor's Edit door on the copy's bundle, its value rows as written.
+- **On an unplaced body**, it is the Create door with no mates, into the body's own space.
+- **The axis-and-angle input** goes.
+- **The Create door's takeover** re-points what read the body along the path it was seen through (`⊔` operands, the product), never a copy's source.
+
+**Split, put to Ev:** clarifying `docs/DESIGN.md` `[placement.placement]`. The `[ev]` PR carries it.
+
+**Interim (orchestrator's call):** nothing is built before the editor. Refusing Transform on a copy now would be a stopgap thrown away one unit later, and nothing is released. Once Ev answers, this row rides with `mate-tool-commits-one-mate`.
