@@ -2,8 +2,10 @@
 id: a-fused-fillet-verb-draws-nothing-of-its-parts-so-a-refusal-is-unreadable
 kind: issue
 title: arc_fillet_arc (and the fused fillet family) draws none of its component arcs, so when it refuses to draw nothing shows what went wrong
-status: open
+status: closed
 opened: 2026-11-02
+closed: 2026-11-02
+pr: 6306
 priority: P1
 cost: M
 ---
@@ -50,3 +52,32 @@ reach), the person sees nothing of the geometry the refusal is about.
 P1: a GUI defect Ev reported as making a verb nearly unusable.
 `pane/viewport.rs` is also VNEWS's and VGEOM's ground; the marks layer
 (`marks.rs`) is VGEOM's.
+
+## Closed (2026-11-02)
+
+Reproduced on main at `4e574c9677`: `push_preview` drew the preview's
+loops and nothing else, and a fused step refused with nothing before it
+(the vesica's `arc_fillet_arc` from the entry at a radius too large)
+left `sketch::preview` an `Err` and the viewport blank.
+
+Fixed: every arc-carrier fillet resolution hands its fit the two
+sides through one call (`Core::fit_arc_fillet`), and a drawing replay
+(`profile::path::program::replay_drawn`) records there what each fused
+step's fit was handed — the incoming and arrival sides, each carrier
+whole with its anchor and direction of travel — and the fillet circle
+it found. The record is shared with the chain's guide, so a refused
+fit keeps it; an arrival a later step completes is recorded when that
+step hands the fit its sides, against the fused step. `sketch::drawn`
+takes it out of the preview's own replay, so it exists when the
+preview refuses; the viewport draws it in a new
+`EdgeLane::Construction`, under the kept pieces and outside the fit,
+in `Theme::construction`, with a heading mark at each side's anchor,
+so a wrong-side refusal shows the side it names.
+
+The third bullet above needs nothing new for the radius-too-large
+case: the refusal already reads "no corner of these carriers takes a
+radius-5 m fillet; at corner (0, 1.7320508076): it would SWALLOW both
+legs' carriers (radius 2 m); the largest circle tangent to both has
+radius 1 m" on the vesica, and the carriers it names are now on
+screen. A bare `fillet(r)`, resolved line×line, still draws
+no construction: `an-arrival-a-later-step-completes-draws-no-construction`.

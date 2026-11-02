@@ -26,9 +26,12 @@
 //! kernel defect [`PartFault::NotEntered`], an ask that escaped
 //! [`instantiated`], the one census of the asks.
 //!
-//! The top fills its table in one serial pass
-//! ([`PartStore::enter`]) over that census, in document order:
-//! each distinct key evaluated at most once, under a shielding verdict
+//! The top fills its table serially, after its admission has charged
+//! every instance its part's listing steps against the run's member
+//! budget, without building anything ([`super::EvalOptions::member_budget`]):
+//! each instance the admission admitted is entered in the schedule's
+//! order ([`PartStore::enter`]), each distinct key evaluated at most
+//! once, under a shielding verdict
 //! bracket ([`PartStore::row`]), so its decisions land on no node and
 //! its `probe` samples reach the caller's sink ahead of every node's,
 //! whatever schedule the node map then runs. Each successful row is
@@ -48,8 +51,9 @@
 //! thread's stack at a time, how deep an assembly nests costs heap and
 //! never stack, and every depth either evaluates or refuses typed.
 //!
-//! **Every part a document instantiates is evaluated, whether or not
-//! its instance asks.** The instance that declines to ask is one whose
+//! **Below the top, every part a document instantiates is evaluated,
+//! whether or not its instance asks** (at the top, every instance the
+//! admission admitted). The instance that declines to ask is one whose
 //! placement refused (a mate fault), or a memo hit; its part's row,
 //! failed or not, reaches no node, product or refusal. What it does
 //! reach is what counts or records work as it happens:
@@ -130,10 +134,6 @@ pub(crate) struct PartValue<T: Decide> {
     /// document, when a report asks (`checks::DoorJob`).
     pub door_rows:
         Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::DocRows>>>>,
-    /// **The listing steps the part's evaluation took**: its families'
-    /// and its own parts', which an instance of it is charged at the
-    /// instancing run's admission. A function of the part's document.
-    pub steps: u64,
 }
 
 impl<T: Decide> PartValue<T> {
@@ -195,7 +195,6 @@ impl<T: Decide> Clone for PartValue<T> {
             interference: Arc::clone(&self.interference),
             at_rest: Arc::clone(&self.at_rest),
             door_rows: Arc::clone(&self.door_rows),
-            steps: self.steps,
         }
     }
 }
@@ -559,23 +558,9 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
 /// none. Keyed by `(DocRef, ambient ε bits)` — the module docs' key.
 type Rows<T> = BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>;
 
-/// The references whose evaluation ran out of member budget
-/// ([`super::EvalOutcome::Exhausted`]), by a row's key. Such a reference
-/// has no row: running out is the run's, not the part's, so it is
-/// neither a value nor a fault, and the evaluation reading it stops at
-/// admission at its instance node instead
-/// ([`Reached::steps`]).
-type Exhausted = std::collections::BTreeSet<(DocRef, u64)>;
-
-/// A reference's evaluation: its row, or its run out of member budget.
-enum Evaluated<T: Decide> {
-    Row(Result<PartValue<T>, PartFault>),
-    Exhausted,
-}
-
 /// **The serial part store**: rows filled one at a time, by `&mut`,
-/// outside any node map — the top evaluation's census pass
-/// ([`Self::enter`]). A running evaluation reads the [`Reached`]
+/// outside any node map, as the top evaluation enters the instances
+/// its admission admitted ([`Self::enter`]). A running evaluation reads the [`Reached`]
 /// table the pass hands over, never this.
 pub(crate) struct PartStore<'a, T: Decide> {
     resolver: Option<&'a Arc<dyn PartResolver>>,
@@ -594,15 +579,9 @@ pub(crate) struct PartStore<'a, T: Decide> {
     /// inherited so a part's constructions turn too (each by its own
     /// node's [`super::ComputingTwist::for_node`]).
     twist: Option<super::ComputingTwist>,
-    /// What remains of the run's member budget
-    /// ([`super::EvalOptions::member_budget`]) where the instance now
-    /// entered is admitted: the part's evaluation, and the descent below
-    /// it, are held to it, so no part lists past the run's one pot.
-    member_budget: u64,
+    rows: Rows<T>,
     /// The rows entered this run that the next may take up.
     carried: BTreeMap<(DocRef, u64), PartValue<T>>,
-    rows: Rows<T>,
-    exhausted: Exhausted,
     /// How many referenced documents this store's descents evaluated,
     /// at every depth — the D-3 sharing evidence. A counter, not a
     /// timing claim. Every document below the top is evaluated by the
@@ -623,10 +602,8 @@ impl<'a, T: Decide> PartStore<'a, T> {
             boolean_sweep,
             symbols: false,
             twist: None,
-            member_budget: super::DEFAULT_MEMBER_BUDGET,
-            carried: BTreeMap::new(),
             rows: BTreeMap::new(),
-            exhausted: Exhausted::new(),
+            carried: BTreeMap::new(),
             evaluations: 0,
         }
     }
@@ -644,7 +621,7 @@ impl<'a, T: Decide> PartStore<'a, T> {
     }
 }
 
-/// **The top's parts, entered** ([`PartStore::enter`]).
+/// **The top's parts, entered** ([`PartStore::finish`]).
 pub(crate) struct Entry<T: Decide> {
     /// What the evaluation's mate solve and node map read.
     pub reached: Reached<T>,
@@ -665,82 +642,63 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
     /// unbracketed decisions — its mate solve, its profile pre-passes,
     /// the gather of its product — must land on no instance. Its
     /// `probe` samples go to whatever sink the caller installed.
-    fn row(&mut self, doc_ref: &DocRef, tol: Tol, cancel: &super::CancelToken) -> Evaluated<T> {
+    pub(crate) fn row(
+        &mut self,
+        doc_ref: &DocRef,
+        tol: Tol,
+        cancel: &super::CancelToken,
+    ) -> Result<PartValue<T>, PartFault> {
         let key = (*doc_ref, self.eps_bits);
         if let Some(hit) = self.rows.get(&key) {
-            return Evaluated::Row(hit.clone());
-        }
-        if self.exhausted.contains(&key) {
-            return Evaluated::Exhausted;
+            return hit.clone();
         }
         let value = {
             let _shield = geom_core::k_stats::Bracket::open();
             self.resolve_and_evaluate(doc_ref, tol, cancel)
         };
-        match &value {
-            Evaluated::Row(row) => {
-                self.rows.insert(key, row.clone());
-            }
-            Evaluated::Exhausted => {
-                self.exhausted.insert(key);
-            }
-        }
+        self.rows.insert(key, value.clone());
         value
     }
 
-    /// **One instance's part, entered and charged** at the top's
-    /// admission ([`super::evaluate`]), in the schedule's order: the row
-    /// for `doc_ref`, taken from this store, from `prior`'s carried rows
-    /// or evaluated here under the `remaining` budget, and the listing
-    /// steps it charges, which are its evaluation's
-    /// ([`PartValue::steps`]): a function of the part's document, so a
-    /// carried row charges what an evaluated one would. `None` where the
-    /// part's steps pass `remaining` (its evaluation under them ran out,
-    /// or its carried steps exceed them): the run runs out at the
-    /// instance. A faulted row charges nothing; its instance refuses.
-    ///
-    /// A row evaluated while `cancel` fired is not carried, nor is a
-    /// faulted one.
+    /// **One instance's part, entered**: the row for `doc_ref`, from
+    /// this store, from `prior`'s carried rows, or evaluated here
+    /// ([`Self::row`]). The top enters each instance its admission
+    /// admitted, in the schedule's order, once the whole charge fits
+    /// ([`super::evaluate`]), so building a part decides nothing about
+    /// the budget. A row evaluated while `cancel` fired is not carried,
+    /// nor is a faulted one; once `cancel` fires nothing more is
+    /// evaluated, and the evaluation, canceled, runs no node to ask.
     pub(crate) fn enter(
         &mut self,
         doc_ref: DocRef,
         prior: Option<&Carried<T>>,
-        remaining: u64,
         cancel: &super::CancelToken,
         tol: Tol,
-    ) -> Option<u64> {
+    ) {
         let key = (doc_ref, self.eps_bits);
-        if !self.rows.contains_key(&key) && !self.exhausted.contains(&key) {
-            if let Some(value) = prior.and_then(|p| p.0.get(&key)) {
-                self.carried.insert(key, value.clone());
-                self.rows.insert(key, Ok(value.clone()));
-            } else if !cancel.is_canceled() {
-                self.member_budget = remaining;
-                if let Evaluated::Row(Ok(value)) = self.row(&doc_ref, tol, cancel)
-                    && !cancel.is_canceled()
-                {
-                    self.carried.insert(key, value);
-                }
-            }
+        if self.rows.contains_key(&key) {
+            return;
         }
-        if self.exhausted.contains(&key) {
-            return None;
+        if let Some(value) = prior.and_then(|p| p.0.get(&key)) {
+            self.carried.insert(key, value.clone());
+            self.rows.insert(key, Ok(value.clone()));
+            return;
         }
-        let steps = match self.rows.get(&key) {
-            Some(Ok(value)) => value.steps,
-            _ => 0,
-        };
-        (steps <= remaining).then_some(steps)
+        if cancel.is_canceled() {
+            return;
+        }
+        if let Ok(value) = self.row(&doc_ref, tol, cancel)
+            && !cancel.is_canceled()
+        {
+            self.carried.insert(key, value);
+        }
     }
 
     /// **The top's parts, entered**: the rows [`Self::enter`] took, which
     /// the evaluation reads, and those it carries for the run after it.
     pub(crate) fn finish(self) -> Entry<T> {
         Entry {
-            reached: Reached {
-                rows: self.rows,
-                exhausted: self.exhausted,
-            },
+            reached: Reached(self.rows),
             carried: Carried(self.carried),
             evaluations: self.evaluations,
         }
@@ -766,15 +724,10 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         doc_ref: &DocRef,
         tol: Tol,
         cancel: &super::CancelToken,
-    ) -> Evaluated<T> {
-        let Some(resolver) = self.resolver else {
-            return Evaluated::Row(Err(PartFault::NoResolver));
-        };
+    ) -> Result<PartValue<T>, PartFault> {
+        let resolver = self.resolver.ok_or(PartFault::NoResolver)?;
         let mut path = Vec::new();
-        let mut current = match Entered::enter(resolver, &path, doc_ref, tol) {
-            Ok(entered) => entered,
-            Err(fault) => return Evaluated::Row(Err(fault)),
-        };
+        let mut current = Entered::enter(resolver, &path, doc_ref, tol)?;
         path.push(*doc_ref);
         let mut waiting: Vec<Entered<T>> = Vec::new();
         loop {
@@ -790,25 +743,14 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                 }
                 continue;
             }
-            let reached = Reached {
-                rows: core::mem::take(&mut current.reached),
-                exhausted: core::mem::take(&mut current.exhausted),
-            };
+            let reached = core::mem::take(&mut current.reached);
             let value = self.evaluate_entered(&current.doc, current.doc_ref, reached, cancel, tol);
             path.pop();
             let Some(parent) = waiting.pop() else {
                 return value;
             };
             let done = core::mem::replace(&mut current, parent);
-            let key = (done.doc_ref, self.eps_bits);
-            match value {
-                Evaluated::Row(row) => {
-                    current.reached.insert(key, row);
-                }
-                Evaluated::Exhausted => {
-                    current.exhausted.insert(key);
-                }
-            }
+            current.reached.insert((done.doc_ref, self.eps_bits), value);
         }
     }
 
@@ -823,10 +765,10 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         &mut self,
         doc: &Arc<ProfileDoc>,
         doc_ref: DocRef,
-        reached: Reached<T>,
+        reached: Rows<T>,
         cancel: &super::CancelToken,
         tol: Tol,
-    ) -> Evaluated<T> {
+    ) -> Result<PartValue<T>, PartFault> {
         self.evaluations += 1;
         // AQ4: the referenced document evaluates at its OWN parameters
         // — v1 instantiation takes no arguments. Sequentially, with a
@@ -862,14 +804,13 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             // (`ComputingTwist::for_node`), so its product is gathered
             // over operands turned apart.
             computing_twist: self.twist,
-            member_budget: self.member_budget,
+            // Unbounded: the instancing run's admission listed this
+            // part, and every part below it, against its one budget
+            // before anything was built, so the build is proven to fit.
+            member_budget: u64::MAX,
         };
         let evaluation =
-            super::evaluate_nested::<T>(doc, cancel, &opts, reached, &doc_ref.pin, tol);
-        if let super::EvalOutcome::Exhausted { .. } = evaluation.outcome {
-            return Evaluated::Exhausted;
-        }
-        let steps = evaluation.listed;
+            super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);
         // A2's uniformity: what a document MEANS is its product, one
         // rule everywhere. A failed node inside the part surfaces
         // through the product door's own typed refusal — and its
@@ -882,7 +823,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         // truth about what instantiating a document means.
         let product = match crate::product::product_recorded(doc, &evaluation, tol) {
             Ok(product) => product,
-            Err(e) => return Evaluated::Row(Err(product_fault(e, evaluation, doc))),
+            Err(e) => return Err(product_fault(e, evaluation, doc)),
         };
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
@@ -938,8 +879,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             carried_interference,
             carried_at_rest,
         } = crate::checks::at_rest::whole_reading(&product, tol);
-        Evaluated::Row(Ok(PartValue {
-            steps,
+        Ok(PartValue {
             interference: Arc::new(
                 seam.interference
                     .into_iter()
@@ -1001,41 +941,19 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                 censused: true,
                 ..super::Carry::default()
             },
-        }))
+        })
     }
 }
 
 /// **The parts an evaluation instantiates, already evaluated**: what
 /// its mate solve and node map read, by `&`, from any thread.
-pub(crate) struct Reached<T: Decide> {
-    rows: Rows<T>,
-    exhausted: Exhausted,
-}
+pub(crate) struct Reached<T: Decide>(Rows<T>);
 
 impl<T: Decide> Reached<T> {
-    /// Whether `doc_ref`'s evaluation at `tol`'s ε ran out of member
-    /// budget: an instance of it is where the evaluation reading it
-    /// runs out too.
-    /// The listing steps an instance of `doc_ref` charges at `tol`'s ε
-    /// ([`PartStore::enter`]'s charge, over rows the descent entered):
-    /// `None` where the part ran out of budget or its steps pass
-    /// `remaining`.
-    pub(crate) fn steps(&self, doc_ref: &DocRef, remaining: u64, tol: Tol) -> Option<u64> {
-        let key = (*doc_ref, tol.eps().to_bits());
-        if self.exhausted.contains(&key) {
-            return None;
-        }
-        let steps = match self.rows.get(&key) {
-            Some(Ok(value)) => value.steps,
-            _ => 0,
-        };
-        (steps <= remaining).then_some(steps)
-    }
-
     /// The row `doc_ref` has at `tol`'s ε. A reference with none was
     /// not entered: [`PartFault::NotEntered`].
     pub(crate) fn get(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
-        self.rows
+        self.0
             .get(&(*doc_ref, tol.eps().to_bits()))
             .cloned()
             .unwrap_or(Err(PartFault::NotEntered))
@@ -1043,7 +961,7 @@ impl<T: Decide> Reached<T> {
 }
 
 /// **The successful rows an evaluation carries for the next**
-/// ([`PartStore::enter`]): the next run that names it as its
+/// ([`PartStore::finish`]): the next run that names it as its
 /// prior takes each row its own census names from here instead of
 /// evaluating the part again.
 pub(crate) struct Carried<T: Decide>(BTreeMap<(DocRef, u64), PartValue<T>>);
@@ -1093,7 +1011,6 @@ struct Entered<T: Decide> {
     refs: Vec<DocRef>,
     next: usize,
     reached: Rows<T>,
-    exhausted: Exhausted,
 }
 
 impl<T: Decide> Entered<T> {
@@ -1135,7 +1052,6 @@ impl<T: Decide> Entered<T> {
             refs,
             next: 0,
             reached: BTreeMap::new(),
-            exhausted: Exhausted::new(),
         })
     }
 
@@ -1144,9 +1060,7 @@ impl<T: Decide> Entered<T> {
     fn next_unreached(&mut self, eps_bits: u64) -> Option<DocRef> {
         while let Some(r) = self.refs.get(self.next).copied() {
             self.next += 1;
-            if !self.reached.contains_key(&(r, eps_bits))
-                && !self.exhausted.contains(&(r, eps_bits))
-            {
+            if !self.reached.contains_key(&(r, eps_bits)) {
                 return Some(r);
             }
         }
@@ -1263,10 +1177,7 @@ mod tests {
         let resolver: Arc<dyn PartResolver> = counting.clone();
         let asked = doc_ref("parts-unit-asked");
 
-        let table = Reached::<f64> {
-            rows: BTreeMap::new(),
-            exhausted: super::Exhausted::new(),
-        };
+        let table = Reached::<f64>(BTreeMap::new());
         assert!(
             matches!(
                 table.get(&asked, Tol::witness()),
@@ -1283,7 +1194,7 @@ mod tests {
             assert!(
                 matches!(
                     store.row(&asked, Tol::witness(), &cancel),
-                    super::Evaluated::Row(Err(PartFault::Unresolved { .. }))
+                    Err(PartFault::Unresolved { .. })
                 ),
                 "ask {ask}: this resolver refuses the reference"
             );

@@ -16,3 +16,4 @@ unchanged; code comments citing their old paths were re-pointed in
 the same commit. Band 17900-17999 is written here for bookkeeping;
 the model A/B is suspended, so nothing draws from it. Nothing
 dispatched. 18.5 points against 30.
+- 2026-11-02 — **Seam (BOXES):** filed `blend-sheet-clip-picks-its-coaxial-arm-on-a-bracket` on this slate, found by BOXES' extent-home fork. (BOXES orchestrator)

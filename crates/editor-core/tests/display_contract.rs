@@ -1023,6 +1023,7 @@ test_utils::f6_variants! {
         ConstraintNotMinted,
         MateRefused,
         InputList,
+        LoftShape,
         AssertionBound,
         ObservedRead,
         MetadataUnversioned,
@@ -1450,6 +1451,15 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 fault: ListFault::IndexedFamily,
             },
             vec!["Union 000000000005: the family argument carries an index"],
+        ),
+        (
+            SnapshotError::LoftShape {
+                node: held(5, "Loft"),
+                fault: editor_core::LoftFault::TooFewSections { have: 1 },
+            },
+            vec![
+                "Loft 000000000005 is a loft through 1 section, and a loft passes through two or more",
+            ],
         ),
         (
             SnapshotError::AssertionBound {
@@ -2258,6 +2268,7 @@ test_utils::f6_variants! {
         BandVerdictsDisagree,
         Band,
         Escalated,
+        PastWidth,
     ];
 }
 
@@ -2632,6 +2643,13 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 },
             },
             vec!["a point's place along an edge, which a name rests on, is undecided"],
+        ),
+        (
+            NamingError::PastWidth {
+                what: editor_core::names::Numbered::InputPosition,
+                index: 7,
+            },
+            vec!["input 7 does not fit the u32", "Recourse: join the inputs"],
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
@@ -3466,4 +3484,74 @@ fn a_clearance_selection_payload_prints_the_full_id_and_its_words_the_tag() {
         standing.payload(),
         "node_did_not_build poisoned node=0:3fa9c1d2a0b10042 through=0:0000000000000007"
     );
+}
+
+/// **A refusal whose recourse the recourse sweep labelled says one
+/// recourse, marked**: the four rows the sweep rewrote, and a doubled
+/// flip at both pose doors, whose fault once said its own recourse
+/// inside each door's. No rendered-row gate held these before: an
+/// unlabelled or a second recourse reds here by name.
+#[test]
+fn the_swept_rows_say_one_recourse_marked() {
+    let rows: Vec<(&str, String)> = vec![
+        (
+            "SelectRefusal::NotAPlane",
+            SelectRefusal::NotAPlane {
+                face: Box::new(face_name()),
+            }
+            .to_string(),
+        ),
+        (
+            "ParseError::RatioPartNotInteger",
+            editor_core::ParseError::RatioPartNotInteger {
+                pos: 3,
+                text: "1.5/2".to_owned(),
+            }
+            .to_string(),
+        ),
+        (
+            "RangeRefusal::SlotIsDefined",
+            editor_core::RangeRefusal::SlotIsDefined {
+                node: held(5, "Extrude"),
+                slot: editor_core::SlotId::Distance,
+            }
+            .to_string(),
+        ),
+        (
+            "NodePickError::NotABody",
+            NodePickError::NotABody {
+                node: RecipeNodeId::new(0, tagged(4)),
+            }
+            .to_string(),
+        ),
+        (
+            "EditError::PoseShape(DoubleFlip)",
+            EditError::PoseShape {
+                node: held(5, "Place"),
+                slot: editor_core::SlotId::Distance,
+                fault: editor_core::pose::PoseFault::DoubleFlip,
+            }
+            .to_string(),
+        ),
+        (
+            "SnapshotError::PoseShape(DoubleFlip)",
+            SnapshotError::PoseShape {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                fault: editor_core::pose::PoseFault::DoubleFlip,
+            }
+            .to_string(),
+        ),
+    ];
+    for (row, text) in rows {
+        assert_eq!(
+            test_utils::refusal::recourse_markers(&text),
+            1,
+            "{row} says one recourse, marked: {text}"
+        );
+        let problem = text.split("Recourse:").next().unwrap_or_default();
+        assert!(
+            !problem.contains("instead") && !problem.contains(" — "),
+            "{row} says no recourse before its label: {text}"
+        );
+    }
 }

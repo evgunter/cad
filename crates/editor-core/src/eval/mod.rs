@@ -149,11 +149,6 @@ pub struct Evaluation<T: Decide> {
     /// part — contributes to THIS count too, so the number is the whole
     /// run's seam traffic rather than one level's.
     pub part_evaluations: usize,
-    /// **The listing steps this run's admission charged**: every
-    /// family's and every part's, to the node it ran out at where it
-    /// did ([`EvalOptions::member_budget`]). What an instance of this
-    /// document, as a part, is charged ([`parts::PartValue::steps`]).
-    pub(crate) listed: u64,
     /// The document's appearance store resolved against THIS
     /// evaluation's name tables (M4 PR 7): per node, entity →
     /// attributes, so a renderer/exporter consumes appearance without
@@ -1015,7 +1010,6 @@ impl Evaluation<f64> {
             tolerance: tolerance_of(tol),
             whole_refusal: false,
             prior_refused: None,
-            listed: 0,
             recomputed: order.len(),
             order,
             nodes,
@@ -2127,13 +2121,15 @@ impl crate::spoken::Say for NodeErrorKind {
             } => write!(
                 f,
                 "{}'s seam declaration crosses at {} on the remainder and claims {} in \
-                 the part, which this version of the part does not name, so the crossing does \
-                 not re-verify",
+                 the part, which this version of the part does not name. {}",
                 by.node_as(*instance, "instance"),
                 by.name(outer),
                 // The part's own nodes and steps are another document's
                 // ids, so its name is said by tag.
                 crate::spoken::Speaker::TAG.name(name),
+                crate::sentence::Recourse(
+                    "update the reference to a version of the part that names it"
+                ),
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
@@ -3861,7 +3857,12 @@ where
     // nominal document's bodies (`wire::trace`), as every program
     // expression resolves off the nominal environment: a lane that is
     // not the nominal `f64` one reads them from an evaluation of it,
-    // built once here, its decisions its own and not this run's.
+    // built once here, its decisions its own and not this run's. It is
+    // a run of its own under the same member budget, a second pot: a
+    // trace-reading document at a lane other than the nominal one lists
+    // up to twice the budget. Its admission is this run's (families are
+    // listed over the nominal environment either way), so it runs out at
+    // the node this run runs out at.
     let nominal_ev = (doc_reads_a_trace(doc)
         && T::nominal_results(&BTreeMap::new(), &env, &nominal_env).is_none())
     .then(|| {
@@ -3898,58 +3899,56 @@ where
         BTreeMap::new()
     };
     // **Admission**, before anything is built: every node charged, in
-    // `sched.order`, its listing steps, a family its own and an instance
-    // its part's ([`parts::PartValue::steps`]), the parts entered as
-    // their instances are reached so each part's evaluation is held to
-    // what remains of the run's one budget. A family is listed over the
-    // NOMINAL environment, whatever the lane: so the charge is the
-    // document's, and the nominal run a trace reader reads
-    // (`nominal_ev`) is charged exactly as this one, reaching the same
-    // node; a lane whose own count of a family disagrees refuses that
-    // family when it evaluates, which no budget decides.
+    // `sched.order`, its listing steps ([`charge_node`]): a family its
+    // own, and an instance the listing steps of the part it reaches,
+    // listed through every part below it, each part document charged
+    // once per run, at the first instance that reaches it. Only then
+    // is any part built, and only those the admission admitted. A
+    // family is listed over the NOMINAL environment, whatever the
+    // lane: the charge is the document's, and a lane whose own count of
+    // a family disagrees refuses that family when it evaluates, which
+    // no budget decides. A part's own run (`reached`) was admitted at
+    // its instancing run, so it charges nothing again.
     let mut admission = Admission::new(&sched.order, opts.member_budget);
-    let mut store = reached.is_none().then(|| {
-        parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
-            .with_symbols(opts.symbols)
-            .with_twist(opts.computing_twist)
-    });
-    let admitted = admission.admit(|id, remaining| {
-        let parted = match parts::instantiated(doc, id) {
-            None => Some(0),
-            Some(part) => match (&mut store, &reached) {
-                (Some(store), _) => {
-                    store.enter(part, prior.map(|p| &p.parts), remaining, cancel, tol)
-                }
-                (None, Some((reached, _))) => reached.steps(&part, remaining, tol),
-                (None, None) => unreachable!("a run enters its parts or is handed them"),
-            },
-        };
-        let Some(parted) = parted else {
-            return Ok(None);
-        };
-        let listed = match chains.get(&id) {
-            Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
-                members::listing_steps(
-                    doc,
-                    &nominal_env,
-                    &nominal_env,
-                    chain,
-                    remaining - parted,
-                    cancel,
-                )?
-            }
-            _ => Some(0),
-        };
-        Ok(listed.map(|listed| listed + parted))
-    });
-    let entry = match (store, reached) {
-        (Some(store), _) => store.finish(),
-        (None, Some((reached, _))) => parts::Entry {
+    let mut charges = PartCharges::new(opts.resolver.as_ref());
+    let admitted = if reached.is_some() {
+        Ok(())
+    } else {
+        admission.admit(|id, remaining| {
+            let chain = chains.get(&id).and_then(crate::repetition::Reached::chain);
+            charge_node(
+                doc,
+                id,
+                chain,
+                &nominal_env,
+                &mut charges,
+                remaining,
+                cancel,
+                tol,
+            )
+        })
+    };
+    let entry = match reached {
+        Some((reached, _)) => parts::Entry {
             reached,
             carried: parts::Carried::none(),
             evaluations: 0,
         },
-        (None, None) => unreachable!("a run enters its parts or is handed them"),
+        None => {
+            let mut store =
+                parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
+                    .with_symbols(opts.symbols)
+                    .with_twist(opts.computing_twist);
+            for &id in &sched.order {
+                if !admission.admits(id) {
+                    break;
+                }
+                if let Some(part) = parts::instantiated(doc, id) {
+                    store.enter(part, prior.map(|p| &p.parts), cancel, tol);
+                }
+            }
+            store.finish()
+        }
     };
     // A placement's bundle is folded where the placement evaluates
     // (INTENT stage 3 C): every pose a mate reads is then a value of
@@ -4056,7 +4055,6 @@ where
     {
         outcome = exhausted;
     }
-    let listed = admission.held;
 
     // Cycle leftovers (unreachable through `apply`): typed refusals,
     // appended after the schedulable order so `order` still covers
@@ -4092,7 +4090,6 @@ where
         outcome,
         recomputed,
         reused,
-        listed,
         part_evaluations: entry.evaluations,
         appearance: resolved_appearance,
         env,
@@ -4100,6 +4097,177 @@ where
         spaces: Arc::new(doc.spaces()),
         parts: entry.carried,
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
+    }
+}
+
+/// **One node's listing steps** against `remaining` ([`Admission`]):
+/// the part an instance reaches ([`PartCharges::part`]), then the
+/// family's own members listed over `nominal`. `None` as soon as they
+/// pass `remaining`.
+#[allow(clippy::too_many_arguments)] // the node, its document's reads, and the run's
+fn charge_node(
+    doc: &Doc<ProfileProgram>,
+    id: RecipeNodeId,
+    chain: Option<&[crate::VarId]>,
+    nominal: &crate::expr::VarEnv<f64>,
+    charges: &mut PartCharges<'_>,
+    remaining: u64,
+    cancel: &CancelToken,
+    tol: Tol,
+) -> Result<Option<u64>, Canceled> {
+    let parted = match parts::instantiated(doc, id) {
+        Some(part) => match charges.part(part, remaining, cancel, tol)? {
+            Some(steps) => steps,
+            None => return Ok(None),
+        },
+        None => 0,
+    };
+    let listed = match chain {
+        Some(chain) if !chain.is_empty() => {
+            members::listing_steps(doc, nominal, chain, remaining - parted, cancel)?
+        }
+        _ => Some(0),
+    };
+    Ok(listed.map(|listed| listed + parted))
+}
+
+/// **The parts a run's admission has charged**: a part's listing steps
+/// are its document's families' and its own parts', listed with no
+/// geometry built; each part document is charged once per run, as the
+/// store builds it once.
+struct PartCharges<'a> {
+    resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
+    charged: std::collections::BTreeSet<crate::ident::DocRef>,
+}
+
+/// One part document on the listing's stack: its nodes in its
+/// schedule's order, each with the part it instances and the indices it
+/// reaches, and how far the listing has read them.
+struct Listing {
+    part: crate::ident::DocRef,
+    doc: Doc<ProfileProgram>,
+    nominal: crate::expr::VarEnv<f64>,
+    nodes: Vec<(Option<crate::ident::DocRef>, Option<Vec<crate::VarId>>)>,
+    next: usize,
+    /// Whether the part the next node instances is listed already.
+    entered: bool,
+}
+
+impl<'a> PartCharges<'a> {
+    fn new(resolver: Option<&'a Arc<dyn crate::part::PartResolver>>) -> Self {
+        Self {
+            resolver,
+            charged: std::collections::BTreeSet::new(),
+        }
+    }
+
+    /// The listing steps of `part`'s document, in its schedule's order,
+    /// through every part it reaches, on an explicit stack as the build's
+    /// descent is (`parts` module docs); `None` as soon as they pass
+    /// `remaining`. A count that faults charges what was listed before
+    /// it, as a family of the run does.
+    fn part(
+        &mut self,
+        part: crate::ident::DocRef,
+        remaining: u64,
+        cancel: &CancelToken,
+        tol: Tol,
+    ) -> Result<Option<u64>, Canceled> {
+        let mut stack: Vec<Listing> = Vec::new();
+        if let Some(listing) = self.open(part, &stack, cancel, tol)? {
+            stack.push(listing);
+        }
+        let mut held = 0u64;
+        loop {
+            let Some(top) = stack.last_mut() else {
+                return Ok(Some(held));
+            };
+            let Some((instanced, chain)) = top.nodes.get(top.next).cloned() else {
+                stack.pop();
+                continue;
+            };
+            if !top.entered {
+                top.entered = true;
+                if let Some(child) = instanced
+                    && let Some(listing) = self.open(child, &stack, cancel, tol)?
+                {
+                    stack.push(listing);
+                    continue;
+                }
+            }
+            let Some(top) = stack.last_mut() else {
+                unreachable!("the node read is the top's")
+            };
+            if let Some(chain) = chain.filter(|chain| !chain.is_empty()) {
+                match members::listing_steps(
+                    &top.doc,
+                    &top.nominal,
+                    &chain,
+                    remaining - held,
+                    cancel,
+                )? {
+                    Some(steps) => held += steps,
+                    None => return Ok(None),
+                }
+            }
+            top.next += 1;
+            top.entered = false;
+        }
+    }
+
+    /// `part` resolved for listing, or `None` where it charges nothing:
+    /// charged already this run, or one the build refuses before
+    /// listing anything (no resolver, a reference that does not resolve,
+    /// a cycle through `stack`, a depth past [`parts::MAX_DEPTH`], a
+    /// document recorded at another ε).
+    fn open(
+        &mut self,
+        part: crate::ident::DocRef,
+        stack: &[Listing],
+        cancel: &CancelToken,
+        tol: Tol,
+    ) -> Result<Option<Listing>, Canceled> {
+        if cancel.is_canceled() {
+            return Err(Canceled);
+        }
+        if stack.iter().any(|listing| listing.part == part)
+            || stack.len() >= parts::MAX_DEPTH
+            || !self.charged.insert(part)
+        {
+            return Ok(None);
+        }
+        // Under a shielding bracket, as the build's own resolution is
+        // ([`parts::PartStore`]): resolving decides nothing of this run.
+        let resolved = {
+            let _shield = geom_core::k_stats::Bracket::open();
+            self.resolver.and_then(|r| r.resolve(&part, tol).ok())
+        };
+        let Some(doc) = resolved.filter(|doc| recorded_at_process_eps(doc, tol)) else {
+            return Ok(None);
+        };
+        let sched = schedule::schedule(&doc);
+        let nodes = {
+            let mut reach = crate::repetition::Reach::new(&doc);
+            sched
+                .order
+                .iter()
+                .map(|&id| {
+                    let chain = doc
+                        .declares_index()
+                        .then(|| reach.node(id))
+                        .and_then(|reached| reached.chain().map(<[crate::VarId]>::to_vec));
+                    (parts::instantiated(&doc, id), chain)
+                })
+                .collect()
+        };
+        Ok(Some(Listing {
+            part,
+            nominal: doc.var_env::<f64>(),
+            doc,
+            nodes,
+            next: 0,
+            entered: false,
+        }))
     }
 }
 
@@ -4282,7 +4450,6 @@ where
         tolerance: tolerance_of(tol),
         whole_refusal: true,
         prior_refused,
-        listed: 0,
         order,
         nodes,
         outcome: EvalOutcome::Completed,

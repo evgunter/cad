@@ -1061,7 +1061,10 @@ fn the_crossing_refusal_is_a_named_node_error() {
         }),
     };
     let msg = e.to_string();
-    assert!(msg.contains("re-verify"), "{msg}");
+    assert!(
+        msg.contains("this version of the part does not name"),
+        "{msg}"
+    );
     assert!(
         msg.contains("crosses at the start cap of node 000000000002"),
         "the refusal names the crossing by its `outer`: {msg}"

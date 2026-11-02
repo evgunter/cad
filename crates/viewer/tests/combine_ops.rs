@@ -245,7 +245,7 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
 ///
 /// Two placed bodies `a`, `b` (`b` moved): the combine gesture leaves
 /// the world `[c]` — `b` placed against `a` where it stands, `a`'s
-/// placement re-pointed to `c` through the slot door and `b`'s
+/// placement taken over by `c` (re-pointed, what read it re-seated) and `b`'s
 /// deleted, in ONE recorded action — and one undo restores
 /// `[a, b]` bit for bit. Breaks if the gesture leaves the boolean
 /// unplaced (the world stays `[a, b]`), places it beside them, or

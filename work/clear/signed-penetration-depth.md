@@ -5,7 +5,7 @@ title: Clearance reports a coincidence, not a signed penetration depth
 status: open
 opened: 2026-09-03
 priority: P1
-cost: D
+cost: H
 ---
 
 ## What
@@ -68,3 +68,11 @@ Neither fits M10-5, which is why this is filed rather than done.
 
 `work/m10/` — the code is `crates/editor-core/src/clearance.rs`, an M10
 deliverable, and the gap was raised by M10-5's review (PR 1638).
+
+## Re-homed from BOXES (2026-11-02)
+
+(BOXES orchestrator) Moved at BOXES' cut: this row asks for a signed
+depth from the clearance engine (`crates/editor-core/src/clearance.rs`,
+CLEAR's territory), not for one fact with two homes. The band is
+unchanged; `cost: D` re-priced H, since either shape the body names
+needs a point-in-solid or a section reading the engine lacks.

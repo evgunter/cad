@@ -128,6 +128,7 @@ mod one_arc;
 pub(crate) mod pair;
 mod plane;
 mod refine;
+pub(crate) mod residual;
 pub mod section;
 pub mod system;
 
@@ -2455,8 +2456,8 @@ pub enum TraceDecision {
     /// radius is positive ([`SsiError::RadiusNotPositive`] is its
     /// verdict).
     PairRadius(crate::SectionRadius),
-    /// `ssi_boundary_on_plane` and `ssi_boundary_corner`: how far a
-    /// side or a corner of the wall lies from the plane. Every arm is
+    /// `ssi_boundary_on_partner` and `ssi_boundary_corner`: how far a
+    /// side or a corner of the wall lies from its partner. Every arm is
     /// reported (a region in the band), so only a poisoned distance
     /// escalates it.
     BoundarySection,
@@ -3522,12 +3523,14 @@ fn boundary_pass(
         wall,
         boxes: charted.own_boxes(),
         speeds: charted.speeds(),
-        plane: boundary::PassPlane {
-            origin,
-            normal,
-            u_ref,
+        partner: boundary::PlanePartner {
+            plane: boundary::PassPlane {
+                origin,
+                normal,
+                u_ref,
+            },
+            sys,
         },
-        sys,
         tol,
         floor: domain.floor(band),
         extent: domain.extent,

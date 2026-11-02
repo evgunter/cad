@@ -527,9 +527,10 @@ impl core::fmt::Display for RangeRefusal {
             Self::SlotIsDefined { node, slot } => write!(
                 f,
                 "the {} slot of {} reads a variable defined by a formula, which has no \
-                 interval of its own — certify the variables that formula reads instead",
+                 interval of its own. {}",
                 slot.label(),
-                node
+                node,
+                crate::sentence::Recourse("certify the variables that formula reads instead")
             ),
             // Every derived edit re-writes a value the document already
             // holds, or declares one over a validated seed, so the edit

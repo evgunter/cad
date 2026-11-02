@@ -2,10 +2,12 @@
 id: a-family-has-no-member-ceiling
 kind: issue
 title: A member family has no size ceiling, so a headless run with a huge count runs out of memory instead of refusing
-status: open
+status: review
 priority: P2
-cost: M
+cost: H
 opened: 2026-11-01
+pr: 6305
+branch: wirehold/a-run-holds-a-member-budget-built
 ---
 
 
@@ -35,9 +37,9 @@ Ev on PR 6287 (2026-11-02): "this plan broadly sounds good". On the default: "ma
 
 ## Build (2026-11-02, lane wire-budget, branch `wirehold/a-run-holds-a-member-budget-built`)
 
-- `EvalOptions::member_budget`, default `DEFAULT_MEMBER_BUDGET = 65_536` (`eval/mod.rs`), the reason beside it: 17.5 KB × 65,536 ≈ 1.1 GB in debug, the drive's leaf budget's size.
-- Admission (`eval/mod.rs`, `Admission::admit`) charges every node in `sched.order` before any node runs (review of PR 6305: one pot, parts included). The walk then runs the nodes before the crossing one: the serial walk in order, each level filtered to them. Charging level by level, as first written in the fork, would let a level hold a node later in `sched.order` than a node of a later level, and the two schedules would cross at different families (witness `a_family_a_level_down_and_later_in_order_crosses_after`). Families are listed over the nominal environment, so the charge is the document's and the trace reader's nominal run reaches the same node.
+- `EvalOptions::member_budget`, default `DEFAULT_MEMBER_BUDGET = 65_536` (`eval/mod.rs`), the reason beside it: 17.5 KB and 1.1 ms × 65,536 ≈ 1.1 GB and about a minute in debug.
+- Admission (`eval/mod.rs`, `Admission::admit`) charges every node in `sched.order` before any node runs (review of PR 6305: one pot, parts included). The walk then runs the nodes before the crossing one: the serial walk in order, each level filtered to them. Charging level by level, as first written in the fork, would let a level hold a node later in `sched.order` than a node of a later level, and the two schedules would cross at different families (witness `a_family_a_level_down_and_later_in_order_crosses_after`). Families are listed over the nominal environment, so the charge is the document's. The trace reader's nominal run (`nominal_ev`) is a second pot under the same budget, so a trace-reading document at a non-nominal lane lists up to twice the budget; it runs out at the same node.
 - The charge reuses `members::listing` (the walk `members` now filters): every index value bound yields one item, so an outer index over empty inner ones is counted step by step. The innermost index's bind is skipped in the charge (no count reads it).
-- One pot, parts included (Ev's "across the whole evaluation", ruled on review). An instance node is charged its part's listing steps (`PartValue::steps`, the part's evaluation's admission total, a function of the part's document), so a carried row is charged as an evaluated one. A part entered at an instance is evaluated, with the descent below it, under what remains of the pot; one whose steps pass it has no row (it ran out) or charges past it, and the run runs out at the instance (`PartStore::enter`, `Reached::steps`). No budget-dependent `PartFault` reaches a node or the memo.
+- One pot, parts included, charged by listing and not by building (rulings on review of PR 6305). An instance node is charged the listing steps of the part it reaches: its document's families, through every part below it, in each document's schedule order, with no geometry built (`PartCharges::part`). Each part document is charged once per run, at the first instance in `sched.order` that reaches it, as the store builds it once. A part whose build refuses is charged what it lists. Only once the whole charge fits is any part built, the admitted instances' parts alone, and a part's own run then has no budget of its own (`u64::MAX`). Carried and evaluated rows are charged alike, since the charge never reads a row.
 - Wired: viewer `Landing::Exhausted` / `Outstanding::Exhausted` / `Progress::Exhausted` (own toolbar line, no Re-evaluate); pncad-py `Evaluation.exhausted` and `evaluate(member_budget=)`; stackup `BindingViolation::Exhausted`; coincidence replay `Unreplayed::Exhausted` with `Recourse::MemberBudget`, per row (rows before the crossing still prove). `NodeStanding::NotEvaluated`'s sentence covers both stops.
 - The viewer's staged seam answers an exhausted stage (`Staged::Exhausted`), so a draft over the budget does not read as checking forever.

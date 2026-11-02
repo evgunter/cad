@@ -2,8 +2,9 @@
 id: a-blend-in-the-document-drops-its-operands-contact-records
 kind: issue
 title: editor-core's wire_blend hands a fillet or chamfer an empty Carry.contacts, so a blend of a body with contact records loses them in the document
-status: open
+status: closed
 opened: 2026-11-01
+closed: 2026-11-02
 priority: P1
 cost: M
 ---
