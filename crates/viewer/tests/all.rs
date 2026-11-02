@@ -163,6 +163,8 @@ mod profile_draw;
 mod profile_edit;
 #[path = "refusal_concision_edits.rs"]
 mod refusal_concision_edits;
+#[path = "review_6302.rs"]
+mod review_6302;
 #[path = "review_bundle_r1.rs"]
 mod review_bundle_r1;
 #[path = "review_gui0_r1.rs"]
@@ -205,6 +207,8 @@ mod story_assembly;
 mod story_authoring;
 #[path = "story_parametric.rs"]
 mod story_parametric;
+#[path = "takeovers.rs"]
+mod takeovers;
 #[path = "theme.rs"]
 mod theme;
 #[path = "tree_badges.rs"]

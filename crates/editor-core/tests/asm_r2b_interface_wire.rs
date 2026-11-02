@@ -213,3 +213,51 @@ fn a_file_whose_crossing_carries_a_fourth_field_refuses_at_the_load_door() {
 // `asm_r2b_assembly` (`row6_a_crossing_record_edit_moves_the_content_key`),
 // where a resolver exists so both documents' instantiate nodes actually
 // evaluate and their keys are observable.
+
+/// **A record's `outer` is held level by level where an instance is**:
+/// a never-minted level of it is the part's and is let through, but
+/// the host's levels around it are this document's and answer to its
+/// mint log. The `outer` here is a seam of the host's own face, spelled
+/// on step 777 that the log never minted, and a face at node 99999 the
+/// document never minted. The load door refuses the step: letting the
+/// whole name through for its one never-minted level would hide it.
+#[test]
+fn a_records_outer_is_held_to_the_log_at_its_host_levels() {
+    let doc = doc_with_a_crossing();
+    let first = doc.ids()[0];
+    let stray = editor_core::StepId::new(0, 777);
+    let face = |node, path| StableName {
+        kind: EntityKind::Face,
+        node,
+        path,
+    };
+    let outer = face(
+        first,
+        vec![RoleSeg::Seam {
+            a: face(
+                first,
+                vec![RoleSeg::Lateral(
+                    editor_core::ProfileEdgeRef::Piece {
+                        step: stray,
+                        role: editor_core::PieceRole::Leg,
+                    }
+                    .into(),
+                )],
+            )
+            .into(),
+            b: face(RecipeNodeId::new(0, 99999), vec![RoleSeg::Cap(CapEnd::End)]).into(),
+        }],
+    );
+    let (text, instance) = saved_crossing();
+    let corrupt = doctored(&text, |wire| {
+        crossing_of(wire, instance)["outer"] = serde_json::to_value(&outer).expect("a name");
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(editor_core::SnapshotError::NameStepNotMinted {
+            step, ..
+        })) => {
+            assert_eq!(step, stray);
+        }
+        other => panic!("the host level's step refuses, got {other:?}"),
+    }
+}

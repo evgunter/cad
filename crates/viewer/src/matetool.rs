@@ -171,6 +171,25 @@ pub enum MatePick {
     Vertex(VertexSelection),
 }
 
+/// A mate pick follows as the selection it was picked in does.
+impl crate::session::select::Follows for MatePick {
+    fn node(&self) -> RecipeNodeId {
+        match self {
+            Self::Face(face) => face.node(),
+            Self::Edge(edge) => edge.node(),
+            Self::Vertex(vertex) => vertex.node(),
+        }
+    }
+
+    fn follow(&mut self, moved: &pncad::document::Moved, doc: &Doc<ProfileProgram>) {
+        match self {
+            Self::Face(face) => face.follow(moved, doc),
+            Self::Edge(edge) => edge.follow(moved, doc),
+            Self::Vertex(vertex) => vertex.follow(moved, doc),
+        }
+    }
+}
+
 impl MatePick {
     /// The entity kind the pick's name names.
     #[must_use]
@@ -1550,6 +1569,19 @@ impl MateTool {
                 }
             }
         }
+    }
+
+    /// **The picks the tool holds** ([`crate::session::Holds`]): every
+    /// seat's pick, row by row, `on` then `to`.
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        self.draft
+            .iter_mut()
+            .flat_map(|draft| draft.rows.iter_mut())
+            .flat_map(|row| [&mut row.on, &mut row.to])
+            .flat_map(|side| [&mut side.first, &mut side.point])
+            .filter_map(|seat| seat.as_mut())
+            .map(|pick| crate::session::select::Held::One(pick))
+            .collect()
     }
 
     /// **The line the panel shows for row `row`'s seats**: the seated
