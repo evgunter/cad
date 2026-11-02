@@ -607,4 +607,50 @@ mod tests {
         sines.sort_by(f64::total_cmp);
         assert_eq!(sines, [-1.0, 1.0], "one root each side");
     }
+
+    /// **A root read from a parameter near it stays tight where the phase
+    /// straddles the axis on the lower half plane**: `cos_part` an
+    /// enclosure of zero and `sin_part = −1`, so the phase's `atan2` (near
+    /// `−π/2`) and its opposite reading (near `3π/2`) are a whole turn
+    /// apart. Each is reduced against the parameter before one is kept,
+    /// so [`HarmonicRoot::from`] at `0.001` reads a root at `0` as
+    /// `−0.001` within the rounding; a select before the reduction is a
+    /// whole turn's hull.
+    #[test]
+    fn a_root_read_near_a_parameter_stays_tight_across_the_phases_meeting() {
+        let i = <Interval as geom_core::Real>::from_f64;
+        let h = FirstHarmonic {
+            lo: i(-1.0),
+            hi: i(1.0),
+            cos_part: Interval::from_bounds(-1e-17, 1e-17),
+            sin_part: i(-1.0),
+            lo_noise: i(1e-16),
+            hi_noise: i(1e-16),
+            phase_noise: i(0.0),
+        };
+        let rows = FirstHarmonicRows {
+            noise: "test_noise",
+            coaxial: "test_coaxial",
+            extreme: "test_extreme",
+            root_slack: "test_slack",
+            decision: BooleanDecision::CONTAINMENT_UNNAMED,
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let Ok(Roots::Certified(found)) = first_harmonic_root_directions(&h, i(1.0), &rows, band)
+        else {
+            panic!("two roots")
+        };
+        let near: Vec<Interval> = found
+            .roots()
+            .iter()
+            .map(|root| root.from(i(0.001)))
+            .filter(|d| d.lo().abs() < 0.1 || d.hi().abs() < 0.1)
+            .collect();
+        assert_eq!(near.len(), 1, "one root near 0: {near:?}");
+        let d = near[0];
+        assert!(
+            d.hi() - d.lo() < 1e-9 && (0.5 * (d.lo() + d.hi()) + 0.001).abs() < 1e-9,
+            "the root at 0 read from 0.001: {d:?}"
+        );
+    }
 }
