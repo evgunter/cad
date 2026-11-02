@@ -1628,6 +1628,13 @@ impl ViewerApp {
                                 // A sentence, so `widgets::message`.
                                 crate::widgets::message(ui, row.sentence);
                             });
+                            if let Some(node) = row.add_to_product
+                                && ui
+                                    .button(crate::pane::properties::ADD_TO_THE_PRODUCT)
+                                    .clicked()
+                            {
+                                ops.push(SessionOp::AddToProduct { node, body: None });
+                            }
                             for (label, select) in row.cells {
                                 if ui
                                     .button(label)
@@ -1995,6 +2002,15 @@ impl ViewerApp {
                 && let Some(badge) = frame::product_badge(self.session.product_fault(), landed)
             {
                 draw_badge(ui, &self.theme, &badge);
+            }
+            // The product's recourse, as the action it names: the one
+            // door, on each body drawn outside the product.
+            for (label, op) in
+                frame::product_recourse(self.session.product_fault(), self.session.committed_doc())
+            {
+                if ui.button(label).clicked() {
+                    ops.push(op);
+                }
             }
             // The display budget's: shown while the δ on screen is
             // the one the budget CHOSE when the document opened,
@@ -5464,6 +5480,336 @@ mod properties_pane_tests {
         );
     }
 
+    /// **A plate with two holes is authored in the add-profile form**:
+    /// through the real app, the form's door opened, `rectangle` chosen
+    /// and `Add circle loop` clicked twice, with the plate's extent and
+    /// the holes' centres written into their fields, `Add profile`
+    /// lands ONE profile of three loops. Extruded through the session
+    /// door, it is a body of genus two — two through-holes — whose
+    /// volume is the plate's less the two bores'.
+    #[test]
+    fn the_add_profile_form_authors_a_plate_with_two_holes() {
+        use crate::forms::ShapeKind;
+        use crate::pane::create::{ADD_FEATURE, ADD_PROFILE, ADD_PROFILE_DOOR};
+        use crate::session::{DocSession, ProfileShape};
+        use pncad::document::ValuePayload;
+
+        let mut driven = Driven::with(Vec::new());
+        let before = driven.app.session.committed_doc().ids();
+        driven.click(ADD_FEATURE);
+        driven.click(ADD_PROFILE_DOOR);
+        driven.click("rectangle");
+        let (width, height, radius, depth) = (0.02, 0.01, 0.002, 0.003);
+        driven.app.drafts.profile_extent = [width, height];
+        let added = crate::pane::profile::add_loop_label(ShapeKind::Circle);
+        driven.click(&added);
+        driven.click(&added);
+        assert_eq!(
+            driven.app.drafts.profile_more.len(),
+            2,
+            "each click added a loop"
+        );
+        for (hole, x) in driven
+            .app
+            .drafts
+            .profile_more
+            .iter_mut()
+            .zip([-0.005, 0.005])
+        {
+            let ProfileShape::Circle { centre, radius: r } = hole else {
+                panic!("{added} added a circle: {hole:?}")
+            };
+            *centre = [x, 0.0];
+            *r = radius;
+        }
+        driven.click(ADD_PROFILE);
+        let doc = driven.app.session.committed_doc().clone();
+        let new: Vec<RecipeNodeId> = doc
+            .ids()
+            .into_iter()
+            .filter(|id| !before.contains(id))
+            .collect();
+        let [profile] = new[..] else {
+            panic!("the commit added one node: {new:?}")
+        };
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            panic!("the commit added a profile")
+        };
+        assert_eq!(program.loops.len(), 3, "one profile of three loops");
+
+        let tol = pncad::tolerance::witness();
+        let mut session = DocSession::inline(doc, tol);
+        let out = session.perform(SessionOp::AddExtrude {
+            profile,
+            distance: crate::test_support::len(depth),
+        });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let extrude = session
+            .committed_doc()
+            .ids()
+            .into_iter()
+            .find(|id| {
+                matches!(
+                    session.committed_doc().node(*id),
+                    Some(Node::Extrude { .. })
+                ) && !before.contains(id)
+            })
+            .expect("the extrude landed");
+        session.pump();
+        let eval = session.evaluation().expect("the inline seam landed");
+        let value = eval
+            .value(extrude)
+            .unwrap_or_else(|| panic!("the extrude evaluated: {:?}", eval.node_error(extrude)));
+        let ValuePayload::Body(body) = &value.payload else {
+            panic!("an extrude is a body: {:?}", value.payload)
+        };
+        assert_eq!(
+            topo::readback::euler_counts(body.body()).genus(),
+            Ok(2),
+            "two through-holes"
+        );
+        let volume = crate::test_support::evaluated_volume(eval, extrude, tol);
+        let want = (width * height - 2.0 * std::f64::consts::PI * radius * radius) * depth;
+        assert!(
+            ((volume - want) / want).abs() < 1e-9,
+            "the plate less its two bores: {volume} against {want}"
+        );
+    }
+
+    /// review 6295 e2e: plate + slot + two holes, extrude, fillet a hole's
+    /// rim, remove that hole in the edit door, Apply.
+    #[test]
+    fn review_6295_e2e_remove_a_filleted_hole() {
+        use crate::forms::ShapeKind;
+        use crate::pane::create::{ADD_FEATURE, ADD_PROFILE, ADD_PROFILE_DOOR};
+        use crate::session::ProfileShape;
+
+        let mut driven = Driven::with(Vec::new());
+        let before = driven.app.session.committed_doc().ids();
+        driven.click(ADD_FEATURE);
+        driven.click(ADD_PROFILE_DOOR);
+        driven.click("rectangle");
+        driven.app.drafts.profile_extent = [0.04, 0.02];
+        let rect = crate::pane::profile::add_loop_label(ShapeKind::Rectangle);
+        let circ = crate::pane::profile::add_loop_label(ShapeKind::Circle);
+        driven.click(&rect);
+        driven.click(&circ);
+        driven.click(&circ);
+        driven.app.drafts.profile_more = vec![
+            ProfileShape::Rectangle {
+                width: 0.01,
+                height: 0.003,
+            },
+            ProfileShape::Circle {
+                centre: [-0.012, 0.0],
+                radius: 0.002,
+            },
+            ProfileShape::Circle {
+                centre: [0.012, 0.0],
+                radius: 0.002,
+            },
+        ];
+        driven.click(ADD_PROFILE);
+        let doc = driven.app.session.committed_doc().clone();
+        let profile = doc
+            .ids()
+            .into_iter()
+            .find(|id| !before.contains(id) && matches!(doc.node(*id), Some(Node::Profile(_))))
+            .expect("a profile landed");
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            unreachable!()
+        };
+        assert_eq!(program.loops.len(), 4);
+        let hole_step = program.ids[2][0];
+        let out = driven.app.session.perform(SessionOp::AddExtrude {
+            profile,
+            distance: crate::test_support::len(0.005),
+        });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let extrude = out.made.expect("the extrude");
+        driven.app.session.pump();
+        driven.settle();
+        let eval = driven.app.session.evaluation().expect("landed");
+        let all = pncad::select::all_edges(eval, extrude);
+        let step_dbg = format!("{hole_step:?}");
+        let rims: Vec<_> = all
+            .into_iter()
+            .filter(|n| {
+                let d = format!("{n:?}");
+                d.contains("RimEdge(End") && d.contains(&step_dbg)
+            })
+            .collect();
+        assert!(!rims.is_empty(), "found the hole's top rim");
+        let out = driven.app.session.perform(SessionOp::AddFillet {
+            target: extrude,
+            radius: crate::test_support::len(0.0005),
+            selection: rims,
+        });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let fillet = out.made.expect("the fillet");
+        driven.app.session.pump();
+        driven.settle();
+        let eval = driven.app.session.evaluation().expect("landed");
+        assert!(
+            eval.value(fillet).is_some(),
+            "fillet evaluates: {:?}",
+            eval.node_error(fillet)
+        );
+        let v_before =
+            crate::test_support::evaluated_volume(eval, fillet, pncad::tolerance::witness());
+
+        // Into the edit door.
+        let out = driven
+            .app
+            .session
+            .perform(SessionOp::Select(Selection::Node(profile)));
+        assert!(out.refusal.is_none());
+        let removes = driven.each(crate::pane::profile::REMOVE_LOOP);
+        assert!(
+            removes.len() >= 3,
+            "a Remove loop per loop header: {removes:?}"
+        );
+        driven.click_at(removes[2]);
+        driven.quiet();
+        // Apply sits below this window's fold on a four-loop profile, so
+        // its own formation is performed (`edit_door_ui`'s Apply arm).
+        let op = {
+            let session = &driven.app.session;
+            let rows = crate::props::slot_rows(session.committed_doc(), profile);
+            let noted = |slot: SlotId| rows.iter().find(|row| row.slot == slot)?.unit;
+            let edit = driven.app.drafts.profile_edit.as_ref().expect("held");
+            assert_eq!(edit.loops().len(), 3, "the click removed the first hole");
+            SessionOp::EditProfile {
+                node: profile,
+                base: edit.base().clone(),
+                loops: edit
+                    .programs_noted(crate::props::Notation::CANONICAL, &noted)
+                    .expect("lowers"),
+                ids: edit.ids(),
+            }
+        };
+        let out = driven.app.session.perform(op);
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        // The circle's rim is two named pieces, so one hole strands two.
+        let strands = out
+            .maintenance
+            .iter()
+            .filter(|row| matches!(row, pncad::document::Maintenance::StrandedSelection { .. }))
+            .count();
+        assert_eq!(strands, 2, "the fillet's two rim names are stranded");
+        driven.app.session.pump();
+        driven.settle();
+        let doc = driven.app.session.committed_doc();
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            unreachable!()
+        };
+        assert_eq!(program.loops.len(), 3, "the hole went");
+        let eval = driven.app.session.evaluation().expect("landed");
+        assert!(
+            eval.value(fillet).is_none() && eval.node_error(fillet).is_some(),
+            "the fillet refuses its vanished rim"
+        );
+        let _ = v_before;
+    }
+
+    /// **An added loop's own controls drive it**, through the real
+    /// app: with a rectangle and two added circles, typing a radius
+    /// into the first circle's field sets that loop's radius alone;
+    /// the second circle's `rectangle` radio starts it again as the
+    /// rectangle template; the first circle's `Remove loop` drops it
+    /// and leaves the rectangle; and `Add profile` lands the two loops
+    /// left.
+    #[test]
+    fn an_added_loops_field_radio_and_remove_drive_that_loop() {
+        use crate::forms::ShapeKind;
+        use crate::pane::create::{ADD_FEATURE, ADD_PROFILE, ADD_PROFILE_DOOR};
+        use crate::pane::profile::{REMOVE_LOOP, add_loop_label};
+        use crate::session::ProfileShape;
+
+        let key = |key| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: if key == egui::Key::A {
+                egui::Modifiers::COMMAND
+            } else {
+                egui::Modifiers::default()
+            },
+        };
+        let mut driven = Driven::with(Vec::new());
+        let before = driven.app.session.committed_doc().ids();
+        driven.click(ADD_FEATURE);
+        driven.click(ADD_PROFILE_DOOR);
+        driven.click("rectangle");
+        let added = add_loop_label(ShapeKind::Circle);
+        driven.click(&added);
+        driven.click(&added);
+        let radius = |driven: &Driven, at: usize| match driven.app.drafts.profile_more[at] {
+            ProfileShape::Circle { radius, .. } => Some(radius),
+            _ => None,
+        };
+        let fresh = radius(&driven, 0).expect("an added circle");
+        // Each radius field is the run painted next after its label.
+        let painted = driven.quiet();
+        let fields: Vec<egui::Pos2> = painted
+            .windows(2)
+            .filter(|pair| pair[0].0 == "radius")
+            .map(|pair| pair[1].1.center())
+            .collect();
+        assert_eq!(
+            fields.len(),
+            2,
+            "each added circle has a radius field: {painted:?}"
+        );
+        driven.click_at(fields[0]);
+        driven.frame(vec![key(egui::Key::A)]);
+        driven.frame(vec![egui::Event::Text("0.0015".to_owned())]);
+        driven.frame(vec![key(egui::Key::Enter)]);
+        driven.settle();
+        assert_eq!(
+            [radius(&driven, 0), radius(&driven, 1)],
+            [Some(0.0015), Some(fresh)],
+            "the field typed into is the first added loop's radius, and only it"
+        );
+        let rectangles = driven.each("rectangle");
+        assert_eq!(rectangles.len(), 3, "one rectangle radio per loop");
+        driven.click_at(rectangles[2]);
+        assert!(
+            matches!(
+                driven.app.drafts.profile_more[1],
+                ProfileShape::Rectangle { .. }
+            ),
+            "the second added loop's radio reshaped it: {:?}",
+            driven.app.drafts.profile_more
+        );
+        let removes = driven.each(REMOVE_LOOP);
+        assert_eq!(removes.len(), 2, "one Remove loop per added loop");
+        driven.click_at(removes[0]);
+        assert!(
+            matches!(
+                driven.app.drafts.profile_more[..],
+                [ProfileShape::Rectangle { .. }]
+            ),
+            "the first added loop went, the reshaped one stayed: {:?}",
+            driven.app.drafts.profile_more
+        );
+        driven.click(ADD_PROFILE);
+        let doc = driven.app.session.committed_doc();
+        let new: Vec<RecipeNodeId> = doc
+            .ids()
+            .into_iter()
+            .filter(|id| !before.contains(id))
+            .collect();
+        let [profile] = new[..] else {
+            panic!("the commit added one node: {new:?}")
+        };
+        assert!(
+            matches!(doc.node(profile), Some(Node::Profile(program)) if program.loops.len() == 2),
+            "the profile holds the outer and the reshaped loop"
+        );
+    }
+
     /// **Every tool the chrome has opens from it**: for each kind, with
     /// the Properties section that hosts the kind's activation button
     /// clicked open, the app paints that button once, in
@@ -6089,6 +6435,189 @@ mod properties_pane_tests {
         );
         open.store(true, std::sync::atomic::Ordering::SeqCst);
         std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    }
+
+    /// The product the committed document's slot reads, piece by piece.
+    fn product_of(driven: &Driven) -> Vec<pncad::document::VarId> {
+        crate::world::product_reads(driven.app.session.committed_doc())
+    }
+
+    /// **"Add to the product" is offered on the body under a viewport
+    /// pick, and the product's recourse is the same door.** A pick on
+    /// the startup plate's cap is on its world copy, which the product
+    /// reads: the pane says so and offers to take it out, where the
+    /// minting extrude would have offered nothing. Taken out, the slot
+    /// reads nothing: the pane offers the door on the same pick, and the
+    /// `EmptyProduct` recourse offers it on the drawn copy. Each click
+    /// is one action, which one undo takes back.
+    #[test]
+    fn the_product_door_is_offered_on_a_pick_and_as_the_empty_products_recourse() {
+        use crate::pane::properties::{ADD_TO_THE_PRODUCT, TAKE_OUT_OF_THE_PRODUCT};
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let copy = driven
+            .app
+            .session
+            .committed_doc()
+            .output(placement(), 0)
+            .expect("the startup placement's copy");
+        assert_eq!(
+            product_of(&driven),
+            [copy],
+            "the startup product is its copy"
+        );
+        driven.select(Selection::Face(cap_of(pncad::prelude::CapEnd::End)));
+        let painted = driven.quiet();
+        assert!(
+            painted.iter().any(|(run, _)| run == "in the product")
+                && !painted.iter().any(|(run, _)| run == ADD_TO_THE_PRODUCT),
+            "the pick is on the copy the product reads: {painted:?}"
+        );
+        driven.click(TAKE_OUT_OF_THE_PRODUCT);
+        driven.quiet();
+        assert!(
+            product_of(&driven).is_empty(),
+            "the copy is out of the product"
+        );
+
+        // The same pick now offers the door; one click is one action.
+        let history = driven.app.session.history().len();
+        driven.click(ADD_TO_THE_PRODUCT);
+        driven.quiet();
+        assert_eq!(product_of(&driven), [copy], "the pick's copy is added");
+        assert_eq!(
+            driven.app.session.history().len(),
+            history + 1,
+            "one action"
+        );
+        driven.perform(SessionOp::Undo);
+        assert!(product_of(&driven).is_empty(), "one undo takes it back");
+
+        // The empty product's recourse: the door, on the drawn copy.
+        driven.perform(SessionOp::Select(Selection::None));
+        let recourse = crate::frame::product_recourse(
+            driven.app.session.product_fault(),
+            driven.app.session.committed_doc(),
+        );
+        let [(label, SessionOp::AddToProduct { node, body: None })] = &recourse[..] else {
+            panic!("the recourse offers the door on the one drawn copy: {recourse:?}")
+        };
+        assert_eq!(*node, placement());
+        driven.click(label);
+        driven.quiet();
+        assert_eq!(
+            product_of(&driven),
+            [copy],
+            "the recourse's door adds the copy"
+        );
+        assert!(
+            crate::frame::product_recourse(
+                driven.app.session.product_fault(),
+                driven.app.session.committed_doc(),
+            )
+            .is_empty(),
+            "a product that gathers names no recourse"
+        );
+    }
+
+    /// **A copy the slot reads from outside the world is "in the
+    /// product", and its recourse moves it back.** The startup plate's
+    /// copy, given a space of its own, is still what the slot reads: a
+    /// pick on it says so and offers no second add. The fault's recourse
+    /// is the door on that copy, which puts it back into the world.
+    #[test]
+    fn a_stray_copy_reads_in_the_product_and_its_recourse_moves_it_back() {
+        use crate::pane::properties::ADD_TO_THE_PRODUCT;
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.perform(SessionOp::IntoOwnSpace {
+            placement: placement(),
+        });
+        driven.select(Selection::Face(cap_of(pncad::prelude::CapEnd::End)));
+        let painted = driven.quiet();
+        assert!(
+            painted.iter().any(|(run, _)| run == "in the product")
+                && !painted.iter().any(|(run, _)| run == ADD_TO_THE_PRODUCT),
+            "the stray copy is in the product, not offered again: {painted:?}"
+        );
+        let recourse = crate::frame::product_recourse(
+            driven.app.session.product_fault(),
+            driven.app.session.committed_doc(),
+        );
+        let [(label, _)] = &recourse[..] else {
+            panic!("the fault offers one action: {recourse:?}")
+        };
+        driven.click(label);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.committed_doc().node_space(placement()),
+            Some(pncad::document::VarId::WORLD),
+            "the recourse moved the copy back into the world"
+        );
+        assert!(
+            driven.app.session.product_fault().is_none(),
+            "{:?}",
+            driven.app.session.product_fault()
+        );
+    }
+
+    /// **"Add to the product" is offered on a drawn body's tree row, and
+    /// as the `unused` finding's recourse.** A fresh revolve lands
+    /// unplaced and nothing reads it, so the checks report it unused
+    /// with the door as its action; selecting its row offers the door
+    /// in the pane. Either click places it into the world by the
+    /// identity bundle and adds that copy, as one action.
+    #[test]
+    fn the_product_door_is_offered_on_a_tree_row_and_as_the_unused_findings_recourse() {
+        use crate::pane::properties::ADD_TO_THE_PRODUCT;
+        let (mut driven, revolve) = with_revolve(|_| vec![SessionOp::Select(Selection::None)]);
+        let before = product_of(&driven);
+        // The unused finding's row, in the Checks window.
+        driven.app.checks_shown = true;
+        let rows = crate::frame::check_rows(
+            driven.app.session.checks().expect("the landing checked"),
+            driven.app.session.landed_pair().expect("landed").0,
+        );
+        assert!(
+            rows.iter().any(|row| row.add_to_product == Some(revolve)),
+            "the revolve's unused finding offers the door"
+        );
+        let painted = driven.quiet();
+        assert_eq!(
+            painted
+                .iter()
+                .filter(|(run, _)| run == ADD_TO_THE_PRODUCT)
+                .count(),
+            1,
+            "one door, on the one unused body: {painted:?}"
+        );
+        driven.click(ADD_TO_THE_PRODUCT);
+        driven.quiet();
+        let doc = driven.app.session.committed_doc();
+        let [copy] = crate::world::placements_of(doc, revolve)[..] else {
+            panic!("the door places the revolve into the world once")
+        };
+        assert_eq!(doc.node_space(copy), Some(pncad::document::VarId::WORLD));
+        let added = doc.outputs(copy);
+        assert_eq!(
+            product_of(&driven),
+            before.iter().copied().chain(added).collect::<Vec<_>>(),
+            "the copy joins what the product read"
+        );
+        driven.perform(SessionOp::Undo);
+        assert_eq!(product_of(&driven), before, "one undo takes it back");
+
+        // The tree row: selecting the revolve offers the door in the pane.
+        driven.app.checks_shown = false;
+        driven.select(Selection::Node(revolve));
+        driven.click(ADD_TO_THE_PRODUCT);
+        driven.quiet();
+        assert_eq!(
+            crate::world::placements_of(driven.app.session.committed_doc(), revolve).len(),
+            1,
+            "the row's door placed the revolve"
+        );
+        assert_eq!(product_of(&driven).len(), before.len() + 1);
     }
 
     /// **An instance from the part chooser takes the label its field
@@ -7310,6 +7839,79 @@ mod properties_pane_tests {
         assert!(
             said.contains(&format!("both picks are on {base},")),
             "the refusal says the landed label: {said}"
+        );
+    }
+
+    /// **An edge-on-edge direction mate committed at the panel's own
+    /// default sense does not turn its copy over**: the plate duplicated
+    /// beside itself, one vertical corner edge of each picked, the panel
+    /// switched to `direction` and committed untouched. The default is
+    /// the kind's own (`matetool::sense_offer`), not a plane's rest
+    /// carried across, and the panel says what turning it round does.
+    #[test]
+    fn an_edge_direction_mate_at_the_panels_default_keeps_its_copy_upright() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.perform(SessionOp::Duplicate {
+            input: pncad::document::Operand::Node(extrude()),
+            beside: Some(placement()),
+        });
+        let doc = driven.app.session.committed_doc().clone();
+        let [copy] = crate::world::placements_of(&doc, extrude())
+            .into_iter()
+            .filter(|&at| at != placement())
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("the duplicate is one more copy")
+        };
+        let index = driven.on_screen();
+        let vertical = |node| {
+            index
+                .edges_in(node, 0)
+                .iter()
+                .find(|&&id| {
+                    let points = index.edge_polyline_for(id, &crate::display::DisplayView::none());
+                    let (a, b) = (points[0], points[points.len() - 1]);
+                    points.len() == 2 && (a.x - b.x).abs() < 1e-9 && (a.y - b.y).abs() < 1e-9
+                })
+                .map(|&id| index.edge_name_of(id).expect("named").clone())
+                .expect("the plate draws a vertical edge")
+        };
+        let name = vertical(copy);
+        let edge = |node| {
+            Selection::Edge(crate::session::EdgeSelection {
+                name: name.clone(),
+                node,
+                body: 0,
+            })
+        };
+        driven.app.tools.open(crate::tools::ToolKind::Mate);
+        driven.click_through(vec![edge(copy), edge(placement()), Selection::None]);
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
+        driven.click("direction");
+        let shown: Vec<String> = driven.quiet().into_iter().map(|(text, _)| text).collect();
+        assert!(
+            shown
+                .iter()
+                .any(|t| t == "turned round: the two run opposite ways")
+                && !shown.iter().any(|t| t == "faces rest against each other"),
+            "the direction's sense control says what it does: {shown:?}"
+        );
+        driven.click(&crate::tools::ToolKind::Mate.commit());
+        driven.quiet();
+        let (doc, ev) = driven.app.session.landed_pair().expect("landed");
+        assert!(
+            matches!(doc.node(copy), Some(Node::Place { constraints, .. })
+                if constraints.iter().any(|c| c.mate().is_some())),
+            "the mate commits: {:?}",
+            status(&driven)
+        );
+        let at = pncad::document::SolvedPoses::of(doc, ev)
+            .relative(copy)
+            .expect("the copy is solved");
+        assert!(
+            at.columns[2][2] > 0.999,
+            "the copy stands upright, not turned over: {at:?}"
         );
     }
 

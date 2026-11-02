@@ -2954,9 +2954,9 @@ fn present_wall<'a>(
     let local = if x == piece.u && a == piece.v {
         piece.local.clone()
     } else {
-        let m = |(l, h): (f64, f64)| at(geom::mid_param(l, h));
+        let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
         let ball = Ball::holding(
-            piece.surface.eval(m(x), m(a)),
+            piece.surface.point_eval(m(x), m(a)),
             piece.surface.rect_enclosure(x, a),
         );
         Local::of(piece.boundary, ball, band)
@@ -3474,8 +3474,8 @@ fn present_line_corner<'a>(
     }) {
         return Err(Unpresented::Local);
     }
-    let m = |(l, h): (f64, f64)| at(geom::mid_param(l, h));
-    let ball = Ball::holding(surface.eval(m(x), m(y)), surface.rect_enclosure(x, y));
+    let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+    let ball = Ball::holding(surface.point_eval(m(x), m(y)), surface.rect_enclosure(x, y));
     let local = Local::of(b, ball, band);
     // The line admits only the vertex: its far end in `R` would leave the
     // face free to come round it.
@@ -3811,8 +3811,8 @@ fn graph_read(
     let local = if rb == (b0, b1) && cell == own {
         piece.local.clone()
     } else {
-        let m = |(l, h): (f64, f64)| at(geom::mid_param(l, h));
-        let ball = Ball::holding(surface.eval(m(x), m(y)), surface.rect_enclosure(x, y));
+        let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+        let ball = Ball::holding(surface.point_eval(m(x), m(y)), surface.rect_enclosure(x, y));
         Local::of(piece.boundary, ball, band)
     };
     if !alone(piece, ei, through.map(|th| th.corner.other), &local) {
@@ -4742,7 +4742,7 @@ pub(crate) fn monotone(
     band: Band,
 ) -> bool {
     let (du, dv) = (u.1 - u.0, v.1 - v.0);
-    let centre = surface.jet(at(geom::mid_param(u.0, u.1)), at(geom::mid_param(v.0, v.1)));
+    let centre = surface.point_jet(geom::mid_param(u.0, u.1), geom::mid_param(v.0, v.1));
     let (a, b) = (vmid(centre.du) * du, vmid(centre.dv) * dv);
     // G = JᵀJ and its square root R; L = R⁻¹Jᵀ has orthonormal rows and
     // L·J = R.
