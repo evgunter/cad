@@ -537,16 +537,17 @@ fn a_d_turned_about_its_carriers_tangent_off_the_arc_builds() {
 
 /// **A circle elbow just clear of its own tangent builds**, monotone in
 /// the clearance. The unit circle turned about an axis through
-/// (1 + d, 0), tilted out of the plane: the rims are apart by about
-/// `d · turn` (1.6e-8 to 4e-6 here, past the band), and the caps are
-/// apart. The reader's in-band or unsettled readings near the touch
-/// decide nothing, so no clearance in this range refuses.
+/// (1 + d, 0), tilted out of the plane, for d of 300, 1000 and 3000 ε:
+/// the rims are apart by at least 16 ε (at the default ε, 1.6e-8 to
+/// 4e-6, the review's triple), past the band, and the caps are apart.
+/// The reader's in-band or unsettled readings near the touch decide
+/// nothing, so no clearance in this range refuses.
 #[test]
 fn a_tilted_circle_elbow_just_clear_of_its_tangent_builds() {
     let tol = Tol::witness();
     for tilt in [0.0f64, 0.3, 0.6, 1.0] {
         for angle in [0.1, 0.4, 1.2] {
-            for d in [3e-7, 1e-6, 3e-6] {
+            for d in [300.0, 1000.0, 3000.0].map(|m| m * tol.eps()) {
                 let axis = [0.0, tilt.cos(), tilt.sin()];
                 let ps = places(
                     &[Affine3::identity(), turn([1.0 + d, 0.0, 0.0], axis, angle)],
