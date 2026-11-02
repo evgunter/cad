@@ -218,3 +218,81 @@ fn a_blend_bounded_by_a_recorded_vertex_refuses_the_touch() {
         }
     }
 }
+
+/// A = [0, 2]² × [0, 1] with B = [0.5, 1.5]² × [1, 2] standing on it,
+/// joined by `⊔`: the census keeps one face/face record, A's top
+/// against B's bottom.
+fn stacked() -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("blend-a-census-face-record", Tol::witness());
+    let (doc, a) = crate::blocks::block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+    let (doc, b) = crate::blocks::block_on(doc, a, (0.5, 1.5), (0.5, 1.5), 1.0, 1.0);
+    insert(
+        doc,
+        Node::Assemble {
+            members: Bodies::Spelled(vec![a.into(), b.into()]),
+        },
+    )
+}
+
+/// `stacked`'s blend of A's edge between `p` and `q`, evaluated.
+fn stacked_blend(p: [f64; 3], q: [f64; 3], chamfer: bool) -> (Evaluation<f64>, RecipeNodeId) {
+    let (doc, asm) = stacked();
+    let edge = edge_named(&run(&doc), asm, p, q);
+    let (doc, blend, _) = blended(doc, asm, edge, chamfer);
+    (run(&doc), blend)
+}
+
+/// The vertical edge of A at the origin.
+const VERTICAL: ([f64; 3], [f64; 3]) = ([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+
+/// **A blend clear of a `⊔`'s face/face record carries it**: a chamfer
+/// of A's vertical edge at the origin cuts A's top with a chord, and a
+/// fillet of A's top front edge cuts it with a straight trimline. Each
+/// keeps the census's record on A's top and B's bottom. Red where the
+/// blend drops the record.
+#[test]
+fn a_blend_clear_of_a_census_face_record_carries_it() {
+    for (what, (p, q), chamfer) in [
+        ("chamfer of the vertical edge", VERTICAL, true),
+        (
+            "fillet of the top edge",
+            ([0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
+            false,
+        ),
+    ] {
+        let (ev, blend) = stacked_blend(p, q, chamfer);
+        let held = records(&ev, blend);
+        assert!(
+            matches!(held[..], [c] if matches!(c.cells(), [topo::Cell::Face(_), topo::Cell::Face(_)])),
+            "{what}: the blend holds the census's one face/face record: {held:?}"
+        );
+    }
+}
+
+/// **A fillet that trims a census face record's face with an arc
+/// refuses the carry, typed**: the fillet of A's vertical edge at the
+/// origin leaves a quarter-circle arc in A's top face's trim. The
+/// carry's confirm of A's top against B's bottom then has no region
+/// reading for a planar face with a conic trim
+/// (`work/charttail/a-planar-face-with-a-conic-trim-has-no-region-door.md`),
+/// so the node refuses `ContactCarry { Unread }` on that pair rather
+/// than building without the record. Red where the fillet builds
+/// recordless, or refuses anything else.
+#[test]
+fn a_fillet_trimming_a_census_face_record_with_an_arc_refuses_unread() {
+    let (chamfered, chamfer) = stacked_blend(VERTICAL.0, VERTICAL.1, true);
+    let [record] = records(&chamfered, chamfer)[..] else {
+        panic!("the chamfer carries the census's one record")
+    };
+    let (ev, blend) = stacked_blend(VERTICAL.0, VERTICAL.1, false);
+    match failure(&ev, blend) {
+        Some(editor_core::NodeErrorKind::ContactCarry {
+            refusal: topo::CarryRefusal::Unread { record: 0, cells },
+        }) => assert_eq!(
+            *cells,
+            record.cells(),
+            "the refusal names the record's pair, A's top and B's bottom"
+        ),
+        other => panic!("the fillet refuses the carry Unread: {other:?}"),
+    }
+}

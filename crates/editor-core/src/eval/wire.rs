@@ -1774,7 +1774,8 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // It computes in its operand's frame.
     let (body, operand) = finished_operand(results, target, tol)?;
     let size = slot_scalar(vals, verb.slots.size_slot);
-    let target_table = read_table(value_of(results, target)?);
+    let target_value = value_of(results, target)?;
+    let target_table = read_table(target_value);
     // D9 order; the kernel refuses a repeated edge itself.
     let mut edges: Vec<topo::EdgeKey> = selection.ents.iter().map(|&(_, edge)| edge).collect();
     edges.sort_unstable();
@@ -1797,7 +1798,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // `a-finished-body-holds-its-contact-records-at-every-door`).
     let carried = rec
         .carry_contacts(
-            &value_of(results, target)?.carry.kept(doc, tol).contacts,
+            &target_value.carry.kept(doc, tol).contacts,
             &out.body,
             band(tol)?,
             T::region_lane(),

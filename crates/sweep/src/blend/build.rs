@@ -126,9 +126,10 @@ pub struct Blended<T: Real> {
 }
 
 impl<T: Decide> Blended<T> {
-    /// `records`, the operand's, carried onto the blended body through
-    /// [`Self::lineage`] ([`topo::ContactRecords::carried_through`], at `band`
-    /// through `region`).
+    /// `records`, the operand's, carried onto the blended body
+    /// ([`super::naming::BlendNaming::carry_contacts`]). A body with no
+    /// birth records carries through [`Self::lineage`]'s read-everything
+    /// lineage.
     ///
     /// # Errors
     ///
@@ -139,7 +140,10 @@ impl<T: Decide> Blended<T> {
         band: geom_core::Band,
         region: Option<topo::RegionLane<T>>,
     ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
-        records.carried_through(0, &self.lineage(), &self.body, band, region)
+        match &self.naming {
+            Some(naming) => naming.carry_contacts(records, &self.body, band, region),
+            None => records.carried_through(0, &self.lineage(), &self.body, band, region),
+        }
     }
 
     /// **What the blend made of each source cell** (D1):

@@ -71,3 +71,11 @@ records onto its result, read by a reader of the fillet.
   (`OpOut::plain` / `per_output` / `Carry::default()` / `NodeValue {`):
   every one carries or holds its operand's records now; the blend was
   the last.
+- Review pass: a `⊔` census face/face record (A's top, B's bottom)
+  carries through a chamfer of A's vertical edge and a fillet of A's top
+  edge. A fillet of that vertical edge refuses `ContactCarry { Unread }`,
+  where on main it built with no records. The arc it puts in A's top
+  trim has no chart-region reading
+  (`work/charttail/a-planar-face-with-a-conic-trim-has-no-region-door.md`,
+  which now records this evidence). The refusal is loud and typed, and
+  the witness pins it.

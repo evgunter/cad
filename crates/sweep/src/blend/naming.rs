@@ -283,24 +283,23 @@ impl BlendNaming {
     #[must_use]
     pub fn lineage(&self) -> topo::Lineage {
         use topo::{Cell, Division, Fate, Remainder};
-        let n = self;
-        let mut lineage = topo::Lineage::new().through_joins(&n.edge_joins);
-        let removed = n
+        let mut lineage = topo::Lineage::new().through_joins(&self.edge_joins);
+        let removed = self
             .blends
             .iter()
             .map(|&(_, e)| Cell::Edge(e))
             .chain(
-                n.joined_blends
+                self.joined_blends
                     .iter()
                     .flat_map(|(_, es)| es.iter().map(|&e| Cell::Edge(e))),
             )
-            .chain(n.corners.iter().map(|&(_, v)| Cell::Vertex(v)))
-            .chain(n.feet.iter().map(|&(_, v, _)| Cell::Vertex(v)))
-            .chain(n.turn_feet.iter().map(|&(_, v)| Cell::Vertex(v)))
-            .chain(n.rim_trims.iter().map(|&(_, e, _)| Cell::Edge(e)))
-            .chain(n.rim_feet.iter().map(|&(_, v)| Cell::Vertex(v)))
-            .chain(n.dead.edges.iter().map(|&e| Cell::Edge(e)))
-            .chain(n.dead.vertices.iter().map(|&v| Cell::Vertex(v)));
+            .chain(self.corners.iter().map(|&(_, v)| Cell::Vertex(v)))
+            .chain(self.feet.iter().map(|&(_, v, _)| Cell::Vertex(v)))
+            .chain(self.turn_feet.iter().map(|&(_, v)| Cell::Vertex(v)))
+            .chain(self.rim_trims.iter().map(|&(_, e, _)| Cell::Edge(e)))
+            .chain(self.rim_feet.iter().map(|&(_, v)| Cell::Vertex(v)))
+            .chain(self.dead.edges.iter().map(|&e| Cell::Edge(e)))
+            .chain(self.dead.vertices.iter().map(|&v| Cell::Vertex(v)));
         // Every statement is a removal, and two removals of one cell
         // merge: a band edge whose carve also left remnants keeps them.
         let remove = |lineage: topo::Lineage, cell: Cell, fate: Fate| {
@@ -333,24 +332,24 @@ impl BlendNaming {
                 list.push(cell);
             }
         };
-        for &(remnant, source) in &n.meridian_remnants {
+        for &(remnant, source) in &self.meridian_remnants {
             piece(source, Cell::Edge(remnant), false);
         }
-        for &(slit, source, _) in &n.slits {
+        for &(slit, source, _) in &self.slits {
             piece(source, Cell::Edge(slit), false);
         }
-        for &(v, source, _) in &n.meridian_splits {
+        for &(v, source, _) in &self.meridian_splits {
             piece(source, Cell::Vertex(v), true);
         }
         for (source, division) in carved {
             lineage = remove(lineage, Cell::Edge(source), Fate::Divided(division));
         }
         let mut supports: Vec<(topo::FaceKey, Vec<Cell>)> = Vec::new();
-        let minted_in = n
+        let minted_in = self
             .trims
             .iter()
             .map(|&(t, _, f)| (f, Cell::Edge(t)))
-            .chain(n.feet.iter().map(|&(v, _, f)| (f, Cell::Vertex(v))));
+            .chain(self.feet.iter().map(|&(v, _, f)| (f, Cell::Vertex(v))));
         for (f, cell) in minted_in {
             match supports.iter_mut().find(|(g, _)| *g == f) {
                 Some((_, cells)) => cells.push(cell),
@@ -368,7 +367,7 @@ impl BlendNaming {
                 }),
             );
         }
-        lineage.from_source(n.source.clone())
+        lineage.from_source(self.source.clone())
     }
 
     /// `records`, the operand's, carried onto `body`, the blended body
