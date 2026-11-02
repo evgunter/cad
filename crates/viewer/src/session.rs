@@ -74,8 +74,9 @@ use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{
-    DoorDone, DoorRequest, DoorService, EvalRequest, EvalService, InlineEvaluator, InlineProver,
-    InlineStager, StagedKey, StagedRequest, StagedService,
+    CertifyDone, CertifyRequest, CertifyService, DoorDone, DoorRequest, DoorService, EvalRequest,
+    EvalService, InlineCertifier, InlineEvaluator, InlineProver, InlineStager, StagedKey,
+    StagedRequest, StagedService,
 };
 use crate::g1;
 use crate::generation::Generation;
@@ -98,7 +99,8 @@ pub(crate) mod snap;
 pub use author::{BooleanSpec, PartSelectSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
 pub use op::{
-    CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName,
+    CancelDoor, ClearedSeat, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp,
+    ValueGestureName,
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
@@ -395,6 +397,11 @@ pub struct DocSession {
     /// here, at rest, and the next request cancels it
     /// ([`DocSession::request_eval`]).
     door: Box<dyn DoorService>,
+    /// **The certify seam**: a landing that holds a clearance
+    /// requirement has it answered here, at rest, at the certifying
+    /// scalar, and the next request cancels it
+    /// ([`DocSession::request_eval`]).
+    certifier: Box<dyn CertifyService>,
     /// **The staged seam**: an operation staged and not committed runs
     /// here for its verdict ([`DocSession::stage`]).
     stager: Box<dyn StagedService>,
@@ -675,7 +682,9 @@ impl core::fmt::Debug for Derived {
 ///
 /// **These move together or not at all.** Each is a statement about
 /// ONE (document, evaluation) pair, taken from that pair's single
-/// gather in [`DocSession::land`]; one field of this value read beside
+/// gather in [`DocSession::land`] or, for an answer the landing owes,
+/// settled into it later under its generation ([`DocSession::settle`]);
+/// one field of this value read beside
 /// another run's would describe a run that never happened. As one
 /// value, `land` writes exactly what [`Derived::none`] clears, and a
 /// new thing taken at landing cannot be computed at one door and
@@ -717,6 +726,29 @@ struct LandedRun {
     /// instances and their carried lines by. Unscanned for a document that
     /// instantiates nothing, which never asks.
     files: PartFiles,
+    /// **What the certifying scalar said of this pair's clearance
+    /// requirements** ([`Clearances`]): owed by the landing, and settled
+    /// into it when the certify seam answers ([`DocSession::certified`]).
+    clearances: Clearances,
+}
+
+/// **A landing's clearance answers**: none owed, owed, or in.
+///
+/// A landing whose `f64` run holds a clearance requirement owes an
+/// answer only the certifying scalar can give, so it is taken at rest
+/// beside the landing rather than in it, and lands into it later.
+#[derive(Debug)]
+enum Clearances {
+    /// The document holds no clearance requirement.
+    None,
+    /// The certify seam is answering this landing.
+    Certifying,
+    /// The next request stopped the certify job before it answered: the
+    /// landing stands, and nothing is certifying it.
+    Stopped,
+    /// The certifying scalar's answer, one per clearance assertion, in
+    /// document order.
+    Settled(Vec<pncad::analysis::ClearanceAnswer>),
 }
 
 /// What a gather that succeeded left the landing ([`LandedRun::gather`]'s
@@ -761,6 +793,7 @@ impl core::fmt::Debug for LandedRun {
             gather,
             checks,
             files,
+            clearances,
         } = self;
         let mut out = f.debug_struct("LandedRun");
         out.field("generation", generation);
@@ -771,6 +804,7 @@ impl core::fmt::Debug for LandedRun {
             Err(fault) => out.field("fault", fault),
         };
         out.field("files", files);
+        out.field("clearances", clearances);
         match checks {
             Some(report) => out.field(
                 "checks",
@@ -784,6 +818,32 @@ impl core::fmt::Debug for LandedRun {
         };
         out.finish_non_exhaustive()
     }
+}
+
+/// **An answer a landing owes**, run at rest on its own seam and settled
+/// into the landing under its generation ([`DocSession::settle`]).
+#[derive(Debug)]
+pub enum Owed {
+    /// The coincidence door's findings.
+    Door(DoorDone),
+    /// The certifying scalar's clearance answers.
+    Certify(CertifyDone),
+}
+
+/// **A clearance witness, as the picture can draw it**
+/// ([`DocSession::witness`]): the two faces the pair lies on, named in
+/// the run the picture is drawn from, and the two points in the frame
+/// the pair was decided in, which the picture composes into where it
+/// draws them (`crate::pickindex::witness_leg`).
+#[derive(Clone, Debug)]
+pub struct Witnessed<'a> {
+    /// The first seat's face, then the second's.
+    pub faces: [FaceSelection; 2],
+    /// The frame the pair was decided in: the operands' computing frame
+    /// ([`pncad::document::Framed::computing_among`]).
+    pub computing: &'a pncad::document::Framed<f64>,
+    /// The pair's two points, in [`Self::computing`]'s coordinates.
+    pub points: [pncad::geom_core::Point3<f64>; 2],
 }
 
 /// **The at-rest badge for the landed pair**: the at-rest check's
@@ -932,6 +992,7 @@ impl DocSession {
             gesture: g1::Slot::closed(),
             eval,
             door: Box::new(InlineProver::new()),
+            certifier: Box::new(InlineCertifier::new()),
             stager: Box::new(InlineStager::new()),
             stages: 0,
             generation: Generation::FIRST,
@@ -955,6 +1016,17 @@ impl DocSession {
     #[must_use]
     pub fn with_door(mut self, door: Box<dyn DoorService>) -> Self {
         self.door = door;
+        self
+    }
+
+    /// This session with its clearance requirements certified through
+    /// `certifier`, in place of the inline seam [`DocSession::new`]
+    /// gives it, which certifies a landing inside [`DocSession::pump`].
+    /// Taken before the first pump: a job the replaced seam holds is
+    /// dropped with it.
+    #[must_use]
+    pub fn with_certifier(mut self, certifier: Box<dyn CertifyService>) -> Self {
+        self.certifier = certifier;
         self
     }
 
@@ -1281,6 +1353,60 @@ impl DocSession {
                 .map(|run| (run.doc.as_ref(), run.evaluation.as_ref())),
             Names::Abstain => None,
         }
+    }
+
+    /// **The witness pair of the clearance requirement `assertion`**, as
+    /// the picture can draw it: its two faces, each named in the run
+    /// the picture is drawn from, and the pair's two points in the frame
+    /// the pair was decided in ([`Witnessed`]).
+    ///
+    /// `None` unless the certifying scalar's answer for the landing on
+    /// screen has a pair ([`tree::witness_pair`]), and unless names are
+    /// judged by the run the picture is drawn from — the gate every held
+    /// mark asks ([`Self::name_run`], [`Self::names_ahead_of_the_picture`]):
+    /// a verdict of an older document is never drawn over a newer one,
+    /// and while no run answers the shown document the question
+    /// abstains.
+    pub fn witness(&self, assertion: RecipeNodeId) -> Option<Witnessed<'_>> {
+        use editor_core::names::{EntityKey, EntityRef};
+        if self.names_ahead_of_the_picture() {
+            return None;
+        }
+        // Not ahead of the picture, so the run names are judged by is
+        // the landed one.
+        let (_, eval) = self.name_run()?;
+        let run = self.derived.landed.as_ref()?;
+        let Clearances::Settled(answers) = &run.clearances else {
+            return None;
+        };
+        let pair = tree::witness_pair(&answers.iter().find(|a| a.assertion == assertion)?.answer)?;
+        // Each face where the kernel read it: the node and the output
+        // body — a pattern's member, for a face seat on one — that the
+        // seat resolved to and the pair carries, named by its key in
+        // that body's table. The certifying run and this one are runs of
+        // one document, so the key is the same face in both.
+        let seat = |(node, body): (RecipeNodeId, u32), key: pncad::topo::FaceKey| {
+            let framed = eval.value(node)?.payload.output_body(body).ok()?;
+            let (read, entity) = eval.entity_read(
+                node,
+                EntityRef {
+                    body,
+                    key: EntityKey::Face(key),
+                },
+            )?;
+            let name = eval.table(read)?.name_of(&entity)?.clone();
+            Some((FaceSelection { name, node, body }, framed))
+        };
+        let [side_a, side_b] = pair.bodies;
+        let (face_a, framed_a) = seat(side_a, pair.face_a)?;
+        let (face_b, framed_b) = seat(side_b, pair.face_b)?;
+        let computing = pncad::document::Framed::computing_among([framed_a, framed_b])?;
+        let point = |[x, y, z]: [f64; 3]| pncad::geom_core::Point3::new(x, y, z);
+        Some(Witnessed {
+            faces: [face_a, face_b],
+            computing,
+            points: [point(pair.a), point(pair.b)],
+        })
     }
 
     /// **Whether names are judged by a run the picture is not drawn
@@ -1611,6 +1737,23 @@ impl DocSession {
         match &self.derived.landed {
             Some(run) => {
                 let mut rows = tree::rows(&run.doc, Some(&run.evaluation), &run.files);
+                // A clearance row reads what the certifying scalar said
+                // of this landing, or that it is still saying it.
+                for row in &mut rows {
+                    let Some(tree::Readout::Clearance(cleared)) = &mut row.readout else {
+                        continue;
+                    };
+                    match &run.clearances {
+                        Clearances::None => {}
+                        Clearances::Certifying => cleared.answer = tree::Certified::Certifying,
+                        Clearances::Stopped => cleared.answer = tree::Certified::Stopped,
+                        Clearances::Settled(answers) => {
+                            if let Some(answer) = answers.iter().find(|a| a.assertion == row.id) {
+                                cleared.answer = tree::Certified::Answered(answer.answer.clone());
+                            }
+                        }
+                    }
+                }
                 // An offer acts on the COMMITTED document, so one read
                 // off a run of an older document is withheld until the
                 // current one lands: the accept it made may already be
@@ -1672,7 +1815,10 @@ impl DocSession {
         }
         self.judge_selection();
         while let Some(done) = self.door.poll() {
-            self.settle(done);
+            self.settle(Owed::Door(done));
+        }
+        while let Some(done) = self.certifier.poll() {
+            self.settle(Owed::Certify(done));
         }
         while let Some(done) = self.stager.poll() {
             if let Some(Stage {
@@ -1690,24 +1836,45 @@ impl DocSession {
         landings
     }
 
-    /// **Settles a door job into the landed report it was split from**
-    /// — only that one: an answer for a landing since replaced, or one
-    /// the next request canceled, is dropped, and a report whose door
-    /// was canceled goes on reading it pending until a landing answers
-    /// again. A second answer for a report already settled is dropped
-    /// too.
-    pub fn settle(&mut self, done: DoorDone) {
-        let Some(run) = self.derived.landed.as_mut() else {
+    /// **Settles an answer the landing owed into it** — the coincidence
+    /// door's into the checks report it was split from, the certified
+    /// clearances into the landing's rows — and only into that landing:
+    /// an answer for a landing since replaced, or one the next request
+    /// canceled, is dropped, and a second answer for one already settled
+    /// is dropped too.
+    pub fn settle(&mut self, owed: Owed) {
+        let generation = match &owed {
+            Owed::Door(done) => done.generation,
+            Owed::Certify(done) => done.generation,
+        };
+        let Some(run) = self
+            .derived
+            .landed
+            .as_mut()
+            .filter(|run| run.generation == generation)
+        else {
             return;
         };
-        if run.generation != done.generation {
-            return;
+        match owed {
+            Owed::Door(done) => {
+                if let (Some(report), Ok(findings)) = (run.checks.as_mut(), done.findings)
+                    && report.pending.contains(&CheckId::UnprovenCoincidence)
+                {
+                    report.settle(findings);
+                }
+            }
+            Owed::Certify(done) => {
+                if let (Clearances::Certifying, Ok(answers)) = (&run.clearances, done.answers) {
+                    run.clearances = Clearances::Settled(answers);
+                }
+            }
         }
-        if let (Some(report), Ok(findings)) = (run.checks.as_mut(), done.findings)
-            && report.pending.contains(&CheckId::UnprovenCoincidence)
-        {
-            report.settle(findings);
-        }
+    }
+
+    /// Whether the landing's clearance requirements are still being
+    /// certified at rest.
+    pub fn certifying(&self) -> bool {
+        self.certifier.busy()
     }
 
     /// Whether a staged run is still running ([`SessionOp::Stage`]).
@@ -1838,6 +2005,21 @@ impl DocSession {
                 job,
             });
         }
+        // **A clearance is certified at rest**: at `f64` it reads the
+        // third state, so the landing owes the certifying scalar's
+        // answer, and its rows read certifying until it settles
+        // ([`DocSession::certified`]).
+        let clearances = if holds_a_clearance(&done.evaluation) {
+            self.certifier.submit(CertifyRequest {
+                generation: done.generation,
+                doc: Arc::clone(&self.requested_doc),
+                resolver: self.requested_resolver.clone(),
+                tol: self.tol,
+            });
+            Clearances::Certifying
+        } else {
+            Clearances::None
+        };
         // The landed pair and its verdicts become the session's as ONE
         // value, which is the same value `Derived::none` clears.
         self.derived.landed = Some(LandedRun {
@@ -1848,6 +2030,7 @@ impl DocSession {
             gather,
             checks,
             files,
+            clearances,
         });
         // **The second prune** (DI5): whether a free-move gesture's copy
         // still evaluates is asked here, of the evaluation and the
@@ -2170,6 +2353,7 @@ impl DocSession {
             | SessionOp::AddBoolean { .. }
             | SessionOp::AddSplit { .. }
             | SessionOp::AddMirror { .. }
+            | SessionOp::AddClearance { .. }
             | SessionOp::Place { .. }
             | SessionOp::AddPattern { .. }
             | SessionOp::AddFusedPattern { .. }
@@ -2248,6 +2432,7 @@ impl DocSession {
                 normal,
             } => self.add_split(target, &origin, &normal),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
+            SessionOp::AddClearance { a, b, bounds } => self.add_clearance(a, b, bounds),
             SessionOp::Place {
                 body,
                 target,
@@ -3602,6 +3787,47 @@ impl DocSession {
         }))
     }
 
+    /// **Add a clearance requirement** ([`SessionOp::AddClearance`]):
+    /// the assertion between the two seats, through the document's own
+    /// insert door.
+    ///
+    /// **Each seat is read where it is drawn**: a requirement between
+    /// two parts is about the parts as they stand, and two
+    /// constructions share no space a sweep could run in. So a face is
+    /// read on the drawn body it was picked on, never on the body a
+    /// copy places, and a body that one world placement draws is read
+    /// on that copy. A body seat of the wrong kind refuses
+    /// [`Refusal::WrongNodeKind`]; two seats in different spaces refuse
+    /// at the insert door (`EditError::SpaceMismatch`). The bounds are
+    /// written as they came: what is wrong with them is the
+    /// evaluation's to say.
+    fn add_clearance(
+        &self,
+        a: ClearedSeat,
+        b: ClearedSeat,
+        bounds: pncad::document::ClearanceBounds<Formula>,
+    ) -> Result<Creating, Refusal> {
+        let doc = self.committed_doc();
+        let read = |seat: ClearedSeat| -> Result<Operand, Refusal> {
+            match seat {
+                ClearedSeat::Body(read) => {
+                    let read = as_body(doc, read);
+                    self.require_read(&read, NodeKindWanted::Body)?;
+                    Ok(drawn_copy(doc, &read).unwrap_or(read))
+                }
+                ClearedSeat::Face(face) => {
+                    let body = crate::world::body_read(doc, face.node, Some(face.body))
+                        .ok_or_else(|| Refusal::NotABodyRead {
+                            read: Box::new(Operand::Node(face.node)),
+                        })?;
+                    Ok(Operand::select(body, vec![face.name]))
+                }
+            }
+        };
+        let node = Node::clearance(read(a)?, read(b)?, bounds);
+        Ok(creating(move |run| run.insert(node)))
+    }
+
     /// **A pose read off the geometry of `body`'s space**: the frame
     /// standing at `origin` with `z` along `direction` (in the
     /// coordinates of the space `body` lives in, at the numbers' nominal
@@ -4789,8 +5015,16 @@ impl DocSession {
             _ => Names::Abstain,
         };
         self.requested_resolver = self.run_resolver();
-        // The landing this request will replace no longer wants its door.
+        // The landing this request will replace no longer wants its door,
+        // nor its certified clearances: its rows say certifying stopped,
+        // which stays true if this request is cancelled in turn.
         self.door.cancel();
+        self.certifier.cancel();
+        if let Some(run) = self.derived.landed.as_mut()
+            && matches!(run.clearances, Clearances::Certifying)
+        {
+            run.clearances = Clearances::Stopped;
+        }
         self.eval.submit(EvalRequest {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
@@ -5888,6 +6122,38 @@ fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     )
 }
 
+/// **The one world copy that draws `read`**, where exactly one world
+/// placement copies it ([`crate::world::world_copies_of_read`]): the
+/// body as it stands in the world. `None` for a read no world placement
+/// copies, and for one several copy, which names no one of them — the
+/// clearance tool refuses such a pick itself, in its own words
+/// (`crate::combine::ClearanceEvent::SeveralCopies`).
+fn drawn_copy(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<Operand> {
+    match crate::world::world_copies_of_read(doc, read).as_slice() {
+        [copy] => Some(Operand::Var(*copy)),
+        _ => None,
+    }
+}
+
+/// **Whether a landed run holds a clearance requirement the certifying
+/// scalar answers**: a clearance verdict `evaluation` holds — at `f64`,
+/// the third state the certifying scalar decides. One whose seats did
+/// not resolve failed here, and the certifying scalar would fail it the
+/// same way; one lifted over a pattern's members holds a family, which
+/// its row refuses in its own words (`tree`'s `cleared`).
+fn holds_a_clearance(evaluation: &Evaluation<f64>) -> bool {
+    evaluation.order.iter().any(|&id| {
+        evaluation.usable(id).is_ok_and(|value| {
+            matches!(
+                value.payload,
+                pncad::document::ValuePayload::Assertion(
+                    pncad::document::AssertionVerdict::Clearance(_)
+                )
+            )
+        })
+    })
+}
+
 /// Whether a document is assembly-shaped — one of the two conditions
 /// [`AtRestBadge`] names for taking an at-rest badge: a document that
 /// instantiates no part has no cross-instance rest for the badge to
@@ -5957,6 +6223,7 @@ impl core::fmt::Debug for DocSession {
             gesture,
             eval: _,
             door: _,
+            certifier: _,
             stager: _,
             stages: _,
             generation,
@@ -6007,6 +6274,8 @@ fn axis_operand(axis: RoleRead<Operand>) -> Operand {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
+
+    use std::sync::Arc;
 
     use super::{DocSession, Refusal};
     use pncad::document::{Doc, Node, ProfileProgram};
@@ -6095,6 +6364,55 @@ mod tests {
                 "node {} is not in the document",
                 test_utils::refusal::tag(instance.0.digest())
             )
+        );
+    }
+
+    /// **No witness is named in a run its pair was not certified for**:
+    /// while a takeover's door run judges the shown document's names
+    /// (`Names::Seeded`), the picture and the certified pair are still
+    /// the landing's, so `witness` abstains — even where that run's
+    /// document reads the same.
+    ///
+    /// Red if `witness` takes the names run without asking whether it is
+    /// the landing's.
+    #[test]
+    fn a_witness_abstains_while_a_door_run_judges_names() {
+        use crate::test_support::len;
+        use pncad::document::ClearanceBounds;
+        let tol = Tol::witness();
+        let (doc, blocks, _) = crate::test_support::two_blocks_apart(tol);
+        let mut session = DocSession::inline(doc, tol);
+        let added = session.perform(super::SessionOp::AddClearance {
+            a: super::ClearedSeat::Body(blocks[0].into()),
+            b: super::ClearedSeat::Body(blocks[1].into()),
+            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        });
+        let violated = added.made.expect("the requirement is a node");
+        session.pump();
+        assert!(
+            session.witness(violated).is_some(),
+            "the premise: a pair to draw"
+        );
+        // The window a takeover opens: a run of the shown document that
+        // is not the landing's judges its names until the landing.
+        session.request_eval();
+        let (doc, evaluation) = {
+            let run = session.derived.landed.as_ref().expect("landed");
+            (
+                Arc::new(run.doc.as_ref().clone()),
+                Arc::clone(&run.evaluation),
+            )
+        };
+        session.derived.seeded = Some(super::SeededRun {
+            generation: session.generation,
+            doc,
+            evaluation,
+        });
+        session.derived.names = super::Names::Seeded;
+        assert!(session.names_ahead_of_the_picture(), "the premise");
+        assert!(
+            session.witness(violated).is_none(),
+            "no pair is named in a run it was not certified for"
         );
     }
 }
