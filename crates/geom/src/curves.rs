@@ -952,13 +952,22 @@ pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
 /// `(ρ_min² − offset², ρ_max² − offset²)` at `ρ = R ∓ r`: the two
 /// radicands whose roots bound a spiric's `f` over a period. Each is
 /// posed as the product `(ρ − |d|)·(ρ + |d|)`, never as a difference of
-/// squares: near the fold (`ρ_min` close to `|d|`) the squares cancel
-/// and their rounding at the scale `ρ² + d²` swamps the radicand, while
-/// the factor `ρ − |d|` carries only the rounding of `ρ` itself.
+/// squares, and `ρ` is carried as the unevaluated sum `s + e` of its
+/// rounded value and that rounding's error (Knuth's two-sum). Near the
+/// fold `ρ_min` is close to `|d|`: the squares would cancel and their
+/// rounding at the scale `ρ² + d²` swamp the radicand, and `fl(R − r)`
+/// alone would leave its own rounding in the factor that vanishes. With
+/// the sum, `s − |d|` is exact there (Sterbenz) and `e` restores what
+/// `s` rounded away, so the factor keeps its digits.
 fn spiric_radicands<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
     let d = offset.abs();
-    let at = |rho: T| (rho - d) * (rho + d);
-    (at(major - minor), at(major + minor))
+    let at = |b: T| {
+        let s = major + b;
+        let bb = s - major;
+        let e = (major - (s - bb)) + (b - bb);
+        ((s - d) + e) * (s + d)
+    };
+    (at(T::zero() - minor), at(minor))
 }
 
 /// **The spiric's period rectangle as a cover**, the construction
@@ -2263,29 +2272,46 @@ mod tests {
         }
     }
 
-    /// **The inner radicand is posed as a product, not a difference of
-    /// squares.** A torus `R = 100, r = 1` cut at `d = 99 − 1e-10`, just
-    /// inside its inner equator `ρ_min = 99`: `99 − d` is exact (Sterbenz),
-    /// so the true radicand is `(99 − d)·(99 + d)` to two roundings, about
-    /// `2e-8`. Spelled `99² − d²` it is off by the rounding of `d²` at
-    /// `≈ 9801`, about `1e-12`, a relative error near `5e-5`, which the
-    /// root halves but does not remove.
+    /// **The inner radicand keeps its digits at the fold**, on two
+    /// witnesses just inside their inner equator:
+    ///
+    /// - `R = 100, r = 1, d = 99 − 1e-10`: `R − r` is exact, and the true
+    ///   radicand is `(99 − d)·(99 + d)` to two roundings. Spelled
+    ///   `99² − d²` it is off by the rounding of `d²` at `≈ 9801`, a
+    ///   relative error near `5e-5`.
+    /// - `R = 1024 + 2⁻⁴², r = 0.75 + 2⁻⁵⁰`, `d = R − r − 127·2⁻⁵⁰`
+    ///   exactly, which rounds to a multiple of `2⁻⁴³`: `fl(R − r)` rounds
+    ///   `2⁻⁵⁰` away, so `fl(R − r) − d` reads `128·2⁻⁵⁰` for the true
+    ///   `127·2⁻⁵⁰`, a relative error near `0.8%` even in the product
+    ///   form.
     #[test]
     fn the_inner_radicand_keeps_its_digits_at_the_fold() {
-        let d = 99.0 - 1e-10;
-        let gap = 99.0 - d;
-        let want = (gap * (99.0 + d)).sqrt();
-        let (f_min, _) = super::spiric_f_range(100.0, 1.0, d);
-        assert!(
-            (f_min - want).abs() <= 4.0 * f64::EPSILON * want,
-            "f_min {f_min:e} vs the product form's {want:e}: relative {:e}",
-            (f_min - want).abs() / want
-        );
-        let squares = (99.0_f64.powi(2) - d.powi(2)).sqrt();
-        assert!(
-            (squares - want).abs() > 1e3 * f64::EPSILON * want,
-            "the fixture no longer separates the two forms: {squares:e} vs {want:e}"
-        );
+        let ulp = |k: i32| 2.0_f64.powi(k);
+        let rows = [
+            (100.0, 1.0, 99.0 - 1e-10, 99.0 - (99.0 - 1e-10)),
+            (
+                1024.0 + ulp(-42),
+                0.75 + ulp(-50),
+                1023.25 + ulp(-42) - ulp(-43),
+                127.0 * ulp(-50),
+            ),
+        ];
+        for (big_r, r, d, gap) in rows {
+            let want = (gap * ((big_r - r) + d)).sqrt();
+            let (f_min, _) = super::spiric_f_range(big_r, r, d);
+            assert!(
+                (f_min - want).abs() <= 4.0 * f64::EPSILON * want,
+                "R = {big_r}, r = {r}: f_min {f_min:e} vs {want:e}, relative {:e}",
+                (f_min - want).abs() / want
+            );
+            let rounded = (((big_r - r) - d) * ((big_r - r) + d)).sqrt();
+            let squares = ((big_r - r).powi(2) - d.powi(2)).sqrt();
+            assert!(
+                (rounded - want).abs().max((squares - want).abs()) > 1e3 * f64::EPSILON * want,
+                "R = {big_r}, r = {r}: the fixture no longer separates the forms: \
+                 {rounded:e}, {squares:e} vs {want:e}"
+            );
+        }
     }
 
     mod spiric_interval {

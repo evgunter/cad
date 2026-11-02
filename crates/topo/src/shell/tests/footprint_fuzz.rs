@@ -145,8 +145,7 @@ fn every_arc_lies_in_its_footprint_box() {
             v: n.cross(u),
             n,
         };
-        let [(ulo, vlo), (uhi, vhi)] = carrier_box(&curve, (t0, t1), &frame)
-            .unwrap_or_else(|| panic!("#{i}: a curved carrier has a box"));
+        let [(ulo, vlo), (uhi, vhi)] = carrier_box(&curve, (t0, t1), &frame);
         for k in 0..=400 {
             let p = frame.point(curve.eval(t0 + (t1 - t0) * k as f64 / 400.0));
             let scale = 1e-9 * (1.0 + p.x.abs().max(p.y.abs()));

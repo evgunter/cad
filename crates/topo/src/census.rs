@@ -826,23 +826,7 @@ impl Candidates {
             .keys()
             .filter(|&k| !edge_is_line(body, k))
             .collect();
-        // A curved edge's box: a spline's control hull
-        // (`nurbs_curve_aabb`, which holds the curve for its positive
-        // weights), where `edge_box` has no sound box for the kind and
-        // answers the poison box every vertex would meet; every other
-        // kind's from `edge_box`.
-        let curved_box = |k: EdgeKey| {
-            let spline = body
-                .edges
-                .get(k)
-                .and_then(|d| body.curves.get(d.curve))
-                .and_then(crate::null::CurveGeom::certified)
-                .and_then(|c| match c.carrier() {
-                    geom::Curve3::Nurbs(n) => Some(geom::curves::boxes::nurbs_curve_aabb(n)),
-                    _ => None,
-                });
-            spline.map_or_else(|| edge_box(body, k, pad), |hull| hull.padded(pad))
-        };
+        let curved_box = |k: EdgeKey| edge_box(body, k, pad);
         let curved_boxes = curved.iter().map(|&k| curved_box(k)).collect();
         Self {
             strategy,
@@ -7286,42 +7270,14 @@ pub(crate) fn torus_chart_window<T: Decide>(
     )
 }
 
-/// One boundary edge's carrier as an axial span about `(origin, axis)`
-/// reads it ([`crate::boolean::boxes::axial_carrier`]): the conic arm
-/// is `geom`'s directional door at this lane's own scalar.
-fn axial_carrier<T: Decide>(
-    body: &Body<T>,
-    ek: EdgeKey,
-    e: &crate::entity::Edge,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-) -> crate::boolean::boxes::AxialCarrier<T> {
-    use crate::boolean::boxes::{ConicArc, Span, edge_box_rule};
-    crate::boolean::boxes::axial_carrier(
-        edge_box_rule(body.edge_curve_linked(ek, e).certified()),
-        |arc: &ConicArc<'_, T>| {
-            let (t0, t1) = arc.params;
-            let (lo, hi) =
-                geom::curves::boxes::conic_arc_extent_along(arc.carrier, t0, t1, origin, axis)
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "census axial span: the conic rule carries a Circle or Ellipse carrier"
-                        )
-                    });
-            Span { lo, hi }
-        },
-        crate::boolean::boxes::SpanBox::point,
-    )
-}
-
 /// The face boundary's AXIAL range about `(origin, axis)` — the
-/// boundary's own locus projected on the axis, edge by edge, rather
-/// than the corners of a box around it
-/// ([`crate::boolean::boxes::edge_axial_span`], which carries why the
-/// difference is not cosmetic at a tilted axis). `None` for a face
-/// with no boundary, or with a boundary edge whose axial span has no
-/// claim ([`axial_carrier`]). `face` is `f`'s record, resolved by
-/// [`face_reach_in`]; every hop past it is a link and panics as there.
+/// boundary's own locus projected on the axis, edge by edge (each edge's
+/// cover's support either way, [`crate::boolean::boxes::cover_axial`]),
+/// rather than the corners of a box around it, which at a tilted axis
+/// leaks the box's spread into the window. `None` for a face with no
+/// boundary, or with a boundary edge that has no cover. `face` is `f`'s
+/// record, resolved by [`face_reach_in`]; every hop past it is a link
+/// and panics as there.
 fn boundary_axial<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
@@ -7329,25 +7285,19 @@ fn boundary_axial<T: Decide>(
     origin: Point3<T>,
     axis: Vec3<T>,
 ) -> Option<crate::boolean::boxes::Span<T>> {
-    use crate::boolean::boxes::{AxialCarrier, SpanBox, edge_axial_span, edge_end_point};
-    let (o, ax) = (SpanBox::point(origin), SpanBox::vector(axis));
-    let mut acc: Option<crate::boolean::boxes::Span<T>> = None;
+    use crate::boolean::boxes::{Span, cover_axial, edge_cover_linked};
+    let mut acc: Option<Span<T>> = None;
     for member in body.face_boundary_linked(f, face) {
-        let sp = match member {
+        let (lo, hi) = match member {
             BoundaryMember::Isolated { point: p, .. } => {
-                let p = SpanBox::point(p);
-                edge_axial_span(&o, &ax, &AxialCarrier::Chord, (&p, &p))
+                let h = (p - origin).dot(axis);
+                (h, h)
             }
             BoundaryMember::Edge { ek, edge: e, .. } => {
-                let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
-                let axial = axial_carrier(body, ek, e, origin, axis);
-                if let AxialCarrier::Unclaimable = axial {
-                    return None;
-                }
-                let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
-                edge_axial_span(&o, &ax, &axial, (&a, &b))
+                cover_axial(&edge_cover_linked(body, ek, e).ok()?, origin, axis)
             }
         };
+        let sp = Span { lo, hi };
         acc = Some(acc.map_or(sp, |a| a.hull(sp)));
     }
     acc
@@ -7386,10 +7336,10 @@ fn boundary_reach<T: Decide>(
     acc
 }
 
-/// One edge's reach — [`crate::boolean::boxes::EdgeBoxRule`] at this
-/// lane's scalar, read in `frame` as [`face_reach_in`] reads a face.
-/// `None` where the edge's carrier has no sound box, null scaffolding
-/// included.
+/// One edge's reach: its cover's box in `frame`
+/// ([`crate::boolean::boxes::edge_cover`]) at this lane's scalar, read
+/// as [`face_reach_in`] reads a face. `None` where the edge has no
+/// cover, null scaffolding included.
 ///
 /// # Panics
 ///
@@ -7405,52 +7355,16 @@ pub(crate) fn edge_reach_in<T: Decide>(
 }
 
 /// [`edge_reach_in`] past its edge's lookup: `e` is `ek`'s record.
-///
-/// The spiric arm is exercised by the box module's hand-built sector
-/// rows.
 fn edge_reach_of<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
     e: &crate::entity::Edge,
     frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    use crate::boolean::boxes::{ConicArc, Span, SpanBox, edge_end_point};
-    let end = |he, field| SpanBox::point(frame.point(edge_end_point(body, ek, he, field)));
-    // The ARC's own extent along each of the frame's rows, from `geom`'s
-    // directional door at this lane's scalar: the closed form
-    // `edge_box` reads, comparison-free, so no ordering is asked of `T`.
-    let conic = |arc: &ConicArc<'_, T>| {
-        let (t0, t1) = arc.params;
-        let along = |n: Vec3<T>| {
-            let (lo, hi) = geom::curves::boxes::conic_arc_extent_along(
-                arc.carrier,
-                t0,
-                t1,
-                Point3::origin(),
-                n,
-            )
-            .unwrap_or_else(|| {
-                unreachable!(
-                    "census edge reach: the conic rule carries a Circle or Ellipse carrier"
-                )
-            });
-            Span { lo, hi }
-        };
-        let [x, y, z] = frame.rows();
-        SpanBox {
-            x: along(x),
-            y: along(y),
-            z: along(z),
-        }
-    };
-    crate::boolean::boxes::edge_rule_box(
-        crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()),
-        (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus")),
-        frame,
-        SpanBox::point,
-        conic,
-    )
-    .map(span_pts)
+    use crate::boolean::boxes::{cover_frame, edge_cover_linked};
+    edge_cover_linked(body, ek, e)
+        .ok()
+        .map(|c| c.box_in(&cover_frame(frame)))
 }
 
 /// A [`crate::boolean::boxes::SpanBox`] as this lane's `(lo, hi)`

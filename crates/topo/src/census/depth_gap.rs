@@ -68,9 +68,7 @@ use geom::Surface;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
 
 use crate::body::Body;
-use crate::boolean::boxes::{
-    ConicArc, EdgeBoxRule, FaceBoxRule, edge_box_rule, edge_end_point, face_box_rule, sweep_pad,
-};
+use crate::boolean::boxes::{FaceBoxRule, edge_end_point, face_box_rule, sweep_pad};
 use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
 use crate::entity::{EntityId, FaceKey};
 use crate::geometry::SurfaceKey;
@@ -180,10 +178,9 @@ fn point_piece<T: Decide>(p: Point3<T>) -> Piece<T> {
     Piece::Segment(p, p)
 }
 
-/// The ring an arc of `arc`'s conic lies in: an ellipse lies within its
+/// The ring an arc of the conic `k` lies in: an ellipse lies within its
 /// semi-axes' difference of its major circle, in its plane.
-pub(super) fn conic_ring<T: Decide>(arc: &ConicArc<'_, T>) -> Ring<T> {
-    let k = arc.conic;
+pub(super) fn conic_ring<T: Decide>(k: &dyn geom::Conic<T>) -> Ring<T> {
     Ring {
         center: k.frame().center,
         normal: k.frame().axis,
@@ -272,17 +269,21 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
             BoundaryMember::Isolated { point, .. } => Some(point_piece(point)),
             BoundaryMember::Edge { ek, edge, .. } => {
                 let end = |he, field| edge_end_point(body, ek, he, field);
-                match edge_box_rule(body.edge_curve_linked(ek, edge).certified()) {
-                    EdgeBoxRule::NoSoundBox | EdgeBoxRule::ControlHull(_) => None,
-                    EdgeBoxRule::Chord => Some(Piece::Segment(
+                let certified = body.edge_curve_linked(ek, edge).certified();
+                match certified.map(geom_brep::EdgeCurve::carrier) {
+                    None | Some(geom::Curve3::Nurbs(_)) => None,
+                    Some(geom::Curve3::Line(_)) => Some(Piece::Segment(
                         end(edge.he_plus, "he_plus"),
                         end(edge.he_minus, "he_minus"),
                     )),
-                    EdgeBoxRule::ConicAmplitude(arc) => {
+                    Some(carrier @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
+                        let Some(conic) = carrier.conic() else {
+                            unreachable!("a circle or an ellipse reads as a conic")
+                        };
                         depths.push(Proposed {
                             depth: Depth::Axis {
-                                origin: arc.conic.frame().center,
-                                axis: arc.conic.frame().axis,
+                                origin: conic.frame().center,
+                                axis: conic.frame().axis,
                             },
                             level: None,
                             source: Source::Arc(
@@ -290,17 +291,17 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
                                 end(edge.he_minus, "he_minus"),
                             ),
                         });
-                        Some(Piece::Ring(conic_ring(&arc)))
+                        Some(Piece::Ring(conic_ring(conic)))
                     }
-                    EdgeBoxRule::Spiric {
+                    Some(geom::Curve3::Spiric {
                         center,
                         axis,
                         major_radius,
                         minor_radius,
                         ..
-                    } => Some(Piece::Ring(Ring {
-                        center,
-                        normal: axis,
+                    }) => Some(Piece::Ring(Ring {
+                        center: *center,
+                        normal: *axis,
                         major: major_radius.abs(),
                         minor: minor_radius.abs(),
                     })),
@@ -943,11 +944,7 @@ mod tests {
             2.0,
             1.0,
         ));
-        let ring = Piece::Ring(conic_ring(&ConicArc {
-            carrier: &carrier,
-            conic: carrier.conic().unwrap(),
-            params: (0.0, core::f64::consts::TAU),
-        }));
+        let ring = Piece::Ring(conic_ring(carrier.conic().unwrap()));
         assert!(inf_on(z_axis(), &ring).unwrap() <= 1.0, "the minor vertex");
         assert!(sup_on(z_axis(), &ring).unwrap() >= 2.0, "the major vertex");
     }
