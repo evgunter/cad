@@ -15,3 +15,4 @@ unchanged. Rows dispatchable: 11, for 29.5 points.
 
 - 2026-10-26 — (tracker sweep) Every row kept. Stale `reduce.rs` citations were refreshed on the line × cone lead and depth rows and the straddle row. The lead row's `quadratic_roots` is now `geom_brep::quartic`'s.
 - 2026-11-01 — Note from TANGRIM: claimed a row from this program by `git mv` into `work/tangrim/` (the one bound-side reading decided for the tangent crescent; fork row 229). See TANGRIM's log. (TANGRIM orchestrator)
+- 2026-11-02 — **Seam (BOXES):** evidence section added to `face-reach-misses-an-interior-far-point-on-a-sphere-torus-or-cone-face` (a worked sphere-cap under-reach). (BOXES orchestrator)

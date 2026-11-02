@@ -943,9 +943,8 @@ impl McValue {
 /// is on the report this row is not reachable without.
 ///
 /// The statistics are over the samples that HAD a value: `unmeasured`
-/// counts the rest and is never averaged over. A measure with no
-/// `f64` value at any sample (a `min_clearance`, whose answer is an
-/// enclosure) is `unmeasured` at every draw, and then the four
+/// counts the rest and is never averaged over. A measure that refuses
+/// at every draw is `unmeasured` at every draw, and then the four
 /// statistics are `0/0` — which is why the count is beside them
 /// rather than behind them.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]

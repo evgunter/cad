@@ -62,7 +62,7 @@ fn swept(p: &Surface<f64>, w: &Surface<f64>) -> Sweep {
 fn never_loop_free(what: &str, p: &Surface<f64>, w: &Surface<f64>) {
     let got = swept(p, w);
     assert!(
-        !matches!(got, Sweep::LoopFree),
+        !matches!(got, Sweep::LoopFree(_)),
         "{what}: a loop of the section is proved away: {got:?}"
     );
 }
@@ -302,7 +302,7 @@ fn rereview_thin_wall_inside_the_band() {
     ] {
         let wall = thin_wall(rise * b.zero(), lift * b.zero(), w);
         let p = level(0.0);
-        let pose = super::super::PlaneSplinePose::of(&p, &wall).unwrap();
+        let pose = super::super::SplineImplicitPose::of(&p, &wall).unwrap();
         eprintln!(
             "rise {rise} lift {lift} w {w:e}: reach/zero {:.3}; sweep {:?}",
             sampled_reach(&wall) / b.zero(),

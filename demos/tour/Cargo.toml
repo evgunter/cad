@@ -83,8 +83,8 @@ serde_json = "1.0.151"
 test-utils = { path = "../../crates/test-utils" }
 
 
-# The kernel's own nextest legs are optimized DEV builds
-# (`CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL` in ci.yml), which leaves cargo's
+# The kernel's own nextest legs are DEV-profile builds (opt levels set by
+# `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL` in ci.yml), which leaves cargo's
 # dev default of debug-assertions ON, so the fail-loud postconditions keep
 # their teeth there. Cargo's release default turns them OFF, so without
 # this the tour was the one lane exercising the kernel with every

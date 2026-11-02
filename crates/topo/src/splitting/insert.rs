@@ -216,7 +216,7 @@ fn section_chords<T: Decide>(
         if let VertexFace::Apex(_) = at_vertex {
             return Ok(T::zero());
         }
-        let surface = body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face));
+        let surface = body.proven_face_surface(face);
         Ok(geom_brep::implicit_graph_acceleration(
             surface, point, t, across,
         ))

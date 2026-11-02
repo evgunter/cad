@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 62;
+const OP_COUNT: usize = 64;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -288,12 +288,6 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             origin: len3([0.0; 3]),
             normal: scl3([0.0, 0.0, 1.0]),
         },
-        SessionOp::AddTransform {
-            input: node.into(),
-            translation: common::no_translation(),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
         SessionOp::AddPattern {
             input: node.into(),
             count: 2,
@@ -375,6 +369,17 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             ),
         },
         SessionOp::IntoOwnSpace { placement: node },
+        SessionOp::Place {
+            body: node.into(),
+            target: pncad::document::VarId::WORLD,
+            constraints: pncad::document::stand().bundle(),
+        },
+        SessionOp::SetBundle {
+            placement: node,
+            base: Vec::new(),
+            constraints: pncad::document::stand().bundle(),
+            into_target_space: false,
+        },
         SessionOp::AddDrawnProfile {
             plane: FaceSelection {
                 name: face(node),
@@ -399,6 +404,11 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 node,
                 body: 0,
             },
+        },
+        SessionOp::AddClearance {
+            a: viewer::session::ClearedSeat::Body(node.into()),
+            b: viewer::session::ClearedSeat::Body(node.into()),
+            bounds: pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
         },
     ]
 }
@@ -464,7 +474,6 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddRevolve { .. } => (32, false),
         SessionOp::AddBoolean { .. } => (33, false),
         SessionOp::AddSplit { .. } => (34, false),
-        SessionOp::AddTransform { .. } => (35, false),
         SessionOp::AddPattern { .. } => (36, false),
         SessionOp::AddFusedPattern { .. } => (37, false),
         SessionOp::AddFillet { .. } => (38, false),
@@ -501,6 +510,10 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // A re-target and a bundle written: a document edit, fenced
         // with every other one.
         SessionOp::IntoOwnSpace { .. } => (54, false),
+        // The placement editor's two Applies: an insert door and a
+        // bundle written, each fenced with every other document edit.
+        SessionOp::Place { .. } => (62, false),
+        SessionOp::SetBundle { .. } => (35, false),
         // An insert door, fenced with every other one.
         SessionOp::AddMirror { .. } => (55, false),
         // What the document makes: a document edit, fenced with every
@@ -518,6 +531,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::SetSpaceHidden { .. } => (60, true),
         // What the document makes, as `SetProduct` is.
         SessionOp::AddToProduct { .. } => (61, false),
+        // An insert door, fenced with every other one.
+        SessionOp::AddClearance { .. } => (63, false),
     }
 }
 
@@ -983,6 +998,8 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }
+        | SessionOp::Place { .. }
+        | SessionOp::SetBundle { .. }
         | SessionOp::IntoOwnSpace { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
@@ -1026,7 +1043,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
-        | SessionOp::AddTransform { .. }
+        | SessionOp::AddClearance { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }

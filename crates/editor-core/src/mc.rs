@@ -158,8 +158,8 @@ pub struct McMeasure {
     pub max: f64,
     /// How many samples produced a value.
     pub measured: usize,
-    /// How many produced none — a refusing node, or a measure with no
-    /// value at `f64` (`min_clearance`). Counted, never averaged over.
+    /// How many produced none — a refusing node. Counted, never
+    /// averaged over.
     pub unmeasured: usize,
 }
 
@@ -326,8 +326,8 @@ impl McReport {
         for m in &self.measures {
             // **A measure NOTHING could sample says so, rather than
             // rendering `NaN`** (M10-6's fix pass; R2's MINOR-14). A
-            // `min_clearance` has no f64 value at any sample, so every
-            // one of its statistics is 0/0 — and `mean NaN σ NaN min
+            // measure every sample refused has no f64 value at any of
+            // them, so each of its statistics is 0/0 — and `mean NaN σ NaN min
             // inf max -inf` is a line a reader has to decode before
             // learning that the answer is "this lane cannot see this
             // measure at all".
@@ -474,7 +474,7 @@ pub fn monte_carlo(
         .iter()
         .filter_map(|&id| match doc.node(id) {
             Some(Node::Measure { .. }) => Some((id, true)),
-            Some(Node::Assertion { .. }) => Some((id, false)),
+            Some(Node::Assertion(_)) => Some((id, false)),
             _ => None,
         })
         .collect();
@@ -483,7 +483,8 @@ pub fn monte_carlo(
     // first assertion reading it.
     let mut values: Vec<VarId> = Vec::new();
     for &(id, is_measure) in &sinks {
-        if let (false, Some(Node::Assertion { value, .. })) = (is_measure, doc.node(id))
+        if let (false, Some(Node::Assertion(crate::measure::Claim::Value { value, .. }))) =
+            (is_measure, doc.node(id))
             && !values.contains(value)
         {
             values.push(*value);
@@ -558,10 +559,7 @@ pub fn monte_carlo(
             .collect();
         let read = values
             .iter()
-            .map(|&var| match ev.reading(doc, var) {
-                Ok(crate::eval::measure::Observed::Value(v)) => Some(v),
-                _ => None,
-            })
+            .map(|&var| ev.reading(doc, var).ok())
             .collect();
         Sample {
             readings,

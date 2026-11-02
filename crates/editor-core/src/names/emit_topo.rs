@@ -45,7 +45,7 @@ struct Side<'a, T: Decide> {
 impl<T: Decide> Side<'_, T> {
     /// The half's place among [`HalfNames`]: its output's port.
     fn slot(&self) -> usize {
-        usize::try_from(self.ix).unwrap_or(usize::MAX)
+        self.ix as usize
     }
 }
 
@@ -4881,13 +4881,13 @@ fn rim_holding<T: Decide>(
     })
 }
 
-/// Whether edge `e` of `body` is carried by a line: a tag read, no
-/// number consulted, and the one straightness test the flush readings
-/// share. The flush tests are straight-segment tests, and a curved
+/// Whether edge `e` of `body` is carried by a line
+/// ([`geom::Curve3::is_curved`]), the one straightness test the flush
+/// readings share. The flush tests are straight-segment tests, and a curved
 /// edge's chord is not its locus (a sphere's two meridians share both
 /// ends and both faces).
 pub(super) fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
-    topo::query::edge_carrier_kind(body, e) == Some(topo::query::CurveKind::Line)
+    topo::readback::edge_carrier_ref(body, e).is_ok_and(|c| !c.is_curved())
 }
 
 /// Whether edge `e` of `body` holds point `p`, its ends included,
@@ -6948,6 +6948,7 @@ mod wavy_loft {
         let then = (1u32..)
             .zip(sections)
             .map(|(k, profile)| crate::node::LoftSection {
+                id: None,
                 profile: profile.into(),
                 station: vec![crate::node::StationMove::Slide {
                     along: crate::node::Axis3::Z,
@@ -6961,6 +6962,7 @@ mod wavy_loft {
                 first: first.into(),
                 then,
                 v_degree: Formula::count(2),
+                first_id: None,
             },
         )
     }

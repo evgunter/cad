@@ -92,7 +92,7 @@ fn ruling_at<T: Real + AtRestPolicy + Bounds>(body: &Body<T>, slant: f64) -> (to
             let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
                 return None;
             };
-            let Curve3::Line { .. } = curve.carrier() else {
+            let Curve3::Line(_) = curve.carrier() else {
                 return None;
             };
             let end = curve.carrier().eval(curve.params().1);

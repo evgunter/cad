@@ -17,3 +17,4 @@ Nothing dispatched. (CLEAR orchestrator)
   - `needs-enclosures-recourse-…` dissolves with `MeasureUnavailableAt`.
 
   (DOORS orchestrator)
+- 2026-11-02 — Seam note from DOORS: PR 6292 (the clearance assertion decided by one fused sweep) merges. Its re-verify found two over-refusals filed on your slate: `an-upper-bound-at-the-boxs-true-maximum-refuses-with-a-false-message` (P3) and `a-lower-bounds-box-dependent-refusal-gives-the-drive-no-cue` (P2). The PR's own fix pass also filed or extended several CLEARTAIL rows (dials door, deciding pair projected thrice, engine refusals' recourse, off-face witness, existential Violated pricing); its last PR comment lists them. (DOORS orchestrator)
