@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-02
 priority: P3
 cost: M
+parent: the-profile-editor-picks-an-earlier-piece-as-a-points-or-directors-value
 ---
 
 
