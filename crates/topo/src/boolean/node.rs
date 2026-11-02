@@ -247,7 +247,9 @@ pub(super) fn bisector_datum<T: Decide>(
     let (on, other) = match branch {
         super::Branch::Positive => (planes[0], planes[1]),
         super::Branch::Negative => (planes[1], planes[0]),
-        super::Branch::Only | super::Branch::Component(_) => return Ok(None),
+        super::Branch::Only | super::Branch::Component(_) | super::Branch::Line(_) => {
+            return Ok(None);
+        }
     };
     let side = |(origin, normal): Bisector<T>| {
         crate::validate::decide(

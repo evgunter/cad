@@ -2110,14 +2110,17 @@ pub struct HalfGerm<T: Real> {
 /// read by a frame, a section of two loops — a plane cutting a torus in
 /// two circles or two ovals, two equal cylinders with intersecting axes
 /// in two bisector-plane ellipses — tells its loops apart by a margin at
-/// a point of the section (`ring_path::LoopSplit`). Either is decided
+/// a point of the section (`ring_path::LoopSplit`); a section of two
+/// lines through a point — a plane through a cone's apex — tells its
+/// lines apart by the line a germ's site lies on, or at the point the
+/// line it runs along. Each is decided
 /// once, at the germ's site where the germ is minted, and every reader
 /// of the germ takes its loop from here: the join's matching and frames,
 /// and each side's chord. Both operands' germs of one slot carry the
 /// same branch, read at the A site.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Branch {
-    /// The section is one loop, loops sharing one frame, or straight;
+    /// The section is one loop, loops sharing one frame, or one line;
     /// or the germ runs along an edge, whose own curve it rides.
     Only,
     /// The loop on the split's positive side.
@@ -2126,6 +2129,10 @@ pub enum Branch {
     Negative,
     /// The component of the pair's carried section with this index.
     Component(usize),
+    /// The line with this index of a straight section of two lines
+    /// through one point: a plane through a cone's apex, in the order
+    /// `join::germ_branch` states.
+    Line(usize),
 }
 
 /// One minted boolean null edge with its F9 side attribute (below ≙ IN

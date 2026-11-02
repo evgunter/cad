@@ -1,22 +1,28 @@
-//! **A saddle cut by its tangent plane** (probe): measures whether the
-//! hyperbolic paraboloid `y = x·z`, cut by its tangent plane `y = 0`,
-//! reaches the join. Every op refuses before it today (the spline ×
-//! plane pair), so the row is ignored; run it with
-//! `cargo nextest run -p sweep --test all a_saddle_cut_by_its_tangent_plane --run-ignored all`.
+//! **A saddle cut by its tangent plane refuses before the join.** The
+//! block `x, z ∈ [−1, 1]`, `−2 ≤ y ≤ x·z`, lofted along `z`, has the
+//! hyperbolic paraboloid `y = x·z` for its top wall; the half-space
+//! `y ≥ 0` is tangent to it at the origin and cuts it along the lines
+//! `x = 0` and `y = 0`, a straight section of two lines crossing at a
+//! point. Two smooth carriers meet in two crossing lines only at a
+//! tangency, so the pair is a spline × plane tangent section, which no
+//! lane builds yet: each op refuses typed at the spline × plane pair,
+//! long before the join pairs germs across the crossing. Its closed
+//! forms (the block `8`, its part above the plane `1/2`) are the row
+//! `work/spliceface/a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form.md`
+//! asks for.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::membership::{self, Region};
-use geom_core::{Point2, Point3, Tol};
+use geom::SurfaceKind::{Nurbs, Plane};
+use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{finished, stacked_at};
-use topo::{AtRestBody, BooleanResult, intersect, subtract, union};
+use topo::{AtRestBody, BooleanError, PairRefusalSite, intersect, subtract, union};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
-/// The block `x, z ∈ [−1, 1]`, `−2 ≤ y ≤ x·z`: a loft along `z` whose
-/// top wall is the hyperbolic paraboloid `y = x·z`.
+/// The saddle block (module docs).
 fn saddle_block() -> AtRestBody<f64> {
     let section = |s: f64| {
         let p = |x: f64, y: f64| (Point2::new(x, y), 0.0);
@@ -37,15 +43,7 @@ fn saddle_block() -> AtRestBody<f64> {
     finished("the saddle block", lofted.body, tol())
 }
 
-fn the_block() -> Region {
-    Box::new(|p: Point3<f64>| {
-        (1.0 - p.x.abs())
-            .min(1.0 - p.z.abs())
-            .min(p.y + 2.0)
-            .min(p.x * p.z - p.y)
-    })
-}
-
+/// The half-space `y ≥ 0`, as a brick with a face on its plane.
 fn above() -> AtRestBody<f64> {
     finished(
         "the half-space",
@@ -54,61 +52,45 @@ fn above() -> AtRestBody<f64> {
     )
 }
 
-fn the_above() -> Region {
-    Box::new(|p: Point3<f64>| {
-        (4.0 - p.x.abs())
-            .min(4.0 - p.z.abs())
-            .min(p.y)
-            .min(4.0 - p.y)
-    })
-}
-
+/// **Every op, either way round, refuses at the spline × plane pair**:
+/// intersect and subtract at the revert roster, union at the held
+/// pierce of the saddle's wall on the plane.
 #[test]
-#[ignore = "probe: the spline × plane pair refuses before the join"]
-fn a_saddle_cut_by_its_tangent_plane_builds_every_op_at_its_closed_form() {
+fn a_saddle_cut_by_its_tangent_plane_refuses_at_the_spline_plane_pair() {
     let (s, h) = (saddle_block(), above());
-    let (vs, vh, share) = (8.0, 256.0, 0.5);
-    let lattice = (
-        Point3::new(-1.25, -2.25, -1.25),
-        Point3::new(1.25, 1.25, 1.25),
-    );
-    let both = || -> Region {
-        let (a, b) = (the_block(), the_above());
-        Box::new(move |p| a(p).min(b(p)))
+    let roster = |r: &Result<topo::BooleanResult<f64>, BooleanError>| {
+        matches!(
+            r,
+            Err(BooleanError::CurvedPairUnsupported {
+                site: PairRefusalSite::RevertRoster,
+                kind: Nurbs,
+                other_kind: Plane,
+                ..
+            })
+        )
     };
-    let either = || -> Region {
-        let (a, b) = (the_block(), the_above());
-        Box::new(move |p| a(p).max(b(p)))
+    let pierce = |r: &Result<topo::BooleanResult<f64>, BooleanError>| {
+        matches!(
+            r,
+            Err(BooleanError::HeldPierceUnbuilt {
+                kind: Nurbs,
+                pierced_kind: Plane,
+                ..
+            })
+        )
     };
-    let s_less = || -> Region {
-        let (a, b) = (the_block(), the_above());
-        Box::new(move |p| a(p).min(-b(p)))
-    };
-    let h_less = || -> Region {
-        let (a, b) = (the_block(), the_above());
-        Box::new(move |p| b(p).min(-a(p)))
-    };
-    let mut fails = vec![];
-    for (op, result, want, region) in [
-        ("s ∩ h", intersect(&s, &h, tol()), share, both()),
-        ("h ∩ s", intersect(&h, &s, tol()), share, both()),
-        ("s ∪ h", union(&s, &h, tol()), vs + vh - share, either()),
-        ("h ∪ s", union(&h, &s, tol()), vs + vh - share, either()),
-        ("s ∖ h", subtract(&s, &h, tol()), vs - share, s_less()),
-        ("h ∖ s", subtract(&h, &s, tol()), vh - share, h_less()),
+    for (op, r, at_pierce) in [
+        ("s ∩ h", intersect(&s, &h, tol()), false),
+        ("h ∩ s", intersect(&h, &s, tol()), false),
+        ("s ∖ h", subtract(&s, &h, tol()), false),
+        ("h ∖ s", subtract(&h, &s, tol()), false),
+        ("s ∪ h", union(&s, &h, tol()), true),
+        ("h ∪ s", union(&h, &s, tol()), true),
     ] {
-        match result {
-            Ok(BooleanResult::Body(b)) => {
-                let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    membership::holds_short_of_tier_3_prime(op, &b.body, want, &region, lattice, 7)
-                }));
-                if r.is_err() {
-                    fails.push(format!("{op}: membership/volume"));
-                }
-            }
-            Ok(BooleanResult::Empty) => fails.push(format!("{op}: empty")),
-            Err(e) => fails.push(format!("{op}: {e:?}")),
-        }
+        let refused = if at_pierce { pierce(&r) } else { roster(&r) };
+        assert!(
+            refused,
+            "{op}: refuses typed at the spline × plane pair, not {r:?}"
+        );
     }
-    assert!(fails.is_empty(), "{fails:#?}");
 }

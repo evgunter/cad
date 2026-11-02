@@ -673,3 +673,87 @@ fn the_frames_cone_window_holds_its_face() {
         }
     }
 }
+
+/// **A germ on the apex line pair rides the line its site lies on, or
+/// at the apex the line it runs along** ([`super::join::apex_line_on`]):
+/// the widening cone against the plane `x = 0` through its apex, whose
+/// section is the lines along `(0, 2, ±1)`. Line 0 is the one the other
+/// turns from positively about the plane's normal: `(0, 2, −1)` for the
+/// normal `+x`, `(0, 2, 1)` for `−x`. A site on either nappe, and a
+/// direction either way along a line, names that line.
+#[test]
+fn a_germ_on_the_apex_line_pair_rides_its_own_line_in_the_pairs_order() {
+    use super::Branch;
+    use super::join::apex_line_on;
+    let cone = widening();
+    let apex = Point3::new(0.0, -1.0, 0.0);
+    let reach = measured(on_wall(), wall_reach());
+    let (down, up) = (Vec3::new(0.0, 2.0, -1.0), Vec3::new(0.0, 2.0, 1.0));
+    let read = |p: &geom::Surface<f64>, site: Point3<f64>, dir: Vec3<f64>| {
+        apex_line_on((p, &cone), &reach, (site, dir), band())
+    };
+    for (normal, [line0, line1]) in [
+        (Vec3::new(1.0, 0.0, 0.0), [down, up]),
+        (Vec3::new(-1.0, 0.0, 0.0), [up, down]),
+    ] {
+        let p = plane([0.0, -1.0, 0.0], normal);
+        for (k, d) in [(0, line0), (1, line1)] {
+            let want = Branch::Line(k);
+            for (what, site, dir) in [
+                ("a site up the line", apex + d * 0.4, -d),
+                ("a site on the far nappe", apex - d * 0.3, d),
+                ("at the apex, along it", apex, d),
+                ("at the apex, back down it", apex, -d),
+            ] {
+                assert_eq!(
+                    read(&p, site, dir).unwrap(),
+                    want,
+                    "normal {normal:?}, line {k}: {what}"
+                );
+            }
+        }
+        assert!(
+            matches!(
+                read(
+                    &p,
+                    apex + Vec3::new(0.0, 0.5, 0.0),
+                    Vec3::new(0.0, 1.0, 0.0)
+                ),
+                Err(BooleanError::JoinDesync { .. })
+            ),
+            "normal {normal:?}: a site on neither line is a desync"
+        );
+        assert!(
+            matches!(
+                read(&p, apex, Vec3::new(0.0, 1.0, 0.0)),
+                Err(BooleanError::JoinDesync { .. })
+            ),
+            "normal {normal:?}: a germ at the apex along neither line is a desync"
+        );
+    }
+}
+
+/// **A plane×cone section that is no line pair mints no line**: the
+/// axis-normal plane's circle and the tilted plane's ellipse are one
+/// loop each.
+#[test]
+fn a_plane_off_the_apex_mints_no_line() {
+    use super::Branch;
+    use super::join::apex_line_on;
+    let cone = widening();
+    let reach = measured(on_wall(), wall_reach());
+    for normal in [Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.2, 1.0, 0.0)] {
+        let p = plane([0.0, 0.5, 0.0], normal);
+        assert_eq!(
+            apex_line_on(
+                (&p, &cone),
+                &reach,
+                (on_wall(), Vec3::new(0.0, 0.0, 1.0)),
+                band()
+            )
+            .unwrap(),
+            Branch::Only,
+            "normal {normal:?}"
+        );
+    }
+}
