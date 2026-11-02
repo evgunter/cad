@@ -337,6 +337,17 @@ jobs:
         with:
           shared-key: build-default
           save-if: false
+      # Integration-test binaries build at opt-level 0; every library stays
+      # at 1 (scripts/rustc-test-crates-opt0.sh says which crates and why).
+      # Set through $GITHUB_ENV AFTER rust-cache: the variable is RUST*-
+      # prefixed, so rust-cache would hash it into the key and miss the
+      # entry cache-prime saved. It reaches only workspace members, which
+      # the cache does not hold anyway.
+      # Paired on one runner (PR 6351, TIER=all, 2026-11-02): kernel build
+      # 882 -> 539 s wall and 3439 -> 2053 CPU-s, app 788 -> 593 s; the
+      # default-eps tests ran 7 s and 0 s slower.
+      - name: integration-test binaries build at opt-level 0
+        run: echo "RUSTC_WORKSPACE_WRAPPER=$GITHUB_WORKSPACE/scripts/rustc-test-crates-opt0.sh" >> "$GITHUB_ENV"
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
