@@ -53,3 +53,18 @@ reads a region swept twice as outside). Ev: "3 is fine indefinitely,
 then". Refusing to finish is the standing answer, not an interim; the
 refusal is the report. The unit is
 `the-at-rest-gate-certifies-embedding`.
+
+## Point 2 re-asked (2026-11-02)
+
+PR 6301 merged before Ev had read point 2 (f64 certifies). Ev asked
+what "the engine lifts every carrier exactly" means; the answer is on
+6301. Point 2 alone is re-asked in PR 6308. Ev agreed with the goal
+("this goal makes sense") and found the engine's input typing
+conflated (an f64 entering as an Interval). Point 2 now states the
+goal only: f64 and Probe certify with the K·ε band every verdict uses. The typing is
+`clearance-cell-enclosures-are-typed-as-the-interval-scalar`.
+
+Point 2 ruled (Ev, PR 6308, 2026-11-02): "mostly looks good". At `f64`
+and `Probe`, the check decides with the K·ε band. The soundness note
+(the band exceeds 2ε) is dropped: K may be below 2, and Ev holds the
+geometry to internal consistency rather than to that inequality.
