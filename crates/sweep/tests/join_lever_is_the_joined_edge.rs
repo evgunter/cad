@@ -68,7 +68,7 @@ fn cut_d(sin: f64) -> (Body<f64>, EdgeKey, f64) {
         .edges()
         .find_map(|(e, d)| {
             let c_geom = body.get_curve_geom(d.curve)?.certified()?;
-            let Curve3::Line { origin, dir } = *c_geom.carrier() else {
+            let Curve3::Line(geom::Line { origin, dir }) = *c_geom.carrier() else {
                 return None;
             };
             let on = (origin.x - c).abs() < 1e-9 && (origin.y - sin).abs() < 1e-9;
@@ -93,7 +93,7 @@ fn station(sin: f64, s: f64) -> Result<Body<f64>, topo::EulerOpError> {
         .certified()
         .unwrap()
         .clone();
-    let Curve3::Line { dir, .. } = *c.carrier() else {
+    let Curve3::Line(geom::Line { dir, .. }) = *c.carrier() else {
         unreachable!()
     };
     let u = u0 + s * dir.z.signum() / dir.norm();

@@ -72,7 +72,7 @@ fn served<T: Decide + Bounds>(
     let lift = |s: &Surface<f64>| s.map_scalar(<T as Real>::from_f64);
     let cone = lift(cone);
     let got = plane_cone_section(&lift(plane), &cone, &at_apex(&cone, T::one()), band());
-    let Ok(PlaneConeSection::ApexTangentLine(Curve3::Line { dir, .. })) = got else {
+    let Ok(PlaneConeSection::ApexTangentLine(Curve3::Line(geom::Line { dir, .. }))) = got else {
         return None;
     };
     Some([dir.x, dir.y, dir.z].map(|x| (x.lo(), x.hi())))

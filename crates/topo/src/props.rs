@@ -1843,7 +1843,7 @@ fn vertex_rings<T: Decide>(
     let lines = loops
         .iter()
         .flat_map(|(edges, _)| edges)
-        .all(|e| matches!(e.carrier, geom::Curve3::Line { .. }));
+        .all(|e| !e.carrier.is_curved());
     if !matches!(surface, Surface::Plane { .. }) || !lines {
         return Ok(None);
     }
@@ -2983,10 +2983,7 @@ mod region_carry_tests {
             .map(|i| {
                 let (a, b) = (corners[i as usize], corners[((i + 1) % 4) as usize]);
                 LoopEdge::hand_built(
-                    geom::Curve3::Line {
-                        origin: iv(a),
-                        dir: iv(Point3::origin() + (b - a)) - Point3::origin(),
-                    },
+                    geom::Curve3::line(iv(a), iv(Point3::origin() + (b - a)) - Point3::origin()),
                     Interval::from_f64(0.0),
                     Interval::from_f64(1.0),
                     counter,
@@ -5054,9 +5051,7 @@ fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
         geom::Curve3::Spiric { .. } => true,
         geom::Curve3::Nurbs(c) => geom_brep::props::is_rational(c),
-        geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
-            false
-        }
+        geom::Curve3::Line(_) | geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => false,
     }
 }
 
@@ -5064,7 +5059,7 @@ fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
 /// a spiric or a spline, where a line or a circle keeps it.
 fn trims<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
-        geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => false,
+        geom::Curve3::Line(_) | geom::Curve3::Circle { .. } => false,
         geom::Curve3::Ellipse { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => true,
     }
 }

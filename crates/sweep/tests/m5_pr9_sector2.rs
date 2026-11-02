@@ -195,7 +195,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
         })
         .expect("a tangent strut exists");
     let (t0, t1) = curve.params();
-    let geom::Curve3::Line { origin, dir } = *curve.carrier() else {
+    let geom::Curve3::Line(geom::Line { origin, dir }) = *curve.carrier() else {
         panic!("a strut is a line");
     };
     // The conventional description extrude would have kept: the
@@ -214,7 +214,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
                 vec: dir * (t1 - t0),
             },
         )),
-        carrier: geom::Curve3::Line { origin, dir },
+        carrier: geom::Curve3::Line(geom::Line { origin, dir }),
         param_start: t0,
         param_end: t1,
     }
@@ -275,7 +275,7 @@ fn a_g2_underdetermined_join_must_not_carry() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if matches!(c.carrier(), geom::Curve3::Line { .. }) {
+        if matches!(c.carrier(), geom::Curve3::Line(_)) {
             assert!(
                 matches!(c.description(), geom_brep::EdgeDescription::Chart(_)),
                 "an under-determined locus has no intrinsic description to \

@@ -72,7 +72,7 @@ fn outer_box_edges(body: &Body<f64>) -> Vec<EdgeKey> {
         .filter(|&k| {
             let e = body.get_edge(k).unwrap();
             let g = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            let geom::Curve3::Line { .. } = g.carrier() else {
+            let geom::Curve3::Line(_) = g.carrier() else {
                 return false;
             };
             let (t0, t1) = g.params();
@@ -503,7 +503,7 @@ mod interval_lane {
             .edges()
             .filter_map(|(k, e)| {
                 let g = body.get_curve_geom(e.curve)?.certified()?;
-                let geom::Curve3::Line { .. } = g.carrier() else {
+                let geom::Curve3::Line(_) = g.carrier() else {
                     return None;
                 };
                 let (t0, t1) = g.params();
