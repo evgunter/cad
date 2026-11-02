@@ -279,6 +279,11 @@ jobs:
           scripts/run-gates.sh || rc=1
           python3 scripts/payload-rung-sweep.py --check || rc=1
           exit $rc
+      - name: "MEASUREMENT ONLY, removed before merge: the gates serially on this runner"
+        run: |
+          lscpu | grep -m1 'Model name'
+          start=$SECONDS; scripts/run-gates.sh >/dev/null 2>&1; echo "MEASURE gates_parallel_s=$((SECONDS - start))"
+          start=$SECONDS; GATE_JOBS=1 scripts/run-gates.sh >/dev/null 2>&1; echo "MEASURE gates_serial_s=$((SECONDS - start))"
       - uses: dtolnay/rust-toolchain@stable
         if: needs.filter.outputs.run_build == 'true'
       - uses: Swatinem/rust-cache@v2
@@ -381,6 +386,13 @@ jobs:
           for x in sorted(u, key=lambda x: -x["duration"])[:25]:
               print(f"{x['start']:7.1f} {x['duration']:7.1f} {x['name']}{x['target']}")
           PY
+      - name: "MEASUREMENT ONLY, removed before merge: the examples' marginal build on this runner"
+        if: '!cancelled()'
+        run: |
+          lscpu | grep -m1 'Model name'; nproc
+          start=$SECONDS
+          cargo nextest run --no-run --profile ci ${{ matrix.scope }} 2>&1 | tail -2
+          echo "MEASURE examples_wall_s=$((SECONDS - start))"
       - name: test (default eps; a fast-set test at 0.5 s if new, 1 s otherwise, fails it)
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
@@ -485,6 +497,12 @@ jobs:
       - name: viewer app-feature rows (chrome + gpu pipeline smoke)
         # `--tests`: the clippy step above already checks the examples.
         run: cargo nextest run --profile ci --tests -p viewer --features app
+      - name: "MEASUREMENT ONLY, removed before merge: viewer examples' marginal build"
+        run: |
+          lscpu | grep -m1 'Model name'
+          start=$SECONDS
+          cargo nextest run --no-run --profile ci -p viewer --features app 2>&1 | tail -2
+          echo "MEASURE viewer_examples_wall_s=$((SECONDS - start))"
       - name: wasm32 clippy (the browser entry point)
         run: |
           rustup target add wasm32-unknown-unknown
