@@ -2997,9 +2997,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             EntityId::HalfEdge(he_plus),
             "end",
         );
-        let surface_of = |side: crate::readback::EdgeSide| {
-            body.face_surface_linked(side.face, proven(&body.faces, side.face, EntityId::Face))
-        };
+        let surface_of = |side: crate::readback::EdgeSide| body.proven_face_surface(side.face);
         let (surf1, surf2) = (surface_of(sides.plus), surface_of(sides.minus));
         let existing = body
             .edge_curve_linked(edge, &edge_data)

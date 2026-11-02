@@ -295,9 +295,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     // refusal (the surfaces under-determine the
                     // contact — never guess); in-band escalates (F6:
                     // an osculating pair is a sliver at this ε).
-                    let surface = body
-                        .face_surface(face)
-                        .unwrap_or_else(|| unreachable!("a sector's face is a face of its body"));
+                    let surface = body.proven_face_surface(face);
                     let p_base = body.resolve_vertex_point(vertex, Proven);
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
                     // Ledger row F11: the sagitta is metered at the
@@ -546,10 +544,7 @@ fn edge_wedge<T: Decide>(
         face: mate_face,
         reading: SectorReading::Escalated(diag),
     };
-    let sector_surface = |f| {
-        body.face_surface(f)
-            .unwrap_or_else(|| unreachable!("a sector's face is a face of its body"))
-    };
+    let sector_surface = |f| body.proven_face_surface(f);
     let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
     let (_, along, _) = chord(body, vertex, he)?;
     let extent = along.norm();
@@ -722,8 +717,7 @@ pub(crate) fn face_reach_from<T: Decide>(
     at: Point3<T>,
 ) -> Result<T, UnboundedFace> {
     let over_span = matches!(
-        body.face_surface(face)
-            .unwrap_or_else(|| unreachable!("the split reads a face of its body")),
+        body.proven_face_surface(face),
         geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. }
     );
     boundary_reach(
@@ -835,10 +829,7 @@ pub(crate) fn cone_axial_window<T: Decide>(
             |p| T::zero() - along(p),
             |curve| T::zero() - span_of(curve).range_along(apex, axis).0,
         )?;
-    let own @ geom::Surface::Cone { .. } = body
-        .face_surface(face)
-        .unwrap_or_else(|| unreachable!("the split reads a face of its body"))
-    else {
+    let own @ geom::Surface::Cone { .. } = body.proven_face_surface(face) else {
         return Ok((lo, hi));
     };
     let widened = (lo.min(T::zero()), hi.max(T::zero()));

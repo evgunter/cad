@@ -1074,10 +1074,8 @@ impl<T: Real> Body<T> {
     /// does not resolve; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     ///
     /// The one walk from a face key to its surface. `None` means exactly
-    /// that the face key is stale, so each caller says where it calls
-    /// what a stale key is there: a desync, which it refuses or panics
-    /// on, or an honest no. Inside the crate, a caller already holding
-    /// the face's record reads `Body::face_surface_linked` with it.
+    /// that the face key is stale, and the caller decides what that means
+    /// for its own input: a refusal, or an honest no.
     ///
     /// # Panics
     ///

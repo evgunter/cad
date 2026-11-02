@@ -1106,19 +1106,6 @@ pub(super) fn tangent_lump<T: Decide>(
     }
 }
 
-/// The carrier of a face glued `Tangent`, which the tangency's
-/// second-order reads compare against its partner's.
-pub(super) fn tangent_carrier<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<geom::Surface<T>, BooleanError> {
-    body.face_surface(face)
-        .cloned()
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "a declared-Tangent face does not resolve",
-        })
-}
-
 /// **The per-direction second-order side** of a declared-`Tangent`
 /// sector pair: which side of the OTHER face's material does the
 /// sector's carrier lie on along direction `d` from the tie point —

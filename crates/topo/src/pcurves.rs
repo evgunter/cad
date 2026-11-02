@@ -2285,7 +2285,7 @@ pub fn loop_lift<T: Decide>(
 ) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
     let cycle = loop_rows(body, r#loop);
     let face = proven(&body.loops, r#loop, EntityId::Loop).face;
-    let surface = body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face));
+    let surface = body.proven_face_surface(face);
     // No band is at hand, so the periods are the chart's as stated: on
     // every element a door wrote they are the decided ones
     // ([`ChartPeriods::stated`]).

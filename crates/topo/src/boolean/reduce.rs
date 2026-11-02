@@ -864,10 +864,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // exactly what a maximal-faced curved operand looks like
             // (the cosurface merge itself KEEPS such a cut). Only the
             // PLANAR same-key pair is the F7 defect.
-            let planar = matches!(
-                body.face_surface_linked(f1, crate::live::proven(&body.faces, f1, EntityId::Face)),
-                geom::Surface::Plane { .. }
-            );
+            let planar = matches!(body.proven_face_surface(f1), geom::Surface::Plane { .. });
             if planar {
                 return Err(BooleanError::NonMaximalFaces {
                     operand,
@@ -1322,11 +1319,11 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // from the offset along the OUTWARD normal only by the
                     // face's sense bit, so whether an end is ON the plane
                     // reads the same either way.
-                    let Some(&geom::Surface::Plane {
+                    let &geom::Surface::Plane {
                         origin: chart_origin,
                         normal: chart_normal,
                         ..
-                    }) = y.face_surface(face)
+                    } = y.proven_face_surface(face)
                     else {
                         return Err(BooleanError::ClassificationInvariant {
                             what: "planar lane: the face's plane resolved above",
@@ -2253,12 +2250,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<CurvedEvent<T>, BooleanError> {
-    let surface = y
-        .face_surface(face)
-        .cloned()
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "curved sweep arm: the face does not resolve",
-        })?;
+    let surface = y.proven_face_surface(face).clone();
     let frontier = || BooleanError::CurvedPierceUnsupported {
         operand: x_is,
         face,
@@ -3397,12 +3389,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
     if !geom_brep::curve_face::route(curve.carrier().kind(), kind).implemented {
         return Err(unbuilt());
     }
-    let surface = y
-        .face_surface(face)
-        .cloned()
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "spline face: the face does not resolve",
-        })?;
+    let surface = y.proven_face_surface(face).clone();
     let chart = surface
         .spline_chart()
         .ok_or(BooleanError::ClassificationInvariant {
@@ -4275,11 +4262,7 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
     band: Band,
 ) -> Result<Vec<T>, BooleanError> {
     use geom_brep::curve_face::{Door, route};
-    let surface = y
-        .face_surface(face)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "planar lane: the face does not resolve",
-        })?;
+    let surface = y.proven_face_surface(face);
     let arm = route(curve.carrier().kind(), surface.kind());
     let net = match curve.carrier() {
         geom::Curve3::Nurbs(net) if arm.door == Door::SplineComposite && arm.implemented => {
@@ -5966,11 +5949,7 @@ fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
                 along_boundary(x_is, y, (w, p), face, contacts, band, tol)?;
             }
             LyingIn::Curved(face, on_curved) => {
-                let surface =
-                    y.face_surface(face)
-                        .ok_or(BooleanError::ClassificationInvariant {
-                            what: "a curved face an edge lies on does not resolve",
-                        })?;
+                let surface = y.proven_face_surface(face);
                 let frontier = BooleanError::CurvedPierceUnsupported {
                     operand: x_is,
                     face,

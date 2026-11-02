@@ -557,10 +557,7 @@ fn contains<T: Decide>(
         super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
         _ => unread,
     };
-    let surface = body
-        .face_surface(face)
-        .unwrap_or_else(|| super::contain::driver_face_stale(face));
-    let read = match surface {
+    let read = match body.proven_face_surface(face) {
         geom::Surface::Plane { normal, .. } => {
             super::contain::contfp(body, face, *normal, p, band).map(Some)
         }

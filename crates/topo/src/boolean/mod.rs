@@ -1790,9 +1790,7 @@ impl<T: Decide> GluedPairs<T> {
                 continue;
             }
             // The door verified every face a certificate names.
-            let surface = body(target).face_surface(target.1).unwrap_or_else(|| {
-                unreachable!("a one-sided certificate names a face the glue door verified")
-            });
+            let surface = body(target).proven_face_surface(target.1);
             *side = read_cover_side(body(parent), parent.1, surface, band);
         }
         Ok(pairs)
@@ -2050,11 +2048,7 @@ fn tangent_struts<T: Real>(
             && f1 != f2
             && *pair == geom_brep::SurfacePair::new(s1, s2)
         {
-            let kind = |f| {
-                body.face_surface(f)
-                    .unwrap_or_else(|| unreachable!("edge_sides_of resolved this face"))
-                    .kind()
-            };
+            let kind = |f| body.proven_face_surface(f).kind();
             let (k1, k2) = (kind(f1), kind(f2));
             out.push((f1, k1, f2, k2));
             out.push((f2, k2, f1, k1));
@@ -7010,9 +7004,13 @@ fn verify_glued_contacts<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] where a given face has no
-/// surface or a given pair carries no decision; the placement's own
-/// refusal.
+/// [`BooleanError::ClassificationInvariant`] where a given pair carries
+/// no decision; the placement's own refusal.
+///
+/// # Panics
+///
+/// Where a declared face does not resolve: the operand gate
+/// (`validate_declarations`) resolved every one.
 fn given_verdicts<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
@@ -7020,13 +7018,7 @@ fn given_verdicts<T: Decide>(
     band: Band,
 ) -> Result<VerifiedGlue<T>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
-    // A stale face key is a desync: the operand gate resolved every
-    // declared face.
-    let kind = |body: &Body<T>, f| {
-        body.face_surface(f)
-            .map(geom::Surface::kind)
-            .ok_or(invariant("a given pair's face does not resolve"))
-    };
+    let kind = |body: &Body<T>, f| body.proven_face_surface(f).kind();
     let pad = witness_pad::<T>(band);
     let mut verified = VerifiedGlue::default();
     for &GluedPair {
@@ -7039,7 +7031,7 @@ fn given_verdicts<T: Decide>(
     {
         match class {
             GlueClass::Tangent => {
-                let kinds = (kind(a, fa)?, kind(b, fb)?);
+                let kinds = (kind(a, fa), kind(b, fb));
                 let given = given.ok_or(invariant("a given pair carries no decision"))?;
                 if let Some(line) = given.line {
                     let (origin, dir) = line;
@@ -7324,8 +7316,13 @@ pub(crate) enum RestTangent<T: Real> {
 ///
 /// [`crate::contact::ContactRefusal::Contradicted`] where the carriers
 /// are definitely not tangent, labelled with the row that refused it;
-/// `Escalated` where a margin is in band; and `NotCertifiable` where a
-/// face cannot be read (naming why).
+/// `Escalated` where a margin is in band; and `NotCertifiable` where the
+/// tangent line cannot be read (naming why).
+///
+/// # Panics
+///
+/// Where `fa` or `fb`, faces the census or a record names, does not
+/// resolve.
 pub(crate) fn tangent_pair_at_rest<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
@@ -7333,7 +7330,7 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     band: Band,
 ) -> Result<RestTangent<T>, crate::contact::ContactRefusal> {
     use crate::contact::ContactRefusal;
-    let ((sa, _), (sb, _)) = (record_face(body, fa)?, record_face(body, fb)?);
+    let ((sa, _), (sb, _)) = (record_face(body, fa), record_face(body, fb));
     let line = tangent_line((body, fa, sa), (body, fb, sb), band).map_err(|e| {
         ContactRefusal::NotCertifiable {
             what: match e {
@@ -7373,17 +7370,12 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     })
 }
 
-/// A face of a face–face record on two carriers: its surface and sense.
-fn record_face<T: Real>(
-    body: &Body<T>,
-    f: FaceKey,
-) -> Result<(&geom::Surface<T>, bool), crate::contact::ContactRefusal> {
-    let face = body
-        .get_face(f)
-        .ok_or(crate::contact::ContactRefusal::NotCertifiable {
-            what: "a face of the face-face record does not resolve",
-        })?;
-    Ok((body.face_surface_linked(f, face), face.sense))
+/// A face of a face–face record on two carriers, a face of `body` a
+/// record or the census names: its surface and sense.
+#[track_caller]
+fn record_face<T: Real>(body: &Body<T>, f: FaceKey) -> (&geom::Surface<T>, bool) {
+    let face = crate::live::proven(&body.faces, f, crate::entity::EntityId::Face);
+    (body.face_surface_linked(f, face), face.sense)
 }
 
 /// A record's tangent line known to run through both faces' interiors
@@ -7433,14 +7425,13 @@ pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
 ///
 /// [`crate::contact::ContactRefusal::Contradicted`] where the table
 /// contradicts the touch or the sides (`contact_tangent_opposed`,
-/// `contact_tangent_overlap`); `Escalated` where a margin is in band;
-/// `NotCertifiable` where a face does not resolve.
+/// `contact_tangent_overlap`); `Escalated` where a margin is in band.
 pub(crate) fn tangent_table_at_rest<T: Decide>(
     line: &RestLineInBothFaces<'_, T>,
     band: Band,
 ) -> Result<MarginDiag, crate::contact::ContactRefusal> {
     let [fa, fb] = line.faces;
-    let ((sa, sense_a), (sb, sense_b)) = (record_face(line.body, fa)?, record_face(line.body, fb)?);
+    let ((sa, sense_a), (sb, sense_b)) = (record_face(line.body, fa), record_face(line.body, fb));
     let (t0, t1) = line.overlap;
     contact_verify::tangent_locus_relation(sa, sense_a, sb, sense_b, &line.carrier, t0, t1, band)
 }
@@ -8241,6 +8232,8 @@ fn validate_declarations<T: Decide>(
     // kind-generic without being kind-blind: a face whose carrier has
     // no rung here can never appear in a surviving declaration, so it
     // can never be covered there either.
+    // A declared face key is the caller's input, so a stale one refuses
+    // typed; every later read of it is proven.
     let inventory_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
         let surface = body
             .face_surface(f)

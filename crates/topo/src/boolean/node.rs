@@ -93,10 +93,10 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
         else {
             continue;
         };
-        // A stale face is a desync, as a face of another kind is: the
-        // reading above read this face as a cylinder.
-        let radius = match a_operand.face_surface(fa) {
-            Some(&geom::Surface::Cylinder { radius, .. }) => radius.abs(),
+        // A face of another kind is a desync: the reading above read
+        // this face as a cylinder.
+        let radius = match a_operand.proven_face_surface(fa) {
+            &geom::Surface::Cylinder { radius, .. } => radius.abs(),
             _ => {
                 return Err(BooleanError::JoinDesync {
                     what: "a crossing cylinder pair's A face is no cylinder",
@@ -157,12 +157,7 @@ pub(super) fn bisectors<T: Decide>(
 ) -> Option<[Bisector<T>; 2]> {
     // Every caller hands in faces its bodies' records name, so a stale
     // key is a desync; a face of another kind is an honest no.
-    let is_wall =
-        |b: &Body<T>, f| {
-            is_wall(b.face_surface(f).unwrap_or_else(|| {
-                unreachable!("the bisectors read faces their bodies' records name")
-            }))
-        };
+    let is_wall = |b: &Body<T>, f| is_wall(b.proven_face_surface(f));
     if !is_wall(x, wall) || !is_wall(y, face) {
         return None;
     }

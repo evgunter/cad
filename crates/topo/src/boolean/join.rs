@@ -305,12 +305,11 @@ fn kind_arm(a: geom::SurfaceKind, b: geom::SurfaceKind) -> KindArm {
     }
 }
 
-/// **A face's surface, with its key in `body`**: the join's walk from a
-/// face to its surface, whether the face is one a germ was recorded
-/// against or one a segment's halves lie on now. It is the crate's one
-/// walk ([`crate::readback::carrier_surface`]), its refusal a desync: a
-/// live face's surface key resolves (tier 1), so the one refusal is a
-/// face key that no longer resolves.
+/// **A face's surface, with its key in `body`, as the join refuses it**:
+/// [`Body::face_surface`] (through [`crate::readback::carrier_surface`],
+/// which reads the key beside it), whether the face is one a germ was
+/// recorded against or one a segment's halves lie on now. Its one
+/// refusal, a face key that no longer resolves, is a desync.
 ///
 /// That no other walk reads a surface in this file is held by
 /// `face_surface_tests::the_join_walks_to_a_faces_surface_in_one_place`,
@@ -8532,10 +8531,16 @@ mod face_surface_tests {
     #[test]
     fn the_join_walks_to_a_faces_surface_in_one_place() {
         let code = test_utils::source::code_only(include_str!("join.rs"));
-        let reads: Vec<usize> = ["get_surface(", "face_surface_linked(", "carrier_surface("]
-            .iter()
-            .flat_map(|needle| code.match_indices(needle).map(|(at, _)| at))
-            .collect();
+        let reads: Vec<usize> = [
+            "get_surface(",
+            ".face_surface(",
+            "proven_face_surface(",
+            "face_surface_linked(",
+            "carrier_surface(",
+        ]
+        .iter()
+        .flat_map(|needle| code.match_indices(needle).map(|(at, _)| at))
+        .collect();
         let homes: Vec<usize> = code
             .match_indices("fn face_surface<")
             .map(|(at, _)| at)

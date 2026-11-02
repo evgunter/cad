@@ -134,8 +134,11 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// That refusal, typed; [`BooleanError::ClassificationInvariant`] where
-/// an enumerated face does not resolve.
+/// That refusal, typed.
+///
+/// # Panics
+///
+/// Where `fa` or `fb`, faces the glue door enumerated, does not resolve.
 fn tangency<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -143,16 +146,9 @@ fn tangency<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    // A stale face key is a desync: the glue door enumerated both.
-    let kind = |body: &Body<T>, f| {
-        body.face_surface(f)
-            .map(geom::Surface::kind)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "the glue door: a face it enumerated does not resolve",
-            })
-    };
+    let kind = |body: &Body<T>, f| body.proven_face_surface(f).kind();
     let read = DeclarationRead::Moot;
-    if !ruled((kind(a, fa)?, kind(b, fb)?))
+    if !ruled((kind(a, fa), kind(b, fb)))
         && super::rim_wedge::shared_rim(a, fa, b, fb, band)
             .map_err(|diag| BooleanError::coincidence(super::Coincide::Rim, read, diag))?
             .is_none()
@@ -285,12 +281,9 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(SectionTable<T>, Vec<crate::Coincidence>), BooleanError> {
     let recorded = decls.verdicts != super::Verdicts::Given;
-    // Every face read here is one this door enumerated from its body, so
-    // a stale key is a desync.
+    // Every face read here is one this door enumerated from its body.
     let surface = |body: &Body<T>, f| {
-        let face = body
-            .get_face(f)
-            .unwrap_or_else(|| unreachable!("the section door enumerated this face from its body"));
+        let face = crate::live::proven(&body.faces, f, crate::entity::EntityId::Face);
         (face.surface, body.face_surface_linked(f, face).clone())
     };
     let read = |s: &geom::Surface<T>| geom_brep::pair_section::serves(s.kind());

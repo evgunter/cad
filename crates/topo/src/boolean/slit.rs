@@ -428,13 +428,7 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         // A slit or a zero-area ring in a curved face is neither meshed
         // nor measured, so the parting refuses on any face it would part
         // that is no plane.
-        let plane = |f: FaceKey| {
-            matches!(
-                body.face_surface(f)
-                    .unwrap_or_else(|| unreachable!("the parting reads faces walls_inside read")),
-                geom::Surface::Plane { .. }
-            )
-        };
+        let plane = |f: FaceKey| matches!(body.proven_face_surface(f), geom::Surface::Plane { .. });
         if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
             return Err(BooleanError::EdgeInFace {
                 edge,
@@ -615,15 +609,16 @@ impl Sliver {
 /// **The two halves of `face`'s outline where `face` is a sliver**: no
 /// rings, and an outline of two distinct straight edges, one segment run
 /// twice. `None` for any other face.
+///
+/// # Panics
+///
+/// Where `face`, a face of `body` both callers enumerate, or a record on
+/// the walk of its outline does not resolve ([`Body::proven_face_edges`]).
 pub(super) fn sliver_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<[HalfEdgeKey; 2]> {
-    let rings = &body
-        .get_face(face)
-        .unwrap_or_else(|| unreachable!("every caller reads a face of the body"))
-        .rings;
-    if !rings.is_empty() {
+    if !proven(&body.faces, face, EntityId::Face).rings.is_empty() {
         return None;
     }
-    let [h, k] = edges_of(body, face)[..] else {
+    let [h, k] = body.proven_face_edges(face)[..] else {
         return None;
     };
     (h.edge != k.edge
@@ -1054,11 +1049,7 @@ fn holding<T: Decide>(
         // A spline face, read by its ends and midpoint; any other pair
         // read here lies on nothing.
         Ok(None) => {
-            let spline = body
-                .face_surface(f)
-                .unwrap_or_else(|| unreachable!("carrier_on_surface read this face"))
-                .spline_chart()
-                .is_some();
+            let spline = body.proven_face_surface(f).spline_chart().is_some();
             if !spline || !names.ends {
                 return Ok(None);
             }
@@ -1144,7 +1135,7 @@ fn cuts<T: Decide>(
     along: &Span<'_, T>,
     band: Band,
 ) -> Result<Vec<T>, BooleanError> {
-    let loops = [(f, edge_set(body, f))];
+    let loops = [(f, body.proven_face_edge_set(f))];
     let mut at: Vec<T> = Vec::new();
     for record in named {
         let crossings = match crossing_named(body, record, e, &loops, along, band) {
@@ -1246,9 +1237,7 @@ pub(super) fn carrier_on_surface<T: Decide>(
     f: FaceKey,
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let surface = body
-        .face_surface(f)
-        .unwrap_or_else(|| unreachable!("every caller reads a face of its body"));
+    let surface = body.proven_face_surface(f);
     conic_or_line_on(carrier, (t0, t1), surface, band)
 }
 
@@ -1704,7 +1693,7 @@ fn walls_inside<T: Decide>(
         // Bent alike, the wall's sheet and the floor's are one to the
         // order read ([`coplanar_wall_inside`]).
         let coplanar = || coplanar_wall_inside(normal, floor, arm, band, refused);
-        let surface = |face: FaceKey| body.face_surface(face).ok_or_else(desync);
+        let surface = |face: FaceKey| body.proven_face_surface(face);
         inside[k] = match crate::validate::decide(
             "bool_rider_wall_side",
             Margin::levered(into.dot(floor), arm),
@@ -1736,8 +1725,8 @@ fn walls_inside<T: Decide>(
                     EdgeInFaceGap::CurvedFace
                 };
                 let (Some(wall_bend), Some(floor_bend), geom::Curve3::Line(_)) = (
-                    bend_across(surface(wall)?, mid, tangent),
-                    bend_across(surface(f)?, mid, tangent),
+                    bend_across(surface(wall), mid, tangent),
+                    bend_across(surface(f), mid, tangent),
                     curve.carrier(),
                 ) else {
                     return Err(refused(unread));
@@ -1785,9 +1774,7 @@ fn spline_floor<T: Decide>(
     band: Band,
 ) -> Result<Option<geom_core::Vec3<T>>, BooleanError> {
     use crate::face_normal::{NormalAtError, SplineNormalError};
-    let chart = body
-        .face_surface(f)
-        .unwrap_or_else(|| unreachable!("the rider reads a face of its body"));
+    let chart = body.proven_face_surface(f);
     if chart.spline_chart().is_none() {
         return Ok(None);
     }
@@ -2087,8 +2074,10 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
     let desync = run_past_desync;
     let face = *faces.first().ok_or_else(desync)?;
     let refused = |gap| BooleanError::EdgeInFace { edge, face, gap };
-    let loops: Vec<(FaceKey, BTreeSet<EdgeKey>)> =
-        faces.iter().map(|&f| (f, edge_set(body, f))).collect();
+    let loops: Vec<(FaceKey, BTreeSet<EdgeKey>)> = faces
+        .iter()
+        .map(|&f| (f, body.proven_face_edge_set(f)))
+        .collect();
     // The face whose loops hold `cell`, which a refusal about it names.
     // The face whose loops hold `cell`, which a refusal about it names:
     // the edge itself lies in all of them, and is named against the
@@ -2538,7 +2527,7 @@ fn touches_boundary_between<T: Decide>(
     if on_face_loops(body, face, v) {
         return false;
     }
-    let boundary = edge_set(body, face);
+    let boundary = body.proven_face_edge_set(face);
     contacts
         .vertex_edge()
         .any(|(x, g)| x == v && boundary.contains(&g))
@@ -2579,23 +2568,11 @@ fn on_face_loops<T: Decide>(body: &Body<T>, face: FaceKey, v: VertexKey) -> bool
 /// The half-edges of `face`'s loops leaving `v`: one per pass of a loop
 /// through it.
 fn loop_leaving<T: Decide>(body: &Body<T>, face: FaceKey, v: VertexKey) -> Vec<HalfEdgeKey> {
-    edges_of(body, face)
+    body.proven_face_edges(face)
         .into_iter()
         .filter(|e| e.ends[0] == v)
         .map(|e| e.half)
         .collect()
-}
-
-/// The edges of `face`'s loops.
-fn edge_set<T: Decide>(body: &Body<T>, face: FaceKey) -> BTreeSet<EdgeKey> {
-    edges_of(body, face).into_iter().map(|e| e.edge).collect()
-}
-
-/// [`Body::face_edges`] of a face the slit reads: every face it reads is
-/// one of the body it parts, so a stale key is a desync.
-fn edges_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<crate::live::FaceEdge> {
-    body.face_edges(face)
-        .unwrap_or_else(|| unreachable!("the slit reads faces of the body it parts"))
 }
 
 /// Whether a record puts `v` inside an edge.

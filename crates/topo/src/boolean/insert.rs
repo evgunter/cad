@@ -2425,8 +2425,8 @@ fn record_germ_dir<T: Decide>(
     if read != DeclarationRead::Spent(GlueClass::Tangent) {
         return germ_dir(sa, sb, read, band);
     }
-    let s_a = super::sectors::tangent_carrier(a_body, sa.face)?;
-    let s_b = super::sectors::tangent_carrier(b_body, sb.face)?;
+    let s_a = a_body.proven_face_surface(sa.face).clone();
+    let s_b = b_body.proven_face_surface(sb.face).clone();
     let reach = declared.reach_of(super::Operand::A, sa.face, super::Operand::B, sb.face)?;
     let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
         Ok(geom_brep::TangentLocus::Line { dir, .. }) => dir.normalize(),
@@ -2880,7 +2880,7 @@ mod tests {
                     end,
                     start_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     end_reach: crate::boolean::sectors::Reach::Extent(1.0),
-                    face: FaceKey::default(),
+                    face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
                     arm: 1.0,
                 })
@@ -3351,7 +3351,7 @@ mod tests {
                     end,
                     start_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     end_reach: crate::boolean::sectors::Reach::Extent(1.0),
-                    face: crate::entity::FaceKey::default(),
+                    face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
                     arm: 1.0,
                 })

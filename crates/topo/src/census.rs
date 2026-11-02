@@ -10904,7 +10904,10 @@ fn flush_pairs<T: Decide>(
 ) -> FlushAtRest {
     let kind = |f: FaceKey| Some(body.face_surface(f)?.kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
-    let edges: Vec<Option<BTreeSet<EdgeKey>>> = faces.iter().map(|&f| edge_set(body, f)).collect();
+    let edges: Vec<BTreeSet<EdgeKey>> = faces
+        .iter()
+        .map(|&f| body.proven_face_edge_set(f))
+        .collect();
     let mut out = FlushAtRest::default();
     for (i, &fa) in faces.iter().enumerate() {
         for j in boxes.later(i) {
@@ -10933,11 +10936,7 @@ fn flush_pairs<T: Decide>(
                 what,
                 reason,
             };
-            let (Some(ea), Some(eb)) = (&edges[i], &edges[j]) else {
-                out.findings
-                    .push(unread(FLUSH_UNREAD, Undecidable::MayOverlap));
-                continue;
-            };
+            let (ea, eb) = (&edges[i], &edges[j]);
             match shared_run(body, ea, eb, band) {
                 Ok(true) => {}
                 Ok(false) => continue,
@@ -11009,13 +11008,6 @@ fn flush_pairs<T: Decide>(
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
     body.face_surface(f)
         .is_some_and(crate::boolean::carrier_eq::exact_curved)
-}
-
-/// Each edge bounding `f`, once (a seam once), `None` where `f` does
-/// not resolve.
-fn edge_set<T: Real>(body: &Body<T>, f: FaceKey) -> Option<BTreeSet<EdgeKey>> {
-    body.face_edges(f)
-        .map(|edges| edges.into_iter().map(|e| e.edge).collect())
 }
 
 /// **Whether two faces' boundaries share a run**: an edge of each whose
@@ -11194,7 +11186,7 @@ fn shared_interior_witness<T: Decide>(
             false
         }
     };
-    let edges = |f| edge_set(body, f).unwrap_or_default();
+    let edges = |f| body.proven_face_edge_set(f);
     let (edges_a, edges_b) = (edges(fa), edges(fb));
     for (x, y, edges) in [(fa, fb, &edges_a), (fb, fa, &edges_b)] {
         let corners = face_vertices(body, x)
@@ -11298,7 +11290,7 @@ fn arc_interiors_meet<T: Decide>(
         }
     };
     let spans = |f| -> Result<Vec<_>, InteriorsUnread> {
-        let edges = edge_set(body, f).ok_or(InteriorsUnread::Unbuilt)?;
+        let edges = body.proven_face_edge_set(f);
         if edges.is_empty() {
             return Err(InteriorsUnread::Unbuilt);
         }

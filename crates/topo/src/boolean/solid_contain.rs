@@ -211,7 +211,7 @@ use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
-use crate::live::linked;
+use crate::live::{linked, proven};
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::side_reader::{SideUnread, side_at_infinity};
 use crate::splitting::containment::{
@@ -678,13 +678,19 @@ impl std::error::Error for PointInSolidError {}
 /// asks only whether a point's height over the plane is zero. Threading
 /// the sense here keeps the door's CONTRACT honest for a consumer that
 /// reads the sign.
+///
+/// # Errors
+///
+/// [`PointInSolidError::KindUnsupported`] for a face off a plane.
+///
+/// # Panics
+///
+/// Where `face`, a face the kernel enumerated, does not resolve.
 pub(crate) fn face_plane<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<(Point3<T>, Vec3<T>), PointInSolidError> {
-    let f = body
-        .get_face(face)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let f = proven(&body.faces, face, EntityId::Face);
     match body.face_surface_linked(face, f) {
         Surface::Plane { origin, normal, .. } => {
             Ok((*origin, plane_outward_normal(f, *normal).vec()))
@@ -892,8 +898,8 @@ pub(super) fn closed_sphere_group<T: Decide>(
 /// [`PointInSolidError::KindUnsupported`] (per-arm, C12.1 — the spline
 /// kinds have no ray-crossing arm), and a TRIMMED sphere face with a
 /// boundary edge that is not a circle arc as
-/// [`PointInSolidError::PartialSphereFace`]. Only a face key that does
-/// not RESOLVE is corruption.
+/// [`PointInSolidError::PartialSphereFace`]. A face of the selection that
+/// does not resolve panics.
 pub(crate) fn face_geo<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -903,7 +909,7 @@ pub(crate) fn face_geo<T: Decide>(
     // it refuses the others through it, as the reader's pre-filter does
     // ([`crate::side_reader::side_at_infinity`]): one predicate, which
     // `face_geo_arms_are_the_kinds_rays_cross` holds to the arms.
-    if let Some(e) = uncrossable(body, face)? {
+    if let Some(e) = uncrossable(body, face) {
         return Err(e);
     }
     face_geo_arms(body, face, charts)
@@ -917,9 +923,7 @@ fn face_geo_arms<T: Decide>(
     face: FaceKey,
     charts: &ChartGroups,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
-    let f = body
-        .get_face(face)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let f = proven(&body.faces, face, EntityId::Face);
     match body.face_surface_linked(face, f) {
         Surface::Plane { origin, normal, .. } => Ok(FaceGeo::Plane(
             *origin,
@@ -1097,18 +1101,12 @@ pub(crate) const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
 /// ([`ray_crosses`]): [`face_geo`] raises it on every ray, before any
 /// geometry, so it is a property of the selection and not of a ray.
 ///
-/// # Errors
+/// # Panics
 ///
-/// A face that does not resolve.
-pub(crate) fn uncrossable<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<Option<PointInSolidError>, PointInSolidError> {
-    let kind = body
-        .face_surface(face)
-        .ok_or(PointInSolidError::CorruptFace { face })?
-        .kind();
-    Ok((!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind }))
+/// Where `face`, a face of the selection, does not resolve.
+pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PointInSolidError> {
+    let kind = body.proven_face_surface(face).kind();
+    (!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind })
 }
 
 /// **A radius about `anchor` that a cylinder or cone face lies within**
@@ -1309,9 +1307,9 @@ pub(crate) fn trim_window_short<T: Decide>(
 ///
 /// # Panics
 ///
-/// Where a boundary half-edge's edge or that edge's curve does not
-/// resolve (D2 row 4): a torn curve is not null scaffolding. The links
-/// hold at rest and, on the reduction's working copies, by
+/// Where `face`, a boundary half-edge's edge or that edge's curve does
+/// not resolve (D2 row 4): a torn curve is not null scaffolding. The
+/// links hold at rest and, on the reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn sphere_chart_trim<T: Decide>(
     body: &Body<T>,
@@ -1322,9 +1320,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     band: Band,
 ) -> Result<Option<SphereChartTrim<T>>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let f = body
-        .get_face(face)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let f = proven(&body.faces, face, EntityId::Face);
     if !f.rings.is_empty() {
         return Ok(None);
     }
@@ -3524,10 +3520,7 @@ fn wall_crosses_by_turn<T: Decide>(
     // can be made red by no pose, and factor 0 only by a ruling drifting
     // by far more than the band, which a valid body bounds by a plane
     // through that ruling: not built.
-    for e in body
-        .face_edges(face)
-        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?
-    {
+    for e in body.proven_face_edges(face) {
         if e.across == face {
             continue;
         }
@@ -3621,10 +3614,7 @@ fn loop_turn<T: Decide>(
         normal.dot(u.cross(w)).atan2(u.dot(w))
     };
     let mut turn = T::zero();
-    for e in body
-        .face_edges(face)
-        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?
-    {
+    for e in body.proven_face_edges(face) {
         // A seam inside the face is walked once each way, and its two
         // turns cancel: it is left out, not summed, since in floats two
         // passes whose products vanish both read `atan2(+0, x < 0) = π`.
@@ -3750,26 +3740,33 @@ pub(crate) fn edge_clearance<T: Decide>(
 /// Whether every edge bounding `face` is one of `read`: a seam inside it
 /// (an edge both of whose sides are the face) bounds nothing, owes no
 /// reading, and is never one of `read`.
+///
+/// # Panics
+///
+/// Where `face`, a face the ray read, or its boundary walk does not
+/// resolve ([`Body::proven_face_edges`]).
 fn every_bound_read<T: geom_core::Real>(
     body: &Body<T>,
     face: FaceKey,
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
-    body.face_edges(face)
-        .unwrap_or_else(|| unreachable!("the ray reads faces of its body"))
+    body.proven_face_edges(face)
         .iter()
         .all(|e| e.across == face || read.contains(&e.edge))
 }
 
 /// Whether every edge of `face`, a seam inside it included, is one of
 /// `read`.
+///
+/// # Panics
+///
+/// As [`every_bound_read`].
 fn every_edge_read<T: geom_core::Real>(
     body: &Body<T>,
     face: FaceKey,
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
-    body.face_edges(face)
-        .unwrap_or_else(|| unreachable!("the ray reads faces of its body"))
+    body.proven_face_edges(face)
         .iter()
         .all(|e| read.contains(&e.edge))
 }
@@ -4074,16 +4071,6 @@ fn root_outward<T: Decide>(
     }
 }
 
-/// **A curved face's carrier at `face`**, the surface its roots and
-/// incidences are read on: a face that does not resolve is corrupt.
-fn carrier<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<&Surface<T>, RayFault<PointInSolidError>> {
-    body.face_surface(face)
-        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))
-}
-
 /// **The chart normal of `face`'s carrier at `p`**, from its one home
 /// ([`geom_brep::implicit_gradient`]): unit on the carrier, and poison
 /// where the carrier is singular (a cone's apex or axis, a torus's
@@ -4094,7 +4081,10 @@ fn chart_normal<T: Decide>(
     face: FaceKey,
     p: Point3<T>,
 ) -> Result<Vec3<T>, RayFault<PointInSolidError>> {
-    Ok(geom_brep::implicit_gradient(carrier(body, face)?, p))
+    Ok(geom_brep::implicit_gradient(
+        body.proven_face_surface(face),
+        p,
+    ))
 }
 
 /// **The margin by which the ray, from where it passes the met edge
@@ -4118,7 +4108,7 @@ fn reach_margin<T: Decide>(
     m: &Met<T>,
     root: T,
 ) -> Result<T, RayFault<PointInSolidError>> {
-    let surface = carrier(body, face)?;
+    let surface = body.proven_face_surface(face);
     let (at, passage) = (q + d * root, q + d * m.at);
     let off = (m.span.0 - root).max(root - m.span.1).max(T::zero());
     let n = chart_normal(body, face, at)?;
