@@ -72,7 +72,7 @@ fn is_circle(body: &Body<f64>, k: EdgeKey) -> bool {
             .and_then(|e| body.get_curve_geom(e.curve))
             .and_then(|g| g.certified())
             .map(|c| c.carrier()),
-        Some(Curve3::Circle { .. })
+        Some(Curve3::Circle(..))
     )
 }
 

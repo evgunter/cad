@@ -949,12 +949,14 @@ pub fn arc_rim_measured<T: Decide>(
     (t0, span): (T, T),
     band: Band,
 ) -> Vec<Pcurve<T>> {
-    let Curve3::Circle {
-        center,
-        axis,
-        u_ref,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         ..
-    } = *carrier
+    }) = *carrier
     else {
         return Vec::new();
     };
@@ -1240,7 +1242,7 @@ pub fn plane_nurbs_incidence<T: Decide + Bounds + geom_core::CertifiedEnclosure>
     };
     plane_lane_door(plane, chart)?;
     let exact = match carrier {
-        Curve3::Circle { .. } => Some(
+        Curve3::Circle(..) => Some(
             exact_arc_rim(carrier, params, wall, stated, band)
                 .map_err(PlaneNurbsRefusal::ArcRim)?,
         ),
@@ -1641,7 +1643,7 @@ fn exact_chart_image<T: Decide>(
     >,
     PlaneNurbsRefusal,
 > {
-    if !matches!(carrier, Curve3::Circle { .. }) {
+    if !matches!(carrier, Curve3::Circle(..)) {
         return Ok(None);
     }
     let wall = Surface::Nurbs(std::sync::Arc::new(chart.clone()));
@@ -3829,12 +3831,12 @@ mod tests {
                 normal: direction(0.0, 0.0, 1.0),
                 u_ref: direction(1.0, 0.0, 0.0),
             };
-            let rim = geom::Curve3::Circle {
-                center: point(0.0, 0.0, lit(0.0)),
-                axis: direction(0.0, 0.0, 1.0),
-                radius: a,
-                u_ref: direction(1.0, 0.0, 0.0),
-            };
+            let rim = geom::Curve3::circle(
+                point(0.0, 0.0, lit(0.0)),
+                direction(0.0, 0.0, 1.0),
+                a,
+                direction(1.0, 0.0, 0.0),
+            );
             analytic_edge_limbs(&rim, (lit(0.0), lit(1.0)), &wall, &floor, band)
         });
         assert_eq!(result, Ok(()));
@@ -3897,12 +3899,12 @@ mod tests {
                 normal: direction(0.0, 0.0, 1.0),
                 u_ref: direction(1.0, 0.0, 0.0),
             };
-            let rim = geom::Curve3::Circle {
-                center: point(0.0, 0.0, a),
-                axis: direction(0.0, 0.0, 1.0),
-                radius: lit(1.0),
-                u_ref: direction(1.0, 0.0, 0.0),
-            };
+            let rim = geom::Curve3::circle(
+                point(0.0, 0.0, a),
+                direction(0.0, 0.0, 1.0),
+                lit(1.0),
+                direction(1.0, 0.0, 0.0),
+            );
             analytic_edge_limbs(&rim, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         let Err(AnalyticRung3Refusal::Stalled {

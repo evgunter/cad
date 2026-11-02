@@ -84,7 +84,7 @@ use crate::history::{History, HistoryId};
 use crate::layout::{self, Layout, LayoutFault, LayoutReport};
 use crate::parts::{self, PartFiles};
 use crate::pickcache;
-use crate::props::{self, Notation, SlotDriver, SlotValue};
+use crate::props::{self, Notation, SlotDriver, SlotRow, SlotValue};
 use crate::sketch;
 use crate::tree::{self, TreeRow};
 
@@ -229,27 +229,6 @@ fn gesture_words() -> g1::Refusals<Refusal> {
     }
 }
 
-/// The slot's driver and current value, or the refusal that says the
-/// slot is not there.
-///
-/// Over a document rather than over the session, so a begin's target
-/// check can run inside [`g1::Slot::begin`]'s closure, where the
-/// session's gesture field is already borrowed.
-fn driver_of(
-    doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
-    slot: SlotId,
-) -> Result<(SlotDriver, Option<SlotValue>), Refusal> {
-    let row = props::slot_rows(doc, node)
-        .into_iter()
-        .find(|row| row.slot == slot)
-        .ok_or_else(|| Refusal::NoSuchSlot {
-            node: doc.spoken(node),
-            slot,
-        })?;
-    Ok((row.driver, row.value.ok().and_then(|r| r.one())))
-}
-
 /// Whether `expr` reads any variable, by id or by name.
 fn reads_a_variable(expr: &Formula) -> bool {
     let (mut ids, mut names) = (Vec::new(), Vec::new());
@@ -258,24 +237,59 @@ fn reads_a_variable(expr: &Formula) -> bool {
     !ids.is_empty() || !names.is_empty()
 }
 
-/// Refuse a numeric edit to a driven slot, with the affordance.
+/// Refuse a numeric edit to a driven slot, with the affordance, or
+/// say the slot is not there.
+///
+/// Over a document rather than over the session, so a begin's target
+/// check can run inside [`g1::Slot::begin`]'s closure, where the
+/// session's gesture field is already borrowed.
 fn guard_driven(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     slot: SlotId,
     notation: Notation,
 ) -> Result<(), Refusal> {
-    let (driver, current) = driver_of(doc, node, slot)?;
-    match driver {
+    let row = props::slot_rows(doc, node)
+        .into_iter()
+        .find(|row| row.slot == slot)
+        .ok_or_else(|| Refusal::NoSuchSlot {
+            node: doc.spoken(node),
+            slot,
+        })?;
+    driven_refusal(node, &row, notation)
+}
+
+/// **A number written over `row`, where an expression drives it**,
+/// refused with the affordance: the driven-slot rule, for a slot the
+/// document holds ([`guard_driven`]) and for an argument a profile
+/// editor's draft holds as a formula.
+pub(crate) fn driven_refusal(
+    node: RecipeNodeId,
+    row: &SlotRow,
+    notation: Notation,
+) -> Result<(), Refusal> {
+    match &row.driver {
         SlotDriver::Literal => Ok(()),
         SlotDriver::Expression { variables } => Err(Refusal::DrivenByExpression {
             node,
-            slot,
-            variables,
-            current,
+            slot: row.slot,
+            variables: variables.clone(),
+            current: row.value.as_ref().ok().and_then(props::Reading::one),
             notation,
         }),
     }
+}
+
+/// **Typed text as an expression over `doc`'s variables** — the one
+/// parse every text door runs: a slot's, a variable's, and a profile
+/// editor's held argument. Its refusal is said in the slot door's
+/// words ([`Refusal::Parse`]).
+///
+/// # Errors
+///
+/// [`Refusal::Parse`], carrying `parse_formula`'s own refusal.
+pub(crate) fn parse_text(doc: &Doc<ProfileProgram>, text: &str) -> Result<Formula, Refusal> {
+    parse_formula(text, &doc.var_scope()).map_err(|error| Refusal::Parse(Box::new(error)))
 }
 
 /// **A profile editor's program with every unmoved argument of every
@@ -2809,9 +2823,9 @@ impl DocSession {
     }
 
     fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
-        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
+        let expr = match parse_text(self.committed_doc(), text) {
             Ok(expr) => expr,
-            Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
+            Err(refusal) => return OpOutcome::refused(refusal),
         };
         // An expression edit is available on a driven slot AND on a
         // literal one — the refusal is about writing a number over a
@@ -2909,9 +2923,9 @@ impl DocSession {
     /// cannot have got past the field's guard as anything but a
     /// deliberate re-type.
     fn set_variable_text(&mut self, var: VarId, text: &str) -> OpOutcome {
-        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
+        let expr = match parse_text(self.committed_doc(), text) {
             Ok(expr) => expr,
-            Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
+            Err(refusal) => return OpOutcome::refused(refusal),
         };
         // Text typed over an index is its count.
         if let Some(edit) = props::index_count_edit(self.committed_doc(), var, expr.clone()) {

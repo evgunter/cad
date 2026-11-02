@@ -54,13 +54,11 @@ fn section(alpha: f64, h: f64, theta: f64) -> (Point3<f64>, Vec3<f64>, Vec3<f64>
 fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     let alpha = 0.5;
     let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
-    let on = Curve3::Ellipse {
-        center: centre,
-        axis,
-        semi_u: major,
-        semi_v: minor,
-        u_ref,
-    };
+    let on = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(centre, axis, u_ref),
+        major,
+        minor,
+    ));
     let dist = off_cone(&on, &cone(alpha));
     assert!(dist < 1e-14, "on the cone: {dist:e}");
     let got = chart_pcurve(&on, &cone(alpha), band());
@@ -69,13 +67,11 @@ fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
         "a cone section derives its section image: {got:?}"
     );
     let shift = 2.0 * Tol::witness().k() * eps();
-    let moved = Curve3::Ellipse {
-        center: centre + axis * shift,
-        axis,
-        semi_u: major,
-        semi_v: minor,
-        u_ref,
-    };
+    let moved = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(centre + axis * shift, axis, u_ref),
+        major,
+        minor,
+    ));
     let dist = off_cone(&moved, &cone(alpha));
     assert!(
         dist > Tol::witness().k() * eps(),
@@ -111,12 +107,12 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
     let d_rho = 5.0 * k * e * 2.0 * alpha.sin() / (alpha.cos().powi(2) * 2.0 * rho);
     off(
         "k0: a wrong radius",
-        Curve3::Circle {
-            center: Point3::new(2.0 * k * e, 0.0, 1.0),
-            axis: Vec3::unit_z(),
-            radius: rho + d_rho,
-            u_ref: Vec3::unit_x(),
-        },
+        Curve3::circle(
+            Point3::new(2.0 * k * e, 0.0, 1.0),
+            Vec3::unit_z(),
+            rho + d_rho,
+            Vec3::unit_x(),
+        ),
         alpha,
     );
     // (k₁, k₂) alone: the right radius, centred δ off the axis — the
@@ -126,12 +122,12 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
     let delta = 5.0 * k * e / alpha.cos();
     off(
         "k1,k2: an off-axis rim",
-        Curve3::Circle {
-            center: Point3::new(delta, 0.0, 1.0),
-            axis: Vec3::unit_z(),
-            radius: alpha.tan(),
-            u_ref: Vec3::unit_x(),
-        },
+        Curve3::circle(
+            Point3::new(delta, 0.0, 1.0),
+            Vec3::unit_z(),
+            alpha.tan(),
+            Vec3::unit_x(),
+        ),
         alpha,
     );
     // (k₃, k₄) alone: an ellipse ⊥ the axis, centred on it, with
@@ -140,13 +136,11 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
     let s = 5.0 * k * e * 2.0 * alpha.sin() / alpha.cos().powi(2);
     off(
         "k3,k4: an ellipse round the axis",
-        Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 1.0),
-            axis: Vec3::unit_z(),
-            semi_u: (rho * rho + s).sqrt(),
-            semi_v: (rho * rho - s).sqrt(),
-            u_ref: Vec3::unit_x(),
-        },
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
+            (rho * rho + s).sqrt(),
+            (rho * rho - s).sqrt(),
+        )),
         alpha,
     );
 }
@@ -167,12 +161,7 @@ fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
         let h = 1.0;
         let theta = 0.5 * e / (h * alpha.tan());
         let (centre, axis, u_ref, major, minor) = section(alpha, h, theta);
-        let circle = Curve3::Circle {
-            center: centre,
-            axis,
-            radius: (major * minor).sqrt(),
-            u_ref,
-        };
+        let circle = Curve3::circle(centre, axis, (major * minor).sqrt(), u_ref);
         let dist = off_cone(&circle, &cone(alpha));
         assert!(dist < 0.01 * e, "alpha = {alpha}: on the cone: {dist:e}");
         let got = chart_pcurve(&circle, &cone(alpha), band());
@@ -218,12 +207,12 @@ fn a_near_pole_small_circle_tilted_inside_the_axial_band_is_on_the_sphere() {
         let s = 0.5 * e / rho;
         let c = (1.0 - s * s).sqrt();
         let n = Vec3::new(s, 0.0, c);
-        let carrier = Curve3::Circle {
-            center: Point3::new(h * s, 0.0, h * c),
-            axis: n,
-            radius: rho,
-            u_ref: Vec3::new(c, 0.0, -s),
-        };
+        let carrier = Curve3::circle(
+            Point3::new(h * s, 0.0, h * c),
+            n,
+            rho,
+            Vec3::new(c, 0.0, -s),
+        );
         let worst = (0..64)
             .map(|i| {
                 let p = carrier.eval(f64::from(i) * core::f64::consts::TAU / 64.0);
@@ -252,13 +241,11 @@ fn a_near_pole_small_circle_tilted_inside_the_axial_band_is_on_the_sphere() {
 fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
     let alpha = 0.5;
     let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
-    let moved = Curve3::Ellipse {
-        center: centre + Vec3::unit_z() * (0.5 * eps()),
-        axis,
-        semi_u: major,
-        semi_v: minor,
-        u_ref,
-    };
+    let moved = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(centre + Vec3::unit_z() * (0.5 * eps()), axis, u_ref),
+        major,
+        minor,
+    ));
     let got = chart_pcurve(&moved, &cone(alpha), band());
     assert!(
         matches!(got, Ok(Pcurve::FocalSection(_))),
@@ -272,12 +259,12 @@ fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
     };
     let n = Vec3::new(0.3, 0.0, 1.0).normalize();
     let (h, rho) = (0.6_f64, 0.8_f64);
-    let circle = Curve3::Circle {
-        center: Point3::origin() + n * (h + 0.5 * eps()),
-        axis: n,
-        radius: rho,
-        u_ref: Vec3::unit_y(),
-    };
+    let circle = Curve3::circle(
+        Point3::origin() + n * (h + 0.5 * eps()),
+        n,
+        rho,
+        Vec3::unit_y(),
+    );
     let got = chart_pcurve(&circle, &sphere, band());
     assert!(
         matches!(got, Ok(Pcurve::Projected(_))),
@@ -468,12 +455,7 @@ fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
     else {
         unreachable!()
     };
-    let rim = Curve3::Circle {
-        center: apex + axis * (0.2 * eps()),
-        axis,
-        radius: 0.3,
-        u_ref,
-    };
+    let rim = Curve3::circle(apex + axis * (0.2 * eps()), axis, 0.3, u_ref);
     let check = |got: Result<String, PcurveCertifyError>, lane: &str| match got {
         Err(PcurveCertifyError::CarrierOffChart {
             why,
@@ -575,12 +557,12 @@ fn only_an_incidence_reading_ends_as_one() {
     for h in [2.0 * e, 5.5 * e] {
         both(
             &format!("a rim at h = {h:e}"),
-            Curve3::Circle {
-                center: Point3::new(0.0, 0.0, h),
-                axis: Vec3::unit_z(),
-                radius: h * alpha.tan(),
-                u_ref: Vec3::unit_x(),
-            },
+            Curve3::circle(
+                Point3::new(0.0, 0.0, h),
+                Vec3::unit_z(),
+                h * alpha.tan(),
+                Vec3::unit_x(),
+            ),
             cone(alpha),
             &at_pose,
         );
@@ -598,12 +580,12 @@ fn only_an_incidence_reading_ends_as_one() {
         minor_radius: 0.5,
         u_ref: Vec3::unit_x(),
     };
-    let ellipse = |z: f64, r: f64, d: f64| Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::unit_z(),
-        semi_u: r,
-        semi_v: r - d,
-        u_ref: Vec3::unit_x(),
+    let ellipse = |z: f64, r: f64, d: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
+            r,
+            r - d,
+        ))
     };
     both(
         "a near-round ellipse 10 m off the sphere",
@@ -655,13 +637,11 @@ fn a_class_rate_read_zero_takes_the_incidence_door() {
     not_incidence(
         "a thin ellipse along a generator",
         chart_pcurve(
-            &Curve3::Ellipse {
-                center: Point3::origin() + g * 2.0,
-                axis: Vec3::unit_y(),
-                semi_u: 0.5,
-                semi_v: 0.3 * e,
-                u_ref: g,
-            },
+            &Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(Point3::origin() + g * 2.0, Vec3::unit_y(), g),
+                0.5,
+                0.3 * e,
+            )),
             &cone(alpha),
             band(),
         )
@@ -680,12 +660,12 @@ fn a_class_rate_read_zero_takes_the_incidence_door() {
     not_incidence(
         "a leaning great circle at K < √2",
         chart_pcurve(
-            &Curve3::Circle {
-                center: Point3::origin(),
-                axis: Vec3::new(up, 0.0, lean),
-                radius: 1.0,
-                u_ref: e1 * th.cos() + e2 * th.sin(),
-            },
+            &Curve3::circle(
+                Point3::origin(),
+                Vec3::new(up, 0.0, lean),
+                1.0,
+                e1 * th.cos() + e2 * th.sin(),
+            ),
             &sphere,
             geom_core::Band::new(1e-9, 1.05e-9).unwrap(),
         )
@@ -699,12 +679,12 @@ fn a_class_rate_read_zero_takes_the_incidence_door() {
         u_ref: Vec3::unit_x(),
     };
     let got = chart_pcurve(
-        &Curve3::Circle {
-            center: Point3::new(2.0, 0.0, 0.0),
-            axis: Vec3::unit_x(),
-            radius: 0.5,
-            u_ref: Vec3::unit_z(),
-        },
+        &Curve3::circle(
+            Point3::new(2.0, 0.0, 0.0),
+            Vec3::unit_x(),
+            0.5,
+            Vec3::unit_z(),
+        ),
         &torus,
         band(),
     );
@@ -746,12 +726,12 @@ fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
         u_ref: Vec3::unit_x(),
     };
     let (h, rho) = (0.6, 0.8);
-    let parallel = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, h),
-        axis: Vec3::unit_z(),
-        radius: rho,
-        u_ref: Vec3::unit_x(),
-    };
+    let parallel = Curve3::circle(
+        Point3::new(0.0, 0.0, h),
+        Vec3::unit_z(),
+        rho,
+        Vec3::unit_x(),
+    );
     let image = chart_pcurve(&parallel, &sphere, band()).unwrap();
     // Tilt the circle's plane about `x` through the sphere's centre, so
     // it stays on the sphere; the axial reading is `ρ·sin θ`.
@@ -759,12 +739,7 @@ fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
     let theta = (mid / rho).asin();
     let (s, c) = theta.sin_cos();
     let n = Vec3::new(0.0, -s, c);
-    let tilted = Curve3::Circle {
-        center: Point3::origin() + n * h,
-        axis: n,
-        radius: rho,
-        u_ref: Vec3::unit_x(),
-    };
+    let tilted = Curve3::circle(Point3::origin() + n * h, n, rho, Vec3::unit_x());
     let tau = core::f64::consts::TAU;
     let got = PcurveCache::certify(image, 0.0, tau, &tilted, &sphere, band());
     assert!(
@@ -817,12 +792,7 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
     let h = 1.0;
     let theta = 0.5 * e / (h * alpha.tan());
     let (centre, axis, u_ref, major, minor) = section(alpha, h, theta);
-    let circle = Curve3::Circle {
-        center: centre,
-        axis,
-        radius: (major * minor).sqrt(),
-        u_ref,
-    };
+    let circle = Curve3::circle(centre, axis, (major * minor).sqrt(), u_ref);
     let (keys, lookup) = crate::shared::surf::table(vec![cone(alpha)]);
     let (t0, t1) = (0.0, 1.0);
     let err = EdgeCurve::certify(
@@ -916,24 +886,24 @@ fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
         (
             "undecided",
             sphere,
-            Curve3::Circle {
-                center: Point3::origin(),
-                axis: Vec3::new(0.3_f64.sin(), 0.0, 0.3_f64.cos()),
-                radius: 1.0 + mid,
-                u_ref: Vec3::unit_y(),
-            },
+            Curve3::circle(
+                Point3::origin(),
+                Vec3::new(0.3_f64.sin(), 0.0, 0.3_f64.cos()),
+                1.0 + mid,
+                Vec3::unit_y(),
+            ),
             (0.0, 1.0),
             Some("Recourse: the edge's curve is not shown on the face it bounds"),
         ),
         (
             "at a pose",
             cone(0.5),
-            Curve3::Circle {
-                center: Point3::new(0.0, 0.0, 1.0),
-                axis: Vec3::new(0.5, 0.0, 0.75_f64.sqrt()),
-                radius: 2.0,
-                u_ref: Vec3::new(0.75_f64.sqrt(), 0.0, -0.5),
-            },
+            Curve3::circle(
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::new(0.5, 0.0, 0.75_f64.sqrt()),
+                2.0,
+                Vec3::new(0.75_f64.sqrt(), 0.0, -0.5),
+            ),
             (0.0, 1.0),
             Some("Recourse: move the geometry so the edge sits clear of that pose"),
         ),

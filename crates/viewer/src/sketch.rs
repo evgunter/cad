@@ -505,6 +505,19 @@ impl HeldStep {
             .collect()
     }
 
+    /// **The step with argument `arg` written as `formula`** — `None`
+    /// where the step has no such role.
+    #[must_use]
+    pub fn with_arg(&self, arg: StepArg, formula: Formula) -> Option<Self> {
+        let mut node = self.node();
+        *node.expr_mut(SlotId::Profile {
+            loop_: 0,
+            step: 0,
+            arg,
+        })? = formula;
+        Some(Self::of_node(node))
+    }
+
     /// The step's verb and structural tags, values erased.
     fn shape(&self) -> StepShape {
         let [shape] = self.0.shape()[..] else {

@@ -67,12 +67,7 @@ fn f9_enum_arm_nurbs_circle_locus() {
         assert!(p.z.abs() < 1e-15, "left the plane at t={t}");
     }
     // Quarter points coincide with the analytic circle at the knots.
-    let analytic = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let analytic = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
     for (t, theta) in [
         (0.0, 0.0),
         (0.25, core::f64::consts::FRAC_PI_2),

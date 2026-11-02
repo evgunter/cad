@@ -26,3 +26,64 @@
 
 The repo-wide tiers (`memories/orchestration-model.md`), named per unit
 at dispatch in this log.
+
+## INTERP's slate, merged in 2026-11-02
+
+INTERP merged into IMPORTGATE on 2026-11-02 (`docs/doc-ledger/interp-leaves-the-tracker.md`). Its plan follows as it stood, headings one level down; its rows are now in `work/importgate/`.
+
+### The slate
+
+**28 budget points** of dispatchable work against a ceiling of 30
+(EXCH's 2026-10-29 semantic-seam split).
+
+| pri | item | cost | status |
+|---|---|---|---|
+| P1 | `adoption-rebuilds-caches-at-eps-from-eps-in-interpretation` | H | open |
+| P1 | `step-import-eps-in-ambient-two-dial-strand` | M | open |
+| P3 | `ellipse-edge-parameters-overstate-the-endpoint-miss` | M | open |
+| P3 | `minted-seam-generator-can-put-endpoint-end-two-eps-in-off` | M | open |
+| P3 | `partial-bspline-edges-are-refused-for-domain-pinned-parameters` | M | open |
+| P3 | `step-adopt-reads-a-plane-origin-against-another-planes-normal` | E | open |
+| P3 | `step-import-adopts-frame-directions-on-eps-in-that-check-1-refuses-at-eps` | M | open |
+| P3 | `wild-nist-ftc-09-refuses-import-at-eps-1e-12` | M | open |
+| P4 | `step-import-restates-the-cone-half-angle-convention` | E | open |
+
+### Order
+
+`adoption-rebuilds-caches-at-eps-from-eps-in-interpretation` first: it is the stage the rest are symptoms of, and its landing settles how the two-dial strand, the frame windows and `nist_ftc_09` close (some may close with it). The derived-parameter rows (ellipse, partial B-spline, minted seam) are independent of it and can run beside it.
+
+### Review posture
+
+The repo-wide tiers (`memories/orchestration-model.md`), named per unit
+at dispatch in this log.
+
+## FOREIGN's slate, merged in 2026-11-02
+
+FOREIGN merged into IMPORTGATE on 2026-11-02 (`docs/doc-ledger/foreign-leaves-the-tracker.md`). Its plan follows as it stood, headings one level down; its rows are now in `work/importgate/`.
+
+### The slate
+
+**24 budget points** of dispatchable work against a ceiling of 30
+(EXCH's 2026-10-29 semantic-seam split).
+
+| pri | item | cost | status |
+|---|---|---|---|
+| P0 | `import-normalizes-the-rim-only-cap` | M | open |
+| P1 | `import-splits-a-foreign-face-or-edge-at-each-c0-knot` | M | open |
+| P3 | `infer-outer-reads-an-arcs-sag-off-a-sample-polygon` | E | open |
+| P3 | `step-import-l-shaped-curved-face-has-no-containment-row` | M | open |
+| P3 | `step-import-reads-area-signs-raw-outside-decide` | E | open |
+| P3 | `step-import-reads-no-hyperbola-or-parabola` | M | open |
+| P3 | `step-import-refuses-a-ring-the-kernel-measures` | M | open |
+| P3 | `step-import-refuses-a-ringed-cylinder-wall-the-kernel-measures` | M | open |
+| P3 | `step-scaffold-strut-offset-is-absolute-in-a-unit-free-format` | M | open |
+| P4 | `step-import-unwrap-reads-a-whole-period-off-a-value` | E | open |
+
+### Order
+
+`import-normalizes-the-rim-only-cap` first (P0, `design: true`: whether `seamed.step` is accepted, normalized or stays refused goes to the designer pair). Then `import-splits-a-foreign-face-or-edge-at-each-c0-knot` (P1, ruled by Ev on [ev] PR 5913). The two ring rows are one gate and are dispatched together, with the outer-loop inference rows riding along on `chart.rs`.
+
+### Review posture
+
+The repo-wide tiers (`memories/orchestration-model.md`), named per unit
+at dispatch in this log.

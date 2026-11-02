@@ -50,13 +50,15 @@ fn steep(ratio: f64) -> Steep {
     Steep {
         surfaces,
         pair: SurfacePair::new(plane, cyl),
-        ellipse: Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: a,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        },
+        ellipse: Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            a,
+            1.0,
+        )),
         a,
     }
 }

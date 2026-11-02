@@ -313,16 +313,18 @@ impl<T: Decide> Body<T> {
         let (t0, t1) = curve.params();
         let scale = match *curve.carrier() {
             geom::Curve3::Line(_) => InfSpeed::new(T::one()),
-            geom::Curve3::Circle { radius, .. } => InfSpeed::new(radius),
-            // The conic lane (M5 PR 5, C12.3): metered at the SMALLER
-            // semi-axis magnitude — the conservative meter
-            // (|dP/dθ| ≥ min(|a|, |b|)), so a sub-span this gate accepts
-            // as definitely interior is truly clear of the endpoints in
-            // meters. The stored semi-axes carry no order
-            // (`geom_brep::Conic`); it is `minor` in the ordinary order.
-            geom::Curve3::Ellipse { semi_u, semi_v, .. } => {
-                InfSpeed::new(geom::Curve3::semi_axes_by_size(semi_u, semi_v).1)
-            }
+            // A periodic carrier (M5 PR 5, C12.3) is metered at its speed
+            // floor, certification's span meter: a circle's radius, an
+            // ellipse's smaller semi-axis, a spiric's minor radius
+            // (`|dP/dv| ≥ r`), so a sub-span this gate accepts as
+            // definitely interior is truly clear of the endpoints in
+            // meters.
+            ref periodic @ (geom::Curve3::Circle(_)
+            | geom::Curve3::Ellipse(_)
+            | geom::Curve3::Spiric { .. }) => match geom::carrier_speed::speed_floor(periodic) {
+                Some(floor) => floor,
+                None => unreachable!("`speed_floor` answers every periodic carrier"),
+            },
             // The general rung (M5 PR 7, C12.3): a fitted SSI carrier
             // is metered at the CERTIFIED LOWER BOUND on ‖C′(t)‖ —
             // the same conservative posture as the conic lane's minor
@@ -336,10 +338,6 @@ impl<T: Decide> Body<T> {
             // of accepting a split that is not clear of the endpoints
             // in meters.
             geom::Curve3::Nurbs(ref n) => n.speed_lower_bound(),
-            // The spiric's speed floor is its minor radius (`|dP/dv|
-            // ≥ r`, the variant docs), the same meter certification
-            // spans it at.
-            geom::Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
         };
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
@@ -628,12 +626,12 @@ mod tests {
                     place: Affine3::identity(),
                 },
             )),
-            carrier: Curve3::Circle {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: Curve3::circle(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::unit_z(),
+                1.0,
+                Vec3::unit_x(),
+            ),
             param_start: 0.0,
             param_end: FRAC_PI_2,
         };
@@ -663,7 +661,7 @@ mod tests {
         // The children share the parent's carrier bitwise.
         assert!(matches!(
             c2.carrier(),
-            Curve3::Circle { radius, .. } if *radius == 1.0
+            Curve3::Circle(geom::Circle { radius, .. }) if *radius == 1.0
         ));
         // The restricted description is still a placed arc.
         assert!(matches!(

@@ -101,5 +101,5 @@ Two pieces of residue are filed:
   (`cylinder-sphere-reads-its-pose-on-the-ruling-sweep`);
 - the thin-rod row's limb-3 refusal, which is the certificate's limit,
   not the count's
-  (`work/ssimarch/limb-three-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
+  (`work/ssiarith/limb-three-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
 

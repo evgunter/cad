@@ -1364,7 +1364,7 @@ fn an_axis_parallel_cut_of_a_cylinder_along_any_axis_pairs_each_ruling() {
 fn ellipse_arcs(half: &Body<f64>) -> Vec<(String, (f64, f64), Option<String>)> {
     half.edges()
         .filter_map(|(_, e)| half.get_curve_geom(e.curve)?.certified())
-        .filter(|c| matches!(c.carrier(), geom::Curve3::Ellipse { .. }))
+        .filter(|c| matches!(c.carrier(), geom::Curve3::Ellipse(..)))
         .map(|c| {
             let back = c.carrier().reversed().map(|r| format!("{r:?}"));
             (format!("{:?}", c.carrier()), c.params(), back)

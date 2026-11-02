@@ -57,12 +57,10 @@ fn tilt_raised_cap(
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match c.carrier() {
-                geom::Curve3::Circle {
-                    center,
+                geom::Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { center, axis, .. },
                     radius,
-                    axis,
-                    ..
-                } if center.z > 0.5 => Some((k, *axis, *radius)),
+                }) if center.z > 0.5 => Some((k, *axis, *radius)),
                 _ => None,
             }
         })
@@ -271,7 +269,7 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.carrier()),
-                    Some(geom::Curve3::Circle { center, .. }) if center.z > 0.5
+                    Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. })) if center.z > 0.5
                 )
             })
             .expect("a raised arc")
@@ -489,7 +487,10 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
             .filter_map(|(k, e)| {
                 let c = body.get_curve_geom(e.curve)?.certified()?;
                 match c.carrier() {
-                    geom::Curve3::Circle { center, .. } if center.z > 0.5 => Some(k),
+                    geom::Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, .. },
+                        ..
+                    }) if center.z > 0.5 => Some(k),
                     _ => None,
                 }
             })
@@ -592,7 +593,7 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
                     let Some(c) = body.get_curve_geom(e.curve).and_then(|c| c.certified()) else {
                         continue;
                     };
-                    if !matches!(c.carrier(), geom::Curve3::Circle { .. }) {
+                    if !matches!(c.carrier(), geom::Curve3::Circle(..)) {
                         continue;
                     }
                     seen += 1;

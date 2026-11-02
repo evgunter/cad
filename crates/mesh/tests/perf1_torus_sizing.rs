@@ -182,7 +182,11 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
             .unwrap()
             .certified()
             .unwrap();
-        let Curve3::Circle { axis, .. } = *curve.carrier() else {
+        let Curve3::Circle(geom::Circle {
+            frame: geom::Frame { axis, .. },
+            ..
+        }) = *curve.carrier()
+        else {
             continue;
         };
         let mut on_torus = None;
@@ -241,7 +245,7 @@ fn torus_sizing_sweep_is_sound_tight_and_on_the_ideal() {
     // unit-scale tube (extent 2.24) refuses as limb 2's kernel limit on its
     // torus, bound 1.75e-11. Whether that is an accepted kernel limit or a
     // regression is the question of
-    // `work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728`;
+    // `work/shell/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728`;
     // until it closes, the row stops there, and the pin goes red the day the
     // row passes.
     test_utils::kernel_limit::pinned_row(

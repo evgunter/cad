@@ -45,12 +45,12 @@ fn sphere() -> Surface<f64> {
 /// The meridian great circle in the xz plane:
 /// `P(t) = (R cos t, 0, R sin t)`.
 fn meridian() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, -1.0, 0.0),
-        radius: RS,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        RS,
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// One verdict on one span, read by name at either door.

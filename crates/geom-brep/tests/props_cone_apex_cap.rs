@@ -58,12 +58,12 @@ fn cone() -> Surface<f64> {
 /// `v·cos α`.
 fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     topo::edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, v * SIN_A),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: v.abs() * SIN_A,
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            p3(0.0, 0.0, v * SIN_A),
+            v3(0.0, 0.0, 1.0),
+            v.abs() * SIN_A,
+            v3(1.0, 0.0, 0.0),
+        ),
         u0,
         u1,
         a,
@@ -585,16 +585,16 @@ impl GCone {
         let (s, c) = self.alpha.sin_cos();
         let n = self.axis;
         topo::edge(
-            Curve3::Circle {
-                center: self.apex + n * (v * c),
-                axis: n,
-                radius: v.abs() * s,
-                u_ref: if n.x.abs() < 0.9 {
+            Curve3::circle(
+                self.apex + n * (v * c),
+                n,
+                v.abs() * s,
+                if n.x.abs() < 0.9 {
                     v3(1.0, 0.0, 0.0).cross(n).normalize()
                 } else {
                     v3(0.0, 1.0, 0.0).cross(n).normalize()
                 },
-            },
+            ),
             u0,
             u1,
             a,

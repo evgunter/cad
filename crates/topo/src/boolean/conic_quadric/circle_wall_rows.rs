@@ -52,16 +52,16 @@ struct Pose {
 impl Pose {
     fn carrier<T: Real>(self) -> geom::Curve3<T> {
         let v = |a: [f64; 3]| Vec3::new(T::from_f64(a[0]), T::from_f64(a[1]), T::from_f64(a[2]));
-        geom::Curve3::Circle {
-            center: Point3::new(
+        geom::Curve3::circle(
+            Point3::new(
                 T::from_f64(self.c[0]),
                 T::from_f64(self.c[1]),
                 T::from_f64(self.c[2]),
             ),
-            axis: v(self.n),
-            radius: T::from_f64(self.rho),
-            u_ref: v(self.u),
-        }
+            v(self.n),
+            T::from_f64(self.rho),
+            v(self.u),
+        )
     }
 
     fn at(self, theta: f64) -> Point3<f64> {
@@ -261,7 +261,7 @@ fn the_second_harmonic_band_reaches_past_the_tilt_band() {
             };
             assert!(tilt > band.escalate(), "{label}: the tilt is definite");
             let h = geom_brep::conic_cylinder_harmonics(
-                &geom_brep::Conic::of(&pose.carrier::<f64>()).unwrap(),
+                pose.carrier::<f64>().conic().unwrap(),
                 Point3::origin(),
                 Vec3::new(0.0, 0.0, 1.0),
                 r,
@@ -325,7 +325,7 @@ fn a_near_square_circle_inside_the_band_by_its_second_harmonic_is_not_on_the_wal
             rho: r,
         };
         let h = geom_brep::conic_cylinder_harmonics(
-            &geom_brep::Conic::of(&pose.carrier::<f64>()).unwrap(),
+            pose.carrier::<f64>().conic().unwrap(),
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
             r,
