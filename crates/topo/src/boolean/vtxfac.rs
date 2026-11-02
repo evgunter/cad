@@ -176,14 +176,15 @@ impl<T: Decide> PierceDatum<T> {
             .map(|(read, _)| read.code)
     }
 
-    /// [`Self::side`] as a cone is handed it
-    /// ([`super::sectors::given_side`]).
+    /// [`Self::side`] on the band alone, as a cone is handed it
+    /// ([`super::sectors::given_side`]): the side the pierce reads.
     pub(super) fn given(
         self,
         dir: Vec3<T>,
         reach: super::sectors::Reach<T>,
-        rd: crate::link::metric::Reading<T>,
+        band: Band,
     ) -> Result<Sign, Ungiven> {
+        let rd = crate::link::metric::Reading::plain(band);
         let lever = self.lever.within(reach.length());
         super::sectors::given_side(
             dir,
@@ -372,14 +373,16 @@ pub(crate) fn cone_classes<T: Decide>(
                 .iter()
                 .find(|&&(h, _)| h == he)
                 .ok_or(invariant("a touched face carries no datum for an edge"))?;
-            // A bound tied with the face that parts from it to no order
-            // the band reads is held on it, as the pierce holds it. One
-            // whose side the cone's slack hides is handed none: its class
-            // would be published on the face.
-            match datum.given(dir, reach, rd) {
+            // Read on the band alone, as the pierce reads it: the face's
+            // plane and the edge both stand at the vertex's own point,
+            // which no partner's offset moves, so the cone's tie is no
+            // slack of this reading. A bound tied with the face that parts
+            // from it to no order read is held on it, as the pierce holds
+            // it.
+            match datum.given(dir, reach, band) {
                 Ok(side) => given.push((disc, side)),
-                Err(Ungiven::Unresolved) => given.push((disc, Sign::Zero)),
-                Err(Ungiven::Slack | Ungiven::Undecided) => {}
+                Err(Ungiven::Unresolved | Ungiven::Slack) => given.push((disc, Sign::Zero)),
+                Err(Ungiven::Undecided) => {}
             }
         }
         let class = match cone.reads_tied(reach.point(p, dir), &given, band) {
@@ -3210,7 +3213,10 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: z,
             end: tied.normalize(),
-            start_reach: Reach::Chord { base: o, far: o + z },
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + z,
+            },
             end_reach: Reach::Chord {
                 base: o,
                 far: o + tied,
@@ -3309,7 +3315,15 @@ mod tests {
             bend,
             lever: PierceLever::Everywhere(NO_CURVATURE()),
         };
-        let side = |bend| partner_side(&partner, datum(bend), false, crate::link::metric::Reading::plain(band)).unwrap();
+        let side = |bend| {
+            partner_side(
+                &partner,
+                datum(bend),
+                false,
+                crate::link::metric::Reading::plain(band),
+            )
+            .unwrap()
+        };
         let out = PartnerRead::Side { along: false };
         assert_eq!(
             side(FaceBend::Plane),
@@ -3432,19 +3446,17 @@ mod tests {
             .collect()
     }
 
-    /// **The touched face is read on the cone's reading**, over the
+    /// **The touched face is read on the band alone**, not over the
     /// partners' tie: the face `z = 0` (outward `+z`) the vertex touches,
     /// a partner's convex corner standing on it `tie` off the point, and
     /// an edge along the face `1.5·zero` over its plane, on a band with
-    /// `K = 1.4`. With the partner at the point the edge reads `Out`.
-    /// With the tie `0.9·zero` the band decides the edge's side of the
-    /// face and the slack (`1.8·zero`) does not: its side is the slack's
-    /// tie, handed to the cone as no side, and the cone, reading the edge
-    /// in band of the face's plane, reads nothing. That is the reading's
-    /// conservatism: the face's plane and the edge both stand at the
-    /// vertex's own point, which the partner's offset does not move.
+    /// `K = 1.4`. The face's plane and the edge both stand at the vertex's
+    /// own point, which the partner's offset does not move: the edge reads
+    /// `Out` with the partner at the point and `0.9·zero` off it alike.
+    /// Read over the tie's slack (`1.8·zero`), the band's side would be
+    /// the slack's tie, and the edge would read nothing.
     #[test]
-    fn the_touched_faces_side_is_read_on_the_cones_reading() {
+    fn the_touched_faces_side_is_read_on_the_band_alone() {
         use super::super::sectors::Reach;
         let zero = Band::linear(Tol::witness()).unwrap().zero();
         let band = Band::new(zero, 1.4 * zero).unwrap();
@@ -3484,11 +3496,10 @@ mod tests {
             cone_classes(o, &own, &[own[0].he], &[partner], touched, band).unwrap()
         };
         assert_eq!(read(0.0), Ok(vec![(own[0].he, Out)]), "at the point, Out");
-        let unread = read(0.9 * zero).expect_err("over the tie, the edge reads nothing");
         assert_eq!(
-            (unread.edge, unread.face),
-            (own[0].he, Some(crate::entity::FaceKey::from(key(999)))),
-            "the edge in band of the touched face"
+            read(0.9 * zero),
+            Ok(vec![(own[0].he, Out)]),
+            "the partner off the point, Out alike"
         );
     }
 
@@ -3549,7 +3560,10 @@ mod tests {
             lever: PierceLever::Everywhere(1.0),
         };
         let flat = datum(crate::bound_side::FaceBend::Plane);
-        let ball = datum(crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, 1.0), 1.0));
+        let ball = datum(crate::bound_side::FaceBend::ball(
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+        ));
         let pierced = [
             (he[0], flat),
             (he[1], flat),
@@ -3654,10 +3668,20 @@ mod tests {
         // Every rotation of the sector order reads alike.
         let read = |rays: &[[f64; 3]], datum, flush| {
             let mut sectors = cone(rays);
-            let first = partner_side(&sectors, datum, flush, crate::link::metric::Reading::plain(band));
+            let first = partner_side(
+                &sectors,
+                datum,
+                flush,
+                crate::link::metric::Reading::plain(band),
+            );
             for _ in 1..sectors.len() {
                 sectors.rotate_left(1);
-                let again = partner_side(&sectors, datum, flush, crate::link::metric::Reading::plain(band));
+                let again = partner_side(
+                    &sectors,
+                    datum,
+                    flush,
+                    crate::link::metric::Reading::plain(band),
+                );
                 assert_eq!(
                     format!("{again:?}"),
                     format!("{first:?}"),

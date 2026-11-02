@@ -3112,7 +3112,15 @@ mod tests {
                 bend: ConicBend::of(&circle, tangent, circle.deriv2(0.0), span),
             },
         );
-        let chord = |d: Vec3<f64>| (d, Reach::Chord { base: o, far: o + d });
+        let chord = |d: Vec3<f64>| {
+            (
+                d,
+                Reach::Chord {
+                    base: o,
+                    far: o + d,
+                },
+            )
+        };
         let sector = |(start, start_reach): (Vec3<f64>, Reach<f64>),
                       (end, end_reach): (Vec3<f64>, Reach<f64>),
                       face,
@@ -3253,13 +3261,15 @@ mod tests {
                 other => panic!("a typed escalation: {other:?}"),
             }
         };
-        let carriers = |d: &BooleanDecision| {
-            matches!(d, BooleanDecision::Coincidence(Coincide::Carriers, _))
-        };
+        let carriers =
+            |d: &BooleanDecision| matches!(d, BooleanDecision::Coincidence(Coincide::Carriers, _));
         let flush = run(0.0, 0.0);
         assert!(carriers(&flush), "flush, the ladder's question: {flush:?}");
         let dipped = run(0.0, 1.5 * zero);
-        assert!(!carriers(&dipped), "dipped at one point, decided: {dipped:?}");
+        assert!(
+            !carriers(&dipped),
+            "dipped at one point, decided: {dipped:?}"
+        );
         assert_eq!(
             run(0.9 * zero, 1.5 * zero),
             flush,

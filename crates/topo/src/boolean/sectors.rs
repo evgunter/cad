@@ -3603,7 +3603,8 @@ mod tests {
                         FaceBend::Plane,
                         NO_CURVATURE(),
                         Reading::plain(b),
-                    ).map(|(side, _)| side)
+                    )
+                    .map(|(side, _)| side)
                     .unwrap();
                     let want = match split {
                         crate::splitting::PlaneSide::Below => SideCode::In,
@@ -3654,7 +3655,16 @@ mod tests {
                 "the sector passes read the side it bends to: {bend:?}"
             );
             assert_eq!(
-                pierce_side(dir, reach, n, FaceBend::Plane, NO_CURVATURE(), Reading::plain(b)).map(|(side, _)| side).unwrap(),
+                pierce_side(
+                    dir,
+                    reach,
+                    n,
+                    FaceBend::Plane,
+                    NO_CURVATURE(),
+                    Reading::plain(b)
+                )
+                .map(|(side, _)| side)
+                .unwrap(),
                 PierceSide {
                     code: want,
                     tied: true
@@ -3664,9 +3674,17 @@ mod tests {
         }
         let (dir, reach) = quarter_arc(Vec3::new(0.0, 1.0, 0.0));
         assert_eq!(
-            pierce_side(dir, reach, n, FaceBend::Plane, NO_CURVATURE(), Reading::plain(b)).map(|(side, _)| side)
-                .unwrap()
-                .code,
+            pierce_side(
+                dir,
+                reach,
+                n,
+                FaceBend::Plane,
+                NO_CURVATURE(),
+                Reading::plain(b)
+            )
+            .map(|(side, _)| side)
+            .unwrap()
+            .code,
             SideCode::On,
             "an arc in the face's plane is On"
         );
@@ -3808,7 +3826,16 @@ mod tests {
                             "axes ({along_n}, {along_t}), span {span}, rho {rho}, q {q}, \
                              sense {sense}: heights [{lo:e}, {hi:e}], {h_l:e} at l = {l}"
                         );
-                        match pierce_side(dir, reach, n, FaceBend::Plane, NO_CURVATURE(), Reading::plain(b)).map(|(side, _)| side) {
+                        match pierce_side(
+                            dir,
+                            reach,
+                            n,
+                            FaceBend::Plane,
+                            NO_CURVATURE(),
+                            Reading::plain(b),
+                        )
+                        .map(|(side, _)| side)
+                        {
                             Ok(PierceSide {
                                 code: SideCode::In, ..
                             }) => {
@@ -3882,7 +3909,8 @@ mod tests {
                 FaceBend::Plane,
                 NO_CURVATURE(),
                 Reading::plain(b)
-            ).map(|(side, _)| side)
+            )
+            .map(|(side, _)| side)
             .unwrap()
             .code,
             SideCode::On,
@@ -3917,7 +3945,8 @@ mod tests {
                 FaceBend::ball(Vec3::new(0.0, 0.0, -1.0), 1.0),
                 1.0,
                 Reading::plain(b)
-            ).map(|(side, _)| side)
+            )
+            .map(|(side, _)| side)
             .unwrap()
             .code,
             SideCode::On,
@@ -3960,7 +3989,8 @@ mod tests {
             FaceBend::Plane,
             NO_CURVATURE(),
             Reading::plain(b),
-        ).map(|(side, _)| side);
+        )
+        .map(|(side, _)| side);
         assert!(conic_bend(&got), "a lift inside the band: {got:?}");
         let spiric = Reach::Conic {
             extent,
@@ -3969,7 +3999,15 @@ mod tests {
                 ..bend
             },
         };
-        let got = pierce_side(dir, spiric, n, FaceBend::Plane, NO_CURVATURE(), Reading::plain(b)).map(|(side, _)| side);
+        let got = pierce_side(
+            dir,
+            spiric,
+            n,
+            FaceBend::Plane,
+            NO_CURVATURE(),
+            Reading::plain(b),
+        )
+        .map(|(side, _)| side);
         assert!(conic_bend(&got), "a spiric tie: {got:?}");
     }
 
