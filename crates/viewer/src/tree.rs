@@ -558,7 +558,10 @@ impl DrawnBody {
     pub fn of_selection(selection: &Selection) -> Option<Self> {
         match selection {
             Selection::Edge(EdgeSelection { node, body, .. })
-            | Selection::Face(FaceSelection { node, body, .. }) => Some(Self::new(*node, *body)),
+            | Selection::Face(FaceSelection { node, body, .. })
+            | Selection::Vertex(crate::session::VertexSelection { node, body, .. }) => {
+                Some(Self::new(*node, *body))
+            }
             Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
         }
     }
@@ -635,6 +638,12 @@ impl<'a> PickedName<'a> {
         Self::new(name, DrawnBody::new(*node, *body))
     }
 
+    /// A vertex pick, on the body its ray met.
+    pub fn vertex(vertex: &'a crate::session::VertexSelection) -> Self {
+        let crate::session::VertexSelection { name, node, body } = vertex;
+        Self::new(name, DrawnBody::new(*node, *body))
+    }
+
     /// The feature this pick is of ([`feature_of`]).
     pub fn feature(&self) -> RecipeNodeId {
         feature_of(self.name)
@@ -659,35 +668,73 @@ impl core::fmt::Display for PickedName<'_> {
     }
 }
 
-/// **A face pick a tool or a form holds**: the face it commits, the body
-/// it is said on — read once, at the pick — and every node and fact its
-/// words name as the document held them then ([`held_by`]), spoken
-/// again after each operation ([`HeldPick::respoken`]). The one shape
-/// for a held pick: the mate tool's two, the mirror's plane, the
-/// add-profile form's face and its two trace latches. Its row, its panel
-/// line and its drop notice all say it from here ([`Say`]), so a drop
-/// says what the line said, whatever the document lost in between.
+/// **A viewport pick of one drawn entity**: its stable name and the
+/// drawn body it was picked on — what a held pick reads of the
+/// selection it holds, whichever kind of entity that is.
+pub trait PickedEntity: Clone + core::fmt::Debug + PartialEq + Eq {
+    /// The entity's stable name.
+    fn name(&self) -> &StableName;
+    /// The drawn body the pick was made on.
+    fn on(&self) -> DrawnBody;
+}
+
+impl PickedEntity for FaceSelection {
+    fn name(&self) -> &StableName {
+        &self.name
+    }
+    fn on(&self) -> DrawnBody {
+        DrawnBody::new(self.node, self.body)
+    }
+}
+
+impl PickedEntity for EdgeSelection {
+    fn name(&self) -> &StableName {
+        &self.name
+    }
+    fn on(&self) -> DrawnBody {
+        DrawnBody::new(self.node, self.body)
+    }
+}
+
+impl PickedEntity for crate::session::VertexSelection {
+    fn name(&self) -> &StableName {
+        &self.name
+    }
+    fn on(&self) -> DrawnBody {
+        DrawnBody::new(self.node, self.body)
+    }
+}
+
+/// **A pick a tool or a form holds**: the entity it commits (a face
+/// unless said otherwise), the body it is said on — read once, at the
+/// pick — and every node and fact its words name as the document held
+/// them then ([`held_by`]), spoken again after each operation
+/// ([`HeldPick::respoken`]). The one shape for a held pick: the mate
+/// tool's two, the mirror's plane, the add-profile form's face and its
+/// two trace latches. Its row, its panel line and its drop notice all
+/// say it from here ([`Say`]), so a drop says what the line said,
+/// whatever the document lost in between.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct HeldPick {
-    face: FaceSelection,
+pub struct HeldPick<P = FaceSelection> {
+    pick: P,
     on: DrawnBody,
     said: HeldNodes,
 }
 
-impl HeldPick {
-    /// `face`, its nodes as `doc` speaks them now, said on the drawn
+impl<P: PickedEntity> HeldPick<P> {
+    /// `pick`, its nodes as `doc` speaks them now, said on the drawn
     /// body the click met — the copy the user clicked, never the body it
     /// places — so two copies of one body read apart wherever a held
     /// pick is said (a mate seats on a copy, and which copy is the
     /// point), and a pick says what was clicked.
-    pub fn new(doc: &Doc<ProfileProgram>, face: FaceSelection) -> Self {
-        let on = DrawnBody::new(face.node, face.body);
-        let said = held_by(&PickedName::new(&face.name, on), doc);
-        Self { face, on, said }
+    pub fn new(doc: &Doc<ProfileProgram>, pick: P) -> Self {
+        let on = pick.on();
+        let said = held_by(&PickedName::new(pick.name(), on), doc);
+        Self { pick, on, said }
     }
 
     /// This pick with its nodes spoken again from `doc`, a later version
-    /// of the document ([`HeldNodes::respoken`]); the face and its body
+    /// of the document ([`HeldNodes::respoken`]); the entity and its body
     /// stay as picked.
     #[must_use]
     pub fn respoken(&self, doc: &Doc<ProfileProgram>) -> Self {
@@ -697,9 +744,9 @@ impl HeldPick {
         }
     }
 
-    /// The face the pick commits.
-    pub fn face(&self) -> &FaceSelection {
-        &self.face
+    /// The entity the pick commits.
+    pub fn pick(&self) -> &P {
+        &self.pick
     }
 
     /// The nodes the pick's words name, as kept: what a refusal about
@@ -709,16 +756,23 @@ impl HeldPick {
     }
 }
 
+impl HeldPick {
+    /// The face the pick commits.
+    pub fn face(&self) -> &FaceSelection {
+        &self.pick
+    }
+}
+
 /// The pick as the chrome says one ([`PickedName`]), on the body kept at
 /// the pick; a node `by` does not hold, as the pick kept it.
-impl Say for HeldPick {
+impl<P: PickedEntity> Say for HeldPick<P> {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
-        PickedName::new(&self.face.name, self.on).say(f, by.or_held(&self.said))
+        PickedName::new(self.pick.name(), self.on).say(f, by.or_held(&self.said))
     }
 }
 
 /// The sentence where no document is at hand: each node as kept.
-impl core::fmt::Display for HeldPick {
+impl<P: PickedEntity> core::fmt::Display for HeldPick<P> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.say(f, Speaker::held(&self.said))
     }
