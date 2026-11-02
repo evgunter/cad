@@ -8211,7 +8211,7 @@ mod tests {
         let floor = floor_note("length");
         let band = Band::new(1e-9, 1e-8).unwrap();
         let rejected =
-            decide_positive("interval_span_forward", Margin::of(2e-12), band).unwrap_err();
+            decide_positive("interval_span_forward", Margin::of(1.5e-12), band).unwrap_err();
         let in_band = Indeterminate {
             margin: MarginDiag::value(3.0 * EPS_MIN),
             band: Band::new(2.0 * EPS_MIN, 20.0 * EPS_MIN).unwrap(),

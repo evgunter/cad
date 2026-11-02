@@ -252,10 +252,10 @@ fn negative_revolve_angle_is_positively_oriented() {
 /// check is a length and scales linearly; the closed forms must hold
 /// to the same relative accuracy with no overflow or misclassification.
 /// The scale tracks the run's ε (s = ε·1e14), held inside the session
-/// box (the washer's outer radius `2s` at most 900 m).
+/// box (the washer's far rim, at `(2s, s)`, at most 900 m out).
 #[test]
 fn megascale_washer_matches_and_validates() {
-    let s = (geom_core::Tol::witness().get().eps * 1e14).clamp(1.0, 4.5e2);
+    let s = (geom_core::Tol::witness().get().eps * 1e14).clamp(1.0, 4e2);
     let lp = ProfileLoop::polygon([
         Point2::new(s, 0.0),
         Point2::new(2.0 * s, 0.0),
