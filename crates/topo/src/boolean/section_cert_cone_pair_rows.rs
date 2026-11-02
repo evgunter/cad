@@ -248,8 +248,42 @@ fn a_twin_cone_with_its_apex_inside_meets_in_one_ellipse() {
     assert_eq!(classes(&unit_cone(), &twin), (vec![(true, true)], 0, true));
 }
 
+/// **Two cones through one apex meet in the rulings both hold**: a
+/// partner on an axis tilted far off the unit cone's shares no ruling,
+/// a touch at the apex; one tilted less crosses it in two lines through
+/// the apex, each an unbounded component.
+#[test]
+fn two_cones_through_one_apex_meet_in_their_common_rulings() {
+    let cone = unit_cone();
+    let s = classify(&cone, &cone_about(p(0.0, 0.0, 0.0), v(0.2, 1.0, 0.3), 0.4));
+    let Section::Touch(t) = s else {
+        panic!("not a touch: {s:?}")
+    };
+    assert_eq!(t.name, "section_cone_pair_common_apex");
+    assert_eq!((t.at - Point3::origin()).norm(), 0.0);
+    // Tilted 0.5 off the unit cone's axis, half-angle 0.4: the nappes
+    // facing one way cross, `|π/4 − 0.4| < 0.5 < π/4 + 0.4`; the axes
+    // turned apart, `π − 0.5`, are past the sum.
+    let tilted = cone_about(p(0.0, 0.0, 0.0), v(0.5f64.sin(), 0.0, 0.5f64.cos()), 0.4);
+    // Read both ways in closed form: lines through an apex resolve on no
+    // marched grid.
+    for s in [classify(&cone, &tilted), classify(&tilted, &cone)] {
+        let Section::Components { parts, single } = &s else {
+            panic!("not classified: {s:?}")
+        };
+        assert!(!single, "{s:?}");
+        assert_eq!(parts.len(), 2, "{s:?}");
+        assert!(
+            parts
+                .iter()
+                .all(|c| c.unbounded && !c.essential_f && !c.essential_g),
+            "{s:?}"
+        );
+    }
+}
+
 /// **The degenerate cone poses refuse R-tan**: the partner's apex on
-/// the unit cone (`(1, 0, 1)`), a common apex, a partner whose
+/// the unit cone (`(1, 0, 1)`), a partner whose
 /// direction cone touches the unit cone's (axis `5π/12` off `z`,
 /// `α = π/6`: the two share one asymptotic direction doubly, a double
 /// root of `p₂`), and a parallel-axis partner whose aperture is in the
@@ -261,11 +295,6 @@ fn the_degenerate_cone_poses_refuse() {
     refuses(
         &cone,
         &cone_about(p(1.0, 0.0, 1.0), v(0.2, 1.0, 0.3), 0.4),
-        "section_cone_pair_apex",
-    );
-    refuses(
-        &cone,
-        &cone_about(p(0.0, 0.0, 0.0), v(0.2, 1.0, 0.3), 0.4),
         "section_cone_pair_apex",
     );
     let lean = 5.0 * PI / 12.0;

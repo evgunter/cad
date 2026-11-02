@@ -5113,7 +5113,10 @@ pub(super) fn line_wall_roots_of<T: Decide>(
 ///
 /// - **`bool_line_cone_apex`** — the segment `[t0, t1]`'s distance from
 ///   the apex. Not definitely positive: the edge reaches the apex, where
-///   the cone's gradient vanishes, and the lane refuses
+///   the cone's gradient vanishes. An edge that ends there (an end's
+///   distance Zero) and is no ruling meets the cone at that end alone,
+///   its residual `A·(t − t_end)²`: one double root at the end, which
+///   the caller reads as the end's incidence. Otherwise the lane refuses
 ///   [`Unsettled::AtApex`] rather than read a root there.
 /// - **`bool_line_cone_lead`** — `A/|dir|²` levered by the segment's
 ///   length: how far the line turns off a generator over the edge. Zero:
@@ -5149,10 +5152,6 @@ fn line_cone_roots<T: Decide>(
     let foot = ((T::zero() - w0.dot(dir)) / dd)
         .max(t0.min(t1))
         .min(t0.max(t1));
-    match decide("bool_line_cone_apex", Margin::norm3(at(foot)), band).map_err(escalate)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => return Ok(Err(Unsettled::AtApex)),
-    }
     let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(
         origin,
         dir,
@@ -5163,6 +5162,39 @@ fn line_cone_roots<T: Decide>(
     )
     .coeffs;
     let length = dir.norm() * (t1 - t0).abs();
+    match decide("bool_line_cone_apex", Margin::norm3(at(foot)), band).map_err(escalate)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
+            // An edge that ENDS at the apex: the cone's form is
+            // homogeneous about its apex, so along a line through it the
+            // residual is `A·(t − t_end)²`, zero at that end alone unless
+            // the line is a ruling (`A` zero, the lead rung's). Its one
+            // root is the end's, a double one there: the end's incidence
+            // is the apex vertex, read as a vertex's (`NoInterior`), never
+            // a crossing. An edge through the apex inside the span is not
+            // read here.
+            for end in [t0, t1] {
+                if decide("bool_line_cone_apex", Margin::norm3(at(end)), band).map_err(escalate)?
+                    != Sign::Zero
+                {
+                    continue;
+                }
+                return match decide(
+                    "bool_line_cone_lead",
+                    Margin::levered(a2 / dd, length),
+                    band,
+                )
+                .map_err(escalate)?
+                {
+                    Sign::Zero => Ok(Err(Unsettled::Degenerate)),
+                    Sign::Positive | Sign::Negative => {
+                        Ok(Ok(Roots::<T, 2>::all([end, end]).widen()))
+                    }
+                };
+            }
+            return Ok(Err(Unsettled::AtApex));
+        }
+    }
     match decide(
         "bool_line_cone_lead",
         Margin::levered(a2 / dd, length),

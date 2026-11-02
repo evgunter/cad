@@ -1344,6 +1344,41 @@ fn cone_cone<T: Decide>(
 ) -> Section<T> {
     const APEX: &str = "section_cone_pair_apex";
     const APERTURE: &str = "section_cone_pair_aperture";
+    const COMMON: &str = "section_cone_pair_common_apex";
+    const RULINGS: &str = "section_cone_pair_common_rulings";
+    // One apex, axes apart (parallel ones through one apex are the
+    // coaxial arm's): both forms are homogeneous about the apex, so the
+    // section is the lines through it both double cones hold, each a
+    // ruling `d` with `d·a₁ = ±cos α₁` and `d·a₂ = ±cos α₂`
+    // ([`geom_brep::cone_cone_apex_meeting`] for each pairing of
+    // nappes). None: the cones touch at the apex alone. Otherwise each
+    // line is an unbounded component, as the plane's line pair through an
+    // apex is ([`cone_plane`]). A pairing that touches along a ruling is
+    // R-tan.
+    if !parallel && sign(COMMON, Margin::of((one.apex - two.apex).norm()), band) == Some(Sign::Zero)
+    {
+        let lever = one.reach_lever(reach).max(two.reach_lever(reach));
+        let mut lines = 0;
+        for a2 in [two.a, -two.a] {
+            let m = geom_brep::cone_cone_apex_meeting((one.a, one.sc.1), (a2, two.sc.1));
+            match sign(RULINGS, Margin::levered(m.disc, lever), band) {
+                Some(Sign::Positive) => lines += 2,
+                Some(Sign::Negative) => {}
+                Some(Sign::Zero) | None => return Section::Tangent(RULINGS),
+            }
+        }
+        if lines == 0 {
+            return Section::Touch(Touch {
+                name: COMMON,
+                at: one.apex,
+            });
+        }
+        let c = Component::closed_form(true, [false, false], None);
+        return Section::Components {
+            parts: vec![c; lines],
+            single: false,
+        };
+    }
     if let Err(tan) = signs(
         [
             (APEX, two.elevation(one.apex)),
