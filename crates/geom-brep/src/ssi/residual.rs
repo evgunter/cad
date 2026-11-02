@@ -409,13 +409,15 @@ mod tests {
     }
 
     /// **The torus's metres are read only on a ring torus, and bound the
-    /// distance both ways off its equators.** A spindle torus refuses at
-    /// the door. On the ring torus `(1, 0.9)`, at a point `1e-6` off its
-    /// tube at meridian angle 120°, where the far circle's term rules the
-    /// divisor, the ceiling bounds the distance from above within a half
-    /// over it and the floor from below. Red against the guard dropped,
-    /// and against the ceiling read through the floor's divisor (it then
-    /// reads under the distance).
+    /// distance both ways.** A spindle torus refuses at the door. On the
+    /// ring torus `(1, 0.9)`, a point `1e-6` off its tube on the inner
+    /// equator, read over the box that also holds the outer equator's
+    /// point: the ceiling at the inner point's `|f|` bounds its distance
+    /// from above, at the box's least radial reach, and the floor at the
+    /// point bounds it from below. The divisor's upper bound over the box
+    /// is the outer equator's, five times the inner's. Red against the
+    /// guard dropped, and against the ceiling read through the floor's
+    /// divisor (it then reads a fifth of the distance).
     #[test]
     fn a_torus_reads_metres_only_as_a_ring() {
         assert!(
@@ -424,14 +426,21 @@ mod tests {
         );
         let ring = Curved::of(&torus(1.0, 0.9)).expect("a ring torus");
         let off = 1e-6;
-        let a = 2.0 * std::f64::consts::FRAC_PI_3;
-        let rho = 0.9 + off;
-        let q = ring.framed_point(Point3::new(1.0 + rho * a.cos(), 0.0, rho * a.sin()));
-        let f = ring.value(q);
+        let inner = ring.framed_point(Point3::new(0.1 - off, 0.0, 0.0));
+        let outer = ring.framed_point(Point3::new(1.9, 0.0, 0.0));
+        let hull = |a: geom_core::Interval, b: geom_core::Interval| {
+            geom_core::Interval::from_bounds(a.lo().min(b.lo()), a.hi().max(b.hi()))
+        };
+        let q = Vec3::new(
+            hull(inner.x, outer.x),
+            hull(inner.y, outer.y),
+            hull(inner.z, outer.z),
+        );
+        let f = ring.value(inner);
         let ceiling = ring.ceiling_metres(f.lo().abs().max(f.hi().abs()), q);
-        let floor = ring.floor_metres(f, q);
+        let floor = ring.floor_metres(f, inner);
         assert!(
-            off * (1.0 - 1e-6) <= ceiling && ceiling <= 1.5 * off,
+            off * (1.0 - 1e-6) <= ceiling && ceiling <= 2.0 * off,
             "the ceiling {ceiling:e} against the distance {off:e}"
         );
         assert!(

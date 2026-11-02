@@ -552,27 +552,35 @@ fn a_wall_leaving_a_large_cylinder_in_the_band_is_held_tangent() {
     );
 }
 
-/// **An interior touch with a large sphere is no exclusion.** The dome
-/// `z = −(x − ½)² − (y − ½)²` under the sphere of radius 100 whose
-/// lowest point stands `ε/2` above the dome's top: the top is a critical
-/// point of `φ` within the band, neither regular nor excluded at the
-/// floor, and the sweep declines there (stage 2 decides it a touch). The
-/// form at the top is `2R·ε/2`, a hundred bands, so a sweep excluding on
-/// the raw form reads the top's cells past the band, joins them to the
-/// sides and clears the pose with no component. Red against the sweep's
-/// exclusion read on the raw form rather than in metres.
+/// **A touch with a large sphere at the wall's side is no exclusion.**
+/// The half dome `z = −(x − ½)² − y²` over the unit square, its top on
+/// the `y = 0` side, under the sphere of radius 100 whose lowest point
+/// stands `4ε` above that top. The side never meets the sphere, so the
+/// pass finds no end. The top is a critical point of `φ` within the band:
+/// its cells at the accounting floor read in band in metres, neither
+/// regular nor excluded, and the sweep declines there. The raw form there
+/// is `2R·4ε`, eight hundred bands. A sweep excluding on the raw form
+/// reads the top's cells excluded, and since they lie on the rectangle's
+/// side, they join it and the pose clears with no component.
+///
+/// The touch stands on the side because, inside the rectangle, the
+/// excluded top would be ringed by cells read regular, which the join
+/// does not walk (SPLICE's
+/// `the-plane-spline-sweep-declines-a-loop-free-dome-beside-a-saddle`), so
+/// the pose would decline either way. Red against the sweep's exclusion
+/// read on the raw form rather than in metres.
 #[test]
-fn an_interior_touch_with_a_large_sphere_is_no_exclusion() {
-    let g = [-0.25, 0.25, -0.25];
+fn a_touch_with_a_large_sphere_at_a_side_is_no_exclusion() {
+    let (gx, gy) = ([-0.25, 0.25, -0.25], [0.0, 0.0, -1.0]);
     #[allow(clippy::cast_precision_loss)]
-    let dome = patch(2, 2, &|i, j| {
-        (pt(0.5 * i as f64, 0.5 * j as f64, g[i] + g[j]), 1.0)
+    let half_dome = patch(2, 2, &|i, j| {
+        (pt(0.5 * i as f64, 0.5 * j as f64, gx[i] + gy[j]), 1.0)
     });
-    let above = 100.0 + 0.5 * band().zero();
-    let got = read(&dome, &sphere(pt(0.5, 0.5, above), 100.0));
+    let above = 100.0 + 4.0 * band().zero();
+    let got = read(&half_dome, &sphere(pt(0.5, 0.0, above), 100.0));
     assert!(
         matches!(got, Err(SectionError::RoutesToGeneralRung { .. })),
-        "a dome touching a large sphere within the band reads {got:?}"
+        "a half dome touching a large sphere within the band reads {got:?}"
     );
 }
 
