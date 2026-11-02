@@ -63,3 +63,23 @@ Newest entries at the bottom; the tail is the program's live status.
 - 2026-11-02 — **Transform fork reconciled** (fork row 233; three designers, two rounds). All three recommend the same final state: Transform retires into the placement editor (Edit door on a copy's bundle, Create door with no mates on an unplaced body; the axis-and-angle input goes). One split remains, on clarifying `docs/DESIGN.md` `[placement.placement]`, and it goes to Ev. Round 1 found the sentence's general reading came from an agent-written edit, `e48cb88cad`, which dropped "(today's `Transform`)". B and C recommend the clarification; A offers it as optional. The `[ev]` PR states it by editing the sentence. **Interim: nothing is built before the editor.** The alternative, refusing Transform on a copy now, stops the stacking on main but is a stopgap thrown away one unit later, and nothing is released. (PLACING orchestrator)
 - 2026-11-02 — Ev answered `[ev]` 6281. The Transform decision stands and DESIGN.md does not change ("the current state seems pretty clearly in violation of what's already written there"). Ev asked "can you see if anything similar also got missed?" by the INTENT refactor. A read-only sweep lane is dispatched for consumers (gestures, API doors, Python, demos, tests) where something INTENT retired or ruled survives under another name; its findings are filed as rows. (PLACING orchestrator)
 - 2026-11-02 — PR 6280's review (single FULL) found it not mergeable. Its probe rows are on `placing/gesture-placements-review-6280`. **Class finding:** the delete's hand-back infers "what took a body over" from node shape (`taken_body`, a second census of the takeover gestures), so it splices readers no takeover touched (M1: a feature on a transform of a copy deletes the transform; m1: deleting a duplicate re-points a hand placement). **Coupled:** DOORS' `take_over` door writes rebinds, which an inverse must undo too (m3). Decision, sequencing: `deleting-a-placed-feature-unplaces-its-target` is parked on DOORS' `a-mate-on-a-taken-over-copys-face-goes-stale` with `design: true`, and PR 6280 goes back to draft. The question (where a takeover's inverse lives and what it reads) goes to designers once that door's shape is fixed. The alternative, a fix pass now that narrows the shape census, would leave a census in place and still owe the rebind inverse. **Friction:** the session's disk allowance ran out with three lanes' targets (13 + 7 + 5 GB) live; the two finished lanes' targets were reclaimed. (PLACING orchestrator)
+- 2026-11-02 — **The INTENT sweep Ev asked for on 6281 is in.** The report is kept at `~/.local/share/cad-work/placing-intent-sweep-report.md` on this box; what matters is filed.
+  - **New rows:**
+    - `a-duplicate-freezes-a-mated-copy-into-literal-values` (P1 M, design): Duplicate snapshots a copy's solved motion as literals and drops its mates.
+    - `the-mate-snap-overwrites-held-values-with-measured-literals` (P1 M, rides with the editor): committing a mate unlinks values that read variables.
+    - `a-linear-patterns-direction-components-land-in-its-slides` (P1 M): direction components stored in slides, unnormalized.
+    - CHROME's `the-at-rest-badge-shows-only-for-documents-that-instantiate-a-part` (P1 M).
+    - `work/issues/intent-retired-machinery-is-still-described-as-live` (P4 C, with a P3 Python `Frame` half for LIB).
+  - **Evidence added** to HELD's `the-viewers-numeric-gestures-read-a-frame-back-off-geometry` (a third caller, plus a Python twin), to SPACES' `the-projection-tool-writes-a-member-read-a-pick-already-seats` (`Node::Part` rebuilt as an identity `Place`; P1 suggested) and to the Transform row (`in_one_space`'s `self_placed` branch).
+  - **Class:** INTENT landed its retirements in the kernel's node vocabulary, and the consumers (gestures, the Python helpers, prose) were never re-read against the principle. Every finding is a gesture or helper that reads geometry or an evaluation back as literals, or rebuilds a retired node's job.
+  - **Blind spots the sweep names**, with a second pass owed:
+    - `crates/viewer/src/pane/` and `app/`: forms prefilling from an evaluation.
+    - editor-core `refactor.rs` extract: lands in `VarId::WORLD` from a non-world space?
+    - stacked moves in editor-core and pncad tests: needs the doc API, not grep.
+    - pncad-py `src/py/*.rs` evaluate-then-edit paths.
+    - `snap.rs`'s least turn against `editor_core::mate::value::Chart`: a semantic duplicate.
+    - the unbuilt `Node::Sweep`'s two profiles' planes.
+
+    The second pass is a later dispatch; it is logged here so it is not lost.
+
+  (PLACING orchestrator)
