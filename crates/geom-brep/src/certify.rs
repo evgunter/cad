@@ -3028,10 +3028,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 // both surfaces as its parent did.
                 EdgeDescription::OnPair { pair } => EdgeDescriptionSpec::OnPair {
                     pair,
-                    declared: match self.authority {
-                        EdgeAuthority::Declared(mc) => Some(mc.restrict(s0, s1)),
-                        EdgeAuthority::Derived => None,
-                    },
+                    declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
                 },
                 // A chart image is a function of the CARRIER's own
                 // parameter, and splitting an edge changes the
@@ -3044,10 +3041,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                     surface: c.surface,
                     image: Some(c.pcurve.clone()),
                     wrap: c.wrap,
-                    declared: match self.authority {
-                        EdgeAuthority::Declared(mc) => Some(mc.restrict(s0, s1)),
-                        EdgeAuthority::Derived => None,
-                    },
+                    declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
                 },
             };
             EdgeCurveSpec {
@@ -3089,11 +3083,12 @@ impl<T: Real> EdgeCurve<T> {
     /// names a chart it lies in.
     #[must_use]
     pub fn restated_in_chart(&self, surface: SurfaceKey) -> EdgeCurveSpec<T> {
-        let chart = EdgeDescriptionSpec::chart(surface);
         EdgeCurveSpec {
-            description: match self.authority {
-                EdgeAuthority::Declared(mc) => chart.declared_by(mc),
-                EdgeAuthority::Derived => chart,
+            description: EdgeDescriptionSpec::Chart {
+                surface,
+                image: None,
+                wrap: false,
+                declared: self.authority.declared(),
             },
             ..self.restated_spec()
         }
@@ -3117,12 +3112,11 @@ impl<T: Real> EdgeCurve<T> {
     /// names them.
     #[must_use]
     pub fn restated_on_pair(&self, pair: crate::SurfacePair) -> EdgeCurveSpec<T> {
-        let declared = match self.authority {
-            EdgeAuthority::Declared(mc) => Some(mc),
-            EdgeAuthority::Derived => None,
-        };
         EdgeCurveSpec {
-            description: EdgeDescriptionSpec::OnPair { pair, declared },
+            description: EdgeDescriptionSpec::OnPair {
+                pair,
+                declared: self.authority.declared(),
+            },
             ..self.restated_spec()
         }
     }
@@ -3140,10 +3134,7 @@ impl<T: Real> EdgeCurve<T> {
     /// derives a wrap edge's against the moved one).
     #[must_use]
     pub fn restated_description(&self) -> EdgeDescriptionSpec<T> {
-        let declared = match self.authority {
-            EdgeAuthority::Declared(mc) => Some(mc),
-            EdgeAuthority::Derived => None,
-        };
+        let declared = self.authority.declared();
         match self.description {
             EdgeDescription::Intersection { pair, ref selector } => {
                 EdgeDescriptionSpec::Intersection {
