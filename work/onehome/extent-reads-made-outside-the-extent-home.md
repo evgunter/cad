@@ -33,3 +33,14 @@ dimensionless readings are still levered without `Margin::levered`:
   (`InfSpeed`); `pcurve_cache`'s fidelity twin and focal `beta` meter
   definite claims at a sup rate; `props::curved` `fold_torus_pieces`
   uses the tube radius as the rate of rim pieces too (`R ± r·cos v`).
+
+**Second pass** (a grep for `Margin::of(` over a product with an arm or a
+trigonometric reading, production code): `topo::shell` `walls_cross`
+(`Margin::of(cross.norm() * lever)`, the lever three wall spans summed
+through `gate_measured`), `boolean::join` `SEAM_GERM_SIDE`
+(`into_region.dot(n_f) * len`), `boolean::reduce` (`disc / (a2·reach)`,
+a reciprocal arm), `geom_brep::half_angle` `root_reach`
+(`2·speed_hi·reach`, a rate times a reach). Each levers a pure number
+outside `Margin::levered`, so its arm names no source and the gate
+cannot see it. What the grep cannot match: a product computed into a
+variable first and handed to `Margin::of` by name.
