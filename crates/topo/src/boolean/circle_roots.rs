@@ -358,6 +358,9 @@ impl<T: Decide> HarmonicRoot<T> {
     pub(super) fn from(&self, t: T) -> T {
         let tau = T::tau();
         let (base, opposite) = self.raw;
+        if crate::review_mutant("fromold") {
+            return ((T::zero() - self.cos_part).select_le_zero(base, opposite) - t).reduce_periodic_centred(tau);
+        }
         (T::zero() - self.cos_part).select_le_zero(
             (base - t).reduce_periodic_centred(tau),
             (opposite - t).reduce_periodic_centred(tau),

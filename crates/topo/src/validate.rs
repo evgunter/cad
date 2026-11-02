@@ -8423,20 +8423,22 @@ pub(crate) fn tier3_local_checks_marked<
                 }
                 Ok(Some(_)) => {}
                 Ok(None) => match crate::boolean::cycle_side(body, face, &every, x, band) {
-                    Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => {
+                    Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) if !crate::review_mutant("inpass") => {
                         errors.push(ValidationError::ChartSingularityNotAVertex {
                             face,
                             point,
                             lies: SingularityLies::Interior,
                         });
                     }
-                    Err(ContainError::Escalated { diag, .. }) => {
+                    Err(ContainError::Escalated { diag, .. }) if !crate::review_mutant("escexempt") => {
                         errors.push(ValidationError::ChartSingularityUndecided {
                             face,
                             point,
                             reading: Undecided::Side(SideUnread::Banded(diag)),
                         });
                     }
+                    Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => {}
+                    Err(ContainError::Escalated { .. }) => {}
                     // Outside; or on the door's own boundary reading
                     // where the incidence reading placed it off, which
                     // reads no side; or a face no door reads.

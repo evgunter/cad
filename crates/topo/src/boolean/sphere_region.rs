@@ -270,6 +270,7 @@ impl<T: Decide> SphereFaceRegion<T> {
                 },
             )
         });
+        let paths = paths.take(if crate::review_mutant("nopaths") { 0 } else { usize::MAX });
         ray_walk::walk(
             rays.chain(paths),
             |probe| match probe {
@@ -442,14 +443,14 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         let first = self.ray(a, side).course;
         let corner = self.center + (a * cos + side * sin) * self.radius;
         let end = End {
-            place: first.arc(corner),
+            place: if crate::review_mutant("corner") { first.arc(corner) + self.radius * T::pi() } else { first.arc(corner) },
             row: "bool_sphere_region_corner",
         };
         let (center, radius) = (self.center, self.radius);
         let then = move || {
             let normal = if then_forward { a } else { -a };
             Leg::whole(Round {
-                center: center + a * (radius * cos),
+                center: if crate::review_mutant("parcenter") { center } else { center + a * (radius * cos) },
                 normal,
                 radius: radius * sin,
                 e1: side,
@@ -517,7 +518,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         let roots = first_harmonic_root_directions(
             &FirstHarmonic::circle_off_plane(
                 (center, axis, radius, u_ref),
-                (ray.course.center, ray.course.normal),
+                (if crate::review_mutant("center") { self.center } else { ray.course.center }, ray.course.normal),
             ),
             radius,
             &ROOT_ROWS,
@@ -1209,5 +1210,306 @@ mod tests {
             crate::boolean::region::fixture_turn_interval,
             geom_core::Bounds::hi,
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::type_complexity)]
+mod review_probe {
+    use super::*;
+    use crate::entity::EdgeKey;
+    use slotmap::KeyData;
+    use std::f64::consts::{FRAC_PI_2, PI, TAU};
+
+    type V = [f64; 3];
+    fn rot(beta: f64, v: V) -> V {
+        // rotate about x by beta, then about z by 0.3*beta-ish fixed gamma
+        let (s, c) = beta.sin_cos();
+        let v = [v[0], c * v[1] - s * v[2], s * v[1] + c * v[2]];
+        let (s2, c2) = (0.37f64).sin_cos();
+        let v = if beta == 0.0 { v } else { [c2 * v[0] - s2 * v[1], s2 * v[0] + c2 * v[1], v[2]] };
+        v
+    }
+    fn unrot(beta: f64, v: V) -> V {
+        let v = if beta == 0.0 { v } else {
+            let (s2, c2) = (0.37f64).sin_cos();
+            [c2 * v[0] + s2 * v[1], -s2 * v[0] + c2 * v[1], v[2]]
+        };
+        let (s, c) = beta.sin_cos();
+        [v[0], c * v[1] + s * v[2], -s * v[1] + c * v[2]]
+    }
+
+    /// (center-offset, axis, radius, u_ref, t0, t1, forward) in unit-sphere frame
+    type Spec = (V, V, f64, V, f64, f64, bool);
+
+    fn build<T: Decide>(
+        specs: &[Spec],
+        beta: f64,
+        c: V,
+        r: f64,
+        sense: bool,
+        turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+    ) -> SphereFaceRegion<T> {
+        let l = T::from_f64;
+        let p3 = |v: V| Point3::new(l(v[0]), l(v[1]), l(v[2]));
+        let v3 = |v: V| Vec3::new(l(v[0]), l(v[1]), l(v[2]));
+        let edges = specs
+            .iter()
+            .enumerate()
+            .map(|(k, &(cen, ax, rad, u, t0, t1, fwd))| {
+                let cen = rot(beta, cen);
+                RegionEdge {
+                    edge: EdgeKey::from(KeyData::from_ffi(k as u64 + 1)),
+                    r#loop: LoopKey::default(),
+                    cycle: 0,
+                    carrier: geom::Curve3::Circle {
+                        center: p3([c[0] + r * cen[0], c[1] + r * cen[1], c[2] + r * cen[2]]),
+                        axis: v3(rot(beta, ax)),
+                        radius: l(r * rad),
+                        u_ref: v3(rot(beta, u)),
+                    },
+                    t0: l(t0),
+                    t1: l(t1),
+                    turn: turn(t0, t1),
+                    forward: fwd,
+                }
+            })
+            .collect();
+        SphereFaceRegion { center: p3(c), radius: l(r), sense, outer: LoopKey::default(), edges }
+    }
+
+    fn sph(polar: f64, az: f64) -> V {
+        [polar.sin() * az.cos(), polar.sin() * az.sin(), polar.cos()]
+    }
+    fn polar_az(v: V) -> (f64, f64) {
+        let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+        ((v[2] / n).clamp(-1.0, 1.0).acos(), v[1].atan2(v[0]).rem_euclid(TAU))
+    }
+    fn ang(a: V, b: V) -> f64 {
+        let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        let x = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+        (x[0] * x[0] + x[1] * x[1] + x[2] * x[2]).sqrt().atan2(d)
+    }
+
+    /// A face: arcs, plus truth (in?, angular distance to boundary) in face frame
+    struct Shape {
+        name: String,
+        specs: Vec<Spec>,
+        truth: Box<dyn Fn(V) -> (bool, f64)>,
+    }
+
+    fn meridian(az: f64, t0: f64, t1: f64, fwd: bool) -> Spec {
+        ([0.0; 3], [-az.sin(), az.cos(), 0.0], 1.0, [0.0, 0.0, 1.0], t0, t1, fwd)
+    }
+    /// parallel at polar `top` from az `hi` down to az `lo` (axis -z)
+    fn parallel_down(top: f64, lo: f64, hi: f64, fwd: bool) -> Spec {
+        ([0.0, 0.0, top.cos()], [0.0, 0.0, -1.0], top.sin(), [hi.cos(), hi.sin(), 0.0], 0.0, hi - lo, fwd)
+    }
+    fn in_az(az: f64, lo: f64, w: f64) -> (bool, f64) {
+        let d = (az - lo).rem_euclid(TAU);
+        (d < w, d.min((d - w).abs()).min(TAU - d))
+    }
+
+    /// lune [lo, lo+w] in azimuth, polar from `top` to π (south pole vertex); top=0 → pole to pole
+    fn lune(lo: f64, w: f64, top: f64, flip: bool) -> Shape {
+        let hi = lo + w;
+        let mut specs = vec![meridian(lo, top, PI, !flip), meridian(hi, top, PI, flip)];
+        if top > 0.0 {
+            specs.push(parallel_down(top, lo, hi, !flip));
+        }
+        Shape {
+            name: format!("lune w={w:e} top={top} flip={flip}"),
+            specs,
+            truth: Box::new(move |v| {
+                let (th, az) = polar_az(v);
+                let (ina, da) = in_az(az, lo, w);
+                let inside = ina && th > top;
+                // distance: crude angular distance lower bound
+                let dm = (da * th.sin()).min(PI - th + 0.0).max(0.0);
+                let dm = if inside { dm.min(th - top) } else { dm.max(if th < top { top - th } else { 0.0 }) };
+                // for points: distance to meridian arcs approx sin(th)*da; to vertex PI-th
+                let dvert = PI - th;
+                let d = if top > 0.0 { dm.min(dvert.max(0.0)).min((th - top).abs()) } else { dm.min(dvert).min(th) };
+                (inside != flip, d)
+            }),
+        }
+    }
+
+    /// cap about axis n (polar alpha, az 0) of angular radius rho
+    fn cap(alpha: f64, rho: f64, flip: bool) -> Shape {
+        let n = sph(alpha, 0.0);
+        let u = sph(alpha + FRAC_PI_2, 0.0);
+        Shape {
+            name: format!("cap alpha={alpha} rho={rho} flip={flip}"),
+            specs: vec![([n[0] * rho.cos(), n[1] * rho.cos(), n[2] * rho.cos()], n, rho.sin(), u, 0.0, TAU, !flip)],
+            truth: Box::new(move |v| {
+                let a = ang(v, n);
+                ((a < rho) != flip, (a - rho).abs())
+            }),
+        }
+    }
+
+    /// zone between rho1<rho2 about tilted axis
+    fn zone(alpha: f64, rho1: f64, rho2: f64, flip: bool) -> Shape {
+        let n = sph(alpha, 0.0);
+        let u = sph(alpha + FRAC_PI_2, 0.0);
+        let c = |r: f64| [n[0] * r.cos(), n[1] * r.cos(), n[2] * r.cos()];
+        Shape {
+            name: format!("zone alpha={alpha} {rho1}..{rho2} flip={flip}"),
+            specs: vec![(c(rho1), n, rho1.sin(), u, 0.0, TAU, flip), (c(rho2), n, rho2.sin(), u, 0.0, TAU, !flip)],
+            truth: Box::new(move |v| {
+                let a = ang(v, n);
+                (((a > rho1) && (a < rho2)) != flip, (a - rho1).abs().min((a - rho2).abs()))
+            }),
+        }
+    }
+
+    fn shapes() -> Vec<Shape> {
+        let mut out = Vec::new();
+        for flip in [false, true] {
+            for w in [2.0f64, 1.0, 0.5, 0.1, 0.01] {
+                let w = w.to_radians();
+                out.push(lune(1.0, w, FRAC_PI_2, flip)); // equator to south pole (blend4 shape)
+                out.push(lune(4.0, w, 0.0, flip)); // pole to pole
+                out.push(lune(2.5, w, 2.0, flip)); // short, near south pole
+            }
+            for d in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6] {
+                out.push(cap(0.5, 0.5 + d, flip));
+                out.push(cap(0.5, 0.5 - d, flip));
+                out.push(zone(0.4, 0.4 - d, 1.0, flip));
+                out.push(zone(0.4, 0.4 + d, 1.0, flip));
+                out.push(zone(1.2, 0.3, 1.2 - d, flip));
+            }
+        }
+        out
+    }
+
+    fn queries() -> Vec<V> {
+        let mut q = vec![[0.0, 0.0, 1.0], [0.0, 0.0, -1.0]];
+        for off in [1e-1, 1e-2, 1e-3, 1e-4, 1e-6, 1e-8] {
+            for k in 0..12 {
+                let az = k as f64 * TAU / 12.0 + 0.1;
+                q.push(sph(off, az));
+                q.push(sph(PI - off, az));
+            }
+        }
+        // lune-interior-ish and generic
+        for i in 0..60 {
+            let th = 0.05 + (PI - 0.1) * ((i as f64 * 0.618034).fract());
+            let az = TAU * ((i as f64 * 0.414214).fract());
+            q.push(sph(th, az));
+        }
+        for az in [1.0f64, 2.5, 4.0] {
+            for dw in [0.5e-4f64, 0.5e-3, 0.5e-2, 0.5e-1] {
+                for th in [FRAC_PI_2 + 0.3, 2.5, PI - 0.05, 0.5] {
+                    q.push(sph(th, az + dw.to_radians()));
+                    q.push(sph(th, az + 0.5f64.to_radians()));
+                }
+            }
+        }
+        q
+    }
+
+    fn arc_dist(specs: &[Spec], x: V) -> f64 {
+        let sub = |a: V, b: V| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+        let dot = |a: V, b: V| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        let cross = |a: V, b: V| [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+        let norm = |a: V| dot(a, a).sqrt();
+        let mut best = f64::INFINITY;
+        for &(c, n, rho, u, t0, t1, _) in specs {
+            let v = cross(n, u);
+            let at = |t: f64| { let (s, co) = t.sin_cos(); [c[0] + rho * (u[0] * co + v[0] * s), c[1] + rho * (u[1] * co + v[1] * s), c[2] + rho * (u[2] * co + v[2] * s)] };
+            let w = sub(x, c);
+            let t = dot(w, v).atan2(dot(w, u));
+            let tt = t0 + (t - t0).rem_euclid(TAU);
+            let mut d = norm(sub(x, at(t0))).min(norm(sub(x, at(t1))));
+            if tt <= t1 { d = d.min(norm(sub(x, at(tt)))); }
+            best = best.min(d);
+        }
+        best
+    }
+
+    fn run<T: Decide>(scalar: &str, turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>) {
+        let l = T::from_f64;
+        let mut wrong = Vec::new();
+        let mut refused = Vec::new();
+        let mut n = 0usize;
+        for eps in [1e-6, 1e-9, 1e-12] {
+            for (c, r) in [([0.0; 3], 1.0), ([3.0, -2.0, 5.0], 8.726e-4)] {
+                let band = Band::new(eps, 10.0 * eps).unwrap();
+                for beta in [0.0, 1e-3, 1e-6] {
+                    for shape in shapes() {
+                        for sense in [true, false] {
+                            let region = build::<T>(&shape.specs, beta, c, r, sense, turn);
+                            for &qv in &queries() {
+                                // qv is in world (unrotated) unit frame; face frame = unrot
+                                let (inside, _) = (shape.truth)(unrot(beta, qv));
+                                let d = arc_dist(&shape.specs, unrot(beta, qv));
+                                let want = inside == sense; // sense false flips the side
+                                let p = Point3::new(l(c[0] + r * qv[0]), l(c[1] + r * qv[1]), l(c[2] + r * qv[2]));
+                                n += 1;
+                                let got = region.contains(p, band);
+                                let tag = format!("{scalar} eps={eps:e} R={r} beta={beta:e} {} sense={sense} q={qv:?} d={d:e}", shape.name);
+                                match got {
+                                    Ok(Some(b)) if b != want && d * r > 20.0 * eps => wrong.push(format!("WRONG got {b}: {tag}")),
+                                    Ok(None) if d * r > 20.0 * eps => wrong.push(format!("ON?: {tag}")),
+                                    Err(e) if d * r > 1e3 * eps => refused.push(format!("REFUSED {e:?}: {tag}")),
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if let Ok(dir) = std::env::var("PROBE_OUT") {
+            std::fs::write(format!("{dir}_{scalar}.txt"), refused.join("\n")).unwrap();
+        }
+        eprintln!("{scalar}: {n} readings, {} wrong, {} refused far from boundary", wrong.len(), refused.len());
+        for w in wrong.iter().take(40) { eprintln!("{w}"); }
+        for w in refused.iter().take(60) { eprintln!("{w}"); }
+        let poles: Vec<_> = refused.iter().filter(|s| s.contains("q=[0.0, 0.0,")).collect();
+        eprintln!("{scalar}: refused at exact poles: {}", poles.len());
+        for w in poles.iter().take(40) { eprintln!("{w}"); }
+        assert!(wrong.is_empty());
+    }
+
+    #[test]
+    fn probe_f64() {
+        run::<f64>("f64", crate::boolean::region::fixture_turn);
+    }
+    #[test]
+    fn probe_interval() {
+        run::<geom_core::Interval>("Interval", crate::boolean::region::fixture_turn_interval);
+    }
+
+    #[test]
+    fn probe_paths_near_antipode() {
+        let r = 8.726e-4;
+        let c = [3.0, -2.0, 5.0];
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        for w in [1.0f64, 2.0] {
+            let shape = lune(1.0, w.to_radians(), FRAC_PI_2, false);
+            let region = build::<f64>(&shape.specs, 0.0, c, r, true, crate::boolean::region::fixture_turn);
+            for off in [0.0, 1e-4, 1e-3, 3e-3, 1e-2, 3e-2] {
+                let qv = sph(off, 1.0 + 0.5 * w.to_radians() + 2.0);
+                let p = Point3::new(c[0] + r * qv[0], c[1] + r * qv[1], c[2] + r * qv[2]);
+                let mut tally = std::collections::BTreeMap::<String, usize>::new();
+                for target in targets(&region.edges).collect::<Vec<_>>() {
+                    for (ff, tf) in [(true, true), (true, false), (false, true), (false, false)] {
+                        let path = Path::Aimed { target, parallel_first: false, first_forward: ff, then_forward: tf };
+                        // first leg alone
+                        let got = region::read_path(&region, p, path, band);
+                        let key = match &got {
+                            Ok(b) => format!("Ok({b})"),
+                            Err(RayFault::InBand(RegionRefusal::Escalated(d))) => format!("InBand({:?})", d.predicate),
+                            Err(e) => format!("{e:?}").chars().take(30).collect(),
+                        };
+                        *tally.entry(key).or_default() += 1;
+                    }
+                }
+                eprintln!("w={w}deg off={off:e}: contains={:?} paths={tally:?}", region.contains(p, band).map_err(|e| format!("{e:?}").chars().take(60).collect::<String>()));
+            }
+        }
     }
 }
