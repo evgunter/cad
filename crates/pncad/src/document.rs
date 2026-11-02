@@ -81,7 +81,9 @@
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
 // arm can name what it caught; `LoftFault` is the same for
-// `EditError::LoftShape`.
+// `EditError::LoftShape`. `SectionId` and `SectionIdFault` are the same
+// pair for `DocEdit::SetLoftSections` and
+// `EditError::SectionIdsRefused`.
 // `AuthoredStep` is how an author who recorded a step reaches its id
 // and its pieces (`ProfileProgram::step`, `ProfileProgram::piece`) and
 // keeps it across a reshaping (`keep_grid`); `StepHandleRefusal` is
@@ -90,7 +92,8 @@
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoftFault,
     Maintenance, MaintenanceNet, MetaVersionError, ProductReadFault, ProgramRefusal, Recorded,
-    Recording, SlotValue, StepId, StepIdFault, Took, apply, apply_replayed,
+    Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
+    apply_replayed,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -323,12 +326,14 @@ pub use editor_core::DocParamField;
 // frame it computed in, which a payload holds wherever it holds a body;
 // `EvalCounters` counts what an evaluation built (a copy builds
 // nothing); `ComputingTwist` is `EvalOptions::computing_twist`'s type,
-// the second computing frame a test runs an evaluation in.
+// the second computing frame a test runs an evaluation in;
+// `DEFAULT_MEMBER_BUDGET` is `EvalOptions::member_budget`'s one default,
+// which a caller raising or lowering the budget reads it against.
 pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
-    DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation, Framed, Mispaired,
-    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    PoseValue, SplitSide, ValuePayload, evaluate,
+    DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
+    Framed, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
+    NodeStanding, NodeValue, PoseValue, SplitSide, ValuePayload, evaluate,
 };
 // What a body value carries from its source (`NodeValue::carry`), and
 // the pieces it holds: what a `⊔` grafted, each by its read, which a
@@ -344,7 +349,7 @@ pub use editor_core::{Carry, Piece, Pieces};
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
-    SelectionBodyFault, SnapshotError, load, save,
+    SectionIdBreak, SelectionBodyFault, SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as
@@ -494,7 +499,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord,
-    NodeMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
+    NodeMap, SectionMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s

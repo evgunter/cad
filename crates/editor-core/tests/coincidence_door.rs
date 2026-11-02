@@ -3575,8 +3575,25 @@ fn tag(var: VarId) -> String {
 ///
 /// Red if the edit is chosen by cell order, or names a pose no mate
 /// reaches.
+///
+/// Pinned red at every ε row: the union refuses `RingHomingAmbiguous`
+/// (`work/sect/a-union-of-two-axis-placed-revolves-refuses-ring-homing-ambiguous-since-rehome-by-path.md`).
 #[test]
 fn the_axis_edit_mates_the_copy_no_mate_reaches_in_either_cell_order() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the housing, shaft and collar union",
+        &[
+            "evaluates",
+            "UnionFoldStep { member: 2",
+            "RingHomingAmbiguous { ring: LoopKey(1v3) }",
+        ],
+        the_axis_edit_rows,
+    );
+}
+
+fn the_axis_edit_rows() {
     use crate::corpus::{Recorder, placed_in, revolved};
     use editor_core::{Coord, Dimension, Operand, TargetAxis};
     let rect = |inner: f64, outer: f64, (lo, hi): (f64, f64)| {
@@ -4029,7 +4046,9 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                             .expect("an edge has a carrier")
                         {
                             Curve3::Circle { center, axis, .. } => line_on(*center, Some(*axis)),
-                            Curve3::Line { origin, dir } => line_on(*origin, Some(*dir)),
+                            Curve3::Line(geom::Line { origin, dir }) => {
+                                line_on(*origin, Some(*dir))
+                            }
                             other => {
                                 panic!("{}: an edge read about the axis on {other:?}", cd.name)
                             }

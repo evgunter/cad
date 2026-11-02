@@ -10,7 +10,9 @@ use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendKindChoice, FREEZE_NOTE};
-use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
+use crate::combine::{
+    BooleanTool, ClearanceBoundChoice, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION,
+};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternLayoutChoice, ShapeKind,
@@ -74,6 +76,43 @@ pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mu
         Tone::Advisory,
     );
     crate::widgets::message_toned(ui, PROJECTION_IS_PLACED, theme, Tone::Advisory);
+}
+
+/// **The clearance form's bound rows**: which side it bounds, then its
+/// one length — or a band's two, low then high — in the working
+/// notation. A free function over the `Ui`, so a headless row can drive
+/// it.
+pub(crate) fn clearance_bound_rows(
+    ui: &mut egui::Ui,
+    drafts: &mut Drafts,
+    notation: &mut Notation,
+) {
+    ui.horizontal(|ui| {
+        ui.label("clearance");
+        for (choice, label) in ClearanceBoundChoice::ALL {
+            ui.radio_value(&mut drafts.clearance_bound, choice, label);
+        }
+    });
+    ui.horizontal(|ui| {
+        let band = drafts.clearance_bound == ClearanceBoundChoice::Between;
+        ui.label(if band { "from" } else { "bound" });
+        unit_field(
+            ui,
+            notation.length.def(),
+            FIELD_DRAG_SPEED,
+            &mut drafts.clearance_lo,
+        );
+        if band {
+            ui.label("to");
+            unit_field(
+                ui,
+                notation.length.def(),
+                FIELD_DRAG_SPEED,
+                &mut drafts.clearance_hi,
+            );
+        }
+        length_picker(ui, "clearance_bound", &mut notation.length);
+    });
 }
 
 /// **What the duplicate tool tells a user before they click it** —
@@ -374,9 +413,13 @@ pub(crate) const COMBINE_BODIES: &str = "Combine bodies";
 /// The heading of the section whose tools reshape a body's edges.
 pub(crate) const BLEND_EDGES: &str = "Blend edges";
 
-/// The heading of the section whose tools bring in another document
-/// and place it.
+/// The heading of the section whose tools place a body: an instance of
+/// another document, the Transform tool, and the placement editor.
 pub(crate) const ASSEMBLE_PARTS: &str = "Assemble parts";
+
+/// The heading of the section whose tools record a requirement the
+/// geometry is checked against.
+pub(crate) const REQUIREMENTS: &str = "Requirements";
 
 /// **The chooser's answer, drawn**: the directory it read, then the
 /// parts on offer or what it has to say instead — and the entry that
@@ -631,8 +674,6 @@ impl ViewerBehavior<'_> {
             ui.separator();
             self.mirror_tool_ui(ui);
             ui.separator();
-            self.transform_tool_ui(ui);
-            ui.separator();
             self.pattern_tool_ui(ui);
             ui.separator();
             // Beside the pattern they read and author: a projection
@@ -649,13 +690,50 @@ impl ViewerBehavior<'_> {
         ui.collapsing(BLEND_EDGES, |ui| {
             self.blend_tool_ui(ui);
         });
-        // The tools whose subject is another document: an instance of
-        // a part, and the mate that places one.
+        // The tools that place a body: an instance of a part, the
+        // Transform tool's door, and the placement editor it opens.
         ui.collapsing(ASSEMBLE_PARTS, |ui| {
             self.add_part_ui(ui);
+            self.transform_tool_ui(ui);
             self.mate_tool_ui(ui);
         });
+        // The requirements: a recorded claim the geometry is checked
+        // against, which makes no body.
+        ui.collapsing(REQUIREMENTS, |ui| {
+            self.clearance_tool_ui(ui);
+        });
         ui.separator();
+    }
+
+    /// **The clearance tool's panel** — "add a clearance requirement":
+    /// its two seats, a body or a face each, held as picks
+    /// ([`crate::combine::ClearanceTool`]); which side the requirement
+    /// bounds; its one or two lengths; and the one committed edit, which
+    /// writes the assertion through the document's own door.
+    pub(crate) fn clearance_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.clearance().cloned() else {
+            return self.tool_door(ui, ToolKind::Clearance);
+        };
+        crate::widgets::message(
+            ui,
+            ToolKind::Clearance.says(
+                &"add a clearance requirement: pick a face in the picture, or a body in the tree, for each of its two seats",
+            ),
+        );
+        crate::widgets::message_toned(
+            ui,
+            tool.line(frame::landed_speaker(self.session.landed_pair())),
+            &self.theme,
+            Tone::Advisory,
+        );
+        clearance_bound_rows(ui, self.drafts, self.notation);
+        self.tool_commit_row(ui, ToolKind::Clearance, |drafts, notation| {
+            let lo = notation.length_literal(drafts.clearance_lo)?;
+            let bounds = drafts
+                .clearance_bound
+                .bounds(lo, || notation.length_literal(drafts.clearance_hi))?;
+            Ok(tool.op(bounds)?)
+        });
     }
 
     /// **The placement editor's panel**: its door, one line per mate
@@ -1591,6 +1669,9 @@ impl ViewerBehavior<'_> {
         let said = match staged {
             None | Some(Staged::Checking) => None,
             Some(Staged::Refused(refusal)) => Some(refusal.to_string()),
+            Some(Staged::Exhausted { doc, out }) => {
+                Some(format!("the staged run {}", out.said(doc)))
+            }
             Some(Staged::Evaluated {
                 node, evaluation, ..
             }) => match tree::split_reading(evaluation, node) {
@@ -1649,54 +1730,35 @@ impl ViewerBehavior<'_> {
         self.tool_commit_row(ui, ToolKind::Mirror, |_, _| Ok(tool.op()?));
     }
 
-    /// The transform tool's panel: one body pick plus the placement
-    /// fields, and the one committed edit.
+    /// **The Transform tool's panel**: its one pick, which opens the
+    /// placement editor on the body or the copy picked
+    /// ([`crate::matetool::MateTool::moving`]); a split picked whole
+    /// asks which half is the body. Cancel closes it.
     pub(crate) fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(tool) = self.tools.transform() else {
+        let Some(split) = self
+            .tools
+            .transform()
+            .map(|tool| tool.awaiting_half().cloned())
+        else {
             return self.tool_door(ui, ToolKind::Transform);
         };
-        crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
-        if let Some((seat, half)) = seats_row(
+        crate::widgets::message(
             ui,
-            tool.seats(),
-            frame::landed_speaker(self.session.landed_pair()),
-            &self.theme,
-        ) {
-            self.tools.choose_half(seat, half);
-        }
-        ui.horizontal(|ui| {
-            unit_vec3_row(
-                ui,
-                "translation",
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.transform_translation,
-            );
-            length_picker(ui, "transform_translation", &mut self.notation.length);
-        });
-        vec3_row(
-            ui,
-            "rotation axis",
-            UNIT_DRAG_SPEED,
-            &mut self.drafts.transform_axis,
+            ToolKind::Transform.says(&"pick the body or the copy to move"),
         );
-        ui.horizontal(|ui| {
-            ui.label("rotation angle");
-            unit_field(
-                ui,
-                self.notation.angle.def(),
-                ANGLE_DRAG_SPEED,
-                &mut self.drafts.transform_angle,
-            );
-            angle_picker(ui, "transform_angle", &mut self.notation.angle);
-        });
-        self.tool_commit_row(ui, ToolKind::Transform, |drafts, notation| {
-            Ok(tool.op(
-                notation.length_literals(drafts.transform_translation)?,
-                scalars(drafts.transform_axis)?,
-                notation.angle_literal(drafts.transform_angle)?,
-            )?)
-        });
+        let waiting = split.map(|split| (0, split.to_string()));
+        if let Some((_, half)) = half_rows(ui, waiting, &self.theme) {
+            for notice in self
+                .tools
+                .transform_half(self.session.committed_doc(), half)
+            {
+                self.notices
+                    .push(frame::tool_notice(&notice, self.session.landed_pair()));
+            }
+        }
+        if ui.button("Cancel").clicked() {
+            self.tools.close();
+        }
     }
 
     /// The pattern tool's panel: a body pick, a rule choice with its
@@ -2034,9 +2096,9 @@ impl ViewerBehavior<'_> {
 
     /// **The kind noun of the node a tool's commit creates** —
     /// `node_kind_noun`'s word, which its proposed label counts by —
-    /// or `None` for the mate tool, whose commit is a constraint in a
-    /// placement's bundle and creates no node, so its form offers no
-    /// label ([`Self::tool_commit_row`]). It is read off the tool, not
+    /// or `None` for the mate tool, whose commit writes a bundle, and
+    /// the Transform tool, which commits nothing but opens it: neither
+    /// form offers a label ([`Self::tool_commit_row`]). It is read off the tool, not
     /// the op ([`SessionOp::creates_a_node`]), because the label is
     /// offered before the picks make an op; a noun beside an op that
     /// creates no node is said at the commit ([`Self::push_labelled`]).
@@ -2048,7 +2110,7 @@ impl ViewerBehavior<'_> {
     /// of its symmetric part; the label lands there.
     fn tool_noun(&self, kind: ToolKind) -> Option<&'static str> {
         Some(match kind {
-            ToolKind::Mate => return None,
+            ToolKind::Mate | ToolKind::Transform => return None,
             ToolKind::Revolve => "Revolve",
             ToolKind::Boolean => match self.tools.boolean().map(|tool| tool.operation()) {
                 Some(BooleanOp::Union) | None => "Union",
@@ -2067,7 +2129,6 @@ impl ViewerBehavior<'_> {
                 }
                 _ => "Mirror",
             },
-            ToolKind::Transform => "Transform",
             ToolKind::Pattern => match self.drafts.pattern_output {
                 PatternOutputChoice::Instances => "Place",
                 PatternOutputChoice::Fused => "Union",
@@ -2077,6 +2138,7 @@ impl ViewerBehavior<'_> {
                 BlendKindChoice::Chamfer => "Chamfer",
             },
             ToolKind::Part | ToolKind::Duplicate => "Part",
+            ToolKind::Clearance => "Assertion",
         })
     }
 
@@ -2442,7 +2504,7 @@ mod tests {
             },
             tol,
         );
-        let mut tool = crate::combine::TransformTool::new();
+        let mut tool = crate::combine::SplitTool::new();
         tool.pick(&doc, split);
         let mut chosen = None;
         let drawn = painted_after_clicking(crate::tree::split_half_label(SplitHalf::Below), |ui| {
@@ -3072,7 +3134,6 @@ mod tools_respeak {
             ToolKind::Revolve,
             ToolKind::Boolean,
             ToolKind::Split,
-            ToolKind::Transform,
             ToolKind::Pattern,
             ToolKind::Part,
             ToolKind::Duplicate,

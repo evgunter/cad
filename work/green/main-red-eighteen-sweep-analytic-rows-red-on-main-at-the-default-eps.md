@@ -2,7 +2,8 @@
 id: main-red-eighteen-sweep-analytic-rows-red-on-main-at-the-default-eps
 kind: issue
 title: Main red: eighteen sweep analytic rows (rulings, cylinder_sphere_frame, torus_doors_join, …) are red on main at the default ε
-status: open
+status: closed
+closed: 2026-11-02
 opened: 2026-10-31
 priority: P0
 cost: M
@@ -58,7 +59,7 @@ The 18th row, `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_ge
 Measured on main `b719d39ad1` at opt-level 2. Two of these rows also
 read the same at 1e-6 and 1e-12 as at the default ε:
 
-- `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_join`
+- `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_volume`
   stops `Projected`, where the row wants `Join { closed: false }`.
   `a_rod_across_the_inner_bound_…` stops `Projected` and
   `a_rod_off_the_axis_line_…` stops `ConicTrim`, at every ε.
@@ -96,3 +97,46 @@ fails at ε 1e-6 under `CAD_FUZZ_SEED=0x49504906104860f0 CAD_FUZZ_EFFORT=1`:
 `[0.5519863698563332, 0.8011729840077771]`: `RingHomingAmbiguous { ring:
 LoopKey(3v1) }`". It reproduces with main's torus door (`torus_region.rs`
 as on main `71584a65`) swapped in. Same failure shape as the seed above.
+
+## Closed (GREEN lane `green/main-red-sweep`, 2026-11-02)
+
+Reproduced on main `a285cdbf` at opt-level 2 at all three ε rows.
+**Seven rows are already green on main.** PR 5793 (CLEAVE) re-pinned
+the `a_pierce_held_in_a_curved_face`, `a_ruling_lying_on_a_wall` and
+`a_ruling_through_a_box_corner_edge` pairs to their `EdgeInFace` refusal,
+owed on `work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`.
+Four of those rows were renamed. It also turned
+`bisector_nodes::the_near_node_poses_at_the_witness_band` green. Nightly
+79 (`fbfebd92`) passes all seven at every ε.
+
+**The other eleven moved in one step, PR 6013 (FOREIGN, `foreign/c0-knot-split`).**
+They pass on nightly 77 (`39bbdfc7`) and fail on nightly 78
+(`6d3aa0fa`). In that window 6013 is the one merge that touches
+`topo::boolean::edge_join`. It added `crease_at`: where both edges at
+a vertex crease there (a spline piece at its clamped end), the vertex is
+never joined (Ev's PR 5913 ruling). Two chords cut end to end from one
+section loop are exactly that pair. So these runs no longer refuse
+`JoinCarrierUnsupported` at the spline join. They pass it and refuse at
+the next door, the result gate's volume. Locally, making the
+`(true, true)` arm fall through to the join again on main puts the
+runs back at `Join`. Every run pinned at `Join` moved, and no other
+door moved. No run builds a body, and the stops are the same at every ε.
+
+| row | main now, every ε | pinned to | owner row |
+|---|---|---|---|
+| `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_*` ×6 | each `Join` door is now `Projected` (cylinder arm) or `Sphere` (conic trim on the sphere chart) | the doors as main stops | `spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane` |
+| `conic_edge_curved_face::a_rim_crossing_reaches_the_join` | both balls `[Sphere, Sphere, Projected]` | the same | the same |
+| `torus_doors_join::a_rod_across_the_inner_bound_stops_at_the_volume` | `Projected` | `Stop::Projected` | the same |
+| `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_volume` | `Projected` | `Stop::Projected` | the same |
+| `torus_doors_join::a_rod_off_the_axis_line_stops_at_the_conic_trim` | `ConicTrim` | `Stop::ConicTrim` | `spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane` |
+| `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs` | each `"spline join"` is now at the volume; the stop word now names its cause | `OTHER_SPINS_STOPS`, per cell | `"projected volume"`: the projected-boundary row; `"conic trim volume"` and `"ring volume"`: the torus-wall row; `"spiric wall volume"`: `spiricarm/a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane` (filed by this PR) |
+
+The three torus rows were renamed from `…_stops_at_the_join` to the stop
+they assert (`…_stops_at_the_conic_trim`, `…_stops_at_the_volume`).
+Their citations were updated across `work/` and `.config/nextest.toml`.
+
+The two topo fuzzer seeds went to SECT, which wrote the search and the
+path re-homing it exercises:
+`work/sect/a-spline-bounded-wall-island-refuses-ring-homing-on-two-fuzz-seeds-at-1e-6.md`.
+TINT's `eighteen-sweep-slow-rows-are-red-on-main` was a duplicate of
+this row. Its evidence is summarised here, and the same PR closes it.

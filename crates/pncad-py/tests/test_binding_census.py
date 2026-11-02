@@ -597,6 +597,9 @@ BOUND_AS = {
     # `Evaluation.reading`, which raises the refusal rather than
     # answering it.
     "ObservedRefusal": "Evaluation.reading",
+    # The run's member budget's one default is what `evaluate`'s
+    # `member_budget=None` runs under.
+    "DEFAULT_MEMBER_BUDGET": "evaluate",
     # The coincidence door's row and its verdict (D10) cross as ONE
     # value, `Coincidence`: its cells as `(node, name)` pairs, the
     # door's proof as `rung` (`None` unproven) beside `residual`.
@@ -1010,6 +1013,9 @@ BOUND_AS = {
     # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
     # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # `SectionIdFault` is what `EditError::SectionIdsRefused` carries,
+    # and its arms cross at the carrier's second word.
+    "SectionIdFault": "EditError.inner_variant",
     # `LoftFault` is what `EditError::LoftShape` carries, and its arms
     # cross at the carrier's second word.
     "LoftFault": "EditError.inner_variant",
@@ -1379,6 +1385,7 @@ BOUND_AS = {
     "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
     "StepMap": "SplitOutcome.step_map",
+    "SectionMap": "SplitOutcome.section_map",
     # A profile's pieces cross as opaque text, one per canonical
     # segment, which is what the role-name doors take.
     "ProfilePieces": "Doc.pieces",
@@ -1771,11 +1778,12 @@ FAMILIES: dict[str, str] = {
 #:   `ImportOptions` is `import_step`'s `eps_in=` — the reading end of
 #:   the ε `step_string` writes as `uncertainty=`.
 #:
-#:   `EvalOptions` is `evaluate`'s `resolver=`, the one field of it
-#:   that changes an ANSWER, bound at LIB-G18a — which is also when
-#:   its memo residue left the `gap` roster, and note the memo was
-#:   never a field of it (`prior` is `evaluate`'s own second argument,
-#:   bound as `prior=`). Its other five fields are stated rather than
+#:   `EvalOptions` is `evaluate`'s `resolver=`, bound at LIB-G18a —
+#:   which is also when its memo residue left the `gap` roster, and
+#:   note the memo was never a field of it (`prior` is `evaluate`'s
+#:   own second argument, bound as `prior=`) — and its
+#:   `member_budget=`, the run's member budget, whose running out is
+#:   `Evaluation.exhausted`. Its other fields are stated rather than
 #:   waved, each with its reason in the Rust roster: `epoch` is minted
 #:   per run and is not a caller's choice; `parallel` and
 #:   `boolean_sweep` are runtime switches the kernel documents as
@@ -2269,6 +2277,11 @@ NOT_BOUND = {
     "Select": SHAPE,
     "SelectionCount": SHAPE,
     "SelectionBodyFault": SHAPE,
+    # A saved loft's section ids no door would write: a load's refusal,
+    # crossing as `PersistError.inner_variant` `section_ids` and its
+    # sentence (which carries the regenerate recourse for a file from
+    # before sections were minted); no Python door writes a save's ids.
+    "SectionIdBreak": SHAPE,
     "OutputPort": SHAPE,
     "PortKind": SHAPE,
     # An operand's address and what it admits: Python names a refused
@@ -3599,6 +3612,7 @@ MEMBERS_BOUND_AS = {
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::LoftSectionCount": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
+    "EditError::SectionIdsRefused": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::OperandUnresolved": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
@@ -3703,6 +3717,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
+    "InlineError::NameOnDroppedSection": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "FlattenError::UnknownNode": "FlattenError.variant",
     "FlattenError::NotAPlacement": "FlattenError.variant",
@@ -3835,6 +3850,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
+    "SplitError::NameOnDroppedSection": "SplitError.variant",
     "SplitError::BodyNameCrossesCut": "SplitError.variant",
     "SplitError::NameOutsidePartWorld": "SplitError.variant",
     "SplitError::Pin": "SplitError.variant",

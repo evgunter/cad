@@ -305,12 +305,11 @@ fn kind_arm(a: geom::SurfaceKind, b: geom::SurfaceKind) -> KindArm {
     }
 }
 
-/// **A face's surface, with its key in `body`**: the join's walk from a
-/// face to its surface, whether the face is one a germ was recorded
-/// against or one a segment's halves lie on now. It is the crate's one
-/// walk ([`crate::readback::carrier_surface`]), its refusal a desync: a
-/// live face's surface key resolves (tier 1), so the one refusal is a
-/// face key that no longer resolves.
+/// **A face's surface, with its key in `body`, as the join refuses it**:
+/// [`Body::face_surface`] (through [`crate::readback::carrier_surface`],
+/// which reads the key beside it), whether the face is one a germ was
+/// recorded against or one a segment's halves lie on now. Its one
+/// refusal, a face key that no longer resolves, is a desync.
 ///
 /// That no other walk reads a surface in this file is held by
 /// `face_surface_tests::the_join_walks_to_a_faces_surface_in_one_place`,
@@ -1628,9 +1627,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             sa.plan(&red.a, a_halves, seg_a)?,
             sb.plan(&red.b, b_halves, seg_b)?,
         );
-        let line_on = along_edge_conic((&red.a, &red.b), &germ)?.and_then(|along| {
-            matches!(along.carrier, geom::Curve3::Line { .. }).then_some(along.on)
-        });
+        let line_on = along_edge_conic((&red.a, &red.b), &germ)?
+            .and_then(|along| (!along.carrier.is_curved()).then_some(along.on));
         let along_line = |on: Operand| line_on == Some(on);
         let (curve_a, curve_b) = match lane {
             None => (
@@ -2725,7 +2723,7 @@ fn germ_section_loops<T: Decide>(
     // test a curved edge.
     if let Some(along) = along_edge_conic((a, b), germ)? {
         return match along.carrier {
-            geom::Curve3::Line { .. } => Ok(None),
+            geom::Curve3::Line(_) => Ok(None),
             geom::Curve3::Circle { center, axis, .. }
             | geom::Curve3::Ellipse { center, axis, .. } => {
                 Ok(Some(SectionLoops::conic((center, axis))))
@@ -3022,7 +3020,7 @@ fn rulings_are_straight<T: geom_core::Real>(
     for (curve, operand, face) in sides {
         match curve.spec().map(|spec| &spec.carrier) {
             None => {}
-            Some(geom::Curve3::Line { .. }) => {
+            Some(carrier) if !carrier.is_curved() => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
@@ -7197,10 +7195,7 @@ mod radical_plane_rows {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = |n: u64| FaceKey::from(KeyData::from_ffi(n));
         let (fa, fb) = (face(3), face(7));
-        let line = geom::Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let circle = geom::Curve3::Circle {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
@@ -7738,10 +7733,16 @@ mod face_surface_tests {
     #[test]
     fn the_join_walks_to_a_faces_surface_in_one_place() {
         let code = test_utils::source::code_only(include_str!("join.rs"));
-        let reads: Vec<usize> = ["get_surface(", "face_surface_linked(", "carrier_surface("]
-            .iter()
-            .flat_map(|needle| code.match_indices(needle).map(|(at, _)| at))
-            .collect();
+        let reads: Vec<usize> = [
+            "get_surface(",
+            ".face_surface(",
+            "proven_face_surface(",
+            "face_surface_linked(",
+            "carrier_surface(",
+        ]
+        .iter()
+        .flat_map(|needle| code.match_indices(needle).map(|(at, _)| at))
+        .collect();
         let homes: Vec<usize> = code
             .match_indices("fn face_surface<")
             .map(|(at, _)| at)

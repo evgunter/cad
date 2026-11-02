@@ -161,11 +161,9 @@ pub(super) fn bisectors<T: Decide>(
     (x, x_is, wall): (&Body<T>, Operand, crate::entity::FaceKey),
     (y, face): (&Body<T>, crate::entity::FaceKey),
 ) -> Option<[Bisector<T>; 2]> {
-    let is_wall = |b: &Body<T>, f| {
-        b.get_face(f)
-            .and_then(|f| b.get_surface(f.surface))
-            .is_some_and(is_wall)
-    };
+    // Every caller hands in faces its bodies' records name, so a stale
+    // key is a desync; a face of another kind is an honest no.
+    let is_wall = |b: &Body<T>, f| is_wall(b.proven_face_surface(f));
     if !is_wall(x, wall) || !is_wall(y, face) {
         return None;
     }

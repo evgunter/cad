@@ -193,6 +193,16 @@ const FEATURES_SLACK: f32 = 8.0;
 /// on screen (`frame::Progress::Canceled`).
 const CANCELED_LINE: &str = "canceled — showing an older result";
 
+/// What the toolbar says while a run that ran out of its member budget
+/// leaves an older picture on screen (`frame::Progress::Exhausted`),
+/// spoken from `doc`.
+fn exhausted_line(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    out: crate::session::OutOfBudget,
+) -> String {
+    format!("showing an older result: the run {}", out.said(doc))
+}
+
 /// `color` as the toolkit's own colour type.
 ///
 /// The one place a [`Rgba8`] becomes an `egui::Color32`, matching
@@ -459,6 +469,10 @@ pub struct ViewerApp {
     /// and the same editor opened on a committed profile
     /// (`ViewerBehavior::edit_profile_ui`).
     profile_drawn: ProfileDoors<bool>,
+    /// **The feature-tree row the pointer was over on the last frame**,
+    /// set by the Features pane while it draws: the viewport marks a
+    /// clearance row's witness while it is ([`crate::marks::witness`]).
+    row_hovered: Option<pncad::document::RecipeNodeId>,
     /// Whether the advisory-check findings window is open.
     ///
     /// Application chrome state, not a draft: nothing is being
@@ -711,6 +725,27 @@ fn prover() -> Result<Box<dyn crate::evalseam::DoorService>, StartupError> {
     }
 }
 
+/// The certify seam: [`prover`]'s shape over a landing's clearance
+/// requirements at the certifying scalar.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. Every clearance row would otherwise read certifying
+/// forever.
+fn certifier() -> Result<Box<dyn crate::evalseam::CertifyService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadCertifier::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineCertifier::new()))
+    }
+}
+
 /// The staged seam: [`prover`]'s shape over a staged operation's run.
 ///
 /// # Errors
@@ -941,6 +976,7 @@ impl ViewerApp {
 
         let mut session = DocSession::new(document, tol, evaluator()?)
             .with_door(prover()?)
+            .with_certifier(certifier()?)
             .with_stager(stager()?);
         session.set_notation(notation);
 
@@ -968,6 +1004,7 @@ impl ViewerApp {
             tools: Tools::new(),
             part_chooser: None,
             profile_drawn: ProfileDoors::default(),
+            row_hovered: None,
             checks_shown: false,
             camera,
             input,
@@ -1955,6 +1992,16 @@ impl ViewerApp {
                         ui.ctx().request_repaint();
                     }
                 }
+                // No Re-evaluate beside it: the same document runs out
+                // at the same family again.
+                Some(frame::Progress::Exhausted { index, out }) => {
+                    ui.separator();
+                    if index == IndexSeam::Building {
+                        ui.spinner();
+                        ui.ctx().request_repaint();
+                    }
+                    crate::widgets::message(ui, exhausted_line(self.session.doc(), out));
+                }
                 // No Cancel button beside it, and that is the
                 // seam's promise showing through the chrome: the
                 // build cannot be stopped, only outrun by a newer
@@ -1968,10 +2015,11 @@ impl ViewerApp {
                 }
                 None => {}
             }
-            // The door's answer is a background result too; it changes
-            // the Checks window and its badge, not the picture, so a
+            // The door's answer and the certified clearances are
+            // background results too; they change the Checks window,
+            // its badge and the tree's rows, not the picture, so a
             // slower wake than a spinner's is enough.
-            if self.session.proving() {
+            if self.session.proving() || self.session.certifying() {
                 ui.ctx()
                     .request_repaint_after(std::time::Duration::from_millis(250));
             }
@@ -2205,9 +2253,19 @@ impl eframe::App for ViewerApp {
             profile_constructions.create = None;
         }
         // The committed node the edit door is previewing in its place,
-        // which the committed-profile pass leaves out.
-        let profile_edited = self.drafts.edited_in_place(profile_previews.edit.as_ref());
+        // with what that preview draws: the committed-profile lane
+        // leaves the node out, and the pick and the marks read it by
+        // the preview's outline.
+        let display = display.previewing(
+            self.drafts
+                .edited_in_place(profile_previews.edit.as_ref())
+                .map(|node| {
+                    let drawn = profile_previews.edit.as_ref().and_then(|p| p.as_ref().ok());
+                    crate::display::PreviewedProfile::of(node, drawn)
+                }),
+        );
         let mut profile_drawn = ProfileDoors::<bool>::default();
+        let mut row_hovered = None;
         // **Zeroed here, every frame: after the toolbar has read last
         // frame's value and before the panes draw.** A frame the
         // viewport does not draw at all is a frame it found nothing in,
@@ -2267,7 +2325,8 @@ impl eframe::App for ViewerApp {
                     profile_constructions: &profile_constructions,
                     profile_drawn: &mut profile_drawn,
                     profile_was_drawn: self.profile_drawn,
-                    profile_edited,
+                    row_hovered: &mut row_hovered,
+                    row_was_hovered: self.row_hovered,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
                     viewport_reads: &mut self.viewport_reads,
@@ -2288,6 +2347,7 @@ impl eframe::App for ViewerApp {
             self.remember_prefs();
         }
         self.profile_drawn = profile_drawn;
+        self.row_hovered = row_hovered;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
@@ -2462,10 +2522,12 @@ pub(crate) struct ViewerBehavior<'a> {
     /// are on screen, the one read every preview and mark of a door
     /// follows.
     pub(crate) profile_was_drawn: ProfileDoors<bool>,
-    /// The committed profile the edit door is previewing this frame,
-    /// which the committed-profile pass leaves out
-    /// (`sketch::committed`'s `except`).
-    pub(crate) profile_edited: Option<pncad::document::RecipeNodeId>,
+    /// Set by the Features pane to the row the pointer is over while it
+    /// draws; read next frame.
+    pub(crate) row_hovered: &'a mut Option<pncad::document::RecipeNodeId>,
+    /// What [`Self::row_hovered`] said on the last frame: the row whose
+    /// clearance witness the viewport marks as hovered.
+    pub(crate) row_was_hovered: Option<pncad::document::RecipeNodeId>,
     pub(crate) pending_fit: &'a mut bool,
     /// Where the viewport leaves a view matrix it could not form, for
     /// [`frame::projection_badge`] to read: a read of the camera, so
@@ -3205,16 +3267,36 @@ mod tests {
         use crate::pickcache::IndexSeam;
         use crate::session::{DocSession, Outstanding};
 
-        const WORDS: [&str; 5] = [
+        let tol = pncad::tolerance::witness();
+        // The plate, and the plate with a row of `u32::MAX` copies of it,
+        // which runs out of the default member budget at the row.
+        let (plate, body) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let (huge, row) = crate::test_support::row_of_copies(
+            &plate,
+            body,
+            i64::from(u32::MAX),
+            (pncad::document::TargetAxis::X, 0.05),
+            tol,
+        );
+        let out = crate::session::OutOfBudget {
+            at: row,
+            held: 0,
+            budget: pncad::document::DEFAULT_MEMBER_BUDGET,
+        };
+        let out_line = crate::app::exhausted_line(&huge, out);
+        let words = [
             "evaluating…",
             "Cancel",
             CANCELED_LINE,
             "Re-evaluate",
             "indexing…",
+            &out_line,
         ];
-        let tol = pncad::tolerance::witness();
         let session = |outstanding: Outstanding| {
-            let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+            let document = match outstanding {
+                Outstanding::Exhausted(_) => huge.clone(),
+                _ => plate.clone(),
+            };
             let mut session = DocSession::inline(document, tol);
             session.pump();
             match outstanding {
@@ -3227,6 +3309,7 @@ mod tests {
                     session.perform(SessionOp::CancelEvaluation);
                     session.pump();
                 }
+                Outstanding::Exhausted(_) => {}
             }
             assert_eq!(
                 session.outstanding(),
@@ -3259,7 +3342,7 @@ mod tests {
             );
             row.painted
                 .into_iter()
-                .filter(|text| WORDS.contains(&text.as_str()))
+                .filter(|text| words.contains(&text.as_str()))
                 .collect::<Vec<_>>()
         };
         for (outstanding, index, expected) in [
@@ -3284,6 +3367,13 @@ mod tests {
                 Outstanding::Canceled,
                 IndexSeam::Building,
                 vec![CANCELED_LINE, "Re-evaluate", "indexing…"],
+            ),
+            // No picture lands for the row, so no index is built behind
+            // it: the one pair is the idle one.
+            (
+                Outstanding::Exhausted(out),
+                IndexSeam::Idle,
+                vec![out_line.as_str()],
             ),
         ] {
             assert_eq!(
@@ -4183,19 +4273,21 @@ mod properties_pane_tests {
     /// activation button**. The one answer every row here that opens a
     /// tool reads.
     fn section_of(kind: crate::tools::ToolKind) -> &'static str {
-        use crate::pane::create::{ADD_FEATURE, ASSEMBLE_PARTS, BLEND_EDGES, COMBINE_BODIES};
+        use crate::pane::create::{
+            ADD_FEATURE, ASSEMBLE_PARTS, BLEND_EDGES, COMBINE_BODIES, REQUIREMENTS,
+        };
         use crate::tools::ToolKind;
         match kind {
-            ToolKind::Mate => ASSEMBLE_PARTS,
+            ToolKind::Mate | ToolKind::Transform => ASSEMBLE_PARTS,
             ToolKind::Revolve => ADD_FEATURE,
             ToolKind::Boolean
             | ToolKind::Split
-            | ToolKind::Transform
             | ToolKind::Pattern
             | ToolKind::Part
             | ToolKind::Duplicate
             | ToolKind::Mirror => COMBINE_BODIES,
             ToolKind::Blend => BLEND_EDGES,
+            ToolKind::Clearance => REQUIREMENTS,
         }
     }
 
@@ -6875,6 +6967,7 @@ mod properties_pane_tests {
                 &self.app.tools,
                 &self.app.drafts,
                 self.app.profile_drawn.create,
+                self.app.row_hovered,
             )
         }
 
@@ -7157,38 +7250,47 @@ mod properties_pane_tests {
     }
 
     /// **A held face on a copy a feature re-points stays held, drawn
-    /// and committable.** The pick is on the placement's copy; the
-    /// transform re-points that placement (A10) to a placement of the
-    /// extrude moved within its own space, so the copy still draws the
-    /// face — moved — and the form commits a sketch on the face of the
-    /// moved body. (A held face the picture does not draw — a hidden
+    /// and committable.** The pick is on the placement's copy; a fillet
+    /// of the hole's bottom rim re-points that placement (A10) to the
+    /// filleted body, which carries the top cap whole, so the copy still
+    /// draws the face and the form commits a sketch on the face of the
+    /// filleted body. (A held face the picture does not draw — a hidden
     /// instance's — is `tests/assembly_display.rs`'s row.)
     #[test]
     fn a_held_face_on_a_copy_a_feature_re_points_stays_held() {
-        use crate::test_support::{len, scl};
-        use pncad::document::{Dimension, Formula};
         let (mut driven, top) = Driven::holding_the_top_cap();
         driven.select(Selection::Face(top));
-        driven.perform(SessionOp::AddTransform {
-            input: extrude().into(),
-            translation: [
-                len(0.05),
-                Formula::zero(Dimension::Length),
-                Formula::zero(Dimension::Length),
-            ],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Formula::zero(Dimension::Angle),
+        let rim = {
+            let session = &driven.app.session;
+            let Some(Node::Profile(program)) = session.doc().node(startup_node(0)) else {
+                panic!("the startup document opens on its profile")
+            };
+            let hole = format!("{:?}", program.ids[1][0]);
+            let eval = session.evaluation().expect("landed");
+            pncad::select::all_edges(eval, extrude())
+                .into_iter()
+                .filter(|name| {
+                    let said = format!("{name:?}");
+                    said.contains("RimEdge(Start") && said.contains(&hole)
+                })
+                .collect::<Vec<_>>()
+        };
+        assert!(!rim.is_empty(), "the hole's bottom rim");
+        driven.perform(SessionOp::AddFillet {
+            target: extrude(),
+            radius: crate::test_support::len(0.0005),
+            selection: rim,
         });
         let [held, ..] = driven.held();
         assert_ne!(
             held,
             crate::pickindex::IdMap::NOTHING,
-            "the moved copy still draws the held face"
+            "the re-pointed copy still draws the held face"
         );
         assert_eq!(
             driven.marks().highlight().selected,
             held,
-            "the selection follows the face onto the moved copy"
+            "the selection follows the face onto the re-pointed copy"
         );
         let moved = *driven
             .app
@@ -7196,11 +7298,8 @@ mod properties_pane_tests {
             .doc()
             .ids()
             .iter()
-            .find(|&&id| {
-                matches!(driven.app.session.doc().node(id), Some(Node::Place { .. }))
-                    && id != placement()
-            })
-            .expect("the transform's placement landed");
+            .find(|&&id| matches!(driven.app.session.doc().node(id), Some(Node::Fillet { .. })))
+            .expect("the fillet landed");
         driven.click(crate::pane::create::ADD_PROFILE);
         driven.quiet();
         let doc = driven.app.session.doc();
@@ -7211,7 +7310,7 @@ mod properties_pane_tests {
         let union = union.expect("the button committed a sketch on the face");
         assert!(
             doc.upstream(union).contains(&moved),
-            "on the moved body, which the copy places"
+            "on the filleted body, which the copy places"
         );
     }
 
@@ -7267,7 +7366,7 @@ mod properties_pane_tests {
             label: label("base"),
         }]);
         driven.settle();
-        driven.app.tools.open(crate::tools::ToolKind::Transform);
+        driven.app.tools.open(crate::tools::ToolKind::Pattern);
         driven.select(Selection::Node(extrude()));
         rename_and_delete(&mut driven);
         let drawn = driven.quiet();
@@ -7307,10 +7406,10 @@ mod properties_pane_tests {
         let picked = || {
             let mut driven = Driven::with(Vec::new());
             driven.settle();
-            driven.app.tools.open(crate::tools::ToolKind::Transform);
+            driven.app.tools.open(crate::tools::ToolKind::Pattern);
             driven.select(Selection::Node(extrude()));
             assert_eq!(
-                driven.app.tools.transform().and_then(|tool| tool.input()),
+                driven.app.tools.pattern().and_then(|tool| tool.input()),
                 Some(extrude()),
                 "the pick is held"
             );
@@ -7319,7 +7418,7 @@ mod properties_pane_tests {
         let held = |driven: &Driven| {
             (
                 driven.app.tools.open_kind(),
-                driven.app.tools.transform().and_then(|tool| tool.input()),
+                driven.app.tools.pattern().and_then(|tool| tool.input()),
             )
         };
         let mut driven = picked();
@@ -7328,7 +7427,7 @@ mod properties_pane_tests {
         }]);
         assert_eq!(
             held(&driven),
-            (Some(crate::tools::ToolKind::Transform), None),
+            (Some(crate::tools::ToolKind::Pattern), None),
             "new document"
         );
 
@@ -7345,7 +7444,7 @@ mod properties_pane_tests {
         let removed = std::fs::remove_dir_all(&dir);
         assert_eq!(
             held(&driven),
-            (Some(crate::tools::ToolKind::Transform), None),
+            (Some(crate::tools::ToolKind::Pattern), None),
             "open"
         );
         removed.expect("the row removes the document it saved");
@@ -10332,6 +10431,116 @@ mod properties_pane_tests {
             driven.app.session.selection().edge().is_some(),
             "on the rim the startup profile lies along, the edge wins: {:?}",
             driven.app.session.selection()
+        );
+    }
+
+    /// **A profile the edit door previews in place is picked by what
+    /// is drawn: its preview, as that profile.** A lone rectangle is
+    /// selected, which opens its edit door, and the draft moves its
+    /// right side 10 mm left: the committed lane leaves the old outline
+    /// out and the preview draws the moved one.
+    ///
+    /// - The pointer resting on the old right side hovers nothing, and
+    ///   a click there selects nothing. Red if the pick still offers
+    ///   the outline the lane does not draw.
+    /// - The pointer on the preview's right side hovers the profile,
+    ///   and a click there keeps it selected with its draft still
+    ///   previewed in place. Red if the preview is not offered as its
+    ///   node, where the click would deselect and drop the draft.
+    #[test]
+    fn a_profile_edited_in_place_is_picked_by_its_preview_not_its_old_outline() {
+        use crate::session::Hovered;
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+
+        let (mut driven, profile) = with_profile_added(vec![
+            SessionOp::DeleteNode { node: placement() },
+            SessionOp::DeleteNode { node: extrude() },
+            SessionOp::DeleteNode {
+                node: startup_node(0),
+            },
+            SessionOp::AddProfile {
+                loops: vec![crate::test_support::rectangle_loop(
+                    [0.010, 0.010],
+                    0.040,
+                    0.020,
+                )],
+            },
+        ]);
+        let old_side = window_pos_of(&driven, [0.050, 0.020, 0.0]);
+        let preview_side = window_pos_of(&driven, [0.040, 0.020, 0.0]);
+        driven.hovered(old_side);
+        assert_eq!(
+            driven.app.session.hover(),
+            Some(&Hovered::Profile(profile)),
+            "the control: the old right side is the profile before any edit"
+        );
+        // Select the profile and move its right side in the draft.
+        let edit_in_place = |driven: &mut Driven| {
+            driven
+                .app
+                .perform_batch(vec![SessionOp::Select(Selection::Node(profile))]);
+            driven.quiet();
+            let session = &driven.app.session;
+            let edit = driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("selecting the profile opens its edit door");
+            for (row, y) in [(1, 0.010), (2, 0.030)] {
+                edit.set_step(
+                    session.doc(),
+                    (0, row),
+                    Step::LineTo(Target::Point(Point2::new(0.040, y))),
+                );
+            }
+            driven.quiet();
+        };
+        // What the edit door holds: its node and the moved right side.
+        let held = |driven: &Driven| {
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .map(|edit| (edit.node, edit.programs().expect("the draft lowers")))
+        };
+
+        edit_in_place(&mut driven);
+        let moved = held(&driven);
+        assert!(moved.is_some(), "the moved draft is held");
+        driven.hovered(old_side);
+        assert_eq!(
+            driven.app.session.hover(),
+            None,
+            "the old right side, not drawn while the edit door previews, hovers nothing"
+        );
+        driven.hovered(preview_side);
+        assert_eq!(
+            driven.app.session.hover(),
+            Some(&Hovered::Profile(profile)),
+            "the preview's right side hovers the profile it previews"
+        );
+        driven.click_at(preview_side);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(profile),
+            "a click on the preview's right side keeps the profile selected"
+        );
+        assert_eq!(
+            held(&driven),
+            moved,
+            "and keeps its draft, moved side and all"
+        );
+
+        driven.click_at(old_side);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::None,
+            "a click on the old right side selects nothing"
         );
     }
 

@@ -498,7 +498,15 @@ fn sense_margin<T: Decide>(
 ) -> Result<Margin<T>, LeverEscalation> {
     crate::dihedral::decide_positive("enters_material_arm", Margin::of(arm), band)
         .map_err(LeverEscalation::arm)?;
-    Ok(Margin::levered(dir.normalize().dot(normal), arm))
+    Ok(rise(dir, normal, arm))
+}
+
+/// **A direction's first-order rise off a plane**: `d̂·n̂·arm`, the
+/// direction `dir` levered at `arm` against the plane's unit normal
+/// `normal`, in metres.
+#[must_use]
+pub fn rise<T: Real>(dir: Vec3<T>, normal: Vec3<T>, arm: T) -> Margin<T> {
+    Margin::levered(dir.normalize().dot(normal), arm)
 }
 
 /// **`enters_material_order2`** — the second-order descent of the

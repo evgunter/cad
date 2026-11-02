@@ -570,11 +570,7 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
         (big_r, r),
         &[(0.0, -a), (quarter, -a), (quarter, a), (0.0, a)],
     );
-    let surface = |body: &crate::Body<f64>, f: FaceKey| {
-        body.get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
+    let surface = |body: &crate::Body<f64>, f: FaceKey| body.face_surface(f).unwrap().clone();
     let on = super::carrier_pair::face_witnesses(&torus, face).unwrap();
     let probe = plane([0.0, 0.0, 0.0], Vec3::unit_x());
     let (at, _) = frame_reading(&surface(&torus, face), &probe, on, Vec::new()).unwrap();

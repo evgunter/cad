@@ -72,10 +72,7 @@ fn split_rim_patch(
     };
     let meridian = |u: f64, z0: f64, z1: f64, forward: bool, tags: (u32, u32)| {
         LoopEdge::hand_built(
-            Curve3::Line {
-                origin: p(r * u.cos(), r * u.sin(), 0.0),
-                dir: v3(0.0, 0.0, 1.0),
-            },
+            Curve3::line(p(r * u.cos(), r * u.sin(), 0.0), v3(0.0, 0.0, 1.0)),
             Probe(z0),
             Probe(z1),
             forward,

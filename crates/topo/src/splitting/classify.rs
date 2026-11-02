@@ -77,7 +77,7 @@ pub(super) fn carrier_gate<T: Decide>(
     for (edge_key, edge) in body.edges() {
         match body.edge_curve_linked(edge_key, edge) {
             CurveGeom::Certified(curve) => match curve.carrier() {
-                geom::Curve3::Line { .. }
+                geom::Curve3::Line(_)
                 | geom::Curve3::Circle { .. }
                 | geom::Curve3::Ellipse { .. } => {}
                 // No crossing-root arm reads a spiric or a spline.
@@ -467,7 +467,7 @@ pub(crate) fn plane_crossing_lane<T: Decide>(
             plane_normal,
             band,
         )),
-        (None, geom::Curve3::Line { .. }) => PlaneCrossingLane::Line,
+        (None, geom::Curve3::Line(_)) => PlaneCrossingLane::Line,
         (None, _) => PlaneCrossingLane::Unlaned,
     }
 }
@@ -1056,13 +1056,7 @@ mod tests {
     fn each_carrier_kind_lands_on_its_own_lane() {
         let plane = plane_y(0.5);
         for (carrier, want) in [
-            (
-                Curve3::Line {
-                    origin: Point3::origin(),
-                    dir: Vec3::unit_y(),
-                },
-                "line",
-            ),
+            (Curve3::line(Point3::origin(), Vec3::unit_y()), "line"),
             (circle(), "conic"),
             (
                 Curve3::Ellipse {

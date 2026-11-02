@@ -2359,7 +2359,7 @@ pub(crate) fn edge_box_rule<T: Real>(
     let params = curve.params();
     let carrier = curve.carrier();
     match carrier {
-        geom::Curve3::Line { .. } => EdgeBoxRule::Chord,
+        geom::Curve3::Line(_) => EdgeBoxRule::Chord,
         geom::Curve3::Circle {
             center,
             axis,
@@ -3093,10 +3093,7 @@ pub(crate) mod tests {
     #[test]
     fn a_nurbs_patchs_interior_bulge_is_inside_its_box() {
         let (body, face, _) = nurbs_bulge_face();
-        let surface = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap()
-            .clone();
+        let surface = body.face_surface(face).unwrap().clone();
         // The lifted interior, on the surface itself — its boundary
         // curves all lie in `z = 0`, so no hull of the BOUNDARY can
         // contain this point.
@@ -5527,7 +5524,7 @@ pub(crate) mod tests {
                         body.get_curve_geom(e.curve)
                             .and_then(crate::null::CurveGeom::certified)
                             .map(|c| c.carrier()),
-                        Some(Curve3::Line { .. })
+                        Some(Curve3::Line(_))
                     );
                     line.then_some((e.curve, e.he_plus))
                 })
