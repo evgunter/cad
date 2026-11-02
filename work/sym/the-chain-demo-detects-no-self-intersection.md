@@ -34,8 +34,8 @@ going poisoned — neither has anything to do with the bars touching.
 Two doors exist in the tree, neither reachable by this document today:
 
 1. **The E7 clearance engine** (`crates/editor-core/src/clearance.rs`,
-   CLEAR's; since PR 6292 a clearance ASSERTION, the `min_clearance`
-   measure retired): a `min_clearance` measure between adjacent links, asserted
+   CLEAR's): a clearance assertion between adjacent links (the
+   `min_clearance` measure this row first named retired in PR 6292), asserted
    non-negative (or above a clearance), would make interpenetration a
    VIOLATION the advisory lane counts and the certified lane refuses or
    certifies. On the certified lane it is BLOCKED:
