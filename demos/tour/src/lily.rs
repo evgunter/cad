@@ -1721,7 +1721,7 @@ const STEM_TUBE: f64 = 0.060;
 /// limit: its rim's certified distance bound from the torus lies far
 /// above the rim's own rounding, the thin-torus class fork row 203 rules
 /// a kernel limit at that row (R/r of 20 or more;
-/// `work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+/// `work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
 /// The stem is the plant's spine, so the lily's stop and its wall probes
 /// stand down at that row and say so. `Some(narration)` where the
 /// frontier holds; `None` where the plant builds.

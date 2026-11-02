@@ -17,7 +17,7 @@ Nightly 76's `k-lint (dev-probe)` stopped at the K-telemetry sweep's
 first ε row, on the probe/f64 key-split pin, as earlier nights had
 stopped there or sooner. With that pin and the sweep's two later stops
 greened (the lily's 1e-12 stem tube, pinned on
-`work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`,
+`work/shell/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`,
 and the `intent_s3_c_mates` census floor), `scripts/k_probe_sweep.sh`
 runs to the end on the GREEN branch (base main `c173123e`). The job's
 next gate, `large-K lint`, then fails:
@@ -54,7 +54,7 @@ the closed CLEAVE row on `lily_walls` was a different predicate.
 **The 1e-12 file under-reports.** Its "rule 1: 0", and every other
 1e-12 count above, exclude the lily: GREEN's pin stops the `lily` and
 `lily_walls` scenes at 1e-12 on the stem's kernel limit
-(`work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`),
+(`work/shell/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`),
 so their samples are never recorded there.
 
 **Rules 2 and 3.** The CLI caps its print, so the per-family split

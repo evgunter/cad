@@ -34,7 +34,7 @@ The other whole renders the sweep met are owned:
   is neither a definite corner nor definitely smooth: {source}"), and
   its `Bend` arm's `COINCIDENCE_RECOURSE` at extrude and revolve
   (`SliverJoin`, `SliverRim`), by
-  `work/carvetail/carve-refusals-short-of-the-shape-guard.md`
+  `work/lathe/carve-refusals-short-of-the-shape-guard.md`
   ("Escalations that offer a declaration the door cannot take");
 - `intersect.rs`'s `SectionError::Escalated` ("ill-conditioned at this
   tolerance") by

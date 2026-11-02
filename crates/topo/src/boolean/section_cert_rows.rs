@@ -2557,7 +2557,7 @@ fn notched_chart(du: f64, dv: f64, corner: bool) -> (Vec<(f64, f64)>, (f64, f64)
 #[test]
 fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
     test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
@@ -2603,7 +2603,7 @@ fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
 #[test]
 fn a_torus_rectangle_trims_on_every_ring() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
     test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
@@ -2795,7 +2795,7 @@ fn a_small_notch_in_a_cone_face_reads_out_at_every_size() {
 #[test]
 fn the_smallest_notch_never_reads_in() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
     test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],

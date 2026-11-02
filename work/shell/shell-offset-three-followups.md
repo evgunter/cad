@@ -38,5 +38,5 @@ All three sites are `crates/topo/src/shell.rs`, `replace_face.rs` and the offset
 3. Narrowed: `offset_together` and `offset_axial` mint scoped; only
    `replace_faces_offset` still calls the whole-body mint, so only the
    per-chart loop pays it. Rides
-   `work/shelf/offset-doors-take-solids-and-a-per-chart-rule`, whose
+   `work/shell/offset-doors-take-solids-and-a-per-chart-rule`, whose
    door ladder owns that loop.

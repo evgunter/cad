@@ -53,7 +53,7 @@ fn bracket() -> Body<f64> {
     )
 }
 
-/// **PIN (flipped by `work/bandrule/a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds.md`)**:
+/// **PIN (flipped by `work/band/a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds.md`)**:
 /// the bracket with every edge requested, as "select all edges" asks,
 /// refuses at a mixed-convexity corner where the boss meets the plate.
 #[test]
@@ -95,7 +95,7 @@ fn rounded_rectangle() -> Body<f64> {
     )
 }
 
-/// **PIN (flipped by `work/bandrule/a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses.md`)**:
+/// **PIN (flipped by `work/band/a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses.md`)**:
 /// the rounded rectangle with every edge requested leaves its eight
 /// smooth struts and refuses each cap's outline, a closed chain of
 /// mixed links, as an unbuilt chain shape.
@@ -110,7 +110,7 @@ fn pin_today_a_rounded_rectangle_filleted_all_round_refuses_its_closed_mixed_cha
     );
 }
 
-/// **PIN (flipped by `work/bandrule/a-chain-end-beside-a-smooth-seam-folds-to-an-indeterminate-corner.md`)**:
+/// **PIN (flipped by `work/band/a-chain-end-beside-a-smooth-seam-folds-to-an-indeterminate-corner.md`)**:
 /// one of the slot's semicircular top arcs, requested alone, ends at
 /// vertices where a smooth strut arrives; the corner read folds that
 /// strut into an unreadable configuration.
