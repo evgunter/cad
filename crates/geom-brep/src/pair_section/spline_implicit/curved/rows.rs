@@ -227,10 +227,10 @@ fn fan(apex: Point3<f64>, a: Point3<f64>, b: Point3<f64>) -> Surface<f64> {
 /// **A collapsed side on the partner refuses at the door; one clear of
 /// it passes.** A fan whose apex lies on the unit sphere and whose far
 /// side lies outside it refuses naming the collapsed side; the same fan
-/// with its apex at the centre passes the door to the pass and the
-/// sweep. Red against the door skipped (the on-partner fan then reads
-/// as the pass decides it), and against the door refusing a pole clear
-/// of the partner.
+/// with its apex at the centre passes the door, and the unit circle
+/// runs across it from one ruled side to the other. Red against the door
+/// skipped (the on-partner fan then reads as the pass decides it), and
+/// against the door refusing a pole clear of the partner.
 #[test]
 fn a_collapsed_side_on_the_partner_refuses_at_the_door() {
     let s = sphere(pt(0.0, 0.0, 0.0), 1.0);
@@ -242,9 +242,13 @@ fn a_collapsed_side_on_the_partner_refuses_at_the_door() {
     );
     let clear = fan(pt(0.0, 0.0, 0.0), pt(2.0, -0.5, 0.0), pt(2.0, 0.5, 0.0));
     let got = read(&clear, &s);
-    assert!(
-        !matches!(&got, Err(SectionError::Unaccounted { cause }) if cause.contains("collapses")),
-        "a fan whose apex is the sphere's centre reads {got:?}"
+    let Ok(Components::Reaching(reached)) = &got else {
+        panic!("a fan whose apex is the sphere's centre reads {got:?}");
+    };
+    assert_eq!(
+        reached.rims()[0],
+        side(ChartAxis::V, ChartEnd::Low).or(side(ChartAxis::V, ChartEnd::High)),
+        "the unit circle runs across the fan from one ruled side to the other"
     );
 }
 
@@ -309,22 +313,31 @@ fn a_cylinder_cutting_one_side_twice_reaches_it() {
 /// and re-entering its `v = 0` side above the core, where the inside of
 /// the tube reaches that side, so the sweep proves no loop. Red against
 /// the pass's crossings dropped.
+///
+/// **And at every scale**: the pair scaled by `10⁻²` and `10⁻³` reads the
+/// same. The form's gradient scales as the cube of the length on a torus,
+/// so a slope that is not over `‖∇f‖` reads a hundredth or a millionth of
+/// itself there: red against the sweep's regular slope and the side
+/// roots' slope each read without `sup‖∇f‖`.
 #[test]
 fn a_leaf_through_a_stem_is_loop_free() {
-    let xs = [0.7, 1.0, 1.3];
-    let leaf = patch(2, 1, &|i, j| {
-        let bow = if i == 1 { 0.05 } else { 0.0 };
-        (pt(xs[i], bow, if j == 0 { 0.05 } else { 0.6 }), 1.0)
-    });
-    let got = read(&torus(1.0, 0.2), &leaf);
-    let Ok(Components::Reaching(reached)) = &got else {
-        panic!("the leaf through the stem reads {got:?}");
-    };
-    assert_eq!(
-        reached.rims()[1],
-        side(ChartAxis::V, ChartEnd::Low),
-        "the leaf's ends"
-    );
+    for scale in [1.0, 1e-2, 1e-3] {
+        let xs = [0.7, 1.0, 1.3];
+        let leaf = patch(2, 1, &|i, j| {
+            let bow = if i == 1 { 0.05 } else { 0.0 };
+            let z = if j == 0 { 0.05 } else { 0.6 };
+            (pt(scale * xs[i], scale * bow, scale * z), 1.0)
+        });
+        let got = read(&torus(scale, 0.2 * scale), &leaf);
+        let Ok(Components::Reaching(reached)) = &got else {
+            panic!("the leaf through the stem at scale {scale:e} reads {got:?}");
+        };
+        assert_eq!(
+            reached.rims()[1],
+            side(ChartAxis::V, ChartEnd::Low),
+            "the leaf's ends at scale {scale:e}"
+        );
+    }
 }
 
 /// **With no march door a curved partner is R-lane**: its hull is
@@ -376,5 +389,215 @@ fn a_side_lying_on_the_sphere_is_a_side_region() {
         reached.rims()[1],
         side(ChartAxis::V, ChartEnd::Low),
         "the wall's ends"
+    );
+}
+
+/// **A wall of revolution about the `z` axis**: the meridian `m(i)`, its
+/// `(ρ, z, w)` control points over the knot vector `ku`, revolved through
+/// the longitudes `lon` (under a right angle) as one rational quadratic
+/// span in `v`.
+fn revolved(ku: KnotVector, meridian: &[(f64, f64, f64)], lon: (f64, f64)) -> Surface<f64> {
+    let h = 0.5 * (lon.1 - lon.0);
+    let parallel = [
+        (lon.0, 1.0, 1.0),
+        (lon.0 + h, 1.0 / h.cos(), h.cos()),
+        (lon.1, 1.0, 1.0),
+    ];
+    let (control, weights): (Vec<_>, Vec<_>) = meridian
+        .iter()
+        .flat_map(|&(rho, z, w)| {
+            parallel.iter().map(move |&(theta, stretch, wp)| {
+                (
+                    pt(rho * stretch * theta.cos(), rho * stretch * theta.sin(), z),
+                    w * wp,
+                )
+            })
+        })
+        .unzip();
+    wall(NurbsSurface::new(ku, span(2), control, weights).unwrap())
+}
+
+/// **A circle's arc from `a` to `b` cut into `n` exact rational quadratic
+/// spans**, about `(c0, c1)` of radius `r`: its control points as
+/// `(first, second, w)` and its knot vector, each interior knot doubled.
+fn arcs(
+    n: usize,
+    (a, b): (f64, f64),
+    (c0, c1): (f64, f64),
+    r: f64,
+) -> (KnotVector, Vec<(f64, f64, f64)>) {
+    #[allow(clippy::cast_precision_loss)]
+    let step = (b - a) / n as f64;
+    let half = 0.5 * step;
+    let mut control = Vec::with_capacity(2 * n + 1);
+    for k in 0..n {
+        #[allow(clippy::cast_precision_loss)]
+        let t = a + step * k as f64;
+        control.push((c0 + r * t.cos(), c1 + r * t.sin(), 1.0));
+        let m = t + half;
+        control.push((
+            c0 + r / half.cos() * m.cos(),
+            c1 + r / half.cos() * m.sin(),
+            half.cos(),
+        ));
+    }
+    control.push((c0 + r * b.cos(), c1 + r * b.sin(), 1.0));
+    let mut knots = vec![0.0; 3];
+    for k in 1..n {
+        #[allow(clippy::cast_precision_loss)]
+        let x = k as f64 / n as f64;
+        knots.extend([x, x]);
+    }
+    knots.extend([1.0; 3]);
+    (KnotVector::clamped(knots, 2).unwrap(), control)
+}
+
+/// **A sphere zone half the band off a sphere of radius 100 lies on it.**
+/// The composite there is `|S|² − R² ≈ 2R·δ`, a hundred times the
+/// band at `δ = ε/2`, and only its reading in metres, through the
+/// divisor `|p| + R ≈ 200`, is within the band. Red against the hull
+/// deciding apart on the raw form (it reads the wall a hundred bands
+/// inside the sphere, disjoint).
+#[test]
+fn a_zone_half_the_band_off_a_large_sphere_lies_on_it() {
+    let off = 0.5 * band().zero();
+    let got = read(&sphere(pt(0.0, 0.0, 0.0), 100.0), &the_zone(100.0 + off));
+    assert!(
+        matches!(got, Err(SectionError::CoincidentSurfaces)),
+        "a zone {off:e} off a sphere of radius 100 reads {got:?}"
+    );
+}
+
+/// The exact wall of the ring torus `(major, minor)` about the `z` axis:
+/// its whole meridian circle in `n` spans, revolved through 60°.
+fn torus_wall(n: usize, major: f64, minor: f64) -> Surface<f64> {
+    let (ku, meridian) = arcs(n, (0.0, std::f64::consts::TAU), (major, 0.0), minor);
+    revolved(ku, &meridian, (0.0, std::f64::consts::FRAC_PI_3))
+}
+
+/// **A torus wall up to three bands off its torus is not on it, by the
+/// hull.** The wall of `(R + δ, r − δ)` against the torus `(R, r)`,
+/// `R = 1`, `r = 0.9`, `δ = 1.5ε`, its meridian in eight spans: it meets
+/// the torus on the outer equator and stands `2δ` off it on the inner,
+/// where the form's divisor is a fifth of the outer's. The largest `|f|`
+/// read over the net's largest divisor is under the band's zero, so a
+/// coincidence read on the floor reads the wall on the torus; read on
+/// the ceiling it is not. The row reads stage 1 alone: past a hull that
+/// does not decide it, the pass and the sweep over a wall this near its
+/// partner spend the cell budget. Red against the coincidence read on
+/// the floor, and against the ceiling divided by the floor's divisor.
+#[test]
+fn a_torus_wall_three_bands_off_its_torus_is_not_on_it() {
+    let d = 1.5 * band().zero();
+    let curved = crate::ssi::residual::Curved::of(&torus(1.0, 0.9)).unwrap();
+    let Surface::Nurbs(net) = torus_wall(8, 1.0 + d, 0.9 - d) else {
+        unreachable!("a NURBS wall")
+    };
+    let got = super::hull(&curved, &net, band());
+    assert!(
+        !matches!(got, Err(SectionError::CoincidentSurfaces)),
+        "a wall up to {:e} off the torus reads {got:?}",
+        2.0 * d
+    );
+}
+
+/// **A refined quarter cylinder just past the band's zero escalates.**
+/// Sixteen exact arcs of radius `1 + δ`, `δ = 1.05ε`, ruled up the `z`
+/// axis, against the unit cylinder: the net's hull is a square box whose
+/// corner stands `√2` out, so the divisor's upper bound there makes a
+/// floor of `0.87ε`, decided zero, where the ceiling reads `1.05ε`, in
+/// band. Red against the coincidence read on the floor.
+#[test]
+fn a_quarter_cylinder_just_past_the_zero_escalates() {
+    let d = 1.05 * band().zero();
+    let (ku, ring) = arcs(16, (0.0, std::f64::consts::FRAC_PI_2), (0.0, 0.0), 1.0 + d);
+    let (control, weights): (Vec<_>, Vec<_>) = ring
+        .iter()
+        .flat_map(|&(x, y, w)| [(pt(x, y, 0.0), w), (pt(x, y, 1.0), w)])
+        .unzip();
+    let quarter = wall(NurbsSurface::new(ku, span(1), control, weights).unwrap());
+    let got = read(&cylinder(pt(0.0, 0.0, 0.0), 1.0), &quarter);
+    assert!(
+        matches!(got, Err(SectionError::Escalated(_))),
+        "a quarter cylinder {d:e} off reads {got:?}"
+    );
+}
+
+/// **A wall leaving a large cylinder along a ruling at a slope in the
+/// band is held tangent.** A flat wall whose `v = 0` side is a ruling of
+/// the cylinder of radius 100, leaving it at `θ = 0.3ε` per metre: the
+/// strip's slope across the side, `∇f·S_v` over `sup‖∇f‖·sup‖S_v‖`, is a
+/// sine of about `θ`, levered by the feature extent well within the
+/// band, and the pass refuses the strip as the pinch. `‖∇f‖ = 2R = 200`
+/// on the cylinder, so a slope not over it reads two hundred times the
+/// sine, past the band at every ε. Monotone in `R`. Red against the
+/// strip's sine read without `sup‖∇f‖`.
+#[test]
+fn a_wall_leaving_a_large_cylinder_in_the_band_is_held_tangent() {
+    let theta = 0.3 * band().zero();
+    let away = pt(100.0 + theta.sin(), theta.cos(), 0.0);
+    let w = flat([
+        [pt(100.0, 0.0, 0.0), away],
+        [pt(100.0, 0.0, 1.0), pt(away.x, away.y, 1.0)],
+    ]);
+    let got = read(&cylinder(pt(0.0, 0.0, 0.0), 100.0), &w);
+    assert!(
+        matches!(
+            got,
+            Err(SectionError::Pinched {
+                predicate: "ssi_boundary_strip"
+            })
+        ),
+        "a wall leaving the cylinder at {theta:e} reads {got:?}"
+    );
+}
+
+/// **An interior touch with a large sphere is no exclusion.** The dome
+/// `z = −(x − ½)² − (y − ½)²` under the sphere of radius 100 whose
+/// lowest point stands `ε/2` above the dome's top: the top is a critical
+/// point of `φ` within the band, neither regular nor excluded at the
+/// floor, and the sweep declines there (stage 2 decides it a touch). The
+/// form at the top is `2R·ε/2`, a hundred bands, so a sweep excluding on
+/// the raw form reads the top's cells past the band, joins them to the
+/// sides and clears the pose with no component. Red against the sweep's
+/// exclusion read on the raw form rather than in metres.
+#[test]
+fn an_interior_touch_with_a_large_sphere_is_no_exclusion() {
+    let g = [-0.25, 0.25, -0.25];
+    #[allow(clippy::cast_precision_loss)]
+    let dome = patch(2, 2, &|i, j| {
+        (pt(0.5 * i as f64, 0.5 * j as f64, g[i] + g[j]), 1.0)
+    });
+    let above = 100.0 + 0.5 * band().zero();
+    let got = read(&dome, &sphere(pt(0.5, 0.5, above), 100.0));
+    assert!(
+        matches!(got, Err(SectionError::RoutesToGeneralRung { .. })),
+        "a dome touching a large sphere within the band reads {got:?}"
+    );
+}
+
+/// **A torus corner in the band is no clear corner.** At the point of the
+/// torus `(1, 0.9)` at meridian angle 120°, `0.85` of the band's
+/// escalation inside it, the pass's corner reading is a floor on the
+/// distance, which reads in band, so the corner is classified; the
+/// form's ceiling there over-reads the distance by about `1.38`, past
+/// the escalation, which would skip the corner as clear. Red against the
+/// corner read on a ceiling.
+#[test]
+fn a_torus_corner_in_the_band_is_no_clear_corner() {
+    use crate::ssi::boundary::Partner;
+    use geom_core::Sign;
+    use geom_core::k_stats::decide;
+    let b = band();
+    let curved = crate::ssi::residual::Curved::of(&torus(1.0, 0.9)).unwrap();
+    let a = 2.0 * std::f64::consts::FRAC_PI_3;
+    let rho = 0.9 - 0.85 * b.escalate();
+    let p = pt(1.0 + rho * a.cos(), 0.0, rho * a.sin());
+    let (_, metres) = (&curved).at_point(p);
+    let read = decide("ssi_boundary_corner", geom_core::Margin::of(metres), b);
+    assert!(
+        !matches!(read, Ok(Sign::Positive)),
+        "a corner {:e} inside the torus reads {metres:e}: {read:?}",
+        0.85 * b.escalate()
     );
 }
