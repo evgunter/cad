@@ -136,7 +136,7 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
 /// lever is now definitely nonzero. The zero comes from the sine, not
 /// from a collapsed arm.
 #[test]
-fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
+fn a_co_surface_seam_meridian_reads_smooth_at_exactly_zero() {
     let ball = revolved(
         vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
         Revolution::Full,

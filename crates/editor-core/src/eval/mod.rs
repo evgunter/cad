@@ -849,8 +849,10 @@ pub struct NodeValue<T: Decide> {
     pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
     /// **The requested edges the node's blend left as they are**: the
     /// smooth seams (`sweep::blend::LinkWedge::Smooth`) its selection
-    /// named, each by its name in the operand's table, in selection
-    /// order. Empty for every other node. The node's badge reads it.
+    /// named, each by its name in the operand's table, in the order of
+    /// the operand's edge keys (the request `wire_blend` resolves the
+    /// selection to is sorted), not the selection's own order. Empty for
+    /// every other node. The node's badge reads it.
     pub left_alone: Arc<[StableName]>,
     /// **A placement's solved motion** (D10): where its copy sits
     /// relative to its source, `None` for a copy the identity

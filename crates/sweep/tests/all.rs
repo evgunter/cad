@@ -300,6 +300,8 @@ mod pcurve_p1b_r2_probes;
 mod pieces_oblique_bore;
 #[path = "pinned_corners_at_the_loft_door.rs"]
 mod pinned_corners_at_the_loft_door;
+#[path = "pins_of_todays_blend_refusals.rs"]
+mod pins_of_todays_blend_refusals;
 #[path = "pipeline_null_edge_rows.rs"]
 mod pipeline_null_edge_rows;
 #[path = "pis_arc_capped_poses.rs"]

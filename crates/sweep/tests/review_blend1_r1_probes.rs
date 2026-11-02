@@ -351,9 +351,10 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
         normal,
         u_ref: Vec3::new(0.0, 0.0, 1.0).cross(normal).normalize(),
     };
+    let out = |s: &geom::Surface<f64>| geom_brep::implicit_outward_normal(s, true, o);
     let x = plane(Vec3::new(1.0, 0.0, 0.0));
     let tilted = plane(Vec3::new(1.0, in_band(), 0.0).normalize());
-    let escalated = wedge_at((&x, true), (&tilted, true), o, tau, 1.0, e, band()).unwrap_err();
+    let escalated = wedge_at(out(&x), out(&tilted), tau, 1.0, e, band()).unwrap_err();
     let text = format!("{escalated}");
     assert!(
         matches!(&escalated, BlendError::Escalated { source, .. }
@@ -361,7 +362,7 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
         "{escalated:?}"
     );
     assert!(
-        text.contains(sweep::blend::FILLET3_TANGENTIAL_RECOURSE),
+        text.contains(sweep::blend::FILLET3_WEDGE_RECOURSE),
         "the decided-Zero sibling's sentence: {text}"
     );
     assert!(
@@ -372,10 +373,10 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
     // decided Zero with the material facing itself. Both arms, one
     // sentence.
     let back = plane(Vec3::new(-1.0, 0.0, 0.0));
-    let flat = wedge_at((&x, true), (&back, true), o, tau, 1.0, e, band()).unwrap_err();
+    let flat = wedge_at(out(&x), out(&back), tau, 1.0, e, band()).unwrap_err();
     assert!(matches!(flat, BlendError::KnifeEdge { .. }), "{flat:?}");
     assert!(
-        format!("{flat}").contains(sweep::blend::FILLET3_TANGENTIAL_RECOURSE),
+        format!("{flat}").contains(sweep::blend::FILLET3_WEDGE_RECOURSE),
         "{flat}"
     );
 }

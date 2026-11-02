@@ -78,6 +78,17 @@ fn selection_of(
     }
 }
 
+/// The read through which a fillet node reads its target.
+fn selection_read(
+    doc: &editor_core::ProfileDoc,
+    fillet: editor_core::RecipeNodeId,
+) -> editor_core::VarId {
+    match doc.node(fillet) {
+        Some(Node::Fillet { selection, .. }) => *selection,
+        other => panic!("expected a fillet node, got {other:?}"),
+    }
+}
+
 /// The document's one fillet node, and the target it blends.
 fn fillet_and_target(
     doc: &editor_core::ProfileDoc,
@@ -208,16 +219,48 @@ fn every_edge_selected_leaves_the_cavity_meridians_and_names_them() {
             "no band is named for the left-alone {meridian}"
         );
     }
-    // The authored selection builds the same faces: the meridians cost
-    // the all-round request nothing.
-    let faces = |id| {
+    // The authored selection builds the same body, name for name: the
+    // meridians cost the all-round request nothing. Each node roots its
+    // own names and reads its target through its own read, and a name
+    // can carry either anywhere in its path (a merged edge names its
+    // pieces under the node), so the two tables are compared as
+    // spelled, with the all-round node and its read spelled as the
+    // authored ones; every name is otherwise the same birth.
+    let as_authored = [
+        (format!("{all_round:?}"), format!("{fillet:?}")),
+        (
+            format!("{:?}", selection_read(&applied.doc, all_round)),
+            format!("{:?}", selection_read(&doc.doc, fillet)),
+        ),
+    ];
+    let names = |id| -> BTreeSet<String> {
         ev.table_at(id)
             .expect("a fillet's table")
             .iter()
-            .filter(|(n, _)| n.kind == EntityKind::Face)
-            .count()
+            .map(|(n, _)| {
+                as_authored
+                    .iter()
+                    .fold(format!("{n:?}"), |spelled, (from, to)| {
+                        spelled.replace(from, to)
+                    })
+            })
+            .collect()
     };
-    assert_eq!(faces(all_round), faces(fillet), "the same faces either way");
+    let (all_round_names, authored_names) = (names(all_round), names(fillet));
+    assert!(
+        !authored_names.is_empty(),
+        "the authored fillet names its body"
+    );
+    let only_all_round: Vec<_> = all_round_names.difference(&authored_names).collect();
+    let only_authored: Vec<_> = authored_names.difference(&all_round_names).collect();
+    assert!(
+        only_all_round.is_empty() && only_authored.is_empty(),
+        "the all-round fillet names what the authored one names ({} and {} names); \
+         only the all-round names {only_all_round:#?}; only the authored names \
+         {only_authored:#?}",
+        all_round_names.len(),
+        authored_names.len(),
+    );
 }
 
 /// **The selection is exactly the target's edges minus the two

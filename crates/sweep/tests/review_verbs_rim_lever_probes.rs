@@ -29,7 +29,7 @@
 //! 5. **The detector survived** — a co-surface seam still reads Zero
 //!    at a margin of exactly 0.0, a smooth seam, while a transverse
 //!    closed rim of the same body family does not
-//!    (`co_surface_seams_still_refuse_while_transverse_rims_do_not`).
+//!    (`co_surface_seams_read_smooth_while_transverse_rims_do_not`).
 //! 6. **Both convexity signs on closed rims**
 //!    (`closed_rims_decide_both_convexity_signs_at_diameter_levers`).
 //! 7. **The >240° open-arc class the change also moves** — an open
@@ -397,7 +397,7 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
 /// A "fix" that disabled the sign test would pass the second half and
 /// red the first; a revert to the collapsed lever reds the second.
 #[test]
-fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
+fn co_surface_seams_read_smooth_while_transverse_rims_do_not() {
     let mut rng = fuzz::start("verbs_rim_tangency_differential");
     for _ in 0..fuzz::scaled(3) {
         let r = rng.range(0.4, 2.5);

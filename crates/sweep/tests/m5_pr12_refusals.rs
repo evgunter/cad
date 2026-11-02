@@ -532,9 +532,8 @@ fn plane_wedge(
     let (a, b) = (plane(na), plane(nb));
     let o = Point3::new(0.0, 0.0, 0.0);
     wedge_at(
-        (&a, true),
-        (&b, true),
-        o,
+        geom_brep::implicit_outward_normal(&a, true, o),
+        geom_brep::implicit_outward_normal(&b, true, o),
         Vec3::new(0.0, 0.0, 1.0),
         1.0,
         e,

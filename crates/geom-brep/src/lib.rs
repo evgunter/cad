@@ -120,7 +120,7 @@ pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,
     EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE, MaterialPairing,
     MaterialWedge, MixedStations, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
-    MustCarryVerdict, PairRefusal, RestLocus, SeamEscalation, SeamFace, SecondOrder,
+    MustCarryVerdict, PairRefusal, PositiveArm, RestLocus, SeamEscalation, SeamFace, SecondOrder,
     SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral, classify_edge_wedge,
     classify_material_pairing, classify_material_pairing_as, classify_seam, folded_lever_arm,
     interior_stations, material_kappa_rel, must_carry_description, must_carry_over_edge,

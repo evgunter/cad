@@ -448,7 +448,7 @@ impl BlendDecision {
             Self::FaceClearance => FILLET3_CLEARANCE_RECOURSE,
             Self::SpineRegularity => FILLET3_SPINE_RECOURSE,
             Self::ChainG1 | Self::ChainArm => FILLET3_CHAIN_RECOURSE,
-            Self::ConvexitySign => FILLET3_TANGENTIAL_RECOURSE,
+            Self::ConvexitySign => FILLET3_WEDGE_RECOURSE,
             // Past the arm gate, the pairing refuses only an arm too
             // short to read a side over (`geom_brep::MATERIAL_PAIRING`):
             // the arm gate's own lever.
@@ -480,7 +480,9 @@ impl BlendDecision {
             Self::ChainArm => Some(("link length", SizedPass::Positive)),
             Self::CutOffFeet => Some(("separation of the feet", SizedPass::Positive)),
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
-            Self::MaterialSide => Some(("link length", SizedPass::NonZero)),
+            // The pairing's own margin, over the folded arm; the wedge
+            // it can quote instead is read in `sized_on`.
+            Self::MaterialSide => Some(("length", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
             // Either definite sign of the sagitta picks a description.
             Self::ContactSecondOrder => Some(("separation", SizedPass::AnySign)),
@@ -503,6 +505,26 @@ impl BlendDecision {
         }
     }
 
+    /// [`Self::sized`], read for the margin `arm` actually carries.
+    ///
+    /// [`Self::MaterialSide`]'s refusal carries one of two margins: the
+    /// pairing's, `cos θ · arm` over the folded arm (a length: an arm too
+    /// short to read a side over), or, where the tolerance the pairing
+    /// would offer leaves the smooth verdict's wedge in band, the wedge
+    /// `sin θ · arm` it re-quotes under `material_pairing_wedge`
+    /// (`geom_brep::classify_material_pairing`). A smaller tolerance
+    /// decides that one positive, and reads the edge as a crease.
+    fn sized_on(self, arm: &RefusedArm<'_>) -> Option<(&'static str, SizedPass)> {
+        match (self, arm) {
+            (Self::MaterialSide, RefusedArm::Undecided(source))
+                if source.predicate == Some("material_pairing_wedge") =>
+            {
+                Some(("wedge opening", SizedPass::Positive))
+            }
+            _ => self.sized(),
+        }
+    }
+
     /// The one ending a refusal of this decision carries on `arm`
     /// ([`Self::recourse_with`] at the decision's own lever).
     #[must_use]
@@ -515,7 +537,7 @@ impl BlendDecision {
     /// sized, read at the build; otherwise the lever alone, with the
     /// unreadable-margin note on a poisoned reading.
     fn recourse_with(self, lever: &'static str, arm: RefusedArm<'_>) -> String {
-        match self.sized() {
+        match self.sized_on(&arm) {
             Some((size, passes)) => SizedDecision {
                 lever,
                 size,
@@ -1051,7 +1073,7 @@ pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the blend size, enlar
 /// a convexity sign in band. Both verbs meter the dihedral (the strip
 /// needs a wedge to sit in exactly as the ball does), so the sentence
 /// speaks of the blend, not the ball.
-pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; a cusp or slit leaves \
+pub const FILLET3_WEDGE_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; a cusp or slit leaves \
      the blend no side to sit in, at any size";
 /// The recourse for a spine the rolling ball's own envelope folds on.
 /// Ball language kept deliberately: spine regularity is a rolling-ball
@@ -2223,7 +2245,7 @@ pub const ALL_RECOURSES: [(&str, &str); 21] = [
     ("contact-wedge", FILLET3_CONTACT_WEDGE_RECOURSE),
     ("clearance", FILLET3_CLEARANCE_RECOURSE),
     ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
-    ("tangential", FILLET3_TANGENTIAL_RECOURSE),
+    ("wedge", FILLET3_WEDGE_RECOURSE),
     ("spine", FILLET3_SPINE_RECOURSE),
     ("chain", FILLET3_CHAIN_RECOURSE),
     ("convexity", FILLET3_CONVEXITY_RECOURSE),
@@ -2253,7 +2275,7 @@ mod recourse_tests {
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_INSIDE_RECOURSE,
         FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE,
-        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
+        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_WEDGE_RECOURSE,
     };
 
     /// **A contact edge's must-carry escalation ends as the decision its
@@ -2363,7 +2385,7 @@ mod recourse_tests {
                 })
             }
             BlendError::FaceClearance { .. } => Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE),
-            BlendError::KnifeEdge { .. } => Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE),
+            BlendError::KnifeEdge { .. } => Recourse::Exactly(FILLET3_WEDGE_RECOURSE),
             BlendError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
             BlendError::ChainNotG1 { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
             BlendError::ConvexitySignFlip { .. } => Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE),

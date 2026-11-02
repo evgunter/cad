@@ -67,8 +67,8 @@ use sweep::blend::{
     FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
     FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
     FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
-    FILLET3_TURN_RECOURSE,
+    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TURN_RECOURSE,
+    FILLET3_WEDGE_RECOURSE,
 };
 use sweep::test_support::{
     ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
@@ -250,7 +250,7 @@ fn the_clearance_recourse_reduces_to_a_blend_size_that_builds() {
     builds(&body, &rim, 0.05, "the reduced blend size");
 }
 
-/// **`FILLET3_TANGENTIAL_RECOURSE` — "blend an edge whose supports meet
+/// **`FILLET3_WEDGE_RECOURSE` — "blend an edge whose supports meet
 /// at a definite angle".**
 ///
 /// A slit — a plate bored by a declared-cusp lune, whose kiss is a strut
@@ -311,7 +311,7 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
         ),
         "a slit is the zero-margin wedge, got {err:?}"
     );
-    carries(&err, FILLET3_TANGENTIAL_RECOURSE, "knife edge");
+    carries(&err, FILLET3_WEDGE_RECOURSE, "knife edge");
     builds(&body, &[corner], 0.05, "the definite-angle edge");
 }
 

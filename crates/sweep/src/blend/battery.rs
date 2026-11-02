@@ -724,36 +724,38 @@ pub enum LinkWedge {
 /// The fold is gated by `fillet3_chain_arm` exactly as the chain-G1
 /// margin is: an angle at an arm not definitely positive is not a
 /// question, so such an arm refuses as that gate
-/// ([`classify_positive`]), carrying the arm it read, rather than
-/// classifying.
+/// ([`geom_brep::PositiveArm::gate`] under the decision's name),
+/// carrying the arm it read, rather than classifying.
+///
+/// It takes the two faces' outward normals at the sample, read once by
+/// the caller ([`geom_brep::implicit_outward_normal`]): the door and its
+/// material pairing read those two, and the link's arm reads them after.
 ///
 /// # Errors
 ///
 /// [`BlendError::KnifeEdge`] on a cusp or slit;
-/// [`BlendError::Escalated`] in band or on poison, of the sign or of
-/// the material side.
-#[allow(clippy::too_many_arguments)] // the door's inputs, the edge it reports, the band
+/// [`BlendError::Escalated`] in band or on poison, of the arm, the sign
+/// or the material side.
 pub fn wedge_at<T: Decide + Bounds>(
-    plus: (&Surface<T>, bool),
-    minus: (&Surface<T>, bool),
-    p: Point3<T>,
+    n_plus: geom_brep::OutwardNormal<T>,
+    n_minus: geom_brep::OutwardNormal<T>,
     tau: Vec3<T>,
     arm: T,
     edge: EdgeKey,
     band: Band,
 ) -> Result<(LinkWedge, ClassifiedMargin), BlendError> {
     let site = BlendSite::Link { edge };
-    classify_positive(site, BlendDecision::ChainArm, Margin::of(arm), band)?;
     let escalated = |decision, source| BlendError::Escalated {
         site,
         decision,
         source,
     };
+    let arm = geom_brep::PositiveArm::gate(BlendDecision::ChainArm.predicate(), arm, band)
+        .map_err(|source| escalated(BlendDecision::ChainArm, source))?;
     let (wedge, margin) = geom_brep::classify_edge_wedge(
         BlendDecision::ConvexitySign.predicate(),
-        plus,
-        minus,
-        p,
+        n_plus,
+        n_minus,
         tau,
         arm,
         band,
@@ -1072,8 +1074,6 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
-    let n_a = outward(body, face_a, p).ok_or_else(broken)?;
-    let n_b = outward(body, face_b, p).ok_or_else(broken)?;
     let sa = body
         .get_surface(body.get_face(face_a).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
@@ -1100,18 +1100,16 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     // rides (`plane_sphere_blend`).
     let sense = |f: FaceKey| body.get_face(f).map(|d| d.sense).ok_or_else(broken);
     let senses = (sense(face_a)?, sense(face_b)?);
-    let (convexity, convexity_margin) = match wedge_at(
-        (&sa, senses.0),
-        (&sb, senses.1),
-        p,
-        tau,
-        wedge_arm,
-        edge,
-        band,
-    )? {
-        (LinkWedge::Blend(convexity), margin) => (convexity, margin),
-        (LinkWedge::Smooth, margin) => return Ok(Resolved::Smooth(edge, margin)),
-    };
+    // Each face's outward normal at the point, read once: the wedge and
+    // its material pairing, then the arm, read these two.
+    let outward_a = geom_brep::implicit_outward_normal(&sa, senses.0, p);
+    let outward_b = geom_brep::implicit_outward_normal(&sb, senses.1, p);
+    let (n_a, n_b) = (outward_a.vec(), outward_b.vec());
+    let (convexity, convexity_margin) =
+        match wedge_at(outward_a, outward_b, tau, wedge_arm, edge, band)? {
+            (LinkWedge::Blend(convexity), margin) => (convexity, margin),
+            (LinkWedge::Smooth, margin) => return Ok(Resolved::Smooth(edge, margin)),
+        };
     let (arm, blend, axis) = classify_arm(
         &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, edge, kind, band,
     )?;

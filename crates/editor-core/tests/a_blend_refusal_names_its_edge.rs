@@ -6,9 +6,9 @@
 
 use crate::fixture::{ang, len};
 use editor_core::{
-    AuthoredNode, CancelToken, DocEdit, DocumentId, EvalOptions, Evaluation, LoopProgram, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
-    RecipeNodeId, apply, evaluate,
+    AuthoredNode, CancelToken, DocEdit, DocumentId, EntityKey, EntityRef, EvalOptions, Evaluation,
+    LoopProgram, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, apply, evaluate,
 };
 use geom_core::Tol;
 
@@ -71,7 +71,39 @@ fn a_knife_edge_refusal_names_the_edge_by_its_stable_name() {
             distance: len(1.0),
         },
     );
-    let every = editor_core::all_edges(&eval(&doc), extrude);
+    let ev0 = eval(&doc);
+    let every = editor_core::all_edges(&ev0, extrude);
+    // The kiss: the one edge whose two faces are both arcs' walls, named
+    // as the operand's table names it.
+    let kiss = {
+        let Some(NodeResult::Ok(v)) = ev0.nodes.get(&extrude) else {
+            panic!("the cusp extrude builds");
+        };
+        let body = v.payload.output_body(0).expect("one body").body();
+        let on_cylinder = |he| {
+            body.get_half_edge(he)
+                .and_then(|h| body.get_loop(h.parent_loop))
+                .and_then(|l| body.get_face(l.face))
+                .and_then(|f| body.get_surface(f.surface))
+                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
+        };
+        let kisses: Vec<_> = body
+            .edges()
+            .filter(|(_, e)| on_cylinder(e.he_plus) && on_cylinder(e.he_minus))
+            .map(|(k, _)| k)
+            .collect();
+        let [kiss] = kisses[..] else {
+            panic!("the lune has one kiss strut, got {kisses:?}");
+        };
+        ev0.table_at(extrude)
+            .expect("the extrude's table")
+            .name_of(&EntityRef {
+                body: 0,
+                key: EntityKey::Edge(kiss),
+            })
+            .cloned()
+            .expect("the table names the kiss")
+    };
     let (doc, fillet) = mint(&doc, Node::fillet(extrude, len(0.05), every.clone()));
     let ev = eval(&doc);
     let Some(NodeResult::Failed(failure)) = ev.nodes.get(&fillet) else {
@@ -91,6 +123,10 @@ fn a_knife_edge_refusal_names_the_edge_by_its_stable_name() {
     assert!(
         every.contains(name),
         "the refusal names an edge of the selection: {name}"
+    );
+    assert_eq!(
+        **name, kiss,
+        "the refusal names the kiss, the knife edge itself"
     );
     let text = failure.kind.to_string();
     assert!(

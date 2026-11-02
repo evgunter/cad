@@ -319,7 +319,7 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
 /// blend leaves as it is — the fix removed the collapsed lever, not the
 /// tangency detector.
 #[test]
-fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
+fn a_co_surface_seam_reads_smooth_at_exactly_zero_margin() {
     let mut rng = fuzz::start("rim-r1 seam differential");
     for _ in 0..fuzz::scaled(4) {
         let r = rng.range(0.5, 2.0);

@@ -119,10 +119,17 @@ fn an_all_smooth_request_returns_the_body_unchanged_and_names_every_edge() {
                 all,
                 "the {name} {verb} names every edge"
             );
+            let keys = |b: &Body<f64>| {
+                (
+                    b.faces().map(|(k, _)| k).collect::<Vec<_>>(),
+                    b.edges().map(|(k, _)| k).collect::<Vec<_>>(),
+                    b.vertices().map(|(k, _)| k).collect::<Vec<_>>(),
+                )
+            };
             assert_eq!(
-                (out.body.faces().count(), out.body.edges().count()),
-                (body.faces().count(), body.edges().count()),
-                "the {name} {verb} returns the body as it is"
+                keys(&out.body),
+                keys(&body),
+                "the {name} {verb} returns the body as it is, key for key"
             );
             assert!(
                 out.blend_faces.is_empty()
@@ -132,4 +139,91 @@ fn an_all_smooth_request_returns_the_body_unchanged_and_names_every_edge() {
             );
         }
     }
+}
+
+/// The slot: a centre run `x ∈ [−1, 1]` between two semicircular ends of
+/// radius 0.5, extruded 1 up. Each straight wall meets each end's
+/// half-cylinder at a smooth strut.
+pub(crate) fn slot() -> Body<f64> {
+    sweep::test_support::extruded(
+        profile::SketchPlane::xy(),
+        vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(-1.0, -0.5), 0.0),
+            (Point2::new(1.0, -0.5), 1.0),
+            (Point2::new(1.0, 0.5), 0.0),
+            (Point2::new(-1.0, 0.5), 1.0),
+        ])],
+        1.0,
+        tol(),
+    )
+}
+
+/// The edge of `body` running between `a` and `b`, either way.
+pub(crate) fn edge_between(body: &Body<f64>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
+    let at = |v, q: [f64; 3]| {
+        let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        (p.x - q[0]).abs() < 1e-9 && (p.y - q[1]).abs() < 1e-9 && (p.z - q[2]).abs() < 1e-9
+    };
+    let found: Vec<EdgeKey> = body
+        .edges()
+        .filter(|(_, e)| {
+            let he = body.get_half_edge(e.he_plus).unwrap();
+            let (s, t) = (he.start, body.half_edge_end(e.he_plus).unwrap());
+            (at(s, a) && at(t, b)) || (at(s, b) && at(t, a))
+        })
+        .map(|(k, _)| k)
+        .collect();
+    let [edge] = found[..] else {
+        panic!("one edge between {a:?} and {b:?}, got {found:?}")
+    };
+    edge
+}
+
+/// **A smooth strut beside a requested edge changes nothing about it.**
+/// The slot's top line, requested alone, ends at each end where a strut
+/// and that end's top arc arrive; with both struts requested too, they
+/// are left as they are and each line end reads its vertex the same way, so
+/// the request refuses exactly as the line alone does. A battery that
+/// read the strut as a requested neighbour at the corner would fold it
+/// into an unreadable configuration instead.
+#[test]
+fn a_smooth_strut_requested_beside_a_line_reads_as_the_line_alone() {
+    let body = slot();
+    let line = edge_between(&body, [-1.0, -0.5, 1.0], [1.0, -0.5, 1.0]);
+    // The strut at EACH end, so whichever end the battery reads first
+    // has a smooth neighbour requested.
+    let struts = [
+        edge_between(&body, [-1.0, -0.5, 0.0], [-1.0, -0.5, 1.0]),
+        edge_between(&body, [1.0, -0.5, 0.0], [1.0, -0.5, 1.0]),
+    ];
+    for strut in struts {
+        assert!(struts_of(&body).contains(&strut), "the strut is smooth");
+    }
+    let operand = at_rest(&body, tol());
+    let alone = fillet_edges(&operand, &[line], 0.05, tol()).map_err(|r| r.error);
+    let beside =
+        fillet_edges(&operand, &[line, struts[0], struts[1]], 0.05, tol()).map_err(|r| r.error);
+    assert!(
+        matches!(alone, Err(BlendError::UnsupportedRunOut { .. })),
+        "the line alone runs out at its ends, got {alone:?}"
+    );
+    assert_eq!(
+        format!("{beside:?}"),
+        format!("{alone:?}"),
+        "the strut beside it changes nothing"
+    );
+}
+
+/// The slot's struts: edges whose two faces are a flat wall and an end's
+/// half-cylinder, meeting smoothly.
+fn struts_of(body: &Body<f64>) -> Vec<EdgeKey> {
+    let vertical = |e: &topo::Edge| {
+        let he = body.get_half_edge(e.he_plus).unwrap();
+        let z = |v| body.get_point(body.get_vertex(v).unwrap().point).unwrap().z;
+        (z(he.start) - z(body.half_edge_end(e.he_plus).unwrap())).abs() > 0.5
+    };
+    body.edges()
+        .filter(|(_, e)| vertical(e))
+        .map(|(k, _)| k)
+        .collect()
 }

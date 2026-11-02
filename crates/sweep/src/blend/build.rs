@@ -226,34 +226,15 @@ fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
     let verdict = run_battery(&request, band)?;
 
     // ---- Then the assembly, which is the composition surgery. ----
-    let blended = match smooth_only(body, &verdict) {
-        Some(unchanged) => unchanged,
-        None => super::surgery::blend_surgery(body, &verdict, band, tol)?,
-    };
+    let blended = super::surgery::blend_surgery(body, &verdict, band, tol)?;
     Ok(named_smooth(blended, &verdict))
 }
 
-/// **Both doors' assembly, its smooth half**: a request every edge of
-/// which is a smooth seam has no chain to carve, and is the operand as
-/// it is; otherwise `None`, and the composition surgery carves the
-/// verdict's chains. Either way [`named_smooth`] names the seams.
-fn smooth_only<T: Real>(body: &Body<T>, verdict: &super::BatteryVerdict<T>) -> Option<Blended<T>> {
-    (verdict.chains.is_empty() && !verdict.smooth.is_empty()).then(|| Blended {
-        body: body.clone(),
-        shells: Vec::new(),
-        blend_faces: Vec::new(),
-        corner_faces: Vec::new(),
-        band_faces: Vec::new(),
-        naming: Some(super::naming::BlendNaming {
-            source: topo::SourceGeometry::of(body),
-            ..super::naming::BlendNaming::default()
-        }),
-        coincidences: Vec::new(),
-    })
-}
-
 /// `blended` with the smooth seams the battery left out named in its
-/// [`super::naming::BlendNaming::smooth`] row.
+/// [`super::naming::BlendNaming::smooth`] row. A request every edge of
+/// which is a smooth seam reaches the surgery with no chain, which
+/// carves nothing and hands back the operand's own entities, key for
+/// key (`a_blend_leaves_a_smooth_edge_as_it_is`).
 fn named_smooth<T: Real>(
     mut blended: Blended<T>,
     verdict: &super::BatteryVerdict<T>,
@@ -536,10 +517,7 @@ fn chamfer_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
         size: distance,
     };
     let verdict = super::battery::run_battery_for(&request, band, BlendKind::Chamfer)?;
-    let blended = match smooth_only(body, &verdict) {
-        Some(unchanged) => unchanged,
-        None => super::surgery::blend_surgery(body, &verdict, band, tol)?,
-    };
+    let blended = super::surgery::blend_surgery(body, &verdict, band, tol)?;
     Ok(named_smooth(blended, &verdict))
 }
 

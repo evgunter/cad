@@ -12,4 +12,4 @@ Filed by the REFS orchestrator (2026-11-02), from the designers' measurement on 
 
 A plain rounded-rectangle plate, once its eight smooth cut edges are out of the request (the REFS unit leaves them alone), refuses filleting all its edges with "a closed chain's blend is not a torus … junction carry-through not implemented". Any rounded outline is a closed tangent-continuous chain whose links mix planes and cylinders. Its cuts' margins read ±7e-18, which is still a decided Zero.
 
-Measured on a designer's scratch crate, `/home/user/reads-design-sa-A/bracket/` (it may not survive the session). Band P0 by the same reading as `a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds`; Ev was asked to confirm on the REFS `[ev]` PR.
+Witness, committed: `crates/sweep/tests/pins_of_todays_blend_refusals.rs::pin_today_a_rounded_rectangle_filleted_all_round_refuses_its_closed_mixed_chain` (a [−1, 1] × [−0.6, 0.6] plate with corner radius 0.3; every edge requested leaves the eight struts and refuses `UnsupportedChain` on a cap outline). It pins today's refusal; this row's PR flips it to a build.
