@@ -9,7 +9,7 @@
 use crate::common;
 
 use common::asm;
-use common::{ang, len, scl};
+use common::{ang, len};
 use pncad::document::{MateSide, RecipeNodeId, Said};
 use pncad::geom_core::Tol;
 use pncad::select::{RoleSeg, face_frame};
@@ -382,7 +382,7 @@ fn patterned_post(
             input: bench.post_b.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(PATTERN_STEP),
             },
         },
@@ -533,7 +533,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
             input: moved.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(PATTERN_STEP),
             },
         },
@@ -735,8 +735,7 @@ fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
             input: bench.post_b.into(),
             count: 2,
             rule: PatternRuleSpec::Circular {
-                through: common::len3([0.0; 3]),
-                direction: common::scl3([0.0, 1.0, 0.0]),
+                axis: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Y),
                 step: ang(QUARTER_TURN),
             },
         },
@@ -1144,9 +1143,10 @@ fn a_freshly_mated_copy_moves_only_by_the_snap() {
             _ => None,
         }
         .expect("post_b's pin writes the freedom");
-        let slot = match coord {
-            Coord::Slide(_) => SlotId::ValueSlide { constraint },
-            Coord::Spin(_) => SlotId::ValueSpin { constraint },
+        let slot = if coord.is_slide() {
+            SlotId::ValueSlide { constraint }
+        } else {
+            SlotId::ValueSpin { constraint }
         };
         let outcome = session.perform(SessionOp::SetSlot {
             node: bench.post_b,
@@ -1304,9 +1304,10 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
                 ok = false;
                 continue;
             };
-            let slot = match coord {
-                Coord::Slide(_) => SlotId::ValueSlide { constraint },
-                Coord::Spin(_) => SlotId::ValueSpin { constraint },
+            let slot = if coord.is_slide() {
+                SlotId::ValueSlide { constraint }
+            } else {
+                SlotId::ValueSpin { constraint }
             };
             let outcome = session.perform(SessionOp::SetSlot {
                 node: bench.post_b,

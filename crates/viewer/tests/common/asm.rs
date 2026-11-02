@@ -330,7 +330,7 @@ pub use super::{down_at, up_at};
 /// across it, unturned. Each value is measured on the axes of the space
 /// the shelf stands in — the world, the shelf at [`SHELF_AT`]
 /// ([`seat_values_at`]).
-pub fn seat_values(b_x: f64) -> Vec<(Coord, pncad::document::Formula)> {
+pub fn seat_values(b_x: f64) -> Vec<(Coord<pncad::document::Operand>, pncad::document::Formula)> {
     seat_values_at(b_x, SHELF_AT)
 }
 
@@ -339,7 +339,10 @@ pub fn seat_values(b_x: f64) -> Vec<(Coord, pncad::document::Formula)> {
 /// the mated direction is the underside's flipped normal, the space's
 /// `+z`, where the identity orientation puts the post's top, so the least
 /// turn is the identity.
-pub fn seat_values_at(b_x: f64, shelf_at: [f64; 3]) -> Vec<(Coord, pncad::document::Formula)> {
+pub fn seat_values_at(
+    b_x: f64,
+    shelf_at: [f64; 3],
+) -> Vec<(Coord<pncad::document::Operand>, pncad::document::Formula)> {
     vec![
         (
             Coord::slide(TargetAxis::X),
@@ -354,14 +357,14 @@ pub fn seat_values_at(b_x: f64, shelf_at: [f64; 3]) -> Vec<(Coord, pncad::docume
 }
 
 /// [`seat_values`] under the shelf's middle.
-pub fn middle_seat_values() -> Vec<(Coord, pncad::document::Formula)> {
+pub fn middle_seat_values() -> Vec<(Coord<pncad::document::Operand>, pncad::document::Formula)> {
     seat_values(SHELF_LENGTH / 2.0)
 }
 
 /// [`seat_values_at`] under the shelf's middle, the shelf standing at
 /// its space's identity — a shelf given a space of its own ([`unpin`]),
 /// or pinned at the world's origin.
-pub fn own_space_seat_values() -> Vec<(Coord, pncad::document::Formula)> {
+pub fn own_space_seat_values() -> Vec<(Coord<pncad::document::Operand>, pncad::document::Formula)> {
     seat_values_at(SHELF_LENGTH / 2.0, [0.0; 3])
 }
 
@@ -415,7 +418,7 @@ pub fn seat_choice() -> viewer::matetool::MateChoice {
 pub fn seat_op(
     bench: &Bench,
     post: RecipeNodeId,
-    values: Vec<(Coord, pncad::document::Formula)>,
+    values: Vec<(Coord<pncad::document::Operand>, pncad::document::Formula)>,
 ) -> SessionOp {
     seat_op_under(bench, post, bench.shelf_i, values)
 }
@@ -426,7 +429,7 @@ pub fn seat_op_under(
     bench: &Bench,
     post: RecipeNodeId,
     shelf: RecipeNodeId,
-    values: Vec<(Coord, pncad::document::Formula)>,
+    values: Vec<(Coord<pncad::document::Operand>, pncad::document::Formula)>,
 ) -> SessionOp {
     let (post_top, shelf_bottom) = seat_faces(bench, post, shelf);
     SessionOp::AddMate {

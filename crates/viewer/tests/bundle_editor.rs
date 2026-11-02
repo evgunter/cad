@@ -38,7 +38,7 @@ fn authored(
 fn value_on(
     session: &DocSession,
     placement: RecipeNodeId,
-    coord: Coord,
+    coord: Coord<pncad::document::Operand>,
 ) -> (pncad::document::ConstraintId, String) {
     authored(session, placement)
         .iter()
@@ -430,9 +430,9 @@ fn an_untouched_draft_over_a_tilted_target_keeps_its_slides() {
     let tool = seated(&session, &bench);
     let proposal = common::proposed(&session, &tool, rest()).expect("the rest proposes");
     common::commit_mate(&mut session, proposal.op());
-    let loaded: Vec<Coord> = authored(&session, bench.post_b)
+    let loaded: Vec<Coord<pncad::document::Operand>> = authored(&session, bench.post_b)
         .iter()
-        .filter_map(|c| c.value().map(|v| v.coord))
+        .filter_map(|c| c.value().map(|v| v.coord.clone()))
         .collect();
     let (tilt, _) = value_on(&session, bench.shelf_i, Coord::Spin(Some(TargetAxis::X)));
     let outcome = session.perform(SessionOp::SetSlot {
@@ -448,7 +448,8 @@ fn an_untouched_draft_over_a_tilted_target_keeps_its_slides() {
         .expect("post_b is a placement")
         .proposal(doc, ev, tol)
         .expect("the loaded bundle proposes");
-    let coords: Vec<Coord> = draft.values.iter().map(|row| row.coord).collect();
+    let coords: Vec<Coord<pncad::document::Operand>> =
+        draft.values.iter().map(|row| row.coord.clone()).collect();
     assert_eq!(coords, loaded, "the loaded slides and spin");
     assert!(
         draft.dropped.is_empty(),
@@ -497,7 +498,13 @@ fn a_create_draft_over_a_body_placed_since_is_refused() {
 
 /// Declare the angle `name` at `at` and let `post_b`'s value `coord`
 /// read it.
-fn reads_angle(session: &mut DocSession, bench: &asm::Bench, coord: Coord, name: &str, at: f64) {
+fn reads_angle(
+    session: &mut DocSession,
+    bench: &asm::Bench,
+    coord: Coord<pncad::document::Operand>,
+    name: &str,
+    at: f64,
+) {
     let outcome = session.perform(SessionOp::DeclareVar {
         name: VarName::new(name).expect("a name"),
         value: pncad::document::FreeVar::continuous(Dimension::Angle, at),
@@ -626,7 +633,7 @@ fn a_turn_at_the_chains_pole_is_said_dropped() {
     let read = |rows: &[viewer::matetool::ValueRow]| {
         rows.iter()
             .filter(|row| viewer::matetool::value_text(doc, &row.by).contains("pa"))
-            .map(|row| row.coord)
+            .map(|row| row.coord.clone())
             .collect::<Vec<_>>()
     };
     assert!(
@@ -655,7 +662,7 @@ fn a_value_row_in_properties_names_its_axis() {
     let rows = viewer::props::slot_rows(session.committed_doc(), bench.post_b);
     let values: Vec<_> = authored(&session, bench.post_b)
         .iter()
-        .filter_map(|c| c.value().map(|v| (c.id, v.coord)))
+        .filter_map(|c| c.value().map(|v| (c.id, v.coord.clone())))
         .collect();
     assert!(values.len() >= 2, "post_b holds several values: {values:?}");
     for (id, coord) in &values {

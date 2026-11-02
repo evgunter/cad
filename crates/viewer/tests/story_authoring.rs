@@ -40,7 +40,7 @@ use viewer::session::BooleanSpec;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
+use common::{ang, body_volume, len, near, session_insert, shape};
 use pncad::document::{Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -341,19 +341,33 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // ── The crenellation experiment: a merlon block, patterned round
     //    the axis — instances are not a body, and the fused door is
     //    what the refusal points at ─────────────────────────────────
-    // The block is drawn about its own origin and patterned about the
-    // rook's axis as it will stand once moved into a CORNER quadrant of
-    // the crown: `MERLON_OFF` back along x and y, in the block's own
-    // coordinates.
-    let (block_profile, block) = common::box_in(&mut session, [MERLON_S, MERLON_S, MERLON_H]);
+    // The block is drawn in a CORNER quadrant of the crown, `MERLON_OFF`
+    // out along x and y, and patterned about its space's z axis, which
+    // stands on the rook's axis once moved under the crown.
+    let block_profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![shape(&ProfileShape::Rectangle {
+                centre: [MERLON_OFF, MERLON_OFF],
+                width: MERLON_S,
+                height: MERLON_S,
+            })],
+        },
+    );
+    let block = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile: block_profile,
+            distance: len(MERLON_H),
+        },
+    );
     let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
-                through: len3([-MERLON_OFF, -MERLON_OFF, 0.0]),
-                direction: scl3([0.0, 0.0, 1.0]),
+                axis: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Z),
                 step: ang(FRAC_PI_2),
             },
         },
@@ -398,8 +412,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
-                through: len3([-MERLON_OFF, -MERLON_OFF, 0.0]),
-                direction: scl3([0.0, 0.0, 1.0]),
+                axis: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Z),
                 step: ang(FRAC_PI_2),
             },
         },
@@ -427,7 +440,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let crowning = lifted(
         &mut session,
         merlons,
-        [MERLON_OFF, MERLON_OFF, DRUM_Z + DRUM_H - MERLON_SINK],
+        [0.0, 0.0, DRUM_Z + DRUM_H - MERLON_SINK],
     );
     let crenellated = session_insert(
         &mut session,

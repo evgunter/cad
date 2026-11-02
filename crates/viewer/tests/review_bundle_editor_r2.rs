@@ -31,7 +31,11 @@ fn authored(
 }
 
 /// The formula on `coord`, as its text says it.
-fn by_on(session: &DocSession, placement: RecipeNodeId, coord: Coord) -> String {
+fn by_on(
+    session: &DocSession,
+    placement: RecipeNodeId,
+    coord: Coord<pncad::document::Operand>,
+) -> String {
     authored(session, placement)
         .iter()
         .find_map(|c| {
@@ -52,7 +56,7 @@ fn said(session: &DocSession, placement: RecipeNodeId) -> Vec<String> {
 fn id_on(
     session: &DocSession,
     placement: RecipeNodeId,
-    coord: Coord,
+    coord: Coord<pncad::document::Operand>,
 ) -> pncad::document::ConstraintId {
     authored(session, placement)
         .iter()
@@ -444,7 +448,7 @@ fn r2_the_panels_value_rows_are_editable_numbers() {
         .iter()
         .map(|row| {
             let text = viewer::matetool::value_text(doc, &row.by);
-            let typed = viewer::matetool::typed_value(doc, row.coord, &text)
+            let typed = viewer::matetool::typed_value(doc, row.coord.clone(), &text)
                 .ok()
                 .and_then(|by| doc.resolve(&by).ok())
                 .and_then(|by| pncad::document::eval::<f64>(&by, &doc.var_env()).ok());

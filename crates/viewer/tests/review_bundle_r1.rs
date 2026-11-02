@@ -144,7 +144,7 @@ fn r1_read_back_at_the_chains_pole_turns_as_the_rotation_does() {
         Vec3::new(-c, -s, 0.0),
     );
     let at = Affine3::from_parts(r, Vec3::zero());
-    let coords = [
+    let coords: [Coord; 3] = [
         Coord::Spin(Some(TargetAxis::X)),
         Coord::Spin(Some(TargetAxis::Y)),
         Coord::Spin(Some(TargetAxis::Z)),

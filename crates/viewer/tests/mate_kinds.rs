@@ -658,7 +658,11 @@ fn striking_a_point_or_a_direction_drops_nothing_silently() {
     let proposal = tool
         .proposal(doc, ev, tol)
         .expect("a point beside a direction proposes");
-    let coords: Vec<Coord> = proposal.values.iter().map(|row| row.coord).collect();
+    let coords: Vec<Coord<pncad::document::Operand>> = proposal
+        .values
+        .iter()
+        .map(|row| row.coord.clone())
+        .collect();
     assert_eq!(
         coords,
         [Coord::SPIN],
