@@ -2,11 +2,12 @@
 id: point-on-circle-is-a-second-point-on-carrier-reading
 kind: issue
 title: contain::point_on_circle (bool_contact_arc) reads a split point's distance from its circle beside the point-on-span reading's gap row, which the boundary pre-pass now reads
-status: open
+status: dispatched
 opened: 2026-10-15
 priority: P1
 cost: E
 refs: [5227]
+branch: onehome/curve-pair-readings
 ---
 
 Found by stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227), which moved `LoopEdge::contact`'s conic rows (`ConicArc::hit`) onto `geom_brep::curve_pair::Span::contact`.
