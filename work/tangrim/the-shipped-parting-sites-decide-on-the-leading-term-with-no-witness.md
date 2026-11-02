@@ -36,3 +36,12 @@ The bound-against-bound sites need a witness of a different shape from
 a carrier), so the curve-pair distance the crossing layer reads, not a
 surface residual. `Reach::witness` gives the bound's point; the
 partner's offset is what is owed.
+
+**`crescent` decides topology once PR 6375 lands** (`tangrim/tangent-crescent`,
+TANGRIM orchestrator's note, 2026-11-02): its overlap verdict then mints
+a coplanar `(On, On)` record in every op (`sectors::crescent_records`)
+instead of gating a refusal, so its leading term, not a point of either
+rim, decides which records survive. Of the sites above it is the first
+whose witness is owed; its pin is a crescent pose whose two rims' parting
+at the shorter reach is decided while a point of one rim stands within
+the band of the other.

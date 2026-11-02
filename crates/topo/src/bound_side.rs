@@ -591,13 +591,16 @@ impl<T: geom_core::Real> Carrier<T> {
 /// the vertex and the far end.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ConicArc<T: geom_core::Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
-    semi: (T, T),
-    u_ref: Vec3<T>,
-    circle: bool,
+    conic: ArcConic<T>,
     from: T,
     to: T,
+}
+
+/// The carrier [`ConicArc`] walks.
+#[derive(Clone, Copy, Debug)]
+enum ArcConic<T: geom_core::Real> {
+    Circle(geom::Circle<T>),
+    Ellipse(geom::Ellipse<T>),
 }
 
 impl<T: geom_core::Real> ConicArc<T> {
@@ -613,31 +616,12 @@ impl<T: geom_core::Real> ConicArc<T> {
     /// The arc of `carrier` from its parameter `from` to `to`: `None`
     /// for a carrier that is not a circle or an ellipse.
     pub(crate) fn on(carrier: &geom::Curve3<T>, from: T, to: T) -> Option<Self> {
-        let (center, axis, semi, u_ref, circle) = match *carrier {
-            geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => (center, axis, (radius, radius), u_ref, true),
-            geom::Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => (center, axis, (semi_u, semi_v), u_ref, false),
+        let conic = match *carrier {
+            geom::Curve3::Circle(circle) => ArcConic::Circle(circle),
+            geom::Curve3::Ellipse(ellipse) => ArcConic::Ellipse(ellipse),
             _ => return None,
         };
-        Some(Self {
-            center,
-            axis,
-            semi,
-            u_ref,
-            circle,
-            from,
-            to,
-        })
+        Some(Self { conic, from, to })
     }
 }
 
@@ -647,26 +631,15 @@ impl<T: Decide> ConicArc<T> {
     /// circle's radius, an ellipse's larger semi-axis), no further than
     /// the far end, so the point lies on the edge.
     fn at(self, l: T) -> Point3<T> {
-        let (a, b) = self.semi;
-        let speed = a.abs().max(b.abs());
+        let (carrier, speed) = match self.conic {
+            ArcConic::Circle(circle) => (geom::Curve3::Circle(circle), circle.radius.abs()),
+            ArcConic::Ellipse(ellipse) => (
+                geom::Curve3::Ellipse(ellipse),
+                ellipse.semi_u.abs().max(ellipse.semi_v.abs()),
+            ),
+        };
         let span = self.to - self.from;
         let t = self.from + span * (l / (speed * span.abs())).min(T::one());
-        let carrier = if self.circle {
-            geom::Curve3::Circle {
-                center: self.center,
-                axis: self.axis,
-                radius: a,
-                u_ref: self.u_ref,
-            }
-        } else {
-            geom::Curve3::Ellipse {
-                center: self.center,
-                axis: self.axis,
-                semi_u: a,
-                semi_v: b,
-                u_ref: self.u_ref,
-            }
-        };
         carrier.eval(t)
     }
 }
