@@ -115,12 +115,7 @@ fn rim_carrier<T: Real>(kind: Kind, lv: f64) -> Curve3<T> {
         Kind::Sphere => (R * lv.sin(), R * lv.cos()),
         Kind::Torus => (MINOR * lv.sin(), R + MINOR * lv.cos()),
     };
-    Curve3::Circle {
-        center: p(0.0, 0.0, z),
-        axis: v(0.0, 0.0, 1.0),
-        radius: f(r),
-        u_ref: v(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(p(0.0, 0.0, z), v(0.0, 0.0, 1.0), f(r), v(1.0, 0.0, 0.0))
 }
 
 /// The meridian at azimuth `u`, whose parameter is the level.
@@ -134,18 +129,8 @@ fn meridian_carrier<T: Real>(kind: Kind, u: f64) -> Curve3<T> {
         ),
         // `axis × u_ref = ẑ`, so the parameter is the latitude (sphere)
         // or the minor angle (torus).
-        Kind::Sphere => Curve3::Circle {
-            center: p(0.0, 0.0, 0.0),
-            axis: v(s, -c, 0.0),
-            radius: f(R),
-            u_ref: v(c, s, 0.0),
-        },
-        Kind::Torus => Curve3::Circle {
-            center: p(R * c, R * s, 0.0),
-            axis: v(s, -c, 0.0),
-            radius: f(MINOR),
-            u_ref: v(c, s, 0.0),
-        },
+        Kind::Sphere => Curve3::circle(p(0.0, 0.0, 0.0), v(s, -c, 0.0), f(R), v(c, s, 0.0)),
+        Kind::Torus => Curve3::circle(p(R * c, R * s, 0.0), v(s, -c, 0.0), f(MINOR), v(c, s, 0.0)),
     }
 }
 
@@ -288,7 +273,7 @@ fn a_full_period_rim_is_admitted_at_every_consumer_of_every_kind() {
         // band at each rim's own lever.
         let lever = [lo, hi]
             .map(|lv| match rim_carrier::<f64>(kind, lv) {
-                Curve3::Circle { radius, .. } => radius,
+                Curve3::Circle(geom::Circle { radius, .. }) => radius,
                 _ => unreachable!("a rim is a circle"),
             })
             .into_iter()
@@ -420,13 +405,15 @@ fn section_arc<T: Real>() -> LoopEdge<T> {
     let half = [p0[0] - center[0], 0.0, p0[2] - center[2]];
     let major = dot(half, half).sqrt();
     let across = center[2] * HALF.tan();
-    let carrier = Curve3::Ellipse {
-        center: p(center[0], center[1], center[2]),
-        axis: v(n[0], n[1], n[2]),
-        semi_u: f(major),
-        semi_v: f(((across - center[0]) * (across + center[0])).sqrt()),
-        u_ref: v(half[0] / major, 0.0, half[2] / major),
-    };
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            p(center[0], center[1], center[2]),
+            v(n[0], n[1], n[2]),
+            v(half[0] / major, 0.0, half[2] / major),
+        ),
+        f(major),
+        f(((across - center[0]) * (across + center[0])).sqrt()),
+    ));
     LoopEdge::hand_built(carrier, f(0.0), f(0.2), true, 0, 0)
 }
 

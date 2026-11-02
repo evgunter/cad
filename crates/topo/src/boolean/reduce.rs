@@ -906,11 +906,11 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             body.resolve_vertex_point(body.proven_half_edge_end(edge.he_plus), crate::live::Proven);
         let arm = match curve.carrier() {
             geom::Curve3::Line(_) => (end - at).norm(),
-            geom::Curve3::Circle { radius, .. } => {
+            geom::Curve3::Circle(geom::Circle { radius, .. }) => {
                 let (t0, t1) = curve.params();
                 let half =
                     ((t1 - t0) * T::from_f64(0.5)).min(T::from_f64(core::f64::consts::FRAC_PI_2));
-                radius.abs() * T::from_f64(2.0) * half.sin()
+                *radius * T::from_f64(2.0) * half.sin()
             }
             geom::Curve3::Nurbs(n) => geom_brep::control_net_reach(n.control(), at),
             _ => crate::census::edge_reach_in(body, edge_key, &super::boxes::BoxFrame::World)
@@ -2078,7 +2078,7 @@ fn edge_covers<T: Decide>(
 /// against a cylinder or sphere the residual is convex (both-inside
 /// means no wall crossing, both-outside clears through the span
 /// minimum), against a torus or a cone the certified roots decide, and
-/// for a CONIC carrier (a circle or an ellipse, `geom_brep::Conic`) the
+/// for a CONIC carrier (a circle or an ellipse, `geom::Conic`) the
 /// ARC's residual range is enclosed two ways (the carrier's exact
 /// harmonic bounds and the arc's own chord-dip bound), so a definitely
 /// one-sided arc clears. What definitely MEETS the face is split by
@@ -2361,7 +2361,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // no wall crossing (meters). Anything else keeps the typed frontier
     // door, and an in-band clearance escalates (two-tolerance on the
     // arm, definite ones included). The rung is the CONIC's: an ellipse
-    // reads the same two enclosures (`geom_brep::Conic`).
+    // reads the same two enclosures (`geom::Conic`).
     let side = |p: Point3<T>| {
         geom_core::k_stats::decide_reported(
             "bool_vertex_face_side",
@@ -2388,7 +2388,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let early_ends = (!covered
         && matches!(
             curve.carrier(),
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
+            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..)
         )
         && matches!(
             surface,
@@ -2402,7 +2402,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let end_on_carrier = early_ends
         .as_ref()
         .is_some_and(|(d1, d2)| zero(d1) || zero(d2));
-    match (geom_brep::Conic::of(curve.carrier()), curve.carrier()) {
+    match ((curve.carrier()).conic(), curve.carrier()) {
         (None, geom::Curve3::Line(_)) => {}
         (Some(conic), _) => 'clearance: {
             if end_on_carrier {
@@ -3147,7 +3147,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// The two enclosures of a conic ARC's residual against `surface` (a
-/// circle's or an ellipse's, `geom_brep::Conic`), folded: the carrier's
+/// circle's or an ellipse's, `geom::Conic`), folded: the carrier's
 /// harmonic bounds and the arc's sampled chord-dip range. Both enclose
 /// the arc's range, each with its own rounding charged
 /// (`geom_brep::conic_residual_extremes`,
@@ -3179,7 +3179,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// for them.
 fn conic_clearance<T: Decide>(
     surface: &geom::Surface<T>,
-    conic: &geom_brep::Conic<T>,
+    conic: &dyn geom::Conic<T>,
     (t0, t1): (T, T),
     band: Band,
 ) -> Option<Result<Sign, geom_core::Indeterminate>> {
@@ -3933,8 +3933,8 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
     // A ruling or an ellipse has no circle for (a) and (b) to read: the
     // interior question alone decides it.
     let circle = match curve.carrier() {
-        c @ geom::Curve3::Circle { .. } => Some(c),
-        geom::Curve3::Line(_) | geom::Curve3::Ellipse { .. } => None,
+        c @ geom::Curve3::Circle(_) => Some(c),
+        geom::Curve3::Line(_) | geom::Curve3::Ellipse(_) => None,
         _ => return Ok(None),
     };
     let mut placed = [(Placement::Undecided, None); 2];
@@ -4647,7 +4647,7 @@ fn wall_crossing<T: Decide + Bounds>(
     // the parameter gap times the carrier's speed AT that end, so that
     // `Zero` means the root sits at the end's own point. A `Line`'s
     // parameter runs `|dir|` metres per unit, a `Circle`'s `radius`, an
-    // `Ellipse`'s `|C′(t)|`, which varies over `[b, a]` (`geom_brep::Conic`).
+    // `Ellipse`'s `|C′(t)|`, which varies over `[b, a]` (`geom::Conic`).
     // The wall and sphere quadratics take any non-zero `dir`; the torus
     // quartic ([`super::solid_contain::line_torus_roots`]) assumes it UNIT,
     // the `Line` carrier's convention, which nothing checks.
@@ -4679,7 +4679,7 @@ fn wall_crossing<T: Decide + Bounds>(
         // wall or a cone, whose quadric form is of degree two along it
         // ([`super::conic_quadric`]), and one per conic against a torus.
         // A conic against any other kind has no root lane here.
-        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
+        geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {
             let door = match (carrier, surface) {
                 (
                     _,
@@ -4689,7 +4689,7 @@ fn wall_crossing<T: Decide + Bounds>(
                 ) => Some(super::conic_quadric::conic_quadric_roots(
                     carrier, t0, t1, surface, band,
                 )),
-                (geom::Curve3::Circle { .. }, geom::Surface::Torus { .. }) => Some(
+                (geom::Curve3::Circle(..), geom::Surface::Torus { .. }) => Some(
                     super::circle_torus::circle_torus_roots(carrier, t0, t1, surface, band),
                 ),
                 (_, geom::Surface::Torus { .. }) => Some(
@@ -5647,7 +5647,7 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
     let curve = certified(y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)))?.clone();
-    let t = if let circle @ geom::Curve3::Circle { .. } = curve.carrier() {
+    let t = if let circle @ geom::Curve3::Circle(_) = curve.carrier() {
         let (t0, t1) = curve.params();
         let foot = circle.foot(p, geom::mid_param(t0, t1));
         match foot.on_carrier(band) {
@@ -6566,7 +6566,7 @@ mod declaration_order_rows {
             let Some(super::CurveGeom::Certified(c)) = x.get_curve_geom(edge.curve).cloned() else {
                 continue;
             };
-            if !matches!(c.carrier(), geom::Curve3::Circle { .. }) {
+            if !matches!(c.carrier(), geom::Curve3::Circle(..)) {
                 continue;
             }
             let start = |he| x.get_half_edge(he).expect("a live half-edge").start;
@@ -6762,7 +6762,7 @@ mod declaration_order_rows {
                     Some(super::CurveGeom::Certified(g))
                         if matches!(
                             g.carrier(),
-                            geom::Curve3::Circle { axis: a, center, .. }
+                            geom::Curve3::Circle(geom::Circle { frame: geom::Frame { axis: a, center, .. }, .. })
                                 if a.z.abs() > 0.9 && center.z > 0.1
                         )
                 )
@@ -7025,13 +7025,15 @@ mod edge_span_tests {
     #[test]
     fn a_root_near_an_end_is_metered_at_the_ends_speed() {
         let band = Band::new(1e-9, 1e-8).expect("a band");
-        let ellipse = geom::Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: 1.0,
-            semi_v: 0.05,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            1.0,
+            0.05,
+        ));
         let root = core::f64::consts::FRAC_PI_2 - 2e-8;
         let p = ellipse.eval(root);
         let mut y = Body::<f64>::new();
@@ -7223,12 +7225,7 @@ mod lying_on_rows {
         } else {
             Vec3::unit_y()
         };
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref: axis.cross(across).normalize(),
-        }
+        geom::Curve3::circle(center, axis, radius, axis.cross(across).normalize())
     }
 
     fn meets(
@@ -7548,21 +7545,23 @@ mod clearance_rows {
             -0.090_956_895_968_249_41,
             0.257_005_206_695_522_7,
         );
-        let e = geom::Curve3::Ellipse {
-            center: Point3::new(
-                -0.480_548_118_168_072_4,
-                -0.441_016_920_669_073_5,
-                -0.888_958_285_986_655_8,
+        let e = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(
+                    -0.480_548_118_168_072_4,
+                    -0.441_016_920_669_073_5,
+                    -0.888_958_285_986_655_8,
+                ),
+                axis,
+                Vec3::new(
+                    0.087_713_558_478_483_3,
+                    0.789_303_434_737_465_2,
+                    0.607_705_865_999_894_6,
+                ),
             ),
-            axis,
-            semi_u: 4.846_323_757_498_574,
-            semi_v: 0.207_528_397_062_063_02,
-            u_ref: Vec3::new(
-                0.087_713_558_478_483_3,
-                0.789_303_434_737_465_2,
-                0.607_705_865_999_894_6,
-            ),
-        };
+            4.846_323_757_498_574,
+            0.207_528_397_062_063_02,
+        ));
         let s = geom::Surface::Sphere {
             center: Point3::new(
                 -0.426_972_420_046_788_4,
@@ -7577,7 +7576,7 @@ mod clearance_rows {
                 0.906_993_671_390_437_7,
             ),
         };
-        let conic = geom_brep::Conic::of(&e).unwrap();
+        let conic = e.conic().unwrap();
         let v = 3.0 * FRAC_PI_2;
         let got = conic_clearance(&s, &conic, (v - 0.5, v + 0.5), band);
         assert!(
@@ -7619,17 +7618,11 @@ mod clearance_rows {
                 } else {
                     big / rng.range(1.0, 40.0)
                 };
-                let (mut major, mut minor) = if combo & 1 == 0 {
+                let (major, minor) = if combo & 1 == 0 {
                     (big, small)
                 } else {
                     (small, big)
                 };
-                if !circle && combo & 2 != 0 {
-                    major = -major;
-                }
-                if !circle && combo & 4 != 0 {
-                    minor = -minor;
-                }
                 let far = [1.0, 1e2, 3e2][rng.below(3)];
                 let center = Point3::new(
                     rng.range(-far, far),
@@ -7637,22 +7630,15 @@ mod clearance_rows {
                     rng.range(-far, far),
                 );
                 let e = if circle {
-                    geom::Curve3::Circle {
-                        center,
-                        axis: n,
-                        radius: major,
-                        u_ref,
-                    }
+                    geom::Curve3::circle(center, n, major, u_ref)
                 } else {
-                    geom::Curve3::Ellipse {
-                        center,
-                        axis: n,
-                        semi_u: major,
-                        semi_v: minor,
-                        u_ref,
-                    }
+                    geom::Curve3::Ellipse(geom::Ellipse::new(
+                        geom::Frame::new(center, n, u_ref),
+                        major,
+                        minor,
+                    ))
                 };
-                let conic = geom_brep::Conic::of(&e).unwrap();
+                let conic = e.conic().unwrap();
                 let vertex = FRAC_PI_2 * f64::from(u32::try_from(rng.below(4)).unwrap());
                 let p = e.eval(vertex);
                 let outward = (p - center).normalize();
@@ -7975,12 +7961,12 @@ mod torn_hop_rows {
         let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         let face = body.faces().next().map(|(k, _)| k).unwrap();
         // A circle far from every edge of the cube.
-        let circle = geom::Curve3::Circle {
-            center: Point3::new(0.5, 0.5, 10.0),
-            axis: Vec3::unit_z(),
-            radius: 0.25,
-            u_ref: Vec3::unit_x(),
-        };
+        let circle = geom::Curve3::circle(
+            Point3::new(0.5, 0.5, 10.0),
+            Vec3::unit_z(),
+            0.25,
+            Vec3::unit_x(),
+        );
         let circle = &circle;
         assert!(
             boundary_meets_circle_only_at(&body, face, circle, &[], band).unwrap(),
@@ -8432,7 +8418,7 @@ mod spline_face_rows {
                 let Some(CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
                     return false;
                 };
-                matches!(c.carrier(), Curve3::Circle { center, .. } if (center.z - z).abs() < 1e-12)
+                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if (center.z - z).abs() < 1e-12)
             })
             .map(|(k, _)| k)
             .expect("the rim")
@@ -8906,7 +8892,11 @@ mod spline_face_rows {
                 panic!("a certified rim")
             };
             let carrier = curve.carrier().clone();
-            let Curve3::Ellipse { axis, .. } = carrier else {
+            let Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { axis, .. },
+                ..
+            }) = carrier
+            else {
                 panic!("an ellipse")
             };
             for t in [0.4, 1.3, 2.9] {

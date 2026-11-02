@@ -7608,12 +7608,7 @@ fn verify_tangency<T: Decide>(
                 let (rim, identity) = rim_wedge::shared_rim(a, fa, b, fb, band)
                     .map_err(|diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag)))?
                     .ok_or(Unsupported)?;
-                let circle = geom::Curve3::Circle {
-                    center: rim.center,
-                    axis: rim.axis,
-                    radius: rim.radius,
-                    u_ref: rim.u_ref,
-                };
+                let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
                 (
                     circle,
                     T::zero(),
@@ -7700,12 +7695,7 @@ fn route_rim<T: Decide>(
     let in_band = |diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag));
     let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
-    let circle = geom::Curve3::Circle {
-        center: rim.center,
-        axis: rim.axis,
-        radius: rim.radius,
-        u_ref: rim.u_ref,
-    };
+    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
     let whole = (T::zero(), T::tau());
     let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
         .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
@@ -7823,19 +7813,20 @@ fn conic_reach<T: Decide>(
             let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
             let (center, reach) = match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
                 geom::Curve3::Line(_) => continue,
-                geom::Curve3::Circle {
-                    center,
-                    axis,
+                geom::Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { center, axis, .. },
                     radius,
-                    ..
-                } => (center, radius * axis.cross(dir).norm()),
-                geom::Curve3::Ellipse {
-                    center,
-                    axis,
+                }) => (center, radius * axis.cross(dir).norm()),
+                geom::Curve3::Ellipse(geom::Ellipse {
+                    frame:
+                        geom::Frame {
+                            center,
+                            axis,
+                            u_ref,
+                        },
                     semi_u,
                     semi_v,
-                    u_ref,
-                } => (
+                }) => (
                     center,
                     ((semi_u * u_ref.dot(dir)).powi(2)
                         + (semi_v * axis.cross(u_ref).dot(dir)).powi(2))
@@ -8125,12 +8116,10 @@ fn boundary_cuts<T: Decide>(
                         Err(_) => unsure = true,
                     }
                 }
-                geom::Curve3::Circle {
-                    center,
-                    axis,
+                geom::Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { center, axis, .. },
                     radius,
-                    ..
-                } => {
+                }) => {
                     let in_plane = conic(center, axis, &mut meetings);
                     unsure |= in_plane.is_none();
                     if in_plane == Some(true) {
@@ -8143,13 +8132,16 @@ fn boundary_cuts<T: Decide>(
                         );
                     }
                 }
-                geom::Curve3::Ellipse {
-                    center,
-                    axis,
+                geom::Curve3::Ellipse(geom::Ellipse {
+                    frame:
+                        geom::Frame {
+                            center,
+                            axis,
+                            u_ref,
+                        },
                     semi_u,
                     semi_v,
-                    u_ref,
-                } => {
+                }) => {
                     let in_plane = conic(center, axis, &mut meetings);
                     unsure |= in_plane.is_none();
                     if in_plane == Some(true) {

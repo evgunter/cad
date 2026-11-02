@@ -173,13 +173,15 @@ const U: f64 = f64::EPSILON / 2.0;
 /// is harmonic in `t`).
 fn arcs(e: &Curve3<f64>, coord: impl Fn(Point3<f64>) -> f64, lo: f64, hi: f64) -> Vec<(f64, f64)> {
     let tau = core::f64::consts::TAU;
-    let Curve3::Ellipse {
-        center,
-        axis,
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    } = *e
+    }) = *e
     else {
         unreachable!()
     };
@@ -288,12 +290,13 @@ fn read(
         &Surface::Cone {
             apex, axis, u_ref, ..
         },
-        &Curve3::Ellipse {
+        &Curve3::Ellipse(geom::Ellipse {
+            frame: geom::Frame {
+                u_ref: e_u, center, ..
+            },
             semi_u,
-            u_ref: e_u,
-            center,
             ..
-        },
+        }),
     ) = (&image, quadric, e)
     {
         let ra = e_u * semi_u - axis * (e_u * semi_u).dot(axis);
@@ -420,7 +423,7 @@ fn cone_family(no_split: bool) {
                 let tag = format!("cone a{alpha:.4} S{scale:e} f{f}");
                 match plane_cone_section(&plane, &cone, &reach, band()) {
                     Ok(PlaneConeSection::TiltedEllipse(e)) => {
-                        let Curve3::Ellipse { semi_u, semi_v, .. } = e else {
+                        let Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) = e else {
                             unreachable!()
                         };
                         let arcs = arcs(&e, |p| (p - o_frame).dot(y_frame), 0.0, h);
@@ -496,7 +499,7 @@ fn cyl_family(no_split: bool) {
             let k = phi.cos();
             match plane_cylinder_section(&plane, &cyl, &reach, band()) {
                 Ok(PlaneCylinderSection::TiltedEllipse(e)) => {
-                    let Curve3::Ellipse { semi_u, semi_v, .. } = e else {
+                    let Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) = e else {
                         unreachable!()
                     };
                     let arcs = arcs(&e, |p| (p - o).dot(axis), 0.0, scale);

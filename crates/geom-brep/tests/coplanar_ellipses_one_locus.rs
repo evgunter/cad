@@ -56,13 +56,11 @@ fn section(r: f64, tilt: f64, across: f64) -> Curve3<f64> {
     let d = (n * c + e1 * s + e2 * across).normalize();
     let sin_vec = d.cross(n);
     let minor = sin_vec / sin_vec.norm();
-    Curve3::Ellipse {
-        center: centre(),
-        axis: n,
-        semi_u: r / d.dot(n).abs(),
-        semi_v: r,
-        u_ref: minor.cross(n),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(centre(), n, minor.cross(n)),
+        r / d.dot(n).abs(),
+        r,
+    ))
 }
 
 /// The ellipse of semi-axes `a` along `e₁` turned by `turn` in the plane
@@ -71,13 +69,11 @@ fn section(r: f64, tilt: f64, across: f64) -> Curve3<f64> {
 fn turned(a: f64, b: f64, turn: f64, frame: f64, at: Point3<f64>) -> Curve3<f64> {
     let (n, e1, e2) = skew_frame();
     let (s, c) = (turn + frame).sin_cos();
-    Curve3::Ellipse {
-        center: at,
-        axis: n,
-        semi_u: a,
-        semi_v: b,
-        u_ref: (e1 * c + e2 * s).normalize(),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(at, n, (e1 * c + e2 * s).normalize()),
+        a,
+        b,
+    ))
 }
 
 /// Every reading of the pair: the pose either way round over arcs that
@@ -156,16 +152,18 @@ fn one_ellipse_in_two_frames_is_one_curve() {
             let swapped = turned(0.5 * r, r, 0.3, FRAC_PI_2, at);
             assert_one(&label("semi-axes swapped"), &e, &swapped, band);
             let (n, ..) = skew_frame();
-            let Curve3::Ellipse { u_ref, .. } = e else {
+            let Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { u_ref, .. },
+                ..
+            }) = e
+            else {
                 unreachable!()
             };
-            let upside = Curve3::Ellipse {
-                center: at,
-                axis: n * -1.0,
-                semi_u: r,
-                semi_v: 0.5 * r,
-                u_ref: u_ref * -1.0,
-            };
+            let upside = Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(at, n * -1.0, u_ref * -1.0),
+                r,
+                0.5 * r,
+            ));
             assert_one(&label("upside down"), &e, &upside, band);
             let a = 1.001 * r;
             let (e, f) = (

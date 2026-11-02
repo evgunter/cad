@@ -17,7 +17,7 @@ fn circle_kind(read: Result<Option<LoopArc<f64>>, Indeterminate>) -> String {
         Err(_) => "escalated".into(),
         Ok(None) => "none".into(),
         Ok(Some(LoopArc::Crest { own, .. })) => format!("crest {}", own.positive),
-        Ok(Some(LoopArc::Conic(Conic { own: Some(own), .. }))) => match own.split {
+        Ok(Some(LoopArc::Conic(ConicArc { own: Some(own), .. }))) => match own.split {
             LoopSplit::Side { .. } => "meridian".into(),
             LoopSplit::Radius { .. } => format!("parallel {}", own.positive),
             LoopSplit::Bisector { .. } => "bisector".into(),
@@ -57,16 +57,18 @@ fn minted_kind(
         Ok(S::Empty) => ("empty", vec![]),
         Err(_) => ("refused", vec![]),
     };
-    let geom::Curve3::Circle {
-        center: k,
+    let geom::Curve3::Circle(geom::Circle {
+        frame: geom::Frame { center: k, .. },
         radius: rho,
-        ..
-    } = edge.carrier
+    }) = edge.carrier
     else {
         unreachable!("a meridian or a parallel")
     };
     let off = |c: &geom::Curve3<f64>| match c {
-        geom::Curve3::Circle { center, radius, .. } => (*center - k).norm() + (radius - rho).abs(),
+        geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, .. },
+            radius,
+        }) => (*center - k).norm() + (radius - rho).abs(),
         _ => f64::INFINITY,
     };
     let kind = circles

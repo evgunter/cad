@@ -49,12 +49,12 @@ fn cut_plane(z: f64, up: bool) -> Surface<f64> {
 
 /// The cut circle at height `z` on the unit sphere.
 fn cut_circle(z: f64) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: (1.0 - z * z).sqrt(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        (1.0 - z * z).sqrt(),
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// A unit ball cut by the plane `Z = z`, as two faces sharing the cut
@@ -276,12 +276,12 @@ fn a_pole_in_band_of_a_great_circle_cut_is_undecided_on_both_faces() {
     let delta = 3.0 * tol.eps();
     // The great circle whose normal makes `n·z = sin δ`: it passes `δ`
     // from each pole.
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(delta.cos(), 0.0, delta.sin()),
-        radius: 1.0,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(delta.cos(), 0.0, delta.sin()),
+        1.0,
+        Vec3::new(0.0, 1.0, 0.0),
+    );
     let (a, b) = (Point3::new(0.0, 1.0, 0.0), Point3::new(0.0, -1.0, 0.0));
     let pi = core::f64::consts::PI;
     let mut body = Body::<f64>::new();

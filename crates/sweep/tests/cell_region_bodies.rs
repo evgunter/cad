@@ -1149,7 +1149,7 @@ fn an_oblique_cylinder_section_decides_beside_its_ellipse() {
     let mut faces = 0usize;
     for (half, side) in split_halves(t.body, origin, normal) {
         for (face, _) in half.faces() {
-            if !bounded_by(&half, face, |c| matches!(c, geom::Curve3::Ellipse { .. })) {
+            if !bounded_by(&half, face, |c| matches!(c, geom::Curve3::Ellipse(..))) {
                 continue;
             }
             faces += 1;

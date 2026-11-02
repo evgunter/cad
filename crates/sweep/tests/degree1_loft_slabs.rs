@@ -345,7 +345,7 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
                 };
                 let c = body.stored_curve(rim).unwrap();
                 assert!(
-                    matches!(c.carrier(), Curve3::Line(_) | Curve3::Circle { .. }),
+                    matches!(c.carrier(), Curve3::Line(_) | Curve3::Circle(..)),
                     "{what}: section {s}'s rim {rim:?} is its placed sketch segment"
                 );
                 // Described in the row `v = 1` of the wall BELOW it. The

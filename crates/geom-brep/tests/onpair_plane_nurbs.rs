@@ -269,12 +269,12 @@ fn an_approx_wall_is_metered_against_its_fit() {
 /// radius `r` about `z`, from `x̂` through `angle`.
 fn rim(r: f64, angle: f64) -> (Curve3<f64>, f64) {
     (
-        Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            r,
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         angle,
     )
 }

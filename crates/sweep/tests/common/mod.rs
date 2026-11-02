@@ -674,7 +674,7 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
         half.edges().any(|(_, e)| half
             .get_curve_geom(e.curve)
             .and_then(topo::CurveGeom::certified)
-            .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse { .. }))),
+            .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse(..)))),
         "the cut face is bounded by ellipse arcs"
     );
     half.into_body()

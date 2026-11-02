@@ -107,7 +107,7 @@ fn loop_radii(body: &Body<f64>, l: topo::LoopKey) -> Vec<f64> {
             let hd = body.get_half_edge(he)?;
             let e = body.get_edge(hd.edge)?;
             match body.get_curve_geom(e.curve)?.certified()?.carrier() {
-                geom::Curve3::Circle { radius, .. } => Some(*radius),
+                geom::Curve3::Circle(geom::Circle { radius, .. }) => Some(*radius),
                 _ => None,
             }
         })

@@ -54,12 +54,7 @@ pub(crate) fn meridian(f: Frame, u: f64, (v0, v1): (f64, f64)) -> IslandEdge {
     let centre = f.o + out * (RADII.0 * f.s);
     let axis = out.cross(f.z);
     IslandEdge {
-        carrier: geom::Curve3::Circle {
-            center: centre,
-            axis,
-            radius: RADII.1 * f.s,
-            u_ref: out,
-        },
+        carrier: geom::Curve3::circle(centre, axis, RADII.1 * f.s, out),
         params: (v0, v1),
         plane: (centre, axis),
     }
@@ -71,12 +66,7 @@ pub(crate) fn parallel(f: Frame, v: f64, (u0, u1): (f64, f64)) -> IslandEdge {
     let (big, small) = RADII;
     let centre = f.at(0.0, 0.0, small * v.sin());
     IslandEdge {
-        carrier: geom::Curve3::Circle {
-            center: centre,
-            axis: f.z,
-            radius: (big + small * v.cos()) * f.s,
-            u_ref: f.x,
-        },
+        carrier: geom::Curve3::circle(centre, f.z, (big + small * v.cos()) * f.s, f.x),
         params: (u0, u1),
         plane: (centre, f.z),
     }

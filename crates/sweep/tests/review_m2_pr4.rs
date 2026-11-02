@@ -918,8 +918,10 @@ fn survives_cosurface_bitwise_center_agreement() {
     let mut bottom_rims = 0;
     let mut top_rims = 0;
     for (_, c) in t.body.curves() {
-        if let Some(geom::Curve3::Circle { center, .. }) =
-            c.certified().map(|c| c.carrier().clone())
+        if let Some(geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, .. },
+            ..
+        })) = c.certified().map(|c| c.carrier().clone())
         {
             if center.z.to_bits() == origin.z.to_bits() {
                 assert_eq!(center.x.to_bits(), origin.x.to_bits());

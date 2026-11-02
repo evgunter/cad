@@ -11,7 +11,7 @@ use geom_core::{Band, Point3, Tol, Vec3};
 use super::meet_rows::{circle, ellipse};
 use super::pose::{one_curve, one_curve_gap};
 use super::{MeetFault, MeetRefusal, Meetings, Span, meet};
-use crate::Conic;
+use geom::Conic;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -49,10 +49,15 @@ fn two_sections_read_coplanar_in_band_are_one_curve_only_where_they_are() {
     let tilt_reach = |d: f64| {
         let (e, f) = (section(m), section(m * (1.0 + d)));
         let (
-            Curve3::Ellipse { axis: n1, .. },
-            Curve3::Ellipse {
-                axis: n2, semi_u, ..
-            },
+            Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { axis: n1, .. },
+                ..
+            }),
+            Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { axis: n2, .. },
+                semi_u,
+                ..
+            }),
         ) = (e, f)
         else {
             unreachable!("two ellipses")
@@ -103,7 +108,7 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
     let n = Vec3::new(1.0, 2.0, 3.0).normalize();
     let u = n.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
     let v = n.cross(u);
-    let read = |e: &Conic<f64>, f: &Conic<f64>| {
+    let read = |e: &dyn Conic<f64>, f: &dyn Conic<f64>| {
         assert_eq!(
             one_curve_gap(e, f).to_bits(),
             one_curve_gap(f, e).to_bits(),
@@ -121,44 +126,54 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
     for ratio in [1.0, 1.001, 2.0, 10.0, 100.0] {
         for size in [0.01, 1.0] {
             let (major, minor) = (ratio * size, size);
-            let e = Conic {
-                center: Point3::new(1.0, -2.0, 0.5),
-                axis: n,
-                u_ref: u,
-                semi_u: major,
-                semi_v: minor,
-            };
+            let e = geom::Ellipse::new(
+                geom::Frame::new(Point3::new(1.0, -2.0, 0.5), n, u),
+                major,
+                minor,
+            );
             let tilt = |hinge: Vec3<f64>, d: f64| {
                 let across = n.cross(hinge);
                 let reach = (major * across.dot(u)).hypot(minor * across.dot(v));
-                Conic {
-                    axis: turn(n, hinge, d / reach),
-                    u_ref: turn(u, hinge, d / reach),
+                geom::Ellipse {
+                    frame: geom::Frame {
+                        axis: turn(n, hinge, d / reach),
+                        u_ref: turn(u, hinge, d / reach),
+                        ..e.frame
+                    },
                     ..e
                 }
             };
             let pose = |what: &str, d: f64| match what {
-                "centre in the plane" => Conic {
-                    center: e.center + (u + v).normalize() * d,
+                "centre in the plane" => geom::Ellipse {
+                    frame: geom::Frame {
+                        center: e.frame().center + (u + v).normalize() * d,
+                        ..e.frame
+                    },
                     ..e
                 },
-                "centre off the plane" => Conic {
-                    center: e.center + n * d,
+                "centre off the plane" => geom::Ellipse {
+                    frame: geom::Frame {
+                        center: e.frame().center + n * d,
+                        ..e.frame
+                    },
                     ..e
                 },
-                "major" => Conic {
+                "major" => geom::Ellipse {
                     semi_u: major + d,
                     ..e
                 },
-                "minor" => Conic {
+                "minor" => geom::Ellipse {
                     semi_v: minor - d,
                     ..e
                 },
                 "tilt about û" => tilt(u, d),
                 "tilt about v̂" => tilt(v, d),
                 "tilt about û + v̂" => tilt((u + v).normalize(), d),
-                "turn" => Conic {
-                    u_ref: turn(u, n, d / (major - minor)),
+                "turn" => geom::Ellipse {
+                    frame: geom::Frame {
+                        u_ref: turn(u, n, d / (major - minor)),
+                        ..e.frame
+                    },
                     ..e
                 },
                 other => panic!("no pose {other}"),
@@ -184,13 +199,21 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
                     let f = pose(what, d);
                     let stored = [
                         f,
-                        Conic {
-                            u_ref: f.v_ref(),
+                        geom::Ellipse {
+                            frame: geom::Frame {
+                                u_ref: f.frame.v_ref(),
+                                ..f.frame
+                            },
                             semi_u: f.semi_v,
                             semi_v: f.semi_u,
+                        },
+                        geom::Ellipse {
+                            frame: geom::Frame {
+                                axis: -f.frame.axis,
+                                ..f.frame
+                            },
                             ..f
                         },
-                        Conic { axis: -f.axis, ..f },
                     ];
                     for g in stored {
                         let got = read(&e, &g);
@@ -208,8 +231,11 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
             }
             if ratio == 1.0 {
                 for angle in [0.3, 2.0] {
-                    let f = Conic {
-                        u_ref: turn(u, n, angle),
+                    let f = geom::Ellipse {
+                        frame: geom::Frame {
+                            u_ref: turn(u, n, angle),
+                            ..e.frame
+                        },
                         ..e
                     };
                     assert_eq!(read(&e, &f), Some(true), "a circle turned {angle}");
@@ -297,12 +323,16 @@ fn a_conic_read_twice_is_one_curve_at_interval() {
     let n = Vec3::new(1.0, 2.0, 3.0).normalize();
     let u = n.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
     let v = n.cross(u);
-    let conic = |u_ref: Vec3<f64>, (a, c): (f64, f64)| Conic {
-        center: Point3::new(ulps(1.0), ulps(-2.0), ulps(0.5)),
-        axis: iv(n),
-        u_ref: iv(u_ref),
-        semi_u: ulps(a),
-        semi_v: ulps(c),
+    let conic = |u_ref: Vec3<f64>, (a, c): (f64, f64)| {
+        geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(ulps(1.0), ulps(-2.0), ulps(0.5)),
+                iv(n),
+                iv(u_ref),
+            ),
+            ulps(a),
+            ulps(c),
+        )
     };
     let third = u * (2.0 * std::f64::consts::FRAC_PI_3).cos()
         + v * (2.0 * std::f64::consts::FRAC_PI_3).sin();

@@ -17,18 +17,13 @@ use geom_core::{Bounds, Point3, Real, Vec3, interval::Interval};
 fn pair() -> (Curve3<f64>, Curve3<Interval>) {
     let center = Point3::new(1.0, 2.0, 3.0);
     (
-        Curve3::Circle {
-            center,
-            axis: Vec3::unit_z(),
-            radius: 1.5,
-            u_ref: Vec3::unit_x(),
-        },
-        Curve3::Circle {
-            center: center.map(Interval::from_f64),
-            axis: Vec3::unit_z().map(Interval::from_f64),
-            radius: Interval::from_f64(1.5),
-            u_ref: Vec3::unit_x().map(Interval::from_f64),
-        },
+        Curve3::circle(center, Vec3::unit_z(), 1.5, Vec3::unit_x()),
+        Curve3::circle(
+            center.map(Interval::from_f64),
+            Vec3::unit_z().map(Interval::from_f64),
+            Interval::from_f64(1.5),
+            Vec3::unit_x().map(Interval::from_f64),
+        ),
     )
 }
 
@@ -224,12 +219,14 @@ fn the_line_arm_has_no_cut_to_widen_at() {
 #[test]
 fn the_anchored_form_costs_the_lane_a_few_ulps_and_no_selection() {
     let (carrier64, carrier) = pair();
-    let Curve3::Circle {
-        center,
-        axis,
-        u_ref,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         ..
-    } = carrier
+    }) = carrier
     else {
         panic!("a circle fixture")
     };

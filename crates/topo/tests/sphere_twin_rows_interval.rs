@@ -29,20 +29,20 @@ fn half_cap<T: Real + SpanLocate + AtRestPolicy>(phi: f64) -> Result<Body<T>, St
     let p = |x: f64, y: f64, w: f64| Point3::new(f(x), f(y), f(w));
     let v = |x: f64, y: f64, w: f64| Vec3::new(f(x), f(y), f(w));
     let (a, b) = (p(r, 0.0, z), p(-r, 0.0, z));
-    let rim = Curve3::Circle {
-        center: p(0.0, 0.0, z),
-        axis: v(0.0, 0.0, 1.0),
-        radius: f(r),
-        u_ref: v(phi.cos(), -phi.sin(), 0.0),
-    };
+    let rim = Curve3::circle(
+        p(0.0, 0.0, z),
+        v(0.0, 0.0, 1.0),
+        f(r),
+        v(phi.cos(), -phi.sin(), 0.0),
+    );
     // Oriented as `mesh`'s witness body orients its pole-crossing half
     // cap (`mesh/tests/common/witness_bodies.rs`).
-    let g = Curve3::Circle {
-        center: p(0.0, 0.0, 0.0),
-        axis: v(-phi.sin(), phi.cos(), 0.0),
-        radius: f(1.0),
-        u_ref: v(-r * phi.cos(), -r * phi.sin(), z),
-    };
+    let g = Curve3::circle(
+        p(0.0, 0.0, 0.0),
+        v(-phi.sin(), phi.cos(), 0.0),
+        f(1.0),
+        v(-r * phi.cos(), -r * phi.sin(), z),
+    );
     let t_end = f(2.0 * core::f64::consts::FRAC_PI_3);
     let mut body = Body::<T>::new();
     let seed = body.mvfs(a, true).map_err(|e| format!("mvfs {e:?}"))?;
@@ -234,7 +234,7 @@ fn split_meridian<T: Real + SpanLocate + AtRestPolicy + Bounds>(
             let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
                 return None;
             };
-            matches!(curve.carrier(), Curve3::Circle { center, .. } if center.z.hi().abs() < 1e-12)
+            matches!(curve.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if center.z.hi().abs() < 1e-12)
                 .then_some(key)
         })
         .expect("the half cap's meridian arc");
@@ -283,12 +283,12 @@ fn strut_from_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str)
     let f = T::from_f64;
     let (mut body, made) = split_meridian::<T>(lane, core::f64::consts::FRAC_PI_3);
     let theta = 0.8_f64.acos();
-    let side = Curve3::Circle {
-        center: Point3::new(f(0.0), f(0.0), f(0.0)),
-        axis: Vec3::new(f(-1.0), f(0.0), f(0.0)),
-        radius: f(1.0),
-        u_ref: Vec3::new(f(0.0), f(0.0), f(1.0)),
-    };
+    let side = Curve3::circle(
+        Point3::new(f(0.0), f(0.0), f(0.0)),
+        Vec3::new(f(-1.0), f(0.0), f(0.0)),
+        f(1.0),
+        Vec3::new(f(0.0), f(0.0), f(1.0)),
+    );
     let tip = Point3::new(f(0.0), f(theta.sin()), f(theta.cos()));
     let strut = body
         .mev(
