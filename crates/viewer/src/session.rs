@@ -1996,6 +1996,7 @@ impl DocSession {
                 self.commit_written(DocEdit::SetLabel { node, label })
             }
             SessionOp::SetProduct { bodies } => self.set_product(bodies),
+            SessionOp::AddToProduct { node, body } => self.add_to_product(node, body),
             SessionOp::CreateLabelled { creation, label } => {
                 self.perform_op(creation.into_op(), Some(label))
             }
@@ -3899,49 +3900,86 @@ impl DocSession {
         self.commit_action(vec![edit])
     }
 
-    /// **The product set to `bodies`** ([`SessionOp::SetProduct`]): the
-    /// one body, a `⊔` of several inserted first, or nothing; the `⊔` the
-    /// slot read before, where nothing else reads it, deleted in the same
-    /// action.
+    /// **The product set to `bodies`** ([`SessionOp::SetProduct`]), as
+    /// one action ([`write_product`]).
     fn set_product(&mut self, bodies: Vec<Operand>) -> OpOutcome {
-        // The `⊔` the slot read before goes with the old answer, where
-        // nothing else reads it: the action says what the document makes,
-        // not one more thing beside it.
+        self.commit_run(|run| write_product(run, &bodies))
+    }
+
+    /// **Add to the product** ([`SessionOp::AddToProduct`]): the body
+    /// `node` draws — the port `body` names where it has several — joins
+    /// the product by the branch [`ProductDoor::of`] reads off the
+    /// committed document, as one action.
+    fn add_to_product(&mut self, node: RecipeNodeId, body: Option<u32>) -> OpOutcome {
         let doc = self.committed_doc();
-        let held = doc
-            .product()
-            .and_then(|var| doc.operation_of(var))
-            .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
-            .filter(|&at| {
-                let read = doc.output(at, 0);
-                !doc.ids().into_iter().any(|id| {
-                    doc.node(id).is_some_and(|node| {
-                        node.operand_rows()
-                            .into_iter()
-                            .any(|(_, r)| Some(r) == read)
-                    })
-                })
-            });
+        let door = match ProductDoor::of(doc, node, body) {
+            Ok(door) => door,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
+        if let ProductDoor::Place(read) = &door
+            && let Err(refusal) = self.require_placeable(read)
+        {
+            return OpOutcome::refused(refusal);
+        }
+        // The space the moved placement leaves, where the same history
+        // step minted it with the placement: an "Add part…" insert's.
+        let minted = match &door {
+            ProductDoor::IntoWorld { placement, .. } => doc
+                .node_space(*placement)
+                .and_then(|space| doc.defined_by(space))
+                .map(|(space, _)| space)
+                .filter(|&space| matches!(doc.node(space), Some(Node::Space)))
+                .filter(|&space| self.minted_together(space, *placement)),
+            ProductDoor::Add(_) | ProductDoor::Place(_) => None,
+        };
         self.commit_run(|run| {
-            if let Some(id) = held {
-                run.apply(DocEdit::SetProduct { product: None })?;
-                run.apply(DocEdit::DeleteNode { id })?;
-            }
-            let product = match bodies.as_slice() {
-                [] => None,
-                [one] => Some(one.clone()),
-                several => {
-                    let members = pncad::document::Bodies::Spelled(
-                        several
-                            .iter()
-                            .cloned()
-                            .map(pncad::document::BodyRead::plain)
-                            .collect(),
-                    );
-                    Some(Operand::Node(run.insert(Node::Assemble { members })?))
+            let copy = match door {
+                ProductDoor::Add(copy) => copy,
+                ProductDoor::IntoWorld { placement, copy } => {
+                    into_space(run, placement, VarId::WORLD)?;
+                    if let Some(id) = minted.filter(|&id| {
+                        run.doc()
+                            .output(id, 0)
+                            .is_some_and(|space| !run.doc().reader_counts().contains_key(&space))
+                    }) {
+                        run.apply(DocEdit::DeleteNode { id })?;
+                    }
+                    copy
+                }
+                ProductDoor::Place(read) => {
+                    let placement = run.insert(Node::place(
+                        pncad::document::BodyRead::plain(read),
+                        Operand::Var(VarId::WORLD),
+                        editor_core::stand().bundle(),
+                    ))?;
+                    let Some(copy) = run.doc().output(placement, 0) else {
+                        unreachable!("a placement defines its copy")
+                    };
+                    copy
                 }
             };
-            run.apply(DocEdit::SetProduct { product }).map(drop)
+            // A stray the product read already keeps its place in the slot.
+            if crate::world::product_reads(run.doc()).contains(&copy) {
+                return Ok(());
+            }
+            let bodies = crate::world::product_with(run.doc(), copy);
+            write_product(run, &bodies)
+        })
+    }
+
+    /// **Whether one history step on the path to the cursor inserted
+    /// both `a` and `b`** — a gesture's own provenance, so the product
+    /// door deletes only a space minted with the copy it moves, never
+    /// one a person or a script made. A document opened with both
+    /// already in it has no such step.
+    fn minted_together(&self, a: RecipeNodeId, b: RecipeNodeId) -> bool {
+        let path = self.history.path();
+        path.windows(2).any(|step| {
+            let before = self.history.entry(step[0]).doc();
+            let after = self.history.entry(step[1]).doc();
+            [a, b]
+                .iter()
+                .all(|&id| before.node(id).is_none() && after.node(id).is_some())
         })
     }
 
@@ -4235,6 +4273,130 @@ fn creating(
     action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<RecipeNodeId, EditError> + 'static,
 ) -> Creating {
     Box::new(action)
+}
+
+/// **The product slot written as `bodies`**: the one body, a `⊔` of
+/// several inserted first, or nothing; the `⊔` the slot read before,
+/// where nothing else reads it, deleted in the same run — the action
+/// says what the document makes, not one more thing beside it.
+fn write_product(
+    run: &mut Recording<'_, ProfileProgram>,
+    bodies: &[Operand],
+) -> Result<(), EditError> {
+    let doc = run.doc();
+    let held = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
+        .filter(|&at| {
+            doc.output(at, 0)
+                .is_some_and(|read| !doc.reader_counts().contains_key(&read))
+        });
+    if let Some(id) = held {
+        run.apply(DocEdit::SetProduct { product: None })?;
+        run.apply(DocEdit::DeleteNode { id })?;
+    }
+    let product = match bodies {
+        [] => None,
+        [one] => Some(one.clone()),
+        several => {
+            let members = pncad::document::Bodies::Spelled(
+                several
+                    .iter()
+                    .cloned()
+                    .map(pncad::document::BodyRead::plain)
+                    .collect(),
+            );
+            Some(Operand::Node(run.insert(Node::Assemble { members })?))
+        }
+    };
+    run.apply(DocEdit::SetProduct { product }).map(drop)
+}
+
+/// **Which branch of the product door a body takes**
+/// ([`SessionOp::AddToProduct`]; `crates/viewer/README.md`, *A body
+/// reaches the product through one door*).
+#[derive(Debug)]
+enum ProductDoor {
+    /// A body in the world — a world copy, an instance there, a `⊔`
+    /// there — or an existing world copy of the body: added to the slot
+    /// as it is.
+    Add(VarId),
+    /// A placement's copy in another space that nothing reads
+    /// ([`crate::world::movable_into_world`]): its placement re-targeted
+    /// into the world, and the copy added. A placement defines one copy,
+    /// so a pick's `body` names nothing more here.
+    IntoWorld {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// Its copy.
+        copy: VarId,
+    },
+    /// Any other body: placed into the world by the identity bundle,
+    /// and that copy added.
+    Place(Operand),
+}
+
+impl ProductDoor {
+    /// The branch the body `node` draws takes in `doc` — the port
+    /// `body` names, for a node with several outputs.
+    ///
+    /// **A body joins the product once.** Where the slot reads it, or a
+    /// world copy of it, the door refuses [`Refusal::InTheProduct`]
+    /// naming that copy — except a copy the slot reads from outside the
+    /// world (`ProductOutsideWorld`) that the door can move back, which
+    /// it moves. Where the world holds a copy of it the slot does not
+    /// read, that copy is added rather than another placed beside it,
+    /// which would stack coincident material. A node that names no one
+    /// body refuses [`Refusal::NotABodyRead`].
+    fn of(
+        doc: &Doc<ProfileProgram>,
+        node: RecipeNodeId,
+        body: Option<u32>,
+    ) -> Result<Self, Refusal> {
+        let not_a_body = || Refusal::NotABodyRead {
+            read: Box::new(Operand::Node(node)),
+        };
+        let read = crate::world::body_read(doc, node, body).ok_or_else(not_a_body)?;
+        let var = crate::world::read_var(doc, &read).ok_or_else(not_a_body)?;
+        let product = crate::world::product_reads(doc);
+        let movable = crate::world::movable_into_world(doc, node);
+        let in_world = doc.space_of(var) == Some(VarId::WORLD);
+        if product.contains(&var) {
+            return match movable {
+                Some(copy) if !in_world => Ok(Self::IntoWorld {
+                    placement: node,
+                    copy,
+                }),
+                _ => Err(Refusal::InTheProduct {
+                    copy: doc.spoken(node),
+                }),
+            };
+        }
+        let world_copies: Vec<(RecipeNodeId, VarId)> = crate::world::placements_of_var(doc, var)
+            .into_iter()
+            .filter(|&copy| doc.node_space(copy) == Some(VarId::WORLD))
+            .filter_map(|copy| Some((copy, doc.output(copy, 0)?)))
+            .collect();
+        if let Some(&(copy, _)) = world_copies.iter().find(|(_, out)| product.contains(out)) {
+            return Err(Refusal::InTheProduct {
+                copy: doc.spoken(copy),
+            });
+        }
+        if in_world {
+            return Ok(Self::Add(var));
+        }
+        if let Some(&(_, copy)) = world_copies.first() {
+            return Ok(Self::Add(copy));
+        }
+        if let Some(copy) = movable {
+            return Ok(Self::IntoWorld {
+                placement: node,
+                copy,
+            });
+        }
+        Ok(Self::Place(read))
+    }
 }
 
 /// **What a takeover re-points** (spec §5′.3 (a)): every read of the

@@ -1036,10 +1036,29 @@ pub enum SessionOp {
     /// the order given, inserted in the same action; to nothing where
     /// `bodies` is empty. One action, one undo. The door refuses a read
     /// whose body is not in the world. The properties pane offers it on a
-    /// selected world copy: add it to the product, or take it out.
+    /// copy the product reads, to take it out; a body joins the product
+    /// through [`SessionOp::AddToProduct`].
     SetProduct {
         /// The bodies the document makes.
         bodies: Vec<Operand>,
+    },
+    /// **Add to the product** (D10 `[operations]`): the one door a body
+    /// reaches the product through, offered on the body under a viewport
+    /// pick, on a drawn body's tree row, and as the action of the
+    /// product's recourses and the `unused` finding's. A copy in the
+    /// world is added to the slot; a placement's copy nothing reads has
+    /// its placement re-targeted into the world, a `new_space()` it
+    /// leaves empty deleted, and is added; any other body is placed into
+    /// the world by the identity bundle and that copy added. One action,
+    /// one undo. A copy the product reads already is refused
+    /// ([`super::Refusal::InTheProduct`]).
+    AddToProduct {
+        /// The node whose body is added: a pick's drawn node
+        /// ([`super::Selection::seat_node`]) or a tree row's.
+        node: RecipeNodeId,
+        /// The output body a viewport pick hit, for a node with several
+        /// outputs (a split's halves); `None` for a tree row.
+        body: Option<u32>,
     },
     /// **A creation, labelled**: the creation's own edits and then a
     /// `DocEdit::SetLabel` on the node it made (`OpOutcome::made`), as
@@ -1287,6 +1306,7 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
+            | Self::AddToProduct { .. }
             | Self::CreateLabelled { .. } => false,
         }
     }
@@ -1371,6 +1391,7 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
+            | Self::AddToProduct { .. }
             | Self::CreateLabelled { .. } => None,
         }
     }
@@ -1598,7 +1619,8 @@ impl SessionOp {
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
-            | Self::SetProduct { .. } => false,
+            | Self::SetProduct { .. }
+            | Self::AddToProduct { .. } => false,
             // A labelled creation is its creation, labelled.
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_value_gesture(),
         }
@@ -1730,7 +1752,8 @@ impl SessionOp {
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
-            | Self::SetProduct { .. } => true,
+            | Self::SetProduct { .. }
+            | Self::AddToProduct { .. } => true,
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
         }
     }
@@ -1805,7 +1828,8 @@ impl SessionOp {
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
-            | Self::SetProduct { .. } => false,
+            | Self::SetProduct { .. }
+            | Self::AddToProduct { .. } => false,
             Self::CreateLabelled { creation, .. } => creation.op().replaces_the_document(),
         }
     }
