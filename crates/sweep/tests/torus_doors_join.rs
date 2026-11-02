@@ -136,7 +136,7 @@ fn a_rod_inside_the_tubes_shadow_stops_at_the_volume() {
 
 /// **The same rod off the axis line**: ∩ stops at the result gate's
 /// volume on the torus face its chords trim.
-// Pinned red at every ε row:
+// a_rod_off_the_axis_line_stops_at_the_join is pinned red at every ε row:
 // work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md.
 #[test]
 fn a_rod_off_the_axis_line_stops_at_the_join() {
@@ -154,7 +154,8 @@ fn a_rod_across_the_tube_stops_at_the_conic_trim() {
 
 /// **A rod across the inner bound**: its one null loop carries; ∩ stops
 /// at the result gate's volume on the rod's wall.
-// Pinned red at every ε row:
+// a_rod_across_the_inner_bound_stops_at_the_join is pinned red at every
+// ε row:
 // work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
 #[test]
 fn a_rod_across_the_inner_bound_stops_at_the_join() {
@@ -164,7 +165,8 @@ fn a_rod_across_the_inner_bound_stops_at_the_join() {
 
 /// **A square rod straddling the outer equator**: its one loop carries;
 /// ∖ stops at the result gate's volume on the rod's wall.
-// Pinned red at every ε row:
+// a_square_rod_on_the_outer_equator_stops_at_the_join is pinned red at
+// every ε row:
 // work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
 #[test]
 fn a_square_rod_on_the_outer_equator_stops_at_the_join() {

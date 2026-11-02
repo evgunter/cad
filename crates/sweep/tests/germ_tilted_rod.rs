@@ -258,7 +258,8 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
     }
 }
 
-/// The other spins' stops by pose and op ([`every_op`]'s order),
+/// [`other_spins_and_steeper_tilts_refuse_at_their_germs`]' stops by
+/// pose and op ([`every_op`]'s order),
 /// measured alike at the compiled ε, 1e-6 and 1e-12: the result gate's
 /// volume, its quadrature on a face the chords bound (a projected image,
 /// a conic trim or a spiric's lifted image) or a ring left on a curved

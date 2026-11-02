@@ -319,7 +319,9 @@ fn a_rim_crossing_reaches_the_join() {
     use crate::cylinder_sphere_frame::{Door, door};
     let a = drum_lower();
     // Each op's door, ∪ ∩ ∖ with the drum first: `cylinder_sphere_frame`'s
-    // pins for the same balls. Pinned red at the result gate's volume:
+    // pins for the same balls.
+    // a_rim_crossing_reaches_the_join is pinned red at the result gate's
+    // volume:
     // work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
     for (label, b, doors) in [
         (
