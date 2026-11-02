@@ -5,6 +5,7 @@ title: The GUI offers no way to author a profile of several loops; the bore pres
 status: closed
 opened: 2026-11-02
 closed: 2026-11-02
+pr: 6295
 priority: P0
 cost: M
 ---
