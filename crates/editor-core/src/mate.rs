@@ -49,7 +49,7 @@ pub use solve::{
     Atan2Branch, Composing, PoseRefusal, SolveScalar, SolvedPoses, in_space, mate_coset,
     relative_freedom_components, solve_document, solve_document_at,
 };
-pub use turn::{LeastTurn, slides_left_along, turn_onto};
+pub use turn::{LeastTurn, slides_across, slides_left_along, turn_onto};
 pub use unobservable::{Unobservable, unobservable};
 pub use value::{
     ChainTurn, Charted, MatedDirection, MatedHold, chain_turns, flipped, mated_direction,

@@ -76,6 +76,32 @@ impl Placed {
         Self::with_families(Vec::new(), &[], moves)
     }
 
+    /// **A bundle with no mate whose other slides run along `across`**:
+    /// [`Self::unmated`], the constant `0` written on the slides along
+    /// the target axes of `across` that no move names (a gesture reads
+    /// them off the directions it slides along,
+    /// [`super::turn::slides_across`]); `None` is [`Self::unmated`].
+    #[must_use]
+    pub fn unmated_across(
+        moves: Vec<(Coord<Operand>, Formula)>,
+        across: Option<super::SlideAxes>,
+    ) -> Self {
+        let written: Vec<Coord<Operand>> = moves.iter().map(|(c, _)| c.clone()).collect();
+        let mut values = moves;
+        values.extend(
+            unnamed(SubgroupFamily::Se3, &written, across)
+                .into_iter()
+                .map(|coord| {
+                    let zero = Formula::zero(coord.dimension());
+                    (coord, zero)
+                }),
+        );
+        Self {
+            mates: Vec::new(),
+            values,
+        }
+    }
+
     /// [`Self::of`], the mates' families given.
     fn with_families(
         mates: Vec<Mate<Formula>>,
