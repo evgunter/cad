@@ -15,7 +15,9 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::{Bodies, BodyRead, Doc, Node, Operand, ProfileProgram, RecipeNodeId, VarId};
+use pncad::document::{
+    Bodies, BodyRead, Doc, DocEdit, Node, Operand, ProfileProgram, RecipeNodeId, VarId,
+};
 use pncad::geom_core::Tol;
 use viewer::session::{DocSession, OpOutcome, Refusal, SessionOp};
 
@@ -154,15 +156,17 @@ fn a_world_copy_is_added_to_the_slot() {
 }
 
 /// **A placement's copy nothing reads is moved into the world, not
-/// copied**: a world copy given a space of its own stands alone in a
-/// `new_space()` the gesture minted, so the door re-targets its placement
-/// into the world, deletes that space, and adds the copy — three edits,
-/// one action, and no second placement.
+/// copied**: a world copy given a space of its own by a later gesture
+/// stands alone there, so the door re-targets its placement into the
+/// world and adds the copy — two edits, one action, no second placement.
+/// The space was minted by another step than the copy's, so the door
+/// leaves it: it deletes only a space minted with the copy it moves
+/// (`instance_authoring`'s inserted part).
 ///
-/// *Breaks if* the door places a copy of the copy, leaves the emptied
-/// space behind, or moves the placement without adding it.
+/// *Breaks if* the door places a copy of the copy, deletes a space it
+/// did not mint with the copy, or moves the placement without adding it.
 #[test]
-fn a_copy_nothing_reads_is_moved_into_the_world_and_its_space_deleted() {
+fn a_copy_nothing_reads_is_moved_into_the_world_and_a_space_it_did_not_mint_kept() {
     let tol = Tol::witness();
     let (session, body) = fresh_box(tol);
     let (doc, copy) = common::world_copy(session.committed_doc(), body, tol);
@@ -180,11 +184,7 @@ fn a_copy_nothing_reads_is_moved_into_the_world_and_its_space_deleted() {
 
     let outcome = add(&mut session, copy);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(
-        outcome.committed.len(),
-        3,
-        "the re-target, the space's delete, and the slot"
-    );
+    assert_eq!(outcome.committed.len(), 2, "the re-target and the slot");
     let doc = session.committed_doc();
     assert_eq!(
         viewer::world::placements_of(doc, body),
@@ -196,7 +196,10 @@ fn a_copy_nothing_reads_is_moved_into_the_world_and_its_space_deleted() {
         Some(VarId::WORLD),
         "the copy is in the world"
     );
-    assert!(doc.defined_by(space).is_none(), "the emptied space is gone");
+    assert!(
+        doc.defined_by(space).is_some(),
+        "a space another step minted stays"
+    );
     assert_eq!(
         product(&session),
         doc.outputs(copy),
@@ -204,6 +207,210 @@ fn a_copy_nothing_reads_is_moved_into_the_world_and_its_space_deleted() {
     );
 
     undone_to(&mut session, &before);
+}
+
+/// **A copy the slot reads from outside the world is moved back, and
+/// the pane does not offer to add it again.** A box through the door,
+/// then its copy given a space of its own: the slot reads a body outside
+/// the world (`ProductOutsideWorld`). The fault's recourse is the door
+/// on that copy, which re-targets it into the world and writes nothing
+/// else — the slot already reads it. Asked again, it refuses
+/// `InTheProduct`.
+///
+/// *Breaks if* the fault names no action, the door refuses the stray as
+/// in the product, or it writes the slot again.
+#[test]
+fn a_stray_the_product_reads_is_moved_back_into_the_world() {
+    let tol = Tol::witness();
+    let (mut session, body) = fresh_box(tol);
+    assert!(add(&mut session, body).refusal.is_none());
+    let [copy] = viewer::world::placements_of(session.committed_doc(), body)[..] else {
+        panic!("one copy of the box")
+    };
+    let own = session.perform(SessionOp::IntoOwnSpace { placement: copy });
+    assert!(own.refusal.is_none(), "{:?}", own.refusal);
+    session.pump();
+    assert!(
+        matches!(
+            session.product_fault(),
+            Some(pncad::document::ProductError::ProductOutsideWorld { .. })
+        ),
+        "{:?}",
+        session.product_fault()
+    );
+    let recourse =
+        viewer::frame::product_recourse(session.product_fault(), session.committed_doc());
+    let [(label, op)] = &recourse[..] else {
+        panic!("one action, on the stray copy: {recourse:?}")
+    };
+    assert!(label.starts_with("Move "), "{label}");
+    assert!(
+        matches!(op, SessionOp::AddToProduct { node, body: None } if *node == copy),
+        "{op:?}"
+    );
+    let product_before = product(&session);
+    let moved = session.perform(SessionOp::AddToProduct {
+        node: copy,
+        body: None,
+    });
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    assert!(
+        matches!(&moved.committed[..], [DocEdit::SetParam { .. }]),
+        "the re-target alone: {:?}",
+        moved.committed
+    );
+    session.pump();
+    assert_eq!(product(&session), product_before, "the slot as it was");
+    assert!(
+        session.product_fault().is_none(),
+        "{:?}",
+        session.product_fault()
+    );
+    let again = add(&mut session, copy);
+    assert!(
+        matches!(&again.refusal, Some(Refusal::InTheProduct { copy: c }) if c.id() == copy),
+        "{:?}",
+        again.refusal
+    );
+}
+
+/// **A body joins the product once**: the door on a box already in the
+/// product through its world copy refuses `InTheProduct`, naming that
+/// copy, rather than place a second; and on a box whose world copy the
+/// slot does not read, it adds that copy rather than stack another on it.
+///
+/// *Breaks if* the door places the box a second time either way.
+#[test]
+fn a_body_with_a_world_copy_is_not_placed_again() {
+    let tol = Tol::witness();
+    let (mut session, body) = fresh_box(tol);
+    assert!(add(&mut session, body).refusal.is_none());
+    let [copy] = viewer::world::placements_of(session.committed_doc(), body)[..] else {
+        panic!("one copy of the box")
+    };
+    let twice = add(&mut session, body);
+    assert!(
+        matches!(&twice.refusal, Some(Refusal::InTheProduct { copy: c }) if c.id() == copy),
+        "{:?}",
+        twice.refusal
+    );
+    assert!(twice.committed.is_empty());
+
+    let (session, other) = fresh_box(tol);
+    let (doc, held) = common::world_copy(session.committed_doc(), other, tol);
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let outcome = add(&mut session, other);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let doc = session.committed_doc();
+    assert_eq!(
+        viewer::world::placements_of(doc, other),
+        [held],
+        "no second copy"
+    );
+    assert_eq!(
+        product(&session),
+        doc.outputs(held),
+        "the copy it had is added"
+    );
+}
+
+/// **A body already in the world is added as itself**: a `⊔` of two
+/// world copies, written by hand, stands in the world, so the door sets
+/// the slot to it — one `SetProduct`, no copy of it placed on top.
+///
+/// *Breaks if* the door recognises only placements as world bodies.
+#[test]
+fn a_world_union_is_added_as_itself() {
+    let tol = Tol::witness();
+    let (mut session, a) = fresh_box(tol);
+    let b = common::xy_box_in(&mut session, BOX);
+    let (doc, a_copy) = common::world_copy(session.committed_doc(), a, tol);
+    let (doc, b_copy) = common::world_copy(&doc, b, tol);
+    let (doc, union) = common::inserted(
+        &doc,
+        Node::Assemble {
+            members: Bodies::Spelled(
+                [a_copy, b_copy]
+                    .map(|copy| BodyRead::plain(Operand::Node(copy)))
+                    .to_vec(),
+            ),
+        },
+        tol,
+    );
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let placements = session.committed_doc().placements();
+    let outcome = add(&mut session, union);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        matches!(&outcome.committed[..], [DocEdit::SetProduct { .. }]),
+        "{:?}",
+        outcome.committed
+    );
+    let doc = session.committed_doc();
+    assert_eq!(doc.placements(), placements, "nothing placed");
+    assert_eq!(
+        doc.product(),
+        doc.output(union, 0),
+        "the slot reads the `⊔`"
+    );
+}
+
+/// **A world copy that carries a mate, and one a mate reads, are added
+/// as they stand**: the bench's shelf stands in the world, pinned there
+/// by its mate, and the post's seat mate reads its face. Each added is
+/// one write of the slot and no re-target: the bundles are unchanged.
+///
+/// *Breaks if* the world copy's branch is lost and the door re-targets
+/// a copy already in the world (resetting a mated bundle) or places
+/// another.
+#[test]
+fn a_mated_world_copy_is_added_with_its_bundle_untouched() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("product-door-mated", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    common::asm::unpin(&mut session, bench.post_b);
+    common::commit_mate(
+        &mut session,
+        common::asm::seat_op(&bench, bench.post_b, common::asm::middle_seat_values()),
+    );
+    let emptied = session.perform(SessionOp::SetProduct { bodies: vec![] });
+    assert!(emptied.refusal.is_none(), "{:?}", emptied.refusal);
+    session.pump();
+    for placement in [bench.shelf_i, bench.post_b] {
+        let doc = session.committed_doc();
+        assert_eq!(doc.node_space(placement), Some(VarId::WORLD));
+        let bundle = crate::fixture::bundle(doc, placement);
+        let placements = doc.placements();
+        let outcome = add(&mut session, placement);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        assert!(
+            outcome.committed.iter().all(|edit| !matches!(
+                edit,
+                DocEdit::SetParam { .. } | DocEdit::SetConstraints { .. }
+            )),
+            "{placement:?}: no re-target, no bundle written: {:?}",
+            outcome.committed
+        );
+        assert_eq!(
+            outcome
+                .committed
+                .iter()
+                .filter(|edit| matches!(edit, DocEdit::SetProduct { product: Some(_) }))
+                .count(),
+            1,
+            "one write of the slot"
+        );
+        let doc = session.committed_doc();
+        assert_eq!(crate::fixture::bundle(doc, placement), bundle);
+        assert_eq!(doc.placements(), placements, "nothing placed");
+    }
+    assert_eq!(
+        product(&session),
+        [bench.shelf_i, bench.post_b]
+            .map(|p| session.committed_doc().output(p, 0).expect("a copy"))
+    );
 }
 
 /// **A copy something in its space reads stays where it is**: the copy

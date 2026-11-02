@@ -2334,9 +2334,10 @@ pub struct CheckRow {
     /// selects it: a face or an edge as itself, any other cell as the
     /// node whose table names it. Empty for every other finding.
     pub cells: Vec<(String, Selection)>,
-    /// The body an `unused` finding's recourse offers to the product
-    /// door ([`SessionOp::AddToProduct`]): the finding's node where it
-    /// builds one body. `None` for every other finding.
+    /// The body an `unused` finding's row offers to the product door
+    /// ([`SessionOp::AddToProduct`]): the finding's node where it draws
+    /// one body ([`crate::world::body_read`], the door's own test).
+    /// `None` for every other finding.
     pub add_to_product: Option<RecipeNodeId>,
 }
 
@@ -2445,10 +2446,9 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                     .operation_of(a.var)
                     .unwrap_or_else(|| unreachable!("a gathered copy is a placement's output")),
             };
-            let add_to_product =
-                (matches!(finding.evidence, CheckEvidence::Unused { body: true, .. })
-                    && crate::world::body_read(landed, node, None).is_some())
-                .then_some(node);
+            let add_to_product = (matches!(finding.evidence, CheckEvidence::Unused { .. })
+                && crate::world::body_read(landed, node, None).is_some())
+            .then_some(node);
             CheckRow {
                 select: Selection::Node(node),
                 button: by.node(node).to_string(),
@@ -2461,39 +2461,48 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
 }
 
 /// **The actions a product fault's recourse names** (D10
-/// `[operations]`): for a document whose product slot reads nothing
-/// ([`ProductError::EmptyProduct`]) or reads a body that is gone
+/// `[operations]`), each with its button's label: for a slot that reads
+/// nothing ([`ProductError::EmptyProduct`]) or a body that is gone
 /// ([`ProductError::StrandedProduct`]), **Add to the product** on each
-/// body the picture draws outside the product, each with its button's
-/// label; empty for any other fault and for none. Read off `doc`, the
-/// committed document the op reads.
+/// body the picture draws outside the product; for a slot reading a
+/// copy outside the world ([`ProductError::ProductOutsideWorld`]), the
+/// same door on each such copy it can move back
+/// ([`crate::world::movable_into_world`]). Empty for any other fault
+/// and for none. Read off `doc`, the committed document the op reads.
 pub fn product_recourse(
     fault: Option<&ProductError>,
     doc: &Doc<ProfileProgram>,
 ) -> Vec<(String, SessionOp)> {
-    let names_the_door = fault.is_some_and(|fault| {
-        matches!(
-            fault.kind(),
-            ProductErrorKind::EmptyProduct | ProductErrorKind::StrandedProduct
-        )
-    });
-    if !names_the_door {
-        return Vec::new();
-    }
     let by = Speaker::of(doc);
-    let picture = crate::world::Picture::of(doc);
-    picture
-        .nodes()
-        .into_iter()
-        .filter(|&node| !picture.product.iter().any(|piece| piece.node == node))
-        .filter(|&node| crate::world::body_read(doc, node, None).is_some())
-        .map(|node| {
-            (
-                format!("Add {} to the product", by.node(node)),
-                SessionOp::AddToProduct { node, body: None },
-            )
-        })
-        .collect()
+    match fault.map(ProductError::kind) {
+        Some(ProductErrorKind::EmptyProduct | ProductErrorKind::StrandedProduct) => {
+            let picture = crate::world::Picture::of(doc);
+            picture
+                .nodes()
+                .into_iter()
+                .filter(|&node| !picture.product.iter().any(|piece| piece.node == node))
+                .filter(|&node| crate::world::body_read(doc, node, None).is_some())
+                .map(|node| {
+                    (
+                        format!("Add {} to the product", by.node(node)),
+                        SessionOp::AddToProduct { node, body: None },
+                    )
+                })
+                .collect()
+        }
+        Some(ProductErrorKind::ProductOutsideWorld) => crate::world::product_reads(doc)
+            .into_iter()
+            .filter_map(|var| doc.operation_of(var))
+            .filter(|&node| crate::world::movable_into_world(doc, node).is_some())
+            .map(|node| {
+                (
+                    format!("Move {} into the world", by.node(node)),
+                    SessionOp::AddToProduct { node, body: None },
+                )
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 /// **What the chrome badges about the δ the display budget chose**,

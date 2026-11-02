@@ -615,8 +615,9 @@ impl ViewerBehavior<'_> {
     }
 
     /// **Whether the selected body is in what the document makes**, and
-    /// the control that says it is or is not (D10 `[operations]`): a copy
-    /// in the product can be taken out of it ([`SessionOp::SetProduct`]),
+    /// the control that says it is or is not (D10 `[operations]`): a body
+    /// the product slot reads can be taken out of it
+    /// ([`SessionOp::SetProduct`]),
     /// and any other drawn body added to it through the one door
     /// ([`SessionOp::AddToProduct`]). The body is the one the selection
     /// draws ([`Selection::seat_node`]): under a viewport pick the copy
@@ -629,16 +630,19 @@ impl ViewerBehavior<'_> {
         };
         let body = selection.seat_body();
         let doc = self.session.committed_doc();
-        if let Some(copy) = crate::world::world_copy(doc, node)
-            && crate::world::product_reads(doc).contains(&copy)
-        {
+        let read = crate::world::body_read(doc, node, body)
+            .and_then(|read| crate::world::read_var(doc, &read));
+        if let Some(var) = read.filter(|var| crate::world::product_reads(doc).contains(var)) {
             crate::widgets::message(ui, "in the product");
             if ui.button(TAKE_OUT_OF_THE_PRODUCT).clicked() {
                 self.ops.push(SessionOp::SetProduct {
-                    bodies: crate::world::product_without(doc, copy),
+                    bodies: crate::world::product_without(doc, var),
                 });
             }
-        } else if crate::world::is_drawn(doc, node) && ui.button(ADD_TO_THE_PRODUCT).clicked() {
+        } else if read.is_some()
+            && crate::world::is_drawn(doc, node)
+            && ui.button(ADD_TO_THE_PRODUCT).clicked()
+        {
             self.ops.push(SessionOp::AddToProduct { node, body });
         }
     }

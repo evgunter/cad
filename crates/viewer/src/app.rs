@@ -5993,6 +5993,47 @@ mod properties_pane_tests {
         );
     }
 
+    /// **A copy the slot reads from outside the world is "in the
+    /// product", and its recourse moves it back.** The startup plate's
+    /// copy, given a space of its own, is still what the slot reads: a
+    /// pick on it says so and offers no second add. The fault's recourse
+    /// is the door on that copy, which puts it back into the world.
+    #[test]
+    fn a_stray_copy_reads_in_the_product_and_its_recourse_moves_it_back() {
+        use crate::pane::properties::ADD_TO_THE_PRODUCT;
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.perform(SessionOp::IntoOwnSpace {
+            placement: placement(),
+        });
+        driven.select(Selection::Face(cap_of(pncad::prelude::CapEnd::End)));
+        let painted = driven.quiet();
+        assert!(
+            painted.iter().any(|(run, _)| run == "in the product")
+                && !painted.iter().any(|(run, _)| run == ADD_TO_THE_PRODUCT),
+            "the stray copy is in the product, not offered again: {painted:?}"
+        );
+        let recourse = crate::frame::product_recourse(
+            driven.app.session.product_fault(),
+            driven.app.session.committed_doc(),
+        );
+        let [(label, _)] = &recourse[..] else {
+            panic!("the fault offers one action: {recourse:?}")
+        };
+        driven.click(label);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.committed_doc().node_space(placement()),
+            Some(pncad::document::VarId::WORLD),
+            "the recourse moved the copy back into the world"
+        );
+        assert!(
+            driven.app.session.product_fault().is_none(),
+            "{:?}",
+            driven.app.session.product_fault()
+        );
+    }
+
     /// **"Add to the product" is offered on a drawn body's tree row, and
     /// as the `unused` finding's recourse.** A fresh revolve lands
     /// unplaced and nothing reads it, so the checks report it unused

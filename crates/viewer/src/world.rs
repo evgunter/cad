@@ -594,12 +594,16 @@ pub fn seat_read(
         Some(source) => (source.operation, Some(source.port)),
         None => (node, body.and_then(|b| u8::try_from(b).ok())),
     };
-    // A port is named only where the node holds several outputs: the
-    // document's own rule for a read naming a node alone
-    // (`Doc::read_of_node`), under which a construction's space is no
-    // second output.
-    let several = doc.read_of_node(node).is_none() && !doc.outputs(node).is_empty();
-    (node, port.filter(|_| several))
+    (node, port.filter(|_| names_a_port(doc, node)))
+}
+
+/// **Whether a read of `node` names its port**: only where the node
+/// holds several outputs — the document's own rule for a read naming a
+/// node alone (`Doc::read_of_node`), under which a construction's space
+/// is no second output. The one naming rule [`seat_read`] and
+/// [`body_read`] share.
+fn names_a_port(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    doc.read_of_node(node).is_none() && !doc.outputs(node).is_empty()
 }
 
 /// **What a feature gesture's result takes over**: the read `target`
@@ -703,12 +707,29 @@ pub fn body_read(
         (several, Some(body)) => *several.iter().find(|&&port| u32::from(port) == body)?,
         (_, None) => return None,
     };
-    let var = doc.output(node, port)?;
-    Some(if doc.read_of_node(node) == Some(var) {
-        Operand::Node(node)
-    } else {
+    doc.output(node, port)?;
+    Some(if names_a_port(doc, node) {
         Operand::Output { node, port }
+    } else {
+        Operand::Node(node)
     })
+}
+
+/// **The copy the product door moves into the world rather than copy**:
+/// `node`'s copy where `node` is a placement (a `Place` or an instance)
+/// into a space other than the world whose copy nothing reads — no
+/// operand, no mate pose, no pick ([`Doc::reader_counts`]). `None` for
+/// any other node.
+pub fn movable_into_world(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
+    if !matches!(
+        doc.node(node),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+    ) || doc.node_space(node) == Some(VarId::WORLD)
+    {
+        return None;
+    }
+    doc.output(node, 0)
+        .filter(|copy| !doc.reader_counts().contains_key(copy))
 }
 
 /// **The copy a world placement defines**, the body a product can read:
