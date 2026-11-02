@@ -6840,7 +6840,7 @@ pub trait AtRestPolicy: Decide {
         start: Point3<Self>,
         end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        reach: Self,
+        reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError>;
@@ -6861,7 +6861,7 @@ pub trait AtRestPolicy: Decide {
         start: Point3<Self>,
         end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        reach: Self,
+        reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError>;
@@ -7071,7 +7071,7 @@ impl AtRestPolicy for f64 {
         start: Point3<Self>,
         end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        reach: Self,
+        reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
@@ -7083,7 +7083,7 @@ impl AtRestPolicy for f64 {
         start: Point3<Self>,
         end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        reach: Self,
+        reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError> {
@@ -7206,7 +7206,7 @@ impl AtRestPolicy for geom_core::Probe {
         start: Point3<Self>,
         end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        reach: Self,
+        reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
@@ -7218,7 +7218,7 @@ impl AtRestPolicy for geom_core::Probe {
         start: Point3<Self>,
         end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        reach: Self,
+        reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError> {
@@ -7339,7 +7339,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
         start: Point3<Self>,
         end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        reach: Self,
+        reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
@@ -7351,7 +7351,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
         start: Point3<Self>,
         end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        reach: Self,
+        reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError> {
@@ -7482,7 +7482,7 @@ where
         start: Point3<Self>,
         end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        reach: Self,
+        reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
@@ -7494,7 +7494,7 @@ where
         start: Point3<Self>,
         end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        reach: Self,
+        reach: geom_core::Lever<Self>,
         band: Band,
         stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError> {
@@ -7639,7 +7639,7 @@ where
         _start: Point3<Self>,
         _end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        _reach: Self,
+        _reach: geom_core::Lever<Self>,
         band: Band,
         _stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
@@ -7652,7 +7652,7 @@ where
         _start: Point3<Self>,
         _end: Point3<Self>,
         surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
-        _reach: Self,
+        _reach: geom_core::Lever<Self>,
         band: Band,
         _stated: Option<&geom_brep::StatedImage<Self>>,
     ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError> {

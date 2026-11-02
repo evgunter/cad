@@ -904,7 +904,8 @@ macro_rules! fixture_turns {
                 start,
                 end,
                 |_| None,
-                lift(1.0),
+                geom_brep::ExtentBall::of_circle(Point3::new(lift(0.0), lift(0.0), lift(0.0)), lift(1.0))
+                    .lever(),
                 band,
                 geom_brep::NurbsLane::certified(),
             )

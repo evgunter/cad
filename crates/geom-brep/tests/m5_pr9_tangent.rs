@@ -92,7 +92,7 @@ fn the_authored_tangent_pair_certifies_with_the_full_jet_schedule() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -120,7 +120,7 @@ fn the_tangent_predicates_reach_the_k_funnel() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -181,7 +181,7 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -248,7 +248,7 @@ fn an_in_band_second_order_margin_escalates_f6() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -285,7 +285,7 @@ fn a_skewed_carrier_fails_normal_parallelism() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -324,7 +324,7 @@ fn an_off_surface_carrier_fails_the_residual_schedule_at_band_scale() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -373,7 +373,7 @@ fn the_certificate_reads_the_pairs_gap_beside_the_carriers_residuals() {
                 p0,
                 p1,
                 |k| map.get(k).cloned(),
-                1.0,
+                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                 band(),
                 geom_brep::NurbsLane::certified(),
             ),
@@ -451,7 +451,7 @@ fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -501,7 +501,7 @@ fn a_coaxial_cone_sphere_contact_circle_certifies() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -548,7 +548,7 @@ fn outside_the_span_bound_lane_refuses_typed() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -575,7 +575,7 @@ fn certify_ruling(
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -742,7 +742,7 @@ fn certify_line_at(
         p0,
         p1,
         |k| map.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )

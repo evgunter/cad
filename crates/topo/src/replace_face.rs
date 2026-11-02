@@ -2997,7 +2997,7 @@ fn edge_side_keys<T: Real>(
 fn plan_between_moved<'w, 's, T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
     curve: &geom_brep::EdgeCurve<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     (a, b): (&'s MovedChart<'_, T>, &'s MovedChart<'_, T>),
     band: Band,
     tol: Tol,
@@ -3166,7 +3166,7 @@ fn derive_edge<'w, 's, T: Decide>(
         &'s Surface<T>,
     ),
     extent: geom_core::Lever<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
     (section_lane, (new_slot, neighbour_slot)): (
         Option<crate::offset_derive::SectionLane<T>>,

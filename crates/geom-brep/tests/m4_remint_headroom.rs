@@ -57,7 +57,7 @@ fn marginal_witness_slack_vs_remint_freshness() {
         Point3::new(0.0, 0.0, 0.0),
         Point3::new(2.0, 0.0, 0.0),
         &resolve,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band,
         geom_brep::NurbsLane::certified(),
     )
@@ -93,7 +93,7 @@ fn marginal_witness_slack_vs_remint_freshness() {
         Point3::new(0.0, 0.0, 0.0),
         Point3::new(2.0, 0.0, 0.0),
         &resolve,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band,
         geom_brep::NurbsLane::certified(),
     )

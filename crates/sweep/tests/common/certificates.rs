@@ -38,7 +38,7 @@ pub fn assert_certificates_fresh(
                 start,
                 end,
                 |k| body.get_surface(k).cloned(),
-                1.0,
+                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                 band,
                 geom_brep::NurbsLane::certified(),
             )

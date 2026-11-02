@@ -2519,15 +2519,7 @@ fn chord_spec<T: Decide>(
                     interval: (s1, s2),
                     // The section face is not minted yet, so the wedge
                     // reads the face the ruling divides.
-                    // Unsourced lever: the face's reach from the chord's middle
-                    // (`crate::wedge_reach`), a read of its boundary's vertices that the
-                    // extent home does not make.
-                    reach: geom_core::Lever::unsourced(crate::wedge_reach(
-                        body,
-                        [face; 2],
-                        &carrier,
-                        (s1, s2),
-                    )),
+                    reach: crate::wedge_reach(body, [face; 2], &carrier, (s1, s2)),
                     witness,
                 },
                 band,

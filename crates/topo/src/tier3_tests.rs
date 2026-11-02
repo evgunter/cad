@@ -1435,7 +1435,7 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
         start,
         end,
         |_| None,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         coarse,
         geom_brep::NurbsLane::certified(),
     )
@@ -1525,7 +1525,7 @@ fn pillow_with_an_arc_past_a_turn_in(
         start,
         end,
         |k| body.get_surface(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         coarse,
         geom_brep::NurbsLane::certified(),
     )

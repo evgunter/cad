@@ -216,7 +216,7 @@ fn graft_door<T: crate::props::AtRestPolicy>(
     start: Point3<T>,
     end: Point3<T>,
     surfaces: &dyn Fn(SurfaceKey) -> Option<geom::Surface<T>>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: geom_core::Band,
 ) -> Result<geom_brep::EdgeCurve<T>, geom_brep::CertifyError> {
     let origin = crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::Graft);
@@ -229,7 +229,7 @@ pub(crate) type GraftDoor<T> = fn(
     Point3<T>,
     Point3<T>,
     &dyn Fn(SurfaceKey) -> Option<geom::Surface<T>>,
-    T,
+    geom_core::Lever<T>,
     geom_core::Band,
 ) -> Result<geom_brep::EdgeCurve<T>, geom_brep::CertifyError>;
 
@@ -1044,7 +1044,7 @@ mod recertify_door_tests {
                     start,
                     end,
                     surfaces,
-                    1.0,
+                    geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                     band,
                     geom_brep::NurbsLane::certified(),
                 )

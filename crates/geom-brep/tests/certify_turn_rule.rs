@@ -72,7 +72,7 @@ impl Steep {
             e.eval(t0),
             e.eval(t1),
             |k| self.surfaces.get(k).cloned(),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band,
             geom_brep::NurbsLane::certified(),
         )
@@ -207,7 +207,7 @@ fn certification_agrees_with_the_old_winding_check() {
             start,
             end,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band,
             geom_brep::NurbsLane::certified(),
         )
@@ -302,7 +302,7 @@ fn the_stored_turn_is_the_edges_own_interval() {
             circle.eval(0.3),
             circle.eval(0.3 + TAU),
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band,
             geom_brep::NurbsLane::certified(),
         )
@@ -383,7 +383,7 @@ fn the_certified_readers_agree_with_the_reads_they_retired() {
             start,
             end,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band,
             geom_brep::NurbsLane::certified(),
         )

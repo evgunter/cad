@@ -82,7 +82,7 @@ pub(crate) fn test_curve(anchor: Point3<f64>, tol: Tol) -> geom_brep::EdgeCurve<
         anchor,
         anchor,
         |_| None,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         geom_core::Band::linear(tol).unwrap(),
         geom_brep::NurbsLane::certified(),
     )

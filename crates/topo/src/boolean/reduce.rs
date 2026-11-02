@@ -3807,10 +3807,7 @@ fn sheets_part<T: Decide>(
     );
     let sign = decide(
         "bool_touch_sheets_part",
-        // Unsourced lever: the faces' wedge reach (`crate::wedge_reach`),
-        // their boundary vertices' distance from the edge, measured as a
-        // bare length outside the extent home.
-        Margin::levered(into_x.dot(into_y), geom_core::Lever::unsourced(arm)),
+        Margin::levered(into_x.dot(into_y), arm),
         band,
     )
     .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?;

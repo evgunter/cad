@@ -3063,7 +3063,7 @@ mod tests {
                 point(e.he_plus),
                 point(e.he_minus),
                 |k| body.get_surface(k).cloned(),
-                1.0,
+                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                 geom_core::Band::linear(tol).unwrap(),
                 geom_brep::NurbsLane::certified(),
             )

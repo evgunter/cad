@@ -70,7 +70,7 @@ fn probe_meridian_sphere_torus() {
         p0,
         p1,
         |k| surfaces.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     ) {

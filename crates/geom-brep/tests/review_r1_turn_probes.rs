@@ -78,7 +78,7 @@ impl Steep {
             e.eval(t0),
             e.eval(t1),
             |k| self.surfaces.get(k).cloned(),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band,
             geom_brep::NurbsLane::certified(),
         )
@@ -291,7 +291,7 @@ fn r1_spiric_whole_ovals_certify_whole() {
                 carrier.eval(t0),
                 carrier.eval(t1),
                 |k| surfaces.get(k).cloned(),
-                1.0,
+                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                 band,
                 geom_brep::NurbsLane::certified(),
             );

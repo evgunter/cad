@@ -96,7 +96,7 @@ fn a_rung3_edge_at_rest_carries_its_projected_rows_and_its_edge_the_tube() {
             point(built.he_plus),
             point(built.he_minus),
             |k| built.body.get_surface(k).cloned(),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band,
             geom_brep::NurbsLane::certified(),
         )

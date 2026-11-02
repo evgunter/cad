@@ -261,14 +261,12 @@ impl<T: Decide> Body<T> {
                 surfaces: [(ka, surface(ka)), (kb, surface(kb))],
                 carrier: &spec.carrier,
                 interval: (spec.param_start, spec.param_end),
-                // Unsourced lever: the faces' wedge reach (`crate::wedge_reach`), measured as a
-                // bare length outside the extent home.
-                reach: geom_core::Lever::unsourced(crate::wedge_reach(
+                reach: crate::wedge_reach(
                     self,
                     crate::edge_faces(self, edge),
                     &spec.carrier,
                     (spec.param_start, spec.param_end),
-                )),
+                ),
                 witness,
             },
             band,

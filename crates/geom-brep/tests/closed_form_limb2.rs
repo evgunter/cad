@@ -105,7 +105,7 @@ fn certify(
         carrier.eval(t0),
         carrier.eval(t1),
         &lookup,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band,
         NurbsLane::certified(),
     )
@@ -243,10 +243,25 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
         };
         let (start, end) = (carrier.eval(t0), carrier.eval(t1));
         let lane = NurbsLane::certified();
-        let edge = EdgeCurve::certify(spec, start, end, &lookup, 1.0, band(), lane)
-            .unwrap_or_else(|e| panic!("{name}: the exact carrier certifies: {e:?}"));
+        let edge = EdgeCurve::certify(
+            spec,
+            start,
+            end,
+            &lookup,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            band(),
+            lane,
+        )
+        .unwrap_or_else(|e| panic!("{name}: the exact carrier certifies: {e:?}"));
         let at_rest = edge
-            .recertify(start, end, &lookup, 1.0, band(), lane)
+            .recertify(
+                start,
+                end,
+                &lookup,
+                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                band(),
+                lane,
+            )
             .unwrap_or_else(|e| panic!("{name}: rest re-derives the certificate: {e:?}"));
         assert_eq!(
             format!("{at_rest:?}"),

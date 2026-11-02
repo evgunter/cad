@@ -1049,14 +1049,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         &sa,
         &sb,
         p,
-        // Unsourced lever: the faces' wedge reach (`topo::wedge_reach`), measured as a
-        // bare length outside the extent home.
-        geom_core::Lever::unsourced(topo::wedge_reach(
-            body,
-            [face_a, face_b],
-            &carrier,
-            (t0, t1),
-        )),
+        topo::wedge_reach(body, [face_a, face_b], &carrier, (t0, t1)),
     );
     let (convexity, convexity_margin) = convexity_at(n_a, n_b, tau, wedge_arm, edge, band)?;
     // A face's stored sense bit read STRUCTURALLY, never re-derived

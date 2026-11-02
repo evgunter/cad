@@ -459,7 +459,10 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
             let section = cylinder_cylinder_section(
                 &cylinder(l1, turn.out[0])?,
                 &cylinder(l2, turn.out[1])?,
-                &ExtentBall::new(p, l1.arm_len.max(l2.arm_len)),
+                // Unsourced lever: the links' sampled chord diameters
+                // (`Link::arm_len`) about the turn's vertex, which no
+                // extent read computes; an edge-span read would move it.
+                &ExtentBall::unsourced(p, l1.arm_len.max(l2.arm_len)),
                 band,
             )
             .map_err(|e| match e {

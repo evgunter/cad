@@ -1313,9 +1313,7 @@ impl<T: Decide> Body<T> {
             [surface(ka), surface(kb)],
             carrier,
             interval,
-            // Unsourced lever: the faces' wedge reach (`crate::wedge_reach`), measured as a
-            // bare length outside the extent home.
-            geom_core::Lever::unsourced(crate::wedge_reach(self, faces, carrier, interval)),
+            crate::wedge_reach(self, faces, carrier, interval),
             declared,
             band,
         )
@@ -1355,10 +1353,7 @@ impl<T: Decide> Body<T> {
             (k, s)
         };
         let (fa, fb) = sides.faces();
-        // Unsourced lever: the faces' wedge reach (`crate::wedge_reach`), measured as a
-        // bare length outside the extent home.
-        let reach =
-            geom_core::Lever::unsourced(crate::wedge_reach(self, [fa, fb], carrier, interval));
+        let reach = crate::wedge_reach(self, [fa, fb], carrier, interval);
         geom_brep::reask_chart([surface(ka), surface(kb)], carrier, interval, reach, band)
     }
 

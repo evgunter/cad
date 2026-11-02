@@ -438,7 +438,7 @@ fn chart_edge(
         start,
         end,
         |_| Some(plane(n)),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band,
         geom_brep::NurbsLane::certified(),
     )
@@ -510,7 +510,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             start,
             end,
             |_| Some(rev.clone()),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band,
             geom_brep::NurbsLane::certified(),
         );
@@ -533,7 +533,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
                 start,
                 end,
                 |_| Some(rev.clone()),
-                1.0,
+                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                 band,
                 geom_brep::NurbsLane::certified(),
             )
@@ -582,7 +582,7 @@ fn a_description_without_a_chart_image_is_invariant_under_the_door() {
         start,
         end,
         |k| arena.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band,
         geom_brep::NurbsLane::certified(),
     )

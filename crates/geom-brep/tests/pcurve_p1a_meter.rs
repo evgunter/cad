@@ -67,7 +67,7 @@ fn a_cone_edge_inside_the_band_certifies_at_its_perpendicular_drift() {
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -147,7 +147,7 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
             p0,
             p1,
             &lookup,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -195,7 +195,7 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )

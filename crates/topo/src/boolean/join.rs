@@ -1186,17 +1186,11 @@ fn stands_on<T: Decide>(
         };
         let arm = crate::wedge_reach(x, [face, face], curve.carrier(), curve.params());
         let cosine = if flips { -n.dot(n_f) } else { n.dot(n_f) };
-        return Ok(decide(
-            "bool_rim_face_opposed",
-            // Unsourced lever: the faces' wedge reach (`crate::wedge_reach`),
-            // their boundary vertices' distance from the edge, measured as a
-            // bare length outside the extent home.
-            Margin::levered(cosine, geom_core::Lever::unsourced(arm)),
-            band,
-        )
-        .map_err(|diag| {
-            BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
-        })? == Sign::Negative);
+        return Ok(
+            decide("bool_rim_face_opposed", Margin::levered(cosine, arm), band).map_err(
+                |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag),
+            )? == Sign::Negative,
+        );
     }
     Ok(false)
 }

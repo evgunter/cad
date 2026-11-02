@@ -582,10 +582,8 @@ fn joinable<T: Decide>(
     let reach = [e1, e2]
         .into_iter()
         .filter_map(|e| crate::edge_wedge_reach(body, e))
-        .reduce(T::max);
-    // Unsourced lever: the faces' wedge reach (`crate::edge_wedge_reach`), measured as a
-    // bare length outside the extent home.
-    let Some(reach) = reach.map(geom_core::Lever::unsourced) else {
+        .reduce(geom_core::Lever::max);
+    let Some(reach) = reach else {
         return Ok(None);
     };
     let class = geom_brep::classify_dihedral(surf_f, surf_g, p, reach, band)

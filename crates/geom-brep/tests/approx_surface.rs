@@ -605,7 +605,7 @@ fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
             a,
             b,
             move |k| arena.get(k).cloned(),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified(),
         )

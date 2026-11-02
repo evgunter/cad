@@ -733,8 +733,16 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
         ),
     ] {
         let (arena, spec) = door_spec(a, b, line.clone(), (0.0, 1.0));
-        let edge = EdgeCurve::certify(spec, ends.0, ends.1, arena, 1.0, band(), lane)
-            .unwrap_or_else(|e| panic!("{name}: the line certifies through the door: {e}"));
+        let edge = EdgeCurve::certify(
+            spec,
+            ends.0,
+            ends.1,
+            arena,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            band(),
+            lane,
+        )
+        .unwrap_or_else(|e| panic!("{name}: the line certifies through the door: {e}"));
         assert!(
             edge.certificate().max_residual <= eps(),
             "{name}: within ε: {:e}",
@@ -752,7 +760,15 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
     let foot = carrier_foot_sup(&arc, (t0, t1), &quarter_cylinder_wall());
     println!("the circle's own foot reads {foot:e} m at most");
     assert!(foot <= ON_THE_WALL, "the circle is on the wall: {foot:e} m");
-    let got = EdgeCurve::certify(spec, arc.eval(t0), arc.eval(t1), arena, 1.0, band(), lane);
+    let got = EdgeCurve::certify(
+        spec,
+        arc.eval(t0),
+        arc.eval(t1),
+        arena,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        band(),
+        lane,
+    );
     let Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, margin })) = got else {
         panic!("the circle refuses at a limb through the door: {got:?}")
     };
@@ -789,8 +805,16 @@ fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
             carrier.clone(),
             (0.0, 1.0),
         );
-        let edge = EdgeCurve::certify(spec, ends.0, ends.1, arena, 1.0, band(), lane)
-            .unwrap_or_else(|e| panic!("{:?} certifies: {e}", carrier.kind()));
+        let edge = EdgeCurve::certify(
+            spec,
+            ends.0,
+            ends.1,
+            arena,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            band(),
+            lane,
+        )
+        .unwrap_or_else(|e| panic!("{:?} certifies: {e}", carrier.kind()));
         bounds.push(edge.certificate().max_residual);
     }
     println!("spline, then line: bounds {bounds:?}");

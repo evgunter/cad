@@ -7685,9 +7685,7 @@ pub(crate) fn tier3_local_checks_marked<
             curve.carrier(),
             (t0, t1),
         );
-        // Unsourced lever: the faces' reach from the edge's middle (`crate::WedgeReach`), a
-        // read of their boundaries' vertices that the extent home does not make.
-        reaches.insert(edge_key, geom_core::Lever::unsourced(reach));
+        reaches.insert(edge_key, reach);
         if let Err(error) = crate::policy_lane::recertify_stated(
             crate::policy_lane::Origin::Callers,
             curve,
@@ -14993,7 +14991,7 @@ mod tests {
             s,
             t,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -15028,7 +15026,7 @@ mod tests {
             s,
             t,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -15777,7 +15775,7 @@ mod tests {
             start,
             end,
             surfaces,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -16244,7 +16242,7 @@ mod tests {
             start,
             end,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )

@@ -104,7 +104,7 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
         c.eval(t0),
         c.eval(t1),
         |k| arena.get(k).cloned(),
-        geom_core::Real::from_f64(1.0),
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), T::from_f64(1.0)).lever(),
         band(),
         NurbsLane::certified(),
     )
@@ -253,7 +253,7 @@ fn a_schedule_defect_refuses_as_itself() {
             start,
             end,
             surfaces,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -295,13 +295,20 @@ fn rest_re_derives_an_analytic_rung3_edges_certificate() {
         start,
         end,
         surfaces,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         NurbsLane::certified(),
     )
     .expect("the lane certifies the flat quarter");
     let at_rest = certified
-        .recertify(start, end, surfaces, 1.0, band(), NurbsLane::certified())
+        .recertify(
+            start,
+            end,
+            surfaces,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            band(),
+            NurbsLane::certified(),
+        )
         .expect("rest re-derives the certificate");
     assert_eq!(
         format!("{at_rest:?}"),
@@ -419,7 +426,7 @@ fn certify_over(
         c.eval(t0),
         c.eval(t1),
         |k| arena.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         NurbsLane::certified(),
     )

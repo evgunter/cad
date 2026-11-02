@@ -65,7 +65,7 @@ fn certify_pose(r: f64, s: f64, reversed: bool) -> (SurfaceKey, Result<(), Certi
         start,
         end,
         &lookup,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )

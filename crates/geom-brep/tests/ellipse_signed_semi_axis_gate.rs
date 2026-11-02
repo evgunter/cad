@@ -63,7 +63,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
             e.eval(0.0),
             e.eval(core::f64::consts::FRAC_PI_2),
             |k| surfaces.get(k).cloned(),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band,
             geom_brep::NurbsLane::certified(),
         )

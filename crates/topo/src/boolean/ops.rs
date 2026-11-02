@@ -3001,15 +3001,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (carrier, interval) = draft.span();
-        // Unsourced lever: the faces' wedge reach (`crate::wedge_reach`),
-        // their boundary vertices' distance from the edge, measured as a
-        // bare length outside the extent home.
-        let reach = geom_core::Lever::unsourced(crate::wedge_reach(
-            body,
-            [sides.plus.face, sides.minus.face],
-            carrier,
-            interval,
-        ));
+        let reach =
+            crate::wedge_reach(body, [sides.plus.face, sides.minus.face], carrier, interval);
         let witness = draft.witness;
         let face = |side, surface| seam_face(body, edge, side, surface, existing.as_ref(), band);
         let faces = [face(sides.plus, surf1)?, face(sides.minus, surf2)?];

@@ -1241,12 +1241,9 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             .cloned()
             .unwrap_or_else(|| unreachable!("surface {k_next:?} is held by live face {f_next:?}"));
         let mid = qs[j] + w * T::from_f64(0.5);
-        // Unsourced lever: the faces' wedge reach (`topo::edge_wedge_reach`), measured as a
-        // bare length outside the extent home.
-        let reach =
-            geom_core::Lever::unsourced(topo::edge_wedge_reach(body, strut.edge).unwrap_or_else(
-                || unreachable!("strut {:?} was minted with a certified line", strut.edge),
-            ));
+        let reach = topo::edge_wedge_reach(body, strut.edge).unwrap_or_else(|| {
+            unreachable!("strut {:?} was minted with a certified line", strut.edge)
+        });
         match classify_dihedral(&s_prev, &s_next, mid, reach, band) {
             Ok(DihedralClass::Transverse) => {
                 // The prefer-intrinsic upgrade: mint-time Intersection
@@ -1579,14 +1576,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     })?;
     let (carrier, (t0, t1)) = (stored.carrier(), stored.params());
     let witness = carrier.mid_point(t0, t1);
-    // Unsourced lever: the faces' wedge reach (`topo::wedge_reach`), measured as a
-    // bare length outside the extent home.
-    let reach = geom_core::Lever::unsourced(topo::wedge_reach(
-        body,
-        topo::edge_faces(body, edge),
-        carrier,
-        (t0, t1),
-    ));
+    let reach = topo::wedge_reach(body, topo::edge_faces(body, edge), carrier, (t0, t1));
     let s_cap = body.get_surface(cap).cloned().unwrap_or_else(|| {
         unreachable!("cap surface {cap:?} is held by a live cap face of this driver")
     });

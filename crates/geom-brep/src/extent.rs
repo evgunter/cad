@@ -79,6 +79,20 @@ pub fn control_net_reach<T: Real>(net: &[Point3<T>], from: Point3<T>) -> T {
         .fold(T::zero(), |far, &q| far.max((q - from).norm()))
 }
 
+/// **The farthest of the consumed `points` from `at`**: the largest
+/// `|p − at|`, read as the root of the largest square (`norm_squared`
+/// squares each coordinate, which an enclosure never reads below zero).
+/// Zero for no points.
+pub fn points_lever_from<T: Real>(
+    at: Point3<T>,
+    points: impl IntoIterator<Item = Point3<T>>,
+) -> Lever<T> {
+    let far = points
+        .into_iter()
+        .fold(T::zero(), |far, p| far.max((p - at).norm_squared()));
+    Lever::of_consumed_extent(far.sqrt())
+}
+
 /// A closed ball `|x − center| ≤ radius` enclosing a consumed region
 /// (module docs).
 #[derive(Clone, Copy, Debug)]

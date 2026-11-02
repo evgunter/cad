@@ -353,7 +353,7 @@ fn the_door_certifies_the_true_carrier_and_records_the_lane_sup() {
         ends.0,
         ends.1,
         arena,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -386,7 +386,7 @@ fn the_door_refuses_a_displaced_carrier_with_limb_1s_measured_miss() {
         ends.0,
         ends.1,
         arena,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     ) {
@@ -437,7 +437,7 @@ fn the_door_refuses_a_tangential_plane_in_the_certify_vocabulary() {
         ends.0,
         ends.1,
         arena,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     ) {
@@ -466,7 +466,7 @@ fn the_at_rest_re_derivation_of_this_class_runs_through_the_lane() {
         ends.0,
         ends.1,
         &arena,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -475,7 +475,7 @@ fn the_at_rest_re_derivation_of_this_class_runs_through_the_lane() {
         ends.0,
         ends.1,
         &arena,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     );
@@ -498,7 +498,7 @@ fn a_non_lane_defect_on_this_class_is_reported() {
         ends.0,
         ends.1,
         &arena,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -508,7 +508,7 @@ fn a_non_lane_defect_on_this_class_is_reported() {
         drifted,
         ends.1,
         &arena,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     );

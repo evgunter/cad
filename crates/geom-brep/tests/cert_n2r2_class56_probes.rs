@@ -111,7 +111,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             ends.0,
             ends.1,
             |k| arena.get(k).cloned(),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified(),
         );
@@ -134,7 +134,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             ends.0,
             ends.1,
             |k| arena.get(k).cloned(),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified(),
         );
@@ -156,7 +156,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             ends.0,
             ends.1,
             |k| arena.get(k).cloned(),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified(),
         );

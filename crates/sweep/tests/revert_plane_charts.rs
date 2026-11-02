@@ -375,7 +375,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
             start,
             end,
             surfaces,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band,
             geom_brep::NurbsLane::certified(),
         );
@@ -395,7 +395,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
                 start,
                 end,
                 surfaces,
-                1.0,
+                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                 band,
                 geom_brep::NurbsLane::certified(),
             )

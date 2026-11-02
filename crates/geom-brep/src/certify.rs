@@ -2228,7 +2228,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
         start: Point3<T>,
         end: Point3<T>,
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-        reach: T,
+        reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
     ) -> Result<Self, CertifyError> {
@@ -2252,7 +2252,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
         start: Point3<T>,
         end: Point3<T>,
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-        reach: T,
+        reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
         stated: Option<&StatedImage<T>>,
@@ -2288,7 +2288,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
         start: Point3<T>,
         end: Point3<T>,
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-        reach: T,
+        reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
     ) -> Result<Certificate<T>, CertifyError> {
@@ -2312,7 +2312,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
         start: Point3<T>,
         end: Point3<T>,
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-        reach: T,
+        reach: geom_core::Lever<T>,
         band: Band,
         lane: NurbsLane<T>,
         stated: Option<&StatedImage<T>>,
@@ -4109,15 +4109,11 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     start: Point3<T>,
     end: Point3<T>,
     surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     lane: NurbsLane<T>,
     stated: Option<&StatedImage<T>>,
     band: Band,
 ) -> Result<Checked<T>, CertifyError> {
-    // Unsourced lever: the edge's faces' reach, a length the public doors
-    // take as `T` from their callers (`topo::wedge_reach`), where it is
-    // read off the faces' boundaries.
-    let reach = geom_core::Lever::unsourced(reach);
     let resolved = resolve_spec(spec, surfaces)?;
     let turn = decide_turn(spec, band)?;
     let mut max_residual = T::zero();
@@ -5702,7 +5698,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -5731,7 +5727,7 @@ mod tests {
             q0,
             q1,
             &plookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -5754,7 +5750,7 @@ mod tests {
             a,
             b,
             &empty,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -5777,7 +5773,7 @@ mod tests {
             a,
             b,
             &empty,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -5809,7 +5805,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -5853,7 +5849,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             d2_band(drift),
             NurbsLane::certified(),
         )
@@ -5873,7 +5869,7 @@ mod tests {
             a,
             b,
             &empty,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             d2_band(drift),
             NurbsLane::certified(),
         )
@@ -5964,7 +5960,7 @@ mod tests {
             q0 + off,
             q1 + off,
             &plookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             d2_band(2.5e-10),
             NurbsLane::certified(),
         )
@@ -6233,7 +6229,7 @@ mod tests {
             p,
             p,
             |_| None,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6243,7 +6239,16 @@ mod tests {
         // exists.
         let bad = EdgeCurveSpec::line_between(p, p);
         assert!(
-            EdgeCurve::certify(bad, p, p, |_| None, 1.0, band(), NurbsLane::certified()).is_err()
+            EdgeCurve::certify(
+                bad,
+                p,
+                p,
+                |_| None,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                band(),
+                NurbsLane::certified()
+            )
+            .is_err()
         );
     }
 
@@ -6257,7 +6262,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6267,7 +6272,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6280,8 +6285,15 @@ mod tests {
         assert_eq!(a.certificate().samples, CERT_SAMPLES);
         assert!(a.certificate().max_residual <= eps());
         // Recertification at rest agrees.
-        a.recertify(p0, p1, |_| None, 1.0, band(), NurbsLane::certified())
-            .unwrap();
+        a.recertify(
+            p0,
+            p1,
+            |_| None,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap();
     }
 
     #[test]
@@ -6299,7 +6311,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6323,7 +6335,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6387,7 +6399,7 @@ mod tests {
             p0,
             p1,
             &src_lookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6425,7 +6437,14 @@ mod tests {
         // destination's surfaces: re-certification there agrees, which
         // is the claim the graft's `RemapKeys` bridge relies on.
         moved
-            .recertify(p0, p1, &dst_lookup, 1.0, band(), NurbsLane::certified())
+            .recertify(
+                p0,
+                p1,
+                &dst_lookup,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                band(),
+                NurbsLane::certified(),
+            )
             .unwrap();
 
         // A remap that cannot answer writes nothing.
@@ -6439,7 +6458,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6485,7 +6504,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6503,7 +6522,7 @@ mod tests {
             Point3::new(0.0, 0.5, 0.0),
             Point3::new(1.0, 0.5, 0.0),
             &lookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6526,8 +6545,16 @@ mod tests {
             pair: SurfacePair::new(keys[0], keys[1]),
             selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.25)),
         };
-        let err = EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
-            .unwrap_err();
+        let err = EdgeCurve::certify(
+            bad,
+            p0,
+            p1,
+            &lookup,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap_err();
         assert!(
             matches!(
                 err,
@@ -6547,8 +6574,16 @@ mod tests {
             selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
         };
         assert_eq!(
-            EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
-                .unwrap_err(),
+            EdgeCurve::certify(
+                bad,
+                p0,
+                p1,
+                &lookup,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                band(),
+                NurbsLane::certified()
+            )
+            .unwrap_err(),
             CertifyError::IntersectionSameSurface { key: keys[0] }
         );
 
@@ -6559,8 +6594,16 @@ mod tests {
             selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
         };
         assert_eq!(
-            EdgeCurve::certify(bad, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
-                .unwrap_err(),
+            EdgeCurve::certify(
+                bad,
+                p0,
+                p1,
+                &lookup,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                band(),
+                NurbsLane::certified()
+            )
+            .unwrap_err(),
             CertifyError::UnresolvedSurface {
                 key: SurfaceKey::default()
             }
@@ -6600,7 +6643,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6643,7 +6686,7 @@ mod tests {
                 p0,
                 p1,
                 &lookup,
-                1.0,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                 band(),
                 NurbsLane::certified()
             )
@@ -6685,7 +6728,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6700,7 +6743,7 @@ mod tests {
             q0,
             q1,
             &lookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6722,7 +6765,16 @@ mod tests {
         let mut off = spec.clone();
         off.carrier = Curve3::line(o0, Vec3::unit_z());
         assert!(
-            EdgeCurve::certify(off, o0, o1, &lookup, 1.0, band(), NurbsLane::certified()).is_err(),
+            EdgeCurve::certify(
+                off,
+                o0,
+                o1,
+                &lookup,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                band(),
+                NurbsLane::certified()
+            )
+            .is_err(),
             "a ruling off the cylinder is no image of it"
         );
 
@@ -6735,8 +6787,16 @@ mod tests {
         let mut bad = spec.clone();
         bad.description = EdgeDescriptionSpec::wrap(pkeys[0]);
         assert_eq!(
-            EdgeCurve::certify(bad, p0, p1, &plookup, 1.0, band(), NurbsLane::certified())
-                .unwrap_err(),
+            EdgeCurve::certify(
+                bad,
+                p0,
+                p1,
+                &plookup,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                band(),
+                NurbsLane::certified()
+            )
+            .unwrap_err(),
             CertifyError::WrapOnNonPeriodic
         );
     }
@@ -6775,7 +6835,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6793,7 +6853,7 @@ mod tests {
                     q0,
                     q1,
                     &lookup,
-                    1.0,
+                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                     band(),
                     NurbsLane::certified()
                 )
@@ -6808,15 +6868,31 @@ mod tests {
         let mut twice = on(p0, p1);
         twice.description = EdgeDescriptionSpec::on_pair(SurfacePair::new(keys[0], keys[0]));
         assert_eq!(
-            EdgeCurve::certify(twice, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
-                .unwrap_err(),
+            EdgeCurve::certify(
+                twice,
+                p0,
+                p1,
+                &lookup,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                band(),
+                NurbsLane::certified()
+            )
+            .unwrap_err(),
             CertifyError::IntersectionSameSurface { key: keys[0] }
         );
         let mut spline = on(p0, p1);
         spline.carrier = Curve3::nurbs_placeholder();
         assert_eq!(
-            EdgeCurve::certify(spline, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
-                .unwrap_err(),
+            EdgeCurve::certify(
+                spline,
+                p0,
+                p1,
+                &lookup,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                band(),
+                NurbsLane::certified()
+            )
+            .unwrap_err(),
             CertifyError::Unimplemented,
             "a spline carrier on a pair refuses typed: no between-sample bound"
         );
@@ -6834,7 +6910,7 @@ mod tests {
                 p0,
                 p1,
                 |_| None,
-                1.0,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                 band(),
                 NurbsLane::certified()
             )
@@ -6849,7 +6925,7 @@ mod tests {
             nan,
             p1,
             |_| None,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6889,7 +6965,7 @@ mod tests {
             p,
             p,
             |_| None,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -6934,7 +7010,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             NurbsLane::certified(),
         )
@@ -7416,7 +7492,7 @@ mod tests {
             start,
             end,
             |_| None,
-            1.0,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             coarse,
             NurbsLane::certified(),
         )
@@ -7427,7 +7503,14 @@ mod tests {
             (Band::new(1e-7, 1e-6).unwrap(), true),
         ] {
             let error = minted
-                .recertify(start, end, |_| None, 1.0, finer, NurbsLane::certified())
+                .recertify(
+                    start,
+                    end,
+                    |_| None,
+                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    finer,
+                    NurbsLane::certified(),
+                )
                 .unwrap_err();
             let CertifyError::StatedInterval {
                 refused: StatedSpan::Winding(reading),
@@ -7452,7 +7535,7 @@ mod tests {
                     start,
                     end,
                     |_| None,
-                    1.0,
+                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                     finer,
                     NurbsLane::certified(),
                     None,
@@ -7499,7 +7582,7 @@ mod tests {
                     start,
                     end,
                     |_| None,
-                    1.0,
+                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                     band,
                     NurbsLane::certified(),
                 )
@@ -7508,8 +7591,17 @@ mod tests {
             ("certify_stated", |spec, band| {
                 let (start, end) = ends(&spec);
                 let lane = NurbsLane::certified();
-                EdgeCurve::certify_stated(spec, start, end, |_| None, 1.0, band, lane, None)
-                    .map(|_| ())
+                EdgeCurve::certify_stated(
+                    spec,
+                    start,
+                    end,
+                    |_| None,
+                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    band,
+                    lane,
+                    None,
+                )
+                .map(|_| ())
             }),
             ("mint", |spec, band| {
                 EdgeCurve::mint(spec, |_| None, band).map(|_| ())
@@ -7647,7 +7739,15 @@ mod tests {
                 spec.carrier.eval(spec.param_start),
                 spec.carrier.eval(spec.param_end),
             );
-            EdgeCurve::certify(spec, a, b, |_| None, 1.0, band, NurbsLane::certified())
+            EdgeCurve::certify(
+                spec,
+                a,
+                b,
+                |_| None,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                band,
+                NurbsLane::certified(),
+            )
         };
         type Mint = fn(EdgeCurveSpec<f64>, Band) -> Result<(), CertifyError>;
         let mints: [(&str, Mint); 3] = [
@@ -7656,8 +7756,16 @@ mod tests {
                     spec.carrier.eval(spec.param_start),
                     spec.carrier.eval(spec.param_end),
                 );
-                EdgeCurve::certify(spec, a, b, |_| None, 1.0, band, NurbsLane::certified())
-                    .map(|_| ())
+                EdgeCurve::certify(
+                    spec,
+                    a,
+                    b,
+                    |_| None,
+                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    band,
+                    NurbsLane::certified(),
+                )
+                .map(|_| ())
             }),
             ("certify_stated", |spec, band| {
                 let (a, b) = (
@@ -7665,7 +7773,17 @@ mod tests {
                     spec.carrier.eval(spec.param_end),
                 );
                 let lane = NurbsLane::certified();
-                EdgeCurve::certify_stated(spec, a, b, |_| None, 1.0, band, lane, None).map(|_| ())
+                EdgeCurve::certify_stated(
+                    spec,
+                    a,
+                    b,
+                    |_| None,
+                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    band,
+                    lane,
+                    None,
+                )
+                .map(|_| ())
             }),
             ("mint", |spec, band| {
                 EdgeCurve::mint(spec, |_| None, band).map(|_| ())
@@ -7678,14 +7796,29 @@ mod tests {
                     curve.carrier.eval(curve.param_start),
                     curve.carrier.eval(curve.param_end),
                 );
-                curve.recertify(a, b, |_| None, 1.0, band, NurbsLane::certified())
+                curve.recertify(
+                    a,
+                    b,
+                    |_| None,
+                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    band,
+                    NurbsLane::certified(),
+                )
             }),
             ("recertify_stated", |curve, band| {
                 let (a, b) = (
                     curve.carrier.eval(curve.param_start),
                     curve.carrier.eval(curve.param_end),
                 );
-                curve.recertify_stated(a, b, |_| None, 1.0, band, NurbsLane::certified(), None)
+                curve.recertify_stated(
+                    a,
+                    b,
+                    |_| None,
+                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    band,
+                    NurbsLane::certified(),
+                    None,
+                )
             }),
         ];
         let mut refusals = Vec::new();
@@ -7754,7 +7887,7 @@ mod tests {
                 p,
                 q,
                 |_| None,
-                1.0,
+                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                 band,
                 NurbsLane::certified(),
             )
@@ -8963,8 +9096,16 @@ mod tests {
             param_end: 2.0 * reach,
         };
         let p1 = spec.carrier.eval(2.0 * reach);
-        let err = EdgeCurve::certify(spec, p0, p1, &lookup, 1.0, band(), NurbsLane::certified())
-            .unwrap_err();
+        let err = EdgeCurve::certify(
+            spec,
+            p0,
+            p1,
+            &lookup,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap_err();
         assert!(
             matches!(
                 err,
@@ -9250,8 +9391,16 @@ mod tests {
             param_end: 1.0,
         };
         let end = on + Vec3::unit_z();
-        let err =
-            EdgeCurve::certify(spec, on, end, &lookup, 1.0, b, NurbsLane::certified()).unwrap_err();
+        let err = EdgeCurve::certify(
+            spec,
+            on,
+            end,
+            &lookup,
+            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            b,
+            NurbsLane::certified(),
+        )
+        .unwrap_err();
         let CertifyError::Escalated {
             check: CertCheck::TransversalityArm,
             cause,

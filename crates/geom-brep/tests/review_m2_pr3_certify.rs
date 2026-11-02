@@ -85,7 +85,7 @@ fn fixed_winding_aliased_arc_interval_refused() {
             p0,
             p1,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -100,7 +100,7 @@ fn fixed_winding_aliased_arc_interval_refused() {
         p0,
         p1,
         |_| None,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -140,7 +140,7 @@ fn fixed_winding_aliased_full_period_refused() {
             p,
             p,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -197,7 +197,7 @@ fn survives_wrong_carriers_are_rejected() {
             p0,
             p1,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -224,7 +224,7 @@ fn survives_wrong_carriers_are_rejected() {
             p0,
             p1,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -247,7 +247,7 @@ fn survives_wrong_carriers_are_rejected() {
             p0,
             p1,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -264,7 +264,7 @@ fn survives_wrong_carriers_are_rejected() {
             l0,
             l1,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -288,7 +288,7 @@ fn survives_wrong_carriers_are_rejected() {
             p0,
             p1,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -343,7 +343,7 @@ fn survives_plane_cylinder_partial_rim_certifies() {
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -404,7 +404,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
             p0,
             p1,
             &lookup,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -421,7 +421,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
             p0,
             p1,
             &lookup,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -437,7 +437,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -458,7 +458,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -525,7 +525,7 @@ fn fixed_full_period_rim_intersection_certifies() {
         p,
         p,
         &lookup,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -721,7 +721,7 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
             start,
             end,
             |k| arena.get(k).cloned(),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -838,7 +838,7 @@ fn fixed_reversed_interval_refused() {
             p1,
             p0,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -879,7 +879,7 @@ fn fixed_zero_length_edge_refused() {
             p,
             p,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -907,7 +907,7 @@ fn survives_full_period_mapped_and_endpoint_pinning() {
         p,
         p,
         |_| None,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -921,7 +921,7 @@ fn survives_full_period_mapped_and_endpoint_pinning() {
             q,
             q,
             |_| None,
-            1.0,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
             band(),
             geom_brep::NurbsLane::certified()
         )

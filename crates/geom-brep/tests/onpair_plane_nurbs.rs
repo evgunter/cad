@@ -70,7 +70,7 @@ fn on_pair(
         ends.0,
         ends.1,
         move |k| arena.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -336,7 +336,7 @@ fn arc_on_pair(
         ends.0,
         ends.1,
         move |k| arena.get(k).cloned(),
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         geom_brep::NurbsLane::certified(),
         stated.as_ref(),
@@ -605,14 +605,22 @@ fn a_split_child_recertifies_through_its_parents_stored_image() {
         ends.0,
         ends.1,
         surfaces,
-        1.0,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
         band(),
         lane(),
         Some(&stated),
     )
     .expect("the child certifies through its parent's image");
-    let alone = EdgeCurve::certify(spec, ends.0, ends.1, surfaces, 1.0, band(), lane())
-        .expect("the child alone certifies through the image picked for it");
+    let alone = EdgeCurve::certify(
+        spec,
+        ends.0,
+        ends.1,
+        surfaces,
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        band(),
+        lane(),
+    )
+    .expect("the child alone certifies through the image picked for it");
     assert!(
         (alone.certificate().max_residual - child.certificate().max_residual).abs() < 1e-12,
         "the picked image and the parent's are one row: {} / {}",
@@ -620,6 +628,14 @@ fn a_split_child_recertifies_through_its_parents_stored_image() {
         child.certificate().max_residual
     );
     child
-        .recertify_stated(ends.0, ends.1, surfaces, 1.0, band(), lane(), Some(&stated))
+        .recertify_stated(
+            ends.0,
+            ends.1,
+            surfaces,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            band(),
+            lane(),
+            Some(&stated),
+        )
         .expect("the child re-certifies through the stored image");
 }

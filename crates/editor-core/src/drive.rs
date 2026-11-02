@@ -2127,7 +2127,7 @@ mod tests {
             p0,
             p1,
             |k| arena.get(k).cloned(),
-            geom_core::Real::from_f64(1.0),
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), lift(1.0)).lever(),
             band(),
             geom_brep::NurbsLane::certified(),
         )
