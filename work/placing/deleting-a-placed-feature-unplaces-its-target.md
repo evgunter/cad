@@ -2,13 +2,12 @@
 id: deleting-a-placed-feature-unplaces-its-target
 kind: issue
 title: Add a fillet then delete it and the body leaves the world: the add gesture re-points the target's placement, the delete cascades it
-status: parked
+status: dispatched
 opened: 2026-10-08
 priority: P1
 cost: M
 branch: placing/gesture-placements
 pr: 6280
-blocked_on: [a-mate-on-a-taken-over-copys-face-goes-stale]
 design: true
 ---
 
