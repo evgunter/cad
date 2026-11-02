@@ -88,3 +88,12 @@
   - Directed: measure A in its narrowest form (a decided base is always preferred), with an exact-oracle row and fuzz for given bases. Re-take both diffs against main. Every one of the 13 must build the same body as main, and every moved reading must be shown right. Only then do I amend item 3 (orchestrator-decided, never Ev-ratified). Any wrong move goes to a design weighing.
   - Accepted: the lane's `given_side` distinctions (Unresolved(band)/Slack/Undecided), and Undecided for a bound in band of a far partner plane.
   - The touched face (the brief's item 2) has no exposure from the cone's tie: the vertex's own point is unmoved. It stays on the plain band, with its row inverted to pin that.
+
+- 2026-11-02 — Lane 2 measured A (head `4c38a9ad`). A given-taken sector serves as the parity base only where no decided sector exists.
+  - 12 of the 13 build exactly as main (kind, counts and vertex hash, every op). Nothing else moved in 9,339 tests.
+  - recl germs are unchanged. 187 readings moved On(k) → Out/In, each equal to main's tangent lump.
+  - `cone_classes`: 79 moved readings, 0 disagreements with `point_in_solid` at the edge's second-order point.
+  - Holdout: `review_4704_flush_round_oracle::a_same_side_tangent_touch_answers_every_op`. Every sector of the cone lies in q's plane, so no arc can be placed and parity cannot read it.
+  - Lane's candidate A′: q strictly inside one sector k's plane and sector, on no other sector, with k's side given and taken → the material is that side's. This is On(k) read to the orders read (item 4), and is sound by local geometry.
+  - Directed: prototype A′ without A, with exact-oracle rows and fuzz, and re-take both diffs. Take A′ alone if all 13 build as main. Otherwise measure A′+A and report.
+  - Once measured, I amend item 3 on this branch.
