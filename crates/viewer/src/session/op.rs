@@ -717,8 +717,9 @@ pub enum SessionOp {
     ///
     /// **The result takes the operands' place in the world** (A10, Ev's
     /// residue 1): the placements of the first operand the world
-    /// places, in the spec's order, are re-pointed to the boolean
-    /// through the slot door, and every other operand's placements are
+    /// places, in the spec's order, are taken over by the boolean
+    /// (`Recording::take_over`: re-pointed, and what read them
+    /// rebound where it carries it), and every other operand's placements are
     /// deleted, in the same action — so a combine of placed bodies
     /// leaves the world `[result]`, and one undo restores them. A
     /// repeated operand counts once; operands nothing places place
@@ -769,8 +770,8 @@ pub enum SessionOp {
     ///
     /// A body the world draws becomes the symmetric part: the image
     /// (`Node::Mirror`) and the union of the body and its image, in the
-    /// body's space, the body's drawn copies re-pointed to the union —
-    /// the feature takeover a fillet makes — so the part is drawn where
+    /// body's space, the body's drawn copies taken over by the union —
+    /// the feature takeover a fillet makes (`Recording::take_over`) — so the part is drawn where
     /// each copy stands and moves with the copy's placement. A mate that
     /// another placement seats on a face of the body's copy goes stale
     /// at the takeover, as it does at a fillet's. A body nothing places
@@ -792,7 +793,8 @@ pub enum SessionOp {
     /// in (`Node::Place`, no mate), its values on that space's axes —
     /// rotated by `rotation_angle` about `rotation_axis` through the
     /// body's own origin, then translated — and the body's world
-    /// placements re-pointed to it (A10, Ev's residue 1), as one action.
+    /// placements taken over by it (A10, Ev's residue 1;
+    /// `Recording::take_over`), as one action.
     ///
     /// The translation is written as the three slides, each formula as
     /// given; a rotation about one of the space's axes is the spin about
@@ -851,8 +853,8 @@ pub enum SessionOp {
     /// unfused pattern fuses it with a boolean over the family instead.
     ///
     /// **The fused body takes the prototype's place in the world** (A10,
-    /// Ev's residue 1): the prototype's placements are re-pointed to it
-    /// in the same action.
+    /// Ev's residue 1): the prototype's placements are taken over by it
+    /// (`Recording::take_over`) in the same action.
     ///
     /// **Whether the copies meet is the union's question, not this
     /// door's**: the door authors what the user asked for and the union
