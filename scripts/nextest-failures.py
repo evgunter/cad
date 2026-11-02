@@ -15,9 +15,9 @@ name, its panic message and its first SEED_LINES `seed=` lines to:
   the failures close the log whatever ran after them;
 - an `::error` annotation, which the check-run annotations API serves, for
   the first ANNOTATED tests, then one annotation counting the rest. GitHub
-  keeps 10 error annotations per step and drops the rest silently, and
-  nightly.yml's ε loop runs three invocations in one step: three times
-  (ANNOTATED + 1), plus the runner's own exit-code annotation, is 10.
+  keeps 10 error annotations per step and drops the rest silently. The most
+  invocations one step makes is ci.yml's ε loop, two: twice (ANNOTATED + 1),
+  plus the runner's own exit-code annotation, is 7.
 
 The report's path comes from `[profile.<PROFILE>.junit]` in
 `.config/nextest.toml`. The report is deleted once read: a later run that dies
