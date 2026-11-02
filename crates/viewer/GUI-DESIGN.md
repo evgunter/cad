@@ -182,13 +182,16 @@ the end of the session (the badge paragraph above).
   the picture, scoped to the body under the cursor: the ray picks a
   face first, and an edge of that face's own body within
   `EDGE_PICK_RADIUS_PX`, not hidden by the solid, beats it. A
-  committed profile's drawn outline is weighed as an edge is, within
-  the same radius and not hidden by the solid, and picks its profile
-  node: the nearer of it and the body edge wins, the body edge at a
-  tie. Elsewhere the face wins, and off the body and every outline
-  nothing wins. A tool narrows the kinds it accepts through
-  `PickKinds`; a profile is admitted only under the bare cursor's
-  rules. Multi-select UX and the filter
+  committed profile's drawn outline is a line like an edge, weighed in
+  the same walk, within the same radius and not hidden by the solid,
+  and picks its profile node. The nearer line wins, a body edge at a
+  tie. An outline needs no face under the cursor, so where one is in
+  the contest every drawn body's edges are too: an outline lying along
+  a silhouette loses to its rim on both sides of it. Elsewhere the face
+  wins, and off the body and every outline nothing wins. A tool narrows
+  the kinds it accepts through `PickKinds`. An outline is offered to
+  the bare cursor and to the revolve tool, whose seat reads a profile,
+  and to no other tool. Multi-select UX and the filter
   vocabulary wait on sketcher and tree design; filters, heterogeneous
   sets and vanishing-entity semantics are `docs/SELECT-DESIGN.md`'s.
 

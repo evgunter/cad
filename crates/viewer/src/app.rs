@@ -9724,6 +9724,7 @@ mod properties_pane_tests {
         /// A lone profile at several zooms: on the line, 5 px off and
         /// 8 px off its bottom side (screen y), and the corner.
         #[test]
+        #[ignore = "reviewer probe (PR 6299): prints what it saw and asserts nothing; run with --ignored"]
         fn r1_lone_profile_at_zooms() {
             let (mut driven, profile) = lone([0.010, 0.010]);
             for factor in [1.0, 0.5, 0.5, 4.0, 3.0] {
@@ -9749,6 +9750,7 @@ mod properties_pane_tests {
         /// rim and along the outer rim, where profile and edge coincide.
         /// Counts which wins the "tie".
         #[test]
+        #[ignore = "reviewer probe (PR 6299): prints what it saw and asserts nothing; run with --ignored"]
         fn r2_tie_on_curved_and_straight_rims() {
             let mut driven = Driven::with(Vec::new());
             driven.settle();
@@ -9967,6 +9969,7 @@ mod properties_pane_tests {
         /// Tools: blend (edges), mate (faces), and every other open
         /// tool: a click on a lone outline.
         #[test]
+        #[ignore = "reviewer probe (PR 6299): prints what it saw and asserts nothing; run with --ignored"]
         fn r6_tools_get_no_profile_unless_any() {
             for kind in crate::tools::ToolKind::ALL {
                 let (mut driven, profile) = lone([0.010, 0.010]);
@@ -10001,6 +10004,15 @@ mod properties_pane_tests {
                     "R8 lone, mate kind {kind}: hover={hover:?} select-is-profile={}",
                     s == Selection::Node(profile)
                 );
+                assert!(
+                    !matches!(hover, Some(Hovered::Profile(_))),
+                    "mate kind {kind}: the mate tool is offered no profile to hover"
+                );
+                assert_eq!(
+                    s,
+                    Selection::None,
+                    "mate kind {kind}: a click on a lone outline picks nothing the mate tool would drop"
+                );
                 let (mut driven, _) = with_profile_added(vec![SessionOp::AddProfile {
                     loops: vec![crate::test_support::rectangle_loop(
                         [0.003, 0.003],
@@ -10020,6 +10032,10 @@ mod properties_pane_tests {
                 driven.quiet();
                 let on = window_pos_of(&driven, [0.008, 0.003, 0.0]);
                 let s = click(&mut driven, on);
+                assert!(
+                    !matches!(s, Selection::Node(_)),
+                    "mate kind {kind}: a click on an outline on a face picks no profile: {s:?}"
+                );
                 let painted: Vec<String> = driven.quiet().into_iter().map(|(t, _)| t).collect();
                 eprintln!(
                     "R8 on-face, mate kind {kind}: select={s:?} held-count-text={:?}",
@@ -10052,6 +10068,11 @@ mod properties_pane_tests {
             eprintln!(
                 "R9 bottom front rim from above: edge={edge} profile={prof} other={}",
                 other.len()
+            );
+            assert_eq!(
+                (edge, prof),
+                (39, 0),
+                "every click on the silhouette rim the startup profile lies along picks the edge: {other:?}"
             );
             let (mut edge, mut prof, mut other) = (0, 0, Vec::new());
             for k in 0..48 {
@@ -10137,6 +10158,10 @@ mod properties_pane_tests {
                     other => format!("{other:?}"),
                 };
                 eprintln!("R10 bottom front rim from above, {d:+} px toward the wall: {what}");
+                assert!(
+                    matches!(s, Selection::Edge(_)),
+                    "{d:+} px across the silhouette rim, the edge wins the tie with the outline on it: {what}"
+                );
             }
         }
 

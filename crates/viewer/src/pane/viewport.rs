@@ -56,28 +56,21 @@ fn push_segment(
 /// walked the chain under and nobody authored, so the wrap is dropped
 /// and what is drawn is the authored legs exactly. A loop of one
 /// vertex has no leg and is held as its point ([`marks::LegLane::point`]),
-/// so a fit still frames it.
+/// so a fit still frames it. The polyline is
+/// [`sketch::PreviewLoop::drawn_on`]'s, which the pick index measures
+/// against too.
 fn push_loop(
     lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
     polyline: &PreviewLoop,
 ) {
-    let points = &polyline.points;
-    let segments = if polyline.end.closes() {
-        points.len()
-    } else {
-        points.len().saturating_sub(1)
-    };
-    for index in 0..segments {
-        push_segment(
-            lane,
-            plane,
-            points[index],
-            points[(index + 1) % points.len()],
-        );
-    }
-    if let (0, Some(&[x, y])) = (segments, points.first()) {
-        lane.point(plane.to_world(pncad::geom_core::Point2::new(x, y)));
+    match polyline.drawn_on(plane).as_slice() {
+        [point] => lane.point(*point),
+        points => {
+            for leg in points.windows(2) {
+                lane.leg(leg[0], leg[1]);
+            }
+        }
     }
 }
 

@@ -531,6 +531,9 @@ pub fn edge_overlay(
                 .unwrap_or_default(),
         );
         for polyline in profile.map_or(&[][..], |node| index.profile_outline(node)) {
+            // The seam's undrawn count is dropped here as the edge
+            // mark's is (`edge_segments`): the profile lane carries the
+            // same legs, and its count is the VNEWS badge row's.
             legs.extend(LegLane::of_polyline(polyline).into_segments());
         }
         legs
