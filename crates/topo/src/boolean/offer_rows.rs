@@ -2178,7 +2178,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchRaysInAFace
-        | BooleanErrorKind::TangentCrescentUnsupported
         | BooleanErrorKind::CrossingsAlongAContactLine
         | BooleanErrorKind::LineMaterialUnread
         | BooleanErrorKind::VertexReadTwice
@@ -2901,7 +2900,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
-    ("sectors.rs", "crescent", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),
     (
         "sectors.rs",
@@ -2921,7 +2919,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "read_refusal", "LeverArm::SectorCurving", 1),
     ("sectors.rs", "read_refusal", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
-    ("sectors.rs", "sector_overlap", "Coincide::Sectors", 1),
+    ("sectors.rs", "first_order_overlap", "Coincide::Sectors", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentSide", 1),
     (

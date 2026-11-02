@@ -2152,7 +2152,7 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     // re-certifies it against an edge that ends elsewhere and refuses.
     // A vertex in `moved` that lands within the band of where it was
     // keeps a carryable row that this drop loses
-    // (`work/shelf/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`).
+    // (`work/shell/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`).
     let staled: Vec<_> = work
         .half_edges
         .values()
@@ -3745,7 +3745,7 @@ fn plan_reanchors<T: Decide>(
             // measures, so it refuses rather than storing a wrong span
             // unless the carrier passes within ε of itself; a CLOSED
             // spline is where that read misnames its refusal
-            // (`work/shelf/reanchor-reads-a-closed-spline-carrier-from-the-seed-side-only.md`),
+            // (`work/shell/reanchor-reads-a-closed-spline-carrier-from-the-seed-side-only.md`),
             // and `geom_brep`'s `foot_rows` pins that the seed is what
             // picks the foot.
             //

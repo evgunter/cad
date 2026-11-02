@@ -20,7 +20,7 @@ are closed (2026-11-02):
   own job (#6323). Nightly 11-03 is its first run: check that each
   leg's `full-suite-junit-<eps>` artifact is populated and the build
   runner's disk. The suite's cost is the kernel, not `debug_assert`
-  (#6339's census); the speed rows sit on SECTRUNG.
+  (#6339's census); the speed rows sit on SECT (SECTRUNG merged back into it on 2026-11-02).
 - **Main reds.** Every red named on this slate is greened, through
   #6343 and #6355. Nightly 11-02 (run 41393708363) is red and had no
   triage PR at hand-back; nor had 10-31 or 11-01.

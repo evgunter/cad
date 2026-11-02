@@ -55,7 +55,7 @@ rectangle, barely helps (`±3.7e-5` at depth 40). The natural interval
 extension `surface.jet(x, y)` is looser still (`±3e-4`).
 
 **Confirms the row's guess in part.** This is a case of
-`cleartail/departure-reads-no-curved-corner-off-its-shared-edge`, but
+`clear/departure-reads-no-curved-corner-off-its-shared-edge`, but
 its second bullet (a corner of two curved edges), not the plane's
 line-edge bullet the row guessed. And presenting that corner alone
 would not obviously certify here: the binding residual is on the

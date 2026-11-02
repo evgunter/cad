@@ -69,8 +69,8 @@ crescent, silently (tier 3′ fails; production does not run it). Today
 that needs both circles phased alike by hand; once `circle()` lowers
 to one segment every circle's vertex sits at azimuth 0, so a boss over
 a pocket tangent inside it on the `+x` side builds the wrong body.
-That union refuses typed `TangentCrescentUnsupported` since PR 5687, in
-both forms. What this unit still turns from a build into a refusal is
+That union refused typed `TangentCrescentUnsupported` from PR 5687, in
+both forms, and builds `SOUND` since PR 6375. What this unit still turns from a build into a refusal is
 the one-segment tangent forms whose two-arc forms build:
 `work/cleave/one-segment-tangent-rims-refuse-where-their-two-arc-forms-build.md`.
 

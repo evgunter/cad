@@ -706,17 +706,18 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "LineMaterialUnread (contradicted)",
+            BooleanError::LineMaterialUnread {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+                why: topo::LineUnread::Contradicted,
+            },
+        ),
+        (
             "PinchRaysInAFace",
             BooleanError::PinchRaysInAFace {
                 operand: Operand::A,
                 face: FaceKey::default(),
-            },
-        ),
-        (
-            "TangentCrescentUnsupported",
-            BooleanError::TangentCrescentUnsupported {
-                a_face: FaceKey::default(),
-                b_face: FaceKey::default(),
             },
         ),
         (

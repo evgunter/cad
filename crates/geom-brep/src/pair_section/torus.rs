@@ -38,6 +38,7 @@
 //! when it is carried. Over a tangent gap the components are one tangent
 //! component, a point where the pose is a touch.
 
+use geom::cover::Cover;
 use geom::{Curve3, Surface};
 use geom_core::k_stats::decide_reported;
 use geom_core::{
@@ -238,7 +239,10 @@ pub struct Ring<T: Real> {
 
 impl<T: Decide> Ring<T> {
     /// The torus `s` shown inside its ring convention; `None` for another
-    /// kind.
+    /// kind. A centre, axis or `u_ref` that is not a finite number reaches
+    /// the convention's margins as poison, so the torus is not shown a
+    /// ring and refuses typed there: every ring this mints has finite
+    /// data.
     fn of(s: &Surface<T>, band: Band) -> Option<Result<Self, TorusPoseRefusal>> {
         let Surface::Torus {
             center,
@@ -250,12 +254,23 @@ impl<T: Decide> Ring<T> {
         else {
             return None;
         };
+        let axis = axis / axis.norm();
+        let finite = [
+            center.x, center.y, center.z, axis.x, axis.y, axis.z, u_ref.x, u_ref.y, u_ref.z,
+        ]
+        .into_iter()
+        .all(geom_core::is_finite_length);
+        let defect = if finite {
+            T::zero()
+        } else {
+            (T::zero() - T::one()).sqrt()
+        };
         Some(
-            TorusRefusal::require(major_radius, minor_radius, band)
+            TorusRefusal::require(major_radius + defect, minor_radius + defect, band)
                 .map_err(TorusPoseRefusal::Torus)
                 .map(|()| Self {
                     center,
-                    axis: axis / axis.norm(),
+                    axis,
                     u_ref,
                     big_r: major_radius,
                     r: minor_radius,
@@ -293,9 +308,14 @@ impl<T: Real> Ring<T> {
         Core::of(self.center, self.axis, self.u_ref, self.big_r)
     }
 
-    /// The ball holding the torus, and so every section of it.
+    /// The ball holding the torus, and so every section of it: its
+    /// tube's ([`Cover::tube`]). A ring's data is finite ([`Ring::of`]),
+    /// so it has one.
     pub fn ball(self) -> ExtentBall<T> {
-        ExtentBall::of_torus(self.center, self.big_r, self.r)
+        match Cover::tube(self.center, self.axis, self.u_ref, self.big_r, self.r) {
+            Some(tube) => ExtentBall::of_cover(&tube),
+            None => unreachable!("Ring::of mints a ring of finite data only"),
+        }
     }
 
     /// The size of the torus's coordinates: its centre's distance from
@@ -1099,13 +1119,14 @@ impl<T: Decide> TorusTorusPose<T> {
             // Both balls hold the section: the smaller is the tighter
             // reach, and where the comparison is not decided either
             // serves.
+            let (b1, b2) = (r1.ball(), r2.ball());
             let ball = match geom_core::k_stats::decide(
                 "tt_smaller_ball",
-                Margin::of((r2.big_r + r2.r) - (r1.big_r + r1.r)),
+                Margin::of(b2.radius() - b1.radius()),
                 band,
             ) {
-                Ok(Sign::Negative) => r2.ball(),
-                Ok(Sign::Positive | Sign::Zero) | Err(_) => r1.ball(),
+                Ok(Sign::Negative) => b2,
+                Ok(Sign::Positive | Sign::Zero) | Err(_) => b1,
             };
             let (c2, a2) = (r2.center, r2.axis);
             // The centre's height is read off `c2` itself, which the turn

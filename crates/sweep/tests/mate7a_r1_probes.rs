@@ -30,7 +30,7 @@ fn deg(d: f64) -> f64 {
 /// start radial +x, the axis -y (`tube_arc`'s left-turn sense).
 /// The stem, or `None` at ε = 1e-12, where its torus wall is past limb
 /// 2's reach: the kernel's limit
-/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+/// (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
 pub(crate) fn stem() -> Option<AtRestBody<f64>> {
     let stem = tube_along_arc(
         tube_frame(
@@ -467,11 +467,11 @@ fn an_arch_started_inside_the_stem_glues_to_the_same_volume() {
 /// stem's and its tube 8 mm inside the stem's, a near tube-circle
 /// tangency, and the accounting over the smaller torus's ball refuses
 /// `CellBudget` at the compiled ε, on the tube at 1e-6
-/// (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`)
+/// (`work/sect/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`)
 /// and on the thin stem's limb 2 at 1e-12 (the kernel limit [`stem`]
 /// names),
 /// as a cylinder × sphere pose near its node does
-/// (`work/sectrung/a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget.md`).
+/// (`work/sect/a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget.md`).
 /// This row pins that stop: it goes red the day the door carries the
 /// lily's pair.
 #[test]
