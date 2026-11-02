@@ -358,3 +358,4 @@ Adjudication:
 - The re-wording is on PR 6383's branch, and the PR title carries `[ev]` with the question at the top of its body.
 - The fix pass's charge items (the segment scale, the spiric charge) are on hold until Ev answers.
 - Consequence for the row-to-be: the MAJOR's fix may be the deletion of the charges, not a re-scaled charge.
+- 2026-11-02 — Ev on PR 6383: *"good catch, i missed 'encloses at every scalar' when i approved that"*. The cover follows `[simple.conditioned]`; the re-wording on PR 6383's branch stands; the fix pass deletes the per-piece f64 charges rather than re-scaling them. `[ev]` is off the title. (BOXES orchestrator)
