@@ -1021,8 +1021,8 @@ populations stay apart:
 |---|---|
 | `point_in_arc_loop_conic_end` | `ConicRows` field (`WALK_ROWS`, the carrier walk) |
 | `point_in_arc_loop_conic_trim` | `ConicRows` field (`WALK_ROWS`) |
-| `bool_contact_arc_end` | `ConicRows` field (`contain`'s `ROWS`, the boundary pre-pass) |
-| `bool_contact_arc_trim` | `ConicRows` field (`ROWS`) |
+| `bool_contact_arc_span` | `ConicRows` field (`contain`'s `ROWS`, the boundary pre-pass) |
+| `bool_contact_arc_straddle` | `ConicRows` field (`ROWS`) |
 | `bool_contact_edge_length` | `ParityRows` field (`contain`'s `EDGE_ROWS`) |
 | `bool_contact_arc_end_vertex` | a `const` in `contain` (`END_VERTEX`): a conic edge's carrier end against one of its stored vertices, asked only where `q` reads at that end while the vertex pass placed it clear |
 

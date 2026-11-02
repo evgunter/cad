@@ -3889,9 +3889,9 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 ///   mid-arc is such a meeting: (a) reads the whole circle, which the
 ///   ruling meets wherever the rim is turned, and (b) has no chain.
 ///
-/// (a) and the interior question are one reading, the curve-pair
-/// meeting ([`geom_brep::curve_pair::meet`]), over two spans: (a) over
-/// the whole circle, the interior question over the arc. So where the
+/// (a) and the interior question are one reading, the boundary pass
+/// ([`geom_brep::curve_face::read`]), over two spans: (a) over the
+/// whole circle, the interior question over the arc. So where the
 /// interior question reads the boundary, (a) is a fast path: what it
 /// certifies the interior question would too. It still decides alone on
 /// a face with a lone vertex, which the interior question leaves unread.
@@ -4097,19 +4097,21 @@ fn circle_refusal(
 }
 
 /// Whether `face`'s boundary meets `circle`, the whole carrier, nowhere
-/// but at the vertices `at`. Each boundary edge is read against the
-/// circle by the curve-pair meeting reading
-/// ([`geom_brep::curve_pair::meet`]), and each meeting must sit at an end
-/// of the edge that is one of `at`; a lone vertex must be one of `at` or
-/// be read off the circle ([`geom_brep::curve_pair::Span::contact`]).
+/// but at the vertices `at`: the boundary pass
+/// ([`geom_brep::curve_face::read`]) over the circle, every meeting at one
+/// of `at` — a vertex of the walk or a lone vertex, or an end of a
+/// boundary edge — and no boundary edge on the circle's own curve.
 ///
 /// Everything else answers `false`: a meeting inside a boundary edge or
-/// at an end that is not one of `at`, a boundary edge lying along the
-/// circle, a reading that refuses, and a boundary edge whose curve is not
-/// certified.
+/// at a vertex that is not one of `at`, a boundary edge along the circle,
+/// a pass that escalates or cannot run, and a boundary edge whose curve
+/// is not certified.
 ///
-/// `face` is a key the caller carries: its miss refuses
-/// [`BooleanError::ClassificationInvariant`].
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where `face`, a key the
+/// caller carries, does not resolve, or where the pass reports a kernel
+/// fault ([`super::carrier_cross::boundary_fault`]).
 ///
 /// # Panics
 ///
@@ -4124,53 +4126,34 @@ fn boundary_meets_circle_only_at<T: Decide>(
     at: &[VertexKey],
     band: Band,
 ) -> Result<bool, BooleanError> {
-    use geom_brep::curve_pair::{Hit, Span, SpanEnd, meet};
-    let f = y
-        .get_face(face)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "an arc on a carrier: the face's boundary is not walkable",
-        })?;
+    use geom_brep::curve_face::{BoundaryRefusal, OnBoundary};
+    use geom_brep::curve_pair::{Hit, Span, SpanEnd};
+    let Some(boundary) = super::carrier_cross::face_boundary(y, face)? else {
+        return Ok(false);
+    };
     let whole = Span::new(circle, (T::zero(), T::tau())).endless();
-    for member in y.face_boundary_linked(face, f) {
-        match member {
-            crate::live::BoundaryMember::Isolated { vertex, point } => {
-                if !at.contains(&vertex)
-                    && !matches!(whole.contact(point, T::zero(), band), Ok(None))
-                {
-                    return Ok(false);
-                }
-            }
-            crate::live::BoundaryMember::Edge { ek, edge: e, .. } => {
-                let end = |h, field| {
-                    crate::live::linked(
-                        &y.half_edges,
-                        h,
-                        EntityId::HalfEdge,
-                        EntityId::Edge(ek),
-                        field,
-                    )
-                    .start
-                };
-                // The span runs forward from `he_plus`'s start.
-                let ends = [end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus")];
-                let Some(c) = y.edge_curve_linked(ek, e).certified() else {
-                    return Ok(false);
-                };
-                let Ok(met) = meet(&whole, &Span::new(c.carrier(), c.params()), band) else {
-                    return Ok(false);
-                };
-                let at_an_end = |hit| match hit {
-                    Hit::End(SpanEnd::Start) => at.contains(&ends[0]),
-                    Hit::End(SpanEnd::Stop) => at.contains(&ends[1]),
-                    Hit::On { .. } => false,
-                };
-                if met.shared.is_some() || !met.points.iter().all(|m| at_an_end(m.on_b)) {
-                    return Ok(false);
-                }
-            }
+    let reading = match boundary.read(&whole, band) {
+        Ok(reading) => reading,
+        Err(BoundaryRefusal::Fault(fault)) => {
+            return Err(super::carrier_cross::boundary_fault(fault));
         }
-    }
-    Ok(true)
+        Err(
+            BoundaryRefusal::Escalated(_)
+            | BoundaryRefusal::Meeting(_)
+            | BoundaryRefusal::Touch(_)
+            | BoundaryRefusal::Unread(_),
+        ) => return Ok(false),
+    };
+    let only_at = reading.meetings.iter().all(|m| {
+        at.contains(&match m.on_boundary {
+            OnBoundary::Vertex(i) => boundary.edges[i].start.0,
+            OnBoundary::Lone(i) => boundary.lone[i].0,
+            OnBoundary::Edge(i, Hit::End(SpanEnd::Start)) => boundary.edges[i].ends[0],
+            OnBoundary::Edge(i, Hit::End(SpanEnd::Stop)) => boundary.edges[i].ends[1],
+            OnBoundary::Edge(_, Hit::On { .. }) => return false,
+        })
+    });
+    Ok(reading.shared.is_empty() && only_at)
 }
 
 /// Whether the carrier ladder decides EVERY surface of a face the edge
@@ -5637,9 +5620,9 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 /// reads one point whichever operand's point the merge keeps. `by` is
 /// the cell of the splitting operand that meets the edge at `p`.
 ///
-/// The parameter is [`geom::Curve3::param_near`] anchored at the span's
-/// MIDPOINT: a line's projection `t = (p − origin)·dir`, a circle's
-/// azimuth, an ellipse's eccentric anomaly, a spiric's tube angle. That
+/// Off a circle, the parameter is [`geom::Curve3::param_near`] anchored
+/// at the span's MIDPOINT: a line's projection `t = (p − origin)·dir`,
+/// an ellipse's eccentric anomaly, a spiric's tube angle. That
 /// function carries the derivations and the reason an anchored read
 /// needs no branch selection; the midpoint is this site's anchor because
 /// the parameter wanted is the one INSIDE the stored span, and within a
@@ -5655,9 +5638,11 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 /// (`spline_face_rows::a_split_of_a_thin_ellipse_lands_where_it_was_read_or_refuses`).
 ///
 /// On a circle, `p` must lie ON the carrier for the azimuth to name the
-/// event: the carrier's own reading decides it
-/// ([`geom::Curve3::on_carrier`]) before the parameter is taken. The
-/// angular half of "on the ARC" is not repeated here: `split_edge`'s
+/// event. One foot ([`geom::Curve3::foot`]) answers both: the carrier's
+/// own reading at it decides that `p` is on the circle
+/// ([`geom::Foot::on_carrier`]), and its azimuth, on the branch about the
+/// span's middle ([`geom_brep::curve_pair::Span::branch`]), is the
+/// parameter. The angular half of "on the ARC" is not repeated here: `split_edge`'s
 /// interiority gate is exactly that question, metered in metres at the
 /// radius.
 ///
@@ -5676,9 +5661,10 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
     let curve = certified(y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)))?.clone();
-    if let circle @ geom::Curve3::Circle { .. } = curve.carrier() {
+    let t = if let circle @ geom::Curve3::Circle { .. } = curve.carrier() {
         let (t0, t1) = curve.params();
-        match circle.on_carrier(p, geom::mid_param(t0, t1), band) {
+        let foot = circle.foot(p, geom::mid_param(t0, t1));
+        match foot.on_carrier(band) {
             Ok(geom::OnCarrier::On { .. }) => {}
             // The caller placed the event ON this edge; a point
             // definitely off its carrier means two readings disagree,
@@ -5695,13 +5681,13 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
                 }));
             }
         }
-        // A span of at most one period is what makes the MIDPOINT
-        // anchor's branch the right one (past a period the azimuth
-        // aliases by 2π silently, and `split_edge`'s interiority gate
-        // cannot see it): the edge's certificate holds its turn, which
-        // is never over one ([`geom_brep::CertifiedTurn`]).
-    }
-    let t = point_param(y, y_is, edge, &curve, p)?;
+        // The edge's certificate holds its turn, which is never over one
+        // ([`geom_brep::CertifiedTurn`]), so the branch about the span's
+        // middle is the one inside it.
+        geom_brep::curve_pair::Span::new(circle, (t0, t1)).branch(foot.t())
+    } else {
+        point_param(y, y_is, edge, &curve, p)?
+    };
     split_logged(y, y_is, edge, t, Some(p), by, tol, contacts)
 }
 
@@ -7299,8 +7285,9 @@ mod lying_on_rows {
     }
 
     /// A conic lying along the circle does not certify, even between two
-    /// of `at`: the sheet's bottom arc is the circle itself. Conics in
-    /// parallel planes meet it nowhere.
+    /// of `at`: the sheet's bottom arc is the circle itself, every other
+    /// meeting at one of `at`, so only the shared run refuses it. Conics
+    /// in parallel planes meet it nowhere.
     #[test]
     fn a_conic_along_the_circle_does_not_certify() {
         let (y, face) = sheet(FRAC_PI_2);
@@ -7384,6 +7371,52 @@ mod lying_on_rows {
             !meets(&y, face, through(h), &[]),
             "a corner in band of the circle"
         );
+    }
+
+    /// A lone vertex of the boundary is a meeting where it lies on the
+    /// circle, which certifies only when it is one of `at`. The prism
+    /// side carries a lone vertex at `(1/2, 0, 1/2)` (a strut from a
+    /// corner, its edge killed); the circle in the plane `x = 1/2`
+    /// touches the face's plane there and meets no edge.
+    #[test]
+    fn a_lone_vertex_on_the_circle_certifies_only_as_one_of_at() {
+        let (mut y, face, v) = side();
+        let tol = Tol::witness();
+        let corner = y
+            .half_edges()
+            .find(|(_, h)| h.start == v[0] && y.get_loop(h.parent_loop).unwrap().face == face)
+            .map(|(k, _)| k)
+            .expect("the corner's half-edge in the face");
+        let lone_at = Point3::new(0.5, 0.0, 0.5);
+        let strut = y
+            .mev_line(
+                crate::construction::MevSite::Fan {
+                    he1: corner,
+                    he2: corner,
+                },
+                lone_at,
+                tol,
+            )
+            .unwrap();
+        let ring = y.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
+        assert_eq!(
+            y.get_loop(ring).unwrap().boundary,
+            crate::entity::LoopBoundary::Empty {
+                vertex: strut.vertex
+            },
+            "the strut's far vertex is stranded as a ring of the face"
+        );
+        let through = (Point3::new(0.5, 0.3, 0.5), Vec3::unit_x(), 0.3);
+        assert!(
+            !meets(&y, face, through, &[]),
+            "the lone vertex on the circle, not one of `at`"
+        );
+        assert!(
+            meets(&y, face, through, &[strut.vertex]),
+            "the lone vertex, one of `at`"
+        );
+        let past = (Point3::new(0.5, 0.3, 0.5), Vec3::unit_x(), 0.2);
+        assert!(meets(&y, face, past, &[]), "a circle clear of it");
     }
 
     /// A boundary edge on a NURBS carrier is read by the meeting
