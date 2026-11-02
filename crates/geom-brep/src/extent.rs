@@ -94,6 +94,16 @@ impl<T: Real> ExtentBall<T> {
         Self { center, radius }
     }
 
+    /// **A ball no geometry is named for**: `radius` about `center`, a
+    /// length a call site vouches for. Each reference is pinned with its
+    /// reason by `scripts/gates/lever-sources.sh`, a list that only
+    /// shrinks.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unsourced(center: Point3<T>, radius: T) -> Self {
+        Self::new(center, radius)
+    }
+
     /// The single point `p`.
     #[must_use]
     pub fn point(p: Point3<T>) -> Self {
