@@ -2,10 +2,11 @@
 id: the-pierce-mints-a-star-where-the-split-learned-to-hang-a-tree
 kind: issue
 title: vtxfac's piercing side mints one null edge per Out run (a star) where the split had to hang a tree because two runs can bound two pieces: probe for a pinch the Boolean keeps
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
+branch: onehome/pierce-star-probe
 ---
 
 Flagged independently by all three designers of the vertex-runs fork (cluster A, 2026-11-02). Unverified: a probe, not yet a confirmed wrong answer.
