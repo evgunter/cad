@@ -280,3 +280,13 @@ closed-row routing and #6093's re-bless).
   `torus_doors_join`, `stop_word` in `germ_tilted_rod`, plus
   `germ_plane_torus_frame::TorusDoor`), each matching the same refusal
   prose by `starts_with`; a refusal re-worded upstream moves them apart.
+- #6324 merged (parallel gates; script readers derived per PR so a
+  `payload-rung-sweep.py` edit seeds pncad-py). FULL review, then three
+  fix passes. Each pass's re-review found compiled code the filter read
+  as prose (a Rust `#[doc]` attribute, an indented `///` doctest, a
+  hidden `# ` rustdoc line in a consumed `.md`). The class: deciding
+  "comment or code" by a line's leading characters fails open wherever
+  rustdoc compiles text. The final rule bails on any mention inside a
+  fence or an indented block, reads `#` as a comment only in yml, toml
+  and sh, and scans `git ls-files`. Sibling gap filed:
+  `read-reach-blanks-doctests`.
