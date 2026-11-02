@@ -715,7 +715,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 ///     params: (Dual64, Dual64),
 ///     plane: &Surface<Dual64>,
 ///     wall: &NurbsSurface<Dual64>,
-///     extent: Dual64,
+///     extent: geom_core::Lever<Dual64>,
 ///     band: Band,
 /// ) {
 ///     let _ = geom_brep::plane_nurbs_limbs(carrier, params, plane, wall, extent, band);
@@ -734,7 +734,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 ///     params: (f64, f64),
 ///     plane: &Surface<f64>,
 ///     wall: &NurbsSurface<f64>,
-///     extent: f64,
+///     extent: geom_core::Lever<f64>,
 ///     band: Band,
 /// ) {
 ///     let _ = geom_brep::plane_nurbs_limbs(carrier, params, plane, wall, extent, band);
@@ -753,7 +753,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 ///     params: (Sym<f64>, Sym<f64>),
 ///     plane: &Surface<Sym<f64>>,
 ///     wall: &NurbsSurface<Sym<f64>>,
-///     extent: Sym<f64>,
+///     extent: geom_core::Lever<Sym<f64>>,
 ///     band: Band,
 /// ) {
 ///     let _ = geom_brep::plane_nurbs_limbs(carrier, params, plane, wall, extent, band);

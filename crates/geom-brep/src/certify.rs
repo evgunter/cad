@@ -2126,7 +2126,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane};
     /// use geom_core::{Band, Dual64, Point3, Real};
     /// fn at<T: geom_core::Decide>(spec: EdgeCurveSpec<T>, p: Point3<T>, band: Band, lane: NurbsLane<T>) {
-    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, T::from_f64(1.0), band, lane);
+    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, geom_brep::ExtentBall::of_sphere(p, T::from_f64(1.0)).lever(), band, lane);
     /// }
     /// ```
     ///
@@ -2143,7 +2143,7 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///     band: Band,
     ///     lane: NurbsLane<T>,
     /// ) {
-    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, T::from_f64(1.0), band, lane);
+    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, geom_brep::ExtentBall::of_sphere(p, T::from_f64(1.0)).lever(), band, lane);
     /// }
     /// ```
     ///
@@ -2389,7 +2389,7 @@ pub struct StatedImage<T: Real> {
 ///     // Honest limbs for some other pair, with the two limbs a door
 ///     // records zeroed.
 ///     let forged = |c: &Curve3<f64>, t: (f64, f64), p: &Surface<f64>, w: &NurbsSurface<f64>,
-///                   e: f64, b: Band|
+///                   e: geom_core::Lever<f64>, b: Band|
 ///      -> Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal> {
 ///         let mut limbs = geom_brep::plane_nurbs_limbs(c, t, p, w, e, b)?;
 ///         limbs.on_locus_max = 0.0;
@@ -2424,7 +2424,7 @@ pub struct StatedImage<T: Real> {
 ///     // Honest limbs for some other pair, with the two limbs a door
 ///     // records zeroed.
 ///     let forged = |c: &Curve3<f64>, t: (f64, f64), p: &Surface<f64>, w: &NurbsSurface<f64>,
-///                   e: f64, b: Band|
+///                   e: geom_core::Lever<f64>, b: Band|
 ///      -> Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal> {
 ///         let mut limbs = geom_brep::plane_nurbs_limbs(c, t, p, w, e, b)?;
 ///         limbs.on_locus_max = 0.0;
@@ -2433,7 +2433,8 @@ pub struct StatedImage<T: Real> {
 ///     };
 ///     let _ = forged;
 ///     let lane = NurbsLane::certified();
-///     let _ = EdgeCurve::certify(spec, ends.0, ends.1, surfaces, 1.0, band, lane);
+///     let arm = geom_brep::ExtentBall::of_sphere(ends.0, 1.0).lever();
+///     let _ = EdgeCurve::certify(spec, ends.0, ends.1, surfaces, arm, band, lane);
 /// }
 /// ```
 #[derive(Clone, Copy)]
