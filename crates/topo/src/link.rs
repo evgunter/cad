@@ -3863,6 +3863,8 @@ mod round_rows;
 mod cleared_rows;
 #[cfg(test)]
 mod tangent_rows;
+#[cfg(test)]
+mod v6350_probe;
 
 #[cfg(test)]
 mod tests {
