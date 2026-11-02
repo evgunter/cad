@@ -232,3 +232,5 @@ closed-row routing and #6093's re-bless).
   opt 0 is corrected: it does at 0, 1, `s` and `z`.
 - Not done, for a later row: a member-manifest edit that only adds a
   target (`[[example]]`, `[[bin]]`, `[[test]]`) still bails to TIER=all.
+
+- 2026-11-02 — Slow-test census of the `full-suite` job (runs 41276693129 and 41172334943) appended to `the-full-suite-jobs-three-eps-rows-outgrow-its-180-minutes`: rows of 17.2, 13.4 and 40.3 minutes on 11-01, each saturating four threads; 1e-12 is 57 % of row time and sweep is 64 % of that; the 10-31 runner was 1.75× slower per test. Debug assertions cost under 2 % on seven runs of six of the slowest tests; the cost is the curved boolean pipeline, filed on SECTRUNG (P1). (GREEN lane)
