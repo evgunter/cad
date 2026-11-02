@@ -39,6 +39,12 @@ and `work/lib/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`.
   orchestrator authorises it as deletions only.
 - Close the parent row with this unit.
 
+2026-11-02 (FORMS extrude/revolve lane, PR 6401): the Extrude form this row
+refers to is gone. The extrude button beside a selected profile inserts
+at a default depth and selects the extrude; the depth is now the
+extrude's own `Distance` slot row, which takes a number or a
+formula.
+
 ## 2026-11-02 — the add-profile form is gone; New profile is where this lands
 
 Evidence from FORMS' profile unit (branch `forms/profile-unit`, which

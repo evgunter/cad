@@ -1,8 +1,8 @@
 //! **From nothing to a solid, replayed headlessly** (GAUTH-1): the
 //! creation op vocabulary driving the real `DocSession` with no
 //! renderer — the new-document door, the profile/extrude/revolve/sketch-on-face
-//! inserts with their typed refusals, the revolve tool's held pick,
-//! and the ring acceptance stream.
+//! inserts with their typed refusals, a seat's held pick across a new
+//! document, and the ring acceptance stream.
 //!
 //! # The ring row's comparison, and its strength
 //!
@@ -30,7 +30,7 @@ use crate::common;
 
 use core::f64::consts::TAU;
 
-use common::{ang, body_volume, circle_at, len, len2, near, rectangle_at, scl, session_insert};
+use common::{ang, body_volume, circle_at, len, near, rectangle_at, scl, session_insert};
 use pncad::document::{
     Dimension, DimensionError, Doc, DocumentId, Formula, LoopProgram, Node, ProfileProgram,
     RecipeNodeId, RecordedProgramError, SlotId,
@@ -40,8 +40,7 @@ use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, ValuePayload};
 use pncad::quantity::{WrittenAngle, WrittenLength};
 use viewer::props;
 use viewer::props::Notation;
-use viewer::revolvetool::RevolveTool;
-use viewer::seats::{Seat, SeatError, SeatEvent};
+use viewer::seats::{Seat, Seats};
 use viewer::session::{
     DocSession, FaceSelection, Hovered, NodeKindWanted, Refusal, Selection, SessionOp, Step,
 };
@@ -802,94 +801,6 @@ fn extrude_and_revolve_require_their_node_kinds() {
     ));
 }
 
-/// The revolve tool's axis, as the chrome's default writes it: the
-/// profile frame's own +y through (0, 0).
-fn tool_op(tool: &RevolveTool) -> Result<SessionOp, SeatError> {
-    tool.op(
-        len2([0.0, 0.0]),
-        Formula::turn_over(4).expect("a quarter turn"),
-        ang(TAU),
-    )
-}
-
-#[test]
-fn the_revolve_tool_holds_its_profile_pick_and_survives_its_loss() {
-    let tol = Tol::witness();
-    let mut session = session(tol);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            loops: vec![circle_at([R, 0.0], RO)],
-        },
-    );
-
-    let mut tool = RevolveTool::new();
-    assert!(
-        matches!(
-            tool_op(&tool),
-            Err(SeatError::Empty {
-                seat: Seat::RevolveProfile
-            })
-        ),
-        "no pick, no op"
-    );
-    tool.pick(session.committed_doc(), profile);
-    assert_eq!(tool.profile(), Some(profile));
-
-    // The tool's op commits exactly one insert through the session.
-    let op = tool_op(&tool).expect("the seat is filled");
-    let revolve = session_insert(&mut session, op);
-    assert!(matches!(
-        session.committed_doc().node(revolve),
-        Some(Node::Revolve { .. })
-    ));
-
-    // Survival: delete the profile (which takes the revolve with it)
-    // and reconcile — the seat empties with a typed event NAMING the
-    // seat and the node, and the next pick refills it.
-    let deleted = session.perform(SessionOp::DeleteNode { node: profile });
-    assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
-    let events = tool.reconcile(session.committed_doc());
-    assert_eq!(events.len(), 1, "one drop, reported");
-    assert!(
-        matches!(
-            events.first(),
-            Some(SeatEvent::PickLost {
-                seat: Seat::RevolveProfile,
-                node
-            }) if node.id() == profile
-        ),
-        "the event names the emptied seat and the vanished node: {events:?}"
-    );
-    assert_eq!(tool.profile(), None, "the vanished pick is dropped");
-    assert!(
-        matches!(
-            tool_op(&tool),
-            Err(SeatError::Empty {
-                seat: Seat::RevolveProfile
-            })
-        ),
-        "the seat is empty, no op"
-    );
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            loops: vec![circle_at([R, 0.0], RI)],
-        },
-    );
-    tool.pick(session.committed_doc(), profile);
-    assert_eq!(
-        tool.profile(),
-        Some(profile),
-        "the next pick refills the seat"
-    );
-    assert!(tool_op(&tool).is_ok());
-
-    // clear() empties the seat — the chrome's start-over door.
-    tool.clear();
-    assert_eq!(tool.profile(), None);
-}
-
 /// A NewDocument under a held pick: a reconciling consumer hears the
 /// drop, typed. (A consumer that SKIPS reconcile is not reliably
 /// caught — fresh inserts re-mint the same small ids and the stale
@@ -905,15 +816,22 @@ fn reconcile_drops_the_pick_across_a_new_document() {
             loops: vec![circle_at([R, 0.0], RO)],
         },
     );
-    let mut tool = RevolveTool::new();
-    tool.pick(session.committed_doc(), profile);
+    let body = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        },
+    );
+    let mut seats = Seats::one(Seat::DuplicateBody);
+    seats.pick(session.committed_doc(), body);
     let out = session.perform(SessionOp::NewDocument {
         name: "fresh".to_owned(),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    let events = tool.reconcile(session.committed_doc());
+    let events = seats.reconcile(session.committed_doc());
     assert_eq!(events.len(), 1, "the pick dropped, loudly: {events:?}");
-    assert_eq!(tool.profile(), None);
+    assert_eq!(seats.held(0), None);
 }
 
 /// **The reported defect, end to end: a form authoring in millimetres
@@ -940,8 +858,8 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
         angle: pncad::quantity::DEG,
     };
 
-    // The extrude form's one field, authored the way the chrome does:
-    // the draft is canonical, the picker says how it is written.
+    // The extrude button's default, written the way the chrome does:
+    // the value is canonical, the notation says how it is written.
     let extrude_distance = Formula::written_length(WrittenLength::canonical_in(0.01, mm.length))
         .expect("10 mm is a length");
     let profile = session_insert(

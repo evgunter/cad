@@ -56,7 +56,7 @@ impl ViewerBehavior<'_> {
         // The forms whose op takes the selection, under its header and
         // above its rows, where a reader who picked it looks first:
         // nothing at all unless the selection is a profile.
-        self.extrude_ui(ui);
+        self.sweep_ui(ui);
         match self.session.selection().clone() {
             Selection::None => {
                 ui.weak("select a feature");

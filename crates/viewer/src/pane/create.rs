@@ -4,7 +4,10 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{DocumentId, Said, Speaker, TracePassage, TraceSense};
+use pncad::document::{
+    DimensionError, DocumentId, Formula, Said, Speaker, TracePassage, TraceSense,
+};
+use pncad::quantity::WrittenLength;
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
@@ -30,8 +33,8 @@ use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
 use crate::tree::DrawnBody;
 use crate::widgets::{
-    CANCEL, angle_picker, commit_row, door, form_door, length_picker, number_field, point_fields,
-    unit_field, unit_vec3_row, vec3_row,
+    CANCEL, angle_picker, commit_row, door, form_door, length_picker, number_field, unit_field,
+    unit_vec3_row, vec3_row,
 };
 
 /// **The smallest instance index the part form offers.**
@@ -317,12 +320,17 @@ const PICK_PART: &str = "add";
 /// What the button that opens the part chooser says.
 pub(crate) const ADD_PART: &str = "Add part…";
 
-/// What the extrude form's commit button says, before the profile's
-/// number once one is selected.
+/// What the extrude button says, before the selected profile's name.
 pub(crate) const EXTRUDE: &str = "Extrude";
 
 /// The button that inserts an empty profile.
 pub(crate) const NEW_PROFILE: &str = "New profile";
+
+/// What the revolve button says, before the selected profile's name.
+pub(crate) const REVOLVE: &str = "Revolve";
+
+/// The depth an extrude is inserted at, metres.
+const DEFAULT_EXTRUDE_DISTANCE: f64 = 0.01;
 
 /// The traced-profile form's commit.
 pub(crate) const NEW_TRACED_PROFILE: &str = "New traced profile";
@@ -385,11 +393,12 @@ const SPLIT_LEAVES: &str = "committed as it stands, the split would read";
 const SPLIT_MISSES: &str = "the plane misses the body or lies on one of its faces";
 
 /// The kind nouns of the nodes the forms with no [`ToolKind`] create —
-/// `node_kind_noun`'s words, which a form's proposed label counts by.
-/// `creation_nouns` (below) holds the profile's, the extrude's and the
-/// part chooser's to the node their op mints.
+/// `node_kind_noun`'s words, which a proposed label counts by.
+/// `creation_nouns` (below) holds the profile's, the extrude's, the
+/// revolve's and the part chooser's to the node their op mints.
 const PROFILE_NOUN: &str = "Profile";
 const EXTRUDE_NOUN: &str = "Extrude";
+const REVOLVE_NOUN: &str = "Revolve";
 
 pub(crate) const INSTANCE_NOUN: &str = "InstantiatePart";
 
@@ -514,12 +523,105 @@ fn withheld_line(ui: &mut egui::Ui, theme: &Theme, withheld: Withheld) {
     crate::widgets::message_toned(ui, withheld.words(), theme, withheld.tone());
 }
 
+/// **Why the revolve button cannot work out a default axis** for the
+/// selected profile, said on the disabled button.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NoAxis {
+    /// The landed evaluation answers an older document than the one
+    /// shown, so the profile's extent there may not be its extent now.
+    Evaluating,
+    /// The profile has no value in the current evaluation.
+    NoValue,
+    /// The profile has no loops: there is nothing to revolve.
+    NoLoops,
+    /// The extent, or the axis read off it, is not a finite number in
+    /// the working unit.
+    NotFinite,
+}
+
+impl NoAxis {
+    fn words(self) -> &'static str {
+        match self {
+            Self::Evaluating => {
+                "waiting for the profile to evaluate, to place the axis clear of it"
+            }
+            Self::NoValue => {
+                "the profile does not evaluate, so there is no extent to place the axis by"
+            }
+            Self::NoLoops => "the profile has no loops to revolve",
+            Self::NotFinite => "the profile's extent is not a finite number in the working unit",
+        }
+    }
+}
+
+/// **The profile's x extent**, `(lo, hi)` in metres in its own
+/// coordinates, from its value: each loop's vertices and each arc's
+/// whole circle, so the bound is never narrower than the profile.
+fn profile_x_extent(value: &pncad::document::NodeValue<f64>) -> Result<(f64, f64), NoAxis> {
+    let pncad::document::ValuePayload::Profile(profile) = &value.payload else {
+        return Err(NoAxis::NoValue);
+    };
+    profile
+        .validated
+        .loops()
+        .iter()
+        .flat_map(|lp| {
+            let vertices = lp.vertices().iter().map(|p| (p.x, p.x));
+            let arcs = lp.segments().iter().filter_map(|s| match s.kind {
+                pncad::profile::SegmentKind::Line => None,
+                pncad::profile::SegmentKind::Arc { arc, .. } => {
+                    Some((arc.centre.x - arc.radius, arc.centre.x + arc.radius))
+                }
+            });
+            vertices.chain(arcs).collect::<Vec<_>>()
+        })
+        .reduce(|(lo, hi), (a, b)| (lo.min(a), hi.max(b)))
+        .ok_or(NoAxis::NoLoops)
+}
+
+/// **The x of a revolve's default axis**, written in the working unit,
+/// for a profile whose x extent in that unit is `lo..hi`: at least the
+/// extent's width left of it, rounded outward (further left) to a
+/// multiple of the power of ten below that width, so the slot reads
+/// like a number a person typed.
+///
+/// The axis runs along the profile's `+y` (the heading the revolve
+/// button inserts). `sweep::revolve` sweeps the side a quarter turn
+/// clockwise of the heading, which for `+y` is `+x`, so every point of
+/// the profile lies on it, at least one width clear. An axis on the
+/// extent's edge would make a solid of a rectangle but refuse a circle
+/// (an arc tangent to the axis) or a polygon touching it at one vertex;
+/// clear of it, every profile with loops revolves into a ring.
+fn revolve_axis_x(lo: f64, hi: f64) -> Result<f64, NoAxis> {
+    let width = hi - lo;
+    if !(width.is_finite() && width > 0.0 && lo.is_finite()) {
+        return Err(NoAxis::NotFinite);
+    }
+    let clear = lo - width;
+    #[allow(clippy::cast_possible_truncation)]
+    let exponent = width.log10().floor() as i32;
+    // A power of ten divided by, not multiplied by its reciprocal, so a
+    // decimal multiple reads back as its shortest spelling.
+    let x = if exponent >= 0 {
+        let step = 10_f64.powi(exponent);
+        (clear / step).floor() * step
+    } else {
+        let per = 10_f64.powi(-exponent);
+        (clear * per).floor() / per
+    };
+    if x.is_finite() {
+        Ok(x)
+    } else {
+        Err(NoAxis::NotFinite)
+    }
+}
+
 impl ViewerBehavior<'_> {
     /// The creation sections, each behind its own header and each tool
     /// or form in it behind its own button, so the pane at rest is the
     /// headers. A form whose op takes the selection is not here: it is
     /// drawn beside the selection while its op admits it
-    /// ([`Self::extrude_ui`]). Each form is minimal — its few required
+    /// ([`Self::sweep_ui`]). Each form is minimal — its few required
     /// fields with sensible defaults — and emits exactly one creation
     /// op; the property panel is the editor for everything after the
     /// insert — for a profile, through this section's own path editor
@@ -528,8 +630,6 @@ impl ViewerBehavior<'_> {
         ui.collapsing(ADD_FEATURE, |ui| {
             self.new_profile_ui(ui);
             self.traced_profile_ui(ui);
-            ui.separator();
-            self.revolve_tool_ui(ui);
         });
         // The combining tools sit in their own section:
         // everything above makes a body out of nothing, everything
@@ -836,9 +936,8 @@ impl ViewerBehavior<'_> {
                 .clicked()
             {
                 // NOT part of the one-modal-tool-at-a-time rule the
-                // mate and revolve activations keep, deliberately: that
-                // rule exists because those two consume the same
-                // SELECTION stream, so a pick would fill two seats. A
+                // seated tools keep, deliberately: that rule exists
+                // because they consume the same SELECTION stream, so a pick would fill two seats. A
                 // chooser consumes no picks — it reads a directory and
                 // emits its op from a button — so it neither closes a
                 // pick tool nor is closed by one, and a pick made while
@@ -1033,20 +1132,23 @@ impl ViewerBehavior<'_> {
         withholds
     }
 
-    /// The extrude form: the current selection is the profile (a tree
-    /// pick, or a face pick whose feature is one — `Selection::node`),
-    /// one distance field, one [`SessionOp::AddExtrude`] on commit.
-    ///
-    /// **Drawn only while a profile is selected**, by the test the
-    /// door itself refuses with ([`admits`] for
+    /// **The sweeps of the selected profile**: an extrude button and a
+    /// revolve button, drawn while the selection is a profile, by the
+    /// test the door itself refuses with ([`admits`] for
     /// [`NodeKindWanted::Profile`], over the committed document as
-    /// `DocSession::require_kind` reads it): the form is offered
-    /// exactly where the op would accept it, as the instance section
-    /// is (`ViewerBehavior::instance_ui`) — and beside the selection,
-    /// outside the collapsed creation sections ([`Self::create_ui`]),
-    /// so no header has to be opened to find it.
-    pub(crate) fn extrude_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(node) =
+    /// `DocSession::require_kind` reads it), beside the selection and
+    /// outside the collapsed creation sections ([`Self::create_ui`]).
+    ///
+    /// Each button inserts its node at default values, labelled `Kind N`
+    /// ([`tree::proposed_label`]), as one undo step, and the node is
+    /// then selected ([`SessionOp::selects_what_it_makes`]), so its
+    /// Properties slot rows are where every value is written. The
+    /// revolve's axis is placed off the profile's extent in the
+    /// evaluation of the document as it stands ([`revolve_axis_x`]);
+    /// until that evaluation lands, or where it holds no extent, the
+    /// button is disabled and says why.
+    pub(crate) fn sweep_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(profile) =
             self.session.selection().node().filter(|node| {
                 admits(self.session.committed_doc(), *node, NodeKindWanted::Profile)
             })
@@ -1054,116 +1156,63 @@ impl ViewerBehavior<'_> {
             return;
         };
         ui.separator();
+        let named = Speaker::of(self.session.doc())
+            .or_held(self.session.selection_said())
+            .node(profile)
+            .to_string();
+        let notation = *self.notation;
+        let unit = WrittenLength::in_unit(1.0, notation.length).meters();
+        let axis_x = if self.session.busy() {
+            Err(NoAxis::Evaluating)
+        } else {
+            self.session
+                .evaluation()
+                .and_then(|evaluation| evaluation.value(profile))
+                .ok_or(NoAxis::NoValue)
+                .and_then(profile_x_extent)
+                .and_then(|(lo, hi)| revolve_axis_x(lo / unit, hi / unit))
+        };
+        let mut pushed: Option<(&'static str, SessionOp)> = None;
+        let mut refused: Option<(FormKind, DimensionError)> = None;
         ui.horizontal(|ui| {
-            ui.label("extrude");
-            ui.label("distance");
-            unit_field(
-                ui,
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.extrude_distance,
-            );
-            length_picker(ui, "extrude_distance", &mut self.notation.length);
-        });
-        self.creation_label_row(ui, EXTRUDE_NOUN);
-        if ui
-            .button(format!(
-                "{EXTRUDE} {}",
-                Speaker::of(self.session.doc())
-                    .or_held(self.session.selection_said())
-                    .node(node)
-            ))
-            .clicked()
-        {
-            match self.notation.length_literal(self.drafts.extrude_distance) {
-                Ok(distance) => self.push_labelled(
-                    EXTRUDE_NOUN,
-                    SessionOp::AddExtrude {
-                        profile: node,
-                        distance,
-                    },
-                ),
-                Err(error) => {
-                    self.notices
-                        .push(frame::tool_news(&FormKind::Extrude.refuses(&error)));
+            if ui.button(format!("{EXTRUDE} {named}")).clicked() {
+                match notation.length_literal(DEFAULT_EXTRUDE_DISTANCE) {
+                    Ok(distance) => {
+                        pushed = Some((EXTRUDE_NOUN, SessionOp::AddExtrude { profile, distance }));
+                    }
+                    Err(error) => refused = Some((FormKind::Extrude, error)),
                 }
             }
+            let revolve = ui
+                .add_enabled(
+                    axis_x.is_ok(),
+                    egui::Button::new(format!("{REVOLVE} {named}")),
+                )
+                .on_disabled_hover_text(axis_x.err().map_or("", NoAxis::words));
+            if let (true, Ok(x)) = (revolve.clicked(), axis_x) {
+                let op = || {
+                    Ok(SessionOp::AddRevolve {
+                        profile,
+                        axis_through: [
+                            Formula::written_length(WrittenLength::in_unit(x, notation.length))?,
+                            notation.length_literal(0.0)?,
+                        ],
+                        axis_heading: notation.angle_literal(core::f64::consts::FRAC_PI_2)?,
+                        angle: notation.angle_literal(core::f64::consts::TAU)?,
+                    })
+                };
+                match op() {
+                    Ok(op) => pushed = Some((REVOLVE_NOUN, op)),
+                    Err(error) => refused = Some((FormKind::Revolve, error)),
+                }
+            }
+        });
+        if let Some((noun, op)) = pushed {
+            self.push_labelled(noun, op);
         }
-    }
-
-    /// The revolve tool's panel: activation, the held profile pick, the
-    /// axis line in the profile's own coordinates, the angle field, and
-    /// the one committed edit — the same chrome shape as every other
-    /// seated tool.
-    pub(crate) fn revolve_tool_ui(&mut self, ui: &mut egui::Ui) {
-        // A copy of the small tool value, for the reason the mate
-        // panel takes one: the panel reads it while pushing ops and
-        // closing the tool; the authoritative copy is only ever
-        // replaced whole.
-        let Some(tool) = self.tools.revolve() else {
-            return self.tool_door(ui, ToolKind::Revolve);
-        };
-        crate::widgets::message(
-            ui,
-            ToolKind::Revolve.says(&"pick the profile, then write its axis"),
-        );
-        if let Some((seat, half)) = seats_row(
-            ui,
-            tool.seats(),
-            frame::landed_speaker(self.session.landed_pair()),
-            &self.theme,
-        ) {
-            self.tools.choose_half(seat, half);
+        if let Some((form, error)) = refused {
+            self.notices.push(frame::tool_news(&form.refuses(&error)));
         }
-        let unit = self.notation.length.def();
-        // Whether a field below was edited: the viewport may already
-        // have drawn this frame's axis from the old values, so an edit
-        // asks for the next frame.
-        let mut edited = false;
-        ui.horizontal(|ui| {
-            ui.label("axis through");
-            edited |= point_fields(ui, unit, &mut self.drafts.revolve_axis_through);
-            length_picker(ui, "revolve_axis_through", &mut self.notation.length);
-        });
-        ui.horizontal(|ui| {
-            ui.label("axis heading");
-            edited |= unit_field(
-                ui,
-                self.notation.angle.def(),
-                ANGLE_DRAG_SPEED,
-                &mut self.drafts.revolve_axis_heading,
-            );
-        });
-        // Where the numbers are measured, said where they are typed.
-        crate::widgets::message(
-            ui,
-            "x, y and the heading from x are the profile's own; the axis lies in its plane",
-        );
-        crate::widgets::message(
-            ui,
-            "the viewport draws the axis: the profile must lie on the side its ticks point to, \
-             and a positive angle turns it right-handed about the arrow",
-        );
-        ui.horizontal(|ui| {
-            ui.label("angle");
-            edited |= unit_field(
-                ui,
-                self.notation.angle.def(),
-                ANGLE_DRAG_SPEED,
-                &mut self.drafts.revolve_angle,
-            );
-            angle_picker(ui, "revolve_angle", &mut self.notation.angle);
-        });
-        if edited {
-            ui.ctx().request_repaint();
-        }
-        self.tool_commit_row(ui, ToolKind::Revolve, |drafts, notation| {
-            Ok(tool.op(
-                notation.point_literals(drafts.revolve_axis_through.to_array())?,
-                notation.angle_literal(drafts.revolve_axis_heading)?,
-                notation.angle_literal(drafts.revolve_angle)?,
-            )?)
-        });
     }
 
     /// The boolean tool's panel: activation, the operation choice, the
@@ -1770,7 +1819,6 @@ impl ViewerBehavior<'_> {
     fn tool_noun(&self, kind: ToolKind) -> Option<&'static str> {
         Some(match kind {
             ToolKind::Mate | ToolKind::Transform => return None,
-            ToolKind::Revolve => "Revolve",
             ToolKind::Boolean => match self.tools.boolean().map(|tool| tool.operation()) {
                 Some(BooleanOp::Union) | None => "Union",
                 Some(BooleanOp::Intersect) => "Intersect",
@@ -1834,9 +1882,11 @@ impl ViewerBehavior<'_> {
     /// **A create form's commit, with its label**: `op` queued as
     /// [`SessionOp::CreateLabelled`] when the form's label field holds
     /// a label — the insert and the label as one undo — or alone when
-    /// it is blank. The field's draft is kept until the creation
-    /// commits (`Drafts::creation_landed`), so a refused creation does
-    /// not cost what was typed. A text the label rule refuses queues
+    /// it is blank. A gesture with no label field (the sweep buttons)
+    /// holds no draft, so it stores the proposal, `Kind N`. The field's
+    /// draft is kept until the creation commits
+    /// (`Drafts::creation_landed`), so a refused creation does not cost
+    /// what was typed. A text the label rule refuses queues
     /// nothing and is said on the status line.
     fn push_labelled(&mut self, noun: &'static str, op: SessionOp) {
         let text = self.creation_label_text(noun);
@@ -2533,6 +2583,78 @@ mod tone_tests {
     }
 }
 
+/// **A revolve's default axis**: off the profile's whole extent, arcs
+/// included, and written as a round number in the working unit.
+#[cfg(test)]
+mod revolve_default_axis {
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use pncad::document::{Doc, LoopProgram, ProfileProgram};
+    use pncad::geom_core::Tol;
+
+    use super::{NoAxis, profile_x_extent, revolve_axis_x};
+    use crate::session::{DocSession, SessionOp};
+
+    /// The x extent of a profile of `loops`, as the evaluation holds it.
+    fn extent(loops: Vec<LoopProgram<pncad::document::Formula>>) -> Result<(f64, f64), NoAxis> {
+        let tol = Tol::witness();
+        let mut session =
+            DocSession::inline(Doc::<ProfileProgram>::empty_derived("axis", tol), tol);
+        let made = session
+            .perform(SessionOp::AddProfile { loops })
+            .made
+            .expect("the profile is inserted");
+        session.pump();
+        let evaluation = session.evaluation().expect("the inline seam landed");
+        profile_x_extent(evaluation.value(made).expect("the profile evaluates"))
+    }
+
+    /// **A circle split only at its top and bottom has vertices that
+    /// span no x**: its extent is its arcs' circles', so the axis is
+    /// read off the circle and not off its seam.
+    #[test]
+    fn the_extent_reaches_an_arcs_circle_where_no_vertex_does() {
+        let split = LoopProgram::circle_split(0.02, 0.0, 0.005, 2, core::f64::consts::FRAC_PI_2)
+            .expect("a finite circle");
+        let (lo, hi) = extent(vec![split]).expect("a circle has an extent");
+        assert!(
+            (lo - 0.015).abs() < 1e-12 && (hi - 0.025).abs() < 1e-12,
+            "the circle's whole width, not its seam's: {lo}..{hi}"
+        );
+    }
+
+    #[test]
+    fn a_profile_with_no_loops_has_no_extent_to_place_an_axis_by() {
+        assert_eq!(extent(Vec::new()), Err(NoAxis::NoLoops));
+    }
+
+    /// **The axis is rounded outward to a round number**, and stays at
+    /// least the extent's width clear of it.
+    #[test]
+    fn the_axis_is_a_round_number_at_least_a_width_clear() {
+        // (lo, hi) in the working unit, and the axis it gets.
+        for (lo, hi, want) in [
+            // A 10 mm circle at 15..25 mm: clear of 5, rounded to 10s.
+            (15.0, 25.0, 0.0),
+            // Its width a hair under 10 rounds to 1s instead.
+            (15.000_000_000_000_002, 25.0, 5.0),
+            // The same circle in inches.
+            (0.015 / 0.0254, 0.025 / 0.0254, 0.1),
+            // In metres.
+            (0.015, 0.025, 0.0),
+            // A rectangle wholly at negative x, in metres.
+            (-0.05, -0.0373, -0.07),
+            (120.0, 470.0, -300.0),
+        ] {
+            let x = revolve_axis_x(lo, hi).expect("a finite extent");
+            assert_eq!(x, want, "{lo}..{hi}");
+            assert!(x <= lo - (hi - lo), "{lo}..{hi}: {x} is a width clear");
+            assert_eq!(format!("{x}"), format!("{want}"), "reads as typed");
+        }
+        assert_eq!(revolve_axis_x(0.0, f64::INFINITY), Err(NoAxis::NotFinite));
+    }
+}
+
 /// **A form's noun is the kind of the node its op mints**: the
 /// proposed label counts by the noun, so the noun has to be
 /// `node_kind_noun`'s word for what the form commits.
@@ -2545,7 +2667,7 @@ mod creation_nouns {
     };
     use pncad::geom_core::Tol;
 
-    use super::{EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN};
+    use super::{EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN, REVOLVE_NOUN};
     use crate::session::{DocSession, SessionOp};
     use crate::test_support::{len, square_profile};
 
@@ -2559,7 +2681,7 @@ mod creation_nouns {
     }
 
     #[test]
-    fn the_profile_and_extrude_forms_nouns_are_their_nodes_kinds() {
+    fn the_profile_extrude_and_revolve_nouns_are_their_nodes_kinds() {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("creation-nouns", tol);
         let (doc, profile) = square_profile(&doc, 0.02, tol);
@@ -2569,6 +2691,13 @@ mod creation_nouns {
             distance: len(0.01),
         };
         assert_eq!(minted_noun(&mut session, extrude), EXTRUDE_NOUN);
+        let revolve = SessionOp::AddRevolve {
+            profile,
+            axis_through: [len(-0.05), len(0.0)],
+            axis_heading: crate::test_support::ang(core::f64::consts::FRAC_PI_2),
+            angle: crate::test_support::ang(core::f64::consts::TAU),
+        };
+        assert_eq!(minted_noun(&mut session, revolve), REVOLVE_NOUN);
         let add_profile = SessionOp::AddProfile {
             loops: vec![crate::test_support::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
         };
@@ -2789,7 +2918,6 @@ mod tools_respeak {
     #[test]
     fn a_seated_tool_says_its_lost_pick_by_its_last_label() {
         for kind in [
-            ToolKind::Revolve,
             ToolKind::Boolean,
             ToolKind::Split,
             ToolKind::Pattern,

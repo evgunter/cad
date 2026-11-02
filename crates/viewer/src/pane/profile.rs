@@ -6,7 +6,9 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Formula, LoopProgram, ProfileProgram, RecipeNodeId, SlotId, StepArg, StepId};
+use pncad::document::{
+    Formula, LoopProgram, ProfileProgram, RecipeNodeId, SlotId, StepArg, StepId,
+};
 use pncad::geom_core::Tol;
 use pncad::profile::{Step, TipState, Verb};
 use pncad::quantity::{AngleUnit, LengthUnit};
@@ -564,8 +566,9 @@ pub(crate) fn edit_door_ui(
             .edit_profile_report(node, base, loops, ids)
             .map(|_| ())
     };
-    let held_back =
-        |edit: &ProfileEdit| edit.pen_order(landed, tol).is_some() || drivers_hold(edit, landed).is_some();
+    let held_back = |edit: &ProfileEdit| {
+        edit.pen_order(landed, tol).is_some() || drivers_hold(edit, landed).is_some()
+    };
     let mut formed = edit.offer(dragging, held_back(edit), &door);
     for change in clicks {
         if formed.is_some() {
@@ -3248,8 +3251,7 @@ mod tests {
     fn review_6295_remove_the_driven_loop() {
         let (mut session, profile, _driven) = three_loop_plate();
         let ids = loop_ids(&session, profile);
-        let out =
-            remove_and_land(&mut session, &mut Drafts::default(), profile, 2).expect("lands");
+        let out = remove_and_land(&mut session, &mut Drafts::default(), profile, 2).expect("lands");
         assert_eq!(strands(&out), 0, "the shell names loop 1, which is kept");
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         assert_eq!(
@@ -3324,9 +3326,15 @@ mod tests {
             );
         };
         undo(&mut session);
-        assert!(session.committed_doc().bit_eq(&removed), "undo takes the add");
+        assert!(
+            session.committed_doc().bit_eq(&removed),
+            "undo takes the add"
+        );
         undo(&mut session);
-        assert!(session.committed_doc().bit_eq(&before), "and then the removal");
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "and then the removal"
+        );
     }
 
     /// **Every hole removed, each removal one undo step**: loop 2 goes

@@ -1370,12 +1370,7 @@ impl ViewerApp {
         let mut notices = core::mem::take(&mut self.notices);
         // A pending profile draft let go of since the last batch (the
         // selection left it, the document moved under it) is said.
-        notices.extend(
-            self.drafts
-                .take_dropped()
-                .iter()
-                .map(frame::dropped_draft),
-        );
+        notices.extend(self.drafts.take_dropped().iter().map(frame::dropped_draft));
         // A tool opened, closed or swapped since the last batch — a
         // Cancel in its panel, the previous batch's commit — retires
         // what the line says about the tool that was open. Before the
@@ -1400,12 +1395,7 @@ impl ViewerApp {
             // Undo takes back a pending profile draft first, and says
             // so; the next undo steps the history.
             if matches!(op, SessionOp::Undo) && self.drafts.undo_pending() {
-                notices.extend(
-                    self.drafts
-                        .take_dropped()
-                        .iter()
-                        .map(frame::dropped_draft),
-                );
+                notices.extend(self.drafts.take_dropped().iter().map(frame::dropped_draft));
                 continue;
             }
             performed.push(op.clone());
@@ -1465,9 +1455,9 @@ impl ViewerApp {
                 }
             }
             // A creation under the create rule selects what it made,
-            // which opens that node's edit surface.
-            // Its outcome is heard like the op's: a selection that
-            // refuses (a gesture in flight) is said, never dropped.
+            // which opens that node's edit surface. Its outcome is
+            // heard like the op's: a selection that refuses (a gesture
+            // in flight) is said, never dropped.
             if let Some(node) = made.filter(|_| selects && committed) {
                 let selected = self
                     .session
@@ -2321,9 +2311,8 @@ impl eframe::App for ViewerApp {
         // already stands on — so the chrome follows [`Polarity`]
         // through the toolkit's visuals, exactly as
         // [`apply_polarity`] intends, instead of one panel escaping it.
-        // The revolve tool's held profile as the viewport will draw its
-        // axis over it, for the repaint request after the picks are fed.
-        let revolve_held = self.tools.revolve().and_then(|tool| tool.profile());
+        // The split tool's held target as the viewport will draw its
+        // plane under it, for the repaint request after the picks are fed.
         let split_held = self.tools.split().map(|tool| tool.seats().clone());
         egui::CentralPanel::no_frame()
             .frame(egui::Frame::NONE.fill(ui.visuals().panel_fill))
@@ -2416,14 +2405,9 @@ impl eframe::App for ViewerApp {
             self.picks.index_or_why(self.fit.as_ref()),
             &ops,
         );
-        // A revolve profile picked or cleared after the viewport drew
-        // this frame's axis (`pane::viewport::push_revolve_axis`) asks
-        // for the next.
-        if self.tools.revolve().and_then(|tool| tool.profile()) != revolve_held {
-            ui.ctx().request_repaint();
-        }
-        // The split plane likewise (`splitplane::push_split_plane`): a
-        // target picked or cleared after it was drawn.
+        // A split target picked or cleared after the viewport drew
+        // this frame's plane (`splitplane::push_split_plane`) asks for
+        // the next.
         if self.tools.split().map(|tool| tool.seats().clone()) != split_held {
             ui.ctx().request_repaint();
         }
@@ -4292,13 +4276,10 @@ mod properties_pane_tests {
     /// activation button**. The one answer every row here that opens a
     /// tool reads.
     fn section_of(kind: crate::tools::ToolKind) -> &'static str {
-        use crate::pane::create::{
-            ADD_FEATURE, ASSEMBLE_PARTS, BLEND_EDGES, COMBINE_BODIES, REQUIREMENTS,
-        };
+        use crate::pane::create::{ASSEMBLE_PARTS, BLEND_EDGES, COMBINE_BODIES, REQUIREMENTS};
         use crate::tools::ToolKind;
         match kind {
             ToolKind::Mate | ToolKind::Transform => ASSEMBLE_PARTS,
-            ToolKind::Revolve => ADD_FEATURE,
             ToolKind::Boolean
             | ToolKind::Split
             | ToolKind::Pattern
@@ -5605,22 +5586,6 @@ mod properties_pane_tests {
         );
     }
 
-    /// The one node `driven`'s document holds that `before` did not.
-    fn the_new_node(driven: &Driven, before: &[RecipeNodeId]) -> RecipeNodeId {
-        let new: Vec<RecipeNodeId> = driven
-            .app
-            .session
-            .committed_doc()
-            .ids()
-            .into_iter()
-            .filter(|id| !before.contains(id))
-            .collect();
-        let [node] = new[..] else {
-            panic!("one node was added: {new:?}")
-        };
-        node
-    }
-
     /// `node`'s loop count, as the committed document holds it.
     fn loop_count(driven: &Driven, node: RecipeNodeId) -> usize {
         match driven.app.session.committed_doc().node(node) {
@@ -5903,44 +5868,385 @@ mod properties_pane_tests {
         );
     }
 
+    /// **The words on the sweep button `verb` for `profile`**, as
+    /// `sweep_ui` spells them.
+    fn sweep_button(driven: &Driven, verb: &str, profile: RecipeNodeId) -> String {
+        format!(
+            "{verb} {}",
+            pncad::document::Speaker::of(driven.app.session.doc()).node(profile)
+        )
+    }
+
+    /// The one node `driven`'s document holds that `before` did not.
+    fn the_new_node(driven: &Driven, before: &[RecipeNodeId]) -> RecipeNodeId {
+        let made: Vec<RecipeNodeId> = driven
+            .app
+            .session
+            .doc()
+            .ids()
+            .into_iter()
+            .filter(|id| !before.contains(id))
+            .collect();
+        let [made] = made[..] else {
+            panic!("the click inserted one node: {made:?}")
+        };
+        made
+    }
+
+    /// **The least and greatest corner of `node`'s landed body**, in its
+    /// own space ([`crate::splitplane::extent`]); it panics on a node
+    /// with no body, naming its standing.
+    fn body_extent(driven: &Driven, node: RecipeNodeId) -> [[f64; 3]; 2] {
+        let evaluation = driven.app.session.evaluation().expect("a landed run");
+        let value = evaluation
+            .value(node)
+            .unwrap_or_else(|| panic!("{node:?} has a value: {:?}", evaluation.result(node)));
+        let pncad::document::ValuePayload::Body(body) = &value.payload else {
+            panic!("{node:?} is a body: {:?}", value.payload)
+        };
+        let (lo, hi) = crate::splitplane::extent(body).expect("the body has corners");
+        [[lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]]
+    }
+
+    /// `node`'s landed body's volume.
+    fn volume(driven: &Driven, node: RecipeNodeId) -> f64 {
+        crate::test_support::evaluated_volume(
+            driven.app.session.evaluation().expect("a landed run"),
+            node,
+            pncad::tolerance::witness(),
+        )
+    }
+
+    /// `name` declared a free `dimension` variable holding `value`,
+    /// then `slot` of `node` written as `text` over it — the op the
+    /// slot row's expression field sends.
+    fn written_over(
+        name: &'static str,
+        dimension: pncad::document::Dimension,
+        value: f64,
+        node: RecipeNodeId,
+        slot: SlotId,
+        text: &str,
+    ) -> Vec<SessionOp> {
+        vec![
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static(name),
+                value: pncad::document::FreeVar::continuous(dimension, value),
+            },
+            SessionOp::SetSlotExpression {
+                node,
+                slot,
+                text: text.to_owned(),
+            },
+        ]
+    }
+
+    /// `name`'s value set to `value`, as its row sets it.
+    fn variable_set(driven: &Driven, name: &str, value: f64) -> SessionOp {
+        SessionOp::SetVariable {
+            var: driven
+                .app
+                .session
+                .doc()
+                .var_named(name)
+                .expect("the variable is declared"),
+            value: crate::props::SlotValue::Continuous(value),
+        }
+    }
+
+    /// **The extrude button inserts an extrude of the selected profile,
+    /// labelled, as one undo step, and selects it**; its distance is
+    /// then a slot row like any other, written over a variable, and the
+    /// body's depth follows the variable.
+    #[test]
+    fn the_extrude_button_inserts_the_selected_profiles_extrude_and_selects_it() {
+        use crate::pane::create::EXTRUDE;
+        let profile = startup_node(0);
+        let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile))]);
+        driven.settle();
+        let before = driven.app.session.doc().ids();
+        let steps = driven.app.session.history().len();
+        driven.click(&sweep_button(&driven, EXTRUDE, profile));
+        let made = the_new_node(&driven, &before);
+        let doc = driven.app.session.doc();
+        assert!(
+            matches!(doc.node(made), Some(Node::Extrude { .. })),
+            "an extrude: {:?}",
+            doc.node(made)
+        );
+        assert_eq!(doc.upstream(made), vec![profile], "of the selected profile");
+        assert_eq!(
+            doc.label(made).map(pncad::document::Label::as_str),
+            Some("Extrude 2"),
+            "stored as the next extrude, with no label typed"
+        );
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(made),
+            "the extrude is selected, so its rows are what the pane shows"
+        );
+        assert_eq!(
+            driven.app.session.history().len(),
+            steps + 1,
+            "the insert and its label are one step"
+        );
+
+        driven.app.perform_batch(written_over(
+            "depth",
+            pncad::document::Dimension::Length,
+            0.004,
+            made,
+            SlotId::Distance,
+            "depth",
+        ));
+        driven.settle();
+        let [lo, hi] = body_extent(&driven, made);
+        assert!(
+            (hi[2] - lo[2] - 0.004).abs() < 1e-9,
+            "4 mm deep: {lo:?}..{hi:?}"
+        );
+        driven
+            .app
+            .perform_batch(vec![variable_set(&driven, "depth", 0.007)]);
+        driven.settle();
+        let [lo, hi] = body_extent(&driven, made);
+        assert!(
+            (hi[2] - lo[2] - 0.007).abs() < 1e-9,
+            "the depth follows the variable: {lo:?}..{hi:?}"
+        );
+
+        let undo = |driven: &mut Driven, times: usize| {
+            driven
+                .app
+                .perform_batch(std::iter::repeat_n(SessionOp::Undo, times).collect());
+        };
+        // The variable, the slot written over it, the value moved.
+        undo(&mut driven, 3);
+        assert!(
+            driven.app.session.doc().node(made).is_some(),
+            "the edits undo before the insert"
+        );
+        undo(&mut driven, 1);
+        assert_eq!(
+            driven.app.session.doc().ids(),
+            before,
+            "one more undo takes the insert, label and all"
+        );
+    }
+
+    /// **The revolve button revolves the selected profile**, about a
+    /// default axis clear of it, so a circle — which an axis on its
+    /// extent's edge would touch — revolves into a ring; its angle and
+    /// its axis point are slot rows written over variables, and the
+    /// body follows each.
+    #[test]
+    fn the_revolve_button_revolves_the_selected_profile_and_its_values_are_slot_rows() {
+        use crate::pane::create::REVOLVE;
+        use pncad::document::Dimension;
+        let circle = |driven: &Driven| {
+            let doc = driven.app.session.doc();
+            *doc.ids()
+                .iter()
+                .rfind(|&&id| matches!(doc.node(id), Some(Node::Profile(_))))
+                .expect("the circle")
+        };
+        let mut driven = Driven::with(vec![SessionOp::AddProfile {
+            loops: vec![
+                pncad::document::LoopProgram::circle(0.02, 0.0, 0.005).expect("a finite circle"),
+            ],
+        }]);
+        let profile = circle(&driven);
+        driven.select(Selection::Node(profile));
+        driven.settle();
+        let before = driven.app.session.doc().ids();
+        let steps = driven.app.session.history().len();
+        driven.click(&sweep_button(&driven, REVOLVE, profile));
+        let made = the_new_node(&driven, &before);
+        let doc = driven.app.session.doc();
+        assert!(
+            matches!(doc.node(made), Some(Node::Revolve { .. })),
+            "a revolve: {:?}",
+            doc.node(made)
+        );
+        assert_eq!(doc.upstream(made), vec![profile], "of the selected profile");
+        assert_eq!(
+            doc.label(made).map(pncad::document::Label::as_str),
+            Some("Revolve 1")
+        );
+        assert_eq!(driven.app.session.selection(), &Selection::Node(made));
+        assert_eq!(driven.app.session.history().len(), steps + 1);
+        // The circle spans x ∈ [0.015, 0.025] m: the axis is a width
+        // left of it, rounded outward to a hundredth, up its +y.
+        let read = |driven: &Driven, slot| {
+            driven
+                .row(made, slot)
+                .value
+                .expect("the slot reads")
+                .one()
+                .expect("one value")
+                .as_f64()
+        };
+        assert_eq!(read(&driven, SlotId::Origin(Axis3::X)), 0.0);
+        assert!((read(&driven, SlotId::AxisHeading) - core::f64::consts::FRAC_PI_2).abs() < 1e-12);
+        // Pappus: the disc's area swept along its centre's path.
+        let ring =
+            |angle: f64, radius: f64| core::f64::consts::PI * 0.005_f64.powi(2) * angle * radius;
+        let near = |got: f64, want: f64| (got - want).abs() < 1e-3 * want;
+        driven.settle();
+        let full = volume(&driven, made);
+        assert!(
+            near(full, ring(core::f64::consts::TAU, 0.02)),
+            "a whole ring about the axis 20 mm from the circle's centre: {full}"
+        );
+
+        let mut ops = written_over(
+            "sweep",
+            Dimension::Angle,
+            core::f64::consts::PI,
+            made,
+            SlotId::RevolveAngle,
+            "sweep",
+        );
+        ops.extend(written_over(
+            "offset",
+            Dimension::Length,
+            0.005,
+            made,
+            SlotId::Origin(Axis3::X),
+            "offset",
+        ));
+        driven.app.perform_batch(ops);
+        driven.settle();
+        let half = volume(&driven, made);
+        assert!(
+            near(half, ring(core::f64::consts::PI, 0.015)),
+            "half a ring: {half}"
+        );
+        driven.app.perform_batch(vec![variable_set(
+            &driven,
+            "sweep",
+            core::f64::consts::FRAC_PI_2,
+        )]);
+        driven.settle();
+        let quarter = volume(&driven, made);
+        assert!(
+            near(quarter, ring(core::f64::consts::FRAC_PI_2, 0.015)),
+            "the sweep follows the angle's variable: {quarter}"
+        );
+        driven
+            .app
+            .perform_batch(vec![variable_set(&driven, "offset", 0.0)]);
+        driven.settle();
+        let farther = volume(&driven, made);
+        assert!(
+            near(farther, ring(core::f64::consts::FRAC_PI_2, 0.02)),
+            "the axis follows its variable, 20 mm from the centre now: {farther}"
+        );
+        driven
+            .app
+            .perform_batch(std::iter::repeat_n(SessionOp::Undo, 6).collect());
+        assert!(driven.app.session.doc().node(made).is_some());
+        driven.app.perform_batch(vec![SessionOp::Undo]);
+        assert_eq!(
+            driven.app.session.doc().ids(),
+            before,
+            "one undo takes the insert"
+        );
+    }
+
+    /// **The revolve's default axis point is written as a person would
+    /// type it** in the working unit: the circle of the row above, in
+    /// inches, gets its axis at a tenth of an inch, not at the
+    /// 0.19685… a width to its left converts to.
+    #[test]
+    fn the_revolve_default_axis_reads_as_a_round_number_in_inches() {
+        use crate::pane::create::REVOLVE;
+        let mut driven = Driven::with(vec![SessionOp::AddProfile {
+            loops: vec![
+                pncad::document::LoopProgram::circle(0.02, 0.0, 0.005).expect("a finite circle"),
+            ],
+        }]);
+        driven.app.session.set_notation(crate::props::Notation {
+            length: pncad::prelude::IN,
+            ..crate::props::Notation::DEFAULT
+        });
+        let profile = *driven.app.session.doc().ids().last().expect("the circle");
+        driven.select(Selection::Node(profile));
+        driven.settle();
+        let before = driven.app.session.doc().ids();
+        driven.click(&sweep_button(&driven, REVOLVE, profile));
+        let made = the_new_node(&driven, &before);
+        let row = driven.row(made, SlotId::Origin(Axis3::X));
+        assert_eq!(
+            crate::props::field_text(&row, driven.app.session.notation()),
+            "0.1"
+        );
+        driven.settle();
+        assert!(
+            volume(&driven, made) > 0.0,
+            "and the profile, wholly right of it, revolves"
+        );
+    }
+
+    /// **A profile with no loops has no extent to place an axis by**,
+    /// so the revolve button is disabled and says why, and clicking it
+    /// inserts nothing.
+    #[test]
+    fn the_revolve_button_waits_on_a_profile_with_no_extent() {
+        use crate::pane::create::REVOLVE;
+        let mut driven = Driven::with(vec![SessionOp::AddProfile { loops: Vec::new() }]);
+        let profile = *driven.app.session.doc().ids().last().expect("the profile");
+        driven.select(Selection::Node(profile));
+        driven.settle();
+        let before = driven.app.session.doc().ids();
+        let button = sweep_button(&driven, REVOLVE, profile);
+        let hovered = driven.gained_hovering(&button);
+        assert!(
+            hovered
+                .iter()
+                .any(|run| run == "the profile has no loops to revolve"),
+            "the disabled button says why: {hovered:?}"
+        );
+        driven.click(&button);
+        driven.settle();
+        assert_eq!(driven.app.session.doc().ids(), before, "nothing inserted");
+    }
+
     /// **The creation doors that are not tools are reachable too**: the
-    /// extrude form is drawn while a profile is selected and not while
-    /// anything else is (its door's own kind test) — with every
-    /// creation section still collapsed, so a profile selected finds it
-    /// without opening a header — and the `Add part…` button, under
+    /// sweep buttons are drawn while a profile is selected and not while
+    /// anything else is (their door's own kind test) — with every
+    /// creation section still collapsed, so a profile selected finds
+    /// them without opening a header — and the `Add part…` button, under
     /// its section, opens the part chooser.
     #[test]
-    fn the_extrude_form_and_the_part_chooser_are_reachable() {
-        use crate::pane::create::{ADD_PART, ASSEMBLE_PARTS, EXTRUDE, NEW_PROFILE};
-        // The button's words for `node`, as the form spells them.
-        let button = |driven: &Driven, node: RecipeNodeId| {
-            format!(
-                "{EXTRUDE} {}",
-                pncad::document::Speaker::of(driven.app.session.doc()).node(node)
-            )
-        };
+    fn the_sweep_buttons_and_the_part_chooser_are_reachable() {
+        use crate::pane::create::{ADD_PART, ASSEMBLE_PARTS, EXTRUDE, NEW_PROFILE, REVOLVE};
         let offers = |painted: &[(String, egui::Rect)], words: &str| {
             painted.iter().any(|(run, _)| run == words)
         };
         let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
         let painted = driven.frame(Vec::new());
-        let refused = button(&driven, extrude());
-        assert!(
-            !offers(&painted, &refused) && !offers(&painted, EXTRUDE),
-            "an extrude selected is not a profile, so no extrude is offered: {painted:?}"
-        );
+        for verb in [EXTRUDE, REVOLVE] {
+            let refused = sweep_button(&driven, verb, extrude());
+            assert!(
+                !offers(&painted, &refused) && !offers(&painted, verb),
+                "an extrude selected is not a profile, so no {verb} is offered: {painted:?}"
+            );
+        }
         driven.select(Selection::Node(startup_node(0)));
         let painted = driven.frame(Vec::new());
-        let offered = button(&driven, startup_node(0));
         assert!(
             !offers(&painted, NEW_PROFILE),
             "the creation sections are collapsed in this frame: {painted:?}"
         );
-        assert!(
-            offers(&painted, &offered),
-            "the startup profile selected offers {offered:?} with the sections collapsed: \
-             {painted:?}"
-        );
+        for verb in [EXTRUDE, REVOLVE] {
+            let offered = sweep_button(&driven, verb, startup_node(0));
+            assert!(
+                offers(&painted, &offered),
+                "the startup profile selected offers {offered:?} with the sections collapsed: \
+                 {painted:?}"
+            );
+        }
         assert!(driven.app.part_chooser.is_none(), "the startup app");
         driven.click(ASSEMBLE_PARTS);
         driven.click(ADD_PART);
@@ -8299,7 +8605,6 @@ mod properties_pane_tests {
                 })
                 .expect("the form added a drawn profile")
         }
-
 
         /// **The boss's footprint**: the form's commit (a real click)
         /// inserts the traced template, and the creation opens it in

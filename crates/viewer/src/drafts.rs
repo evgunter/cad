@@ -138,17 +138,6 @@ pub(crate) struct Drafts {
     /// ([`crate::splitplane::centre`]), and the person's edits stand
     /// until the target changes.
     pub(crate) split_seeded: Option<pncad::document::Operand>,
-    /// The extrude form's distance, metres.
-    pub(crate) extrude_distance: f64,
-    /// The revolve tool's angle, radians.
-    pub(crate) revolve_angle: f64,
-    /// The revolve tool's point on its axis, metres, in the profile's
-    /// own 2-D coordinates.
-    pub(crate) revolve_axis_through: Point2<f64>,
-    /// The revolve tool's axis heading from the profile's x axis,
-    /// radians. Opens a quarter turn, along the profile's +y, the axis
-    /// a profile drawn beside it turns about.
-    pub(crate) revolve_axis_heading: f64,
     /// The pattern tool's rule choice.
     pub(crate) pattern_kind: PatternLayoutChoice,
     /// Its output choice — which of the two doors the commit button
@@ -475,7 +464,6 @@ impl ProfileEdit {
         }
         self.base = now;
     }
-
 
     /// The held loops, in description order.
     pub(crate) fn loops(&self) -> &[Vec<HeldStep>] {
@@ -950,8 +938,8 @@ impl ProfileEdit {
             Ok(()) => {
                 self.landing = true;
                 Some(SessionOp::EditProfile {
-                node: self.node,
-                base: self.base.clone(),
+                    node: self.node,
+                    base: self.base.clone(),
                     loops,
                     ids,
                 })
@@ -1094,8 +1082,8 @@ pub(crate) struct NameDraft {
 
 impl Default for Drafts {
     /// The creation forms' sensible defaults (the GAUTH-1 spec): a
-    /// 10 mm circle or rectangle, a 10 mm extrude, a full-turn revolve,
-    /// a split plane and a pattern axis through the origin along +z.
+    /// 10 mm circle or rectangle, a split plane and a pattern axis
+    /// through the origin along +z.
     /// Everything else starts empty.
     fn default() -> Self {
         Self {
@@ -1120,10 +1108,6 @@ impl Default for Drafts {
             split_origin: [0.0; 3],
             split_normal: [0.0, 0.0, 1.0],
             split_seeded: None,
-            extrude_distance: 0.01,
-            revolve_angle: core::f64::consts::TAU,
-            revolve_axis_through: Point2::origin(),
-            revolve_axis_heading: core::f64::consts::FRAC_PI_2,
             pattern_kind: PatternLayoutChoice::Linear,
             pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,
@@ -1285,7 +1269,11 @@ impl Drafts {
                 // A change put off for the op this frame formed is
                 // made over the program that op landed.
                 let deferred = held.map(ProfileEdit::take_deferred).unwrap_or_default();
-                let why = if self.profile_edit.as_ref().is_some_and(|was| was.node == node) {
+                let why = if self
+                    .profile_edit
+                    .as_ref()
+                    .is_some_and(|was| was.node == node)
+                {
                     DropWhy::DocumentMoved
                 } else {
                     DropWhy::SelectionLeft
@@ -1395,7 +1383,11 @@ impl Drafts {
     /// ([`Self::take_dropped`]), and the undo is spent on them — the
     /// history does not step. Answers whether it did.
     pub(crate) fn undo_pending(&mut self) -> bool {
-        let Some(edit) = self.profile_edit.as_mut().filter(|edit| edit.holds_changes()) else {
+        let Some(edit) = self
+            .profile_edit
+            .as_mut()
+            .filter(|edit| edit.holds_changes())
+        else {
             return false;
         };
         self.dropped.push(Dropped {

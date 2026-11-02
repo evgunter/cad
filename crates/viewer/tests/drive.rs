@@ -16,7 +16,9 @@ test_utils::loud_skip_marker!(
 #[cfg(feature = "app")]
 mod driven {
     use crate::common;
+    use pncad::document::{Axis3, SlotId};
     use viewer::app::drive::{DriveError, Driver};
+    use viewer::session::Selection;
 
     /// The startup document, driven, over a preferences file of its own.
     fn started(label: &str) -> Driver {
@@ -59,11 +61,17 @@ mod driven {
 
     /// **A failed feature takes away its own picture and no other's**
     /// — the replay of `work/chrome/a-failed-feature-hides-every-later-edit.md`.
-    /// A revolve that refuses (the default axis, along the semicircle's
-    /// own diameter) leaves its copy undrawn; a second revolve of the
-    /// same profile, at heading 0, is the sphere, and it is drawn and
-    /// picked. Before, the first failure refused the whole index and the
-    /// sphere never reached the picture.
+    /// A revolve that refuses (its axis point's x written 0, so the axis
+    /// is the profile's own y axis, across the semicircle) leaves its
+    /// copy undrawn; a second revolve of the same profile, its heading
+    /// written 0, so the axis runs along the semicircle's diameter, is
+    /// the sphere, and it is drawn and picked. Before, the first
+    /// failure refused the whole index and the sphere never reached the
+    /// picture.
+    ///
+    /// Over the slow-set bar, but `app`-gated, which the slow-set name
+    /// check cannot see
+    /// (`work/ciw/an-app-feature-only-test-cannot-be-listed-in-the-slow-set.md`).
     #[test]
     fn a_failed_revolve_does_not_hide_the_sphere_revolved_after_it() {
         let mut driver = started("drive-partial-picture");
@@ -93,9 +101,7 @@ mod driven {
         driver.settle().expect("settles");
         driver.click("×", 2).expect("another row removed");
         driver.settle().expect("settles");
-        for heading in [None, Some("0")] {
-            driver.click("Revolve tool…", 0).expect("the tool opens");
-            driver.settle().expect("settles");
+        for slot in [SlotId::Origin(Axis3::X), SlotId::AxisHeading] {
             // The tree row, by the prefix its fresh tag follows.
             let row = driver
                 .screen()
@@ -105,16 +111,54 @@ mod driven {
                 .expect("the profile's tree row is on screen");
             driver
                 .click_at(row, egui::PointerButton::Primary, egui::Modifiers::NONE, 1)
-                .expect("the profile is picked");
+                .expect("the profile is selected");
             driver.settle().expect("settles");
-            if let Some(heading) = heading {
-                driver.click("0.500", 0).expect("the heading field");
-                driver.type_text(heading).expect("typed");
-                driver
-                    .key(egui::Key::Enter, egui::Modifiers::NONE)
-                    .expect("entered");
-            }
-            driver.click("Commit revolve", 0).expect("committed");
+            let selected = |driver: &Driver| match driver.session().selection() {
+                Selection::Node(node) => *node,
+                other => panic!("a node is selected: {other:?}"),
+            };
+            let profile = selected(&driver);
+            let button = format!(
+                "Revolve {}",
+                pncad::document::Speaker::of(driver.session().doc()).node(profile)
+            );
+            driver.click(&button, 0).expect("the profile is revolved");
+            driver.settle().expect("settles");
+            let revolve = selected(&driver);
+            let row = viewer::props::slot_rows(driver.session().doc(), revolve)
+                .into_iter()
+                .find(|row| row.slot == slot)
+                .expect("the revolve's row");
+            // The slot's field is the run just right of its label, on
+            // the label's line (`slot_group_ui`'s scalar row).
+            let label = driver
+                .screen()
+                .iter()
+                .filter(|landed| landed.text == row.label)
+                .find_map(|landed| landed.visible())
+                .unwrap_or_else(|| panic!("the {:?} row's label is on screen", row.label));
+            let field = driver
+                .screen()
+                .iter()
+                .filter_map(|landed| landed.visible())
+                .filter(|rect| {
+                    rect.left() > label.right() && (rect.center().y - label.center().y).abs() < 4.0
+                })
+                .min_by(|a, b| a.left().total_cmp(&b.left()))
+                .expect("the slot's field, right of its label")
+                .center();
+            driver
+                .click_at(
+                    field,
+                    egui::PointerButton::Primary,
+                    egui::Modifiers::NONE,
+                    1,
+                )
+                .expect("the slot's field");
+            driver.type_text("0").expect("typed");
+            driver
+                .key(egui::Key::Enter, egui::Modifiers::NONE)
+                .expect("entered");
             driver.settle().expect("settles");
         }
 
@@ -171,6 +215,11 @@ mod driven {
             None,
             "the tree's FAILED row is the notice; the toolbar adds none"
         );
+        // The document's first body was the first revolve at its
+        // default axis, which the camera was fitted to before its axis
+        // was written across the profile.
+        driver.click("Zoom to fit", 0).expect("the sphere framed");
+        driver.settle().expect("settles");
         let centre = driver.in_viewport(0.5, 0.5).expect("the viewport");
         driver
             .click_at(
