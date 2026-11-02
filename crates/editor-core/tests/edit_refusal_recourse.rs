@@ -272,14 +272,13 @@ const WORDLESS: &[(&str, &[&str])] = &[
         // finishes (`AtRestPolicy::gate_at_rest_kept`), its flat faces'
         // corners and edges read on their planes by the mint's incidence
         // decider (`geom_brep::read_point_incidence`, `read_incidence`),
-        // and its +V reading (check 7) with its interval re-derivation,
-        // which the volume backstop also runs. The kernel checking its
-        // own bodies through tier 3's rules, so no model question either.
+        // and its +V reading (check 7) with its interval re-derivation.
+        // The kernel checking its own bodies through tier 3's rules, so no
+        // model question to put in words.
         "tier 3, at the boolean door",
         &[
             "pcurve_line_chart_incident",
             "pcurve_point_chart_incident",
-            "positive_volume",
             "positive_volume_exact",
         ],
     ),
