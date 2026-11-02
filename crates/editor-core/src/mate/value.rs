@@ -359,6 +359,102 @@ impl<T: SolveScalar> Chart<T> {
     }
 }
 
+/// **A mate fixing a direction, as the chart reads it** ([`read_back`]):
+/// the mate, its two poses read in the target space, whether its `to`
+/// reads the opposite sense ([`flipped`]) and its orientation.
+#[derive(Debug, Clone, Copy)]
+pub struct Charted<'a> {
+    /// The mate, named in a refusal.
+    pub mate: MateRef,
+    /// The copy's pose, in its own coordinates.
+    pub on: &'a PoseValue<f64>,
+    /// The target's pose, in the target space.
+    pub to: &'a PoseValue<f64>,
+    /// Whether `to` reads the opposite sense of its own direction.
+    pub to_flipped: bool,
+    /// The mate's orientation.
+    pub orient: Orientation,
+}
+
+/// **The number each freedom of `coords` reads where the copy stands
+/// at relative pose `at`** (D10 `[placement.values]`), by the one chart
+/// a placement is placed by: where `chart` names the mate fixing a
+/// direction, the spin about the target's own direction and the slides
+/// along the target axes its least turn carries; with none, the slides
+/// along the target space's axes and the chain of spins about them,
+/// read where the chain is the three turns about `x`, `y` and `z` in
+/// that order. A freedom the chart does not read at `at` — a link of a
+/// chain in another order, a spin about the target's direction with no
+/// mate fixing one, any freedom of a chart refused at its pole — reads
+/// `None`. So a gesture that stands a copy somewhere writes the values
+/// that place it there through the chart that will place it, never a
+/// second spelling of it.
+#[must_use]
+pub fn read_back(
+    chart: Option<Charted<'_>>,
+    at: &Affine3<f64>,
+    coords: &[Coord],
+    band: Band,
+) -> Vec<Option<f64>> {
+    let Some(charted) = chart else {
+        let chain = chain_read(&at.linear, coords);
+        return coords
+            .iter()
+            .map(|coord| match *coord {
+                Coord::Slide(axis) => Some([at.translation.x, at.translation.y, at.translation.z][axis.index()]),
+                Coord::Spin(Some(axis)) => chain.map(|turns| turns[axis.index()]),
+                Coord::Spin(None) => None,
+            })
+            .collect();
+    };
+    let arm = Arm::of(0.0, 0.0).ok();
+    let read = arm.and_then(|arm| {
+        Chart::<f64>::of(
+            charted.mate,
+            charted.on,
+            charted.to,
+            charted.to_flipped,
+            charted.orient,
+            arm,
+            band,
+        )
+        .ok()
+        .flatten()
+    });
+    coords
+        .iter()
+        .map(|coord| {
+            let chart = read?;
+            match *coord {
+                Coord::Spin(None) => Some(chart.spin(at)),
+                Coord::Slide(axis) => Some(Chart::slide(at, chart.carried[axis.index()])),
+                Coord::Spin(Some(_)) => None,
+            }
+        })
+        .collect()
+}
+
+/// **The chain `x`, `y`, `z` that turns as `r` does**, each about the
+/// target space's own axis, the first written the first made ([`chain`]):
+/// `r = Rz·Ry·Rx`. `None` where `coords` spells another chain.
+fn chain_read(r: &Mat3<f64>, coords: &[Coord]) -> Option<[f64; 3]> {
+    let spun: Vec<TargetAxis> = coords
+        .iter()
+        .filter_map(|coord| match coord {
+            Coord::Spin(axis) => Some(*axis),
+            Coord::Slide(_) => None,
+        })
+        .collect::<Option<_>>()?;
+    if spun != TargetAxis::ALL {
+        return None;
+    }
+    // Column k is `r·e_k`, so the entry at row i, column k is `r.ck[i]`.
+    let x = r.c1.z.atan2(r.c2.z);
+    let y = (-r.c0.z).atan2(r.c1.z.hypot(r.c2.z));
+    let z = r.c0.y.atan2(r.c0.x);
+    Some([x, y, z])
+}
+
 /// **One value, read**: its address, its freedom and its number at
 /// the evaluation's scalar.
 #[derive(Debug, Clone, Copy)]

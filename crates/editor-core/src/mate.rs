@@ -51,7 +51,7 @@ pub use solve::{
 };
 pub use turn::{LeastTurn, slides_left_along};
 pub use unobservable::{Unobservable, unobservable};
-pub use value::flipped;
+pub use value::{Charted, flipped, read_back};
 
 /// Which side of a mate a diagnostic is about.
 #[derive(

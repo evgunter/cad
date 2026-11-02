@@ -177,10 +177,8 @@ impl ToolKind {
     /// this match's.
     pub fn commits(self, op: &SessionOp) -> bool {
         match self {
-            // The mate tool closes at its own click, before the op is
-            // performed: the mate panel's rule, not this one's.
-            Self::Mate => false,
-            Self::Revolve
+            Self::Mate
+            | Self::Revolve
             | Self::Boolean
             | Self::Split
             | Self::Transform
@@ -194,8 +192,9 @@ impl ToolKind {
 }
 
 /// **Which tool an operation is the committed edit of**, or `None` for
-/// an operation no tool closes on. `AddMate` is nobody's: the mate
-/// tool does not close on it ([`ToolKind::commits`]).
+/// an operation no tool closes on. `AddMate` is nobody's: it is the API
+/// spelling of a mate added to a bundle, and the placement editor
+/// commits a [`SessionOp::Place`] or a [`SessionOp::SetBundle`].
 fn committed_by(op: &SessionOp) -> Option<ToolKind> {
     match op {
         SessionOp::AddRevolve { .. } => Some(ToolKind::Revolve),
@@ -203,6 +202,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         SessionOp::AddSplit { .. } => Some(ToolKind::Split),
         SessionOp::AddMirror { .. } => Some(ToolKind::Mirror),
         SessionOp::AddTransform { .. } => Some(ToolKind::Transform),
+        SessionOp::Place { .. } | SessionOp::SetBundle { .. } => Some(ToolKind::Mate),
         // Two ops, one tool: the output choice picks the door, and
         // either one landing is this tool's edit committed. The blend
         // tool's kind choice does the same.
@@ -588,6 +588,21 @@ impl Tools {
         }
     }
 
+    /// The open placement editor, to change its draft.
+    pub fn mate_mut(&mut self) -> Option<&mut MateTool> {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// **Open the placement editor holding `tool`** — a door opened on a
+    /// placement or a body rather than by a first pick (the tree's
+    /// `edit` and `remove`), closing whatever was open.
+    pub fn open_mate(&mut self, tool: MateTool) {
+        self.open = Some(OpenTool::Mate(tool));
+    }
+
     /// The open revolve tool.
     pub fn revolve(&self) -> Option<RevolveTool> {
         match &self.open {
@@ -685,8 +700,12 @@ impl Tools {
     /// **What the cursor may pick right now** ([`ToolKind::pick_kinds`]
     /// carries the rule); the bare cursor's rule with nothing open.
     pub fn pick_kinds(&self) -> PickKinds {
-        self.open_kind()
-            .map_or(PickKinds::Any, ToolKind::pick_kinds)
+        match &self.open {
+            Some(OpenTool::Mate(tool)) => crate::matetool::pick_kinds(tool.active_kind()),
+            _ => self
+                .open_kind()
+                .map_or(PickKinds::Any, ToolKind::pick_kinds),
+        }
     }
 
     /// [`Tools::pick_kinds`] with the mate panel's chosen kind `mate`
@@ -767,12 +786,15 @@ impl Tools {
             };
             match &mut self.open {
                 None => {}
-                Some(OpenTool::Mate(tool)) => match selection {
-                    Selection::Face(face) => tool.pick(doc, face.clone()),
-                    Selection::Edge(edge) => tool.pick(doc, edge.clone()),
-                    Selection::Vertex(vertex) => tool.pick(doc, vertex.clone()),
-                    Selection::None | Selection::Node(_) | Selection::Variable(_) => {}
-                },
+                Some(OpenTool::Mate(tool)) => {
+                    let event = match selection {
+                        Selection::Face(face) => tool.pick(doc, face.clone()),
+                        Selection::Edge(edge) => tool.pick(doc, edge.clone()),
+                        Selection::Vertex(vertex) => tool.pick(doc, vertex.clone()),
+                        Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
+                    };
+                    notices.extend(event.map(ToolNotice::Mate));
+                }
                 Some(OpenTool::Blend(tool)) => {
                     if let Some(edge) = selection.edge() {
                         notices.extend(tool.pick(doc, edge, index).map(ToolNotice::Blend));

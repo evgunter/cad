@@ -93,6 +93,26 @@ impl Placed {
         Self { mates, values }
     }
 
+    /// **The freedoms a bundle of `mates` leaves**, each once, in the
+    /// order [`Self::of`] writes them: the slides the mates leave (with
+    /// `along`, the slides a gesture read off the copy's geometry,
+    /// [`super::turn::slides_left_along`]), then the spin about the
+    /// target's own direction, or the chain of turns about the target
+    /// space's axes where no direction is fixed. The mates' kinds are
+    /// read off the recipe of `doc`, nothing evaluated. What an editor
+    /// lists as the values a draft's mates leave.
+    #[must_use]
+    pub fn freedoms<P>(
+        doc: &crate::doc::Doc<P>,
+        mates: &[Mate<Formula>],
+        along: Option<super::SlideAxes>,
+    ) -> Vec<Coord> {
+        let families = mates
+            .iter()
+            .filter_map(|m| operand_kind(doc, &m.on).and_then(crate::VarKind::symmetry));
+        unnamed(residual(families), &[], along)
+    }
+
     /// **This bundle as one write** ([`crate::DocEdit::place`],
     /// [`crate::DocEdit::SetConstraints`]): each mate and then each
     /// value under the next placeholder id
@@ -247,7 +267,7 @@ pub(crate) fn kept(
 /// kind, a node output's (a revolve's axis port), a definition's own,
 /// or, for a move, a flip or a carried pose, the kind of the read it
 /// keeps through its role. `None` where it reads nothing live.
-pub(crate) fn operand_kind<P>(
+pub fn operand_kind<P>(
     doc: &crate::doc::Doc<P>,
     operand: &Operand,
 ) -> Option<crate::VarKind> {

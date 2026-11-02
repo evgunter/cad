@@ -525,6 +525,37 @@ pub enum SessionOp {
         /// mate at the door, naming both spaces.
         into_target_space: bool,
     },
+    /// **The placement editor's Create** ([`crate::matetool::MateTool`]):
+    /// one placement of `body` into `target` holding the whole bundle
+    /// `constraints` (`DocEdit::place`), and what read the body along a
+    /// path the picture is seen through — a `⊔` operand, the product —
+    /// re-pointed to it, in one action. One history state, one undo.
+    Place {
+        /// The body, as a seat reads it.
+        body: Operand,
+        /// The space the copy is placed into.
+        target: VarId,
+        /// The bundle, as authored, in order.
+        constraints: Vec<pncad::document::Constraint<Formula>>,
+    },
+    /// **The placement editor's Edit**: `placement`'s bundle written
+    /// whole (`DocEdit::SetConstraints`), each constraint the draft
+    /// loaded under its own id. Refused [`Refusal::BundleStale`] where
+    /// the placement no longer holds `base`, the bundle the draft was
+    /// loaded from, and refused by the door as the bundle's own. With
+    /// `into_target_space`, the copy is first moved into the space its
+    /// first mate's `to` reads, by name, in the same action. One history
+    /// state, one undo; a bundle equal to `base` records nothing.
+    SetBundle {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// The bundle the draft was loaded from, as authored.
+        base: Vec<pncad::document::Constraint<Formula>>,
+        /// The bundle, as authored, in order.
+        constraints: Vec<pncad::document::Constraint<Formula>>,
+        /// Whether the copy moves into its first mate's `to` space.
+        into_target_space: bool,
+    },
     /// Replace the session's document with a fresh empty one (GAUTH-1's
     /// creation door zero) — the ONE creation op that is a
     /// session-state replacement rather than an `InsertNode`, because
@@ -1227,6 +1258,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
+            | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
@@ -1236,6 +1268,7 @@ impl SessionOp {
             | Self::AddInstance { .. } => true,
             // A mate is a constraint in a placement's bundle, no node.
             Self::AddMate { .. }
+            | Self::SetBundle { .. }
             | Self::Select(_)
             | Self::Hover(_)
             | Self::DeleteNode { .. }
@@ -1342,6 +1375,7 @@ impl SessionOp {
             | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::AddMate { .. }
+            | Self::SetBundle { .. }
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
@@ -1353,6 +1387,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
+            | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
@@ -1571,6 +1606,7 @@ impl SessionOp {
             | Self::SaveAsNewDocument(_)
             | Self::NewDocument { .. }
             | Self::AddMate { .. }
+            | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
             | Self::AddDrawnProfile { .. }
@@ -1581,6 +1617,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
+            | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
@@ -1703,6 +1740,7 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::AddMate { .. }
+            | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
             | Self::AddDrawnProfile { .. }
@@ -1713,6 +1751,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
+            | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
@@ -1778,6 +1817,7 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::AddMate { .. }
+            | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
             | Self::AddDrawnProfile { .. }
@@ -1788,6 +1828,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
+            | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }

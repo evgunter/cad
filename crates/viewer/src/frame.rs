@@ -799,6 +799,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::CancelFreeMove
         | SessionOp::AddMate { .. }
+        | SessionOp::SetBundle { .. }
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::SketchOnFace { .. }
@@ -810,6 +811,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
+        | SessionOp::Place { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }
@@ -2159,7 +2161,12 @@ pub fn tool_notice(
         | ToolNotice::Seated { .. } => Subject::Document,
     };
     let retold = match notice {
-        ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
+        ToolNotice::Mate(
+            MateToolEvent::PickLost { .. }
+            | MateToolEvent::Reloaded { .. }
+            | MateToolEvent::PlacementGone { .. }
+            | MateToolEvent::NotPlaceable { .. },
+        ) => Retold::Never,
         ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
         ToolNotice::Seated {
             event: SeatEvent::PickLost { .. },

@@ -92,7 +92,7 @@ pub mod op;
 pub mod probe;
 pub mod refuse;
 pub mod select;
-mod snap;
+pub(crate) mod snap;
 
 pub use author::{BooleanSpec, PartSelectSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
@@ -1898,44 +1898,13 @@ impl DocSession {
                 mate,
                 values,
                 into_target_space,
-            } => {
-                let (opts, tol) = (self.eval_options(), self.tol);
-                self.commit_run(|run| {
-                    let space = run.doc().operand_space(&mate.to);
-                    if let Some(space) = space.filter(|&space| {
-                        into_target_space && Some(space) != run.doc().node_space(placement)
-                    }) {
-                        into_space(run, placement, space)?;
-                    }
-                    // Where the copy stands before its mate, and the
-                    // evaluation the snap reads its mate's poses off.
-                    let ev: Evaluation<f64> = pncad::document::evaluate(
-                        run.doc(),
-                        None,
-                        &pncad::document::CancelToken::new(),
-                        &opts,
-                        tol,
-                    );
-                    let before =
-                        pncad::document::SolvedPoses::of(run.doc(), &ev).relative(placement);
-                    // The door writes the bundle whole with the mate in it;
-                    // the gesture then writes the orientation and the values
-                    // that stand the copy where the snap puts it, so it moves
-                    // only by the snap, and the values the person named over
-                    // them.
-                    run.apply(DocEdit::AddConstraint {
-                        placement,
-                        mate,
-                        fresh: Vec::new(),
-                    })?;
-                    let snapped = snap::snapped(run.doc(), placement, before, &ev, tol);
-                    if snapped.is_none() && values.is_empty() {
-                        return Ok(());
-                    }
-                    let held = snapped.unwrap_or_else(|| held_bundle(run.doc(), placement));
-                    write_bundle(run, placement, valued(held, values))
-                })
-            }
+            } => self.add_mate(placement, &mate, values, into_target_space),
+            SessionOp::SetBundle {
+                placement,
+                base,
+                constraints,
+                into_target_space,
+            } => self.set_bundle(placement, &base, constraints, into_target_space),
             SessionOp::RemoveConstraint { mate } => self.remove_constraint(mate),
             SessionOp::IntoOwnSpace { placement } => self.commit_run(|run| {
                 let node = run.insert(Node::Space)?;
@@ -1963,6 +1932,7 @@ impl DocSession {
             | SessionOp::AddSplit { .. }
             | SessionOp::AddMirror { .. }
             | SessionOp::AddTransform { .. }
+            | SessionOp::Place { .. }
             | SessionOp::AddPattern { .. }
             | SessionOp::AddFusedPattern { .. }
             | SessionOp::AddFillet { .. }
@@ -2045,6 +2015,11 @@ impl DocSession {
                 rotation_axis,
                 rotation_angle,
             } => self.add_transform(input, &translation, &rotation_axis, &rotation_angle),
+            SessionOp::Place {
+                body,
+                target,
+                constraints,
+            } => self.place(body, target, constraints),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
             }
@@ -4007,19 +3982,192 @@ impl DocSession {
         }
     }
 
-    /// **One constraint removed** ([`SessionOp::RemoveConstraint`]):
-    /// the bundle written whole again without it, by the door's rule
-    /// ([`DocEdit::RemoveConstraint`]) — a mate taken away frees what it
-    /// fixed, and each freedom left unnamed is written `0`, so the copy
-    /// stays pinned.
+    /// **One constraint removed** ([`SessionOp::RemoveConstraint`]): a
+    /// mate struck out of its placement's draft and the bundle written
+    /// as the placement editor writes it ([`Self::drafted`]) — the
+    /// freedoms it frees measured where the copy stands, by the slides
+    /// its geometry leaves. A value is refused: a freedom is always set.
     fn remove_constraint(&mut self, mate: pncad::document::MateRef) -> OpOutcome {
-        self.commit_run(|run| {
-            run.apply(DocEdit::RemoveConstraint {
-                placement: mate.placement,
-                constraint: mate.id,
+        let doc = self.committed_doc();
+        let is_value = held_bundle(doc, mate.placement)
+            .iter()
+            .any(|c| c.id == mate.id && c.value().is_some());
+        if is_value {
+            return OpOutcome::refused(Refusal::ValueNotRemoved {
+                node: doc.spoken(mate.placement),
+            });
+        }
+        let op = crate::matetool::MateTool::edit_striking(doc, mate)
+            .map_err(|error| Refusal::Draft(Box::new(error)))
+            .and_then(|tool| self.drafted(&tool, false));
+        self.perform_bundle(op)
+    }
+
+    /// **A mate added to `placement`'s bundle** ([`SessionOp::AddMate`]):
+    /// the placement editor's Edit door on it, `mate` a row as written
+    /// and `values` typed, applied as the editor applies ([`Self::drafted`]).
+    fn add_mate(
+        &mut self,
+        placement: RecipeNodeId,
+        mate: &pncad::document::Mate<Formula>,
+        values: Vec<(pncad::document::Coord, Formula)>,
+        into_target_space: bool,
+    ) -> OpOutcome {
+        let doc = self.committed_doc();
+        let op = crate::matetool::MateTool::edit(doc, placement)
+            .map(|mut tool| {
+                tool.add_written(doc, mate);
+                for (coord, by) in values {
+                    tool.type_value(coord, by);
+                }
+                tool
             })
-            .map(drop)
+            .map_err(|error| Refusal::Draft(Box::new(error)))
+            .and_then(|tool| self.drafted(&tool, into_target_space));
+        self.perform_bundle(op)
+    }
+
+    /// **The placement editor's Apply for `tool`**, derived against the
+    /// committed document and its evaluation.
+    fn drafted(
+        &self,
+        tool: &crate::matetool::MateTool,
+        into_target_space: bool,
+    ) -> Result<SessionOp, Refusal> {
+        let doc = self.committed_doc();
+        let ev: Evaluation<f64> = pncad::document::evaluate(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &self.eval_options(),
+            self.tol,
+        );
+        let proposal = tool
+            .proposal(doc, &ev, self.tol)
+            .map_err(|error| Refusal::Draft(Box::new(error)))?;
+        Ok(if into_target_space {
+            proposal.op_into_target_space()
+        } else {
+            proposal.op()
         })
+    }
+
+    /// A drafted [`SessionOp::SetBundle`], performed; its refusal as the
+    /// outcome's.
+    fn perform_bundle(&mut self, op: Result<SessionOp, Refusal>) -> OpOutcome {
+        match op {
+            Ok(SessionOp::SetBundle {
+                placement,
+                base,
+                constraints,
+                into_target_space,
+            }) => self.set_bundle(placement, &base, constraints, into_target_space),
+            Ok(other) => unreachable!("an Edit door drafts a `SetBundle`: {other:?}"),
+            Err(refusal) => OpOutcome::refused(refusal),
+        }
+    }
+
+    /// **`placement`'s bundle written whole** ([`SessionOp::SetBundle`]).
+    fn set_bundle(
+        &mut self,
+        placement: RecipeNodeId,
+        base: &[pncad::document::Constraint<Formula>],
+        constraints: Vec<pncad::document::Constraint<Formula>>,
+        into_target_space: bool,
+    ) -> OpOutcome {
+        if let Err(refusal) = self.bundle_fresh(placement, base) {
+            return OpOutcome::refused(refusal);
+        }
+        if !into_target_space && constraints == base {
+            return OpOutcome::default();
+        }
+        self.commit_run(|run| bundle_run(run, placement, constraints, into_target_space))
+    }
+
+    /// The editor's draft is of the bundle `placement` holds.
+    fn bundle_fresh(
+        &self,
+        placement: RecipeNodeId,
+        base: &[pncad::document::Constraint<Formula>],
+    ) -> Result<(), Refusal> {
+        let doc = self.committed_doc();
+        if held_bundle(doc, placement) == base {
+            Ok(())
+        } else {
+            Err(Refusal::BundleStale {
+                node: doc.spoken(placement),
+            })
+        }
+    }
+
+    /// **One placement of `body` holding the bundle** ([`SessionOp::Place`]),
+    /// taking over what read the body along a seen path — a `⊔` operand,
+    /// the product — never a copy's source.
+    fn place(
+        &self,
+        body: Operand,
+        target: VarId,
+        constraints: Vec<pncad::document::Constraint<Formula>>,
+    ) -> Result<Creating, Refusal> {
+        let body = as_body(self.committed_doc(), body);
+        self.require_placeable(&body)?;
+        let doc = self.committed_doc();
+        let mut takeover = Takeover::of(doc, &body);
+        takeover.copies.clear();
+        takeover.stranded_pick(doc)?;
+        Ok(creating(move |run| {
+            let placement = run.insert(Node::place(
+                pncad::document::BodyRead::plain(body),
+                Operand::Var(target),
+                constraints,
+            ))?;
+            takeover.repoint(run, placement, None)?;
+            Ok(placement)
+        }))
+    }
+
+    /// **What the placement editor's Apply `op` would do, judged before
+    /// it is applied**: the op's edits run on a scratch recording of the
+    /// committed document and the result evaluated, so the panel names
+    /// the door's refusal or the placement's fault — or where the copy
+    /// would stand — while the person can still change the draft.
+    /// Nothing enters the document or the history.
+    #[must_use]
+    pub fn bundle_verdict(&self, op: &SessionOp) -> BundleVerdict {
+        let doc = self.committed_doc();
+        let mut run = Recording::start(doc, self.tol);
+        let staged = match op {
+            SessionOp::SetBundle {
+                placement,
+                base,
+                constraints,
+                into_target_space,
+            } => self.bundle_fresh(*placement, base).and_then(|()| {
+                bundle_run(&mut run, *placement, constraints.clone(), *into_target_space)
+                    .map(|()| *placement)
+                    .map_err(|error| Refusal::Edit(Box::new(error)))
+            }),
+            SessionOp::Place {
+                body,
+                target,
+                constraints,
+            } => self
+                .place(body.clone(), *target, constraints.clone())
+                .and_then(|creating| {
+                    creating(&mut run).map_err(|error| Refusal::Edit(Box::new(error)))
+                }),
+            other => unreachable!("only the placement editor's Apply is judged: {other:?}"),
+        };
+        let placement = match staged {
+            Ok(placement) => placement,
+            Err(refusal) => return BundleVerdict::Refused(refusal.respoken(doc)),
+        };
+        let solved = pncad::document::solve_document(run.doc(), &self.eval_options(), self.tol);
+        match (solved.fault(placement), solved.relative(placement)) {
+            (Some(fault), _) => BundleVerdict::Faults(Box::new(fault.clone())),
+            (None, Some(at)) => BundleVerdict::Stands(at),
+            (None, None) => BundleVerdict::Unsolved,
+        }
     }
 
     /// **An action's edits, applied and not yet recorded**, beside what
@@ -4163,6 +4311,22 @@ struct Insert {
     space: VarId,
     node: RecipeNodeId,
     frame: Option<Frame>,
+}
+
+/// **The placement editor's verdict on its Apply**
+/// ([`DocSession::bundle_verdict`]): where the copy would stand, or why
+/// it would not.
+#[derive(Debug)]
+pub enum BundleVerdict {
+    /// The copy would stand at this relative pose in its target space.
+    Stands(Frame),
+    /// The placement would evaluate to this fault.
+    Faults(Box<pncad::document::MateFault>),
+    /// The door would refuse the Apply.
+    Refused(Refusal),
+    /// The placement would not be solved: something it reads does not
+    /// evaluate.
+    Unsolved,
 }
 
 /// **A creation's run, decided and not yet staged**: what a creating
@@ -4557,11 +4721,31 @@ fn write_bundle(
     Ok(())
 }
 
+/// **The placement editor's Edit, applied**: `placement` moved by name
+/// into the space its first mate's `to` reads where that is asked and is
+/// not its target, then `constraints` written whole.
+fn bundle_run(
+    run: &mut Recording<'_, ProfileProgram>,
+    placement: RecipeNodeId,
+    constraints: Vec<pncad::document::Constraint<Formula>>,
+    into_target_space: bool,
+) -> Result<(), EditError> {
+    let space = constraints
+        .iter()
+        .find_map(|c| c.mate())
+        .and_then(|m| run.doc().operand_space(&m.to))
+        .filter(|&space| into_target_space && Some(space) != run.doc().node_space(placement));
+    if let Some(space) = space {
+        into_space(run, placement, space)?;
+    }
+    write_bundle(run, placement, constraints)
+}
+
 /// **`placement` moved into `space` by name**: a bundle holding a mate
 /// first stood by the identity bundle, which reads nothing, so the
 /// re-target strands no mate of the bundle's own, then its `target`
 /// re-pointed there.
-fn into_space(
+pub(crate) fn into_space(
     run: &mut Recording<'_, ProfileProgram>,
     placement: RecipeNodeId,
     space: VarId,
@@ -4820,7 +5004,7 @@ impl core::error::Error for SketchTraceFault {}
 /// (`crate::world::body_of`; a copy carries its body's names, so the
 /// name is the pick's): the node's output by its port where it holds
 /// several, its body output otherwise.
-fn picked_body(
+pub(crate) fn picked_body(
     doc: &Doc<ProfileProgram>,
     pick: &impl crate::tree::PickedEntity,
 ) -> (Operand, StableName) {
