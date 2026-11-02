@@ -2,12 +2,12 @@
 id: the-pierce-span-clearance-gives-up-on-a-face-with-a-curved-edge
 kind: issue
 title: The edge-face pierce span's boundary clearance gives up on a face with a curved edge, and a wide crossing enclosure there escalates
-status: review
+status: closed
 opened: 2026-10-27
 priority: P1
 cost: M
+closed: 2026-11-02
 pr: 5900
-branch: restread/pierce-span-curved-edge
 ---
 
 Found by the fix pass on `restread/curved-edge-in-face` (the cleared
@@ -41,3 +41,16 @@ No measured body: no topo or sweep test is known to reach the arm with
 a non-polygon face. A witness is an edge piercing a planar face with an
 arc boundary, at a shallow angle so that the enclosure is wider than
 `2ε`, far from the arc.
+
+## Closed
+
+2026-11-02, PR 5900 (`restread/pierce-span-curved-edge`). `span_clear`
+walks the face's half-edges: vertices and line sides read as before,
+and a curved side reads its carrier's closed-form lower bound
+(`link::clearance`) from the span's middle, clearing when
+`bound − L/2 − reach` decides positive past the band. A spline, an
+uncertified edge or a bound that does not pass reads "may meet", as
+before. Measured on topo + sweep, the old non-polygon gate was hit 0
+times, so nothing re-baselines; half-disc rows witness the far
+crossing, the grazing and twice-crossing refusals, the bound's centre,
+the reach term at 1 km and the spline refusal.
