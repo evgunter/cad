@@ -2741,8 +2741,11 @@ fn a_given_side_never_contradicts_the_exact_oracle() {
 /// readings, those the bound-side reading gave no side, and those the
 /// cone read nothing of.
 ///
-/// Beside it, cones no sector of which the cone's own reading decides
-/// (a parity reference only a given side reads, [`Cone::reads_given`]):
+/// The arc's tangent ray's point lies on `k`'s plane, inside its piece:
+/// where it is on no other sector, the cone reads it off `k`'s face by
+/// the side given ([`Cone::reads_given`]).
+///
+/// Beside it, cones no sector of which the cone's own reading decides:
 /// one face's plane cut into sectors about the point, its corners at the
 /// point or off it, `q` on the plane or within its zero, every sector
 /// given `q`'s side, the material the half-space behind the plane.

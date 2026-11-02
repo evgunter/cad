@@ -1714,10 +1714,13 @@ impl<T: Decide> Cone<T> {
     /// refused over the slack, the given sign, its crossing placed by
     /// [`Cone::crossing`] at `q`'s distance from the plane taken on that
     /// side; where it decided another sign, nothing
-    /// ([`Unsettled::Contradicted`]). A sector whose sign the cone's own
-    /// reading did not decide is a parity arc's reference sector only
-    /// where no sector it decided is one. Every other reading is the
-    /// cone's own.
+    /// ([`Unsettled::Contradicted`]). Where the cone's own reading puts
+    /// `q` on a sector's plane strictly inside it, on no other sector, and
+    /// that sector's side was given and taken, `q` is read off that face:
+    /// in the material behind it, outside in front, as a point just off a
+    /// face's interior is. A sector whose sign the cone's own reading did
+    /// not decide is no parity arc's reference sector. Every other
+    /// reading is the cone's own.
     ///
     /// Where it reads nothing it says which reading refused ([`Unread`]):
     /// `q`'s side of a sector's plane, or its place on it; the first
@@ -1733,6 +1736,10 @@ impl<T: Decide> Cone<T> {
         // Every sector is read before any answer is taken, so the answer
         // does not depend on the sectors' order; each with whether the
         // cone's own reading decided its side.
+        // Each with whether the cone's own reading decided its side, and,
+        // for a sector whose given side was taken where the cone read `q`
+        // on its plane, where `q` lies on it.
+        let mut taken_on = Vec::new();
         let (against, own): (Vec<Against<T>>, Vec<bool>) = self
             .sectors
             .iter()
@@ -1742,7 +1749,14 @@ impl<T: Decide> Cone<T> {
                 let (side, own) = match (given.iter().find(|&&(j, _)| j == k), read) {
                     (None, read) => (read, true),
                     (Some(&(_, side)), Ok(sign)) if sign == side => (Ok(side), true),
-                    (Some(&(_, side)), Ok(Sign::Zero) | Err(_)) => (Ok(side), false),
+                    (Some(&(_, side)), Ok(Sign::Zero)) => {
+                        // A place in band is no place: parity reads it.
+                        if let Ok(place) = s.place(p, q, rd) {
+                            taken_on.push((k, side, place));
+                        }
+                        (Ok(side), false)
+                    }
+                    (Some(&(_, side)), Err(_)) => (Ok(side), false),
                     (Some(_), Ok(_)) => {
                         return Err(Unread::Side {
                             sector: k,
@@ -1755,14 +1769,30 @@ impl<T: Decide> Cone<T> {
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .unzip();
-        let mut on = against
+        let on_planes = against
             .iter()
             .enumerate()
-            .filter(|(_, a)| matches!(a, Against::Inside | Against::Bound));
-        match (on.next(), on.next()) {
-            (Some((k, Against::Inside)), None) => return Ok(Material::On(k)),
-            (Some(_), _) => return Ok(Material::Boundary),
-            (None, _) => {}
+            .filter(|(_, a)| matches!(a, Against::Inside | Against::Bound))
+            .map(|(k, a)| (k, matches!(a, Against::Inside)))
+            .chain(
+                taken_on
+                    .iter()
+                    .filter(|&&(_, _, place)| place != Place::Outside)
+                    .map(|&(k, _, place)| (k, place == Place::Inside)),
+            )
+            .collect::<Vec<_>>();
+        match on_planes.as_slice() {
+            [(k, true)] => {
+                return Ok(match taken_on.iter().find(|&&(j, _, _)| j == *k) {
+                    // On a face's interior and given its side: the material
+                    // is behind the face.
+                    Some(&(_, Sign::Negative, _)) => Material::In,
+                    Some(_) => Material::Out,
+                    None => Material::On(*k),
+                });
+            }
+            [] => {}
+            _ => return Ok(Material::Boundary),
         }
         // `q`'s strict side of each plane; `None` for a plane `q` lies
         // on, or in band of, outside its sector, and how far `q` may then
@@ -1782,12 +1812,9 @@ impl<T: Decide> Cone<T> {
         // none reads there is each read again out at its wedge's reach
         // ([`ArcReach::Out`]), so no reading taken at `q`'s distance is lost,
         // and a refusal names the first reading at `q`'s distance.
-        // A sector whose side was given and taken is a base only where no
-        // sector the cone's own reading decided is one.
-        let decided = (0..sides.len()).any(|t| sides[t].is_some() && own[t]);
         for arc in [ArcReach::Near, ArcReach::Out] {
             for (t, s0) in self.sectors.iter().enumerate() {
-                let Some(base) = sides[t].filter(|_| own[t] || !decided) else {
+                let Some(base) = sides[t].filter(|_| own[t]) else {
                     continue;
                 };
                 // Each wedge's centroid, then its rays' bisector: a needle
@@ -4245,23 +4272,25 @@ mod tests {
         }
     }
 
-    /// **A sector whose side only a given reading decided is a parity
-    /// reference only where no sector the cone decided is one**: a floor
-    /// of two halves (outward `+z`, the material below), the line cone of
-    /// a solid whose one face holds the line, as at a tangent kiss, and
-    /// `q` on the floor inside the `−x` half, where the cone's own reading
-    /// of both halves is Zero, so no sector it decided is a base.
-    /// - Both halves given behind (one face, one bound's reading of it),
-    ///   `q` is read from the given half and lies in the material; given in
-    ///   front, outside it: exactly the material's class of a point just
-    ///   off the floor on that side. Given nothing, it is on the half.
-    /// - Beside a wall the cone decides `q` in front of, the wall is the
-    ///   base, and the given floor reads alike.
-    /// - Only the `−x` half given, the arc from it runs along the floor to
-    ///   the other half, whose plane `q` lies on outside it: its crossing
-    ///   there is unplaced, named as that arc's.
+    /// **A point on a face's interior, given its side, is read off the
+    /// face; a sector whose side only a given reading decided is no
+    /// parity reference**: a floor of two halves (outward `+z`, the
+    /// material below), as a solid whose one face holds a line reads
+    /// about it at a tangent kiss.
+    /// - `q` within the band's zero of the floor, inside the `−x` half
+    ///   and on no other sector: given behind that half it lies in the
+    ///   material, given in front outside it, whether the other half is
+    ///   given too or not; given nothing, it is on the half.
+    /// - The two halves two faces about the line, `q` inside the one given
+    ///   in front and on the other's plane outside it (a slab's edge along
+    ///   its top under a round's wall, the round's bottom riding the top
+    ///   beside it): outside.
+    /// - `q` in band of the floor over the half, outside its zero, given
+    ///   behind it: its place on the plane is no reading, the other half's
+    ///   plane `q` lies in band of outside it, and no sector the cone's own
+    ///   reading decided is left to read from: no reference.
     #[test]
-    fn a_sector_only_given_its_side_is_a_reference_only_where_none_decided_is() {
+    fn a_point_on_a_faces_interior_given_its_side_reads_off_the_face() {
         let band = band();
         let r = 0.25;
         let half = |rays: Vec<Point3<f64>>| Fan {
@@ -4269,68 +4298,51 @@ mod tests {
             apex: O,
             rays,
         };
-        let floor = || {
+        let cone = Cone::gathered(
+            O,
             [
                 half(vec![p(0.0, r, 0.0), p(-r, 0.0, 0.0), p(0.0, -r, 0.0)]),
                 half(vec![p(0.0, -r, 0.0), p(r, 0.0, 0.0), p(0.0, r, 0.0)]),
-            ]
-        };
-        let cone = Cone::gathered(O, floor(), Vec::new()).expect("a cone");
-        let q = p(-1.0, 0.3, 0.0);
-        let both = |cone: &Cone<f64>, side| {
-            cone.reads_given(q, &[(0, side), (1, side)], Reading::plain(band))
-                .ok()
-        };
-        assert_eq!(
-            both(&cone, Sign::Negative),
-            Some(Material::In),
-            "given behind"
-        );
-        assert_eq!(
-            both(&cone, Sign::Positive),
-            Some(Material::Out),
-            "given in front"
-        );
-        assert_eq!(
-            cone.reads_given(q, &[], Reading::plain(band)).ok(),
-            Some(Material::On(0)),
-            "given nothing, on the half"
-        );
-        // A wall at `y = 1` the cone decides `q` in front of.
-        let wall = Fan {
-            outward: v(0.0, -1.0, 0.0),
-            apex: p(0.0, 1.0, 0.0),
-            rays: vec![p(-r, 1.0, 0.0), p(-r, 1.0, -r), p(r, 1.0, -r)],
-        };
-        let walled = Cone::of(
-            O,
-            floor()
-                .iter()
-                .chain([&wall])
-                .map(|f| Sector {
-                    outward: f.outward,
-                    apex: f.apex,
-                    wedges: f.rays.windows(2).map(|w| (w[0], w[1])).collect(),
-                    closed: false,
-                })
-                .collect(),
+            ],
+            Vec::new(),
         )
         .expect("a cone");
+        let read = |q, given: &[(usize, Sign)]| cone.reads_given(q, given, Reading::plain(band));
+        for h in [0.0, 0.3 * band.zero(), -0.3 * band.zero()] {
+            let q = p(-1.0, 0.3, h);
+            for (given, want) in [
+                (vec![(0, Sign::Negative)], Material::In),
+                (vec![(0, Sign::Positive)], Material::Out),
+                (vec![(0, Sign::Negative), (1, Sign::Negative)], Material::In),
+                (
+                    vec![(0, Sign::Positive), (1, Sign::Positive)],
+                    Material::Out,
+                ),
+            ] {
+                assert_eq!(
+                    read(q, &given).ok(),
+                    Some(want),
+                    "at {h:e}, given {given:?}"
+                );
+            }
+            assert_eq!(
+                read(q, &[]).ok(),
+                Some(Material::On(0)),
+                "at {h:e}, given nothing"
+            );
+        }
+        // The half `q` lies in given in front, the other riding it.
+        let q = p(-1.0, 0.3, 0.0);
         assert_eq!(
-            both(&walled, Sign::Negative),
-            Some(Material::In),
-            "beside a decided wall, alike"
+            read(q, &[(0, Sign::Positive), (1, Sign::Zero)]).ok(),
+            Some(Material::Out),
+            "under the round's wall, beside its bottom"
         );
-        let one = cone.reads_given(q, &[(0, Sign::Negative)], Reading::plain(band));
+        let q = p(-1.0, 0.3, (band.zero() + band.escalate()) / 2.0);
         assert!(
-            matches!(
-                one,
-                Err(Unread::Arc {
-                    sector: Some(1),
-                    ..
-                })
-            ),
-            "one half given, the arc's crossing of the other: {one:?}"
+            matches!(read(q, &[(0, Sign::Negative)]), Err(Unread::NoReference)),
+            "in band, no reference: {:?}",
+            read(q, &[(0, Sign::Negative)])
         );
     }
 
