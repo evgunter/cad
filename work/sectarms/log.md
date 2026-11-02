@@ -149,6 +149,7 @@ and bodies unchanged. No orchestrator yet.
   - **(F4)** C3 states the 1×2 trace in the present tense with no code yet. That stays untrue until stage 3 or 4. Accepted as drift with a schedule.
   - **(F5)** Fixed: the torus row's stop.
   - **Load:** the slate is now well over budget (the NURBS arm is about 4 H, the cylinder unit's remaining 2 stages, the cone, the conic pairs). A split along the semantic seam (the NURBS arm vs the unbounded analytic pairs) is owed at the next natural seam.
+- 2026-11-02 — **Cylinder ruling-sweep stage (branch `sectarms/cylinder-ruling-sweep`).** Built the build items of `a-near-parallel-pairs-accounting-grows-with-the-operation-region`, which closes. One ruling-sweep module (`pair_section::ruling`, the `Ruled` shape shared with the cone), a one-to-one cut-end and witness match in the carry, the march ending at the region's ball and seeded from the count, and a row-5 coverage `debug_assert` read from the operands' general quadratic. Filed: cylinder × sphere as the next ruled pair (`cylinder-sphere-reads-its-pose-on-the-ruling-sweep`, P1 M), and the thin-rod row's limb-3 refusal on SSIMARCH.
 - 2026-11-02 — **NURBS stage 1 (PR 6304) reviewed and fixed.** Dual concurrent review in cloud sessions on `6f1be80`; both reviewers APPROVE-WITH-FIXES.
   - **The one MAJOR is bilateral, at divergent severity:** no row pinned a curved partner's metres conversion (fixtures all had R ≈ 1).
   - **Fix pass `32cb604` added:**

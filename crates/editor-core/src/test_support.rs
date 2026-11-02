@@ -345,21 +345,15 @@ pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord, Formula)> {
 }
 
 /// **The turns about `x`, then `y`, then `z` that the rotation
-/// `columns` makes** (`linear = Rz(γ)·Ry(β)·Rx(α)`), each angle taken
-/// by `atan2` — the fixtures' one reading of a frame's turns as a
-/// chain, for a test that states a pose as a matrix.
+/// `columns` makes** (`linear = Rz(γ)·Ry(β)·Rx(α)`), read by the
+/// kernel's one chain read ([`crate::mate::chain_turns`]) — for a test
+/// that states a pose as a matrix.
 #[must_use]
 pub fn euler_turns(columns: &[[f64; 3]; 3]) -> [(crate::TargetAxis, f64); 3] {
     use crate::TargetAxis;
-    // Entry `r(i, j)`: row `i` of column `j`.
-    let r = |i: usize, j: usize| columns[j][i];
-    let cos_beta = r(0, 0).hypot(r(1, 0));
-    let beta = (-r(2, 0)).atan2(cos_beta);
-    let (alpha, gamma) = if cos_beta > f64::EPSILON.sqrt() {
-        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
-    } else {
-        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
-    };
+    let col = |j: usize| geom_core::linalg::Vec3::new(columns[j][0], columns[j][1], columns[j][2]);
+    let [alpha, beta, gamma] =
+        crate::mate::chain_turns(&geom_core::linalg::Mat3::from_cols(col(0), col(1), col(2)));
     [
         (TargetAxis::X, alpha),
         (TargetAxis::Y, beta),

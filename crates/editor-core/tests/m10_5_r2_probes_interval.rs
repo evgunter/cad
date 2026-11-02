@@ -47,7 +47,7 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     Budgets, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
     ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle, NoTangents,
-    Pruning, SELF_INTERSECTION_GAP, Selection, Which, clearance_over, clearance_with,
+    Pruning, SELF_INTERSECTION_GAP, Selection, Which, clearance_at_dials, clearance_over_at_dials,
     self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
@@ -325,7 +325,7 @@ fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
 
 fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
-        bound: ClearanceBound::AtLeast(c),
+        bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
@@ -364,7 +364,7 @@ fn the_combs_internal_gaps_answer_at_three_bounds() {
     let (plus, minus) = slot_walls(&doc, minted);
     let leaf = box_of(&doc, "place");
     for (c, expected) in [(0.3, "Holds"), (0.7, "Violated"), (1.5, "Violated")] {
-        let report = clearance_with(&doc, &leaf, &plus, &minus, &at_least(c, cfg(65_536, 40)));
+        let report = clearance_at_dials(&doc, &leaf, &plus, &minus, &at_least(c, cfg(65_536, 40)));
         assert!(
             report.receipt().holds(),
             "receipt broken at c = {c}: {}",
@@ -401,7 +401,7 @@ fn the_leaf_fold_answers_the_same_question_over_a_real_drive() {
     );
     let (plus, minus) = slot_walls(&doc, minted);
     for (c, expected) in [(0.3, "Holds"), (0.7, "Violated")] {
-        let fold = clearance_over(
+        let fold = clearance_over_at_dials(
             &doc,
             &analyzed,
             &verdict,
@@ -431,7 +431,7 @@ fn the_combs_violation_witness_re_verifies_from_its_own_points() {
     let (doc, minted, _placed) = comb();
     let left = named(minted, vec![wall_name(&doc, minted, 9)]);
     let right = named(minted, vec![wall_name(&doc, minted, 7)]);
-    let report = clearance_with(
+    let report = clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &left,
@@ -522,7 +522,7 @@ fn a_sub_epsilon_gap_reaches_the_funnel_that_calls_it_a_violation() {
     // Gap 0: the boxes touch, `separation_lo` is 0, and the pair
     // reaches the funnel.
     let (doc, a, b) = blocks_apart(0.0);
-    let touching = clearance_with(
+    let touching = clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &Selection::body_of(a),
@@ -545,7 +545,7 @@ fn a_sub_epsilon_gap_reaches_the_funnel_that_calls_it_a_violation() {
     // tolerance — and it gets the SAME answer, which is the point. The
     // ε-wide window between the two thresholds is gone.
     let (doc, a, b) = blocks_apart(eps / 2.0);
-    let pruned = clearance_with(
+    let pruned = clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &Selection::body_of(a),
@@ -599,7 +599,7 @@ fn an_interpenetration_is_reported_violated_not_refused() {
     let (doc, a, b) = blocks_apart(-1.5);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     for pairs in [4_096usize, 16_384, 65_536] {
-        let report = clearance_with(
+        let report = clearance_at_dials(
             &doc,
             &box_of(&doc, "place"),
             &sa,
@@ -696,7 +696,7 @@ fn a_violation_witness_cannot_land_where_the_face_is_not() {
     let (doc, ell, block_node) = ell_with_a_block_in_the_notch();
     let cap = named(ell, vec![cap_name(ell)]);
     let block = Selection::body_of(block_node);
-    let report = clearance_with(
+    let report = clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &cap,
@@ -763,7 +763,7 @@ fn holds_over_the_window_is_holds_over_the_face() {
     // (1.0, 0.4) → (0.4, 0.4); segment 3 runs (0.4, 0.4) → (0.4, 1.0)).
     let wall = named(ell, vec![wall_name(&doc, ell, 3)]);
     let block = Selection::body_of(block_node);
-    let report = clearance_with(
+    let report = clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &wall,
@@ -798,7 +798,7 @@ fn every_configuration_lands_in_one_arm_with_a_holding_receipt() {
         for pairs in [0usize, 1, 7, 512] {
             for depth in [0u32, 1, 6] {
                 let report =
-                    clearance_with(&doc, &leaf, &sel, &sel, &at_least(c, cfg(pairs, depth)));
+                    clearance_at_dials(&doc, &leaf, &sel, &sel, &at_least(c, cfg(pairs, depth)));
                 let r = report.receipt();
                 assert!(
                     r.holds(),
@@ -827,7 +827,7 @@ fn the_strict_question_is_total_over_budgets_too() {
     let leaf = box_of(&doc, "place");
     for pairs in [0usize, 1, 3, 64, 4_096] {
         for depth in [0u32, 2, 12] {
-            let report = clearance_with(&doc, &leaf, &sa, &sb, &strict(cfg(pairs, depth)));
+            let report = clearance_at_dials(&doc, &leaf, &sa, &sb, &strict(cfg(pairs, depth)));
             assert!(
                 report.receipt().holds(),
                 "receipt broken at pairs = {pairs}, depth = {depth}: {}",
@@ -847,7 +847,7 @@ fn the_strict_question_is_total_over_budgets_too() {
 fn a_single_face_against_itself_meets_itself_and_reads_zero() {
     let (doc, minted, _placed) = comb();
     let one = named(minted, vec![wall_name(&doc, minted, 0)]);
-    let report = clearance_with(
+    let report = clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &one,
@@ -871,7 +871,7 @@ fn a_bound_that_is_not_a_number_still_lands_in_the_trichotomy() {
     let (doc, minted, _placed) = comb();
     let sel = Selection::body_of(minted);
     for c in [f64::NAN, f64::INFINITY, -1.0] {
-        let report = clearance_with(
+        let report = clearance_at_dials(
             &doc,
             &box_of(&doc, "place"),
             &sel,
@@ -921,14 +921,14 @@ fn the_accelerator_changes_no_verdict_on_the_comb() {
     let sel = Selection::body_of(minted);
     let leaf = box_of(&doc, "place");
     for c in [0.3, 0.7, 1.5] {
-        let off = clearance_with(&doc, &leaf, &sel, &sel, &at_least(c, cfg(4_096, 20)));
-        let on = clearance_with(
+        let off = clearance_at_dials(&doc, &leaf, &sel, &sel, &at_least(c, cfg(4_096, 20)));
+        let on = clearance_at_dials(
             &doc,
             &leaf,
             &sel,
             &sel,
             &ClearanceQuery {
-                bound: ClearanceBound::AtLeast(c),
+                bound: ClearanceBound::at_least(c),
                 tol: Tol::witness(),
                 config: ClearanceConfig {
                     pruning: Pruning::Facets,
@@ -958,14 +958,14 @@ fn no_tangents_forfeits_the_pruning_and_nothing_else_on_the_comb() {
     let sel = Selection::body_of(minted);
     let leaf = box_of(&doc, "place");
     for c in [0.3, 0.7] {
-        let off = clearance_with(&doc, &leaf, &sel, &sel, &at_least(c, cfg(4_096, 20)));
-        let forfeited = clearance_with(
+        let off = clearance_at_dials(&doc, &leaf, &sel, &sel, &at_least(c, cfg(4_096, 20)));
+        let forfeited = clearance_at_dials(
             &doc,
             &leaf,
             &sel,
             &sel,
             &ClearanceQuery {
-                bound: ClearanceBound::AtLeast(c),
+                bound: ClearanceBound::at_least(c),
                 tol: Tol::witness(),
                 config: ClearanceConfig {
                     pruning: Pruning::Facets,
@@ -996,14 +996,14 @@ fn a_lying_oracle_is_indistinguishable_at_the_seam() {
     let (doc, minted, _placed) = comb();
     let sel = Selection::body_of(minted);
     let leaf = box_of(&doc, "place");
-    let truthful = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.7, cfg(4_096, 20)));
-    let lying = clearance_with(
+    let truthful = clearance_at_dials(&doc, &leaf, &sel, &sel, &at_least(0.7, cfg(4_096, 20)));
+    let lying = clearance_at_dials(
         &doc,
         &leaf,
         &sel,
         &sel,
         &ClearanceQuery {
-            bound: ClearanceBound::AtLeast(0.7),
+            bound: ClearanceBound::at_least(0.7),
             tol: Tol::witness(),
             config: ClearanceConfig {
                 pruning: Pruning::Facets,
@@ -1026,7 +1026,7 @@ fn a_lying_oracle_is_indistinguishable_at_the_seam() {
 
 /// **D9 across SCHEDULES.** The clearance engine has no parallel path
 /// of its own — `Sweep::run` is a sequential stack walk and
-/// `clearance_over` a sequential fold — so the only schedule that can
+/// `clearance_over_at_dials` a sequential fold — so the only schedule that can
 /// move is the DRIVER's, which decides the leaf set and its order. The
 /// fold's answer must be the same over a parallel drive and a
 /// sequential one, receipt and widths included.
@@ -1046,7 +1046,7 @@ fn the_fold_is_the_same_over_a_parallel_and_a_sequential_drive() {
             Tol::witness(),
         )
         .expect("the comb builds at its nominal");
-        let fold = clearance_over(
+        let fold = clearance_over_at_dials(
             &doc,
             &analyzed,
             &verdict,
@@ -1098,7 +1098,7 @@ fn a_fold_over_zero_certified_leaves_refuses_by_name() {
         return;
     }
     let sel = Selection::body_of(minted);
-    let fold = clearance_over(
+    let fold = clearance_over_at_dials(
         &doc,
         &analyzed,
         &verdict,
@@ -1154,14 +1154,14 @@ fn the_answer_does_not_depend_on_the_order_names_are_written_in() {
         vec![wall_name(&doc, minted, 9), wall_name(&doc, minted, 7)],
     );
     let leaf = box_of(&doc, "place");
-    let a = clearance_with(
+    let a = clearance_at_dials(
         &doc,
         &leaf,
         &forward,
         &forward,
         &at_least(0.7, cfg(4_096, 20)),
     );
-    let b = clearance_with(
+    let b = clearance_at_dials(
         &doc,
         &leaf,
         &reverse,
@@ -1232,7 +1232,7 @@ fn the_unsupported_arm_names_its_carrier_class_when_it_fires() {
 fn a_one_pair_budget_refuses_and_still_accounts_for_every_candidate() {
     let (doc, minted, _placed) = comb();
     let sel = Selection::body_of(minted);
-    let report = clearance_with(
+    let report = clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &sel,
@@ -1262,7 +1262,7 @@ fn a_one_pair_budget_refuses_and_still_accounts_for_every_candidate() {
 fn a_violation_outranks_a_refusal_and_the_receipt_shows_both() {
     let (doc, minted, _placed) = comb();
     let sel = Selection::body_of(minted);
-    let report = clearance_with(
+    let report = clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &sel,
@@ -1313,7 +1313,7 @@ fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     let leaf = box_of(&doc, "place");
     let mut costs = Vec::new();
     for c in [2.0, 1.5, 1.0, 0.8, 0.6] {
-        let report = clearance_with(&doc, &leaf, &left, &right, &at_least(c, cfg(65_536, 40)));
+        let report = clearance_at_dials(&doc, &leaf, &left, &right, &at_least(c, cfg(65_536, 40)));
         let r = report.receipt();
         assert!(r.holds());
         assert_eq!(
@@ -1339,7 +1339,7 @@ fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     // The frontier: `c` ON the pair's closest approach. Nothing is ever
     // definitely under it, nothing ever definitely clears it, and the
     // run spends the whole dial before refusing, priced.
-    let frontier = clearance_with(&doc, &leaf, &left, &right, &at_least(0.5, cfg(65_536, 40)));
+    let frontier = clearance_at_dials(&doc, &leaf, &left, &right, &at_least(0.5, cfg(65_536, 40)));
     let fr = frontier.receipt();
     assert!(fr.holds(), "{fr:?}");
     let frontier_cells = fr.discharged + fr.violated + fr.refused;

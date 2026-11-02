@@ -1150,10 +1150,7 @@ mod tests {
                 EdgeSpec {
                     start: VERTEX,
                     end: VERTEX,
-                    carrier: Curve3::Line {
-                        origin: Point3::new(x, 0.0, 0.0),
-                        dir: Vec3::new(1.0, 0.0, 0.0),
-                    },
+                    carrier: Curve3::line(Point3::new(x, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
                     t0: 0.0,
                     t1: 1.0,
                     reversed: false,

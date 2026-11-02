@@ -4373,7 +4373,7 @@ mod tests {
                 body.get_curve_geom(e.curve)
                     .and_then(crate::CurveGeom::certified)
                     .is_some_and(|c| {
-                        matches!(c.carrier(), geom::Curve3::Line { origin, .. }
+                        matches!(c.carrier(), geom::Curve3::Line(geom::Line { origin, .. })
                             if (origin.x - 1.4f64.cos()).abs() < 1e-12)
                     })
             })

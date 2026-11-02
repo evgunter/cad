@@ -613,8 +613,6 @@ which is what actually moves the number.
 | boolean/reduce.rs (`line_cone_roots`) | bool_line_cone_root_slack | `\|dir\|·NOISE_ULPS·u/2·(\|w₀\| + \|dir\|\|t\|)²/(2√disc)` less the root's arc distance outside the span: `G`'s rounding (m²) over `\|G′\|` (m²/param) at the line's speed (m/param) | m | OK |
 | boolean/reduce.rs (`wall_crossing`, a cone face's roots) | bool_cone_root_nappe | the root's elevation off the face's own nappe (`geom_brep::cone_elevation` with that nappe), a length | m | OK |
 | boolean/arcs.rs (`arcs_along`) | bool_arc_along / bool_arc_ahead | `\|t̂ × d̂\|` and `t̂ · d̂` of two unit tangents, each levered at the arc's radius (`Margin::levered`): sin and cos of the angle between them × radius, the offset the arc's far side swings by | m | OK |
-| boolean/reduce.rs (`arc_chain_reaches`, `boundary_meets_circle_only_at`) | bool_arc_chain_on_circle / bool_arc_boundary_off_circle | a point's distance from a circle, `√(h² + (ρ − r)²)` (`arcs::circle_miss`): its height over the circle's plane and its axial distance minus the radius, both m | m | OK |
-| boolean/reduce.rs (`boundary_meets_circle_only_at`) | bool_arc_plane_side | a vertex's signed height over the circle's plane, `(p − c) · â` with `â` unit; a conic's own plane offset from it (`ConicPlaneMeet::Parallel`) | m | OK |
 | boolean/sectors.rs (`on_planar_face`, read by `runs_in`) | bool_germ_tie_plane | a point's signed height over a face's plane, `(p − o) · n̂` with `n̂` unit | m | OK |
 | boolean/sectors.rs, fate.rs, slit.rs (`geom_brep::parting`: read by `runs_into`, `crescent`, fate.rs's `corner_holds` and slit.rs's `walls_inside`) | bool_sector_runs_into_bend / bool_sector_crescent / bool_fate_corner_bend / bool_fate_corner_bend_straddle / bool_rider_wall_bend_across | `(κ − κ_b)·û·l²/2`: two curvature vectors at a vertex where their curves leave along one tangent, across it toward the side read, at a length `l` the site sets: `runs_into` an edge against a sector bound, at the shorter of their exact reaches; `crescent` two sectors' bounds, at the shorter bound's reach; `walls_inside` the floor's and the wall's normal sections across the line an edge rides, at the wall's reach; `corner_holds` a kept edge against a dropped face's corner bound, at the lever that bound's first-order side is read at, at both its bounds where a reach is known only from both sides and their straddle under `bool_fate_corner_bend_straddle` | m | OK (one reading, one name per site: each is its own decision with its own lever, and a refusal's diagnosis and `k_stats` name the site) |
 | boolean/fate.rs (`corner_holds`, `tip_wraps`, through `sign_at`; `bisector` and `tip_wraps`' half-turn count, through `sign`) | bool_fate_corner / bool_fate_corner_straddle | `n̂ · (a × b)` and `a · b` of two unit directions at a fate cut's corner (the sine and cosine of their angle), levered at the shorter of their reaches (`sectors::reading_lever`), at both bounds where a reach is known only from both sides and their straddle under `bool_fate_corner_straddle`; a sector's bisector sum's length, and a loop's half-turn count against its corners', dimensionless, each levered at 1 m | m | OK |
@@ -695,7 +693,7 @@ which is what actually moves the number.
 | boolean/boxes.rs `sphere_window` | bool_box_sphere_axis | a sphere's polar axis, read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
 | boolean/boxes.rs `sphere_window` | bool_box_sphere_seam_unit | a sphere's seam direction, read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
 | boolean/boxes.rs `sphere_window` | bool_box_sphere_seam | a sphere's seam direction against its polar axis: their cosine, levered by the radius | m | OK |
-| splitting/classify.rs `torus_window_reach` | split_gate_torus_ring | a torus's major radius less its minor, the ring convention `R > r` its chart rectangle's closed form reads | m | OK |
+| boolean/boxes.rs `face_box` and census.rs `face_reach_in` (the torus window, both box lanes) | torus_tube_positive / ring_torus_convention (read through `geom::is_ring_torus`, the convention's one home) | r; R − r, the premise of the chart rectangle's closed form (`ring_window_extent`) | m | OK |
 | ray_walk.rs (via `containment.rs`'s `ROWS`) | point_in_loop_segment | a loop segment's own length — the degeneracy gate, through the `Margin::norm3` door | m | OK (split off `point_in_loop_boundary` by #712, which was deciding two questions under one name) |
 | ray_walk.rs (via `containment.rs`'s `ROWS`) | point_in_loop boundary/side/advance | distances; m²/m advance | m | OK |
 | splitting/containment.rs (`certify_plane`) | point_in_loop_normal / point_in_loop_plane / point_in_loop_query | (\|n\| − 1) levered by the loop's reach from its first vertex; a vertex's, conic centre's or control point's offset `(p − o)·n̂` off the plane, and a conic's or spiric's plane tilt `\|axis × n̂\|` levered by its larger semi-axis (a spiric's by `R + r + \|offset\|`); the query's offset `(q − o)·n̂` | m | OK (CLEAVE) |
@@ -1449,9 +1447,8 @@ Flagged, NOT fixed here (dispositions):
     over faces within the band above `c` can read `Violated`: the
     kernel's ε model, not a defect. The readings choose which pairs feed
     the bracket and decide nothing a census must see.
-  - `min_separation` runs inside an evaluation, under the
-    `min_clearance` measure, at the interval lane only: the `f64`
-    witness answers `MeasureUnavailable`. Logged, its readings would be
+  - `min_separation` once ran inside an evaluation, under a measure
+    that no longer exists; no evaluation asks it now. Logged, its readings would be
     rows in the leaf's vector that the witness's cannot have, and every
     leaf would refuse `flip_crossing`; its in-band escalations would
     hand the driver a cue to bisect that no smaller parameter box
@@ -1463,7 +1460,7 @@ Flagged, NOT fixed here (dispositions):
     which is where a receipt belongs. And the readings' K samples keep their names, which
     is vacuous at this site today: `Probe` never runs `min_separation`,
     since only a certifying scalar holds the engine's door. If a
-    `min_clearance` document enters the driver's K population at a
+    `min_separation` call enters the driver's K population at a
     certifying scalar, its 137–186 in-band samples per call would fire
     k-lint rule 1; that is a finding to re-derive then, per the K-REPORT
     runbook, not a reason to log them.
@@ -1507,6 +1504,37 @@ Flagged, NOT fixed here (dispositions):
     An in-band support compare is not refinable in a parameter box (it
     is one-sided), and logged it would cue the driver to bisect leaves
     no smaller box answers, as F28 measured for `min_separation`.
+
+- **F30** (added by DOORS' clearance-assertion unit)
+  `editor-core/src/eval/wire.rs` `wire_clearance`: the bound sweep a
+  clearance assertion runs at a certifying lane, every decision under
+  it (F17's and F29's sites, the region readings F28 lists, the
+  injectivity rows). Every row keeps its own dimension; what this row
+  argues is why their outcomes stay out of the node's verdict log.
+  - The sweep's outcome is the assertion's REPORT: a verdict, a
+    verified pair, or a typed refusal (a sliver, a budget), with its
+    receipt. An in-band reading is split or refused inside the sweep,
+    and a refusal is the verdict's third state, never a node failure
+    the driver could re-read.
+  - Logged, the readings would be rows in the leaf's vector that the
+    `f64` witness build cannot have (a point scalar runs no sweep), so
+    every leaf of a document asserting a clearance would refuse
+    `flip_crossing`; and their in-band escalations would cue the
+    driver to bisect a parameter box over cell pairs that only a
+    smaller CELL answers (measured on the dumbbell neck: drives that
+    certified at once ran past ten minutes).
+  - **The one reading that goes in**: an upper bound the box decides
+    only in part (`EngineRefusal::BoxDependent` — its closest pair's
+    separation over the box straddles the bound). A narrower BOX is
+    what answers that, so `wire_clearance` decides the pair's reach
+    against the bound once, logged, at `CLEARANCE_MARGIN`'s site: the
+    reading straddles the bound by construction, so it is
+    indeterminate — the driver's cue to bisect, and a leaf it cannot
+    narrow refuses
+    (`m10_6_clearance_assertion_interval`'s box-dependent rows).
+
+  **Carried as `k_stats::unlogged("F30", ..)`**. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

@@ -704,10 +704,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     match seg.kind().get() {
         SegmentKind::Line => EdgeCurveSpec {
             description,
-            carrier: Curve3::Line {
-                origin: q_from,
-                dir: (q_to - q_from).normalize(),
-            },
+            carrier: Curve3::line(q_from, (q_to - q_from).normalize()),
             param_start: T::zero(),
             param_end: q_from.distance(q_to),
         },
@@ -2039,10 +2036,7 @@ pub(crate) mod must_carry_fixtures {
     }
 
     fn z_axis() -> Curve3<f64> {
-        Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        }
+        Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0))
     }
 }
 
