@@ -603,10 +603,11 @@ mod composed {
                 edges: EdgeOverlay::default(),
             };
         };
-        // One tool is open at a time, so the mate tool's two held faces
+        // One tool is open at a time, so the placement editor's active
+        // row's two held faces
         // and the mirror tool's plane share these two slots.
         // The mate tool's edge and vertex picks are drawn as geometry.
-        let mate = tools.mate().map(|tool| tool.state().picks());
+        let mate = tools.mate().map(crate::matetool::MateTool::active_picks);
         let [a, b] = match (mate, tools.mirror()) {
             (Some(picks), _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
             (None, Some(tool)) => [tool.plane(), None],

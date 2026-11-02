@@ -565,8 +565,8 @@ fn the_windmill_story() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        3,
-        "the re-target, the mate and its values: {:?}",
+        2,
+        "the re-target, and the bundle written whole with the mate and its values: {:?}",
         outcome.committed
     );
     let [superseded] = &outcome.withdrawn.superseded[..] else {
@@ -742,8 +742,8 @@ fn the_windmill_story() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        3,
-        "the re-target, the mate and its values"
+        2,
+        "the re-target, and the bundle written whole with the mate and its values"
     );
     let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!("exactly one frame is superseded at the edit")
@@ -790,8 +790,8 @@ fn the_windmill_story() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        3,
-        "the re-target, the mate and its values"
+        2,
+        "the re-target, and the bundle written whole with the mate and its values"
     );
     let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!("exactly one frame is superseded at the edit")

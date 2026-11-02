@@ -68,6 +68,8 @@ mod assembly_display;
 mod assembly_walk;
 #[path = "blend_authoring.rs"]
 mod blend_authoring;
+#[path = "bundle_editor.rs"]
+mod bundle_editor;
 #[path = "camera_ops.rs"]
 mod camera_ops;
 #[path = "cascade_delete.rs"]

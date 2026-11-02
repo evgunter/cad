@@ -27,7 +27,7 @@ use editor_core::mate::{Charted, LeastTurn, read_back, slides_left_along};
 use editor_core::{Coord, Formula, Orientation, SlideAxes};
 use pncad::document::pose::{PoseValue, RoleRead};
 use pncad::document::{
-    ConstraintId, Doc, DocEdit, Evaluation, Frame, Mate, MateRef, MateSide, Node, Operand,
+    ConstraintId, Doc, DocEdit, Evaluation, Frame, Mate, MateSide, Node, Operand,
     OperandSlot, Placed, ProfileProgram, Recording,
 };
 use pncad::geom_core::Tol;
@@ -163,7 +163,7 @@ pub(crate) struct DraftSnap {
     /// The slides the chart's mate leaves, read off the copy's geometry.
     pub(crate) along: Option<SlideAxes>,
     /// The chart's mate, its two poses and its `to`'s sense.
-    chart: Option<(MateRef, PoseValue<f64>, PoseValue<f64>, bool)>,
+    chart: Option<(PoseValue<f64>, PoseValue<f64>, bool)>,
 }
 
 impl DraftSnap {
@@ -179,8 +179,7 @@ impl DraftSnap {
         let Ok(band) = pncad::geom_core::Band::linear(tol) else {
             return vec![None; coords.len()];
         };
-        let chart = self.chart.as_ref().map(|(mate, on, to, to_flipped)| Charted {
-            mate: *mate,
+        let chart = self.chart.as_ref().map(|(on, to, to_flipped)| Charted {
             on,
             to,
             to_flipped: *to_flipped,
@@ -209,7 +208,26 @@ pub(crate) fn draft_snap(
     let mut run = Recording::start(doc, tol);
     let (placement, before) = match door {
         PlaceDoor::Edit { placement, .. } => {
-            let before = pncad::document::SolvedPoses::of(doc, ev).relative(*placement)?;
+            // A mate reading another space than the copy's is applied
+            // with the copy moved there by name (`SessionOp::SetBundle`'s
+            // `into_target_space`): a bundle holding a mate is first
+            // stood at the identity, and one of values alone stands on
+            // the new space's axes as it stood on the old's.
+            let into = mates
+                .first()
+                .and_then(|m| doc.operand_space(&m.to))
+                .filter(|&space| Some(space) != doc.node_space(*placement));
+            let mated = super::held_bundle(doc, *placement)
+                .iter()
+                .any(|c| c.mate().is_some());
+            if let Some(space) = into {
+                super::into_space(&mut run, *placement, space).ok()?;
+            }
+            let before = if into.is_some() && mated {
+                Frame::IDENTITY
+            } else {
+                pncad::document::SolvedPoses::of(doc, ev).relative(*placement)?
+            };
             run.apply(DocEdit::SetConstraints {
                 placement: *placement,
                 constraints: bundle,
@@ -273,9 +291,9 @@ pub(crate) fn draft_snap(
         _ => None,
     });
     let affine = |r: Mat3<f64>, t: Vec3<f64>| pncad::geom_core::linalg::Affine3::from_parts(r, t);
-    let Some((id, on, to, to_flipped, seat)) = read
+    let Some((on, to, to_flipped, seat)) = read
         .iter()
-        .find_map(|(id, on, to, flipped)| Some((*id, on, to, *flipped, seat_of(on, to)?)))
+        .find_map(|(_, on, to, flipped)| Some((on, to, *flipped, seat_of(on, to)?)))
     else {
         // No mate fixes a direction: a point mate carries the copy's
         // point onto the target's, and nothing turns it.
@@ -310,7 +328,6 @@ pub(crate) fn draft_snap(
         orient: Some(orient),
         along: Some(slides_left_along(slides, n)),
         chart: Some((
-            MateRef::new(placement, id),
             on.clone(),
             to.clone(),
             to_flipped,

@@ -4042,9 +4042,21 @@ impl DocSession {
             &self.eval_options(),
             self.tol,
         );
-        let proposal = tool
-            .proposal(doc, &ev, self.tol)
-            .map_err(|error| Refusal::Draft(Box::new(error)))?;
+        let proposal = match tool.proposal(doc, &ev, self.tol) {
+            Ok(proposal) => proposal,
+            // A number on a freedom the mates do not leave is the draft's
+            // fault only where the mates themselves write: a mate the door
+            // refuses is said as the door says it.
+            Err(error @ crate::matetool::MateToolError::NotAFreedom { .. }) => {
+                if let Ok(mates) = tool.clone().untyped().proposal(doc, &ev, self.tol)
+                    && let BundleVerdict::Refused(refusal) = self.bundle_verdict(&mates.op())
+                {
+                    return Err(refusal);
+                }
+                return Err(Refusal::Draft(Box::new(error)));
+            }
+            Err(error) => return Err(Refusal::Draft(Box::new(error))),
+        };
         Ok(if into_target_space {
             proposal.op_into_target_space()
         } else {
@@ -4093,6 +4105,7 @@ impl DocSession {
         let doc = self.committed_doc();
         if held_bundle(doc, placement) == base {
             Ok(())
+
         } else {
             Err(Refusal::BundleStale {
                 node: doc.spoken(placement),

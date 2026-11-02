@@ -138,6 +138,14 @@ pub(crate) fn feature_row_ui(
     if let Some(mate) = constraint_lines(ui, row) {
         clicks.remove = Some(mate);
     }
+    if !row.constraints.is_empty() {
+        clicks.edit = ui
+            .horizontal(|ui| {
+                ui.add_space(INDENT_STEP);
+                ui.small_button(EDIT_PLACEMENT).clicked()
+            })
+            .inner;
+    }
     if let Some(to) = lines_under(ui, row, theme) {
         clicks.select = Some(to);
     }
@@ -150,15 +158,16 @@ pub(crate) fn feature_row_ui(
 }
 
 /// **A placement's constraints, drawn as its children**: one line per
-/// constraint, one step in, each with the button that removes it. The
-/// constraint whose button was clicked.
+/// constraint, one step in, a mate's with the button that opens the
+/// placement editor with it struck out — a value's freedom is always
+/// set, so a value row has none. The mate whose button was clicked.
 fn constraint_lines(ui: &mut egui::Ui, row: &TreeRow) -> Option<MateRef> {
     let mut clicked = None;
     for child in &row.constraints {
         ui.horizontal(|ui| {
             ui.add_space(INDENT_STEP);
             ui.label(&child.said);
-            if ui.small_button(REMOVE_CONSTRAINT).clicked() {
+            if child.is_mate && ui.small_button(REMOVE_CONSTRAINT).clicked() {
                 clicked = Some(child.mate);
             }
         });
@@ -168,6 +177,9 @@ fn constraint_lines(ui: &mut egui::Ui, row: &TreeRow) -> Option<MateRef> {
 
 /// The label on a constraint child's remove button.
 pub(crate) const REMOVE_CONSTRAINT: &str = "remove";
+
+/// The label on a placement row's button that opens its editor.
+pub(crate) const EDIT_PLACEMENT: &str = "edit placement";
 
 /// **The accept a pin-mismatched instance row offers, drawn** under
 /// its failure: the question, and the button that is the edit the
@@ -196,6 +208,9 @@ pub(crate) struct RowClicks {
     /// The constraint whose remove button was clicked, among the row's
     /// [`TreeRow::constraints`].
     pub(crate) remove: Option<MateRef>,
+    /// Whether the placement's `edit` button was clicked: the placement
+    /// editor's Edit door on the row's node.
+    pub(crate) edit: bool,
 }
 
 /// **The lines under a row that a failure writes, drawn** — and the
@@ -389,8 +404,21 @@ impl ViewerBehavior<'_> {
         if let Some(accept) = clicks.accept {
             self.ops.push(accept);
         }
+        if clicks.edit {
+            match crate::matetool::MateTool::edit(self.session.committed_doc(), row.id) {
+                Ok(tool) => self.tools.open_mate(tool),
+                Err(error) => self.notices.push(frame::tool_news(
+                    &crate::tools::ToolKind::Mate.refuses(&error),
+                )),
+            }
+        }
         if let Some(mate) = clicks.remove {
-            self.ops.push(SessionOp::RemoveConstraint { mate });
+            match crate::matetool::MateTool::edit_striking(self.session.committed_doc(), mate) {
+                Ok(tool) => self.tools.open_mate(tool),
+                Err(error) => self.notices.push(frame::tool_news(
+                    &crate::tools::ToolKind::Mate.refuses(&error),
+                )),
+            }
         }
     }
 }
@@ -1122,10 +1150,12 @@ mod tests {
                 tree::ConstraintRow {
                     mate: constraint(8),
                     said: "constraint 1: mate".to_owned(),
+                    is_mate: true,
                 },
                 tree::ConstraintRow {
                     mate: constraint(9),
                     said: "constraint 2: mate".to_owned(),
+                    is_mate: true,
                 },
             ],
             ..placer_refused_row(None)
@@ -1690,6 +1720,7 @@ mod tests {
                 ConstraintId(MintId::new(0, test_utils::refusal::tagged(n))),
             ),
             said: said.to_owned(),
+            is_mate: said.ends_with(": mate"),
         };
         let repair = spoken(
             RecipeNodeId::new(0, test_utils::refusal::tagged(3)),

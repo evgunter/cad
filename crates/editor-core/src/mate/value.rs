@@ -153,36 +153,8 @@ impl<T: SolveScalar> Chart<T> {
         arm: Arm,
         band: Band,
     ) -> Result<Option<Self>, NodeErrorKind> {
-        let (d, copy_d, seat) = match (on, to) {
-            (
-                PoseValue::Plane {
-                    normal: o,
-                    offset: c_on,
-                },
-                PoseValue::Plane {
-                    normal: t,
-                    offset: c_to,
-                },
-            ) => (*t, *o, Seat::Depth(*c_to - *c_on)),
-            (PoseValue::Direction { dir: o }, PoseValue::Direction { dir: t }) => {
-                (*t, *o, Seat::Free)
-            }
-            (PoseValue::Axis(copy), PoseValue::Axis(target)) => (
-                target.dir(),
-                copy.dir(),
-                Seat::Line {
-                    foot: target.foot(),
-                    copy_foot: copy.foot(),
-                },
-            ),
-            _ => return Ok(None),
-        };
-        let unit = |v: Vec3<T>| {
-            UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).map_err(|_| {
-                NodeErrorKind::PoseDegenerate {
-                    construction: crate::pose::PoseConstruction::Chart,
-                }
-            })
+        let Some((d, copy_d, seat)) = Self::sides(on, to) else {
+            return Ok(None);
         };
         let n = orient.apply(copy_d.get());
         let dv = d.get();
@@ -208,6 +180,61 @@ impl<T: SolveScalar> Chart<T> {
         if sign == Sign::Zero {
             return Err(backwards());
         }
+        Self::charted(d, copy_d, seat, to_flipped, orient, arm, band).map(Some)
+    }
+
+    /// **What a mate fixing a direction reads of its two poses**: the
+    /// mated direction (the target's), the copy's, and what it seats of
+    /// the copy's translation. `None` for a point or a frame mate.
+    fn sides(on: &PoseValue<T>, to: &PoseValue<T>) -> Option<(UnitVec3<T>, UnitVec3<T>, Seat<T>)> {
+        Some(match (on, to) {
+            (
+                PoseValue::Plane {
+                    normal: o,
+                    offset: c_on,
+                },
+                PoseValue::Plane {
+                    normal: t,
+                    offset: c_to,
+                },
+            ) => (*t, *o, Seat::Depth(*c_to - *c_on)),
+            (PoseValue::Direction { dir: o }, PoseValue::Direction { dir: t }) => {
+                (*t, *o, Seat::Free)
+            }
+            (PoseValue::Axis(copy), PoseValue::Axis(target)) => (
+                target.dir(),
+                copy.dir(),
+                Seat::Line {
+                    foot: target.foot(),
+                    copy_foot: copy.foot(),
+                },
+            ),
+            _ => return None,
+        })
+    }
+
+    /// **The chart of the two directions**, once the pole's verdict is
+    /// taken: its caller has decided `orient` does not put the copy's
+    /// mated direction against `d`.
+    fn charted(
+        d: UnitVec3<T>,
+        copy_d: UnitVec3<T>,
+        seat: Seat<T>,
+        to_flipped: bool,
+        orient: Orientation,
+        arm: Arm,
+        band: Band,
+    ) -> Result<Self, NodeErrorKind> {
+        let unit = |v: Vec3<T>| {
+            UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).map_err(|_| {
+                NodeErrorKind::PoseDegenerate {
+                    construction: crate::pose::PoseConstruction::Chart,
+                }
+            })
+        };
+        let n = orient.apply(copy_d.get());
+        let dv = d.get();
+        let least = super::turn::LeastTurn::between(n, dv);
         let axes = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
         // Where `n` is `d` exactly the least turn is the identity, and the
         // carried axes are the target's own, exactly, at every scalar.
@@ -232,7 +259,7 @@ impl<T: SolveScalar> Chart<T> {
             Some(_) => super::turn::across(n),
             None => unit(super::turn::across(n))?.get(),
         };
-        Ok(Some(Self {
+        Ok(Self {
             d,
             about: if to_flipped { -d } else { d },
             carried,
@@ -243,7 +270,7 @@ impl<T: SolveScalar> Chart<T> {
             seat,
             arm,
             band,
-        }))
+        })
     }
 
     /// A point of the mate's own line, for an axis mate: the line its
@@ -364,8 +391,6 @@ impl<T: SolveScalar> Chart<T> {
 /// reads the opposite sense ([`flipped`]) and its orientation.
 #[derive(Debug, Clone, Copy)]
 pub struct Charted<'a> {
-    /// The mate, named in a refusal.
-    pub mate: MateRef,
     /// The copy's pose, in its own coordinates.
     pub on: &'a PoseValue<f64>,
     /// The target's pose, in the target space.
@@ -407,19 +432,16 @@ pub fn read_back(
             })
             .collect();
     };
-    let arm = Arm::of(0.0, 0.0).ok();
-    let read = arm.and_then(|arm| {
-        Chart::<f64>::of(
-            charted.mate,
-            charted.on,
-            charted.to,
-            charted.to_flipped,
-            charted.orient,
-            arm,
-            band,
-        )
-        .ok()
-        .flatten()
+    // The read is of a pose the caller stands the copy at, not a
+    // placement's verdict, so only the least turn's own pole refuses:
+    // the placement's evaluation decides the band about it.
+    let read = Chart::<f64>::sides(charted.on, charted.to).and_then(|(d, copy_d, seat)| {
+        let n = charted.orient.apply(copy_d.get());
+        if super::turn::LeastTurn::between(n, d.get()).one_plus_c() <= 0.0 {
+            return None;
+        }
+        let arm = Arm::of(0.0, 0.0).ok()?;
+        Chart::charted(d, copy_d, seat, charted.to_flipped, charted.orient, arm, band).ok()
     });
     coords
         .iter()

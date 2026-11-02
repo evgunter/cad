@@ -178,8 +178,9 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        3,
-        "the move into the shelf's space, the mate, and its values written over the bundle"
+        2,
+        "the move into the shelf's space, and the bundle written whole with the mate and its \
+         values"
     );
     session.pump();
     assert!(!tree::has_faults(&session.tree_rows()));

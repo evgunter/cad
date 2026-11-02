@@ -129,6 +129,9 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
         common::copy_of(session.committed_doc(), rot_shelf)
     );
 
+    // The post's world mate comes off before the editor loads its
+    // bundle.
+    asm::unpin(&mut session, rot_post);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_a_top.clone());
     tool.pick(session.doc(), shelf_bottom.clone());
@@ -151,9 +154,8 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
         "the to side is the shelf's own underside"
     );
 
-    // The edit lands once, into the post's bundle once its world mate
-    // is off, and the document stays green.
-    asm::unpin(&mut session, rot_post);
+    // The edit lands once, into the post's bundle, and the document
+    // stays green.
     common::commit_mate(&mut session, proposal.op_into_target_space());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "after the mate: {row:?}");
@@ -360,8 +362,8 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
     assert_eq!(
         first.committed.len(),
-        3,
-        "the re-target, the mate and its values"
+        2,
+        "the re-target, and the bundle written whole with the mate and its values"
     );
     let [superseded] = &first.withdrawn.superseded[..] else {
         panic!("exactly one frame is superseded at the edit")

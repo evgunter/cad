@@ -1301,8 +1301,8 @@ fn a_mate_that_moves_the_copy_discards_the_probe_value() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        3,
-        "the re-target, the mate and its values: {:?}",
+        2,
+        "the re-target, and the bundle written whole with the mate and its values: {:?}",
         outcome.committed
     );
     let [superseded] = &outcome.withdrawn.superseded[..] else {

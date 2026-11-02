@@ -30,9 +30,10 @@
 //! number read back through the chart that will place it
 //! ([`editor_core::mate::read_back`]). A number the person typed on a
 //! freedom that survives is kept, and so is a value loaded from the
-//! bundle that reads anything but a constant, or that the mate fixing a
-//! direction — the chart it is read on — still reads as loaded. Only a
-//! constant whose chart changed is measured again, so no value reading
+//! bundle that reads a named variable or an expression, or that the mate
+//! fixing a direction — the chart it is read on — still reads as loaded.
+//! Only a constant (a number, or the anonymous variable a typed field
+//! mints) whose chart changed is measured again, so no value reading
 //! `px` is ever re-written as a measured number.
 //!
 //! "A mate in place of a slide or a spin" is [`MateTool::add_mate`]:
@@ -1069,6 +1070,32 @@ fn to_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
     (picked, read)
 }
 
+/// **Whether the value `id` of `placement`'s bundle writes a constant**:
+/// a number, or an anonymous variable holding one ([`Doc::written`]) —
+/// what a typed field mints. A value reading a named variable or an
+/// expression is the person's, and no snap writes over it.
+fn written_constant(
+    doc: &Doc<ProfileProgram>,
+    placement: Option<RecipeNodeId>,
+    id: ConstraintId,
+    coord: Coord,
+) -> bool {
+    let Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) =
+        placement.and_then(|p| doc.node(p))
+    else {
+        return false;
+    };
+    constraints
+        .iter()
+        .find(|c| c.id == id)
+        .and_then(|c| c.value())
+        .is_some_and(|v| {
+            doc.written(&pncad::document::Expr::var(v.by, coord.dimension()))
+                .literal_value()
+                .is_some()
+        })
+}
+
 /// Whether a mate of `kind` fixes one direction — a chart's mate.
 fn fixes_a_direction(kind: VarKind) -> bool {
     matches!(kind, VarKind::Plane | VarKind::Axis | VarKind::Direction)
@@ -1199,6 +1226,16 @@ impl MateTool {
         self.rows()
             .get(self.active())
             .map_or(self.kind, MateRow::kind)
+    }
+
+    /// **The active row's first seats, `on` then `to`** — what the
+    /// viewport marks as held: a frame's axis seats.
+    #[must_use]
+    pub fn active_picks(&self) -> [Option<&HeldPick<MatePick>>; 2] {
+        match self.rows().get(self.active()) {
+            Some(row) => [MateSide::On, MateSide::To].map(|side| row.side(side).first.as_ref()),
+            None => [None, None],
+        }
     }
 
     /// The numbers the person typed.
@@ -1354,6 +1391,15 @@ impl MateTool {
         }
     }
 
+    /// This draft with nothing typed — what its mates alone propose.
+    #[must_use]
+    pub fn untyped(mut self) -> Self {
+        if let Some(draft) = self.draft.as_mut() {
+            draft.typed.clear();
+        }
+        self
+    }
+
     /// **The active row chosen as `choice` says**, and its numbers typed
     /// — the panel's state as one value.
     ///
@@ -1394,7 +1440,7 @@ impl MateTool {
     #[must_use]
     pub fn line(&self, row: usize, by: Speaker<'_>) -> String {
         let Some(mate) = self.rows().get(row) else {
-            return String::new();
+            return crate::seats::picks_line(core::iter::empty::<(String, Option<String>)>());
         };
         let mut roles = Vec::new();
         for side in [MateSide::On, MateSide::To] {
@@ -1427,52 +1473,17 @@ impl MateTool {
         }
     }
 
-    /// **Bring the draft up to the landed pair**: an Edit draft over a
-    /// bundle its placement no longer holds is loaded again (or dropped,
-    /// with its placement), and each held pick whose reference no longer
-    /// resolves empties its seat. Returns the typed events.
+    /// **Bring the draft up to the landed pair**: each held pick whose
+    /// reference no longer resolves empties its seat, and then an Edit
+    /// draft over a bundle its placement no longer holds is loaded again
+    /// (or dropped, with its placement). Returns the typed events, the
+    /// drops first.
     pub fn reconcile(
         &mut self,
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
     ) -> Vec<MateToolEvent> {
         let mut events = Vec::new();
-        if let Some(PlaceDoor::Edit { placement, base }) = self.door() {
-            let placement = *placement;
-            let held = match doc.node(placement) {
-                Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
-                    Some(crate::session::held_bundle(doc, placement))
-                }
-                _ => None,
-            };
-            match held {
-                None => {
-                    let kept = self
-                        .rows()
-                        .iter()
-                        .flat_map(|row| row.on.picks().chain(row.to.picks()))
-                        .map(|pick| pick.said().spoken(placement))
-                        .find(|kept| kept.kind().is_some());
-                    self.draft = None;
-                    events.push(MateToolEvent::PlacementGone {
-                        placement: kept.unwrap_or_else(|| doc.spoken(placement)),
-                    });
-                    return events;
-                }
-                Some(held) if held != *base => {
-                    if let Ok(reloaded) = Self::edit(doc, placement) {
-                        *self = Self {
-                            kind: self.kind,
-                            ..reloaded
-                        };
-                    }
-                    events.push(MateToolEvent::Reloaded {
-                        placement: doc.spoken(placement),
-                    });
-                }
-                Some(_) => {}
-            }
-        }
         let rows = self.draft.iter_mut().flat_map(|d| d.rows.iter_mut());
         for (at, row) in rows.enumerate() {
             let kind = row.kind;
@@ -1513,6 +1524,42 @@ impl MateTool {
                         resolution: Box::new(resolution),
                     });
                 }
+            }
+        }
+        if let Some(PlaceDoor::Edit { placement, base }) = self.door() {
+            let placement = *placement;
+            let held = match doc.node(placement) {
+                Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
+                    Some(crate::session::held_bundle(doc, placement))
+                }
+                _ => None,
+            };
+            match held {
+                None => {
+                    let kept = self
+                        .rows()
+                        .iter()
+                        .flat_map(|row| row.on.picks().chain(row.to.picks()))
+                        .map(|pick| pick.said().spoken(placement))
+                        .find(|kept| kept.kind().is_some());
+                    self.draft = None;
+                    events.push(MateToolEvent::PlacementGone {
+                        placement: kept.unwrap_or_else(|| doc.spoken(placement)),
+                    });
+                    return events;
+                }
+                Some(held) if held != *base => {
+                    if let Ok(reloaded) = Self::edit(doc, placement) {
+                        *self = Self {
+                            kind: self.kind,
+                            ..reloaded
+                        };
+                    }
+                    events.push(MateToolEvent::Reloaded {
+                        placement: doc.spoken(placement),
+                    });
+                }
+                Some(_) => {}
             }
         }
         events
@@ -1686,7 +1733,9 @@ impl MateTool {
                     .find_map(|c| c.value().filter(|v| v.coord == coord).map(|v| (c.id, v)));
                 match loaded {
                     Some((id, v))
-                        if chart_kept || v.by.literal_value().is_none() || measured.is_none() =>
+                        if chart_kept
+                            || measured.is_none()
+                            || !written_constant(doc, placement, id, coord) =>
                     {
                         ValueRow {
                             coord,

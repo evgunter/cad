@@ -314,11 +314,16 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     session.pump();
     let (doc, eval) = session.landed_pair().expect("landed");
     let events = tool.reconcile(doc, eval);
-    assert_eq!(events.len(), 1);
-    assert!(matches!(
-        &events[0],
-        MateToolEvent::PlacementGone { placement } if placement.id() == bench.post_b
-    ));
+    assert!(
+        matches!(
+            &events[..],
+            [
+                MateToolEvent::PickLost { side: MateSide::On, .. },
+                MateToolEvent::PlacementGone { placement },
+            ] if placement.id() == bench.post_b
+        ),
+        "the on pick's drop, then the door's: {events:?}"
+    );
     assert!(tool.door().is_none());
 }
 
@@ -426,6 +431,8 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
         "the ray met copy 1's placement"
     );
     let shelf_bottom = asm::shelf_underside(&session);
+    // The shelf's own pin comes off before the editor loads its bundle.
+    asm::unpin(&mut session, bench.shelf_i);
     let proposal = shelf_on(&session, &shelf_bottom, &copy_one);
     assert_eq!(
         proposal.placement,
@@ -448,7 +455,6 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     // the shelf on copy 1, and the two picked faces rest in the world
     // the evaluation draws. A tool that read the master's face would
     // land the shelf one step away from copy 1.
-    asm::unpin(&mut session, bench.shelf_i);
     let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
@@ -686,13 +692,14 @@ fn a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once() {
     );
 
     let shelf_bottom = asm::shelf_underside(&session);
+    // The shelf's own pin comes off before the editor loads its bundle.
+    asm::unpin(&mut session, bench.shelf_i);
     let spun = shelf_on(&session, &shelf_bottom, &copy_one);
 
     // And it SOLVES: the shelf's underside rests on the spun copy's cap
     // in the world the evaluation draws, which is the pattern's
     // rotation being applied exactly once. The shelf's world mate comes
     // off, so the mate places the shelf against the spun copy.
-    asm::unpin(&mut session, bench.shelf_i);
     let mate = common::commit_mate(&mut session, spun.op_into_target_space());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
@@ -860,6 +867,8 @@ fn a_nested_copy_pick_is_a_target_and_seats() {
         "the ray met the outer family's member 1, placed"
     );
     let shelf_bottom = asm::shelf_underside(&session);
+    // The shelf's own pin comes off before the editor loads its bundle.
+    asm::unpin(&mut session, shelf);
     let proposal = shelf_on(&session, &shelf_bottom, &nested);
 
     // The target wears one `Member` per level, outermost first, and is
@@ -884,7 +893,6 @@ fn a_nested_copy_pick_is_a_target_and_seats() {
 
     // The shelf's world mate off, so the mate places the shelf against
     // the nested copy.
-    asm::unpin(&mut session, shelf);
     let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
     assert_eq!(mate.placement, shelf);
     let (doc, _) = session.landed_pair().expect("landed");
@@ -925,6 +933,8 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
         "the ray met the read's copy"
     );
     let shelf_bottom = asm::shelf_underside(&session);
+    // The shelf's own pin comes off before the editor loads its bundle.
+    asm::unpin(&mut session, shelf);
     let proposal = shelf_on(&session, &shelf_bottom, &picked);
 
     // Read at the read's copy, under the FAMILY's own name: the read
@@ -940,7 +950,6 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
 
     // The shelf's world mate off, so the mate places the shelf against
     // the read's copy.
-    asm::unpin(&mut session, shelf);
     let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
     assert_eq!(mate.placement, shelf);
     let (doc, _) = session.landed_pair().expect("landed");
