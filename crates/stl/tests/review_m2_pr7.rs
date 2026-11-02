@@ -658,7 +658,8 @@ fn review_shapes_mesh_volume_within_3_delta_area() {
                 Tol::witness(),
             )
             .unwrap()
-            .body,
+            .body
+            .into_body(),
         ),
         (
             "cup",
@@ -676,7 +677,8 @@ fn review_shapes_mesh_volume_within_3_delta_area() {
                 Tol::witness(),
             )
             .unwrap()
-            .body,
+            .body
+            .into_body(),
         ),
         (
             "quarter_donut",
@@ -690,7 +692,8 @@ fn review_shapes_mesh_volume_within_3_delta_area() {
                 Tol::witness(),
             )
             .unwrap()
-            .body,
+            .body
+            .into_body(),
         ),
     ];
     for (name, body) in &shapes {

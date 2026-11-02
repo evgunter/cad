@@ -131,8 +131,7 @@ fn p3b_a_band_scale_major_radius_through_the_revolve_door() {
         // a body thin in two directions belongs to,
         // `work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`):
         // every pose validates at rest.
-        let operand = topo::finish(rev.body.clone().into_body(), tol())
-            .unwrap_or_else(|e| panic!("R = {major:e}: the torus validates at rest, got {e:?}"));
+        let operand = rev.body.clone();
         match topo::shell(&operand, minor * 0.1, tol()) {
             Ok(out) => {
                 let props = topo::mass_properties(

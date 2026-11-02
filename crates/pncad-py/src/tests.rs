@@ -3434,10 +3434,6 @@ fn check_registry_tags_are_stable() {
         "unsupported"
     );
     assert_eq!(shell_classify_error_tag(&refused), "zero_volume");
-    assert_eq!(
-        check_evidence_tag(&CheckEvidence::NotAtRest { errors: Vec::new() }),
-        "not_at_rest"
-    );
 }
 
 /// **Every constructible `CheckEvidence` arm's payload, built and
@@ -3507,22 +3503,6 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     assert_eq!(
         check_payload(&E::Escalated { source: refused }).inner_variant,
         Some("zero_volume")
-    );
-    // The body tier 3 refused: the first finding's sentence and its own
-    // word, as the shell door's refusal crosses.
-    let not_at_rest = E::NotAtRest {
-        errors: vec![pncad::topo::ValidationError::NegativeVolume {
-            solid: pncad::topo::SolidKey::default(),
-        }],
-    };
-    carries(&not_at_rest, &["reason", "inner_variant"]);
-    assert_eq!(
-        check_payload(&not_at_rest).inner_variant,
-        Some(crate::tags::validation_error_tag(
-            &pncad::topo::ValidationError::NegativeVolume {
-                solid: pncad::topo::SolidKey::default(),
-            }
-        ))
     );
     // An unproven coincidence: its two words and the residual's
     // sentence; the cells cross on the Python value, not the payload.
@@ -4411,18 +4391,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "escalated",
             "face_clearance",
             "face_clearance_uncertified",
-            "inside_out_operand",
             "nonpositive_size",
+            "not_finished",
             "op",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
-            "scaffolding_operand",
             "spine_irregular",
             "spine_unsupported",
             "surgery_invariant",
             "tangential_edge",
-            "unjoined_operand",
             "unsupported_chain",
             "unsupported_corner",
             "unsupported_geometry",
@@ -4512,7 +4490,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tangent_crescent_unsupported",
             "torn_component",
             "underflowed_sector_chord",
-            "unjoined_operand",
             "unrepresentable_result",
             "vertex_near_cone_axis",
             "vertex_pair_at_cone_apex",
@@ -4563,7 +4540,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "connectedness",
             "escalated",
             "interference",
-            "not_at_rest",
             "stale_expectation",
             "unproven_coincidence",
             "unsupported",
@@ -4852,7 +4828,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "export_error_tag",
         values: &[
-            "body_invalid",
             "compose_refused",
             "empty_boolean",
             "node_failed",
@@ -4891,6 +4866,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_extrusion",
             "extrusion_escalated",
             "negative_depth",
+            "not_finished",
             "oblique_extrusion",
             "op",
             "pcurve",
@@ -5042,6 +5018,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "euler",
             "far_section_not_forward",
             "far_stacking_escalated",
+            "not_finished",
             "pcurve",
             "pinned_corner",
             "pinned_corner_unsupported",
@@ -5228,6 +5205,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "naming",
             "no_such_piece",
             "non_finite_direction",
+            "not_finished",
             "param_box",
             "part_depth_exceeded",
             "part_no_resolver",
@@ -5258,7 +5236,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "transform",
             "tube",
             "underflowed_direction",
-            "not_finished",
             "union_fold_step",
             "unresolved_read",
             "unschedulable_cycle",
@@ -5481,7 +5458,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "evaluation_of_another_document",
             "frame_refused",
             "graft_refused",
-            "piece_invalid",
             "product_invalid",
             "product_outside_world",
             "read_failed",
@@ -5621,6 +5597,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "hole_touches_axis",
             "non_finite_axis",
             "non_manifold_axis_contact",
+            "not_finished",
             "op",
             "pcurve",
             "pinned_run_station",
@@ -6366,9 +6343,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact (D10 `[repetition]`) at the edit and evaluate doors: two
     // indices one reader reads, neither within the other.
     ("indices_unrelated", 2),
-    // One fact for the boolean and the blends: the operand gate
-    // (`topo::Unfinished::InsideOut`) found material wound negative.
-    ("inside_out_operand", 2),
     ("io", 2),
     // Three: the join every finisher ends with refused, at a door that
     // tags it by its stage (the boolean's, the split's, the import's).
@@ -6395,6 +6369,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("non_finite", 5),
     ("non_finite_direction", 2),
     ("not_a_body", 2),
+    // One fact (`topo::NotFinished`) at every door that finishes its own
+    // result: an operation's node, and the extrude, revolve, loft and
+    // blend doors, each refusing a result whose finish found findings.
+    ("not_finished", 5),
     ("null_scaffold_edge", 3),
     // A coincidence: a coincidence record's relation of a point lying
     // on a carrier, and a sketch piece lying on the carrier it would
@@ -6441,8 +6419,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("repeated", 2),
     ("revolve", 2),
     ("ring_on_curved_face", 2),
-    // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
-    ("scaffolding_operand", 2),
     // One fact at the edit and load doors: a selection not in its
     // kind's stored form.
     ("selection_shape", 2),
@@ -6482,10 +6458,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // rigidity margin the decided door left undecided.
     ("undecided", 3),
     ("underflowed_direction", 2),
-    // One fact for the boolean and the blends: the operand gate
-    // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11
-    // refuses.
-    ("unjoined_operand", 2),
     ("unknown_node", 6),
     ("unknown_param", 3),
     // One fact three times: a reference to something no mint holds —

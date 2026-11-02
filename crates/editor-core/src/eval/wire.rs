@@ -684,7 +684,7 @@ fn body_reach<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
 ///
 /// [`NodeErrorKind::Mate`] with the bundle's fault.
 #[allow(clippy::too_many_arguments)]
-fn fold_with<T: topo::AtRestPolicy>(
+fn fold_with<T>(
     doc: &crate::doc::Doc<ProfileProgram>,
     on_results: &Results<T>,
     to_results: &Results<T>,
@@ -695,7 +695,7 @@ fn fold_with<T: topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Option<RigidMotion<T>>, NodeErrorKind>
 where
-    T: crate::mate::SolveScalar,
+    T: topo::AtRestPolicy + crate::mate::SolveScalar,
 {
     use crate::mate::{MateFault, MateRef, MateSide};
     let fault = |f: MateFault| NodeErrorKind::Mate(Box::new(f));
@@ -2569,7 +2569,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         &naming,
         target,
         &target_table,
-        &body,
+        body,
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;

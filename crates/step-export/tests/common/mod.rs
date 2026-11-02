@@ -66,8 +66,8 @@ pub fn kiss_assembly() -> Body<f64> {
 /// A∖B with B strictly inside A: `[0,3]³` minus `[1,2]³` — the Voided
 /// boolean result (outer shell + reverted void shell; cavity volume 1).
 pub fn voided() -> Body<f64> {
-    let a = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
-    let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
+    let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
+    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let a = finished("the outer brick", a, Tol::witness());
     let b = finished("the inner brick", b, Tol::witness());
     let BooleanResult::Body(result) = subtract(&a, &b, Tol::witness()).unwrap() else {
@@ -111,6 +111,7 @@ pub fn ball() -> Body<f64> {
     revolve(&profile, revolve_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// A revolved cone: the right triangle (base radius 1, height 1)
@@ -130,6 +131,7 @@ pub fn cone() -> Body<f64> {
     revolve(&profile, revolve_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// A revolved donut: the radius-½ circle centred at (2, 0) swept
@@ -148,6 +150,7 @@ pub fn donut() -> Body<f64> {
     revolve(&profile, revolve_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// The globe lily's **lantern** (the M6 globe-lily demo unit's flower,
@@ -215,6 +218,7 @@ pub fn lily_lantern() -> Body<f64> {
     revolve(&profile, revolve_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// A revolved washer: the rectangle `[1,2]×[0,1]` swept fully — genus 1,
@@ -235,6 +239,7 @@ pub fn washer() -> Body<f64> {
     revolve(&profile, revolve_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// M5 shape (i), the above half: a unit cylinder of height 2.5 split
@@ -352,6 +357,7 @@ pub fn notched() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// S12's two-stub complement: a radius-0.35 cylindrical boss spanning
@@ -557,6 +563,7 @@ pub fn filleted_die() -> Body<f64> {
     )
     .expect("the die blank")
     .body
+    .into_body()
 }
 
 /// The M5 PR 12 pipped die: a SHARP unit cube with 21 spherical
@@ -604,6 +611,7 @@ pub fn die_pips() -> Body<f64> {
         )
         .unwrap()
         .body
+        .into_body()
     };
     // The same ball, rotated so its pole lies along `pole`, then moved
     // to `c`.
@@ -704,7 +712,7 @@ pub fn die_pips() -> Body<f64> {
         .clone();
     }
     assert_eq!(tool.shells().count(), 21, "21 disjoint sphere shells");
-    let cube = brick((0.0, L), (0.0, L), (0.0, L), Tol::witness());
+    let cube = brick::<f64>((0.0, L), (0.0, L), (0.0, L), Tol::witness());
     let cube = finished("the die cube", cube, Tol::witness());
     boolean_op_with(
         BooleanOp::Subtract,
@@ -801,6 +809,7 @@ pub fn composed_die() -> Body<f64> {
     )
     .expect("the rims blend to torus bands")
     .body
+    .into_body()
 }
 
 /// The M6-3 loft: R5 shape (iii)'s three-section polyline loft —
@@ -865,6 +874,7 @@ pub fn nonuniform_loft() -> Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the non-uniform loft builds")
         .body
+        .into_body()
 }
 
 /// The middle section's v-parameter, `(√73 / (√73 + √265) + 1/3) / 2`

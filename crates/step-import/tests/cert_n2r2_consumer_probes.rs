@@ -35,6 +35,7 @@ fn loft() -> Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
+        .into_body()
 }
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {

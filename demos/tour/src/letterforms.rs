@@ -52,6 +52,7 @@ fn letter<S: Scalar>(
     )
     .expect("extrude letterform")
     .body
+    .into_body()
 }
 
 /// "H", (x, y) on the xy plane at z = 0: legs 1/2 wide, bar

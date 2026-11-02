@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use geom_core::Tol;
 use step_export::{StepOptions, step_string};
 use step_import::{ImportOptions, StepImport, import_step};
-use topo::{AtRestBody, Body, FaceKey, ShellError};
+use topo::{Body, FaceKey, ShellError};
 
 /// The Z-step profile, counterclockwise: `[0,2]×[−1,0] ∪ [1,3]×[0,1]`.
 const Z_STEP: [(f64, f64); 8] = [

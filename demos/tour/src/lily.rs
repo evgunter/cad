@@ -290,7 +290,7 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64, tol: Tol) -> (Body<S>, WedgeFra
     // Before this door the only way to see them was to scan every face
     // of the finished body for planar carriers.
     let caps = revolved_caps(&revolved).expect("a windowed tube has caps");
-    (revolved.body, caps)
+    (revolved.body.into_body(), caps)
 }
 
 /// A **lantern**: the closed globular flower. A full revolve whose
@@ -439,7 +439,7 @@ fn lantern<S: Scalar>(
     // The globe centre's depth along the flower axis: the neck, then
     // the globe's own truncation height.
     let centre = neck_drop(globe, top, neck.0, neck.1) + top;
-    roll_the_mouth(sharp, attach, dir, centre, mouth_roll, tol)
+    roll_the_mouth(sharp.into_body(), attach, dir, centre, mouth_roll, tol)
 }
 
 /// The lantern with its **mouth rolled**: `fillet_edges` along the
@@ -504,6 +504,7 @@ fn roll_the_mouth<S: Scalar>(
     )
     .unwrap_or_else(|e| panic!("the lantern's mouth rolls at r = {roll}: {:?}", e.error))
     .body
+    .into_body()
 }
 
 /// The **corm**: the swollen underground stem-base a *Calochortus*
@@ -567,6 +568,7 @@ fn corm<S: Scalar>(
     )
     .expect("corm revolves")
     .body
+    .into_body()
 }
 
 /// The stem's **foot**: the straight basal internode, a plain circular
@@ -591,6 +593,7 @@ fn foot<S: Scalar>(z0: f64, z1: f64, r: f64, tol: Tol) -> Body<S> {
     )
     .expect("the foot extrudes")
     .body
+    .into_body()
 }
 
 /// The corm's dimensions and the socket the stem stands in. The
@@ -786,6 +789,7 @@ fn bud<S: Scalar>(
         )
         .expect("bud segment revolves")
         .body
+        .into_body()
     })
 }
 
@@ -1040,6 +1044,7 @@ fn leaf<S: Scalar>(
     sweep_body::<S>(&outline, place, &path, LEAF_STATIONS, BLADE_V_DEGREE, tol)
         .expect("the leaf sweeps along its spine")
         .body
+        .into_body()
 }
 
 // ---------------------------------------------------------------
@@ -1129,9 +1134,10 @@ pub fn lofted_blade<S: Scalar>(
     stations: usize,
     tol: Tol,
 ) -> Body<S> {
-    try_lofted_blade(base, dir, up, len, curl, plan, stations, tol)
+    try_lofted_blade::<S>(base, dir, up, len, curl, plan, stations, tol)
         .expect("the lofted blade skins its own sections")
         .body
+        .into_body()
 }
 
 /// [`lofted_blade`] with the refusal surfaced instead of expected, so
@@ -1280,6 +1286,7 @@ pub fn leaf_a<S: Scalar>(plan: Plan, tol: Tol) -> Body<S> {
     loft_body::<S>(&sections, &places, BLADE_V_DEGREE, tol)
         .expect("the long leaf skins its sheath and blade as one loft")
         .body
+        .into_body()
 }
 
 /// The three **sepals**, the feature that reads as *pulchellus*
@@ -2100,6 +2107,7 @@ pub fn ball<S: Scalar>(c: Point3<f64>, r: f64, tol: Tol) -> Body<S> {
     )
     .expect("probe ball revolves")
     .body
+    .into_body()
 }
 
 /// Prints one probe line, asserting that the wall is still standing —

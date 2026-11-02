@@ -128,7 +128,7 @@ fn measured_f64(doc: &ProfileDoc, ev: &Evaluation<f64>, var: VarId) -> f64 {
     }
 }
 
-fn key(ev: &Evaluation<impl geom_core::Decide + topo::AtRestPolicy>, id: RecipeNodeId) -> u128 {
+fn key(ev: &Evaluation<impl topo::AtRestPolicy>, id: RecipeNodeId) -> u128 {
     ev.value(id).expect("evaluated Ok").content_key.0
 }
 

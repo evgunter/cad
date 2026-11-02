@@ -7707,7 +7707,7 @@ where
     /// Tier 2 alone: a dual certifies nothing (DL1), so its finished
     /// body is a replay's, carrying no verdict.
     fn finish(body: Body<Self>, _tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
-        crate::Replay::replay(body)
+        crate::Replay::of(body)
     }
 
     fn census_at_rest(

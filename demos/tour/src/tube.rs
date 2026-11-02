@@ -143,6 +143,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             azim: 72.0,
             up: 'z',
         },
-        bodies: vec![SceneBody::plain("tube_along_arc", [0.80, 0.68, 0.32], tube)],
+        bodies: vec![SceneBody::plain(
+            "tube_along_arc",
+            [0.80, 0.68, 0.32],
+            tube.into_body(),
+        )],
     }]
 }

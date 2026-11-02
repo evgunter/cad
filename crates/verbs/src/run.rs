@@ -65,6 +65,9 @@ pub struct VerbOut<T: topo::AtRestPolicy> {
 /// bundle — so splitting the body out would either restate the bundle
 /// field by field (the thing this channel exists not to do) or hand
 /// the consumer a record its own emitter cannot be called with.
+// Size skew is inherent: the sweep bundles carry their finished body,
+// and a record is moved once per verb.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum VerbRecord<T: topo::AtRestPolicy> {
     /// A blend door's per-entity birth records. The `Option` is the op

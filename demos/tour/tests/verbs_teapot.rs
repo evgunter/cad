@@ -101,7 +101,6 @@ use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::ExtrudeSide;
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use pncad::topo::AtRestBody;
 use pncad::topo::Body;
 
 /// Every fixture's mouth plane.
@@ -119,6 +118,7 @@ fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
     )
     .expect("the meridian fully revolves")
     .body
+    .into_body()
 }
 
 fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
@@ -132,6 +132,7 @@ fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     )
     .expect("the footprint extrudes")
     .body
+    .into_body()
 }
 
 /// A cylinder of radius `r` between two caps normal to its axis.
@@ -286,6 +287,7 @@ fn wedge(tol: Tol) -> Body<f64> {
     )
     .expect("a quarter turn")
     .body
+    .into_body()
 }
 
 /// A cylinder capped by a hemisphere of its own radius: the one
@@ -448,7 +450,7 @@ fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
         ("the lifted dome", lifted_dome(tol)),
     ] {
         pncad::topo::shell(
-            &topo::finish(body, tol).expect("a finished operand"),
+            &pncad::topo::finish(body, tol).expect("a finished operand"),
             1.0 / 128.0,
             tol,
         )
@@ -534,7 +536,7 @@ fn the_hollow_now_survives_every_axial_junction() {
         ("a hemisphere TANGENT to its cylinder", bullet(tol), t),
     ] {
         pncad::topo::shell(
-            &topo::finish(body.clone(), tol).expect("a finished operand"),
+            &pncad::topo::finish(body.clone(), tol).expect("a finished operand"),
             thickness,
             tol,
         )
@@ -561,7 +563,7 @@ fn the_opened_rim_is_right_on_a_box() {
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
     let cup = pncad::topo::shell_open(
-        &topo::finish(body.clone(), tol).expect("a finished operand"),
+        &pncad::topo::finish(body.clone(), tol).expect("a finished operand"),
         0.02,
         &top,
         tol,
@@ -647,7 +649,7 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
             "{what}: a full revolve sweeps its planar cap whole"
         );
         let cup = pncad::topo::shell_open(
-            &topo::finish(body.clone(), tol).expect("a finished operand"),
+            &pncad::topo::finish(body.clone(), tol).expect("a finished operand"),
             t,
             &chart,
             tol,
@@ -771,7 +773,7 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
          which is the whole point of the row"
     );
     let cup = pncad::topo::shell_open(
-        &topo::finish(body.clone(), tol).expect("a finished operand"),
+        &pncad::topo::finish(body.clone(), tol).expect("a finished operand"),
         t,
         &chart,
         tol,

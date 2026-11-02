@@ -613,6 +613,12 @@ pub(crate) struct Body {
 }
 
 impl Body {
+    /// **A finished body as the host holds it**: the bindings' handle
+    /// is construction state, so a finished body crosses as its body.
+    pub(crate) fn host(body: Arc<topo::AtRestBody<f64>>) -> Arc<topo::Body<f64>> {
+        Arc::new(Arc::unwrap_or_clone(body).into_body())
+    }
+
     /// A body with no contact records — every door but those that have
     /// records to carry (an evaluated value, an import).
     pub(crate) fn plain(inner: Arc<topo::Body<f64>>) -> Self {
@@ -1106,6 +1112,7 @@ impl Value {
     /// keeping every key.
     fn recorded_body(&self, py: Python<'_>, body: &d::Framed<f64>) -> PyResult<Body> {
         let body = pncad::export::body_in_space(body, Tol::witness())
+            .map(Body::host)
             .map_err(|err| compose_err(py, self.node, &err))?;
         Ok(match &self.payload {
             d::ValuePayload::Body(_) | d::ValuePayload::Boolean(d::BooleanValue::Body { .. }) => {
@@ -1185,7 +1192,7 @@ impl Value {
     fn split(&self, py: Python<'_>) -> PyResult<(Option<Body>, Option<Body>)> {
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => pncad::export::body_in_space(body, Tol::witness())
-                .map(|body| Some(Body::plain(body)))
+                .map(|body| Some(Body::plain(Body::host(body))))
                 .map_err(|err| compose_err(py, self.node, &err)),
             d::SplitSide::Empty => Ok(None),
         };
@@ -1914,9 +1921,10 @@ impl Evaluation {
     /// for "which body does this node denote", shared with Rust).
     ///
     /// Accepts a `body` or non-empty `boolean` value; everything else
-    /// raises a typed `ExportError`. The body is gated at rest first,
-    /// so one the gate refuses raises `ExportError` tagged
-    /// `body_invalid` rather than reaching the writer.
+    /// raises a typed `ExportError`. The body is finished already (a
+    /// value holds a finished body), so the door gates nothing of its
+    /// own; one whose frame cannot be composed into its space raises
+    /// `ExportError` tagged `compose_refused`.
     ///
     /// Every `StepOptions` field is a keyword here, and each defaults
     /// to `None` meaning the Rust default — so the door narrows
@@ -1974,7 +1982,11 @@ impl Evaluation {
 /// whose body the kernel would not compose into its space
 /// ([`pncad::export::body_in_space`]): the same arm `export_step` raises
 /// for the same refusal, `node` the value's.
-pub(crate) fn compose_err(py: Python<'_>, node: NodeId, err: &topo::TransformError) -> PyErr {
+pub(crate) fn compose_err(
+    py: Python<'_>,
+    node: NodeId,
+    err: &pncad::export::ComposeError,
+) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         Err(failed) => return failed,
@@ -2035,11 +2047,7 @@ fn export_err(
         // the world's placements, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
-        E::EmptyBoolean { .. }
-        | E::BodyInvalid { .. }
-        | E::Compose(_)
-        | E::Step(_)
-        | E::Product(_) => {}
+        E::EmptyBoolean { .. } | E::Compose(_) | E::Step(_) | E::Product(_) => {}
     }
     typed_err(py, ErrorClass::Export, err.spoken(doc), &fields)
 }

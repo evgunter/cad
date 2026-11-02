@@ -385,7 +385,7 @@ pub use editor_core::ContentBits;
 // copies whose pair the census decided.
 pub use editor_core::{
     AssembleGather, AtRestRow, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
-    SourceFinding, assemble_gathers, product, product_recorded,
+    assemble_gathers, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:

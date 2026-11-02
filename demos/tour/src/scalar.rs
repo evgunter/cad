@@ -121,13 +121,15 @@ pub fn split_plane<S: Scalar>(
 
 /// A scalar the tour can build scenes at: kernel-decidable, certifying
 /// (every scene is measured through the certified doors, so the bound
-/// is the quadrature's own), document-evaluable (the heat-sink recipe),
-/// and exactly f64-extractable for narration.
+/// is the quadrature's own, and its finished body is an
+/// [`pncad::topo::AtRestBody`] carrying the tier-3 verdict),
+/// document-evaluable (the heat-sink recipe), and exactly
+/// f64-extractable for narration.
 pub trait Scalar:
     Decide
     + pncad::geom_core::CertifiedBounds
     + ContentBits
-    + pncad::topo::AtRestPolicy
+    + pncad::topo::AtRestPolicy<Finished = pncad::topo::AtRestBody<Self>>
     + Send
     + Sync
     + Copy

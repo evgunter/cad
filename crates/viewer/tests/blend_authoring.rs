@@ -440,7 +440,7 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
         session.committed_doc().node(fillet),
         Some(Node::Fillet { selection, .. })
             if session.committed_doc().output(first, 0)
-                == session.committed_doc().selection(*selection).map(|s| s.body.into_body())
+                == session.committed_doc().selection(*selection).map(|s| s.body)
     ));
 }
 

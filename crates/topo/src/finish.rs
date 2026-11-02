@@ -65,7 +65,7 @@ impl<T: Real> Replay<T> {
     /// # Errors
     ///
     /// Tier 2's findings.
-    pub(crate) fn replay(body: Body<T>) -> Result<Self, NotFinished> {
+    pub(crate) fn of(body: Body<T>) -> Result<Self, NotFinished> {
         crate::validate::validate_closed(&body).map_err(NotFinished::new)?;
         Ok(Self { body })
     }

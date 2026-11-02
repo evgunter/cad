@@ -29,7 +29,10 @@ fn rev(outline: &[(f64, f64)]) -> Body<f64> {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, Revolution::Full, tol()).unwrap().body
+    revolve(&vp, axis, Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
 }
 
 fn census(b: &Body<f64>) -> (i64, i64, i64, i64) {

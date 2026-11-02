@@ -383,7 +383,7 @@ pub fn build<S: Scalar>(tol: Tol) -> (Extruded<S>, Body<S>) {
     )
     .expect("the keyhole's creases round at R_CREASE")
     .body;
-    (plate, rounded)
+    (plate, rounded.into_body())
 }
 
 /// The area one keyhole crease's fillet removes from the plate's

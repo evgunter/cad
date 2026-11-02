@@ -23,12 +23,34 @@ use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, Bo
 use crate::scalar::Scalar;
 use pncad::geom_core::Tol;
 
-/// `body` finished for the boolean doors, through the scalar's at-rest
-/// gate. A tour scene authors its own operands, so one the gate refuses
-/// is a scene or kernel defect, and the panic names `what` and the
-/// validator's findings.
-pub fn finished<S: Scalar>(what: &str, body: Body<S>, tol: Tol) -> AtRestBody<S> {
-    topo::finish(body, tol).unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+/// `body` finished for the boolean doors. A body a door shipped is
+/// finished already and passes as it is; one a scene built in
+/// construction state finishes through the scalar's at-rest gate. A
+/// tour scene authors its own operands, so one the gate refuses is a
+/// scene or kernel defect, and the panic names `what` and the findings.
+pub fn finished<S: Scalar>(what: &str, body: impl Operand<S>, tol: Tol) -> AtRestBody<S> {
+    body.finished(what, tol)
+}
+
+/// A body a scene hands a door that takes finished bodies
+/// ([`finished`]): construction state, which finishes, or a door's
+/// finished result, which is one already.
+pub trait Operand<S: Scalar> {
+    /// The finished body.
+    fn finished(self, what: &str, tol: Tol) -> AtRestBody<S>;
+}
+
+impl<S: Scalar> Operand<S> for Body<S> {
+    fn finished(self, what: &str, tol: Tol) -> AtRestBody<S> {
+        pncad::topo::finish(self, tol)
+            .unwrap_or_else(|e| panic!("{what} is not a finished body: {e}"))
+    }
+}
+
+impl<S: Scalar> Operand<S> for AtRestBody<S> {
+    fn finished(self, _what: &str, _tol: Tol) -> AtRestBody<S> {
+        self
+    }
 }
 
 /// A copy of `body` finished for the measurement doors

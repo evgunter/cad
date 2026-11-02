@@ -3880,7 +3880,7 @@ pub(crate) fn read_at<P>(
 }
 
 /// The all-nodes ToleranceConflict refusal (spec D4 door).
-fn refuse_tolerance_conflict<T: topo::AtRestPolicy>(
+fn refuse_tolerance_conflict<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
@@ -3888,7 +3888,7 @@ fn refuse_tolerance_conflict<T: topo::AtRestPolicy>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let document_eps = doc.epsilon();
     let process_eps = tol.eps();
@@ -3905,7 +3905,7 @@ where
 /// widened axis. Loud on every node rather than narrowed to the
 /// nominals — an `f64` run that silently ignored its box would report
 /// the nominal build's answer for a question about a box.
-fn refuse_param_box<T: topo::AtRestPolicy>(
+fn refuse_param_box<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
@@ -3914,7 +3914,7 @@ fn refuse_param_box<T: topo::AtRestPolicy>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::ParamBox {
@@ -3928,7 +3928,7 @@ where
 /// carries no tangent channel. Loud on every node for the
 /// [`refuse_param_box`] reason — an evaluation that silently dropped
 /// its seed would report a build's answer for a sensitivity question.
-fn refuse_seed<T: topo::AtRestPolicy>(
+fn refuse_seed<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
@@ -3937,7 +3937,7 @@ fn refuse_seed<T: topo::AtRestPolicy>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::Seed {
@@ -3949,7 +3949,7 @@ where
 /// A TOTAL evaluation in which every live node fails typed with the
 /// same document-level cause, and the appearance store resolves against
 /// all-failed states (typed losses, nothing silent).
-fn refuse_every_node<T: topo::AtRestPolicy>(
+fn refuse_every_node<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
@@ -3958,7 +3958,7 @@ fn refuse_every_node<T: topo::AtRestPolicy>(
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let mut order = sched.order;
     order.extend(sched.unschedulable.iter().copied());

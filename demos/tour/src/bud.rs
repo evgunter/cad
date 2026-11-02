@@ -183,6 +183,7 @@ pub fn bud(tol: Tol) -> Body<f64> {
     )
     .expect("the meridian fully revolves")
     .body
+    .into_body()
 }
 
 /// Every edge of `body` whose two incident faces carry the surface
@@ -568,7 +569,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         bodies: vec![SceneBody::plain(
             "budfillet",
             [0.86, 0.78, 0.52],
-            rolled.body,
+            rolled.body.into_body(),
         )],
     }]
 }

@@ -76,6 +76,7 @@ fn revolved(pts: &[(f64, f64)], axis_dir: (f64, f64)) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 #[test]

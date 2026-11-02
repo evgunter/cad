@@ -180,7 +180,9 @@ fn whole_box(doc: &ProfileDoc) -> EvalOptions {
 
 /// Every node that failed or was poisoned, in evaluation order —
 /// the first entry is the wall, and its text names the predicate.
-fn failures<T: pncad::geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
+fn failures<T: pncad::geom_core::Decide + pncad::topo::AtRestPolicy>(
+    ev: &Evaluation<T>,
+) -> Vec<String> {
     ev.order
         .iter()
         .filter_map(|id| match ev.result(*id) {

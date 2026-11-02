@@ -1371,10 +1371,6 @@ BOUND_AS = {
     "ProfilePieces": "Doc.pieces",
     "ProductReadFault": "EditError.inner_variant",
     "Pick": "PickRead",
-    # What a `PieceInvalid` refusal lists, one per failing source body;
-    # the arm crosses as its tag word, its first failing piece as
-    # `node`, and every piece, output and finding in its message.
-    "SourceFinding": "ProductError.node",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
     "ResolveFault": "EvaluationError.kind",
@@ -3565,7 +3561,6 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::Connectedness": "CheckEvidence.variant",
     "CheckEvidence::Escalated": "CheckEvidence.variant",
     "CheckEvidence::Unsupported": "CheckEvidence.variant",
-    "CheckEvidence::NotAtRest": "CheckEvidence.variant",
     "CheckEvidence::StaleExpectation": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherence": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
@@ -3825,7 +3820,6 @@ MEMBERS_BOUND_AS = {
     "ProductError::StrandedProduct": "ProductError.variant",
     "ProductError::ProductOutsideWorld": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
-    "ProductError::PieceInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
     "ProductError::Frame": "ProductError.variant",

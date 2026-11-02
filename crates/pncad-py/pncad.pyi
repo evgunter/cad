@@ -5765,9 +5765,10 @@ class Evaluation:
         reads the run's ambient tolerance, which is the ε the body was
         built under. An explicit one that is not finite and strictly
         positive is an `ExportError`; the rule is the writer's and is
-        quoted from it, not restated. The body is gated at rest first,
-        so one the gate refuses raises `ExportError` tagged
-        `body_invalid` rather than reaching the writer."""
+        quoted from it, not restated. The body is finished already (a
+        value holds a finished body), so the door gates nothing of its
+        own; one whose frame cannot be composed into its space raises
+        `ExportError` tagged `compose_refused`."""
 
 def evaluate(
     doc: Doc,
@@ -6852,10 +6853,6 @@ class CheckEvidence:
     than guessing; `inner_variant` is which of the shell door's nine
     refusals it was (`band`, `props`, `escalated`, `zero_volume`,
     `straddles`, `ray_in_band`, `corner`, `ray`, `sign_unresolved`).
-    `not_at_rest` (`reason`, `inner_variant`) — the body does not pass
-    validation, so its shells are not classified and the count is not
-    read; `reason` and `inner_variant` are the validator's first finding,
-    in `ValidationError`'s vocabulary.
     `stale_expectation` (`expected`) — an
     expectation no subject consumed.
 

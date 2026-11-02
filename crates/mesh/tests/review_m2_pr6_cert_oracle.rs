@@ -169,6 +169,7 @@ fn tall_thin_bar() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Mirror-nappe ring: triangle (1,0)-(2,1)-(1,2) revolved fully —
@@ -188,6 +189,7 @@ fn diamond_ring() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Megaphone: very wide cone (half-angle atan 3 ≈ 71.6°) + top disc.
@@ -205,6 +207,7 @@ fn megaphone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Silo: cylinder wall + quarter-arc dome cap onto the axis pole.
@@ -226,6 +229,7 @@ fn silo() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Many-band dome: three unit-circle arcs pole to pole (stacked
@@ -250,6 +254,7 @@ fn dome() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 // ---- the hunts ------------------------------------------------------

@@ -399,6 +399,7 @@ fn far_cylinder(x0: f64) -> Body<f64> {
     sweep::revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
         .expect("the far cylinder revolves")
         .body
+        .into_body()
 }
 
 /// **The rounding allowance is applied only while it is small, and

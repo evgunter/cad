@@ -22,6 +22,7 @@ fn rev(lp: ProfileLoop<f64>, r: Revolution<f64>) -> Body<f64> {
     revolve(&validated(vec![lp]), axis_y(), r, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 fn washer_profile() -> ProfileLoop<f64> {

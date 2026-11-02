@@ -142,10 +142,10 @@ fn the_shell_verb_refuses_the_crossing_at_its_closing_gate() {
     ];
     for (what, operand, finishes, crosses, rings) in rows {
         let operand = topo::finish(operand, tol).expect("the operand is finished");
-        let shelled = topo::shell(&operand, finishes, tol)
+        // The shell door finishes what it ships, so a wall that shells
+        // is a finished body.
+        topo::shell(&operand, finishes, tol)
             .unwrap_or_else(|e| panic!("{what}: a {finishes} wall shells, got {e}"));
-        topo::finish(shelled.body.into_body(), tol)
-            .unwrap_or_else(|e| panic!("{what}: the {finishes} shell is finished, got {e:?}"));
         match topo::shell(&operand, crosses, tol) {
             Err(ShellError::NotValid { findings: errors }) => rings_outside(what, &errors, rings),
             other => panic!(

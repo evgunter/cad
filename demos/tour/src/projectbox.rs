@@ -155,7 +155,7 @@ pub fn spring<S: Scalar>(
         path_start_frame(p.map(S::from_computed), d.map(S::from_computed), tol)
             .expect("the coil's start tangent fixes a frame"),
     );
-    sweep_body::<S>(&wire, place, &path, stations, 3, tol).map(|l| l.body)
+    sweep_body::<S>(&wire, place, &path, stations, 3, tol).map(|l| l.body.into_body())
 }
 
 /// The continuum volume of a wire of cross-section `area` swept along

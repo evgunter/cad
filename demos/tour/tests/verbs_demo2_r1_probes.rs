@@ -202,7 +202,7 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
         hits[0]
     };
     let second = fillet_edges(
-        &finished("first.body", first.body.clone(), tol),
+        &finished("first.body", first.body.clone().into_body(), tol),
         &[lip2],
         ROLL,
         tol,
@@ -233,5 +233,6 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
 
 /// `body` finished for a blend door, which takes finished bodies only.
 fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
-    topo::finish(body, tol).unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+    pncad::topo::finish(body, tol)
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

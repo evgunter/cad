@@ -65,8 +65,7 @@ pub struct CheckEvidencePayload<'a> {
     pub reason: Option<Cow<'a, str>>,
     /// **The shell door's own refusal**, as the branchable word
     /// ([`crate::tags::shell_classify_error_tag`]) — which of its
-    /// ways it refused, on the two arms that carry one; the
-    /// validator's finding's word on `not_at_rest`; and on `at_rest`,
+    /// ways it refused, on the two arms that carry one; and on `at_rest`,
     /// the inner validator finding's or gather refusal's word
     /// ([`AtRestPayload::inner_variant`]).
     pub inner_variant: Option<&'static str>,

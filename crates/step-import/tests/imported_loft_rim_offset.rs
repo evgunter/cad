@@ -40,6 +40,7 @@ fn twisted_loft() -> topo::Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 1, Tol::witness())
         .expect("the twisted loft builds")
         .body
+        .into_body()
 }
 
 /// The `z = 1` cap.

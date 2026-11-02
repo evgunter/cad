@@ -246,6 +246,7 @@ pub fn l_prism() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// 4×4 square with a centered circular hole (two-vertex closed
@@ -271,6 +272,7 @@ pub fn holed_prism() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn ball() -> Body<f64> {
@@ -286,6 +288,7 @@ pub fn ball() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn cone() -> Body<f64> {
@@ -302,6 +305,7 @@ pub fn cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn washer() -> Body<f64> {
@@ -319,6 +323,7 @@ pub fn washer() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn donut() -> Body<f64> {
@@ -334,6 +339,7 @@ pub fn donut() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn wedge() -> Body<f64> {
@@ -351,4 +357,5 @@ pub fn wedge() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }

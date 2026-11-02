@@ -52,6 +52,7 @@ fn band(rho: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn wider_corpus() -> Vec<(String, Body<f64>)> {

@@ -1524,8 +1524,8 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         |e| {
             matches!(
                 e,
-                BooleanError::ResultInvalid { errors } if matches!(
-                    errors.as_slice(),
+                BooleanError::ResultInvalid { findings } if matches!(
+                    findings.as_slice(),
                     [pncad::topo::ValidationError::VolumeUncomputable {
                         source: pncad::topo::MassPropsError::Face {
                             source: pncad::geom_brep::PropsError::QuadratureUnsupported { what },

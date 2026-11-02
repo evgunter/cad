@@ -140,6 +140,7 @@ fn washer() -> Body<f64> {
     )
     .expect("the washer revolves")
     .body
+    .into_body()
 }
 
 /// An axis-aligned box [x0,x1]x[y0,y1]x[z0,z1], built by extrusion.
@@ -157,6 +158,7 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     )
     .expect("the slab extrudes")
     .body
+    .into_body()
 }
 
 /// A solid torus: the tour's `hollowring` outer wall (R = 0.30 m,
@@ -180,6 +182,7 @@ fn torus() -> Body<f64> {
     )
     .expect("the torus revolves")
     .body
+    .into_body()
 }
 
 /// The tessellation rows. Own group, own sample count: at ~0.7 s an

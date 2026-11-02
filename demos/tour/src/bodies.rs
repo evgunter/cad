@@ -60,6 +60,7 @@ pub fn plate<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     )
     .expect("extrude plate")
     .body
+    .into_body()
 }
 
 /// Solid vase: an axis-touching profile — conical base, spherical
@@ -96,7 +97,7 @@ pub fn vase<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
         .line_to(Start, tol)
         .expect("vase axis seam")
         .into();
-    revolve(
+    revolve::<S>(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("profile validation"),
         axis_y(),
         Revolution::Full,
@@ -104,6 +105,7 @@ pub fn vase<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     )
     .expect("revolve vase")
     .body
+    .into_body()
 }
 
 /// Rope-groove sheave (the donut's AND the pulley's successor): full
@@ -156,14 +158,15 @@ pub fn sheave<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
         .line_to(Start, tol)
         .expect("sheave bore seam")
         .into();
-    let body: pncad::topo::Body<S> = revolve(
+    let body: pncad::topo::Body<S> = revolve::<S>(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("profile validation"),
         axis_y(),
         Revolution::Full,
         tol,
     )
     .expect("revolve sheave")
-    .body;
+    .body
+    .into_body();
     // Closed-form volume by Pappus (independent derivation, exact
     // rationals): hub + web + rim annuli + two cone shoulder wedges,
     // minus the revolved half-disc groove:
@@ -225,14 +228,15 @@ pub fn chute<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
         tol,
     )
     .expect("the C-channel section");
-    let body: pncad::topo::Body<S> = revolve(
+    let body: pncad::topo::Body<S> = revolve::<S>(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("profile validation"),
         axis_y(),
         Revolution::Partial(S::from_f64(3.0 * core::f64::consts::FRAC_PI_2)),
         tol,
     )
     .expect("revolve chute")
-    .body;
+    .body
+    .into_body();
     // Pappus for the partial sweep (independent derivation, exact):
     // profile first moment 429/1024, angle 3pi/2 => V = (1287/2048)pi.
     let oracle = (1287.0 / 2048.0) * core::f64::consts::PI;
@@ -346,7 +350,7 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
         broken.blend_faces.len(),
         broken.corner_faces.len()
     );
-    (broken.body, note)
+    (broken.body.into_body(), note)
 }
 
 /// A stop kept OUT of the montage sheet (standalone render, full
