@@ -2522,6 +2522,19 @@ impl EdgeCarrierSite {
 
 /// **What stopped a reading of one operand's face against the other's
 /// faces about a shared line** ([`BooleanError::LineMaterialUnread`]).
+///
+/// **The façade does not carry this rung, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// Both cases end in one recourse, parting the faces along the edge by
+/// more than the input tolerance, so nothing a person does differs by
+/// case, and the refusal's sentence names it. A Rust caller can already
+/// name and match it, since `pncad` re-exports `topo` whole.
+///
+/// **The falsifier is a caller that acts on the case by itself**: a
+/// driver that lifts a face off the line when it reads
+/// [`LineUnread::Along`], say. Then carry it and delete this paragraph
+/// and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineUnread {
     /// The face's bound runs along the line itself, or lies on two faces
@@ -5192,16 +5205,16 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the solids share an edge along one line, and {}, so which side of the \
                  other solid that edge's faces leave on is unread. Recourse: move the parts \
-                 so the faces along that edge part from the edge and from each other by \
-                 clearly more than the input tolerance (ε_input, K·ε)",
+                 so the faces along that edge part from it and from each other by more \
+                 than ε_input (K·ε)",
                 match why {
                     LineUnread::Along => {
                         "a face's edge runs along that line, or onto two faces of the other \
                          solid at once"
                     }
                     LineUnread::Unplaced => {
-                        "the other solid's faces about it lie within the input tolerance of \
-                         each other or of a face of the first"
+                        "the other solid's faces about it lie within ε_input of each other or \
+                         of a face of the first"
                     }
                 }
             ),

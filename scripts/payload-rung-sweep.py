@@ -206,6 +206,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # line lacks.
     "SlitLineGap": ("argued", "non-carriage with its falsifier, beside the declaration "
                     "in crates/topo/src/boolean/mod.rs"),
+    # `BooleanError::LineMaterialUnread`'s cause: what stopped a face's
+    # reading against the other solid's faces about a shared line.
+    "LineUnread": ("argued", "non-carriage with its falsifier, beside the declaration "
+                   "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::SlitFaceGlued`'s gap: which construction along a
     # glued slit is not built.
     "SlitFaceGap": ("argued", "non-carriage with its falsifier, beside the declaration "
