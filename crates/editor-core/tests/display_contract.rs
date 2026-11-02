@@ -2564,6 +2564,11 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     operand: topo::Operand::A,
                     vertex: topo::VertexKey::default(),
                     partner: topo::VertexKey::default(),
+                    in_band: topo::EdgeInBand {
+                        edge: topo::HalfEdgeKey::default(),
+                        face: None,
+                        predicate: None,
+                    },
                 },
             },
             vec![

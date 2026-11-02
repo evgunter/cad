@@ -4827,6 +4827,11 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     operand: topo::Operand::B,
                     vertex: topo::VertexKey::default(),
                     partner: topo::VertexKey::default(),
+                    in_band: topo::EdgeInBand {
+                        edge: topo::HalfEdgeKey::default(),
+                        face: None,
+                        predicate: None,
+                    },
                 },
             },
         ),
