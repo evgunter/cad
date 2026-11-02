@@ -316,11 +316,12 @@ fn a_profile_is_told_from_the_preview() {
 }
 
 /// **A fused step's construction is told from the preview drawn over
-/// it and the committed profile beside it**, by colour, in every
+/// it, the committed profile under it and the selected and hovered
+/// edges beside it**, by colour, in every
 /// palette and under every dichromacy the suite simulates — for
 /// [`a_profile_is_told_from_the_preview`]'s reason.
 #[test]
-fn a_construction_is_told_from_the_preview_and_the_profile() {
+fn a_construction_is_told_from_the_lines_beside_it() {
     for theme in Theme::ALL {
         let (worst, at) = cvd::worst_construction_separation(theme);
         assert!(
@@ -637,13 +638,28 @@ mod cvd {
     }
 
     /// The closest a theme's construction colour comes to the lines it
-    /// is drawn beside — the preview over it and the committed profile
-    /// under it — measured as [`worst_profile_separation`] is.
+    /// is drawn beside — the preview over it, the committed profile
+    /// under it, and a selected or hovered edge beside it (each mark
+    /// over the body, as the edge pass tints it; the held mark is the
+    /// selected one) — measured as [`worst_profile_separation`] is.
     pub(super) fn worst_construction_separation(theme: &Theme) -> (f64, String) {
+        let edge = |label: &'static str, mark: viewer::theme::Mark| {
+            let composited = mark.over(theme.body);
+            assert!(
+                composited.is_some(),
+                "{}: {label} does not composite",
+                theme.name
+            );
+            (label, composited.unwrap_or(theme.body))
+        };
         worst_line_separation(
             theme,
             theme.construction,
-            &[("the committed profile", theme.profile)],
+            &[
+                ("the committed profile", theme.profile),
+                edge("a selected edge", theme.selected),
+                edge("a hovered edge", theme.hovered),
+            ],
         )
     }
 

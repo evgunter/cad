@@ -2111,9 +2111,9 @@ impl eframe::App for ViewerApp {
         let display = self.session.display_view();
         let toggles = self.session.toggles();
         // **The preview is taken once, before the panes draw**, from
-        // the drafts as they stand — so the panel's refusal line and
-        // the viewport's wireframe are two views of one replay rather
-        // than two replays that could disagree.
+        // the drafts as they stand — so the panel's refusal line, the
+        // viewport's wireframe and its construction are views of one
+        // replay rather than replays that could disagree.
         //
         // It is therefore one frame behind an edit made DURING this
         // frame, which the repaint request below closes: the loops

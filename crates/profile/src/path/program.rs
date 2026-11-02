@@ -2325,7 +2325,6 @@ impl<T: Real> From<PathError<T>> for ReplayErrorKind<T> {
 /// TYPED value for that state — a match arm on (variant, verb) can only
 /// call a binder that is well-typed at that state, so an illegal
 /// transition cannot be spelled and no binder body is duplicated.
-#[derive(Clone)]
 enum DynTip<T: Real> {
     Entry,
     Open(PartialPath<T, NoPos, NoAng>),
@@ -2837,6 +2836,23 @@ pub fn replay_recording<T: ArcCarrierScalar>(
     drive(steps, tol, Guide::recording()).map(|closed| (closed.loop_, closed.structure))
 }
 
+/// What a replay answers.
+type Replaying<T> = Result<ConstructedLoop<T>, ReplayError<T>>;
+
+/// **[`replay`], drawing its construction**: the replay's own result,
+/// and each fused fillet step's construction as the replay reached it
+/// ([`FusedConstruction`]) — the refused step's included, carrying the
+/// sides its fit was handed. Recording the construction changes
+/// nothing about what is computed.
+pub fn replay_drawn<T: ArcCarrierScalar>(
+    steps: &[Step<T>],
+    tol: Tol,
+) -> (Replaying<T>, Vec<FusedConstruction<T>>) {
+    let drawing = Drawing::default();
+    let replayed = drive(steps, tol, Guide::drawing(drawing.clone())).map(|closed| closed.loop_);
+    (replayed, drawing.take())
+}
+
 /// **Guided replay**: elaborate `steps` at this scalar while CONSUMING
 /// `structure`'s discrete decisions instead of remaking them.
 ///
@@ -2992,14 +3008,11 @@ pub fn pen<T: ArcCarrierScalar>(
     structure: Option<&ReplayStructure>,
     tol: Tol,
 ) -> Result<Option<Pen<T>>, ReplayError<T>> {
-    let mut guide = structure.map_or_else(Guide::recording, |s| Guide::guided(s.clone()));
-    let mut tip = DynTip::Entry;
-    for (i, step) in steps.iter().enumerate() {
-        match apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError { step: i, kind })? {
-            Applied::Tip(next) => tip = next,
-            Applied::Closed(_) => return Ok(None),
-        }
-    }
+    let guide = structure.map_or_else(Guide::recording, |s| Guide::guided(s.clone()));
+    let tip = match walk(steps, tol, guide)? {
+        Walked::Open(tip) => tip,
+        Walked::Closed { .. } => return Ok(None),
+    };
     fn of<T: Real, P, A>(p: &PartialPath<T, P, A>) -> Option<Pen<T>> {
         let pos = p.tip.pos.as_ref()?;
         let bound = p.tip.ang.as_ref().map(|b| b.dir.unit);
@@ -3028,197 +3041,125 @@ pub fn pen<T: ArcCarrierScalar>(
     })
 }
 
-/// **A carrier one fused fillet step fillets between**, whole: the
-/// circle its arc side lies on, or the ray its line side runs along.
+/// **A side one fused fillet step fillets between**, whole, as its fit
+/// was handed it: the carrier and the on-path point that anchors it.
 #[derive(Clone, Copy, Debug)]
 pub enum Carrier<T: Real> {
-    /// An arc side's circle.
+    /// An arc side: the circle about `centre` through `anchor`,
+    /// travelled `winding`.
     Circle {
         /// The circle's centre.
         centre: Point2<T>,
-        /// The circle's radius.
+        /// The circle's radius, `|anchor − centre|`.
         radius: T,
+        /// The side's anchoring on-path point.
+        anchor: Point2<T>,
+        /// Which way the path travels around the circle.
+        winding: ArcSweep,
     },
-    /// A line side: the ray from the directed tip the fillet consumes.
-    Ray {
-        /// The ray's origin.
-        origin: Point2<T>,
-        /// The ray's unit direction.
+    /// A line side: the line through `anchor` along `dir`. An incoming
+    /// side departs its anchor along it and an arrival arrives at its
+    /// anchor along it, so the corner a fillet rounds lies ahead of the
+    /// one and behind the other.
+    Line {
+        /// The side's anchoring on-path point.
+        anchor: Point2<T>,
+        /// The unit direction of travel.
         dir: Vec2<T>,
     },
 }
 
+impl<T: Real> Carrier<T> {
+    fn of(side: super::arc_fillet::FilletSide<T>) -> Self {
+        let anchor = side.anchor;
+        match side.carrier {
+            super::arc_fillet::SideCarrier::Ray(dir) => Self::Line { anchor, dir },
+            super::arc_fillet::SideCarrier::Circle { centre, winding } => Self::Circle {
+                centre,
+                radius: anchor.distance(centre),
+                anchor,
+                winding,
+            },
+        }
+    }
+}
+
 /// **What one fused fillet step constructs** (`fillet_arc`,
-/// `arc_fillet`, `arc_fillet_arc`): the carriers it fillets between
-/// and the fillet circle, each where the replay reached it.
-///
-/// The carriers come from the step's own specs before the fit, so a
-/// step whose fit refuses still has them.
+/// `arc_fillet`, `arc_fillet_arc`): the two sides its fit was handed
+/// and the fillet circle it found, recorded where the replay hands the
+/// fit its sides — at the step itself, or at the later step that
+/// completes its arrival.
 #[derive(Clone, Copy, Debug)]
 pub struct FusedConstruction<T: Real> {
-    /// The step, in program order.
+    /// The fused step, in program order.
     pub step: usize,
-    /// The fillet radius the step authored.
+    /// The fillet radius the fit was handed.
     pub radius: T,
-    /// The incoming side: `None` where the incoming half itself refuses.
-    pub incoming: Option<Carrier<T>>,
-    /// The arrival side: the circle an arrival spec fixes at the step
-    /// (`Center`), else the arc the step drew as its run out. `None`
-    /// for a line arrival (`arc_fillet`'s, a later step's leg), an
-    /// arrival a later binder completes, and a step that refused.
-    pub arrival: Option<Carrier<T>>,
-    /// The fillet circle, where the step resolved its fillet.
+    /// The incoming side.
+    pub incoming: Carrier<T>,
+    /// The arrival side.
+    pub arrival: Carrier<T>,
+    /// The fillet circle, anchored at its incoming tangent point and
+    /// travelled the corner's turn — `None` where the fit refused.
     pub fillet: Option<Carrier<T>>,
 }
 
-/// **Each fused fillet step's construction**, in program order, over
-/// the steps the driver reaches: the same walk as [`replay`], which
-/// stops at the first step it refuses (that step's construction
-/// included, carrying what its specs fix) or at the close.
-///
-/// A read beside the replay, never part of it: each fused step's
-/// incoming half is applied to a copy of the tip by the table's own
-/// opening row (`fillet` for `fillet_arc`, `arc_fillet` for
-/// `arc_fillet_arc`), and the side it opens is read off; the fillet and
-/// the drawn run out are read off the pieces the step emitted.
-pub fn fused_constructions<T: ArcCarrierScalar>(
-    steps: &[Step<T>],
-    tol: Tol,
-) -> Vec<FusedConstruction<T>> {
-    let mut out = Vec::new();
-    let mut guide = Guide::recording();
-    let mut tip = DynTip::Entry;
-    for (i, step) in steps.iter().enumerate() {
-        let opening = match *step {
-            Step::FilletArc { radius, spec } => Some((Step::Fillet { radius }, radius, Some(spec))),
-            Step::ArcFillet { spec, radius } => {
-                Some((Step::ArcFillet { spec, radius }, radius, None))
-            }
-            Step::ArcFilletArc {
-                spec,
+/// Where a drawing pass records each arc fillet's construction. Shared
+/// with the chain's guide, so what a refused step was handed outlives
+/// the core its refusal drops.
+#[derive(Clone, Debug)]
+pub(crate) struct Drawing<T: Real>(std::sync::Arc<std::sync::Mutex<Vec<FusedConstruction<T>>>>);
+
+impl<T: Real> Default for Drawing<T> {
+    fn default() -> Self {
+        Self(std::sync::Arc::default())
+    }
+}
+
+impl<T: Real> Drawing<T> {
+    fn with<R>(&self, f: impl FnOnce(&mut Vec<FusedConstruction<T>>) -> R) -> R {
+        // Held only across a push, which cannot leave the list torn.
+        f(&mut self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner))
+    }
+
+    /// The sides one fit is about to be handed.
+    pub(crate) fn sides(
+        &self,
+        step: usize,
+        radius: T,
+        incoming: super::arc_fillet::FilletSide<T>,
+        arrival: super::arc_fillet::FilletSide<T>,
+    ) {
+        self.with(|drawn| {
+            drawn.push(FusedConstruction {
+                step,
                 radius,
-                spec2,
-            } => Some((Step::ArcFillet { spec, radius }, radius, Some(spec2))),
-            Step::Fillet { .. }
-            | Step::At(_)
-            | Step::Angle(_)
-            | Step::Toward { .. }
-            | Step::Tangent
-            | Step::Cusp
-            | Step::Turn(_)
-            | Step::Line(_)
-            | Step::LineTo(_)
-            | Step::ContinueTo(_)
-            | Step::ArcTo(_)
-            | Step::TangentArcTo(_)
-            | Step::ArcOnto(_)
-            | Step::FarEndTo(_)
-            | Step::CloseTo
-            | Step::Circle { .. }
-            | Step::CircleSplit { .. } => None,
-        };
-        let construction = opening.map(|(open, radius, arrival)| {
-            let opened = match apply(tip.clone(), open, tol, &mut Guide::recording()) {
-                Ok(Applied::Tip(DynTip::Open(p))) => Some(p),
-                _ => None,
-            };
-            let incoming = opened.as_ref().and_then(|p| opened_side(&p.core));
-            let fixed = opened
-                .as_ref()
-                .zip(arrival)
-                .and_then(|(p, spec)| fixed_arrival(&p.core, spec));
-            FusedConstruction {
-                step: i,
-                radius,
-                incoming,
-                arrival: fixed,
+                incoming: Carrier::of(incoming),
+                arrival: Carrier::of(arrival),
                 fillet: None,
+            });
+        });
+    }
+
+    /// The fillet the last fit handed its sides found.
+    pub(crate) fn fillet(&self, trims: &super::arc_fillet::ArcFilletTrims<T>) {
+        self.with(|drawn| {
+            if let Some(last) = drawn.last_mut() {
+                last.fillet = Some(Carrier::Circle {
+                    centre: trims.arc.center,
+                    radius: trims.arc.radius,
+                    anchor: trims.t1,
+                    winding: trims.sense,
+                });
             }
         });
-        let applied = apply(tip, *step, tol, &mut guide);
-        let Ok(applied) = applied else {
-            out.extend(construction);
-            return out;
-        };
-        let drawn = |role| match &applied {
-            Applied::Tip(DynTip::DirectedPoint(p)) => emitted_arc(&p.core, i, role),
-            Applied::Closed(closed) => closed_arc(closed, i, role),
-            Applied::Tip(_) => None,
-        };
-        out.extend(construction.map(|c| FusedConstruction {
-            arrival: c.arrival.or_else(|| drawn(crate::PieceRole::RunOut)),
-            fillet: drawn(crate::PieceRole::Arc),
-            ..c
-        }));
-        match applied {
-            Applied::Tip(next) => tip = next,
-            Applied::Closed(_) => return out,
-        }
     }
-    out
-}
 
-/// The side an opened fillet holds, as its whole carrier.
-fn opened_side<T: Real>(core: &super::Core<T>) -> Option<Carrier<T>> {
-    Some(match &core.pending.as_ref()?.0 {
-        super::verbs::Pending::Ray(ray) => Carrier::Ray {
-            origin: ray.origin,
-            dir: ray.dir.unit,
-        },
-        super::verbs::Pending::Arc(arc) => Carrier::Circle {
-            centre: arc.centre,
-            radius: arc.circle_radius,
-        },
-    })
-}
-
-/// The arrival circle a spec fixes before any fit: a `Center` arc's,
-/// about its centre through its endpoint (the entry vertex for
-/// `Start`). The other arrival modes leave the circle to the fit or to
-/// a later binder.
-fn fixed_arrival<T: Real>(core: &super::Core<T>, spec: ArcData<T>) -> Option<Carrier<T>> {
-    let ArcData::Center { c, target, .. } = spec else {
-        return None;
-    };
-    let end = match target {
-        Target::Point(p) => p,
-        Target::Start | Target::StartArriving => core.start_pos?,
-    };
-    Some(Carrier::Circle {
-        centre: c,
-        radius: c.distance(end),
-    })
-}
-
-/// The circle of the arc `step` emitted as `role` into an open chain.
-fn emitted_arc<T: Real>(
-    core: &super::Core<T>,
-    step: usize,
-    role: crate::PieceRole,
-) -> Option<Carrier<T>> {
-    let want = crate::Piece { step, role };
-    let at = core.pieces.iter().position(|p| *p == Some(want))?;
-    let arc = core.verts.get(at)?.1.as_ref()?.arc;
-    Some(Carrier::Circle {
-        centre: arc.centre,
-        radius: arc.radius,
-    })
-}
-
-/// The circle of the arc `step` emitted as `role` into a closed loop.
-fn closed_arc<T: Real>(
-    closed: &ClosedLoop<T>,
-    step: usize,
-    role: crate::PieceRole,
-) -> Option<Carrier<T>> {
-    let want = crate::Piece { step, role };
-    let at = closed.structure.pieces.iter().position(|p| *p == want)?;
-    match closed.loop_.segments().get(at)? {
-        crate::Segment::Arc(arc) => Some(Carrier::Circle {
-            centre: arc.centre,
-            radius: arc.radius,
-        }),
-        crate::Segment::Line => None,
+    fn take(&self) -> Vec<FusedConstruction<T>> {
+        self.with(core::mem::take)
     }
 }
 
@@ -3339,12 +3280,52 @@ impl<T: Real> core::ops::Deref for ConstructedLoop<T> {
     }
 }
 
-/// The driver proper: one walk over the steps, one guide, one chain.
+/// The driver proper: one walk over the steps, one guide, one chain,
+/// which must close at its last step.
 fn drive<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
-    mut guide: Guide<T>,
+    guide: Guide<T>,
 ) -> Result<ClosedLoop<T>, ReplayError<T>> {
+    match walk(steps, tol, guide)? {
+        Walked::Closed { at, closed } => match steps.get(at + 1) {
+            Some(extra) => Err(ReplayError::transition(
+                at + 1,
+                TipState::Closed,
+                extra.verb(),
+            )),
+            None => Ok(closed),
+        },
+        Walked::Open(tip) => Err(ReplayError {
+            step: steps.len(),
+            kind: ReplayErrorKind::Transition {
+                state: tip.state(),
+                verb: None,
+            },
+        }),
+    }
+}
+
+/// Where a walk over the steps stopped.
+enum Walked<T: Real> {
+    /// The step at `at` closed the loop.
+    Closed {
+        /// The closing step.
+        at: usize,
+        /// What it closed.
+        closed: ClosedLoop<T>,
+    },
+    /// The steps ran out with the chain open at this tip.
+    Open(DynTip<T>),
+}
+
+/// The one walk every replay and [`pen`] take: each step applied to
+/// the tip in turn, until one closes the loop or the steps run out.
+fn walk<T: ArcCarrierScalar>(
+    steps: &[Step<T>],
+    tol: Tol,
+    mut guide: Guide<T>,
+) -> Result<Walked<T>, ReplayError<T>> {
     // THE INSTALL INVARIANT. Exactly the entry rows put the guide into
     // the chain's core, by TAKING it — so after the first step a guide
     // still sitting here is one no row took, and everything downstream
@@ -3372,23 +3353,8 @@ fn drive<T: ArcCarrierScalar>(
         }
         match applied {
             Applied::Tip(next) => tip = next,
-            Applied::Closed(closed) => {
-                return match steps.get(i + 1) {
-                    Some(extra) => Err(ReplayError::transition(
-                        i + 1,
-                        TipState::Closed,
-                        extra.verb(),
-                    )),
-                    None => Ok(closed),
-                };
-            }
+            Applied::Closed(closed) => return Ok(Walked::Closed { at: i, closed }),
         }
     }
-    Err(ReplayError {
-        step: steps.len(),
-        kind: ReplayErrorKind::Transition {
-            state: tip.state(),
-            verb: None,
-        },
-    })
+    Ok(Walked::Open(tip))
 }

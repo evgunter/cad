@@ -53,7 +53,7 @@ use pncad::document::{
     WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Point3, Tol};
-use pncad::profile::path::program::{FusedConstruction, fused_constructions};
+use pncad::profile::path::program::{FusedConstruction, replay_drawn};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, ConstructedLoop, ConstructedProfile, PathErrorKind,
     PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms,
@@ -1300,41 +1300,44 @@ pub fn preview(
     tol: Tol,
     chord: f64,
 ) -> Result<ProfilePreview, PreviewError> {
-    preview_resolved(plane, &written_steps(shapes, tol)?, tol, chord)
+    drawn(plane, shapes, tol, chord).0
 }
 
 /// **[`preview`], and what the loops' fused fillet steps construct**,
-/// from one resolution of `shapes`.
+/// both out of the one replay of each loop
+/// ([`pncad::profile::path::program::replay_drawn`]) whose refusal the
+/// preview carries.
 ///
 /// The construction is drawn whether or not the preview is: a fused
-/// step whose fit refuses leaves its carriers, and a chain refused at
-/// its first leg has no prefix to draw but still has them. A
-/// resolution that refuses constructs nothing.
+/// step whose fit refuses leaves the sides it was handed, and a chain
+/// refused at its first leg has no prefix to draw but still has them.
+/// A resolution that refuses constructs nothing.
 pub fn drawn(
     plane: SketchPlane<f64>,
     shapes: &[ProfileShape],
     tol: Tol,
     chord: f64,
 ) -> (Result<ProfilePreview, PreviewError>, Construction) {
-    match written_steps(shapes, tol) {
-        Ok(resolved) => (
-            preview_resolved(plane, &resolved, tol, chord),
-            Construction {
-                plane,
-                steps: resolved
-                    .iter()
-                    .flat_map(|steps| fused_constructions(steps, tol))
-                    .collect(),
-            },
-        ),
-        Err(refused) => (Err(refused), Construction::none(plane)),
-    }
+    let resolved = match written_steps(shapes, tol) {
+        Ok(resolved) => resolved,
+        Err(refused) => return (Err(refused), Construction::none(plane)),
+    };
+    let (replays, built): (Vec<_>, Vec<_>) = resolved
+        .iter()
+        .map(|steps| replay_drawn(steps, tol))
+        .unzip();
+    (
+        preview_replayed(plane, &resolved, replays, tol, chord),
+        Construction {
+            plane,
+            steps: built.concat(),
+        },
+    )
 }
 
 /// **What a door's fused fillet steps construct**, on the plane its
-/// preview is placed on: each step's carriers and its fillet circle,
-/// as far as the replay reached them
-/// ([`pncad::profile::path::program::fused_constructions`]).
+/// preview is placed on: the sides each step's fit was handed and the
+/// fillet circle it found, as far as the replay reached them.
 #[derive(Clone, Debug)]
 pub struct Construction {
     /// The plane the preview the steps belong to is placed on.
@@ -1382,10 +1385,12 @@ fn written_steps(shapes: &[ProfileShape], tol: Tol) -> Result<Vec<Vec<Step<f64>>
     })
 }
 
-/// [`preview`]'s drawing of loops already resolved.
-fn preview_resolved(
+/// [`preview`]'s drawing of loops already resolved, each beside its
+/// replay.
+fn preview_replayed(
     plane: SketchPlane<f64>,
     resolved: &[Vec<Step<f64>>],
+    replays: Vec<Result<ConstructedLoop<f64>, ReplayError<f64>>>,
     tol: Tol,
     chord: f64,
 ) -> Result<ProfilePreview, PreviewError> {
@@ -1395,8 +1400,8 @@ fn preview_resolved(
     // undrawable loops' alike, so the one said is chosen over all.
     let mut refusals: Vec<PreviewError> = Vec::new();
     let mut undrawn: Option<PreviewError> = None;
-    for (index, steps) in resolved.iter().enumerate() {
-        let error = match replay(steps, tol) {
+    for (index, (steps, replayed)) in resolved.iter().zip(replays).enumerate() {
+        let error = match replayed {
             Ok(replayed) => {
                 loops.push(replayed);
                 ends.push(LoopEnd::Closed);
