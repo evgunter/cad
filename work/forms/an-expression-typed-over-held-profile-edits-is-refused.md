@@ -2,11 +2,14 @@
 id: an-expression-typed-over-held-profile-edits-is-refused
 kind: issue
 title: An expression typed into a profile editor field while the draft holds edits is refused, not carried into the draft
-status: open
+status: closed
+closed: 2026-11-02
 opened: 2026-10-31
-priority: P3
+priority: P1
 cost: M
 refs: [the-profile-editors-fields-carry-no-per-argument-affordances, 6144]
+parent: the-profile-create-form-is-a-second-profile-editor
+branch: forms/held-expression
 ---
 
 
@@ -42,3 +45,19 @@ better shape is cheaper than it reads: an expression typed over held
 edits is a formula written into the held step's argument, and only the
 parse against the document's variables, and saying a refused parse at
 the field, remain to build.
+
+## Closed — 2026-11-02, branch `forms/held-expression`
+
+Every argument of the profile editor, of a committed step or of one
+the draft made, is drawn over the argument as the draft holds it
+(`pane::profile`'s `held_field`, over `ProfileEdit::held_row`). Text
+typed into it is parsed by the slot door's own parse
+(`session::parse_text`) and written into the held step
+(`ProfileEdit::write_text`, `HeldStep::with_arg`), committed in the one
+`SetProgram`; a refused parse is held in its field with the refusal's
+sentence. A driven argument previews at what its formula reads under
+the document's variables. `HELD_EDITS_FIRST` and the editor's route
+through `SetSlotExpression` are gone. Residue:
+`the-profile-editors-naming-and-offer-doors-wait-on-held-edits`
+(this slate) and
+`work/placing/the-placement-editors-typed-value-says-a-parse-refusal-in-its-own-words.md`.

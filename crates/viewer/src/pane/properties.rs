@@ -23,9 +23,9 @@ use crate::session::{
 use crate::theme::Theme;
 use crate::tree::PickedName;
 use crate::widgets::{
-    CANCEL, FieldShowing, FieldVocabulary, GestureVocabulary, ProbeOps, UNIT_PICKER_WIDTH,
-    angle_picker, commit_row, delete_button, form_door, free_move_gesture, length_picker,
-    number_field, pick_unit, unit_field, value_field_ops, value_gesture, vec3_row_ops,
+    CANCEL, FieldShowing, FieldVocabulary, ProbeOps, UNIT_PICKER_WIDTH, angle_picker, commit_row,
+    delete_button, form_door, free_move_gesture, length_picker, number_field, pick_unit,
+    unit_field, value_field_ops, value_gesture, vec3_row_ops,
 };
 
 /// What the door that opens the add-variable form says.
@@ -766,106 +766,21 @@ impl ViewerBehavior<'_> {
         );
     }
 
-    /// **One slot's field over a HELD number** — the slot row's value
-    /// field ([`Self::slot_value_ui`]: the same widget, the same text
-    /// door, the same echo rule) drawn over a number a draft holds, so
-    /// a template or a profile editor can give one argument the slot
-    /// row's doors without a second copy of them.
-    ///
-    /// What it holds is the draft's: a dragged or typed number writes
-    /// `held` (canonical) every frame it moves, which is what makes the
-    /// draft's preview follow the drag, and nothing reaches the
-    /// document until the draft commits. The number is shown and
-    /// authored in the unit the slot is written in, with `name` in the
-    /// field.
-    ///
-    /// **A slot an expression drives is locked**: the field shows the
-    /// expression's reading, a drag moves nothing, and a number typed
-    /// over it takes the slot row's own door (`SessionOp::SetSlot`,
-    /// which refuses it with the affordance).
-    ///
-    /// **Text is an expression, and it lands at once**
-    /// (`SessionOp::SetSlotExpression`, as at the slot row) — which
-    /// moves the program the draft was loaded from, and the draft
-    /// reloads. So it is taken only while the draft is `untouched`;
-    /// otherwise it is refused as news ([`HELD_EDITS_FIRST`]), the held
-    /// edits kept.
-    pub(crate) fn held_slot_field_ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        node: RecipeNodeId,
-        row: &SlotRow,
-        name: &str,
-        held: &mut f64,
-        untouched: bool,
-    ) {
-        let draft = (self.drafts.expr_target == Some((node, row.slot)))
-            .then_some(self.drafts.expr_text.as_str());
-        let mut showing = slot_showing(row, draft, *self.notation);
-        showing.name = Some(name.to_owned());
-        let driven = row.driver.is_driven();
-        if !driven {
-            showing.number = props::shown_value(showing.writing.unit, *held);
-        }
-        let slot = row.slot;
-        let mut acts = Vec::new();
-        value_field_ops(
-            ui,
-            showing,
-            GestureVocabulary::held(
-                move |value| {
-                    if driven {
-                        HeldAct::Rest
-                    } else {
-                        HeldAct::Hold(value)
-                    }
-                },
-                HeldAct::Rest,
-            ),
-            FieldVocabulary {
-                number: move |value: SlotValue| {
-                    if driven {
-                        HeldAct::Op(Box::new(SessionOp::SetSlot { node, slot, value }))
-                    } else {
-                        HeldAct::Hold(value.as_f64())
-                    }
-                },
-                text: move |text| {
-                    if untouched {
-                        HeldAct::Op(Box::new(SessionOp::SetSlotExpression { node, slot, text }))
-                    } else {
-                        HeldAct::Refused
-                    }
-                },
-            },
-            &mut acts,
-            self.notices,
-        );
-        for act in acts {
-            match act {
-                HeldAct::Hold(value) => *held = value,
-                HeldAct::Op(op) => self.ops.push(*op),
-                HeldAct::Refused => self.notices.push(crate::frame::tool_news(
-                    &crate::tools::FormKind::EditProfile.refuses(&HELD_EDITS_FIRST),
-                )),
-                HeldAct::Rest => {}
-            }
-        }
-    }
-
-    /// **The doors under a row of held slot fields**
-    /// ([`Self::held_slot_field_ui`]), each tagged by its field's name:
-    /// one line of range probes and naming buttons
+    /// **The doors under a row of a profile editor's held fields**
+    /// (`pane::profile`'s `held_field`), each tagged by its field's
+    /// name: one line of range probes and naming buttons
     /// ([`Self::tagged_doors`], the vector group's), then each slot's
     /// notes ([`Self::slot_notes_ui`]): its expression, its range
-    /// reading, its offer and its naming field.
+    /// reading, its offer and its naming field. Each row is the
+    /// committed slot's, as the document holds it: the slot every door
+    /// here acts on.
     ///
-    /// **Naming and offers wait on held edits**, as an expression does
-    /// ([`HELD_EDITS_FIRST`]): naming an argument's variable, or taking
-    /// an offer, makes the slot read a named variable, which moves the
-    /// program the draft was loaded from, and the draft would reload
-    /// over what it holds. While the draft is not `untouched` the name
-    /// buttons are not drawn and the notes leave out the offer.
+    /// **Naming and offers wait on held edits**: naming an argument's
+    /// variable, or taking an offer, makes the slot read a named
+    /// variable in the document, which moves the program the draft was
+    /// loaded from, and the draft would reload over what it holds.
+    /// While the draft is not `untouched` the name buttons are not
+    /// drawn and the notes leave out the offer.
     pub(crate) fn held_slot_doors_ui(
         &mut self,
         ui: &mut egui::Ui,
@@ -1333,26 +1248,19 @@ impl ViewerBehavior<'_> {
     /// **What `SessionOp::ProbeBounds` would answer for this row, or
     /// `None` where it would accept** — a [`Refusal`], not a sentence.
     ///
-    /// `guard_driven` builds this very value from this very row
-    /// (`props::slot_rows`, the driver and the value it evaluated), so
-    /// the disabled control's words are the refused operation's own by
-    /// construction rather than by two compositions agreeing. A caller
-    /// that wants the words asks the value for them.
+    /// The session refuses the probe with
+    /// [`crate::session::driven_refusal`] of the slot's row as the
+    /// document holds it (`props::slot_rows`), so for that row — the
+    /// one every caller hands [`Self::range_button`], a profile
+    /// editor's held field included (`pane::profile`'s `SlotDoors`) —
+    /// the disabled control's words are the refused operation's own.
+    /// A caller that wants the words asks the value for them.
     pub(crate) fn probe_refusal(
         node: RecipeNodeId,
         row: &SlotRow,
         notation: Notation,
     ) -> Option<Refusal> {
-        match &row.driver {
-            SlotDriver::Literal => None,
-            SlotDriver::Expression { variables } => Some(Refusal::DrivenByExpression {
-                node,
-                slot: row.slot,
-                variables: variables.clone(),
-                current: row.value.as_ref().ok().and_then(props::Reading::one),
-                notation,
-            }),
-        }
+        crate::session::driven_refusal(node, row, notation).err()
     }
 
     /// The range probe's button and reading for a DOCUMENT VARIABLE —
@@ -1373,11 +1281,6 @@ impl ViewerBehavior<'_> {
     }
 }
 
-/// Why a held slot field refuses an expression while its draft holds
-/// edits ([`ViewerBehavior::held_slot_field_ui`]).
-pub(crate) const HELD_EDITS_FIRST: &str = "an expression lands in the document at once, and the \
-     editor reloads over the steps and numbers not yet applied — apply or revert them first";
-
 /// Which tagged door a line of them offers ([`ViewerBehavior::tagged_doors`]).
 #[derive(Clone, Copy, Debug)]
 enum SlotDoor {
@@ -1385,20 +1288,6 @@ enum SlotDoor {
     Range,
     /// The naming button.
     Name,
-}
-
-/// What one gesture or keyboard edit of a held slot field does
-/// ([`ViewerBehavior::held_slot_field_ui`]).
-#[derive(Clone, Debug)]
-enum HeldAct {
-    /// The held number moves to this canonical value.
-    Hold(f64),
-    /// The slot row's own operation.
-    Op(Box<SessionOp>),
-    /// An expression typed over held edits ([`HELD_EDITS_FIRST`]).
-    Refused,
-    /// A gesture's press, release or Escape: nothing is opened to land.
-    Rest,
 }
 
 /// **A selected node's heading**: as the landed document holds it

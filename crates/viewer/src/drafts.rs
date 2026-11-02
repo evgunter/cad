@@ -17,7 +17,7 @@ use std::sync::{Arc, Weak};
 use pncad::document::{
     Dimension, DimensionError, Doc, Evaluation, Formula, Label, LabelFault, LoopProgram,
     Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, Speaker,
-    StepArg, StepId, VarId, VarName,
+    StepArg, StepId, VarId, VarName, slot_admits,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{Step, Target};
@@ -30,7 +30,7 @@ use crate::forms::{PatternLayoutChoice, ShapeKind};
 use crate::history::HistoryId;
 use crate::props::{self, Notation, SlotRow};
 use crate::seats::SeatError;
-use crate::session::{FaceSelection, ProfileShape, SessionOp, SketchTraceFault};
+use crate::session::{FaceSelection, ProfileShape, Refusal, SessionOp, SketchTraceFault};
 use crate::sketch::{self, HeldRefusal, HeldStep, HeldStepFault};
 use crate::tree::HeldPick;
 
@@ -472,17 +472,62 @@ impl ProfileEdit {
         &self.loops
     }
 
-    /// **What a driven argument of held row `row` of loop `loop_`
-    /// reads on `landed`'s slot `rows`**: the one value of its
-    /// committed slot — the step the row was loaded as, at `arg` — so
-    /// the number beside an expression moves when what it reads moves
-    /// (a variable set, dragged, undone). `None` for a row the editor
-    /// made, and for a slot that reads no one value.
-    fn reading(&self, rows: &[SlotRow], loop_: usize, row: usize, arg: StepArg) -> Option<f64> {
-        let (loop_, step) = self.loaded_at(loop_).get(row).copied().flatten()?;
-        let slot = SlotId::Profile { loop_, step, arg };
-        let found = rows.iter().find(|each| each.slot == slot)?;
-        found.value.as_ref().ok()?.one().map(|value| value.as_f64())
+    /// **Argument `arg` of held row `row` of loop `loop_` as the person
+    /// reads it**: the slot it takes where it is drawn, the rows as the
+    /// editor shows them — what a sentence about it names.
+    pub(crate) fn held_slot((loop_, row): (usize, usize), arg: StepArg) -> SlotId {
+        SlotId::Profile {
+            loop_: program_index(loop_),
+            step: program_index(row),
+            arg,
+        }
+    }
+
+    /// **Argument `arg` of held row `row` of loop `loop_` as a slot's
+    /// row** ([`props::formula_row`]): the formula the draft holds,
+    /// its names read by id and read under `landed`'s variables, at
+    /// [`Self::held_slot`]. What its
+    /// field shows, and what a driven argument reads, so the number
+    /// beside an expression moves when what it reads moves (a variable
+    /// set, dragged, undone) — an expression typed into the draft as
+    /// much as one the document holds. `None` where the step has no
+    /// such role.
+    pub(crate) fn held_row(
+        &self,
+        landed: &Doc<ProfileProgram>,
+        (loop_, row): (usize, usize),
+        arg: StepArg,
+    ) -> Option<SlotRow> {
+        let (_, formula) = self
+            .loops
+            .get(loop_)?
+            .get(row)?
+            .args()
+            .into_iter()
+            .find(|(each, _)| *each == arg)?;
+        let slot = Self::held_slot((loop_, row), arg);
+        // A name typed into the draft is read as the variable `landed`
+        // names so; one it does not hold reads nothing, and says why.
+        Some(match landed.resolve(&formula) {
+            Ok(read) => props::formula_row(landed, slot, slot.label(), &read),
+            Err(fault) => props::SlotRow {
+                value: Err(props::SlotFault::Unresolved(fault)),
+                ..props::formula_row(landed, slot, slot.label(), &formula)
+            },
+        })
+    }
+
+    /// **What argument `arg` of held row `row` of loop `loop_` reads
+    /// on `landed`**: its formula's one value ([`Self::held_row`]);
+    /// `None` for one that reads no one value.
+    fn reading(
+        &self,
+        landed: &Doc<ProfileProgram>,
+        at: (usize, usize),
+        arg: StepArg,
+    ) -> Option<f64> {
+        let row = self.held_row(landed, at, arg)?;
+        row.value.ok()?.one().map(|value| value.as_f64())
     }
 
     /// **The held loops at plain numbers**, row by row, as `landed`
@@ -494,7 +539,6 @@ impl ProfileEdit {
         landed: &Doc<ProfileProgram>,
         tol: Tol,
     ) -> Vec<Vec<Result<Step<f64>, HeldStepFault>>> {
-        let rows = props::slot_rows(landed, self.node);
         self.loops
             .iter()
             .enumerate()
@@ -502,7 +546,9 @@ impl ProfileEdit {
                 steps
                     .iter()
                     .enumerate()
-                    .map(|(row, held)| held.step(&|arg| self.reading(&rows, loop_, row, arg), tol))
+                    .map(|(row, held)| {
+                        held.step(&|arg| self.reading(landed, (loop_, row), arg), tol)
+                    })
                     .collect()
             })
             .collect()
@@ -526,17 +572,69 @@ impl ProfileEdit {
         notation: Notation,
         noted: &dyn Fn(SlotId) -> Option<UnitDef>,
     ) -> Result<(), RecordedProgramError> {
-        let rows = props::slot_rows(landed, self.node);
         let kept = self.loaded_at(loop_).get(row).copied().flatten();
         let written = self.loops[loop_][row].written(
             step,
-            &|arg| self.reading(&rows, loop_, row, arg),
+            &|arg| self.reading(landed, (loop_, row), arg),
             notation,
             &|arg| {
                 let (loop_, step) = kept?;
                 noted(SlotId::Profile { loop_, step, arg })
             },
         )?;
+        self.loops[loop_][row] = written;
+        Ok(())
+    }
+
+    /// **`text` as argument `arg` of held row `at` would hold it**:
+    /// parsed against `doc`'s variables by the slot door's own parse
+    /// ([`crate::session::parse_text`]) and admitted at the argument's
+    /// slot by the edit door's own rule ([`slot_admits`]), so a text
+    /// refused here is refused in the words the commit would use.
+    ///
+    /// # Errors
+    ///
+    /// The parse's [`Refusal`]; [`Refusal::Edit`] for a formula of
+    /// another dimension than the argument's.
+    pub(crate) fn judge_text(
+        at: (usize, usize),
+        arg: StepArg,
+        text: &str,
+        doc: &Doc<ProfileProgram>,
+    ) -> Result<Formula, Refusal> {
+        let formula = crate::session::parse_text(doc, text)?;
+        slot_admits(Self::held_slot(at, arg), &formula)
+            .map_err(|error| Refusal::Edit(Box::new(error)))?;
+        Ok(formula)
+    }
+
+    /// **`text` typed into argument `arg` of held row `at`**, judged
+    /// ([`Self::judge_text`]) and written into the held step as the
+    /// formula it reads, committed with the rest of the program. A
+    /// refusal changes nothing the draft holds.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::judge_text`]'s, and [`Refusal::NoSuchSlot`] where the
+    /// row no longer has that role (a row edit landed between the
+    /// field's frame and this one): the text is dropped and said.
+    pub(crate) fn write_text(
+        &mut self,
+        (loop_, row): (usize, usize),
+        arg: StepArg,
+        text: &str,
+        doc: &Doc<ProfileProgram>,
+    ) -> Result<(), Refusal> {
+        let formula = Self::judge_text((loop_, row), arg, text, doc)?;
+        let written = self
+            .loops
+            .get(loop_)
+            .and_then(|steps| steps.get(row))
+            .and_then(|held| held.with_arg(arg, formula))
+            .ok_or_else(|| Refusal::NoSuchSlot {
+                node: doc.spoken(self.node),
+                slot: Self::held_slot((loop_, row), arg),
+            })?;
         self.loops[loop_][row] = written;
         Ok(())
     }
@@ -690,32 +788,17 @@ impl ProfileEdit {
             })
     }
 
-    /// **The unit each literal of held loop `loop_` is written in**,
-    /// row by row: the unit a field over it shows, since it is the unit
-    /// the argument lands in.
-    pub(crate) fn units_at(&self, loop_: usize) -> Vec<Vec<(StepArg, UnitDef)>> {
-        self.loops[loop_]
-            .iter()
-            .map(|held| {
-                held.args()
-                    .into_iter()
-                    .filter(|(_, formula)| formula.literal_value().is_some())
-                    .filter_map(|(arg, formula)| Some((arg, formula.display_unit()?)))
-                    .collect()
-            })
-            .collect()
-    }
-
     /// **Every driven argument of a committed step that the held row
     /// loaded as it no longer has** — a re-moded arc dropping the role
-    /// an expression drives — as the committed slot. The edit door
+    /// an expression drives — at the row as drawn
+    /// ([`Self::held_slot`]). The edit door
     /// cannot write the program without writing over that expression,
     /// and its field is locked, so it says what to do instead.
     pub(crate) fn dropped_drivers(&self) -> Vec<SlotId> {
         let mut dropped = Vec::new();
-        for (steps, loaded_as) in self.loops.iter().zip(&self.loaded_as) {
-            for (held, id) in steps.iter().zip(loaded_as) {
-                let Some(((loop_, step), was)) = id.and_then(|id| self.base_step(id)) else {
+        for (loop_, (steps, loaded_as)) in self.loops.iter().zip(&self.loaded_as).enumerate() {
+            for (row, (held, id)) in steps.iter().zip(loaded_as).enumerate() {
+                let Some((_, was)) = id.and_then(|id| self.base_step(id)) else {
                     continue;
                 };
                 let has: Vec<StepArg> = held.args().into_iter().map(|(arg, _)| arg).collect();
@@ -725,36 +808,30 @@ impl ProfileEdit {
                         .filter(|(arg, formula)| {
                             formula.literal_value().is_none() && !has.contains(arg)
                         })
-                        .map(|(arg, _)| SlotId::Profile { loop_, step, arg }),
+                        .map(|(arg, _)| Self::held_slot((loop_, row), arg)),
                 );
             }
         }
         dropped
     }
 
-    /// **Every driven argument of a held step loaded as a committed
-    /// one that reads no one value in `landed`**, as its committed
-    /// slot, with why: Apply waits on them, since the number beside
-    /// them reads nothing. Its expression did not evaluate (a variable
-    /// it reads deleted, say), or it reads an index and has a value
-    /// per member where a step holds one.
+    /// **Every driven argument of a held step that reads no one value
+    /// in `landed`**, at [`Self::held_slot`], with why: the number beside
+    /// it reads nothing. Its expression did not evaluate (a variable it
+    /// reads deleted, say), or it reads an index and has a value per
+    /// member where a step holds one.
     pub(crate) fn unread_drivers(&self, landed: &Doc<ProfileProgram>) -> Vec<(SlotId, String)> {
-        let rows = props::slot_rows(landed, self.node);
         let mut unread = Vec::new();
         for (loop_, steps) in self.loops.iter().enumerate() {
-            for (held, at) in steps.iter().zip(self.loaded_at(loop_)) {
-                let Some((loop_, step)) = at else {
-                    continue;
-                };
+            for (row, held) in steps.iter().enumerate() {
                 for (arg, formula) in held.args() {
                     if formula.literal_value().is_some() {
                         continue;
                     }
-                    let slot = SlotId::Profile { loop_, step, arg };
-                    let Some(row) = rows.iter().find(|row| row.slot == slot) else {
+                    let Some(found) = self.held_row(landed, (loop_, row), arg) else {
                         continue;
                     };
-                    let why = match &row.value {
+                    let why = match &found.value {
                         Ok(props::Reading::One(_)) => continue,
                         Ok(props::Reading::PerMember(members)) => {
                             let indices: Vec<String> =
@@ -767,7 +844,7 @@ impl ProfileEdit {
                         }
                         Err(fault) => fault.to_string(),
                     };
-                    unread.push((slot, why));
+                    unread.push((found.slot, why));
                 }
             }
         }
@@ -1259,13 +1336,34 @@ impl Drafts {
     /// selection moving off a profile abandons what was typed into it,
     /// as every draft here is abandoned by selecting elsewhere.
     pub(crate) fn abandon_profile_edit_off(&mut self, selected: Option<RecipeNodeId>) {
-        if self
+        let Some(node) = self
             .profile_edit
             .as_ref()
-            .is_some_and(|held| Some(held.node) != selected)
+            .map(|held| held.node)
+            .filter(|node| Some(*node) != selected)
+        else {
+            return;
+        };
+        self.profile_edit = None;
+        // Text a held field refused names a row of the draft it goes with.
+        if self
+            .expr_target
+            .is_some_and(|(at, slot)| at == node && matches!(slot, SlotId::Profile { .. }))
         {
-            self.profile_edit = None;
+            self.expr_target = None;
+            self.expr_text.clear();
         }
+    }
+
+    /// **Offer to declare `name`**, the variable a refused expression
+    /// read and the document does not hold: the add-variable form opens
+    /// with the name in it and no dimension picked, since the text it
+    /// came from does not decide one.
+    pub(crate) fn offer_variable(&mut self, name: VarName) {
+        self.new_variable_name = name.as_str().to_owned();
+        self.new_variable_dimension = None;
+        self.new_variable_offer = Some(name);
+        self.new_variable_open = true;
     }
 
     /// The loop PROGRAMS the add-profile form would author right now:
