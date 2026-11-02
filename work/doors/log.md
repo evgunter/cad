@@ -162,3 +162,9 @@ AUTHOR's narrative is recoverable from
 
 - Style review (`doors-review-clearance-s/review-style.md`): mergeable from style alone; fix pass recommended for S-M1 (the retired measured-minimum vocabulary survives in module headers, examples and test names) and S-M2 (the retired `ClearanceQuery::at_least` comes back as a hand-written idiom at ~8 sites; the dial door is unfenced and returns the assertion's own verdict types), plus row hygiene (rows citing deleted sites; residues with no row). S-m4 (`combine` drops an upper-bound proof) and S-m2 (two drivers of one sweep) forwarded to the correctness reviewer.
 - Correction: the diff is 127 files +3.5k/−3.6k against its base; my 04:00 size came from a stale `origin/main`. The fix pass waits for the correctness review so both land in one brief.
+
+## 2026-11-02 04:45 — 6264 re-verify 4: fix pass 5
+
+- Re-verify 4 of `1eef5d4ffa`: identity choice, verdict cache, merge adaptation and cost all sound. R4-A (MAJOR): the door's seed answered the document *before* its own last rebinds, yet was filed as answering the shown document — a downstream pick was dropped. R4-B: the round trigger looked only at chain links (a regression from pass 3).
+- Ruling (the class's root, after the same window reopened in passes 2, 3 and 4): an evaluation carries the document it answers as part of its value, set where it is produced; only that identity lets it answer names. No extra evaluation to make the seed current — abstain instead.
+- 6264 has now had four fix passes; each closed its findings and opened one smaller window in the same gate. If pass 5's re-verify finds the gate leaking again, stop iterating and re-spec the gate as its own unit.
