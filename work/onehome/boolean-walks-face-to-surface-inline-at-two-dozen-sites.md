@@ -2,11 +2,12 @@
 id: boolean-walks-face-to-surface-inline-at-two-dozen-sites
 kind: issue
 title: The Boolean walks from a face to its surface inline at about two dozen sites, each with its own refusal
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: M
 refs: [boolean-join-resolves-germ-face-surfaces-in-three-closures]
+branch: onehome/face-walks
 ---
 
 Found by PR 5061's review (Q1), on the sweep of

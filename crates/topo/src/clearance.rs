@@ -1212,9 +1212,17 @@ impl<'s, T: Real> Candidate<'s, '_, T> {
     /// fixed pair of stations' separation is enclosed over the whole
     /// parameter box ([`Enclosure::separation`]).
     pub fn enclosure(&self) -> Enclosure<'s> {
+        let coincident = self
+            .meeting
+            .as_ref()
+            .and_then(|(_, a, b)| match (&a[..], &b[..]) {
+                ([a], [b]) => Some((*a, *b)),
+                _ => None,
+            });
         Enclosure {
             a: self.x.surface.clone(),
             b: self.y.surface.clone(),
+            coincident,
             box_dependent: self.box_dependent,
         }
     }
@@ -1234,13 +1242,30 @@ impl<'s, T: Real> Candidate<'s, '_, T> {
 pub struct Enclosure<'s> {
     a: Surface<Interval>,
     b: Surface<Interval>,
+    /// A meeting's two stations ([`Candidate::meeting`]): one point of
+    /// M — the shared vertex, or one vertex of one face — read on each
+    /// side.
+    coincident: Option<((f64, f64), (f64, f64))>,
     box_dependent: &'s core::cell::Cell<Option<(f64, f64)>>,
 }
 
 impl Enclosure<'_> {
     /// The separation of station `a` of the first face and station `b`
     /// of the second, enclosed over every realization the lane covers.
+    ///
+    /// A meeting's own two stations read one point of M on each face —
+    /// the vertex they share, on both faces at every realization — so
+    /// the faces' separation there is 0, read off topology. Enclosed as
+    /// the difference of two independent evaluations it would widen with
+    /// the box (the dependency problem) where nothing varies.
     pub fn separation(&self, a: (f64, f64), b: (f64, f64)) -> Interval {
+        let bits = |(u, v): (f64, f64)| (u.to_bits(), v.to_bits());
+        if self
+            .coincident
+            .is_some_and(|(p, q)| (bits(p), bits(q)) == (bits(a), bits(b)))
+        {
+            return Interval::from_f64(0.0);
+        }
         let at = |x: f64| Interval::from_bounds(x, x);
         (self.a.eval(at(a.0), at(a.1)) - self.b.eval(at(b.0), at(b.1))).norm()
     }
@@ -1375,7 +1400,9 @@ impl Sweep {
     ///   of M, or one face in both scopes, are at distance 0, read off
     ///   topology: `0 ≥ c` decides the whole pair, a violation offered
     ///   to `verify` with the shared cell's stations
-    ///   ([`Candidate::meeting`]).
+    ///   ([`Candidate::meeting`]), and `0 ≤ c` is an upper bound's
+    ///   proof at every realization, those stations' separation read as
+    ///   that 0 ([`Enclosure::separation`]).
     ///
     /// **Breadth, not depth, and the reason is the answer's stability.**
     /// A depth-first walk reaches a violation only after exhausting

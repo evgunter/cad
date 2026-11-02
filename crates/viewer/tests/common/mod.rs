@@ -892,39 +892,6 @@ pub fn inline_without_door(
     viewer::session::DocSession::inline(doc, tol).with_door(Box::new(NoDoor))
 }
 
-/// **A row of `count` copies of `body`** (D10 `[repetition]`): a fresh
-/// index `k = index(count)` and one placement of `body` in its own space
-/// slid `scalar(k)·pitch` along `axis` ([`pncad::pattern::linear_pattern`]).
-/// Answers the document and the family's placement.
-pub fn row_of_copies(
-    doc: &Doc<ProfileProgram>,
-    body: impl Into<pncad::document::Operand>,
-    count: i64,
-    (axis, pitch): (pncad::document::TargetAxis, f64),
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let index = viewer::combine::fresh_index(doc);
-    let declared = pncad::document::apply(
-        doc,
-        &pncad::pattern::index_decl(index.clone(), Formula::count(count), None),
-        tol,
-    )
-    .expect("an index declares")
-    .doc;
-    let body = body.into();
-    let space = declared
-        .operand_space(&body)
-        .unwrap_or(pncad::document::VarId::WORLD);
-    let row = pncad::pattern::linear_pattern(
-        &index,
-        pncad::document::BodyRead::plain(body),
-        pncad::document::Operand::Var(space),
-        &[(axis, len(pitch))],
-    )
-    .expect("a length pitch");
-    inserted(&declared, row, tol)
-}
-
 /// **One member of the family `family`, read alone** — the part door's
 /// node ([`viewer::combine::part_node`]).
 pub fn member_read(
