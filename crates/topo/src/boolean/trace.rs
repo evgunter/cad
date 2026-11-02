@@ -171,6 +171,9 @@ pub fn ray_crossings<T: Decide>(
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
     use super::reduce::SpanVerdict;
+    // Unsourced lever: the ray's length, a scene size the caller hands
+    // rather than geometry the extent home reads.
+    let arm = geom_core::Lever::unsourced(reach);
     let on_carrier = || -> Result<Vec<Crossing<T>>, TraceFault> {
         let residual = geom_brep::implicit_residual(surface, origin);
         match sign(TRACE_ON_CARRIER, Margin::of(residual), band)? {
@@ -183,11 +186,7 @@ pub fn ray_crossings<T: Decide>(
             origin: o, normal, ..
         } => {
             let lead = normal.dot(dir);
-            match sign(
-                TRACE_PLANE_LEAD,
-                Margin::levered(lead, geom_core::Lever::unsourced(reach)),
-                band,
-            )? {
+            match sign(TRACE_PLANE_LEAD, Margin::levered(lead, arm), band)? {
                 Sign::Zero => return on_carrier(),
                 Sign::Positive | Sign::Negative => {}
             }
@@ -222,7 +221,7 @@ pub fn ray_crossings<T: Decide>(
             Sign::Zero | Sign::Negative => continue,
         }
         let point = origin + dir * t;
-        out.push(crossing(surface, sense, t, point, dir, reach, band)?);
+        out.push(crossing(surface, sense, t, point, dir, arm, band)?);
     }
     order(out, |a, b| Margin::of(b - a), band)
 }
@@ -334,7 +333,13 @@ pub fn circle_crossings<T: Decide>(
         }
         let velocity = v_ref * c - u_ref * s;
         out.push(crossing(
-            surface, sense, theta, point, velocity, radius, band,
+            surface,
+            sense,
+            theta,
+            point,
+            velocity,
+            geom_brep::ExtentBall::of_circle(center, radius).lever(),
+            band,
         )?);
     }
     order(
@@ -363,16 +368,13 @@ fn crossing<T: Decide>(
     along: T,
     point: Point3<T>,
     velocity: Vec3<T>,
-    lever: T,
+    lever: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Crossing<T>, TraceFault> {
     let outward = crate::face_normal::surface_outward_normal(surface, point, sense).vec();
     let passage = match sign(
         TRACE_CROSSING_SENSE,
-        Margin::levered(
-            outward.dot(velocity) / outward.norm(),
-            geom_core::Lever::unsourced(lever),
-        ),
+        Margin::levered(outward.dot(velocity) / outward.norm(), lever),
         band,
     )? {
         Sign::Negative => Passage::Enter,
@@ -488,6 +490,8 @@ pub fn plane_misses<T: Decide>(
             let tilt = n.cross(normal).norm();
             match sign(
                 TRACE_PLANE_LEAD,
+                // Unsourced lever: the plane carrier's stored origin's
+                // distance from `point`, a carrier term and no extent.
                 Margin::levered(tilt, geom_core::Lever::unsourced((origin - point).norm())),
                 band,
             )? {
@@ -500,7 +504,7 @@ pub fn plane_misses<T: Decide>(
         // misses it beyond its radius.
         Surface::Cylinder { axis, radius, .. } => match sign(
             TRACE_PLANE_LEAD,
-            Margin::levered(axis.dot(normal), geom_core::Lever::unsourced(radius)),
+            Margin::levered(axis.dot(normal), geom_core::Lever::curvature_radius(radius)),
             band,
         )? {
             Sign::Zero => beyond(),

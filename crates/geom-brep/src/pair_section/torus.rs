@@ -648,7 +648,7 @@ impl<T: Decide> SphereTorusPose<T> {
 
     /// The sphere's own ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::new(self.center, self.radius)
+        ExtentBall::of_sphere(self.center, self.radius)
     }
 
     /// How the sphere stands.
@@ -756,7 +756,7 @@ pub(super) fn sphere_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: ring.r,
+        lever: geom_core::Lever::curvature_radius(ring.r),
         pose: PairPose::SphereTorus(pose),
         decided,
         components: Components::Counted(components),
@@ -1019,7 +1019,7 @@ pub(super) fn cylinder_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: ring.r,
+        lever: geom_core::Lever::curvature_radius(ring.r),
         pose: PairPose::CylinderTorus(pose),
         decided,
         components,
@@ -1260,7 +1260,8 @@ pub(super) fn torus_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: r1.r.min(r2.r),
+        lever: geom_core::Lever::curvature_radius(r1.r)
+            .min(geom_core::Lever::curvature_radius(r2.r)),
         pose: PairPose::TorusTorus(pose),
         decided,
         components,

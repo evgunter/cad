@@ -131,7 +131,7 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
                 (node, node - centre),
                 tangents,
                 section.axes,
-                radius,
+                geom_core::Lever::curvature_radius(radius),
                 band,
                 tol,
             )?);

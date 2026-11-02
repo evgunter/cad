@@ -63,7 +63,7 @@ pub struct ConicDeparture<T: Real> {
     pub dir: Vec3<T>,
     /// The edge's extent from below ([`crate::edge_extent_inf`]): no
     /// longer than its arc, which [`conic_bend_side`]'s witness needs.
-    pub extent: T,
+    pub extent: geom_core::Lever<T>,
     /// How the edge bends off [`Self::dir`].
     pub bend: ConicBend<T>,
 }
@@ -89,7 +89,7 @@ impl<T: Decide> ConicDeparture<T> {
         );
         Self {
             dir: tangent.normalize() * extent.length(),
-            extent: extent.length(),
+            extent,
             bend,
         }
     }
@@ -201,7 +201,10 @@ pub fn conic_bend_side<T: Decide>(
     band: Band,
 ) -> Result<EntersMaterial, Indeterminate> {
     let n = reference_normal.vec();
-    let residue = |arm: T| crate::enters::rise(dir, n, arm).value();
+    // The first-order residue at arc length `x`: the departure's unit
+    // component along `n̂`, times `x`.
+    let slope = dir.normalize().dot(n);
+    let residue = |x: T| slope * x;
     let normal_part = bend.curvature.dot(n) / bend.curvature.norm();
     // The bend's lower bound, signed as `N̂·n̂` is. A spiric section has
     // no bend this reading certifies: it lifts nothing, and the margin

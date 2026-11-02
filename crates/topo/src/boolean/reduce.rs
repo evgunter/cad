@@ -3807,6 +3807,9 @@ fn sheets_part<T: Decide>(
     );
     let sign = decide(
         "bool_touch_sheets_part",
+        // Unsourced lever: the faces' wedge reach (`crate::wedge_reach`),
+        // their boundary vertices' distance from the edge, measured as a
+        // bare length outside the extent home.
         Margin::levered(into_x.dot(into_y), geom_core::Lever::unsourced(arm)),
         band,
     )
@@ -5056,10 +5059,15 @@ fn line_cone_roots<T: Decide>(
         super::solid_contain::About::Start,
     )
     .coeffs;
-    let length = dir.norm() * (t1 - t0).abs();
+    let length = geom_brep::edge_extent_inf(
+        &geom::Curve3::Line(geom::Line { origin, dir }),
+        t0,
+        t1,
+        dir.norm() * (t1 - t0).abs(),
+    );
     match decide(
         "bool_line_cone_lead",
-        Margin::levered(a2 / dd, geom_core::Lever::unsourced(length)),
+        Margin::levered(a2 / dd, length),
         band,
     )
     .map_err(escalate)?

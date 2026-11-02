@@ -157,7 +157,7 @@ fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
     assert!(
         crate::validate::decide(
             "bool_sector_coplanar",
-            Margin::levered(na.cross(nb).norm(), geom_core::Lever::unsourced(1.0)),
+            Margin::levered(na.cross(nb).norm(), crate::bound_side::lever(1.0)),
             band()
         )
         .is_err(),
@@ -233,7 +233,7 @@ fn a_fold_step_given_two_zeros_whose_ends_stand_in_band_refuses_at_a_vertex() {
             "bool_plane_reach",
             Margin::of(
                 0.5 * s.abs()
-                    + Margin::levered((flat - sloped).norm(), geom_core::Lever::unsourced(ball))
+                    + Margin::levered((flat - sloped).norm(), crate::bound_side::lever(ball))
                         .value()
             ),
             band()

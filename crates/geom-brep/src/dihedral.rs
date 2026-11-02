@@ -335,7 +335,7 @@ pub fn classify_dihedral<T: Decide>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     p: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<DihedralClass, LeverEscalation> {
     wedge_decided(s1, s2, p, reach, band)
@@ -405,7 +405,7 @@ pub enum SeamEscalation {
 pub fn classify_seam<T: Decide>(
     faces: [SeamFace<'_, T>; 2],
     p: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     chart_arm: impl Fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
     band: Band,
 ) -> Result<DihedralClass, SeamEscalation> {
@@ -421,13 +421,9 @@ pub fn classify_seam<T: Decide>(
     }
     let sin_theta = a.normal.cross(b.normal).norm() / (a.normal.norm() * b.normal.norm());
     let lo = fold_arms(a.lo, b.lo, reach);
-    decide_positive(
-        "dihedral_arm",
-        Margin::levered(sin_theta, geom_core::Lever::unsourced(lo)),
-        band,
-    )
-    .map(|()| DihedralClass::Transverse)
-    .map_err(|diag| SeamEscalation::Lever(LeverEscalation::arm(diag)))
+    decide_positive("dihedral_arm", Margin::levered(sin_theta, lo), band)
+        .map(|()| DihedralClass::Transverse)
+        .map_err(|diag| SeamEscalation::Lever(LeverEscalation::arm(diag)))
 }
 
 /// A seam face as [`classify_seam`] reads it: its normal at the seam's
@@ -435,8 +431,8 @@ pub fn classify_seam<T: Decide>(
 /// is read rather than bracketed.
 struct SeamFaceReading<T: Real> {
     normal: geom_core::Vec3<T>,
-    lo: T,
-    hi: T,
+    lo: geom_core::Lever<T>,
+    hi: geom_core::Lever<T>,
     bracketed: bool,
 }
 
@@ -444,7 +440,7 @@ struct SeamFaceReading<T: Real> {
 fn seam_face_reading<T: Decide>(
     face: SeamFace<'_, T>,
     p: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     chart_arm: &impl Fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
     band: Band,
 ) -> Result<SeamFaceReading<T>, SeamEscalation> {
@@ -466,13 +462,17 @@ fn seam_face_reading<T: Decide>(
     // Where the chart's normal is defined is the chart's own question,
     // read over its control net's reach as the sector walk reads it; the
     // seam's reach is the arm's alone.
-    let net_reach = crate::control_net_reach(chart.control(), p);
-    let jet = crate::regular_jet(chart, uv, net_reach, band).map_err(SeamEscalation::Crease)?;
+    let net_reach = crate::ExtentBall::of_control_net_from(chart.control(), p).lever();
+    let jet =
+        crate::regular_jet(chart, uv, net_reach.length(), band).map_err(SeamEscalation::Crease)?;
     let (normal, _) = crate::chart_normal_at(chart, true, &jet, uv, net_reach, band)
         .map_err(SeamEscalation::Crease)?;
     Ok(SeamFaceReading {
         normal: normal.vec(),
-        lo: chart_arm(chart, p, reach).map_or_else(crate::implicit::poison, T::from_computed),
+        lo: geom_core::Lever::curvature_radius(
+            chart_arm(chart, p, reach.length())
+                .map_or_else(crate::implicit::poison, T::from_computed),
+        ),
         hi: reach,
         bracketed: true,
     })
@@ -514,7 +514,7 @@ pub(crate) fn wedge_decided<T: Decide>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     p: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(DihedralClass, geom_core::MarginDiag), WedgeEscalation> {
     wedge_of(
@@ -532,17 +532,22 @@ pub(crate) fn wedge_decided<T: Decide>(
 fn wedge_of<T: Decide>(
     n1: geom_core::Vec3<T>,
     n2: geom_core::Vec3<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(DihedralClass, geom_core::MarginDiag), WedgeEscalation> {
     let magnitudes = n1.norm() * n2.norm();
     let sin_theta = n1.cross(n2).norm() / magnitudes;
     // The collapsed-arm gate (module docs): the wedge margin is only
     // meaningful through a definitely-positive arm.
-    decide_positive("dihedral_arm", Margin::of(arm), band).map_err(|gate| {
-        WedgeEscalation::Lever(at_wedge(LeverEscalation::arm(gate), arm, sin_theta, band))
+    decide_positive("dihedral_arm", Margin::of(arm.length()), band).map_err(|gate| {
+        WedgeEscalation::Lever(at_wedge(
+            LeverEscalation::arm(gate),
+            arm.length(),
+            sin_theta,
+            band,
+        ))
     })?;
-    let margin = Margin::levered(sin_theta, geom_core::Lever::unsourced(arm));
+    let margin = Margin::levered(sin_theta, arm);
     // The cause of an invalid margin, read only once the decision has
     // refused, so no verdict can move. Past a certified arm, `sin θ` is
     // invalid only through the gradients: a poisoned one (no implicit
@@ -625,6 +630,9 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
     matches!(
         decide_reported(
             "dihedral_wedge_at_arm",
+            // Unsourced lever: the band's own escalation edge, the arm
+            // rescaled to the tolerance that decides it; a tolerance, not
+            // an extent, a curvature or a rate.
             Margin::levered(
                 sin_theta,
                 geom_core::Lever::unsourced(T::from_f64(band.escalate()))
@@ -661,7 +669,12 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 /// `tangent_gap_orientation` does.
 /// A new site levering against its own fold is a silent
 /// non-comparability, so route new callers through this function.
-pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, reach: T) -> T {
+pub fn folded_lever_arm<T: Real>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    p: Point3<T>,
+    reach: geom_core::Lever<T>,
+) -> geom_core::Lever<T> {
     fold_arms(
         curvature_lever_arm(s1, p),
         curvature_lever_arm(s2, p),
@@ -673,7 +686,11 @@ pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>,
 /// the three. [`folded_lever_arm`] folds two analytic arms here and
 /// [`classify_seam`] folds each face's by its kind. An arm a face cannot
 /// state (a NURBS carrier's implicit one) is poison and poisons the fold.
-fn fold_arms<T: Real>(arm1: T, arm2: T, reach: T) -> T {
+fn fold_arms<T: Real>(
+    arm1: geom_core::Lever<T>,
+    arm2: geom_core::Lever<T>,
+    reach: geom_core::Lever<T>,
+) -> geom_core::Lever<T> {
     arm1.min(arm2).min(reach)
 }
 
@@ -726,7 +743,7 @@ pub fn tangent_second_order<T: Decide>(
     s2: &Surface<T>,
     p: Point3<T>,
     tangent: geom_core::Vec3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> SecondOrder<T> {
     let jet = crate::tangent::tangent_jet(s1, s2, p, tangent);
@@ -739,12 +756,12 @@ pub fn tangent_second_order<T: Decide>(
 /// subtends over `arm`, classified against `band`.
 fn second_order_verdict<T: Decide>(
     jet: &crate::TangentJet<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
     decide_reported(
         "tangent_second_order",
-        Margin::sagitta(jet.kappa_rel.abs(), arm),
+        Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
         band,
     )
 }
@@ -779,7 +796,7 @@ pub struct Station<T: Real> {
     /// ([`crate::tangent_jet`]).
     pub jet: crate::TangentJet<T>,
     /// The folded lever arm at `p` ([`folded_lever_arm`]).
-    pub arm: T,
+    pub arm: geom_core::Lever<T>,
 }
 
 /// A caller's per-station reads inside [`second_order_walk`]: one
@@ -844,7 +861,7 @@ pub fn second_order_walk<T: Decide, H: StationHook<T>>(
     s1: &Surface<T>,
     s2: &Surface<T>,
     stations: impl IntoIterator<Item = (Point3<T>, geom_core::Vec3<T>)>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
     hook: &mut H,
 ) -> SecondOrderWalk<H::Break> {
@@ -882,7 +899,7 @@ pub struct SecondOrder<T: geom_core::Real> {
     pub jet: crate::TangentJet<T>,
     /// The folded lever arm the sagitta was subtended over
     /// ([`folded_lever_arm`]).
-    pub arm: T,
+    pub arm: geom_core::Lever<T>,
     /// The classified sagitta — `Positive` jet-determinate,
     /// `Zero`/`Negative` under-determined, `Err` in-band (predicate
     /// `"tangent_second_order"`) — with its reporting margin.
@@ -1011,7 +1028,7 @@ pub fn must_carry_over_edge<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> MustCarryVerdict {
     let mut transverse = Vec::with_capacity(crate::CERT_SAMPLES as usize - 2);
@@ -1208,7 +1225,7 @@ pub struct SmoothJoin<'a, T: Real> {
     pub interval: (T, T),
     /// How far the farther of the edge's two faces runs from it
     /// (`topo::wedge_reach`), never the edge's own extent.
-    pub reach: T,
+    pub reach: geom_core::Lever<T>,
     /// The witness an intrinsic description stores.
     pub witness: Point3<T>,
 }
@@ -1287,7 +1304,7 @@ pub fn reask_pair<T: Decide>(
     surfaces: [(crate::SurfaceKey, &Surface<T>); 2],
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
-    reach: T,
+    reach: geom_core::Lever<T>,
     declared: Option<crate::mapped::MappedCurve<T>>,
     band: Band,
 ) -> Result<crate::EdgeDescriptionSpec<T>, PairRefusal> {
@@ -1334,7 +1351,7 @@ pub fn reask_chart<T: Decide>(
     surfaces: [(crate::SurfaceKey, &Surface<T>); 2],
     carrier: &geom::Curve3<T>,
     interval: (T, T),
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Option<crate::EdgeDescriptionSpec<T>>, PairRefusal> {
     let [(ka, a), (kb, b)] = surfaces;
@@ -1600,7 +1617,7 @@ pub fn classify_material_pairing<T: Decide>(
     s_minus: &Surface<T>,
     sense_minus: bool,
     p: Point3<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<MaterialPairing, Indeterminate> {
     let (pairing, cos_theta, sin_theta) = pairing_reading(
@@ -1613,7 +1630,7 @@ pub fn classify_material_pairing<T: Decide>(
         arm,
         band,
     );
-    pairing.map_err(|refusal| pairing_at_wedge(refusal, cos_theta, sin_theta, arm, band))
+    pairing.map_err(|refusal| pairing_at_wedge(refusal, cos_theta, sin_theta, arm.length(), band))
 }
 
 /// The pairing's construction and margin, decided as `name`, for a
@@ -1633,7 +1650,7 @@ pub fn classify_material_pairing_as<T: Decide>(
     s_minus: &Surface<T>,
     sense_minus: bool,
     p: Point3<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<MaterialPairing, Indeterminate> {
     pairing_reading(name, s_plus, sense_plus, s_minus, sense_minus, p, arm, band).0
@@ -1649,17 +1666,13 @@ fn pairing_reading<T: Decide>(
     s_minus: &Surface<T>,
     sense_minus: bool,
     p: Point3<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> (Result<MaterialPairing, Indeterminate>, T, T) {
     let n_plus = implicit_outward_normal(s_plus, sense_plus, p).vec();
     let n_minus = implicit_outward_normal(s_minus, sense_minus, p).vec();
     let cos_theta = n_plus.dot(n_minus);
-    let pairing = match decide_nonzero(
-        name,
-        Margin::levered(cos_theta, geom_core::Lever::unsourced(arm)),
-        band,
-    ) {
+    let pairing = match decide_nonzero(name, Margin::levered(cos_theta, arm), band) {
         Ok(NonzeroSign::Positive) => Ok(MaterialPairing::Aligned),
         Ok(NonzeroSign::Negative) => Ok(MaterialPairing::Opposed),
         Err(refusal) => Err(refusal),
@@ -1704,6 +1717,8 @@ fn wedge_reads_zero_at_the_offer<T: Decide>(sin_theta: T, cos_theta: T, band: Ba
     matches!(
         decide_reported(
             "material_pairing_offer_wedge",
+            // Unsourced lever: the band's own escalation edge, as
+            // `wedge_reads_zero_at_the_arm`'s.
             Margin::levered(
                 sin_theta / cos_theta.abs(),
                 geom_core::Lever::unsourced(T::from_f64(band.escalate()))
@@ -1758,6 +1773,11 @@ mod tests {
     use geom_core::Tol;
     use geom_core::{Point3, Vec3};
 
+    /// An arm of length `x`: the radius of a sphere that long.
+    fn extent_lever<T: Real>(x: T) -> geom_core::Lever<T> {
+        crate::ExtentBall::of_sphere(geom_core::Point3::origin(), x).lever()
+    }
+
     use super::*;
     use crate::LeverRung;
 
@@ -1778,7 +1798,8 @@ mod tests {
         let mid = (b.zero() + b.escalate()) / 2.0;
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
         let wall = plane(Vec3::unit_x(), Vec3::unit_y());
-        let err = classify_dihedral(&floor, &wall, Point3::origin(), mid, b).unwrap_err();
+        let err =
+            classify_dihedral(&floor, &wall, Point3::origin(), extent_lever(mid), b).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
             (LeverRung::Arm, Some("dihedral_arm_wedge"))
@@ -1803,7 +1824,8 @@ mod tests {
             Vec3::new(0.0, sin, (1.0 - sin * sin).sqrt()),
             Vec3::unit_x(),
         );
-        let undecided = classify_dihedral(&floor, &leaning, Point3::origin(), arm, b).unwrap_err();
+        let undecided = classify_dihedral(&floor, &leaning, Point3::origin(), extent_lever(arm), b)
+            .unwrap_err();
         assert_eq!(undecided.rung(), LeverRung::Arm);
         assert_eq!(
             undecided.diag().margin.rejected_sign(),
@@ -1812,8 +1834,14 @@ mod tests {
         );
         assert_eq!(undecided.collapsed_arm(), None, "{undecided:?}");
         let wall = plane(Vec3::unit_x(), Vec3::unit_y());
-        let collapsed =
-            classify_dihedral(&floor, &wall, Point3::origin(), 0.5 * b.zero(), b).unwrap_err();
+        let collapsed = classify_dihedral(
+            &floor,
+            &wall,
+            Point3::origin(),
+            extent_lever(0.5 * b.zero()),
+            b,
+        )
+        .unwrap_err();
         assert!(
             matches!(
                 collapsed.collapsed_arm(),
@@ -1985,7 +2013,9 @@ mod tests {
         let theta = 1.0_f64;
         let leaning = plane(Vec3::new(0.0, theta.sin(), theta.cos()), Vec3::unit_x());
         for extent in [mid, 0.5 * b.zero()] {
-            let err = classify_dihedral(&floor, &leaning, Point3::origin(), extent, b).unwrap_err();
+            let err =
+                classify_dihedral(&floor, &leaning, Point3::origin(), extent_lever(extent), b)
+                    .unwrap_err();
             let geom_core::ErrorTextReading::Value(m) =
                 err.diag().margin.diagnostic_f64_for_error_text()
             else {
@@ -2002,7 +2032,8 @@ mod tests {
             assert_eq!(err.diag().predicate, Some("dihedral_arm_wedge"));
             assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
         }
-        let err = classify_dihedral(&floor, &floor, Point3::origin(), mid, b).unwrap_err();
+        let err =
+            classify_dihedral(&floor, &floor, Point3::origin(), extent_lever(mid), b).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
             (LeverRung::Arm, Some("dihedral_arm"))
@@ -2034,7 +2065,7 @@ mod tests {
         let b = band();
         let extent = 7.0 * eps();
         let quoted = |s1: &Surface<f64>, s2: &Surface<f64>, p: Point3<f64>| {
-            let err = classify_dihedral(s1, s2, p, extent, b).unwrap_err();
+            let err = classify_dihedral(s1, s2, p, extent_lever(extent), b).unwrap_err();
             let geom_core::ErrorTextReading::Value(m) =
                 err.diag().margin.diagnostic_f64_for_error_text()
             else {
@@ -2063,7 +2094,14 @@ mod tests {
         let p = c0 + r(Vec3::new(0.0, 0.0, 0.3));
         assert_eq!(quoted(&cyl, &pl, p), (Some("dihedral_arm"), extent));
         assert_eq!(
-            classify_dihedral(&cyl, &pl, p, extent, just_below_the_offer(b, extent)).unwrap(),
+            classify_dihedral(
+                &cyl,
+                &pl,
+                p,
+                extent_lever(extent),
+                just_below_the_offer(b, extent)
+            )
+            .unwrap(),
             DihedralClass::Smooth
         );
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
@@ -2077,7 +2115,7 @@ mod tests {
             );
             let below = just_below_the_offer(b, extent);
             assert_eq!(
-                classify_dihedral(&floor, &at(theta), o, extent, below).unwrap(),
+                classify_dihedral(&floor, &at(theta), o, extent_lever(extent), below).unwrap(),
                 DihedralClass::Smooth,
                 "{theta:e}"
             );
@@ -2094,13 +2132,20 @@ mod tests {
                 &floor,
                 &at(theta),
                 o,
-                extent,
+                extent_lever(extent),
                 just_below_the_offer(b, extent)
             )
             .is_err()
         );
         assert_eq!(
-            classify_dihedral(&floor, &at(theta), o, extent, just_below_the_offer(b, m)).unwrap(),
+            classify_dihedral(
+                &floor,
+                &at(theta),
+                o,
+                extent_lever(extent),
+                just_below_the_offer(b, m)
+            )
+            .unwrap(),
             DihedralClass::Transverse
         );
     }
@@ -2221,7 +2266,7 @@ mod tests {
                         carrier,
                         interval,
                         // Faces that reach no farther than the edge.
-                        reach: carrier.eval(t0).distance(carrier.eval(t1)),
+                        reach: extent_lever(carrier.eval(t0).distance(carrier.eval(t1))),
                         witness: carrier.mid_point(t0, t1),
                     },
                     band(),
@@ -2365,8 +2410,9 @@ mod tests {
         );
         let length_at = |sagitta: f64| (2.0 * sagitta / 0.01).sqrt();
         let verdicts = |len: f64| {
-            [(&cone, &tangent), (&tangent, &cone)]
-                .map(|(a, z)| must_carry_over_edge(a, z, &carrier, 100.0, 100.0 + len, len, b))
+            [(&cone, &tangent), (&tangent, &cone)].map(|(a, z)| {
+                must_carry_over_edge(a, z, &carrier, 100.0, 100.0 + len, extent_lever(len), b)
+            })
         };
         let mean = (b.zero() * b.escalate()).sqrt();
         for (order, verdict) in verdicts(length_at(mean)).into_iter().enumerate() {
@@ -2446,7 +2492,7 @@ mod tests {
             &cylinder(1.0),
             &cylinder(r2),
             interior_stations(&axis, f(0.0), f(1.0)),
-            f(1.0),
+            extent_lever(f(1.0)),
             band(),
             script,
         )
@@ -2555,17 +2601,29 @@ mod tests {
         let p = plane(Vec3::unit_z(), Vec3::unit_x());
         let n = Surface::nurbs_placeholder();
         let o = Point3::origin();
-        assert!(folded_lever_arm(&p, &n, o, 1.0).is_nan());
-        assert!(folded_lever_arm(&n, &p, o, 1.0).is_nan());
-        assert!(folded_lever_arm(&p, &p, o, f64::NAN).is_nan());
-        assert_eq!(folded_lever_arm(&p, &p, o, 1.0), 1.0);
+        assert!(
+            folded_lever_arm(&p, &n, o, extent_lever(1.0))
+                .length()
+                .is_nan()
+        );
+        assert!(
+            folded_lever_arm(&n, &p, o, extent_lever(1.0))
+                .length()
+                .is_nan()
+        );
+        assert!(
+            folded_lever_arm(&p, &p, o, extent_lever(f64::NAN))
+                .length()
+                .is_nan()
+        );
+        assert_eq!(folded_lever_arm(&p, &p, o, extent_lever(1.0)).length(), 1.0);
     }
 
     #[test]
     fn perpendicular_planes_are_transverse() {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let s2 = plane(Vec3::unit_x(), Vec3::unit_y());
-        let c = classify_dihedral(&s1, &s2, Point3::origin(), 1.0, band()).unwrap();
+        let c = classify_dihedral(&s1, &s2, Point3::origin(), extent_lever(1.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Transverse);
     }
 
@@ -2573,12 +2631,12 @@ mod tests {
     fn identical_and_antiparallel_planes_are_smooth() {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let s2 = plane(Vec3::unit_z(), Vec3::unit_y());
-        let c = classify_dihedral(&s1, &s2, Point3::origin(), 1.0, band()).unwrap();
+        let c = classify_dihedral(&s1, &s2, Point3::origin(), extent_lever(1.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Smooth);
         // Tangent PLANES are compared: the sign of the normal is a
         // chart artifact, and the antiparallel pair is smooth too.
         let s3 = plane(-Vec3::unit_z(), Vec3::unit_x());
-        let c = classify_dihedral(&s1, &s3, Point3::origin(), 1.0, band()).unwrap();
+        let c = classify_dihedral(&s1, &s3, Point3::origin(), extent_lever(1.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Smooth);
     }
 
@@ -2591,7 +2649,8 @@ mod tests {
         let n = Vec3::new(theta.sin(), 0.0, theta.cos());
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let s2 = plane(n, Vec3::unit_y());
-        let err = classify_dihedral(&s1, &s2, Point3::origin(), 1.0, band()).unwrap_err();
+        let err =
+            classify_dihedral(&s1, &s2, Point3::origin(), extent_lever(1.0), band()).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
             (LeverRung::Reading, Some("dihedral_wedge"))
@@ -2615,12 +2674,12 @@ mod tests {
         // the line through the origin parallel to y (lowest generator).
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let p = Point3::origin();
-        let c = classify_dihedral(&s1, &cyl, p, 10.0, band()).unwrap();
+        let c = classify_dihedral(&s1, &cyl, p, extent_lever(10.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Smooth);
         // A definitely-tilted plane through the same line: transverse.
         let tilt = std::f64::consts::FRAC_PI_4;
         let s2 = plane(Vec3::new(tilt.sin(), 0.0, tilt.cos()), Vec3::unit_y());
-        let c = classify_dihedral(&s2, &cyl, p, 10.0, band()).unwrap();
+        let c = classify_dihedral(&s2, &cyl, p, extent_lever(10.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Transverse);
     }
 
@@ -2637,7 +2696,8 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
-        let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
+        let err =
+            classify_dihedral(&cone, &s1, Point3::origin(), extent_lever(1.0), band()).unwrap_err();
         assert_eq!(
             (
                 err.rung(),
@@ -2674,7 +2734,8 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
-        let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
+        let err =
+            classify_dihedral(&cone, &s1, Point3::origin(), extent_lever(1.0), band()).unwrap_err();
         let diag = err.diag();
         let geom_core::ErrorTextReading::Value(m) = diag.margin.diagnostic_f64_for_error_text()
         else {
@@ -2719,15 +2780,15 @@ mod tests {
         let s2 = plane(Vec3::unit_z(), Vec3::unit_y());
         let p = Point3::origin();
         assert_eq!(
-            classify_dihedral(&s1, &s2, p, 1.0, band()).unwrap(),
+            classify_dihedral(&s1, &s2, p, extent_lever(1.0), band()).unwrap(),
             DihedralClass::Smooth
         );
         assert_eq!(
-            classify_material_pairing(&s1, true, &s2, true, p, 1.0, band()).unwrap(),
+            classify_material_pairing(&s1, true, &s2, true, p, extent_lever(1.0), band()).unwrap(),
             MaterialPairing::Aligned
         );
         assert_eq!(
-            classify_material_pairing(&s1, true, &s2, false, p, 1.0, band()).unwrap(),
+            classify_material_pairing(&s1, true, &s2, false, p, extent_lever(1.0), band()).unwrap(),
             MaterialPairing::Opposed
         );
         // Antiparallel STORED normals with agreeing senses are the
@@ -2736,7 +2797,7 @@ mod tests {
         // the sense bit, and the pairing sees only the product.
         let s3 = plane(-Vec3::unit_z(), Vec3::unit_x());
         assert_eq!(
-            classify_material_pairing(&s1, true, &s3, false, p, 1.0, band()).unwrap(),
+            classify_material_pairing(&s1, true, &s3, false, p, extent_lever(1.0), band()).unwrap(),
             MaterialPairing::Aligned
         );
     }
@@ -2762,7 +2823,7 @@ mod tests {
         };
         let p = Point3::origin();
         assert_eq!(
-            classify_dihedral(&inner, &outer, p, 1.0, band()).unwrap(),
+            classify_dihedral(&inner, &outer, p, extent_lever(1.0), band()).unwrap(),
             DihedralClass::Smooth
         );
         // Material between them: the inner cylinder bounds it from
@@ -2770,7 +2831,8 @@ mod tests {
         // its sense bit is clear against the outward-pointing implicit
         // gradient), the outer from outside (sense bit set).
         assert_eq!(
-            classify_material_pairing(&inner, false, &outer, true, p, 1.0, band()).unwrap(),
+            classify_material_pairing(&inner, false, &outer, true, p, extent_lever(1.0), band())
+                .unwrap(),
             MaterialPairing::Opposed
         );
         let jet = crate::tangent_jet(&inner, &outer, p, Vec3::unit_y());
@@ -2796,7 +2858,7 @@ mod tests {
         let s2 = plane(Vec3::unit_z(), Vec3::unit_y());
         let p = Point3::origin();
         assert_eq!(
-            classify_material_pairing(&s1, true, &s2, false, p, 1.0, band()).unwrap(),
+            classify_material_pairing(&s1, true, &s2, false, p, extent_lever(1.0), band()).unwrap(),
             MaterialPairing::Opposed
         );
         let jet = crate::tangent_jet(&s1, &s2, p, Vec3::unit_y());
@@ -2831,8 +2893,16 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
-        let err = classify_material_pairing(&cone, true, &s1, true, Point3::origin(), 1.0, band())
-            .unwrap_err();
+        let err = classify_material_pairing(
+            &cone,
+            true,
+            &s1,
+            true,
+            Point3::origin(),
+            extent_lever(1.0),
+            band(),
+        )
+        .unwrap_err();
         assert_eq!(err.margin, geom_core::MarginDiag::INVALID);
     }
 
@@ -2844,7 +2914,7 @@ mod tests {
             &s1,
             &Surface::nurbs_placeholder(),
             Point3::origin(),
-            1.0,
+            extent_lever(1.0),
             band(),
         )
         .unwrap_err();
@@ -2889,7 +2959,8 @@ mod tests {
         };
         let p = |delta: f64| pt(0.0, i(r - delta, r + delta));
         let extent = Interval::from_f64(2.0 * r);
-        let wedge = |delta: f64| wedge_decided(&cap, &cyl(delta), p(delta), extent, band());
+        let wedge =
+            |delta: f64| wedge_decided(&cap, &cyl(delta), p(delta), extent_lever(extent), band());
         assert_eq!(
             wedge(0.49 * r).unwrap().0,
             DihedralClass::Transverse,
@@ -2904,8 +2975,14 @@ mod tests {
         };
         assert_eq!(diag.predicate, Some("dihedral_wedge"), "{diag:?}");
         assert_eq!(diag.margin, geom_core::MarginDiag::INVALID, "{diag:?}");
-        let public =
-            classify_dihedral(&cap, &cyl(0.51 * r), p(0.51 * r), extent, band()).unwrap_err();
+        let public = classify_dihedral(
+            &cap,
+            &cyl(0.51 * r),
+            p(0.51 * r),
+            extent_lever(extent),
+            band(),
+        )
+        .unwrap_err();
         assert_eq!(
             public,
             LeverEscalation::reading(diag),
@@ -2920,7 +2997,7 @@ mod tests {
                 u_ref: Vec3::unit_x(),
             },
             Point3::new(f64::NAN, 1.0, 0.0),
-            1.0,
+            extent_lever(1.0),
             band(),
         );
         assert!(
@@ -2969,7 +3046,7 @@ mod tests {
         ));
         let edge = geom::Curve3::line(Point3::origin(), Vec3::unit_x());
         let ask = |a: (crate::SurfaceKey, &Surface<f64>), b| {
-            reask_chart([a, b], &edge, (0.0, 1.0), 1.0, band).unwrap()
+            reask_chart([a, b], &edge, (0.0, 1.0), extent_lever(1.0), band).unwrap()
         };
         assert!(
             matches!(
@@ -2995,6 +3072,11 @@ mod seam_rows {
     use geom_core::Tol;
     use geom_core::Vec3;
     use geom_core::spline::KnotVector;
+
+    /// An arm of length `x`: the radius of a sphere that long.
+    fn extent_lever<T: Real>(x: T) -> geom_core::Lever<T> {
+        crate::ExtentBall::of_sphere(geom_core::Point3::origin(), x).lever()
+    }
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -3068,7 +3150,7 @@ mod seam_rows {
         b: SeamFace<'_, f64>,
         reach: f64,
     ) -> Result<DihedralClass, SeamEscalation> {
-        classify_seam([a, b], ORIGIN, reach, chart_arm, band())
+        classify_seam([a, b], ORIGIN, extent_lever(reach), chart_arm, band())
     }
 
     /// A plane through the seam point with normal `n`.
@@ -3264,7 +3346,7 @@ mod seam_rows {
             &plane(Vec3::new(0.0, 0.0, 1.0)),
             &plane(Vec3::new(0.0, -sin, (1.0 - sin * sin).sqrt())),
             ORIGIN,
-            reach,
+            extent_lever(reach),
             b,
         );
         assert_eq!(planes, Ok(DihedralClass::Transverse), "the two planes");
@@ -3305,7 +3387,7 @@ mod seam_rows {
                 &plane(Vec3::new(0.0, -s, c)),
                 &plane(Vec3::new(0.0, 0.0, 1.0)),
                 ORIGIN,
-                1.0,
+                extent_lever(1.0),
                 band()
             ),
             Ok(DihedralClass::Transverse),
@@ -3378,7 +3460,13 @@ mod seam_rows {
         let (sd, cd) = (100.0 * band().zero()).sin_cos();
         let other = plane(Vec3::new(0.0, -(s * cd + c * sd), c * cd - s * sd));
         assert_eq!(
-            classify_dihedral(&plane(Vec3::new(0.0, -s, c)), &other, ORIGIN, 1.0, band()),
+            classify_dihedral(
+                &plane(Vec3::new(0.0, -s, c)),
+                &other,
+                ORIGIN,
+                extent_lever(1.0),
+                band()
+            ),
             Ok(DihedralClass::Transverse),
             "the two planes"
         );
@@ -3405,7 +3493,7 @@ mod seam_rows {
                 &plane(Vec3::new(0.0, 0.0, 1.0)),
                 &other,
                 ORIGIN,
-                1.0,
+                extent_lever(1.0),
                 band()
             ),
             Ok(DihedralClass::Transverse),
@@ -3446,11 +3534,12 @@ mod seam_rows {
                     classify_seam(
                         [SeamFace::Analytic(a), SeamFace::Analytic(b)],
                         ORIGIN,
-                        1.0,
+                        extent_lever(1.0),
                         chart_arm,
                         band()
                     ),
-                    classify_dihedral(a, b, ORIGIN, 1.0, band()).map_err(SeamEscalation::Lever),
+                    classify_dihedral(a, b, ORIGIN, extent_lever(1.0), band())
+                        .map_err(SeamEscalation::Lever),
                     "{what}, {a:?} against {b:?}"
                 );
             }
@@ -3473,7 +3562,7 @@ mod seam_rows {
             classify_seam(
                 [SeamFace::Analytic(&wall), SeamFace::Analytic(&flat)],
                 ORIGIN,
-                1.0,
+                extent_lever(1.0),
                 chart_arm,
                 band()
             ),

@@ -367,9 +367,9 @@ impl Sheet {
 /// angle: the shape every ruled pair (a cylinder or a cone against a
 /// plane, a cylinder, a cone or a sphere) hands the sweep.
 pub(crate) trait Ruled<T: Real> {
-    /// How far a ruling moves per radian of its angle: the lever a turn
-    /// of the angle is read at.
-    fn lever(&self) -> T;
+    /// The ruled wall's radius of curvature: the lever a cosine read
+    /// against the ruling's turn is metered at.
+    fn lever(&self) -> geom_core::Lever<T>;
     /// `Δ` over the cell as a margin in metres, of `Δ`'s sign.
     fn discriminant(&self, cell: &Cell<T>) -> Iv<T>;
     /// `Δ′` over the cell, of its sign, in metres per radian.
@@ -441,8 +441,8 @@ impl<T: Real> RuledCylinders<T> {
 }
 
 impl<T: Real> Ruled<T> for RuledCylinders<T> {
-    fn lever(&self) -> T {
-        self.rho
+    fn lever(&self) -> geom_core::Lever<T> {
+        geom_core::Lever::curvature_radius(self.rho)
     }
 
     fn discriminant(&self, cell: &Cell<T>) -> Iv<T> {
@@ -901,16 +901,11 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         // `(x − c)·x′` over `|x − c|·|x′|`, the cosine between the sheet's
         // tangent and the ray from the centre, levered by the ruling's.
         let lever = self.ruled.lever();
-        let monotone = self.positive(
-            Row::Monotone,
-            Margin::levered(along.lo / scale, geom_core::Lever::unsourced(lever)),
-        ) || self.positive(
-            Row::Monotone,
-            Margin::levered(
-                (T::zero() - along.hi) / scale,
-                geom_core::Lever::unsourced(lever),
-            ),
-        );
+        let monotone = self.positive(Row::Monotone, Margin::levered(along.lo / scale, lever))
+            || self.positive(
+                Row::Monotone,
+                Margin::levered((T::zero() - along.hi) / scale, lever),
+            );
         if !monotone {
             return Ok(None);
         }
@@ -1298,7 +1293,7 @@ mod tests {
     }
 
     fn ruled(a: &Surface<f64>, b: &Surface<f64>) -> (RuledCylinders<f64>, f64) {
-        let region = ExtentBall::new(Point3::origin(), 3.0);
+        let region = ExtentBall::of_sphere(Point3::origin(), 3.0);
         let pose = CylinderCylinderPose::decide(a, b, &Reach::Ball(region), band())
             .expect("two cylinders")
             .expect("a decided pose");

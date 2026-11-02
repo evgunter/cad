@@ -3459,7 +3459,7 @@ fn gap_orientation<T: Decide>(
     surf1: &Surface<T>,
     surf2: &Surface<T>,
     p: Point3<T>,
-    extent: T,
+    extent: geom_core::Lever<T>,
     sample: u32,
     band: Band,
 ) -> Result<T, CertifyError> {
@@ -3471,7 +3471,7 @@ fn gap_orientation<T: Decide>(
     let (oriented, orientation) = geom_core::k_stats::detached(|| {
         geom_core::k_stats::decide_nonzero(
             "tangent_gap_orientation",
-            Margin::levered(n1.dot(n2), geom_core::Lever::unsourced(extent)),
+            Margin::levered(n1.dot(n2), extent),
             band,
         )
     });
@@ -3510,8 +3510,8 @@ fn gap_orientation<T: Decide>(
 /// first-order fallback (`topo::boolean::contact_verify`), where it is
 /// the verdict itself.
 #[must_use]
-pub fn folded_parallelism<T: Real>(sin_theta: T, arm: T) -> Margin<T> {
-    Margin::levered(sin_theta, geom_core::Lever::unsourced(arm))
+pub fn folded_parallelism<T: Real>(sin_theta: T, arm: geom_core::Lever<T>) -> Margin<T> {
+    Margin::levered(sin_theta, arm)
 }
 
 /// **A refusal already made, named by a definite parallelism defect**
@@ -3520,7 +3520,11 @@ pub fn folded_parallelism<T: Real>(sin_theta: T, arm: T) -> Margin<T> {
 /// it only names, so it runs detached and its log is spliced as
 /// superseded whatever it reads; the caller supersedes the refusal it
 /// names where it names one.
-fn named_by_parallelism<T: Decide>(sin_theta: T, arm: T, band: Band) -> Option<MarginDiag> {
+fn named_by_parallelism<T: Decide>(
+    sin_theta: T,
+    arm: geom_core::Lever<T>,
+    band: Band,
+) -> Option<MarginDiag> {
     let (renamed, naming) = geom_core::k_stats::detached(|| {
         match decide_reported(
             "tangent_normal_parallel",
@@ -4110,6 +4114,10 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     stated: Option<&StatedImage<T>>,
     band: Band,
 ) -> Result<Checked<T>, CertifyError> {
+    // Unsourced lever: the edge's faces' reach, a length the public doors
+    // take as `T` from their callers (`topo::wedge_reach`), where it is
+    // read off the faces' boundaries.
+    let reach = geom_core::Lever::unsourced(reach);
     let resolved = resolve_spec(spec, surfaces)?;
     let turn = decide_turn(spec, band)?;
     let mut max_residual = T::zero();
@@ -4340,7 +4348,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                         }
                     }
                     tangent_kappa_min = tangent_kappa_min.min(jet.kappa_rel.abs());
-                    tangent_arm_min = tangent_arm_min.min(arm);
+                    tangent_arm_min = tangent_arm_min.min(arm.length());
                     check_residual(
                         "tangent_normal_parallel",
                         CertCheck::TangentParallel,

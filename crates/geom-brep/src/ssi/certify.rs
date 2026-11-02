@@ -2462,6 +2462,7 @@ fn tube_transversality<T: Decide>(
     boxes: u32,
     band: Band,
 ) -> Result<T, SsiError> {
+    // Unsourced lever: `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
     let transversality = Margin::levered(
         T::from_computed(clearance),
         geom_core::Lever::unsourced(arm),
@@ -3504,6 +3505,7 @@ mod tests {
                 "branch {i}: the recorded pad's chain is not one arc"
             );
             let (margin, boxes) = (probe.margin, probe.boxes);
+            // Unsourced lever: the production row's own arm, `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
             let levered =
                 Margin::levered(margin, geom_core::Lever::unsourced(domain.extent)).value();
             assert_eq!(

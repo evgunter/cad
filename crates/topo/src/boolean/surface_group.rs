@@ -74,7 +74,7 @@ pub(super) fn coaxial_margins<T: Decide>(
     [
         Margin::levered(
             rim.axis.cross(axis).norm(),
-            geom_core::Lever::unsourced(rim.radius),
+            geom_core::Lever::curvature_radius(rim.radius),
         ),
         Margin::of(off_axis(origin, axis, rim.center)),
     ]

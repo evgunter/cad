@@ -128,15 +128,12 @@ pub(super) fn plane_ladder<T: Decide>(
     // Offsets read at the extent's centre (`d = n̂·(origin − c)`) for
     // the geometric rungs, which lever the angular data at its radius.
     let centre = extent.reach.center();
-    let arm = extent.reach.radius();
+    let arm = extent.reach.lever();
     let d1 = p1.normal.dot(p1.origin - centre);
     let d2 = p2.normal.dot(p2.origin - centre);
 
     // Rung 1: definite-different by geometry. Parallelism first.
-    let parallel_margin = Margin::levered(
-        p1.normal.cross(p2.normal).norm(),
-        geom_core::Lever::unsourced(arm),
-    );
+    let parallel_margin = Margin::levered(p1.normal.cross(p2.normal).norm(), arm);
     // The offset's Zero below decides one plane only with this one, so
     // the row's margin stands for both.
     let parallel = match decide_reported("bool_plane_parallel", parallel_margin, band) {
@@ -168,7 +165,7 @@ pub(super) fn plane_ladder<T: Decide>(
     // dimensionless, and the length band wants the displacement the
     // orientation flip induces at the arm (rim-dimensional audit,
     // class (c); |cos| ≈ 1 here so the margin is ≈ ±arm, decisive).
-    let sign_margin = Margin::levered(p1.normal.dot(p2.normal), geom_core::Lever::unsourced(arm));
+    let sign_margin = Margin::levered(p1.normal.dot(p2.normal), arm);
     // `relation` rides beside σ: it is the orientation this decision
     // just made definite, and the relation the offset's Zero glues
     // under. A zero has no side to read, so it is the gate's rejection.
@@ -208,14 +205,10 @@ pub(super) fn plane_ladder<T: Decide>(
 pub(crate) fn senses<T: Decide>(
     n1: Vec3<T>,
     n2: Vec3<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
 ) -> Option<PlaneRelation> {
-    match decide(
-        "bool_plane_orient",
-        Margin::levered(n1.dot(n2), geom_core::Lever::unsourced(arm)),
-        band,
-    ) {
+    match decide("bool_plane_orient", Margin::levered(n1.dot(n2), arm), band) {
         Ok(Sign::Positive) => Some(PlaneRelation::SameOriented),
         Ok(Sign::Negative) => Some(PlaneRelation::SameOpposite),
         Ok(Sign::Zero) | Err(_) => None,
@@ -394,7 +387,8 @@ mod tests {
         let down = plane([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]);
         for frac in [0.1, 0.5, 1.0] {
             let arm = frac * band.zero();
-            let extent = ConsumedExtent::new(geom_brep::ExtentBall::new(Point3::origin(), arm));
+            let extent =
+                ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm));
             for (other, cos) in [(up, 1.0), (down, -1.0)] {
                 let bracket = Bracket::open();
                 let got = oriented_plane_eq(&up, &other, &extent, band);

@@ -1166,12 +1166,15 @@ pub mod test_support {
         (centre, radius): (geom_core::Point3<f64>, f64),
         band: geom_core::Band,
     ) -> String {
-        use crate::boolean::section_cert::{Reach, Sheet, certify, classify};
+        use crate::boolean::section_cert::{Sheet, certify, classify};
+        // Unsourced lever: a ball the test caller hands as `(centre,
+        // radius)`, with no carrier or face to read it from.
+        let ball = geom_brep::ExtentBall::unsourced(centre, radius);
         let section = classify(
             f,
             g,
-            Reach { centre, radius },
-            Some(geom_brep::ExtentBall::new(centre, radius)),
+            &geom_brep::Reach::Ball(ball),
+            Some(ball),
             Some(geom_brep::SsiLane::marched()),
             band,
         );

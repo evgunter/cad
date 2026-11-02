@@ -1682,12 +1682,10 @@ fn beside_order<T: Decide>(
     };
     let n = s.tangent().vec();
     let off = |x: Vec3<T>| {
-        crate::validate::decide(
-            "bool_beside_flush",
-            Margin::levered(n.dot(x), geom_core::Lever::unsourced(s.arm)),
-            band,
-        )
-        .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))
+        crate::validate::decide("bool_beside_flush", Margin::levered(n.dot(x), s.arm), band)
+            .map_err(|diag| {
+                BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+            })
     };
     let flush = |b: [Vec3<T>; 2]| -> Result<Option<Vec3<T>>, BooleanError> {
         Ok(match [off(b[0])?, off(b[1])?] {
@@ -1738,10 +1736,7 @@ fn walks_after<T: Decide>(
     band: Band,
 ) -> Result<Sign, BooleanError> {
     let lever = leaned_lever(s.arm, (x.lean, y.lean));
-    let m = Margin::levered(
-        x.dir.cross(y.dir).dot(s.tangent().vec()),
-        geom_core::Lever::unsourced(lever),
-    );
+    let m = Margin::levered(x.dir.cross(y.dir).dot(s.tangent().vec()), lever);
     crate::validate::decide("bool_shared_cut_order", m, band)
         .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))
 }
@@ -2328,7 +2323,7 @@ fn walk_faces_first<T: Decide>(
         },
     )?;
     strut_order(
-        (Leaned::upright(arrival.normalize()), reach.length()),
+        (Leaned::upright(arrival.normalize()), reach.reach()),
         s.tangent().vec(),
         (first.line, second.line),
         s.arm,
@@ -2371,20 +2366,17 @@ fn walk_faces_first<T: Decide>(
 /// one entry are its only comparands, where it agrees with
 /// [`walks_before`] ([`walk_faces_first`]).
 pub(super) fn strut_order<T: Decide>(
-    (e, reach): (Leaned<T>, T),
+    (e, reach): (Leaned<T>, geom_core::Lever<T>),
     normal: Vec3<T>,
     germs: (Leaned<T>, Leaned<T>),
-    arm: T,
+    arm: geom_core::Lever<T>,
     tie: impl FnOnce() -> Result<Option<Sign>, BooleanError>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let far = |g: Leaned<T>| -> Result<bool, BooleanError> {
         let lever = leaned_lever(reach, (e.lean, g.lean));
-        let side = Margin::levered(
-            g.dir.cross(e.dir).dot(normal),
-            geom_core::Lever::unsourced(lever),
-        );
+        let side = Margin::levered(g.dir.cross(e.dir).dot(normal), lever);
         match crate::validate::decide("bool_strut_side", side, band).map_err(refuse)? {
             Sign::Positive => Ok(false),
             Sign::Negative => Ok(true),
@@ -2397,10 +2389,7 @@ pub(super) fn strut_order<T: Decide>(
     }
     let (g0, g1) = germs;
     let lever = leaned_lever(arm, (g0.lean, g1.lean));
-    let order = Margin::levered(
-        g0.dir.cross(g1.dir).dot(normal),
-        geom_core::Lever::unsourced(lever),
-    );
+    let order = Margin::levered(g0.dir.cross(g1.dir).dot(normal), lever);
     match crate::validate::decide_nonzero("bool_strut_order", order, band) {
         Ok(sign) => Ok(sign == NonzeroSign::Negative),
         Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => match tie()? {
@@ -2497,11 +2486,7 @@ fn germ_dir<T: Decide>(
     // pair down the crossing path: a pair whose parallelism is Zero or in
     // band there is coplanar or refused, never a crossing record.
     let arm = sa.arm.min(sb.arm);
-    match crate::validate::decide(
-        "bool_germ_line",
-        Margin::levered(int.norm(), geom_core::Lever::unsourced(arm)),
-        band,
-    ) {
+    match crate::validate::decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => {
             return Err(BooleanError::ClassificationInvariant {
@@ -2893,18 +2878,24 @@ mod tests {
                     he,
                     start,
                     end,
-                    start_reach: crate::boolean::sectors::BoundSupport::Extent(1.0),
-                    end_reach: crate::boolean::sectors::BoundSupport::Extent(1.0),
+                    start_reach: crate::boolean::sectors::BoundSupport::Extent(
+                        crate::bound_side::lever(1.0),
+                    ),
+                    end_reach: crate::boolean::sectors::BoundSupport::Extent(
+                        crate::bound_side::lever(1.0),
+                    ),
                     face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
-                    arm: 1.0,
+                    arm: crate::bound_side::lever(1.0),
                     bend: crate::bound_side::FaceBend::Plane,
                 })
                 .collect();
             if twin {
                 let last = secs[secs.len() - 1].clone();
                 secs.push(BoolSector {
-                    end_reach: crate::boolean::sectors::BoundSupport::straight_bisector(1.0),
+                    end_reach: crate::boolean::sectors::BoundSupport::straight_bisector(
+                        crate::bound_side::lever(1.0),
+                    ),
                     ..last
                 });
             }
@@ -3011,20 +3002,22 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: x,
             end: y,
-            start_reach: BoundSupport::Extent(1.0),
+            start_reach: BoundSupport::Extent(crate::bound_side::lever(1.0)),
             end_reach,
             face: FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             ),
-            arm: 1.0,
+            arm: crate::bound_side::lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let secs = vec![
-            sector(BoundSupport::Extent(1.0)),
-            sector(BoundSupport::straight_bisector(1.0)),
-            sector(BoundSupport::Extent(1.0)),
-            sector(BoundSupport::Extent(1.0)),
+            sector(BoundSupport::Extent(crate::bound_side::lever(1.0))),
+            sector(BoundSupport::straight_bisector(crate::bound_side::lever(
+                1.0,
+            ))),
+            sector(BoundSupport::Extent(crate::bound_side::lever(1.0))),
+            sector(BoundSupport::Extent(crate::bound_side::lever(1.0))),
         ];
         let at = |k, d| Cut::apart(k, up(d));
         let before = |p, q| walks_before(&secs, p, q, band);
@@ -3366,11 +3359,15 @@ mod tests {
                     he,
                     start,
                     end,
-                    start_reach: crate::boolean::sectors::BoundSupport::Extent(1.0),
-                    end_reach: crate::boolean::sectors::BoundSupport::Extent(1.0),
+                    start_reach: crate::boolean::sectors::BoundSupport::Extent(
+                        crate::bound_side::lever(1.0),
+                    ),
+                    end_reach: crate::boolean::sectors::BoundSupport::Extent(
+                        crate::bound_side::lever(1.0),
+                    ),
                     face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
-                    arm: 1.0,
+                    arm: crate::bound_side::lever(1.0),
                     bend: crate::bound_side::FaceBend::Plane,
                 })
                 .collect();
@@ -3463,7 +3460,7 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 normal, true,
             )),
-            arm: 1.0,
+            arm: crate::bound_side::lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let (sa, sb) = (
@@ -3514,10 +3511,10 @@ mod tests {
         ] {
             assert_eq!(
                 strut_order(
-                    (up(e), 1.0),
+                    (up(e), crate::bound_side::lever(1.0)),
                     n,
                     (up(at(g0)), up(at(g1))),
-                    1.0,
+                    crate::bound_side::lever(1.0),
                     || Ok(None),
                     band
                 )
@@ -3556,10 +3553,10 @@ mod tests {
         ] {
             let truth = g0 < g1;
             match strut_order(
-                (up(e), 1.0),
+                (up(e), crate::bound_side::lever(1.0)),
                 n,
                 (up(at(g0)), up(at(g1))),
-                1.0,
+                crate::bound_side::lever(1.0),
                 || Ok(None),
                 band,
             ) {
@@ -3604,10 +3601,10 @@ mod tests {
         let down = up(Vec3::new(0.0, 0.0, -1.0));
         let order = |g| {
             strut_order(
-                (down, 1.23),
+                (down, crate::bound_side::lever(1.23)),
                 at(30.0),
                 (g, up(at(120.0))),
-                0.11,
+                crate::bound_side::lever(0.11),
                 || Ok(None),
                 band,
             )
@@ -3659,7 +3656,15 @@ mod tests {
                     let far =
                         up((Vec3::new(theta.sin(), -theta.cos(), 0.0) + e.dir * 0.3).normalize());
                     let side = |g, n_b| {
-                        strut_order((e, lever), n_b, (g, far), lever, || Ok(None), band).ok()
+                        strut_order(
+                            (e, crate::bound_side::lever(lever)),
+                            n_b,
+                            (g, far),
+                            crate::bound_side::lever(lever),
+                            || Ok(None),
+                            band,
+                        )
+                        .ok()
                     };
                     let upright = side(germ(a0, flat), flat);
                     definite += usize::from(theta != 0.0 && upright.is_some());
@@ -3685,13 +3690,17 @@ mod tests {
                         he: HalfEdgeKey::default(),
                         start: Vec3::new(1.0, -1.0, 0.0),
                         end: Vec3::new(1.0, 1.0, 0.0),
-                        start_reach: crate::boolean::sectors::BoundSupport::Extent(lever),
-                        end_reach: crate::boolean::sectors::BoundSupport::Extent(lever),
+                        start_reach: crate::boolean::sectors::BoundSupport::Extent(
+                            crate::bound_side::lever(lever),
+                        ),
+                        end_reach: crate::boolean::sectors::BoundSupport::Extent(
+                            crate::bound_side::lever(lever),
+                        ),
                         face: FaceKey::default(),
                         at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                             geom_brep::OutwardNormal::from_chart(flat, true),
                         ),
-                        arm: lever,
+                        arm: crate::bound_side::lever(lever),
                         bend: crate::bound_side::FaceBend::Plane,
                     };
                     for psi in [0.0, s30.asin()].into_iter().filter(|_| s30 < 0.5) {
@@ -3755,13 +3764,13 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: at(1.0),
             end: e,
-            start_reach: BoundSupport::Extent(1.0),
-            end_reach: BoundSupport::Extent(1.0),
+            start_reach: BoundSupport::Extent(crate::bound_side::lever(1.0)),
+            end_reach: BoundSupport::Extent(crate::bound_side::lever(1.0)),
             face: FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(n, true),
             ),
-            arm: 1.0,
+            arm: crate::bound_side::lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let mut pairs = 0;
@@ -3782,10 +3791,10 @@ mod tests {
                         let walk = walks_after(&entry, up(at(d0)), up(at(d1)), band).unwrap();
                         assert_ne!(walk, Sign::Zero, "{alpha}°: {d0}° then {d1}°");
                         let strut = strut_order(
-                            (up(e), 1.0),
+                            (up(e), crate::bound_side::lever(1.0)),
                             n,
                             (up(at(d0)), up(at(d1))),
-                            1.0,
+                            crate::bound_side::lever(1.0),
                             || Ok(None),
                             band,
                         )
@@ -3827,21 +3836,21 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(n, true),
             ),
-            arm: 1.0,
+            arm: crate::bound_side::lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let sectors = [
             sector(
                 0.0,
-                BoundSupport::Extent(1.0),
+                BoundSupport::Extent(crate::bound_side::lever(1.0)),
                 90.0,
-                BoundSupport::straight_bisector(1.0),
+                BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
             ),
             sector(
                 90.0,
-                BoundSupport::straight_bisector(1.0),
+                BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
                 180.0,
-                BoundSupport::Extent(1.0),
+                BoundSupport::Extent(crate::bound_side::lever(1.0)),
             ),
         ];
         for inside in [10.0, 45.0, 80.0] {
@@ -3868,7 +3877,14 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let n = Vec3::new(0.0, 0.0, 1.0);
         let germs = (up(Vec3::new(1.0, 0.0, 0.0)), up(Vec3::new(0.0, -1.0, 0.0)));
-        let got = strut_order((up(n), 1.0), n, germs, 1.0, || Ok(None), band);
+        let got = strut_order(
+            (up(n), crate::bound_side::lever(1.0)),
+            n,
+            germs,
+            crate::bound_side::lever(1.0),
+            || Ok(None),
+            band,
+        );
         assert!(
             got.is_err(),
             "decided with no comparand away from zero: {got:?}"
@@ -3890,10 +3906,10 @@ mod tests {
         let tie = |sign: Option<Sign>| move || Ok(sign);
         assert_eq!(
             strut_order(
-                (up(e), 1.0),
+                (up(e), crate::bound_side::lever(1.0)),
                 n,
                 (up(y), up(y)),
-                1.0,
+                crate::bound_side::lever(1.0),
                 tie(Some(Sign::Negative)),
                 band
             )
@@ -3903,10 +3919,10 @@ mod tests {
         );
         assert_eq!(
             strut_order(
-                (up(e), 1.0),
+                (up(e), crate::bound_side::lever(1.0)),
                 n,
                 (up(y), up(y)),
-                1.0,
+                crate::bound_side::lever(1.0),
                 tie(Some(Sign::Positive)),
                 band
             )
@@ -3917,7 +3933,14 @@ mod tests {
         for (what, sign) in [("reads nothing", None), ("curves alike", Some(Sign::Zero))] {
             assert!(
                 matches!(
-                    strut_order((up(e), 1.0), n, (up(y), up(y)), 1.0, tie(sign), band),
+                    strut_order(
+                        (up(e), crate::bound_side::lever(1.0)),
+                        n,
+                        (up(y), up(y)),
+                        crate::bound_side::lever(1.0),
+                        tie(sign),
+                        band
+                    ),
                     Err(BooleanError::Escalated {
                         decision: super::super::BooleanDecision::Coincidence(Coincide::Sectors, _),
                         ..
@@ -3929,13 +3952,29 @@ mod tests {
         let unread = || -> Result<Option<Sign>, BooleanError> { panic!("the tie was read") };
         let apart = Vec3::new(0.1, 1.0, 0.0).normalize();
         assert_eq!(
-            strut_order((up(e), 1.0), n, (up(y), up(apart)), 1.0, unread, band).ok(),
+            strut_order(
+                (up(e), crate::bound_side::lever(1.0)),
+                n,
+                (up(y), up(apart)),
+                crate::bound_side::lever(1.0),
+                unread,
+                band
+            )
+            .ok(),
             Some(true),
             "germs apart are ordered at first order"
         );
         let near = Vec3::new(-2.0 * band.zero(), 1.0, 0.0).normalize();
         assert!(
-            strut_order((up(e), 1.0), n, (up(y), up(near)), 1.0, unread, band).is_err(),
+            strut_order(
+                (up(e), crate::bound_side::lever(1.0)),
+                n,
+                (up(y), up(near)),
+                crate::bound_side::lever(1.0),
+                unread,
+                band
+            )
+            .is_err(),
             "germs in band of each other refuse without the tie"
         );
     }
@@ -3959,12 +3998,28 @@ mod tests {
         for (side, first_nearer) in [(-1.0, true), (1.0, false)] {
             let g = Vec3::new(theta.cos(), side * theta.sin(), 0.0);
             assert_eq!(
-                strut_order((up(e), 1.0), n, (up(g), up(square)), arm, unread, band).ok(),
+                strut_order(
+                    (up(e), crate::bound_side::lever(1.0)),
+                    n,
+                    (up(g), up(square)),
+                    crate::bound_side::lever(arm),
+                    unread,
+                    band
+                )
+                .ok(),
                 Some(first_nearer),
                 "at the edge's reach, side {side}"
             );
             assert_eq!(
-                strut_order((up(e), arm), n, (up(g), up(square)), arm, unread, band).ok(),
+                strut_order(
+                    (up(e), crate::bound_side::lever(arm)),
+                    n,
+                    (up(g), up(square)),
+                    crate::bound_side::lever(arm),
+                    unread,
+                    band
+                )
+                .ok(),
                 Some(true),
                 "at the arm, side {side}"
             );
@@ -4015,7 +4070,7 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 normal, true,
             )),
-            arm: 1.0,
+            arm: crate::bound_side::lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let a = [

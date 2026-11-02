@@ -285,7 +285,7 @@ impl<T: geom_core::Real> ConsumedExtent<T> {
     /// names, for the rows that meter at one.
     #[cfg(test)]
     pub(crate) fn arm(arm: T) -> Self {
-        Self::new(geom_brep::ExtentBall::new(Point3::origin(), arm))
+        Self::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
     }
 }
 
@@ -751,13 +751,9 @@ fn reading<T: Decide>(
                 normal: n2,
             },
         ) => {
-            let (centre, radius) = (reach.center(), reach.radius());
+            let centre = reach.center();
             let offset = n1.dot(o1 - centre) - sigma * n2.dot(o2 - centre);
-            let swing = Margin::levered(
-                (n1 - n2 * sigma).norm(),
-                geom_core::Lever::unsourced(radius),
-            )
-            .value();
+            let swing = Margin::levered((n1 - n2 * sigma).norm(), reach.lever()).value();
             ("bool_plane_reach", offset.abs() + swing)
         }
         (
@@ -1381,7 +1377,10 @@ mod tests {
             1.0,
             true,
         );
-        let ext = ConsumedExtent::new(geom_brep::ExtentBall::new(Point3::new(1.0, 0.0, 0.0), 1e-3));
+        let ext = ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(
+            Point3::new(1.0, 0.0, 0.0),
+            1e-3,
+        ));
         assert!(matches!(
             carrier_eq(&ring, &other, &ext, b),
             Err(CarrierEqError::Undecided { .. })

@@ -131,9 +131,12 @@
 //! ellipse's two decided bounds on its span's overlap straddling the
 //! whole band ([`geom_core::k_stats::straddle`]).
 
+use geom_brep::ExtentBall;
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
-use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
+use geom_core::{
+    Band, Decide, Indeterminate, InfSpeed, Lever, Margin, MarginDiag, Point3, Sign, Vec3,
+};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
@@ -664,10 +667,11 @@ fn polygon_walk<T: Decide>(
     // arm for the probe-direction gate below. A degenerate loop
     // collapsed onto q gives a zero arm, every schedule member skips,
     // and the walk ends in the typed `RayExhausted` — fail-loud.
-    let mut extent = T::zero();
-    for p in points {
-        extent = extent.max((*p - q).norm());
-    }
+    let extent = points
+        .iter()
+        .fold(ExtentBall::point(q).lever(), |extent, &p| {
+            extent.max(ExtentBall::point(p).lever_from(q))
+        });
     let inside = walk_schedule(
         r#loop,
         normal,
@@ -698,7 +702,7 @@ fn polygon_walk<T: Decide>(
 fn walk_schedule<T: Decide>(
     r#loop: LoopKey,
     normal: Vec3<T>,
-    extent: T,
+    extent: Lever<T>,
     arm_row: &'static str,
     band: Band,
     mut ray: impl FnMut(Vec3<T>, Vec3<T>) -> Result<bool, RayFault<PointInLoopError>>,
@@ -712,7 +716,7 @@ fn walk_schedule<T: Decide>(
             // SCHEDULE triples are bare numbers, so the honest margin is
             // the in-plane displacement the probe direction commands at
             // the loop's own scale.
-            let arm = Margin::levered(d_raw.norm() / r.norm(), geom_core::Lever::unsourced(extent));
+            let arm = Margin::levered(d_raw.norm() / r.norm(), extent);
             match decide(arm_row, arm, band) {
                 Ok(Sign::Positive) => {}
                 // Within the band of the normal: no ray in the plane.
@@ -817,13 +821,14 @@ pub(crate) struct ConicArc<T: geom_core::Real> {
     a: T,
     b: T,
     /// The smaller semi-axis, the fewest metres one unit-coordinate step
-    /// buys. It levers the CROSSING rows, where a `Zero` grazes a ray
-    /// and an understated margin costs rays, never an answer. A verdict
+    /// buys: the rate unit coordinates cross to metres at. It meters the
+    /// CROSSING rows, where a `Zero` grazes a ray and an understated
+    /// margin costs rays, never an answer. A verdict
     /// on an ellipse reads it only where a LOWER bound is the sound side
     /// — the span rule's wound-past-period ([`Self::of`]); the boundary
     /// reading bounds its distances on both sides ([`Self::hit`]), and
     /// an arc's span needs the larger semi-axis too.
-    lever: T,
+    rate: InfSpeed<T>,
     /// The arc's two end points, evaluated as certification evaluates
     /// them (`Curve3::eval`), so every reading of an end reads the point
     /// whose pin to its vertex was certified.
@@ -936,7 +941,7 @@ impl<T: Decide> ConicArc<T> {
             } => (ConicKind::Ellipse, center, axis, u_ref, semi_u, semi_v),
             _ => return Ok(None),
         };
-        let lever = a.min(b);
+        let rate = InfSpeed::new(a.min(b));
         let one_turn = Period::new(T::tau());
         let Some(floor) = geom::carrier_speed::speed_floor(carrier) else {
             unreachable!("`speed_floor` answers a circle and an ellipse")
@@ -996,7 +1001,7 @@ impl<T: Decide> ConicArc<T> {
             v: axis.cross(u),
             a,
             b,
-            lever,
+            rate,
             ends: [carrier.eval(t0), carrier.eval(t1)],
             trim: [(c0, s0), (c1, s1), (cm, sm)],
             span_turn,
@@ -1103,7 +1108,7 @@ impl<T: Decide> ConicArc<T> {
             ends,
             apex,
             anti,
-            self.lever,
+            self.rate,
             &ARC_LOOP_TRIM,
             band,
         )
@@ -1130,7 +1135,7 @@ const ARC_LOOP_TRIM: ArcTrimRows = ArcTrimRows {
 /// antipode) — decided as DISTANCES, never as an angle, and the one
 /// home of that rule: tier 3's check 9 trims an edge with it and the
 /// arc-bearing walk here trims a crossing with it. Every length is
-/// multiplied by `lever` on its way to a margin: `1` for points given
+/// multiplied by `rate` on its way to a margin: `1` for points given
 /// in metres, the smaller semi-axis for points given in a conic's unit
 /// coordinates (exact for a circle, conservative for an ellipse).
 ///
@@ -1172,22 +1177,14 @@ pub(crate) fn arc_trim<T: Decide>(
     ends: [Point3<T>; 2],
     apex: Point3<T>,
     anti: Point3<T>,
-    lever: T,
+    rate: InfSpeed<T>,
     rows: &ArcTrimRows,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     let [a, b] = ends;
     let at = [
-        decide(
-            rows.end,
-            Margin::levered((p - a).norm(), geom_core::Lever::unsourced(lever)),
-            band,
-        ),
-        decide(
-            rows.end,
-            Margin::levered((p - b).norm(), geom_core::Lever::unsourced(lever)),
-            band,
-        ),
+        decide(rows.end, Margin::metered((p - a).norm(), rate), band),
+        decide(rows.end, Margin::metered((p - b).norm(), rate), band),
     ];
     if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
         return Ok(Sign::Zero);
@@ -1197,10 +1194,7 @@ pub(crate) fn arc_trim<T: Decide>(
     }
     decide(
         rows.trim,
-        Margin::levered(
-            arc_trim_margin(p, a, apex, anti),
-            geom_core::Lever::unsourced(lever),
-        ),
+        Margin::metered(arc_trim_margin(p, a, apex, anti), rate),
         band,
     )
 }
@@ -1808,7 +1802,7 @@ pub(crate) fn loop_extent_from<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
     q: Point3<T>,
-) -> Result<T, PointInLoopError> {
+) -> Result<Lever<T>, PointInLoopError> {
     let (verts, balls) = loop_hull(body, r#loop)?;
     extent_from(r#loop, q, &verts, &balls)
 }
@@ -1851,17 +1845,20 @@ fn extent_from<T: Decide>(
     from: Point3<T>,
     verts: &[Point3<T>],
     balls: &[ArcBalls<T>],
-) -> Result<T, PointInLoopError> {
-    let poisoned = |term: T| match term.is_poison() {
+) -> Result<Lever<T>, PointInLoopError> {
+    let poisoned = |term: Lever<T>| match term.length().is_poison() {
         true => Err(PointInLoopError::CorruptLoop { r#loop }),
         false => Ok(term),
     };
-    let mut extent = T::zero();
+    let mut extent = ExtentBall::point(from).lever();
     for v in verts {
-        extent = extent.max(poisoned((*v - from).norm())?);
+        extent = extent.max(poisoned(ExtentBall::point(*v).lever_from(from))?);
     }
     for pair in balls {
-        let [near, far] = pair.map(|(center, radius)| (center - from).norm() + radius);
+        // Unsourced lever: an edge's ball is `topo`'s own (center, radius) read of its carrier
+        // ([`step_ball`]), not a ball the extent's home mints.
+        let [near, far] =
+            pair.map(|(center, radius)| ExtentBall::unsourced(center, radius).lever_from(from));
         extent = extent.max(poisoned(near)?.min(poisoned(far)?));
     }
     Ok(extent)
@@ -2041,46 +2038,51 @@ fn certify_plane<T: Decide>(
     let steps = cycle_steps(body, first);
     let origin = steps.first().ok_or_else(corrupt)?.point;
     let (_, reach) = loop_reach(body, r#loop)?;
-    let unit = Margin::levered(normal.norm() - T::one(), geom_core::Lever::unsourced(reach));
+    let unit = Margin::levered(normal.norm() - T::one(), reach);
     if decide("point_in_loop_normal", unit, band).map_err(escalate)? != Sign::Zero {
         return Err(off_plane(OffPlaneCause::NormalNotUnit));
     }
     let off = |p: Point3<T>| Margin::of((p - origin).dot(normal));
-    let tilt = |axis: Vec3<T>, arm: T| {
-        Margin::levered(axis.cross(normal).norm(), geom_core::Lever::unsourced(arm))
+    let tilt = |axis: Vec3<T>, arm: Lever<T>| Margin::levered(axis.cross(normal).norm(), arm);
+    // A conic's whole carrier, read from its centre.
+    let conic_reach = |c: &geom_brep::EdgeCurve<T>, center: Point3<T>| {
+        let (t0, t1) = c.params();
+        geom_brep::Reach::Span {
+            carrier: c.carrier().clone(),
+            t0,
+            t1,
+        }
+        .lever_from(center)
     };
     for step in &steps {
         let mut margins = vec![off(step.point)];
-        match step.curve.map(|c| c.carrier()) {
-            None | Some(geom::Curve3::Line(_)) => {}
-            Some(&geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                ..
-            }) => margins.extend([off(center), tilt(axis, radius)]),
-            Some(&geom::Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                ..
-            }) => margins.extend([
-                off(center),
-                tilt(axis, geom::Curve3::semi_axes_by_size(semi_u, semi_v).0),
-            ]),
-            Some(&geom::Curve3::Spiric {
-                center,
-                u_ref,
-                major_radius,
-                minor_radius,
-                offset,
-                ..
-            }) => margins.extend([
+        match step.curve.map(|c| (c, c.carrier())) {
+            None | Some((_, geom::Curve3::Line(_))) => {}
+            Some((c, &geom::Curve3::Circle { center, axis, .. }))
+            | Some((c, &geom::Curve3::Ellipse { center, axis, .. })) => {
+                margins.extend([off(center), tilt(axis, conic_reach(c, center))]);
+            }
+            Some((
+                _,
+                &geom::Curve3::Spiric {
+                    center,
+                    u_ref,
+                    major_radius,
+                    minor_radius,
+                    offset,
+                    ..
+                },
+            )) => margins.extend([
                 off(center + u_ref * offset),
-                tilt(u_ref, major_radius + minor_radius + offset.abs()),
+                tilt(
+                    u_ref,
+                    ExtentBall::of_torus(center, major_radius, minor_radius)
+                        .lever_from_within(center, offset.abs()),
+                ),
             ]),
-            Some(geom::Curve3::Nurbs(n)) => margins.extend(n.control().iter().map(|&p| off(p))),
+            Some((_, geom::Curve3::Nurbs(n))) => {
+                margins.extend(n.control().iter().map(|&p| off(p)));
+            }
         }
         for m in margins {
             if decide("point_in_loop_plane", m, band).map_err(escalate)? != Sign::Zero {
@@ -2226,7 +2228,7 @@ fn carrier_walk<T: Decide>(
 pub(crate) fn loop_reach<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
-) -> Result<(Point3<T>, T), PointInLoopError> {
+) -> Result<(Point3<T>, Lever<T>), PointInLoopError> {
     let (verts, balls) = loop_hull(body, r#loop)?;
     let anchor = *verts
         .first()
@@ -2264,10 +2266,7 @@ fn conic_crossings<T: Decide>(
     // conic's smaller semi-axis it is a length (exact for a circle).
     match decide(
         "point_in_arc_loop_conic_disc",
-        Margin::levered(
-            disc * T::from_f64(0.5),
-            geom_core::Lever::unsourced(k.lever),
-        ),
+        Margin::metered(disc * T::from_f64(0.5), k.rate),
         band,
     )? {
         Sign::Positive => {}
@@ -2979,11 +2978,7 @@ mod tests {
         };
         let lever = a.min(b);
         let gap = T::tau() - (t1 - t0);
-        let low = decide_reported(
-            rows.turn,
-            Margin::levered(gap, geom_core::Lever::unsourced(lever)),
-            band,
-        );
+        let low = decide_reported(rows.turn, Margin::metered(gap, InfSpeed::new(lever)), band);
         if let Ok(Decided {
             sign: Sign::Negative,
             ..
@@ -3000,7 +2995,7 @@ mod tests {
                 ..
             }) = decide_reported(
                 rows.turn,
-                Margin::levered(gap, geom_core::Lever::unsourced(speed)),
+                Margin::metered_sup(gap, geom_core::SupSpeed::new(speed)),
                 band,
             )
         {

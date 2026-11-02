@@ -2483,7 +2483,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
             &carrier,
             0.0,
             1.0,
-            reach,
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), reach).lever(),
             band,
         )
     };
@@ -2905,7 +2905,7 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
             sin_theta: 0.0,
             kappa_rel,
         },
-        arm,
+        arm: geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), arm).lever(),
     };
     // Check 4's one push of a stop.
     let finding = |stop: crate::validate::MaterialStop| ValidationError::SliverDihedral {
@@ -2925,7 +2925,13 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
     ] {
         let wall = leaning(degrees);
         assert_eq!(
-            geom_brep::classify_dihedral(&floor, &wall, origin, arm, band),
+            geom_brep::classify_dihedral(
+                &floor,
+                &wall,
+                origin,
+                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), arm).lever(),
+                band
+            ),
             Ok(geom_brep::DihedralClass::Smooth),
             "{label}: check 4 reaches the pairing"
         );

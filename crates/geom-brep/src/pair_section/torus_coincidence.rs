@@ -91,20 +91,19 @@ impl<T: Real> TorusDisplacement<T> {
     /// The displacement between `a` and `b`.
     #[must_use]
     pub fn of(a: TorusData<T>, b: TorusData<T>) -> Self {
-        let arm = a.major_radius.max(b.major_radius);
+        let arm = crate::ExtentBall::of_circle(a.center, a.major_radius)
+            .lever()
+            .max(crate::ExtentBall::of_circle(b.center, b.major_radius).lever());
         let apart = a.center - b.center;
         let core = apart.norm()
             + (a.major_radius - b.major_radius).abs()
-            + Margin::levered(line_tilt(a.axis, b.axis), geom_core::Lever::unsourced(arm)).value();
+            + Margin::levered(line_tilt(a.axis, b.axis), arm).value();
         let tube = (a.minor_radius - b.minor_radius).abs();
         Self {
             data: [
                 (
                     TorusDatum::AxisTilt,
-                    Margin::levered(
-                        a.axis.cross(b.axis).norm(),
-                        geom_core::Lever::unsourced(arm),
-                    ),
+                    Margin::levered(a.axis.cross(b.axis).norm(), arm),
                 ),
                 (TorusDatum::Centre, Margin::norm3(apart)),
                 (

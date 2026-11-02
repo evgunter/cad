@@ -528,7 +528,7 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
     let p = plane([0.0, 0.3, 0.0], Vec3::new(0.0, 1.0, 0.0));
     for extent in [
         FrameExtent::Radii,
-        FrameExtent::Span(1.0),
+        FrameExtent::Span(geom_brep::ExtentBall::of_sphere(Point3::origin(), 0.5)),
         FrameExtent::Wall {
             below: 1.0,
             above: 1.0,

@@ -374,7 +374,7 @@ impl<T: Decide> TorusFaceRegion<T> {
     fn circle_family(&self, axis: Vec3<T>, radius: T, band: Band) -> CircleFamily {
         let tilt = Margin::levered(
             axis.cross(self.axis).norm(),
-            geom_core::Lever::unsourced(radius),
+            geom_core::Lever::curvature_radius(radius),
         );
         if !matches!(
             decide("bool_torus_region_family", tilt, band),

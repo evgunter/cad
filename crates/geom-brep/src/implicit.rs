@@ -321,8 +321,8 @@ pub fn implicit_outward_normal<T: Real>(
 /// must not be swapped: a smaller value here LOOSENS the readers above
 /// (their margins shrink toward Zero), while a smaller radius of
 /// curvature tightens a sagitta charge.
-pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
-    match *s {
+pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> geom_core::Lever<T> {
+    geom_core::Lever::curvature_radius(match *s {
         Surface::Plane { .. } => T::from_f64(f64::MAX),
         Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. } => radius,
         Surface::Cone { apex, axis, .. } => {
@@ -336,7 +336,7 @@ pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
         // As `Nurbs`: the stand-in is a spline, so no implicit form —
         // and the offset description has no closed lever arm to lend.
         Surface::Nurbs(_) | Surface::Approx(_) => poison(),
-    }
+    })
 }
 
 /// **The smallest radius of curvature of `s`**, for a reader that
@@ -410,7 +410,7 @@ pub fn min_radius_of_curvature_toward<T: Real>(
             },
             SurfaceSide::Outer,
         ) => (*major_radius - *minor_radius).max(T::zero()),
-        _ => curvature_lever_arm(s, p),
+        _ => curvature_lever_arm(s, p).length(),
     }
 }
 
@@ -2310,7 +2310,7 @@ mod tests {
         for (v, delta) in [(0.4_f64, 1e-3), (2.9, -2e-3), (3.1, 5e-4)] {
             let (sv, cv) = v.sin_cos();
             let p = Point3::new(0.8 + (0.5 + delta) * cv, (0.5 + delta) * sv, 0.0);
-            let lever = curvature_lever_arm(&fat, p);
+            let lever = curvature_lever_arm(&fat, p).length();
             assert_eq!(lever, 0.5, "the chart scale is the tube radius");
             let reading = implicit_gradient(&fat, p).norm() - 1.0;
             assert!(
@@ -2447,7 +2447,7 @@ mod tests {
         let g = implicit_gradient(&cone, t_center());
         assert!(g.x.is_nan() && g.y.is_nan() && g.z.is_nan());
         // And the curvature arm collapses to zero at the apex.
-        assert_eq!(curvature_lever_arm(&cone, t_center()), 0.0);
+        assert_eq!(curvature_lever_arm(&cone, t_center()).length(), 0.0);
     }
 
     #[test]
@@ -2459,11 +2459,14 @@ mod tests {
         };
         // The practical min identity — finite so the interval lane's
         // enclosure stays well-formed (module docs).
-        assert_eq!(curvature_lever_arm(&plane, Point3::origin()), f64::MAX);
+        assert_eq!(
+            curvature_lever_arm(&plane, Point3::origin()).length(),
+            f64::MAX
+        );
         let n: Surface<f64> = Surface::nurbs_placeholder();
         assert!(implicit_residual(&n, Point3::origin()).is_nan());
         assert!(implicit_gradient(&n, Point3::origin()).x.is_nan());
-        assert!(curvature_lever_arm(&n, Point3::origin()).is_nan());
+        assert!(curvature_lever_arm(&n, Point3::origin()).length().is_nan());
     }
 
     #[test]

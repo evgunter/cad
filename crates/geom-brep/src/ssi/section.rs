@@ -795,6 +795,7 @@ pub(crate) fn decide_crossing(root: SectionRoot, arm: f64, band: Band) -> Result
             what: "a boundary curve's slope at a root has no certified bound",
         });
     }
+    // Unsourced lever: `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
     let margin = Margin::levered(root.slope, geom_core::Lever::unsourced(arm));
     let Some(verdict) = band_verdict("ssi_boundary_crossing", margin, band) else {
         return Ok(());

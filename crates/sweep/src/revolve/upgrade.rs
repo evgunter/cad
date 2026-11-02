@@ -31,7 +31,7 @@ struct EdgeData<'b, T: Real> {
     t0: T,
     t1: T,
     witness: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
 }
 
 fn edge_data<T: SpanLocate + Decide>(
@@ -47,7 +47,14 @@ fn edge_data<T: SpanLocate + Decide>(
     let carrier = curve.carrier();
     let (t0, t1) = curve.params();
     let witness = curve.mid_point();
-    let reach = topo::wedge_reach(body, topo::edge_faces(body, edge), carrier, (t0, t1));
+    // Unsourced lever: the faces' wedge reach (`topo::wedge_reach`), measured as a
+    // bare length outside the extent home.
+    let reach = geom_core::Lever::unsourced(topo::wedge_reach(
+        body,
+        topo::edge_faces(body, edge),
+        carrier,
+        (t0, t1),
+    ));
     Ok(EdgeData {
         carrier,
         t0,

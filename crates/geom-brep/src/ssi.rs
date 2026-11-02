@@ -3961,8 +3961,13 @@ mod ending_tests {
             (0.5, 1.0, PointLever::Extent),
             (0.0, 1.0, PointLever::Extent),
         ] {
-            let (got, reach) = point_arm(kappa, 1.0);
-            assert_eq!((got, PointLever::of(reach)), (arm, lever), "κ {kappa}");
+            let metre = crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever();
+            let (got, reach) = point_arm(kappa, metre);
+            assert_eq!(
+                (got.length(), PointLever::of(reach)),
+                (arm, lever),
+                "κ {kappa}"
+            );
         }
         let band = Band::new(1e-9, 1e-8).unwrap();
         for (lever, words) in [
@@ -4023,16 +4028,19 @@ mod ending_tests {
             rows.push(("sphere", sphere(r), 1.0 / r));
             rows.push(("cylinder", cylinder(r), 1.0 / r));
         }
+        let reach = |e: f64| crate::ExtentBall::of_sphere(o, e).lever();
         for (kind, s, kappa) in rows {
-            let (point, _) = point_arm(kappa, e);
-            let folded = crate::folded_lever_arm(&s, &plane, o, e);
+            let (point, _) = point_arm(kappa, reach(e));
+            let point = point.length();
+            let folded = crate::folded_lever_arm(&s, &plane, o, reach(e)).length();
             assert!(
                 (point - folded).abs() <= 4.0 * f64::EPSILON * folded,
                 "{kind}, κ = {kappa:e}: point arm {point:e}, folded arm {folded:e}"
             );
         }
-        let (poison_kappa, _) = point_arm(f64::NAN, e);
-        let (poison_extent, _) = point_arm(1.0, f64::NAN);
+        let (poison_kappa, _) = point_arm(f64::NAN, reach(e));
+        let (poison_extent, _) = point_arm(1.0, reach(f64::NAN));
+        let (poison_kappa, poison_extent) = (poison_kappa.length(), poison_extent.length());
         assert!(
             poison_kappa.is_nan(),
             "point arm, κ poison: {poison_kappa:e}"
@@ -4041,10 +4049,10 @@ mod ending_tests {
             poison_extent.is_nan(),
             "point arm, E poison: {poison_extent:e}"
         );
-        let folded = crate::folded_lever_arm(&sphere(0.1), &plane, o, f64::NAN);
+        let folded = crate::folded_lever_arm(&sphere(0.1), &plane, o, reach(f64::NAN)).length();
         assert!(folded.is_nan(), "folded arm, E poison: {folded:e}");
         let nurbs = Surface::nurbs_placeholder();
-        let folded = crate::folded_lever_arm(&nurbs, &plane, o, e);
+        let folded = crate::folded_lever_arm(&nurbs, &plane, o, reach(e)).length();
         assert!(folded.is_nan(), "folded arm on a NURBS carrier: {folded:e}");
     }
 

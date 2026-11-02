@@ -47,10 +47,7 @@ fn pair() -> (Surface<f64>, Surface<f64>, Curve3<f64>, Curve3<f64>) {
         wall(Vec3::unit_z(), Vec3::unit_x()),
         wall(Vec3::unit_y(), Vec3::unit_z()),
     );
-    let reach = geom_brep::Reach::Measured {
-        at: Point3::origin(),
-        lever: 1.0,
-    };
+    let reach = geom_brep::Reach::of_frame(Point3::origin(), None, (1.0, 1.0));
     let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) =
         geom_brep::cylinder_cylinder_section(&sa, &sb, &reach.ball(), band())
     else {

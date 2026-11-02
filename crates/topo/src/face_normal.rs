@@ -356,7 +356,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             // elevation over it) into metres — not a curvature bound.
             let arm = geom_brep::curvature_lever_arm(surface, p);
             let grad = geom_brep::implicit_gradient(surface, p);
-            let margin = Margin::levered(grad.norm() - T::one(), geom_core::Lever::unsourced(arm));
+            let margin = Margin::levered(grad.norm() - T::one(), arm);
             match decide("bool_pierce_normal_on_chart", margin, band) {
                 Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.sense))),
                 Ok(Sign::Positive | Sign::Negative) => Err(NormalAtError::OffSurface),
@@ -530,7 +530,7 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
         return Err(SplineNormalError::PlaceholderChart);
     }
     let uv = (T::from_computed(u), T::from_computed(v));
-    let reach = geom_brep::control_net_reach(chart.control(), p);
+    let reach = geom_brep::ExtentBall::of_control_net_from(chart.control(), p).lever();
     geom_brep::chart_point_normal(
         chart,
         f.sense,

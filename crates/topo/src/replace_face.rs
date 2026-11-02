@@ -1690,7 +1690,7 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
             .unwrap_or_else(|e| panic!("the corner's edges read: {e}"));
         for inc in incident.into_iter().filter(|i| i.derived) {
             if !out.iter().any(|(e, ..)| *e == inc.edge) {
-                out.push((inc.edge, inc.carrier, inc.extent));
+                out.push((inc.edge, inc.carrier, inc.extent.length()));
             }
         }
     }
@@ -3165,7 +3165,7 @@ fn derive_edge<'w, 's, T: Decide>(
         &'s Surface<T>,
         &'s Surface<T>,
     ),
-    extent: T,
+    extent: geom_core::Lever<T>,
     reach: T,
     band: Band,
     (section_lane, (new_slot, neighbour_slot)): (
@@ -3998,14 +3998,14 @@ struct Incident<T: Real> {
     derived: bool,
     /// The lever a root along it decides its transversality at
     /// ([`corner_arm`]).
-    extent: T,
+    extent: geom_core::Lever<T>,
 }
 
 /// **The lever a root along `carrier` over `[t0, t1]` is decided at**:
 /// the span's extent. On a derived spline section the span is the
 /// section's own domain ([`derive_edge`]), the whole curve its root is
 /// isolated over.
-fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
+fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<T> {
     geom_brep::edge_extent_inf(carrier, t0, t1, carrier.eval(t0).distance(carrier.eval(t1)))
 }
 
@@ -4072,7 +4072,7 @@ fn spline_corner_root<T: Decide>(
     lane: crate::offset_derive::SectionLane<T>,
     surface: &Surface<T>,
     spline: &NurbsCurve3<T>,
-    (seed, extent): (T, T),
+    (seed, extent): (T, geom_core::Lever<T>),
     (vertex, edge, derived): (VertexKey, EdgeKey, bool),
     d: T,
     band: Band,
@@ -4982,8 +4982,14 @@ mod pose_reach_rows {
             ("cyl, torus", &general, &torus),
             ("torus, cyl", &torus, &general),
         ] {
-            let derived =
-                crate::offset_derive::section_closed(a, b, &edge, (0.0, 0.1), 0.1, band());
+            let derived = crate::offset_derive::section_closed(
+                a,
+                b,
+                &edge,
+                (0.0, 0.1),
+                super::corner_arm(&edge, 0.0, 0.1),
+                band(),
+            );
             assert!(
                 matches!(
                     derived,

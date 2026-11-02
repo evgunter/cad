@@ -1535,6 +1535,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         "chart_region_cyl_tilt",
         Margin::levered(
             a.axis.cross(b.axis).norm(),
+            // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
+            // and the larger radius; no extent read computes it.
             geom_core::Lever::unsourced(hyp),
         ),
     )?;
@@ -1550,7 +1552,12 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     //     goes through the metres door with an honest length.
     let sigma = match decide(
         "chart_region_cyl_axis_sense",
-        Margin::levered(a.axis.dot(b.axis), geom_core::Lever::unsourced(hyp)),
+        Margin::levered(
+            a.axis.dot(b.axis),
+            // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
+            // and the larger radius; no extent read computes it.
+            geom_core::Lever::unsourced(hyp),
+        ),
         band,
     ) {
         Ok(Sign::Positive) => T::one(),
@@ -3341,7 +3348,7 @@ fn proper_crossings<T: Decide>(
             for (slot, (frac, len)) in outcomes.iter_mut().zip(spans) {
                 match decide(
                     "chart_region_cross_span",
-                    Margin::levered(frac, geom_core::Lever::unsourced(len)),
+                    Margin::metered(frac, InfSpeed::new(len)),
                     band,
                 ) {
                     Ok(sign) => *slot = sign,
@@ -3448,7 +3455,7 @@ fn intersection_pieces<T: Decide + Bounds>(
                 continue; // distinct edges order exactly by index
             }
             let edge_len = (poly[(ei + 1) % poly.len()] - poly[ei]).norm();
-            let sep = Margin::levered(fj - fi, geom_core::Lever::unsourced(edge_len));
+            let sep = Margin::metered(fj - fi, InfSpeed::new(edge_len));
             match decide("chart_region_cross_order", sep, band) {
                 Ok(Sign::Positive) => {}
                 Ok(_) => {

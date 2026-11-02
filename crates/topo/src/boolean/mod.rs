@@ -7706,8 +7706,13 @@ fn route_rim<T: Decide>(
         u_ref: rim.u_ref,
     };
     let whole = (T::zero(), T::tau());
-    let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
-        .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
+    // Unsourced lever: the faces' wedge reach (`crate::wedge_reach`),
+    // their boundary vertices' distance from the rim, measured as a bare
+    // length outside the extent home.
+    let reach = geom_core::Lever::unsourced(
+        crate::wedge_reach(a, [fa; 2], &circle, whole)
+            .max(crate::wedge_reach(b, [fb; 2], &circle, whole)),
+    );
     let routing = rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, reach, band)
         .map_err(in_band)?;
     match routing {

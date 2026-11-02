@@ -131,6 +131,9 @@ pub(crate) fn re_ask_on_pair<T: Decide>(
     declared: impl FnOnce() -> Result<Option<MappedCurve<T>>, ReplaceFaceError<T>>,
     band: Band,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
+    // Unsourced lever: the faces' wedge reach (`crate::wedge_reach`), measured as a
+    // bare length outside the extent home.
+    let reach = geom_core::Lever::unsourced(reach);
     let read = geom_brep::reask_pair(surfaces, carrier, (t0, t1), reach, None, band)
         .map_err(|refusal| pair_refusal(edge, refusal))?;
     Ok(match read {
@@ -159,8 +162,16 @@ pub(crate) fn re_ask_chart<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<Option<EdgeDescriptionSpec<T>>, ReplaceFaceError<T>> {
-    geom_brep::reask_chart(surfaces, carrier, (t0, t1), reach, band)
-        .map_err(|refusal| pair_refusal(edge, refusal))
+    // Unsourced lever: the faces' wedge reach (`crate::wedge_reach`), measured as a
+    // bare length outside the extent home.
+    geom_brep::reask_chart(
+        surfaces,
+        carrier,
+        (t0, t1),
+        geom_core::Lever::unsourced(reach),
+        band,
+    )
+    .map_err(|refusal| pair_refusal(edge, refusal))
 }
 
 /// An offset door's refusal of the rule's reading of `edge`: a mixed

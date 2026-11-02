@@ -274,7 +274,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         .collect();
     let solve = |group: &[VertexKey]| {
         let mut at: Vec<&MovedPlane<T>> = Vec::new();
-        let mut arms: Vec<T> = Vec::new();
+        let mut arms: Vec<geom_core::Lever<T>> = Vec::new();
         // The group's corners in vertex-arena order, as `at_vertex` holds them.
         let mut rows: Vec<usize> = group
             .iter()
@@ -584,7 +584,7 @@ fn asked_to_move<T: Decide>(
 pub(crate) fn solve_planar_corner<T: Decide>(
     vertex: VertexKey,
     at: &[(Vec3<T>, T)],
-    arms: &[T],
+    arms: &[geom_core::Lever<T>],
     band: Band,
 ) -> Result<Point3<T>, ReplaceFaceError<T>> {
     let non_simple = |what: &'static str| ReplaceFaceError::TogetherCorner {
@@ -621,7 +621,7 @@ pub(crate) fn solve_planar_corner<T: Decide>(
                 for &arm in arms {
                     match decide(
                         "offset_together_corner",
-                        Margin::levered(det.abs(), geom_core::Lever::unsourced(arm)),
+                        Margin::levered(det.abs(), arm),
                         band,
                     ) {
                         Ok(Sign::Positive) => {}
@@ -687,7 +687,11 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
 /// with ONE seam closes on itself — and a zero arm makes every meter
 /// read `Zero` and call a perfectly transversal corner degenerate,
 /// which is what it measured on the revolved tube.
-fn corner_arms<T: Real>(body: &Body<T>, vertex: VertexKey, here: Point3<T>) -> Vec<T> {
+fn corner_arms<T: Real>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    here: Point3<T>,
+) -> Vec<geom_core::Lever<T>> {
     body.vertex_orbit_linked(vertex)
         .into_iter()
         .map(|he| {
@@ -701,7 +705,7 @@ fn corner_arms<T: Real>(body: &Body<T>, vertex: VertexKey, here: Point3<T>) -> V
             )
             .start;
             let there = body.linked_vertex_point(far, EntityId::HalfEdge(next), "start");
-            (there - here).norm()
+            geom_brep::ExtentBall::point(here).lever_from(there)
         })
         .collect()
 }

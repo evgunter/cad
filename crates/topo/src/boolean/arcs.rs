@@ -54,27 +54,24 @@ pub(super) fn arcs_along<T: Decide>(
         let Some(curve) = body.edge_curve_linked(e, edge).certified() else {
             continue;
         };
-        let geom::Curve3::Circle { radius, .. } = *curve.carrier() else {
+        let geom::Curve3::Circle { center, radius, .. } = *curve.carrier() else {
             continue;
         };
         let (tangent, arrival) = curve.walk_tangents(he == edge.he_plus);
         let tangent = tangent.normalize();
+        let arm = geom_brep::ExtentBall::of_circle(center, radius).lever();
         // Off the tangent's line rules the arc out whatever its
         // direction; an arc decided backward is ruled out whatever its
         // offset. Only an arc neither rules out escalates.
         let off = decide(
             "bool_arc_along",
-            Margin::levered(tangent.cross(d).norm(), geom_core::Lever::unsourced(radius)),
+            Margin::levered(tangent.cross(d).norm(), arm),
             band,
         );
         if off == Ok(Sign::Positive) {
             continue;
         }
-        match decide(
-            "bool_arc_ahead",
-            Margin::levered(tangent.dot(d), geom_core::Lever::unsourced(radius)),
-            band,
-        ) {
+        match decide("bool_arc_ahead", Margin::levered(tangent.dot(d), arm), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Negative | Sign::Zero) => continue,
             Err(diag) => return Err(diag),

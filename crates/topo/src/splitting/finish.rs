@@ -1829,7 +1829,15 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 .cloned();
             let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
             let (carrier, interval) = draft.span();
-            let reach = crate::wedge_reach(body, [face, other_face], carrier, interval);
+            // Unsourced lever: the wedge's reach, the farthest its faces' boundary vertices and
+            // the edge's ends stand from the carrier's middle, which `crate::wedge_reach` reads
+            // as a bare length.
+            let reach = geom_core::Lever::unsourced(crate::wedge_reach(
+                body,
+                [face, other_face],
+                carrier,
+                interval,
+            ));
             let witness = draft.witness;
             match geom_brep::classify_dihedral(surf_self, surf_other, witness, reach, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {

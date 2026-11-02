@@ -67,7 +67,9 @@
 //! `classify_dihedral` pattern.
 
 use geom_core::k_stats::{Magnitude, NonzeroSign};
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Real, Sign, Vec3};
+use geom_core::{
+    Band, Decide, Decided, Indeterminate, Lever, Margin, MarginDiag, Real, Sign, Vec3,
+};
 
 /// Which rung of a reading metered over a lever arm escalated: the arm
 /// gate or the reading itself. [`enters_material`],
@@ -325,7 +327,7 @@ impl<T: Real> ReferenceNormal<T> {
 pub fn enters_material<T: Decide>(
     dir: Vec3<T>,
     outward_normal: OutwardNormal<T>,
-    arm: T,
+    arm: Lever<T>,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
     enters_material_reported(dir, outward_normal, arm, band).map(|(verdict, _)| verdict)
@@ -340,7 +342,7 @@ pub fn enters_material<T: Decide>(
 pub fn enters_material_reported<T: Decide>(
     dir: Vec3<T>,
     outward_normal: OutwardNormal<T>,
-    arm: T,
+    arm: Lever<T>,
     band: Band,
 ) -> Result<(EntersMaterial, MarginDiag), LeverEscalation> {
     departure_side_reported(
@@ -364,7 +366,7 @@ pub fn enters_material_reported<T: Decide>(
 pub fn departure_side_reported<T: Decide>(
     dir: Vec3<T>,
     reference_normal: ReferenceNormal<T>,
-    arm: T,
+    arm: Lever<T>,
     band: Band,
 ) -> Result<(EntersMaterial, MarginDiag), LeverEscalation> {
     let margin = sense_margin(dir, reference_normal.vec(), arm, band)?;
@@ -401,7 +403,7 @@ pub enum NormalAlignment<T: Real> {
 pub struct ParallelNormal<T: Real> {
     dir: Vec3<T>,
     outward_normal: OutwardNormal<T>,
-    arm: T,
+    arm: Lever<T>,
     band: Band,
     margin: MarginDiag,
 }
@@ -428,13 +430,10 @@ pub fn normal_alignment<T: Decide>(
     name: &'static str,
     dir: Vec3<T>,
     outward_normal: OutwardNormal<T>,
-    arm: T,
+    arm: Lever<T>,
     band: Band,
 ) -> Result<NormalAlignment<T>, Indeterminate> {
-    let sine = Margin::levered(
-        outward_normal.vec().cross(dir).norm(),
-        geom_core::Lever::unsourced(arm),
-    );
+    let sine = Margin::levered(outward_normal.vec().cross(dir).norm(), arm);
     Ok(
         match crate::dihedral::decide_magnitude_reported(name, sine, band)? {
             (Magnitude::Positive, margin) => NormalAlignment::Oblique(margin),
@@ -496,10 +495,10 @@ impl<T: Decide> ParallelNormal<T> {
 fn sense_margin<T: Decide>(
     dir: Vec3<T>,
     normal: Vec3<T>,
-    arm: T,
+    arm: Lever<T>,
     band: Band,
 ) -> Result<Margin<T>, LeverEscalation> {
-    crate::dihedral::decide_positive("enters_material_arm", Margin::of(arm), band)
+    crate::dihedral::decide_positive("enters_material_arm", Margin::of(arm.length()), band)
         .map_err(LeverEscalation::arm)?;
     Ok(rise(dir, normal, arm))
 }
@@ -508,11 +507,8 @@ fn sense_margin<T: Decide>(
 /// direction `dir` levered at `arm` against the plane's unit normal
 /// `normal`, in metres.
 #[must_use]
-pub fn rise<T: Real>(dir: Vec3<T>, normal: Vec3<T>, arm: T) -> Margin<T> {
-    Margin::levered(
-        dir.normalize().dot(normal),
-        geom_core::Lever::unsourced(arm),
-    )
+pub fn rise<T: Real>(dir: Vec3<T>, normal: Vec3<T>, arm: Lever<T>) -> Margin<T> {
+    Margin::levered(dir.normalize().dot(normal), arm)
 }
 
 /// **`enters_material_order2`** — the second-order descent of the
@@ -796,6 +792,11 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
+    /// An arm of length `x`: the radius of a sphere that long.
+    fn arm(x: f64) -> Lever<f64> {
+        crate::ExtentBall::of_sphere(geom_core::Point3::origin(), x).lever()
+    }
+
     /// Mirror check (F3): on a face whose outward normal is −z (a
     /// solid's bottom face — material above the face), the upward
     /// direction +z must classify as ENTERING material and −z as
@@ -806,9 +807,9 @@ mod tests {
         // `sense == false` face — the bit is what makes it outward.
         let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), false);
         let up = Vec3::new(0.0, 0.0, 1.0);
-        let e = enters_material(up, n_out, 1.0, band()).unwrap();
+        let e = enters_material(up, n_out, arm(1.0), band()).unwrap();
         assert_eq!(e, EntersMaterial::Enters);
-        let e = enters_material(-up, n_out, 1.0, band()).unwrap();
+        let e = enters_material(-up, n_out, arm(1.0), band()).unwrap();
         assert_eq!(e, EntersMaterial::Exits);
     }
 
@@ -817,9 +818,9 @@ mod tests {
     #[test]
     fn tangent_and_oblique() {
         let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-        let t = enters_material(Vec3::new(1.0, 2.0, 0.0), n_out, 3.0, band()).unwrap();
+        let t = enters_material(Vec3::new(1.0, 2.0, 0.0), n_out, arm(3.0), band()).unwrap();
         assert_eq!(t, EntersMaterial::Tangent);
-        let o = enters_material(Vec3::new(1.0, 0.0, -1.0), n_out, 3.0, band()).unwrap();
+        let o = enters_material(Vec3::new(1.0, 0.0, -1.0), n_out, arm(3.0), band()).unwrap();
         assert_eq!(o, EntersMaterial::Enters);
     }
 
@@ -828,7 +829,7 @@ mod tests {
     #[test]
     fn collapsed_arm_escalates() {
         let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-        let err = enters_material(n_out.vec(), n_out, 0.0, band()).unwrap_err();
+        let err = enters_material(n_out.vec(), n_out, arm(0.0), band()).unwrap_err();
         assert_eq!(
             (err.rung, err.diag.predicate),
             (LeverRung::Arm, Some("enters_material_arm"))
@@ -861,11 +862,11 @@ mod tests {
         let unchanged = [
             (
                 "exact zero",
-                enters_material(unit.vec(), unit, 0.0, band).unwrap_err(),
+                enters_material(unit.vec(), unit, arm(0.0), band).unwrap_err(),
             ),
             (
                 "poisoned arm",
-                enters_material(unit.vec(), unit, f64::NAN, band).unwrap_err(),
+                enters_material(unit.vec(), unit, arm(f64::NAN), band).unwrap_err(),
             ),
             ("reading's rung", LeverEscalation::reading(read(5e-9))),
             (
@@ -917,14 +918,14 @@ mod tests {
             ] {
                 let dir = Vec3::new(k, 0.0, dz * k);
                 assert_eq!(
-                    enters_material(dir, n_out, 1.0, band()).ok(),
+                    enters_material(dir, n_out, arm(1.0), band()).ok(),
                     Some(want),
                     "dir {dir:?} classifies by its direction"
                 );
             }
         }
-        let err =
-            enters_material(Vec3::new(f64::INFINITY, 0.0, -1.0), n_out, 1.0, band()).unwrap_err();
+        let err = enters_material(Vec3::new(f64::INFINITY, 0.0, -1.0), n_out, arm(1.0), band())
+            .unwrap_err();
         assert_eq!(
             (err.rung, err.diag.predicate),
             (LeverRung::Reading, Some("enters_material")),
@@ -937,7 +938,7 @@ mod tests {
     #[test]
     fn zero_dir_escalates() {
         let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-        let err = enters_material(Vec3::zero(), n_out, 1.0, band()).unwrap_err();
+        let err = enters_material(Vec3::zero(), n_out, arm(1.0), band()).unwrap_err();
         assert_eq!(
             (err.rung, err.diag.predicate),
             (LeverRung::Reading, Some("enters_material"))
@@ -1115,7 +1116,8 @@ mod tests {
                 (false, ParallelSense::Enters, -1.0),
             ] {
                 let n = OutwardNormal::from_chart(up, bit);
-                let NormalAlignment::Parallel(p) = normal_alignment("t", up, n, 2.0, band).unwrap()
+                let NormalAlignment::Parallel(p) =
+                    normal_alignment("t", up, n, arm(2.0), band).unwrap()
                 else {
                     panic!("{band:?}, {bit}: parallel");
                 };
@@ -1125,7 +1127,7 @@ mod tests {
             }
             let x = OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true);
             assert!(matches!(
-                normal_alignment("t", up, x, 2.0, band).unwrap(),
+                normal_alignment("t", up, x, arm(2.0), band).unwrap(),
                 NormalAlignment::Oblique(m) if m == MarginDiag::value(2.0)
             ));
         }
@@ -1133,7 +1135,7 @@ mod tests {
         let s = 0.5f64.sqrt();
         let dir = Vec3::new(s, s, 0.0);
         let x = OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true);
-        let NormalAlignment::Parallel(p) = normal_alignment("t", dir, x, 1.4, short).unwrap()
+        let NormalAlignment::Parallel(p) = normal_alignment("t", dir, x, arm(1.4), short).unwrap()
         else {
             panic!("the sine 0.99 reads zero");
         };

@@ -80,7 +80,7 @@
 
 use geom::{NurbsSurface, Surface, SurfaceJet};
 use geom_core::k_stats::Magnitude;
-use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Real, Vec3};
 
 use crate::certify::NurbsLane;
 
@@ -226,7 +226,7 @@ pub fn dihedral_side<T: Decide>(
     against: SideFace<'_, T>,
     p: Point3<T>,
     walk: EdgeWalk<T>,
-    reach: T,
+    reach: Lever<T>,
     lane: Option<NurbsLane<T>>,
     band: Band,
 ) -> Result<(FaceSide, MarginDiag), SideEscalation> {
@@ -248,10 +248,10 @@ fn normal_at<T: Decide>(
     face: SideFace<'_, T>,
     role: SideRole,
     p: Point3<T>,
-    reach: T,
+    reach: Lever<T>,
     lane: Option<NurbsLane<T>>,
     band: Band,
-) -> Result<(OutwardNormal<T>, T), SideEscalation> {
+) -> Result<(OutwardNormal<T>, Lever<T>), SideEscalation> {
     match face.surface.spline_chart() {
         None => Ok((
             implicit_outward_normal(face.surface, face.sense, p),
@@ -271,10 +271,10 @@ fn spline_normal<T: Decide>(
     sense: bool,
     role: SideRole,
     p: Point3<T>,
-    reach: T,
+    reach: Lever<T>,
     lane: NurbsLane<T>,
     band: Band,
-) -> Result<(OutwardNormal<T>, T), SideEscalation> {
+) -> Result<(OutwardNormal<T>, Lever<T>), SideEscalation> {
     if chart.is_placeholder() {
         return Err(SideEscalation::Placeholder(role));
     }
@@ -332,11 +332,12 @@ pub fn chart_point_normal<T: Decide>(
     sense: bool,
     (u, v): (T, T),
     p: Point3<T>,
-    reach: T,
+    reach: Lever<T>,
     name: &'static str,
     band: Band,
-) -> Result<(OutwardNormal<T>, T), ChartPointRefusal> {
-    let jet = regular_jet(chart, (u, v), reach, band).map_err(ChartPointRefusal::Irregular)?;
+) -> Result<(OutwardNormal<T>, Lever<T>), ChartPointRefusal> {
+    let jet =
+        regular_jet(chart, (u, v), reach.length(), band).map_err(ChartPointRefusal::Irregular)?;
     match crate::dihedral::decide_magnitude_reported(name, Margin::of((jet.point - p).norm()), band)
     {
         Ok((Magnitude::Zero, _)) => {}
@@ -390,17 +391,17 @@ pub fn chart_normal_at<T: Decide>(
     sense: bool,
     jet: &SurfaceJet<T>,
     (u, v): (T, T),
-    reach: T,
+    reach: Lever<T>,
     band: Band,
-) -> Result<(OutwardNormal<T>, T), CreaseReading> {
+) -> Result<(OutwardNormal<T>, Lever<T>), CreaseReading> {
     if let Some(reading) = on_a_crease(chart, jet.point, (u, v), band) {
         return Err(reading);
     }
     let kappa = crate::shape_operator::max_principal_curvature(jet);
-    let (arm, _) = crate::ssi::point_arm(kappa, geom_core::Lever::unsourced(reach));
+    let (arm, _) = crate::ssi::point_arm(kappa, reach);
     Ok((
         OutwardNormal::from_chart(jet.du.cross(jet.dv).normalize(), sense),
-        arm.length(),
+        arm,
     ))
 }
 
@@ -476,6 +477,11 @@ mod tests {
     use geom_core::Tol;
     use geom_core::spline::KnotVector;
 
+    /// An arm of length `x`: the radius of a sphere that long.
+    fn extent_lever<T: Real>(x: T) -> geom_core::Lever<T> {
+        crate::ExtentBall::of_sphere(geom_core::Point3::origin(), x).lever()
+    }
+
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
@@ -504,7 +510,16 @@ mod tests {
         reach: f64,
     ) -> Result<FaceSide, SideEscalation> {
         let walk = EdgeWalk::of_half(t, EdgeHalf::HePlus);
-        dihedral_side(departing, against, p, walk, reach, lane(), band()).map(|(s, _)| s)
+        dihedral_side(
+            departing,
+            against,
+            p,
+            walk,
+            extent_lever(reach),
+            lane(),
+            band(),
+        )
+        .map(|(s, _)| s)
     }
 
     fn side(
@@ -663,7 +678,7 @@ mod tests {
                 face(&floor, true),
                 ON_EDGE,
                 walk,
-                1.0,
+                extent_lever(1.0),
                 lane(),
                 band(),
             )
@@ -818,7 +833,7 @@ mod tests {
                 face(&w, true),
                 ON_EDGE,
                 walk,
-                1.0,
+                extent_lever(1.0),
                 None,
                 band()
             ),
@@ -831,7 +846,7 @@ mod tests {
                 face(&floor, true),
                 ON_EDGE,
                 walk,
-                1.0,
+                extent_lever(1.0),
                 None,
                 band()
             )

@@ -4478,6 +4478,8 @@ fn edge_in_curved_face<T: Decide>(
     for sheet in [w.own, w.next] {
         match decide(
             "pm_census_ef_curved_wall_side",
+            // Unsourced lever: the wedge's arm, `sector_shape`'s shorter scaled sheet (each about
+            // the line edge's chord); the chord's own extent read rounds differently.
             Margin::levered(sheet.dot(floor), geom_core::Lever::unsourced(w.arm)),
             band,
         ) {
@@ -5159,6 +5161,8 @@ fn parallel_reading<T: Decide>(
         "pm_census_ee_parallel",
         Margin::levered(
             a.dir.cross(b.dir).norm(),
+            // Unsourced lever: the shorter straight span's parameter interval on its unit-direction
+            // line; no extent read takes a line's interval, and its chord read rounds differently.
             geom_core::Lever::unsourced(a.len().min(b.len())),
         ),
         band,
@@ -5283,7 +5287,8 @@ fn ee_cross_backed<T: Decide>(
             body.face_surface_linked(fa, da),
             body.face_surface_linked(fb, db),
         );
-        let arm_extent = ea.len.min(eb.len);
+        let chord = |e: &EdgeGeo<T>| geom_brep::ExtentBall::point(e.p0).lever_from(e.p1);
+        let arm_extent = chord(ea).min(chord(eb));
         // The last carrier screen, and the Smooth-site precondition the
         // pairing below states. The edge screen reads points against
         // each plane; this reads the planes against each other, at the

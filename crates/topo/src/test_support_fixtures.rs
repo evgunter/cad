@@ -761,8 +761,8 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
             body.get_surface(s1).unwrap().clone(),
             body.get_surface(s2).unwrap().clone(),
         );
-        match geom_brep::classify_dihedral(&surf1, &surf2, witness, p0.distance(p1), band).unwrap()
-        {
+        let chord = geom_brep::ExtentBall::point(p0).lever_from(p1);
+        match geom_brep::classify_dihedral(&surf1, &surf2, witness, chord, band).unwrap() {
             geom_brep::DihedralClass::Smooth => continue,
             geom_brep::DihedralClass::Transverse => {}
         }

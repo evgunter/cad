@@ -61,7 +61,7 @@ pub(crate) enum BoundSupport<T: geom_core::Real> {
         /// The edge's extent from below ([`geom_brep::edge_extent_inf`]):
         /// no longer than its arc, so a point at that arc length lies on
         /// the edge.
-        extent: T,
+        extent: geom_core::Lever<T>,
         /// The edge's bend at the base vertex.
         bend: ConicBend<T>,
     },
@@ -72,7 +72,7 @@ pub(crate) enum BoundSupport<T: geom_core::Real> {
     /// spline face, whose bend is not certified.
     Bisector {
         /// The sector's arm.
-        arm: T,
+        arm: geom_core::Lever<T>,
         /// The face's normal section's curvature vector along the
         /// bisector, `None` on a spline face.
         bend: Option<Vec3<T>>,
@@ -81,18 +81,18 @@ pub(crate) enum BoundSupport<T: geom_core::Real> {
 
 impl<T: geom_core::Real> BoundSupport<T> {
     /// The length the bound reaches from its base vertex, in metres:
-    /// a line edge's chord, a curved edge's extent, a bisector's arm.
-    pub(crate) fn length(self) -> T {
+    /// a line edge's chord (its far vertex's distance), a curved edge's
+    /// extent, a bisector's arm.
+    pub(crate) fn reach(self) -> geom_core::Lever<T> {
         match self {
-            Self::Chord { base, far } => (far - base).norm(),
-            Self::Extent(l) => l.length(),
-            Self::Conic { extent: l, .. } | Self::Bisector { arm: l, .. } => l,
+            Self::Chord { base, far } => geom_brep::ExtentBall::point(far).lever_from(base),
+            Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector { arm: l, .. } => l,
         }
     }
 
     /// The point that fixes a bound leaving `base` along `dir`: a line
     /// edge's far vertex, and any other bound's direction out to its
-    /// reach ([`Self::length`]) — a curved edge's departure tangent at
+    /// reach ([`Self::reach`]) — a curved edge's departure tangent at
     /// its extent, a probe's or a bisector's direction at its arm. A
     /// gathered cone's rays and own edges are read at it
     /// ([`crate::link::Cone::gathered`]).
@@ -100,7 +100,7 @@ impl<T: geom_core::Real> BoundSupport<T> {
         match self {
             Self::Chord { far, .. } => far,
             Self::Extent(_) | Self::Conic { .. } | Self::Bisector { .. } => {
-                base + dir.normalize() * self.length()
+                base + dir.normalize() * self.reach().length()
             }
         }
     }
@@ -110,7 +110,12 @@ impl<T: Decide> BoundSupport<T> {
     /// A bisector of a sector on `face` (outward unit normal `n`) along
     /// the unit `dir`, levered at `arm`: it bends as the face's normal
     /// section along it.
-    pub(crate) fn bisector(arm: T, dir: Vec3<T>, n: Vec3<T>, face: FaceBend<T>) -> Self {
+    pub(crate) fn bisector(
+        arm: geom_core::Lever<T>,
+        dir: Vec3<T>,
+        n: Vec3<T>,
+        face: FaceBend<T>,
+    ) -> Self {
         Self::Bisector {
             arm,
             bend: face.section(dir, n).map(|a| n * a),
@@ -119,7 +124,7 @@ impl<T: Decide> BoundSupport<T> {
 
     /// A bisector of a straight section, levered at `arm`: a sector on a
     /// plane, or a ruling.
-    pub(crate) fn straight_bisector(arm: T) -> Self {
+    pub(crate) fn straight_bisector(arm: geom_core::Lever<T>) -> Self {
         Self::Bisector {
             arm,
             bend: Some(Vec3::zero()),
@@ -146,7 +151,7 @@ impl<T: Decide> BoundSupport<T> {
 
 /// A direction's first-order rise off the plane with unit normal `n`,
 /// levered at `arm`: `d̂·n̂·arm`, in metres.
-pub(crate) fn rise<T: Decide>(dir: Vec3<T>, n: Vec3<T>, arm: T) -> T {
+pub(crate) fn rise<T: Decide>(dir: Vec3<T>, n: Vec3<T>, arm: geom_core::Lever<T>) -> T {
     geom_brep::rise(dir, n, arm).value()
 }
 
@@ -467,7 +472,7 @@ fn first_order<T: Decide>(
     band: Band,
 ) -> Result<Settled<T>, ReadFault<T>> {
     let n = face.reference.vec();
-    let length = reach.length();
+    let lever = reach.reach();
     let tie = |predicate, decided| {
         Ok(Err(Tie {
             dir,
@@ -494,9 +499,9 @@ fn first_order<T: Decide>(
             }
         }
         BoundSupport::Extent(_) | BoundSupport::Conic { .. } | BoundSupport::Bisector { .. } => {
-            match geom_brep::departure_side_reported(dir, face.reference, length, band) {
+            match geom_brep::departure_side_reported(dir, face.reference, lever, band) {
                 Ok((verdict, margin)) => match Side::of(verdict) {
-                    Some(side) => (side, rise(dir, n, length).abs()),
+                    Some(side) => (side, rise(dir, n, lever).abs()),
                     None => {
                         return tie(
                             "enters_material",
@@ -510,8 +515,8 @@ fn first_order<T: Decide>(
                 Err(escalation) => {
                     return Err(ReadFault::Departure {
                         escalation,
-                        arm: length,
-                        departure: rise(dir, n, length),
+                        arm: lever.length(),
+                        departure: rise(dir, n, lever),
                     });
                 }
             }
@@ -578,7 +583,7 @@ pub(crate) fn read<T: Decide>(
     face: FaceDatum<T>,
     band: Band,
 ) -> Result<FirstOrder<T>, BoundSideFault<T>> {
-    let length = reach.length();
+    let length = reach.reach().length();
     let (side, displacement) = match first_order(dir, reach, face, band) {
         Ok(Ok(off)) => off,
         Ok(Err(tie)) => return Ok(FirstOrder::Tied(tie)),
@@ -725,7 +730,7 @@ impl<T: Decide> Tie<T> {
             (FaceBend::Plane, BoundSupport::Conic { extent, bend }) => {
                 return match geom_brep::conic_bend_side(
                     self.dir,
-                    extent,
+                    extent.length(),
                     bend,
                     face.reference,
                     band,
@@ -758,7 +763,7 @@ impl<T: Decide> Tie<T> {
         let arm = [face.lever, face.bend.radius()]
             .into_iter()
             .flatten()
-            .fold(reach.length(), T::min);
+            .fold(reach.reach().length(), T::min);
         match geom_brep::parting_side(own - n * section, face.reference, arm, band) {
             Ok(verdict) => Ok(Side::of(verdict).map_or(Descent::Rides, Descent::Leaves)),
             Err(escalation)
@@ -784,6 +789,13 @@ fn in_one_gap(diag: Indeterminate) -> bool {
         geom_core::MarginKind::Enclosure => diag.terminal_sliver,
         geom_core::MarginKind::Invalid => false,
     }
+}
+
+/// **A test's lever of `length`**: a sphere's radius, read as the
+/// extent home reads it.
+#[cfg(test)]
+pub(crate) fn lever(length: f64) -> geom_core::Lever<f64> {
+    geom_brep::ExtentBall::of_sphere(Point3::origin(), length).lever()
 }
 
 #[cfg(test)]
@@ -819,7 +831,7 @@ mod tests {
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (
-            tangent.normalize() * extent,
+            tangent.normalize() * extent.length(),
             BoundSupport::Conic { extent, bend },
         )
     }
@@ -1082,7 +1094,7 @@ mod tests {
                         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
                         (
                             BoundSupport::Conic { extent, bend },
-                            tangent.normalize() * extent,
+                            tangent.normalize() * extent.length(),
                             Box::new(move |l| {
                                 center + (u_ref * (k * l).cos() + d * (k * l).sin()) * radius
                             }),
@@ -1100,7 +1112,7 @@ mod tests {
                         };
                         let own_n = (p - c).normalize();
                         (
-                            BoundSupport::bisector(0.5, d, own_n, FaceBend::at(&own, p)),
+                            BoundSupport::bisector(lever(0.5), d, own_n, FaceBend::at(&own, p)),
                             d,
                             Box::new(move |l| c + ((p + d * l) - c).normalize() * rad),
                         )
@@ -1177,7 +1189,7 @@ mod tests {
             let tangent = carrier.deriv(0.0);
             let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
             (
-                tangent.normalize() * extent,
+                tangent.normalize() * extent.length(),
                 BoundSupport::Conic { extent, bend },
             )
         };
@@ -1338,7 +1350,7 @@ mod tests {
             OutwardNormal::from_chart(z, true),
         ));
         for own in [z, -z] {
-            let bisector = BoundSupport::bisector(0.5, x, own, FaceBend::at(&sph, p));
+            let bisector = BoundSupport::bisector(lever(0.5), x, own, FaceBend::at(&sph, p));
             let FirstOrder::Tied(tie) = read(x, bisector, face, band()).unwrap() else {
                 panic!("a bisector in the tangent plane ties");
             };

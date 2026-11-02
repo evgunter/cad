@@ -56,7 +56,7 @@ fn frame_at(p: &geom::Surface<f64>, lever: f64) -> Loops {
             a,
             b,
             Point3::new(BIG_R, 0.0, 0.0),
-            FrameExtent::Reach(lever),
+            FrameExtent::Reach(crate::bound_side::lever(lever)),
             band(),
         )
     };
@@ -430,7 +430,7 @@ fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
             &torus,
             &p,
             Point3::new(big_r, 0.0, 0.0),
-            FrameExtent::Reach(REACH),
+            FrameExtent::Reach(crate::bound_side::lever(REACH)),
             b,
         );
         let Err(e) = got else {
@@ -511,7 +511,13 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
         shape(&got)
     );
     let torus = donut();
-    for extent in [FrameExtent::Radii, FrameExtent::Span(REACH)] {
+    for extent in [
+        FrameExtent::Radii,
+        FrameExtent::Span(geom_brep::ExtentBall::of_sphere(
+            Point3::origin(),
+            REACH / 2.0,
+        )),
+    ] {
         let got = pair_section_frame_at(&p, &torus, Point3::origin(), extent.clone(), b);
         assert!(
             matches!(got, Err(FrameError::Desync(_))),

@@ -987,10 +987,11 @@ fn section_reach<T: Decide>(
     let p = body.resolve_vertex_point(at, Proven);
     Ok(match wall {
         geom::Surface::Cylinder { axis, .. } => {
-            let extent = face_extent(body, at, face).map_err(unbounded)?;
+            let extent = face_extent(body, at, face).map_err(unbounded)?.length();
             let (below, above) = face_axial_range(body, face, p, *axis).map_err(unbounded)?;
-            let round =
-                crate::splitting::rules::face_reach_round_from(body, face, p).map_err(unbounded)?;
+            let round = crate::splitting::rules::face_reach_round_from(body, face, p)
+                .map_err(unbounded)?
+                .length();
             SectionReach::Cylinder(WallReach {
                 at: p,
                 below,
@@ -1293,7 +1294,7 @@ pub(crate) struct CarriedCtx<T: Real> {
     /// The copy of `partner` in this body, once minted.
     pub(crate) partner_key: Option<SurfaceKey>,
     /// The section's own scale ([`geom_brep::CarriedSection::lever`]).
-    pub(crate) lever: T,
+    pub(crate) lever: geom_core::Lever<T>,
 }
 
 /// The section conic's frame — the curve both chord lanes take an arc
@@ -1363,7 +1364,7 @@ pub(crate) struct SectionOval<T: Real> {
     /// plane, `r` along the axis and `(f_max − f_min)/2` along the trace
     /// (`geom::spiric_f_range`). At `offset = 0` it is the meridian
     /// circle's radius, as a conic's is its semi-major axis.
-    extent: T,
+    extent: geom_core::Lever<T>,
 }
 
 /// The closed curve of a section a chord takes an arc of: a conic, or a
@@ -1406,9 +1407,13 @@ impl<T: Decide> SectionCurve<T> {
 impl<T: Real> SectionCurve<T> {
     /// The length a departure's cosine is levered by: a conic's larger
     /// semi-axis, whichever its seam lies along, an oval's own extent.
-    fn lever(&self) -> T {
+    fn lever(&self) -> geom_core::Lever<T> {
         match self {
-            Self::Conic(c) => geom::Curve3::semi_axes_by_size(c.sa, c.sb).0,
+            Self::Conic(c) => geom_brep::ExtentBall::of_conic(&c.carrier)
+                .unwrap_or_else(|| {
+                    unreachable!("a section conic's carrier is a circle or an ellipse")
+                })
+                .lever(),
             Self::Oval(o) => o.extent,
         }
     }
@@ -1532,7 +1537,7 @@ pub(crate) enum SectionReach<T: Real> {
     /// A torus wall's face, or a plane face against a torus: the
     /// divided face's farthest distance from the chord's site, which the
     /// plane×torus arm levers its axis tilt by.
-    Torus(T),
+    Torus(geom_core::Lever<T>),
     /// Any other wall: the sphere lane reads no reach.
     Unmeasured,
 }
@@ -1801,7 +1806,12 @@ fn plane_wall_case<T: Decide>(
                             geom::spiric_f_range(major_radius, minor_radius, offset);
                         Ok(SectionCurve::Oval(SectionOval {
                             carrier: s.clone(),
-                            extent: minor_radius.max((f_max - f_min) * T::from_f64(0.5)),
+                            // Unsourced lever: the oval's larger half-width, short of the ball
+                            // that encloses it (its half-widths' hypotenuse), which would move
+                            // verdicts.
+                            extent: geom_core::Lever::unsourced(
+                                minor_radius.max((f_max - f_min) * T::from_f64(0.5)),
+                            ),
                         }))
                     }
                     _ => Err(carried()),
@@ -2144,14 +2154,11 @@ fn arc_leaving<T: Decide>(
     let (name, margin) = match leave.datum {
         Datum::Germ => (
             "chord_arc_leave_germ",
-            Margin::levered(along, geom_core::Lever::unsourced(conic.lever())),
+            Margin::levered(along, conic.lever()),
         ),
         Datum::Section => (
             "chord_arc_leave_section",
-            Margin::levered(
-                along,
-                geom_core::Lever::unsourced(geom_brep::curvature_lever_arm(wall, p1)),
-            ),
+            Margin::levered(along, geom_brep::curvature_lever_arm(wall, p1)),
         ),
     };
     match decide(name, margin, band).map_err(escalated)? {
@@ -2162,7 +2169,7 @@ fn arc_leaving<T: Decide>(
                 let cosine = along / leave.dir.norm();
                 match decide(
                     "chord_arc_leave_section_aligned",
-                    Margin::levered(cosine, geom_core::Lever::unsourced(conic.lever())),
+                    Margin::levered(cosine, conic.lever()),
                     band,
                 )
                 .map_err(escalated)?
@@ -2512,7 +2519,15 @@ fn chord_spec<T: Decide>(
                     interval: (s1, s2),
                     // The section face is not minted yet, so the wedge
                     // reads the face the ruling divides.
-                    reach: crate::wedge_reach(body, [face; 2], &carrier, (s1, s2)),
+                    // Unsourced lever: the face's reach from the chord's middle
+                    // (`crate::wedge_reach`), a read of its boundary's vertices that the
+                    // extent home does not make.
+                    reach: geom_core::Lever::unsourced(crate::wedge_reach(
+                        body,
+                        [face; 2],
+                        &carrier,
+                        (s1, s2),
+                    )),
                     witness,
                 },
                 band,
@@ -2655,7 +2670,7 @@ pub(crate) fn apex_section_ruling<T: Decide>(
     (face, at): (FaceKey, VertexKey),
     apex: &crate::sector_face::ConeApex<T>,
     (from, to): (Vec3<T>, Vec3<T>),
-    arm: T,
+    arm: geom_core::Lever<T>,
 ) -> Result<Vec3<T>, ApexRulingFault> {
     let lines = match wall_section(body, band, origin, normal, face, at) {
         Ok(Some(WallSection {
@@ -2694,12 +2709,8 @@ pub(crate) fn apex_section_ruling<T: Decide>(
         };
         let z = apex.onto_nappe_of(dir, to);
         let into = apex.turn(from, z).min(apex.turn(z, to));
-        match decide(
-            "germ_apex",
-            Margin::levered(into, geom_core::Lever::unsourced(arm)),
-            band,
-        )
-        .map_err(ApexRulingFault::Escalated)?
+        match decide("germ_apex", Margin::levered(into, arm), band)
+            .map_err(ApexRulingFault::Escalated)?
         {
             Sign::Positive if inside.is_none() => inside = Some(z),
             Sign::Positive => {
@@ -3010,7 +3021,7 @@ fn carried_chord_spec<T: Decide>(
     let along = leave.dir.dot(tangent) / tangent.norm();
     let up = match decide(
         "chord_carried_leave",
-        Margin::levered(along, geom_core::Lever::unsourced(ctx.lever)),
+        Margin::levered(along, ctx.lever),
         band,
     )
     .map_err(escalated)?
@@ -4146,7 +4157,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     let n_a = n.dot(axis);
     match decide(
         "split_ring_closure_ruling",
-        Margin::levered(n_a, geom_core::Lever::unsourced(radius)),
+        Margin::levered(n_a, geom_core::Lever::curvature_radius(radius)),
         band,
     )
     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -4463,7 +4474,7 @@ impl<T: Decide> IslandReading<T> {
             "split_ring_path_lean",
             Margin::levered(
                 -path.arrival.dot(self.left) / self.left.norm(),
-                geom_core::Lever::unsourced(self.quadric.lever(self.q)),
+                self.quadric.lever(self.q),
             ),
             band,
         )?;
@@ -5300,7 +5311,10 @@ impl RimSide {
                 let left = normal.vec().cross(tangent).dot(axis);
                 let region = decide(
                     "bool_lone_ring_region_side",
-                    Margin::levered(left, geom_core::Lever::unsourced(radius)),
+                    Margin::levered(
+                        left,
+                        geom_brep::ExtentBall::of_circle(center, radius).lever(),
+                    ),
                     band,
                 )
                 .map_err(escalated)?;
@@ -6597,8 +6611,12 @@ mod tests {
             };
             geom_brep::plane_cylinder_section(&plane, &wall, &reach, band)
         };
-        let span = crate::splitting::rules::face_reach_from(&body, face, base).unwrap();
-        let round = crate::splitting::rules::face_reach_round_from(&body, face, base).unwrap();
+        let span = crate::splitting::rules::face_reach_from(&body, face, base)
+            .unwrap()
+            .length();
+        let round = crate::splitting::rules::face_reach_round_from(&body, face, base)
+            .unwrap()
+            .length();
         assert!(
             matches!(read(round), Err(geom_brep::SectionError::Escalated(_))),
             "main's whole-turn reading escalates"

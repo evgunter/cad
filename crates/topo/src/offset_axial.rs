@@ -293,9 +293,11 @@
 use geom::SurfaceKind;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
+use geom_brep::ExtentBall;
 use geom_core::k_stats::decide;
 use geom_core::{
-    Arc2, Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, SpanLocate, Tol, Vec3,
+    Arc2, Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, SpanLocate,
+    SupSpeed, Tol, Vec3,
 };
 
 use crate::attach::Rechart;
@@ -316,7 +318,7 @@ use slotmap::SecondaryMap;
 struct Frame<T: Real> {
     origin: Point3<T>,
     dir: Vec3<T>,
-    extent: T,
+    extent: Lever<T>,
 }
 
 impl<T: Real> Frame<T> {
@@ -639,7 +641,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         .collect();
     let solve = |group: &[VertexKey]| {
         let mut at: Vec<&MovedChart<T>> = Vec::new();
-        let mut arms: Vec<T> = Vec::new();
+        let mut arms: Vec<Lever<T>> = Vec::new();
         let mut here = None;
         // The group's corners in vertex-arena order, as `at_vertex` holds them.
         let mut rows: Vec<usize> = group
@@ -1085,10 +1087,12 @@ fn axial_frame<T: Real>(
     // 2-D axis must be `±x`/`±y`) — or a hand-built body of that shape.
     // The same posture the axis gate's third outcome is documented
     // under: written for correctness rather than pinned by a fixture.
-    let mut extent = T::zero();
-    for (key, vertex) in body.vertices().filter(|&(k, _)| scope.holds_vertex(k)) {
-        extent = extent.max((body.point_of(key, vertex) - origin).norm());
-    }
+    let extent = body
+        .vertices()
+        .filter(|&(k, _)| scope.holds_vertex(k))
+        .fold(ExtentBall::point(origin).lever(), |far, (key, vertex)| {
+            far.max(ExtentBall::point(origin).lever_from(body.point_of(key, vertex)))
+        });
     Ok(Frame {
         origin,
         dir,
@@ -1117,11 +1121,7 @@ fn classify<T: Decide>(
     // A direction's misalignment is a SINE, levered by the body's own
     // extent — the length that misalignment would move a corner by.
     let sine = |x: T, what: &'static str| -> Result<bool, ReplaceFaceError<T>> {
-        match decide(
-            what,
-            Margin::levered(x, geom_core::Lever::unsourced(frame.extent)),
-            band,
-        ) {
+        match decide(what, Margin::levered(x, frame.extent), band) {
             Ok(Sign::Zero) => Ok(true),
             Ok(_) => Ok(false),
             Err(source) => Err(ReplaceFaceError::Escalated { source }),
@@ -1232,7 +1232,7 @@ fn classify<T: Decide>(
 fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
-) -> Result<Vec<T>, ReplaceFaceError<T>> {
+) -> Result<Vec<Lever<T>>, ReplaceFaceError<T>> {
     let mut out = Vec::new();
     for he in body.vertex_orbit_linked(vertex) {
         let key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
@@ -1251,12 +1251,15 @@ fn corner_arms<T: Decide>(
         };
         let (t0, t1) = curve.params();
         out.push(match curve.carrier() {
-            // A line's parameter IS arc length; a circle's is an angle
-            // levered by its own radius. Anything else falls back to
-            // the endpoints' chord, which is what the carrier can say.
-            Curve3::Line(_) => (t1 - t0).abs(),
-            Curve3::Circle { radius, .. } => (t1 - t0).abs() * *radius,
-            other => other.eval(t1).distance(other.eval(t0)),
+            // A line's parameter IS arc length, so its span is its chord;
+            // a circle's is an angle levered by its own radius. Anything
+            // else falls back to the endpoints' chord, which is what the
+            // carrier can say.
+            line @ Curve3::Line(_) => geom_brep::edge_extent_inf(line, t0, t1, (t1 - t0).abs()),
+            // Unsourced lever: the arc's length, an angular span times its radius, is longer than
+            // the arc's extent, which `edge_extent_inf` reads as its chord or fold.
+            Curve3::Circle { radius, .. } => Lever::unsourced((t1 - t0).abs() * *radius),
+            other => geom_brep::ExtentBall::point(other.eval(t1)).lever_from(other.eval(t0)),
         });
     }
     Ok(out)
@@ -1304,7 +1307,7 @@ fn solve_corner<T: Decide>(
     vertex: VertexKey,
     here: Point3<T>,
     at: &[&MovedChart<T>],
-    arms: &[T],
+    arms: &[Lever<T>],
     frame: &Frame<T>,
     band: Band,
 ) -> Result<Point3<T>, ReplaceFaceError<T>> {
@@ -1482,7 +1485,7 @@ fn solve_corner<T: Decide>(
                 Profile::Line { n, c } => {
                     match decide(
                         "offset_axial_pole_station",
-                        Margin::levered(n.1.abs(), geom_core::Lever::unsourced(frame.extent)),
+                        Margin::levered(n.1.abs(), frame.extent),
                         band,
                     ) {
                         Ok(Sign::Positive) => {}
@@ -1553,11 +1556,7 @@ fn solve_corner<T: Decide>(
                 };
                 let mut resolvable = true;
                 for &arm in arms {
-                    match decide(
-                        "offset_axial_corner",
-                        Margin::levered(det.abs(), geom_core::Lever::unsourced(arm)),
-                        band,
-                    ) {
+                    match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
                         Ok(Sign::Positive) => {}
                         Ok(_) => {
                             resolvable = false;
@@ -1751,7 +1750,7 @@ fn cap_pair_corner<T: Decide>(
     old: (T, T),
     circle: &Profile<T>,
     caps: ((Vec3<T>, T), (Vec3<T>, T)),
-    arms: &[T],
+    arms: &[Lever<T>],
     frame: &Frame<T>,
     band: Band,
 ) -> Result<Option<Point3<T>>, ReplaceFaceError<T>> {
@@ -1780,7 +1779,7 @@ fn cap_pair_corner<T: Decide>(
     for &arm in arms {
         match decide(
             "offset_axial_cap_pair",
-            Margin::levered(sine.abs(), geom_core::Lever::unsourced(arm)),
+            Margin::levered(sine.abs(), arm),
             band,
         ) {
             Ok(Sign::Positive) => {}
@@ -1821,11 +1820,7 @@ fn cap_pair_corner<T: Decide>(
         .unwrap_or_else(|| unreachable!("a line and a circle always have a transversality"));
     let mut resolvable = true;
     for &arm in arms {
-        match decide(
-            "offset_axial_corner",
-            Margin::levered(det.abs(), geom_core::Lever::unsourced(arm)),
-            band,
-        ) {
+        match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
             Ok(Sign::Positive) => {}
             Ok(_) => {
                 resolvable = false;
@@ -2306,10 +2301,7 @@ fn mint_carrier<T: Decide>(
         };
         return match decide(
             "offset_axial_generator_sense",
-            Margin::levered(
-                old_dir.normalize().dot(dir.normalize()),
-                geom_core::Lever::unsourced(frame.extent),
-            ),
+            Margin::levered(old_dir.normalize().dot(dir.normalize()), frame.extent),
             band,
         ) {
             Ok(Sign::Positive) => Ok(Curve3::Line(geom::Line { origin, dir })),
@@ -2425,10 +2417,7 @@ fn mint_carrier<T: Decide>(
             .unwrap_or_else(|| unreachable!("{edge:?}: a section curve is a circle or a spiric"));
         return match decide(
             "offset_axial_rim_sense",
-            Margin::levered(
-                old_normal.dot(new_normal),
-                geom_core::Lever::unsourced(frame.extent),
-            ),
+            Margin::levered(old_normal.dot(new_normal), frame.extent),
             band,
         ) {
             Ok(Sign::Positive) => Ok(chosen),
@@ -2643,7 +2632,7 @@ fn latitude_posture<T: Decide>(
     let tilt = axis.normalize().cross(frame.dir).norm();
     match decide(
         "offset_axial_latitude_tilt",
-        Margin::levered(tilt, geom_core::Lever::unsourced(frame.extent)),
+        Margin::levered(tilt, frame.extent),
         band,
     ) {
         Ok(Sign::Zero) => Ok(None),
@@ -2743,12 +2732,12 @@ fn param_on<T: Decide>(
     let read = carrier.param_near(q, guess).ok_or_else(unread)?;
     // On a carried frame the read IS the old parameter, and a second
     // evaluation at it would only add the carrier's own rounding (a
-    // circle's `sin π`), so a read decided equal to it is it — levered
+    // circle's `sin π`), so a read decided equal to it is it — metered
     // at the speed's ceiling, so the two are one point in metres.
     let anchor = match param_speeds(carrier) {
         Some((_, ceiling)) => match decide(
             "offset_axial_edge_carried",
-            Margin::levered(read - t_old, geom_core::Lever::unsourced(ceiling)),
+            Margin::metered_sup(read - t_old, ceiling),
             band,
         ) {
             Ok(Sign::Zero) => t_old,
@@ -2791,7 +2780,7 @@ fn param_on<T: Decide>(
 /// nearest the old span ([`keep_turn`], the rule an arc's re-authored
 /// sweep keeps in [`reauthor`]). A read span already nearest the old
 /// one is returned as read. The span is then DECIDED forward — an arc
-/// of the carrier in metres, levered at the speed's floor, so a span
+/// of the carrier in metres, metered at the speed's floor, so a span
 /// decided forward is one in metres — and one that cannot be told from
 /// zero is no edge.
 fn forward_window<T: Decide>(
@@ -2810,7 +2799,7 @@ fn forward_window<T: Decide>(
             // Zero or a whole number of turns, so never near the band.
             match decide(
                 "offset_axial_edge_turn",
-                Margin::levered(kept - (t1 - t0), geom_core::Lever::unsourced(ceiling)),
+                Margin::metered_sup(kept - (t1 - t0), ceiling),
                 band,
             ) {
                 Ok(Sign::Zero) => t1,
@@ -2822,7 +2811,7 @@ fn forward_window<T: Decide>(
     };
     let span = t1 - t0;
     let margin = match speeds {
-        Some((floor, _)) => Margin::levered(span, geom_core::Lever::unsourced(floor)),
+        Some((floor, _)) => Margin::metered(span, floor),
         None => Margin::of(span),
     };
     match decide("offset_axial_edge_window", margin, band) {
@@ -2844,11 +2833,10 @@ fn forward_window<T: Decide>(
 /// admits — a span is forward — at the floor, so each errs
 /// conservative. `None` for a line, whose parameter is a length, and for
 /// an ellipse or a spline, whose windows here decide unlevered.
-fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
+fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(InfSpeed<T>, SupSpeed<T>)> {
     match carrier {
         Curve3::Circle { .. } | Curve3::Spiric { .. } => {
-            let (floor, ceiling) = geom::carrier_speed::speed_range(carrier);
-            Some((floor.get(), ceiling.get()))
+            Some(geom::carrier_speed::speed_range(carrier))
         }
         Curve3::Line(_) | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
     }
@@ -2862,12 +2850,12 @@ fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
 ///
 /// The number of turns is decided as structure
 /// ([`geom_brep::Period::decide`]): sign decisions at the half-turn
-/// marks of `read − old`, metered at `lever` ([`Margin::metered`]), so
+/// marks of `read − old`, metered at `rate` ([`Margin::metered`]), so
 /// it is a literal at every scalar, and [`forward_window`]'s
 /// `offset_axial_edge_turn` reads `kept − read` as the constant it is. A mark decided either way admits
-/// a turn, so the lever is the carrier's speed FLOOR ([`param_speeds`]'
+/// a turn, so the rate is the carrier's speed FLOOR ([`param_speeds`]'
 /// rule for a decision whose sign admits); an arc's re-authored sweep
-/// levers at its circle's radius.
+/// meters at its circle's radius.
 ///
 /// **Why a miss refuses rather than reading both branches** (as
 /// `chart_region`'s fold and `solid_contain`'s torus walk do): the two
@@ -2885,7 +2873,7 @@ fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
 fn keep_turn<T: Decide>(
     old: T,
     read: T,
-    lever: T,
+    rate: InfSpeed<T>,
     edge: EdgeKey,
     band: Band,
 ) -> Result<T, ReplaceFaceError<T>> {
@@ -2894,7 +2882,7 @@ fn keep_turn<T: Decide>(
         .decide(
             "offset_axial_keep_turn",
             gap,
-            |g| Margin::metered(g, InfSpeed::new(lever)),
+            |g| Margin::metered(g, rate),
             band,
         )
         .map_err(|stop| stop.miss)
@@ -3012,7 +3000,7 @@ fn reauthor<T: Decide>(
                                 sweep: keep_turn(
                                     covered,
                                     u.perp_dot(v).atan2(u.dot(v)),
-                                    *radius,
+                                    InfSpeed::new(*radius),
                                     edge,
                                     band,
                                 )?,
@@ -3788,8 +3776,14 @@ mod keep_turn_rows {
         for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |read, old| {
-                    let kept =
-                        keep_turn(old, read, Sym::from_f64(2.0), EdgeKey::default(), band).unwrap();
+                    let kept = keep_turn(
+                        old,
+                        read,
+                        InfSpeed::new(Sym::from_f64(2.0)),
+                        EdgeKey::default(),
+                        band,
+                    )
+                    .unwrap();
                     decide("keep_turn_row", Margin::of(kept - old), band)
                 });
             assert!(
@@ -3865,7 +3859,9 @@ mod keep_turn_rows {
             minor_radius: 1.0,
             offset: 0.5,
         };
-        let (floor, ceiling) = param_speeds(&carrier).unwrap();
+        let (floor, ceiling) = param_speeds(&carrier)
+            .map(|(floor, ceiling)| (floor.get(), ceiling.get()))
+            .unwrap();
         assert!(
             ceiling > 1.1 * floor,
             "the floor and ceiling part: {floor} against {ceiling}"
@@ -3894,7 +3890,7 @@ mod keep_turn_rows {
         let (old, pi) = (0.3, core::f64::consts::PI);
         assert!(
             matches!(
-                keep_turn(old, old + pi, 2.0, EdgeKey::default(), band),
+                keep_turn(old, old + pi, InfSpeed::new(2.0), EdgeKey::default(), band),
                 Err(ReplaceFaceError::TogetherAxialEdge { .. })
             ),
             "half a turn out names no nearer turn"
@@ -3903,7 +3899,7 @@ mod keep_turn_rows {
         let in_band = old + pi + 0.5 * (band.zero() + band.escalate()) / 2.0;
         assert!(
             matches!(
-                keep_turn(old, in_band, 2.0, EdgeKey::default(), band),
+                keep_turn(old, in_band, InfSpeed::new(2.0), EdgeKey::default(), band),
                 Err(ReplaceFaceError::Escalated { .. })
             ),
             "a read in the band of the half-turn mark escalates"

@@ -5590,12 +5590,14 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                 surfaces: [(s1, surf1), (s2, surf2)],
                 carrier: &curve,
                 interval: (t0, t1),
-                reach: topo::wedge_reach(
+                // Unsourced lever: the faces' wedge reach (`topo::wedge_reach`), measured as a
+                // bare length outside the extent home.
+                reach: geom_core::Lever::unsourced(topo::wedge_reach(
                     body,
                     [sides.plus.face, sides.minus.face],
                     &curve,
                     (t0, t1),
-                ),
+                )),
                 witness,
             },
             band,

@@ -165,16 +165,22 @@ pub struct SectionLane<T: Real> {
         Wall<'w, 's, T>,
         &Curve3<T>,
         (T, T),
-        T,
+        geom_core::Lever<T>,
         Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>,
-    root: fn(&Surface<T>, &NurbsCurve3<T>, T, T, Band) -> Result<SplineRoot, CornerVerdict<T>>,
+    root: fn(
+        &Surface<T>,
+        &NurbsCurve3<T>,
+        T,
+        geom_core::Lever<T>,
+        Band,
+    ) -> Result<SplineRoot, CornerVerdict<T>>,
     pair: for<'w, 's> fn(
         Wall<'w, 's, T>,
         Wall<'w, 's, T>,
         &Curve3<T>,
         (T, T),
-        T,
+        geom_core::Lever<T>,
         Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>,
 }
@@ -297,7 +303,7 @@ impl<T: Real> SectionLane<T> {
         wall: Wall<'w, 's, T>,
         old: &Curve3<T>,
         span: (T, T),
-        extent: T,
+        extent: geom_core::Lever<T>,
         band: Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
         (self.section)(plane, wall, old, span, extent, band)
@@ -311,7 +317,7 @@ impl<T: Real> SectionLane<T> {
         b: Wall<'w, 's, T>,
         old: &Curve3<T>,
         span: (T, T),
-        extent: T,
+        extent: geom_core::Lever<T>,
         band: Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
         (self.pair)(a, b, old, span, extent, band)
@@ -323,7 +329,7 @@ impl<T: Real> SectionLane<T> {
         plane: &Surface<T>,
         carrier: &NurbsCurve3<T>,
         seed: T,
-        extent: T,
+        extent: geom_core::Lever<T>,
         band: Band,
     ) -> Result<SplineRoot, CornerVerdict<T>> {
         (self.root)(plane, carrier, seed, extent, band)
@@ -639,7 +645,7 @@ pub(crate) fn section_closed<T: Decide>(
     held: &Surface<T>,
     old: &Curve3<T>,
     span: (T, T),
-    extent: T,
+    extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     use geom_brep::intersect as c5;
@@ -764,7 +770,7 @@ fn plane_plane<T: Decide>(
     b: &Surface<T>,
     old: &Curve3<T>,
     (t0, t1): (T, T),
-    extent: T,
+    extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     let (
@@ -783,7 +789,14 @@ fn plane_plane<T: Decide>(
         unreachable!("plane_plane is handed two planes")
     };
     let dir = n1.cross(*n2);
-    if zero("offset_section_planes_parallel", dir.norm() * extent, band)? {
+    if matches!(
+        decide(
+            "offset_section_planes_parallel",
+            Margin::levered(dir.norm(), extent),
+            band
+        )?,
+        Sign::Zero
+    ) {
         return Ok(Err(SectionVerdict::Unsupported {
             what: "the two planes are parallel",
         }));
@@ -808,16 +821,12 @@ pub(crate) fn analytic_root<T: Decide>(
     surface: &Surface<T>,
     carrier: &Curve3<T>,
     seed: T,
-    extent: T,
+    extent: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Result<T, CornerVerdict<T>>, Indeterminate> {
     let graze = |sine: T| -> Result<bool, Indeterminate> {
         Ok(matches!(
-            decide(
-                "offset_corner_graze",
-                Margin::levered(sine, geom_core::Lever::unsourced(extent)),
-                band
-            )?,
+            decide("offset_corner_graze", Margin::levered(sine, extent), band)?,
             Sign::Zero
         ))
     };
@@ -856,7 +865,7 @@ pub(crate) fn analytic_root<T: Decide>(
         if !matches!(
             decide(
                 "offset_corner_graze",
-                Margin::levered(sine.abs(), geom_core::Lever::unsourced(extent)),
+                Margin::levered(sine.abs(), extent),
                 band
             ),
             Ok(Sign::Positive)
@@ -897,7 +906,7 @@ fn plane_wall_section<'w, 's>(
     Wall { net: wall, chart }: Wall<'w, 's, f64>,
     old: &Curve3<f64>,
     (t0, t1): (f64, f64),
-    extent: f64,
+    extent: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
     let Surface::Plane { origin, normal, .. } = *plane else {
@@ -917,11 +926,11 @@ fn plane_wall_section<'w, 's>(
                 .map(|p| p.distance(origin))
                 .fold(0.0, f64::max)
                 * 2.0
-                + extent;
+                + extent.length();
             let domain = SsiDomain {
                 center: origin,
                 half_extent: half,
-                extent,
+                extent: extent.length(),
                 floor_scale: 1.0,
             };
             let mut section = match geom_brep::PlaneSection::of_charted(
@@ -1016,7 +1025,7 @@ fn pair_section<'w, 's>(
     b: Wall<'w, 's, f64>,
     old: &Curve3<f64>,
     (t0, t1): (f64, f64),
-    extent: f64,
+    extent: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
     let mid = old.mid_point(t0, t1);
@@ -1025,8 +1034,8 @@ fn pair_section<'w, 's>(
     // is the extent about the middle, and bounds nothing here.
     let domain = SsiDomain {
         center: mid,
-        half_extent: extent,
-        extent,
+        half_extent: extent.length(),
+        extent: extent.length(),
         floor_scale: 1.0,
     };
     let mut section = match geom_brep::Section::of_charted(
@@ -1070,7 +1079,7 @@ fn level_row(
     wall: &NurbsSurface<f64>,
     origin: Point3<f64>,
     normal: Vec3<f64>,
-    extent: f64,
+    extent: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<Option<Result<NurbsCurve3<f64>, SectionVerdict>>, Indeterminate> {
     // A net whose height depends on its `v` alone holds the plane along
@@ -1115,7 +1124,7 @@ fn level_row(
             normal,
             SupSpeed::new(speed),
             band.zero(),
-            extent,
+            extent.length(),
             band,
         ) {
             Ok(BoundarySection::Roots {
@@ -1207,7 +1216,7 @@ fn plane_spline_root(
     plane: &Surface<f64>,
     carrier: &NurbsCurve3<f64>,
     seed: f64,
-    extent: f64,
+    extent: geom_core::Lever<f64>,
     band: Band,
 ) -> Result<SplineRoot, CornerVerdict<f64>> {
     let Surface::Plane { origin, normal, .. } = *plane else {
@@ -1222,7 +1231,7 @@ fn plane_spline_root(
         normal,
         SupSpeed::new(speed),
         band.zero(),
-        extent,
+        extent.length(),
         band,
     )
     .map_err(CornerVerdict::Ssi)?;
@@ -1507,7 +1516,7 @@ mod square {
                 [(ka, &moved), (kb, &held)],
                 &carrier,
                 (t0, t1),
-                1.0,
+                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
                 None,
                 band,
             )

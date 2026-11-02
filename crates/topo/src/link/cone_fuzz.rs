@@ -429,7 +429,7 @@ fn bool_sectors(cone: &[Sector]) -> Vec<BoolSector<f64>> {
                     v(s.normal),
                     true,
                 )),
-                arm: s.arm,
+                arm: crate::bound_side::lever(s.arm),
                 bend: crate::bound_side::FaceBend::Plane,
             }
         })
@@ -662,7 +662,7 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
         he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
         start: Vec3::new(0.0, 0.0, 1.0),
         end: d.normalize(),
-        start_reach: BoundSupport::straight_bisector(1.0),
+        start_reach: BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
         end_reach: BoundSupport::Chord {
             base: o,
             far: o + d,
@@ -672,7 +672,7 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
             Vec3::new(1.0, 0.0, 0.0),
             true,
         )),
-        arm: 1.0,
+        arm: crate::bound_side::lever(1.0),
         bend: crate::bound_side::FaceBend::Plane,
     }
 }
@@ -1472,10 +1472,10 @@ fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, BoundSupport<f64>
             far: o + v,
         },
         Some(Bounds::Conic) => BoundSupport::Conic {
-            extent: v.norm(),
+            extent: crate::bound_side::lever(v.norm()),
             bend: flat_bend(),
         },
-        None => BoundSupport::straight_bisector(v.norm()),
+        None => BoundSupport::straight_bisector(crate::bound_side::lever(v.norm())),
     };
     (v.normalize(), reach)
 }
@@ -1489,7 +1489,7 @@ fn fixed(dir: Vec3<f64>, reach: BoundSupport<f64>) -> [f64; 3] {
         BoundSupport::Chord { far, .. } => far,
         BoundSupport::Conic { extent: l, .. }
         | BoundSupport::Bisector { arm: l, .. }
-        | BoundSupport::Extent(l) => Point3::new(0.0, 0.0, 0.0) + dir.normalize() * l,
+        | BoundSupport::Extent(l) => Point3::new(0.0, 0.0, 0.0) + dir.normalize() * l.length(),
     };
     [x.x, x.y, x.z]
 }
@@ -1521,7 +1521,7 @@ fn drawn(corners: &[Corner], bounds: Bounds) -> (Vec<BoolSector<f64>>, Vec<Vec<S
                 at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                     normal, true,
                 )),
-                arm: s.arm,
+                arm: crate::bound_side::lever(s.arm),
                 bend: crate::bound_side::FaceBend::Plane,
             });
             face.push(Sector {
@@ -2286,8 +2286,8 @@ fn line_material(rng: &mut Rng) -> Option<LineMaterial> {
     if plane_as == Some(PlaneAs::Halves) {
         let k = secs.len() - 2;
         let len = dot(l, l).sqrt();
-        secs[k].start_reach = BoundSupport::straight_bisector(len);
-        secs[k + 1].end_reach = BoundSupport::straight_bisector(len);
+        secs[k].start_reach = BoundSupport::straight_bisector(crate::bound_side::lever(len));
+        secs[k + 1].end_reach = BoundSupport::straight_bisector(crate::bound_side::lever(len));
     }
     Some(LineMaterial {
         secs,

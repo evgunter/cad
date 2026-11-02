@@ -873,8 +873,8 @@ mod extent_rows {
         ));
         let mid = arc.mid_point(0.0, 1.0);
         let chord = arc.eval(0.0).distance(arc.eval(1.0));
-        let below = geom_brep::edge_extent_inf(&arc, 0.0, 1.0, chord);
-        let reach = geom_brep::edge_reach_from(&arc, 0.0, 1.0, mid);
+        let below = geom_brep::edge_extent_inf(&arc, 0.0, 1.0, chord).length();
+        let reach = geom_brep::edge_reach_from(&arc, 0.0, 1.0, mid).length();
         let theta = 0.45 * band.zero() / below;
         assert!(
             reach * theta >= band.escalate(),

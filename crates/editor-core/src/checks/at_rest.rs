@@ -1034,7 +1034,14 @@ fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band
     let Some(read) = pairing_read(body, outer, inner, band) else {
         return false;
     };
-    let arm = geom_brep::folded_lever_arm(read.outer.0, read.inner.0, read.at, read.reach);
+    let arm = geom_brep::folded_lever_arm(
+        read.outer.0,
+        read.inner.0,
+        read.at,
+        // Unsourced lever: the faces' wedge reach (`crate::eval::measure::reach_of`), measured as a
+        // bare length outside the extent home.
+        geom_core::Lever::unsourced(read.reach),
+    );
     geom_brep::classify_material_pairing_as(
         AT_REST_QUIET_OPPOSED,
         read.outer.0,

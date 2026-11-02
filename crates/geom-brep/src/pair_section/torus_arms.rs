@@ -1179,7 +1179,7 @@ fn along_k<T: Decide, X: Copy>(xs: &mut [(T, X)], rc: T, band: Band) -> Result<(
     apart_in_order(
         xs,
         SQUARE_ORDER,
-        |m| Margin::levered(m, geom_core::Lever::unsourced(rc)),
+        |m| Margin::metered(m, geom_core::InfSpeed::new(rc)),
         band,
     )
 }

@@ -261,7 +261,9 @@ pub(crate) fn entry_side<T: Decide, E>(
             .map_err(EntryFault::Far);
     };
     let reach = BoundSupport::Conic {
-        extent: dir.norm(),
+        // Unsourced lever: the departure's norm, the edge's extent read
+        // back through its unit tangent, which differs from it by rounding.
+        extent: geom_core::Lever::unsourced(dir.norm()),
         bend,
     };
     let side = match crate::bound_side::read_plane_side(dir, reach, reference, band) {
@@ -329,7 +331,13 @@ pub(crate) fn wide_entries<T: Decide>(
         .map(|d: Vec3<T>| {
             let side = match decide(
                 "split_bisector_side",
-                Margin::levered(d.dot(normal), geom_core::Lever::unsourced(arm)),
+                Margin::levered(
+                    d.dot(normal),
+                    // Unsourced lever: the sector's arm (`sector_shape`), the norm of a unit
+                    // tangent scaled to its edge_extent_inf; the edges' Lever::min would round
+                    // differently.
+                    geom_core::Lever::unsourced(arm),
+                ),
                 band,
             )
             .map_err(sliver)?

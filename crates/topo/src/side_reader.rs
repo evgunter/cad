@@ -416,7 +416,7 @@ fn beyond<T: Decide>(
     faces: &[FaceKey],
     aim: Point3<T>,
 ) -> Result<T, PointInSolidError> {
-    let mut reach = selection_reach(body, faces, aim)?;
+    let mut reach = selection_reach(body, faces, aim)?.length();
     for &face in faces {
         let surface = body
             .face_surface(face)

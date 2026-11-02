@@ -12,7 +12,7 @@ use core::f64::consts::{FRAC_PI_2, TAU};
 
 use geom_core::k_stats::decide;
 use geom_core::period::Extent;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Tol, Vec3};
+use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign, Tol, Vec3};
 
 use super::{
     apex_loop_sweep, pole_arc_full, require_circle_span, require_cone_conic_spans,
@@ -71,7 +71,7 @@ fn defects(band: Band, rate: f64) -> Vec<(f64, f64)> {
 
 /// **The oracle**: `require_span_within_period` as it was spelled — the
 /// forward half `Δt·r` definitely positive, then the winding half
-/// `(τ − Δt)·r` not definitely negative, each through `Margin::levered`.
+/// `(τ − Δt)·r` not definitely negative, each a span metered at `r`.
 fn old_span<T: Decide>(
     (t0, t1): (T, T),
     radius: T,
@@ -79,18 +79,14 @@ fn old_span<T: Decide>(
     [forward, winding]: [&'static str; 2],
 ) -> Outcome {
     let dt = t1 - t0;
-    match decide(
-        forward,
-        Margin::levered(dt, geom_core::Lever::unsourced(radius)),
-        band,
-    ) {
+    match decide(forward, Margin::metered(dt, InfSpeed::new(radius)), band) {
         Err(cause) => return escalated(cause),
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) => return Outcome::Refused(forward),
     }
     match decide(
         winding,
-        Margin::levered(T::tau() - dt, geom_core::Lever::unsourced(radius)),
+        Margin::metered(T::tau() - dt, InfSpeed::new(radius)),
         band,
     ) {
         Err(cause) => escalated(cause),
@@ -262,7 +258,7 @@ fn old_apex_loop<T: Decide>(total: T, arm: T, band: Band) -> Outcome {
     let name = "props_cone_apex_loop_sweep";
     match decide(
         name,
-        Margin::levered(T::tau() - total.abs(), geom_core::Lever::unsourced(arm)),
+        Margin::metered(T::tau() - total.abs(), InfSpeed::new(arm)),
         band,
     ) {
         Err(cause) => escalated(cause),
@@ -328,7 +324,7 @@ fn old_rim_only_closed<T: Decide>(du: T, arm: T, band: Band) -> Outcome {
     let name = "props_rim_only_closed";
     match decide(
         name,
-        Margin::levered(du - T::tau(), geom_core::Lever::unsourced(arm)),
+        Margin::metered(du - T::tau(), InfSpeed::new(arm)),
         band,
     ) {
         Err(cause) => escalated(cause),
@@ -373,7 +369,7 @@ fn old_pole_arc_full<T: Decide>(span: T, radius: T, band: Band) -> Result<bool, 
     let name = "props_sphere_pole_arc_full";
     decide(
         name,
-        Margin::levered(T::tau() - span, geom_core::Lever::unsourced(radius)),
+        Margin::metered(T::tau() - span, InfSpeed::new(radius)),
         band,
     )
     .map(|sign| sign == Sign::Zero)

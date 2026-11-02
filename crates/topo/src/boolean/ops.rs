@@ -3001,8 +3001,15 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (carrier, interval) = draft.span();
-        let reach =
-            crate::wedge_reach(body, [sides.plus.face, sides.minus.face], carrier, interval);
+        // Unsourced lever: the faces' wedge reach (`crate::wedge_reach`),
+        // their boundary vertices' distance from the edge, measured as a
+        // bare length outside the extent home.
+        let reach = geom_core::Lever::unsourced(crate::wedge_reach(
+            body,
+            [sides.plus.face, sides.minus.face],
+            carrier,
+            interval,
+        ));
         let witness = draft.witness;
         let face = |side, surface| seam_face(body, edge, side, surface, existing.as_ref(), band);
         let faces = [face(sides.plus, surf1)?, face(sides.minus, surf2)?];
@@ -3146,8 +3153,9 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// **A seam edge of the result, as its re-description reads it**: the
-/// dihedral of its two surfaces at `witness` over `reach`, its faces' extent, whose arm
-/// rung is the seam's own lever and whose reading is the seam's wedge.
+/// dihedral of its two surfaces at `witness` over the ball of radius
+/// `reach` about it, its faces' extent, whose arm rung is the seam's own
+/// lever and whose reading is the seam's wedge.
 #[cfg(test)]
 pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     surf1: &geom::Surface<T>,
@@ -3157,6 +3165,7 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
     let faces = [surf1, surf2].map(geom_brep::SeamFace::Analytic);
+    let reach = geom_brep::ExtentBall::of_sphere(witness, reach).lever();
     seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
         geom_brep::SeamEscalation::Lever(e) => {
             let (reading, diag) = DihedralReading::of_lever(e);
@@ -3173,7 +3182,7 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
 fn seam_reading<T: Decide + crate::props::AtRestPolicy>(
     faces: [geom_brep::SeamFace<'_, T>; 2],
     witness: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
     geom_brep::classify_seam(
@@ -3287,6 +3296,7 @@ pub(super) fn seam_must_carry<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<SeamReading, SeamRefusal> {
+    let reach = geom_brep::ExtentBall::of_sphere(carrier.eval(t0), reach).lever();
     must_carry_reading(surf1, surf2, carrier, t0, t1, reach, band)
 }
 
@@ -3315,7 +3325,7 @@ fn must_carry_reading<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<SeamReading, SeamRefusal> {
     use geom_brep::MustCarryVerdict;
@@ -6466,7 +6476,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 for &n in rest {
                     match decide(
                         "bool_sphere_escape_parallel",
-                        Margin::levered(align.cross(n).norm(), geom_core::Lever::unsourced(radius)),
+                        Margin::levered(
+                            align.cross(n).norm(),
+                            geom_core::Lever::curvature_radius(radius),
+                        ),
                         band,
                     )
                     .map_err(esc(SphereQuestion::EscapeParallel))?
@@ -6716,7 +6729,7 @@ pub(super) fn recut_lean<T: Decide>(
         "bool_sphere_recut_align",
         Margin::levered(
             axis.cross(align).norm(),
-            geom_core::Lever::unsourced(radius),
+            geom_core::Lever::curvature_radius(radius),
         ),
         band,
     )
@@ -7187,17 +7200,16 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 };
                 let rising = sign(
                     "bool_sphere_cut_span",
-                    Margin::levered(t1 - t0, geom_core::Lever::unsourced(cr)),
+                    Margin::metered(t1 - t0, geom_core::InfSpeed::new(cr)),
                 )? == Sign::Positive;
                 let (lo_t, hi_t) = if rising { (t0, t1) } else { (t1, t0) };
                 for theta in thetas {
-                    let into =
-                        |end: T| Margin::levered(theta - end, geom_core::Lever::unsourced(cr));
+                    let into = |end: T| Margin::metered(theta - end, geom_core::InfSpeed::new(cr));
                     let (from_lo, to_hi) = (
                         sign("bool_sphere_cut_span", into(lo_t))?,
                         sign(
                             "bool_sphere_cut_span",
-                            Margin::levered(hi_t - theta, geom_core::Lever::unsourced(cr)),
+                            Margin::metered(hi_t - theta, geom_core::InfSpeed::new(cr)),
                         )?,
                     );
                     if from_lo == Sign::Negative || to_hi == Sign::Negative {
@@ -7301,7 +7313,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 let along = if rising { lo - hi } else { hi - lo };
                 sign(
                     "bool_sphere_cut_span",
-                    Margin::levered(along, geom_core::Lever::unsourced(arm)),
+                    Margin::metered(along, geom_core::InfSpeed::new(arm)),
                 )? == Sign::Positive
             }
             _ => true,
@@ -9971,7 +9983,15 @@ mod tests {
         );
         for (a, b) in [(&torus, &bitangent), (&bitangent, &torus)] {
             assert_eq!(
-                geom_brep::must_carry_over_edge(a, b, &arc, span.0, span.1, 1.0, band()),
+                geom_brep::must_carry_over_edge(
+                    a,
+                    b,
+                    &arc,
+                    span.0,
+                    span.1,
+                    geom_brep::ExtentBall::of_sphere(arc.eval(span.0), 1.0).lever(),
+                    band()
+                ),
                 geom_brep::MustCarryVerdict::Mixed(geom_brep::MixedStations {
                     transverse: 3,
                     smooth: 4
@@ -10008,14 +10028,14 @@ mod tests {
     #[test]
     fn an_in_band_wedge_behind_a_corner_refuses_as_the_seam_wedge() {
         let (torus, bitangent, arc) = villarceau();
-        let extent = 1.0;
+        let extent = geom_brep::ExtentBall::of_sphere(arc.eval(0.0), 1.0).lever();
         // The wedge's margin, `sin θ` levered over the folded arm, at
         // the arc's `t`: linear in `t` beside the tangency.
         let wedge = |t: f64| {
             let p = arc.eval(t);
             let n = |s: &geom::Surface<f64>| geom_brep::implicit_gradient(s, p).normalize();
             n(&torus).cross(n(&bitangent)).norm()
-                * geom_brep::folded_lever_arm(&torus, &bitangent, p, extent)
+                * geom_brep::folded_lever_arm(&torus, &bitangent, p, extent).length()
         };
         let slope = wedge(1e-4) / 1e-4;
         // The stations sit a quarter of the half-span apart: the inner
@@ -10050,7 +10070,7 @@ mod tests {
                 "an in-band wedge anywhere escalates, got {verdict:?}"
             );
         }
-        for (order, got) in both_orders(&torus, &bitangent, &arc, span, extent)
+        for (order, got) in both_orders(&torus, &bitangent, &arc, span, extent.length())
             .into_iter()
             .enumerate()
         {
@@ -11068,7 +11088,7 @@ mod spline_seam_rows {
         seam_reading(
             [face(sides.plus), face(sides.minus)],
             curve.mid_point(),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(curve.mid_point(), 1.0).lever(),
             band(),
         )
     }
@@ -11091,7 +11111,8 @@ mod spline_seam_rows {
             surface(sides.plus),
             surface(sides.minus),
             body.stored_curve(edge).unwrap().mid_point(),
-            1.0,
+            geom_brep::ExtentBall::of_sphere(body.stored_curve(edge).unwrap().mid_point(), 1.0)
+                .lever(),
             band(),
         );
         assert!(

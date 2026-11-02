@@ -37,7 +37,13 @@ fn loops(
     lever: f64,
 ) -> ([SectionCurve<f64>; 2], LoopSplit<f64>) {
     let f = FaceKey::default();
-    match section_case(f, band(), cut, wall, SectionReach::Torus(lever)) {
+    match section_case(
+        f,
+        band(),
+        cut,
+        wall,
+        SectionReach::Torus(geom_brep::ExtentBall::of_sphere(Point3::origin(), lever).lever()),
+    ) {
         Ok(SectionCase::Loops { loops, split }) => (loops, split),
         Ok(_) => panic!("a two-loop section"),
         Err(e) => panic!("the torus arm refused {e:?}"),
@@ -188,13 +194,19 @@ fn the_minted_circles_stand_within_the_band_at_the_thinnest_reach() {
                 plane_off <= b.zero() && torus_off <= b.zero(),
                 "R = {big_r}, r = {r}, {what}: a circle of radius {} stands {plane_off:e} off \
                  the cut and {torus_off:e} off the torus, against the band's {:e}",
-                c.lever(),
+                c.lever().length(),
                 b.zero()
             );
         }
     };
     let case = |cut: &geom::Surface<f64>, wall: &geom::Surface<f64>| {
-        section_case(FaceKey::default(), b, cut, wall, SectionReach::Torus(reach))
+        section_case(
+            FaceKey::default(),
+            b,
+            cut,
+            wall,
+            SectionReach::Torus(geom_brep::ExtentBall::of_sphere(Point3::origin(), reach).lever()),
+        )
     };
     for (big_r, r) in [(1.1, 0.052), (2.0, 0.5)] {
         let wall = torus(big_r, r);

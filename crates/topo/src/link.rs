@@ -492,7 +492,7 @@ pub struct Link<T: Real> {
     /// Each sector's face, by the sector's index in the cone.
     faces: Vec<LinkFace<T>>,
     /// The farthest wedge point from `p`.
-    reach: T,
+    reach: geom_core::Lever<T>,
     /// The radius of the ball about `p` the link's wedges fill: the
     /// least distance from `p` to a wedge's far side, or to a cleared
     /// sector's edge of the face ([`LinkFace::clear`]). Inside it each
@@ -633,7 +633,7 @@ fn pairing<T: Decide>(
     s: (&geom::Surface<T>, bool),
     t: (&geom::Surface<T>, bool),
     p: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Option<geom_brep::MaterialPairing> {
     let arm = geom_brep::folded_lever_arm(s.0, t.0, p, reach);
@@ -1810,12 +1810,15 @@ impl<T: Decide> Link<T> {
         let wedges = || sectors.iter().flat_map(|s| &s.sector.wedges);
         let reach = wedges()
             .flat_map(|&(a, b)| [a, b])
-            .map(|q| (q - p).norm())
-            .fold(T::zero(), |r, l| r.max(l));
+            .map(|q| geom_brep::ExtentBall::point(q).lever_from(p))
+            .fold(
+                geom_brep::ExtentBall::point(p).lever(),
+                geom_core::Lever::max,
+            );
         let ball = wedges()
             .map(|&(a, b)| to_segment(p, (a, b)))
             .chain(sectors.iter().filter_map(|s| s.face.clear))
-            .fold(reach, |r, l| r.min(l));
+            .fold(reach.length(), |r, l| r.min(l));
         let (sectors, faces) = sectors.into_iter().map(|s| (s.sector, s.face)).unzip();
         Ok(Self {
             cone: Cone::of(p, sectors)?,
@@ -2047,7 +2050,8 @@ impl<T: Decide> FaceSector<T> {
         }
         let radius = radius.ok_or(TouchUnread::Corrupt)?;
         let far = crate::splitting::rules::face_reach_from(body, f, p)
-            .map_err(|_| TouchUnread::Corrupt)?;
+            .map_err(|_| TouchUnread::Corrupt)?
+            .length();
         for length in [radius, far] {
             if !geom_core::is_finite_length(length) || geom_core::is_zero_length(length, length) {
                 return Err(TouchUnread::ChordScale);

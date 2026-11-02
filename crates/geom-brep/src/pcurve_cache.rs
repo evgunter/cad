@@ -6351,11 +6351,11 @@ fn fidelity<T: Decide>(
     // Where it does not (a parallel), which name is nearer is one sign,
     // the cosine of the azimuth offset `Δ` (`pcurve_fidelity_twin`):
     // positive, the row is `P_d`; negative, its twin. The cosine is
-    // levered at the azimuth's arm (metres per radian), and its unit holds
+    // metered at the azimuth's rate (metres per radian), and its unit holds
     // there: `|cos Δ|` lies between `(2/π)·d` and `d`, `d` the angular
     // distance from `Δ` to the nearest half-way mark `π/2 + kπ`, so the
-    // levered cosine is that distance in metres to within `2/π`, and with
-    // a positive arm its decided sign is the cosine's own.
+    // metered cosine is that distance in metres to within `2/π`, and with
+    // a positive rate its decided sign is the cosine's own.
     // - Decided `Zero`, the row sits on a half-way mark, a quarter turn
     //   off both names: it is read as `P_d` (D9's tie-break), and the
     //   quarter turn refuses as its azimuth's term at either name, so the
@@ -6374,10 +6374,7 @@ fn fidelity<T: Decide>(
         Some(twin) => twin,
         None if sphere => match decide(
             "pcurve_fidelity_twin",
-            Margin::levered(
-                (p0.x - q0.x).cos(),
-                geom_core::Lever::unsourced(arm_u.get()),
-            ),
+            Margin::metered_sup((p0.x - q0.x).cos(), arm_u),
             band,
         ) {
             Ok(Sign::Negative) => true,
@@ -6437,11 +6434,11 @@ fn fidelity<T: Decide>(
 /// 1. **Lane**: the chart is a cone or a torus and the carrier the conic
 ///    that instance images — an [`geom::Curve3::Ellipse`] on a cone, a
 ///    [`geom::Curve3::Circle`] on a torus; `sense` is a unit sign
-///    (`pcurve_focal_section_sense`, levered at the chart's azimuth
-///    arm), `β` is definitely inside `(−1, 1)`
+///    (`pcurve_focal_section_sense`, metered at the chart's azimuth
+///    rate), `β` is definitely inside `(−1, 1)`
 ///    (`pcurve_focal_section_beta`) — the premise of the cut-free
 ///    azimuth — and on a torus `vl` is a unit sign
-///    (`pcurve_focal_section_tube_rate`, levered at `r`).
+///    (`pcurve_focal_section_tube_rate`, metered at `r`).
 /// 2. **Interval**: `t₁ − t₀` definitely forward, metered through the
 ///    carrier's rate. No period gate: the carrier (an ellipse, a
 ///    circle) has its interval held to one period by the edge
@@ -6502,10 +6499,7 @@ fn run_focal_section_checks<T: Decide>(
     let arm = azimuth_lever(surface, v_sup);
     match decide(
         "pcurve_focal_section_sense",
-        Margin::levered(
-            image.sense.abs() - T::one(),
-            geom_core::Lever::unsourced(arm),
-        ),
+        Margin::metered_sup(image.sense.abs() - T::one(), SupSpeed::new(arm)),
         band,
     )
     .map_err(esc(PcurveCheck::ImageIdentity))?
@@ -6519,6 +6513,9 @@ fn run_focal_section_checks<T: Decide>(
     }
     match decide(
         "pcurve_focal_section_beta",
+        // Unsourced lever: `1 − |β|` is the true-anomaly map's cut-free
+        // headroom, a coefficient that is no parameter span, and the
+        // azimuth arm is a rate (metres per radian), not an extent.
         Margin::levered(
             T::one() - image.beta.abs(),
             geom_core::Lever::unsourced(arm),
@@ -6537,7 +6534,7 @@ fn run_focal_section_checks<T: Decide>(
     if let Some(r) = tube {
         match decide(
             "pcurve_focal_section_tube_rate",
-            Margin::levered(image.vl.abs() - T::one(), geom_core::Lever::unsourced(r)),
+            Margin::metered_sup(image.vl.abs() - T::one(), SupSpeed::new(r)),
             band,
         )
         .map_err(esc(PcurveCheck::ImageIdentity))?
@@ -6765,7 +6762,7 @@ fn focal_section_envelope<T: Real>(
 ///    scalars are the CARRIER's (`pcurve_spiric_major`,
 ///    `pcurve_spiric_minor`, `pcurve_spiric_offset`, each a metre
 ///    comparand required Zero), a wall's `sense` is a unit sign
-///    (`pcurve_spiric_sense`, levered at the chart's azimuth arm),
+///    (`pcurve_spiric_sense`, metered at the chart's azimuth rate),
 ///    and — for a wall — the CHART is the torus its [`WallTorus`] tag
 ///    names, the carrier's own or its mirror through the cutting plane
 ///    (`pcurve_spiric_chart_center`, `_chart_major`, `_chart_minor`,
@@ -6872,12 +6869,9 @@ fn run_spiric_checks<T: Decide>(
         }
     }
     let reach = t0.abs().max(t1.abs());
-    // The wall's sense is a unit sign: a DIMENSIONLESS residue, so it
-    // is metered by MULTIPLYING the chart's own lever arm
-    // (`Margin::levered` — the door whose docs name "a sine or cosine
-    // of unit vectors" — not `over_lever`, which divides a measure by
-    // a lever and is for an area over a radius). Spec §1's table says
-    // levered, and PR-1a's sibling of the identical shape levers too.
+    // The wall's sense is a unit sign, the azimuth's turn per radian of
+    // the carrier: its residue is metered at the chart's azimuth rate, a
+    // sup (`azimuth_lever`), the side a residue required Zero takes.
     // The azimuth channel's sign is `μ·sense` with `μ` the exact
     // `±1` of the image's `WallTorus` tag, so this one residue is the
     // residue of both channels.
@@ -6886,10 +6880,7 @@ fn run_spiric_checks<T: Decide>(
             let residue = sense.abs() - T::one();
             match decide(
                 "pcurve_spiric_sense",
-                Margin::levered(
-                    residue,
-                    geom_core::Lever::unsourced(azimuth_lever(surface, reach)),
-                ),
+                Margin::metered_sup(residue, SupSpeed::new(azimuth_lever(surface, reach))),
                 band,
             )
             .map_err(esc(PcurveCheck::ImageIdentity))?
@@ -6932,10 +6923,10 @@ fn run_spiric_checks<T: Decide>(
                 ..
             },
         ) => {
-            let arm = s_major + s_minor;
+            let arm = crate::ExtentBall::of_torus(s_center, s_major, s_minor).lever();
             let torus_center = |t: WallTorus| t.center(c_c, n_c, c_offset);
             // The axis is gated for PARALLELISM only — a sine of unit
-            // vectors, levered at the chart's own outer reach. Which
+            // vectors, levered over the chart torus's ball. Which
             // of the two directions it takes is `sense`'s decision at
             // the mint, and a wrong sign is a whole-span displacement
             // the schedule sees at every sample.
@@ -6945,10 +6936,7 @@ fn run_spiric_checks<T: Decide>(
                 ("pcurve_spiric_chart_center", Margin::norm3(d_center)),
                 ("pcurve_spiric_chart_major", Margin::of(s_major - r_major)),
                 ("pcurve_spiric_chart_minor", Margin::of(s_minor - r_minor)),
-                (
-                    "pcurve_spiric_chart_tilt",
-                    Margin::levered(sin_tilt, geom_core::Lever::unsourced(arm)),
-                ),
+                ("pcurve_spiric_chart_tilt", Margin::levered(sin_tilt, arm)),
             ];
             // Read as an identity ladder (`crate::ladder`): a gate
             // decided apart answers past an earlier in-band one.
@@ -7000,7 +6988,7 @@ fn run_spiric_checks<T: Decide>(
             d_center.norm()
                 + (s_major - r_major).abs()
                 + (s_minor - r_minor).abs() * T::from_f64(2.0)
-                + arm * sin_tilt * T::pi() * T::from_f64(0.5)
+                + arm.length() * sin_tilt * T::pi() * T::from_f64(0.5)
         }
         _ => T::zero(),
     };
@@ -9844,7 +9832,10 @@ fn derive_class<T: Decide>(
                     let at_mid = radial(form.a * c_m + form.b * s_m);
                     let toward = |along: Vec3<T>| match decide(
                         "pcurve_sphere_chart_meridian_frame",
-                        Margin::levered(d_hat.dot(along), geom_core::Lever::unsourced(radius)),
+                        Margin::levered(
+                            d_hat.dot(along),
+                            geom_core::Lever::curvature_radius(radius),
+                        ),
                         band,
                     ) {
                         Ok(Sign::Negative) => Some(true),
@@ -10451,6 +10442,9 @@ fn torus_oblique_circle<T: Decide>(
         ("pcurve_torus_villarceau_plane", Margin::of(n.dot(w))),
         (
             "pcurve_torus_villarceau_tilt",
+            // Unsourced lever: the torus's major radius `R`; the tilt's
+            // honest extent is the Villarceau circle's own radius, gated
+            // equal to `R` only within the band, so it would move bits.
             Margin::levered(
                 n.cross(axis).norm() - r / big,
                 geom_core::Lever::unsourced(big),
@@ -10534,12 +10528,16 @@ fn torus_oblique_circle<T: Decide>(
     let reread = |cause| incidence::class_escalated(shown, cause);
     let unit_sign = |name, along: Vec3<T>| -> Result<T, PcurveCertifyError> {
         let part = tangent.dot(along);
+        // Unsourced lever: `R·part` is the carrier's speed along `along`
+        // (metres per radian), a rate with no span to meter, at the
+        // torus's major radius rather than the circle's own.
         geom_core::k_stats::decide_positive(
             name,
             Margin::levered(part.abs(), geom_core::Lever::unsourced(big)),
             band,
         )
         .map_err(reread)?;
+        // Unsourced lever: as the magnitude's above.
         match decide(
             name,
             Margin::levered(part, geom_core::Lever::unsourced(big)),
@@ -10934,6 +10932,9 @@ fn spiric_chart_pcurve<T: Decide>(
                 // (`Margin::levered`, whose docs name this exact case)
                 // — not `over_lever`, which divides a measure by a
                 // lever and belongs to an oriented area over a radius.
+                // Unsourced lever: the chart torus's major radius; the
+                // honest extent (the oval's span, or the torus's ball
+                // `R + r`) has different bits.
                 Margin::levered(
                     chart_axis.dot(axis),
                     geom_core::Lever::unsourced(chart_major),

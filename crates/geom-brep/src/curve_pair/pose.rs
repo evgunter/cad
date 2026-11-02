@@ -251,7 +251,7 @@ mod window;
 use geom::{Curve3, CurveKind};
 use geom_core::k_stats::{decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
 
 use super::span::Span;
 use super::{Arm, MeetFault, Method};
@@ -546,12 +546,8 @@ pub(super) fn end_candidates<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>) -> Vec
 /// The band's escalation, and [`MeetFault::Unsupported`] where the cosine
 /// reads zero: carriers the pose read as one curve whose runs read square
 /// to each other, which only a degenerate frame gives.
-fn sense<T: Decide>(cosine: T, lever: T, band: Band) -> Result<Sense, MeetFault> {
-    match decide(
-        row::SENSE,
-        Margin::levered(cosine, geom_core::Lever::unsourced(lever)),
-        band,
-    )? {
+fn sense<T: Decide>(cosine: T, lever: Lever<T>, band: Band) -> Result<Sense, MeetFault> {
+    match decide(row::SENSE, Margin::levered(cosine, lever), band)? {
         Sign::Positive => Ok(Sense::Same),
         Sign::Negative => Ok(Sense::Opposite),
         Sign::Zero => Err(MeetFault::Unsupported {
@@ -681,7 +677,7 @@ struct Polish<'k, T: geom_core::Real> {
     /// carrier ([`Curve3::clearance`]).
     clear: T,
     /// What the basin's sine is levered by.
-    lever: T,
+    lever: Lever<T>,
 }
 
 impl<T: Decide> Polish<'_, T> {
@@ -700,7 +696,7 @@ impl<T: Decide> Polish<'_, T> {
         let turn = T::from_f64(2.0) * curvature * region;
         metered(
             row::BASIN,
-            Margin::levered(sine - turn, geom_core::Lever::unsourced(self.lever)),
+            Margin::levered(sine - turn, self.lever),
             Sign::Positive,
             band,
         )?;
@@ -785,7 +781,7 @@ fn route<T: Decide>(
     rate: T,
     offset: T,
     at: OnOneLine<T>,
-    (lever, noise): (T, T),
+    (lever, noise): (Lever<T>, T),
     band: Band,
 ) -> Result<Route, MeetFault> {
     let length = at.extent().max(T::zero());
@@ -800,14 +796,13 @@ fn route<T: Decide>(
     }
     let level = decide(
         row::TILT,
+        // Unsourced lever: the overlap's projected length widened by the
+        // band's escalation either side, a measured length and a
+        // tolerance, not a read of the extent home.
         Margin::levered(tilt, geom_core::Lever::unsourced(length + e + e)),
         band,
     ) == Ok(Sign::Zero)
-        || !definite(
-            row::TILT,
-            Margin::levered(tilt, geom_core::Lever::unsourced(lever)),
-            band,
-        )?;
+        || !definite(row::TILT, Margin::levered(tilt, lever), band)?;
     if !level {
         return Ok(Route::Crossing);
     }
@@ -874,6 +869,10 @@ fn line_line<T: Decide>(
     let w = a0 + u1 * at.mid() - o2;
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
+    // Unsourced lever: the longer span's arc length bounded through its
+    // sup speed (`reach`), a metered span; the extent home's read of the
+    // span (`edge_extent_sup`) has different bits.
+    let arm = geom_core::Lever::unsourced(lever);
     let origin = Point3::origin();
     let noise = geom_core::rounding_charge(
         (o1 - origin).norm() + (o2 - origin).norm() + ends(a) + ends(b) + lever + lever,
@@ -887,26 +886,18 @@ fn line_line<T: Decide>(
             tb: line_foot(lb, point),
         }])
     };
-    match route(s, s / u1.dot(u2).abs(), off, at, (lever, noise), band)? {
+    match route(s, s / u1.dot(u2).abs(), off, at, (arm, noise), band)? {
         Route::Apart => Ok(Pose::Apart),
         Route::Parallel => Ok(Pose::Parallel),
         Route::Crossing => Ok(crossing()),
         Route::Level if one_line((a, (o1, u1)), (b, (o2, u2)), band)? => Ok(Pose::Coincident {
-            sense: sense(u1.dot(u2), lever, band)?,
+            sense: sense(u1.dot(u2), arm, band)?,
             witnesses: witnesses(a, b, &|q| line_foot(la, q), &|q| line_foot(lb, q)),
         }),
         // Level where they can meet but apart past the band along a span:
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
-        Route::Level
-            if definite(
-                row::TILT,
-                Margin::levered(s, geom_core::Lever::unsourced(lever)),
-                band,
-            )? =>
-        {
-            Ok(crossing())
-        }
+        Route::Level if definite(row::TILT, Margin::levered(s, arm), band)? => Ok(crossing()),
         Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter)),
     }
 }
@@ -928,6 +919,10 @@ fn line_conic<T: Decide>(
     // extent, both projected on the line.
     let c = (k.center - o).dot(u);
     let lever = reach(a).max(k.speed_hi());
+    // Unsourced lever: the line's span metered through its sup speed
+    // (`reach`), folded with the conic's size; the span's part fits no
+    // extent read with the same bits.
+    let arm = geom_core::Lever::unsourced(lever);
     let origin = Point3::origin();
     let noise = geom_core::rounding_charge(
         (o - origin).norm() + (k.center - origin).norm() + lever + k.speed_hi(),
@@ -944,7 +939,7 @@ fn line_conic<T: Decide>(
         screened,
     );
     let height = (o + u * at.mid() - k.center).dot(n);
-    match route(den, den.abs(), height.abs(), at, (lever, screened), band)? {
+    match route(den, den.abs(), height.abs(), at, (arm, screened), band)? {
         Route::Apart => return Ok(Pose::Apart),
         Route::Parallel => return Ok(Pose::Parallel),
         Route::Crossing => {
@@ -959,7 +954,7 @@ fn line_conic<T: Decide>(
                 start: (line_foot(line, point), foot(b, point)),
                 reach: e / den.abs(),
                 clear: clearance(b.carrier(), point),
-                lever,
+                lever: arm,
             };
             return Ok(Pose::Generic(polish.closest(band)?.into_iter().collect()));
         }
@@ -1024,7 +1019,9 @@ fn conic_conic<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
-    let lever = ka.speed_hi().max(kb.speed_hi());
+    let ball = |c: &Curve3<T>| crate::ExtentBall::of_conic(c).ok_or(MeetFault::Desync);
+    let arm = ball(a.carrier())?.lever().max(ball(b.carrier())?.lever());
+    let lever = arm.length();
     let origin = Point3::origin();
     let noise = geom_core::rounding_charge(
         (ka.center - origin).norm() + (kb.center - origin).norm() + lever + lever,
@@ -1048,13 +1045,13 @@ fn conic_conic<T: Decide>(
         break;
     }
     let Some(slant) = slant else {
-        return transverse((a, &ka, &kb, b), ha, swing_a, (noise, lever), known, band);
+        return transverse((a, &ka, &kb, b), ha, swing_a, (noise, arm), known, band);
     };
     let oriented = |k: &Conic<T>| k.axis * (k.semi_u * k.semi_v);
     if one_curve(&ka, &kb, band)? {
         let (foot_a, foot_b) = (|q| foot(a, q), |q| foot(b, q));
         return Ok(Pose::Coincident {
-            sense: sense(unit(oriented(&ka)).dot(unit(oriented(&kb))), lever, band)?,
+            sense: sense(unit(oriented(&ka)).dot(unit(oriented(&kb))), arm, band)?,
             witnesses: witnesses(a, b, &foot_a, &foot_b),
         });
     }
@@ -1150,7 +1147,7 @@ fn transverse<T: Decide>(
     (a, ka, kb, b): (&Span<'_, T>, &Conic<T>, &Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
     swing: T,
-    (noise, lever): (T, T),
+    (noise, lever): (T, Lever<T>),
     known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
@@ -1579,7 +1576,7 @@ mod polish_rows {
             start: (core::f64::consts::FRAC_PI_2 + off, 0.0),
             reach: 0.11,
             clear: 0.0,
-            lever: 1.0,
+            lever: crate::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
         };
         let got = polish(0.0).closest(band).unwrap().unwrap();
         assert!(

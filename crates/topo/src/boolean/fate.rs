@@ -492,7 +492,9 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
     let chord = (end - base).norm();
     let (t0, t1) = curve.params();
     let reach = match curve.carrier() {
-        geom::Curve3::Line(_) => LeverBounds::Exact(chord),
+        geom::Curve3::Line(_) => {
+            LeverBounds::Exact(geom_brep::ExtentBall::point(end).lever_from(base))
+        }
         carrier => geom_brep::edge_reach_bounds(carrier, t0, t1, base),
     };
     let (dir, bend) = match curve.carrier() {
@@ -521,6 +523,8 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
 fn sign<T: Decide>(x: T, arm: T, band: Band) -> Result<Sign, BooleanError> {
     crate::validate::decide(
         "bool_fate_corner",
+        // Unsourced lever: a unit arm (every caller's `1`) on a unit
+        // vector's length or a count of half-turns, no length of any extent.
         Margin::levered(x, geom_core::Lever::unsourced(arm)),
         band,
     )
@@ -659,7 +663,7 @@ fn corner_holds<T: Decide>(
         crate::validate::decide_at_lever(
             ("bool_fate_corner_bend", "bool_fate_corner_bend_straddle"),
             lever,
-            |l| geom_brep::parting(k - kb, u, l),
+            |l| geom_brep::parting(k - kb, u, l.length()),
             band,
         )
         .map(Some)
@@ -1267,16 +1271,15 @@ fn piece_beside<T: Decide>(
             let (Some(run), [Some(start), Some(end)]) = (departure(body, h), ends) else {
                 return Err(desync("a division edge's half-edge does not walk").into());
             };
-            let bound = |dir, reach| Leaving {
+            // Each bound runs straight from `p` to an end of the line edge,
+            // which is its reach from `p`.
+            let bound = |dir, far| Leaving {
                 dir,
-                reach: LeverBounds::Exact(reach),
+                reach: LeverBounds::Exact(geom_brep::ExtentBall::point(far).lever_from(p)),
                 bend: run.bend,
             };
             // A straight corner's bounds leave apart: it never wraps.
-            let straight = (
-                bound(run.dir, (end - p).norm()),
-                bound(-run.dir, (p - start).norm()),
-            );
+            let straight = (bound(run.dir, end), bound(-run.dir, start));
             if corner_holds(Ray::bisector(d), straight, || Ok(false), normal, band)? == Holds::In {
                 holding.push(f);
             }
@@ -2131,7 +2134,7 @@ mod tests {
         let (up, y) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0));
         let edge = |dir, k: f64| Leaving {
             dir,
-            reach: LeverBounds::Exact(0.6),
+            reach: LeverBounds::Exact(crate::bound_side::lever(0.6)),
             bend: Some(Vec3::new(-k, 0.0, 0.0)),
         };
         let at = |k: f64, ((out, back), (ko, kb)): ((Vec3<f64>, Vec3<f64>), (f64, f64))| {
@@ -2193,6 +2196,8 @@ mod corner_bounds_rows {
 
     use super::{Holds, Leaving, Ray, corner_holds};
     use crate::boolean::{BooleanDecision, BooleanError};
+
+    use crate::bound_side::lever as extent;
 
     /// A straight bound leaving along `dir`, reaching `reach`.
     fn bound(dir: Vec3<f64>, reach: LeverBounds<f64>) -> Leaving<f64> {
@@ -2292,18 +2297,18 @@ mod corner_bounds_rows {
                 reach,
                 bend: Some(Vec3::new(0.0, 1.2e-9, 0.0)),
             };
-            let bounds = (bound(x, reach), bound(y, LeverBounds::Exact(1.0)));
+            let bounds = (bound(x, reach), bound(y, LeverBounds::Exact(extent(1.0))));
             corner_holds(edge.ray(), bounds, || Ok(false), n, band)
         };
         assert!(matches!(
-            at(LeverBounds::Exact(1.0)),
+            at(LeverBounds::Exact(extent(1.0))),
             Ok(Holds::Tied { along_out: true })
         ));
-        assert!(matches!(at(LeverBounds::Exact(5.0)), Ok(Holds::In)));
+        assert!(matches!(at(LeverBounds::Exact(extent(5.0))), Ok(Holds::In)));
         straddles(
             at(LeverBounds::Between {
-                below: 1.0,
-                above: 5.0,
+                below: extent(1.0),
+                above: extent(5.0),
             }),
             "bool_fate_corner_bend_straddle",
         );
@@ -2318,7 +2323,10 @@ mod corner_bounds_rows {
     #[test]
     fn a_cut_beside_a_long_bound_is_read_at_the_shorter_of_their_reaches() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let (long, short) = (LeverBounds::Exact(1.0), LeverBounds::Exact(1e-6));
+        let (long, short) = (
+            LeverBounds::Exact(extent(1.0)),
+            LeverBounds::Exact(extent(1e-6)),
+        );
         let theta = 1e-4_f64;
         let d = Vec3::new(theta.cos(), theta.sin(), 0.0);
         let bounds = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
@@ -2369,6 +2377,8 @@ mod tie_rows {
     use crate::boolean::Operand;
     use crate::lineage::{FaceDivisions, LineageRows};
 
+    use crate::bound_side::lever as extent;
+
     #[test]
     fn a_tangent_tied_with_either_bound_places_no_corner() {
         let tol = Tol::witness();
@@ -2393,7 +2403,7 @@ mod tie_rows {
         let divisions = FaceDivisions::new(LineageRows::FaceDivisions);
         let diagonal = Vec3::new(1.0, 1.0, 0.0).normalize();
         let at = |dir: Vec3<f64>, bend: Vec3<f64>| {
-            let reach = Some(LeverBounds::Exact(0.5));
+            let reach = Some(LeverBounds::Exact(extent(0.5)));
             let tangent = Ray {
                 dir,
                 reach,
@@ -2462,8 +2472,8 @@ mod spline_departure_rows {
             panic!("a spline's reach is known from both sides, got {len:?}");
         };
         assert!(
-            (below - 2.0).abs() < 1e-12 && (2.0..2.2).contains(&above),
-            "with its reach from the start between 2 and the bound's slack: {below}, {above}"
+            (below.length() - 2.0).abs() < 1e-12 && (2.0..2.2).contains(&above.length()),
+            "with its reach from the start between 2 and the bound's slack: {below:?}, {above:?}"
         );
     }
 }

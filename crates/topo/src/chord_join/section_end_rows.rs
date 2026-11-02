@@ -433,7 +433,7 @@ fn a_torus_square_to_its_axis_is_read_square() {
             band(),
             &cut,
             &torus,
-            SectionReach::Torus(2.5),
+            SectionReach::Torus(geom_brep::ExtentBall::of_sphere(Point3::origin(), 2.5).lever()),
         ) {
             Ok(SectionCase::Loops { loops, .. }) => {
                 for curve in &loops {

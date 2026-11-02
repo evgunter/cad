@@ -983,7 +983,7 @@ pub fn plane_cylinder_section_read<T: Decide>(
     let center = o + a * t_star;
     let section = match decide(
         "pc_rim_alignment",
-        Margin::levered(sin_norm, geom_core::Lever::unsourced(r)),
+        Margin::levered(sin_norm, geom_core::Lever::curvature_radius(r)),
         band,
     )
     .map_err(SectionError::Escalated)?
@@ -1317,7 +1317,7 @@ pub fn plane_sphere_section<T: Decide>(
         "ps_frame_seam",
         Margin::levered(
             seam_cand.norm() - T::from_f64(0.5),
-            geom_core::Lever::unsourced(r),
+            geom_core::Lever::curvature_radius(r),
         ),
         band,
     ) {
@@ -1497,7 +1497,13 @@ pub fn sphere_sphere_section<T: Decide>(
                                 center: at.foot(),
                                 axis: n,
                                 radius: pair.half_chord(),
-                                u_ref: ss_frame_seam(n, axis1, u1, r1, band),
+                                u_ref: ss_frame_seam(
+                                    n,
+                                    axis1,
+                                    u1,
+                                    geom_core::Lever::curvature_radius(r1),
+                                    band,
+                                ),
                             }))
                         }
                     }
@@ -1525,16 +1531,13 @@ fn ss_frame_seam<T: Decide>(
     n: Vec3<T>,
     axis: Vec3<T>,
     u_ref: Vec3<T>,
-    r: T,
+    lever: geom_core::Lever<T>,
     band: Band,
 ) -> Vec3<T> {
     let seam_cand = n.cross(u_ref);
     match decide(
         "ss_frame_seam",
-        Margin::levered(
-            seam_cand.norm() - T::from_f64(0.5),
-            geom_core::Lever::unsourced(r),
-        ),
+        Margin::levered(seam_cand.norm() - T::from_f64(0.5), lever),
         band,
     ) {
         Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
@@ -2256,10 +2259,13 @@ pub fn plane_cone_section<T: Decide>(
                     ),
                 ),
             ),
+            // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum
+            // length rather than an extent; its honest door `levered_inv(size, steep)` rounds apart.
             Sign::Zero => (
                 "pn_apex_tangent_reach",
                 Margin::levered(T::one() / steep, geom_core::Lever::unsourced(size)),
             ),
+            // Unsourced lever: as `pn_apex_tangent_reach`'s, over the discriminant.
             Sign::Negative => (
                 "pn_apex_point_reach",
                 Margin::levered(T::one() / discr.abs(), geom_core::Lever::unsourced(size)),
@@ -2467,7 +2473,10 @@ fn pair_bound<T: Real>(
 ) -> Margin<T> {
     let zero = T::zero();
     let size = gap.abs() + gap_err;
+    // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum length
+    // rather than an extent; its honest door `levered_inv(size, d)` rounds apart.
     let far = Margin::levered(T::one() / d, geom_core::Lever::unsourced(size)).value();
+    // Unsourced lever: as `far`'s, over `m`.
     let near = Margin::levered(T::one() / m, geom_core::Lever::unsourced(size)).value();
     let (lo, hi) = reach.range_along(apex, a);
     let rho = lo.max(zero - hi).max(zero) / cos_a;
@@ -2491,6 +2500,7 @@ fn pair_bound<T: Real>(
     let sigma_sq = d * m / sin_a.powi(2);
     let floor = T::from_f64(f64::MIN_POSITIVE);
     let lean = T::from_f64(2.0) * s * size / (sin_a * rho.max(floor));
+    // Unsourced lever: as `far`'s, over the pair's own divisor.
     let offset = Margin::levered(
         T::from_f64(2.0) / (sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt()),
         geom_core::Lever::unsourced(size),
@@ -2506,7 +2516,7 @@ fn pair_bound<T: Real>(
         + T::from_f64(4.0);
     let azimuth = Margin::levered(
         T::from_f64(0.5 * f64::EPSILON) * turn,
-        geom_core::Lever::unsourced(lo.abs().max(hi.abs()) / cos_a),
+        reach.generator_lever(apex, a, cos_a),
     )
     .value();
     Margin::of(far.min(start + offset) + azimuth)
@@ -2741,7 +2751,8 @@ pub fn plane_torus_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            let tilt = Margin::levered(a.cross(n).norm(), geom_core::Lever::unsourced(big_r + r));
+            let tilt =
+                Margin::levered(a.cross(n).norm(), ExtentBall::of_torus(c, big_r, r).lever());
             match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {
                     // The plane is perpendicular to the axis: the

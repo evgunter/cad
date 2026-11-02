@@ -1687,7 +1687,15 @@ fn walls_inside<T: Decide>(
         // How far the wall leaves the floor grows across the line: the
         // lever is the wall's own reach from the line's middle, as a
         // seam's dihedral reads it ([`crate::wedge_reach`]).
-        let arm = crate::wedge_reach(body, [wall, wall], curve.carrier(), (t0, t1));
+        // Unsourced lever: the wall's reach from the line's middle
+        // (`crate::wedge_reach`), a read of its boundary's vertices that
+        // the extent home does not make.
+        let arm = geom_core::Lever::unsourced(crate::wedge_reach(
+            body,
+            [wall, wall],
+            curve.carrier(),
+            (t0, t1),
+        ));
         let sectors =
             |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
         // Bent alike, the wall's sheet and the floor's are one to the
@@ -1696,7 +1704,7 @@ fn walls_inside<T: Decide>(
         let surface = |face: FaceKey| body.proven_face_surface(face);
         inside[k] = match crate::validate::decide(
             "bool_rider_wall_side",
-            Margin::levered(into.dot(floor), geom_core::Lever::unsourced(arm)),
+            Margin::levered(into.dot(floor), arm),
             band,
         )
         .map_err(sectors)?
@@ -1731,7 +1739,7 @@ fn walls_inside<T: Decide>(
                 ) else {
                     return Err(refused(unread));
                 };
-                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm);
+                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm.length());
                 let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, apart, band)
                     .map_err(sectors)?;
                 match side {
@@ -1824,13 +1832,13 @@ pub(super) const RIDER_WALL_BEND_ACROSS: &str = "bool_rider_wall_bend_across";
 fn coplanar_wall_inside<T: Decide>(
     normal: geom_core::Vec3<T>,
     floor: geom_core::Vec3<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
     refused: impl Fn(EdgeInFaceGap) -> BooleanError,
 ) -> Result<bool, BooleanError> {
     match crate::validate::decide_nonzero(
         "bool_rider_wall_coplanar",
-        Margin::levered(normal.dot(floor), geom_core::Lever::unsourced(arm)),
+        Margin::levered(normal.dot(floor), arm),
         band,
     )
     .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?

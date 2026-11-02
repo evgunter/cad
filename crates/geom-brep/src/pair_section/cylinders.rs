@@ -406,7 +406,7 @@ impl<T: Decide> CylinderCylinderPose<T> {
             thinner,
         };
         let placed = placement(
-            crossing_ball(foot, normal, sin, gap, [r1, r2]),
+            ExtentBall::of_crossing_cylinders((foot, normal), sin, gap, [r1, r2]),
             reach.ball(),
             band,
         );
@@ -566,27 +566,6 @@ impl<T: Decide> CylinderCylinderPose<T> {
     }
 }
 
-/// **The pair's own ball for crossing axes**, which [`placement`] reads
-/// against the region. A point within `r₁` of the first
-/// axis and `r₂` of the second stands within `(r₁ + r₂)/sin θ` of the
-/// common perpendicular's midpoint across it, and within `min r + |e|/2`
-/// along it.
-fn crossing_ball<T: Real>(
-    foot: Point3<T>,
-    normal: Vec3<T>,
-    sin: T,
-    gap: T,
-    [r1, r2]: [T; 2],
-) -> ExtentBall<T> {
-    let half = T::from_f64(0.5);
-    let across = (r1 + r2) / sin;
-    let along = r1.min(r2) + gap.abs() * half;
-    ExtentBall::new(
-        foot + normal * (gap * half),
-        (across.powi(2) + along.powi(2)).sqrt(),
-    )
-}
-
 /// **Where `ball` stands against `region`** ([`RegionPlacement`]), the one
 /// reading every listing of the pair takes: the crossing loops are none
 /// where the region is clear of the pair's ball, and the ruling sweep's
@@ -612,23 +591,6 @@ fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) 
         RegionPlacement::Outside
     } else {
         RegionPlacement::Straddles
-    }
-}
-
-/// A closed conic's ball: its centre, out to its larger semi-axis.
-fn conic_ball<T: Real>(curve: &Curve3<T>) -> Option<ExtentBall<T>> {
-    match *curve {
-        Curve3::Ellipse {
-            center,
-            semi_u,
-            semi_v,
-            ..
-        } => Some(ExtentBall::new(
-            center,
-            Curve3::semi_axes_by_size(semi_u, semi_v).0,
-        )),
-        Curve3::Circle { center, radius, .. } => Some(ExtentBall::new(center, radius.abs())),
-        Curve3::Line(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }
 
@@ -825,7 +787,8 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                     ];
                     let mut listed = Vec::new();
                     for (curve, span, [from, to]) in arcs {
-                        let placed = conic_ball(curve).map_or(RegionPlacement::Straddles, &against);
+                        let placed = ExtentBall::of_conic(curve)
+                            .map_or(RegionPlacement::Straddles, &against);
                         if placed == RegionPlacement::Outside {
                             continue;
                         }
@@ -924,7 +887,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
     decided.extend(pose.tangency());
     let nodes = pose.nodes();
     Ok(PairSection {
-        lever: r1.min(r2),
+        lever: geom_core::Lever::curvature_radius(r1).min(geom_core::Lever::curvature_radius(r2)),
         nodes,
         pose: PairPose::CylinderCylinder(pose),
         decided,

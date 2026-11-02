@@ -199,7 +199,13 @@ fn section_chords<T: Decide>(
             let d = u * w.dot(normal).abs() + w * u.dot(normal).abs();
             match decide(
                 "split_germ_line",
-                Margin::levered(d.norm(), geom_core::Lever::unsourced(arm)),
+                Margin::levered(
+                    d.norm(),
+                    // Unsourced lever: the germ's arm, the shorter ray's norm, a unit tangent
+                    // scaled to its edge_extent_inf (or a line's chord); the edges' Lever::min
+                    // would round differently.
+                    geom_core::Lever::unsourced(arm),
+                ),
                 band,
             ) {
                 Ok(Sign::Positive) => Ok((d.normalize(), arm, None)),
@@ -246,7 +252,13 @@ fn section_chords<T: Decide>(
         let arm = arm.min(r_arm);
         match decide(
             "split_germ_side",
-            Margin::levered(r.cross(g).dot(normal), geom_core::Lever::unsourced(arm)),
+            Margin::levered(
+                r.cross(g).dot(normal),
+                // Unsourced lever: the germ's arm, the shorter ray's norm, a unit tangent scaled to
+                // its edge_extent_inf (or a line's chord); the edges' Lever::min would round
+                // differently.
+                geom_core::Lever::unsourced(arm),
+            ),
             band,
         )
         .map_err(order)?
@@ -256,7 +268,13 @@ fn section_chords<T: Decide>(
             Sign::Zero => {
                 match decide_nonzero(
                     "split_germ_sense",
-                    Margin::levered(r.dot(g), geom_core::Lever::unsourced(arm)),
+                    Margin::levered(
+                        r.dot(g),
+                        // Unsourced lever: the germ's arm, the shorter ray's norm, a unit tangent
+                        // scaled to its edge_extent_inf (or a line's chord); the edges' Lever::min
+                        // would round differently.
+                        geom_core::Lever::unsourced(arm),
+                    ),
                     band,
                 )
                 .map_err(order)?
@@ -290,7 +308,13 @@ fn section_chords<T: Decide>(
             }
             let (h, h_arm, _) = germs[members[0]];
             let arm = g_arm.min(h_arm);
-            let sine = Margin::levered(h.cross(g).dot(normal), geom_core::Lever::unsourced(arm));
+            let sine = Margin::levered(
+                h.cross(g).dot(normal),
+                // Unsourced lever: the germ's arm, the shorter ray's norm, a unit tangent scaled to
+                // its edge_extent_inf (or a line's chord); the edges' Lever::min would round
+                // differently.
+                geom_core::Lever::unsourced(arm),
+            );
             let sign = match decide("split_germ_order", sine, band).map_err(order)? {
                 Sign::Zero => curving(members[0], i, arm)?,
                 sign => sign,
@@ -379,7 +403,9 @@ fn apex_germ<T: Decide>(
         face,
         reading,
     };
-    let arm = u.dir.norm().min(w.dir.norm());
+    // Unsourced lever: the sub-sector's arm, the shorter ray's norm, a unit tangent scaled to its
+    // edge_extent_inf (or a line's chord); the edges' Lever::min would round differently.
+    let arm = geom_core::Lever::unsourced(u.dir.norm().min(w.dir.norm()));
     crate::chord_join::apex_section_ruling(
         body,
         band,
