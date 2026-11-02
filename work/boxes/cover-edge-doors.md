@@ -2,11 +2,10 @@
 id: cover-edge-doors
 kind: unit
 title: Every per-Curve3 edge-extent door reads geom's arc cover: topo's edge box rule, axial carrier, carrier and arc balls, the shell and maximal-faces balls, geom-brep's edge reaches, sweep and step-import
-status: parked
+status: open
 opened: 2026-11-02
 priority: P1
 cost: H
-blocked_on: [cover-geom-readings]
 ---
 
 

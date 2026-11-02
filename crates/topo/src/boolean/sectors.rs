@@ -97,6 +97,7 @@ use crate::validate::decide;
 use crate::bound_side::Descent;
 use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, ReadFault, Side};
 pub(super) use crate::bound_side::{FaceBend, FaceShape, Reach, sagitta_charge};
+use crate::link::metric::Reading;
 
 /// One (convex) sector of a vertex neighborhood.
 #[derive(Clone, Debug)]
@@ -759,15 +760,19 @@ pub(super) fn apex_pair_refusal<T: geom_core::Real>(
 /// Zero is the band's and does not decide. The side is read off a sign,
 /// so `on`, the Zero the bisector's code was decided on, is the nonzero
 /// gate's rejection, on the log under the predicate that decided it.
+///
+/// A tie a reading's slack made carries the sign the band decided, which
+/// the nonzero gate passes: that sign is refused as the gate that admits
+/// only a zero refuses it, offering no tolerance, since the `On` is the
+/// slack's and not the band's.
 pub(super) fn bisector_zero_refusal(on: OnReading, band: Band) -> BooleanError {
+    let passes = match on.decided.sign {
+        geom_core::Sign::Zero => geom_core::SizedPass::NonZero,
+        _ => geom_core::SizedPass::Zero,
+    };
     BooleanError::Escalated {
         decision: BooleanDecision::BisectorSide,
-        diag: geom_core::k_stats::gate_rejection(
-            on.predicate,
-            on.decided,
-            band,
-            geom_core::SizedPass::NonZero,
-        ),
+        diag: geom_core::k_stats::gate_rejection(on.predicate, on.decided, band, passes),
     }
 }
 
@@ -810,7 +815,7 @@ pub(super) fn datum_code<T: Decide>(
     face: FaceDatum<T>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
-    bound_read(dir, reach, face, band).map(|read| read.code)
+    bound_read(dir, reach, face, Reading::plain(band)).map(|read| read.code)
 }
 
 /// [`datum_code`] against a plane face's normal, charged at `lever`.
@@ -835,6 +840,7 @@ pub(super) fn side_code<T: Decide>(
 /// order tied), which is what the pass's whole-sector lump keys on: a
 /// sector tangent to the face lumps whole, and its second order is the
 /// lump's, read off the two carriers.
+#[cfg(test)]
 pub(super) fn pierce_side<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
@@ -843,11 +849,13 @@ pub(super) fn pierce_side<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<PierceSide, BooleanError> {
-    pierce_side_reported(dir, reach, face_normal, bend, lever, band).map(|(side, _)| side)
+    pierce_side_reported(dir, reach, face_normal, bend, lever, Reading::plain(band))
+        .map(|(side, _)| side)
 }
 
-/// [`pierce_side`], keeping the first-order Zero of a bound that tied:
-/// what a caller that cannot use its `On` refuses through the gate
+/// [`pierce_side`] on the reading `rd` ([`crate::bound_side::read`]),
+/// keeping the first-order Zero of a bound that tied: what a caller that
+/// cannot use its `On` refuses through the gate
 /// ([`bisector_zero_refusal`]). `None` beside a side decided at first
 /// order.
 pub(super) fn pierce_side_reported<T: Decide>(
@@ -856,14 +864,9 @@ pub(super) fn pierce_side_reported<T: Decide>(
     face_normal: OutwardNormal<T>,
     bend: FaceBend<T>,
     lever: T,
-    band: Band,
+    rd: Reading<T>,
 ) -> Result<(PierceSide, Option<OnReading>), BooleanError> {
-    let read = bound_read(
-        dir,
-        reach,
-        FaceDatum::of_face(face_normal, bend, lever),
-        band,
-    )?;
+    let read = bound_read(dir, reach, FaceDatum::of_face(face_normal, bend, lever), rd)?;
     Ok((
         PierceSide {
             code: read.code,
@@ -893,23 +896,24 @@ pub(super) struct BoundTie {
 }
 
 /// The one reading of a bound's side behind [`datum_code`] and
-/// [`pierce_side`].
+/// [`pierce_side`], on the reading `rd`: the run band alone, or a cone's
+/// over its tie where the side is handed to it
+/// ([`crate::link::Cone::reading`]).
 pub(super) fn bound_read<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
     face: FaceDatum<T>,
-    band: Band,
+    rd: Reading<T>,
 ) -> Result<BoundRead, BooleanError> {
+    let band = rd.band;
     let refused = |fault| bound_refusal(fault, band);
-    match crate::bound_side::read(dir, reach, face, band).map_err(refused)? {
+    match crate::bound_side::read(dir, reach, face, rd).map_err(refused)? {
         FirstOrder::Off(side) => Ok(BoundRead {
             code: code_of(side),
             tie: None,
         }),
         FirstOrder::Tied(tie) => {
-            let descent = tie
-                .descend(band)
-                .map_err(|fault| read_refusal(fault, band))?;
+            let descent = tie.descend().map_err(|fault| read_refusal(fault, band))?;
             let code = match descent {
                 Descent::Leaves(side) => code_of(side),
                 Descent::Rides | Descent::Unresolved(_) => SideCode::On,
@@ -977,9 +981,11 @@ fn read_refusal<T: Decide>(fault: ReadFault<T>, band: Band) -> BooleanError {
 /// predicate that decided it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct OnReading {
-    /// The predicate that decided the Zero.
+    /// The predicate that decided the tie.
     pub(super) predicate: &'static str,
-    /// The Zero, with the margin it was decided on.
+    /// The Zero, with the margin it was decided on; or, for a tie a
+    /// reading's slack made, the sign the band decided and the slack
+    /// refused ([`crate::bound_side::Tie::decided`]).
     pub(super) decided: Decided,
 }
 
@@ -988,7 +994,8 @@ pub(super) struct OnReading {
 pub(super) struct PierceSide {
     /// The bound's side code.
     pub code: SideCode,
-    /// Whether its first-order reading tied (`Zero`).
+    /// Whether its first-order reading tied: a `Zero`, or a side the
+    /// reading's slack refused.
     pub tied: bool,
 }
 
@@ -2852,6 +2859,41 @@ mod tests {
     use crate::contact::GlueClass;
     use geom_brep::ConicBend;
     use geom_core::Tol;
+
+    /// **A bisector's `On` from a tie a slack made refuses typed**: the
+    /// tie carries the sign the band decided (`1.5·zero` at `K = 1.4`),
+    /// which the nonzero gate passes, so it is refused as the zero-only
+    /// gate refuses it rather than handed to the nonzero gate.
+    #[test]
+    fn a_slack_ties_bisector_on_refuses_on_the_bands_zero() {
+        let zero = 1e-9;
+        let band = Band::new(zero, 1.4 * zero).unwrap();
+        let decided = crate::validate::decide_reported(
+            "enters_material",
+            geom_core::Margin::of(1.5 * zero),
+            band,
+        )
+        .unwrap();
+        assert_eq!(
+            decided.sign,
+            geom_core::Sign::Positive,
+            "the band decides it"
+        );
+        let on = OnReading {
+            predicate: "enters_material",
+            decided,
+        };
+        assert!(
+            matches!(
+                bisector_zero_refusal(on, band),
+                BooleanError::Escalated {
+                    decision: BooleanDecision::BisectorSide,
+                    ..
+                }
+            ),
+            "refused as the bisector's side"
+        );
+    }
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()

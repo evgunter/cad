@@ -146,6 +146,7 @@ mod azimuth;
 pub mod carrier_speed;
 mod chart_point;
 mod convention;
+pub mod cover;
 pub mod curves;
 mod datum;
 mod memo;

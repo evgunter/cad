@@ -930,7 +930,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
         pub(super) const TRACE_FAULT: TraceFault = [
-            Unsupported, Grazing, Apex, OnCarrier, Escalated, Unsettled,
+            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled,
         ];
     }
 
@@ -4464,6 +4464,13 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
             "Carrier/Unsupported",
             F::Carrier(TraceFault::Unsupported {
                 carrier: geom::SurfaceKind::Nurbs,
+            }),
+        ),
+        (
+            "Carrier/Unbounded",
+            F::Carrier(TraceFault::Unbounded {
+                carrier: geom::SurfaceKind::Sphere,
+                what: geom::cover::Unknown::NonFinite,
             }),
         ),
         ("Carrier/Grazing", F::Carrier(TraceFault::Grazing)),
