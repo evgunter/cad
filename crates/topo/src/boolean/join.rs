@@ -3570,9 +3570,9 @@ pub(super) fn cylinder_read<T: Decide>(
     b: (&Body<T>, FaceKey),
 ) -> Result<Option<CylinderRead<T>>, BooleanError> {
     let wall = |(body, f): (&Body<T>, FaceKey)| {
-        matches!(body.proven_face_surface(f), geom::Surface::Cylinder { .. })
+        face_surface(body, f).map(|(_, s)| matches!(s, geom::Surface::Cylinder { .. }))
     };
-    if !(wall(a) && wall(b)) {
+    if !(wall(a)? && wall(b)?) {
         return Ok(None);
     }
     let section = match sections.held(a, b) {

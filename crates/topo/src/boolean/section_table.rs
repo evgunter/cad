@@ -109,6 +109,9 @@ pub(crate) struct SectionTable<T: Real> {
     lane: Option<SsiLane<T>>,
     region: Option<ExtentBall<T>>,
     feet: RefCell<BTreeMap<FootKey, Result<GermFoot<T>, FootRefusal>>>,
+    /// Whether a glue door read the table ([`Self::reader`]), not a
+    /// sweep-only door's empty one (`Default`).
+    at_a_door: bool,
 }
 
 /// **The table's one reader**: it reads pairs into a table at the band
@@ -127,6 +130,7 @@ impl<T: Real> Default for SectionTable<T> {
             lane: None,
             region: None,
             feet: RefCell::new(BTreeMap::new()),
+            at_a_door: false,
         }
     }
 }
@@ -191,6 +195,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
             table: Self {
                 lane,
                 region,
+                at_a_door: true,
                 ..Self::default()
             },
             band,
@@ -208,6 +213,15 @@ impl<T: geom_core::Decide> SectionTable<T> {
         geom_brep::pair_section::traced_in_r3(sa.kind(), sb.kind())
             .then_some(self.region)
             .flatten()
+    }
+
+    /// **Whether a pair this table does not hold is a desync**: a glue
+    /// door reads every pair whose faces' boxes meet, so a pair the join
+    /// meets and the table lacks is one the door never read; a
+    /// sweep-only door's table (`Default`) reads none, and its pairs keep
+    /// the routes that read their surfaces.
+    pub(crate) fn unheld_is_desync(&self) -> bool {
+        self.at_a_door
     }
 
     /// The section held for A's face `fa` against B's `fb`, by their

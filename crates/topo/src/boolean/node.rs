@@ -93,10 +93,12 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
         // no node of a pair the boolean builds goes unminted. The table
         // holds every pair of served faces whose boxes overlap at the
         // sweep's pad (`glue::section_door`), the boxes `walls` was read
-        // at, so a pair it does not hold is a desync.
+        // at, so a pair a glue door's table does not hold is a desync; a
+        // sweep-only door's table holds none and mints no node.
         let held = match sections.held((a_operand, fa), (b_operand, fb)) {
             Some(Ok(held)) => held,
             Some(Err(_)) => continue,
+            None if !sections.unheld_is_desync() => continue,
             None => {
                 return Err(BooleanError::JoinDesync {
                     what: "two overlapping cylinder walls the section table does not hold",
@@ -184,8 +186,9 @@ pub(super) fn bisectors<T: Decide>(
     // A refused section is no bisector pair here: the pair keeps the
     // quadric's route, whose own reads then decide or refuse it, as the
     // node pass skips such a pair. Two walls an edge of one crosses the
-    // other at overlap, so the table holds them: one it does not is a
-    // desync.
+    // other at overlap, so a glue door's table holds them: one it does
+    // not is a desync. A sweep-only door's table holds none, and its
+    // crossing keeps the quadric's route.
     match held {
         Some(Ok(held)) => Ok(match held.pose() {
             geom_brep::PairPose::CylinderCylinder(pose) => pose
@@ -194,6 +197,7 @@ pub(super) fn bisectors<T: Decide>(
             _ => None,
         }),
         Some(Err(_)) => Ok(None),
+        None if !sections.unheld_is_desync() => Ok(None),
         None => Err(BooleanError::JoinDesync {
             what: "two cylinder walls a crossing meets the section table does not hold",
         }),
