@@ -9,7 +9,7 @@
 //! one per-edge reach; the box decides on its bound from below, so a body
 //! is refused only where points of it lie past the box.
 
-use geom_core::{Band, Decide, Margin, Point3, Sign, tolerance::SESSION_BOX_EXTENT};
+use geom_core::{Band, Decide, Lever, Margin, Point3, Sign};
 
 use crate::body::Body;
 use crate::validate::ValidationError;
@@ -26,7 +26,11 @@ pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
     let edges = body.edges().filter_map(|(e, data)| {
         let curve = body.edge_curve_linked(e, data).certified()?;
         let (t0, t1) = curve.params();
-        Some(geom_brep::edge_reach_bounds(curve.carrier(), t0, t1, origin).below())
+        Some(
+            geom_brep::edge_reach_bounds(curve.carrier(), t0, t1, origin)
+                .below()
+                .length(),
+        )
     });
     vertices.chain(edges).fold(T::zero(), T::max)
 }
@@ -43,7 +47,7 @@ pub(crate) const SESSION_BOX_REACH: &str = "session_box_reach";
 ///
 /// [`ValidationError::OutsideSessionBox`], with the margin.
 pub(crate) fn in_session_box<T: Decide>(body: &Body<T>, band: Band) -> Result<(), ValidationError> {
-    let margin = Margin::of(T::from_f64(SESSION_BOX_EXTENT) - body_reach(body));
+    let margin = Margin::of(Lever::<T>::session_box().length() - body_reach(body));
     match crate::validate::decide_reported(SESSION_BOX_REACH, margin, band) {
         Ok(geom_core::Decided {
             sign: Sign::Negative,
@@ -98,7 +102,10 @@ mod tests {
         for x in [0.0, 950.0, -950.0] {
             let near = brick::<f64>((x, x + 1.0), (0.0, 1.0), (0.0, 1.0), tol);
             assert!(refusal(&near).is_none(), "a brick at {x} m is in the box");
-            assert!(body_reach(&near) < SESSION_BOX_EXTENT, "{x}");
+            assert!(
+                body_reach(&near) < geom_core::tolerance::SESSION_BOX_EXTENT,
+                "{x}"
+            );
         }
     }
 
