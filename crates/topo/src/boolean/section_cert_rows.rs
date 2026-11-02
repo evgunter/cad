@@ -742,13 +742,13 @@ fn near_parallel_walls_refuse_as_a_tangency() {
     assert_eq!(tangent(&classify(&a, &b)), "cc_axes_parallel");
 }
 
-/// **A cylinder pair the region cuts is marched, and its cut arcs clear
+/// **A cylinder pair the region cuts is counted, and its cut arcs clear
 /// as unbounded.** A wall of radius `0.5` about `z` and one `0.05` rad
 /// off it, `0.1` apart: their own ball (about `20` across) straddles a
-/// region of radius `1.5` about the origin, so the pair's components are
-/// the march's, two arcs that end on the region, each unbounded (W1).
+/// region of radius `1.5` about the origin, and the ruling sweep counts
+/// two arcs that end on the region, each unbounded (W1), with no march.
 #[test]
-fn a_cylinder_pair_the_region_cuts_marches_two_unbounded_arcs() {
+fn a_cylinder_pair_the_region_cuts_counts_two_unbounded_arcs() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 0.5);
     let b = cylinder(p(0.1, 0.0, 0.0), v(0.0, 0.05f64.sin(), 0.05f64.cos()), 0.5);
     let s = super::classify(
