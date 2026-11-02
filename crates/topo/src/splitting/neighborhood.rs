@@ -272,7 +272,6 @@ pub(crate) fn entry_side<T: Decide, E>(
     let reach = Reach::Conic {
         extent: dir.norm(),
         bend,
-        arc: None,
     };
     let side = match crate::bound_side::read_plane_side(dir, reach, reference, band) {
         Ok(BoundSide::Off(Side::Below) | BoundSide::Tied(Descent::Leaves(Side::Below))) => {

@@ -486,3 +486,4 @@ row's last section says what moved.
   - U6 of the self-reference build waits on doctail U3/U4.
 
   The open question for Ev is who builds doctail's units: doctail has no orchestrator and is at 111/45, holding U1, U3, U4, U7 and the on-face frame. The P2/P3 tail is a successor's. Merged this sitting: 6119, 6123, 6124, 6125, 6128, 6129, 6135, 6143, 6144, 6145, 6149, 6285, 6286, 6289, 6290, 6295, 6298, 6299, 6302, 6306, 6322, 6340, 6346, 6352. (VSEAM)
+- 2026-11-02 — **FORMS claimed `an-expression-typed-over-held-profile-edits-is-refused`** (moved to `work/forms/`, re-banded P1). It is the prerequisite of FORMS' profile unit, which deletes the add-profile form, so every new profile's steps are unapplied when a formula is typed (`[ev]` PR 6388). Dispatched on `forms/held-expression`; it edits `pane/profile.rs` and the profile edit draft (`drafts.rs`). (FORMS orchestrator)

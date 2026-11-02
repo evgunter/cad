@@ -29,7 +29,7 @@ embedded tour scenes or rows the suite certifies by other means.
   and the wall's `v = 0` or `v = 1` iso. Each locus is probably a
   corner where the cap's edge meets a wall seam. If so, this is the
   plane-edge case of
-  `work/cleartail/departure-reads-no-curved-corner-off-its-shared-edge.md`,
+  `work/clear/departure-reads-no-curved-corner-off-its-shared-edge.md`,
   but that is not confirmed: no cell was printed.
 - **Two adjacent walls of `skinned`'s `twisted_loft`, about 5000 splits,
   800–1000 pairs at depth 40 (a line locus).** These are all four

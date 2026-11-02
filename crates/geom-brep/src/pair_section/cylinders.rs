@@ -21,8 +21,8 @@ use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, V
 
 use super::ruling::{self, RuledCylinders, SweepRefusal};
 use super::{
-    ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, PairPose, PairSection,
-    SectionComponent, SectionDecision, TANGENT_COMPONENT, ZeroVerdict,
+    ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeSet, PairPose,
+    PairSection, SectionComponent, SectionDecision, TANGENT_COMPONENT, ZeroVerdict,
 };
 use crate::ExtentBall;
 use crate::extent::Reach;
@@ -423,7 +423,8 @@ impl<T: Decide> CylinderCylinderPose<T> {
         self.radii
     }
 
-    /// The axes' unit directions, in that order.
+    /// The axes as the operands store them (unit only to their
+    /// rounding), in that order.
     pub fn axes(&self) -> [Vec3<T>; 2] {
         self.lines.map(|(_, a)| a)
     }
@@ -558,6 +559,41 @@ impl<T: Decide> CylinderCylinderPose<T> {
         }
     }
 
+    /// **The bisector planes of the node pose**: the axes' meeting point,
+    /// which both pass through, and their unit normals, along `a₁ − a₂`
+    /// (the first ellipse's) and `a₁ + a₂` (the second's), where the pose
+    /// is the bisector one; `None` otherwise. The planes the counted
+    /// ellipses lie in, and the one reading of them every consumer of the
+    /// pair takes.
+    pub fn bisector_planes(&self) -> Option<(Point3<T>, [Vec3<T>; 2])> {
+        let CcStance::Crossing {
+            foot,
+            node: Some(CcNode::Bisector { .. }),
+            ..
+        } = self.stance
+        else {
+            return None;
+        };
+        let (normals, _) = bisector_normals((self.lines[0].1, self.lines[1].1));
+        Some((foot, normals))
+    }
+
+    /// **The plane the parallel pose's rulings lie in** (their radical
+    /// plane, square to the axes' offset), as a point of it and its unit
+    /// normal, where the axes are parallel and the walls meet in a ruling
+    /// or two; `None` otherwise (walls apart or nested, coaxial ones
+    /// among them, name no plane).
+    pub fn rulings_plane(&self) -> Option<(Point3<T>, Vec3<T>)> {
+        let CcStance::Parallel { foot, across, .. } = self.stance else {
+            return None;
+        };
+        if matches!(self.parallel_section(), Some(ParallelSection::Empty) | None) {
+            return None;
+        }
+        let (at, u, _) = radical_foot(foot, across, self.radii);
+        Some((at, u))
+    }
+
     /// The point where the walls touch at an outer touch, `r₁` along the
     /// common perpendicular from the first axis toward the second.
     fn touch(&self, foot: Point3<T>, normal: Vec3<T>, gap: T) -> Point3<T> {
@@ -643,6 +679,30 @@ fn region_span<T: Decide>(
     Some((t - half, t + half))
 }
 
+/// **The bisector planes' unit normals** `[n₁, n₂]`, along `a₁ − a₂` and
+/// `a₁ + a₂`, with the half-angle's sine and cosine (module docs of
+/// [`bisector_ellipses`]): the one reading of the two planes, which the
+/// ellipses and [`CylinderCylinderPose::bisector_planes`] both take.
+fn bisector_normals<T: Real>((a1, a2): (Vec3<T>, Vec3<T>)) -> ([Vec3<T>; 2], [T; 2]) {
+    let two = T::from_f64(2.0);
+    let (d, s) = (a1 - a2, a1 + a2);
+    let off_unit = |v: Vec3<T>, w: Vec3<T>| v - w * v.dot(w);
+    let (dn, sn) = (d.normalize(), s.normalize());
+    let d_shorter = d.norm() - s.norm();
+    let pick = |when_le: Vec3<T>, when_gt: Vec3<T>| {
+        Vec3::new(
+            d_shorter.select_le_zero(when_le.x, when_gt.x),
+            d_shorter.select_le_zero(when_le.y, when_gt.y),
+            d_shorter.select_le_zero(when_le.z, when_gt.z),
+        )
+    };
+    let (d, s) = (pick(off_unit(d, sn), d), pick(s, off_unit(s, dn)));
+    (
+        [d.normalize(), s.normalize()],
+        [d.norm() / two, s.norm() / two],
+    )
+}
+
 /// The two bisector-plane ellipses through the axes' meeting point `p`,
 /// `e₁` in the `a₁ − a₂`-normal plane and `e₂` in the `a₁ + a₂`-normal
 /// one: each the tilted plane cut of the first wall, on the second by the
@@ -659,21 +719,7 @@ pub(crate) fn bisector_ellipses<T: Decide>(
     r: T,
     band: Band,
 ) -> Result<[Curve3<T>; 2], SectionError> {
-    let two = T::from_f64(2.0);
-    let (d, s) = (a1 - a2, a1 + a2);
-    let off_unit = |v: Vec3<T>, w: Vec3<T>| v - w * v.dot(w);
-    let (dn, sn) = (d.normalize(), s.normalize());
-    let d_shorter = d.norm() - s.norm();
-    let pick = |when_le: Vec3<T>, when_gt: Vec3<T>| {
-        Vec3::new(
-            d_shorter.select_le_zero(when_le.x, when_gt.x),
-            d_shorter.select_le_zero(when_le.y, when_gt.y),
-            d_shorter.select_le_zero(when_le.z, when_gt.z),
-        )
-    };
-    let (d, s) = (pick(off_unit(d, sn), d), pick(s, off_unit(s, dn)));
-    let (n1, n2) = (d.normalize(), s.normalize());
-    let (sin_half, cos_half) = (d.norm() / two, s.norm() / two);
+    let ([n1, n2], [sin_half, cos_half]) = bisector_normals((a1, a2));
     let mk = |n: Vec3<T>, c: T| -> Result<Curve3<T>, SectionError> {
         let u_major = tilted_section_major(n, a1.cross(n));
         Ok(Curve3::ellipse(p, n, r / c, r, u_major, band)?)
@@ -691,13 +737,23 @@ pub(crate) fn parallel_rulings<T: Real>(
     axis: Vec3<T>,
     [r1, r2]: [T; 2],
 ) -> [Point3<T>; 2] {
+    let (at, u, x) = radical_foot(foot, across, [r1, r2]);
+    let h = (r1.powi(2) - x.powi(2)).max(T::zero()).sqrt();
+    let side = axis.cross(u);
+    [at + side * h, at - side * h]
+}
+
+/// **The parallel pose's radical plane**: its point `x` along `û` from
+/// the first axis's foot, `û`, and `x` ([`parallel_rulings`]).
+fn radical_foot<T: Real>(
+    foot: Point3<T>,
+    across: Vec3<T>,
+    [r1, r2]: [T; 2],
+) -> (Point3<T>, Vec3<T>, T) {
     let d = across.norm();
     let u = across / d;
     let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d * T::from_f64(2.0));
-    let h = (r1.powi(2) - x.powi(2)).max(T::zero()).sqrt();
-    let side = axis.cross(u);
-    let at = foot + u * x;
-    [at + side * h, at - side * h]
+    (foot + u * x, u, x)
 }
 
 /// **The cylinder pair's section over its decided pose** (module docs),
@@ -742,6 +798,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
             (line, span, witness)
         })
     };
+    let mut set_winds = [false, false];
     let components = match pose.stance {
         CcStance::Parallel { .. } => Components::Counted(match pose.parallel_section() {
             Some(ParallelSection::Rulings(points)) => points
@@ -826,9 +883,8 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                                     ..ComponentEnds::nodes(from, to)
                                 },
                             },
-                            // The two ellipses joined at their nodes,
-                            // each a plane section round both axes.
-                            [true, true],
+                            // The winding is the node-joined set's.
+                            [false, false],
                             Some(curve.eval((span.0 + span.1) * T::from_f64(0.5))),
                             ClassCarrier::Span {
                                 curve: curve.clone(),
@@ -836,6 +892,9 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                             },
                         ));
                     }
+                    // The two ellipses joined at their nodes, each a plane
+                    // section round both axes.
+                    set_winds = [true, true];
                     Components::Counted(listed)
                 }
                 Some(CcNode::Pinch) | None => Components::Counted(match pose.placed {
@@ -913,11 +972,49 @@ pub(super) fn cylinder_cylinder<T: Decide>(
     };
     decided.extend(pose.tangency());
     let nodes = pose.nodes();
+    let node_sets = match &components {
+        Components::Counted(listed) => node_joined(listed, nodes.len(), set_winds),
+        Components::Marched | Components::Reaching(_) => Vec::new(),
+    };
     Ok(PairSection {
         lever: r1.min(r2),
         nodes,
+        node_sets,
         pose: PairPose::CylinderCylinder(pose),
         decided,
         components,
     })
+}
+
+/// **The node-joined sets of `listed`** ([`NodeSet`]): arcs joined where
+/// they share a node, each set claiming `winds`.
+fn node_joined<T: Real>(
+    listed: &[SectionComponent<T>],
+    nodes: usize,
+    winds: [bool; 2],
+) -> Vec<NodeSet> {
+    let ends = |c: &SectionComponent<T>| match c.shape {
+        ComponentShape::Open { ends } => ends.nodes,
+        ComponentShape::Loop | ComponentShape::Point => [None, None],
+    };
+    let mut sets: Vec<NodeSet> = Vec::new();
+    for node in 0..nodes {
+        let arcs: Vec<usize> = (0..listed.len())
+            .filter(|&i| ends(&listed[i]).contains(&Some(node)))
+            .collect();
+        if arcs.is_empty() {
+            continue;
+        }
+        // Merge every set already holding one of these arcs.
+        let (mut joined, rest): (Vec<NodeSet>, Vec<NodeSet>) = sets
+            .into_iter()
+            .partition(|set| set.arcs.iter().any(|a| arcs.contains(a)));
+        let mut all: Vec<usize> = joined.drain(..).flat_map(|set| set.arcs).collect();
+        all.extend(arcs);
+        all.sort_unstable();
+        all.dedup();
+        sets = rest;
+        sets.push(NodeSet { arcs: all, winds });
+    }
+    sets
 }

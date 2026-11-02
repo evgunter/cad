@@ -145,10 +145,7 @@ pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<Reach<T>> {
 /// from a `CarrierDesc`: the localization needs the sign (which side a
 /// piece lies on), the foot (the ball's centre) and the normal (the
 /// second-order bound's slope).
-pub(crate) fn distance<T: Real>(
-    surface: &geom::Surface<T>,
-    q: Point3<T>,
-) -> Option<(T, Point3<T>, Vec3<T>)> {
+fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Point3<T>, Vec3<T>)> {
     // The point's height along `axis` from `origin`, and its offset
     // across it.
     let split = |origin: Point3<T>, axis: Vec3<T>| {

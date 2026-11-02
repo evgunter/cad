@@ -5,9 +5,9 @@
 //! faces it moves: its writes drive its walks and tier 1 is derived
 //! once at its end, but `WedgeReach::reach` folds a cap's whole
 //! n-point boundary for each rim edge, O(n²) over the call
-//! (`work/offset/wedge-reach-folds-a-faces-whole-boundary-per-edge`).
+//! (`work/shell/wedge-reach-folds-a-faces-whole-boundary-per-edge`).
 //! The prism leaves nothing to join, so the per-kill sweep of
-//! `work/offset/an-offset-doors-trailing-join-sweeps-tier-1-per-kill`
+//! `work/shell/an-offset-doors-trailing-join-sweeps-tier-1-per-kill`
 //! does not show here.
 //!
 //! Evidence, not a gate (timings on a shared box are shape only):
