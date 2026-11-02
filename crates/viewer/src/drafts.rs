@@ -194,6 +194,12 @@ pub(crate) struct Drafts {
     pub(crate) profile_bore: f64,
     /// The rectangle form's width and height, metres.
     pub(crate) profile_extent: [f64; 2],
+    /// **The loops the add-profile form authors after its first**, in
+    /// description order, each its own shape ([`fresh_loop`]). The
+    /// profile layer's containment decides which are holes, so a loop
+    /// here is not a hole by being added: it is one when an earlier
+    /// loop contains it.
+    pub(crate) profile_more: Vec<ProfileShape>,
     /// The extrude form's distance, metres.
     pub(crate) extrude_distance: f64,
     /// The revolve tool's angle, radians.
@@ -458,6 +464,20 @@ impl ProfileEdit {
     pub(crate) fn edit_row(&mut self, loop_: usize, edit: RowEdit) {
         edit.shape(&mut self.loaded_as[loop_], |_| None);
         edit.apply(&mut self.loops[loop_]);
+    }
+
+    /// Append a loop of `steps`, every one a row the editor made.
+    pub(crate) fn add_loop(&mut self, steps: Vec<Step<f64>>) {
+        self.loaded_as.push(vec![None; steps.len()]);
+        self.loops.push(steps);
+    }
+
+    /// Drop held loop `loop_` and what its rows were loaded as: its
+    /// committed steps are then steps the program does not keep, and
+    /// every other loop's rows keep the ids they hold.
+    pub(crate) fn remove_loop(&mut self, loop_: usize) {
+        self.loaded_as.remove(loop_);
+        self.loops.remove(loop_);
     }
 
     /// **Which committed step each held step is** — `SetProgram`'s
@@ -934,6 +954,7 @@ impl Default for Drafts {
             profile_bored: false,
             profile_bore: 0.005,
             profile_extent: [0.01, 0.01],
+            profile_more: Vec::new(),
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
             revolve_axis_through: Point2::origin(),
@@ -977,13 +998,19 @@ impl Drafts {
     /// than a special case — and the form's own guard on it lives at
     /// the commit ([`ViewerBehavior::add_profile_ui`](crate::app::ViewerBehavior::add_profile_ui)), because it is
     /// about what the loops MEAN, not about what they are.
+    /// The first loop is the chosen shape's, and the loops added after
+    /// it ([`Drafts::profile_more`]) follow in order.
+    ///
     /// No shape chosen yet is the empty list, not a refusal: the form
     /// authors nothing and the preview draws nothing, which is what
-    /// [`Drafts::profile_shape`] being `None` means.
+    /// [`Drafts::profile_shape`] being `None` means — added loops
+    /// included, since there is no first loop for them to follow.
     pub(crate) fn profile_loops(&self) -> Vec<ProfileShape> {
-        match self.profile_shape {
-            None => Vec::new(),
-            Some(ShapeKind::Circle) => {
+        let Some(shape) = self.profile_shape else {
+            return Vec::new();
+        };
+        let mut loops = match shape {
+            ShapeKind::Circle => {
                 let mut loops = vec![ProfileShape::Circle {
                     centre: self.profile_centre,
                     radius: self.profile_radius,
@@ -996,14 +1023,16 @@ impl Drafts {
                 }
                 loops
             }
-            Some(ShapeKind::Rectangle) => vec![ProfileShape::Rectangle {
+            ShapeKind::Rectangle => vec![ProfileShape::Rectangle {
                 width: self.profile_extent[0],
                 height: self.profile_extent[1],
             }],
-            Some(ShapeKind::Path) => vec![ProfileShape::Path {
+            ShapeKind::Path => vec![ProfileShape::Path {
                 steps: self.profile_path.clone(),
             }],
-        }
+        };
+        loops.extend(self.profile_more.iter().cloned());
+        loops
     }
 
     /// **The add-variable form closes**, at its Cancel or once its
@@ -1054,6 +1083,20 @@ impl Drafts {
         ) {
             self.profile_shape = None;
             self.profile_open = false;
+            self.profile_more.clear();
+        }
+        // A reshaped program renumbers its slots, so text held for a
+        // profile slot would show on whichever argument takes that
+        // number: an edit-door Apply on its node, or an undo or redo,
+        // which may step across one, releases it.
+        let reshaped = |target: &(RecipeNodeId, SlotId)| match op {
+            SessionOp::EditProfile { node, .. } => *node == target.0,
+            SessionOp::Undo | SessionOp::Redo => matches!(target.1, SlotId::Profile { .. }),
+            _ => false,
+        };
+        if self.expr_target.as_ref().is_some_and(reshaped) {
+            self.expr_target = None;
+            self.expr_text.clear();
         }
         // The add-variable form's own declaration landed: the one
         // naming the variable its field still says.
@@ -1386,6 +1429,29 @@ impl Drafts {
     }
 }
 
+/// **A loop added to a profile starts as this**: a circle or a
+/// rectangle at a quarter of the form's own default size, on its
+/// default centre — small enough to sit inside a first circle or
+/// rectangle left at those defaults, so it is a hole as it lands — and
+/// a path as the form's own default chain, to edit.
+pub(crate) fn fresh_loop(kind: ShapeKind) -> ProfileShape {
+    const QUARTER: f64 = 0.25;
+    let form = Drafts::default();
+    match kind {
+        ShapeKind::Circle => ProfileShape::Circle {
+            centre: form.profile_centre,
+            radius: QUARTER * form.profile_radius,
+        },
+        ShapeKind::Rectangle => ProfileShape::Rectangle {
+            width: QUARTER * form.profile_extent[0],
+            height: QUARTER * form.profile_extent[1],
+        },
+        ShapeKind::Path => ProfileShape::Path {
+            steps: form.profile_path,
+        },
+    }
+}
+
 /// Three dimensionless literals — a normal, a direction, a rotation
 /// axis. Not a [`Drafts`] method, because there is no notation to
 /// carry from the form: a dimensionless number has one spelling, and
@@ -1501,8 +1567,8 @@ mod tests {
     use super::{Drafts, ProfileEdit, RowEdit};
     use crate::forms::ShapeKind;
     use crate::props::Notation;
-    use crate::session::FaceSelection;
     use crate::session::SessionOp;
+    use crate::session::{FaceSelection, ProfileShape};
     use crate::sketch;
     use crate::test_support::{inserted, try_edited, try_inserted};
 
@@ -1650,6 +1716,60 @@ mod tests {
         );
     }
 
+    /// **A draft of several loops previews every one, holes included,
+    /// and lowers as one profile of them.** A 20 × 10 mm rectangle with
+    /// two circles added and moved apart: the preview draws three
+    /// whole loops in description order, each hole's polyline on its
+    /// own circle, and validation passes — containment makes the two
+    /// circles holes. Settling the form drops the added loops with
+    /// the shape.
+    #[test]
+    fn a_draft_of_several_loops_previews_each_and_its_holes() {
+        let tol = Tol::witness();
+        let chord = 1.0e-4;
+        let mut drafts = Drafts {
+            profile_shape: Some(ShapeKind::Rectangle),
+            profile_extent: [0.02, 0.01],
+            ..Drafts::default()
+        };
+        let holes = [[-0.005, 0.0], [0.005, 0.0]];
+        for centre in holes {
+            let mut hole = super::fresh_loop(ShapeKind::Circle);
+            if let ProfileShape::Circle { centre: at, .. } = &mut hole {
+                *at = centre;
+            }
+            drafts.profile_more.push(hole);
+        }
+        let preview = sketch::preview(sketch::profile_plane(), &drafts.profile_loops(), tol, chord)
+            .expect("the plate with two holes previews");
+        assert_eq!(preview.loops.len(), 3, "the outer and both holes are drawn");
+        assert!(
+            preview.invalid.is_none(),
+            "two holes inside the outer validate: {:?}",
+            preview.invalid
+        );
+        for (drawn, centre) in preview.loops[1..].iter().zip(holes) {
+            assert!(drawn.end.is_whole(), "a hole is drawn whole");
+            assert!(
+                drawn.points.iter().all(|p| {
+                    let r = (p[0] - centre[0]).hypot(p[1] - centre[1]);
+                    (r - 0.0025).abs() < 1e-9
+                }),
+                "the hole at {centre:?} is drawn on its own circle: {:?}",
+                drawn.points
+            );
+        }
+        let loops = drafts
+            .profile_programs(Notation::DEFAULT)
+            .expect("the draft lowers");
+        assert_eq!(loops.len(), 3, "one program entry per loop");
+        drafts.accepted(&SessionOp::AddProfile { loops });
+        assert!(
+            drafts.profile_more.is_empty() && drafts.profile_loops().is_empty(),
+            "the settled form holds no added loop"
+        );
+    }
+
     /// **A sketch on a face lowers the held pick, the depth and the
     /// spin in the form's notation**, and waits for a face while none is
     /// held.
@@ -1748,6 +1868,51 @@ mod tests {
         let (doc, profile) =
             try_inserted(&doc, node, tol).expect("the form's default path is a profile");
         (doc, drafts, profile)
+    }
+
+    /// **Refused text held for a profile slot is released when the
+    /// program may have been reshaped under it** — an edit-door Apply
+    /// on its node, an undo or a redo — since the slot's number then
+    /// names whichever argument took it. An op that reshapes nothing,
+    /// or a history move with the text held on a slot that is not a
+    /// profile step's, keeps it.
+    #[test]
+    fn a_held_refused_expression_is_released_when_its_program_may_reshape() {
+        use pncad::document::{SlotId, StepArg};
+
+        let (doc, mut drafts, profile) = authored_by_the_form();
+        let base = drafts
+            .profile_edit(&doc, profile)
+            .expect("held")
+            .base()
+            .clone();
+        let slot = SlotId::Profile {
+            loop_: 0,
+            step: 1,
+            arg: StepArg::TargetX,
+        };
+        let apply = |node| SessionOp::EditProfile {
+            node,
+            base: base.clone(),
+            loops: Vec::new(),
+            ids: Vec::new(),
+        };
+        let hold = |drafts: &mut Drafts, target| {
+            drafts.expr_target = Some(target);
+            drafts.expr_text = "w +".to_owned();
+        };
+        let held = |drafts: &Drafts| drafts.expr_target.is_some() && !drafts.expr_text.is_empty();
+        for (target, op, kept) in [
+            ((profile, slot), apply(profile), false),
+            ((profile, slot), SessionOp::Undo, false),
+            ((profile, slot), SessionOp::Redo, false),
+            ((profile, slot), SessionOp::Hover(None), true),
+            ((profile, SlotId::Distance), SessionOp::Undo, true),
+        ] {
+            hold(&mut drafts, target);
+            drafts.accepted(&op);
+            assert_eq!(held(&drafts), kept, "{target:?} after {op:?}");
+        }
     }
 
     /// `doc` with the one `SetProgram` the edit door would make for

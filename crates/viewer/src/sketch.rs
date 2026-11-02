@@ -292,7 +292,6 @@ pub fn loop_program(
             notation,
         ),
         ProfileShape::Rectangle { width, height } => {
-            let (hw, hh) = (width / 2.0, height / 2.0);
             // Counter-clockwise from the lower-left corner — the same
             // winding every literal outer loop in this workspace uses.
             //
@@ -303,10 +302,9 @@ pub fn loop_program(
             // the width to be a named thing first — which is the
             // expression-driven form this op vocabulary now admits but
             // no chrome yet offers.
-            let corners = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)];
-            let corners = corners
+            let corners = rectangle_corners(*width, *height)
                 .into_iter()
-                .map(|(x, y)| notation.point_literals([x, y]))
+                .map(|corner| notation.point_literals(corner))
                 .collect::<Result<Vec<_>, DimensionError>>()?;
             Ok(LoopProgram::polygon_expr(corners))
         }
@@ -377,6 +375,38 @@ pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
             steps: steps.clone(),
         })
         .collect()
+}
+
+/// A template rectangle's corners: centred on the sketch origin,
+/// counter-clockwise from the lower-left.
+fn rectangle_corners(width: f64, height: f64) -> [[f64; 2]; 4] {
+    let (hw, hh) = (width / 2.0, height / 2.0);
+    [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]
+}
+
+/// **A shape as the path steps it is a shortcut for** — what the edit
+/// door, which holds every loop as a path, adds when a template loop
+/// is added to it: a circle is its one `circle` step, and a rectangle
+/// is `at` its lower-left corner and four `line_to`s round it, counter-
+/// clockwise, the last back to the start.
+pub fn shape_steps(shape: &ProfileShape) -> Vec<Step<f64>> {
+    match shape {
+        ProfileShape::Circle { centre, radius } => vec![Step::Circle {
+            centre: Point2::from_array(*centre),
+            radius: *radius,
+        }],
+        ProfileShape::Rectangle { width, height } => {
+            let [first, rest @ ..] = rectangle_corners(*width, *height);
+            std::iter::once(Step::At(Point2::from_array(first)))
+                .chain(
+                    rest.into_iter()
+                        .map(|corner| Step::LineTo(Target::Point(Point2::from_array(corner)))),
+                )
+                .chain([Step::LineTo(Target::Start)])
+                .collect()
+        }
+        ProfileShape::Path { steps } => steps.clone(),
+    }
 }
 
 // ------------------------------------------------------------------

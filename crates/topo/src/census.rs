@@ -7872,6 +7872,7 @@ pub(crate) use curved::{EdgeSpan, edge_span};
 mod depth_gap;
 #[cfg(test)]
 mod depth_gap_fuzz;
+mod in_plane;
 #[cfg(test)]
 mod link_fuzz;
 #[cfg(test)]
@@ -8859,8 +8860,10 @@ fn backstop_apart<T: Decide>(
 /// (`census_backstop_gap` — metre coordinate differences — then the
 /// turned directions of [`backstop_apart`], then a gap in depth about
 /// an axis, a centre or a circle, `census_backstop_depth_gap`, for the
-/// nested walls no direction separates: [`depth_gap`]) and refuses
-/// anything weaker; arm 2's box clears only on a definitely-negative
+/// nested walls no direction separates: [`depth_gap`], then two planar
+/// faces apart where each meets the other's plane, edge gaps and
+/// placements read in that plane: [`in_plane`]) and refuses anything
+/// weaker; arm 2's box clears only on a definitely-negative
 /// margin (`census_backstop_containment`) and hands anything weaker to
 /// the material test.
 ///
@@ -9247,12 +9250,15 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         body,
                         (a.face, (alo, ahi)),
                         (b.face, (blo, bhi)),
-                        proposed,
+                        proposed.clone(),
                         band,
                     )
                     && !reads.as_ref().is_some_and(|(ra, rb)| {
                         depth_gap::apart_in_depth(body, (a.face, ra), (b.face, rb), band)
                     })
+                    && !(a.planar
+                        && b.planar
+                        && in_plane::apart_in_plane(body, a.face, b.face, &proposed, band))
                 {
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),
@@ -9769,8 +9775,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // a finding or a record — which is why `blocks` refuses on
             // an escalation or an unexamined entity. A curved pair is
             // arm 1's: it refuses every one it cannot prove disjoint,
-            // and its clears (box, direction and depth gaps) are such
-            // proofs, so no curved meeting goes unseen. (4) Every shell
+            // and its clears (box, direction and depth gaps, and the
+            // reading in a plane) are such proofs, so no curved meeting
+            // goes unseen. (4) Every shell
             // has a vertex the probe reads: tier 1 refuses a shell with
             // no face (`ShellWithoutFaces`), every face has an outer
             // loop, and tier 2 refuses a lone-vertex loop at rest

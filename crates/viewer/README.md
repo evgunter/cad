@@ -2086,10 +2086,25 @@ where it was written; where a space is drawn otherwise is held in one
 way only, as a display frame. The "Add part…" gesture writes the new
 space's display frame clear of what is drawn, the same kind of value a
 free-move writes (IDENTITY DI5), so two inserted parts never land on
-each other within a session (Ev, PR 6209: one way to store where
-something is displayed, not a derived layout beside it). Display frames
-are not saved with the document yet, so a reopened document draws them
-at the identity (`work/spaces/display-frames-are-not-saved-with-the-document.md`).
+each other (Ev, PR 6209: one way to store where something is displayed,
+not a derived layout beside it). A save keeps every committed display
+frame in a layout file beside the document (`crate::layout`:
+`part.pncad.layout`), outside the document's bytes, its content pin and
+its evaluation, and an open restores them, so a reopened document draws
+its parts where they were drawn. Each saved frame carries a witness, a
+node drawn in its space at the save: a frame is restored while its
+space is shown (the one rule a held frame is asked by, DI5) and its
+witness still stands in it, which is what tells the space apart from
+another minted under the same id after an undo
+(`DisplayState::restore`). Any other frame is dropped and said, by the
+names the saving document gave it. The file is read as the preferences
+are: a key the viewer does not know, or a frame it cannot read, is
+skipped and said while the rest applies; a layout of another document
+or one that is not TOML restores nothing and is said. A document with
+no layout draws every space at the identity. A document written
+through the API or `docio` over a file the viewer saved leaves that
+file's layout in place, and the next open restores it by the same rule.
+Hides and shows are not saved.
 
 A free-move frame is display state keyed by a shown space's `Space`
 variable and moves every body drawn in it; it is dropped when the space
@@ -2182,7 +2197,7 @@ space's axes. Nothing a place gesture writes reads the copy's geometry.
 
 **A body reaches the product through one door.** Nothing joins the
 product unasked, a document's first body included. **Add to the
-product** is offered on the body under a viewport pick, on a drawn
+product** (`SessionOp::AddToProduct`) is offered on the body under a viewport pick, on a drawn
 body's tree row, and as the action of the `EmptyProduct`,
 `StrandedProduct` and `unused` recourses, each one action and one undo:
 a copy in the world is added to the slot (`SetProduct`); a placement's

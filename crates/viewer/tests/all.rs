@@ -151,6 +151,8 @@ mod pick_windows;
 mod picture_draws_bodies;
 #[path = "prefs.rs"]
 mod prefs;
+#[path = "product_door.rs"]
+mod product_door;
 #[path = "profile_draw.rs"]
 mod profile_draw;
 #[path = "profile_edit.rs"]
@@ -181,7 +183,8 @@ mod review_pick_r2;
 mod rv_matehead_probes;
 #[path = "save_and_fork_doors.rs"]
 mod save_and_fork_doors;
-
+#[path = "saved_layout.rs"]
+mod saved_layout;
 #[path = "scene_build.rs"]
 mod scene_build;
 #[path = "screen_view.rs"]
