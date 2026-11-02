@@ -112,9 +112,9 @@ pub const MATE_KINDS: [(VarKind, &str); 4] = [
     (VarKind::Direction, "direction"),
 ];
 
-/// **What the cursor may pick while the mate tool reads `kind`**: the
-/// narrowest rule ([`PickKinds::NARROWEST_FIRST`]) admitting every
-/// entity the kind reads ([`reads`]) — so a kind that reads faces alone
+/// **What the cursor may pick while the mate tool reads `kind`**: of
+/// every rule ([`PickKinds::ALL`]) admitting each entity the kind reads
+/// ([`reads`]), the one admitting fewest — so a kind that reads faces alone
 /// picks faces alone, and a narrow shelf or a small hole's wall stays
 /// pickable however near its own boundary the cursor is. A pick already
 /// held that the kind chosen since does not read is refused at the
@@ -122,9 +122,16 @@ pub const MATE_KINDS: [(VarKind, &str); 4] = [
 #[must_use]
 pub fn pick_kinds(kind: VarKind) -> PickKinds {
     let read = reads(kind);
-    PickKinds::NARROWEST_FIRST
+    let entities = [EntityKind::Face, EntityKind::Edge, EntityKind::Vertex];
+    PickKinds::ALL
         .into_iter()
-        .find(|rule| read.iter().all(|&entity| rule.admits(entity)))
+        .filter(|rule| read.iter().all(|&entity| rule.admits(entity)))
+        .min_by_key(|rule| {
+            entities
+                .iter()
+                .filter(|&&entity| rule.admits(entity))
+                .count()
+        })
         .unwrap_or_default()
 }
 

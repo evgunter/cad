@@ -139,64 +139,60 @@ pub struct EdgeId {
     pub boundary: usize,
 }
 
-/// Which entity kinds a pick may answer with — the caller's half of
-/// the priority rule.
-///
-/// **Why a tool gets a say at all.** Edge-beats-face is a rule about
-/// what the user is AIMING at, and it is right for a bare cursor. It
-/// is wrong for a tool that can only use one kind: the mate tool takes
-/// faces, and on a real part whole faces are within
-/// [`EDGE_PICK_RADIUS_PX`] of their own boundary everywhere — a narrow
-/// shelf, a small hole's cylindrical wall — so with edges always
-/// winning those faces became unpickable while the tool was open.
-///
-/// **The blend tool is the mirror case and the second data point.**
-/// It consumes edges and nothing else, so a click that lands on a
-/// face is a click the tool cannot use: unfiltered, a cursor eight
-/// pixels off an edge silently re-selects the wall behind it and the
-/// user's click does nothing they can see. [`PickKinds::EdgesOnly`]
-/// makes that miss a MISS — nothing is picked, exactly as a cursor
-/// over the background picks nothing — so the answer is either an
-/// edge the tool takes or an honest empty.
-///
-/// **This is deliberately not a filter vocabulary.** Each variant is
-/// one answer to the one question the shipped tools actually ask, one
-/// per shape of tool the GUI has shipped, threaded through the one
-/// door that decides priority so a tool cannot get a different rule by
-/// re-implementing it; the enum is exhaustively matched at that door.
-/// Which filters are offered where — a general "kinds admitted" set, a
-/// per-tool cursor hint — is GQ7's open clause and issue #1379, which
-/// now carries two concrete tools rather than one; nothing here
-/// forecloses it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum PickKinds {
-    /// The bare cursor's rule: an edge within [`EDGE_PICK_RADIUS_PX`]
-    /// beats the face behind it.
-    #[default]
-    Any,
-    /// Faces only: the edge test is not run, so the answer is the
-    /// ray path's face or nothing.
-    FacesOnly,
-    /// Edges only: the edge test runs, and a cursor that no edge wins
-    /// answers NOTHING rather than the face the ray met.
-    EdgesOnly,
-    /// The bare cursor's rule with vertices beating edges: the edge
-    /// that wins answers its end within [`VERTEX_PICK_RADIUS_PX`] where
-    /// there is one — what a tool reading a point off a vertex picks
-    /// with.
-    WithVertices,
+crate::vocab::vocabulary! {
+    /// Which entity kinds a pick may answer with — the caller's half of
+    /// the priority rule.
+    ///
+    /// **Why a tool gets a say at all.** Edge-beats-face is a rule about
+    /// what the user is AIMING at, and it is right for a bare cursor. It
+    /// is wrong for a tool that can only use one kind: the mate tool takes
+    /// faces, and on a real part whole faces are within
+    /// [`EDGE_PICK_RADIUS_PX`] of their own boundary everywhere — a narrow
+    /// shelf, a small hole's cylindrical wall — so with edges always
+    /// winning those faces became unpickable while the tool was open.
+    ///
+    /// **The blend tool is the mirror case and the second data point.**
+    /// It consumes edges and nothing else, so a click that lands on a
+    /// face is a click the tool cannot use: unfiltered, a cursor eight
+    /// pixels off an edge silently re-selects the wall behind it and the
+    /// user's click does nothing they can see. [`PickKinds::EdgesOnly`]
+    /// makes that miss a MISS — nothing is picked, exactly as a cursor
+    /// over the background picks nothing — so the answer is either an
+    /// edge the tool takes or an honest empty.
+    ///
+    /// **This is deliberately not a filter vocabulary.** Each variant is
+    /// one answer to the one question the shipped tools actually ask, one
+    /// per shape of tool the GUI has shipped, threaded through the one
+    /// door that decides priority so a tool cannot get a different rule by
+    /// re-implementing it; the enum is exhaustively matched at that door.
+    /// Which filters are offered where — a general "kinds admitted" set, a
+    /// per-tool cursor hint — is GQ7's open clause and issue #1379, which
+    /// now carries two concrete tools rather than one; nothing here
+    /// forecloses it.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum PickKinds {
+        /// The bare cursor's rule: an edge within [`EDGE_PICK_RADIUS_PX`]
+        /// beats the face behind it.
+        #[default]
+        Any,
+        /// Faces only: the edge test is not run, so the answer is the
+        /// ray path's face or nothing.
+        FacesOnly,
+        /// Edges only: the edge test runs, and a cursor that no edge wins
+        /// answers NOTHING rather than the face the ray met.
+        EdgesOnly,
+        /// The bare cursor's rule with vertices beating edges: the edge
+        /// that wins answers its end within [`VERTEX_PICK_RADIUS_PX`] where
+        /// there is one — what a tool reading a point off a vertex picks
+        /// with.
+        WithVertices,
+    }
+
+    /// Every rule.
+    pub const ALL;
 }
 
 impl PickKinds {
-    /// Every rule, each admitting no fewer entity kinds than the one
-    /// before it.
-    pub const NARROWEST_FIRST: [Self; 4] = [
-        Self::FacesOnly,
-        Self::EdgesOnly,
-        Self::Any,
-        Self::WithVertices,
-    ];
-
     /// **Whether a cursor under this rule may answer `entity`**.
     #[must_use]
     pub fn admits(self, entity: pncad::select::EntityKind) -> bool {
