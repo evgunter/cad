@@ -23,6 +23,6 @@ The evidence is the survey entry in `work/boxes/log.md` (2026-11-02).
 The `docs/DESIGN.md` edit on this branch: a `[one-way.places]` row
 and a `[one-way.readings]` paragraph making the region an entity can
 occupy a reading whose answer is a cover. Three designers converged on
-it (fork row 239). Once Ev rules, the implementation is cut into units
+it (fork row 241). Once Ev rules, the implementation is cut into units
 on this slate, and `D280`, `an-edges-extent-has-four-dispatchers` and
 the sphere and torus rows close into them.

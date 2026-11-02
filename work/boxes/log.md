@@ -283,3 +283,5 @@ undoes. That is the reason they are not this sitting's easy tail.
 The token counts for row 239 come from the harness's per-agent usage. The
 first report and the total are A 141727 / 174465, B 187149 / 239850,
 C 137607 / 178525 (first report / last reply).
+
+- 2026-11-02 — The extent-home fork row is **241**, not 239: main took 239 for another fork before PR 6334 landed. The entries above that say 239 mean 241. (BOXES orchestrator)
