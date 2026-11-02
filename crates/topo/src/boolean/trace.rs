@@ -406,51 +406,35 @@ fn order<T: Decide>(
     Ok(crossings)
 }
 
-/// The funnel row a plane's miss of a carrier is decided on: the
-/// plane's distance from the carrier's anchor less the carrier's reach
-/// across it.
+/// The funnel row a plane's miss of a carrier is decided on: how far the
+/// plane stands beyond the carrier, past its support on the plane's
+/// nearer side, or off a plane or a cylinder it is parallel to.
 pub const TRACE_PLANE_MISSES: &str = "trace_plane_misses";
 
-/// **Where a carrier stands and how far it reaches from there**: its
-/// anchor, and its extent from the anchor across a plane of unit normal
-/// `across`, or in every direction where `across` is `None`. A plane
-/// and a cone reach nowhere from their anchor (a point of the plane, the
-/// apex), a cylinder its radius off its axis, a sphere its radius, a
-/// torus its tube about its spine circle. `None` for a carrier with no
-/// closed form.
-///
-/// The one table both readers of a carrier's size read: whether a
-/// plane misses the carrier ([`plane_misses`]), and how far a piece
-/// runs through it, the lever its decisions are read over.
-pub fn carrier_extent<T: Real>(
-    surface: &Surface<T>,
-    across: Option<Vec3<T>>,
-) -> Option<(Point3<T>, T)> {
-    Some(match *surface {
-        Surface::Plane { origin, .. } => (origin, T::zero()),
-        Surface::Cylinder { origin, radius, .. } => (origin, radius),
-        Surface::Cone { apex, .. } => (apex, T::zero()),
-        Surface::Sphere { center, radius, .. } => (center, radius),
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => {
-            // The spine circle's shadow across the plane, and the tube.
-            let spine = across.map_or(major_radius, |n| major_radius * axis.cross(n).norm());
-            (center, spine + minor_radius)
-        }
-        Surface::Nurbs(_) | Surface::Approx(_) => return None,
-    })
+/// **Where a carrier stands and how far it reaches from there**: the
+/// lever a piece's decisions about its face are read over. A bounded
+/// carrier's whole cover's ball ([`Surface::cover`]: a sphere's own, a
+/// torus's tube's); a plane's point and a cone's apex, reaching nowhere
+/// from it; a cylinder's axis point and its radius off the axis. `None`
+/// for a carrier with no closed form.
+pub fn carrier_extent<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, T)> {
+    match *surface {
+        Surface::Plane { origin, .. } => Some((origin, T::zero())),
+        Surface::Cylinder { origin, radius, .. } => Some((origin, radius)),
+        Surface::Cone { apex, .. } => Some((apex, T::zero())),
+        Surface::Sphere { .. } | Surface::Torus { .. } => surface.cover().ok().map(|c| c.ball()),
+        Surface::Nurbs(_) | Surface::Approx(_) => None,
+    }
 }
 
 /// **Whether the plane through `point` with unit `normal` misses
 /// `surface`**: its trace is empty. A plane misses a parallel plane off
-/// it, a sphere or a torus it passes beyond, and a cylinder whose axis
-/// it is parallel to and passes beyond; it meets every cone, whose
-/// locus is double, and every cylinder it tilts across.
+/// it, a sphere or a torus it passes beyond (past the carrier's support
+/// along the normal on the plane's side, [`Surface::cover`], which is
+/// exact for both, so a plane inside it meets the connected carrier),
+/// and a cylinder whose axis it is parallel to and passes beyond; it
+/// meets every cone, whose locus is double, and every cylinder it tilts
+/// across.
 ///
 /// # Errors
 ///
@@ -462,17 +446,14 @@ pub fn plane_misses<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<bool, TraceFault> {
-    let Some((anchor, extent)) = carrier_extent(surface, Some(normal)) else {
-        return Err(TraceFault::Unsupported {
-            carrier: surface.kind(),
-        });
+    let unsupported = || TraceFault::Unsupported {
+        carrier: surface.kind(),
     };
-    // The plane's distance from the anchor, less how far the carrier
-    // reaches from it along the normal: positive is a miss.
-    let beyond = || {
-        let gap = (anchor - point).dot(normal).abs() - extent;
-        sign(TRACE_PLANE_MISSES, Margin::of(gap), band).map(|s| s == Sign::Positive)
-    };
+    let beyond =
+        |gap: T| sign(TRACE_PLANE_MISSES, Margin::of(gap), band).map(|s| s == Sign::Positive);
+    // How far the plane stands off a parallel carrier reaching `reach`
+    // from `anchor` across it.
+    let off = |anchor: Point3<T>, reach: T| beyond((anchor - point).dot(normal).abs() - reach);
     match *surface {
         Surface::Plane {
             origin, normal: n, ..
@@ -484,24 +465,33 @@ pub fn plane_misses<T: Decide>(
                 Margin::levered(tilt, (origin - point).norm()),
                 band,
             )? {
-                Sign::Zero => beyond(),
+                Sign::Zero => off(origin, T::zero()),
                 Sign::Positive | Sign::Negative => Ok(false),
             }
         }
-        Surface::Sphere { .. } | Surface::Torus { .. } => beyond(),
+        Surface::Sphere { .. } | Surface::Torus { .. } => {
+            let cover = surface.cover().map_err(|_| unsupported())?;
+            let level = (point - Point3::origin()).dot(normal);
+            let above = level - cover.support(normal);
+            let below = (T::zero() - cover.support(-normal)) - level;
+            beyond(above.max(below))
+        }
         // A tilted cylinder runs across the plane; one parallel to it
         // misses it beyond its radius.
-        Surface::Cylinder { axis, radius, .. } => match sign(
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => match sign(
             TRACE_PLANE_LEAD,
             Margin::levered(axis.dot(normal), radius),
             band,
         )? {
-            Sign::Zero => beyond(),
+            Sign::Zero => off(origin, radius),
             Sign::Positive | Sign::Negative => Ok(false),
         },
         Surface::Cone { .. } => Ok(false),
-        Surface::Nurbs(_) | Surface::Approx(_) => {
-            unreachable!("a carrier with no closed form has no extent, refused above")
-        }
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(unsupported()),
     }
 }

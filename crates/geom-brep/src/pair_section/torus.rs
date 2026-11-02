@@ -38,6 +38,7 @@
 //! when it is carried. Over a tangent gap the components are one tangent
 //! component, a point where the pose is a touch.
 
+use geom::cover::Cover;
 use geom::{Curve3, Surface};
 use geom_core::k_stats::decide_reported;
 use geom_core::{
@@ -293,9 +294,16 @@ impl<T: Real> Ring<T> {
         Core::of(self.center, self.axis, self.u_ref, self.big_r)
     }
 
-    /// The ball holding the torus, and so every section of it.
+    /// The ball holding the torus, and so every section of it: its
+    /// tube's ([`Cover::tube`]).
     pub fn ball(self) -> ExtentBall<T> {
-        ExtentBall::of_torus(self.center, self.big_r, self.r)
+        ExtentBall::of_cover(&Cover::tube(
+            self.center,
+            self.axis,
+            self.u_ref,
+            self.big_r,
+            self.r,
+        ))
     }
 
     /// The size of the torus's coordinates: its centre's distance from
@@ -1097,13 +1105,14 @@ impl<T: Decide> TorusTorusPose<T> {
             // Both balls hold the section: the smaller is the tighter
             // reach, and where the comparison is not decided either
             // serves.
+            let (b1, b2) = (r1.ball(), r2.ball());
             let ball = match geom_core::k_stats::decide(
                 "tt_smaller_ball",
-                Margin::of((r2.big_r + r2.r) - (r1.big_r + r1.r)),
+                Margin::of(b2.radius() - b1.radius()),
                 band,
             ) {
-                Ok(Sign::Negative) => r2.ball(),
-                Ok(Sign::Positive | Sign::Zero) | Err(_) => r1.ball(),
+                Ok(Sign::Negative) => b2,
+                Ok(Sign::Positive | Sign::Zero) | Err(_) => b1,
             };
             let (c2, a2) = (r2.center, r2.axis);
             // The centre's height is read off `c2` itself, which the turn

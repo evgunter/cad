@@ -1304,7 +1304,13 @@ mod tests {
         let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let over = [
             at(1.0),
-            ConsumedExtent::new(geom_brep::ExtentBall::of_torus(Point3::origin(), 5.0, 0.06)),
+            ConsumedExtent::new(geom_brep::ExtentBall::of_cover(&geom::cover::Cover::tube(
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                5.0,
+                0.06,
+            ))),
         ];
         for (what, other, one) in [
             (

@@ -401,12 +401,12 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
 
 /// **How far from `aim` any face of the selection reaches**: the loops'
 /// reach ([`selection_reach`]), which holds a planar face (its outer
-/// loop's hull) and a wall (its rulings' segments), and for a sphere or a
-/// torus, which bulge past their loops' hull, the ball about `aim` that
-/// holds the whole surface (its centre's distance plus its radius, or its
-/// major plus its minor radius). An aimed ray starts twice this far from
-/// its aim, so its start lies beyond every face of the selection,
-/// whatever it is aimed at.
+/// loop's hull) and a wall (its rulings' segments), and for a face on a
+/// bounded carrier, which can bulge past its loops' hull, the farthest
+/// its carrier's whole cover reaches from `aim` ([`geom::Surface::cover`]:
+/// a sphere's ball, a torus's tube, a spline's net). An aimed ray starts
+/// twice this far from its aim, so its start lies beyond every face of
+/// the selection, whatever it is aimed at.
 ///
 /// # Errors
 ///
@@ -421,17 +421,9 @@ fn beyond<T: Decide>(
         let surface = body
             .face_surface(face)
             .ok_or(PointInSolidError::CorruptFace { face })?;
-        let whole = match *surface {
-            geom::Surface::Sphere { center, radius, .. } => (aim - center).norm() + radius.abs(),
-            geom::Surface::Torus {
-                center,
-                major_radius,
-                minor_radius,
-                ..
-            } => (aim - center).norm() + major_radius.abs() + minor_radius.abs(),
-            _ => continue,
-        };
-        reach = reach.max(whole);
+        if let Ok(cover) = surface.cover() {
+            reach = reach.max(cover.distance_range(&geom::cover::Site::Point(aim)).1);
+        }
     }
     Ok(reach)
 }

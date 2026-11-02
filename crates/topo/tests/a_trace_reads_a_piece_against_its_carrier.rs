@@ -160,9 +160,11 @@ fn a_plane_misses_a_carrier_beyond_its_extent() {
     assert!(!misses(&floor(), [0.0, 0.0, 0.0], up));
     assert!(!misses(&floor(), [0.0, 0.0, 1.0], across));
 
-    let (_, everywhere) = carrier_extent(&torus(), None).expect("closed form");
+    let (_, everywhere) = carrier_extent(&torus()).expect("closed form");
     near(everywhere, 2.5, "spine and tube");
-    let (_, along_axis) =
-        carrier_extent(&torus(), Some(Vec3::new(0.0, 0.0, 1.0))).expect("closed form");
+    let along_axis = torus()
+        .cover()
+        .expect("a bounded carrier")
+        .support(Vec3::new(0.0, 0.0, 1.0));
     near(along_axis, 0.5, "the tube alone along the axis");
 }
