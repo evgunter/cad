@@ -186,7 +186,11 @@ is a document, and the kernel has no assembly type ([assemblies]); a
 copy, a pattern and a moved body are all placements ([placement]); a
 pattern is an index, not an operation ([repetition]). Two ways of deciding one fact can decide it
 differently inside the band; two places stating one fact can drift
-apart. A family of authored forms is not a second way when every form
+apart. Two types carrying the same fields are a sign of a cleaner
+arrangement to find: usually kinds share part of what they are, and
+that part, named for what it means, is one type each kind holds, so a
+reader of the shared part reads that type rather than assembling its
+own. A family of authored forms is not a second way when every form
 lowers through one reading ([recipe.forms]). The canonical places are
 the next section.
 
@@ -252,7 +256,7 @@ of them is a defect.
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one constructor of a finished body; doors take and return finished bodies, and none re-gates | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -344,7 +348,9 @@ curve pairs.
   never decide); `Bounds` means only "carries a bracket" and
   `CertifiedEnclosure` is the certification half, which `Dual` does not
   implement (DUAL-DESIGN: a dual may not certify — it carries a bracket
-  in its value channel, but tangent transport is not enclosure);
+  in its value channel, but tangent transport is not enclosure),
+  so a dual's finished body is a replay's, tier 2 alone, with no
+  verdict to read ([topology.tiers]);
   poison-visible NaN brackets for empty AND NaI; tight `pown`
   (containment of the true value is the interval contract).
 - **`Dual<Interval>` semantics**: *value-part delegation* — `Decide`
@@ -797,9 +803,29 @@ tiers".
   boundary is **embedded** off those records (it meets itself only
   along its own edges and its recorded contacts), certified by the
   clearance engine's body-level injectivity question at every scalar
-  with certification rights. It passes both once, at the door that
+  with certification rights (`f64`, `Probe`, `Interval` and `Sym`;
+  a scalar without them, such as a dual, cannot reach the gate). At a point scalar (`f64`,
+  `Probe`) the question decides with the band every verdict decides
+  with, K·ε ([tolerance.recourse]). Pieces of the boundary that do not
+  meet in the body (no shared edge, vertex or recorded contact) are
+  more than K·ε apart. Where faces do meet, or a face is read against
+  itself, the local reading (how the faces leave their shared edge or
+  vertex, or a face's own turning) passes by more than the band. A
+  reading inside the band refuses as ambiguous, never as Holds or
+  Violated. At
+  `Interval` and `Sym` the stored brackets carry the family instead.
+  It passes both once, at the door that
   built it; construction state becomes a finished body only through
-  that gate. The validity class rides the result wrapper
+  that gate. Its refusal is the list of what it found, every finding
+  kept, none folded into another: each finding belongs to a family
+  (the decision or check that made it), and a family's findings share
+  one text and one recourse, the decision's ([tolerance.recourse]). A
+  door names only its subject (import names the file). A door that returns a body returns the
+  scalar's finished type, named in its at-rest policy, and the
+  evaluator keeps it with the value, so no consumer gates an operand.
+  At a scalar without certification rights the finished type is a
+  replay's: tier 2 alone, carrying no verdict, and nothing that reads
+  a verdict accepts it. The validity class rides the result wrapper
   (`BooleanBody`, body and contacts), never a mutable `Body` field.
 - **The census reads one number per cell pair.** `[topology.census]`
   A census finding decides one number per pair of cells (two edges,

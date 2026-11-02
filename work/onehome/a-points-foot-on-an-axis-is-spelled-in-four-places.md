@@ -2,11 +2,14 @@
 id: a-points-foot-on-an-axis-is-spelled-in-four-places
 kind: issue
 title: A point's foot on an axis line is spelled inline in four places across geom-brep, topo and sweep
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: E
 refs: [5793]
+branch: onehome/geom-readings
+closed: 2026-11-02
+pr: 6328
 ---
 
 
@@ -20,3 +23,7 @@ The point of the line `origin + s·axis` (`axis` unit) nearest `p` is `origin + 
 - `crates/sweep/src/blend/arms.rs:925` — the rim's `on_axis` in the round support trace.
 
 Each is a one-line reading of an axis carrier, so they cannot drift far, but they are four spellings of one fact (D3, "One reading per question"), and the next caller writes a fifth. A route is a `pub` foot on the axis carriers' home in geom (`foot` lifted out of `extent.rs`, or a method on whichever axis type `[one-way.readings]` names), with the three other sites repointed.
+
+## Closed (ONEHOME, 2026-11-02, PR 6328)
+
+`geom::Line<T> { origin, dir }` with `param`/`foot` is the one line value, and `Curve3::Line(Line<T>)` holds it, so `Curve3::as_line()` returns the held value and `is_curved()` is `as_line().is_none()`. About 45 straightness sites and the axis-foot copies are repointed (including editor-core's `mate/corner` and `emit_topo`, and `AxisLine::foot_of`). The copies disagreed on non-unit `dir`; the dividing form is kept and pinned. STYLE review FIX-THEN-MERGE: the first version's `geom::Line` repeated `Curve3::Line`'s fields, fixed by making it the variant's payload. Delta FIX-THEN-MERGE: the slow-set digests were re-blessed after a spelling-only check. Follow-ups: `local-point-direction-line-types-restate-geom-line`, `a-points-radial-offset-from-an-axis-is-spelled-inline`, `a-curves-closed-form-foot-is-re-spelled-outside-geom`, `carrier-speed-is-re-spelled-with-a-default-arm-in-import`, `a-points-foot-on-a-plane-is-spelled-inline`, and the parked `analytic-surfaces-spell-their-frame-field-by-field`.

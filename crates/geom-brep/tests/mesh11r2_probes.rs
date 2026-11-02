@@ -154,10 +154,7 @@ fn r2_the_cone_floor_is_the_escalation_threshold_from_both_sides() {
     };
     let generator = |u: f64, v0: f64, v1: f64, a, b| {
         edge(
-            Curve3::Line {
-                origin: p3(0.0, 0.0, 0.0),
-                dir: v3(u.cos() * s, u.sin() * s, s),
-            },
+            Curve3::line(p3(0.0, 0.0, 0.0), v3(u.cos() * s, u.sin() * s, s)),
             v0,
             v1,
             a,

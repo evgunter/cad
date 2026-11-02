@@ -57,7 +57,7 @@ fn cut_of(cone: &Surface<f64>, plane: &Surface<f64>) -> ConeCut {
 /// A served pair's stored lines.
 fn lines(l1: &Curve3<f64>, l2: &Curve3<f64>) -> [(P3, P3); 2] {
     [l1, l2].map(|l| {
-        let Curve3::Line { origin, dir } = *l else {
+        let Curve3::Line(geom::Line { origin, dir }) = *l else {
             panic!("a line outcome carries a line, got {l:?}");
         };
         (p3(origin), w3(dir))

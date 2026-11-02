@@ -39,3 +39,12 @@ could not confirm one. Every caller above becomes a call to it. The
 editor-core verifier keeps its own `f64` rebuild of the leaf and hands
 the door the rebuilt charts.
 
+## Update (2026-11-02, DOORS' `a-clearance-assertion-is-decided-by-the-sweep`)
+
+Step 4 has one home now: `topo::clearance::Ask::confirms` decides a
+found pair against the question its candidate was offered for (below a
+lower bound, strict or not, or within an upper one), and `shell.rs`'s
+cavity gate and editor-core's `clearance::closest_pair` (the assertion's
+verifier and `verify_witness`'s core) call it. Steps 1–3 (stations,
+evaluation on the charts, the closest pair) are still spelled per
+caller, and the three test verifiers still decide by hand.

@@ -3841,7 +3841,9 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
+                row: 0,
                 side: MateSide::To,
+                seat: viewer::matetool::MateSeat::One,
                 pick: viewer::tree::HeldPick::new(
                     &pncad::document::Doc::empty_derived("cases", Tol::witness()),
                     viewer::matetool::MatePick::Face(FaceSelection {
@@ -3961,10 +3963,6 @@ fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
         (
             FormKind::EditProfile,
             "edit profile: the distance is not a number",
-        ),
-        (
-            FormKind::RevertProfile,
-            "revert profile: the distance is not a number",
         ),
         (FormKind::Label, "label: the distance is not a number"),
     ];

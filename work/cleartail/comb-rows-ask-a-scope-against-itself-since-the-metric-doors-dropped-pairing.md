@@ -14,7 +14,7 @@ refs: [self-intersection-drops-every-vertex-sharing-face-pair-globally]
 
 Found by PR #5979, which re-fixtured `the_cost_curve_is_flat_where_the_bound_is_broken`. That row went red on main after #5955 (SELFX): under Ev's E7 ruling, a scope that meets itself reads 0.
 
-Four sibling rows in `crates/editor-core/tests/m10_5_r2_probes_interval.rs` still call `clearance_with(.., &sel, &sel, ..)` with one multi-wall scope, near lines 797, 920, 957 and 995.
+Four sibling rows in `crates/editor-core/tests/m10_5_r2_probes_interval.rs` still call `clearance_at_dials(.., &sel, &sel, ..)` with one multi-wall scope, near lines 797, 920, 957 and 995.
 - They pass.
 - But each now answers "0, on the shared cell" or "Violated", so it may no longer measure the gap it names.
 

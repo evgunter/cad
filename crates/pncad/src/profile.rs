@@ -59,7 +59,7 @@
 //! (`work/bool/raw-door-compile-proof-needs-a-gate.md`).
 //!
 //! Authoring goes through the lattice: [`Open`], [`Start`], the
-//! binders, [`circle`], [`circle_split`].
+//! binders, [`circle`], [`circle_split`], [`rectangle`].
 
 // The submodules a caller reaches for by path. `path`'s own root
 // re-exports are already listed
@@ -73,7 +73,7 @@ pub use ::profile::{
     ContinueTarget, CornerReason, CornerRefusal, CornerWindow, LineTarget, OntoTarget, Open,
     PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, ReplayError,
     ReplayErrorKind, SpecForms, Start, Step, Sweep, TangentArcTarget, Target, TargetKind, TipState,
-    Verb, Via, arc_specs_at, circle, circle_split, replay,
+    Verb, Via, arc_specs_at, circle, circle_split, rectangle, replay,
 };
 // The §2c family's traits and arrival builders: the admissibility
 // matrix (one impl per admissible (state, mode) pair) and the states a
@@ -121,9 +121,9 @@ pub use ::profile::{
 pub use ::profile::{
     CIRCLE_PIECES, CanonicalStructure, ConstructedLoop, ConstructedProfile, CornerGate, Decision,
     DecisionValue, FilletDecision, LoopCanonical, Piece, PieceRole, ProfileStructure,
-    RadiusEmission, RadiusRole, ReplayStructure, RoleList, SegmentShape, StepSpan,
-    StructureRefusal, StructureRefusalKind, carrier_pieces, replay_guided, replay_recording,
-    structure,
+    RECTANGLE_PIECES, RadiusEmission, RadiusRole, ReplayStructure, RoleList, SegmentShape,
+    StepSpan, StructureRefusal, StructureRefusalKind, carrier_pieces, replay_guided,
+    replay_recording, structure,
 };
 
 // The lift door (recorded programs back to loops) and its verdicts.

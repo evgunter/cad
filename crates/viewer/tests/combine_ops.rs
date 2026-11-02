@@ -245,7 +245,7 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
 ///
 /// Two placed bodies `a`, `b` (`b` moved): the combine gesture leaves
 /// the world `[c]` — `b` placed against `a` where it stands, `a`'s
-/// placement re-pointed to `c` through the slot door and `b`'s
+/// placement taken over by `c` (re-pointed, what read it re-seated) and `b`'s
 /// deleted, in ONE recorded action — and one undo restores
 /// `[a, b]` bit for bit. Breaks if the gesture leaves the boolean
 /// unplaced (the world stays `[a, b]`), places it beside them, or
@@ -2343,13 +2343,14 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
             // picked by one too.
             ToolKind::Mate | ToolKind::Mirror => PickKinds::FacesOnly,
             ToolKind::Blend => PickKinds::EdgesOnly,
-            ToolKind::Revolve
-            | ToolKind::Boolean
+            // The one tool whose seat reads a profile.
+            ToolKind::Revolve => PickKinds::Any,
+            ToolKind::Boolean
             | ToolKind::Split
             | ToolKind::Transform
             | ToolKind::Pattern
             | ToolKind::Part
-            | ToolKind::Duplicate => PickKinds::Any,
+            | ToolKind::Duplicate => PickKinds::FacesAndEdges,
         };
         assert_eq!(tools.pick_kinds(), want, "{kind:?}");
     }

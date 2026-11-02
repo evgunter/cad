@@ -134,9 +134,13 @@ impl ToolKind {
         format!("{} tool…", capitalised(self.label()))
     }
 
-    /// The words on the button that commits this tool's edit.
+    /// The words on the button that commits this tool's edit: the
+    /// placement editor's is its Apply, as the profile editor's is.
     pub fn commit(self) -> String {
-        format!("Commit {}", self.label())
+        match self {
+            Self::Mate => "Apply".to_owned(),
+            other => format!("Commit {}", other.label()),
+        }
     }
 
     /// **What the cursor may pick while this tool is open** — an open
@@ -152,21 +156,26 @@ impl ToolKind {
     /// no edge wins answers NOTHING rather than re-selecting the wall
     /// behind the edge the user was aiming at. Every other tool holds
     /// NODE picks, which a face and an edge answer equally well
-    /// ([`Selection::seat_node`] reaches the drawn body either way), so
-    /// none of them narrows anything.
+    /// ([`Selection::seat_node`] reaches the drawn body either way); a
+    /// profile's outline answers only a tool whose seat reads a profile,
+    /// so a body tool is never handed a node it cannot seat.
     pub fn pick_kinds(self) -> PickKinds {
         match self {
             // The mirror tool's plane is a face, and its body is picked
             // by a face or in the tree.
             Self::Mate | Self::Mirror => PickKinds::FacesOnly,
             Self::Blend => PickKinds::EdgesOnly,
-            Self::Revolve
-            | Self::Boolean
+            // Its one seat reads a profile, which a click on the
+            // profile's outline picks.
+            Self::Revolve => PickKinds::Any,
+            // Their seats read bodies, picked through a face or an
+            // edge; none reads a profile, so none is offered one.
+            Self::Boolean
             | Self::Split
             | Self::Transform
             | Self::Pattern
             | Self::Part
-            | Self::Duplicate => PickKinds::Any,
+            | Self::Duplicate => PickKinds::FacesAndEdges,
         }
     }
 
@@ -177,10 +186,8 @@ impl ToolKind {
     /// this match's.
     pub fn commits(self, op: &SessionOp) -> bool {
         match self {
-            // The mate tool closes at its own click, before the op is
-            // performed: the mate panel's rule, not this one's.
-            Self::Mate => false,
-            Self::Revolve
+            Self::Mate
+            | Self::Revolve
             | Self::Boolean
             | Self::Split
             | Self::Transform
@@ -194,8 +201,9 @@ impl ToolKind {
 }
 
 /// **Which tool an operation is the committed edit of**, or `None` for
-/// an operation no tool closes on. `AddMate` is nobody's: the mate
-/// tool does not close on it ([`ToolKind::commits`]).
+/// an operation no tool closes on. `AddMate` is nobody's: it is the API
+/// spelling of a mate added to a bundle, and the placement editor
+/// commits a [`SessionOp::Place`] or a [`SessionOp::SetBundle`].
 fn committed_by(op: &SessionOp) -> Option<ToolKind> {
     match op {
         SessionOp::AddRevolve { .. } => Some(ToolKind::Revolve),
@@ -203,6 +211,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         SessionOp::AddSplit { .. } => Some(ToolKind::Split),
         SessionOp::AddMirror { .. } => Some(ToolKind::Mirror),
         SessionOp::AddTransform { .. } => Some(ToolKind::Transform),
+        SessionOp::Place { .. } | SessionOp::SetBundle { .. } => Some(ToolKind::Mate),
         // Two ops, one tool: the output choice picks the door, and
         // either one landing is this tool's edit committed. The blend
         // tool's kind choice does the same.
@@ -344,7 +353,7 @@ vocabulary! {
     /// **A panel or field that commits and is not one of the modal
     /// tools** ([`ToolKind`]), named by what it does: the creation
     /// pane's add-profile and extrude forms, the profile
-    /// editor's apply and revert, and the label field a create form and
+    /// editor's apply, and the label field a create form and
     /// the properties pane each carry.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum FormKind {
@@ -354,8 +363,6 @@ vocabulary! {
         Extrude,
         /// The profile editor's apply.
         EditProfile,
-        /// The profile editor's revert.
-        RevertProfile,
         /// A node's label field, on a create form or in the properties
         /// pane.
         Label,
@@ -372,7 +379,6 @@ impl FormKind {
             Self::AddProfile => "add profile",
             Self::Extrude => "extrude",
             Self::EditProfile => "edit profile",
-            Self::RevertProfile => "revert profile",
             Self::Label => "label",
         }
     }
@@ -589,6 +595,21 @@ impl Tools {
         }
     }
 
+    /// The open placement editor, to change its draft.
+    pub fn mate_mut(&mut self) -> Option<&mut MateTool> {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// **Open the placement editor holding `tool`** — a door opened on a
+    /// placement or a body rather than by a first pick (the tree's
+    /// `edit` and `remove`), closing whatever was open.
+    pub fn open_mate(&mut self, tool: MateTool) {
+        self.open = Some(OpenTool::Mate(tool));
+    }
+
     /// The open revolve tool.
     pub fn revolve(&self) -> Option<RevolveTool> {
         match &self.open {
@@ -686,8 +707,12 @@ impl Tools {
     /// **What the cursor may pick right now** ([`ToolKind::pick_kinds`]
     /// carries the rule); the bare cursor's rule with nothing open.
     pub fn pick_kinds(&self) -> PickKinds {
-        self.open_kind()
-            .map_or(PickKinds::Any, ToolKind::pick_kinds)
+        match &self.open {
+            Some(OpenTool::Mate(tool)) => crate::matetool::pick_kinds(tool.active_kind()),
+            _ => self
+                .open_kind()
+                .map_or(PickKinds::Any, ToolKind::pick_kinds),
+        }
     }
 
     /// [`Tools::pick_kinds`] with the mate panel's chosen kind `mate`
@@ -768,12 +793,15 @@ impl Tools {
             };
             match &mut self.open {
                 None => {}
-                Some(OpenTool::Mate(tool)) => match selection {
-                    Selection::Face(face) => tool.pick(doc, face.clone()),
-                    Selection::Edge(edge) => tool.pick(doc, edge.clone()),
-                    Selection::Vertex(vertex) => tool.pick(doc, vertex.clone()),
-                    Selection::None | Selection::Node(_) | Selection::Variable(_) => {}
-                },
+                Some(OpenTool::Mate(tool)) => {
+                    let event = match selection {
+                        Selection::Face(face) => tool.pick(doc, face.clone()),
+                        Selection::Edge(edge) => tool.pick(doc, edge.clone()),
+                        Selection::Vertex(vertex) => tool.pick(doc, vertex.clone()),
+                        Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
+                    };
+                    notices.extend(event.map(ToolNotice::Mate));
+                }
                 Some(OpenTool::Blend(tool)) => {
                     if let Some(edge) = selection.edge() {
                         notices.extend(tool.pick(doc, edge, index).map(ToolNotice::Blend));
@@ -827,6 +855,27 @@ impl Tools {
             Some(OpenTool::Part(tool)) => tool.respeak(doc),
             Some(OpenTool::Duplicate(tool)) => tool.respeak(doc),
             Some(OpenTool::Mirror(tool)) => tool.respeak(doc),
+        }
+    }
+
+    /// **The picks the open tool holds** ([`crate::session::Holds`]):
+    /// the mate tool's faces, the mirror's plane and the blend's edges;
+    /// the seated tools hold bodies, whose reads a takeover keeps.
+    pub fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => tool.held(),
+            Some(OpenTool::Blend(tool)) => tool.held(),
+            Some(OpenTool::Mirror(tool)) => tool.held(),
+            None
+            | Some(
+                OpenTool::Revolve(_)
+                | OpenTool::Boolean(_)
+                | OpenTool::Split(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Pattern(_)
+                | OpenTool::Part(_)
+                | OpenTool::Duplicate(_),
+            ) => Vec::new(),
         }
     }
 

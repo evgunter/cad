@@ -84,6 +84,7 @@ pub mod spoken;
 /// enclosure.
 pub mod stackup;
 pub mod step_handle;
+pub mod take_over;
 // Test fixtures (the literals and the pick door); see the module's
 // docs. The gate is this crate's `test-support` feature, on only
 // through dev-dependency edges. `doc(hidden)` because the rustdoc gate
@@ -138,7 +139,7 @@ pub use edit::{
     Recording, SketchOutcome, SketchedOnFace, SlotValue, Took, apply, apply_replayed,
     cascade_delete_order, measure, sketch_on_face,
 };
-pub use eval::measure::{Observed, ObservedRefusal};
+pub use eval::measure::ObservedRefusal;
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel, Carry,
     ComputingTwist, ContentBits, ContentKey, DirectionRefusal, Epoch, EvalCounters, EvalOptions,
@@ -174,8 +175,8 @@ pub use mc::{
     monte_carlo, sample_offsets,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionRelation, AssertionVerdict, MeasurePrimitive, MeasureUnavailableAt,
-    MeasureVerb, MinClearanceOperand, UnevaluatedReason,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Claim, ClearanceBounds, ClearanceSeat,
+    MeasurePrimitive, MeasureVerb, UnevaluatedReason,
 };
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};
@@ -245,6 +246,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
+pub use take_over::{Answered, Moved, TakeOverOutcome, Taken, TakenOver, take_over};
 pub use trace::{
     TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, TracedFrameFault, Traces,
     trace_marks, traced_frame,

@@ -1255,7 +1255,7 @@ fn conic_or_line_on<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
     let (samples, site, coincide) = match (carrier, surface) {
-        (geom::Curve3::Line { .. }, geom::Surface::Plane { .. }) => {
+        (geom::Curve3::Line(_), geom::Surface::Plane { .. }) => {
             (Samples::Ends, RIDER_ON_PLANE, Coincide::EdgeOnPlane)
         }
         (
@@ -1285,10 +1285,7 @@ fn conic_or_line_on<T: Decide>(
         }
         // A line on a cylinder or a cone: the one reading of it
         // ([`crate::census::line_on_quadric_carrier`]).
-        (
-            geom::Curve3::Line { .. },
-            geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. },
-        ) => {
+        (geom::Curve3::Line(_), geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }) => {
             return match crate::census::line_on_quadric_carrier(
                 surface,
                 carrier.eval(t0),
@@ -1737,7 +1734,7 @@ fn walls_inside<T: Decide>(
                 } else {
                     EdgeInFaceGap::CurvedFace
                 };
-                let (Some(wall_bend), Some(floor_bend), geom::Curve3::Line { .. }) = (
+                let (Some(wall_bend), Some(floor_bend), geom::Curve3::Line(_)) = (
                     bend_across(surface(wall)?, mid, tangent),
                     bend_across(surface(f)?, mid, tangent),
                     curve.carrier(),
@@ -1853,16 +1850,6 @@ fn coplanar_wall_inside<T: Decide>(
     }
 }
 
-/// The way from `p` to its foot on the axis through `origin` along the
-/// unit `axis`, square to the axis.
-fn toward_axis<T: Decide>(
-    origin: Point3<T>,
-    axis: geom_core::Vec3<T>,
-    p: Point3<T>,
-) -> geom_core::Vec3<T> {
-    origin + axis * (p - origin).dot(axis) - p
-}
-
 /// The bend across a straight line on `surface` at `p`, `t` the line's
 /// direction: the curvature vector of the surface's normal section
 /// perpendicular to the line, toward its centre of curvature, in inverse
@@ -1877,8 +1864,17 @@ fn bend_across<T: Decide>(
 ) -> Option<geom_core::Vec3<T>> {
     let toward = match *surface {
         geom::Surface::Plane { .. } => return Some(geom_core::Vec3::zero()),
-        geom::Surface::Cylinder { origin, axis, .. } => toward_axis(origin, axis, p),
-        geom::Surface::Cone { apex, axis, .. } => toward_axis(apex, axis, p),
+        geom::Surface::Cylinder { origin, axis, .. } => {
+            geom::Line { origin, dir: axis }.foot(p) - p
+        }
+        geom::Surface::Cone { apex, axis, .. } => {
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            }
+            .foot(p)
+                - p
+        }
         _ => return None,
     };
     let off = toward - t * toward.dot(t);
