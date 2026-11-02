@@ -39,7 +39,7 @@ use std::sync::Arc;
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::{Hit, Span};
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
 use super::contain::{CurvedPlacement, FaceContainment, PlacementError, face_placement};
@@ -221,7 +221,9 @@ fn one_sense<T: Decide>(
     let nb = turned(normal_at(b, p, band)?, reversed);
     match crate::validate::decide(
         "bool_overlap_senses",
-        Margin::levered(na.dot(nb), T::one()),
+        // Unsourced lever: the unit normals' cosine is read at a unit arm,
+        // not over the faces' extent; the holdings row owns its source.
+        Margin::levered(na.dot(nb), Lever::unsourced(T::one())),
         band,
     ) {
         Ok(Sign::Positive) => Ok(()),
@@ -401,7 +403,9 @@ fn half_plane<T: Decide>(
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
     };
     let reach = |ta: T, tb: T| match carrier {
-        geom::Curve3::Line(_) => LeverBounds::Exact((carrier.eval(tb) - p).norm()),
+        geom::Curve3::Line(_) => {
+            LeverBounds::Exact(geom_brep::ExtentBall::point(carrier.eval(tb)).lever_from(p))
+        }
         _ => geom_brep::edge_reach_bounds(carrier, ta, tb, p),
     };
     let (ahead, behind) = if forward { (t1, t0) } else { (t0, t1) };
