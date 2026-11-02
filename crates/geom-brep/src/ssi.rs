@@ -134,6 +134,7 @@ pub mod system;
 
 use std::rc::Rc;
 
+use geom::cover::Lattice;
 use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
@@ -3469,32 +3470,20 @@ fn finish_r3(
 }
 
 /// **The quadric lane's readout**, at every door that marches an
-/// analytic pair: the domain's `slab`, cut down to the box of each
-/// operand that is bounded. Every state lies on both operands inside the
-/// slab, so their coordinates reach no further than that.
+/// analytic pair: the domain's `slab`, cut down to the box of the meet
+/// of the two operands' whole covers ([`Surface::cover`]), where either
+/// is bounded. Every state lies on both operands inside the slab, so
+/// their coordinates reach no further than that.
 fn quadric_readout(a: &Surface<f64>, b: &Surface<f64>, slab: Box3) -> Readout {
-    let operands = [a, b]
-        .into_iter()
-        .filter_map(analytic_box)
-        .reduce(Box3::meet);
+    let operands = a.cover().meet(b.cover()).ok().map(|cover| {
+        let world = cover.aabb(0.0);
+        Box3 {
+            x: geom_core::Interval::from_bounds(world.min_x, world.max_x),
+            y: geom_core::Interval::from_bounds(world.min_y, world.max_y),
+            z: geom_core::Interval::from_bounds(world.min_z, world.max_z),
+        }
+    });
     Readout::spatial(slab, operands, SSI_QUADRIC_NOISE_ULPS)
-}
-
-/// The box an analytic surface lies in, where it is bounded.
-fn analytic_box(surface: &Surface<f64>) -> Option<Box3> {
-    match *surface {
-        Surface::Sphere { center, radius, .. } => Some(Box3::around(center, radius.abs())),
-        Surface::Torus {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(Box3::around(
-            center,
-            major_radius.abs() + minor_radius.abs(),
-        )),
-        _ => None,
-    }
 }
 
 /// **The spline lane's readout**, at every door that marches a plane ×

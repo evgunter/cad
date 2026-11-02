@@ -1253,7 +1253,6 @@ pub fn meta_version_error_tag(err: &MetaVersionError) -> &'static str {
 pub fn profile_error_tag(err: &ProfileError) -> &'static str {
     match err {
         ProfileError::Band(_) => "band",
-        ProfileError::EmptyProfile => "empty_profile",
         ProfileError::PlaneNotFinite => "plane_not_finite",
         ProfileError::EmptyLoop { .. } => "empty_loop",
         ProfileError::DegenerateSegment(_) => "degenerate_segment",
@@ -1308,6 +1307,7 @@ pub fn structure_refusal_tag(kind: &StructureRefusalKind) -> &'static str {
 pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
     match err {
         ExtrudeError::Band(_) => "band",
+        ExtrudeError::EmptyProfile => "empty_profile",
         ExtrudeError::DegenerateExtrusion => "degenerate_extrusion",
         ExtrudeError::NegativeDepth { .. } => "negative_depth",
         ExtrudeError::ObliqueExtrusion => "oblique_extrusion",
@@ -1329,6 +1329,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
 pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
     match err {
         RevolveError::Band(_) => "band",
+        RevolveError::EmptyProfile => "empty_profile",
         RevolveError::NonFiniteAxis => "non_finite_axis",
         RevolveError::UnderflowedAxis => "underflowed_axis",
         RevolveError::DegenerateAxis => "degenerate_axis",
@@ -1590,6 +1591,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::TooFewSections { .. } => "too_few_sections",
         SkinError::SectionShapeMismatch { .. } => "section_shape_mismatch",
         SkinError::SectionProfile { .. } => "section_profile",
+        SkinError::EmptyProfile { .. } => "empty_profile",
         SkinError::DomainNotUnit { .. } => "domain_not_unit",
         SkinError::DegenerateSection { .. } => "degenerate_section",
         SkinError::BadDegree { .. } => "bad_degree",
@@ -1839,7 +1841,8 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
 /// The stable tag for why a profile step reading a face's trace
 /// refused — the inner arm of a `trace` node refusal. A carrier that
 /// could not be read along the piece says how
-/// (`topo::boolean::trace::TraceFault`): no closed form, a grazing or
+/// (`topo::boolean::trace::TraceFault`): no closed form, data that bounds
+/// no region, a grazing or
 /// on-carrier piece, a sign in the band, an uncertified root count.
 pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
     use pncad::document::TraceStepFault as F;
@@ -1857,6 +1860,7 @@ pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static
         F::NoTangent => "no_tangent",
         F::Unreached => "unreached",
         F::Carrier(C::Unsupported { .. }) => "unsupported_carrier",
+        F::Carrier(C::Unbounded { .. }) => "unbounded_carrier",
         F::Carrier(C::Grazing) => "grazing",
         F::Carrier(C::Apex) => "apex",
         F::Carrier(C::OnCarrier) => "on_carrier",

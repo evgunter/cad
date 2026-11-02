@@ -1858,7 +1858,7 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
         .collect()
 }
 
-/// The section certificate's [`Reach`](super::section_cert::Reach) of
+/// The section certificate's [`Reach`](geom_brep::Reach) of
 /// two overlapping face boxes ([`super::glue::overlap_ball`]).
 fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> geom_brep::Reach<T> {
     geom_brep::Reach::Ball(super::glue::overlap_ball(box_a, box_b))

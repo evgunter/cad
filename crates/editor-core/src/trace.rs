@@ -218,6 +218,10 @@ impl core::fmt::Display for TraceStepFault {
                     carrier.name()
                 );
             }
+            TraceStepFault::Carrier(fault @ TraceFault::Unbounded { .. }) => {
+                write!(f, "{fault}")?;
+                "rebuild the face whose carrier this is, from finite data"
+            }
             // The escalation states its own recourse.
             TraceStepFault::Carrier(fault @ TraceFault::Escalated(_)) => {
                 return write!(f, "{fault}");
@@ -455,7 +459,7 @@ fn plane_in_body<T: Decide>(face: &TracedFace<T>) -> (Point3<T>, Vec3<T>) {
 fn reach_of<T: Decide>(face: &TracedFace<T>, surface: &geom::Surface<T>, from: Point3<T>) -> T {
     // A carrier with no closed form refused before any piece runs
     // through it (`traced`).
-    let (anchor, size) = kernel::carrier_extent(surface, None).unwrap_or((from, T::zero()));
+    let (anchor, size) = kernel::carrier_extent(surface).unwrap_or((from, T::zero()));
     (anchor - from).norm() + size + (from - plane_in_body(face).0).norm()
 }
 

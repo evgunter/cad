@@ -227,6 +227,7 @@ impl<T: Real> SplineImplicitPose<T> {
             decided,
             components,
             nodes: Vec::new(),
+            node_sets: Vec::new(),
             lever,
         }
     }

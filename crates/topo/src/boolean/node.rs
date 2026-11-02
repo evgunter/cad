@@ -4,9 +4,12 @@
 //! points where the walls are tangent. Where such a node lies inside a
 //! face of each operand, the section crosses itself there with no
 //! operand edge to mark it: this pass reads it from the section table
-//! (`geom_brep::cylinder_cylinder_section`'s `nodes`) and mints it, a
+//! (`geom_brep::PairSection::nodes`) and mints it, a
 //! ring in each wall ([`super::vtxfac::mint_node`]), before the join
-//! matches any germ. The four arcs leaving it then join like any
+//! matches any germ. The pair is read on its section value, from the
+//! operation's section table: the nodes its pose places, and the two
+//! bisector planes its ellipses lie in. The four arcs leaving it then
+//! join like any
 //! others, each on its own ellipse's bisector plane.
 
 use geom_core::{Band, Decide, Tol};
@@ -57,7 +60,7 @@ pub(super) fn is_wall<T: Decide>(s: &geom::Surface<T>) -> bool {
 /// **Every node of every equal cylinder pair of the two operands,
 /// built**: each of `walls`, the face pairs of A's and B's cylinder
 /// walls whose boxes overlap ([`is_wall`]), whose section is the two
-/// bisector-plane ellipses ([`super::join::crossing_cylinder_reading`])
+/// bisector-plane ellipses on the section table's value
 /// has its two nodes placed in its two faces of the unmutated operands.
 /// A node definitely outside either face is no point of the pair's
 /// section there. A node inside both is minted into the working bodies
@@ -75,6 +78,7 @@ pub(super) fn is_wall<T: Decide>(s: &geom::Surface<T>) -> bool {
 /// skipped here, not silently: a germ riding one of its ellipses refuses
 /// the reading's refusal at the join's guard.
 pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
+    sections: &super::section_table::SectionTable<T>,
     (a, b): (&mut Body<T>, &mut Body<T>),
     (a_operand, b_operand): (&Body<T>, &Body<T>),
     walls: &[(crate::entity::FaceKey, crate::entity::FaceKey)],
@@ -83,33 +87,49 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Vec<super::vtxfac::RingOut<T>>, BooleanError> {
     let mut out = Vec::new();
     for &(fa, fb) in walls {
-        // A refused reading mints no node here and pre-empts nothing: the
-        // pair keeps the route its germs take, and a germ that rides an
-        // ellipse of it reads it again before the join and refuses there
-        // with this refusal (`join::crossing_germs_have_their_reading`),
-        // so no node of a pair the boolean builds goes unminted.
-        let Ok(Some(section)) =
-            super::join::crossing_cylinder_reading((a_operand, fa), (b_operand, fb), band)
-        else {
-            continue;
-        };
-        // A face of another kind is a desync: the reading above read
-        // this face as a cylinder.
-        let radius = match a_operand.proven_face_surface(fa) {
-            &geom::Surface::Cylinder { radius, .. } => radius.abs(),
-            _ => {
+        // A refused section mints no node here and pre-empts nothing: the
+        // pair keeps the route its germs take, and a germ that rides it
+        // reads the same refusal at the join (`join::cylinder_read`), so
+        // no node of a pair the boolean builds goes unminted. The table
+        // holds every pair of served faces whose boxes overlap at the
+        // sweep's pad (`glue::section_door`), the boxes `walls` was read
+        // at, so a pair a glue door's table does not hold is a desync; a
+        // sweep-only door's table holds none and mints no node.
+        let held = match sections.held((a_operand, fa), (b_operand, fb)) {
+            Some(Ok(held)) => held,
+            Some(Err(_)) => continue,
+            None if !sections.unheld_is_desync() => continue,
+            None => {
                 return Err(BooleanError::JoinDesync {
-                    what: "a crossing cylinder pair's A face is no cylinder",
+                    what: "two overlapping cylinder walls the section table does not hold",
                 });
             }
         };
-        let [a1, a2] = section.axes;
-        let unit = |v: geom_core::Vec3<T>| v / v.norm();
-        let tangents = [unit(a1 + a2), unit(a1 - a2)];
-        // The axes' meeting point, midway between the nodes.
-        let [n0, n1] = section.nodes;
-        let centre = n0 + (n1 - n0) * T::from_f64(0.5);
-        for node in section.nodes {
+        let geom_brep::PairPose::CylinderCylinder(pose) = held.pose() else {
+            continue;
+        };
+        let Some((centre, [e1_normal, e2_normal])) = pose.bisector_planes() else {
+            continue;
+        };
+        let [n0, n1] = match held.nodes() {
+            &[n0, n1] => [n0, n1],
+            _ => {
+                return Err(BooleanError::JoinDesync {
+                    what: "a bisector cylinder pair's section holds other than two nodes",
+                });
+            }
+        };
+        // The pose was asked in A, B order (`SectionTable::held`), so its
+        // first radius and axis are A's wall's; the walls are of one
+        // radius here.
+        let [radius, _] = pose.radii();
+        let radius = radius.abs();
+        // Each ellipse's tangent at a node is the other plane's normal:
+        // `e₁`'s (in the `â₁ − â₂`-normal plane) runs along `â₁ + â₂`, and
+        // `e₂`'s along `â₁ − â₂`. The planes meet in the axes' meeting
+        // point, `centre`.
+        let tangents = [e2_normal, e1_normal];
+        for node in [n0, n1] {
             let here = (
                 placed((Operand::A, a_operand), fa, node, band)?,
                 placed((Operand::B, b_operand), fb, node, band)?,
@@ -130,7 +150,6 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
                 (fa, fb),
                 (node, node - centre),
                 tangents,
-                section.axes,
                 geom_core::Lever::curvature_radius(radius),
                 band,
                 tol,
@@ -148,30 +167,41 @@ pub(super) type Bisector<T> = (geom_core::Point3<T>, geom_core::Vec3<T>);
 /// makes with `face` of `y`**, normal to `â₁ − â₂` first, then
 /// `â₁ + â₂`: on either wall the other's residual is the product of the
 /// two planes' distances (`reduce::factored_crossing`). `None` where the
-/// pair is not an equal cylinder pair with meeting axes
-/// ([`super::join::crossing_cylinder_reading`]), or its reading refuses.
+/// pair's section, held by the operation's table, is not the bisector
+/// pose, or refused.
 pub(super) fn bisectors<T: Decide>(
+    sections: &super::section_table::SectionTable<T>,
     (x, x_is, wall): (&Body<T>, Operand, crate::entity::FaceKey),
     (y, face): (&Body<T>, crate::entity::FaceKey),
-    band: Band,
-) -> Option<[Bisector<T>; 2]> {
-    // Every caller hands in faces its bodies' records name, so a stale
-    // key is a desync; a face of another kind is an honest no.
+) -> Result<Option<[Bisector<T>; 2]>, BooleanError> {
     let is_wall = |b: &Body<T>, f| is_wall(b.proven_face_surface(f));
     if !is_wall(x, wall) || !is_wall(y, face) {
-        return None;
+        return Ok(None);
     }
     let (on_x, on_y) = ((x, wall), (y, face));
-    let section = match x_is {
-        Operand::A => super::join::crossing_cylinder_reading(on_x, on_y, band),
-        Operand::B => super::join::crossing_cylinder_reading(on_y, on_x, band),
+    let held = match x_is {
+        Operand::A => sections.held(on_x, on_y),
+        Operand::B => sections.held(on_y, on_x),
+    };
+    // A refused section is no bisector pair here: the pair keeps the
+    // quadric's route, whose own reads then decide or refuse it, as the
+    // node pass skips such a pair. Two walls an edge of one crosses the
+    // other at overlap, so a glue door's table holds them: one it does
+    // not is a desync. A sweep-only door's table holds none, and its
+    // crossing keeps the quadric's route.
+    match held {
+        Some(Ok(held)) => Ok(match held.pose() {
+            geom_brep::PairPose::CylinderCylinder(pose) => pose
+                .bisector_planes()
+                .map(|(centre, [n1, n2])| [(centre, n1), (centre, n2)]),
+            _ => None,
+        }),
+        Some(Err(_)) => Ok(None),
+        None if !sections.unheld_is_desync() => Ok(None),
+        None => Err(BooleanError::JoinDesync {
+            what: "two cylinder walls a crossing meets the section table does not hold",
+        }),
     }
-    // A reading that refuses (a margin of the family in band) is folded
-    // into `None`: the pair keeps the quadric's route, whose own reads
-    // then decide or refuse it, as the node pass skips such a pair.
-    .ok()
-    .flatten()?;
-    Some(section.planes)
 }
 
 /// **A cylinder wall's sense at a point of it**: whether its outward

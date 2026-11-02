@@ -1304,8 +1304,6 @@ pub enum ProfileError {
     /// [`Band::linear`](geom_core::Band::linear)'s `# Errors` states
     /// with their conditions.
     Band(BandError),
-    /// The profile has no loops — there is no region to sweep.
-    EmptyProfile,
     /// The sketch plane's placement has a component that is not finite
     /// for every value it stands for (poison, an infinity, or an
     /// enclosure reaching one), so the profile has no place in space.
@@ -1453,7 +1451,6 @@ impl fmt::Display for ProfileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band(e) => write!(f, "profile validation could not form a band: {e}"),
-            Self::EmptyProfile => f.write_str("profile has no loops — nothing to sweep"),
             Self::PlaneNotFinite => f.write_str(
                 "the profile's sketch plane is not finite, so the profile has no place in \
                  space. Recourse: give the plane finite values",
@@ -1916,6 +1913,9 @@ pub struct BlendArc<T: Real> {
 
 /// A validated, canonicalized profile — the only thing sweeps accept.
 ///
+/// A profile with no loops validates: it is the empty region, and
+/// every sweep refuses it at its own door.
+///
 /// # Canonical form (deterministic, D9-load-bearing)
 ///
 /// - **Loop order**: the outer boundary first, then holes in input
@@ -2322,8 +2322,12 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
         // (module docs): no representable f64 lies strictly inside it.
         let exact = Band::least();
 
+        // No loops is the empty region: there is nothing to decide.
         if loops_in.is_empty() {
-            return Err(ProfileError::EmptyProfile);
+            return Ok(ValidatedProfile {
+                plane,
+                loops: Vec::new(),
+            });
         }
 
         // 1 + 2: arity, then per-segment degeneracy + kind
