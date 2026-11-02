@@ -539,6 +539,11 @@ fn r2_detail() {
     show("60/60 cross-mid a∩b", intersect(&c60, &cb, tol()));
     show("60/60 cross-mid b∩a", intersect(&cb, &c60, tol()));
     let ball = finished("ball", sweep::test_support::ball_poled(0.6, Vec3::new(0.0, 1.6, 0.0), Vec3::new(0.0, 1.0, 0.0), tol()), tol());
+    let eps = tol().eps();
+    let block = topo::test_support::brick((0.0, 2.0), (-2.0, 0.0), (0.0, 2.0), tol());
+    let bx = moved(&block, Affine3::translation(Vec3::new(0.0, 1.0 - 0.3 * eps, 0.0)));
+    show("30 box 0.3eps down b∩a", intersect(&bx, &c30, tol()));
+    show("30 box 0.3eps down a∩b", intersect(&c30, &bx, tol()));
     show("45 sphere above", intersect(&finished("c", cone_body(45.0, true), tol()), &ball, tol()));
 }
 
