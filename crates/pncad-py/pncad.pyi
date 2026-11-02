@@ -3463,14 +3463,14 @@ class DocEdit:
     @staticmethod
     def set_loft_sections(
         node: NodeId,
-        first: _Operand,
-        then: Sequence[tuple[_Operand, Sequence[StationMove]]],
-        keep: Sequence[SectionId | None],
+        first: tuple[_Operand, SectionId | None],
+        then: Sequence[tuple[_Operand, Sequence[StationMove], SectionId | None]],
     ) -> DocEdit:
         """Write a `Node.loft`'s sections whole, each with its station:
-        `first`'s profile, then each later section as `(profile,
-        station)`, `Node.loft`'s own shape. The edit that adds, drops or
-        reorders a loft's sections; the degree is kept.
+        `first` as `(profile, keep)`, then each later section as
+        `(profile, station, keep)`, `Node.loft`'s own shape with each
+        section's `keep` last. The edit that adds, drops or reorders a
+        loft's sections; the degree is kept.
 
         It admits a loft exactly where `Doc.insert` would, through the
         same kernel checks: `slot_var_kind` for a section that is not a
@@ -3480,14 +3480,13 @@ class DocEdit:
         `degree_out_of_range`). A node that is not a
         loft refuses `set_loft_sections_on_non_loft`.
 
-        `keep` is one entry per new section, `first` included: the
-        `SectionId` of the old section it keeps (`Doc.section_ids`), or
-        `None` for one it adds. A loft's walls, seams and rings are
-        named by their sections' ids, so a kept section's names survive
-        the edit. Refuses `section_ids_refused` (`inner_variant`:
-        `count`, `not_this_lofts`, `repeated`) for a `keep` that is not
-        one entry per section, keeps an id this loft does not hold, or
-        keeps one twice."""
+        Each section's `keep` is the `SectionId` of the old section it
+        keeps (`Doc.section_ids`), or `None` for one it adds; it is part
+        of the tuple, so none is left out by omission. A loft's walls,
+        seams and rings are named by their sections' ids, so a kept
+        section's names survive the edit. Refuses `section_ids_refused`
+        (`inner_variant`: `not_this_lofts`, `repeated`) for a `keep`
+        this loft does not hold, or one kept twice."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, value: _SlotArg | NodeId) -> DocEdit:

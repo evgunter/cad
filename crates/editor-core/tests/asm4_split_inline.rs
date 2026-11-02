@@ -2297,3 +2297,211 @@ fn inline_at_a_pose_carries_a_copy_seated_on_a_construction() {
         "the union's copy takes the instance's pose"
     );
 }
+
+/// **A part document holding a degree-1 loft of squares and a shell
+/// opening one of its walls**: the wall over its last two sections, the
+/// first wall the loft publishes there. With `drop_last`, the loft has
+/// three sections and a `SetLoftSections` drops the third after the
+/// shell named the wall, so the shell spells a section no loft holds.
+/// Returns the document, the profiles, the loft, the shell and the wall.
+fn lofted_component(
+    label: &str,
+    drop_last: bool,
+) -> (
+    ProfileDoc,
+    Vec<RecipeNodeId>,
+    RecipeNodeId,
+    RecipeNodeId,
+    StableName,
+) {
+    let mut doc = part(label, 0.0, 1.0);
+    let halves: &[f64] = if drop_last {
+        &[0.5, 0.45, 0.4]
+    } else {
+        &[0.5, 0.45]
+    };
+    let mut profiles = Vec::new();
+    for &h in halves {
+        let (d, p) = insert(doc, Node::Profile(desc(vec![square(10.0, 0.0, h)])));
+        doc = d;
+        profiles.push(p);
+    }
+    let up = |profile: RecipeNodeId, z: f64, id| editor_core::LoftSection {
+        id,
+        profile: profile.into(),
+        station: vec![editor_core::StationMove::Slide {
+            along: editor_core::Axis3::Z,
+            by: len(z),
+        }],
+    };
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            first: profiles[0].into(),
+            first_id: None,
+            then: (1..profiles.len())
+                .map(|k| up(profiles[k], k as f64, None))
+                .collect(),
+            v_degree: Formula::count(1),
+        },
+    );
+    let ids = fixture::section_ids(&doc, loft);
+    let over = &ids[ids.len() - 2..];
+    let wall = run(&doc, &EvalOptions::default())
+        .table_at(loft)
+        .expect("the loft evaluates")
+        .iter()
+        .map(|(n, _)| n.clone())
+        .find(|n| match n.path.as_slice() {
+            [RoleSeg::LoftWall(at)] => at.iter().map(|&(s, _)| s).eq(over.iter().copied()),
+            _ => false,
+        })
+        .expect("a wall over the last two sections");
+    let (doc, shell) = insert(doc, Node::shell(loft, len(0.01), vec![wall.clone()]));
+    let doc = if drop_last {
+        step(
+            doc,
+            DocEdit::SetLoftSections {
+                node: loft,
+                first: profiles[0].into(),
+                first_id: Some(ids[0]),
+                then: vec![up(profiles[1], 1.0, Some(ids[1]))],
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    } else {
+        doc
+    };
+    let doc = fixture::place(doc, loft).0;
+    (doc, profiles, loft, shell, wall)
+}
+
+/// The names a shell node opens.
+fn opened(doc: &ProfileDoc, shell: RecipeNodeId) -> Vec<StableName> {
+    match doc.node(shell) {
+        Some(Node::Shell { open, .. }) => doc
+            .selection(*open)
+            .expect("a face selection")
+            .names
+            .clone(),
+        other => panic!("a shell, got {other:?}"),
+    }
+}
+
+/// **A split and an inline carry a name on a loft wall onto the
+/// sections the other document mints.** The part and the host each mint
+/// the loft's sections afresh, from chains of their own, so the section
+/// map pairs each old id with a different new one; the shell's wall
+/// crosses spelled in the new ids, as the maps remap it. Broken by a
+/// carry that leaves the section map empty (the wall would refuse as a
+/// name on a dropped section) or pairs the ids out of section order.
+#[test]
+fn a_split_and_an_inline_carry_a_loft_walls_name_onto_the_minted_sections() {
+    let (doc, profiles, loft, shell, wall) = lofted_component("asm4-loft", false);
+    let old = fixture::section_ids(&doc, loft);
+    let reds = std::collections::BTreeMap::new();
+    let cut: BTreeSet<RecipeNodeId> = profiles.iter().copied().chain([loft, shell]).collect();
+    let out = split(
+        &doc,
+        &cut,
+        DocumentId::derive("asm4-loft-new"),
+        Tol::witness(),
+        None,
+    )
+    .expect("legal");
+    let minted = fixture::section_ids(&out.part, out.node_map[&loft]);
+    let expected: editor_core::SectionMap = old.iter().copied().zip(minted.clone()).collect();
+    assert_eq!(
+        out.section_map, expected,
+        "each section maps to its own image"
+    );
+    assert!(
+        old.iter().zip(&minted).all(|(a, b)| a != b),
+        "the part mints its own ids, so the map is no identity: {old:?} → {minted:?}"
+    );
+    let crossed =
+        editor_core::remap_name(&wall, &out.node_map, &out.step_map, &out.section_map, &reds)
+            .expect("the split's maps cover the wall");
+    assert_eq!(opened(&out.part, out.node_map[&shell]), vec![crossed]);
+
+    let mut store = PartStore::default();
+    let doc = crate::fixture::assemble_world_copies(doc);
+    let doc_ref = store.insert(doc, Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-loft-host"), Tol::witness());
+    let (host, instance) = pinned(host, doc_ref, &with_resolver(store.clone()));
+    let inlined = inline(
+        &host,
+        instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("legal");
+    let host_ids = fixture::section_ids(&inlined.doc, inlined.node_map[&loft]);
+    let expected: editor_core::SectionMap = old.iter().copied().zip(host_ids.clone()).collect();
+    assert_eq!(inlined.section_map, expected);
+    assert!(
+        old.iter().zip(&host_ids).all(|(a, b)| a != b),
+        "{old:?} → {host_ids:?}"
+    );
+    let crossed = editor_core::remap_name(
+        &wall,
+        &inlined.node_map,
+        &inlined.step_map,
+        &inlined.section_map,
+        &reds,
+    )
+    .expect("the inline's maps cover the wall");
+    assert_eq!(
+        opened(&inlined.doc, inlined.node_map[&shell]),
+        vec![crossed]
+    );
+}
+
+/// **A name on a section a `SetLoftSections` dropped does not cross a
+/// split or an inline**: no carried loft holds the section, so the
+/// section map has no id for it, and each refactoring refuses typed,
+/// naming the stranded name and the dropped section.
+#[test]
+fn a_name_on_a_dropped_section_refuses_a_split_and_an_inline() {
+    let (doc, profiles, loft, shell, wall) = lofted_component("asm4-loft-dropped", true);
+    let held = fixture::section_ids(&doc, loft);
+    let dropped = match wall.path.as_slice() {
+        [RoleSeg::LoftWall(at)] => at[1].0,
+        other => panic!("a loft wall, got {other:?}"),
+    };
+    assert!(
+        !held.contains(&dropped),
+        "the shell spells a section the loft no longer holds"
+    );
+    let cut: BTreeSet<RecipeNodeId> = profiles.iter().copied().chain([loft, shell]).collect();
+    match split(
+        &doc,
+        &cut,
+        DocumentId::derive("asm4-loft-dropped-new"),
+        Tol::witness(),
+        None,
+    ) {
+        Err(SplitError::NameOnDroppedSection { name, section }) => {
+            assert_eq!((name.name(), section), (&wall, dropped));
+        }
+        other => panic!("expected NameOnDroppedSection, got {other:?}"),
+    }
+
+    let mut store = PartStore::default();
+    let doc = crate::fixture::assemble_world_copies(doc);
+    let doc_ref = store.insert(doc, Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-loft-dropped-host"), Tol::witness());
+    let (host, instance) = pinned(host, doc_ref, &with_resolver(store.clone()));
+    match inline(
+        &host,
+        instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    ) {
+        Err(InlineError::NameOnDroppedSection { name, section }) => {
+            assert_eq!((name.name(), section), (&wall, dropped));
+        }
+        other => panic!("expected NameOnDroppedSection, got {other:?}"),
+    }
+}

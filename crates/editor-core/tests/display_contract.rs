@@ -1511,13 +1511,13 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::SectionIds {
                 node: held(5, "Loft"),
-                fault: editor_core::SectionIdFault::Repeated {
+                fault: editor_core::SectionIdBreak::Repeated {
                     section: editor_core::SectionId::new(0, tagged(3)),
                 },
             },
             vec![
-                "Loft 000000000005's section ids",
-                "section id 000000000003 stands for two sections",
+                "Loft 000000000005's section id 000000000003",
+                "stands for a second section in the document",
             ],
         ),
         (

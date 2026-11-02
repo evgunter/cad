@@ -458,6 +458,7 @@ fn loft() -> (ProfileDoc, VarId) {
     let loft = r.insert(Node::Loft {
         first: p0.into(),
         then: vec![editor_core::LoftSection {
+            id: None,
             profile: p1.into(),
             station: vec![editor_core::StationMove::Slide {
                 along: editor_core::Axis3::Z,
@@ -465,7 +466,7 @@ fn loft() -> (ProfileDoc, VarId) {
             }],
         }],
         v_degree: Formula::count(1),
-        ids: Vec::new(),
+        first_id: None,
     });
     let ev = eval(&r.doc);
     if let Some(e) = ev.node_error(loft) {

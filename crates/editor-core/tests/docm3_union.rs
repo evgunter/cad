@@ -1052,6 +1052,7 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
             first: profiles[0].into(),
             then: (1..3)
                 .map(|i| editor_core::LoftSection {
+                    id: None,
                     profile: profiles[i].into(),
                     station: vec![editor_core::StationMove::Slide {
                         along: editor_core::Axis3::Z,
@@ -1060,7 +1061,7 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
                 })
                 .collect(),
             v_degree: editor_core::Formula::count(2),
-            ids: Vec::new(),
+            first_id: None,
         },
     );
     (doc, loft, profiles)
@@ -1091,6 +1092,7 @@ fn a_snapshot_carrying_a_loft_the_doors_refuse_loads() {
         Node::Loft {
             first: profiles[0].into(),
             then: vec![editor_core::LoftSection {
+                id: None,
                 profile: profiles[1].into(),
                 station: vec![editor_core::StationMove::Slide {
                     along: editor_core::Axis3::Z,
@@ -1098,7 +1100,7 @@ fn a_snapshot_carrying_a_loft_the_doors_refuse_loads() {
                 }],
             }],
             v_degree: editor_core::Formula::named(skin, editor_core::Dimension::Count),
-            ids: Vec::new(),
+            first_id: None,
         },
     );
     let var = doc.var_named("skin").expect("declared");

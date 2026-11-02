@@ -403,9 +403,7 @@ where
             wire_revolve(id, at(O::Profile, *profile)?, results, vals, tol)
                 .and_then(|out| twisted(out, id, env, tol))
         }
-        Node::Loft {
-            first, then, ids, ..
-        } => {
+        Node::Loft { first, then, .. } => {
             let sections = core::iter::once(*first)
                 .chain(then.iter().map(|section| section.profile))
                 .enumerate()
@@ -415,7 +413,16 @@ where
                 .iter()
                 .map(|section| section.station.as_slice())
                 .collect();
-            wire_loft(id, (&sections, ids), &stations, results, vals, tol)
+            let Some(ids) = node
+                .loft_section_ids()
+                .and_then(|ids| ids.into_iter().collect::<Option<Vec<_>>>())
+            else {
+                unreachable!(
+                    "loft {id} reached evaluation with a section that carries no id: the insert \
+                     door mints one per section and the load door refuses a section without"
+                )
+            };
+            wire_loft(id, &sections, &ids, &stations, results, vals, tol)
                 .and_then(|out| twisted(out, id, env, tol))
         }
         Node::Sweep { profile, path, .. } => {
@@ -4409,7 +4416,8 @@ fn need_count(
 /// than a point lofts the family it spans.
 fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    (profiles, ids): (&[RecipeNodeId], &[crate::SectionId]),
+    profiles: &[RecipeNodeId],
+    ids: &[crate::SectionId],
     stations: &[&[crate::node::StationMove]],
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -4456,14 +4464,6 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     // skin pairs canonical segment `k` of every section into wall `k`,
     // so wall `k` is named by one locator per section it spans, each
     // with that section's id.
-    if ids.len() != profiles.len() {
-        unreachable!(
-            "loft {id} reached evaluation holding {} section ids for {} sections: the insert \
-             door mints one per section and the load door refuses any other count",
-            ids.len(),
-            profiles.len()
-        );
-    }
     let table = names::name_loft(id, &built, &pieces, ids).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(values[0].framed(Arc::new(built.body))),

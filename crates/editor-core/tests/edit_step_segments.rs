@@ -565,6 +565,7 @@ fn loft_of_loops(
         .iter()
         .enumerate()
         .map(|(i, &s)| editor_core::LoftSection {
+            id: None,
             profile: s.into(),
             station: vec![editor_core::StationMove::Slide {
                 along: editor_core::Axis3::Z,
@@ -578,7 +579,7 @@ fn loft_of_loops(
             first: ids[0].into(),
             then,
             v_degree: Formula::count(1),
-            ids: Vec::new(),
+            first_id: None,
         },
     );
     (doc, ids, loft)

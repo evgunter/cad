@@ -61,9 +61,8 @@ class TestSetLoftSections(unittest.TestCase):
         self.doc.apply(
             DocEdit.set_loft_sections(
                 self.loft,
-                self.a,
-                [(self.b, up(1.0)), (self.c, up(2.5))],
-                [a, b, None],
+                (self.a, a),
+                [(self.b, up(1.0), b), (self.c, up(2.5), None)],
             )
         )
         kept = self.doc.section_ids(self.loft)
@@ -82,7 +81,7 @@ class TestSetLoftSections(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             self.doc.apply(
                 DocEdit.set_loft_sections(
-                    self.b, self.a, [(self.b, up(1.0))], [None, None]
+                    self.b, (self.a, None), [(self.b, up(1.0), None)]
                 )
             )
         self.assertEqual(caught.exception.variant, "set_loft_sections_on_non_loft")
@@ -114,7 +113,9 @@ class TestSetLoftSections(unittest.TestCase):
                 with self.assertRaises(EditError) as rewritten:
                     self.doc.apply(
                         DocEdit.set_loft_sections(
-                            self.loft, self.a, then, [None] * (len(then) + 1)
+                            self.loft,
+                            (self.a, None),
+                            [(profile, station, None) for profile, station in then],
                         )
                     )
                 self.assertEqual(rewritten.exception.variant, "loft_shape")
@@ -125,7 +126,7 @@ class TestSetLoftSections(unittest.TestCase):
         with self.assertRaises(EditError) as dropped:
             self.doc.apply(
                 DocEdit.set_loft_sections(
-                    cubic, self.a, [(self.c, up(2.0))], [None, None]
+                    cubic, (self.a, None), [(self.c, up(2.0), None)]
                 )
             )
         self.assertEqual(dropped.exception.inner_variant, "degree_out_of_range")
@@ -136,7 +137,7 @@ class TestSetLoftSections(unittest.TestCase):
         a, _ = self.doc.section_ids(self.loft)
         with self.assertRaises(EditError) as caught:
             self.doc.apply(
-                DocEdit.set_loft_sections(self.loft, self.a, [(self.b, up(1.0))], [a, a])
+                DocEdit.set_loft_sections(self.loft, (self.a, a), [(self.b, up(1.0), a)])
             )
         self.assertEqual(caught.exception.variant, "section_ids_refused")
         self.assertEqual(caught.exception.inner_variant, "repeated")

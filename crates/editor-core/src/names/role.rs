@@ -1948,14 +1948,16 @@ pub(crate) trait SegRewrite {
         Ok(v)
     }
 
-    /// A loft section's id the segment carries directly.
+    /// A loft section's id the segment carries directly. Required, with
+    /// no identity default: a rewriter that moves a name between
+    /// documents maps its section ids or refuses, and one that keeps a
+    /// name in its document says so by returning `s`, so no rewriter
+    /// passes an id through unmapped by omission.
     ///
     /// # Errors
     ///
     /// The rewriter's own.
-    fn section(&mut self, s: SectionId) -> Result<SectionId, Self::Error> {
-        Ok(s)
-    }
+    fn section(&mut self, s: SectionId) -> Result<SectionId, Self::Error>;
 
     /// What becomes of a name the segment carries ([`Carry`]).
     ///
@@ -2486,6 +2488,11 @@ struct StepPieces<'p> {
 
 impl SegRewrite for StepPieces<'_> {
     type Error = core::convert::Infallible;
+
+    /// Nothing is rewritten: the walk only collects step pieces.
+    fn section(&mut self, s: SectionId) -> Result<SectionId, Self::Error> {
+        Ok(s)
+    }
 
     fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
         if let ProfileEdgeRef::Piece { .. } = e {

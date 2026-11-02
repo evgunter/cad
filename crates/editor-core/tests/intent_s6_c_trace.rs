@@ -519,6 +519,7 @@ fn a_lofts_first_section_stands_in_its_frame_and_a_later_one_refuses() {
     let loft = |first: RecipeNodeId, then: RecipeNodeId| Node::Loft {
         first: first.into(),
         then: vec![editor_core::LoftSection {
+            id: None,
             profile: then.into(),
             station: vec![editor_core::StationMove::Slide {
                 along: editor_core::Axis3::Z,
@@ -526,7 +527,7 @@ fn a_lofts_first_section_stands_in_its_frame_and_a_later_one_refuses() {
             }],
         }],
         v_degree: Formula::count(1),
-        ids: Vec::new(),
+        first_id: None,
     };
     let (framed, lofted) = fixture::insert(doc.clone(), loft(drawn, quad));
     let ev = eval(&framed);
@@ -1025,6 +1026,7 @@ fn the_pen_the_carrier_and_the_band_refuse_typed() {
         Node::Loft {
             first: first.into(),
             then: vec![editor_core::LoftSection {
+                id: None,
                 profile: then.into(),
                 station: vec![
                     editor_core::StationMove::Spin {
@@ -1038,7 +1040,7 @@ fn the_pen_the_carrier_and_the_band_refuse_typed() {
                 ],
             }],
             v_degree: Formula::count(1),
-            ids: Vec::new(),
+            first_id: None,
         },
     );
     let ev = eval(&doc);

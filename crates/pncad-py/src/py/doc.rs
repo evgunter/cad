@@ -1329,11 +1329,13 @@ impl Doc {
     ///
     /// Raises `ValueError` for a node that is not a loft.
     fn section_ids(&self, loft: &NodeId) -> PyResult<Vec<super::step::SectionId>> {
-        match self.inner.node(loft.0) {
-            Some(d::Node::Loft { ids, .. }) => {
-                Ok(ids.iter().copied().map(super::step::SectionId).collect())
-            }
-            _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+        match self.inner.node(loft.0).and_then(d::Node::loft_section_ids) {
+            Some(ids) => Ok(ids
+                .into_iter()
+                .flatten()
+                .map(super::step::SectionId)
+                .collect()),
+            None => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{} is not a loft",
                 self.inner.spoken(loft.0)
             ))),
@@ -2875,12 +2877,13 @@ impl Node {
                 then: then
                     .into_iter()
                     .map(|(profile, station)| d::LoftSection {
+                        id: None,
                         profile: profile.read(),
                         station: station.into_iter().map(|m| m.0).collect(),
                     })
                     .collect(),
                 v_degree: slot_expr(py, d::SlotId::VDegree, &v_degree)?,
-                ids: Vec::new(),
+                first_id: None,
             },
         })
     }
@@ -4287,33 +4290,36 @@ impl DocEdit {
     /// station or a degree outside `1 ≤ d ≤ len − 1`. A node that is
     /// not a loft refuses `set_loft_sections_on_non_loft`.
     ///
-    /// `keep` says which sections are the old ones: one entry per new
-    /// section, `first` included, the `SectionId` of the old section it
-    /// keeps (`Doc.section_ids` reads them) or `None` for a section it
-    /// adds, which the door mints. A loft's walls, seams and rings are
-    /// named by their sections' ids, so a kept section's names survive
-    /// the edit wherever it moves. Refuses `section_ids_refused` for a
-    /// `keep` that is not one entry per section, keeps an id this loft
-    /// does not hold, or keeps one twice.
+    /// Each section says which old section it is, as its last entry:
+    /// `first` is `(profile, keep)` and each later section `(profile,
+    /// station, keep)`, where `keep` is the `SectionId` of the old
+    /// section it keeps (`Doc.section_ids` reads them) or `None` for a
+    /// section it adds, which the door mints. The entry is part of the
+    /// tuple, so no section's is left out by omission. A loft's walls,
+    /// seams and rings are named by their sections' ids, so a kept
+    /// section's names survive the edit wherever it moves. Refuses
+    /// `section_ids_refused` for a `keep` this loft does not hold, or
+    /// one kept twice.
     #[staticmethod]
     fn set_loft_sections(
         node: &NodeId,
-        first: OperandArg,
-        then: Vec<(OperandArg, Vec<StationMove>)>,
-        keep: Vec<Option<super::step::SectionId>>,
+        first: (OperandArg, Option<super::step::SectionId>),
+        then: Vec<(OperandArg, Vec<StationMove>, Option<super::step::SectionId>)>,
     ) -> Self {
+        let (first, first_id) = first;
         Self {
             inner: d::DocEdit::SetLoftSections {
                 node: node.0,
                 first: first.read(),
+                first_id: first_id.map(|k| k.0),
                 then: then
                     .into_iter()
-                    .map(|(profile, station)| d::LoftSection {
+                    .map(|(profile, station, keep)| d::LoftSection {
+                        id: keep.map(|k| k.0),
                         profile: profile.read(),
                         station: station.into_iter().map(|m| m.0).collect(),
                     })
                     .collect(),
-                ids: keep.into_iter().map(|k| k.map(|k| k.0)).collect(),
                 fresh: Vec::new(),
             },
         }

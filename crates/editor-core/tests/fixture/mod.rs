@@ -4060,8 +4060,8 @@ pub fn product_in_world(
 /// document holds them.
 #[must_use]
 pub fn section_ids(doc: &ProfileDoc, loft: RecipeNodeId) -> Vec<editor_core::SectionId> {
-    match doc.node(loft) {
-        Some(Node::Loft { ids, .. }) => ids.clone(),
-        other => panic!("{loft:?} is a loft, got {other:?}"),
-    }
+    doc.node(loft)
+        .and_then(Node::loft_section_ids)
+        .and_then(|ids| ids.into_iter().collect())
+        .unwrap_or_else(|| panic!("{loft:?} is a loft whose sections carry ids"))
 }

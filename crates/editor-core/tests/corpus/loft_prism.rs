@@ -63,6 +63,7 @@ pub fn document() -> CorpusDoc {
     // first's own z — a shared plane is exactly what a loft's sections
     // are not.
     let up = |profile: RecipeNodeId, z: f64| LoftSection {
+        id: None,
         profile: profile.into(),
         station: vec![StationMove::Slide {
             along: Axis3::Z,
@@ -73,7 +74,7 @@ pub fn document() -> CorpusDoc {
         first: bottom.into(),
         then: vec![up(middle, 1.0), up(top, 2.0)],
         v_degree: Formula::count(2),
-        ids: Vec::new(),
+        first_id: None,
     });
 
     r.place_part(loft);

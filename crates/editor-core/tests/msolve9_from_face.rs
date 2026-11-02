@@ -406,6 +406,7 @@ fn a2_a_nurbs_face_refuses_not_planar_where_its_reader_evaluates() {
         Node::Loft {
             first: lower.into(),
             then: vec![editor_core::LoftSection {
+                id: None,
                 profile: upper.into(),
                 station: vec![editor_core::StationMove::Slide {
                     along: editor_core::Axis3::Z,
@@ -413,7 +414,7 @@ fn a2_a_nurbs_face_refuses_not_planar_where_its_reader_evaluates() {
                 }],
             }],
             v_degree: Formula::count(1),
-            ids: Vec::new(),
+            first_id: None,
         },
     );
     let ev = run(&part, &EvalOptions::default());

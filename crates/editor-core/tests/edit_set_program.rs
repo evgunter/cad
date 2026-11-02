@@ -2480,6 +2480,7 @@ fn lofted(
         Node::Loft {
             first: sec0.into(),
             then: vec![editor_core::LoftSection {
+                id: None,
                 profile: sec1.into(),
                 station: vec![editor_core::StationMove::Slide {
                     along: editor_core::Axis3::Z,
@@ -2487,7 +2488,7 @@ fn lofted(
                 }],
             }],
             v_degree: Formula::count(1),
-            ids: Vec::new(),
+            first_id: None,
         },
     );
     (doc, [sec0, sec1, loft])

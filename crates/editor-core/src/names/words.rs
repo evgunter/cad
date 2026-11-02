@@ -781,8 +781,10 @@ fn run(r: &PieceRun, feature: RecipeNodeId, by: Speaker<'_>) -> String {
 }
 
 /// **The sections a loft wall or seam spans, said** before its pieces:
-/// nothing for one that spans the whole loft, `between sections <a> and
-/// <b> ` for a slab's two, each by its numeral.
+/// nothing for one that spans the whole loft ([`Speaker::spans_loft`]),
+/// `between sections <a> and <b> ` for a slab's two, each by its
+/// numeral, and `through sections ...` for a wall the document at hand
+/// no longer holds whole.
 fn between(
     sections: impl Iterator<Item = crate::node::SectionId>,
     feature: RecipeNodeId,

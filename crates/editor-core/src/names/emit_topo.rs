@@ -6948,6 +6948,7 @@ mod wavy_loft {
         let then = (1u32..)
             .zip(sections)
             .map(|(k, profile)| crate::node::LoftSection {
+                id: None,
                 profile: profile.into(),
                 station: vec![crate::node::StationMove::Slide {
                     along: crate::node::Axis3::Z,
@@ -6961,7 +6962,7 @@ mod wavy_loft {
                 first: first.into(),
                 then,
                 v_degree: Formula::count(2),
-                ids: Vec::new(),
+                first_id: None,
             },
         )
     }

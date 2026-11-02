@@ -5526,13 +5526,22 @@ where
         // keys.
         Node::Loft {
             first: _,
+            first_id,
             then,
             v_degree: _,
-            ids,
         } => {
-            h.write_u64(ids.len() as u64);
-            for id in ids {
-                h.write_id(id.0);
+            // Each section's id, `None` (an unminted section, which no
+            // document holds) keyed apart from every id.
+            let mut section_id = |id: &Option<crate::SectionId>| match id {
+                Some(id) => {
+                    h.write_tag(1);
+                    h.write_id(id.0);
+                }
+                None => h.write_tag(0),
+            };
+            section_id(first_id);
+            for section in then {
+                section_id(&section.id);
             }
             h.write_u64(then.len() as u64);
             for section in then {

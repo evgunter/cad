@@ -78,6 +78,7 @@ fn loft_doc(
     let loft = r.insert(Node::Loft {
         first: sections[0].into(),
         then: vec![editor_core::LoftSection {
+            id: None,
             profile: sections[1].into(),
             station: vec![editor_core::StationMove::Slide {
                 along: editor_core::Axis3::Z,
@@ -85,7 +86,7 @@ fn loft_doc(
             }],
         }],
         v_degree: Formula::count(1),
-        ids: Vec::new(),
+        first_id: None,
     });
     let loft = if u == [1.0, 0.0, 0.0] {
         loft

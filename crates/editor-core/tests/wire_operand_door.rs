@@ -249,6 +249,7 @@ fn wired() -> (
         Node::Loft {
             first: profile.into(),
             then: vec![editor_core::LoftSection {
+                id: None,
                 profile: body.into(),
                 station: vec![editor_core::StationMove::Slide {
                     along: editor_core::Axis3::Z,
@@ -256,7 +257,7 @@ fn wired() -> (
                 }],
             }],
             v_degree: Formula::count(1),
-            ids: Vec::new(),
+            first_id: None,
         },
         body,
     );
@@ -268,6 +269,7 @@ fn wired() -> (
         Node::Loft {
             first: profile.into(),
             then: vec![editor_core::LoftSection {
+                id: None,
                 profile: sketch,
                 station: vec![editor_core::StationMove::Slide {
                     along: editor_core::Axis3::Z,
@@ -275,7 +277,7 @@ fn wired() -> (
                 }],
             }],
             v_degree: Formula::count(1),
-            ids: Vec::new(),
+            first_id: None,
         },
         body,
     );

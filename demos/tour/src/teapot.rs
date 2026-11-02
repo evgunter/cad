@@ -714,6 +714,7 @@ fn spout_loft(
     let (first, _) = sections.next().expect("a loft has a first section");
     let then = sections
         .map(|(profile, station)| LoftSection {
+            id: None,
             profile: profile.into(),
             station,
         })
@@ -724,7 +725,7 @@ fn spout_loft(
             first: first.into(),
             then,
             v_degree: Formula::count(3),
-            ids: Vec::new(),
+            first_id: None,
         },
         tol,
     )

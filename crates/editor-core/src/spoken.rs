@@ -714,11 +714,9 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     }
 
     fn section_at(&self, loft: RecipeNodeId, id: SectionId) -> Option<(usize, usize)> {
-        let Some(Node::Loft { ids, .. }) = self.node(loft) else {
-            return None;
-        };
+        let ids = self.node(loft)?.loft_section_ids()?;
         ids.iter()
-            .position(|&s| s == id)
+            .position(|&s| s == Some(id))
             .map(|k| (k + 1, ids.len()))
     }
 
@@ -1413,16 +1411,24 @@ impl<'a> Speaker<'a> {
         }
     }
 
-    /// **Whether `ids` are every section of `loft`, in order**, as the
-    /// document holds it: a wall that spans the whole loft, said
-    /// without its sections. `false` where the document is not at hand.
+    /// **Whether a wall or seam over `ids` spans the whole of `loft`**,
+    /// and so is said without its sections. Where the speaker places
+    /// them: `ids` are every section of the loft, in order. By tag (no
+    /// document, or one that places none of them): more than two,
+    /// since a slab's wall spans two sections and every other wall a
+    /// loft mints spans all of them — so only a slab's two are said.
     pub(crate) fn spans_loft(self, loft: RecipeNodeId, ids: &[SectionId]) -> bool {
-        let Some(doc) = self.doc else {
-            return false;
-        };
-        ids.iter()
+        let placed: Vec<_> = ids
+            .iter()
+            .map(|&id| self.doc.and_then(|doc| doc.section_at(loft, id)))
+            .collect();
+        if placed.iter().all(Option::is_none) {
+            return ids.len() > 2;
+        }
+        placed
+            .iter()
             .enumerate()
-            .all(|(k, &id)| doc.section_at(loft, id) == Some((k + 1, ids.len())))
+            .all(|(k, &at)| at == Some((k + 1, ids.len())))
     }
 
     /// The node `id` where the sentence knows what it is: `<noun>

@@ -158,26 +158,26 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// node that is not a loft refuses
     /// [`EditError::SetLoftSectionsOnNonLoft`].
     ///
-    /// **Which sections are the old ones** is stated, as `SetProgram`'s
-    /// `ids` states its steps: `ids` gives each new section, the first
-    /// included, the [`crate::SectionId`] of the old section it KEEPS,
-    /// or `None` for a section it adds, which the door mints. A loft's
-    /// walls, seams and rings are named by their sections' ids
-    /// (`names/README.md`, N1), so a kept section's names keep their
-    /// spelling wherever it moves. A kept id must be a section of the
-    /// loft and stand for one section, and there is one entry per
-    /// section ([`EditError::SectionIdsRefused`]).
+    /// **Which sections are the old ones** is stated on each section,
+    /// as `SetProgram`'s `ids` states its steps: `first_id` and each
+    /// [`crate::LoftSection::id`] is the [`crate::SectionId`] of the old
+    /// section it KEEPS, or `None` for a section it adds, which the door
+    /// mints. A loft's walls, seams and rings are named by their
+    /// sections' ids (`names/README.md`, N1), so a kept section's names
+    /// keep their spelling wherever it moves. A kept id must be a
+    /// section of the loft and stand for one section
+    /// ([`EditError::SectionIdsRefused`]).
     SetLoftSections {
         /// The loft.
         node: RecipeNodeId,
         /// The first section's profile.
         first: crate::Operand,
+        /// The id of the old section the first section keeps, or `None`
+        /// for a new one.
+        first_id: Option<crate::SectionId>,
         /// The sections after the first, in skin order, each with its
-        /// station.
+        /// station and the id it keeps.
         then: Vec<crate::LoftSection<crate::Operand, Formula>>,
-        /// Per new section, `first` then `then`: the id of the old
-        /// section it keeps, or `None` for a new one.
-        ids: Vec<Option<crate::SectionId>>,
         /// The edit's fresh table (VR6): the variables it mints for its
         /// formulas to read as [`Formula::fresh`], entry by entry and
         /// before anything else it mints. An entry's definition may
@@ -2579,8 +2579,8 @@ pub enum EditError {
     },
     /// A loft's section ids were refused (`names/README.md`, N1): an
     /// `InsertNode` loft carrying ids of its own, or a
-    /// `SetLoftSections` whose ids are not one per section, keep a
-    /// section the loft does not hold, or keep one twice.
+    /// `SetLoftSections` keeping a section the loft does not hold, or
+    /// keeping one twice.
     SectionIdsRefused {
         /// The loft.
         node: SpokenNode,
@@ -3476,8 +3476,7 @@ fn step_ids_recourse(
 }
 
 /// [`EditError::SectionIdsRefused`]'s recourse, by the fault.
-/// `InsertNode` raises `Preminted`, `SetLoftSections` the count and
-/// keep arms; `NotMinted` is the load door's.
+/// `InsertNode` raises `Preminted`, `SetLoftSections` the keep arms.
 fn section_ids_recourse(
     f: &mut core::fmt::Formatter<'_>,
     tail: Tail,
@@ -3486,13 +3485,6 @@ fn section_ids_recourse(
     use crate::node::SectionIdFault as F;
     match fault {
         F::Preminted => tail.recourse(f, format_args!("clear the loft's section ids first")),
-        F::Count { .. } => tail.recourse(
-            f,
-            format_args!(
-                "give one entry per section of the new list, the first included, with no id for \
-                 a section it adds"
-            ),
-        ),
         F::NotThisLofts { .. } => tail.recourse(
             f,
             format_args!("keep only ids of this loft's own sections, and give a new section none"),
@@ -3501,7 +3493,6 @@ fn section_ids_recourse(
             f,
             format_args!("keep the id on one of the two sections, and give the other none"),
         ),
-        F::NotMinted { .. } => tail.ending(f, geom_core::KERNEL_DEFECT_ENDING),
     }
 }
 
@@ -5325,36 +5316,29 @@ fn body_went<P: crate::ProfilePayload>(
     before.operation_of(body) == Some(deleted)
 }
 
-/// **A `SetLoftSections`' section ids, checked** before anything is
-/// lowered: one entry per new section, `sections` in all; every kept
-/// id a section of the loft (`old`), and kept once.
+/// **A `SetLoftSections`' kept section ids, checked** before anything
+/// is lowered, by the rule every door holds minted ids to
+/// ([`crate::mint::admit_ids`]): every kept id a section of the loft
+/// (`old`), and kept once.
 fn check_section_ids(
     node: &SpokenNode,
-    old: &[crate::SectionId],
-    sections: usize,
-    ids: &[Option<crate::SectionId>],
+    old: &[Option<crate::SectionId>],
+    kept: impl IntoIterator<Item = crate::SectionId>,
 ) -> Result<(), EditError> {
+    use crate::mint::IdFault;
     use crate::node::SectionIdFault;
-    let refuse = |fault| EditError::SectionIdsRefused {
+    crate::mint::admit_ids(
+        kept,
+        |section| old.contains(&Some(section)),
+        &mut std::collections::BTreeSet::new(),
+    )
+    .map_err(|fault| EditError::SectionIdsRefused {
         node: node.clone(),
-        fault,
-    };
-    if ids.len() != sections {
-        return Err(refuse(SectionIdFault::Count {
-            sections,
-            given: ids.len(),
-        }));
-    }
-    let mut kept = std::collections::BTreeSet::new();
-    for &section in ids.iter().flatten() {
-        if !old.contains(&section) {
-            return Err(refuse(SectionIdFault::NotThisLofts { section }));
-        }
-        if !kept.insert(section) {
-            return Err(refuse(SectionIdFault::Repeated { section }));
-        }
-    }
-    Ok(())
+        fault: match fault {
+            IdFault::Unknown(section) => SectionIdFault::NotThisLofts { section },
+            IdFault::Repeated(section) => SectionIdFault::Repeated { section },
+        },
+    })
 }
 
 /// **A `SetProgram`'s step ids, checked and minted** — before the
@@ -5381,8 +5365,8 @@ fn settle_step_ids(
             given: ids.len(),
         }));
     }
-    let mut dropped: std::collections::BTreeSet<StepId> = old.iter().flatten().copied().collect();
-    let held = dropped.clone();
+    let held: std::collections::BTreeSet<StepId> = old.iter().flatten().copied().collect();
+    let mut kept = std::collections::BTreeSet::new();
     for (i, (lp, given)) in new.iter().zip(ids).enumerate() {
         if given.len() != lp.authored_steps() {
             return Err(refuse(StepIdFault::Shape {
@@ -5391,15 +5375,19 @@ fn settle_step_ids(
                 given: given.len(),
             }));
         }
-        for step in given.iter().flatten() {
-            if !held.contains(step) {
-                return Err(refuse(StepIdFault::NotThisProfiles { step: *step }));
-            }
-            if !dropped.remove(step) {
-                return Err(refuse(StepIdFault::Repeated { step: *step }));
-            }
-        }
+        crate::mint::admit_ids(
+            given.iter().flatten().copied(),
+            |step| held.contains(&step),
+            &mut kept,
+        )
+        .map_err(|fault| {
+            refuse(match fault {
+                crate::mint::IdFault::Unknown(step) => StepIdFault::NotThisProfiles { step },
+                crate::mint::IdFault::Repeated(step) => StepIdFault::Repeated { step },
+            })
+        })?;
     }
+    let dropped = held.difference(&kept).copied().collect();
     let minted = mint.set_program(node.id(), new, ids);
     Ok((minted, dropped))
 }
@@ -7551,14 +7539,14 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
                 fault,
             })?;
     }
-    if let Node::Loft { then, ids, .. } = &mut node {
-        if !ids.is_empty() {
+    if let Some(ids) = node.loft_section_ids() {
+        if ids.iter().any(Option::is_some) {
             return Err(EditError::SectionIdsRefused {
                 node: entering,
                 fault: crate::node::SectionIdFault::Preminted,
             });
         }
-        *ids = mint.sections_of_insert(then.len() + 1);
+        node.set_loft_section_ids(mint.sections_of_insert(ids.len()));
     }
     // D10: the node defines one variable per port of its signature,
     // minted after its steps. Its inputs are live (above), so every
@@ -8109,8 +8097,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
         DocEdit::SetLoftSections {
             node,
             first,
+            first_id,
             then,
-            ids,
             fresh,
         } => {
             let (v_degree, old) = match new.nodes.get(node) {
@@ -8119,26 +8107,32 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         id: SpokenNode::absent(*node),
                     });
                 }
-                Some(Node::Loft { v_degree, ids, .. }) => (*v_degree, ids.clone()),
+                Some(loft @ Node::Loft { v_degree, .. }) => {
+                    (*v_degree, loft.loft_section_ids().unwrap_or_default())
+                }
                 Some(_) => {
                     return Err(EditError::SetLoftSectionsOnNonLoft {
                         node: doc.spoken(*node),
                     });
                 }
             };
-            check_section_ids(&doc.spoken(*node), &old, then.len() + 1, ids)?;
+            check_section_ids(
+                &doc.spoken(*node),
+                &old,
+                core::iter::once(*first_id)
+                    .chain(then.iter().map(|section| section.id))
+                    .flatten(),
+            )?;
             let authored: Node<P::Authored, Formula> = Node::Loft {
                 first: first.clone(),
+                first_id: *first_id,
                 then: then.clone(),
                 v_degree: Formula::var(v_degree, SlotId::VDegree.expr_dimension()),
-                ids: Vec::new(),
             };
             let (mut rewritten, lowering) =
                 lower_authored(new, &authored, fresh, || doc.spoken(*node))?;
-            let minted = new.mint.set_loft_sections(*node, &rewritten, ids);
-            if let Node::Loft { ids, .. } = &mut rewritten {
-                *ids = minted;
-            }
+            let minted = new.mint.set_loft_sections(*node, &rewritten);
+            rewritten.set_loft_section_ids(minted);
             let record = write_reads(doc, new, reported, *node, rewritten, tol)?;
             EditRecord {
                 fresh: lowering.finish(new)?,

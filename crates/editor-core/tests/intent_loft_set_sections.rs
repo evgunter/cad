@@ -78,6 +78,7 @@ fn assert_loft(got: ([f64; 2], f64), want: &[(f64, f64)], what: &str) {
 /// A section of `profile` slid up the first section's `z` by `z`.
 fn up(profile: RecipeNodeId, z: f64) -> LoftSection<Operand, Formula> {
     LoftSection {
+        id: None,
         profile: profile.into(),
         station: vec![StationMove::Slide {
             along: Axis3::Z,
@@ -100,7 +101,7 @@ fn two_section_loft() -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeId) {
             first: a.into(),
             then: vec![up(b, 1.0)],
             v_degree: Formula::count(1),
-            ids: Vec::new(),
+            first_id: None,
         },
     );
     (doc, [a, b, c], loft)
@@ -117,12 +118,21 @@ fn set(
     kept: &[Option<usize>],
 ) -> Result<ProfileDoc, EditError> {
     let old = fixture::section_ids(doc, node);
+    let id = |k: &Option<usize>| k.map(|k| old[k]);
+    assert_eq!(kept.len(), then.len() + 1, "one entry per section");
     doc.apply(
         &DocEdit::SetLoftSections {
             node,
             first: first.into(),
-            then,
-            ids: kept.iter().map(|k| k.map(|k| old[k])).collect(),
+            first_id: id(&kept[0]),
+            then: then
+                .into_iter()
+                .zip(&kept[1..])
+                .map(|(section, k)| LoftSection {
+                    id: id(k),
+                    ..section
+                })
+                .collect(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -220,8 +230,8 @@ fn set_loft_sections_refuses_a_non_loft() {
             &DocEdit::SetLoftSections {
                 node: b,
                 first: a.into(),
+                first_id: None,
                 then: vec![up(b, 1.0)],
-                ids: vec![None, None],
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -262,6 +272,7 @@ fn set_loft_sections_refuses_a_non_profile_section() {
 fn set_loft_sections_refuses_a_station_of_the_wrong_dimension() {
     let (doc, [a, b, _], loft) = two_section_loft();
     let spun_by_a_length = LoftSection {
+        id: None,
         profile: b.into(),
         station: vec![
             StationMove::Slide {
@@ -305,7 +316,7 @@ fn lofted(
         first: a.into(),
         then,
         v_degree: Formula::count(degree),
-        ids: Vec::new(),
+        first_id: None,
     }
 }
 
@@ -328,10 +339,12 @@ fn assert_shape(err: &EditError, fault: &LoftFault, what: &str) {
 fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
     let (doc, [a, b, c], loft) = two_section_loft();
     let empty = || LoftSection {
+        id: None,
         profile: b.into(),
         station: Vec::new(),
     };
     let in_plane = |station| LoftSection {
+        id: None,
         profile: b.into(),
         station,
     };
@@ -517,6 +530,7 @@ fn a_station_rounded_next_to_the_first_plane_is_refused_by_the_skin() {
         lofted(
             a,
             vec![LoftSection {
+                id: None,
                 profile: b.into(),
                 station: vec![half_turn(), half_turn()],
             }],
@@ -600,12 +614,8 @@ fn a_saved_loft_of_one_section_or_an_empty_station_refuses_at_load() {
             .map(|step| step["by"].clone())
             .collect();
         if section_too {
-            then.clear();
             // Its id goes with it, so the file breaks in the shape.
-            snapshot["nodes"][&key]["Loft"]["ids"]
-                .as_array_mut()
-                .expect("a loft's section ids")
-                .truncate(1);
+            then.clear();
         } else {
             then[0]["station"] = serde_json::json!([]);
         }

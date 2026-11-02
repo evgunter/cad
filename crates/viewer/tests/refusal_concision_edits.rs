@@ -764,19 +764,13 @@ fn next_step_id_fault(fault: &StepIdFault) -> Option<StepIdFault> {
 fn next_section_id_fault(fault: &SectionIdFault) -> Option<SectionIdFault> {
     use editor_core::SectionId;
     match fault {
-        SectionIdFault::Preminted => Some(SectionIdFault::Count {
-            sections: 3,
-            given: 2,
-        }),
-        SectionIdFault::Count { .. } => Some(SectionIdFault::NotThisLofts {
+        SectionIdFault::Preminted => Some(SectionIdFault::NotThisLofts {
             section: SectionId::new(0, tagged(7)),
         }),
         SectionIdFault::NotThisLofts { .. } => Some(SectionIdFault::Repeated {
             section: SectionId::new(0, tagged(7)),
         }),
         SectionIdFault::Repeated { .. } => None,
-        // No row: no edit door raises it. It is the load door's word.
-        SectionIdFault::NotMinted { .. } => None,
     }
 }
 

@@ -449,8 +449,7 @@ fn carry<E>(
             continue;
         };
         let later = &olds[k..];
-        let forward = |missing: &RemapError| {
-            match *missing {
+        let forward = |missing: &RemapError| match *missing {
             RemapError::Unmapped(Unmapped::Node(n)) => later.contains(&n),
             RemapError::Unmapped(Unmapped::Read(var)) => {
                 source.operation_of(var).is_some_and(|n| later.contains(&n))
@@ -460,9 +459,11 @@ fn carry<E>(
                     if p.ids.iter().flatten().any(|s| *s == step))
             }),
             RemapError::Unmapped(Unmapped::Section(section)) => later.iter().any(|n| {
-                matches!(source.node(*n), Some(Node::Loft { ids, .. }) if ids.contains(&section))
+                source
+                    .node(*n)
+                    .and_then(Node::loft_section_ids)
+                    .is_some_and(|ids| ids.contains(&Some(section)))
             }),
-        }
         };
         let refuse = |error: RemapMiss| match error {
             RemapMiss::Name { name, missing } if forward(&missing) => {
@@ -576,20 +577,16 @@ fn carry<E>(
                     .zip(images.into_iter().flatten()),
             );
         }
-        // A loft's sections map to the ids the door minted for them, in
-        // section order.
-        if let (Node::Loft { ids: from, .. }, Some(Node::Loft { ids: to, .. })) =
-            (node, target.doc().node(new))
-        {
-            if from.len() != to.len() {
-                unreachable!(
-                    "the insert door mints one id per section, so a carried loft's section ids \
-                     have its source's count: carried {}, source {}",
-                    to.len(),
-                    from.len()
-                );
-            }
-            section_map.extend(from.iter().copied().zip(to.iter().copied()));
+        // A loft's sections map to the ids the door minted for them,
+        // section by section: the carry writes each section in place.
+        if let (Some(from), Some(to)) = (
+            node.loft_section_ids(),
+            target.doc().node(new).and_then(Node::loft_section_ids),
+        ) {
+            section_map.extend(from.into_iter().zip(to).filter_map(|pair| match pair {
+                (Some(from), Some(to)) => Some((from, to)),
+                _ => None,
+            }));
         }
         // A family's placement takes its bundle at once where every read
         // in it is carried, since its values are what make its copy a
@@ -2228,19 +2225,24 @@ fn remap_node(
         // The section ids are the insert door's to mint afresh.
         Node::Loft {
             first,
+            first_id: _,
             then,
             v_degree,
-            ids: _,
         } => Node::Loft {
             first: rd(crate::OperandSlot::Section(0), *first)?,
+            first_id: None,
             then: (1..)
                 .zip(then)
                 .map(|(i, section)| {
-                    section.try_map(|&p| rd(crate::OperandSlot::Section(i), p), &mut |&v| Ok(v))
+                    section
+                        .try_map(|&p| rd(crate::OperandSlot::Section(i), p), &mut |&v| Ok(v))
+                        .map(|carried| crate::LoftSection {
+                            id: None,
+                            ..carried
+                        })
                 })
                 .collect::<Result<_, _>>()?,
             v_degree: *v_degree,
-            ids: Vec::new(),
         },
         Node::Sweep {
             profile,
@@ -4142,8 +4144,8 @@ pub fn inline(
                     host_steps.entry(step).or_insert(step);
                 }
             }
-            Some(Node::Loft { ids, .. }) => {
-                for &section in ids {
+            Some(loft @ Node::Loft { .. }) => {
+                for section in loft.loft_section_ids().into_iter().flatten().flatten() {
                     host_sections.entry(section).or_insert(section);
                 }
             }
@@ -5525,5 +5527,73 @@ mod remap_error_reads {
             }
         }
         assert!(found.is_empty(), "{}", found.join("\n"));
+    }
+}
+
+/// **A loft section id crosses on the section map, and one the source
+/// never minted crosses as it is only through a parted carry**
+/// ([`remap_name_keeping`]): a part's own copy of an instance carries
+/// that instance's part's names, spelled in ids the part never minted,
+/// and they cross verbatim; anywhere else such an id misses, typed.
+/// Broken by a carry that drops the section arm (a part's loft wall,
+/// read through an instance, would refuse a split as a dropped section)
+/// or by one that keeps an id the source did mint.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod remap_keeps_a_parts_section {
+    use super::{NodeMap, ReadMap, RemapError, SectionMap, StepMap, Unmapped, remap_name_keeping};
+    use crate::EntityKind;
+    use crate::names::{PieceRole, ProfileEdgeRef, RoleSeg, SectionCircle, StableName};
+    use crate::node::{RecipeNodeId, SectionId};
+
+    fn wall(node: RecipeNodeId, sections: [SectionId; 2]) -> StableName {
+        let edge = ProfileEdgeRef::Section {
+            circle: SectionCircle::Outer,
+            role: PieceRole::Piece(0),
+        };
+        StableName {
+            kind: EntityKind::Face,
+            node,
+            path: vec![RoleSeg::LoftWall(
+                sections.into_iter().map(|s| (s, edge)).collect(),
+            )],
+        }
+    }
+
+    #[test]
+    fn a_section_the_source_never_minted_crosses_as_it_is_only_when_parted() {
+        let source = crate::ProfileDoc::empty(
+            crate::DocumentId::derive("remap-keeps-a-parts-section"),
+            geom_core::Tol::witness(),
+        );
+        let (from, to) = (RecipeNodeId::new(1, 2), RecipeNodeId::new(1, 3));
+        let nodes: NodeMap = [(from, to)].into_iter().collect();
+        let (a, b, c) = (
+            SectionId::new(4, 40),
+            SectionId::new(5, 50),
+            SectionId::new(6, 60),
+        );
+        let sections: SectionMap = [(a, c)].into_iter().collect();
+        let name = wall(from, [a, b]);
+        let keep = |parted| {
+            remap_name_keeping(
+                &name,
+                &nodes,
+                &StepMap::new(),
+                &sections,
+                &ReadMap::new(),
+                (&source, parted),
+            )
+        };
+        assert_eq!(
+            keep(true).expect("a part's own section crosses"),
+            wall(to, [c, b]),
+            "the mapped id moves, the never-minted one is kept"
+        );
+        assert_eq!(
+            keep(false),
+            Err(RemapError::Unmapped(Unmapped::Section(b))),
+            "outside a parted carry an unmapped section misses on it"
+        );
     }
 }

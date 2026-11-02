@@ -3402,10 +3402,8 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
 pub fn section_id_fault_tag(fault: &SectionIdFault) -> &'static str {
     match fault {
         SectionIdFault::Preminted => "preminted",
-        SectionIdFault::Count { .. } => "count",
         SectionIdFault::NotThisLofts { .. } => "not_this_lofts",
         SectionIdFault::Repeated { .. } => "repeated",
-        SectionIdFault::NotMinted { .. } => "not_minted",
     }
 }
 
