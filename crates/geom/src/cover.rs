@@ -343,7 +343,9 @@ fn finite_vec<T: Real>(v: Vec3<T>) -> bool {
 
 /// `√λ_max` of the Gram matrix of `x` and `y`: the longest
 /// `|cos t·x + sin t·y|`, `(A + B)/2 + √(((A − B)/2)² + C²)` under the
-/// root, which is `1` for an orthonormal pair.
+/// root, which is `1` for an orthonormal pair. `A` and `B` are squared
+/// norms, which an enclosure keeps non-negative where a self-dot product
+/// would not (`x·x` of an enclosure about zero reaches below it).
 fn gram_top<T: Real>(xx: T, yy: T, xy: T) -> T {
     let half = T::from_f64(0.5);
     ((xx + yy) * half + (((xx - yy) * half).powi(2) + xy.powi(2)).sqrt()).sqrt()
@@ -355,7 +357,7 @@ fn vec_of<T: Real>(p: Point3<T>) -> Vec3<T> {
 
 /// `v`'s part off the line direction `d`.
 fn off_line<T: Real>(v: Vec3<T>, d: Vec3<T>) -> Vec3<T> {
-    v - d * (v.dot(d) / d.dot(d))
+    v - d * (v.dot(d) / d.norm_squared())
 }
 
 /// The box whose row `i` spans `±` the support along row `i`.
@@ -708,9 +710,9 @@ impl<T: Real> Tube<T> {
     /// non-decreasing.
     fn reaches(&self) -> (T, T) {
         let (u, v, a) = (self.u_ref, self.v_ref, self.axis);
-        let rho = gram_top(u.dot(u), v.dot(v), u.dot(v));
+        let rho = gram_top(u.norm_squared(), v.norm_squared(), u.dot(v));
         let tilt = (u.dot(a).powi(2) + v.dot(a).powi(2)).sqrt();
-        (rho, gram_top(rho.powi(2), a.dot(a), tilt))
+        (rho, gram_top(rho.powi(2), a.norm_squared(), tilt))
     }
 
     fn ball(&self) -> Ball<T> {
@@ -841,7 +843,7 @@ impl<T: Real> Arc<T> {
         let q = site.direction(self.v_ref * self.semi_v);
         let two = T::from_f64(2.0);
         let half = T::from_f64(0.5);
-        let k = w.dot(w) + (p.dot(p) + q.dot(q)) * half;
+        let k = w.norm_squared() + (p.norm_squared() + q.norm_squared()) * half;
         let one = ArcWindow::new(self.window.lo, self.window.hi).extent(
             T::zero(),
             two * w.dot(p),
@@ -849,7 +851,7 @@ impl<T: Real> Arc<T> {
         );
         let two_t = ArcWindow::new(two * self.window.lo, two * self.window.hi).extent(
             T::zero(),
-            (p.dot(p) - q.dot(q)) * half,
+            (p.norm_squared() - q.norm_squared()) * half,
             p.dot(q),
         );
         let far = (k + one.1 + two_t.1).max(T::zero()).sqrt();
@@ -873,7 +875,7 @@ impl<T: Real> Arc<T> {
         let rho = (self.semi_u * u_len + self.semi_v * self.v_ref.dot(v_hat)) * half;
         let dp = self.u_ref * self.semi_u - u_hat * rho;
         let dq = self.v_ref * self.semi_v - v_hat * rho;
-        let dev = gram_top(dp.dot(dp), dq.dot(dq), dp.dot(dq));
+        let dev = gram_top(dp.norm_squared(), dq.norm_squared(), dp.dot(dq));
         let w = at - self.center;
         Circle {
             u_hat,
@@ -954,7 +956,7 @@ impl<T: Real> Arc<T> {
 
     fn ball(&self, world: (Point3<T>, Point3<T>)) -> Ball<T> {
         let (p, q) = (self.u_ref * self.semi_u, self.v_ref * self.semi_v);
-        let r = gram_top(p.dot(p), q.dot(q), p.dot(q));
+        let r = gram_top(p.norm_squared(), q.norm_squared(), p.dot(q));
         let whole = (self.center, r);
         smaller(whole, box_ball(world))
     }
@@ -1052,7 +1054,7 @@ fn points_range<T: Real>(points: &[Point3<T>], site: &Site<T>) -> (T, T) {
 fn segment_range<T: Real>(a: Point3<T>, b: Point3<T>, site: &Site<T>) -> (T, T) {
     let (a_rel, b_rel) = (site.relative(vec_of(a)), site.relative(vec_of(b)));
     let d = b_rel - a_rel;
-    let den = d.dot(d);
+    let den = d.norm_squared();
     let s = den.select_le_zero(
         T::zero(),
         (T::zero() - a_rel.dot(d) / den)

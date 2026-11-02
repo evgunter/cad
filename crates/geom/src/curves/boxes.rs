@@ -106,13 +106,19 @@ impl<T: Real> ArcWindow<T> {
     }
 
     /// **Whether the crest of `p·cos t + q·sin t` lies in the span**, as
-    /// a reading at most zero iff it does: `π − h` where the span covers
-    /// a full turn, else `A·cos h − (p·cos m + q·sin m)`. The trough is
-    /// the crest of `(−p, −q)`. Read it with [`Real::select_le_zero`]:
-    /// an enclosure that cannot tell takes both arms.
+    /// a reading at most zero iff it does: the lesser of `π − h`, at most
+    /// zero where the span covers a full turn, and
+    /// `A·cos h − (p·cos m + q·sin m)`, at most zero where a span short of
+    /// a turn holds the crest. Short of a turn the first is positive, so
+    /// the second decides. The lesser asks no question of the scalar, so
+    /// a closed span, whose `π − h` an enclosure straddles, still reads
+    /// its crest as held wherever the crest stands clear of its seam. The
+    /// trough is the crest of `(−p, −q)`. Read it with
+    /// [`Real::select_le_zero`]: an enclosure that cannot tell takes both
+    /// arms.
     pub fn crest_outside(&self, p: T, q: T) -> T {
         let tilt = (p.powi(2) + q.powi(2)).sqrt() * self.cos_h - (p * self.cos_m + q * self.sin_m);
-        self.turn_left.select_le_zero(self.turn_left, tilt)
+        self.turn_left.min(tilt)
     }
 
     /// The `(lo, hi)` of `c + p·cos t + q·sin t` over the span.
