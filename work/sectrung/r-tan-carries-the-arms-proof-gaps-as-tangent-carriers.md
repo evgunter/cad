@@ -35,7 +35,7 @@ own reading rather than distances between the carriers:
 |---|---|---|
 | `square_folds` | `section_torus_square_wall_fold_drift` | a numerical drift bound on the fold's station |
 | `across_strip` | `SQUARE_WALK` (`_ => Err(Section::Tangent(SQUARE_WALK))`) | an unexpected pattern of crossings in the walk |
-| `cylinder_cylinder` | `section_cylinder_axes_tilt` | the axes' tilt undecided, a pose not a contact |
+| `CylinderCylinderPose::decide` (`pair_section::cylinders`, read through `of_pair_section` since PR 6151) | `cc_axes_parallel` | the axes' tilt undecided, a pose not a contact |
 | `cone_cylinder` | `section_cone_cylinder_aperture` | a generator parallel to the cylinder axis, a pose |
 | `cone_plane` | `section_cone_plane_aperture`, `_facing`, `_meridian` | pose readings of the plane against the cone |
 | `cone_sphere` | `section_cone_sphere_axis` | a pose reading |
