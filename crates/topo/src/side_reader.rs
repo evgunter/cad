@@ -410,7 +410,9 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
 ///
 /// # Errors
 ///
-/// A face that does not resolve.
+/// [`PointInSolidError::CorruptFace`] for a face that does not resolve,
+/// and for one whose carrier's region cannot be bounded (a poisoned net,
+/// data that is not a finite number), which no start is shown beyond.
 fn beyond<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -421,8 +423,18 @@ fn beyond<T: Decide>(
         let surface = body
             .face_surface(face)
             .ok_or(PointInSolidError::CorruptFace { face })?;
-        if let Ok(cover) = surface.cover() {
-            reach = reach.max(cover.distance_range(&geom::cover::Site::Point(aim)).1);
+        match surface.cover() {
+            Ok(cover) => {
+                reach = reach.max(cover.distance_range(&geom::cover::Site::Point(aim)).1);
+            }
+            // An unbounded carrier's face is held by its loops' reach.
+            Err(e)
+                if e.unknowns()
+                    .iter()
+                    .all(|&(_, what)| what == geom::cover::Unknown::Unbounded) => {}
+            // A carrier whose region cannot be bounded leaves no start
+            // beyond its face: refuse rather than aim from inside it.
+            Err(_) => return Err(PointInSolidError::CorruptFace { face }),
         }
     }
     Ok(reach)

@@ -295,15 +295,14 @@ impl<T: Real> Ring<T> {
     }
 
     /// The ball holding the torus, and so every section of it: its
-    /// tube's ([`Cover::tube`]).
+    /// tube's ([`Cover::tube`]). A torus with data that is not a finite
+    /// number has no tube, and its ball is poison, which no reading
+    /// levered at it decides on.
     pub fn ball(self) -> ExtentBall<T> {
-        ExtentBall::of_cover(&Cover::tube(
-            self.center,
-            self.axis,
-            self.u_ref,
-            self.big_r,
-            self.r,
-        ))
+        Cover::tube(self.center, self.axis, self.u_ref, self.big_r, self.r).map_or_else(
+            || ExtentBall::new(self.center, (T::zero() - T::one()).sqrt()),
+            |tube| ExtentBall::of_cover(&tube),
+        )
     }
 
     /// The size of the torus's coordinates: its centre's distance from

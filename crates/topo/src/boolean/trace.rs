@@ -427,13 +427,14 @@ pub fn carrier_extent<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, T)> {
     }
 }
 
-/// **Whether the plane through `point` with unit `normal` misses
-/// `surface`**: its trace is empty. A plane misses a parallel plane off
-/// it, a sphere or a torus it passes beyond (past the carrier's support
-/// along the normal on the plane's side, [`Surface::cover`], which is
-/// exact for both, so a plane inside it meets the connected carrier),
-/// and a cylinder whose axis it is parallel to and passes beyond; it
-/// meets every cone, whose locus is double, and every cylinder it tilts
+/// **Whether the plane through `point` with unit `normal` is shown to
+/// miss `surface`**: `true` grants that its trace is empty, and `false`
+/// grants nothing (the crossings a caller computes next decide for
+/// themselves). The plane is shown to miss a parallel plane off it, a
+/// sphere or a torus it passes beyond (past the support of the carrier's
+/// cover along the normal on the plane's side, [`Surface::cover`]), and a
+/// cylinder whose axis it is parallel to and passes beyond. It is never
+/// shown to miss a cone, whose locus is double, or a cylinder it tilts
 /// across.
 ///
 /// # Errors

@@ -4,51 +4,52 @@
 //! and the only kind matches a cover has: a kind added to either enum
 //! does not compile until its arm says what region it occupies.
 //!
-//! Sign handling is here, once: a radius enters a piece as its
-//! magnitude, so a carrier carrying `−r` occupies the region `r` does.
+//! A carrier's data enters a piece as given: each piece reads its own
+//! radii's signs, once, and holds any frame its carrier hands it. Data
+//! that is not a finite number names no bounded region, and refuses
+//! [`Unknown::NonFinite`].
 
 use geom_core::{Point3, Real};
 
-use super::{Cover, Covered, Entity, Node, ParamWindow, Piece, Uncovered, Unknown};
+use super::{Cover, Covered, Entity, ParamWindow, Uncovered, Unknown};
 use crate::{Curve3, Line, Surface};
 
 impl<T: Real> Surface<T> {
-    /// **The region the whole carrier occupies**: a sphere's ball, a
-    /// torus's tube (its support along a unit `e` is `c·e + R·|e⊥| + r`
-    /// exactly), a spline's control net (the fit's, for an approximating
-    /// surface).
+    /// **The region the whole carrier occupies**: a sphere's or a torus's
+    /// tube (the sphere's with no spine; along a unit `e` in a unit
+    /// orthogonal frame the support is `c·e + R·|e⊥| + r`), a spline's
+    /// control net (the fit's, for an approximating surface).
     ///
     /// # Errors
     ///
     /// [`Uncovered`] naming the kind: [`Unknown::Unbounded`] for a plane,
-    /// a cylinder or a cone, and [`Unknown::PoisonedNet`] for a net
-    /// carrying poison anywhere (the placeholder among them).
+    /// a cylinder or a cone, [`Unknown::PoisonedNet`] for a net carrying
+    /// poison anywhere (the placeholder among them), and
+    /// [`Unknown::NonFinite`] for data that is not a finite number.
     pub fn cover(&self) -> Covered<T> {
-        let refuse = |what| Err(Uncovered::new(Entity::Surface(self.kind()), what));
+        let entity = Entity::Surface(self.kind());
+        let refuse = |what| Uncovered::new(entity, what);
         match self {
             Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => {
-                refuse(Unknown::Unbounded)
+                Err(refuse(Unknown::Unbounded))
             }
-            Surface::Sphere { center, radius, .. } => Ok(Cover::whole_ball(*center, *radius)),
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => Cover::tube(*center, *axis, *u_ref, T::zero(), *radius)
+                .ok_or_else(|| refuse(Unknown::NonFinite)),
             Surface::Torus {
                 center,
                 axis,
                 major_radius,
                 minor_radius,
                 u_ref,
-            } => Ok(Cover::tube(
-                *center,
-                *axis,
-                *u_ref,
-                *major_radius,
-                *minor_radius,
-            )),
-            Surface::Nurbs(patch) => {
-                net(patch.control()).map_or_else(|| refuse(Unknown::PoisonedNet), Ok)
-            }
-            Surface::Approx(approx) => {
-                net(approx.fit().control()).map_or_else(|| refuse(Unknown::PoisonedNet), Ok)
-            }
+            } => Cover::tube(*center, *axis, *u_ref, *major_radius, *minor_radius)
+                .ok_or_else(|| refuse(Unknown::NonFinite)),
+            Surface::Nurbs(patch) => net(entity, patch.control()),
+            Surface::Approx(approx) => net(entity, approx.fit().control()),
         }
     }
 }
@@ -57,43 +58,48 @@ impl<T: Real> Curve3<T> {
     /// **The region the curve occupies over `window`**: a line's segment
     /// between its points at the two ends, a circle's or an ellipse's arc
     /// over the span, a spiric's tube met with its period's rectangle
-    /// (the oval lies in its plane at `f ∈ [f_min, f_max]` along
-    /// `axis × u_ref` and within `±r` along the axis), a spline's control
-    /// net.
+    /// (the construction [`crate::spiric_period_box`] reads), a spline's
+    /// control net.
     ///
     /// # Errors
     ///
-    /// [`Uncovered`] with [`Unknown::PoisonedNet`] for a spline whose net
-    /// carries poison anywhere.
+    /// [`Uncovered`] naming the kind: [`Unknown::PoisonedNet`] for a
+    /// spline whose net carries poison anywhere, and
+    /// [`Unknown::NonFinite`] for data, a window end or a computed point
+    /// that is not a finite number (a spiric off its regime among them).
     pub fn cover_over(&self, window: ParamWindow<T>) -> Covered<T> {
+        let entity = Entity::Curve(self.kind());
+        let non_finite = || Uncovered::new(entity, Unknown::NonFinite);
         match self {
-            Curve3::Line(Line { origin, dir }) => Ok(Cover::segment(
-                *origin + *dir * window.lo,
-                *origin + *dir * window.hi,
-            )),
+            Curve3::Line(Line { origin, dir }) => {
+                Cover::segment(*origin + *dir * window.lo, *origin + *dir * window.hi)
+                    .ok_or_else(non_finite)
+            }
             Curve3::Circle {
                 center,
                 axis,
                 radius,
                 u_ref,
-            } => Ok(Cover::arc(
+            } => Cover::arc(
                 *center,
                 (*u_ref, axis.cross(*u_ref)),
                 (*radius, *radius),
                 window,
-            )),
+            )
+            .ok_or_else(non_finite),
             Curve3::Ellipse {
                 center,
                 axis,
                 semi_u,
                 semi_v,
                 u_ref,
-            } => Ok(Cover::arc(
+            } => Cover::arc(
                 *center,
                 (*u_ref, axis.cross(*u_ref)),
                 (*semi_u, *semi_v),
                 window,
-            )),
+            )
+            .ok_or_else(non_finite),
             Curve3::Spiric {
                 center,
                 axis,
@@ -102,42 +108,31 @@ impl<T: Real> Curve3<T> {
                 minor_radius,
                 offset,
             } => {
-                let (f_lo, f_hi) =
-                    crate::curves::spiric_f_enclosed(*major_radius, *minor_radius, *offset);
-                let m = axis.cross(*u_ref);
-                let base = *center + *u_ref * *offset;
-                let tip = *axis * minor_radius.abs();
-                let corners = vec![
-                    base + m * f_lo + tip,
-                    base + m * f_lo - tip,
-                    base + m * f_hi + tip,
-                    base + m * f_hi - tip,
-                ];
-                let scale = (*center - Point3::origin()).norm()
-                    + u_ref.norm() * offset.abs()
-                    + m.norm() * f_hi
-                    + axis.norm() * minor_radius.abs();
-                let rectangle = Cover(Node::Piece(Piece::Net {
-                    points: corners,
-                    slack: super::curved_charge(scale),
-                }));
-                Ok(
-                    Cover::tube(*center, *axis, *u_ref, *major_radius, *minor_radius)
-                        .meet(rectangle),
-                )
+                let tube = Cover::tube(*center, *axis, *u_ref, *major_radius, *minor_radius);
+                let rectangle = crate::curves::spiric_rectangle(
+                    *center,
+                    *axis,
+                    *u_ref,
+                    *minor_radius,
+                    *offset,
+                    crate::spiric_f_range(*major_radius, *minor_radius, *offset),
+                    T::zero(),
+                );
+                tube.zip(rectangle)
+                    .map(|(tube, rectangle)| tube.meet(rectangle))
+                    .ok_or_else(non_finite)
             }
-            Curve3::Nurbs(spline) => net(spline.control())
-                .ok_or_else(|| Uncovered::new(Entity::Curve(self.kind()), Unknown::PoisonedNet)),
+            Curve3::Nurbs(spline) => net(entity, spline.control()),
         }
     }
 }
 
 /// A control net's hull, where it bounds a region: no point carries
 /// poison in any channel (`net::any_poison`, the question a box asks),
-/// and there is a point.
-fn net<T: Real>(control: &[Point3<T>]) -> Option<Cover<T>> {
-    if crate::net::any_poison(control) {
-        return None;
+/// there is a point, and every coordinate is finite.
+fn net<T: Real>(entity: Entity, control: &[Point3<T>]) -> Covered<T> {
+    if control.is_empty() || crate::net::any_poison(control) {
+        return Err(Uncovered::new(entity, Unknown::PoisonedNet));
     }
-    Cover::net(control.to_vec())
+    Cover::net(control.to_vec()).ok_or_else(|| Uncovered::new(entity, Unknown::NonFinite))
 }
