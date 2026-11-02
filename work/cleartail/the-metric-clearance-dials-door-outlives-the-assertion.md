@@ -44,3 +44,42 @@ evaluation asks it, and the sweep suites
 `clearance_reads_an_iso_bounded_wall.rs`) and two editor-core probe rows
 read it as an independent bracket beside the sweep. It leaves when they
 stop.
+
+## Update (2026-11-02, PR 6292's fix pass)
+
+The door is fenced but not gone. It is renamed
+(`clearance_at_dials`, `clearance_over_at_dials`), its module header
+says it is the engine's, and it has one constructor,
+`ClearanceQuery::at_dials(bound, tol)`.
+
+**Two drivers of one sweep** (the style review's S-m2). The assertion
+(`eval/wire.rs`, `wire_clearance`) and this door (`clearance.rs`,
+`Replayed::at`) each resolve seats, read bodies into a frame, build
+windows, run `Sweep` and verify pairs, and agree only because they
+are kept in step by hand. The correctness review measured where they
+differ:
+
+- the node log (`unlogged("F30")` is the wire's alone);
+- the `RecordedContact` check (the door's, for the strict question
+  only);
+- the budgets (the door's dials against the wire's defaults);
+- `Pruning::Facets` (the door's alone);
+- the witness rebuild (once per candidate here, once up front there).
+
+`ClearanceRefusal::of_bound` is now the one bound check both call.
+The rest is this row's: one driver with the dials as its parameters,
+or the door gone.
+
+**A class of rows this row omitted** (S-m12). Besides the M10-5
+engine rows at budgets and oracles, some rows read the `Selection`
+door's own refusals: a profile node, a node that does not exist, an
+edge, an empty or multi-face scope, two spaces, a body index the
+node lacks, a standing that did not build. They live in
+`clearance_refusals_say_what_they_found.rs`, `m10_5_*`,
+`p2_gauge_poses_and_doors.rs` and `node_standing.rs`, and ask through
+`fixture::dials_clearance`. An assertion refuses each at insert,
+with its own document refusal (`SlotVarKind`, `SpaceMismatch`,
+`UnresolvedInput`), or as a node error at evaluation. So when the
+door goes, these rows move to those refusals, with
+`SelectionRefusal`'s words carried over where the document's are
+thinner. They do not move to the sweep.

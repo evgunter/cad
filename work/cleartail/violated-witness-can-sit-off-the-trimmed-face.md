@@ -82,3 +82,17 @@ material the faces lack:
 `r2_m10_6_probes_interval::a_clearance_between_two_separated_bodies_reads_their_gap`.
 The membership question at a station the point door places `OnEdge`
 within the band is the row's remaining edge.
+
+## Update (2026-11-02, the DOORS correctness review of PR 6292, m2)
+
+Measured at a non-default `K`: on m10_5's facing blocks over the ε/64
+box, with `CAD_AMBIGUITY_K=1.01`, `≥ 0.4 + 0.998ε` returns `Violated`
+with a pair whose stations sit off the faces by about the box's width
+(the pair reads `0.39999999996874935 = 0.4 − 2·half`). At the pair's
+own `param` (the box's midpoint) the faces are exactly 0.4 apart and
+read `Zero` against the bound, so the pair is not a violating pair at
+its own point, though the verdict is true elsewhere in the box (its
+low end). At the default `K = 10` the band absorbs it. It is the
+`OnEdge`-within-the-band edge above, reached through the station
+lattice: a station the point door places `OnEdge` at the lane's
+enclosure can, at one realization, lie a box-width past the edge.
