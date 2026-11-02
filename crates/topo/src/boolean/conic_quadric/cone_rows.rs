@@ -282,37 +282,47 @@ fn a_narrow_cones_near_coaxial_circle_is_not_on_it() {
     );
 }
 
-/// **At the apex the door refuses.** A circle through the apex in a
-/// meridian plane, and a circle crossing a nappe a few zero bands from
-/// the apex, at each of the three ε rows: neither a root nor a miss is
-/// answered, and the refusal is refused `Unsettled` — the subdivision cannot read
-/// a definite side beside the apex, or the slack meter refuses the root
-/// it isolates there, before the apex rung reads it, or the
-/// subdivision reads that side in the band's gap and the door
-/// escalates
-/// ([`off_the_apex`]'s docs; the rung's own row is below).
+/// **Through the apex the door reads the carrier whole; beside it, it
+/// refuses.** A circle through the apex in a meridian plane, at each of
+/// the three ε rows, certifies the apex's double root and the circle's
+/// other crossings (`through_the_apex`). A circle crossing a nappe a few
+/// zero bands from the apex answers neither a root nor a miss: the
+/// subdivision cannot read a definite side beside the apex, or the slack
+/// meter refuses the root it isolates there, before the apex rung reads
+/// it, or the subdivision reads that side in the band's gap and the door
+/// escalates ([`off_the_apex`]'s docs; the rung's own row is below).
 #[test]
-fn a_root_at_the_apex_refuses() {
+fn a_root_at_the_apex_is_the_carrier_through_it_and_beside_it_refuses() {
     let s = cone([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.6);
     for eps in [1e-6, 1e-9, 1e-12] {
         let band = Band::new(eps, 10.0 * eps).unwrap();
         let through = circle([0.5, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
-        let near = circle([0.5, 0.0, 3.0 * eps], [0.0, 1.0, 0.0], 0.5);
-        for (label, e) in [("through the apex", through), ("beside the apex", near)] {
-            let got = conic_quadric_roots(&e, 0.0, TAU, &s, band);
-            // A side beside the apex the subdivision reads in the band's
-            // gap is a touch, escalated on the door's decision.
-            assert!(
-                match &got {
-                    Ok(Err(_)) => true,
-                    Err(BooleanError::Escalated { diag, .. }) => {
-                        diag.predicate == Some("bool_conic_quadric_sub_side")
-                    }
-                    Ok(Ok(_)) | Err(_) => false,
-                },
-                "ε {eps}, {label}: refused, got {got:?}"
-            );
-        }
+        let got = conic_quadric_roots(&through, 0.0, TAU, &s, band);
+        let Ok(Ok(CircleRoots::Certified(found))) = &got else {
+            panic!("ε {eps}, through the apex: got {got:?}");
+        };
+        let at_apex = |t: f64| {
+            let p = through.eval(t);
+            (p.x.powi(2) + p.y.powi(2) + p.z.powi(2)).sqrt() <= eps
+        };
+        let apex_roots = found.roots().iter().filter(|&&t| at_apex(t)).count();
+        assert_eq!(apex_roots, 2, "ε {eps}, through the apex: {found:?}");
+        // Its centre moved out along `x`, so the circle passes `3ε` from
+        // the apex (along the axis it would pass `9ε²` from it: through).
+        let near = circle([0.5 + 3.0 * eps, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
+        let got = conic_quadric_roots(&near, 0.0, TAU, &s, band);
+        // A side beside the apex the subdivision reads in the band's
+        // gap is a touch, escalated on the door's decision.
+        assert!(
+            match &got {
+                Ok(Err(_)) => true,
+                Err(BooleanError::Escalated { diag, .. }) => {
+                    diag.predicate == Some("bool_conic_quadric_sub_side")
+                }
+                Ok(Ok(_)) | Err(_) => false,
+            },
+            "ε {eps}, beside the apex: refused, got {got:?}"
+        );
     }
 }
 
@@ -511,17 +521,27 @@ fn certified_answers_hold_against_the_quadric_form() {
                 Ok(CircleRoots::Certified(found)) => {
                     let (count, thetas) = (found.count(), found.roots());
                     certified += 1;
+                    // A root at the apex is the carrier through it, read
+                    // whole (`through_the_apex`): within the band of the
+                    // apex, its double root standing for the crossings
+                    // beside it. Every other root is the oracle's.
+                    let mut off_apex = Vec::new();
                     for &t in &thetas[..count] {
                         let p = e.eval(t);
                         let off = distance(&s, p);
                         assert!(off <= eps, "{label}: root {t} lies {off} off the cone");
-                        let from_apex = (p - tip).norm();
-                        assert!(
-                            from_apex > eps,
-                            "{label}: root {t} lies {from_apex} from the apex"
-                        );
+                        if (p - tip).norm() > eps {
+                            off_apex.push(t);
+                        }
                     }
-                    assert_placed(&label, &e, &s, &thetas[..count], &truth, eps);
+                    let truth: Vec<f64> = truth
+                        .iter()
+                        .copied()
+                        .filter(|&t| {
+                            off_apex.len() == count || (e.eval(t) - tip).norm() > 10.0 * eps
+                        })
+                        .collect();
+                    assert_placed(&label, &e, &s, &off_apex, &truth, eps);
                 }
                 Ok(CircleRoots::Miss) => {
                     misses += 1;
@@ -619,17 +639,27 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                 Ok(CircleRoots::Certified(found)) => {
                     let (count, thetas) = (found.count(), found.roots());
                     certified += 1;
+                    // A root at the apex is the carrier through it, read
+                    // whole (`through_the_apex`): within the band of the
+                    // apex, its double root standing for the crossings
+                    // beside it. Every other root is the oracle's.
+                    let mut off_apex = Vec::new();
                     for &t in &thetas[..count] {
                         let p = e.eval(t);
                         let off = distance(&s, p);
                         assert!(off <= eps, "{label}: root {t} lies {off} off the cone");
-                        let from_apex = (p - tip).norm();
-                        assert!(
-                            from_apex > eps,
-                            "{label}: root {t} lies {from_apex} from the apex"
-                        );
+                        if (p - tip).norm() > eps {
+                            off_apex.push(t);
+                        }
                     }
-                    assert_placed(&label, &e, &s, &thetas[..count], &truth, eps);
+                    let truth: Vec<f64> = truth
+                        .iter()
+                        .copied()
+                        .filter(|&t| {
+                            off_apex.len() == count || (e.eval(t) - tip).norm() > 10.0 * eps
+                        })
+                        .collect();
+                    assert_placed(&label, &e, &s, &off_apex, &truth, eps);
                 }
                 Ok(CircleRoots::Miss) => {
                     misses += 1;
