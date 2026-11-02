@@ -4,6 +4,8 @@ kind: issue
 title: A loft station's slot and a section's operand slot address the section by its position
 status: open
 opened: 2026-11-02
+priority: P2
+cost: M
 ---
 
 
