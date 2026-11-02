@@ -122,14 +122,11 @@ fn rim_carrier<T: Real>(kind: Kind, lv: f64) -> Curve3<T> {
 fn meridian_carrier<T: Real>(kind: Kind, u: f64) -> Curve3<T> {
     let (c, s) = (u.cos(), u.sin());
     match kind {
-        Kind::Cylinder => Curve3::Line {
-            origin: p(R * c, R * s, 0.0),
-            dir: v(0.0, 0.0, 1.0),
-        },
-        Kind::Cone => Curve3::Line {
-            origin: p(0.0, 0.0, 0.0),
-            dir: v(HALF.sin() * c, HALF.sin() * s, HALF.cos()),
-        },
+        Kind::Cylinder => Curve3::line(p(R * c, R * s, 0.0), v(0.0, 0.0, 1.0)),
+        Kind::Cone => Curve3::line(
+            p(0.0, 0.0, 0.0),
+            v(HALF.sin() * c, HALF.sin() * s, HALF.cos()),
+        ),
         // `axis × u_ref = ẑ`, so the parameter is the latitude (sphere)
         // or the minor angle (torus).
         Kind::Sphere => Curve3::circle(p(0.0, 0.0, 0.0), v(s, -c, 0.0), f(R), v(c, s, 0.0)),

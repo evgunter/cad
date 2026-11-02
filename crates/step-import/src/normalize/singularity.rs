@@ -376,7 +376,7 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
                 // This pass cuts lines and circles alone.
                 if !matches!(
                     loops[r#loop][edge].carrier,
-                    Curve3::Line { .. } | Curve3::Circle(..)
+                    Curve3::Line(_) | Curve3::Circle(..)
                 ) {
                     return Err(foreign_carrier(face.id));
                 }
@@ -642,7 +642,7 @@ enum Hit {
 fn speed(carrier: &Curve3<f64>) -> f64 {
     match *carrier {
         Curve3::Circle(geom::Circle { radius, .. }) => radius,
-        Curve3::Line { dir, .. } => dir.norm(),
+        Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
         _ => 1.0,
     }
 }
@@ -812,7 +812,7 @@ fn crossings(
             )
         }
         (
-            &Curve3::Line { origin: o, dir: g },
+            &Curve3::Line(geom::Line { origin: o, dir: g }),
             &Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
@@ -836,11 +836,11 @@ fn crossings(
             })
         }
         (
-            &Curve3::Line { origin: o, dir: g },
-            &Curve3::Line {
+            &Curve3::Line(geom::Line { origin: o, dir: g }),
+            &Curve3::Line(geom::Line {
                 origin: oe,
                 dir: ge,
-            },
+            }),
         ) => {
             // The closest approach of two lines; generators of one cone
             // meet only at its apex, which the caller's lead skips.
@@ -866,10 +866,10 @@ fn crossings(
                 },
                 radius: r,
             }),
-            &Curve3::Line {
+            &Curve3::Line(geom::Line {
                 origin: oe,
                 dir: ge,
-            },
+            }),
         ) => {
             let den = n.dot(ge);
             if den.abs() <= 1e-12 * ge.norm() {
@@ -936,7 +936,7 @@ fn require_read_carriers(solid: &SolidSpec, fi: usize) -> Result<(), StepImportE
         for u in &lp.uses {
             if !matches!(
                 solid.edges[&u.edge].carrier,
-                Curve3::Line { .. } | Curve3::Circle(..)
+                Curve3::Line(_) | Curve3::Circle(..)
             ) {
                 return Err(foreign_carrier(face.id));
             }

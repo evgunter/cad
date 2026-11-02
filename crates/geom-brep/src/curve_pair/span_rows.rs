@@ -18,10 +18,7 @@ fn band() -> Band {
 }
 
 fn line() -> Curve3<f64> {
-    Curve3::Line {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        dir: Vec3::new(0.6, 0.0, 0.8),
-    }
+    Curve3::line(Point3::new(1.0, 2.0, 3.0), Vec3::new(0.6, 0.0, 0.8))
 }
 
 fn circle() -> Curve3<f64> {

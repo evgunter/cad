@@ -343,7 +343,7 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
             continue;
         };
         out.push(match *curve.carrier() {
-            geom::Curve3::Line { .. } => {
+            geom::Curve3::Line(_) => {
                 let end = body.half_edge_end(he).ok_or_else(corrupt)?;
                 let point = |v| -> Result<Point3<T>, Torn> {
                     let p = body.get_vertex(v).ok_or_else(corrupt)?.point;

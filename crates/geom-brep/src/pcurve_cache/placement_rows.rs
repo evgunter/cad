@@ -319,28 +319,22 @@ fn line_arms() -> Vec<Arm> {
                 radius: 1.0,
                 u_ref: x,
             },
-            Curve3::Line {
-                origin: Point3::new(phi.cos(), phi.sin(), 0.0),
-                dir: z,
-            },
+            Curve3::line(Point3::new(phi.cos(), phi.sin(), 0.0), z),
             (0.3, 2.0),
         ),
         (
             "cone ruling",
             cone.clone(),
-            Curve3::Line {
-                origin: o + ruling * 0.5,
-                dir: ruling,
-            },
+            Curve3::line(o + ruling * 0.5, ruling),
             (0.2, 1.5),
         ),
         (
             "cone ruling across the apex",
             cone,
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: o,
                 dir: ruling,
-            },
+            }),
             (-1.0, 1.0),
         ),
     ]
@@ -365,10 +359,7 @@ fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
             radius,
             u_ref * by.cos() + axis.cross(u_ref) * by.sin(),
         ),
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: origin + dir * by,
-            dir,
-        },
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(origin + dir * by, dir),
         _ => unreachable!("only circles and lines are restarted here"),
     }
 }

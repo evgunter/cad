@@ -194,7 +194,7 @@ fn arc_between(
 fn ruling(apex: Point3<f64>, (x0, x1): (Point3<f64>, Point3<f64>)) -> IslandEdge {
     let dir = (x1 - x0).normalize();
     IslandEdge {
-        carrier: geom::Curve3::Line { origin: apex, dir },
+        carrier: geom::Curve3::Line(geom::Line { origin: apex, dir }),
         params: ((x0 - apex).dot(dir), (x1 - apex).dot(dir)),
         plane: None,
     }

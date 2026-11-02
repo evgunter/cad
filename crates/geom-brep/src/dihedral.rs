@@ -2208,10 +2208,7 @@ mod tests {
             let [answer, _] = answers;
             answer
         };
-        let along = |dir| geom::Curve3::Line {
-            origin: Point3::origin(),
-            dir,
-        };
+        let along = |dir| geom::Curve3::line(Point3::origin(), dir);
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
         let (x_axis, y_axis) = (along(Vec3::unit_x()), along(Vec3::unit_y()));
 
@@ -2333,10 +2330,7 @@ mod tests {
         };
         let ruling = Vec3::new(s, 0.0, c);
         let tangent = plane(Vec3::new(c, 0.0, -s), ruling);
-        let carrier = geom::Curve3::Line {
-            origin: Point3::origin(),
-            dir: ruling,
-        };
+        let carrier = geom::Curve3::line(Point3::origin(), ruling);
         assert!(
             !crate::tangent_certificate_lane(&carrier, &cone, &tangent),
             "the witness is out of lane"
@@ -2416,10 +2410,10 @@ mod tests {
             radius: f(radius),
             u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
         };
-        let axis = geom::Curve3::Line {
-            origin: Point3::new(f(0.0), f(0.0), f(0.0)),
-            dir: Vec3::new(f(0.0), f(1.0), f(0.0)),
-        };
+        let axis = geom::Curve3::line(
+            Point3::new(f(0.0), f(0.0), f(0.0)),
+            Vec3::new(f(0.0), f(1.0), f(0.0)),
+        );
         second_order_walk(
             &cylinder(1.0),
             &cylinder(r2),
@@ -2945,10 +2939,7 @@ mod tests {
             )
             .unwrap(),
         ));
-        let edge = geom::Curve3::Line {
-            origin: Point3::origin(),
-            dir: Vec3::unit_x(),
-        };
+        let edge = geom::Curve3::line(Point3::origin(), Vec3::unit_x());
         let ask = |a: (crate::SurfaceKey, &Surface<f64>), b| {
             reask_chart([a, b], &edge, (0.0, 1.0), 1.0, band).unwrap()
         };

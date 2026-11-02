@@ -4092,7 +4092,7 @@ mod limb2_quick {
 /// of a turn of its angle parameter, so a span's Taylor remainder is
 /// bounded by the turn's fraction whatever the arc's length.
 fn closed_form_grid<T: Real>(carrier: &Curve3<T>, lo: f64, hi: f64) -> Vec<f64> {
-    if matches!(carrier, Curve3::Line { .. }) {
+    if !carrier.is_curved() {
         return Vec::new();
     }
     #[allow(clippy::cast_precision_loss)]
@@ -4766,7 +4766,7 @@ fn radial_amplitude<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>) -> T {
 /// `Nurbs` carriers are refused at the lane check.
 fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
     match carrier {
-        &Curve3::Line { origin, dir } => Some(Harmonic3 {
+        &Curve3::Line(geom::Line { origin, dir }) => Some(Harmonic3 {
             c: origin,
             a: Vec3::zero(),
             b: Vec3::zero(),
@@ -5125,7 +5125,7 @@ fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpee
 /// A new caller that CAN see a net must take the gate.
 fn param_rate<T: SpanLocate>(carrier: &Curve3<T>) -> InfSpeed<T> {
     match *carrier {
-        Curve3::Line { .. } => InfSpeed::new(T::one()),
+        Curve3::Line(_) => InfSpeed::new(T::one()),
         Curve3::Nurbs(ref n) => n.speed_lower_bound(),
         Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
             match geom::carrier_speed::speed_floor(carrier) {
@@ -8344,7 +8344,7 @@ fn seam_envelope<T: Decide>(
     // domain-excursion fold — each term an inequality, no
     // sampling. A RATIONAL column (`constant_weight` answers `None`)
     // refuses typed: linear precision is a polynomial-basis fact.
-    if let Curve3::Line { origin, dir } = carrier {
+    if let Some(geom::Line { origin, dir }) = carrier.as_line() {
         let u_start = p0.x + pl.x * t0;
         let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
         if b.constant_weight().is_none() {
@@ -8372,7 +8372,7 @@ fn seam_envelope<T: Decide>(
             #[allow(clippy::cast_precision_loss)]
             let xi = window[1..].iter().fold(window[0], |a, k| a + *k) / T::from_f64(p as f64);
             let t_at = (xi - p0.y) / pl.y;
-            hull = hull.max((*cp - (*origin + *dir * t_at)).norm());
+            hull = hull.max((*cp - (origin + dir * t_at)).norm());
         }
         // Domain containment, the siblings' gate verbatim on
         // this class's moving channel: the hull bound holds on
@@ -8769,7 +8769,7 @@ impl<T: Decide> Placement<T> {
 /// ([`Levers`]).
 pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
     match carrier {
-        Curve3::Line { .. } => (T::zero(), T::one()),
+        Curve3::Line(_) => (T::zero(), T::one()),
         Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => (T::zero(), T::tau()),
         Curve3::Nurbs(net) => {
             let (a, b) = net.domain();
@@ -9276,7 +9276,7 @@ fn derive_class<T: Decide>(
             let c_ha = half_angle.cos();
             let cv = axis.cross(u_ref);
             match *carrier {
-                Curve3::Line { origin, dir } => {
+                Curve3::Line(geom::Line { origin, dir }) => {
                     // Incidence first: a line the cone does not hold
                     // refuses as off it wherever its parameter starts,
                     // and none reaches the nappe readings below, whose
@@ -10701,7 +10701,7 @@ mod incidence {
             (Curve3::Circle(..) | Curve3::Ellipse(..), Surface::Cone { .. }) => {
                 return cone_conic_incidence(carrier, surface, band).map(|()| tested);
             }
-            (Curve3::Line { .. }, _) => {
+            (Curve3::Line(_), _) => {
                 return line_incidence(carrier, surface, place.span, band).map(|()| tested);
             }
             (_, Surface::Sphere { .. }) => (
@@ -11608,10 +11608,7 @@ mod tests {
     fn meridian_line_on_cylinder_is_the_u_const_line() {
         let r = 0.5;
         let cyl = cylinder(r);
-        let carrier = Curve3::Line {
-            origin: Point3::new(r, 0.0, 0.0),
-            dir: Vec3::unit_z(),
-        };
+        let carrier = Curve3::line(Point3::new(r, 0.0, 0.0), Vec3::unit_z());
         let p = chart_pcurve(&carrier, &cyl, band()).unwrap();
         let Some((p0, pa, pb, pl)) = p.harmonic_form() else {
             panic!("the closed-form lane stores harmonic images")
@@ -11633,10 +11630,7 @@ mod tests {
     fn a_seam_edge_carries_two_different_branches_of_one_surface() {
         let r = 0.5;
         let cyl = cylinder(r);
-        let carrier = Curve3::Line {
-            origin: Point3::new(r, 0.0, 0.0),
-            dir: Vec3::unit_z(),
-        };
+        let carrier = Curve3::line(Point3::new(r, 0.0, 0.0), Vec3::unit_z());
         let base = chart_pcurve(&carrier, &cyl, band()).unwrap();
         let wrapped = base.shift_branch(1, Period::new(TAU));
         let wrapped_for_shift = wrapped.clone();
@@ -11761,10 +11755,7 @@ mod tests {
         use geom_core::Interval;
         let f = Interval::from_f64;
         let rim = Curve3::circle(Point3::origin(), Vec3::unit_z(), 0.5, Vec3::unit_x());
-        let seam = Curve3::Line {
-            origin: Point3::new(0.5, 0.0, 0.0),
-            dir: Vec3::unit_z(),
-        };
+        let seam = Curve3::line(Point3::new(0.5, 0.0, 0.0), Vec3::unit_z());
         for (name, carrier, derived) in [("rim", rim, 1), ("seam", seam, 0)] {
             let Pcurve::Harmonic {
                 u: Channel::Angle { phase, winding },
@@ -12115,10 +12106,10 @@ mod tests {
             // one inside the escalation band takes the meridian (the
             // D9 tie-break) and lands in the line's own term.
             (
-                Curve3::Line {
-                    origin: Point3::new(r, 0.0, 0.0),
-                    dir: Vec3::new(2.0 * Tol::witness().eps(), 0.0, 1.0),
-                },
+                Curve3::line(
+                    Point3::new(r, 0.0, 0.0),
+                    Vec3::new(2.0 * Tol::witness().eps(), 0.0, 1.0),
+                ),
                 EnvelopeTerm::Line,
             ),
         ];
@@ -12374,11 +12365,7 @@ mod tests {
                 u_ref: Vec3::unit_x(),
             }
             .map_scalar(&at);
-            let line = Curve3::Line {
-                origin: Point3::origin(),
-                dir: Vec3::unit_x(),
-            }
-            .map_scalar(&at);
+            let line = Curve3::line(Point3::origin(), Vec3::unit_x()).map_scalar(&at);
             let half = 0.1 * band().zero();
             chart_pcurve_over(&line, at(-half), at(half), &cone, band())
                 .expect_err("the apex plane meets the cone only at the apex")
@@ -12452,10 +12439,7 @@ mod tests {
             (
                 "a line in the cone's apex plane",
                 "the line's points are not on the chart",
-                Curve3::Line {
-                    origin: Point3::new(1.0, 0.0, 0.0),
-                    dir: Vec3::unit_y(),
-                },
+                Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_y()),
                 &cone,
             ),
             (
@@ -12483,10 +12467,7 @@ mod tests {
             (
                 "a line on a sphere",
                 "a sphere holds no line",
-                Curve3::Line {
-                    origin: Point3::origin(),
-                    dir: Vec3::unit_x(),
-                },
+                Curve3::line(Point3::origin(), Vec3::unit_x()),
                 &sphere,
             ),
             (
@@ -12989,7 +12970,7 @@ mod tests {
 
     /// A `Curve3::Line` from `origin` along `dir` (already unit here).
     fn ruling_line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Line { origin, dir }
+        Curve3::Line(geom::Line { origin, dir })
     }
 
     /// The positive row: a promoted LINE carrier on the wall's `u = 0`
@@ -13378,10 +13359,7 @@ mod fitted_lane_tests {
     }
 
     fn line(lift: f64) -> Curve3<f64> {
-        Curve3::Line {
-            origin: Point3::new(0.0, 0.5, lift),
-            dir: Vec3::new(1.0, 0.0, 0.0),
-        }
+        Curve3::line(Point3::new(0.0, 0.5, lift), Vec3::new(1.0, 0.0, 0.0))
     }
 
     /// **A line carrier enters as its exact net, against the chart
@@ -13479,9 +13457,11 @@ mod iso_family {
             u_ref: Vec3::unit_x(),
         };
         let band = Band::new(1e-9, 1e-6).expect("a band");
-        let line = |tilt: f64| Curve3::Line {
-            origin: Point3::new(1.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, tilt, 1.0).normalize(),
+        let line = |tilt: f64| {
+            Curve3::line(
+                Point3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, tilt, 1.0).normalize(),
+            )
         };
         let rim = Curve3::circle(
             Point3::new(0.0, 0.0, 0.5),
@@ -13601,7 +13581,7 @@ mod off_chart_class_rows {
         }
         let mid = 0.5 * (band().zero() + band().escalate());
         let dir = Vec3::new(0.0, 1.0, 0.3).normalize();
-        let line = |origin: Point3<f64>| Curve3::Line { origin, dir };
+        let line = |origin: Point3<f64>| Curve3::Line(geom::Line { origin, dir });
         let at_mid = Point3::new(1.0, 0.0, mid);
         let (u, v) = (Vec3::unit_y(), Vec3::new(mid, 0.0, 1.0).normalize());
         let tilted_circle =

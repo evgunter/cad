@@ -261,8 +261,15 @@ fn prove_row(
         return Err(Canceled);
     }
     // A row the replay left with no form of its own: nothing the door
-    // could read, so the recourse is the assertion.
-    let left = |why| Ok(Err(((why, Recourse::Assert), None)));
+    // could read, so the recourse is the assertion, unless the replay
+    // ran out of member budget before it.
+    let left = |why| {
+        let recourse = match why {
+            Unreplayed::Exhausted => Recourse::MemberBudget,
+            _ => Recourse::Assert,
+        };
+        Ok(Err(((why, recourse), None)))
+    };
     if row.site == topo::DecisionSite::CensusAtRest {
         if let Some(why) = at_rest_unbuilt(ev, node, row) {
             return left(why);
@@ -341,9 +348,18 @@ fn at_rest_unbuilt(
     })
 }
 
-/// Why the replay holds no value at `node`: a part it does not resolve
-/// where that is what failed there or upstream, else a refusal.
+/// Why the replay holds no value at `node`: it ran out of member budget
+/// before it, a part it does not resolve where that is what failed
+/// there or upstream, else a refusal.
 fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
+    if matches!(ev.outcome, EvalOutcome::Exhausted { .. })
+        && matches!(
+            ev.usable(node),
+            Err(crate::eval::NodeStanding::NotEvaluated { .. })
+        )
+    {
+        return Unreplayed::Exhausted;
+    }
     match ev.node_error(node).map(|e| &e.kind) {
         Some(crate::eval::NodeErrorKind::Part {
             fault: crate::eval::PartFault::NoResolver,

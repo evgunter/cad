@@ -231,10 +231,7 @@ fn full_period_box_is_the_circle_box() {
 
 #[test]
 fn non_circle_carrier_is_refused() {
-    let line = Curve3::Line {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
     let p = Point3::new(0.0, 0.0, 0.0);
     assert!(circle_arc_aabb(&line, 0.0, 1.0, p, p).is_none());
 }

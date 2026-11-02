@@ -518,10 +518,10 @@ fn mint_band(
     // ---- The minted seam generator (band_seam docs) ---------------
     let gen_id = mint();
     let carrier = match torus {
-        None => Curve3::Line {
+        None => Curve3::Line(geom::Line {
             origin: p_start,
             dir: s_axis,
-        },
+        }),
         Some((center, major_radius, minor_radius)) => Curve3::circle(
             crate::signed_zero::plus_zero_point(center + s_u_ref * major_radius),
             crate::signed_zero::plus_zero(s_u_ref.cross(s_axis)),
@@ -838,10 +838,7 @@ mod tests {
             EdgeSpec {
                 start: apex_v,
                 end: base_v,
-                carrier: Curve3::Line {
-                    origin: apex,
-                    dir: Vec3::new(1.0, 0.0, -1.0) * 0.5_f64.sqrt(),
-                },
+                carrier: Curve3::line(apex, Vec3::new(1.0, 0.0, -1.0) * 0.5_f64.sqrt()),
                 t0: 0.0,
                 t1: 2.0_f64.sqrt(),
                 reversed: false,

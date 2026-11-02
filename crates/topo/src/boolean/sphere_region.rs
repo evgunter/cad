@@ -334,7 +334,8 @@ impl<T: Decide> SphereFaceRegion<T> {
 
     /// A lower bound on the distance from `m` to every arc but the `k`th:
     /// per arc, the greater of two, each never above the true distance —
-    /// `m`'s distance from the arc's whole circle, and the least distance
+    /// `m`'s distance from the arc's whole circle
+    /// ([`geom::Curve3::clearance`]), and the least distance
     /// from `m` to the arc's points at [`CLEARANCE_SAMPLES`] even steps of
     /// its span less half the arc length between two of them (every point
     /// of the arc lies within that of one), which reads an arc of `m`'s own
@@ -346,16 +347,11 @@ impl<T: Decide> SphereFaceRegion<T> {
             if j == k {
                 continue;
             }
-            let geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
-                radius,
-            }) = arc.carrier
+            let (&geom::Curve3::Circle(geom::Circle { radius, .. }), Some(circle)) =
+                (&arc.carrier, arc.carrier.clearance(m))
             else {
                 unreachable!("sphere_face_region admits circles only")
             };
-            let d = m - center;
-            let h = d.dot(axis);
-            let circle = (h.powi(2) + ((d - axis * h).norm() - radius.abs()).powi(2)).sqrt();
             let span = arc.t1 - arc.t0;
             let step = span / n;
             let (mut t, mut near) = (arc.t0, (arc.at(arc.t0) - m).norm());

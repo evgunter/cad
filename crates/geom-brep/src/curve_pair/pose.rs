@@ -434,7 +434,7 @@ fn swapped<T: geom_core::Real>(pose: Pose<T>) -> Pose<T> {
 /// A line carrier's origin and direction.
 fn line_of<T: Decide>(c: &Curve3<T>) -> Result<(Point3<T>, Vec3<T>), MeetFault> {
     match *c {
-        Curve3::Line { origin, dir } => Ok((origin, dir)),
+        Curve3::Line(geom::Line { origin, dir }) => Ok((origin, dir)),
         Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
             Err(MeetFault::Desync)
         }
@@ -491,7 +491,9 @@ fn reach<T: Decide>(s: &Span<'_, T>) -> T {
 
 /// The line's foot of `q` ([`Curve3::foot`], the one foot reading).
 fn line_foot<T: Decide>((origin, dir): (Point3<T>, Vec3<T>), q: Point3<T>) -> T {
-    Curve3::Line { origin, dir }.foot(q, T::zero()).t()
+    Curve3::Line(geom::Line { origin, dir })
+        .foot(q, T::zero())
+        .t()
 }
 
 /// A lower bound on `q`'s distance from the carrier
@@ -624,7 +626,7 @@ impl<T: Decide> Side<'_, T> {
     /// [`Curve3::ders1`].
     fn ders(self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
-            Self::Line((origin, dir)) => Curve3::Line { origin, dir }.ders1(t),
+            Self::Line((origin, dir)) => Curve3::Line(geom::Line { origin, dir }).ders1(t),
             Self::Conic(k) => k.jet_at(t),
         }
     }

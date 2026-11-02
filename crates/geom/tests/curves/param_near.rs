@@ -459,10 +459,10 @@ fn at_the_half_turn_boundary_the_two_forms_disagree_by_a_turn_and_both_are_right
 /// an argument this arm ignores.
 #[test]
 fn the_line_arm_is_the_projection_and_ignores_the_anchor() {
-    let line = Curve3::Line {
-        origin: Point3::new(0.5, -1.0, 2.0),
-        dir: Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
-    };
+    let line = Curve3::line(
+        Point3::new(0.5, -1.0, 2.0),
+        Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
+    );
     for t in [-4.0, 0.0, 0.25, 17.0] {
         let p = line.eval(t);
         let first = line.param_near(p, 0.0).unwrap();

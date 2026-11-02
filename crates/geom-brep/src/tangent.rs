@@ -212,7 +212,7 @@ pub fn tangent_certificate_lane<T: Real>(
     let round =
         |s: &Surface<T>| straight(s) || matches!(s, Surface::Torus { .. } | Surface::Cone { .. });
     match carrier {
-        Curve3::Line { .. } => straight(s1) && straight(s2),
+        Curve3::Line(_) => straight(s1) && straight(s2),
         Curve3::Circle(..) => round(s1) && round(s2),
         _ => false,
     }
@@ -242,9 +242,7 @@ pub fn tangent_span_bounds<T: Real>(
     {
         return circle_span_bounds(s1, s2, center, axis, radius, u_ref, step);
     }
-    let Curve3::Line { origin: _, dir } = *carrier else {
-        return None;
-    };
+    let dir = carrier.as_line()?.dir;
     // Per surface: (sup |f″| along the segment, sup |dκ/dt|).
     //
     // The drift factor 8·|dir|/r² per curved surface: κ = d̂ᵀHd̂/|∇F|

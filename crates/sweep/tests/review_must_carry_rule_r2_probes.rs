@@ -209,10 +209,10 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
     let p = Point3::new(0.0, 0.0, 0.0);
     let axis = Vec3::new(0.0, 0.0, 1.0);
     let u_ref = Vec3::new(1.0, 0.0, 0.0);
-    let line = Curve3::Line {
+    let line = Curve3::Line(geom::Line {
         origin: p,
         dir: axis,
-    };
+    });
     let circle = Curve3::circle(p, axis, 1.0, u_ref);
     let reps: Vec<Surface<f64>> = vec![
         Surface::Plane {
@@ -268,10 +268,10 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
     }
     // The carrier kinds outside both lanes, so the census covers the
     // carrier axis too.
-    let arbitrary = Curve3::Line {
+    let arbitrary = Curve3::Line(geom::Line {
         origin: p,
         dir: axis,
-    };
+    });
     assert!(tangent_certificate_lane(&arbitrary, &reps[0], &reps[0]));
 }
 

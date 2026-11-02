@@ -853,10 +853,7 @@ mod tests {
     }
 
     fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
-        geom::Curve3::Line {
-            origin: Point3::from_array(o),
-            dir: Vec3::from_array(d),
-        }
+        geom::Curve3::line(Point3::from_array(o), Vec3::from_array(d))
     }
 
     /// The certified-lane row: a cylinder resting on a plane, tangent
@@ -1142,10 +1139,7 @@ mod tests {
         );
         // The lane's other `NotCertifiable` is the contact's own refusal,
         // not the span bound's: a carrier outside the lane.
-        let outside = geom::Curve3::Line {
-            origin: Point3::new(1.1, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let outside = geom::Curve3::line(Point3::new(1.1, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         assert!(
             matches!(
                 tangency_reading(&near, true, &far, true, &outside, 0.0, 0.1, b),

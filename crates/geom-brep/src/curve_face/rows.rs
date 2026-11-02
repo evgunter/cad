@@ -21,10 +21,10 @@ fn band() -> Band {
 
 fn line(origin: [f64; 3], dir: [f64; 3]) -> Curve3<f64> {
     let [x, y, z] = dir;
-    Curve3::Line {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        dir: Vec3::new(x, y, z).normalize(),
-    }
+    Curve3::line(
+        Point3::new(origin[0], origin[1], origin[2]),
+        Vec3::new(x, y, z).normalize(),
+    )
 }
 
 /// The unit circle about the origin in `z = 0`, wound about `axis`.
@@ -197,10 +197,10 @@ fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
             let (p, d) = thin.ders1(t);
             let normal = Vec3::unit_z().cross(d).normalize();
             let vertex = p + normal * (0.5 * z);
-            let leaving = Curve3::Line {
+            let leaving = Curve3::Line(geom::Line {
                 origin: vertex,
                 dir: normal,
-            };
+            });
             let edges = [(vertex, Span::new(&leaving, (0.0, 1.0)))];
             match boundary(&swept, &edges, band) {
                 Ok(Boundary::Meets { t: at, edge: 0, .. }) => {

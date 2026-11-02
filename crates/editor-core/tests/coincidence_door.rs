@@ -4032,7 +4032,9 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                                 frame: geom::Frame { center, axis, .. },
                                 ..
                             }) => line_on(*center, Some(*axis)),
-                            Curve3::Line { origin, dir } => line_on(*origin, Some(*dir)),
+                            Curve3::Line(geom::Line { origin, dir }) => {
+                                line_on(*origin, Some(*dir))
+                            }
                             other => {
                                 panic!("{}: an edge read about the axis on {other:?}", cd.name)
                             }

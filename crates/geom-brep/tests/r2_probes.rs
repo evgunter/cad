@@ -182,10 +182,7 @@ fn r2_probe_cone_seam_bit_move() {
     // normal (c, 0, -s).
     let dir = Vec3::new(s, 0.0, c);
     let normal = Vec3::new(c, 0.0, -s);
-    let carrier = Curve3::Line {
-        origin: Point3::origin() + normal * d,
-        dir,
-    };
+    let carrier = Curve3::line(Point3::origin() + normal * d, dir);
     let (delta, legacy, now) = seam_delta(
         cone,
         Point3::origin(),
@@ -222,10 +219,7 @@ fn r2_probe_small_cylinder_seam_bit_move() {
         radius: r,
         u_ref: Vec3::unit_x(),
     };
-    let carrier = Curve3::Line {
-        origin: Point3::new(r + d, 0.0, 0.0),
-        dir: Vec3::unit_z(),
-    };
+    let carrier = Curve3::line(Point3::new(r + d, 0.0, 0.0), Vec3::unit_z());
     let (delta, legacy, now) = seam_delta(
         cyl,
         Point3::origin(),

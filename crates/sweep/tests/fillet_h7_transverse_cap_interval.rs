@@ -150,7 +150,7 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     for (t, _, support) in &rec.trims {
         let c = certified(*t);
         assert!(
-            matches!(c.carrier(), Curve3::Line { .. }),
+            matches!(c.carrier(), Curve3::Line(_)),
             "a trimline is a line"
         );
         let EdgeDescription::TangentIntersection { pair, .. } = c.description() else {

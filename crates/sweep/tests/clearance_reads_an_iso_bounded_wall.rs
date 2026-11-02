@@ -145,7 +145,7 @@ fn verify<'a, T: Lane>(
 
 fn sweep(c: f64) -> Sweep {
     Sweep {
-        bound: ClearanceBound::AtLeast(c),
+        bound: ClearanceBound::at_least(c),
         band: band(),
         budgets: Budgets {
             max_cell_depth: DEFAULT_MAX_CELL_DEPTH,

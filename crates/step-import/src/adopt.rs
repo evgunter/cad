@@ -760,7 +760,7 @@ fn iso_curve_candidates(
     // Carriers outside the rung's vocabulary — neither the bitwise
     // NURBS match nor the promoted-line vertex match — take no
     // candidates and read no wall columns.
-    if !matches!(spec.carrier, Curve3::Nurbs(_) | Curve3::Line { .. }) {
+    if !matches!(spec.carrier, Curve3::Nurbs(_) | Curve3::Line(_)) {
         return Ok(());
     }
     let walls: &[topo::SurfaceKey] = if fs_plus == fs_minus {
@@ -820,7 +820,7 @@ fn iso_curve_candidates(
                 // bitwise arm's — and the certify door's endpoint and
                 // residual schedule remains the CHECK: a wrongly
                 // selected column refuses loudly there.
-                Curve3::Line { .. } => {
+                Curve3::Line(_) => {
                     if let Some((v0, v1)) = line_column_match(&iso, p_start, p_end, tol.eps()) {
                         candidates.push((
                             AdoptionCandidate::IsoCurve,
@@ -993,16 +993,18 @@ fn mapped_self_description(
     nurbs_rim: bool,
 ) -> Option<MappedCurve<f64>> {
     match carrier {
-        Curve3::Line { origin, dir } if nurbs_rim => line_frame(*origin, *dir).map(|place| {
-            MappedCurve::whole(MappedSource::PlacedSegment {
-                segment: geom_brep::SketchSegment::Line {
-                    a: Point2::new(t0, 0.0),
-                    b: Point2::new(t1, 0.0),
-                },
-                place,
+        Curve3::Line(geom::Line { origin, dir }) if nurbs_rim => {
+            line_frame(*origin, *dir).map(|place| {
+                MappedCurve::whole(MappedSource::PlacedSegment {
+                    segment: geom_brep::SketchSegment::Line {
+                        a: Point2::new(t0, 0.0),
+                        b: Point2::new(t1, 0.0),
+                    },
+                    place,
+                })
             })
-        }),
-        Curve3::Line { .. } => Some(MappedCurve::whole(MappedSource::ExtrudedPoint {
+        }
+        Curve3::Line(_) => Some(MappedCurve::whole(MappedSource::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,

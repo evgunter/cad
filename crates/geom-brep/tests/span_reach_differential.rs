@@ -117,10 +117,7 @@ fn ulps(p: Point3<f64>, d: f64) -> f64 {
 
 fn line(p: Point3<f64>, q: Point3<f64>) -> Reach<f64> {
     Reach::Span {
-        carrier: Curve3::Line {
-            origin: p,
-            dir: q - p,
-        },
+        carrier: Curve3::line(p, q - p),
         t0: 0.0,
         t1: 1.0,
     }

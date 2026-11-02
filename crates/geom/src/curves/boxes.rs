@@ -361,7 +361,7 @@ pub fn conic_arc_aabb<T: Bounds>(
         Curve3::Circle(..) => circle_arc_aabb(carrier, theta0, theta1, end0, end1),
         Curve3::Ellipse(..) => ellipse_arc_aabb(carrier, theta0, theta1, end0, end1),
         Curve3::Spiric { .. } => spiric_arc_aabb(carrier, end0, end1),
-        Curve3::Line { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Line(_) | Curve3::Nurbs(_) => None,
     }
 }
 

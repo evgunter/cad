@@ -2,11 +2,13 @@
 id: the-cones-parity-arc-refuses-where-the-flanks-side-is-decided
 kind: unit
 title: Cone::reads_given's parity arc requires each end to clear the q-w bisector, costing cos(θ/2) over the side reading: a fin t in (Kε, √2·Kε) refuses where its side is decided
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 branch: oneread/link-arc-half-turn
+pr: 6337
+closed: 2026-11-02
 ---
 
 
@@ -19,3 +21,7 @@ Witness: `crates/topo/tests/sliver_shell_role.rs`, `fin(t)` under Subtract, read
 The lane's observation: for a reference in the base sector (w on sector t's plane) with q's side of that plane decided, q and w cannot be antipodal, so the half-turn condition follows from q's decided side; the check may be stricter than the reading's soundness needs.
 
 Owed: the arc check no stricter than its soundness argument (e.g. the half-turn condition taken from the base sector's decided side, or each end read at its own reach), argued at the site; `cone_fuzz` 0 wrong at three ε with read-nothing counts reported before/after; a decision diff over every reader of `Cone::reads_given`/`reads_tied` (the census's touch analysis, `vtxfac::cone_classes`, recl's edge-edge) at three ε, each changed decision explained; the fin witness pinned. Tier: dual (it changes the one material reader every consumer reads).
+
+## Closed (2026-11-02)
+
+Merged as PR 6337: `link::ArcReach` reads every reference at q's distance first (main's reading) and, only where none reads, again at its wedge's reach, so the change is never stricter by construction; `winds` alike. The fin witness reads. Dual review, adjudicated; record `docs/dual-review-log/rows/PR-6337.md`.

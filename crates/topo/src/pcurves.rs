@@ -1250,7 +1250,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                  here"
             )
         };
-        let line = matches!(carrier, geom::Curve3::Line { .. });
+        let line = !carrier.is_curved();
         // The iso candidates are offered to the carriers the iso
         // class certifies: a spline and a line. A circle's exact
         // class is the arc rim, tried below; an ellipse or a spiric
@@ -1274,7 +1274,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             geom::Curve3::Nurbs(spline) => {
                 RowSpace::of(spline.knots_f64_interim(), wall.knots_u_f64_interim())
             }
-            geom::Curve3::Line { .. } => RowSpace {
+            geom::Curve3::Line(_) => RowSpace {
                 forward: true,
                 backward: true,
             },
@@ -1525,7 +1525,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         geom_brep::EdgeDescription::Chart(_)
         | geom_brep::EdgeDescription::Scaffold(_)
         | geom_brep::EdgeDescription::OnPair { .. }
-            if matches!(carrier, geom::Curve3::Line { .. }) =>
+            if !carrier.is_curved() =>
         {
             iso_schedule("pcurve_iso_line_rim", Vec::new())
         }
@@ -7519,10 +7519,7 @@ pub(crate) mod pole_slit_tests {
                         pl: geom_core::Vec2::new(0.0, v1 - v0),
                     },
                 ),
-                carrier: Curve3::Line {
-                    origin: p,
-                    dir: q - p,
-                },
+                carrier: Curve3::line(p, q - p),
                 param_start: 0.0,
                 param_end: 1.0,
             }
@@ -7682,10 +7679,7 @@ pub(crate) mod pole_slit_tests {
                         pl: geom_core::Vec2::new(u1 - u0, 0.0),
                     },
                 ),
-                carrier: Curve3::Line {
-                    origin: p,
-                    dir: q - p,
-                },
+                carrier: Curve3::line(p, q - p),
                 param_start: 0.0,
                 param_end: 1.0,
             }

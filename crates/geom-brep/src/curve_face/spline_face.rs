@@ -289,7 +289,7 @@ impl<'a, T: CertifiedBounds> Path<'a, T> {
         let p = |p: Point3<T>| [p.x, p.y, p.z].map(Interval::from_certified);
         let v = |v: Vec3<T>| [v.x, v.y, v.z].map(Interval::from_certified);
         let path = match *carrier {
-            Curve3::Line { origin, dir } => Self::Line {
+            Curve3::Line(geom::Line { origin, dir }) => Self::Line {
                 o: p(origin),
                 d: v(dir),
             },

@@ -114,7 +114,7 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                     // Read off the carrier, not interpolated between the
                     // ends: the ends' two distances share their rounding,
                     // which an enclosure would count twice.
-                    let geom::Curve3::Line { origin, dir } = *carrier else {
+                    let Some(geom::Line { origin, dir }) = carrier.as_line() else {
                         return Ok(None);
                     };
                     roots[i].push((centre - origin).dot(normal) / dir.dot(normal));

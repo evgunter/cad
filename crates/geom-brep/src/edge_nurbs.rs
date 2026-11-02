@@ -2066,7 +2066,7 @@ fn line_plane_ends<T: geom_core::CertifiedBounds>(
     let lift = geom_core::Interval::from_certified;
     let vec = |v: geom_core::Vec3<T>| geom_core::Vec3::new(lift(v.x), lift(v.y), lift(v.z));
     match (carrier, operand) {
-        (Curve3::Line { origin: q, dir }, Surface::Plane { origin, normal, .. }) => {
+        (Curve3::Line(geom::Line { origin: q, dir }), Surface::Plane { origin, normal, .. }) => {
             let (q, d) = (vec(*q - geom_core::Point3::origin()), vec(*dir));
             let (o, n) = (vec(*origin - geom_core::Point3::origin()), vec(*normal));
             let lever = n.norm();
@@ -3533,11 +3533,8 @@ mod tests {
         }
         .map_scalar(lift);
         let edge = |d: f64| {
-            let line = Curve3::Line {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(1.0, d, 0.0),
-            }
-            .map_scalar(lift);
+            let line =
+                Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, d, 0.0)).map_scalar(lift);
             analytic_edge_limbs(&line, (lift(0.0), lift(1.0)), &floor, &wall, band)
         };
         assert_eq!(edge(0.0), Ok(()));
@@ -3592,10 +3589,10 @@ mod tests {
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let line = Curve3::Line {
-            origin: Point3::new(-402.5061327433079, -173.4329004425178, 0.0),
-            dir: Vec3::new(-8.0, 6.0, 0.0),
-        };
+        let line = Curve3::line(
+            Point3::new(-402.5061327433079, -173.4329004425178, 0.0),
+            Vec3::new(-8.0, 6.0, 0.0),
+        );
         // The f64 reading the old rule took sits inside the band.
         for t in [0.0, 1.0] {
             let p = line.eval(t);
@@ -3651,10 +3648,7 @@ mod tests {
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let line = Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, y0, 0.0),
-        };
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, y0, 0.0));
         let escalates = |got: &Result<(), AnalyticRung3Refusal>| {
             matches!(
                 got,
@@ -3705,10 +3699,10 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
         .map_scalar(lift);
-        let line = Curve3::Line {
-            origin: Point3::new(lift(0.0), Interval::from_bounds(-2e-9, 2e-9), lift(0.0)),
-            dir: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
-        };
+        let line = Curve3::line(
+            Point3::new(lift(0.0), Interval::from_bounds(-2e-9, 2e-9), lift(0.0)),
+            Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        );
         let got = analytic_edge_limbs(&line, (lift(0.0), lift(1.0)), &wall, &floor, band);
         assert!(
             matches!(
@@ -3801,10 +3795,7 @@ mod tests {
                 normal: direction(0.0, 0.0, 1.0),
                 u_ref: direction(1.0, 0.0, 0.0),
             };
-            let line = geom::Curve3::Line {
-                origin: point(0.0, 0.0, a),
-                dir: direction(1.0, 0.0, 0.0),
-            };
+            let line = geom::Curve3::line(point(0.0, 0.0, a), direction(1.0, 0.0, 0.0));
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         assert_eq!(result, Ok(()));
@@ -3875,10 +3866,7 @@ mod tests {
                 normal: direction(0.0, 0.0, 1.0),
                 u_ref: direction(1.0, 0.0, 0.0),
             };
-            let line = geom::Curve3::Line {
-                origin: point(0.0, 0.0, a),
-                dir: direction(1.0, 0.0, 0.0),
-            };
+            let line = geom::Curve3::line(point(0.0, 0.0, a), direction(1.0, 0.0, 0.0));
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         let Err(AnalyticRung3Refusal::Stalled {

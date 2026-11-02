@@ -263,10 +263,7 @@ fn probe_ders1_is_total_and_poisons_like_its_evaluators() {
         "tangent {d:?}"
     );
 
-    let line = Curve3::Line {
-        origin: Point3::origin(),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let line = Curve3::line(Point3::origin(), Vec3::new(1.0, 0.0, 0.0));
     // The line's tangent is data: a poison parameter does not reach it.
     assert!((line.ders1(f64::NAN).1.x - 1.0).abs() < f64::EPSILON);
 
@@ -291,13 +288,7 @@ fn probe_analytic_arms_at_extreme_parameters() {
     };
     let center = Point3::new(-1.7, 0.4, 2.2);
     let curves = [
-        (
-            "line",
-            Curve3::Line {
-                origin: center,
-                dir: Vec3::new(0.3, -0.4, 1.2),
-            },
-        ),
+        ("line", Curve3::line(center, Vec3::new(0.3, -0.4, 1.2))),
         ("circle", Curve3::circle(center, axis, 3.25, u_ref)),
         ("circle_tiny", Curve3::circle(center, axis, 1e-300, u_ref)),
         (

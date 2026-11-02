@@ -676,7 +676,7 @@ fn segment_reach(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
 /// within `e + bent` of the line. `false` for any other edge.
 fn on_the_line(spec: &EdgeSpec, ends: (Point3<f64>, Point3<f64>), bent: f64, eps_in: f64) -> bool {
     let hull: Vec<Point3<f64>> = match spec.carrier {
-        Curve3::Line { .. } => vec![spec.carrier.eval(spec.t0), spec.carrier.eval(spec.t1)],
+        Curve3::Line(_) => vec![spec.carrier.eval(spec.t0), spec.carrier.eval(spec.t1)],
         Curve3::Nurbs(ref c) if c.knot_values().domain() == (spec.t0, spec.t1) => {
             c.control().to_vec()
         }
@@ -759,7 +759,7 @@ fn piece_box(
             let p = lifted?.span_enclosure(a, b)?;
             proper([p.x, p.y, p.z])
         }
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             let i = |x: f64| Interval::from_bounds(x, x);
             let t = Interval::from_bounds(a, b);
             proper([
@@ -1092,10 +1092,7 @@ mod tests {
                 let spec = EdgeSpec {
                     start: 30 + i,
                     end: 30 + (i + 1) % 4,
-                    carrier: Curve3::Line {
-                        origin: a,
-                        dir: b - a,
-                    },
+                    carrier: Curve3::line(a, b - a),
                     t0: 0.0,
                     t1: 1.0,
                     reversed: false,
@@ -1150,10 +1147,7 @@ mod tests {
                 .unwrap(),
             ))
         };
-        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::Line {
-            origin: a,
-            dir: b - a,
-        };
+        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, b - a);
         let corners =
             [(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)].map(|(x, y)| Point3::new(x, y, 0.0));
         let carriers = [
@@ -1467,10 +1461,7 @@ mod tests {
                     }
                     let spl = build(hi);
                     let max_x = max_x(&spl);
-                    let back = Curve3::Line {
-                        origin: Point3::new(0.3, 0.8, 0.0),
-                        dir: Vec3::new(0.0, -0.6, 0.0),
-                    };
+                    let back = Curve3::line(Point3::new(0.3, 0.8, 0.0), Vec3::new(0.0, -0.6, 0.0));
                     let s = face(
                         chart([0.0, 0.5, 1.0]),
                         vec![(Curve3::Nurbs(Arc::new(spl)), 0.0, 1.0), (back, 0.0, 1.0)],

@@ -365,17 +365,17 @@ pub fn plane_plane_blend<T: Real>(
         },
         spine_curvature: T::zero(),
         trim_a: (
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: foot_a,
                 dir: tau,
-            },
+            }),
             setback,
         ),
         trim_b: (
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: foot_b,
                 dir: tau,
-            },
+            }),
             setback,
         ),
     }
@@ -841,7 +841,13 @@ impl<T: Real> Meridian<T> {
     pub fn blend(&self, a: SupportTrace<T>, b: SupportTrace<T>, radius: T) -> EdgeBlend<T> {
         let radial = self.radial();
         let center = sheet_center(self.rim, self.sheet_normal(), a, b, radius);
-        let level = |q: Point3<T>| self.origin + self.axis * (q - self.origin).dot(self.axis);
+        let level = |q: Point3<T>| {
+            geom::Line {
+                origin: self.origin,
+                dir: self.axis,
+            }
+            .foot(q)
+        };
         let s = (center - self.origin).dot(radial);
         // The setback is the EUCLIDEAN displacement of the trimline from
         // the rim, the metric predicate 2 measures face extents in.
@@ -907,7 +913,7 @@ impl<T: Real> Ruling<T> {
                 radius,
                 ..
             } => {
-                let on_axis = origin + axis * (self.rim - origin).dot(axis);
+                let on_axis = geom::Line { origin, dir: axis }.foot(self.rim);
                 Some((
                     SupportTrace::Round {
                         center: on_axis - self.tau * (on_axis - self.rim).dot(self.tau),
@@ -942,20 +948,8 @@ impl<T: Real> Ruling<T> {
                 u_ref: (q_a - center).normalize(),
             },
             spine_curvature: T::zero(),
-            trim_a: (
-                Curve3::Line {
-                    origin: q_a,
-                    dir: self.tau,
-                },
-                (q_a - self.rim).norm(),
-            ),
-            trim_b: (
-                Curve3::Line {
-                    origin: q_b,
-                    dir: self.tau,
-                },
-                (q_b - self.rim).norm(),
-            ),
+            trim_a: (Curve3::line(q_a, self.tau), (q_a - self.rim).norm()),
+            trim_b: (Curve3::line(q_b, self.tau), (q_b - self.rim).norm()),
         }
     }
 }
@@ -1127,17 +1121,17 @@ pub fn chamfer_strip<T: Real>(
         },
         spine_curvature: T::zero(),
         trim_a: (
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: foot_a,
                 dir: tau,
-            },
+            }),
             distance,
         ),
         trim_b: (
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: foot_b,
                 dir: tau,
-            },
+            }),
             distance,
         ),
     }

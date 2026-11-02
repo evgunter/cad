@@ -30,7 +30,9 @@ pub fn cut_stations(
         .clone();
     let (t0, t1) = c.params();
     let mut us: Vec<f64> = match *c.carrier() {
-        Curve3::Line { origin, dir } => points.iter().map(|&p| (p - origin).dot(dir)).collect(),
+        Curve3::Line(geom::Line { origin, dir }) => {
+            points.iter().map(|&p| (p - origin).dot(dir)).collect()
+        }
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
@@ -86,14 +88,14 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
     let close = |a: Point3<f64>, b: Point3<f64>| (a - b).norm() < 1e-9;
     let one = |a: &Curve3<f64>, b: &Curve3<f64>| match (a, b) {
         (
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: o1,
                 dir: d1,
-            },
-            Curve3::Line {
+            }),
+            Curve3::Line(geom::Line {
                 origin: o2,
                 dir: d2,
-            },
+            }),
         ) => d1.cross(*d2).norm() < 1e-9 && d1.cross(*o2 - *o1).norm() < 1e-9,
         (
             Curve3::Circle(geom::Circle {

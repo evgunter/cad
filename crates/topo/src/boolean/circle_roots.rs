@@ -503,7 +503,7 @@ fn harmonic_roots<T: Decide>(
     let two = T::from_f64(2.0);
     let phi = h.sin_part.atan2(h.cos_part);
     // The roots on the branch of the span's middle: sound at every scalar
-    // by `ring_path::branch`'s window re-centring argument. Its readers
+    // by `geom::on_span_branch`'s window re-centring argument. Its readers
     // read an end of a whole-turn span alike: the wall crossing's
     // `at_end`, the sphere cut-in's vertex lookup at either end, and
     // `torus_region`'s readings `sideless` at either end

@@ -52,15 +52,7 @@ fn rim(k: u64, z: f64, r: f64, span: (f64, f64), forward: bool) -> Edge<f64> {
 fn segment(k: u64, a: Point3<f64>, b: Point3<f64>) -> Edge<f64> {
     let d = b - a;
     let len = d.norm();
-    edge(
-        k,
-        geom::Curve3::Line {
-            origin: a,
-            dir: d / len,
-        },
-        (0.0, len),
-        true,
-    )
+    edge(k, geom::Curve3::line(a, d / len), (0.0, len), true)
 }
 
 fn cylinder(edges: Vec<Edge<f64>>) -> RuledFaceRegion<f64> {

@@ -100,10 +100,7 @@ fn a_point_is_on_or_off_every_carrier_by_its_distance() {
             assert_eq!(got, want, "{:?} at {t}, {bands} bands", c.kind());
         }
     }
-    let line = Curve3::Line {
-        origin: Point3::new(1.0, 2.0, 3.0),
-        dir: Vec3::new(0.6, 0.0, 0.8),
-    };
+    let line = Curve3::line(Point3::new(1.0, 2.0, 3.0), Vec3::new(0.6, 0.0, 0.8));
     let q = line.eval(4.0) + Vec3::unit_y() * (0.5 * ZERO);
     assert_eq!(name(line.on_carrier(q, 0.0, band())), "on");
 }

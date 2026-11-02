@@ -312,18 +312,12 @@ fn a_cone_rim_holds_its_apex_on_one_side() {
         "run west"
     );
     // A generator from the apex: the apex is that loop's vertex.
-    let generator = Curve3::Line {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(1.0, 0.0, 1.0),
-    };
+    let generator = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 1.0));
     let sector = vec![
         LoopEdge::hand_built(generator.clone(), 0.0, 1.0, true, 0, 1),
         LoopEdge::hand_built(rim.clone(), 0.0, PI, true, 1, 2),
         LoopEdge::hand_built(
-            Curve3::Line {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(-1.0, 0.0, 1.0),
-            },
+            Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 1.0)),
             0.0,
             1.0,
             false,
@@ -435,10 +429,8 @@ fn parallel(z: f64) -> Curve3<f64> {
 /// inside its complement.
 #[test]
 fn a_sliver_beside_the_apex_reads_it_by_its_orientation() {
-    let generator = |u: f64| Curve3::Line {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(u.cos(), u.sin(), 1.0),
-    };
+    let generator =
+        |u: f64| Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(u.cos(), u.sin(), 1.0));
     let (u0, u1) = (0.2, 0.2 + FRAC_PI_2);
     for z in [1e-3_f64, 1e-6] {
         for w in [1e-3_f64, 1e-6, 1e-9] {

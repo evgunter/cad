@@ -49,10 +49,7 @@ fn rectangle(
     };
     let ruling = |u: f64, a: f64, b: f64, s: u32, e: u32| {
         edge(
-            Curve3::Line {
-                origin: p3(r * u.cos(), r * u.sin(), 0.0),
-                dir: v3(0.0, 0.0, 1.0),
-            },
+            Curve3::line(p3(r * u.cos(), r * u.sin(), 0.0), v3(0.0, 0.0, 1.0)),
             a,
             b,
             s,
@@ -155,10 +152,7 @@ fn framed(
         };
         let ruling = |u: f64, s: f64, e: f64, t0: u32, t1: u32| {
             edge(
-                Curve3::Line {
-                    origin: o + (x * u.cos() + y * u.sin()) * r,
-                    dir: a,
-                },
+                Curve3::line(o + (x * u.cos() + y * u.sin()) * r, a),
                 s,
                 e,
                 t0,

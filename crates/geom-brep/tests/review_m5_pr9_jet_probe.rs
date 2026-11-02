@@ -29,10 +29,7 @@ fn certify_line(
     y: f64,
 ) -> Result<EdgeCurve<f64>, CertifyError> {
     let (k1, k2, map) = arena2(s1, s2);
-    let carrier = Curve3::Line {
-        origin: Point3::new(x, y, 0.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let carrier = Curve3::line(Point3::new(x, y, 0.0), Vec3::new(0.0, 0.0, 1.0));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(k1, k2),
@@ -136,10 +133,7 @@ fn ruling_drift_is_exactly_zero_and_the_bound_discriminates() {
         u_ref: Vec3::new(0.0, 0.0, 1.0),
     };
     let (k1, k2, map) = arena2(cyl, plane);
-    let carrier = Curve3::Line {
-        origin: Point3::new(0.1, 0.0, 0.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let carrier = Curve3::line(Point3::new(0.1, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(k1, k2),

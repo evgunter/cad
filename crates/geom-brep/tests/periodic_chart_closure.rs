@@ -55,10 +55,7 @@ fn crim(z: f64, u0: f64, u1: f64) -> LoopEdge<f64> {
 /// The unit cylinder's ruling at azimuth `u`, from height `z0` to `z1`.
 fn ruling(u: f64, z0: f64, z1: f64) -> LoopEdge<f64> {
     edge(
-        Curve3::Line {
-            origin: p3(u.cos(), u.sin(), 0.0),
-            dir: v3(0.0, 0.0, 1.0),
-        },
+        Curve3::line(p3(u.cos(), u.sin(), 0.0), v3(0.0, 0.0, 1.0)),
         z0,
         z1,
         0,
@@ -270,10 +267,7 @@ fn a_loop_of_many_rulings_turns_by_their_own_turns() {
             let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
             let len = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
             loop_.push(edge(
-                Curve3::Line {
-                    origin: p3(a[0], a[1], a[2]),
-                    dir: v3(d[0] / len, d[1] / len, d[2] / len),
-                },
+                Curve3::line(p3(a[0], a[1], a[2]), v3(d[0] / len, d[1] / len, d[2] / len)),
                 0.0,
                 len,
                 0,
@@ -370,10 +364,7 @@ fn segment<T: geom_core::Decide>(a: [f64; 3], b: [f64; 3]) -> LoopEdge<T> {
     let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
     let len = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
     edge(
-        Curve3::Line {
-            origin: p3(a[0], a[1], a[2]),
-            dir: v3(d[0] / len, d[1] / len, d[2] / len),
-        },
+        Curve3::line(p3(a[0], a[1], a[2]), v3(d[0] / len, d[1] / len, d[2] / len)),
         0.0,
         len,
         0,
@@ -938,10 +929,7 @@ fn kim<T: geom_core::Real>(v: f64, u0: f64, u1: f64) -> LoopEdge<T> {
 fn kgen<T: geom_core::Real>(u: f64, v0: f64, v1: f64) -> LoopEdge<T> {
     let (s, c) = 0.5_f64.sin_cos();
     edge(
-        Curve3::Line {
-            origin: p3(0.0, 0.0, 0.0),
-            dir: v3(s * u.cos(), s * u.sin(), c),
-        },
+        Curve3::line(p3(0.0, 0.0, 0.0), v3(s * u.cos(), s * u.sin(), c)),
         v0,
         v1,
         0,
@@ -1139,10 +1127,10 @@ impl SkewCone {
         let k = |i: usize| s * u.cos() * self.e1[i] + s * u.sin() * self.e2[i] + c * self.a[i];
         let d = [k(0), k(1), k(2)];
         edge(
-            Curve3::Line {
-                origin: p3(self.apex[0], self.apex[1], self.apex[2]),
-                dir: v3(d[0], d[1], d[2]),
-            },
+            Curve3::line(
+                p3(self.apex[0], self.apex[1], self.apex[2]),
+                v3(d[0], d[1], d[2]),
+            ),
             v0,
             v1,
             0,

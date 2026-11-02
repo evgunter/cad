@@ -303,8 +303,8 @@ fn refusals(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Vec<topo::BooleanError>
 /// it. The rim's pairs are accepted (its certified roots split it), and
 /// the crossing layer and the sector side pass. A ball's every op passes
 /// the join, whose chords are cut from its wall × sphere pair's quartic
-/// section, and stops past it, at the result gate's volume or the
-/// spline edge join (`cylinder_sphere_frame` pins each op's door and
+/// section, and stops past it, at the result gate's volume
+/// (`cylinder_sphere_frame` pins each op's door and
 /// holds the same balls to their volumes). A
 /// rod's parallel walls join along their rulings, the narrow rods'
 /// pierce ring in the drum's wall joins, and every rod builds in every
@@ -319,17 +319,21 @@ fn a_rim_crossing_reaches_the_join() {
     use crate::cylinder_sphere_frame::{Door, door};
     let a = drum_lower();
     // Each op's door, ∪ ∩ ∖ with the drum first: `cylinder_sphere_frame`'s
-    // pins for the same balls.
+    // pins for the same balls. Pinned red at the result gate's volume
+    // (`Sphere` the sphere's conic trim, `Projected` the cylinder's arm):
+    // work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
+    // When it lands, `refusals` meets a body, and the balls move to
+    // `cylinder_sphere_frame`'s volume rows.
     for (label, b, doors) in [
         (
             "ball r 0.2 at (0.5, 0, 0.35)",
             ball(0.2, [0.5, 0.0, 0.35]),
-            [Door::Sphere, Door::Join, Door::Join],
+            [Door::Sphere, Door::Sphere, Door::Projected],
         ),
         (
             "ball r 0.1 at (0.45, 0, 0.3)",
             ball(0.1, [0.45, 0.0, 0.3]),
-            [Door::Join, Door::Join, Door::Projected],
+            [Door::Sphere, Door::Sphere, Door::Projected],
         ),
     ] {
         let (_, accepted) = rim_pairs(label, &a, &b);

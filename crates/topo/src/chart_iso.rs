@@ -90,7 +90,7 @@ pub fn unwrap_near(raw: f64, prev: f64) -> f64 {
 /// Neither disposition belongs here.
 pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option<TravKind> {
     match *curve.carrier() {
-        Curve3::Line { .. } => Some(TravKind::Meridian {
+        Curve3::Line(_) => Some(TravKind::Meridian {
             u_raw: mid_azimuth(chart, curve),
         }),
         Curve3::Circle(geom::Circle {

@@ -566,7 +566,7 @@ pub(super) fn orbit_corners<T: Decide>(
                 )
             });
         match curve.carrier() {
-            geom::Curve3::Line { .. } => (
+            geom::Curve3::Line(_) => (
                 p_end - p_base,
                 Reach::Chord {
                     base: p_base,
@@ -1679,7 +1679,7 @@ fn one_segment<T: Decide>(
     }
     for (side, e) in [(a, ea), (b, eb)] {
         match germ_curve(side.body, e.edge)?.carrier() {
-            geom::Curve3::Line { .. } | geom::Curve3::Circle(..) => {}
+            geom::Curve3::Line(_) | geom::Curve3::Circle(..) => {}
             _ => {
                 return Err(BooleanError::GermEdgeCarrierUnsupported {
                     operand: side.operand,
@@ -2509,7 +2509,7 @@ fn far_edge<T: Decide>(
         return Ok(None);
     }
     match germ_curve(body, half.edge)?.carrier() {
-        geom::Curve3::Line { .. } => {}
+        geom::Curve3::Line(_) => {}
         geom::Curve3::Circle(..) => {
             let chord = body.resolve_vertex_point(far, Proven)
                 - body.resolve_vertex_point(half.start, Proven);

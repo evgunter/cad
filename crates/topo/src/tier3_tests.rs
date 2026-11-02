@@ -1057,21 +1057,22 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     };
     type Row = (&'static str, Curve3<f64>, Option<V<D>>);
     let cases: Vec<Row> = vec![
-        ("honest line", Curve3::Line { origin: o, dir: x }, None),
+        (
+            "honest line",
+            Curve3::Line(geom::Line { origin: o, dir: x }),
+            None,
+        ),
         (
             "line, zero dir",
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: o,
                 dir: zero,
-            },
+            }),
             Some(V::Poisoned(vec![D::Dir])),
         ),
         (
             "line, NaN origin and infinite dir",
-            Curve3::Line {
-                origin: Point3::new(nan, 0.0, 0.0),
-                dir: Vec3::new(inf, 0.0, 0.0),
-            },
+            Curve3::line(Point3::new(nan, 0.0, 0.0), Vec3::new(inf, 0.0, 0.0)),
             Some(V::Poisoned(vec![D::Origin, D::Dir])),
         ),
         ("honest circle", circle(o, z, 1.0, x), None),
@@ -1777,10 +1778,7 @@ fn a_drafted_chord_refused_its_span_is_typed() {
             pair: geom_brep::SurfacePair::new(own, theirs),
             selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
         },
-        carrier: geom::Curve3::Line {
-            origin: Point3::origin(),
-            dir: Vec3::unit_x(),
-        },
+        carrier: geom::Curve3::line(Point3::origin(), Vec3::unit_x()),
         param_start: 1.0,
         param_end: 0.0,
     };
@@ -2066,14 +2064,7 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
     let (carrier, t0, t1) = match kind {
         Carrier::Segment => {
             let len = p0.distance(p1);
-            (
-                geom::Curve3::Line {
-                    origin: p0,
-                    dir: (p1 - p0) / len,
-                },
-                0.0,
-                len,
-            )
+            (geom::Curve3::line(p0, (p1 - p0) / len), 0.0, len)
         }
         // θ = 0 is placed at the start point and the axis is chosen so
         // that `v_ref = axis × u_ref` points at +x: the half turn from
@@ -2436,10 +2427,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
         radius,
         u_ref: Vec3::unit_x(),
     };
-    let carrier = geom::Curve3::Line {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::unit_y(),
-    };
+    let carrier = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y());
     // The pillow's two faces are bounded by its two coincident seams, so
     // each reaches half a seam from the seam's middle: the wedge's
     // reach tier 3 reads (`crate::wedge_reach`).
@@ -3751,10 +3739,7 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
             at(body.get_half_edge(he).unwrap().start),
             at(body.half_edge_end(he).unwrap()),
         );
-        geom::Curve3::Line {
-            origin: p0,
-            dir: (p1 - p0) / p0.distance(p1),
-        }
+        geom::Curve3::line(p0, (p1 - p0) / p0.distance(p1))
     };
     for e in [p.et[0], p.eb[0], p.et[1], p.eb[1], p.ev[0], p.ev[1]] {
         let is_arc = e == p.et[0] || e == p.eb[0];

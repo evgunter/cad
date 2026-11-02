@@ -262,7 +262,7 @@ pub(super) fn certified_line<'a, T: Real>(
 ) -> Option<&'a geom_brep::EdgeCurve<T>> {
     body.edge_curve_linked(e, d)
         .certified()
-        .filter(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
+        .filter(|c| !c.carrier().is_curved())
 }
 
 /// Whether `v` is a **conventional vertex**: its only edge is one

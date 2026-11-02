@@ -81,10 +81,9 @@ pub(crate) fn plus_zero_scalar(x: f64) -> f64 {
 pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
     use geom::Curve3;
     match c {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: plus_zero_point(origin),
-            dir: plus_zero(dir),
-        },
+        Curve3::Line(geom::Line { origin, dir }) => {
+            Curve3::line(plus_zero_point(origin), plus_zero(dir))
+        }
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {

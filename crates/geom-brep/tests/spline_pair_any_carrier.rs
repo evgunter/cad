@@ -46,10 +46,7 @@ fn flat_wall() -> NurbsSurface<f64> {
 
 /// The off-iso diagonal on the flat wall, `t ∈ [0, 1]`.
 fn diagonal() -> Curve3<f64> {
-    Curve3::Line {
-        origin: Point3::new(0.1, 0.1, 0.0),
-        dir: Vec3::new(0.6, 0.8, 0.0),
-    }
+    Curve3::line(Point3::new(0.1, 0.1, 0.0), Vec3::new(0.6, 0.8, 0.0))
 }
 
 /// The vertical plane through the diagonal.
@@ -73,7 +70,7 @@ fn diagonal_wall() -> NurbsSurface<f64> {
 /// ellipse of half-angle under π/2, on the closed form's own interval.
 fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
     let net = match *carrier {
-        Curve3::Line { .. } => NurbsCurve3::new(
+        Curve3::Line(_) => NurbsCurve3::new(
             KnotVector::clamped(vec![t0, t0, t1, t1], 1).unwrap(),
             vec![carrier.eval(t0), carrier.eval(t1)],
             vec![1.0, 1.0],
@@ -502,10 +499,7 @@ fn bumped_wall(peak: f64) -> NurbsSurface<f64> {
 /// with the bound it read. The line and its spline twin alike.
 #[test]
 fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
-    let line = Curve3::Line {
-        origin: Point3::new(0.0, 0.5, 0.0),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let line = Curve3::line(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
     let plane = Surface::Plane {
         origin: Point3::new(0.0, 0.5, 0.0),
         normal: Vec3::new(0.0, 1.0, 0.0),
@@ -557,10 +551,7 @@ fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
 /// carrier's miss (`HullValueChart`), never [`SsiLimb::ImageMiss`].
 #[test]
 fn a_carrier_definitely_off_the_wall_at_a_break_refuses_on_its_own_miss() {
-    let line = Curve3::Line {
-        origin: Point3::new(0.0, 0.5, 0.0),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let line = Curve3::line(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
     let plane = Surface::Plane {
         origin: Point3::new(0.0, 0.5, 0.0),
         normal: Vec3::new(0.0, 1.0, 0.0),

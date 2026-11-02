@@ -122,7 +122,7 @@ impl<'c, T: Decide> Foot<'c, T> {
     /// carrier** (module docs): on a line and a circle, where it is found
     /// in closed form.
     pub fn is_nearest(&self) -> bool {
-        matches!(self.carrier, Curve3::Line { .. } | Curve3::Circle(..))
+        matches!(self.carrier, Curve3::Line(_) | Curve3::Circle(..))
     }
 
     /// **Whether the point lies on the carrier** (module docs): on by the
@@ -281,7 +281,7 @@ impl<T: Decide> Curve3<T> {
     /// the interval it reads.
     pub fn foot(&self, q: Point3<T>, near: T) -> Foot<'_, T> {
         let seed = match self {
-            Self::Line { origin, dir } => (q - *origin).dot(*dir) / dir.dot(*dir),
+            Self::Line(line) => line.param(q),
             Self::Circle(c) => {
                 let (x, y) = c.frame.in_plane(q);
                 return self.foot_at(q, angle_near(x, y, near));
@@ -329,7 +329,7 @@ impl<T: Decide> Curve3<T> {
         };
         let at = self.foot_at(q, seed);
         match self {
-            Self::Line { .. } => at,
+            Self::Line(_) => at,
             _ => self.polish(q, at, None),
         }
     }
@@ -388,7 +388,7 @@ impl<T: Decide> Curve3<T> {
     /// piece walk ([`Self::clear_of`]).
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
-            Self::Line { origin, dir } => {
+            Self::Line(crate::Line { origin, dir }) => {
                 let w = q - origin;
                 let u = dir * (T::one() / dir.norm());
                 (w - u * w.dot(u)).norm()
@@ -430,7 +430,7 @@ impl<T: Decide> Curve3<T> {
         match self {
             Self::Nurbs(n) => n.knot_values().domain(),
             Self::Circle(_) | Self::Ellipse(_) | Self::Spiric { .. } => (T::zero(), T::tau()),
-            Self::Line { .. } => (T::zero(), T::zero()),
+            Self::Line(_) => (T::zero(), T::zero()),
         }
     }
 

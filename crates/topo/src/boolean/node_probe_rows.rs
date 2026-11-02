@@ -341,7 +341,7 @@ fn top_piece(flip: bool, rim_axis: Vec3<f64>) -> Body<f64> {
         let kinds: Vec<_> = arcs(&body, f).into_iter().map(|(c, _)| c).collect();
         let (key, sense) = if kinds.iter().all(|c| matches!(c, Curve3::Circle(..))) {
             (kc, true)
-        } else if kinds.iter().any(|c| matches!(c, Curve3::Line { .. })) {
+        } else if kinds.iter().any(|c| matches!(c, Curve3::Line(_))) {
             (ka, true)
         } else {
             (kb, false)

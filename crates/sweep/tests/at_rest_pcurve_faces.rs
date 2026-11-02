@@ -648,10 +648,7 @@ fn in_plane_strut(declared: bool) -> (Body<f64>, FaceKey) {
         let len = p.distance(end);
         EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::chart(profile_cap(&body)),
-            carrier: Curve3::Line {
-                origin: p,
-                dir: (end - p) * (1.0 / len),
-            },
+            carrier: Curve3::line(p, (end - p) * (1.0 / len)),
             param_start: 0.0,
             param_end: len,
         }

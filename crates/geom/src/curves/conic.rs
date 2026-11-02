@@ -689,7 +689,7 @@ impl<T: Real> Curve3<T> {
         match self {
             Self::Circle(c) => Some(c),
             Self::Ellipse(e) => Some(e),
-            Self::Line { .. } | Self::Spiric { .. } | Self::Nurbs(_) => None,
+            Self::Line(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
         }
     }
 }

@@ -1073,23 +1073,6 @@ const ARC_LOOP_TRIM: ArcTrimRows = ArcTrimRows {
     trim: "point_in_arc_loop_conic_window",
 };
 
-/// The distance from `p` to the circle (`center`, unit `axis`,
-/// `radius`): `√(h² + (ρ − r)²)`, `h` its height over the circle's plane
-/// and `ρ` its distance from the axis. The one spelling of a point's
-/// miss from a circle, for the loop walk here and the boolean's contact
-/// and on-carrier rows.
-pub(crate) fn circle_miss<T: Decide>(
-    p: Point3<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-) -> T {
-    let off = p - center;
-    let h = off.dot(axis);
-    let rho = (off - axis * h).norm();
-    (h.powi(2) + (rho - radius).powi(2)).sqrt()
-}
-
 /// **Whether `p`, a point on a circle, lies inside the arc of it whose
 /// ends are `ends` and whose apex is `apex`** (`anti` the apex's
 /// antipode) — decided as DISTANCES, never as an angle, and the one
@@ -1433,7 +1416,7 @@ fn step_ball<T: Decide>(
             ball,
             conic_arc_ball(curve.carrier(), curve.params()).unwrap_or(ball),
         ])),
-        None if matches!(curve.carrier(), geom::Curve3::Line { .. }) => Ok(None),
+        None if !curve.carrier().is_curved() => Ok(None),
         None => Err(PointInLoopError::CorruptLoop { r#loop }),
     }
 }
@@ -1499,7 +1482,7 @@ pub(crate) fn carrier_loop<T: Decide>(
                     unreachable!("a circle or an ellipse is a conic arc above")
                 }
                 // A line: its segment is its two end vertices'.
-                geom::Curve3::Line { .. } => LoopEdge::Chord,
+                geom::Curve3::Line(_) => LoopEdge::Chord,
                 geom::Curve3::Spiric {
                     center,
                     axis,
@@ -1549,7 +1532,7 @@ pub(crate) fn carrier_ball<T: Decide>(
     (t0, t1): (T, T),
 ) -> Option<(Point3<T>, T)> {
     match *carrier {
-        geom::Curve3::Line { .. } => None,
+        geom::Curve3::Line(_) => None,
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
             carrier.conic().map(|k| (k.frame().center, k.speed_hi()))
         }
@@ -1618,9 +1601,11 @@ pub(crate) fn arc_distance_floor<T: Decide>(
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
-        geom::Curve3::Line { .. } => ArcFloor::Segment(
-            crate::sector_shape::point_segment_distance(carrier.eval(t0), carrier.eval(t1), q),
-        ),
+        geom::Curve3::Line(_) => ArcFloor::Segment(crate::sector_shape::point_segment_distance(
+            carrier.eval(t0),
+            carrier.eval(t1),
+            q,
+        )),
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
             let Some(crate::ring_path::LoopArc::Conic(arc)) =
                 crate::ring_path::LoopArc::of(carrier, (t0, t1))
@@ -1986,7 +1971,7 @@ fn certify_plane<T: Decide>(
     for step in &steps {
         let mut margins = vec![off(step.point)];
         match step.curve.map(|c| c.carrier()) {
-            None | Some(geom::Curve3::Line { .. }) => {}
+            None | Some(geom::Curve3::Line(_)) => {}
             Some(conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
                 if let Some(k) = conic.conic() {
                     margins.extend([off(k.frame().center), tilt(k.frame().axis, k.speed_hi())]);

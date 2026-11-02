@@ -483,10 +483,9 @@ fn map_carrier<T: Real>(
         )
     };
     Ok(match *c {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: map.transform_point(origin),
-            dir: map_vec(map, dir),
-        },
+        Curve3::Line(geom::Line { origin, dir }) => {
+            Curve3::line(map.transform_point(origin), map_vec(map, dir))
+        }
         // A rigid map preserves the sizes and the frame's orthonormality —
         // the ellipse's axis ordering transfers unchanged, so no
         // re-decision is needed (the constructor decided at mint; this is

@@ -480,7 +480,7 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
                     };
                     assert_eq!(operand, tube_is, "{label}: an edge of the tube");
                     assert!(
-                        matches!(carrier_of(&tube, edge), geom::Curve3::Line { .. }),
+                        matches!(carrier_of(&tube, edge), geom::Curve3::Line(_)),
                         "{label}: the tube's seam ruling"
                     );
                 }

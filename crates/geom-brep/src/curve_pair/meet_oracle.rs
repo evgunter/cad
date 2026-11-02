@@ -64,13 +64,7 @@ fn through(rng: &mut fuzz::Rng, kind: usize, x: Point3<f64>) -> (Curve3<f64>, f6
     if kind == 0 {
         let dir = direction(rng);
         let t = rng.range(-2.0, 2.0);
-        return (
-            Curve3::Line {
-                origin: x - dir * t,
-                dir,
-            },
-            t,
-        );
+        return (Curve3::line(x - dir * t, dir), t);
     }
     let axis = direction(rng);
     let u = {
@@ -201,13 +195,7 @@ fn along(
 ) -> (Curve3<f64>, f64) {
     if kind == 0 {
         let at = rng.range(-2.0, 2.0);
-        return (
-            Curve3::Line {
-                origin: x - t * at,
-                dir: t,
-            },
-            at,
-        );
+        return (Curve3::line(x - t * at, t), at);
     }
     let a = rng.log_uniform(0.3, 3.0);
     let b = if kind == 1 {
@@ -357,7 +345,7 @@ fn off_span(s: &Span<'_, f64>, q: Point3<f64>) -> f64 {
             .min((s.carrier().eval(t1) - q).norm())
     };
     match *s.carrier() {
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             let t = (q - origin).dot(dir) / dir.dot(dir);
             if (t0.min(t1)..=t0.max(t1)).contains(&t) {
                 distance(s.carrier(), q)

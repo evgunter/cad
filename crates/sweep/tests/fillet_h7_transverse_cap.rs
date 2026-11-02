@@ -222,7 +222,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 .get_curve_geom(out.body.get_edge(t).unwrap().curve)
                 .and_then(|g| g.certified())
                 .expect("a certified trimline");
-            let Curve3::Line { dir, .. } = *c.carrier() else {
+            let Curve3::Line(geom::Line { dir, .. }) = *c.carrier() else {
                 panic!("{what}: a trimline is a line");
             };
             assert!(

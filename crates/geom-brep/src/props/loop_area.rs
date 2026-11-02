@@ -65,7 +65,7 @@ pub fn loop_vector_area<T: SpanLocate>(
     let mut acc = Vec3::zero();
     for e in edges {
         let contrib = match e.carrier {
-            Curve3::Line { .. } => {
+            Curve3::Line(_) => {
                 let a = e.p0() - ref_point;
                 let b = e.p1() - ref_point;
                 a.cross(b) * half
@@ -167,7 +167,7 @@ fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
 #[must_use]
 pub fn vector_area_reads<T: SpanLocate>(carrier: &Curve3<T>) -> bool {
     match carrier {
-        Curve3::Line { .. } | Curve3::Circle(..) | Curve3::Ellipse(..) => true,
+        Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => true,
         Curve3::Nurbs(c) => !is_rational(c) && gauss_rule(c.degree().max(1)).is_some(),
         Curve3::Spiric { .. } => false,
     }
@@ -390,13 +390,7 @@ mod tests {
             ))
         };
         let carriers = [
-            (
-                Curve3::Line {
-                    origin: p(0.0, 0.0),
-                    dir: Vec3::new(1.0, 0.0, 0.0),
-                },
-                true,
-            ),
+            (Curve3::line(p(0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)), true),
             (
                 Curve3::circle(
                     p(0.0, 0.0),
@@ -434,17 +428,7 @@ mod tests {
     fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {
         let d = b - a;
         let len = d.norm();
-        LoopEdge::hand_built(
-            Curve3::Line {
-                origin: a,
-                dir: d * (1.0 / len),
-            },
-            0.0,
-            len,
-            forward,
-            0,
-            0,
-        )
+        LoopEdge::hand_built(Curve3::line(a, d * (1.0 / len)), 0.0, len, forward, 0, 0)
     }
 
     #[test]

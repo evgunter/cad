@@ -257,10 +257,7 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             let (chart, radius, v0) = cylinder(s);
             (
                 chart,
-                Curve3::Line {
-                    origin: at + r * radius + axis * v0,
-                    dir: axis * s.range(-3.0, 3.0),
-                },
+                Curve3::line(at + r * radius + axis * v0, axis * s.range(-3.0, 3.0)),
             )
         }
         Class::CylinderMeridianCircle => {
@@ -301,10 +298,10 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             };
             (
                 chart,
-                Curve3::Line {
-                    origin: at + generator * v0,
-                    dir: generator * (sign(s) * s.range(0.2, 3.0)),
-                },
+                Curve3::line(
+                    at + generator * v0,
+                    generator * (sign(s) * s.range(0.2, 3.0)),
+                ),
             )
         }
         Class::SphereParallel => {
@@ -418,10 +415,10 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             let (chart, radius, v0) = cylinder(s);
             (
                 chart,
-                Curve3::Line {
-                    origin: at + r * radius + axis * v0,
-                    dir: axis * s.range(-3.0, 3.0) + r * s.range(-1.0, 1.0),
-                },
+                Curve3::line(
+                    at + r * radius + axis * v0,
+                    axis * s.range(-3.0, 3.0) + r * s.range(-1.0, 1.0),
+                ),
             )
         }
     }
@@ -529,10 +526,9 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         }
     };
     match *carrier {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: origin + nudge(s, 1),
-            dir: dir + nudge(s, 3) * dir.norm(),
-        },
+        Curve3::Line(geom::Line { origin, dir }) => {
+            Curve3::line(origin + nudge(s, 1), dir + nudge(s, 3) * dir.norm())
+        }
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {

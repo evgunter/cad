@@ -85,7 +85,7 @@ impl Fnv {
 
     fn curve3<T: Decide + Bounds>(&mut self, c: &Curve3<T>) {
         match c {
-            Curve3::Line { origin, dir } => {
+            Curve3::Line(geom::Line { origin, dir }) => {
                 self.u64(40);
                 self.p3(origin);
                 self.v3(dir);
@@ -327,11 +327,6 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                     // The measured quantity IS a lane value, so it is
                     // digested through the same value-channel bracket
                     // every coordinate takes.
-                    // A measure with no value at this scalar digests as
-                    // the ABSENCE, at its own tag: two passes that both
-                    // failed to measure agree, and neither agrees with
-                    // a pass that measured something.
-                    ValuePayload::MeasureUnavailable { .. } => d.u64(24),
                     ValuePayload::Measure { value, dim } => {
                         d.u64(21);
                         d.u64(match dim {
@@ -356,6 +351,11 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                                 d.s(*bound);
                             }
                             AssertionVerdict::Unevaluated { .. } => {}
+                            AssertionVerdict::Clearance(report) => {
+                                for b in report.serialize().bytes() {
+                                    d.u64(u64::from(b));
+                                }
+                            }
                         }
                     }
                 }

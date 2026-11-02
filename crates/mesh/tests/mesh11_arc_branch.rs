@@ -214,10 +214,10 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     )];
     // A generator segment THROUGH the apex.
     let cone_face = vec![edge(
-        Curve3::Line {
-            origin: Point3::<f64>::new(0.0, 0.0, 0.0),
-            dir: Vec3::<f64>::new(s2, 0.0, s2),
-        },
+        Curve3::line(
+            Point3::<f64>::new(0.0, 0.0, 0.0),
+            Vec3::<f64>::new(s2, 0.0, s2),
+        ),
         -1.0,
         1.0,
         0,
@@ -226,10 +226,10 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     // A generator segment spanning the axis LEVEL — the cylinder's
     // nearest analogue, and no singularity is there to cross.
     let cylinder_face = vec![edge(
-        Curve3::Line {
-            origin: Point3::<f64>::new(1.0, 0.0, 0.0),
-            dir: Vec3::<f64>::new(0.0, 0.0, 1.0),
-        },
+        Curve3::line(
+            Point3::<f64>::new(1.0, 0.0, 0.0),
+            Vec3::<f64>::new(0.0, 0.0, 1.0),
+        ),
         -5.0,
         5.0,
         0,

@@ -65,7 +65,7 @@
 //! lattice operations.
 
 use geom::curves::boxes::ArcWindow;
-use geom::{Conic, Curve3, Surface};
+use geom::{Conic, Curve3, Line, Surface};
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3, is_finite_length};
 
@@ -142,7 +142,7 @@ impl<T: Real> ExtentBall<T> {
     /// the tilt's lever from it is least.
     #[must_use]
     pub fn foot_on(self, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
-        foot(self.center, origin, axis)
+        Line { origin, dir: axis }.foot(self.center)
     }
 
     /// The ball, if it reads: `None` where its centre or radius is
@@ -194,11 +194,6 @@ impl<T: Real> ExtentBall<T> {
             | Surface::Approx(_) => None,
         }
     }
-}
-
-/// The point of the line `origin + s·axis` (`axis` unit) nearest `p`.
-fn foot<T: Real>(p: Point3<T>, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
-    origin + axis * (p - origin).dot(axis)
 }
 
 /// **How far a circle arc reaches from a point, exactly**: the farthest
@@ -319,7 +314,7 @@ fn schedule<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T), n: u32) -> Vec
 /// a bound already certified.
 fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
     let sup = match carrier {
-        Curve3::Line { dir, .. } => dir.norm(),
+        Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
         Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
             Some(k) => k.speed_hi(),
             None => unreachable!("a circle or an ellipse is a conic"),
@@ -402,7 +397,7 @@ pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
     let fold = |r: T| r * (T::one() - half_span.cos());
     let pairs = || farthest_pair(&schedule(carrier, (t0, t1), EXTENT_PIECES));
     match carrier {
-        Curve3::Line { .. } => chord,
+        Curve3::Line(_) => chord,
         Curve3::Circle(geom::Circle { radius, .. }) => chord.max(fold(*radius)),
         Curve3::Ellipse(e) => chord.max(fold(e.speed_lo())).max(pairs()),
         Curve3::Spiric { minor_radius, .. } => chord.max(fold(*minor_radius)).max(pairs()),
@@ -474,7 +469,7 @@ pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
             + speed_sup(carrier) * span / T::from_f64(f64::from(EXTENT_PIECES))
     };
     match carrier {
-        Curve3::Line { .. } => chord,
+        Curve3::Line(_) => chord,
         Curve3::Circle(geom::Circle { radius, .. }) => chord.max(two * *radius * fold),
         Curve3::Ellipse(e) => {
             let step = (t1 - t0) / T::from_f64(f64::from(ELLIPSE_PIECES));
@@ -542,9 +537,7 @@ pub fn edge_reach_from<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, pivot: 
     };
     let sampled = sampled_reach(carrier, (t0, t1), pivot);
     let bound = match carrier {
-        Curve3::Line { .. } | Curve3::Circle(..) | Curve3::Ellipse(..) => {
-            span.span_reach_from(pivot)
-        }
+        Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => span.span_reach_from(pivot),
         Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
             let slack =
                 speed_sup(carrier) * (t1 - t0).abs() / T::from_f64(f64::from(2 * EXTENT_PIECES));
@@ -640,7 +633,7 @@ pub fn edge_reach_bounds<T: SpanLocate>(
 ) -> LeverBounds<T> {
     let above = edge_reach_from(carrier, t0, t1, pivot);
     match carrier {
-        Curve3::Line { .. } | Curve3::Circle(..) => LeverBounds::Exact(above),
+        Curve3::Line(_) | Curve3::Circle(..) => LeverBounds::Exact(above),
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => LeverBounds::Between {
             below: sampled_reach(carrier, (t0, t1), pivot),
             above,
@@ -747,7 +740,7 @@ impl<T: Real> Reach<T> {
                     minor_radius,
                     ..
                 } => (*center - pivot).norm() + major_radius.abs() + minor_radius.abs(),
-                Curve3::Line { .. } | Curve3::Nurbs(_) => self
+                Curve3::Line(_) | Curve3::Nurbs(_) => self
                     .span_points()
                     .iter()
                     .fold(T::zero(), |m, &p| m.max((p - pivot).norm())),
@@ -843,7 +836,7 @@ impl<T: Real> Reach<T> {
                         major_radius.abs() * dir.cross(*k).norm() + minor_radius.abs() * dir.norm();
                     (c - r, c + r)
                 }
-                Curve3::Line { .. } | Curve3::Nurbs(_) => points(self.span_points()),
+                Curve3::Line(_) | Curve3::Nurbs(_) => points(self.span_points()),
             },
         }
     }
@@ -910,7 +903,7 @@ impl<T: Real> Reach<T> {
     pub fn foot_on(&self, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
         match self {
             Self::Span {
-                carrier: Curve3::Line { .. } | Curve3::Nurbs(_),
+                carrier: Curve3::Line(_) | Curve3::Nurbs(_),
                 ..
             } => minimax_on_axis(&self.span_points(), origin, axis),
             Self::Span {
@@ -925,9 +918,11 @@ impl<T: Real> Reach<T> {
                     })
                     | Curve3::Spiric { center, .. },
                 ..
-            } => foot(*center, origin, axis),
-            Self::Ball(ball) => foot(ball.center(), origin, axis),
-            Self::Measured { at, .. } | Self::Face { at, .. } => foot(*at, origin, axis),
+            } => Line { origin, dir: axis }.foot(*center),
+            Self::Ball(ball) => Line { origin, dir: axis }.foot(ball.center()),
+            Self::Measured { at, .. } | Self::Face { at, .. } => {
+                Line { origin, dir: axis }.foot(*at)
+            }
         }
     }
 
@@ -973,7 +968,7 @@ impl<T: Real> Reach<T> {
     fn span_points(&self) -> Vec<Point3<T>> {
         match self {
             Self::Span {
-                carrier: Curve3::Line { origin, dir },
+                carrier: Curve3::Line(geom::Line { origin, dir }),
                 t0,
                 t1,
             } => vec![*origin + *dir * *t0, *origin + *dir * *t1],

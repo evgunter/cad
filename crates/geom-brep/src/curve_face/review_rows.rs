@@ -74,19 +74,10 @@ fn quarter_ellipse() -> Vec<(Curve3<f64>, (f64, f64))> {
         1.0,
     ));
     vec![
-        (
-            Curve3::Line {
-                origin: Point3::origin(),
-                dir: Vec3::unit_x(),
-            },
-            (0.0, 3.0),
-        ),
+        (Curve3::line(Point3::origin(), Vec3::unit_x()), (0.0, 3.0)),
         (e, (0.0, FRAC_PI_2)),
         (
-            Curve3::Line {
-                origin: Point3::new(0.0, 1.0, 0.0),
-                dir: -Vec3::unit_y(),
-            },
+            Curve3::line(Point3::new(0.0, 1.0, 0.0), -Vec3::unit_y()),
             (0.0, 1.0),
         ),
     ]
@@ -137,19 +128,10 @@ fn an_ellipse_run_past_the_corner_meets_there() {
 
 fn rim() -> Vec<(Curve3<f64>, (f64, f64))> {
     vec![
-        (
-            Curve3::Line {
-                origin: Point3::origin(),
-                dir: Vec3::unit_x(),
-            },
-            (0.0, 1.0),
-        ),
+        (Curve3::line(Point3::origin(), Vec3::unit_x()), (0.0, 1.0)),
         (circle(Vec3::unit_z()), (0.0, FRAC_PI_2)),
         (
-            Curve3::Line {
-                origin: Point3::new(0.0, 1.0, 0.0),
-                dir: -Vec3::unit_y(),
-            },
+            Curve3::line(Point3::new(0.0, 1.0, 0.0), -Vec3::unit_y()),
             (0.0, 1.0),
         ),
     ]
@@ -157,10 +139,7 @@ fn rim() -> Vec<(Curve3<f64>, (f64, f64))> {
 
 #[test]
 fn a_line_sub_run_lies_along_and_one_across_the_corner_meets() {
-    let x = Curve3::Line {
-        origin: Point3::origin(),
-        dir: Vec3::unit_x(),
-    };
+    let x = Curve3::line(Point3::origin(), Vec3::unit_x());
     let r = read_on(&rim(), &x, (0.2, 0.7));
     assert!(matches!(r, Ok(Boundary::Along { edge: 0 })), "{r:?}");
     let r = read_on(&rim(), &x, (-0.5, 0.5));

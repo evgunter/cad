@@ -1079,7 +1079,7 @@ fn transport_curve<T: Decide>(
             ))
         }
         Surface::Cylinder { origin, axis, .. } => match curve {
-            Curve3::Line { .. } | Curve3::Nurbs(_) => {
+            Curve3::Line(_) | Curve3::Nurbs(_) => {
                 let radial = (mid - *origin).reject_from(*axis).normalize();
                 let delta = radial * d;
                 Some((
@@ -1116,7 +1116,7 @@ fn transport_curve<T: Decide>(
                 // A chart line is a generator, and the action's
                 // displacement is constant along one (the azimuth does
                 // not vary), so the transport is rigid.
-                Curve3::Line { .. } | Curve3::Nurbs(_) => {
+                Curve3::Line(_) | Curve3::Nurbs(_) => {
                     let delta = action.displacement(nappe, mid);
                     Some((
                         translate_curve(curve, delta).map_err(TransportError::Structure)?,
@@ -1252,10 +1252,7 @@ pub(crate) fn translate_curve<T: Real>(
     delta: Vec3<T>,
 ) -> Result<Curve3<T>, geom_core::spline::SplineError> {
     Ok(match curve {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: *origin + delta,
-            dir: *dir,
-        },
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(*origin + delta, *dir),
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
@@ -1324,7 +1321,7 @@ fn homothety<T: Real>(
         // A line, an ellipse or a spiric does not lie on a sphere, so
         // a carrier of any of those kinds is not a curve this map was
         // derived for.
-        Curve3::Line { .. } | Curve3::Ellipse(..) | Curve3::Spiric { .. } => return Ok(None),
+        Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => return Ok(None),
     }))
 }
 
@@ -2325,7 +2322,7 @@ fn cone_v_range<T: Decide>(
     let v_of = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
     match carrier {
         // `v` is affine in `t`, so the endpoints are the extremes.
-        Curve3::Line { .. } => {
+        Curve3::Line(_) => {
             let (a, b) = (v_of(carrier.eval(t0)), v_of(carrier.eval(t1)));
             (a.min(b), a.max(b))
         }
@@ -3310,8 +3307,8 @@ fn derive_edge<'w, 's, T: Decide>(
     // read over the old edge's span; the new edge's is read once its ends
     // are known.
     let apex_pair = match (&carrier, &refused, new_surface, neighbour) {
-        (Curve3::Line { .. }, None, plane @ Surface::Plane { .. }, cone @ Surface::Cone { .. })
-        | (Curve3::Line { .. }, None, cone @ Surface::Cone { .. }, plane @ Surface::Plane { .. }) => {
+        (Curve3::Line(_), None, plane @ Surface::Plane { .. }, cone @ Surface::Cone { .. })
+        | (Curve3::Line(_), None, cone @ Surface::Cone { .. }, plane @ Surface::Plane { .. }) => {
             Some((plane.clone(), cone.clone()))
         }
         _ => None,
@@ -3788,7 +3785,7 @@ fn plan_reanchors<T: Decide>(
                             let clamped = at == lo || at == hi;
                             (t, clamped.then_some(at))
                         }
-                        Curve3::Line { .. }
+                        Curve3::Line(_)
                         | Curve3::Circle(..)
                         | Curve3::Ellipse(..)
                         | Curve3::Spiric { .. } => (
@@ -3939,7 +3936,7 @@ fn plan_reanchors<T: Decide>(
         };
         // A line or a clamped spline has no turn to choose, so a span
         // that stops being forward on it is the move's length alone.
-        let unwound = matches!(carrier, Curve3::Line { .. } | Curve3::Nurbs(_)).then_some(d);
+        let unwound = matches!(carrier, Curve3::Line(_) | Curve3::Nurbs(_)).then_some(d);
         out.push((
             edge,
             EdgeCurveSpec {
@@ -4900,10 +4897,7 @@ mod pose_reach_rows {
             half_angle: alpha,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let edge = Curve3::Line {
-            origin: Point3::new(2.0, -2.0, 0.0),
-            dir: Vec3::new(0.0, 1.0, 0.0),
-        };
+        let edge = Curve3::line(Point3::new(2.0, -2.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
         let tight = 8.0_f64.sqrt();
         let span = Reach::Span {
             carrier: edge.clone(),
@@ -4965,10 +4959,7 @@ mod pose_reach_rows {
             radius: 0.1,
             u_ref: axis.cross(Vec3::new(0.3, 0.5, 0.7)).normalize(),
         };
-        let edge = Curve3::Line {
-            origin: Point3::new(1.0, 0.0, 0.2),
-            dir: Vec3::unit_z(),
-        };
+        let edge = Curve3::line(Point3::new(1.0, 0.0, 0.2), Vec3::unit_z());
         let general = rod(Vec3::new(0.3, 0.4, 1.0).normalize());
         for (label, a, b) in [
             ("cyl, torus", &general, &torus),
@@ -5023,10 +5014,7 @@ mod pose_reach_rows {
         let cyl = cylinder(stored, Vec3::new(theta.sin(), 0.0, theta.cos()));
         let off = 1000.0 * theta.sin();
         let parallel = cylinder(Point3::new(-off, 0.0, 0.0), Vec3::unit_z());
-        let edge = Curve3::Line {
-            origin: Point3::new(1.0, 0.0, 1.0),
-            dir: Vec3::unit_z(),
-        };
+        let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), Vec3::unit_z());
         let refusal = |cyl: &Surface<f64>| match geom_brep::cone_cylinder_section(
             &cone,
             cyl,
@@ -5064,10 +5052,7 @@ mod pose_reach_rows {
     /// refuses both.
     #[test]
     fn a_cone_cylinder_tilt_is_levered_at_the_edges_distance_from_the_apex() {
-        let edge = Curve3::Line {
-            origin: Point3::new(1.0, 0.0, 1.0),
-            dir: Vec3::unit_z(),
-        };
+        let edge = Curve3::line(Point3::new(1.0, 0.0, 1.0), Vec3::unit_z());
         let lever = (Point3::new(1.0, 0.0, 1.1_f64) - Point3::origin()).norm();
         let cone = Surface::Cone {
             apex: Point3::origin(),
@@ -5197,10 +5182,7 @@ mod pose_reach_rows {
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
-        let edge = Curve3::Line {
-            origin: Point3::new(1.0, 0.0, -1.0),
-            dir: Vec3::unit_z(),
-        };
+        let edge = Curve3::line(Point3::new(1.0, 0.0, -1.0), Vec3::unit_z());
         for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
             let theta: f64 = k * eps / 2.0_f64.sqrt();
             let c2 = Surface::Cylinder {
@@ -5382,10 +5364,7 @@ mod read_ends_rows {
     fn a_corner_off_the_derived_carrier_is_a_disagreement() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let line = Curve3::Line {
-            origin: Point3::origin(),
-            dir: Vec3::unit_x(),
-        };
+        let line = Curve3::line(Point3::origin(), Vec3::unit_x());
         let off = Point3::new(0.5, 1e-3, 0.0);
         let mut p = plan(line.clone());
         let got = read_ends(
@@ -5469,7 +5448,7 @@ mod pair_over_its_span_rows {
         else {
             panic!("the old edge's span, clear of the start, is served the pair");
         };
-        let Curve3::Line { dir, .. } = l1 else {
+        let Curve3::Line(geom::Line { dir, .. }) = l1 else {
             unreachable!("a line of the pair")
         };
         let to = 1.0 / dir.z;
@@ -5553,7 +5532,7 @@ mod pair_over_its_span_rows {
             else {
                 panic!("δ = {delta:e}: a span clear of the apex is served the pair");
             };
-            let Curve3::Line { dir, .. } = l1 else {
+            let Curve3::Line(geom::Line { dir, .. }) = l1 else {
                 unreachable!("a line of the pair")
             };
             let mut plan = EdgePlan {

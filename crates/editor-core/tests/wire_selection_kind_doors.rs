@@ -28,7 +28,6 @@
 
 use crate::fixture;
 
-use editor_core::measure::MeasurePrimitive;
 use editor_core::{
     CapEnd, EditError, EntityKind, Node, OperandSlot, PersistError, ProfileDoc, RecipeNodeId,
     SelectionFault, SnapshotError, StableName, load, save,
@@ -274,13 +273,13 @@ fn a_saved_selection_of_another_kind_refuses_at_load() {
     }
 }
 
-/// **A measure's reference kind is the door's, not evaluation's**
-/// (FORK-VTX): a `min_clearance` reads a body or a face, and an edge or
-/// a vertex refuses at insert as the seat's kind, before any evaluation
+/// **A clearance seat's kind is the door's, not evaluation's**
+/// (FORK-VTX): a clearance reads a body or a face, and an edge or a
+/// vertex refuses at insert as the seat's kind, before any evaluation
 /// could ask what a name denotes. Two rows, one per found kind, so a seat
 /// that admitted either goes red.
 #[test]
-fn a_measure_reference_of_another_kind_refuses_at_the_door() {
+fn a_clearance_seat_of_another_kind_refuses_at_the_door() {
     for (what, select, found) in [
         ("an edge", EntityKind::Edge, editor_core::VarKind::Edge),
         ("a vertex", EntityKind::Vertex, editor_core::VarKind::Vertex),
@@ -291,23 +290,20 @@ fn a_measure_reference_of_another_kind_refuses_at_the_door() {
         } else {
             vertex
         };
-        let refused = editor_core::measure(
+        let err = crate::fixture::insert_refused(
             &doc,
-            &[MeasurePrimitive::MinClearance {
-                a: crate::fixture::sited_ref(name),
-                b: crate::fixture::sited_ref(face),
-            }],
-            Tol::witness(),
+            Node::clearance(
+                crate::fixture::sited_ref(name),
+                crate::fixture::sited_ref(face),
+                editor_core::ClearanceBounds::AtLeast(crate::fixture::len(0.1)),
+            ),
         );
-        let Err(err) = refused else {
-            panic!("{what}: the insert refuses");
-        };
         assert!(
             matches!(
                 &err,
                 editor_core::EditError::SlotVarKind {
                     found: f,
-                    expected: editor_core::SlotKind::Measured(editor_core::MeasureVerb::MinClearance),
+                    expected: editor_core::SlotKind::Cleared,
                     ..
                 } if *f == found
             ),

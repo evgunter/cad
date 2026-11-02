@@ -14,7 +14,7 @@
 //! to about `u·A`, however close to the origin the arc lies. Read so,
 //! the resolution is the same wherever the part sits.
 
-use geom::{Curve3, CurveKind};
+use geom::Curve3;
 use geom_core::SpanLocate;
 use geom_core::running::UNIT_ROUNDOFF;
 
@@ -51,10 +51,10 @@ pub fn resolution<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> Option<T>
     let speed = speed_hi(carrier)?;
     let tau = t0.abs().max(t1.abs());
     // `speed_hi` answers a line and the conics alone.
-    let reach = if carrier.kind() == CurveKind::Line {
-        tau
-    } else {
+    let reach = if carrier.is_curved() {
         T::from_f64(2.0)
+    } else {
+        tau
     };
     Some(T::from_f64(UNIT_ROUNDOFF) * speed * (T::from_f64(RESOLUTION_ROUNDINGS) * reach + tau))
 }

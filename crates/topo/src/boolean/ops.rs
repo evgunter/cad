@@ -9765,10 +9765,7 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let ruling = geom::Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 1.0, 0.0),
-        };
+        let ruling = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
         (floor, cylinder, ruling)
     }
 
@@ -10259,10 +10256,7 @@ mod tests {
             crate::entity::FaceKey::default(),
             crate::geometry::SurfaceKey::default(),
         );
-        let line = geom::Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
         let circle = geom::Curve3::circle(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),

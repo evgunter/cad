@@ -517,13 +517,10 @@ fn a_re_parameterized_certified_edge_leaves_its_spline_wall_as_found() {
             start_point(&body, e.he_minus),
         );
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
-        let Curve3::Line { origin, dir } = spec.carrier else {
+        let Curve3::Line(geom::Line { origin, dir }) = spec.carrier else {
             unreachable!("line_between builds a line")
         };
-        spec.carrier = Curve3::Line {
-            origin: origin - dir,
-            dir,
-        };
+        spec.carrier = Curve3::line(origin - dir, dir);
         spec.param_start += 1.0;
         spec.param_end += 1.0;
         let before = wall_images(&body);

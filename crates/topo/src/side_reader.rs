@@ -386,7 +386,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
     )?;
     let half = T::from_f64(0.5);
     let mut step = match *curve(first.edge)?.carrier() {
-        geom::Curve3::Line { .. } => None,
+        geom::Curve3::Line(_) => None,
         geom::Curve3::Circle(geom::Circle { radius, .. }) => Some(radius * half),
         _ => return None,
     };

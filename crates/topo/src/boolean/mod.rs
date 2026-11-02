@@ -251,8 +251,7 @@ pub use voids::{
 /// decisions has no words here, since neither decision's words are
 /// true of it: `bool_contact_vertex` (the contact sweep's
 /// [`BooleanDecision::VertexOnVertex`], and containment's boundary
-/// pre-pass), `bool_contact_arc` (the split point on its circle, and
-/// the same pre-pass) and `bool_sector_crescent` (the sectors'
+/// pre-pass) and `bool_sector_crescent` (the sectors'
 /// coincidence where its crescent reads in band, and
 /// [`BooleanDecision::ConicBend`] where a bound's bend carries no
 /// bound).
@@ -7053,7 +7052,7 @@ fn given_verdicts<T: Decide>(
                     let (_, overlap) = witness_span(a, fa, b, fb, (origin, dir), band, pad)?;
                     if locus_through_both_faces(
                         [(a, fa, Operand::A, kinds.0), (b, fb, Operand::B, kinds.1)],
-                        &geom::Curve3::Line { origin, dir },
+                        &geom::Curve3::Line(geom::Line { origin, dir }),
                         overlap,
                         DeclarationRead::Spent(GlueClass::Tangent),
                         band,
@@ -7286,7 +7285,7 @@ fn tangent_line<T: Decide>(
         Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
             let (span, overlap) = witness_span(a, fa, b, fb, (origin, dir), band, pad)?;
             Ok(Ok(TangentLine {
-                carrier: geom::Curve3::Line { origin, dir },
+                carrier: geom::Curve3::Line(geom::Line { origin, dir }),
                 span,
                 overlap,
                 gap,
@@ -7589,11 +7588,11 @@ fn verify_tangency<T: Decide>(
         match tangent_line((a, fa, &sa), (b, fb, &sb), band).map_err(Refused)? {
             Ok(line) => {
                 overlap = Some(line.overlap);
-                if let geom::Curve3::Line { origin, dir } = line.carrier {
+                if let geom::Curve3::Line(geom::Line { origin, dir }) = line.carrier {
                     decided = Some((origin, dir));
                 }
                 let locus = match line.carrier {
-                    geom::Curve3::Line { origin, dir } => rim_wedge::Locus::Line {
+                    geom::Curve3::Line(geom::Line { origin, dir }) => rim_wedge::Locus::Line {
                         origin,
                         dir: dir / dir.norm(),
                     },
@@ -7829,7 +7828,7 @@ fn conic_reach<T: Decide>(
         for he in body.loop_cycle(first)? {
             let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
             let (center, reach) = match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
-                geom::Curve3::Line { .. } => continue,
+                geom::Curve3::Line(_) => continue,
                 geom::Curve3::Circle(geom::Circle {
                     frame: geom::Frame { center, axis, .. },
                     radius,
@@ -7991,7 +7990,7 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
     };
     let mut cuts = vec![overlap.0, overlap.1];
     let exact = match *locus {
-        geom::Curve3::Line { origin, dir } => faces.iter().all(|&(body, face)| {
+        geom::Curve3::Line(geom::Line { origin, dir }) => faces.iter().all(|&(body, face)| {
             boundary_cuts(body, face, (origin, dir), overlap, band).is_some_and(|(ts, unsure)| {
                 cuts.extend(ts);
                 !unsure
@@ -8116,7 +8115,7 @@ fn boundary_cuts<T: Decide>(
             vertices.push(along(point(he.start)?));
             let edge = body.get_edge(he.edge)?;
             match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
-                geom::Curve3::Line { .. } => {
+                geom::Curve3::Line(_) => {
                     let ends = [edge.he_plus, edge.he_minus]
                         .map(|h| body.get_half_edge(h).and_then(|h| point(h.start)));
                     let [Some(a), Some(b)] = ends else {
@@ -8482,10 +8481,7 @@ mod tests {
         let b_in = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), near);
         let b_short = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), (2.2, 3.0));
         let b_apart = sheet(Point3::new(2.5, 0.0, 0.0), Vec3::unit_y(), near);
-        let line = geom::Curve3::Line {
-            origin: Point3::new(1.0, 0.0, 0.0),
-            dir: Vec3::unit_z(),
-        };
+        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
         let kind = geom::SurfaceKind::Cylinder;
         for (what, b, want) in [
             ("both trims hold the ruling", &b_in, true),

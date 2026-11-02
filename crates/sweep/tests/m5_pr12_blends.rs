@@ -52,7 +52,7 @@ fn plane_plane_blend_on_a_right_dihedral_is_the_quarter_cylinder() {
     assert_eq!(b.spine_curvature, 0.0, "a straight spine");
     assert!((b.trim_a.1 - r).abs() < 1e-15, "the 90° setback is r");
     assert!((b.trim_b.1 - r).abs() < 1e-15);
-    let Curve3::Line { origin: oa, .. } = b.trim_a.0 else {
+    let Curve3::Line(geom::Line { origin: oa, .. }) = b.trim_a.0 else {
         panic!("a straight trimline");
     };
     assert!(

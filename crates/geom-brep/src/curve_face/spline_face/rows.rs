@@ -61,7 +61,7 @@ fn dome() -> NurbsSurface<f64> {
 }
 
 fn line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Line { origin, dir }
+    Curve3::Line(geom::Line { origin, dir })
 }
 
 fn read(

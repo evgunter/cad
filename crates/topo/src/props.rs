@@ -1843,7 +1843,7 @@ fn vertex_rings<T: Decide>(
     let lines = loops
         .iter()
         .flat_map(|(edges, _)| edges)
-        .all(|e| matches!(e.carrier, geom::Curve3::Line { .. }));
+        .all(|e| !e.carrier.is_curved());
     if !matches!(surface, Surface::Plane { .. }) || !lines {
         return Ok(None);
     }
@@ -2983,10 +2983,7 @@ mod region_carry_tests {
             .map(|i| {
                 let (a, b) = (corners[i as usize], corners[((i + 1) % 4) as usize]);
                 LoopEdge::hand_built(
-                    geom::Curve3::Line {
-                        origin: iv(a),
-                        dir: iv(Point3::origin() + (b - a)) - Point3::origin(),
-                    },
+                    geom::Curve3::line(iv(a), iv(Point3::origin() + (b - a)) - Point3::origin()),
                     Interval::from_f64(0.0),
                     Interval::from_f64(1.0),
                     counter,
@@ -5054,7 +5051,7 @@ fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
         geom::Curve3::Spiric { .. } => true,
         geom::Curve3::Nurbs(c) => geom_brep::props::is_rational(c),
-        geom::Curve3::Line { .. } | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => false,
+        geom::Curve3::Line(_) | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => false,
     }
 }
 
@@ -5062,7 +5059,7 @@ fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
 /// a spiric or a spline, where a line or a circle keeps it.
 fn trims<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
-        geom::Curve3::Line { .. } | geom::Curve3::Circle(..) => false,
+        geom::Curve3::Line(_) | geom::Curve3::Circle(..) => false,
         geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => true,
     }
 }
@@ -6975,19 +6972,18 @@ pub trait AtRestPolicy: Decide {
     fn region_lane() -> Option<crate::RegionLane<Self>>;
 
     /// **This scalar's clearance engine, or `None` where it does not
-    /// answer** — the ONE seam the `Some` comes from, read by the
-    /// `min_clearance` measure and the document-level clearance query.
+    /// answer** — the ONE seam the `Some` comes from, read by a
+    /// clearance assertion's evaluation, the engine's dials door and the
+    /// shell's cavity gate.
     ///
-    /// The engine's answer is a BRACKET on a minimum over a box, so the
-    /// door answers at the enclosure scalars and wherever the symbolic
-    /// tier wraps one. `None` at a dual is certification rights (DL1),
-    /// as [`AtRestPolicy::shell_door`]'s is. `None` at `f64` and at the
-    /// recording scalar is not a right but a shape: a point build
-    /// evaluates one parameter point, where the engine's walk would
-    /// answer an upper bound on the minimum found by search, not the
-    /// minimum, and that value would sit in the witness build beside
-    /// a leaf's bracket as if the two were one quantity
-    /// (`work/clear/min-separation-tightening-crosses-the-drive.md`).
+    /// The engine's answer is a verdict over a box, decided from
+    /// enclosures, so the door answers at the enclosure scalars and
+    /// wherever the symbolic tier wraps one. `None` at a dual is
+    /// certification rights (DL1), as [`AtRestPolicy::shell_door`]'s
+    /// is. `None` at `f64` and at the recording scalar is not a right
+    /// but a shape: a point build evaluates one parameter point, where a
+    /// search finds a near pair, not a verdict, and a clearance there
+    /// reads its third state naming the certifying lane.
     fn clearance_lane() -> Option<crate::ClearanceLane<Self>>;
 
     /// The at-rest gate over a body ([`crate::validate_geometric`] at

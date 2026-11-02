@@ -58,15 +58,9 @@
 //! Everything else — a cone, a torus, a NURBS patch, a curved edge, a
 //! whole body, and every mixed pair not listed — refuses.
 //!
-//! **`min_clearance` is not in that table and never will be** (M10-6).
-//! It is the primitive the table's own escape clause names: there is no
-//! closed form for the minimum distance between two trimmed regions, so
-//! its answer comes from the E7 subdivision engine
-//! (`topo::clearance::min_separation`) as a certified BRACKET, and
-//! the value is computed in the node's wiring — where the bodies are —
-//! rather than here. The wiring (`wire::wire_measure`) intercepts that
-//! primitive before this dispatch is consulted, and the arm below says
-//! so.
+//! A clearance is not in that table either: it is no measurement but a
+//! requirement, decided by the E7 sweep at its bounds
+//! ([`crate::Claim::Clearance`]).
 //!
 //! # Which trileans this module consumes
 //!
@@ -431,7 +425,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                 .and_then(|g| g.certified())
                 .map(topo::EdgeCurve::carrier);
             match carrier {
-                Some(Curve3::Line { dir, .. }) => Carrier::Line {
+                Some(Curve3::Line(geom::Line { dir, .. })) => Carrier::Line {
                     dir: *dir,
                     ends: body
                         .half_edge_start_point(edge.he_plus)
@@ -499,15 +493,6 @@ pub(crate) fn primitive<T: Decide, R>(
         MeasurePrimitive::Distance { .. } => distance(a, b, band),
         MeasurePrimitive::Angle { .. } => angle(a, b),
         MeasurePrimitive::Gap { .. } => gap(a, b, band),
-        // Not a closed form over carriers at all: its answer is the E7
-        // engine's, computed at the node's wiring, which answers this
-        // primitive before it reaches here. Announced as the kernel bug
-        // it would be rather than measured by some other arm that
-        // happens to compile.
-        MeasurePrimitive::MinClearance { .. } => unreachable!(
-            "`min_clearance` is answered by the clearance engine before the closed-form table \
-             is consulted; reaching this arm means the interception and this dispatch disagree"
-        ),
     }
 }
 
@@ -710,7 +695,7 @@ pub(crate) fn reach_of<T: Decide>(
 fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Option<T> {
     let from = |p: Point3<T>| (p - origin).norm();
     match c {
-        Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
+        Curve3::Line(_) => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
         // The reach is the larger semi-axis, whichever is stored first.
         Curve3::Circle(_) | Curve3::Ellipse(_) => {
             c.conic().map(|k| from(k.frame().center) + k.speed_hi())
@@ -1308,7 +1293,7 @@ pub(crate) fn value_of<T: Decide>(
     match verb {
         crate::measure::MeasureVerb::Gap => gap_value(a, b, band),
         crate::measure::MeasureVerb::Distance => distance(a, b, band).and_then(finite),
-        crate::measure::MeasureVerb::Angle | crate::measure::MeasureVerb::MinClearance => {
+        crate::measure::MeasureVerb::Angle => {
             unreachable!("the quieting rule asks a Gap or a Distance")
         }
     }
@@ -1474,17 +1459,6 @@ pub(crate) fn finite<T: Decide>(value: T) -> Result<T, PrimitiveRefusal> {
     crate::expr::refuse_non_finite(value).map_err(PrimitiveRefusal::NonFinite)
 }
 
-/// **What an observed variable is worth in one evaluation** (D10): a
-/// value at the evaluation's scalar, or the typed absence a measure
-/// under it carries at that scalar ([`crate::MeasureUnavailableAt`]).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Observed<T> {
-    /// The value, in kernel units.
-    Value(T),
-    /// A measure it reads has no value at this scalar.
-    Unavailable(crate::measure::MeasureUnavailableAt),
-}
-
 /// **Why an observed variable has no reading** in an evaluation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ObservedRefusal {
@@ -1526,14 +1500,12 @@ pub(crate) fn observe<T: Decide, P>(
     results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
     var: crate::VarId,
     dim: crate::Dimension,
-) -> Result<Observed<T>, ObservedRefusal> {
+) -> Result<T, ObservedRefusal> {
     use crate::expr::ParamValue;
     use std::collections::BTreeSet;
     let outputs = doc.observed_outputs(var);
     if outputs.is_empty() {
-        return crate::expr::eval_var(var, dim, env)
-            .map(Observed::Value)
-            .map_err(ObservedRefusal::Expr);
+        return crate::expr::eval_var(var, dim, env).map_err(ObservedRefusal::Expr);
     }
     // A measure's output read directly is the value the measure
     // computed, which passed the non-finite door at the measure.
@@ -1549,15 +1521,11 @@ pub(crate) fn observe<T: Decide, P>(
         let Some(at_dim) = doc.var(output).and_then(|held| held.kind().dimension()) else {
             continue;
         };
-        match measured(doc, results, output)? {
-            Observed::Value(value) => {
-                local.refused.remove(&output);
-                local
-                    .bindings
-                    .insert(output, ParamValue::Continuous { dim: at_dim, value });
-            }
-            unavailable @ Observed::Unavailable(_) => return Ok(unavailable),
-        }
+        let value = measured(doc, results, output)?;
+        local.refused.remove(&output);
+        local
+            .bindings
+            .insert(output, ParamValue::Continuous { dim: at_dim, value });
         touched.insert(output);
     }
     let under = definitions_under(doc, var);
@@ -1574,9 +1542,7 @@ pub(crate) fn observe<T: Decide, P>(
             touched.insert(id);
         }
     }
-    crate::expr::eval_var(var, dim, &local)
-        .map(Observed::Value)
-        .map_err(ObservedRefusal::Expr)
+    crate::expr::eval_var(var, dim, &local).map_err(ObservedRefusal::Expr)
 }
 
 /// **`formula` evaluated with measured values bound**: [`observe`] for
@@ -1593,7 +1559,7 @@ pub(crate) fn observe_formula<T: Decide, P>(
     env: &crate::expr::VarEnv<T>,
     results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
     formula: &crate::Formula,
-) -> Result<Observed<T>, ObservedRefusal> {
+) -> Result<T, ObservedRefusal> {
     let mut reads = Vec::new();
     formula.var_reads(&mut reads);
     let mut local = env.clone();
@@ -1601,18 +1567,12 @@ pub(crate) fn observe_formula<T: Decide, P>(
         if doc.observed_outputs(read).is_empty() {
             continue;
         }
-        match observe(doc, env, results, read, dim)? {
-            Observed::Value(value) => {
-                local
-                    .bindings
-                    .insert(read, crate::expr::ParamValue::Continuous { dim, value });
-            }
-            unavailable @ Observed::Unavailable(_) => return Ok(unavailable),
-        }
+        let value = observe(doc, env, results, read, dim)?;
+        local
+            .bindings
+            .insert(read, crate::expr::ParamValue::Continuous { dim, value });
     }
-    crate::expr::eval(formula, &local)
-        .map(Observed::Value)
-        .map_err(ObservedRefusal::Expr)
+    crate::expr::eval(formula, &local).map_err(ObservedRefusal::Expr)
 }
 
 /// **The defined variables `var`'s value is computed through**: `var`
@@ -1638,38 +1598,12 @@ fn definitions_under<P>(
     under
 }
 
-/// **The measure an observed variable's absence is said at**: the first
-/// measure under `var` with no value at this scalar, which is what
-/// [`observe`] answered [`Observed::Unavailable`] for — or, read before
-/// any run, the first measure under it.
-pub(crate) fn unavailable_at<P>(doc: &crate::Doc<P>, var: crate::VarId) -> crate::RecipeNodeId {
-    let measures: Vec<crate::RecipeNodeId> = doc
-        .observed_outputs(var)
-        .into_iter()
-        .filter_map(|out| doc.operation_of(out))
-        .collect();
-    let clearance = measures.iter().copied().find(|&node| {
-        matches!(
-            doc.node(node),
-            Some(crate::Node::Measure {
-                primitive: MeasurePrimitive::MinClearance { .. }
-            })
-        )
-    });
-    match clearance.or_else(|| measures.first().copied()) {
-        Some(node) => node,
-        None => unreachable!(
-            "{var:?} is read as a measured value, and every reader asks that it is one"
-        ),
-    }
-}
-
 /// **What the measure defining `output` computed in this run.**
 fn measured<T: Decide, P>(
     doc: &crate::Doc<P>,
     results: &std::collections::BTreeMap<crate::RecipeNodeId, super::NodeResult<T>>,
     output: crate::VarId,
-) -> Result<Observed<T>, ObservedRefusal> {
+) -> Result<T, ObservedRefusal> {
     let Some(node) = doc.operation_of(output) else {
         return Err(ObservedRefusal::Expr(
             crate::expr::EvalError::UnresolvedVar { var: output },
@@ -1678,10 +1612,7 @@ fn measured<T: Decide, P>(
     let value = super::usable_in(results, node, || super::NodeStanding::NotEvaluated { node })
         .map_err(ObservedRefusal::Measure)?;
     match &value.payload {
-        super::ValuePayload::Measure { value, .. } => Ok(Observed::Value(*value)),
-        super::ValuePayload::MeasureUnavailable { reason, .. } => {
-            Ok(Observed::Unavailable(*reason))
-        }
+        super::ValuePayload::Measure { value, .. } => Ok(*value),
         _ => Err(ObservedRefusal::Expr(crate::expr::EvalError::OutputRead {
             var: output,
         })),

@@ -512,10 +512,7 @@ mod tests {
                     topo::construction::MefSite::Chords { he1, he2 },
                     geom_brep::EdgeCurveSpec {
                         description: geom_brep::EdgeDescriptionSpec::chart(surface),
-                        carrier: geom::Curve3::Line {
-                            origin: p,
-                            dir: (q - p) / (q - p).norm(),
-                        },
+                        carrier: geom::Curve3::line(p, (q - p) / (q - p).norm()),
                         param_start: 0.0,
                         param_end: (q - p).norm(),
                     },
