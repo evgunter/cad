@@ -29,7 +29,7 @@
 //! `R·2⁻⁵³` (`7e-12` m here); the enclosure is what the interval scalar
 //! can certify of it, and since the envelope is the whole certified
 //! statement over a box the premise is metered rather than assumed
-//! (`work/pctail/pcurve-envelope-escalates-at-interval-on-a-wide-arc.md`,
+//! (`work/pcert/pcurve-envelope-escalates-at-interval-on-a-wide-arc.md`,
 //! reopened).
 //!
 //! At 1e-12 the `off = 1000, l = 0.1, b = 1e-4` cell passes validation:

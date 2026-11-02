@@ -28,7 +28,7 @@ algebra:
   (topo `validate.rs` `segments_meet`),
 - `work/hone/circle-crossing-closed-forms-cancel-at-unequal-radii.md`
   (topo boolean `carrier_cross.rs`, `rim_wedge.rs`, `section_cert.rs`),
-- `work/roots/sphere-sphere-section-radius-cancels-at-unequal-radii.md`
+- `work/germ/sphere-sphere-section-radius-cancels-at-unequal-radii.md`
   (geom-brep `intersect.rs` `sphere_sphere_section`),
 - `work/band/sheet-center-circle-pair-cancels-at-unequal-offsets.md`
   (sweep `blend/arms.rs` `sheet_center`),

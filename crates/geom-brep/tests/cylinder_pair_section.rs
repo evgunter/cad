@@ -386,7 +386,7 @@ fn walls_touching_outside_are_one_point() {
 /// band, and the sweep escalates on `ruling_cut` instead).
 /// The march then refuses typed: limb 3 cannot prove one arc in the tube
 /// of either 2 m, nearly parallel arc (`ssi_tube_one_arc` undecided;
-/// `work/ssimarch/limb-three-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
+/// `work/ssiarith/limb-three-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
 #[test]
 fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
     let r = 1e-3;

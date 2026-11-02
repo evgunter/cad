@@ -1070,7 +1070,7 @@ pub fn spline_pair_section<T: Decide>(
 /// kind pair `kind` is a side of** — the filter a reader scanning many
 /// pairs applies before it asks [`pair_section`]. Exhaustive, as
 /// `pair_section`'s match is, and a second spelling of it
-/// (`work/sectrung/the-c5-kind-dispatch-is-spelled-twice.md`). A spline
+/// (`work/sect/the-c5-kind-dispatch-is-spelled-twice.md`). A spline
 /// is not among them, whether against a plane or another spline: its
 /// section is a whole reading, read per pair through [`pair_section`]'s
 /// march door ([`spline_pair_section`] where rows are handed in) by the
@@ -2843,7 +2843,7 @@ mod wiring {
     fn close_rings_carry_counted_and_marched() {
         // Pinned red at 1e-6: at δ 3e-4 no rung of the march's tube is a
         // graph, and nothing refines it
-        // (`work/ssimarch/an-r3-tube-no-rung-makes-a-graph-is-never-refined.md`).
+        // (`work/ssiarith/an-r3-tube-no-rung-makes-a-graph-is-never-refined.md`).
         test_utils::pinned_red::row(
             geom_core::Tol::witness().eps(),
             &[1e-6],

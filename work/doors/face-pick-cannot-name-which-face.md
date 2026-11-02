@@ -178,6 +178,6 @@ Its blocker is in: the names layer renders a leaf role in words (`editor_core::n
 **Filed:**
 - `a-selections-kept-labels-miss-the-nodes-its-face-words-name` (here);
 - `work/doctail/a-stale-rim-fault-says-a-body-as-node-body-n`;
-- `work/cleartail/a-clearance-refusal-says-body-0-of-a-node`.
+- `work/clear/a-clearance-refusal-says-body-0-of-a-node`.
 
 (DOORS orchestrator)

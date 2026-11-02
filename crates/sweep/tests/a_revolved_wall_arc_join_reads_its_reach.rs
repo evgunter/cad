@@ -122,7 +122,7 @@ fn a_join_the_profile_reads_tangent_refuses_its_revolved_sliver() {
             // Pinned: at ε = 1e-12 the wall's torus rim (R/r ≈ 19, inside
             // the session box) is past limb 2's reach before the join
             // reads the sliver — the torus composite's conditioning row
-            // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`),
+            // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`),
             // the kernel's limit at f64 and the stall at Interval. Red the
             // day the rim certifies there, and the sliver must be read.
             if test_utils::kernel_limit::at_row(eps, &[1e-12]) {

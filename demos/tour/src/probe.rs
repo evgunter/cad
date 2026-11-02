@@ -379,7 +379,7 @@ pub fn run(out: Option<String>, tol: Tol) {
             .collect()
     };
     // At 1e-12 the stem's tube arc refuses as limb 2's kernel limit on
-    // its torus (`work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`).
+    // its torus (`work/shell/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`).
     const LILY_STOP: &[&str] = &[
         "stem tube arc builds",
         "AnalyticRung3(KernelLimit { operand: Torus, bound: 3.201461299630955e-12",

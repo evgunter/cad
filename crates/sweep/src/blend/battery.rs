@@ -779,7 +779,7 @@ pub fn wedge_at<T: Decide + Bounds>(
         // A cusp or slit: the material sides face each other across
         // the tangent plane. Its ball rests away from the edge, where the
         // supports open to 2r, a construction the blend does not make
-        // (`work/bandrule/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`).
+        // (`work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`).
         geom_brep::EdgeWedge::Knife => Err(BlendError::KnifeEdge {
             edge,
             margin: reading(Sign::Zero),

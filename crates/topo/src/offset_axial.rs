@@ -64,7 +64,7 @@
 //! rim lift is exactly that. Passing the gate is not building: a second
 //! run meets the same corner and edge solves as the first, and an
 //! offset large enough to change the body's topology is not seen by
-//! them (`work/shelf/axial-door-builds-a-strict-subset-when-the-caps-meeting-line-enters-the-tube.md`).
+//! them (`work/shell/axial-door-builds-a-strict-subset-when-the-caps-meeting-line-enters-the-tube.md`).
 //! A point `p` is read in axial coordinates
 //!
 //! ```text
@@ -273,7 +273,7 @@
 //!   the body's topology while every corner and edge still solves, and
 //!   the door returns a body with the operand's census that is a strict
 //!   subset of the offset (filed:
-//!   `work/shelf/axial-door-builds-a-strict-subset-when-the-caps-meeting-line-enters-the-tube.md`).
+//!   `work/shell/axial-door-builds-a-strict-subset-when-the-caps-meeting-line-enters-the-tube.md`).
 //!   `shell` does not reach that pose — a cavity moves its caps inward —
 //!   but a direct call does.
 //!

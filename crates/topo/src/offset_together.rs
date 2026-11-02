@@ -791,7 +791,7 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 ///   every entity of the body and skip the ones the scope does not
 ///   hold. `axial_frame` sweeps `body.vertices()` the same way. The
 ///   maps make the ANSWER scoped; the iteration is not
-///   (`work/shelf/offset-doors-take-solids-and-a-per-chart-rule.md`).
+///   (`work/shell/offset-doors-take-solids-and-a-per-chart-rule.md`).
 ///
 /// So a scoped call is **linear in the whole body, not in its scope**:
 /// what the scope buys is which entities are WRITTEN and which

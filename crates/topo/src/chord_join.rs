@@ -1496,10 +1496,11 @@ fn section_loop<T: Decide>(
         Some(crate::boolean::Branch::Positive) => return Ok(positive),
         Some(crate::boolean::Branch::Negative) => return Ok(negative),
         Some(crate::boolean::Branch::Only) | None => {}
-        Some(crate::boolean::Branch::Component(_)) => {
+        Some(crate::boolean::Branch::Component(_) | crate::boolean::Branch::Line(_)) => {
             return Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "a germ riding a carried section's component reached a two-loop frame",
+                what: "a germ riding a carried section's component or a straight section's line \
+                       reached a two-loop frame",
             });
         }
     }
@@ -6427,7 +6428,7 @@ mod tests {
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn() {
         // Pinned to limb 2's kernel limit at ε = 1e-12: the 1 km-radius rim rounds at its radius
-        // (`work/offset/the-closed-form-net-builder-rounds-at-a-km-radius-not-at-the-span.md`).
+        // (`work/shell/the-closed-form-net-builder-rounds-at-a-km-radius-not-at-the-span.md`).
         test_utils::kernel_limit::pinned_row(
             geom_core::Tol::witness().eps(),
             &[1e-12],

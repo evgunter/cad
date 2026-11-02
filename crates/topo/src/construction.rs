@@ -378,7 +378,7 @@ pub trait Construct<T: geom_core::Real> {
     /// face's key, whether the chord's description names it. The
     /// boolean pipeline's chord joins rely on that: they mint the chord
     /// with the description of the face glued along it afterwards
-    /// (`work/restate/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+    /// (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
     ///
     /// **A face minted on another chart is vouched for by the edges it
     /// takes, or refused** ([`RechartDoor::Mef`](crate::RechartDoor::Mef)). Where `surface` is
@@ -1118,7 +1118,7 @@ pub trait Construct<T: geom_core::Real> {
     /// merge, the chord join's sliver cut, the blend) rely on that
     /// move, and [`Body::kef_describing`](crate::construction::Construct::kef_describing) absorbs it once each states
     /// its re-descriptions
-    /// (`work/restate/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
     fn kef_minting(&mut self, he: HalfEdgeKey, tol: Tol) -> Result<KefResult, EulerOpError>
     where
         T: Decide;
@@ -1402,7 +1402,7 @@ pub trait Construct<T: geom_core::Real> {
     /// boolean's seam zip, relies on that move, and
     /// [`Body::kfmrh_describing`](crate::construction::Construct::kfmrh_describing) absorbs it once the zip states its
     /// re-descriptions
-    /// (`work/restate/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
     fn kfmrh_minting(
         &mut self,
         f1: FaceKey,
@@ -2042,7 +2042,7 @@ pub trait Construct<T: geom_core::Real> {
     /// that keeps its chart are kept as found, for the tier-3 pcurve
     /// pass to re-certify against the new carrier, where
     /// [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve) re-mints that face
-    /// (`work/restate/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`).
+    /// (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`).
     ///
     /// Minting order (D9): the new charts' surfaces in `charts` order,
     /// then the listed edges' curves in list order.

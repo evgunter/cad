@@ -323,7 +323,7 @@ fn r4_straight_cap_corner_single_wedge_single_null_edge() {
 fn r5_crossing_vertex_on_is_declared_not_measured() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: its 2 km edges,
     // outside the session box
-    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // (`work/shell/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
     // at [0, 1.5e-11], the data's own rounding at that length — an
     // enclosure reaching zero, so only an upper bound, and the

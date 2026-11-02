@@ -37,5 +37,5 @@ the item; #3257, #3270 and #3774 among them are right. Both rows are off
 `#[ignore]`: `m10_9_the_pad_at_both_rule_f_dials` on the slow set
 (64 s hosted), `sym11_the_exact_channel_never_contradicts_past_the_ceiling`
 on the per-PR fast set (0.86 s hosted since #3774). Filed:
-`work/rules/the-pads-frozen-set-moves-with-the-documents-id-mint`,
+`work/sym/the-pads-frozen-set-moves-with-the-documents-id-mint`,
 `work/sym/the-past-the-ceiling-row-replays-only-validation-on-the-bracket-and-pad`.
