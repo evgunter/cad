@@ -1543,10 +1543,15 @@ fn common_line<T: geom_core::Real>(
 /// its own holding the line beside the wedge — a face among its vertex's
 /// own sectors (`faces`, [`Folded`]), its plane's two halves; or a face
 /// its vertex lies on, which the other solid's vertex touches
-/// ([`HeldFace`]), its whole plane, a representative's side of it the
-/// touch's own reading (`vtxfac::PierceDatum::side`). A face is read only
+/// ([`HeldFace`]), its whole plane. Each is handed the representative's
+/// side of its face by the one bound-side reading on the cone's reading,
+/// with its descent ([`sheet_side`], the held face's
+/// `vtxfac::PierceDatum::side`), as the edge-sector site reads a flanker
+/// ([`flank_read`]); the cone reads parity over it, and a representative
+/// on one face's interior by the side it was handed. A face is read only
 /// where it holds the line to a decided zero; a line within the band of
-/// it refuses typed. A representative the cone reads on one face is the
+/// it refuses typed. A representative the cone reads on one face, riding
+/// it to the orders read or its side there unresolved, is the
 /// ladder's; on two, or on a bound, it runs along the line or the other
 /// solid touches itself there ([`super::LineUnread::Along`]). A reading
 /// that refuses refuses by its cause ([`crate::link::Unread`]): the

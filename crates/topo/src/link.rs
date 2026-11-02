@@ -34,9 +34,13 @@
 //! normal), or from a segment and a round carrier, as its lowest point's
 //! ([`Round`]), or from a bound's departure off a plane to the order read.
 //! The one bound-side reading decides its signs at the same door, on the
-//! [`metric::Reading`] its caller passes ([`crate::bound_side`]), so a
-//! side handed to a cone is decided on the cone's own reading
-//! ([`Cone::reading`]). Directions — face normals, ray
+//! [`metric::Reading`] its caller passes ([`crate::bound_side`]): the
+//! boolean hands its cones each face's side of the bound a probe stands
+//! for from that reading, on the cone's own reading
+//! ([`Cone::reading`]) — on the band alone for the face a vertex
+//! touches, which stands at the vertex's own point — and the cone reads
+//! crossing parity over it ([`Cone::reads_given`]). Its own reading of a
+//! plane is a point probe's. Directions — face normals, ray
 //! directions, their bisectors — only PROPOSE planes. One other sign
 //! stays, named where it is made: [`pairing`], of unit normals of
 //! magnitude about 1. Beside the signs, [`Link::lowest_on`] and

@@ -314,10 +314,11 @@ pub(crate) type Touched<'a, T> = (
 /// ([`crate::bound_side::Reach::point`]): in the material `In`, outside it
 /// `Out`, on one face or along the material's boundary `On`. The edge's
 /// side of every face of the cone is the edge's bound's, read through
-/// the one bound-side reading on the cone's reading
-/// ([`super::sectors::bound_read`], [`crate::link::Cone::reading`]) and
-/// handed to the cone ([`crate::link::Cone::reads_given`]), which reads
-/// crossing parity over it. Where some edge reads in band, no edge is
+/// the one bound-side reading ([`super::sectors::given_side`]) and handed
+/// to the cone ([`crate::link::Cone::reads_given`]), which reads crossing
+/// parity over it: a partner's face on the cone's reading, over the
+/// partners' tie ([`crate::link::Cone::reading`]); the touched face on the
+/// band alone, as the pierce reads it. Where some edge reads in band, no edge is
 /// classed: the inner `Err` names the first such edge and why the cone
 /// read nothing of it ([`EdgeInBand`]). Refuses as an invariant where an
 /// edge of `edges` is no edge of the vertex's own sectors (`own`), or a
