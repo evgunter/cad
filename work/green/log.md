@@ -262,3 +262,12 @@ closed-row routing and #6093's re-bless).
   per-test, per-ε time census from nightly 11-01's log, debug assertions
   on vs off for the costliest tests, and speed rows filed on the programs
   that own the slow code. Tracker-only PR; orchestrator's read.
+- #6323 merged (full-suite split): FULL review, no blocker, every claim
+  held. Not dispatched on its branch: a dispatch runs all ~27 nightly jobs,
+  which is the queueing the user asked not to add. Nightly 11-03 is its
+  first run; check there that each leg's `full-suite-junit-<eps>` artifact
+  is populated (a wrong junit path is hidden by the copy's `|| true` and
+  `if-no-files-found: warn`) and the build runner's disk while archiving.
+  Class from the review, logged here: `render.yml` keeps a hand-written
+  census of `nightly.yml`'s checkout count in a comment, already one
+  behind before #6323, and nothing guards it.
