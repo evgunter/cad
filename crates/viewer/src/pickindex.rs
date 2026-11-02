@@ -2437,7 +2437,14 @@ impl PickIndex {
         // the eye is not something a cursor is aiming at.
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
         if lines.outlines {
-            for (rank, outline) in self.outlines.iter().enumerate() {
+            // An outline the picture draws by its edit preview instead
+            // is not on screen, so it is not offered.
+            let drawn = self
+                .outlines
+                .iter()
+                .enumerate()
+                .filter(|(_, outline)| display.previewed_profile != Some(outline.node));
+            for (rank, outline) in drawn {
                 let mut best: Option<Candidate> = None;
                 for (lp, points) in outline.loops.iter().enumerate() {
                     let projected = points

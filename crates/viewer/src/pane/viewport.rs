@@ -1528,7 +1528,7 @@ impl ViewerBehavior<'_> {
     /// From the landed evaluation, every frame, because a profile node
     /// has no body until something extrudes it and so nothing else
     /// would draw it. Left out: the profile the edit door is
-    /// previewing, if any ([`ViewerBehavior::profile_edited`]) — drawn
+    /// previewing, if any ([`DisplayView::previewed_profile`]) — drawn
     /// by its live preview, or by nothing while that preview has
     /// nothing to draw, and never also as it was committed. The create
     /// door's profile is not a node while it is composed, and comes to
@@ -1542,7 +1542,7 @@ impl ViewerBehavior<'_> {
                 doc,
                 evaluation,
                 self.delta.get(),
-                self.profile_edited,
+                self.display.previewed_profile,
             );
         }
         profiles

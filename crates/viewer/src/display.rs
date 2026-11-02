@@ -871,6 +871,12 @@ pub struct DisplayView {
     /// Drawn node → the probe frame governing it — what the scene
     /// displaces and marks, and the pick carries rays into.
     pub moved_nodes: BTreeMap<RecipeNodeId, Frame>,
+    /// **The committed profile drawn by its edit preview instead**
+    /// ([`DisplayView::previewing`]): the committed-profile lane draws
+    /// no outline of it and the pick offers none, so a cursor meets
+    /// only what is drawn. `None` from [`DisplayState::view`], which
+    /// knows no editor.
+    pub previewed_profile: Option<RecipeNodeId>,
 }
 
 impl DisplayView {
@@ -878,6 +884,16 @@ impl DisplayView {
     /// non-assembly consumer reads.
     pub fn none() -> Self {
         Self::default()
+    }
+
+    /// This view with `node`'s committed outline drawn by an edit
+    /// preview instead ([`DisplayView::previewed_profile`]).
+    #[must_use]
+    pub fn previewing(self, node: Option<RecipeNodeId>) -> Self {
+        Self {
+            previewed_profile: node,
+            ..self
+        }
     }
 
     /// Whether the picture drops body `body` of `node`: a hidden
@@ -1280,6 +1296,7 @@ impl DisplayState {
             hidden_drawn,
             shown_drawn,
             moved_nodes,
+            previewed_profile: None,
         }
     }
 
