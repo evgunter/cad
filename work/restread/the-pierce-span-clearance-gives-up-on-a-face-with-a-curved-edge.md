@@ -2,10 +2,12 @@
 id: the-pierce-span-clearance-gives-up-on-a-face-with-a-curved-edge
 kind: issue
 title: The edge-face pierce span's boundary clearance gives up on a face with a curved edge, and a wide crossing enclosure there escalates
-status: open
+status: review
 opened: 2026-10-27
 priority: P1
 cost: M
+pr: 5900
+branch: restread/pierce-span-curved-edge
 ---
 
 Found by the fix pass on `restread/curved-edge-in-face` (the cleared
@@ -21,8 +23,9 @@ crossing only if no boundary of the face meets `S`, which `span_clear`
 reads. `span_clear` answers `Some(false)` outright where the face is not
 a polygon (`if !f.polygon { return Some(false); }`), so on a planar face
 with any curved edge, however far that edge stands from `S`, the
-crossing falls through to the straddle reading and pushes
-`CensusEscalated` (`pm_census_ef_pierce_straddle`) on a valid body.
+crossing falls through and pushes `CensusEscalated` on a valid body:
+the half-span's reading (`pm_census_ef_pierce_span_straddle`), which
+straddles the band for any span longer than `2ε`.
 
 Its argument (the pierce-height reach `g·(1 + σ)`, then
 `interiors_meet` and `on_edge_interior_reading` against each boundary
