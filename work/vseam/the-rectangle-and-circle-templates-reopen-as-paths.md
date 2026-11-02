@@ -2,10 +2,13 @@
 id: the-rectangle-and-circle-templates-reopen-as-paths
 kind: issue
 title: A rectangle profile stores its corners, not the width and height written, and a bored circle stores its centre twice
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-11-02
 priority: P1
 cost: M
+pr: 6340
+branch: vseam/a-rectangle-stores-what-was-written
 ---
 
 
@@ -86,3 +89,13 @@ checkbox is redundant. Dropping it no longer costs the GUI its only
 way to make a hole. `a-template-rectangle-has-no-centre`, closed into
 this row, asked for the rectangle's centre, which the stored
 `rectangle(centre, width, height)` form carries.
+
+## Closed — 2026-11-02
+
+PR 6340. `rectangle(centre, width, height)` is a complete-loop program
+form through `profile`, `editor-core`, `pncad-py` and the viewer: the
+add-profile form's rectangle stores and reopens its centre, width and
+height as written, and the edit door draws those three. The "with
+bore" preset is gone; a bore is a second circle loop. A rectangle's
+`Piece(k)` sides are four carriers, so the coincidence door's carrier
+collapse now reads the step's loop form rather than the role alone.

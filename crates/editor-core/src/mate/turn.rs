@@ -44,6 +44,14 @@ impl<T: SolveScalar> LeastTurn<T> {
         self.one_plus_c
     }
 
+    /// **Whether the turn is at its pole**, `from` against `to`, where it
+    /// has no answer: `1 + c` not above zero, quoted. A reader's own
+    /// verdict about the band (the chart's, `Backwards`) is its own.
+    #[must_use]
+    pub fn at_pole(&self) -> bool {
+        self.one_plus_c.quoted() <= 0.0
+    }
+
     /// `S·v`.
     #[must_use]
     pub fn apply(&self, v: Vec3<T>) -> Vec3<T> {
@@ -59,6 +67,26 @@ impl<T: SolveScalar> LeastTurn<T> {
             self.apply(Vec3::unit_z()),
         )
     }
+}
+
+/// **A turn carrying the unit `from` onto the unit `to`**: the least
+/// turn ([`LeastTurn`]), or at its pole a half turn about a direction
+/// across `from` ([`across`]), so a direction standing backwards still
+/// turns onto `to`.
+#[must_use]
+pub fn turn_onto(from: Vec3<f64>, to: Vec3<f64>) -> Mat3<f64> {
+    let turn = LeastTurn::between(from, to);
+    if !turn.at_pole() {
+        return turn.matrix();
+    }
+    let a = across(from).normalize();
+    // A half turn about `a`: `2 a aᵀ − I`.
+    let col = |e: Vec3<f64>| a * (2.0 * a.dot(e)) - e;
+    Mat3::from_cols(
+        col(Vec3::unit_x()),
+        col(Vec3::unit_y()),
+        col(Vec3::unit_z()),
+    )
 }
 
 /// **Whether `x` is zero exactly**: a point zero at every lane, read

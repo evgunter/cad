@@ -1124,8 +1124,10 @@ fn ruled_face_containment<T: Decide>(
 /// the one dispatch), its boundary cut to those cycles
 /// ([`super::region::Region::keep_cycles`]), so a cycle is read alone or
 /// against a torus's essential pair. `q` is a vertex of the body, which
-/// tier 3's check 3 holds to the face's carrier, so the cut reading reads
-/// no carrier decision and never answers `OffCarrier`.
+/// tier 3's check 3 holds to the face's carrier, or a chart singularity
+/// of the face's own surface (a sphere's pole, a cone's apex), which lies
+/// on it by construction, so the cut reading reads no carrier decision
+/// and never answers `OffCarrier`.
 /// `Trim(Some(In))` on the face's side of the cycles, `Trim(Some(Out))`
 /// off it, `Trim(None)` on one of them or where no door reads the face (a
 /// plane, a spline chart, an edge of a kind its door does not admit).

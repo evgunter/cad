@@ -676,14 +676,9 @@ fn sample_rounding<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<T> {
     })
 }
 
-/// **The chord-dip charge, spelled once for this crate**: how far a
-/// C² function of second-derivative bound `f2` can leave the chord of
-/// a sub-interval of width `step` — `f2·step²/8`.
-///
-/// `topo`'s `boolean::boxes::subdivision_charge` is the same quantity
-/// in the crate above, and cannot be depended on from here; the two
-/// spellings are one class, filed as
-/// `work/curved/the-chord-dip-charge-has-two-homes.md`.
+/// **The chord-dip charge, spelled once**: how far a C² function of
+/// second-derivative bound `f2` can leave the chord of a sub-interval
+/// of width `step` — `f2·step²/8`.
 pub(crate) fn chord_dip_charge<T: Real>(f2: T, step: T) -> T {
     f2 * step.powi(2) * T::from_f64(0.125)
 }
