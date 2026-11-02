@@ -94,8 +94,8 @@ use super::{
 };
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, VertexKey};
-use crate::ray_walk::Ranked;
 use crate::stands::{LadderRefusal, Strict, Witness, ladder};
+use geom_brep::ladder::Ranked;
 
 /// What the ladder read off a complex: the first decisive witness's
 /// side, `In` or `Out`, or the tally of a complex none decided.
@@ -548,8 +548,8 @@ mod tests {
 mod tally_rows {
     use crate::boolean::{PointInSolidError, SolidContainment};
     use crate::entity::FaceKey;
-    use crate::ray_walk::Ranked;
     use crate::stands::{Strict, Tally, Witness};
+    use geom_brep::ladder::Ranked;
 
     /// **A refusal about one witness lets the next decide**: a face the
     /// door cannot read near it, a volume that could not side its rays,
