@@ -2,12 +2,12 @@
 id: emit-rs-shared-helpers-raise-emission-for-torn-reads
 kind: issue
 title: name_family and name_assemble raise Emission for reads the tier-1 shape may make unreachable (three sites in names/emit.rs)
-status: open
+status: closed
 opened: 2026-10-20
+closed: 2026-11-02
 priority: P2
 cost: M
 refs: [names-emission-raises-panic-or-take-their-true-ending]
-
 ---
 
 
