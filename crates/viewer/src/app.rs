@@ -453,9 +453,8 @@ pub struct ViewerApp {
     /// drag the layout is theirs and nothing here sizes it again.
     split_dragged: bool,
     drafts: Drafts,
-    /// Whether the add-profile form was DRAWN last frame — the
-    /// latch that decides whether a profile preview is computed and
-    /// drawn at all.
+    /// Whether each profile panel was DRAWN last frame — the latch
+    /// that decides whether its preview is computed and drawn at all.
     ///
     /// A latch and not a question asked directly, because the form is
     /// inside a collapsing section inside a pane inside a tiled
@@ -465,9 +464,8 @@ pub struct ViewerApp {
     /// leaves the frame after it is closed, which is the same
     /// staleness the preview itself carries and for the same reason.
     ///
-    /// One latch per door of the profile editor: the add-profile form,
-    /// and the same editor opened on a committed profile
-    /// (`ViewerBehavior::edit_profile_ui`).
+    /// One latch per panel: the traced-profile form, which shows its
+    /// trace, and the profile editor (`ViewerBehavior::edit_profile_ui`).
     profile_drawn: ProfileDoors<bool>,
     /// **The feature-tree row the pointer was over on the last frame**,
     /// set by the Features pane while it draws: the viewport marks a
@@ -8116,8 +8114,8 @@ mod properties_pane_tests {
         );
     }
 
-    /// **The add-profile form's traced path, driven through the whole
-    /// app** (`SessionOp::AddDrawnProfile`): on the cylinder of the
+    /// **The traced-profile form, driven through the whole app**
+    /// (`SessionOp::AddDrawnProfile`): on the cylinder of the
     /// corpus's `boss_tangent_by_value`, a boss footprint drawn in the
     /// plane of a cap runs onto the wall's trace and on along it.
     mod trace_tool {

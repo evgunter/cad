@@ -208,7 +208,7 @@ impl ViewerBehavior<'_> {
     }
 
     /// **A feature's editing rows**: its slot rows — or, for a
-    /// profile, the add-profile form's own editor
+    /// profile, the profile editor
     /// ([`ViewerBehavior::edit_profile_ui`]), whose fields ARE its
     /// slots' fields. Only a profile the editor cannot hold shows its
     /// refusal and the slot rows instead.

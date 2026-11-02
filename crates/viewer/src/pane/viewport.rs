@@ -32,7 +32,7 @@ use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
 /// and where a test can ask it with no pane in existence. What is
 /// particular here is that this lane is the one with an authored
 /// producer: a path whose corner is `7e307` — a number the
-/// add-profile form takes, because it is a number — replays,
+/// profile editor takes, because it is a number — replays,
 /// flattens, and arrives on its plane with coordinates whose
 /// narrowing is an infinity. A path with one such corner and the rest
 /// ordinary is drawn as its ordinary legs and a gap, which is
@@ -3153,7 +3153,7 @@ mod tests {
     /// **An authored outline with one far corner draws as a gap**, not
     /// as nothing and not as a smear.
     ///
-    /// The loop a person could compose in the add-profile form:
+    /// The loop a person could compose in the profile editor:
     /// ordinary corners and one at `7e307`, a number the form takes
     /// because it is a number. Four legs are authored, two of them
     /// reach the far corner, and what the lane holds afterwards is the

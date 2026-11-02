@@ -268,7 +268,7 @@ impl DoorLoops {
 /// **A committed profile's program, held as it is written** — one
 /// [`HeldStep`] per authored step, per loop: each argument the formula
 /// it was written as, a literal or the expression that drives it. The
-/// add-profile form's step list edits it through the kernel's [`Step`]
+/// profile editor's step list edits it through the kernel's [`Step`]
 /// at plain numbers, a view of each held step ([`Self::steps`]) whose
 /// edits are written back over the step ([`Self::write_step`]); a
 /// step with no such view (one that lowers against the pen) is held,
@@ -667,7 +667,7 @@ impl ProfileEdit {
 
     /// **The first step a held loop puts out of the order a step that
     /// lowers against the pen needs** ([`sketch::pen_order`]), over
-    /// the loops at plain numbers as `landed` reads them: Apply waits
+    /// the loops at plain numbers as `landed` reads them: the draft waits
     /// on it, since the evaluation would refuse the profile there.
     pub(crate) fn pen_order(
         &self,
@@ -968,16 +968,10 @@ impl Drafts {
     /// **A form whose op the document ACCEPTED comes to rest** — called
     /// once per op a batch performed without a refusal.
     ///
-    /// The add-profile form settles its preview: its drafts ARE
-    /// the viewport's preview (`sketch::preview` is replayed from them
-    /// every frame), so a form left holding the shape it just committed
-    /// would keep drawing that shape in the probe tint over the
-    /// committed drawing of the node it became. Resting the shape
-    /// (`None`) is what the form means by "nothing being composed", and
-    /// the form closes with its one committed edit, as a tool does; the
-    /// field values stay, so a second profile starts from where the
-    /// first one left off. A sketch on a face settles the same way, and
-    /// the add-variable form closes on its own declaration.
+    /// The traced-profile form closes with its one committed edit, as
+    /// a tool does; its latches stay, so a second traced profile starts
+    /// from the faces the first one read. The add-variable form closes
+    /// on its own declaration.
     ///
     /// A REFUSED add leaves the drafts alone, so correcting what was
     /// refused does not cost what was typed.
@@ -999,7 +993,7 @@ impl Drafts {
         }
         // A reshaped program renumbers its slots, so text held for a
         // profile slot would show on whichever argument takes that
-        // number: an edit-door Apply on its node, or an undo or redo,
+        // number: an editor change landing on its node, or an undo or redo,
         // which may step across one, releases it.
         let reshaped = |target: &(RecipeNodeId, SlotId)| match op {
             SessionOp::EditProfile { node, .. } => *node == target.0,
@@ -1185,7 +1179,6 @@ impl Drafts {
         self.new_variable_open = true;
     }
 
-    /// The loop PROGRAMS the add-profile form would author right now:
     /// **Another document replaced the one the held face was picked
     /// in** (an open, a new document): the latch names nothing in it.
     pub(crate) fn document_replaced(&mut self) {
@@ -1644,7 +1637,7 @@ mod tests {
     }
 
     /// **Refused text held for a profile slot is released when the
-    /// program may have been reshaped under it** — an edit-door Apply
+    /// program may have been reshaped under it** — an editor change landing
     /// on its node, an undo or a redo — since the slot's number then
     /// names whichever argument took it. An op that reshapes nothing,
     /// or a history move with the text held on a slot that is not a
@@ -1946,7 +1939,7 @@ mod tests {
         .expect("finite");
         assert!(
             edit.differs_from_base(),
-            "a step re-made with the numbers it had is still a new step, which Apply writes"
+            "a step re-made with the numbers it had is still a new step, which the editor writes"
         );
     }
 

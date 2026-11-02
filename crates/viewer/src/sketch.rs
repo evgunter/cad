@@ -661,7 +661,7 @@ pub fn programs_written_as(a: &ProfileProgram<Formula>, b: &ProfileProgram<Formu
 /// **Where one loop's held steps put a step that lowers against the
 /// pen out of order** — the order rules the evaluation's resolution
 /// reads (`editor_core::trace`), asked without one, so the edit door
-/// refuses what Apply would only learn from a broken profile:
+/// holds back what a commit would only learn from a broken profile:
 ///
 /// - a heading along a trace directly after a piece that ran onto one
 ///   ([`TraceStepFault::OffTrace`]);

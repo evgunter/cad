@@ -3610,10 +3610,10 @@ impl DocSession {
     /// the reshaping drops, or on a kept step's piece it stops drawing,
     /// stranded. Empty when the op would write nothing.
     ///
-    /// The profile editor reads it BEFORE its Apply, while the person
-    /// can still keep the step; the op's outcome carries the same rows
-    /// after, beside the anonymous variables the rewrite retires, which
-    /// this count leaves out unless one carried a tolerance
+    /// The profile editor asks it before a change lands, as the door's
+    /// verdict on the held draft; the op's outcome carries the same
+    /// rows after, beside the anonymous variables the rewrite retires,
+    /// which this count leaves out unless one carried a tolerance
     /// (`Maintenance::is_silent_retirement`).
     ///
     /// # Errors

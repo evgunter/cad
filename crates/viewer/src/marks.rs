@@ -174,8 +174,8 @@ pub const HELD_FACES: usize = 3;
 /// **The picks a form or a tool HOLDS**: the second source of marks
 /// beside the live selection.
 ///
-/// A held pick outlives the selection that made it. The add-profile
-/// form drawing on a face latches the face so that an author can click the feature tree
+/// A held pick outlives the selection that made it. The traced-profile
+/// form latches the faces it reads so that an author can click the feature tree
 /// without losing it, and a modal tool keeps its picks until it
 /// commits. Nothing in the selection says so, so a picture that marked
 /// the selection alone would show no sign of a pick the next click
@@ -1077,7 +1077,7 @@ mod tests {
     /// **The case a person can author and can see**: an outline most
     /// of which is ordinary and one corner of which is past the seam.
     ///
-    /// `7e307` is a number the add-profile form takes, because it is a
+    /// `7e307` is a number the profile editor takes, because it is a
     /// number. The lane draws the legs between the ordinary corners
     /// and drops the two that reach the far one, so what is on screen
     /// is a chain with a gap in it at a camera framed on the ordinary

@@ -1837,8 +1837,8 @@ mod tests {
         );
     }
 
-    /// **A rectangle authored in the add-profile form reopens in the
-    /// edit door as the centre, width and height it was written as, and
+    /// **A rectangle loop reopens in the editor as the centre, width
+    /// and height it was written as, and
     /// a width edit lands as that one value.** The form's rectangle,
     /// committed, is one `rectangle` step; the door draws that step's
     /// centre, width and height, and no corner; its width moved and
@@ -2627,7 +2627,7 @@ mod tests {
     /// **Editing another argument of a driven profile commits one
     /// `SetProgram`, and the expression stays.** The far corner's x
     /// reads a variable; the editor holds the profile, the next
-    /// corner's x is moved in the draft, and Apply forms one op that
+    /// corner's x is moved in the draft, and the settled draft forms one op that
     /// lands as one whole-program edit: the moved number is written
     /// and the driven argument still reads its variable.
     #[test]
@@ -2780,7 +2780,7 @@ mod tests {
 
     /// **A kept argument lands in the unit its slot is written in.**
     /// The slot field shows a kept argument in its slot's unit, so
-    /// Apply writes a moved one in that unit too, not the editor's: a
+    /// the settled draft writes a moved one in that unit too, not the editor's: a
     /// corner written in millimetres, moved in a door working in
     /// metres, is still written in millimetres.
     #[test]
@@ -3013,7 +3013,7 @@ mod tests {
     }
 
     /// The edit door painted over the draft `drafts` holds of
-    /// `profile`, and whether its Apply formed an op when clicked.
+    /// `profile`, and whether the settled draft formed an op.
     fn door_says(
         session: &crate::session::DocSession,
         drafts: &mut Drafts,
