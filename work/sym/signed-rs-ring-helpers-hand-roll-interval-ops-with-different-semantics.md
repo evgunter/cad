@@ -61,3 +61,5 @@ row's second option.
 `:226`, `:233`) still hand-build their results with `from_bounds` and
 keep the retired type's names. So the row is now the decoration and
 rename half of its fix, and the re-measure of the read's reach after it.
+
+- 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).

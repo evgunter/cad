@@ -32,3 +32,5 @@ under relabelling. Either find the order-dependent choice (a normal-form
 tie-break, a term order, a cut-off) and make it order-free, or state the
 dependence where the tier's reach is described and stop pinning counts that
 hold it.
+
+- 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).

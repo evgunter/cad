@@ -80,3 +80,5 @@ this row adds is the one shape where the column moves alone.
   memo's ratified design (#2581) and costs hits on a document that
   mints anything outside its session; it wants Ev's word rather than a
   lane's.
+
+- 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).

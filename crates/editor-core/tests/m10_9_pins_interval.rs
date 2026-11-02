@@ -295,7 +295,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
-            // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
+            // (`work/sym/sym-tier-reach-depends-on-symbol-order`).
             symbolic: [1551, 1551, 1551],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
@@ -711,7 +711,7 @@ fn m10_9_what_the_registry_buys() {
 /// into the door. The axis-order basis mints no `copysign` for rule F
 /// to fold, and at the scale the pad certifies whole at, over its
 /// analyzed box, the two dials read the same receipt at every ε row
-/// (`work/rules/the-negative-arm-lost-its-document-consumer`).
+/// (`work/sym/the-negative-arm-lost-its-document-consumer`).
 ///
 /// Re-taken on the tree that composes three changes: PCERT's
 /// chart-angle unit and the extrude's cap decide

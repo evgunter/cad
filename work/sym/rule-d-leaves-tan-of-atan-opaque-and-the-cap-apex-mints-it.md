@@ -49,3 +49,5 @@ and ledger (the apex is in every cap plane of every arc document).
 SYM: rule D's arm. The apex spelling is PATHS's, and it is deliberate
 (`arc_apex`'s doc: chord-scale, one tangent and not the half-sweep's
 `sin`/`cos`, which cost `r1_annulus` its ceiling).
+
+- 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).

@@ -50,3 +50,5 @@ frozen node, where no registration reaches.
 unchanged. What decides whether the registry discharges these six is
 which side of the term cap the spelling lands on, and here the SMALLER
 spelling lost the discharges.
+
+- 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).

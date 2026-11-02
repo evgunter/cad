@@ -81,3 +81,5 @@ rows. A document that needs it again would show up as a
 ## Home
 
 SYM: the rule and its dial are `geom_core::sym`'s.
+
+- 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).

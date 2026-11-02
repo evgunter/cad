@@ -54,3 +54,5 @@ has, instead of on the refusals the decision path has (at the nominal:
 `crates/geom-core/src/sym.rs` (`discharge_retried`, the assertion in
 `Decide for Sym<T>`). Filed by SYM-9's fix pass (deviation 5 of that
 unit), no unit takes it yet.
+
+- 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).

@@ -70,3 +70,5 @@ which reaches the same kind of result for the parameter symbols'
 order. Either make the frozen set order-free, or say on
 `SymCounts::frozen` what it depends on, and stop pinning it where that
 dependence can move it.
+
+- 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).

@@ -92,3 +92,5 @@ unit that states a six-document result owes it before stating it.
 `crates/editor-core/tests/m10_8_r2_probes_interval.rs` (the `pad`
 door), `crates/editor-core/tests/sym_9_retry_interval.rs` (the rows
 that could not take it). Filed by SYM-9's lane with the readings above.
+
+- 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).

@@ -41,3 +41,5 @@ that refuses here.
 ## Home
 
 `crates/geom-core/src/sym/algebra.rs` (`apply`, `poly_subst_square`).
+
+- 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).

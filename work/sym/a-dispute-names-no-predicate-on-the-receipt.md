@@ -44,3 +44,5 @@ site — which is the work the column exists to save.
 by construction), so today this costs a unit-test author minutes rather
 than a user anything. It becomes real the day a fixture-scale row wants
 to attribute disputes across a document.
+
+- 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).
