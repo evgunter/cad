@@ -7,7 +7,7 @@ opened: 2026-10-25
 priority: P0
 cost: H
 refs: [c5-plane-torus-cone-cylinder-arms, nurbs-edge-crossing-rung-is-the-ring-composite, joining-a-spline-carrier-is-unbuilt]
-pr: 6304
+pr: 6347
 branch: sectarms/nurbs-implicit-arm-stage2
 ---
 
