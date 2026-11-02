@@ -88,7 +88,10 @@ foot `boolean::carrier_touch::distance` reads), its offset from the
 face the carrier's own residual (`geom_brep::implicit_residual`; a
 plane's, the height over the plane through the vertex). Decided on the
 parting's side → `Leaves`; within the zero band → `Rides`; in the gap →
-`Unresolved::Gap`; decided against the parting, poisoned, or no point →
+`Unresolved::Gap`; decided against the parting, poisoned, no point, or
+its own rounding past the zero band's share (`Carrier::rounding`,
+`tangent_sector_witness_rounding`: a residual that cancels in the
+carrier's own size, as a 1e11 m ball's does at ε = 1e-12) →
 `ReadFault::Witness`, refused `Coincidence(TangentSide)`.
 `conic_bend_side` stays the conic × plane arm.
 
@@ -118,7 +121,7 @@ k·zero exactly, agrees.
 
 **What the witness changes.** In every body test of `-p sweep -p topo`,
 each decided `Leaves` (39 894 readings in 371 tests: bisectors against
-planes, spheres, cylinders, tori and cones, circle arcs against
+planes, spheres, cylinders, tori and cones, conic arcs against
 cylinders, chords against cylinders) has a witness decided on its side;
 none moves. The random
 sampled test (`the_descent_matches_a_sampled_side_per_face_kind`) finds
