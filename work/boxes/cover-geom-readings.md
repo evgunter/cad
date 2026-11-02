@@ -64,3 +64,13 @@ In `geom` (one carrier; no body):
 
 Review tier: **dual**: this unit fixes the type every later unit builds
 on, and it is hard to change once they do.
+
+## Since Ev's ruling on PR 6383 (2026-11-02)
+
+The body above says each piece "charges its own rounding outward … so a
+cover encloses at every scalar" and that sign handling is "written once,
+here". Both are superseded:
+- `[simple.conditioned]` governs the cover. Its values are real numbers at `f64` with no rounding charged, and an enclosure at `Interval` (Ev: *"good catch, i missed 'encloses at every scalar' when i approved that"*).
+- Sign handling is read once per piece, in that piece's own methods.
+
+A formula that loses digits where its result is decided is re-posed, not charged. The cover's nearest distance is the instance the delta review found. (BOXES orchestrator)

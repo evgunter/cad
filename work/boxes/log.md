@@ -318,3 +318,51 @@ Each later unit is parked on its predecessors. Re-parked onto them:
 - `box-door-census-misses-a-point-free-read` → `cover-kind-match-gate`.
 
 `sphere-window-falls-back-to-the-ball-leaving-its-escalations-on-the-log` banded P3/E. The track is `active` again, at 8/30.
+
+## 2026-11-02 — `cover-geom-readings` (PR 6383): the dual review, and an `[ev]` question
+
+(BOXES orchestrator) The tier is DUAL with letter H, so the arm is CONCURRENT under protocol `1b9ac429b1`. Two Opus reviewers were dispatched together at 2026-11-02T16:19Z on frozen head `82640b3a1e`, with one brief and private lanes. R1 disclosed one glimpse, the *name* of R2's target directory seen in an `ls`, with no contents; that is not a findings glimpse. Both returned APPROVE-WITH-FIXES.
+
+Correspondence pre-note (the blinded coding at merge confirms it):
+
+- **Bilateral:**
+  - the segment charge at the wrong scale (MAJOR/MAJOR, both executed: up to 1.2e-10 at origin ~1e6);
+  - the tube's `ball`/`point_range` reading the frame as unit (MINOR/NOTE);
+  - "signs once" false (patch has no abs, tube abs twice; R2 executed a negative-minor-radius patch under-claim);
+  - mutants surviving or killed only probabilistically (hull ball branch, abs, segment slack);
+  - non-finite data giving a whole-space value (NOTE/NOTE);
+  - `Frame` beside `BoxFrame`, unscheduled;
+  - `plane_misses` C5 (R1 (b), R2 (c));
+  - the 16ε charge vocabulary in several places.
+- **Unilateral R1:** `beyond` skipping a `PoisonedNet` `Err` (MINOR, read); `world_box` clone cost.
+- **Unilateral R2:**
+  - the spiric rectangle as a second spelling of `spiric_period_box` (Q1);
+  - `spiric_period_box` still `pub` against the item;
+  - `ParamWindow`'s doc;
+  - the frustum's dead kink;
+  - two PR-body inaccuracies.
+- **Tally candidates:** none. The one MAJOR is bilateral.
+
+Adjudication:
+
+- **C5:** R2's reading holds, checked against `editor-core` `trace.rs` `traced`. `Ok(true)` (misses) is `NoTrace`; `Ok(false)` hands off to the exact crossing computation. So "not shown to miss" grants nothing, the ratified text stands, and only `plane_misses`'s doc over-claims. The implementer's proposed DESIGN revision is withdrawn.
+- **Fix pass:** everything else, except as below.
+- **Scheduled here rather than fixed:**
+  - `BoxFrame`'s retirement → `cover-topo-faces`;
+  - `spiric_period_box` going internal → `cover-edge-doors`;
+  - `carrier_extent`'s leftover kind match → `cover-app-readers`.
+
+**A conflict between two texts ratified today.** `[simple.conditioned]` (PR 6329, merged 14:54Z) says *"at `f64` … nothing charges, pads or estimates float rounding"*. The cover paragraph (PR 6334, written 07:16Z before it existed, merged 15:11Z) says each bound "encloses at every scalar", which the unit read as per-piece f64 charges. The reviewers' MAJOR is such a charge at the wrong scale.
+
+- Per `docs/prompts/designer.md` §2, when two instructions conflict, the redesign wins. I judged this to have one plainly right answer: the cover follows `[simple.conditioned]` (real numbers at f64, an enclosure at Interval). So I did not dispatch designers, and the PR says so.
+- The re-wording is on PR 6383's branch, and the PR title carries `[ev]` with the question at the top of its body.
+- The fix pass's charge items (the segment scale, the spiric charge) are on hold until Ev answers.
+- Consequence for the row-to-be: the MAJOR's fix may be the deletion of the charges, not a re-scaled charge.
+- 2026-11-02 — Ev on PR 6383: *"good catch, i missed 'encloses at every scalar' when i approved that"*. The cover follows `[simple.conditioned]`; the re-wording on PR 6383's branch stands; the fix pass deletes the per-piece f64 charges rather than re-scaling them. `[ev]` is off the title. (BOXES orchestrator)
+- 2026-11-02 — PR 6383's first fix pass (head `61c9c16f`) took every item, and the f64 charges were deleted per Ev. A FULL delta review of `82640b3a..61c9c16f` is recorded on the dual row as a post-pair confirmation. It returned APPROVE-WITH-FIXES:
+  - D1 (Gram bounds at Interval, 300 skewed cases) and D2 (signs) confirmed;
+  - M1: deleting the charges exposed the tube's squared-distance near as ill-posed at f64 (1.051e-6 for a true 1e-6). That is the "re-posed as a distance" shape the geom-core README names;
+  - M2: four non-finite screens and the spiric abs unguarded;
+  - D6: two sphere spellings.
+  
+  A second fix pass has been dispatched. The unit file's stale charge and sign text is corrected here. (BOXES orchestrator)
