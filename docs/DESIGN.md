@@ -35,7 +35,7 @@ detect self-intersection and to compute tolerance stackups.
 The root principle is **functional style**: a CAD kernel's job is to
 define what a shape *is*, and the implementation reads that way —
 values rather than mutable objects, pure functions rather than hidden
-state, data rather than behaviour. The seven principles below are that
+state, data rather than behaviour. The eight principles below are that
 stance applied to a solid modeler.
 
 ### The model is a pure function `[pure-model]`
@@ -242,6 +242,18 @@ most of the weight:
   representation, stage or decision exists only so a check can read
   it. Where a check needs one, the check changes or goes.
 
+### Well-conditioned, then exact `[conditioned]`
+
+Every computation is posed so that it is well-conditioned where its
+result is decided, and at `f64` its values are then treated as real
+numbers: nothing charges, pads or estimates float rounding. A quantity
+that can vanish is a pose decided before anything divides by it, and a
+formula or a stored form that loses digits is re-posed or re-minted,
+never covered by a charge. The one statement about rounding is the
+run's: the band's headroom covers a short chain's rounding at the
+session box, checked when the run is admitted. The rules and their
+homes are `crates/geom-core/README.md`, "Float rounding".
+
 ## Canonical places `[one-way.places]`
 
 The one place each of these is done or stated. A second place for any
@@ -252,8 +264,7 @@ of them is a defect.
 | The tolerance | one ε per run (`geom_core::Tolerance`); angles derived from it at a named lever arm | [tolerance.epsilon] |
 | A topology-determining decision | a named predicate returning a trilean and a margin | [verdicts] |
 | A question about carriers | one reading per question | [one-way.readings] |
-| f64 rounding | the run's admission rule on (ε, K); no site charges it | [verdicts] |
-| The extent a verdict is consumed over, and the session-box check that reads it | `geom_brep::Reach`, built only from consumed geometry | [tolerance.epsilon], [tolerance.units] |
+| f64 rounding, a verdict's lever arm, and the extent it is consumed over | `crates/geom-core/README.md`, "Float rounding" | [conditioned] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
@@ -393,19 +404,12 @@ curve pairs.
   — not a correctness parameter: soundness rests on
   escalate-never-guess, [tolerance.residuals] certification and interval replay, for
   any K > 1. K = 10, per-run configuration like ε (`Tolerance.k`).
-  The f64 lane is posed well-conditioned, then computed as if exact:
-  a formula is well-conditioned where its verdict is decided, a
-  quantity it would divide by that can vanish is a pose decided first
-  (coaxial, parallel, tangent), and a carrier is stored in terms no
-  longer than the session box; nothing charges, pads or estimates
-  float rounding. The one statement about rounding is the run's:
-  `Tolerance` admits (ε, K) only where the headroom (K − 1)·ε covers a
-  short chain's rounding at the box's edge, a constant comparison. An
-  ill-conditioned formula or carrier is a defect, re-posed or
-  re-minted, never covered by K or charged; what f64 cannot decide
-  so is the Interval lane's, whose enclosure of an ill-posed formula
-  lands in the band, which is terminal: it makes the defect loud, it
-  does not certify around it.
+  K's headroom absorbs f64 rounding by the run's admission rule
+  ([conditioned]): a formula whose error is amplified by a vanishing
+  quantity (a division by sin θ, |n|², a near-zero determinant) is a
+  defect, re-posed, never covered by K. Interval replay
+  does not rescue it: its enclosure lands in the band, which is
+  terminal.
 - **Closeness is not identity.** `[verdicts.closeness]` Margined
   comparison is not transitive, so no decision is inferred from two
   others. Cells are one only by topology (a Zero verdict glued them,
@@ -494,15 +498,11 @@ angle only means anything through the displacement it induces at a
 lever arm (d = r·θ), so a fixed εₐ would privilege a hidden length
 scale. **An angle is metered in whatever way is required to make all
 geometry correct to within ε**: every angular predicate uses θ = ε/r
-with its lever arm a `Lever`, the reach at which the
-angle displaces the geometry it governs, constructed only from its
-sources — 1/κ_rel for tangency, a read of the consumed extent (the
+with its lever arm a `Lever` from one of its sources (`crates/geom-core/README.md`, "Float rounding"), the reach at which the
+angle displaces the geometry it governs — 1/κ_rel for tangency, the
 distance of each face's own points from the other's carrier for
-parallelism), the session-box extent as the conservative universal arm
-only where no such geometry is in hand. A consumed extent is one type,
-built only from the geometry a verdict consumes (an edge's span, a
-face's boundary, two boxes' overlap, a bounded carrier), never from a
-length a caller vouches for. ε ≈ 1e-9 m gives micron-to-kilometer coverage with ~4 orders of
+parallelism, the session-box extent as the conservative universal arm
+only where no such geometry is in hand. ε ≈ 1e-9 m gives micron-to-kilometer coverage with ~4 orders of
 f64 headroom at km scale. Import does not motivate loosening ε ([import]).
 
 
@@ -683,15 +683,9 @@ take it down a path that decides the question itself.
 size range.** `[tolerance.units]`
 the session box is 1 km, no coordinate larger
 in magnitude; geometry outside the range is rejected at
-construction. One predicate decides it, a read of the body's consumed
-extent (its vertices, edges' spans and faces' boundaries, never a
-carrier's stored terms): the finished-body gate asks it, and a door
-that decides on its output's geometry before its end asks it first,
-so an out-of-box result is refused naming the operation, never
-another refusal or a panic. The box and K fix the smallest admissible
-ε, the least one whose headroom (K − 1)·ε covers the floor at the
-box's edge ([verdicts]): a run's ε below it is refused, and no
-refusal offers to tighten the tolerance below it. User-facing units are typed
+construction. The box and K fix the smallest admissible ε
+([conditioned]): a run's ε below it is refused, and no refusal offers
+to tighten the tolerance below it. User-facing units are typed
 newtypes at the API boundary only ([units]).
 
 **Strictness is enforced at the boundary, not relaxed inside.**
@@ -2432,6 +2426,7 @@ is the board and `work/README.md` its contract.
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & glued contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/mesh/README.md` | Ratified (#5708) | The mesher's sizing rule, `[mesh.sizing]`: each lane meshes as coarse as its own pinned worst-triangle theorem allows, with no safety factor; what kind each other mesh constant is |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a span-restricted door takes one structure (a `Span` borrows its `KnotVector`, a window its curve or surface, `SplineCoeffs` its knot vector), so a mismatch is unrepresentable |
+| `crates/geom-core/README.md` | Ratified (Ev, PR 6329) | Float rounding: the run's admission rule on (ε, K), re-posing never charging, the `Lever` and its sources, the consumed extent, the session-box predicate ([conditioned]) |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |
 | `crates/viewer/GUI-DESIGN.md` | Ratified; GUI v1 shipped | GUI architecture G1–G5, GQ1–GQ7: the three-layer split, egui as toolkit, what v1 ships. `crates/viewer/README.md` beside it is the implementation record, which the program maintains itself |
