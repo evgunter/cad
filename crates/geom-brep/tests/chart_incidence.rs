@@ -1368,8 +1368,15 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
         }
     }
     // The anchor `2ᵏ` m from the carrier, `k` up to 30: `f64` reads the
-    // exact placement on its face at every `k` (its charge covers its
-    // rounding). `Interval` charges nothing, its enclosure holding the
+    // exact placement on its face at every `k`. What this row guards is
+    // the move into the carrier's frame; the move leaves the `f64` read
+    // little rounding to charge here, and with the charge off it stays
+    // green. The charge is guarded by rows that go red without it:
+    // `pcurve_frame_premise_rows::a_rounded_unit_axis_at_a_far_placement…`
+    // at ε 1e-9 and 1e-12, and sweep's
+    // `split_edge_on_faces_poses::an_edge_at_the_zero_bands_edge_refuses_typed_and_its_lever_builds`
+    // at 1e-9 (measured; neither at 1e-6).
+    // `Interval` charges nothing, its enclosure holding the
     // rounding already, and the enclosure of the distance widens with
     // the distance slid, about eight ulps of `2ᵏ` for the rim and half an
     // ulp for the plane's circle (measured: `1.88e-12` at `2¹⁰` and

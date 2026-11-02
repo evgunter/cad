@@ -91,6 +91,10 @@ this order:
   It also takes `topo::chart_region`'s `TrimOffFace`, whose `Display` ends at rest even
   when a build's region query renders it (E1c review, S5; left to E1e by the
   orchestrator).
+  It also takes the in-band incidence lever's wording for a planar corner:
+  `INCIDENCE_UNSHOWN`'s lever reads "the edge's curve is not shown on the face
+  it bounds", which a corner's read in band ends in since E1c routed the flat
+  corner through the incidence read (E1c delta review, M3 and N4).
 - **E2**: a cylinder line gets a projected lane, together with the
   cylinder `pcurve_chart_radial_moving` tie-break and
   `chart_iso_family`'s re-read. D3's "own envelope carries the miss"

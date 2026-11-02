@@ -9194,7 +9194,12 @@ pub fn read_point_incidence<T: Decide>(
     }
     match incidence::point_incident(point, surface, band)? {
         Incidence::On => Ok(()),
-        Incidence::Off(margin) => Err(OffChart("the point is not on the chart").with_margin(
+        Incidence::Off(margin) => Err(OffChart(
+            "the point is not on the chart: its distance from it is past the band (a point is \
+             read as a line through it in no direction, so the carrier kind named is that \
+             probe's)",
+        )
+        .with_margin(
             OffMargin::Past(margin),
             surface,
             &incidence::point_probe(point),
