@@ -187,6 +187,8 @@ mod review_gui4_r2;
 mod review_m10_1_r1;
 #[path = "review_pick_r2.rs"]
 mod review_pick_r2;
+#[path = "review_recheck_6300.rs"]
+mod review_recheck_6300;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 #[path = "save_and_fork_doors.rs"]
