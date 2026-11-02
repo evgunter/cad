@@ -716,6 +716,10 @@ test_utils::f6_variants! {
         Workspace,
         SelfInstance,
         ProfileEditStale,
+        BundleStale,
+        ValueNotRemoved,
+        Draft,
+        PlacementFails,
         StrandedPick,
         InTheProduct,
     ];

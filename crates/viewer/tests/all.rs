@@ -68,6 +68,8 @@ mod assembly_display;
 mod assembly_walk;
 #[path = "blend_authoring.rs"]
 mod blend_authoring;
+#[path = "bundle_editor.rs"]
+mod bundle_editor;
 #[path = "camera_ops.rs"]
 mod camera_ops;
 #[path = "cascade_delete.rs"]
@@ -126,6 +128,8 @@ mod mate_kinds;
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]
 mod mirror_authoring;
+#[path = "review_bundle_editor_r2.rs"]
+mod review_bundle_editor_r2;
 #[path = "review_intent_e_r1.rs"]
 mod review_intent_e_r1;
 
@@ -159,6 +163,8 @@ mod profile_draw;
 mod profile_edit;
 #[path = "refusal_concision_edits.rs"]
 mod refusal_concision_edits;
+#[path = "review_bundle_r1.rs"]
+mod review_bundle_r1;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]

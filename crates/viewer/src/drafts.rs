@@ -82,17 +82,14 @@ pub(crate) struct Drafts {
     /// ([`crate::frame::creation_offer`]); shown over the form while the
     /// name field still says it.
     pub(crate) new_variable_offer: Option<VarName>,
-    /// The mate tool's choice, as widget state: an index into
-    /// [`crate::matetool::MATE_KINDS`], each kind's own sense toggle, and for each
-    /// freedom of [`crate::matetool::MateFreedom::ALL`] whether it is set and its number in
-    /// SI units. Draft chrome state only — the typed choice is minted
-    /// at commit.
-    pub(crate) mate_kind: usize,
-    pub(crate) mate_flip: [bool; crate::matetool::MATE_KINDS.len()],
-    /// Whether the mate moves its copy into the space its `to` reads,
-    /// asked by name: off, a mate across two spaces refuses.
-    pub(crate) mate_into_target_space: bool,
-    pub(crate) mate_values: [(bool, f64); crate::matetool::MateFreedom::ALL.len()],
+    /// **The placement editor's last verdict**: the history state and
+    /// the Apply it judged, and what the session answered, said
+    /// ([`crate::session::DocSession::bundle_verdict`]) — asked once per
+    /// draft, not once per frame.
+    pub(crate) mate_verdict: Option<MateVerdict>,
+    /// The placement editor's value fields being typed in, by freedom:
+    /// the text, until the field loses focus and the draft takes it.
+    pub(crate) mate_value_edits: Vec<(pncad::document::Coord, String)>,
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
     /// its commit — a name in flight is a draft, not a document.
@@ -375,6 +372,18 @@ pub(crate) struct ProfileEdit {
     /// The edit door's report for the last held state it was asked
     /// about ([`Self::report`]).
     report: Option<HeldReport>,
+}
+
+/// **The placement editor's verdict on one Apply**: the history state
+/// and the op it was asked over, and its sentence — `Ok` where the copy
+/// would stand, `Err` with the refusal or the fault.
+#[derive(Debug)]
+pub(crate) struct MateVerdict {
+    pub(crate) at: HistoryId,
+    pub(crate) op: crate::session::SessionOp,
+    pub(crate) said: Result<String, String>,
+    /// Whether the verdict withholds Apply: a copy that would not stand.
+    pub(crate) blocks: bool,
 }
 
 /// What the edit door would report for one held state, and the state:
@@ -919,14 +928,8 @@ impl Default for Drafts {
             new_variable_dimension: None,
             new_variable_value: 0.0,
             new_variable_offer: None,
-            mate_kind: 0,
-            // Each kind opens at its own sense (`matetool::sense_offer`),
-            // so switching kinds carries no plane's rest onto an edge.
-            mate_flip: crate::matetool::MATE_KINDS.map(|(kind, _)| {
-                crate::matetool::sense_offer(kind).is_some_and(|(_, turned)| turned)
-            }),
-            mate_into_target_space: false,
-            mate_values: [(false, 0.0); crate::matetool::MateFreedom::ALL.len()],
+            mate_verdict: None,
+            mate_value_edits: Vec::new(),
             new_doc_name: None,
             profile_open: false,
             sketch_on_face: false,
@@ -1294,20 +1297,6 @@ impl Drafts {
         {
             *held = held.respoken(doc);
         }
-    }
-
-    /// Whether the mate panel turns `to` round for its chosen kind:
-    /// that kind's own toggle, `false` for a kind with no sense.
-    pub(crate) fn mate_turned(&self) -> bool {
-        crate::matetool::sense_offer(self.mate_kind()).is_some()
-            && self.mate_flip.get(self.mate_kind).copied().unwrap_or(false)
-    }
-
-    /// The mate panel's chosen kind ([`crate::matetool::MATE_KINDS`]).
-    pub(crate) fn mate_kind(&self) -> pncad::document::VarKind {
-        crate::matetool::MATE_KINDS
-            .get(self.mate_kind)
-            .map_or(pncad::document::VarKind::Plane, |(kind, _)| *kind)
     }
 
     /// **The face this form holds**: [`Self::sketch_face`] while the

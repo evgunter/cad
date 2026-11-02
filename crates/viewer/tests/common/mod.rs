@@ -443,8 +443,10 @@ pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::
 
 /// [`commit_mate`] without the pump.
 pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
-    let SessionOp::AddMate { placement, .. } = &op else {
-        panic!("a mate is added by `AddMate`: {op:?}")
+    // A placement's editor writes its bundle whole; a mate is added to it.
+    let (SessionOp::AddMate { placement, .. } | SessionOp::SetBundle { placement, .. }) = &op
+    else {
+        panic!("a mate is added to a bundle by `AddMate` or the editor's `SetBundle`: {op:?}")
     };
     let placement = *placement;
     let mates = |doc: &Doc<ProfileProgram>| -> Vec<_> {
@@ -960,4 +962,21 @@ pub fn recount_op(session: &DocSession, family: RecipeNodeId, count: i64) -> Ses
         var: family_index(session.committed_doc(), family),
         value: viewer::props::SlotValue::Count(count),
     }
+}
+
+/// **The placement editor's Apply for `tool`**, its active row chosen as
+/// `choice` says, derived against `session`'s landed pair.
+///
+/// # Panics
+///
+/// With nothing landed.
+pub fn proposed(
+    session: &DocSession,
+    tool: &viewer::matetool::MateTool,
+    choice: viewer::matetool::MateChoice,
+) -> Result<viewer::matetool::MateProposal, viewer::matetool::MateToolError> {
+    let (doc, ev) = session.landed_pair().expect("landed");
+    tool.clone()
+        .chosen(choice)?
+        .proposal(doc, ev, session.tol())
 }

@@ -626,16 +626,20 @@ fn retyping_a_toleranced_slot_says_its_tolerance_went() {
     }
 }
 
-/// **A mate's dropped values are one notice, in words.** Seating
-/// post_b on the shelf fixes freedoms its bundle wrote values on, and
-/// the door reports one `ValueDropped` row per freedom; the line says
-/// them once, naming the copy, and spells no variable as its raw id.
+/// **The values a mate fixes leave the draft before Apply, not after
+/// it.** Seating post_b on the shelf fixes freedoms its bundle wrote
+/// values on: the placement editor's value rows are the freedoms the
+/// seat leaves, so the slide along the seat's normal and the chain of
+/// spins are not among them, and Apply writes the bundle the panel
+/// showed — no value is dropped behind the person's back, so none is
+/// reported dropped.
 ///
-/// *Breaks if* each row becomes its own notice again, or the notice
-/// reads a variable's id.
+/// *Breaks if* a value row lists a freedom the seat fixes, or Apply
+/// drops a value the draft did not show going.
 #[test]
-fn a_mates_dropped_values_are_one_notice() {
+fn a_mates_fixed_freedoms_leave_the_draft_before_apply() {
     use common::asm;
+    use pncad::document::{Coord, TargetAxis};
     use viewer::matetool::MateTool;
 
     let tol = Tol::witness();
@@ -646,38 +650,26 @@ fn a_mates_dropped_values_are_one_notice() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
+    let coords: Vec<Coord> = proposal.values.iter().map(|row| row.coord).collect();
+    assert_eq!(
+        coords,
+        [
+            Coord::Slide(TargetAxis::X),
+            Coord::Slide(TargetAxis::Y),
+            Coord::SPIN
+        ],
+        "a rest along z leaves two slides and its spin"
+    );
     let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let rows: Vec<&Maintenance> = outcome
-        .maintenance
-        .iter()
-        .filter(|m| matches!(m, Maintenance::ValueDropped { .. }))
-        .collect();
     assert!(
-        rows.len() >= 2,
-        "the seat drops several values, one row each: {:?}",
+        !outcome
+            .maintenance
+            .iter()
+            .any(|m| matches!(m, Maintenance::ValueDropped { .. })),
+        "Apply drops nothing the draft did not show: {:?}",
         outcome.maintenance
     );
-    let said: Vec<String> = frame::outcome_notices(&outcome)
-        .map(|notice| notice.text().to_owned())
-        .filter(|text| text.contains("written again without"))
-        .collect();
-    let [said] = &said[..] else {
-        panic!("one notice says the drops: {said:?}");
-    };
-    let copy = session.doc().spoken(bench.post_b).to_string();
-    assert!(said.starts_with(&copy), "the notice names the copy: {said}");
-    for row in rows {
-        let Maintenance::ValueDropped { by, .. } = row else {
-            unreachable!("filtered above")
-        };
-        assert!(
-            !said.contains(&by.id().to_string()),
-            "the notice spells no variable by its id: {said}"
-        );
-    }
 }

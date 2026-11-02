@@ -2119,58 +2119,77 @@ camera a second time, so the probe refuses it
 (`AdmissionFault::InTheWorld`). Any other shown space under a pick is
 admitted, whatever kind of node drew it.
 
-### The mate tool commits into a placement's bundle
+### The placement editor commits a placement's whole bundle
 
 A copy is made by a placement — a `Node::Place`, or an instance, which
 is a placement of its part's world — into the space its `target` names,
 and a placement's constraints are its mates and the values that set
-their freedoms. Every bundle pins its copy. A mate is two poses
-of one kind: the first pick is `on`, read off the copy the mate
-places, and the second is `to`, read where it was picked; each is the
-picked entity read as a pose of the chosen kind, one pick a side
-(`matetool::MATE_KINDS`, `matetool::MateReading`): a face as its plane,
-a face's carrier or an edge's line as an axis, a vertex or a carrier's
-or a circle's centre as a point, a face's normal or an edge's line as
-a direction. Whether the pose's read admits the entity is the kernel's
-seat, and a held pick the chosen kind does not read is refused at the
-commit (`MateToolError::KindDoesNotRead`); the cursor's rule follows
-the chosen kind (`matetool::pick_kinds`: faces alone for a plane,
-vertices before edges before faces for a point). `to` is flipped where
-the faces rest against each other (a plain plane mate equates outward
-normals; a point has no sense to flip). So
-the mate tool's one committed action adds the mate to the `on` pick's
-placement's bundle (`DocEdit::AddConstraint`), which writes the bundle
-whole: the values whose freedoms the mate fixes go, each freedom the
-bundle's mates leave keeps its value or is written the constant `0`,
-and the door refuses what overconstrains. The person's numbers on the
-freedoms the kind leaves (`matetool::MateFreedom`) are then written
-over those values, in the same action (`DocEdit::SetConstraints`) —
-which freedoms a lone mate of the kind leaves is the kernel's answer
-(`SubgroupFamily::leaves`): slides and the spin beside a plane, an
-axis or a direction, the chain of spins beside a point; the
-panel states that a freedom left unset is written where the copy
-stands, snapped onto the mate (every bundle pins its copy). A value is measured on the axes of the space the copy is placed
-into, carried onto the mated direction by the least turn from where
-the mate's orientation puts the copy's. The gesture writes the
-orientation nearest where the copy stands, the spin the least turn
-leaves, and each slide it keeps at the copy's snapped coordinate, so a
-freshly mated copy moves only by the snap: its mated direction turned
-the least way onto the target's, its mated point moved the shortest
-way onto the target's plane or line (`session/snap.rs`). A point mate
-fixes no direction and has no snap: the values the door keeps stand
-its copy. So a freshly
-inserted copy, standing by the identity bundle, is mated as it is. Where `to` is read
-in another space than the one the copy is placed into, the door
-refuses the mate, `EditError::SpaceMismatch` naming both spaces: the
-gesture never moves a copy as a side effect. The panel's "move the
-copy into the target's space" choice asks for the move by name
-(`MateProposal::op_into_target_space`, `SessionOp::AddMate`'s
-`into_target_space`): the same action then stands the copy by the
-identity bundle where its bundle holds a mate and re-targets the
-placement into `to`'s space (`SetParam` of its `target`) before adding
-the mate. A pick on a `Place`'s copy reads `on` off the shape it
-copies; a pick elsewhere is read through the member walk to the
-instance it places.
+their freedoms. Every bundle pins its copy. The mate tool is the
+**placement editor** (`matetool::MateTool`), whose draft is one
+placement's whole bundle, as the profile editor's is one profile's
+program, with two doors (`matetool::PlaceDoor`): **Create**, on a body
+not yet placed, whose Apply inserts one placement of it holding the
+whole bundle (`SessionOp::Place`, taking over what read the body along
+a seen path, never a copy's source); and **Edit**, on a placement —
+opened from its tree row (`edit placement`), a mate row's `remove`, or
+a pick on its copy — whose Apply writes the bundle whole
+(`SessionOp::SetBundle`, `DocEdit::SetConstraints`), keeping the id of
+every constraint it loaded. Either Apply is one undo step; nothing
+enters the document before it; a draft over a bundle the document has
+since changed reloads, said (`MateToolEvent::Reloaded`), and its old
+Apply is refused (`Refusal::BundleStale`).
+
+The draft is **mate rows** (`matetool::MateRow`), each a kind of
+`matetool::MATE_KINDS` (a plane, an axis, a point, a direction, a
+frame), a sense of two named values (`matetool::senses`: `opposed` or
+`flush` for a plane, `same` or `reversed` for an axis and a direction,
+`same` or `turned over` for a frame, none for a point) written as the
+flip of `to`, its seats, and a stroke. **Picks are seated by body**: a
+pick on the draft's copy fills the active row's `on` seat and any other
+pick its `to` seat; order carries nothing. A frame's side has an axis
+seat an edge fills and a point seat a vertex fills, written
+`PoseDef::Through`; every other kind reads one entity
+(`matetool::MateReading`): a face as its plane, a face's carrier or an
+edge's line as an axis, a vertex or a carrier's or a circle's centre as
+a point, a face's normal or an edge's line as a direction. Whether the
+pose's read admits the entity is the kernel's seat; the cursor's rule
+follows the active row's kind (`matetool::pick_kinds`). A lost pick
+empties its seat, typed (`MateToolEvent::PickLost`), the seated tools'
+rule.
+
+The **value rows** are derived, never held: exactly the freedoms the
+live mates leave, by the kernel's rule (`Placed::freedoms`), the slides
+those the copy's geometry leaves (`editor_core::mate::slides_left_along`).
+Each is prefilled where the copy stands snapped onto the mates
+(`session/snap.rs`): the mate fixing a direction turns the copy's mated
+direction the least way onto the target's and moves its mated point the
+shortest way onto the target's plane or line, a point mate beside it
+carries the point onto the target's, and the orientation written is the
+one nearest the snapped turn. The numbers are read back where the snap
+stands the copy through the chart that will place it
+(`editor_core::mate::read_back`). A number the person typed on a
+surviving freedom is kept, and so is a loaded value reading a named
+variable or an expression, or read on the same chart as loaded; only a
+constant whose chart changed is measured again. "A mate in place of a
+slide or a spin" is *add a mate*: the value rows shrink to what the
+admitted mates leave.
+
+**The verdict comes before Apply.** The session runs the draft's Apply
+on a scratch recording and evaluates it
+(`DocSession::bundle_verdict`), so the panel names the door's refusal
+or the placement's fault — mates repeating an equation, a freedom left
+unpinned, two spaces, a side off the copy, a pick its kind cannot read
+— while the draft can still change, and a refused Apply leaves the
+editor open (`ToolKind::commits`). Where `to` is read in another space
+than the one the copy is placed into, the door refuses the Edit,
+`EditError::SpaceMismatch` naming both spaces: the gesture never moves
+a copy as a side effect. The panel's "move the copy into the target's
+space" choice asks for the move by name
+(`MateProposal::op_into_target_space`): the same action stands the copy
+by the identity bundle where its bundle holds a mate and re-targets the
+placement into `to`'s space before writing the bundle.
+`SessionOp::AddMate` is the API's spelling of one mate added to a
+placement's draft and applied as the editor applies it.
 
 **A new body lands unplaced** (Ev, 2026-10-31). No gesture writes a
 world `Place` on the person's behalf. A construction, a feature or a
@@ -2209,17 +2228,17 @@ fresh body therefore reports `unused` (D10 `[operations]`), with this
 door as its recourse.
 
 **A mate beyond the pin refuses, typed.** The edit door reads the
-bundle's families and measures nothing, so a mate added to a bundle
-whose mates already fix any of its equations is refused where it is
-authored (`EditError::MateRefused` carrying
-`MateFault::Overconstrained`), whether it agrees or not; the document
-stays as it was, and the mate is never dropped silently. Taking a
-constraint off is `SessionOp::RemoveConstraint`
-(`DocEdit::RemoveConstraint`), which writes the bundle whole without
-it by the same rule: the freedoms it fixed are written `0`, so the
-copy stays pinned. `SessionOp::IntoOwnSpace` gives a copy a space of
-its own — a `new_space()`, the placement re-targeted into it at the
-identity — which the Properties pane offers beside the free-move
+bundle's families and measures nothing, so a draft whose mates fix an
+equation twice is refused where it is authored
+(`EditError::MateRefused` carrying `MateFault::Overconstrained`),
+whether they agree or not; the verdict says so before Apply, and the
+mate is never dropped silently. The tree's `remove` sits on mate rows
+alone — a value's freedom is always set, and `SessionOp::RemoveConstraint`
+refuses one (`Refusal::ValueNotRemoved`) — and opens the editor with
+that mate struck out, the freed values measured where the copy stands;
+the op applies the same draft. `SessionOp::IntoOwnSpace` gives a copy a
+space of its own — a `new_space()`, the placement re-targeted into it
+at the identity — which the Properties pane offers beside the free-move
 probe's refusal for a copy in the world.
 
 **The rule reads the document alone.** The mate reads poses off

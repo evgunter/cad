@@ -306,6 +306,9 @@ pub struct ConstraintRow {
     pub mate: MateRef,
     /// What the constraint is, in a few words ([`constraint_said`]).
     pub said: String,
+    /// Whether it is a mate — the one kind of row `remove` is offered
+    /// on, since a value's freedom is always set.
+    pub is_mate: bool,
 }
 
 /// **What a constraint is, as its child row says it**: its 1-based
@@ -331,6 +334,7 @@ fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<Constra
             .map(|(at, constraint)| ConstraintRow {
                 mate: MateRef::new(id, constraint.id),
                 said: constraint_said(at + 1, constraint),
+                is_mate: constraint.mate().is_some(),
             })
             .collect(),
         _ => Vec::new(),
@@ -1677,7 +1681,7 @@ mod picked_name {
             "the mirror says the cap on the copy clicked: {plane}"
         );
         assert_eq!(
-            mate.line(by),
+            mate.line(mate.active(), by),
             format!("on: {}; to: {}", cap(place), cap(second)),
             "the mate says it alike, and the two copies apart"
         );

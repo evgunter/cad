@@ -7410,17 +7410,19 @@ mod properties_pane_tests {
         driven.settle();
         let a = cap_of(CapEnd::End);
         let b = cap_of(CapEnd::Start);
-        let (a_id, b_id) = (driven.patch_of(&a), driven.patch_of(&b));
+        let b_id = driven.patch_of(&b);
         driven.app.tools.open(crate::tools::ToolKind::Mate);
         driven.click_through(vec![
             Selection::Face(a),
             Selection::Face(b),
             Selection::None,
         ]);
+        // Both caps are on the one copy, so each is its on pick, the
+        // second in place of the first.
         let marked = driven.marks();
         assert_eq!(
             (marked.highlight().selected, marked.highlight().held),
-            (NONE, [NONE, a_id, b_id])
+            (NONE, [NONE, b_id, NONE])
         );
         driven.app.tools.close();
         driven.quiet();
@@ -7751,13 +7753,12 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The mate tool's same-copy refusal says the landed label while
-    /// the landed document is behind**: the run that would land the
-    /// rename and the delete is held, so the landed document still says
-    /// the picked copy's placement by its old label and the survival
-    /// step keeps the picks. The chrome speaks the landed document, so
-    /// the commit's refusal says that label, as the panel line does —
-    /// not the rename the shown document made since.
+    /// **The placement editor says the landed label while the landed
+    /// document is behind**: the run that would land the rename and the
+    /// delete is held, so the landed document still says the picked
+    /// copy's placement by its old label and the survival step keeps the
+    /// picks. The chrome speaks the landed document, so the panel says
+    /// that label — not the rename the shown document made since.
     #[test]
     fn the_mate_refusal_says_the_landed_label_while_a_delete_has_not_landed() {
         let (mut driven, open) = gated();
@@ -7798,22 +7799,34 @@ mod properties_pane_tests {
                 .app
                 .tools
                 .mate()
-                .is_some_and(|tool| tool.state().picks()[0].is_some()),
+                .is_some_and(|tool| tool.active_picks()[0].is_some()),
             "the survival step kept the pick"
         );
         driven.click(crate::pane::create::ASSEMBLE_PARTS);
-        driven.click(&crate::tools::ToolKind::Mate.commit());
+        // The run that would land the rename is held, so the frames are
+        // drawn without settling.
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
-        let said = status(&driven).expect("the commit refused");
+        let shown: Vec<String> = driven
+            .frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)])
+            .into_iter()
+            .map(|(text, _)| text)
+            .collect();
         let base = format!(
             "Place \"base\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
-        // Both picks are caps of the one copy, so the commit refuses
-        // the pair, naming the copy's placement.
+        // Both picks are caps of the one copy, so the panel names the
+        // copy's placement by the landed label, and says the empty `to`
+        // seat.
         assert!(
-            said.contains(&format!("both picks are on {base},")),
-            "the refusal says the landed label: {said}"
+            shown.iter().any(|t| t.contains(&base)) && !shown.iter().any(|t| t.contains("plinth")),
+            "the panel says the landed label: {shown:?}"
+        );
+        assert!(
+            shown
+                .iter()
+                .any(|t| t.contains("mate 1's to seat is empty")),
+            "the panel says what the draft lacks: {shown:?}"
         );
     }
 
@@ -7821,8 +7834,8 @@ mod properties_pane_tests {
     /// default sense does not turn its copy over**: the plate duplicated
     /// beside itself, one vertical corner edge of each picked, the panel
     /// switched to `direction` and committed untouched. The default is
-    /// the kind's own (`matetool::sense_offer`), not a plane's rest
-    /// carried across, and the panel says what turning it round does.
+    /// the kind's own (`matetool::senses`), not a plane's rest carried
+    /// across, and the panel names the two senses.
     #[test]
     fn an_edge_direction_mate_at_the_panels_default_keeps_its_copy_upright() {
         let mut driven = Driven::with(Vec::new());
@@ -7866,11 +7879,10 @@ mod properties_pane_tests {
         driven.click("direction");
         let shown: Vec<String> = driven.quiet().into_iter().map(|(text, _)| text).collect();
         assert!(
-            shown
-                .iter()
-                .any(|t| t == "turned round: the two run opposite ways")
-                && !shown.iter().any(|t| t == "faces rest against each other"),
-            "the direction's sense control says what it does: {shown:?}"
+            shown.iter().any(|t| t == "same")
+                && shown.iter().any(|t| t == "reversed")
+                && !shown.iter().any(|t| t == "opposed"),
+            "the direction's sense is named by its two values: {shown:?}"
         );
         driven.click(&crate::tools::ToolKind::Mate.commit());
         driven.quiet();

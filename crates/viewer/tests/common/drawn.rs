@@ -111,17 +111,16 @@ pub fn rest_on(
     let mut mate = viewer::matetool::MateTool::new();
     mate.pick(session.doc(), on);
     mate.pick(session.doc(), to);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = mate
-        .proposal(
-            doc,
-            viewer::matetool::MateChoice {
-                kind: pncad::document::VarKind::Plane,
-                flip: true,
-                values: Vec::new(),
-            },
-        )
-        .expect("a rest proposes");
+    let proposal = super::proposed(
+        session,
+        &mate,
+        viewer::matetool::MateChoice {
+            kind: pncad::document::VarKind::Plane,
+            flip: true,
+            values: Vec::new(),
+        },
+    )
+    .expect("a rest proposes");
     super::commit_mate(session, proposal.op());
 }
 

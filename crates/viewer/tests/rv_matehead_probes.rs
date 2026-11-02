@@ -36,9 +36,10 @@ fn an_edge_named_pick_is_refused_by_a_plane_mate() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, _) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, asm::seat_choice()) {
-        Err(MateToolError::KindDoesNotRead { side, kind, entity }) => {
+    match common::proposed(&session, &tool, asm::seat_choice()) {
+        Err(MateToolError::KindDoesNotRead {
+            side, kind, entity, ..
+        }) => {
             assert_eq!(side, MateSide::On);
             assert_eq!(kind, VarKind::Plane);
             assert_eq!(entity, EntityKind::Edge);
@@ -49,13 +50,14 @@ fn an_edge_named_pick_is_refused_by_a_plane_mate() {
 
 /// **The refusal says the entity and what the kind reads**, the
 /// latter read off the kernel's seats (`MateReading::of`): a plane
-/// reads a face, an axis a face or an edge. The operand arm
-/// (`NotACopyPick`) names a node and says nothing about what the
+/// reads a face, an axis a face or an edge. The door arm
+/// (`NotAPlacement`) names a node and says nothing about what a
 /// selection denoted, so it stays silent about the kind.
 #[test]
 fn the_kind_refusal_says_the_entity_and_what_the_kind_reads() {
     let said = |kind, entity| {
         MateToolError::KindDoesNotRead {
+            row: 0,
             side: MateSide::To,
             kind,
             entity,
@@ -64,14 +66,14 @@ fn the_kind_refusal_says_the_entity_and_what_the_kind_reads() {
     };
     assert_eq!(
         said(VarKind::Plane, EntityKind::Edge),
-        "the to pick is an edge, and a plane mate reads a face"
+        "mate 1's to pick is an edge, and a plane mate reads a face"
     );
     assert_eq!(
         said(VarKind::Axis, EntityKind::Vertex),
-        "the to pick is a vertex, and an axis mate reads a face or an edge"
+        "mate 1's to pick is a vertex, and an axis mate reads a face or an edge"
     );
 
-    let operand = MateToolError::NotACopyPick {
+    let operand = MateToolError::NotAPlacement {
         node: pncad::document::SpokenNode::absent(pncad::document::RecipeNodeId::new(0, 0)),
     }
     .to_string();
@@ -104,13 +106,11 @@ fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates
     let mut bare = a.name.clone();
     bare.path = Vec::new();
     a.name = bare;
+    asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    asm::unpin(&mut session, bench.post_b);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
+    let proposal = common::proposed(&session, &tool, asm::seat_choice())
         .expect("no pose is read before the commit");
     let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

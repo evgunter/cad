@@ -149,11 +149,20 @@ fn the_cursors_rule_admits_what_the_chosen_kind_reads() {
             .into_iter()
             .filter(|&entity| rule.admits(entity))
             .collect();
-        assert_eq!(
-            admitted,
-            viewer::matetool::reads(kind),
+        let reads = viewer::matetool::reads(kind);
+        assert!(
+            reads.iter().all(|entity| admitted.contains(entity)),
             "{kind:?}: the rule {rule:?} admits what the kind reads"
         );
+        // A frame reads edges and vertices, and no rule admits those two
+        // without faces: its rule admits faces too, which its seats
+        // refuse at the verdict.
+        if kind != VarKind::Frame {
+            assert_eq!(
+                admitted, reads,
+                "{kind:?}: the rule {rule:?} admits nothing more"
+            );
+        }
     }
     assert_eq!(
         viewer::matetool::reads(VarKind::Plane),
@@ -190,12 +199,13 @@ fn two_straight_edges_mated_as_axes_are_collinear() {
         panic!("a cursor on each edge's middle picks the edge: {picks:?}")
     };
     assert_eq!((b_edge.node, a_edge.node), (bench.post_b, bench.post_a));
-    let tools = mate_fed(&session, &index, &picks);
     asm::unpin(&mut session, bench.post_b);
-    let (doc, _) = session.landed_pair().expect("landed");
+    let tools = mate_fed(&session, &index, &picks);
     let tool = tools.mate().expect("the mate tool is open");
-    match tool.proposal(doc, choice(VarKind::Plane, true)) {
-        Err(MateToolError::KindDoesNotRead { side, kind, entity }) => {
+    match common::proposed(&session, tool, choice(VarKind::Plane, true)) {
+        Err(MateToolError::KindDoesNotRead {
+            side, kind, entity, ..
+        }) => {
             assert_eq!(
                 (side, kind, entity),
                 (MateSide::On, VarKind::Plane, EntityKind::Edge)
@@ -203,10 +213,9 @@ fn two_straight_edges_mated_as_axes_are_collinear() {
         }
         other => panic!("a plane reads no edge: {other:?}"),
     }
-    let proposal = tool
-        .proposal(doc, choice(VarKind::Axis, false))
+    let proposal = common::proposed(&session, tool, choice(VarKind::Axis, false))
         .expect("two edges mate as axes");
-    assert_eq!(proposal.placement, bench.post_b, "the on pick's copy");
+    assert_eq!(proposal.placement, Some(bench.post_b), "the on pick's copy");
     common::commit_mate(&mut session, proposal.op_into_target_space());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(b_edge);
@@ -268,21 +277,19 @@ fn a_vertex_mated_on_a_vertex_coincides() {
         near(was.x, corner_b.x) && near(was.y, 0.0) && near(was.z, top),
         "post_b's corner is marked where it is drawn: {was:?}"
     );
-    let tools = mate_fed(&session, &index, &picks);
     asm::unpin(&mut session, bench.post_b);
-    let (doc, _) = session.landed_pair().expect("landed");
+    let tools = mate_fed(&session, &index, &picks);
     let tool = tools.mate().expect("the mate tool is open");
     assert!(
         matches!(
-            tool.proposal(doc, choice(VarKind::Point, true)),
+            common::proposed(&session, tool, choice(VarKind::Point, true)),
             Err(MateToolError::NoSense {
                 kind: VarKind::Point
             })
         ),
         "a point has no sense to turn round"
     );
-    let proposal = tool
-        .proposal(doc, choice(VarKind::Point, false))
+    let proposal = common::proposed(&session, tool, choice(VarKind::Point, false))
         .expect("two vertices mate as points");
     common::commit_mate(&mut session, proposal.op_into_target_space());
     let index = asm::index_of(&session);
@@ -322,14 +329,14 @@ fn an_edge_mated_as_a_direction_runs_parallel() {
     };
     assert_eq!(shelf_edge.node, bench.shelf_i);
     assert!(along.len() >= 2, "the shelf's edge is drawn");
-    let tools = mate_fed(&session, &index, &picks);
     asm::unpin(&mut session, bench.post_b);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tools
-        .mate()
-        .expect("the mate tool is open")
-        .proposal(doc, choice(VarKind::Direction, false))
-        .expect("two edges mate as directions");
+    let tools = mate_fed(&session, &index, &picks);
+    let proposal = common::proposed(
+        &session,
+        tools.mate().expect("the mate tool is open"),
+        choice(VarKind::Direction, false),
+    )
+    .expect("two edges mate as directions");
     common::commit_mate(&mut session, proposal.op_into_target_space());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(b_edge);
@@ -393,13 +400,17 @@ fn a_circular_edge_is_coaxial_with_a_cylinder_face() {
     };
     assert_eq!((rim.node, side.node), (small_copy, big_copy));
     let tools = mate_fed(&session, &index, &picks);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tools
-        .mate()
-        .expect("the mate tool is open")
-        .proposal(doc, choice(VarKind::Axis, false))
-        .expect("a rim and a cylinder mate as axes");
-    assert_eq!(proposal.placement, small_copy, "the rim's copy is placed");
+    let proposal = common::proposed(
+        &session,
+        tools.mate().expect("the mate tool is open"),
+        choice(VarKind::Axis, false),
+    )
+    .expect("a rim and a cylinder mate as axes");
+    assert_eq!(
+        proposal.placement,
+        Some(small_copy),
+        "the rim's copy is placed"
+    );
     common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(rim);
@@ -411,4 +422,100 @@ fn a_circular_edge_is_coaxial_with_a_cylinder_face() {
                 .all(|p| ((p.x * p.x + p.y * p.y).sqrt() - SMALL).abs() < 1.0e-6),
         "the rim is drawn about the big peg's axis: {moved:?}"
     );
+}
+
+/// **A frame on a frame** (`Frame`): post_b's frame through its front
+/// right vertical edge and its top front left corner, onto post_a's
+/// through the same two — an axis seat an edge fills and a point seat a
+/// vertex fills on each side, written `PoseDef::Through`. The two posts
+/// are one part, so the commit draws post_b's corner on post_a's and its
+/// edge on post_a's edge: every freedom is fixed, and no value is left.
+#[test]
+fn a_frame_mated_on_a_frame_coincides() {
+    use pncad::document::{Operand, pose::PoseDef};
+    use viewer::matetool::{MateSeat, MateTool};
+    const INSIDE: f64 = 2.0e-4;
+    let tol = Tol::witness();
+    let bench = asm::bench("matekinds-frame", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let index = asm::index_of(&session);
+    let top = asm::POST_HEIGHT;
+    let s = asm::POST_SECTION;
+    let edge_of = |node, x: f64| edge_where(&index, node, |p| near(p.x, x) && near(p.y, 0.0));
+    let (on_b, on_a) = (
+        edge_of(bench.post_b, asm::POST_B_AT[0] + s),
+        edge_of(bench.post_a, s),
+    );
+    let camera = front_camera(Point3::new(0.04, 0.0, 0.025));
+    let vertex_at =
+        |at: Point3<f64>| hovered(&session, &index, &camera, at, PickKinds::WithVertices);
+    let edge_at = |at: Point3<f64>| hovered(&session, &index, &camera, at, PickKinds::Any);
+    let picks = [
+        edge_at(middle(&on_b)),
+        // Aimed a hair inside the corner, which stands on the posts'
+        // silhouette from this eye.
+        vertex_at(Point3::new(
+            asm::POST_B_AT[0] + INSIDE,
+            INSIDE,
+            top - INSIDE,
+        )),
+        edge_at(middle(&on_a)),
+        vertex_at(Point3::new(INSIDE, INSIDE, top - INSIDE)),
+    ];
+    let [
+        Hovered::Edge(_),
+        Hovered::Vertex(b_vertex),
+        Hovered::Edge(_),
+        Hovered::Vertex(_),
+    ] = &picks
+    else {
+        panic!("each cursor picks its edge or its vertex: {picks:?}")
+    };
+    asm::unpin(&mut session, bench.post_b);
+    // The frame chosen before its seats are picked: under one seat a
+    // second pick would replace the first.
+    let mut tool = MateTool::edit(session.doc(), bench.post_b).expect("post_b is a placement");
+    tool.add_mate(VarKind::Frame);
+    for pick in &picks {
+        let event = match pick.selection() {
+            viewer::session::Selection::Edge(edge) => tool.pick(session.doc(), edge),
+            viewer::session::Selection::Vertex(vertex) => tool.pick(session.doc(), vertex),
+            other => panic!("an edge or a vertex: {other:?}"),
+        };
+        assert!(event.is_none(), "the pick is taken: {event:?}");
+    }
+    let row = &tool.rows()[tool.active()];
+    for side in [MateSide::On, MateSide::To] {
+        for seat in [MateSeat::Axis, MateSeat::Point] {
+            assert!(
+                row.side(side).pick(seat).is_some(),
+                "the {side:?} {seat:?} seat is held"
+            );
+        }
+    }
+    let proposal = common::proposed(&session, &tool, choice(VarKind::Frame, false))
+        .expect("two frames propose");
+    let mate = &proposal.mates[0].mate;
+    assert!(
+        matches!(&mate.on, Operand::Pose(def) if matches!(**def, PoseDef::Through { .. })),
+        "the on side is a frame through an axis and a point: {:?}",
+        mate.on
+    );
+    assert!(proposal.values.is_empty(), "a frame leaves no freedom");
+    common::commit_mate(&mut session, proposal.op_into_target_space());
+    let index = asm::index_of(&session);
+    let legs = index.vertex_legs_for(b_vertex, &DisplayView::none());
+    let [from, to] = *legs.first().expect("a drawn vertex is marked");
+    let now = Point3::new(
+        (from.x + to.x) / 2.0,
+        (from.y + to.y) / 2.0,
+        (from.z + to.z) / 2.0,
+    );
+    assert!(
+        near(now.x, 0.0) && near(now.y, 0.0) && near(now.z, top),
+        "post_b's corner is drawn on post_a's: {now:?}"
+    );
+    let moved = edge_where(&index, bench.post_b, |p| near(p.x, s) && near(p.y, 0.0));
+    assert!(moved.len() >= 2, "post_b's edge is drawn on post_a's");
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
 }

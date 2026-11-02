@@ -164,8 +164,8 @@ pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 pub use marks::{EdgeOverlay, Highlight, edge_id_segments, edge_overlay, edge_segments, highlight};
 pub use matetool::{
-    MATE_KINDS, MateChoice, MateFreedom, MateProposal, MateTool, MateToolError, MateToolEvent,
-    MateToolState,
+    MATE_KINDS, MateChoice, MatePick, MateProposal, MateRow, MateSeat, MateTool, MateToolError,
+    MateToolEvent, PlaceDoor, ProposedMate, ValueFrom, ValueRow,
 };
 pub use narrowing::Narrow;
 pub use parts::{PartChooser, PartEntry};

@@ -1,90 +1,87 @@
-//! **The mate tool**: a modal layer-3 tool that turns two picks into
-//! one committed mate and the values it names (GUI-4; the plan's ruled
-//! addition to G3).
+//! **The placement editor**: a modal layer-3 tool whose draft is one
+//! placement's whole bundle — its mates, and the values beneath them on
+//! the freedoms they leave — committed as one edit (GUI-4; the plan's
+//! ruled addition to G3).
 //!
-//! # Shape
+//! # Two doors
 //!
-//! The tool holds **two sequential picks in tool state** — a face, an
-//! edge or a vertex in the GUI-2 single-select vocabulary
-//! ([`MatePick`]) consumed twice —
-//! then a choice of kind, flip and values ([`MateChoice`]), then
-//! ONE committed action: the bundle of the copy it places written whole
-//! with the mate and its values, the copy re-targeted into the space the
-//! `to` pick is in where it was placed elsewhere. Everything
-//! before the commit is tool state: it never enters the document, never
-//! enters any history, and dies with the session (G1's transient-state
-//! rule).
+//! The editor opens on a body or on a placement ([`PlaceDoor`]):
 //!
-//! # What the picks become
+//! - **Create**: a body not yet placed. Apply inserts one placement of
+//!   it holding the whole bundle ([`SessionOp::Place`]).
+//! - **Edit**: a placement, opened from its tree row, its constraint
+//!   rows, or a pick on its copy. Apply writes its bundle whole
+//!   ([`SessionOp::SetBundle`]), keeping the id of every row loaded
+//!   from it.
 //!
-//! A mate is two poses of one kind (D10, FORK-S3M), and the kind is
-//! the primitive: two planes rest, two axes are coaxial, two points are
-//! a ball, two directions are parallel. The first pick is `on`, read off
-//! the copy the mate places; the second is `to`, read where the person
-//! picked it, in the space the copy joins. Each is the picked entity
-//! read as a pose of the chosen kind ([`MATE_KINDS`], [`MateReading`]),
-//! and the choice's flip turns `to` round: a plain plane mate equates
-//! outward normals, so two faces resting against each other carry the
-//! flip.
+//! Either Apply is one undo step, and nothing enters the document
+//! before it (G1's transient-state rule): every pick, kind, sense and
+//! number is tool state and dies with the session. A draft over a
+//! bundle the document has since changed is stale and reloads, said
+//! ([`MateToolEvent::Reloaded`]), as the profile editor's does.
 //!
-//! A pick on a `Place`'s copy authors `on` as the face of the shape the
-//! placement copies ([`crate::world::body_of`]); a pick on an instance
-//! authors it as a selection of the instance's own output; a pick
-//! anywhere else is read through A11's member walk
-//! ([`pncad::document::member_of`]) to the instance it places. The
-//! kernel's edit door decides what is left: an `on` that does not read
-//! the copy (`MateFault::NotOnTheCopy`), two kinds that differ. Which
-//! entity kinds a pose reads is the kernel's seat, asked here; whether
-//! a picked face has the plane or the axis, or an edge the line or the
-//! centre, the kind reads is the placement's own refusal where it
-//! evaluates, never a pre-check here.
+//! # The draft
 //!
-//! # What the mate leaves
+//! A **mate row** ([`MateRow`]) holds a kind (any of [`MATE_KINDS`]), a
+//! sense ([`senses`]) and its seats, and may be struck out. The **value
+//! rows** are derived, never held: exactly the freedoms the live mates
+//! leave, by the kernel's own rule ([`Placed::freedoms`]), each prefilled
+//! where the copy stands snapped onto the mates (`session/snap.rs`), its
+//! number read back through the chart that will place it
+//! ([`editor_core::mate::read_back`]). A number the person typed on a
+//! freedom that survives is kept, and so is a value loaded from the
+//! bundle that reads a named variable or an expression, or that the mate
+//! fixing a direction — the chart it is read on — still reads as loaded.
+//! Only a constant (a number, or the anonymous variable a typed field
+//! mints) whose chart changed is measured again, so no value reading
+//! `px` is ever re-written as a measured number.
 //!
-//! Values set the freedoms the mate's kind leaves, on the target
-//! space's axes carried onto the mated direction by the least turn from
-//! where the mate's orientation puts the copy's: a plane mate leaves two
-//! slides and the spin about the target's own direction, an axis mate
-//! one slide and the spin, a direction three slides and the spin, and a
-//! point the chain of spins about the target space's axes. A value the
-//! kind does not leave is refused here
-//! ([`MateToolError::NotAFreedom`], [`MateFreedom::left_by`]), before
-//! any edit exists. The mate goes in through the bundle door, which
-//! rewrites the placement's bundle whole; the gesture then writes the
-//! orientation nearest where the copy stands and the values that stand
-//! it where the snap puts it, so a freshly mated copy moves only by the
-//! snap, and the values the person named over them. A point mate fixes
-//! no direction and has no snap: the values the door keeps of the
-//! bundle stand the copy (`session/snap.rs`).
+//! "A mate in place of a slide or a spin" is [`MateTool::add_mate`]:
+//! the value rows shrink to what the admitted mates leave.
+//!
+//! # Seats, routed by body
+//!
+//! A pick on the draft's copy fills an `on` seat of the active row; a
+//! pick anywhere else fills a `to` seat. Order carries nothing. Each
+//! kind names its seats ([`MateSeat`]): one for a plane, an axis, a point
+//! or a direction, read off one entity ([`MateReading::of`]); two for a
+//! frame, an axis seat an edge fills and a point seat a vertex fills,
+//! written [`pose::PoseDef::Through`]. A pick on a placement's copy
+//! authors `on` as the entity of the shape the placement copies
+//! ([`crate::world::body_of`]); a pick on an instance as its own
+//! output's; a pick on a member of an instance is read through A11's
+//! member walk ([`pncad::document::member_of`]).
 //!
 //! # Survival
 //!
 //! Tool state survives a picked reference vanishing (GQ7's recorded
-//! constraint, the GUI-2 semantics): [`MateTool::reconcile`] re-reads
-//! each held pick against the landed pair and **degrades one step per
-//! lost pick**, typed — a lost second pick returns the tool to its
-//! one-pick step with the first held; a lost first pick with a live
-//! second keeps the second as the held pick, which is then the `on`
-//! pick. No crash, no silent clear: every drop is a [`MateToolEvent`]
-//! the chrome renders.
+//! constraint): [`MateTool::reconcile`] re-reads each held pick against
+//! the landed pair and **empties the seat of each lost pick**, typed
+//! ([`MateToolEvent::PickLost`]) — the seated tools' rule
+//! ([`crate::seats`]). No pick moves between seats.
 //!
-//! This tool is the one modal tool NOT built on [`crate::seats`]: its
-//! picks are entities, and its survivor is promoted to the first pick,
-//! where a seated tool's seats are roles a node is never moved between.
+//! **`reconcile` is the consumer's obligation**: the application calls
+//! it once per frame (`sync_scene`); a headless consumer that forgets
+//! sees a stale pick refused at Apply, typed but late.
 //!
-//! **`reconcile` is the consumer's obligation.** The tool is a value
-//! beside the session, so nothing drives the survival step
-//! automatically — the application calls it once per frame
-//! (`sync_scene`); a headless consumer that forgets sees a stale pick
-//! refused at the edit door, typed but late.
+//! # The verdict
+//!
+//! The editor derives its Apply ([`MateTool::proposal`]); the session
+//! judges it on a scratch recording
+//! ([`crate::session::DocSession::bundle_verdict`]), so the panel names
+//! a refusal — mates repeating an equation, a freedom left unpinned,
+//! two spaces, a side off the copy, a pick its kind cannot read —
+//! before Apply, and a refused Apply leaves the editor open.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Coord, Doc, Evaluation, Formula, Mate, MateSide, Node, Operand, ProfileProgram, RecipeNodeId,
-    Said, Say, SitedRef, SlotKind, Speaker, SpokenNode, TargetAxis, VarKind, member_of, pose,
+    Constraint, ConstraintId, ConstraintKind, Coord, Dimension, Doc, Evaluation, Formula, Mate,
+    MateRef, MateSide, Node, Operand, Orientation, Placed, ProfileProgram, RecipeNodeId, Said, Say,
+    SitedRef, SlideAxes, SlotKind, Speaker, SpokenNode, Value, VarId, VarKind, member_of, pose,
 };
+use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{EntityKind, Resolution};
 
@@ -92,33 +89,53 @@ use crate::pickindex::PickKinds;
 use crate::session::select::resolves;
 use crate::session::{EdgeSelection, FaceSelection, SessionOp, VertexSelection};
 use crate::tree::{DrawnBody, HeldPick, PickedEntity};
-use crate::vocab::{partial_mirror, vocabulary};
+use crate::vocab::partial_mirror;
 
-/// **The kinds a mate's picks are read as**, with their labels — each
-/// read off ONE pick per side ([`MateReading::of`]): a plane off a
-/// face, an axis off a face's carrier or an edge's line, a point off a
-/// vertex or a carrier's or a circle's centre, a direction off a face's
-/// normal or an edge's line. The kind is the mate's primitive — two
-/// planes rest, two axes are coaxial, two points are a ball, two
-/// directions are parallel.
+/// **The kinds a mate's picks are read as**, with their labels: a plane
+/// off a face, an axis off a face's carrier or an edge's line, a point
+/// off a vertex or a carrier's or a circle's centre, a direction off a
+/// face's normal or an edge's line, and a frame through an edge's axis
+/// and a vertex. Two planes rest, two axes are coaxial, two points are a
+/// ball, two directions are parallel, two frames coincide.
 ///
 /// **Deliberately partial**: the `partial_mirror!` invocation below
-/// forces every [`VarKind`] variant to be offered at a seat of this
-/// list or named as deliberately absent, with the reason.
-pub const MATE_KINDS: [(VarKind, &str); 4] = [
+/// forces every [`VarKind`] variant to be offered here or named as
+/// deliberately absent, with the reason.
+pub const MATE_KINDS: [(VarKind, &str); 5] = [
     (VarKind::Plane, "plane"),
     (VarKind::Axis, "axis"),
     (VarKind::Point, "point"),
     (VarKind::Direction, "direction"),
+    (VarKind::Frame, "frame"),
 ];
 
-/// **What the cursor may pick while the mate tool reads `kind`**: of
-/// every rule ([`PickKinds::ALL`]) admitting each entity the kind reads
-/// ([`reads`]), the one admitting fewest — so a kind that reads faces alone
-/// picks faces alone, and a narrow shelf or a small hole's wall stays
-/// pickable however near its own boundary the cursor is. A pick already
-/// held that the kind chosen since does not read is refused at the
-/// commit, typed ([`MateToolError::KindDoesNotRead`]).
+partial_mirror! {
+    VarKind, labelled MATE_KINDS,
+    offered [Plane, Axis, Point, Direction, Frame],
+    absent [
+        Length => "a number, never a pose",
+        Angle => "a number, never a pose",
+        Scalar => "a number, never a pose",
+        Count => "a number, never a pose",
+        Body => "a value, never a pose",
+        Bodies => "a value, never a pose",
+        Profile => "a value, never a pose",
+        Face => "a pick, which the pose is read off",
+        Edge => "a pick, which the pose is read off",
+        Vertex => "a pick, which the pose is read off",
+        Faces => "a reference, never a pose",
+        Edges => "a reference, never a pose",
+        Space => "a placement's target, never a pose: a mate reads geometry",
+    ],
+}
+
+/// **What the cursor may pick while the editor's active row reads
+/// `kind`**: of every rule ([`PickKinds::ALL`]) admitting each entity
+/// the kind reads ([`reads`]), the one admitting fewest — so a kind that
+/// reads faces alone picks faces alone, and a narrow shelf or a small
+/// hole's wall stays pickable however near its own boundary the cursor
+/// is. A pick already held that the kind chosen since does not read is
+/// named by the verdict ([`MateToolError::KindDoesNotRead`]).
 #[must_use]
 pub fn pick_kinds(kind: VarKind) -> PickKinds {
     let read = reads(kind);
@@ -135,9 +152,9 @@ pub fn pick_kinds(kind: VarKind) -> PickKinds {
         .unwrap_or_default()
 }
 
-/// **A mate tool pick**: the face, edge or vertex picked in the
-/// viewport, by the selection vocabulary it was picked in. What it
-/// reads as is its name's entity kind ([`MatePick::entity`]).
+/// **A mate pick**: the face, edge or vertex picked in the viewport, by
+/// the selection vocabulary it was picked in. What it reads as is its
+/// name's entity kind ([`MatePick::entity`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatePick {
     /// A face pick.
@@ -149,8 +166,7 @@ pub enum MatePick {
 }
 
 impl MatePick {
-    /// The entity kind the pick's name names — what the pose is read
-    /// as, whichever vocabulary carried it.
+    /// The entity kind the pick's name names.
     #[must_use]
     pub fn entity(&self) -> EntityKind {
         self.name().kind
@@ -209,12 +225,13 @@ impl From<VertexSelection> for MatePick {
     }
 }
 
-/// **How a pick of one entity kind is read as a pose of a mate's
-/// kind**: the pose definition its one read sits in, and the role a
-/// direction is read through. A plane, an axis and a point are the
-/// pose itself; a direction is a face's plane read through its
-/// normal, or an edge's axis read through its direction — the kernel's
-/// own spelling of a direction mate's side.
+/// **How a pick of one entity kind is read as a pose**: the pose
+/// definition its one read sits in, and the role a direction is read
+/// through. A plane, an axis and a point are the pose itself; a
+/// direction is a face's plane read through its normal, or an edge's
+/// axis read through its direction — the kernel's own spelling of a
+/// direction mate's side, the flip of the role read, so both sides of
+/// a direction carry one flip.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MateReading {
     /// The pose the pick is read as.
@@ -238,21 +255,29 @@ pub enum ReadPose {
 }
 
 impl MateReading {
-    /// **The reading of a pick of `entity` for a mate of `kind`**,
-    /// `None` where none reads it. Whether a pose's read admits the
-    /// entity is the kernel's seat ([`SlotKind::selection_kind`] of the
-    /// pose's own read), never a table here.
+    /// **The reading of a pick of `entity` at `seat` of a mate of
+    /// `kind`**, `None` where none reads it. Whether a pose's read
+    /// admits the entity is the kernel's seat
+    /// ([`SlotKind::selection_kind`] of the pose's own read), never a
+    /// table here; a frame's axis seat takes an edge and its point seat
+    /// a vertex.
     #[must_use]
-    pub fn of(kind: VarKind, entity: EntityKind) -> Option<Self> {
+    pub fn of(kind: VarKind, seat: MateSeat, entity: EntityKind) -> Option<Self> {
         let reading = |pose, role| Self { pose, role };
-        let candidates: &[Self] = match kind {
-            VarKind::Plane => &[reading(ReadPose::Plane, None)],
-            VarKind::Axis => &[reading(ReadPose::Axis, None)],
-            VarKind::Point => &[reading(ReadPose::Point, None)],
-            VarKind::Direction => &[
+        let candidates: &[Self] = match (kind, seat) {
+            (VarKind::Plane, MateSeat::One) => &[reading(ReadPose::Plane, None)],
+            (VarKind::Axis, MateSeat::One) => &[reading(ReadPose::Axis, None)],
+            (VarKind::Point, MateSeat::One) => &[reading(ReadPose::Point, None)],
+            (VarKind::Direction, MateSeat::One) => &[
                 reading(ReadPose::Plane, Some(pose::PoseRole::Normal)),
                 reading(ReadPose::Axis, Some(pose::PoseRole::Direction)),
             ],
+            (VarKind::Frame, MateSeat::Axis) if entity == EntityKind::Edge => {
+                &[reading(ReadPose::Axis, None)]
+            }
+            (VarKind::Frame, MateSeat::Point) if entity == EntityKind::Vertex => {
+                &[reading(ReadPose::Point, None)]
+            }
             _ => &[],
         };
         candidates
@@ -272,28 +297,16 @@ impl MateReading {
 
     /// The seat the pose's one read sits at, as the kernel states it.
     fn seat(self) -> SlotKind {
-        match self
-            .def(Operand::Var(pncad::document::VarId::WORLD))
-            .reads()
-            .first()
-        {
+        match self.def(Operand::Var(VarId::WORLD)).reads().first() {
             Some(&(_, _, _, seat)) => seat,
             None => unreachable!("a plane, an axis and a point each read one entity"),
         }
     }
 
-    /// **`read` as a mate's side**, turned round where `flip`: the pose
-    /// itself (its [`pose::PoseDef::Flip`] where flipped), or a
-    /// direction read through its role. A direction's side is the
-    /// flip of the role read — the kernel's spelling, since no pose
-    /// reads a role plainly — so both sides carry one flip, and its
-    /// sense is turned by flipping the pose it is read off.
+    /// **`read` as this reading's side**, turned round where `flip`: the
+    /// pose itself (its flip where flipped), or a direction read through
+    /// its role, its sense turned by flipping the pose it is read off.
     fn side(self, read: Operand, flip: bool) -> Operand {
-        let turned = |pose: Operand| {
-            Operand::Pose(Box::new(pose::PoseDef::Flip {
-                pose: pose::RoleRead::plain(pose),
-            }))
-        };
         let pose = Operand::Pose(Box::new(self.def(read)));
         let pose = if flip { turned(pose) } else { pose };
         match self.role {
@@ -305,40 +318,66 @@ impl MateReading {
     }
 }
 
-/// **The entity kinds a mate of `kind` reads**, in the order a reader
-/// lists them ([`MateReading::of`]).
+/// `pose` turned round: its [`pose::PoseDef::Flip`].
+fn turned(pose: Operand) -> Operand {
+    Operand::Pose(Box::new(pose::PoseDef::Flip {
+        pose: pose::RoleRead::plain(pose),
+    }))
+}
+
+/// **`side` with its sense turned the other way**: a plain flip taken
+/// off, or one put on.
+fn toggled(side: Operand) -> Operand {
+    match side {
+        Operand::Pose(def) => match *def {
+            pose::PoseDef::Flip {
+                pose: pose::RoleRead { read, role: None },
+            } => read,
+            other => turned(Operand::Pose(Box::new(other))),
+        },
+        other => turned(other),
+    }
+}
+
+/// **The entity kinds a mate of `kind` reads**, at any of its seats, in
+/// the order a reader lists them.
 #[must_use]
 pub fn reads(kind: VarKind) -> Vec<EntityKind> {
     [EntityKind::Face, EntityKind::Edge, EntityKind::Vertex]
         .into_iter()
-        .filter(|&entity| MateReading::of(kind, entity).is_some())
+        .filter(|&entity| {
+            MateSeat::of(kind)
+                .iter()
+                .any(|&seat| MateReading::of(kind, seat, entity).is_some())
+        })
         .collect()
 }
 
-/// **Whether a mate of `kind` has a sense to flip**: the kernel's
-/// sensed poses ([`pose::PoseAdmits::Sensed`]). A point has none.
-#[must_use]
-pub fn sensed(kind: VarKind) -> bool {
-    pose::PoseAdmits::Sensed.kinds().contains(&kind)
-}
-
-/// **The sense control the panel offers beside a mate of `kind`**:
-/// what turning `to` round does for the kind, and whether the panel
-/// opens with it on. `None` for a kind with no sense ([`sensed`]).
+/// **The two senses a mate of `kind` may be read in**, the default
+/// first, each with whether it turns `to` round; `None` for a kind with
+/// no sense (a point, [`pose::PoseAdmits::Sensed`]).
 ///
-/// A plane opens turned: a plain plane mate equates outward normals,
-/// so two faces resting against each other carry the flip. An axis and
-/// a direction open plain, the two running the same way: turned, an
-/// edge mated to an edge would stand its copy upside down.
+/// A plane opens `opposed`: a plain plane mate equates outward normals,
+/// so two faces resting together carry the flip, and `flush` lays them
+/// level, normals the same way. An axis and a direction open `same`,
+/// the two running one way, and a frame opens `same`, its axes on the
+/// target's: turned, an edge mated to an edge would stand its copy
+/// upside down.
 #[must_use]
-pub fn sense_offer(kind: VarKind) -> Option<(&'static str, bool)> {
-    if !sensed(kind) {
+pub fn senses(kind: VarKind) -> Option<[(&'static str, bool); 2]> {
+    if !pose::PoseAdmits::Sensed.kinds().contains(&kind) {
         return None;
     }
     Some(match kind {
-        VarKind::Plane => ("faces rest against each other", true),
-        _ => ("turned round: the two run opposite ways", false),
+        VarKind::Plane => [("opposed", true), ("flush", false)],
+        VarKind::Frame => [("same", false), ("turned over", true)],
+        _ => [("same", false), ("reversed", true)],
     })
+}
+
+/// Whether a mate of `kind` opens turned round: its default sense.
+fn opens_turned(kind: VarKind) -> bool {
+    senses(kind).is_some_and(|[(_, turned), _]| turned)
 }
 
 /// The entity kinds `kinds`, said as a list: `a face, an edge or a
@@ -361,181 +400,386 @@ pub(crate) fn said_entities(kinds: &[EntityKind]) -> String {
     }
 }
 
-vocabulary! {
-    /// **A freedom a mate's value can set**, as the mate panel offers
-    /// it: a slide along the chart's (carried) `x`, `y` or `z`, the spin
-    /// about the target's own direction beside a mate fixing one, or a
-    /// link of the chain of spins about the target space's own axes
-    /// beside a mate fixing none (a point). Which of them a mate leaves
-    /// is the kernel's ([`Self::left_by`]), and the panel offers those
-    /// alone. It mirrors the kernel's [`Coord`] both ways, by two
-    /// exhaustive matches ([`Self::coord`], [`Self::of`]), so a freedom
-    /// the kernel grows does not build here until the panel offers it.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum MateFreedom {
-        /// A slide along the chart's `x`.
-        SlideX,
-        /// A slide along the chart's `y`.
-        SlideY,
-        /// A slide along the chart's `z`.
-        SlideZ,
-        /// The spin about the target's own direction.
-        Spin,
-        /// A spin about the target space's `x`, a link of a chain.
-        SpinX,
-        /// A spin about the target space's `y`, a link of a chain.
-        SpinY,
-        /// A spin about the target space's `z`, a link of a chain.
-        SpinZ,
-    }
-
-    /// Every freedom, in the order the mate panel draws them.
-    pub const ALL;
+/// **A seat of a mate's side**: the one entity a plane, an axis, a
+/// point or a direction is read off, or one of the two a frame is read
+/// through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MateSeat {
+    /// The one seat of a one-pick kind.
+    One,
+    /// A frame's axis: an edge.
+    Axis,
+    /// A frame's point: a vertex.
+    Point,
 }
 
-impl MateFreedom {
-    /// The kernel's freedom.
+impl MateSeat {
+    /// The seats a side of a mate of `kind` has.
     #[must_use]
-    pub fn coord(self) -> Coord {
+    pub fn of(kind: VarKind) -> &'static [Self] {
+        match kind {
+            VarKind::Frame => &[Self::Axis, Self::Point],
+            _ => &[Self::One],
+        }
+    }
+
+    /// The seat a pick of `entity` fills on a side of a mate of `kind`:
+    /// a frame's point for a vertex, its axis for anything else; the
+    /// one seat otherwise.
+    #[must_use]
+    pub fn filled_by(kind: VarKind, entity: EntityKind) -> Self {
+        match (kind, entity) {
+            (VarKind::Frame, EntityKind::Vertex) => Self::Point,
+            (VarKind::Frame, _) => Self::Axis,
+            _ => Self::One,
+        }
+    }
+
+    /// The seat's word: `axis`, `point`, or none for the one seat.
+    #[must_use]
+    pub fn name(self) -> Option<&'static str> {
         match self {
-            Self::SlideX => Coord::Slide(TargetAxis::X),
-            Self::SlideY => Coord::Slide(TargetAxis::Y),
-            Self::SlideZ => Coord::Slide(TargetAxis::Z),
-            Self::Spin => Coord::SPIN,
-            Self::SpinX => Coord::Spin(Some(TargetAxis::X)),
-            Self::SpinY => Coord::Spin(Some(TargetAxis::Y)),
-            Self::SpinZ => Coord::Spin(Some(TargetAxis::Z)),
+            Self::One => None,
+            Self::Axis => Some("axis"),
+            Self::Point => Some("point"),
         }
-    }
-
-    /// The panel's freedom for the kernel's.
-    #[must_use]
-    pub fn of(coord: Coord) -> Self {
-        match coord {
-            Coord::Slide(TargetAxis::X) => Self::SlideX,
-            Coord::Slide(TargetAxis::Y) => Self::SlideY,
-            Coord::Slide(TargetAxis::Z) => Self::SlideZ,
-            Coord::Spin(None) => Self::Spin,
-            Coord::Spin(Some(TargetAxis::X)) => Self::SpinX,
-            Coord::Spin(Some(TargetAxis::Y)) => Self::SpinY,
-            Coord::Spin(Some(TargetAxis::Z)) => Self::SpinZ,
-        }
-    }
-
-    /// **Whether a lone mate of `kind` leaves this freedom**: the
-    /// kernel's answer for the kind's own residual
-    /// ([`pncad::document::SubgroupFamily::leaves`]). A plane, an axis
-    /// and a direction leave slides and the spin; a point leaves the
-    /// chain of spins. Which slides is the copy's geometry's to say (the
-    /// slide the least turn carries onto the mated direction is the one
-    /// a plane fixes and an axis leaves), so each is offered, and the
-    /// evaluation refuses slides that do not span what the mate leaves.
-    #[must_use]
-    pub fn left_by(self, kind: VarKind) -> bool {
-        kind.symmetry()
-            .is_some_and(|family| family.leaves(self.coord()))
-    }
-
-    /// **How many slides a mate of `kind` leaves**: two beside a plane,
-    /// one beside an axis, three beside a direction, none beside a
-    /// point.
-    #[must_use]
-    pub fn slides_left_by(kind: VarKind) -> usize {
-        kind.symmetry()
-            .map_or(0, pncad::document::SubgroupFamily::slides)
     }
 }
 
-partial_mirror! {
-    VarKind, labelled MATE_KINDS,
-    offered [Plane, Axis, Point, Direction],
-    absent [
-        Length => "a number, never a pose",
-        Angle => "a number, never a pose",
-        Scalar => "a number, never a pose",
-        Count => "a number, never a pose",
-        Frame => "a frame is read through an axis and a point, two picks a \
-                  side, which the one-pick-a-side tool does not make",
-        Body => "a value, never a pose",
-        Bodies => "a value, never a pose",
-        Profile => "a value, never a pose",
-        Face => "a pick, which the pose is read off",
-        Edge => "a pick, which the pose is read off",
-        Vertex => "a pick, which the pose is read off",
-        Faces => "a reference, never a pose",
-        Edges => "a reference, never a pose",
-        Space => "a placement's target, never a pose: a mate reads geometry",
-    ],
+/// **One side of a mate row**: the side as the bundle wrote it, while
+/// no seat of it has been picked again, and the picks its seats hold.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct MateSideDraft {
+    /// The side as loaded from the bundle, in its loaded sense.
+    written: Option<Operand>,
+    /// The one seat's pick, or a frame's axis pick.
+    first: Option<HeldPick<MatePick>>,
+    /// A frame's point pick.
+    point: Option<HeldPick<MatePick>>,
 }
 
-/// A typed mate-tool refusal (closed enum, D4 ¶3).
-#[derive(Debug)]
+impl MateSideDraft {
+    /// The pick a seat holds.
+    #[must_use]
+    pub fn pick(&self, seat: MateSeat) -> Option<&HeldPick<MatePick>> {
+        match seat {
+            MateSeat::One | MateSeat::Axis => self.first.as_ref(),
+            MateSeat::Point => self.point.as_ref(),
+        }
+    }
+
+    /// Whether the side is as the bundle wrote it.
+    #[must_use]
+    pub fn is_written(&self) -> bool {
+        self.written.is_some()
+    }
+
+    fn seat_mut(&mut self, seat: MateSeat) -> &mut Option<HeldPick<MatePick>> {
+        match seat {
+            MateSeat::One | MateSeat::Axis => &mut self.first,
+            MateSeat::Point => &mut self.point,
+        }
+    }
+
+    fn picks(&self) -> impl Iterator<Item = &HeldPick<MatePick>> {
+        self.first.iter().chain(self.point.iter())
+    }
+}
+
+/// **One mate of the draft**: its kind, its sense, its two sides, and
+/// whether it is struck out; with the constraint it was loaded from.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MateRow {
+    kind: VarKind,
+    unread: bool,
+    flip: bool,
+    on: MateSideDraft,
+    to: MateSideDraft,
+    struck: bool,
+    loaded: Option<LoadedMate>,
+}
+
+/// A loaded row's constraint: its id, its orientation, and the sense it
+/// was written in.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct LoadedMate {
+    id: ConstraintId,
+    orient: Orientation,
+    flip: bool,
+}
+
+impl MateRow {
+    /// A fresh row of `kind`, at its default sense, no seat picked.
+    fn fresh(kind: VarKind) -> Self {
+        Self {
+            kind,
+            unread: false,
+            flip: opens_turned(kind),
+            on: MateSideDraft::default(),
+            to: MateSideDraft::default(),
+            struck: false,
+            loaded: None,
+        }
+    }
+
+    /// **A row holding `mate` as written**, read in `doc`: its kind its
+    /// `on`'s, its sense whether its `to` reads the opposite sense of
+    /// its `on`.
+    fn written(
+        doc: &Doc<ProfileProgram>,
+        loaded: Option<ConstraintId>,
+        mate: &Mate<Formula>,
+    ) -> Self {
+        let read = editor_core::mate::pin::operand_kind(doc, &mate.on);
+        let flip = editor_core::mate::side_flipped(doc, &mate.to)
+            != editor_core::mate::side_flipped(doc, &mate.on);
+        let written = |side: &Operand| MateSideDraft {
+            written: Some(side.clone()),
+            ..MateSideDraft::default()
+        };
+        Self {
+            // A kind that does not resolve is said, never guessed: the
+            // row keeps its sides as written and its Apply refuses
+            // (`MateToolError::KindUnread`) until it is struck out.
+            kind: read.unwrap_or(VarKind::Plane),
+            unread: read.is_none(),
+            flip,
+            on: written(&mate.on),
+            to: written(&mate.to),
+            struck: false,
+            loaded: loaded.map(|id| LoadedMate {
+                id,
+                orient: mate.orient,
+                flip,
+            }),
+        }
+    }
+
+    /// The row's kind.
+    #[must_use]
+    pub fn kind(&self) -> VarKind {
+        self.kind
+    }
+
+    /// Whether the row turns `to` round.
+    #[must_use]
+    pub fn flip(&self) -> bool {
+        self.flip
+    }
+
+    /// Whether the row is struck out.
+    #[must_use]
+    pub fn struck(&self) -> bool {
+        self.struck
+    }
+
+    /// The row's side.
+    #[must_use]
+    pub fn side(&self, side: MateSide) -> &MateSideDraft {
+        match side {
+            MateSide::On => &self.on,
+            MateSide::To => &self.to,
+        }
+    }
+
+    /// The constraint the row was loaded from, if it was.
+    #[must_use]
+    pub fn loaded(&self) -> Option<ConstraintId> {
+        self.loaded.map(|loaded| loaded.id)
+    }
+
+    fn side_mut(&mut self, side: MateSide) -> &mut MateSideDraft {
+        match side {
+            MateSide::On => &mut self.on,
+            MateSide::To => &mut self.to,
+        }
+    }
+
+    /// **Whether the row reads as it was loaded**: both sides as
+    /// written, in the loaded sense — so a chart on it is the bundle's.
+    fn as_loaded(&self) -> bool {
+        self.loaded.is_some_and(|loaded| loaded.flip == self.flip)
+            && self.on.is_written()
+            && self.to.is_written()
+    }
+}
+
+/// **The editor's door** — what Apply writes into.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlaceDoor {
+    /// A body not yet placed: Apply inserts one placement of it.
+    Create {
+        /// The body, as a seat reads it.
+        body: Operand,
+    },
+    /// A placement: Apply writes its bundle whole.
+    Edit {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// Its bundle as authored when the draft was loaded
+        /// ([`crate::session::held_bundle`]) — what tells the editor
+        /// the document has moved under it.
+        base: Vec<Constraint<Formula>>,
+    },
+}
+
+/// **A value row**: a freedom the live mates leave, its number, and
+/// where the number came from.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ValueRow {
+    /// The freedom.
+    pub coord: Coord,
+    /// Its number, as Apply writes it.
+    pub by: Formula,
+    /// Where it came from.
+    pub from: ValueFrom,
+}
+
+/// Where a value row's number came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueFrom {
+    /// The bundle, under this id.
+    Loaded(ConstraintId),
+    /// The person, in this draft.
+    Typed,
+    /// Where the copy stands, snapped onto the mates.
+    Measured,
+}
+
+/// **The person's choice for the active row** — its kind, its sense —
+/// and the numbers they type, as one value ([`MateTool::chosen`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MateChoice {
+    /// The active row's kind ([`MATE_KINDS`]).
+    pub kind: VarKind,
+    /// Whether the active row's `to` is read in its opposite sense
+    /// ([`senses`]).
+    pub flip: bool,
+    /// Numbers typed on freedoms: a `Length` for a slide, an `Angle`
+    /// for a spin.
+    pub values: Vec<(Coord, Formula)>,
+}
+
+/// The draft: its door, its mate rows, and what the person set.
+#[derive(Debug, Clone, PartialEq)]
+struct PlaceDraft {
+    door: PlaceDoor,
+    rows: Vec<MateRow>,
+    typed: Vec<(Coord, Formula)>,
+    active: usize,
+    into_target_space: bool,
+}
+
+/// **The placement editor.** A value: the chrome holds one while the
+/// tool is open, a test constructs one and drives the same methods.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MateTool {
+    draft: Option<PlaceDraft>,
+    /// The kind a fresh row opens with.
+    kind: VarKind,
+}
+
+impl Default for MateTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A typed editor refusal (closed enum, D4 ¶3).
+#[derive(Debug, Clone)]
 pub enum MateToolError {
-    /// The tool does not hold two picks yet.
-    NotTwoPicks,
-    /// The pick names an entity no pose of the chosen kind is read
-    /// off ([`MateReading::of`]) — a pick taken under one kind and
-    /// committed under another, or a name of no picked entity at all.
-    KindDoesNotRead {
-        /// Which pick.
+    /// No pick has opened a door yet.
+    NoDoor,
+    /// A seat of a live mate row holds no pick.
+    SeatEmpty {
+        /// The row, 0-based.
+        row: usize,
+        /// Which side.
         side: MateSide,
-        /// The kind chosen.
+        /// Which seat.
+        seat: MateSeat,
+    },
+    /// A pick names an entity its seat does not read
+    /// ([`MateReading::of`]) — a pick taken under one kind and applied
+    /// under another.
+    KindDoesNotRead {
+        /// The row, 0-based.
+        row: usize,
+        /// Which side.
+        side: MateSide,
+        /// The row's kind.
         kind: VarKind,
         /// The entity the pick names.
         entity: EntityKind,
     },
-    /// The choice turns round a mate whose kind has no sense
-    /// ([`sensed`]): a point.
-    NoSense {
-        /// The kind chosen.
-        kind: VarKind,
-    },
-    /// A pick is on a node the document no longer holds: the tool was
-    /// asked without the survival step ([`MateTool::reconcile`]) having
-    /// dropped it.
+    /// A pick is on a node the document no longer holds: the survival
+    /// step ([`MateTool::reconcile`]) has not emptied its seat yet.
     PickGone {
-        /// Which pick.
+        /// Which side.
         side: MateSide,
         /// The node, by the label the tool kept.
         node: SpokenNode,
     },
-    /// The `on` pick is on no placement's copy: neither a `Place` nor an
-    /// instance, nor anything A11's member walk reads down to an
-    /// instance ([`pncad::document::member_of`]) — a pair boolean's
-    /// body, a split half. A mate places a copy, so there is no bundle
-    /// to add it to.
-    NotACopyPick {
-        /// The node the pick's body belongs to, as the document held it.
+    /// A node the Edit door was asked to open on is no placement.
+    NotAPlacement {
+        /// The node.
         node: SpokenNode,
     },
-    /// Both picks are on the copy the mate places: a mate relates the
-    /// copy to what it joins, never to itself.
-    SamePick {
-        /// The placement both picks read, as the document held it.
-        head: SpokenNode,
+    /// The constraint the tree's `remove` asked to strike is no mate of
+    /// its placement's bundle.
+    NotAMate {
+        /// The constraint.
+        mate: MateRef,
     },
-    /// The chosen kind is none the tool reads off one pick a side
-    /// ([`MATE_KINDS`]).
+    /// The chosen kind is none the editor reads ([`MATE_KINDS`]).
     KindNotOffered {
         /// The kind asked for.
         kind: VarKind,
     },
-    /// A value sets a freedom the mate's kind does not leave, or a slide
-    /// past as many as it leaves ([`MateFreedom::left_by`],
-    /// [`MateFreedom::slides_left_by`]).
-    NotAFreedom {
+    /// The choice turns round a mate whose kind has no sense
+    /// ([`senses`]): a point.
+    NoSense {
+        /// The kind chosen.
+        kind: VarKind,
+    },
+    /// A freedom the live mates leave reads no number where the copy
+    /// stands — a spin about the target's direction whose mate's poses
+    /// do not evaluate — and nobody typed one.
+    Unmeasured {
         /// The freedom.
         coord: Coord,
-        /// The mate's kind.
-        kind: VarKind,
+    },
+    /// A freedom's measured number is no literal a value can hold.
+    Unwritable {
+        /// The freedom.
+        coord: Coord,
+        /// The number.
+        by: f64,
+    },
+    /// A loaded mate row's kind does not resolve.
+    KindUnread {
+        /// The row, 0-based.
+        row: usize,
     },
 }
 
 impl core::fmt::Display for MateToolError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotTwoPicks => write!(f, "needs two picks"),
-            Self::KindDoesNotRead { side, kind, entity } => {
+            Self::NoDoor => write!(f, "pick the body or the copy to place first"),
+            Self::SeatEmpty { row, side, seat } => write!(
+                f,
+                "mate {}'s {}{} seat is empty",
+                row + 1,
+                side.name(),
+                seat.name().map_or(String::new(), |word| format!(" {word}"))
+            ),
+            Self::KindDoesNotRead {
+                row,
+                side,
+                kind,
+                entity,
+            } => {
                 let word = kind.to_string();
                 let article = if word.starts_with(['a', 'e', 'i', 'o', 'u']) {
                     "an"
@@ -544,39 +788,51 @@ impl core::fmt::Display for MateToolError {
                 };
                 write!(
                     f,
-                    "the {} pick is {}, and {article} {word} mate reads {}",
+                    "mate {}'s {} pick is {}, and {article} {word} mate reads {}",
+                    row + 1,
                     side.name(),
                     said_entities(&[*entity]),
                     said_entities(&reads(*kind)),
                 )
             }
-            Self::NoSense { kind } => write!(f, "a {kind} has no sense to turn round"),
             Self::PickGone { side, node } => write!(
                 f,
                 "the {} pick is on {node}, which the document no longer holds",
                 side.name()
             ),
-            Self::NotACopyPick { node } => write!(
+            Self::NotAPlacement { node } => write!(f, "{node} is no placement"),
+            Self::NotAMate { mate } => write!(
                 f,
-                "the on pick is on {node}, which is no placement's copy; a mate places a copy"
-            ),
-            Self::SamePick { head } => write!(
-                f,
-                "both picks are on {head}, the copy the mate places; a mate relates it to \
-                 something else"
+                "constraint {} of node {} is no mate of its bundle",
+                mate.id, mate.placement
             ),
             Self::KindNotOffered { kind } => write!(
                 f,
-                "the tool reads a {} off one pick a side, not a {kind}",
+                "the editor reads a {}, not a {kind}",
                 MATE_KINDS
                     .iter()
                     .map(|(_, label)| *label)
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Self::NotAFreedom { coord, kind } => {
-                write!(f, "a {} mate leaves no {} to set", kind, coord.name())
+            Self::NoSense { kind } => write!(f, "a {kind} has no sense to turn round"),
+            Self::Unmeasured { coord } => write!(
+                f,
+                "the {} reads no number where the copy stands; type one",
+                coord.name()
+            ),
+            Self::Unwritable { coord, by } => {
+                write!(
+                    f,
+                    "the {} measures {by}, which no value holds",
+                    coord.name()
+                )
             }
+            Self::KindUnread { row } => write!(
+                f,
+                "mate {}'s kind does not resolve; strike it out or pick it again",
+                row + 1
+            ),
         }
     }
 }
@@ -585,10 +841,7 @@ impl core::error::Error for MateToolError {}
 
 impl MateToolError {
     /// This refusal with its nodes spoken from `doc`, a later version of
-    /// the document the tool read ([`crate::session::Refusal::respoken`]):
-    /// the panel's line ([`MateTool::line`]) speaks the landed document
-    /// ([`crate::frame::landed_speaker`]), as the whole chrome does, and
-    /// a refusal drawn beside it speaks the same one.
+    /// the document the tool read ([`crate::session::Refusal::respoken`]).
     #[must_use]
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         match self {
@@ -596,56 +849,25 @@ impl MateToolError {
                 side,
                 node: node.respoken(doc),
             },
-            Self::NotACopyPick { node } => Self::NotACopyPick {
+            Self::NotAPlacement { node } => Self::NotAPlacement {
                 node: node.respoken(doc),
             },
-            Self::SamePick { head } => Self::SamePick {
-                head: head.respoken(doc),
-            },
-            unspoken @ (Self::NotTwoPicks
+            unspoken @ (Self::NoDoor
+            | Self::SeatEmpty { .. }
             | Self::KindDoesNotRead { .. }
-            | Self::NoSense { .. }
+            | Self::NotAMate { .. }
             | Self::KindNotOffered { .. }
-            | Self::NotAFreedom { .. }) => unspoken,
+            | Self::NoSense { .. }
+            | Self::Unmeasured { .. }
+            | Self::Unwritable { .. }
+            | Self::KindUnread { .. }) => unspoken,
         }
     }
 }
 
-/// What the tool holds: none, one, or two picks — the two sequential
-/// picks of the ruling, as a value.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum MateToolState {
-    /// No pick yet.
-    #[default]
-    Idle,
-    /// The first pick, held: the copy's.
-    One(HeldPick<MatePick>),
-    /// Both picks, held; the choice is offered.
-    Two {
-        /// The `on` pick: a face, edge or vertex of the copy the mate
-        /// places.
-        on: HeldPick<MatePick>,
-        /// The `to` pick: a face, edge or vertex of what the copy joins.
-        to: HeldPick<MatePick>,
-    },
-}
-
-impl MateToolState {
-    /// The held picks, `on` then `to`, `None` for a side not yet picked
-    /// — what the panel's line says and the viewport marks
-    /// ([`HeldPick::pick`]).
-    pub fn picks(&self) -> [Option<&HeldPick<MatePick>>; 2] {
-        match self {
-            Self::Idle => [None, None],
-            Self::One(on) => [Some(on), None],
-            Self::Two { on, to } => [Some(on), Some(to)],
-        }
-    }
-}
-
-/// **The sentence a dropped pick is said in**: its role, and the
-/// pick as its panel line said it ([`HeldPick`]) — the mate tool's drop
-/// and the mirror tool's (`crate::combine::MirrorEvent`).
+/// **The sentence a dropped pick is said in**: its role, and the pick
+/// as its panel line said it ([`HeldPick`]) — the editor's drop and the
+/// mirror tool's (`crate::combine::MirrorEvent`).
 pub(crate) fn pick_lost<P: PickedEntity>(
     f: &mut core::fmt::Formatter<'_>,
     role: impl core::fmt::Display,
@@ -659,100 +881,157 @@ pub(crate) fn pick_lost<P: PickedEntity>(
     )
 }
 
-/// A typed tool event the chrome renders — every state change that
-/// was not the direct echo of an op.
+/// A typed tool event the chrome renders — every state change that was
+/// not the direct echo of an op.
 #[derive(Debug)]
 pub enum MateToolEvent {
     /// A held pick's reference no longer resolves against the landed
-    /// evaluation; the tool degraded one step, dropping it.
+    /// evaluation; its seat is empty.
     PickLost {
-        /// Which pick was dropped.
+        /// The row, 0-based.
+        row: usize,
+        /// Which side.
         side: MateSide,
-        /// The pick that was held, with the body it was said on and the
-        /// last labels the tool kept for its nodes ([`MateTool::respeak`]).
+        /// Which seat.
+        seat: MateSeat,
+        /// The pick that was held, with the last labels the tool kept
+        /// for its nodes ([`MateTool::respeak`]).
         pick: HeldPick<MatePick>,
-        /// The resolution machinery's own verdict, read as the feature
-        /// tree reads it ([`crate::tree::resolution_as_drawn`]); boxed
-        /// for the same width reason `Standing` boxes it.
+        /// The resolution machinery's own verdict
+        /// ([`crate::tree::resolution_as_drawn`]); boxed for width.
         resolution: Box<Resolution>,
+    },
+    /// The bundle the Edit door loaded is not the one the placement
+    /// holds now (an undo, a redo, an edit from elsewhere): the draft
+    /// was loaded again, and what it held is gone.
+    Reloaded {
+        /// The placement.
+        placement: SpokenNode,
+    },
+    /// The placement the Edit door was on is gone: the editor holds no
+    /// draft.
+    PlacementGone {
+        /// The placement.
+        placement: SpokenNode,
+    },
+    /// A pick opened no door: it is on no copy and no body.
+    NotPlaceable {
+        /// The node the pick's body belongs to.
+        node: SpokenNode,
     },
 }
 
-/// A sentence for the status line — the payload stays typed and full
-/// in the value; this is what a person reads. A node `by` does not hold
-/// is said as the tool kept it.
 impl Say for MateToolEvent {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { side, pick, .. } => pick_lost(f, side.name(), pick, by),
+            Self::PickLost {
+                row,
+                side,
+                seat,
+                pick,
+                ..
+            } => {
+                let role = match seat.name() {
+                    Some(word) => format!("mate {} {} {word}", row + 1, side.name()),
+                    None => format!("mate {} {}", row + 1, side.name()),
+                };
+                pick_lost(f, role, pick, by)
+            }
+            Self::Reloaded { placement } => write!(
+                f,
+                "{placement} changed under the editor; it loaded the bundle again"
+            ),
+            Self::PlacementGone { placement } => {
+                write!(f, "{placement} is gone; the editor holds nothing")
+            }
+            Self::NotPlaceable { node } => write!(
+                f,
+                "the pick is on {node}, which is no copy and no body to place"
+            ),
         }
     }
 }
 
-/// The sentence where no document is at hand: each node as the tool
-/// kept it.
 impl core::fmt::Display for MateToolEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::PickLost { pick, .. } => self.say(f, Speaker::held(pick.said())),
+            Self::Reloaded { .. } | Self::PlacementGone { .. } | Self::NotPlaceable { .. } => {
+                self.say(f, Speaker::TAG)
+            }
         }
     }
 }
 
-/// The person's choice — what the chrome's controls select between
-/// picks and commit.
+/// **One mate of an Apply**: the mate, and the entities its seats were
+/// picked on.
 #[derive(Debug, Clone, PartialEq)]
-pub struct MateChoice {
-    /// The kind both picks are read as ([`MATE_KINDS`]): the mate's
-    /// primitive.
-    pub kind: VarKind,
-    /// Whether `to` is read in its opposite sense: two faces resting
-    /// against each other face opposite ways, so a rest carries it. A
-    /// kind with no sense ([`sensed`]) refuses it.
-    pub flip: bool,
-    /// The freedoms the mate leaves that the person sets, each to its
-    /// number: a `Length` for a slide, an `Angle` for the spin.
-    pub values: Vec<(Coord, Formula)>,
+pub struct ProposedMate {
+    /// The mate as Apply writes it.
+    pub mate: Mate<Formula>,
+    /// The `on` seats' entities, read off the copy's shapes; empty for a
+    /// side as the bundle wrote it.
+    pub on: Vec<SitedRef>,
+    /// The `to` seats' entities, read where they were picked; empty for
+    /// a side as the bundle wrote it.
+    pub to: Vec<SitedRef>,
 }
 
-/// The derived, ready-to-commit mate: the placement it joins, the two
-/// sides, the mate and its values.
-#[derive(Debug, Clone)]
+/// **The editor's Apply, derived**: the door, the live mates, and the
+/// bundle with its value rows.
+#[derive(Debug, Clone, PartialEq)]
 pub struct MateProposal {
-    /// The placement whose bundle the mate joins: the `on` pick's copy.
-    pub placement: RecipeNodeId,
-    /// The `on` entity: read off the copy's shapes.
-    pub on: SitedRef,
-    /// The `to` entity: read where it was picked.
-    pub to: SitedRef,
-    /// The mate.
-    pub mate: Mate<Formula>,
-    /// Its values, written naming the mate in the same bundle.
-    pub values: Vec<(Coord, Formula)>,
+    /// The door.
+    pub door: PlaceDoor,
+    /// The placement an Edit writes; `None` for a Create.
+    pub placement: Option<RecipeNodeId>,
+    /// The space a Create places its copy into: the space its first
+    /// mate's `to` reads, or the body's own with no mate.
+    pub target: Option<VarId>,
+    /// The live mates, in row order.
+    pub mates: Vec<ProposedMate>,
+    /// The value rows.
+    pub values: Vec<ValueRow>,
+    /// **The values Apply drops**: each loaded or typed value on a
+    /// freedom the live mates do not leave, and carried onto none, with
+    /// its formula — said in the draft before Apply, never dropped
+    /// silently.
+    pub dropped: Vec<ValueRow>,
+    /// The bundle Apply writes: the mates, then the values.
+    pub bundle: Vec<Constraint<Formula>>,
 }
 
 impl MateProposal {
-    /// **The one committed action**: the session op that writes the
-    /// mate and its values through the ordinary commit door. A mate
-    /// whose `to` reads outside the copy's target space is refused there,
-    /// naming both spaces ([`Self::op_into_target_space`] moves it).
+    /// **The one committed action**: a Create's [`SessionOp::Place`], or
+    /// an Edit's [`SessionOp::SetBundle`]. A mate whose `to` reads
+    /// outside an Edit's target space is refused there, naming both
+    /// spaces ([`Self::op_into_target_space`] moves it).
+    #[must_use]
     pub fn op(&self) -> SessionOp {
         self.committed(false)
     }
 
-    /// [`Self::op`], the copy moved by name into the space the mate's
-    /// `to` reads where that is not its target — the chrome's explicit
-    /// "move the copy" choice, never a side effect of the mate.
+    /// [`Self::op`], an Edit's copy moved by name into the space its
+    /// first mate's `to` reads — the chrome's explicit "move the copy"
+    /// choice, never a side effect of a mate.
+    #[must_use]
     pub fn op_into_target_space(&self) -> SessionOp {
         self.committed(true)
     }
 
     fn committed(&self, into_target_space: bool) -> SessionOp {
-        SessionOp::AddMate {
-            placement: self.placement,
-            mate: Box::new(self.mate.clone()),
-            values: self.values.clone(),
-            into_target_space,
+        match &self.door {
+            PlaceDoor::Create { body } => SessionOp::Place {
+                body: body.clone(),
+                target: self.target.unwrap_or(VarId::WORLD),
+                constraints: self.bundle.clone(),
+            },
+            PlaceDoor::Edit { placement, base } => SessionOp::SetBundle {
+                placement: *placement,
+                base: base.clone(),
+                constraints: self.bundle.clone(),
+                into_target_space,
+            },
         }
     }
 }
@@ -760,8 +1039,8 @@ impl MateProposal {
 /// **A face read as its plane**: `face`, a one-name face selection,
 /// read plainly as the plane of that face — a plane mate's side, and
 /// the plane a mirror reflects across (`crate::combine::mirror_node`).
-pub(crate) fn plane_of(face: pncad::document::Operand) -> pncad::document::Operand {
-    pncad::document::Operand::Pose(Box::new(pose::PoseDef::Plane { face }))
+pub(crate) fn plane_of(face: Operand) -> Operand {
+    Operand::Pose(Box::new(pose::PoseDef::Plane { face }))
 }
 
 /// The placement whose copy a pick at `at` is on: `at` itself when it
@@ -778,77 +1057,532 @@ fn placement_of(
     }
 }
 
-/// The modal mate tool. A value: the chrome holds one while the tool
-/// is active, a test constructs one and drives the same methods.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct MateTool {
-    /// The held picks, each with the nodes its words name as the
-    /// document last spoke them ([`MateTool::respeak`]) — what a drop
-    /// notice, a refusal or the panel line says once the document no
-    /// longer holds a node.
-    state: MateToolState,
+/// The placement whose copy `pick` is on, if any.
+fn copy_picked(doc: &Doc<ProfileProgram>, pick: &MatePick) -> Option<RecipeNodeId> {
+    let read = SitedRef::new(pick.node(), pick.name().clone());
+    placement_of(doc, pick.node(), &read).filter(|&at| {
+        matches!(
+            doc.node(at),
+            Some(Node::Place { .. } | Node::InstantiatePart { .. })
+        )
+    })
+}
+
+/// **The entity `pick` names as an `on` side reads it**: off the shape
+/// a `Place` copies, by the shape's own name for it (a copy carries its
+/// body's names), on the output it copies where the shape's operation
+/// defines several (a split's halves); an instance's or a body's own
+/// read otherwise.
+fn on_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
+    let picked = SitedRef::new(pick.node(), pick.name().clone());
+    match doc.node(pick.node()) {
+        Some(Node::Place { .. }) => {
+            let (at, port) = crate::world::body_of(doc, pick.node(), pick.on().body());
+            let body = match crate::world::seat_read(doc, at, Some(port)) {
+                (at, Some(port)) => Operand::output(at, port),
+                (at, None) => Operand::Node(at),
+            };
+            let read = Operand::select(body, vec![pick.name().clone()]);
+            (SitedRef::new(at, pick.name().clone()), read)
+        }
+        Some(Node::InstantiatePart { .. }) => (picked.clone(), picked.into()),
+        _ => (picked, crate::session::pick_read(doc, pick)),
+    }
+}
+
+/// **The entity `pick` names as a `to` side reads it**: on a copy, the
+/// copy itself; on a drawn operation, the output picked
+/// ([`crate::session::pick_read`]).
+fn to_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
+    let picked = SitedRef::new(pick.node(), pick.name().clone());
+    let read = match doc.node(pick.node()) {
+        Some(Node::Place { .. } | Node::InstantiatePart { .. }) => picked.clone().into(),
+        _ => crate::session::pick_read(doc, pick),
+    };
+    (picked, read)
+}
+
+/// **Whether the value `id` of `placement`'s bundle is a number**: the
+/// anonymous variable a typed field mints ([`Doc::is_typed_value`]), or
+/// a constant as written (the `0` a bundle door fills in). A value
+/// reading a named variable or an expression is the person's, and no
+/// snap writes over it.
+fn written_constant(
+    doc: &Doc<ProfileProgram>,
+    placement: Option<RecipeNodeId>,
+    id: ConstraintId,
+) -> bool {
+    let Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) =
+        placement.and_then(|p| doc.node(p))
+    else {
+        return false;
+    };
+    constraints
+        .iter()
+        .find(|c| c.id == id)
+        .and_then(|c| c.value())
+        .is_some_and(|v| {
+            let written = doc.written(&pncad::document::Expr::var(v.by, v.coord.dimension()));
+            doc.is_typed_value(v.by) || written.is_zero() || written.literal_value().is_some()
+        })
+}
+
+/// A length or an angle as the value that writes it: the constant `0`
+/// where it is zero; `None` for a number no literal holds.
+pub(crate) fn number(by: f64, dim: Dimension) -> Option<Formula> {
+    if by == 0.0 {
+        Some(Formula::zero(dim))
+    } else {
+        Formula::literal(by, dim).ok()
+    }
+}
+
+/// **`by`, a loaded turn, as the turn a freedom measures `measured`**:
+/// itself where it evaluates to `measured`, its negation where it
+/// evaluates to `-measured` (the freedom turns the other way about the
+/// same line), `None` otherwise — read off the document's own values,
+/// so a turn is carried only where writing it moves nothing.
+fn carried_turn(doc: &Doc<ProfileProgram>, by: &Formula, measured: f64) -> Option<Formula> {
+    let held = doc.resolve(by).ok()?;
+    let at = pncad::document::eval::<f64>(&held, &doc.var_env()).ok()?;
+    let near = |a: f64, b: f64| (a - b).abs() <= CARRIED_TURN;
+    if near(at, measured) {
+        Some(by.clone())
+    } else if near(at, -measured) {
+        Formula::neg(by.clone()).ok()
+    } else {
+        None
+    }
+}
+
+/// **A value row's formula as the person reads it**: a named variable
+/// by its name, a typed number as the number and unit it was typed in,
+/// an expression as written ([`Doc::unparse`]) — never a variable's raw
+/// id. What the panel's field shows and a typed edit starts from.
+#[must_use]
+pub fn value_text(doc: &Doc<ProfileProgram>, by: &Formula) -> String {
+    doc.unparse(by)
+}
+
+/// **What a person typed in `coord`'s field, as its value**: the text
+/// read by the one parser over the document's variables, at the
+/// freedom's dimension.
+///
+/// # Errors
+///
+/// [`TypedValueError`]: text that does not parse, or a quantity of
+/// another dimension.
+pub fn typed_value(
+    doc: &Doc<ProfileProgram>,
+    coord: Coord,
+    text: &str,
+) -> Result<Formula, TypedValueError> {
+    let by = pncad::document::parse_formula(text, &doc.var_scope())
+        .map_err(|error| TypedValueError::Parse(Box::new(error)))?;
+    let wanted = coord.dimension();
+    if by.dim() == wanted {
+        Ok(by)
+    } else {
+        Err(TypedValueError::Dimension {
+            coord,
+            found: by.dim(),
+        })
+    }
+}
+
+/// Why a typed value field's text is no value (closed enum, D4 ¶3).
+#[derive(Debug)]
+pub enum TypedValueError {
+    /// The text does not parse.
+    Parse(Box<pncad::document::ParseError>),
+    /// The text is a quantity of another dimension than the freedom's.
+    Dimension {
+        /// The freedom.
+        coord: Coord,
+        /// The dimension typed.
+        found: Dimension,
+    },
+}
+
+impl core::fmt::Display for TypedValueError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Parse(error) => write!(f, "{error}"),
+            Self::Dimension { coord, found } => write!(
+                f,
+                "the {} is a {}, and the text is a {found}",
+                coord.name(),
+                coord.dimension()
+            ),
+        }
+    }
+}
+
+impl core::error::Error for TypedValueError {}
+
+/// How near a loaded turn's number and a freedom's measure are taken
+/// as one turn (radians): far below any turn a person writes, far
+/// above the chain read's rounding.
+const CARRIED_TURN: f64 = 1.0e-9;
+
+/// Whether a mate of `kind` fixes one direction — the chart's mate, by
+/// the kernel's family rule ([`pncad::document::SubgroupFamily::fixes_one_direction`]).
+fn fixes_one_direction(kind: VarKind) -> bool {
+    kind.symmetry()
+        .is_some_and(pncad::document::SubgroupFamily::fixes_one_direction)
 }
 
 impl MateTool {
-    /// A tool holding nothing.
+    /// An editor holding nothing: the first pick opens its door.
+    #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            draft: None,
+            kind: VarKind::Plane,
+        }
     }
 
-    /// The held picks.
-    pub fn state(&self) -> &MateToolState {
-        &self.state
+    /// **The Create door on `body`**, a body not yet placed: no mate,
+    /// and its copy where the body stands.
+    #[must_use]
+    pub fn create(body: Operand) -> Self {
+        Self {
+            draft: Some(PlaceDraft {
+                door: PlaceDoor::Create { body },
+                rows: Vec::new(),
+                typed: Vec::new(),
+                active: 0,
+                into_target_space: false,
+            }),
+            kind: VarKind::Plane,
+        }
     }
 
-    /// Feed one pick — a face, an edge or a vertex in the GUI-2
-    /// selection vocabulary, consumed into tool state. The first pick
-    /// fills `on`, the second `to`; a third REPLACES `to` (the choice
-    /// step is still open, and re-picking the second is how a person
-    /// corrects it). The pick is held as every pick is
-    /// ([`HeldPick::new`]); what it reads as is the commit's question
-    /// ([`MateTool::proposal`]).
-    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, pick: impl Into<MatePick>) {
-        let held = HeldPick::new(doc, pick.into());
-        self.state = match std::mem::take(&mut self.state) {
-            MateToolState::Idle => MateToolState::One(held),
-            MateToolState::One(on) | MateToolState::Two { on, .. } => {
-                MateToolState::Two { on, to: held }
-            }
+    /// **The Edit door on `placement`**, its bundle loaded as authored:
+    /// one row per mate, each as written.
+    ///
+    /// # Errors
+    ///
+    /// [`MateToolError::NotAPlacement`] for a node that is none.
+    pub fn edit(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Result<Self, MateToolError> {
+        let Some(Node::Place { .. } | Node::InstantiatePart { .. }) = doc.node(placement) else {
+            return Err(MateToolError::NotAPlacement {
+                node: doc.spoken(placement),
+            });
         };
+        let base = crate::session::held_bundle(doc, placement);
+        let rows = base
+            .iter()
+            .filter_map(|c| c.mate().map(|m| MateRow::written(doc, Some(c.id), m)))
+            .collect();
+        Ok(Self {
+            draft: Some(PlaceDraft {
+                door: PlaceDoor::Edit { placement, base },
+                rows,
+                typed: Vec::new(),
+                active: 0,
+                into_target_space: false,
+            }),
+            kind: VarKind::Plane,
+        })
     }
 
-    /// **The held picks' nodes, spoken again from `doc`**, the shown
-    /// document after an operation ([`SpokenNode::respoken`]'s rule): a
-    /// node `doc` holds takes its label now, and one it no longer holds
-    /// keeps the last it had.
+    /// **The Edit door on `mate`'s placement, that mate struck out** —
+    /// the tree's `remove` on a mate row: the freed values and where the
+    /// copy would stand are seen before Apply.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::edit`]'s, and [`MateToolError::NotAMate`] for a
+    /// constraint that is no mate of the bundle.
+    pub fn edit_striking(doc: &Doc<ProfileProgram>, mate: MateRef) -> Result<Self, MateToolError> {
+        let mut tool = Self::edit(doc, mate.placement)?;
+        let Some(draft) = tool.draft.as_mut() else {
+            unreachable!("the Edit door holds a draft")
+        };
+        let Some(at) = draft
+            .rows
+            .iter()
+            .position(|row| row.loaded() == Some(mate.id))
+        else {
+            return Err(MateToolError::NotAMate { mate });
+        };
+        draft.rows[at].struck = true;
+        draft.active = at;
+        Ok(tool)
+    }
+
+    /// **A row holding `mate` as written**, made the active one — a
+    /// mate an API caller states rather than picks
+    /// ([`SessionOp::AddMate`]).
+    pub fn add_written(&mut self, doc: &Doc<ProfileProgram>, mate: &Mate<Formula>) {
+        if let Some(draft) = self.draft.as_mut() {
+            draft.rows.push(MateRow::written(doc, None, mate));
+            draft.active = draft.rows.len() - 1;
+        }
+    }
+
+    /// The door the draft is on, `None` before the first pick.
+    #[must_use]
+    pub fn door(&self) -> Option<&PlaceDoor> {
+        self.draft.as_ref().map(|draft| &draft.door)
+    }
+
+    /// The mate rows, in order.
+    #[must_use]
+    pub fn rows(&self) -> &[MateRow] {
+        self.draft.as_ref().map_or(&[], |draft| &draft.rows)
+    }
+
+    /// The row picks go to.
+    #[must_use]
+    pub fn active(&self) -> usize {
+        self.draft.as_ref().map_or(0, |draft| draft.active)
+    }
+
+    /// The kind the active row reads, or the one a fresh row opens with
+    /// — what narrows the cursor ([`pick_kinds`]).
+    #[must_use]
+    pub fn active_kind(&self) -> VarKind {
+        self.rows()
+            .get(self.active())
+            .map_or(self.kind, MateRow::kind)
+    }
+
+    /// **The active row's first seats, `on` then `to`** — what the
+    /// viewport marks as held: a frame's axis seats.
+    #[must_use]
+    pub fn active_picks(&self) -> [Option<&HeldPick<MatePick>>; 2] {
+        match self.rows().get(self.active()) {
+            Some(row) => [MateSide::On, MateSide::To].map(|side| row.side(side).first.as_ref()),
+            None => [None, None],
+        }
+    }
+
+    /// The numbers the person typed.
+    #[must_use]
+    pub fn typed(&self) -> &[(Coord, Formula)] {
+        self.draft.as_ref().map_or(&[], |draft| &draft.typed)
+    }
+
+    /// Whether an Edit's Apply moves its copy into its first mate's `to`
+    /// space.
+    #[must_use]
+    pub fn into_target_space(&self) -> bool {
+        self.draft
+            .as_ref()
+            .is_some_and(|draft| draft.into_target_space)
+    }
+
+    /// Set whether an Edit's Apply moves its copy into its first mate's
+    /// `to` space.
+    pub fn set_into_target_space(&mut self, into: bool) {
+        if let Some(draft) = self.draft.as_mut() {
+            draft.into_target_space = into;
+        }
+    }
+
+    /// **Feed one pick**, consumed into tool state. With no door yet the
+    /// pick opens one — the Edit door on the placement whose copy it is
+    /// on, or the Create door on the body it is on — and fills the `on`
+    /// seat of a fresh row. With a door open, a pick on the draft's copy
+    /// fills an `on` seat of the active row and any other pick a `to`
+    /// seat ([`MateSeat::filled_by`]), replacing what the seat held. A pick
+    /// that opens no door is said ([`MateToolEvent::NotPlaceable`]).
+    pub fn pick(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        pick: impl Into<MatePick>,
+    ) -> Option<MateToolEvent> {
+        let pick = pick.into();
+        let kind = self.kind;
+        if self.draft.is_none() {
+            let opened = match copy_picked(doc, &pick) {
+                Some(placement) => Self::edit(doc, placement).ok(),
+                None => doc
+                    .node(pick.node())
+                    .is_some()
+                    .then(|| Self::create(crate::session::picked_body(doc, &pick).0)),
+            };
+            let Some(opened) = opened else {
+                return Some(MateToolEvent::NotPlaceable {
+                    node: doc.spoken(pick.node()),
+                });
+            };
+            *self = Self { kind, ..opened };
+            self.add_mate(kind);
+        }
+        let side = if self.is_on_copy(doc, &pick) {
+            MateSide::On
+        } else {
+            MateSide::To
+        };
+        let Some(draft) = self.draft.as_mut() else {
+            unreachable!("a door is open: it was opened just above")
+        };
+        if draft.rows.is_empty() {
+            draft.rows.push(MateRow::fresh(kind));
+            draft.active = 0;
+        }
+        let row = &mut draft.rows[draft.active];
+        let seat = MateSeat::filled_by(row.kind, pick.entity());
+        let held = HeldPick::new(doc, pick);
+        let drafted = row.side_mut(side);
+        drafted.written = None;
+        *drafted.seat_mut(seat) = Some(held);
+        None
+    }
+
+    /// Whether `pick` is on the draft's copy: the Edit door's
+    /// placement's, or the Create door's body.
+    fn is_on_copy(&self, doc: &Doc<ProfileProgram>, pick: &MatePick) -> bool {
+        match self.door() {
+            Some(PlaceDoor::Edit { placement, .. }) => copy_picked(doc, pick) == Some(*placement),
+            Some(PlaceDoor::Create { body }) => {
+                copy_picked(doc, pick).is_none()
+                    && crate::session::picked_body(doc, pick).0 == *body
+            }
+            None => false,
+        }
+    }
+
+    /// **A fresh mate row of `kind`**, made the active one: a mate in
+    /// place of the slides and the spin the earlier ones leave.
+    pub fn add_mate(&mut self, kind: VarKind) {
+        self.kind = kind;
+        if let Some(draft) = self.draft.as_mut() {
+            draft.rows.push(MateRow::fresh(kind));
+            draft.active = draft.rows.len() - 1;
+        }
+    }
+
+    /// Make row `row` the one picks go to.
+    pub fn focus(&mut self, row: usize) {
+        if let Some(draft) = self.draft.as_mut()
+            && row < draft.rows.len()
+        {
+            draft.active = row;
+        }
+    }
+
+    /// **Choose row `row`'s kind**: a side as written reads the old
+    /// kind and is emptied; a held pick moves to the seat it fills under
+    /// the new kind; the row opens at the kind's own sense.
+    pub fn choose_kind(&mut self, row: usize, kind: VarKind) {
+        self.kind = kind;
+        let Some(row) = self.draft.as_mut().and_then(|d| d.rows.get_mut(row)) else {
+            return;
+        };
+        if row.kind == kind {
+            return;
+        }
+        let mut fresh = MateRow::fresh(kind);
+        for side in [MateSide::On, MateSide::To] {
+            for pick in row.side(side).picks() {
+                let seat = MateSeat::filled_by(kind, pick.pick().entity());
+                *fresh.side_mut(side).seat_mut(seat) = Some(pick.clone());
+            }
+        }
+        fresh.loaded = row.loaded;
+        fresh.struck = row.struck;
+        *row = fresh;
+    }
+
+    /// Set row `row`'s sense: whether its `to` is turned round. A kind
+    /// with no sense keeps none.
+    pub fn set_sense(&mut self, row: usize, flip: bool) {
+        if let Some(row) = self.draft.as_mut().and_then(|d| d.rows.get_mut(row)) {
+            row.flip = flip && senses(row.kind).is_some();
+        }
+    }
+
+    /// Strike row `row` out, or take the stroke off.
+    pub fn strike(&mut self, row: usize, struck: bool) {
+        if let Some(row) = self.draft.as_mut().and_then(|d| d.rows.get_mut(row)) {
+            row.struck = struck;
+        }
+    }
+
+    /// **Type `by` on `coord`**: the number Apply writes on that freedom
+    /// while the mates leave it, whatever it held.
+    pub fn type_value(&mut self, coord: Coord, by: Formula) {
+        if let Some(draft) = self.draft.as_mut() {
+            draft.typed.retain(|(c, _)| *c != coord);
+            draft.typed.push((coord, by));
+        }
+    }
+
+    /// This draft with nothing typed — what its mates alone propose.
+    #[must_use]
+    pub fn untyped(mut self) -> Self {
+        if let Some(draft) = self.draft.as_mut() {
+            draft.typed.clear();
+        }
+        self
+    }
+
+    /// **The active row chosen as `choice` says**, and its numbers typed
+    /// — the panel's state as one value.
+    ///
+    /// # Errors
+    ///
+    /// [`MateToolError::KindNotOffered`] and [`MateToolError::NoSense`].
+    pub fn chosen(mut self, choice: MateChoice) -> Result<Self, MateToolError> {
+        if !MATE_KINDS.iter().any(|(kind, _)| *kind == choice.kind) {
+            return Err(MateToolError::KindNotOffered { kind: choice.kind });
+        }
+        if choice.flip && senses(choice.kind).is_none() {
+            return Err(MateToolError::NoSense { kind: choice.kind });
+        }
+        let active = self.active();
+        self.choose_kind(active, choice.kind);
+        self.set_sense(active, choice.flip);
+        for (coord, by) in choice.values {
+            self.type_value(coord, by);
+        }
+        Ok(self)
+    }
+
+    /// **The held picks' nodes, spoken again from `doc`**
+    /// ([`SpokenNode::respoken`]'s rule).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        let again = |held: &mut HeldPick<MatePick>| *held = held.respoken(doc);
-        match &mut self.state {
-            MateToolState::Idle => {}
-            MateToolState::One(on) => again(on),
-            MateToolState::Two { on, to } => {
-                again(on);
-                again(to);
+        for row in self.draft.iter_mut().flat_map(|d| d.rows.iter_mut()) {
+            for side in [&mut row.on, &mut row.to] {
+                for held in [&mut side.first, &mut side.point].into_iter().flatten() {
+                    *held = held.respoken(doc);
+                }
             }
         }
     }
 
-    /// **The line the mate panel shows for its held picks** — the
-    /// seated tools' line (`seats::picks_line`), with the mate's two
-    /// sides as its roles and each pick said as the chrome says one
-    /// ([`HeldPick`]) by `by`, a node `by` does not hold as the tool
-    /// kept it.
-    pub fn line(&self, by: Speaker<'_>) -> String {
-        let [on, to] = self.state.picks();
-        crate::seats::picks_line(
-            [(MateSide::On, on), (MateSide::To, to)]
-                .map(|(side, pick)| (side.name(), pick.map(|pick| Said(pick, by).to_string()))),
-        )
+    /// **The line the panel shows for row `row`'s seats**: the seated
+    /// tools' line (`seats::picks_line`), each seat a role, a side as
+    /// the bundle wrote it said so.
+    #[must_use]
+    pub fn line(&self, row: usize, by: Speaker<'_>) -> String {
+        let Some(mate) = self.rows().get(row) else {
+            return crate::seats::picks_line(core::iter::empty::<(String, Option<String>)>());
+        };
+        let mut roles = Vec::new();
+        for side in [MateSide::On, MateSide::To] {
+            let drafted = mate.side(side);
+            for &seat in MateSeat::of(mate.kind) {
+                let role = match seat.name() {
+                    Some(word) => format!("{} {word}", side.name()),
+                    None => side.name().to_owned(),
+                };
+                let said = drafted
+                    .pick(seat)
+                    .map(|pick| Said(pick, by).to_string())
+                    .or_else(|| drafted.is_written().then(|| "as written".to_owned()));
+                roles.push((role, said));
+            }
+        }
+        crate::seats::picks_line(roles)
     }
 
     /// **A held pick's node as a refusal says it**: by the label the
-    /// tool kept, re-spoken from the shown document after every
-    /// operation; as `doc` holds it only when nothing named was kept.
+    /// tool kept; as `doc` holds it only when nothing named was kept.
     fn spoken(
         doc: &Doc<ProfileProgram>,
         pick: &HeldPick<MatePick>,
@@ -860,169 +1594,393 @@ impl MateTool {
         }
     }
 
-    /// Re-read the held picks against the landed pair, degrading one
-    /// step per pick whose reference no longer resolves (module docs:
-    /// the survival semantics). Returns the typed drops.
+    /// **Bring the draft up to the landed pair**: each held pick whose
+    /// reference no longer resolves empties its seat, and then an Edit
+    /// draft over a bundle its placement no longer holds is loaded again
+    /// (or dropped, with its placement). Returns the typed events, the
+    /// drops first.
     pub fn reconcile(
         &mut self,
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
     ) -> Vec<MateToolEvent> {
         let mut events = Vec::new();
-        let mut lost = |side: MateSide, pick: &HeldPick<MatePick>| -> bool {
-            let held = pick.pick();
-            let on = held.on();
-            let verdict =
-                crate::tree::pick_resolution(doc, eval, on.node(), on.body(), held.name());
-            if resolves(&verdict) {
-                false
-            } else {
-                events.push(MateToolEvent::PickLost {
-                    side,
-                    pick: pick.clone(),
-                    resolution: Box::new(verdict),
-                });
-                true
-            }
-        };
-        self.state = match std::mem::take(&mut self.state) {
-            MateToolState::Idle => MateToolState::Idle,
-            MateToolState::One(on) => {
-                if lost(MateSide::On, &on) {
-                    MateToolState::Idle
-                } else {
-                    MateToolState::One(on)
+        let rows = self.draft.iter_mut().flat_map(|d| d.rows.iter_mut());
+        for (at, row) in rows.enumerate() {
+            let kind = row.kind;
+            for side in [MateSide::On, MateSide::To] {
+                for &seat in MateSeat::of(kind) {
+                    let held = row.side_mut(side).seat_mut(seat);
+                    let lost = held.as_ref().is_some_and(|held| {
+                        let pick = held.pick();
+                        let on = pick.on();
+                        let verdict = crate::tree::pick_resolution(
+                            doc,
+                            eval,
+                            on.node(),
+                            on.body(),
+                            pick.name(),
+                        );
+                        !resolves(&verdict)
+                    });
+                    if !lost {
+                        continue;
+                    }
+                    let Some(pick) = held.take() else {
+                        unreachable!("the seat held the lost pick just above")
+                    };
+                    let on = pick.pick().on();
+                    let resolution = crate::tree::pick_resolution(
+                        doc,
+                        eval,
+                        on.node(),
+                        on.body(),
+                        pick.pick().name(),
+                    );
+                    events.push(MateToolEvent::PickLost {
+                        row: at,
+                        side,
+                        seat,
+                        pick,
+                        resolution: Box::new(resolution),
+                    });
                 }
             }
-            MateToolState::Two { on, to } => {
-                match (lost(MateSide::On, &on), lost(MateSide::To, &to)) {
-                    (false, false) => MateToolState::Two { on, to },
-                    (false, true) => MateToolState::One(on),
-                    (true, false) => MateToolState::One(to),
-                    (true, true) => MateToolState::Idle,
+        }
+        if let Some(PlaceDoor::Edit { placement, base }) = self.door() {
+            let placement = *placement;
+            let held = match doc.node(placement) {
+                Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
+                    Some(crate::session::held_bundle(doc, placement))
                 }
+                _ => None,
+            };
+            match held {
+                None => {
+                    let kept = self
+                        .rows()
+                        .iter()
+                        .flat_map(|row| row.on.picks().chain(row.to.picks()))
+                        .map(|pick| pick.said().spoken(placement))
+                        .find(|kept| kept.kind().is_some());
+                    self.draft = None;
+                    events.push(MateToolEvent::PlacementGone {
+                        placement: kept.unwrap_or_else(|| doc.spoken(placement)),
+                    });
+                    return events;
+                }
+                Some(held) if held != *base => {
+                    if let Ok(reloaded) = Self::edit(doc, placement) {
+                        *self = Self {
+                            kind: self.kind,
+                            ..reloaded
+                        };
+                    }
+                    events.push(MateToolEvent::Reloaded {
+                        placement: doc.spoken(placement),
+                    });
+                }
+                Some(_) => {}
             }
-        };
+        }
         events
     }
 
-    /// Derive the committed action from the two held picks and the
-    /// person's choice: `on` read off the first pick's copy, `to` where
-    /// the second was picked, each as a pose of the chosen kind
-    /// ([`MateReading`]), `to` turned round as chosen, and the values
-    /// the kind leaves.
-    ///
-    /// `doc` is the document the picks were taken on (the session's
-    /// landed one): the copy each pick is on is read from it, and a node
-    /// is said by the label the tool kept ([`MateTool::respeak`]).
+    /// **Row `at`'s mate**, its sides read off its picks or as the
+    /// bundle wrote them, `to` in the row's sense.
+    fn row_mate(
+        doc: &Doc<ProfileProgram>,
+        at: usize,
+        row: &MateRow,
+    ) -> Result<ProposedMate, MateToolError> {
+        let sided = |side: MateSide| -> Result<(Operand, Vec<SitedRef>), MateToolError> {
+            let drafted = row.side(side);
+            if let Some(written) = &drafted.written {
+                let read = match (side, row.loaded) {
+                    (MateSide::To, Some(loaded)) if loaded.flip != row.flip => {
+                        toggled(written.clone())
+                    }
+                    _ => written.clone(),
+                };
+                return Ok((read, Vec::new()));
+            }
+            let flip = side == MateSide::To && row.flip;
+            let mut reads = Vec::new();
+            let mut sites = Vec::new();
+            for &seat in MateSeat::of(row.kind) {
+                let Some(held) = drafted.pick(seat) else {
+                    return Err(MateToolError::SeatEmpty {
+                        row: at,
+                        side,
+                        seat,
+                    });
+                };
+                let pick = held.pick();
+                if doc.node(pick.node()).is_none() {
+                    return Err(MateToolError::PickGone {
+                        side,
+                        node: Self::spoken(doc, held, pick.node()),
+                    });
+                }
+                let entity = pick.entity();
+                let reading = MateReading::of(row.kind, seat, entity).ok_or(
+                    MateToolError::KindDoesNotRead {
+                        row: at,
+                        side,
+                        kind: row.kind,
+                        entity,
+                    },
+                )?;
+                let (site, read) = match side {
+                    MateSide::On => on_read(doc, pick),
+                    MateSide::To => to_read(doc, pick),
+                };
+                sites.push(site);
+                reads.push((reading, read));
+            }
+            let pose = match reads.as_slice() {
+                [(axis, of_axis), (point, of_point)] => {
+                    let through = Operand::Pose(Box::new(pose::PoseDef::Through {
+                        axis: pose::RoleRead::plain(axis.side(of_axis.clone(), false)),
+                        point: pose::RoleRead::plain(point.side(of_point.clone(), false)),
+                    }));
+                    if flip { turned(through) } else { through }
+                }
+                [(one, read)] => one.side(read.clone(), flip),
+                _ => unreachable!("a side reads one pick a seat, of one or two seats"),
+            };
+            Ok((pose, sites))
+        };
+        let (on, on_sites) = sided(MateSide::On)?;
+        let (to, to_sites) = sided(MateSide::To)?;
+        Ok(ProposedMate {
+            mate: Mate {
+                on,
+                to,
+                orient: row
+                    .loaded
+                    .map_or(Orientation::IDENTITY, |loaded| loaded.orient),
+            },
+            on: on_sites,
+            to: to_sites,
+        })
+    }
+
+    /// **The editor's Apply, derived from the draft** against the landed
+    /// pair `doc`, `ev`: each live row's mate, and the value rows on the
+    /// freedoms they leave — typed, loaded, or measured where the copy
+    /// stands snapped onto the mates (module docs).
     ///
     /// # Errors
     ///
-    /// Every arm of [`MateToolError`] — see each arm's docs.
+    /// Every arm of [`MateToolError`] a draft can carry — see each.
     pub fn proposal(
         &self,
         doc: &Doc<ProfileProgram>,
-        choice: MateChoice,
+        ev: &Evaluation<f64>,
+        tol: Tol,
     ) -> Result<MateProposal, MateToolError> {
-        let MateToolState::Two {
-            on: held_on,
-            to: held_to,
-        } = &self.state
-        else {
-            return Err(MateToolError::NotTwoPicks);
+        let Some(draft) = self.draft.as_ref() else {
+            return Err(MateToolError::NoDoor);
         };
-        // The choice's doors FIRST, before any pick is read: the kind
-        // among those the tool reads, its sense, each value against the
-        // freedoms the kind leaves.
-        if !MATE_KINDS.iter().any(|(kind, _)| *kind == choice.kind) {
-            return Err(MateToolError::KindNotOffered { kind: choice.kind });
+        let live: Vec<(usize, &MateRow)> = draft
+            .rows
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| !row.struck)
+            .collect();
+        if let Some(&(row, _)) = live.iter().find(|(_, row)| row.unread) {
+            return Err(MateToolError::KindUnread { row });
         }
-        if choice.flip && !sensed(choice.kind) {
-            return Err(MateToolError::NoSense { kind: choice.kind });
-        }
-        let mut slides = 0;
-        for (coord, _) in &choice.values {
-            if matches!(coord, Coord::Slide(_)) {
-                slides += 1;
+        let mut mates = live
+            .iter()
+            .map(|&(at, row)| Self::row_mate(doc, at, row))
+            .collect::<Result<Vec<_>, _>>()?;
+        let base: &[Constraint<Formula>] = match &draft.door {
+            PlaceDoor::Edit { base, .. } => base,
+            PlaceDoor::Create { .. } => &[],
+        };
+        // The chart: the first live mate fixing a direction. While it is
+        // the bundle's own, as loaded, its orientation, its slides and its
+        // values keep their meaning; otherwise its orientation is the
+        // snap's, and its constants are measured again.
+        let chart = live
+            .iter()
+            .position(|(_, row)| fixes_one_direction(row.kind));
+        let base_chart = base.iter().find_map(|c| {
+            let mate = c.mate()?;
+            editor_core::mate::pin::operand_kind(doc, &mate.on)
+                .filter(|&kind| fixes_one_direction(kind))
+                .map(|_| c.id)
+        });
+        let chart_kept = match chart {
+            Some(k) => live[k].1.as_loaded() && live[k].1.loaded() == base_chart,
+            None => base_chart.is_none(),
+        };
+        let (placement, target) = match &draft.door {
+            PlaceDoor::Edit { placement, .. } => (Some(*placement), None),
+            PlaceDoor::Create { body } => {
+                let target = mates
+                    .first()
+                    .and_then(|m| doc.operand_space(&m.mate.to))
+                    .or_else(|| doc.operand_space(body));
+                (None, target)
             }
-            if !MateFreedom::of(*coord).left_by(choice.kind)
-                || slides > MateFreedom::slides_left_by(choice.kind)
+        };
+        let written: Vec<Mate<Formula>> = mates.iter().map(|m| m.mate.clone()).collect();
+        let snap = crate::session::snap::draft_snap(doc, ev, &draft.door, target, &written, tol);
+        if let (Some(k), Some(orient)) = (chart, snap.as_ref().and_then(|s| s.orient))
+            && !chart_kept
+        {
+            mates[k].mate.orient = orient;
+        }
+        let written: Vec<Mate<Formula>> = mates.iter().map(|m| m.mate.clone()).collect();
+        let loaded_slides = || {
+            SlideAxes::of(base.iter().filter_map(|c| match c.value()?.coord {
+                Coord::Slide(axis) => Some(axis),
+                Coord::Spin(_) => None,
+            }))
+        };
+        let along = if chart.is_some() && chart_kept {
+            Some(loaded_slides())
+        } else {
+            snap.as_ref().and_then(|s| s.along)
+        };
+        let coords = Placed::freedoms(doc, &written, along);
+        let measured = snap.as_ref().map_or_else(
+            || vec![None; coords.len()],
+            |snap| snap.read(chart.map(|k| written[k].orient), &coords, tol),
+        );
+        // Every value the draft held, typed or loaded: each lands on a
+        // freedom the mates leave, or is said dropped.
+        let loaded: Vec<(ConstraintId, &Value<Formula>)> = base
+            .iter()
+            .filter_map(|c| c.value().map(|v| (c.id, v)))
+            .collect();
+        let mut values = Vec::new();
+        let mut landed: Vec<ConstraintId> = Vec::new();
+        for (&coord, measured) in coords.iter().zip(&measured) {
+            if let Some((_, by)) = draft.typed.iter().find(|(c, _)| *c == coord) {
+                values.push(ValueRow {
+                    coord,
+                    by: by.clone(),
+                    from: ValueFrom::Typed,
+                });
+                continue;
+            }
+            let same = loaded
+                .iter()
+                .find(|(id, v)| v.coord == coord && !landed.contains(id));
+            if let Some(&(id, v)) = same
+                && (chart_kept || measured.is_none() || !written_constant(doc, placement, id))
             {
-                return Err(MateToolError::NotAFreedom {
-                    coord: *coord,
-                    kind: choice.kind,
+                landed.push(id);
+                values.push(ValueRow {
+                    coord,
+                    by: v.by.clone(),
+                    from: ValueFrom::Loaded(id),
                 });
+                continue;
             }
-        }
-        let reading = |side: MateSide, held: &HeldPick<MatePick>| {
-            let entity = held.pick().entity();
-            MateReading::of(choice.kind, entity).ok_or(MateToolError::KindDoesNotRead {
-                side,
-                kind: choice.kind,
-                entity,
-            })
-        };
-        let read_on = reading(MateSide::On, held_on)?;
-        let read_to = reading(MateSide::To, held_to)?;
-        let (on, to) = (held_on.pick(), held_to.pick());
-        for (side, held) in [(MateSide::On, held_on), (MateSide::To, held_to)] {
-            let node = held.pick().node();
-            if doc.node(node).is_none() {
-                return Err(MateToolError::PickGone {
-                    side,
-                    node: Self::spoken(doc, held, node),
-                });
+            if let Some(same) = same {
+                // A constant whose chart changed is measured again in its
+                // own place.
+                landed.push(same.0);
             }
-        }
-        let picked_on = SitedRef::new(on.node(), on.name().clone());
-        let picked_to = SitedRef::new(to.node(), to.name().clone());
-        let placement = placement_of(doc, on.node(), &picked_on).ok_or_else(|| {
-            MateToolError::NotACopyPick {
-                node: Self::spoken(doc, held_on, on.node()),
-            }
-        })?;
-        if placement_of(doc, to.node(), &picked_to) == Some(placement) {
-            let head = if placement == on.node() {
-                Self::spoken(doc, held_on, on.node())
-            } else {
-                doc.spoken(placement)
+            let Some(by) = *measured else {
+                return Err(MateToolError::Unmeasured { coord });
             };
-            return Err(MateToolError::SamePick { head });
-        }
-        // A `Place`'s copy is read off the shape it copies, by the
-        // shape's own name for the entity (a copy carries its body's
-        // names), on the output it copies where the shape's operation
-        // defines several (a split's halves).
-        let (on_read, on_operand) = match doc.node(on.node()) {
-            Some(Node::Place { .. }) => {
-                let (at, port) = crate::world::body_of(doc, on.node(), on.on().body());
-                let body = match crate::world::seat_read(doc, at, Some(port)) {
-                    (at, Some(port)) => Operand::output(at, port),
-                    (at, None) => Operand::Node(at),
-                };
-                let read = Operand::select(body, vec![on.name().clone()]);
-                (SitedRef::new(at, on.name().clone()), read)
+            // A loaded turn about another freedom that reads what this
+            // one measures, a variable or an expression: carried, read
+            // with its sign, so the link survives the change of freedom.
+            if let Coord::Spin(_) = coord
+                && let Some((id, carried)) = loaded.iter().find_map(|&(id, v)| {
+                    let other = matches!(v.coord, Coord::Spin(_)) && v.coord != coord;
+                    (other
+                        && !landed.contains(&id)
+                        && !coords.contains(&v.coord)
+                        && !written_constant(doc, placement, id))
+                    .then(|| carried_turn(doc, &v.by, by))
+                    .flatten()
+                    .map(|carried| (id, carried))
+                })
+            {
+                landed.push(id);
+                values.push(ValueRow {
+                    coord,
+                    by: carried,
+                    from: ValueFrom::Loaded(id),
+                });
+                continue;
             }
-            _ => (picked_on.clone(), picked_on.into()),
+            values.push(ValueRow {
+                coord,
+                by: number(by, coord.dimension()).ok_or(MateToolError::Unwritable { coord, by })?,
+                from: ValueFrom::Measured,
+            });
+        }
+        let dropped: Vec<ValueRow> =
+            loaded
+                .iter()
+                .filter(|(id, _)| !landed.contains(id))
+                .filter(|(_, v)| !coords.contains(&v.coord))
+                .map(|&(id, v)| ValueRow {
+                    coord: v.coord,
+                    by: v.by.clone(),
+                    from: ValueFrom::Loaded(id),
+                })
+                .chain(draft.typed.iter().filter(|(c, _)| !coords.contains(c)).map(
+                    |(coord, by)| ValueRow {
+                        coord: *coord,
+                        by: by.clone(),
+                        from: ValueFrom::Typed,
+                    },
+                ))
+                .collect();
+        // A loaded row keeps its id, a value carried or measured on a
+        // freedom keeps the id of the value it replaces; every other
+        // constraint is minted at Apply.
+        let mut minted = 0;
+        let mut fresh = || {
+            minted += 1;
+            ConstraintId::placeholder(minted)
         };
-        // `to` is read where it was picked: on a copy, the copy itself;
-        // on a drawn operation, the output picked ([`crate::session::pick_read`]).
-        let to_operand = match doc.node(to.node()) {
-            Some(Node::Place { .. } | Node::InstantiatePart { .. }) => picked_to.clone().into(),
-            _ => crate::session::pick_read(doc, to),
-        };
+        let mut bundle: Vec<Constraint<Formula>> = live
+            .iter()
+            .zip(&mates)
+            .map(|((_, row), proposed)| Constraint {
+                id: row.loaded().unwrap_or_else(&mut fresh),
+                kind: ConstraintKind::Mate(proposed.mate.clone()),
+            })
+            .collect();
+        let mut used: Vec<ConstraintId> = Vec::new();
+        for row in &values {
+            let id = match row.from {
+                ValueFrom::Loaded(id) => Some(id),
+                ValueFrom::Typed | ValueFrom::Measured => loaded
+                    .iter()
+                    .find(|(id, v)| v.coord == row.coord && !used.contains(id))
+                    .map(|(id, _)| *id),
+            }
+            .filter(|id| !used.contains(id))
+            .unwrap_or_else(&mut fresh);
+            used.push(id);
+            bundle.push(Constraint::of_value(
+                id,
+                Value {
+                    coord: row.coord,
+                    by: row.by.clone(),
+                },
+            ));
+        }
         Ok(MateProposal {
+            door: draft.door.clone(),
             placement,
-            mate: Mate {
-                on: read_on.side(on_operand, false),
-                to: read_to.side(to_operand, choice.flip),
-                // The commit writes the orientation nearest where the
-                // copy stands ([`SessionOp::AddMate`]).
-                orient: pncad::document::Orientation::IDENTITY,
-            },
-            on: on_read,
-            to: picked_to,
-            values: choice.values,
+            target,
+            mates,
+            values,
+            dropped,
+            bundle,
         })
     }
 }
