@@ -222,9 +222,31 @@ Newest entries at the bottom; the tail is the program's live status.
   `a-family-placed-into-an-instances-space-hides-that-space` (PR 6265,
   merged ahead of 6269). Its dual-review row rides 6265 as its last
   commit. (SPACES orchestrator)
+- 2026-11-01 — `the-view-pane-toggles-spaces-and-bodies`: PR 6270 (cloud
+  lane, branch `spaces/view-toggles`, stacked on 6269 at `2b32f232`),
+  green at `d9cdc901`. Every space and body has a toggle judged against
+  the default picture (a hide where the default draws it, a show where it
+  does not; a toggle set back to its default records nothing); tree and
+  Properties read the same state, closing
+  `the-feature-trees-hide-toggles-an-undrawn-instance-silently`. Filed
+  `free-move-refuses-a-body-the-author-showed` (may touch DI5: triage
+  after the stack lands). STYLE review dispatched. (SPACES orchestrator)
+- 2026-11-01 — `the-add-to-the-product-door` dispatched as a cloud lane (`session_01EdpJs6mWkVV5oERQd3qTsb`, branch `spaces/product-door`, stacked on 6269's final head); it also retires the hand-placement fixtures the item lists. (SPACES orchestrator)
+- 2026-11-01 — PR 6270 STYLE review: APPROVE-WITH-FIXES, one correctness MINOR (hide/show decided against the default picture, so a shown `⊔`'s piece toggles silently — a new instance of the defect the PR closes) and 23 style findings, most from storing the toggle as two hand-synced sets and a hand-bumped key counter. Fix pass sent to the cloud lane: one override map, the key carrying what is shown, a dropped show reported, tests that read the tree; three gaps to be filed. (SPACES orchestrator)
+- 2026-11-01 — 6265 green at `c5204554` but conflicting at merge: DOORS' PR 6262 (`doors/face-words`, one pick-body rule) landed in `world.rs` / `marks.rs`, the same logic 6265 rewrote. The landing lane (context on both) merges main into 6265 (row kept last) and then 6269, reconciling 6262's pick-body rule with 6265's copy→body door. (SPACES orchestrator)
 - 2026-11-01 — PR 6265 merged (`5b462518`) after the merge lane reconciled
   DOORS' 6262 (one pick-body rule) with its copy→body door: `copy_source`
   stays the one copy→body home, 6262's `read_body` answers a plain read.
   `a-new-body-lands-unplaced` closed with its four carried rows (PR 6269,
   merged right after). The product door and the View pane toggles are in
   flight on cloud lanes. (SPACES orchestrator)
+- 2026-11-01 — PR 6269 merged (`172368ec`), right after 6265: both P0s
+  closed. Banded the lane-filed rows: `a-pick-read-takes-the-whole-copy`
+  P2 M (API-reachable only), `the-projection-tool-writes-a-member-read-a-pick-already-seats`
+  P2 M (the README says projection writes nothing; it writes a member read
+  that draws correctly), `the-feature-trees-hide-toggles-an-undrawn-instance-silently`
+  P1 E (carried by the View-pane unit, PR 6270). P1 left beyond the two
+  units in flight: `display-frames-are-not-saved-with-the-document`
+  (touches `display.rs` with 6270; dispatched once 6270 lands). (SPACES orchestrator)
+- 2026-11-01 — `the-add-to-the-product-door`: PR 6279 (cloud lane), green at `c997b8e9`. `SessionOp::AddToProduct` with the README's three branches in one action; offered from a viewport pick (the Properties pane reads the copy under the pick), a selected tree row, the EmptyProduct/StrandedProduct recourses and the `unused` finding (its editor-core recourse re-worded — Python sees it too); `InTheProduct` refusal; the hand-placement fixtures retired through the door, three kept with reasons. Review: single FULL. (SPACES orchestrator)
+- 2026-11-02 — PR 6279 FULL review: APPROVE-WITH-FIXES, no MAJOR; 6 MINOR (executed): Add offered on a copy already in the product outside the world (in-product tested by `world_copy`); the Add branch unguarded (surviving mutant); the op places a body twice; a world `⊔` gets a second copy; a split's recourse names a door it lacks (two 'builds a body' classifications drift); editor-core's `unused` text now names a viewer verb Python lacks. Style: `body_read` vs `seat_read`; a hand reader scan; 'gesture-minted space' guessed. All sent back to the cloud lane. Noted, not acted on: the startup scene sets its own product (a document, not a gesture). (SPACES orchestrator)
