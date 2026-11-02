@@ -7,7 +7,7 @@ opened: 2026-09-16
 refs: [2752, 368]
 priority: P0
 cost: H
-blocked_on: [clearance-recomputes-a-cells-net-and-jet-per-pair]
+blocked_on: [where-the-embedding-certificate-is-paid]
 ---
 
 Found by both of BOOL-6's reviews (PR 2752) and filed by the S-BOOL

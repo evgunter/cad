@@ -2,10 +2,11 @@
 id: clearance-recomputes-a-cells-net-and-jet-per-pair
 kind: issue
 title: The clearance walk recomputes a cell's restricted net, its jets and its centre normal for every pair the cell is in; nothing is cached per cell
-status: dispatched
+status: closed
 opened: 2026-11-01
 priority: P0
 cost: M
+closed: 2026-11-02
 ---
 
 Found by DIRSUPPORT's review (2026-11-01), the review's Q6.
@@ -105,3 +106,20 @@ Cutting the first-read cost per cell means restricting a child from
 its parent's net, not from the face's. That changes the numbers in each
 net, so it is not bit-identical, and its receipts would have to be
 re-derived and argued sound.
+
+## Closed (CLEAR, 2026-11-02): PR 6288
+
+The walk's window charts and edges keep a memo keyed by the exact bits
+of each rectangle, range or point (`geom::memo`), so a cell's restricted
+net, jet and point reads are computed once per question rather than once
+per pair. Every receipt on the 14 bodies is bit-identical. The review's
+fix pass routed every point read in the walk through the memo, which
+took the Klein loop to 10.1 s and `twisted_loft` to 0.70 s; the other
+rows are unchanged within noise. One FULL review (APPROVE-WITH-FIXES,
+no MAJOR).
+
+The certificate now costs 21–1,330× the build. Against the at-rest gate,
+which every finished body already pays (0.1–1.8 s here, 4.07 s on the
+Klein loop), it is about 1–3×. Where that price is paid is
+`where-the-embedding-certificate-is-paid`, which goes to Ev; CARVE's
+spines row is parked on it.
