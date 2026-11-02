@@ -30,6 +30,11 @@
 //!   `start(he_plus)` to `end(he_plus)`**. Per-face traversal senses and
 //!   pcurves are *derived* from that one orientation, never stored as
 //!   peers.
+//! - **The conics are the [`conic`] module's.** A circle and an ellipse
+//!   are two kinds, each holding one [`ConicFrame`] beside its own shape;
+//!   what either answers is the [`Conic`] trait ([`Curve3::conic`]), and
+//!   the conic conventions (positive sizes, stored order, the seam, the
+//!   one branch rule) are stated there.
 //! - **The azimuthal frame is one body, and it is not here.** The
 //!   circle and ellipse arms read `v_ref = axis × u_ref` and the
 //!   radial/tangential pair at angle `u` from the interior

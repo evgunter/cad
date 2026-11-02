@@ -475,47 +475,30 @@ fn map_carrier<T: Real>(
     hand: Hand,
     c: &Curve3<T>,
 ) -> Result<Curve3<T>, TransformError> {
+    let frame = |f: &geom::ConicFrame<T>| {
+        geom::ConicFrame::new(
+            map.transform_point(f.center),
+            hand.axial(map, f.axis),
+            map_vec(map, f.u_ref),
+        )
+    };
     Ok(match *c {
         Curve3::Line { origin, dir } => Curve3::Line {
             origin: map.transform_point(origin),
             dir: map_vec(map, dir),
         },
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::ConicFrame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => Curve3::circle(
-            map.transform_point(center),
-            hand.axial(map, axis),
-            radius,
-            map_vec(map, u_ref),
-        ),
-        // A rigid map preserves the semi-axis lengths and the frame's
-        // orthonormality — the axis ordering invariant transfers
-        // unchanged, so no re-decision is needed (the constructor
-        // decided at mint; this is evaluation-lane data motion).
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::ConicFrame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
-                map.transform_point(center),
-                hand.axial(map, axis),
-                map_vec(map, u_ref),
-            ),
-            semi_u,
-            semi_v,
-        )),
+        // A rigid map preserves the sizes and the frame's orthonormality —
+        // the ellipse's axis ordering transfers unchanged, so no
+        // re-decision is needed (the constructor decided at mint; this is
+        // evaluation-lane data motion).
+        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
+            frame: frame(&c.frame),
+            ..c
+        }),
+        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
+            frame: frame(&e.frame),
+            ..e
+        }),
         // The same argument: a rigid map preserves both radii, the
         // stand-off and the frame's orthonormality, so the two-oval
         // regime and the carried side transfer unchanged — no

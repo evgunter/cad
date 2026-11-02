@@ -168,29 +168,15 @@ impl<T: Real> Curve3<T> {
                 origin: origin.map(&f),
                 dir: dir.map(&f),
             },
-            Curve3::Circle(crate::Circle {
-                frame:
-                    crate::ConicFrame {
-                        center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) => Curve3::circle(center.map(&f), axis.map(&f), f(*radius), u_ref.map(&f)),
-            Curve3::Ellipse(crate::Ellipse {
-                frame:
-                    crate::ConicFrame {
-                        center,
-                        axis,
-                        u_ref,
-                    },
-                semi_u,
-                semi_v,
-            }) => Curve3::Ellipse(crate::Ellipse::new(
-                crate::ConicFrame::new(center.map(&f), axis.map(&f), u_ref.map(&f)),
-                f(*semi_u),
-                f(*semi_v),
-            )),
+            Curve3::Circle(c) => Curve3::Circle(crate::Circle {
+                frame: c.frame.map_scalar(&f),
+                radius: f(c.radius),
+            }),
+            Curve3::Ellipse(e) => Curve3::Ellipse(crate::Ellipse {
+                frame: e.frame.map_scalar(&f),
+                semi_u: f(e.semi_u),
+                semi_v: f(e.semi_v),
+            }),
             Curve3::Spiric {
                 center,
                 axis,

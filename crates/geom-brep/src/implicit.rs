@@ -1184,6 +1184,38 @@ pub fn conic_cone_harmonics<T: Real>(
     }
 }
 
+/// **The conic's point at `theta` less `origin`, with a first-order
+/// running bound on its rounding** ([`Rounded`]): the carrier's own
+/// evaluation ([`Conic::point_at`]), operation for operation — a
+/// circle's `c + (u·cos θ + v·sin θ)·r`, an ellipse's
+/// `c + (u·(a·cos θ) + v·(b·sin θ))`, `v = axis × u` — so its value is
+/// the carrier's point bit for bit, `sin` and `cos` (`sin_cos`, here
+/// already charged) carrying their own error. The frame, the sizes and
+/// `origin` are taken as exact.
+fn running_offset<T: Real>(
+    conic: &dyn Conic<T>,
+    (sin, cos): (Rounded<T>, Rounded<T>),
+    origin: Point3<T>,
+) -> [Rounded<T>; 3] {
+    use geom_core::running::{cross, exact_vec};
+    let f = conic.frame();
+    let (n, u) = (exact_vec(f.axis), exact_vec(f.u_ref));
+    let v = cross(n, u);
+    let point = |p: Point3<T>| exact_vec(Vec3::new(p.x, p.y, p.z));
+    let (c, o) = (point(f.center), point(origin));
+    match conic.as_circle() {
+        Some(circle) => {
+            let r = Rounded::exact(circle.radius);
+            core::array::from_fn(|i| c[i] + (u[i] * cos + v[i] * sin) * r - o[i])
+        }
+        None => {
+            let (a, b) = conic.semi_axes();
+            let (ac, bs) = (Rounded::exact(a) * cos, Rounded::exact(b) * sin);
+            core::array::from_fn(|i| c[i] + (u[i] * ac + v[i] * bs) - o[i])
+        }
+    }
+}
+
 /// The cone's [`implicit_residual`] at the [`Conic`] point of parameter
 /// `theta`, `ρ cos α − |h| sin α` ([`cone_elevation`] with no nappe),
 /// carried with a first-order running bound on its rounding
@@ -1199,7 +1231,7 @@ pub fn conic_cone_residual<T: Real>(
     half_angle: T,
     theta: T,
 ) -> Rounded<T> {
-    use geom_core::running::{cross, dot, exact_vec};
+    use geom_core::running::{dot, exact_vec};
     let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
     let transcendental = |x: T| Rounded {
         value: x,
@@ -1209,23 +1241,7 @@ pub fn conic_cone_residual<T: Real>(
     let (sin, cos) = (transcendental(sin), transcendental(cos));
     let (sin_a, cos_a) = half_angle.sin_cos();
     let (sin_a, cos_a) = (transcendental(sin_a), transcendental(cos_a));
-    let (a, b) = {
-        let (a, b) = conic.semi_axes();
-        (Rounded::exact(a), Rounded::exact(b))
-    };
-    let (n, u) = (
-        exact_vec(conic.frame().axis),
-        exact_vec(conic.frame().u_ref),
-    );
-    let v = cross(n, u);
-    let c = exact_vec(Vec3::new(
-        conic.frame().center.x,
-        conic.frame().center.y,
-        conic.frame().center.z,
-    ));
-    let tip = exact_vec(Vec3::new(apex.x, apex.y, apex.z));
-    let (ac, bs) = (a * cos, b * sin);
-    let q: [Rounded<T>; 3] = core::array::from_fn(|i| c[i] + (u[i] * ac + v[i] * bs) - tip[i]);
+    let q = running_offset(conic, (sin, cos), apex);
     let axis = exact_vec(c_axis);
     let h = dot(q, axis);
     let w: [Rounded<T>; 3] = core::array::from_fn(|i| q[i] - axis[i] * h);
@@ -1525,7 +1541,7 @@ fn conic_torus_split<T: Real>(
     t_axis: Vec3<T>,
     theta: T,
 ) -> (Rounded<T>, Rounded<T>) {
-    use geom_core::running::{cross, dot, exact_vec};
+    use geom_core::running::{dot, exact_vec};
     let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
     let (sin, cos) = theta.sin_cos();
     let transcendental = |x: T| Rounded {
@@ -1533,23 +1549,7 @@ fn conic_torus_split<T: Real>(
         error: ulp * x.abs(),
     };
     let (sin, cos) = (transcendental(sin), transcendental(cos));
-    let (a, b) = {
-        let (a, b) = conic.semi_axes();
-        (Rounded::exact(a), Rounded::exact(b))
-    };
-    let (n, u) = (
-        exact_vec(conic.frame().axis),
-        exact_vec(conic.frame().u_ref),
-    );
-    let v = cross(n, u);
-    let c = exact_vec(Vec3::new(
-        conic.frame().center.x,
-        conic.frame().center.y,
-        conic.frame().center.z,
-    ));
-    let tc = exact_vec(Vec3::new(t_center.x, t_center.y, t_center.z));
-    let (ac, bs) = (a * cos, b * sin);
-    let q: [Rounded<T>; 3] = core::array::from_fn(|i| c[i] + (u[i] * ac + v[i] * bs) - tc[i]);
+    let q = running_offset(conic, (sin, cos), t_center);
     let axis = exact_vec(t_axis);
     let h = dot(q, axis);
     let w: [Rounded<T>; 3] = core::array::from_fn(|i| q[i] - axis[i] * h);
@@ -1574,7 +1574,7 @@ pub fn conic_quadric_residual<T: Real>(
     (anchor, axis, radius): (Point3<T>, Option<Vec3<T>>, T),
     theta: T,
 ) -> Rounded<T> {
-    use geom_core::running::{cross, dot, exact_vec};
+    use geom_core::running::{dot, exact_vec};
     let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
     let (sin, cos) = theta.sin_cos();
     let transcendental = |x: T| Rounded {
@@ -1582,23 +1582,7 @@ pub fn conic_quadric_residual<T: Real>(
         error: ulp * x.abs(),
     };
     let (sin, cos) = (transcendental(sin), transcendental(cos));
-    let (a, b) = {
-        let (a, b) = conic.semi_axes();
-        (Rounded::exact(a), Rounded::exact(b))
-    };
-    let (n, u) = (
-        exact_vec(conic.frame().axis),
-        exact_vec(conic.frame().u_ref),
-    );
-    let v = cross(n, u);
-    let c = exact_vec(Vec3::new(
-        conic.frame().center.x,
-        conic.frame().center.y,
-        conic.frame().center.z,
-    ));
-    let o = exact_vec(Vec3::new(anchor.x, anchor.y, anchor.z));
-    let (ac, bs) = (a * cos, b * sin);
-    let q: [Rounded<T>; 3] = core::array::from_fn(|i| c[i] + (u[i] * ac + v[i] * bs) - o[i]);
+    let q = running_offset(conic, (sin, cos), anchor);
     let w = match axis {
         None => q,
         Some(axis) => {

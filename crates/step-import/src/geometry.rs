@@ -72,33 +72,12 @@ pub(crate) fn endpoint_params(
             }
             Ok((t0, t1))
         }
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::ConicFrame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            ..
-        })
-        | Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::ConicFrame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            ..
-        }) => {
+        Curve3::Circle(_) | Curve3::Ellipse(_) => {
             // The start angle in [0, τ), the end angle in (t0, t0 + τ]
-            // — the increasing-parameter arc. For the ellipse the
-            // angle is the eccentric anomaly: dividing the in-plane
-            // components by the semi-axes reduces it to the circle
-            // case (atan2 is scale-invariant per axis).
-            let v_ref = axis.cross(*u_ref);
-            let (maj, min) = match carrier {
-                Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (*semi_u, *semi_v),
-                _ => (1.0, 1.0),
+            // — the increasing-parameter arc, its angle the conic's
+            // principal one (an ellipse's eccentric anomaly).
+            let Some(conic) = carrier.conic() else {
+                unreachable!("a circle or an ellipse is a conic")
             };
             // Each angle is refused where it is derived, so the
             // self-loop arm's early return cannot outrun the check:
@@ -110,8 +89,7 @@ pub(crate) fn endpoint_params(
             // zero, reached it. Both returned parameters are therefore
             // finite, and the wrap loop below terminates.
             let angle = |p: Point3<f64>| -> Result<f64, StepImportError> {
-                let w = p - *center;
-                let t = (w.dot(v_ref) / min).atan2(w.dot(*u_ref) / maj);
+                let t = conic.angle_of(p);
                 if t.is_finite() {
                     Ok(t)
                 } else {

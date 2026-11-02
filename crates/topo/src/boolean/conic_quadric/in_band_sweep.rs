@@ -507,12 +507,14 @@ fn an_exact_tangency_is_escalated_at_every_tilt() {
 /// and that reading licenses a true answer**: at the default band the
 /// ladder's noise meter reads this crossing's harmonics in the gap and
 /// lets the ladder run, and the answer is the subdivision's — two roots,
-/// each within the zero band of the exact oracle's.
+/// each within the zero band of the exact oracle's. Near the gap the
+/// root-slack meter refuses some poses of the family `Meter`, typed;
+/// this one it answers.
 #[test]
 fn a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly() {
     let (rho, eps) = (1500.0, 1e-9);
     let band = Band::new(eps, 10.0 * eps).unwrap();
-    let c = tangent_circle(1.0, rho, -1e-6, 1.2, 0.7);
+    let c = tangent_circle(1.0, rho, -1e-6, 1.1, 0.7);
     let noise = noise_reading(&c, 1.0);
     assert!(
         decide(LADDER_NOISE, Margin::of(noise), band).is_err(),

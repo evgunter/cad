@@ -649,24 +649,13 @@ fn seam_vertex_on_loop(
     let mut crossing = None;
     for u in &solid.faces[fi].loops[li].uses {
         let spec = &solid.edges[&u.edge];
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::ConicFrame {
-                    center,
-                    axis: n,
-                    u_ref: uc,
-                },
-            radius,
-        }) = spec.carrier
-        else {
+        let Curve3::Circle(ref circle) = spec.carrier else {
             // The caller checked every rim carrier is a coaxial
             // circle; anything else lands in the typed refusal below.
             continue;
         };
-        let q = crate::signed_zero::plus_zero_point(center + s_u_ref * radius);
-        let w = q - center;
-        let vr = n.cross(uc);
-        let mut t = w.dot(vr).atan2(w.dot(uc));
+        let q = crate::signed_zero::plus_zero_point(circle.frame.center + s_u_ref * circle.radius);
+        let mut t = geom::Conic::angle_of(circle, q);
         while t <= spec.t0 {
             t += TAU;
         }

@@ -115,6 +115,16 @@ impl<T: Real> ConicFrame<T> {
         }
     }
 
+    /// The same placement with every scalar mapped by `f`.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ConicFrame<U> {
+        ConicFrame {
+            center: self.center.map(&f),
+            axis: self.axis.map(&f),
+            u_ref: self.u_ref.map(&f),
+        }
+    }
+
     /// The same placement moved by `by`.
     #[must_use]
     pub fn translated(&self, by: Vec3<T>) -> Self {
@@ -261,6 +271,11 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// seam is at; a tie, and a circle, keep the seam's own axis.
     fn major_frame(&self) -> MajorFrame<T>;
 
+    /// The circle, where the conic is one: for a reader that mirrors the
+    /// kind's own evaluation order (a running rounding bound on its
+    /// point), which differs between the two kinds.
+    fn as_circle(&self) -> Option<&Circle<T>>;
+
     /// **The parameter of `p` on the branch of `span`'s middle**: its
     /// [principal angle](Self::angle_of) [unwound](on_span_branch) onto
     /// the span.
@@ -336,6 +351,9 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     }
     fn major_frame(&self) -> MajorFrame<T> {
         (**self).major_frame()
+    }
+    fn as_circle(&self) -> Option<&Circle<T>> {
+        (**self).as_circle()
     }
     fn param_in(&self, p: Point3<T>, span: (T, T)) -> T {
         (**self).param_in(p, span)
@@ -420,6 +438,10 @@ impl<T: Real> Conic<T> for Circle<T> {
 
     fn speed_at(&self, _theta: T) -> T {
         self.radius
+    }
+
+    fn as_circle(&self) -> Option<&Circle<T>> {
+        Some(self)
     }
 
     fn major_frame(&self) -> MajorFrame<T> {
@@ -569,7 +591,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
 
     fn angle_of(&self, p: Point3<T>) -> T {
         let (x, y) = self.frame.in_plane(p);
-        (y * self.semi_u).atan2(x * self.semi_v)
+        (y / self.semi_v).atan2(x / self.semi_u)
     }
 
     fn param_near(&self, p: Point3<T>, near: T) -> T {
@@ -597,6 +619,10 @@ impl<T: Real> Conic<T> for Ellipse<T> {
 
     fn major_frame(&self) -> MajorFrame<T> {
         self.frame_turned_where(self.semi_v - self.semi_u)
+    }
+
+    fn as_circle(&self) -> Option<&Circle<T>> {
+        None
     }
 }
 

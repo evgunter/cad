@@ -152,30 +152,7 @@ pub(crate) fn section(
 
 /// The conic parameter of `p`, a point of `c`.
 fn conic_param(c: &geom::Curve3<f64>, p: Point3<f64>) -> f64 {
-    let (center, axis, u, a, b) = match *c {
-        geom::Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::ConicFrame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => (center, axis, u_ref, semi_u, semi_v),
-        geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::ConicFrame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) => (center, axis, u_ref, radius, radius),
-        _ => unreachable!(),
-    };
-    let w = p - center;
-    (w.dot(axis.cross(u)) / b).atan2(w.dot(u) / a)
+    c.conic().unwrap().angle_of(p)
 }
 
 /// One edge of an [`Island`], travelled from its corner to the next:
