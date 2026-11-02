@@ -239,6 +239,7 @@ pub(crate) mod sector_shape;
 pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
+pub(crate) mod session_box;
 pub mod shell;
 pub(crate) mod side_reader;
 pub mod split;

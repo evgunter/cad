@@ -399,6 +399,7 @@ use geom_brep::{
     classify_material_pairing,
 };
 use geom_core::one_line::on_one_line;
+use geom_core::tolerance::SESSION_BOX_EXTENT;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, NOT_YET_ENDING, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
@@ -1016,6 +1017,14 @@ pub enum ContactMark {
     )
 )]
 pub enum ValidationError {
+    /// The body reaches definitely past the session box
+    /// (`session_box_reach`, D4 ¶4): no coordinate of a model is larger
+    /// in magnitude than `geom_core::tolerance::SESSION_BOX_EXTENT`.
+    /// Reported alone, before any check reads a margin on the geometry.
+    OutsideSessionBox {
+        /// The box's extent less the body's reach, metres (negative).
+        margin: geom_core::MarginDiag,
+    },
     /// Tier 3: the run's tolerance could not produce a valid
     /// classification band (absurd ε — see `Band::linear`). Reported
     /// alone; no geometric check can run without a band.
@@ -4331,6 +4340,13 @@ impl fmt::Display for ValidationError {
     #[allow(clippy::too_many_lines)] // one sentence per arm
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::OutsideSessionBox { margin } => write!(
+                f,
+                "the body reaches {} m past the {SESSION_BOX_EXTENT:e} m session box, which no \
+                 coordinate of a model may exceed (D4 ¶4). Recourse: place the geometry nearer \
+                 the origin, or model it at a smaller size",
+                margin.readable_below_zero()
+            ),
             Self::Band { error } => write!(
                 f,
                 "the tolerance the body was checked at is not usable: {}. {TOLERANCE}",
@@ -6181,6 +6197,8 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
     };
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
+    let band = Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])?;
+    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
     let mut marks = slotmap::SecondaryMap::new();
     let (errors, certificate) = tier3_local_checks_marked(
         body,

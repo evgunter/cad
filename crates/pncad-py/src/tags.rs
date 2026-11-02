@@ -3075,6 +3075,7 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
 /// such a site, and the tag it mints is that answer.
 pub fn validation_error_tag(err: &ValidationError) -> &'static str {
     match err {
+        ValidationError::OutsideSessionBox { .. } => "outside_session_box",
         ValidationError::Band { .. } => "band",
         ValidationError::DanglingDescription { .. } => "dangling_description",
         ValidationError::UncertifiableSurface { .. } => "uncertifiable_surface",

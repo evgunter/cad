@@ -1546,6 +1546,12 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     for error in band_errors() {
         s.push((label("Band", &error), ValidationError::Band { error }));
     }
+    s.push((
+        "OutsideSessionBox".into(),
+        ValidationError::OutsideSessionBox {
+            margin: geom_core::MarginDiag::value(-2.5e3),
+        },
+    ));
     for error in offset_fit_errors() {
         s.push((
             label("ApproxCertification", &error),

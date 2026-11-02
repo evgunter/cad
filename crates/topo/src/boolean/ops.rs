@@ -5761,6 +5761,9 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         // ray's walk refusal on a broken face, a limit, or a band that
         // does not form.
         V::ShellRoleUndecided { .. } | V::OrientationUndecided { .. } => None,
+        // A limit of the input: the result reaches past the session box,
+        // and its own ending says so.
+        V::OutsideSessionBox { .. } => None,
         // Undecided at a point margin the gate has not shown conditioned
         // (`work/tally/the-door-gates-other-in-band-findings-are-typed-the-kernels.md`).
         V::DegenerateTorusEscalated { .. }

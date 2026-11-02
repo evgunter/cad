@@ -6129,6 +6129,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "orphan_entity",
             "orphan_geometry",
             "outer_listed_as_ring",
+            "outside_session_box",
             "parent_loop_mismatch",
             "pcurve",
             "pinch_corner_crossed",
