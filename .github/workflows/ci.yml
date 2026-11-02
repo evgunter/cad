@@ -424,19 +424,33 @@ jobs:
             -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass || rc=$?
           scripts/nextest-failures.py "slow set" "$rc"
           exit $rc
-      - name: "MEASUREMENT ONLY, removed before merge: test times A vs B, then variant C (sweep split in 2)"
+      - name: "MEASUREMENT ONLY, removed before merge: test times A vs B, then B2, C2, C3 and A again"
         if: '!cancelled()'
         run: |
-          TIMEFORMAT="MEASURE A_test wall=%R user=%U sys=%S"
-          time (cargo nextest run --profile ci ${{ matrix.scope }} --no-fail-fast 2>&1 | grep -E "Summary|FAIL" | head -5)
-          TIMEFORMAT="MEASURE B_test wall=%R user=%U sys=%S"
-          time (CARGO_TARGET_DIR="$RUNNER_TEMP/tb" RUSTC_WORKSPACE_WRAPPER="$RUNNER_TEMP/opt0.sh" cargo nextest run --profile ci ${{ matrix.scope }} --no-fail-fast 2>&1 | grep -E "Compiling|Summary|FAIL" | head -5)
-          [ "${{ matrix.shard }}" = kernel ] || exit 0
-          python3 .github/kba-split.py crates/sweep 2
-          TIMEFORMAT="MEASURE C_build wall=%R user=%U sys=%S"
-          time (CARGO_TARGET_DIR="$RUNNER_TEMP/tc" cargo nextest run --no-run --profile ci ${{ matrix.scope }} --timings >/dev/null 2>&1)
-          python3 .github/kba-units.py "$(ls -t $RUNNER_TEMP/tc/cargo-timings/*.html | head -1)" "" 12
-          git checkout -- crates/sweep && rm -f crates/sweep/tests/all2.rs
+          J=target/nextest/ci/junit.xml
+          mt() { TIMEFORMAT="MEASURE $1 wall=%R user=%U sys=%S"; }
+          mt A_test; time (cargo nextest run --profile ci ${{ matrix.scope }} --no-fail-fast 2>&1 | grep -E "Summary|  FAIL" | head -5)
+          cp $J "$RUNNER_TEMP/jA.xml"
+          mt B_test; time (CARGO_TARGET_DIR="$RUNNER_TEMP/tb" RUSTC_WORKSPACE_WRAPPER="$RUNNER_TEMP/opt0.sh" cargo nextest run --profile ci ${{ matrix.scope }} --no-fail-fast 2>&1 | grep -E "Compiling|Summary|  FAIL" | head -5)
+          cp $J "$RUNNER_TEMP/jB.xml"
+          echo "MEASURE junit A vs B"; python3 .github/kba-junit.py "$RUNNER_TEMP/jA.xml" "$RUNNER_TEMP/jB.xml"
+          rm -rf "$RUNNER_TEMP/tb"
+          printf '#!/usr/bin/env bash\nrustc=$1; shift\ncase " $* " in *"/tests/all.rs "*" --test "*) exec "$rustc" "$@" -C opt-level=0 ;; esac\nexec "$rustc" "$@"\n' > "$RUNNER_TEMP/opt0b2.sh"
+          for k in 1 2 3; do printf '#!/usr/bin/env bash\n# %s\nexec "$@"\n' $k > "$RUNNER_TEMP/noop$k.sh"; done
+          chmod +x "$RUNNER_TEMP"/*.sh
+          tim() { python3 .github/kba-units.py "$(ls -t target/cargo-timings/*.html | head -1)" "" 8; }
+          mt B2_build; time (RUSTC_WORKSPACE_WRAPPER="$RUNNER_TEMP/opt0b2.sh" cargo nextest run --no-run --profile ci ${{ matrix.scope }} --timings >/dev/null 2>&1; echo "rc=$?"); tim
+          mt B2_test; time (RUSTC_WORKSPACE_WRAPPER="$RUNNER_TEMP/opt0b2.sh" cargo nextest run --profile ci ${{ matrix.scope }} --no-fail-fast 2>&1 | grep -E "Compiling|Summary|  FAIL" | head -5)
+          cp $J "$RUNNER_TEMP/jB2.xml"
+          echo "MEASURE junit A vs B2"; python3 .github/kba-junit.py "$RUNNER_TEMP/jA.xml" "$RUNNER_TEMP/jB2.xml"
+          if [ "${{ matrix.shard }}" = kernel ]; then
+            for n in 2 3; do
+              python3 .github/kba-split.py crates/sweep $n
+              mt C${n}_build; time (RUSTC_WORKSPACE_WRAPPER="$RUNNER_TEMP/noop$n.sh" cargo nextest run --no-run --profile ci ${{ matrix.scope }} --timings >/dev/null 2>&1; echo "rc=$?"); tim
+              git checkout -- crates/sweep && rm -f crates/sweep/tests/all2.rs crates/sweep/tests/all3.rs
+            done
+          fi
+          mt A2_build; time (RUSTC_WORKSPACE_WRAPPER="$RUNNER_TEMP/noop1.sh" cargo nextest run --no-run --profile ci ${{ matrix.scope }} --timings >/dev/null 2>&1; echo "rc=$?"); tim
       - name: doc-tests
         if: '!cancelled()'
         run: cargo test --doc ${{ matrix.scope }}
