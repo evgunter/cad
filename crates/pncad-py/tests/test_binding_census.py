@@ -3387,6 +3387,20 @@ NOT_BOUND = {
     # over a box, carried only by a decided clearance, which an `f64`
     # evaluation never produces.
     "ParamWitness": SHAPE,
+    # And a clearance report's payloads, which the façade exports so a
+    # Rust consumer can match each refusal and name what it caught: an
+    # engine refusal and what its arms hold, a selection's refusal, the
+    # receipt and the widths. None reaches Python, whose evaluation is
+    # `f64` and reads a clearance's third state as its class name
+    # (`Verdict.refusal`, `needs_certifying_lane`) and its sentence.
+    "EngineRefusal": SHAPE,
+    "SelectionRefusal": SHAPE,
+    "CellBudget": SHAPE,
+    "SharedCell": SHAPE,
+    "CertificateArm": SHAPE,
+    "Which": SHAPE,
+    "CellReceipt": SHAPE,
+    "DischargeWidths": SHAPE,
     "BoxAxis": SHAPE,
     "BudgetKind": SHAPE,
     "CertifiedLeaf": SHAPE,
