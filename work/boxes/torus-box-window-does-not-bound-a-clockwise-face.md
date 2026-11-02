@@ -2,10 +2,11 @@
 id: torus-box-window-does-not-bound-a-clockwise-face
 kind: issue
 title: The torus box window is orientation-blind: it bounds the patch a loop encloses, not the face, so it does not bound a clockwise-wound face's region
-status: open
+status: parked
 opened: 2026-10-18
 priority: P3
 cost: M
+blocked_on: [cover-topo-faces]
 ---
 
 

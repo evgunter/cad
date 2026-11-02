@@ -2,10 +2,11 @@
 id: cone-and-torus-box-extents-read-the-carrier-axis-as-unit-by-prose
 kind: issue
 title: The cone and torus box extents read the carrier's axis (and the torus's u_ref) as unit by prose; the cylinder slab decides it at the read
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: E
+blocked_on: [cover-topo-faces]
 ---
 
 ## Finding
