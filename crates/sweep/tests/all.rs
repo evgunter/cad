@@ -1376,3 +1376,5 @@ mod review_6002_needle_join;
 mod review_6020_seam_probes;
 #[path = "review_r1_roots_split.rs"]
 mod review_r1_roots_split;
+#[path = "review_6393_probes.rs"]
+mod review_6393_probes;

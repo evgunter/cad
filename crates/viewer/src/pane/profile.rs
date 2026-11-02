@@ -2609,6 +2609,54 @@ mod tests {
         );
     }
 
+    #[test]
+    fn review_6393_the_empty_profiles_editor_and_preview() {
+        let (mut session, profile) = square_session();
+        let mut drafts = Drafts::default();
+        let _ = click_door(&session, &mut drafts, profile, super::REMOVE_LOOP, 0);
+        let (painted_held, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
+        eprintln!("PROBE door holding no loops (before apply): {painted_held:?}");
+        let out = session.perform(formed.expect("Apply formed the op"));
+        assert!(out.refusal.is_none());
+        // A fresh editor over the committed empty profile.
+        let mut fresh = Drafts::default();
+        let edit_painted = crate::pane::headless::painted_text(|ui| {
+            let edit = fresh
+                .profile_edit(session.committed_doc(), profile)
+                .expect("the editor holds the empty profile");
+            let r = super::edit_door_ui(
+                ui,
+                &session,
+                (Theme::DEFAULT, Notation::CANONICAL),
+                edit,
+                None,
+                None,
+                &mut super::FieldNews::default(),
+            );
+            eprintln!("PROBE fresh door result: {r:?}");
+        });
+        eprintln!("PROBE fresh door over the empty profile: {edit_painted:?}");
+        let preview = sketch::preview(::profile::SketchPlane::xy(), &[], Tol::witness(), 0.01);
+        eprintln!("PROBE preview of no shapes: {preview:?}");
+        let said = crate::pane::headless::painted_text(|ui| {
+            let held = super::preview_verdict(ui, Theme::DEFAULT, Some(&preview));
+            eprintln!("PROBE preview holds apply: {held}");
+        });
+        eprintln!("PROBE preview verdict text: {said:?}");
+        // Add a loop back.
+        let (_, _) = click_door(
+            &session,
+            &mut fresh,
+            profile,
+            &super::add_loop_label(crate::forms::ShapeKind::ALL[0].0),
+            0,
+        );
+        let edit = fresh
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held");
+        eprintln!("PROBE loops after Add: {}", edit.loops().len());
+    }
+
     /// A session over the form's default 10 mm square as a committed
     /// profile, and the profile.
     fn square_session() -> (crate::session::DocSession, pncad::document::RecipeNodeId) {
