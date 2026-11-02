@@ -217,6 +217,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         SessionOp::CreateLabelled { creation, .. } => committed_by(creation.op()),
         SessionOp::SetLabel { .. }
         | SessionOp::SetProduct { .. }
+        | SessionOp::AddToProduct { .. }
         | SessionOp::AddMate { .. }
         | SessionOp::Select(_)
         | SessionOp::Hover(_)

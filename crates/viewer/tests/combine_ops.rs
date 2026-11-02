@@ -70,9 +70,11 @@ fn session(tol: Tol) -> DocSession {
 }
 
 /// The two overlapping blocks (module docs), the second placed by a
-/// transform, each then placed into the world by hand (a new body lands
-/// unplaced). Answers the session and the two BODY nodes, in the order
-/// the module's constants name them.
+/// transform, each then given a world copy by hand, the product left
+/// empty: a document these rows combine over, which the product door
+/// would not write — it moves the transform's placement, which nothing
+/// reads, into the world rather than copy it. Answers the session and
+/// the two BODY nodes, in the order the module's constants name them.
 fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let mut session = session(tol);
     let a = common::xy_box_in(&mut session, A);
@@ -86,8 +88,8 @@ fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
             rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
-    let (session, _) = common::world_copy_in(&session, a, tol);
-    let (session, _) = common::world_copy_in(&session, b, tol);
+    let (session, _) = common::world_copy_by_hand_in(&session, a, tol);
+    let (session, _) = common::world_copy_by_hand_in(&session, b, tol);
     (session, a, b)
 }
 
@@ -2603,8 +2605,8 @@ fn a_pattern_takes_its_body_over_and_a_member_read_places_nothing() {
     assert_eq!(at_rest_findings(session), 0, "and they do not overlap");
 }
 
-/// Box `A` placed into the world by hand: the session, the box and its
-/// world copy.
+/// Box `A` added to the product, so placed into the world: the session,
+/// the box and its world copy.
 fn session_with_box_in_world(tol: Tol) -> (DocSession, (RecipeNodeId, RecipeNodeId)) {
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -2663,7 +2665,7 @@ fn duplicating_an_unplaced_body_writes_a_stand_in_and_a_stepped_copy() {
 }
 
 /// **A duplicate of a copy in the world is one more copy there**: the
-/// body placed into the world by hand, then duplicated — one placement
+/// body added to the product, so placed into the world, then duplicated — one placement
 /// of the body into the world beside the copy, which the world's volume
 /// doubles to.
 #[test]

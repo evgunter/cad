@@ -1617,6 +1617,13 @@ impl ViewerApp {
                                 // A sentence, so `widgets::message`.
                                 crate::widgets::message(ui, row.sentence);
                             });
+                            if let Some(node) = row.add_to_product
+                                && ui
+                                    .button(crate::pane::properties::ADD_TO_THE_PRODUCT)
+                                    .clicked()
+                            {
+                                ops.push(SessionOp::AddToProduct { node, body: None });
+                            }
                             for (label, select) in row.cells {
                                 if ui
                                     .button(label)
@@ -1973,6 +1980,15 @@ impl ViewerApp {
                 && let Some(badge) = frame::product_badge(self.session.product_fault(), landed)
             {
                 draw_badge(ui, &self.theme, &badge);
+            }
+            // The product's recourse, as the action it names: the one
+            // door, on each body drawn outside the product.
+            for (label, op) in
+                frame::product_recourse(self.session.product_fault(), self.session.committed_doc())
+            {
+                if ui.button(label).clicked() {
+                    ops.push(op);
+                }
             }
             // The display budget's: shown while the δ on screen is
             // the one the budget CHOSE when the document opened,
@@ -6064,6 +6080,189 @@ mod properties_pane_tests {
         );
         open.store(true, std::sync::atomic::Ordering::SeqCst);
         std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    }
+
+    /// The product the committed document's slot reads, piece by piece.
+    fn product_of(driven: &Driven) -> Vec<pncad::document::VarId> {
+        crate::world::product_reads(driven.app.session.committed_doc())
+    }
+
+    /// **"Add to the product" is offered on the body under a viewport
+    /// pick, and the product's recourse is the same door.** A pick on
+    /// the startup plate's cap is on its world copy, which the product
+    /// reads: the pane says so and offers to take it out, where the
+    /// minting extrude would have offered nothing. Taken out, the slot
+    /// reads nothing: the pane offers the door on the same pick, and the
+    /// `EmptyProduct` recourse offers it on the drawn copy. Each click
+    /// is one action, which one undo takes back.
+    #[test]
+    fn the_product_door_is_offered_on_a_pick_and_as_the_empty_products_recourse() {
+        use crate::pane::properties::{ADD_TO_THE_PRODUCT, TAKE_OUT_OF_THE_PRODUCT};
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let copy = driven
+            .app
+            .session
+            .committed_doc()
+            .output(placement(), 0)
+            .expect("the startup placement's copy");
+        assert_eq!(
+            product_of(&driven),
+            [copy],
+            "the startup product is its copy"
+        );
+        driven.select(Selection::Face(cap_of(pncad::prelude::CapEnd::End)));
+        let painted = driven.quiet();
+        assert!(
+            painted.iter().any(|(run, _)| run == "in the product")
+                && !painted.iter().any(|(run, _)| run == ADD_TO_THE_PRODUCT),
+            "the pick is on the copy the product reads: {painted:?}"
+        );
+        driven.click(TAKE_OUT_OF_THE_PRODUCT);
+        driven.quiet();
+        assert!(
+            product_of(&driven).is_empty(),
+            "the copy is out of the product"
+        );
+
+        // The same pick now offers the door; one click is one action.
+        let history = driven.app.session.history().len();
+        driven.click(ADD_TO_THE_PRODUCT);
+        driven.quiet();
+        assert_eq!(product_of(&driven), [copy], "the pick's copy is added");
+        assert_eq!(
+            driven.app.session.history().len(),
+            history + 1,
+            "one action"
+        );
+        driven.perform(SessionOp::Undo);
+        assert!(product_of(&driven).is_empty(), "one undo takes it back");
+
+        // The empty product's recourse: the door, on the drawn copy.
+        driven.perform(SessionOp::Select(Selection::None));
+        let recourse = crate::frame::product_recourse(
+            driven.app.session.product_fault(),
+            driven.app.session.committed_doc(),
+        );
+        let [(label, SessionOp::AddToProduct { node, body: None })] = &recourse[..] else {
+            panic!("the recourse offers the door on the one drawn copy: {recourse:?}")
+        };
+        assert_eq!(*node, placement());
+        driven.click(label);
+        driven.quiet();
+        assert_eq!(
+            product_of(&driven),
+            [copy],
+            "the recourse's door adds the copy"
+        );
+        assert!(
+            crate::frame::product_recourse(
+                driven.app.session.product_fault(),
+                driven.app.session.committed_doc(),
+            )
+            .is_empty(),
+            "a product that gathers names no recourse"
+        );
+    }
+
+    /// **A copy the slot reads from outside the world is "in the
+    /// product", and its recourse moves it back.** The startup plate's
+    /// copy, given a space of its own, is still what the slot reads: a
+    /// pick on it says so and offers no second add. The fault's recourse
+    /// is the door on that copy, which puts it back into the world.
+    #[test]
+    fn a_stray_copy_reads_in_the_product_and_its_recourse_moves_it_back() {
+        use crate::pane::properties::ADD_TO_THE_PRODUCT;
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.perform(SessionOp::IntoOwnSpace {
+            placement: placement(),
+        });
+        driven.select(Selection::Face(cap_of(pncad::prelude::CapEnd::End)));
+        let painted = driven.quiet();
+        assert!(
+            painted.iter().any(|(run, _)| run == "in the product")
+                && !painted.iter().any(|(run, _)| run == ADD_TO_THE_PRODUCT),
+            "the stray copy is in the product, not offered again: {painted:?}"
+        );
+        let recourse = crate::frame::product_recourse(
+            driven.app.session.product_fault(),
+            driven.app.session.committed_doc(),
+        );
+        let [(label, _)] = &recourse[..] else {
+            panic!("the fault offers one action: {recourse:?}")
+        };
+        driven.click(label);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.committed_doc().node_space(placement()),
+            Some(pncad::document::VarId::WORLD),
+            "the recourse moved the copy back into the world"
+        );
+        assert!(
+            driven.app.session.product_fault().is_none(),
+            "{:?}",
+            driven.app.session.product_fault()
+        );
+    }
+
+    /// **"Add to the product" is offered on a drawn body's tree row, and
+    /// as the `unused` finding's recourse.** A fresh revolve lands
+    /// unplaced and nothing reads it, so the checks report it unused
+    /// with the door as its action; selecting its row offers the door
+    /// in the pane. Either click places it into the world by the
+    /// identity bundle and adds that copy, as one action.
+    #[test]
+    fn the_product_door_is_offered_on_a_tree_row_and_as_the_unused_findings_recourse() {
+        use crate::pane::properties::ADD_TO_THE_PRODUCT;
+        let (mut driven, revolve) = with_revolve(|_| vec![SessionOp::Select(Selection::None)]);
+        let before = product_of(&driven);
+        // The unused finding's row, in the Checks window.
+        driven.app.checks_shown = true;
+        let rows = crate::frame::check_rows(
+            driven.app.session.checks().expect("the landing checked"),
+            driven.app.session.landed_pair().expect("landed").0,
+        );
+        assert!(
+            rows.iter().any(|row| row.add_to_product == Some(revolve)),
+            "the revolve's unused finding offers the door"
+        );
+        let painted = driven.quiet();
+        assert_eq!(
+            painted
+                .iter()
+                .filter(|(run, _)| run == ADD_TO_THE_PRODUCT)
+                .count(),
+            1,
+            "one door, on the one unused body: {painted:?}"
+        );
+        driven.click(ADD_TO_THE_PRODUCT);
+        driven.quiet();
+        let doc = driven.app.session.committed_doc();
+        let [copy] = crate::world::placements_of(doc, revolve)[..] else {
+            panic!("the door places the revolve into the world once")
+        };
+        assert_eq!(doc.node_space(copy), Some(pncad::document::VarId::WORLD));
+        let added = doc.outputs(copy);
+        assert_eq!(
+            product_of(&driven),
+            before.iter().copied().chain(added).collect::<Vec<_>>(),
+            "the copy joins what the product read"
+        );
+        driven.perform(SessionOp::Undo);
+        assert_eq!(product_of(&driven), before, "one undo takes it back");
+
+        // The tree row: selecting the revolve offers the door in the pane.
+        driven.app.checks_shown = false;
+        driven.select(Selection::Node(revolve));
+        driven.click(ADD_TO_THE_PRODUCT);
+        driven.quiet();
+        assert_eq!(
+            crate::world::placements_of(driven.app.session.committed_doc(), revolve).len(),
+            1,
+            "the row's door placed the revolve"
+        );
+        assert_eq!(product_of(&driven).len(), before.len() + 1);
     }
 
     /// **An instance from the part chooser takes the label its field
