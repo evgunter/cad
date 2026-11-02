@@ -187,6 +187,9 @@ struct Uniforms {
     probe: [f32; 4],
     /// The focused feature's mark; see [`Uniforms::selected`].
     focus: [f32; 4],
+    /// The mark of a body outside the product; see
+    /// [`Uniforms::selected`].
+    outside: [f32; 4],
     /// The held mark (`Theme::held`); see [`Uniforms::selected`]. Read
     /// by the shaded pass's held stripes and the edge pass's held
     /// lane, so the two cannot come out different colours.
@@ -899,6 +902,7 @@ impl ViewportRenderer {
                 hovered: [0.0; 4],
                 probe: [0.0; 4],
                 focus: [0.0; 4],
+                outside: [0.0; 4],
                 held: [0.0; 4],
                 profile: [0.0; 4],
                 screen: [0.0; 4],
@@ -1495,6 +1499,7 @@ impl ViewportCallback {
             hovered: mark_lane(self.theme.hovered),
             probe: mark_lane(self.theme.probe),
             focus: mark_lane(self.theme.focus),
+            outside: mark_lane(self.theme.outside),
             held: mark_lane(self.theme.held()),
             profile: {
                 let [r, g, b] = crate::theme::linear(self.theme.profile);
@@ -1637,6 +1642,10 @@ fn shader_source(target_format: wgpu::TextureFormat) -> String {
             "{{FLAG_FOCUS}}",
             &crate::scene::SceneMesh::FLAG_FOCUS.to_string(),
         )
+        .replace(
+            "{{FLAG_OUTSIDE}}",
+            &crate::scene::SceneMesh::FLAG_OUTSIDE.to_string(),
+        )
         .replace("{{EDGE_LANE_MASK}}", &EDGE_LANE_MASK.to_string())
         .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
         .replace("{{EDGE_LANES}}", &EdgeLane::DRAW_ORDER.len().to_string())
@@ -1658,6 +1667,7 @@ struct Uniforms {
     hovered: vec4<f32>,
     probe: vec4<f32>,
     focus: vec4<f32>,
+    outside: vec4<f32>,
     held: vec4<f32>,
     // A committed profile's colour, in xyz; w is padding.
     profile: vec4<f32>,
@@ -1751,6 +1761,11 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let lambert = max(dot(n, to_light), 0.0);
     let ambient = uniforms.base_color.w;
     var base = uniforms.base_color.xyz;
+    // A body outside the product is tinted first: every other mark is
+    // a state of material, drawn over what the material is.
+    if ((in.flag & {{FLAG_OUTSIDE}}u) != 0u) {
+        base = tint(base, uniforms.outside);
+    }
     if ((in.flag & {{FLAG_PROBE}}u) != 0u) {
         base = tint(base, uniforms.probe);
     }
@@ -2008,6 +2023,7 @@ mod tests {
         for token in [
             "{{FLAG_PROBE}}",
             "{{FLAG_FOCUS}}",
+            "{{FLAG_OUTSIDE}}",
             "{{EDGE_LANE_MASK}}",
             "{{EDGE_FLAG_PROBE}}",
             "{{EDGE_LANES}}",
@@ -2269,6 +2285,7 @@ mod tests {
                 ("hovered", block.hovered[3], theme.hovered.strength.get()),
                 ("probe", block.probe[3], theme.probe.strength.get()),
                 ("focus", block.focus[3], theme.focus.strength.get()),
+                ("outside", block.outside[3], theme.outside.strength.get()),
                 ("held", block.held[3], theme.held().strength.get()),
             ];
             for (which, lane, stated) in weights {

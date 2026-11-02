@@ -2,12 +2,13 @@
 id: two-coplanar-ellipses-have-no-meeting-method
 kind: unit
 title: The curve-pair reader refuses two coplanar ellipses that are not one curve, and refuses a near-tangent coplanar circle and ellipse instead of placing the touch
-status: dispatched
+status: closed
 opened: 2026-10-14
 priority: P1
 cost: M
 refs: [5227]
-branch: tangrim/coplanar-conic-touch
+closed: 2026-11-01
+pr: 6257
 ---
 
 Found while building the curve-pair reader (`the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227), stage (b)).
@@ -92,3 +93,29 @@ Building the touch alone does not settle that row. There the glue door decides t
 ## Slate triage
 
 2026-11-01: claimed from CPAIR (no orchestrator) by `git mv` into TANGRIM and re-banded P1. Its open second bullet, the near-tangent touch of two coplanar conics (`curve_pair_coplanar_sub_side` escalating in the census), is what stands between `one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build` (P1) and tier 3′ on every ellipse-rim union PR 6246 now builds; a blocker inherits the band of what waits on it (work/README.md, Priority). (TANGRIM orchestrator)
+
+## The second bullet, done (2026-11-01, `tangrim/coplanar-conic-touch`)
+
+**Measured first.** The sweep fixture's two rims, taken alone into `geom-brep` (`meet_rows::coplanar_conic_rims_tangent_at_a_vertex_meet_once_there`), refuse `MeetFault::Touch` on `curve_pair_coplanar_sub_side` at ε = 1e-6, 1e-9 and 1e-12. That holds in both orders, for each vertex placement and for two arcs, and the hole read as its circle refuses alike. The margins are 1.5–2.8ε, the census's. The raising site is `certified_subdivision`. Near the touch every split share of the piece holding it reads in the band's gap, so the walk cannot cut there and refuses on the gap's reading.
+
+**The route.** This is the bullet's own route: the subdivision hands back the in-band piece as a touch. It does not change `certified_subdivision`'s contract. `half_angle::certified_subdivision_touching` is a second entry to the same walk. It takes `TouchRows` and answers `Touching { roots, touches }`. `certified_subdivision` is that walk with no touch rows, and its arms are unchanged there. Its callers are `topo`'s `ellipse_torus`, `section_cert::ruling`, `half_angle_roots` (so `circle_roots`, `circle_torus` and `conic_quadric`) and its rows, and none of their outcomes moves. Only `curve_pair::pose`'s coplanar subdivisions (circle × ellipse and two ellipses, through `subdivided`) take the touch.
+
+**The certificate.** It is the circle pair's root gap, read on one piece.
+- **The piece.** A piece that is neither clear nor monotone, whose two ends read one side, and on which `F″` is definitely one-signed toward that side (`curve_pair_coplanar_sub_convex`, from the walk's own Taylor terms and charges). There `F` has one extremum and at most two roots, both about it.
+- **The candidate.** The extremum `θ*`, bisected on `F′`, which is monotone there.
+- **The decision.** Read in the zero band, every root on the piece lies within `|F′(θ*)|/c + √(2·depth/c)` of `θ*`. Here `c` is the least `|F″|` and `depth` is the least's fall past zero, read at the least depth `F`'s rounding allows, as the circle pair does. The arc between the two farthest roots, at the carrier's top speed, decides (`curve_pair_coplanar_sub_touch`):
+  - zero is one touch at `θ*`, standing for them all;
+  - in the gap it refuses `Touch`;
+  - roots the band can part are left to the walk.
+- **The reading.** The touch is read on both spans like any candidate.
+
+**What moved.**
+- **`meet_rows`.** `two_coplanar_ellipses_that_touch_are_never_read_apart` now reads one meeting at `(0, 1)`, renamed `…_meet_once_at_the_touch`. `coplanar_conic_rims_tangent_at_a_vertex_meet_once_there` is new: outside, inside and against a circle, at three ε.
+- **`a_closed_conic_in_the_partners_face::ellipse_rims_tangent_outside_build_every_op`.** The unions are `SOUND`, tier 3′ included, at three ε, at rest and turned. `holds` lost its escalation arm, which nothing passes now.
+- **`sheets_part_on_slanted_rims::rims_crossing_on_tangent_walls_build_every_op`.** `A ∪ B` and `B ∖ A` pass tier 3′ at three ε.
+- **`sheets_part_on_slanted_rims::two_slanted_rims_tangent_on_the_ruling_build_at_their_touch`** (was `…_refuse_at_their_touch`). At tilt `0.3` the union and `A ∖ B` build at their closed forms, tiers 3 and 3′, where they refused `CurvedPierceUnsupported`.
+- **Unchanged.** `census::curved::tests::the_reading_answers_a_meeting_on_every_kind` and the five sweep rows of the 2026-10-16 evidence pass.
+
+## Closed
+
+2026-11-01, PR 6257 (second bullet; the first was done 2026-10-16). `half_angle::certified_subdivision_touching` places the near-tangent touch of two coplanar conics on a piece certified convex, by the circle pair's root-gap argument, read at the least depth and slope the noise allows (`roots::past_noise`); roots only the noise parts are one meeting, crossings parted above the noise are never collapsed (pinned: `ellipses_crossing_near_a_touch_read_one_meeting_only_where_the_noise_parts_them`). `certified_subdivision` keeps its answers. Full review: all claims held; fix pass charged the slope's rounding and rewrote the certificate's docs to what is certified.

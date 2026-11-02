@@ -39,3 +39,14 @@ X, 16 points. It touches every door and editor-core, roughly two H rows. Review 
 - The split's door gates each side at tier 3′ against what it carried, measured on the A-cause tests in the tier-3′ row's measurement (`divided_cell_carry`, `one_record_carry`, `review_4730_divided_carry_probes`, `census::split_wedge_tests`, `a_carried_record_no_reading_covers`).
 
 The gate stays at tier 3 for the split's other causes until this track's later rows land.
+
+## Note from WIRE (2026-11-01, PR 6268)
+
+The document's interim split carry (`wire_split`, through
+`topo::SplitResult::carry_contacts_across`) retires a record the cut
+parts onto the two sides, and only where each of its cells has an image
+on the cut (a face its side holds of the plane, or a cell bounding one);
+a parted record off the cut refuses `Parted`. The default
+`carry_contacts` still refuses every parted record. When the split's
+door carries its own records, it adopts this policy or replaces it
+deliberately; it is not settled by this unit's text.

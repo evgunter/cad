@@ -34,13 +34,14 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
 use viewer::blend::FREEZE_NOTE;
-use viewer::blend::{BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
+use viewer::blend::{BlendEvent, BlendKindChoice, BlendTool};
 use viewer::display::DisplayView;
 use viewer::pickindex::{PickIndex, PickKinds};
 use viewer::session::{
     DocSession, EdgeSelection, FaceSelection, NodeKindWanted, Refusal, Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, ToolNotice, Tools};
+use viewer::tree::DrawnBody;
 use viewer::tree::{self, RowStatus};
 
 /// The cube every row blends: 10 mm on a side.
@@ -84,7 +85,7 @@ fn all_edge_names(session: &DocSession, node: RecipeNodeId) -> Vec<StableName> {
 /// Drive the all-edges affordance the way the panel does: the landed
 /// evaluation for the names, the pick index for the (node, body)
 /// narrowing.
-fn load_all(tools: &mut Tools, session: &DocSession, target: BlendTarget) -> Option<BlendEvent> {
+fn load_all(tools: &mut Tools, session: &DocSession, target: DrawnBody) -> Option<BlendEvent> {
     let index = plate_index(session);
     let (doc, eval) = session.landed_pair().expect("the inline seam landed");
     tools
@@ -95,11 +96,8 @@ fn load_all(tools: &mut Tools, session: &DocSession, target: BlendTarget) -> Opt
 
 /// The whole body of a node, as the blend tool's target: its drawn
 /// copy.
-fn whole(session: &DocSession, node: RecipeNodeId) -> BlendTarget {
-    BlendTarget {
-        node: common::drawn_node(session.committed_doc(), node),
-        body: 0,
-    }
+fn whole(session: &DocSession, node: RecipeNodeId) -> DrawnBody {
+    DrawnBody::new(common::drawn_node(session.committed_doc(), node), 0)
 }
 
 /// Feed one edge pick to the open tool the way the application does —
@@ -388,10 +386,7 @@ fn the_all_edges_door_refuses_a_target_with_no_edges() {
     assert_eq!(
         refused,
         Some(BlendEvent::NoEdgesOnTarget {
-            target: BlendTarget {
-                node: profile,
-                body: 0
-            }
+            target: DrawnBody::new(profile, 0)
         })
     );
     assert_eq!(
@@ -422,7 +417,7 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
         panic!("expected a cross-target refusal, got {notices:?}");
     };
     assert_eq!(
-        held.node,
+        held.node(),
         common::drawn_node(session.committed_doc(), first)
     );
     assert_eq!(
@@ -509,11 +504,15 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     else {
         panic!("expected a lost target, got {notices:?}");
     };
-    assert_eq!(lost.node, copy, "the picks were on the box's copy");
+    assert_eq!(
+        lost.node(),
+        copy,
+        "the picks were on the box, drawn unplaced"
+    );
     assert_eq!(
         node.kind(),
-        Some("Place"),
-        "the lost copy is said as the document held it when it was picked: {node}"
+        Some("Extrude"),
+        "the lost body is said as the document held it when it was picked: {node}"
     );
     assert_eq!(*edges, BOX_EDGES);
     assert_eq!(blend(&tools).count(), 0);
@@ -869,14 +868,9 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
             normal: scl3([0.0, 0.0, 1.0]),
         },
     );
-    // Each half placed by its port (A10), in place of the whole box.
-    let mut doc = session.committed_doc().clone();
-    let whole_box = common::copy_of(&doc, target);
-    common::edit_into(
-        &mut doc,
-        pncad::document::DocEdit::DeleteNode { id: whole_box },
-        tol,
-    );
+    // Each half placed by its port: the split took the unplaced box
+    // over.
+    let doc = session.committed_doc().clone();
     let doc_with_both = {
         let (with_first, first) =
             common::placed_read(&doc, pncad::document::Operand::output(split, 0), tol);
@@ -910,7 +904,7 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
             "half {half} draws {drawn} of the split's {node_wide} edge names"
         );
         tools.open(ToolKind::Blend);
-        let loaded = load_all(&mut tools, &session, BlendTarget { node, body: 0 });
+        let loaded = load_all(&mut tools, &session, DrawnBody::new(node, 0));
         assert!(loaded.is_none(), "{loaded:?}");
         assert_eq!(
             blend(&tools).count(),
@@ -1064,7 +1058,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
         panic!("expected a strand drop, got {notices:?}");
     };
     assert_eq!(
-        target.node,
+        target.node(),
         common::drawn_node(session.committed_doc(), union)
     );
     assert!(!names.is_empty());
@@ -1137,13 +1131,9 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     );
     assert_eq!(blend(&tools).count(), BOX_EDGES, "the set is intact");
 
-    // The copy the picks were on has no value: the placement is
-    // poisoned by the extrude that failed under it.
-    let copy = common::drawn_node(session.committed_doc(), target);
-    let standing = NodeStanding::Poisoned {
-        node: copy,
-        through: target,
-    };
+    // The body the picks were on, drawn unplaced, has no value: the
+    // extrude failed.
+    let standing = NodeStanding::Failed { node: target };
     let refused = tools
         .blend_mut()
         .expect("the blend tool is open")
@@ -1166,7 +1156,7 @@ fn the_strand_check_is_not_asked_without_an_answer() {
         Some(format!(
             "{} has no edges to select: {}",
             whole(&session, target),
-            Said(&standing, Speaker::TAG.about(copy))
+            Said(&standing, Speaker::TAG.about(target))
         )),
     );
     assert_eq!(
@@ -1244,19 +1234,19 @@ fn only_a_drawn_selection_names_a_body_for_the_all_edges_door() {
         .expect("the box draws named patches");
 
     assert_eq!(
-        BlendTarget::of_selection(&Selection::Edge(edge.clone())),
+        DrawnBody::of_selection(&Selection::Edge(edge.clone())),
         Some(whole(&session, target))
     );
     assert_eq!(
-        BlendTarget::of_selection(&Selection::Face(face)),
+        DrawnBody::of_selection(&Selection::Face(face)),
         Some(whole(&session, target))
     );
     assert_eq!(
-        BlendTarget::of_selection(&Selection::Node(target)),
+        DrawnBody::of_selection(&Selection::Node(target)),
         None,
         "a feature picked in the tree does not say which body"
     );
-    assert_eq!(BlendTarget::of_selection(&Selection::None), None);
+    assert_eq!(DrawnBody::of_selection(&Selection::None), None);
 }
 
 /// **The freeze sentence the panel shows is true of the node it is
