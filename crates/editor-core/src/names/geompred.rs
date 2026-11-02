@@ -324,8 +324,10 @@ impl crate::spoken::Say for SelectRefusal {
                 write!(
                     f,
                     " is a tied name whose {candidates} candidates disagree — {matched} match \
-                     the query and the rest do not, and a tie cannot be half-selected; \
-                     disambiguate the name, or ask something all its candidates answer alike"
+                     the query and the rest do not, and a tie cannot be half-selected. {}",
+                    crate::sentence::Recourse(
+                        "disambiguate the name, or ask something all its candidates answer alike"
+                    )
                 )
             }
             Self::Unreadable { name, error } => {

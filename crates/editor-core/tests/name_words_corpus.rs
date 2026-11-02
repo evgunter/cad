@@ -17,8 +17,7 @@
 //! - every refusal that forwards a name, said through the door
 //!   production says it through with the corpus's 90th-percentile name,
 //!   meets the refusal standard (`test_utils::refusal::problems`), but
-//!   for the word budget of the rows [`OVER_BUDGET`] admits and the
-//!   recourse marker of the rows [`UNMARKED_RECOURSE`] admits. The
+//!   for the word budget of the rows [`OVER_BUDGET`] admits. The
 //!   longest names' rows are printed, not gated.
 //!
 //! Documents built outside the corpus to attack the joins are held to
@@ -64,15 +63,6 @@ use topo::BooleanOp;
 /// claimed name says one more read by tag
 /// (`name-words-budget-grew-under-placed-copy-wrapping`).
 const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 80)];
-
-/// **The rows whose own prose states its recourse in words the standard
-/// does not read as one** ("aim away from the shared edge" is marked;
-/// these are not): the prose's, not the names'. Filed as
-/// `work/wire/refusals-forwarding-a-name-state-no-marked-recourse.md`.
-const UNMARKED_RECOURSE: &[&str] = &[
-    "SelectRefusal::TiedDisagrees",
-    "NodeErrorKind::CrossingUnverified",
-];
 
 /// **The names' own lengths in words, p50, p99, max and the total**: a
 /// face said within its table, then every name a node holds said in
@@ -335,20 +325,13 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
             Some("HitTestError") => &["hit test"],
             _ => &[],
         };
-        // The budget is the ratchet's below; an unmarked recourse, the
-        // admission's.
+        // The budget is the ratchet's below.
         let budget = format!("{row} renders {words} words, over");
-        let unmarked = format!("{row} states no recourse");
-        let problems = test_utils::refusal::problems(row, text, allowed, false);
-        let admitted = UNMARKED_RECOURSE.contains(row);
-        if admitted && !problems.iter().any(|p| p.starts_with(&unmarked)) {
-            over.push(format!(
-                "{row} now marks its recourse; take it out of UNMARKED_RECOURSE"
-            ));
-        }
-        over.extend(problems.into_iter().filter(|problem| {
-            !problem.starts_with(&budget) && !(admitted && problem.starts_with(&unmarked))
-        }));
+        over.extend(
+            test_utils::refusal::problems(row, text, allowed, false)
+                .into_iter()
+                .filter(|problem| !problem.starts_with(&budget)),
+        );
         let admitted = OVER_BUDGET
             .iter()
             .find_map(|(admitted, most)| (admitted == row).then_some(*most));

@@ -2105,12 +2105,15 @@ impl crate::spoken::Say for NodeErrorKind {
                 f,
                 "{}'s seam declaration crosses at {} on the remainder and claims {} in \
                  the part, which this version of the part does not name, so the crossing does \
-                 not re-verify",
+                 not re-verify. {}",
                 by.node_as(*instance, "instance"),
                 by.name(outer),
                 // The part's own nodes and steps are another document's
                 // ids, so its name is said by tag.
                 crate::spoken::Speaker::TAG.name(name),
+                crate::sentence::Recourse(
+                    "update the reference to a version of the part that names it"
+                ),
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
