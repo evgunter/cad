@@ -83,5 +83,6 @@ lands, so the row waits on it.
 doors now add and remove loops, so a bore is a second circle loop
 (`Add circle loop` in the add-profile form) and the "with bore"
 checkbox is redundant. Dropping it no longer costs the GUI its only
-way to make a hole. `a-template-rectangle-has-no-centre` touches the
-same template.
+way to make a hole. `a-template-rectangle-has-no-centre`, closed into
+this row, asked for the rectangle's centre, which the stored
+`rectangle(centre, width, height)` form carries.

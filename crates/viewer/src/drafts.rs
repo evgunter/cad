@@ -998,6 +998,7 @@ impl Drafts {
     /// about what the loops MEAN, not about what they are.
     /// The first loop is the chosen shape's, and the loops added after
     /// it ([`Drafts::profile_more`]) follow in order.
+    ///
     /// No shape chosen yet is the empty list, not a refusal: the form
     /// authors nothing and the preview draws nothing, which is what
     /// [`Drafts::profile_shape`] being `None` means — added loops
@@ -1081,6 +1082,19 @@ impl Drafts {
             self.profile_shape = None;
             self.profile_open = false;
             self.profile_more.clear();
+        }
+        // A reshaped program renumbers its slots, so text held for a
+        // profile slot would show on whichever argument takes that
+        // number: an edit-door Apply on its node, or an undo or redo,
+        // which may step across one, releases it.
+        let reshaped = |target: &(RecipeNodeId, SlotId)| match op {
+            SessionOp::EditProfile { node, .. } => *node == target.0,
+            SessionOp::Undo | SessionOp::Redo => matches!(target.1, SlotId::Profile { .. }),
+            _ => false,
+        };
+        if self.expr_target.as_ref().is_some_and(reshaped) {
+            self.expr_target = None;
+            self.expr_text.clear();
         }
         // The add-variable form's own declaration landed: the one
         // naming the variable its field still says.
@@ -1385,27 +1399,25 @@ impl Drafts {
     }
 }
 
-/// **A loop added to a profile starts as this**: `kind`'s template at
-/// half the form's own defaults, centred on the sketch origin — small
-/// enough to sit inside a first loop left at those defaults, so a
-/// circle added to the default circle or rectangle is a hole as it
-/// lands. A path starts as the rectangle's corners, a chain to edit.
+/// **A loop added to a profile starts as this**: a circle or a
+/// rectangle at a quarter of the form's own default size, on its
+/// default centre — small enough to sit inside a first circle or
+/// rectangle left at those defaults, so it is a hole as it lands — and
+/// a path as the form's own default chain, to edit.
 pub(crate) fn fresh_loop(kind: ShapeKind) -> ProfileShape {
-    const HALF: f64 = 0.0025;
+    const QUARTER: f64 = 0.25;
+    let form = Drafts::default();
     match kind {
         ShapeKind::Circle => ProfileShape::Circle {
-            centre: [0.0; 2],
-            radius: HALF,
+            centre: form.profile_centre,
+            radius: QUARTER * form.profile_radius,
         },
         ShapeKind::Rectangle => ProfileShape::Rectangle {
-            width: 2.0 * HALF,
-            height: 2.0 * HALF,
+            width: QUARTER * form.profile_extent[0],
+            height: QUARTER * form.profile_extent[1],
         },
         ShapeKind::Path => ProfileShape::Path {
-            steps: sketch::shape_steps(&ProfileShape::Rectangle {
-                width: 2.0 * HALF,
-                height: 2.0 * HALF,
-            }),
+            steps: form.profile_path,
         },
     }
 }
@@ -1741,7 +1753,10 @@ mod tests {
             width: w,
             height: h,
         };
-        let cases: Vec<(&str, Option<ShapeKind>, [f64; 2], f64, Vec<ProfileShape>)> = vec![
+        // A case's name, its first shape, extent and radius, and the
+        // loops added after it.
+        type Case = (&'static str, Option<ShapeKind>, [f64; 2], f64, Vec<ProfileShape>);
+        let cases: Vec<Case> = vec![
             (
                 "outside",
                 Some(ShapeKind::Rectangle),
@@ -1960,6 +1975,51 @@ mod tests {
         let (doc, profile) =
             try_inserted(&doc, node, tol).expect("the form's default path is a profile");
         (doc, drafts, profile)
+    }
+
+    /// **Refused text held for a profile slot is released when the
+    /// program may have been reshaped under it** — an edit-door Apply
+    /// on its node, an undo or a redo — since the slot's number then
+    /// names whichever argument took it. An op that reshapes nothing,
+    /// or a history move with the text held on a slot that is not a
+    /// profile step's, keeps it.
+    #[test]
+    fn a_held_refused_expression_is_released_when_its_program_may_reshape() {
+        use pncad::document::{SlotId, StepArg};
+
+        let (doc, mut drafts, profile) = authored_by_the_form();
+        let base = drafts
+            .profile_edit(&doc, profile)
+            .expect("held")
+            .base()
+            .clone();
+        let slot = SlotId::Profile {
+            loop_: 0,
+            step: 1,
+            arg: StepArg::TargetX,
+        };
+        let apply = |node| SessionOp::EditProfile {
+            node,
+            base: base.clone(),
+            loops: Vec::new(),
+            ids: Vec::new(),
+        };
+        let hold = |drafts: &mut Drafts, target| {
+            drafts.expr_target = Some(target);
+            drafts.expr_text = "w +".to_owned();
+        };
+        let held = |drafts: &Drafts| drafts.expr_target.is_some() && !drafts.expr_text.is_empty();
+        for (target, op, kept) in [
+            ((profile, slot), apply(profile), false),
+            ((profile, slot), SessionOp::Undo, false),
+            ((profile, slot), SessionOp::Redo, false),
+            ((profile, slot), SessionOp::Hover(None), true),
+            ((profile, SlotId::Distance), SessionOp::Undo, true),
+        ] {
+            hold(&mut drafts, target);
+            drafts.accepted(&op);
+            assert_eq!(held(&drafts), kept, "{target:?} after {op:?}");
+        }
     }
 
     /// `doc` with the one `SetProgram` the edit door would make for

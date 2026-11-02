@@ -83,4 +83,5 @@ Reproduced on main first: neither door had an add-loop control.
 
 Filed: `a-traced-chain-is-the-profiles-only-loop` (the traced door
 withholds its commit while loops are added) and
-`a-template-rectangle-has-no-centre`.
+`a-template-rectangle-has-no-centre` (closed as covered by
+`the-rectangle-and-circle-templates-reopen-as-paths`).

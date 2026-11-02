@@ -5671,6 +5671,100 @@ mod properties_pane_tests {
         let _ = v_before;
     }
 
+    /// **An added loop's own controls drive it**, through the real
+    /// app: with a rectangle and two added circles, typing a radius
+    /// into the first circle's field sets that loop's radius alone;
+    /// the second circle's `rectangle` radio starts it again as the
+    /// rectangle template; the first circle's `Remove loop` drops it
+    /// and leaves the rectangle; and `Add profile` lands the two loops
+    /// left.
+    #[test]
+    fn an_added_loops_field_radio_and_remove_drive_that_loop() {
+        use crate::forms::ShapeKind;
+        use crate::pane::create::{ADD_FEATURE, ADD_PROFILE, ADD_PROFILE_DOOR};
+        use crate::pane::profile::{REMOVE_LOOP, add_loop_label};
+        use crate::session::ProfileShape;
+
+        let key = |key| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: if key == egui::Key::A {
+                egui::Modifiers::COMMAND
+            } else {
+                egui::Modifiers::default()
+            },
+        };
+        let mut driven = Driven::with(Vec::new());
+        let before = driven.app.session.committed_doc().ids();
+        driven.click(ADD_FEATURE);
+        driven.click(ADD_PROFILE_DOOR);
+        driven.click("rectangle");
+        let added = add_loop_label(ShapeKind::Circle);
+        driven.click(&added);
+        driven.click(&added);
+        let radius = |driven: &Driven, at: usize| match driven.app.drafts.profile_more[at] {
+            ProfileShape::Circle { radius, .. } => Some(radius),
+            _ => None,
+        };
+        let fresh = radius(&driven, 0).expect("an added circle");
+        let shown = crate::props::render_number(fresh / 0.001);
+        let fields = driven.each(&shown);
+        assert_eq!(
+            fields.len(),
+            2,
+            "each added circle shows its radius as {shown:?}: {:?}",
+            driven.quiet()
+        );
+        driven.click_at(fields[0]);
+        driven.frame(vec![key(egui::Key::A)]);
+        driven.frame(vec![egui::Event::Text("1.5".to_owned())]);
+        driven.frame(vec![key(egui::Key::Enter)]);
+        driven.settle();
+        assert_eq!(
+            [radius(&driven, 0), radius(&driven, 1)],
+            [Some(0.0015), Some(fresh)],
+            "the field typed into is the first added loop's radius, and only it"
+        );
+        let rectangles = driven.each("rectangle");
+        assert_eq!(rectangles.len(), 3, "one rectangle radio per loop");
+        driven.click_at(rectangles[2]);
+        assert!(
+            matches!(
+                driven.app.drafts.profile_more[1],
+                ProfileShape::Rectangle { .. }
+            ),
+            "the second added loop's radio reshaped it: {:?}",
+            driven.app.drafts.profile_more
+        );
+        let removes = driven.each(REMOVE_LOOP);
+        assert_eq!(removes.len(), 2, "one Remove loop per added loop");
+        driven.click_at(removes[0]);
+        assert!(
+            matches!(
+                driven.app.drafts.profile_more[..],
+                [ProfileShape::Rectangle { .. }]
+            ),
+            "the first added loop went, the reshaped one stayed: {:?}",
+            driven.app.drafts.profile_more
+        );
+        driven.click(ADD_PROFILE);
+        let doc = driven.app.session.committed_doc();
+        let new: Vec<RecipeNodeId> = doc
+            .ids()
+            .into_iter()
+            .filter(|id| !before.contains(id))
+            .collect();
+        let [profile] = new[..] else {
+            panic!("the commit added one node: {new:?}")
+        };
+        assert!(
+            matches!(doc.node(profile), Some(Node::Profile(program)) if program.loops.len() == 2),
+            "the profile holds the outer and the reshaped loop"
+        );
+    }
+
     /// **Every tool the chrome has opens from it**: for each kind, with
     /// the Properties section that hosts the kind's activation button
     /// clicked open, the app paints that button once, in

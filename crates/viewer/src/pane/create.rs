@@ -474,6 +474,113 @@ fn withheld_for(holds: impl IntoIterator<Item = Withheld>) -> Option<Withheld> {
     })
 }
 
+/// One loop's fields as the per-loop editor takes them: the numbers a
+/// template is authored by, or a path's steps.
+enum LoopFields<'a> {
+    Circle {
+        centre: &'a mut [f64; 2],
+        radius: &'a mut f64,
+    },
+    Rectangle {
+        width: &'a mut f64,
+        height: &'a mut f64,
+    },
+    Path {
+        steps: &'a mut Vec<pncad::profile::Step<f64>>,
+    },
+}
+
+impl<'a> LoopFields<'a> {
+    /// The fields of an added loop's shape.
+    fn of(shape: &'a mut ProfileShape) -> Self {
+        match shape {
+            ProfileShape::Circle { centre, radius } => Self::Circle { centre, radius },
+            ProfileShape::Rectangle { width, height } => Self::Rectangle { width, height },
+            ProfileShape::Path { steps } => Self::Path { steps },
+        }
+    }
+}
+
+/// **One loop's header in the add-profile form**: its label, its shape
+/// choice, and — on a loop that can go — [`REMOVE_LOOP`]. Answers the
+/// shape picked, when it is not `kind`, and whether Remove was clicked.
+fn loop_header(
+    ui: &mut egui::Ui,
+    label: &str,
+    kind: Option<ShapeKind>,
+    removable: bool,
+) -> (Option<ShapeKind>, bool) {
+    ui.horizontal(|ui| {
+        ui.label(label);
+        let mut picked = None;
+        for (option, word) in ShapeKind::ALL {
+            if ui.radio(kind == Some(option), word).clicked() && kind != Some(option) {
+                picked = Some(option);
+            }
+        }
+        let removed = removable && ui.button(REMOVE_LOOP).clicked();
+        (picked, removed)
+    })
+    .inner
+}
+
+/// **One loop's fields** — the first loop's and every added loop's,
+/// drawn by this one editor; `pickers` draws the form's unit pickers
+/// beside them, which the first loop carries for the whole form.
+/// Answers the wait of a chain with no step: a form waiting for its
+/// first one, not a chain that fails to close, whose lattice refusal
+/// would be about a program nobody had started writing.
+fn loop_fields_ui(
+    ui: &mut egui::Ui,
+    salt: &str,
+    tol: pncad::geom_core::Tol,
+    notation: &mut Notation,
+    pickers: bool,
+    fields: LoopFields<'_>,
+) -> Option<Withheld> {
+    let unit = notation.length.def();
+    match fields {
+        LoopFields::Circle { centre, radius } => {
+            ui.horizontal(|ui| {
+                ui.label("centre");
+                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[0]);
+                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[1]);
+                ui.label("radius");
+                unit_field(ui, unit, FIELD_DRAG_SPEED, radius);
+                if pickers {
+                    length_picker(ui, &format!("{salt}_circle"), &mut notation.length);
+                }
+            });
+            None
+        }
+        LoopFields::Rectangle { width, height } => {
+            ui.horizontal(|ui| {
+                ui.label("width");
+                unit_field(ui, unit, FIELD_DRAG_SPEED, width);
+                ui.label("height");
+                unit_field(ui, unit, FIELD_DRAG_SPEED, height);
+                if pickers {
+                    length_picker(ui, &format!("{salt}_rectangle"), &mut notation.length);
+                }
+            });
+            None
+        }
+        LoopFields::Path { steps } => {
+            let salt = format!("{salt}_path");
+            if pickers {
+                notation_row(ui, &salt, &mut notation.length, &mut notation.angle);
+            }
+            let mut written = crate::widgets::WrittenIn::of(*notation);
+            if let Some(row) = path_steps_ui(ui, &salt, tol, &mut written, steps) {
+                row.apply(steps);
+            }
+            steps
+                .is_empty()
+                .then_some(Withheld::Waiting("add a step to the chain"))
+        }
+    }
+}
+
 /// **What a bored circle withholds the button for**: a bore at least as
 /// wide as the radius, which is an input the reader gave and the form
 /// refuses — [`Withheld::Refused`], not a request for the next input.
@@ -756,12 +863,9 @@ impl ViewerBehavior<'_> {
             return;
         }
         self.profile_drawn.create = true;
-        ui.horizontal(|ui| {
-            ui.label("profile");
-            for (shape, label) in ShapeKind::ALL {
-                ui.radio_value(&mut self.drafts.profile_shape, Some(shape), label);
-            }
-        });
+        if let (Some(picked), _) = loop_header(ui, "profile", self.drafts.profile_shape, false) {
+            self.drafts.profile_shape = Some(picked);
+        }
         ui.checkbox(&mut self.drafts.sketch_on_face, "on the picked face");
         if self.drafts.sketch_on_face {
             self.sketch_face_rows(ui);
@@ -773,31 +877,41 @@ impl ViewerBehavior<'_> {
         if self.drafts.sketch_on_face && self.drafts.held_face().is_none() {
             withholds.push(Withheld::Waiting(PICK_A_FACE));
         }
+        let tol = self.session.tol();
+        let mut waits_on_a_step = false;
         match shape {
             // No shape chosen: the form is at rest. It says what it is
             // waiting for and draws nothing — no fields to fill in for
             // a shape nobody picked, and no preview in the viewport.
             None => withholds.push(Withheld::Waiting("choose a shape to add")),
+            Some(kind) => {
+                let drafts = &mut *self.drafts;
+                let fields = match kind {
+                    ShapeKind::Circle => LoopFields::Circle {
+                        centre: &mut drafts.profile_centre,
+                        radius: &mut drafts.profile_radius,
+                    },
+                    ShapeKind::Rectangle => {
+                        let [width, height] = &mut drafts.profile_extent;
+                        LoopFields::Rectangle { width, height }
+                    }
+                    ShapeKind::Path => LoopFields::Path {
+                        steps: &mut drafts.profile_path,
+                    },
+                };
+                if let Some(wait) = loop_fields_ui(ui, "profile", tol, self.notation, true, fields)
+                {
+                    waits_on_a_step = true;
+                    withholds.push(wait);
+                }
+            }
+        }
+        match shape {
             Some(ShapeKind::Circle) => {
                 let unit = self.notation.length.def();
-                ui.horizontal(|ui| {
-                    ui.label("centre");
-                    unit_field(
-                        ui,
-                        unit,
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.profile_centre[0],
-                    );
-                    unit_field(
-                        ui,
-                        unit,
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.profile_centre[1],
-                    );
-                    ui.label("radius");
-                    unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_radius);
-                    length_picker(ui, "profile_circle", &mut self.notation.length);
-                });
+                // A second way to make a second loop, now that loops
+                // are added below: `the-rectangle-and-circle-templates-
+                // reopen-as-paths` removes it.
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.drafts.profile_bored, "with bore");
                     if self.drafts.profile_bored {
@@ -811,49 +925,7 @@ impl ViewerBehavior<'_> {
                     self.drafts.profile_radius,
                 ));
             }
-            Some(ShapeKind::Rectangle) => {
-                let unit = self.notation.length.def();
-                ui.horizontal(|ui| {
-                    ui.label("width");
-                    unit_field(
-                        ui,
-                        unit,
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.profile_extent[0],
-                    );
-                    ui.label("height");
-                    unit_field(
-                        ui,
-                        unit,
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.profile_extent[1],
-                    );
-                    length_picker(ui, "profile_rectangle", &mut self.notation.length);
-                });
-            }
             Some(ShapeKind::Path) => {
-                notation_row(
-                    ui,
-                    "path",
-                    &mut self.notation.length,
-                    &mut self.notation.angle,
-                );
-                if let Some(row) = path_steps_ui(
-                    ui,
-                    "path",
-                    self.session.tol(),
-                    &mut crate::widgets::WrittenIn::of(*self.notation),
-                    &mut self.drafts.profile_path,
-                ) {
-                    row.apply(&mut self.drafts.profile_path);
-                }
-                // A chain with no steps is a form waiting for its
-                // first one, not a chain that fails to close. Without
-                // this the empty list drew the lattice's own refusal
-                // about a program nobody had started writing.
-                if self.drafts.profile_path.is_empty() {
-                    withholds.push(Withheld::Waiting("add a step to the chain"));
-                }
                 if !self.drafts.sketch_on_face {
                     ui.checkbox(
                         &mut self.drafts.trace_on,
@@ -864,9 +936,12 @@ impl ViewerBehavior<'_> {
                     withholds.extend(self.trace_rows(ui));
                 }
             }
+            Some(ShapeKind::Rectangle) | None => {}
         }
         if shape.is_some() {
-            withholds.extend(self.added_loops_ui(ui));
+            let (added, waits) = self.added_loops_ui(ui);
+            waits_on_a_step |= waits;
+            withholds.extend(added);
         }
         let blocked = withheld_for(withholds);
         if let Some(withheld) = blocked {
@@ -886,9 +961,7 @@ impl ViewerBehavior<'_> {
         // contradicting it.
         // A traced chain is drawn by the evaluation, which the preview
         // does not run: the trace rows say what it shows instead.
-        let at_rest = shape.is_none()
-            || self.drafts.profile_path.is_empty() && blocked.is_some()
-            || self.drafts.traces();
+        let at_rest = shape.is_none() || waits_on_a_step && blocked.is_some() || self.drafts.traces();
         let refused = preview_verdict(
             ui,
             self.theme,
@@ -927,18 +1000,26 @@ impl ViewerBehavior<'_> {
     }
 
     /// **The loops the form authors after its first**
-    /// ([`crate::drafts::Drafts::profile_more`]): per loop, a header
-    /// with its shape choice and its [`REMOVE_LOOP`], then its shape's
-    /// fields; and under them the editor's add-loop row. A shape chosen
-    /// on an added loop starts it again as that shape's template
-    /// ([`crate::drafts::fresh_loop`]). Answers what the commit waits
-    /// for: a traced chain is the profile's one loop.
-    fn added_loops_ui(&mut self, ui: &mut egui::Ui) -> Vec<Withheld> {
-        let unit = self.notation.length.def();
+    /// ([`crate::drafts::Drafts::profile_more`]), each drawn by the
+    /// first loop's own editor ([`loop_header`], [`loop_fields_ui`])
+    /// with a [`REMOVE_LOOP`] on its header; and under them the
+    /// editor's add-loop row. A shape chosen on an added loop starts it
+    /// again as that shape's template ([`crate::drafts::fresh_loop`]).
+    ///
+    /// **The form does not say which loop is the outer.** Containment
+    /// decides it, and the preview draws what it decided: an added loop
+    /// larger than the first becomes the outer and the first a hole,
+    /// which is a profile the person can see and keep. The bore is
+    /// guarded because its own word promises a hole; "add loop"
+    /// promises nothing about the role.
+    ///
+    /// Answers what the commit waits for — a traced chain is the
+    /// profile's one loop — and whether an added path has no step yet.
+    fn added_loops_ui(&mut self, ui: &mut egui::Ui) -> (Vec<Withheld>, bool) {
         let tol = self.session.tol();
-        let mut written = crate::widgets::WrittenIn::of(*self.notation);
         let mut removed = None;
         let mut reshaped = None;
+        let mut waits = Vec::new();
         for (index, shape) in self.drafts.profile_more.iter_mut().enumerate() {
             // The first loop is loop 0, as the edit door counts.
             let number = index + 1;
@@ -947,42 +1028,16 @@ impl ViewerBehavior<'_> {
                 ProfileShape::Rectangle { .. } => ShapeKind::Rectangle,
                 ProfileShape::Path { .. } => ShapeKind::Path,
             };
-            ui.horizontal(|ui| {
-                ui.label(format!("loop {number}"));
-                for (option, label) in ShapeKind::ALL {
-                    if ui.radio(kind == option, label).clicked() && kind != option {
-                        reshaped = Some((index, option));
-                    }
-                }
-                if ui.button(REMOVE_LOOP).clicked() {
-                    removed = Some(index);
-                }
-            });
-            match shape {
-                ProfileShape::Circle { centre, radius } => {
-                    ui.horizontal(|ui| {
-                        ui.label("centre");
-                        unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[0]);
-                        unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[1]);
-                        ui.label("radius");
-                        unit_field(ui, unit, FIELD_DRAG_SPEED, radius);
-                    });
-                }
-                ProfileShape::Rectangle { width, height } => {
-                    ui.horizontal(|ui| {
-                        ui.label("width");
-                        unit_field(ui, unit, FIELD_DRAG_SPEED, width);
-                        ui.label("height");
-                        unit_field(ui, unit, FIELD_DRAG_SPEED, height);
-                    });
-                }
-                ProfileShape::Path { steps } => {
-                    let salt = format!("path_loop_{number}");
-                    if let Some(row) = path_steps_ui(ui, &salt, tol, &mut written, steps) {
-                        row.apply(steps);
-                    }
-                }
+            let (picked, remove) = loop_header(ui, &format!("loop {number}"), Some(kind), true);
+            if let Some(picked) = picked {
+                reshaped = Some((index, picked));
             }
+            if remove {
+                removed = Some(index);
+            }
+            let salt = format!("profile_loop_{number}");
+            let fields = LoopFields::of(shape);
+            waits.extend(loop_fields_ui(ui, &salt, tol, self.notation, false, fields));
         }
         if let Some(index) = removed {
             self.drafts.profile_more.remove(index);
@@ -990,22 +1045,22 @@ impl ViewerBehavior<'_> {
         if let Some((index, kind)) = reshaped {
             self.drafts.profile_more[index] = crate::drafts::fresh_loop(kind);
         }
+        let waiting = !waits.is_empty();
         if self.drafts.traces() {
-            return if self.drafts.profile_more.is_empty() {
-                Vec::new()
-            } else {
-                vec![Withheld::Refused(
+            if !self.drafts.profile_more.is_empty() {
+                waits.push(Withheld::Refused(
                     "a chain traced along a face is the profile's one loop — remove the added \
                      loops, or untick the trace",
-                )]
-            };
+                ));
+            }
+            return (waits, waiting);
         }
         if let Some(kind) = add_loop_row(ui) {
             self.drafts
                 .profile_more
                 .push(crate::drafts::fresh_loop(kind));
         }
-        Vec::new()
+        (waits, waiting)
     }
 
     /// **The traced path's rows** ([`SessionOp::AddDrawnProfile`]): the
