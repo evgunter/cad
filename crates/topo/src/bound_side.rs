@@ -852,3 +852,411 @@ mod tests {
         );
     }
 }
+
+/// R1 review probes (PR 6253): the descent against an independent
+/// point-sampled truth, per face kind and sense, per bound kind.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r1_probes {
+    use super::*;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn rng(state: &mut u64) -> f64 {
+        *state ^= *state << 13;
+        *state ^= *state >> 7;
+        *state ^= *state << 17;
+        (*state >> 11) as f64 / (1u64 << 53) as f64
+    }
+
+    fn surfaces() -> Vec<(&'static str, geom::Surface<f64>)> {
+        let o = Point3::new(0.1, -0.2, 0.3);
+        let a = Vec3::new(0.2, 0.3, 1.0).normalize();
+        let u = a.cross(Vec3::new(1.0, 0.0, 0.0)).normalize();
+        vec![
+            (
+                "plane",
+                geom::Surface::Plane {
+                    origin: o,
+                    normal: a,
+                    u_ref: u,
+                },
+            ),
+            (
+                "cylinder",
+                geom::Surface::Cylinder {
+                    origin: o,
+                    axis: a,
+                    radius: 0.7,
+                    u_ref: u,
+                },
+            ),
+            (
+                "cone",
+                geom::Surface::Cone {
+                    apex: o,
+                    axis: a,
+                    half_angle: 0.5,
+                    u_ref: u,
+                },
+            ),
+            (
+                "sphere",
+                geom::Surface::Sphere {
+                    center: o,
+                    radius: 0.9,
+                    axis: a,
+                    u_ref: u,
+                },
+            ),
+            (
+                "torus",
+                geom::Surface::Torus {
+                    center: o,
+                    axis: a,
+                    major_radius: 2.0,
+                    minor_radius: 0.6,
+                    u_ref: u,
+                },
+            ),
+        ]
+    }
+
+    /// A point on `s` near `seed`: Newton along the gradient on the residual.
+    fn foot(s: &geom::Surface<f64>, mut q: Point3<f64>) -> Point3<f64> {
+        for _ in 0..60 {
+            let f = geom_brep::implicit_residual(s, q);
+            let g = geom_brep::implicit_gradient(s, q);
+            q = q - g * (f / g.norm_squared());
+        }
+        q
+    }
+
+    /// The truth: which side of `s` (outward `n_out`) the point `q` is on.
+    fn side_of(
+        s: &geom::Surface<f64>,
+        n_out: Vec3<f64>,
+        p: Point3<f64>,
+        q: Point3<f64>,
+    ) -> Option<Side> {
+        let f = geom_brep::implicit_residual(s, q);
+        let g = geom_brep::implicit_gradient(s, p).dot(n_out);
+        let v = f * g.signum();
+        if v.abs() < 1e-13 {
+            None
+        } else if v > 0.0 {
+            Some(Side::Above)
+        } else {
+            Some(Side::Below)
+        }
+    }
+
+    #[test]
+    fn r1_the_descent_matches_a_sampled_truth_per_face_kind() {
+        let b = band();
+        let mut st = 0x9e37_79b9_7f4a_7c15u64;
+        let (mut checked, mut rides, mut unresolved, mut wrong) = (0, 0, 0, Vec::new());
+        let mut per_kind = std::collections::BTreeMap::new();
+        for (name, s) in surfaces() {
+            for trial in 0..400 {
+                // A point on the surface, away from singular loci.
+                let seed = Point3::new(
+                    (rng(&mut st) * 2.0 - 1.0) * 1.5,
+                    (rng(&mut st) * 2.0 - 1.0) * 1.5,
+                    (rng(&mut st) * 2.0 - 1.0) * 1.5,
+                );
+                let seed = match name {
+                    "torus" => seed + Vec3::new(2.0, 0.0, 0.0),
+                    _ => seed,
+                };
+                let p = foot(&s, seed);
+                let sense = trial % 2 == 0;
+                let n_out = geom_brep::implicit_outward_normal(&s, sense, p);
+                let n = n_out.vec();
+                if !n.x.is_finite() || geom_brep::implicit_residual(&s, p).abs() > 1e-13 {
+                    continue;
+                }
+                // A tangent direction.
+                let r = Vec3::new(rng(&mut st) - 0.5, rng(&mut st) - 0.5, rng(&mut st) - 0.5);
+                let d = (r - n * r.dot(n)).normalize();
+                let d = (d - n * d.dot(n)).normalize();
+                let kind = trial % 3; // 0 line, 1 circle arc, 2 bisector of a tangent sphere
+                let datum = FaceDatum::of_face(n_out, FaceBend::at(&s, p), f64::MAX);
+                let (reach, dir, truth_at): (
+                    Reach<f64>,
+                    Vec3<f64>,
+                    Box<dyn Fn(f64) -> Point3<f64>>,
+                ) = match kind {
+                    0 => (
+                        Reach::Chord {
+                            base: p,
+                            far: p + d * 0.5,
+                        },
+                        d,
+                        Box::new(move |l| p + d * l),
+                    ),
+                    1 => {
+                        // A circle tangent to d at p, bending toward a random
+                        // unit normal of d, of curvature k.
+                        let w = n.cross(d);
+                        let phi = rng(&mut st) * std::f64::consts::TAU;
+                        let nn = (n * phi.cos() + w * phi.sin()).normalize();
+                        let k = 0.2 + 3.0 * rng(&mut st);
+                        let radius = 1.0 / k;
+                        let center = p + nn * radius;
+                        let u_ref = (p - center).normalize();
+                        let axis = u_ref.cross(d).normalize();
+                        let carrier = geom::Curve3::Circle {
+                            center,
+                            axis,
+                            radius,
+                            u_ref,
+                        };
+                        let span = 0.5 * k; // arc length 0.5
+                        let chord = 2.0 * radius * (span / 2.0).sin();
+                        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, chord);
+                        let tangent = carrier.deriv(0.0);
+                        let bend =
+                            geom_brep::ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
+                        (
+                            Reach::Conic { extent, bend },
+                            tangent.normalize() * extent,
+                            Box::new(move |l| {
+                                center + (u_ref * (k * l).cos() + d * (k * l).sin()) * radius
+                            }),
+                        )
+                    }
+                    _ => {
+                        // The bisector's own face: a sphere tangent to the
+                        // partner at p, on either side, of random radius.
+                        let rad = 0.3 + 3.0 * rng(&mut st);
+                        let side = if rng(&mut st) < 0.5 { 1.0 } else { -1.0 };
+                        let c = p + n * (side * rad);
+                        let own = geom::Surface::Sphere {
+                            center: c,
+                            radius: rad,
+                            axis: n.cross(d).normalize(),
+                            u_ref: d,
+                        };
+                        let own_n = (p - c).normalize();
+                        let reach = Reach::bisector(0.5, d, own_n, FaceBend::at(&own, p));
+                        (
+                            reach,
+                            d,
+                            Box::new(move |l| c + ((p + d * l) - c).normalize() * rad),
+                        )
+                    }
+                };
+                let FirstOrder::Tied(tie) = read(dir, reach, datum, b).unwrap() else {
+                    panic!("{name}: a tangent bound ties");
+                };
+                let got = tie.descend(b);
+                // Truth at a small arc length.
+                let truth = side_of(&s, n, p, truth_at(2e-3));
+                let entry = per_kind.entry((name, kind)).or_insert((0, 0));
+                match (got, truth) {
+                    (Ok(BoundSide::Leaves(g)), Some(t)) => {
+                        entry.0 += 1;
+                        checked += 1;
+                        if g != t {
+                            wrong.push(format!("{name} kind {kind} sense {sense}: got {g:?}, truth {t:?}, p {p:?} d {d:?}"));
+                        }
+                    }
+                    (Ok(BoundSide::Rides), t) => {
+                        entry.1 += 1;
+                        rides += 1;
+                        if name != "plane" && kind != 2 && t.is_some() {
+                            // A line riding a curved face is legal only along a
+                            // ruling; report it.
+                            let off = geom_brep::implicit_residual(&s, truth_at(0.4)).abs();
+                            if off > 1e-8 {
+                                wrong.push(format!("{name} kind {kind}: Rides but the bound stands {off:e} off at 0.4"));
+                            }
+                        }
+                    }
+                    (Ok(BoundSide::Unresolved), _) => unresolved += 1,
+                    (got, t) => wrong.push(format!("{name} kind {kind}: {got:?} vs truth {t:?}")),
+                }
+            }
+        }
+        eprintln!("checked {checked} rides {rides} unresolved {unresolved} per kind {per_kind:?}");
+        assert!(
+            wrong.is_empty(),
+            "{} wrong:\n{}",
+            wrong.len(),
+            wrong.join("\n")
+        );
+        assert!(checked > 1000);
+    }
+
+    #[test]
+    fn r1_fixed_poses_rulings_and_the_saddle() {
+        let b = band();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let o = Point3::origin();
+        let line = |p: Point3<f64>, d: Vec3<f64>| Reach::Chord {
+            base: p,
+            far: p + d * 0.5,
+        };
+        let cases: Vec<(
+            &str,
+            geom::Surface<f64>,
+            Point3<f64>,
+            Vec3<f64>,
+            bool,
+            BoundSide,
+        )> = vec![
+            (
+                "cylinder ruling",
+                geom::Surface::Cylinder {
+                    origin: o,
+                    axis: z,
+                    radius: 1.0,
+                    u_ref: x,
+                },
+                Point3::new(1.0, 0.0, 0.0),
+                z,
+                true,
+                BoundSide::Rides,
+            ),
+            (
+                "cylinder circumferential, solid",
+                geom::Surface::Cylinder {
+                    origin: o,
+                    axis: z,
+                    radius: 1.0,
+                    u_ref: x,
+                },
+                Point3::new(1.0, 0.0, 0.0),
+                y,
+                true,
+                BoundSide::Leaves(Side::Above),
+            ),
+            (
+                "cylinder circumferential, bore",
+                geom::Surface::Cylinder {
+                    origin: o,
+                    axis: z,
+                    radius: 1.0,
+                    u_ref: x,
+                },
+                Point3::new(1.0, 0.0, 0.0),
+                y,
+                false,
+                BoundSide::Leaves(Side::Below),
+            ),
+            (
+                "cone ruling",
+                geom::Surface::Cone {
+                    apex: o,
+                    axis: z,
+                    half_angle: 0.5,
+                    u_ref: x,
+                },
+                Point3::new(0.5f64.tan(), 0.0, 1.0),
+                Vec3::new(0.5f64.tan(), 0.0, 1.0).normalize(),
+                true,
+                BoundSide::Rides,
+            ),
+            (
+                "torus inner equator along the parallel, solid (saddle)",
+                geom::Surface::Torus {
+                    center: o,
+                    axis: z,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref: x,
+                },
+                Point3::new(1.5, 0.0, 0.0),
+                y,
+                true,
+                BoundSide::Leaves(Side::Below),
+            ),
+            (
+                "torus outer equator along the parallel, solid",
+                geom::Surface::Torus {
+                    center: o,
+                    axis: z,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref: x,
+                },
+                Point3::new(2.5, 0.0, 0.0),
+                y,
+                true,
+                BoundSide::Leaves(Side::Above),
+            ),
+            (
+                "torus top circle along the parallel (parabolic, rides to second order)",
+                geom::Surface::Torus {
+                    center: o,
+                    axis: z,
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref: x,
+                },
+                Point3::new(2.0, 0.0, 0.5),
+                y,
+                true,
+                BoundSide::Rides,
+            ),
+        ];
+        for (what, s, p, d, sense, want) in cases {
+            let n_out = geom_brep::implicit_outward_normal(&s, sense, p);
+            let datum = FaceDatum::of_face(n_out, FaceBend::at(&s, p), f64::MAX);
+            let got = read_side(d, line(p, d), datum, b);
+            eprintln!("{what}: {got:?}");
+            assert_eq!(got.unwrap(), want, "{what}");
+        }
+    }
+
+    /// A poisoned bend (a cone's apex: no gradient there) lands on the
+    /// gap arm, `Unresolved`, not a refusal.
+    #[test]
+    fn r1_a_poisoned_bend_reads_unresolved() {
+        let b = band();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let cone = geom::Surface::Cone {
+            apex: Point3::origin(),
+            axis: z,
+            half_angle: 0.5,
+            u_ref: x,
+        };
+        let bend = FaceBend::at(&cone, Point3::origin());
+        eprintln!("apex bend {bend:?}");
+        let datum = FaceDatum::of_face(
+            OutwardNormal::from_chart(Vec3::new(0.5f64.cos(), 0.0, -0.5f64.sin()), true),
+            bend,
+            f64::MAX,
+        );
+        let d = Vec3::new(0.5f64.sin(), 0.0, 0.5f64.cos());
+        let got = read_side(
+            d,
+            Reach::Chord {
+                base: Point3::origin(),
+                far: Point3::origin() + d * 0.5,
+            },
+            datum,
+            b,
+        );
+        eprintln!("a ruling out of the apex: {got:?}");
+        let d2 = Vec3::new(0.0, 1.0, 0.0);
+        let got2 = read_side(
+            d2,
+            Reach::Chord {
+                base: Point3::origin(),
+                far: Point3::origin() + d2 * 0.5,
+            },
+            datum,
+            b,
+        );
+        eprintln!("a tangent-plane line out of the apex: {got2:?}");
+        assert!(matches!(got2, Ok(BoundSide::Unresolved)));
+    }
+}
