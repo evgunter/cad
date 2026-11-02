@@ -76,3 +76,26 @@ re-reads each class's ends.
 This goes to the designers and Ev. The row
 `a_fold_step_glues_a_pair_its_door_reads_in_band_today` pins today's
 Built until it is decided.
+
+## More evidence: chains past K·ε (REFS orchestrator, 2026-11-02)
+
+This came from a research lane answering Ev's question on PR 6342 ("a long chain of things that are all <eps off but they stack up? we don't want to be able to snap that by more than eps").
+
+The probe is on branch `reads/chain-drift-probe`, files `probes/chain-drift/chain_drift_probe.rs` and `chain_probe.log`, run at ε = 1e-9, K = 10, f64. It was run against the topo test-support doors and was not committed to the suite.
+
+| Scene | Total drift | Result |
+|---|---|---|
+| n-ary union of slab chains, each adjacent pair Zero | 0.9ε | builds, valid |
+| same | 1.8ε to 19.8ε | refused at member 3, `VertexOnFace` in band |
+| `merge_coplanar_faces` on one faceted top | 0.9ε | merges |
+| same | 1.8ε and 4.5ε | refused in band |
+| same | 19.8ε and 82.8ε | refused **as a kernel defect** ("there is no way through: this is a kernel defect; report it") |
+| **Lever**: flat block A; block B tilted 0.4ε per unit; long block C continuing B's plane, its far corner 40ε off A's plane; n-ary union | — | refused as `EdgeUndescribed` / `ResidualExceeded`, also kernel-bug wording |
+| same lever, binary `(A∪B)∪C` | — | builds a valid body, keeping C's top as its own face |
+
+Nothing moved a point by more than ε silently. But:
+
+- a legal input that drifts past K·ε gets the kernel-bug wording instead of a typed refusal that blames the input;
+- the n-ary fold refuses the lever while the binary fold builds it.
+
+No test pins a chain that drifts past K·ε. This belongs to this row's question: does the fold or merge owe a read of a glued class's ends?
