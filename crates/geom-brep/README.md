@@ -1350,10 +1350,12 @@ by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
 (`props/curved.rs`, `sphere_face`). A chart
-singularity in a face's closure is a vertex of it, read off the face's
-region by one reading that STEP import and tier 3 both take
-(`chart_singularity.rs`, `locate`); on a sphere loop of circle arcs that
-reading takes a pole's side from this lane's own stereographic turning
+singularity in a face's closure is a vertex of it. STEP import reads
+where it lies off the face's region (`chart_singularity.rs`, `locate`);
+tier 3 places it on the boundary by the same reading
+(`place_on_boundary`) and reads its side through the face's
+point-in-face door. On a sphere loop of circle arcs `locate`
+takes a pole's side from this lane's own stereographic turning
 (`sphere_pole_left`, beside `pole_side`), so a sphere face lies on
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a

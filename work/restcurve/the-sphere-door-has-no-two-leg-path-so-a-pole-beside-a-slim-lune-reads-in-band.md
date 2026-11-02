@@ -99,3 +99,15 @@ Branch `restcurve/two-leg`. Review tier: **dual**, arm **CONCURRENT** (letter H)
    Name a mutant per row.
 4. **No false refusal:** topo, step-import, step-export and sweep at ε 1e-6, the default and 1e-12, plus every interval/certified sweep test. **No answer moves:** a base-vs-head differential of `curved_face_containment` on sphere bodies (grid, near-pole, slim lunes, arc-edge points, f64 and Interval), and on torus and ruled bodies if `region` changes.
 5. Close `a-loop-the-chart-singularity-walk-cannot-certify-is-exempt` for tier 3, or say what still reads it.
+
+## The near-pole row, as landed (two-leg lane, 2026-11-02)
+
+Owed 3's near-pole row reads points `1e-4`, `1e-6` and `1e-9` rad off the
+south pole a dome leaves out, off the seam's plane, at each ε where the
+offset clears twice the band
+(`one_region_rows::points_beside_a_domes_far_pole_read_out`). The
+review's ~22 escalations are points exactly ε off the pole in the seam's
+plane: every leg from such a point meets that plane's arc's circle at the
+point itself, ε past the arc's end, a margin whose enclosure straddles
+the band's zero. No path settles that at that width, and the row does
+not claim it.

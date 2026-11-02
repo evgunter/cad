@@ -212,7 +212,9 @@ pub enum SideUnread {
     /// decides it.
     Straddle,
     /// A band decision of the reading is in band: an arc's span within
-    /// the band of a whole turn, read by the closed form.
+    /// the band of a whole turn, read by the closed form, or, at tier 3,
+    /// any reading of the face's point-in-face door in band, carried
+    /// with its escalation.
     Banded(Indeterminate),
 }
 
@@ -256,9 +258,10 @@ pub enum Unread<T> {
     },
 }
 
-/// **A reading in band**, owned: what tier 3 and import refuse a point
-/// [`locate`] could not place on its boundary or a side of it, and the
-/// one ending each refusal carries ([`Undecided::recourse`]). The
+/// **A reading in band**, owned: what import refuses a point [`locate`]
+/// could not place on its boundary or a side of it, and tier 3 one
+/// [`place_on_boundary`] or the face's point-in-face door could not, and
+/// the one ending each refusal carries ([`Undecided::recourse`]). The
 /// exempt readings ([`Unread::Carrier`], [`Unread::Loop`]) are not one.
 /// Not on a curated `pncad` list, argued at [`SideUnread`].
 #[derive(Clone, Copy, Debug, PartialEq)]

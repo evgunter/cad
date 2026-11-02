@@ -19,7 +19,9 @@
 //!    great circle `cos s·p̂ + sin s·t`, `s ∈ (0, 2π)`, in the plane
 //!    through the centre with normal `ĝ = p̂ × t`.
 //! 2. Every arc of every loop meets that plane at the roots of a first
-//!    harmonic, `ĝ·(C − c) + ρ(ĝ·û) cos θ + ρ(ĝ·v̂) sin θ`, certified by
+//!    harmonic, `ĝ·(C − c) + ρ(ĝ·û) cos θ + ρ(ĝ·v̂) sin θ` (`c` the
+//!    leg's own centre: the sphere's for a ray, a two-leg path's
+//!    parallel's for its second leg), certified by
 //!    the shared first-harmonic door, each root as a direction from the
 //!    arc's centre ([`super::circle_roots::first_harmonic_root_directions`]);
 //!    a root counts where it lies inside its arc's span, at the ray
@@ -71,8 +73,11 @@
 //! the sides of a slim lune whose end is `p`'s antipode, which every ray
 //! runs within the band of or meets only at that vertex — is crossed
 //! head-on by the second leg. The first leg leaves `p` square to the
-//! target's direction and stops short of the antipode, so it meets
-//! neither those arcs nor the vertex there.
+//! target's direction and ends at its corner, short of the antipode. It
+//! may still meet the arcs' great circles there, past its end: a root
+//! past a bounded leg's end is no crossing of it, so its span reading in
+//! band does not set the leg aside, and only the roots short of the
+//! corner are read.
 //!
 //! The reading is the region skeleton's ([`region::read_path`]), and it
 //! is sound for every face as a ray's is: the path is a curve on the
@@ -116,8 +121,9 @@
 //!   normal, or a target at `p` or its antipode, casts no ray.
 //! - `bool_sphere_region_span`: a root against the end of its arc's span
 //!   nearer it, the signed angle to that end at the arc's radius.
-//! - `bool_sphere_region_at`: a crossing's place along the ray, from
-//!   `p`, at the sphere's radius.
+//! - `bool_sphere_region_at`: a crossing's place along a leg, from its
+//!   start: arc length round the leg's circle (a ray's, at the sphere's
+//!   radius; a parallel's, at its own).
 //! - `bool_sphere_region_order`: two crossings' places along the ray.
 //! - `bool_sphere_region_parallel`: a two-leg path's parallel's radius,
 //!   the sine of the target's angle from `p` at the sphere's radius.
@@ -488,7 +494,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         self.radius
     }
 
-    /// Where `arc` meets the ray's plane through the centre (module docs,
+    /// Where `arc` meets the leg's plane through the leg's centre (module docs,
     /// step 2), read in the arc's own parameter, inside its span.
     fn landings(
         &self,
