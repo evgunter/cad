@@ -3,6 +3,8 @@ id: pcurve-certify-error-arms-with-no-ending
 kind: issue
 title: geom-brep: fourteen PcurveCertifyError arms end in no recourse (PcurveCertifyError::ending gives None)
 status: open
+priority: P1
+cost: M
 opened: 2026-10-02
 ---
 
