@@ -177,4 +177,4 @@ Legs 1–3 are lifted and pinned (`verbs_offc_consumer::the_walls_a_placed_appro
 Leg 4 — no STEP printer for `Surface::Approx` — is EXPORT's
 `work/export/approx-face-has-no-step-printer`, which this row
 duplicated. The `replace_face.rs` iso-door claim recorded above has
-its own row: `work/shelf/replace-face-reads-an-approx-iso-as-u-fixed`.
+its own row: `work/shell/replace-face-reads-an-approx-iso-as-u-fixed`.

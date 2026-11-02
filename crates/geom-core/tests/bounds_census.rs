@@ -190,6 +190,14 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/geom/src/cover.rs",
+        subject: "impl<T: Bounds> Cover<T>",
+        why: Payload(
+            "`Cover::aabb`: the cover's world box read at its brackets' outer ends, an f64 \
+             box and nothing else; a dual's bracket is its value channel's",
+        ),
+    },
+    Site {
         path: "crates/geom/src/curves/boxes.rs",
         subject: "circle_arc_aabb",
         why: Payload("an f64 box of an arc; D9 makes a dual's box the value channel's"),

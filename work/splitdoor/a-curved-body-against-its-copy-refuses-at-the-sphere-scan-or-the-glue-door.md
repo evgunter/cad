@@ -30,7 +30,7 @@ A ball, a dome, a lantern and a cone frustum against an identical copy now build
 
 One `no_crossings_pass` runs the scan, the re-cut check and the section pass for production and its test door alike. `carrier_eq::INVENTORY` is the one home for the ladder's kinds.
 
-The waisted copy's waist edge still refuses `CurvedPierceUnsupported` (`Unsettled::Degenerate`, `bool_line_cone_lead`); that is `roots/a-line-parallel-to-a-cone-generator-has-no-root-lane`, pinned by cause.
+The waisted copy's waist edge still refuses `CurvedPierceUnsupported` (`Unsettled::Degenerate`, `bool_line_cone_lead`); that is `germ/a-line-parallel-to-a-cone-generator-has-no-root-lane`, pinned by cause.
 
 FULL review: APPROVE WITH FIXES (0 MAJOR). Its probes covered near-copies offset within the band, scaled and turned copies, three operands and a two-sphere lens; none built wrong. A delta review gave APPROVE: production unchanged over about 6,170 rows and 115 slow rows.
 

@@ -10,7 +10,7 @@ cost: M
 
 
 Filed by SECT's orchestrator, 2026-10-29, from PR 6011's review and its
-cost row (`work/sectrung/torus-germ-rows-march-for-an-hour-at-a-fine-band.md`).
+cost row (`work/sect/torus-germ-rows-march-for-an-hour-at-a-fine-band.md`).
 
 ## Measured
 
@@ -85,7 +85,7 @@ designers):
   swapped with the operands) but no carrier is bit-identical, and the
   torus × torus loops start elsewhere on the loop. Sharing across
   orders needs the section carried in a canonical operand order first
-  (`work/sectrung/a-surface-pairs-section-is-carried-in-operand-order.md`),
+  (`work/sect/a-surface-pairs-section-is-carried-in-operand-order.md`),
   which `[intrinsic.contingent]` asks of the bits anyway.
 - **Where the shared section would live** touches the public API and
   `[pure-model]` (no hidden state; caching is "free" because models are
