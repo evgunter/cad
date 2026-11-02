@@ -59,7 +59,8 @@ Handed back 2026-10-31 (the sitting's P0 and P1 rows are done):
   (PR 6047), the march counter (PR 6056).
 - **Left**: the P2/P3/P4 rows in the slate. Elsewhere: the nightly
   `full-suite` job outgrowing 180 minutes (GREEN P1), and the per-op
-  certificate cost of fitted chord edges (SECTRUNG's cost row).
+  certificate cost of fitted chord edges (the cost rows that came back from SECTRUNG,
+  below).
 
 ## The slate
 
@@ -94,6 +95,52 @@ Handed back 2026-10-31 (the sitting's P0 and P1 rows are done):
    frames row.
 5. **The two follow-ups** when their ground is open: the cylinder-face
    ring re-homing and the circle-crossing spelling.
+
+## The rows merged back (2026-11-02)
+
+SECTTAIL (cut 2026-10-25) and SECTRUNG (cut 2026-10-28) held this
+track's P2/P3 rows, cut out on the priority seam, and SECTSITE (cut
+2026-10-28 through SECTARMS) its two one-site and on-carrier P1 rows.
+When the budget came to count only the P0, P1 and unbanded rows a
+sitting dispatches (Ev, in chat, 2026-11-02), the four measured 3, 3, 8
+and 16 points, 30 against 30 together, and the three merged back by
+`git mv`, ids and bodies unchanged
+(`docs/doc-ledger/secttail-sectrung-and-sectsite-merge-back.md`).
+
+**SECTSITE's P1 rows**, in order:
+
+| pri | item | cost | title |
+|---|---|---|---|
+| P1 | `a-closed-edge-lying-in-a-cone-cylinder-or-torus-face-has-no-join-arm` | H | A closed edge lying in a cone, cylinder or torus face has no join arm |
+| P1 | `c5-plane-torus-cone-cylinder-arms` | H +design | The C5 plane × torus and cone × cylinder residue (U-H1, held by D10); lily wall 8's stop |
+
+1. **The closed edge**, read on the section value's components. A conic
+   lying in a curved face is a section component whose carrier is an
+   edge of one operand.
+2. **The C5 residue**, once D10 releases its touching poses: the hold is
+   `work/intent/d10-one-way-to-say-intent-is-unbuilt.md`. Its design
+   flag is read again then.
+
+The P2/P3 rows carry no table here; `python3 scripts/work.py status --program sect`
+lists them. What their plans said still holds:
+
+- **Read first.** A pair moved onto the section value can close a
+  dispatch, radius or retirement row by construction, so read each row
+  against SECT's and SECTARMS' progress before building it. Matching by
+  foot parameter may already have closed
+  `along-edge-ring-on-a-curved-face-has-no-join-arm`,
+  `a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale` and
+  the two travel-slack rows. Build what does not close on the section
+  object, never beside it.
+- **Where a wrong answer would hide:** `r-tan-carries-the-arms-proof-gaps-as-tangent-carriers`
+  (a refusal that misnames its cause) and
+  `the-c5-kind-dispatch-is-spelled-twice` (two exhaustive matches that
+  can drift).
+- **The cost rows.** `a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build`
+  (P1, GREEN's slow-test census, 2026-11-02),
+  `a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget`
+  and `torus-germ-rows-march-for-an-hour-at-a-fine-band` share the march;
+  read PR 5961's near-node fix before them.
 
 ## Review posture
 

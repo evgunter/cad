@@ -279,7 +279,7 @@ fn the_root_slack_meter_refuses_a_shallow_crossing() {
 /// its escalation gap while the noise is in its zero band: the
 /// `f64` evaluation of the near extreme cannot place the root to
 /// within `1e-12`
-/// (`work/apex/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
+/// (`work/germ/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`).
 /// Without the `Err` arm this pose answers two roots.
 #[test]
 fn the_root_slack_meter_refuses_a_reading_in_the_band_gap() {
