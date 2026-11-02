@@ -945,6 +945,77 @@ fn the_stadium_answers_every_op() {
     }
 }
 
+/// **A slab whose edges lie on a bore's rulings from inside the
+/// hole**, the stadium's other lump side: a block with a radius-½ bore
+/// along `z`, and a slab `x ∈ [−½, 0]`, `y ∈ [0, ½]` whose top face
+/// `y = ½` and side face `x = −½` are tangent to the bore along the
+/// rulings its two edges `(0, ½)` and `(−½, 0)` lie on. Near each such
+/// ruling the slab's tangent face lies in the block's material (the bore
+/// curves away into the hole), so it lumps In, and its other face runs
+/// into the hole, Out: each edge crosses. Every op builds, tier 3
+/// clean, its volume the quarter-disc arithmetic's. The slab spans the
+/// block's height, so its corners meet the bore's rims (the vertex-pair
+/// lane), and the bore is turned 45° so its seams leave the slab's
+/// rulings.
+#[test]
+#[ignore = "disabled red: work/tangrim/a-slab-on-a-bores-rulings-from-inside-refuses-at-the-join-in-every-op.md"]
+fn a_slab_on_a_bores_rulings_from_inside_answers_every_op() {
+    let tol = Tol::witness();
+    let block = finished(
+        "the block",
+        brick((-3.0, 3.0), (-3.0, 3.0), (0.1, 0.9), tol),
+        tol,
+    );
+    let rod = turned(&rod_z(0.5, 0.0, 1.0), 45.0);
+    let Ok(BooleanResult::Body(bored)) = topo::subtract(&block, &rod, tol) else {
+        panic!("the block's bore")
+    };
+    let bored = bored.body;
+    let slab: AtRestBody<f64> = finished(
+        "the slab",
+        brick((-0.5, 0.0), (0.0, 0.5), (0.1, 0.9), tol),
+        tol,
+    );
+    let bore = 0.25 * PI * 0.8;
+    let v_block = 36.0 * 0.8 - bore;
+    let v_slab = 0.25 * 0.8;
+    let v_both = (0.25 - PI / 16.0) * 0.8;
+    for (what, got, want) in [
+        (
+            "block ∪ slab",
+            topo::union(&bored, &slab, tol),
+            v_block + v_slab - v_both,
+        ),
+        (
+            "slab ∪ block",
+            topo::union(&slab, &bored, tol),
+            v_block + v_slab - v_both,
+        ),
+        (
+            "block ∖ slab",
+            topo::subtract(&bored, &slab, tol),
+            v_block - v_both,
+        ),
+        (
+            "slab ∖ block",
+            topo::subtract(&slab, &bored, tol),
+            v_slab - v_both,
+        ),
+        ("block ∩ slab", topo::intersect(&bored, &slab, tol), v_both),
+    ] {
+        let Ok(BooleanResult::Body(r)) = got else {
+            panic!("{what}: {got:?}")
+        };
+        assert_eq!(
+            topo::validate_geometric(&r.body, tol),
+            Ok(()),
+            "{what}: tier 3"
+        );
+        let v = topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;
+        assert!((v - want).abs() < 1e-9, "{what}: volume {v} vs {want}");
+    }
+}
+
 /// **A line seam that IS one: the D-bar on the slab.** The half-rod
 /// whose flat lies on the slab's side face (`Rest`) and whose wall
 /// starts at the slab's top and bottom edges leaves each tangent ruling

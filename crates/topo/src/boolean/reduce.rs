@@ -795,7 +795,7 @@ fn vertex_face_side<T: Decide>(
             )),
             band,
         )
-        .map_err(VertexRefusal::Undecided)?;
+        .map_err(VertexRefusal::Offset)?;
         Ok(match decided.sign {
             Sign::Negative => SplitSide::Below,
             Sign::Positive => SplitSide::Above,
@@ -816,13 +816,20 @@ fn vertex_face_side<T: Decide>(
     )
 }
 
-/// The Boolean's refusal of a vertex the rule could not place on a
-/// planar face, `read` being the declaration read of the pair.
-fn vertex_refusal(refusal: VertexRefusal, read: DeclarationRead) -> BooleanError {
+/// The Boolean's refusal of a vertex of operand `x_is` the rule could
+/// not place on a planar face, `read` reading the pair's declaration
+/// ahead of a question: the refusal of the decision that refused it.
+fn vertex_refusal(
+    refusal: VertexRefusal,
+    x_is: Operand,
+    read: &dyn Fn(Coincide) -> DeclarationRead,
+    band: Band,
+) -> BooleanError {
+    let coincidence = |which: Coincide, diag| BooleanError::coincidence(which, read(which), diag);
     match refusal {
-        VertexRefusal::Undecided(diag) => {
-            BooleanError::coincidence(Coincide::VertexOnFace, read, diag)
-        }
+        VertexRefusal::Offset(diag) => coincidence(Coincide::VertexOnFace, diag),
+        VertexRefusal::Section(diag) => coincidence(Coincide::VertexOnSection, diag),
+        VertexRefusal::Sector(e) => e.boolean_refusal(x_is, band),
         VertexRefusal::Walk(crate::splitting::SplitReduceError::SliverSector {
             reading: crate::splitting::SectorReading::Escalated(diag),
             ..
@@ -1311,8 +1318,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 let touch_at_end = if meet.is_none() || covers.is_empty() {
                     None
                 } else {
-                    let read =
-                        edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
+                    let read = |which| edge_face_read(x, x_is, &edge, face, declared, which);
                     // One decision per end, in the carrier's own residual:
                     // the sign the cover's side is stated in. It differs
                     // from the offset along the OUTWARD normal only by the
@@ -1336,7 +1342,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             (chart_origin, chart_normal),
                             band,
                         )
-                        .map_err(|refusal| vertex_refusal(refusal, read))
+                        .map_err(|refusal| vertex_refusal(refusal, x_is, &read, band))
                     };
                     let (d1, d2) = (side(u, pu)?, side(v, pv)?);
                     let (s1, s2) = (d1.sign, d2.sign);
@@ -1536,8 +1542,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         }
                         // No interior root lands in the face:
                         // endpoint processing only.
-                        let read =
-                            edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
+                        let read = |which| edge_face_read(x, x_is, &edge, face, declared, which);
                         let mut hit = false;
                         for end in [(u, pu), (v, pv)] {
                             hit |= read_on_plane(
@@ -1545,7 +1550,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 y,
                                 end,
                                 (face, &plane),
-                                read,
+                                &read,
                                 contacts,
                                 band,
                                 tol,
@@ -1567,8 +1572,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     band,
                 )
             };
-            let read = edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
-            let on_face = |refusal| vertex_refusal(refusal, read);
+            let read = |which| edge_face_read(x, x_is, &edge, face, declared, which);
+            let on_face = |refusal| vertex_refusal(refusal, x_is, &read, band);
             let d1 = side(u, pu).map_err(on_face)?;
             let d2 = side(v, pv).map_err(on_face)?;
             match (d1.sign, d2.sign) {
@@ -5838,15 +5843,15 @@ impl MintedRule {
 
 /// Reads vertex `w` of `x`, at `p`, against planar `face` of `y`, `x`'s
 /// slit tips at rest `tips`: on the plane, it goes to [`vertex_on_face`]. Returns whether it
-/// recorded a contact; a side the band cannot decide refuses as
-/// `read` names it.
+/// recorded a contact; a side the band cannot decide refuses with the
+/// pair's declaration `read` ahead of the question that refused.
 #[allow(clippy::too_many_arguments)]
 fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
     (x, x_is, tips): (&Body<T>, Operand, &SlitTips),
     y: &mut Body<T>,
     (w, p): End<T>,
     (face, plane): (FaceKey, &PlaneDesc<T>),
-    read: DeclarationRead,
+    read: &dyn Fn(Coincide) -> DeclarationRead,
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
@@ -5858,7 +5863,7 @@ fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
         (plane.origin, plane.normal),
         band,
     )
-    .map_err(|refusal| vertex_refusal(refusal, read))?;
+    .map_err(|refusal| vertex_refusal(refusal, x_is, &read, band))?;
     if on.sign != Sign::Zero {
         return Ok(false);
     }
@@ -5932,13 +5937,13 @@ fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
                 let plane = face_plane(y, face).ok_or(BooleanError::ClassificationInvariant {
                     what: "a face an edge lies in lost its plane",
                 })?;
-                let read = edge_face_read(x, x_is, edge, face, declared, Coincide::VertexOnFace);
+                let read = |which| edge_face_read(x, x_is, edge, face, declared, which);
                 read_on_plane(
                     (x, x_is, tips),
                     y,
                     (w, p),
                     (face, &plane),
-                    read,
+                    &read,
                     contacts,
                     band,
                     tol,

@@ -1759,7 +1759,11 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
 fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
-            NodeErrorKind::Blend { verb, error }
+            NodeErrorKind::Blend {
+                verb,
+                error,
+                edge: None,
+            }
         }
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
         verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
@@ -1822,7 +1826,23 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     edges.sort_unstable();
     let out = (verb.build)(edges, size)
         .run(&body, tol)
-        .map_err(verb_refused)?;
+        .map_err(|refusal| match verb_refused(refusal) {
+            // The kernel names its edge by key; the reader is told its
+            // name in the operand's table.
+            NodeErrorKind::Blend { verb, error, .. } => NodeErrorKind::Blend {
+                edge: error.edge().and_then(|e| {
+                    target_table
+                        .name_of(&names::EntityRef {
+                            body: 0,
+                            key: names::EntityKey::Edge(e),
+                        })
+                        .map(|name| Box::new(name.clone()))
+                }),
+                verb,
+                error,
+            },
+            other => other,
+        })?;
     // A blend's run produces the blend record by construction; another
     // family here is a kernel bug, refused typed.
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;

@@ -573,8 +573,8 @@ fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) 
 ///
 /// **What is not selected is the point.** The cavity's two meridian
 /// seams are co-surface: sphere on BOTH sides, so `fillet_edges`
-/// refuses them `TangentialEdge` at margin exactly zero, correctly, at
-/// any radius. The structural selector excluded them because neither
+/// reads them smooth at margin exactly zero, at any radius, and leaves
+/// them as they are. The structural selector excluded them because neither
 /// alternative admits a `FromB` segment; the geometric one excludes
 /// them because `(Sphere, Sphere)` is neither of the two patterns —
 /// the co-surface refusal falls out of the GEOMETRY, which is what

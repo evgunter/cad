@@ -2699,6 +2699,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("mod.rs", "decision_words", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "Coincide::VertexOnFace", 1),
+    ("mod.rs", "decision_words", "Coincide::VertexOnSection", 1),
     ("mod.rs", "of_lever_rung", "BooleanDecision::of_lever", 1),
     (
         "mod.rs",
@@ -2848,7 +2849,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::WallRoots",
         1,
     ),
-    ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
     (
         "reduce.rs",
         "twin_edge",
@@ -2868,7 +2868,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 3),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
@@ -2886,6 +2885,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
+    (
+        "reduce.rs",
+        "vertex_refusal",
+        "Coincide::VertexOnSection",
+        1,
+    ),
     (
         "reduce.rs",
         "wall_crossing",
