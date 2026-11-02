@@ -10468,6 +10468,61 @@ impl<'b, T: Decide> RecordConfirm<'b, T> {
     }
 }
 
+/// **Whether two straight segments overlap along their lines**: read as
+/// the census reads two line edges for a collinear overlap
+/// ([`collinear_overlaps`]), the parallel screen settled in band, then
+/// the overlap. `Ok(true)` where they share a run of positive length;
+/// two segments that only touch at a point, or are not parallel, read
+/// `Ok(false)`.
+///
+/// # Errors
+///
+/// The escalation the screen or the overlap pushed.
+pub fn line_segments_overlap<T: Decide>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut errors = Vec::new();
+    parallel_overlap(&segment(a), &segment(b), band, &mut errors)
+        .map(|overlap| overlap.is_some())
+        .ok_or_else(|| escalation_pushed(errors))
+}
+
+/// **Whether two straight segments that share nothing meet**, read as the census
+/// reads two line edges no record covers: an end of each on an end of
+/// the other (pass 1's `pm_census_vv_gap`), an end of each on the
+/// other's interior (pass 2's reading), then the interiors (pass 5's,
+/// [`ee_meeting`]). `Ok(false)` is the census's "apart": every reading
+/// decided the pair's distance definitely positive.
+///
+/// # Errors
+///
+/// The first reading the band could not call, in that order.
+pub fn line_segments_meet<T: Decide>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let (ea, eb) = (segment(a), segment(b));
+    let mut errors = Vec::new();
+    for (p, q) in [(a.0, b.0), (a.0, b.1), (a.1, b.0), (a.1, b.1)] {
+        match gap_zero_reading("pm_census_vv_gap", Margin::norm3(p - q), band, &mut errors) {
+            Some(Some(_)) => return Ok(true),
+            Some(None) => {}
+            None => return Err(escalation_pushed(errors)),
+        }
+    }
+    for (q, e) in [(a.0, &eb), (a.1, &eb), (b.0, &ea), (b.1, &ea)] {
+        match on_edge_interior_reading(q, e, band, &mut errors) {
+            Some(Some(_)) => return Ok(true),
+            Some(None) => {}
+            None => return Err(escalation_pushed(errors)),
+        }
+    }
+    interiors_meet(&ea, &eb, band, &mut errors).ok_or_else(|| escalation_pushed(errors))
+}
+
 /// The point of `a`'s line nearest `b`'s, for two segments whose lines
 /// are not parallel: where they cross, once they are decided to meet
 /// ([`ee_cross_point`]).
