@@ -522,10 +522,7 @@ fn a_general_image_wrong_between_samples_refuses_at_the_hull() {
     )
     .expect("the bent image builds");
     let bent = Arc::new(bent);
-    let line = Curve3::Line {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let line = Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
     for (name, carrier) in [("spline", ruling()), ("line", line)] {
         let got = PcurveCache::certify_general(
             Arc::clone(&bent),
@@ -575,10 +572,7 @@ fn flat_wall() -> NurbsSurface<f64> {
 fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
     let lane = FittedLane::<f64>::certified();
     let r = core::f64::consts::FRAC_1_SQRT_2;
-    let diagonal = Curve3::Line {
-        origin: Point3::new(0.1, 0.2, 0.0),
-        dir: Vec3::new(r, r, 0.0),
-    };
+    let diagonal = Curve3::line(Point3::new(0.1, 0.2, 0.0), Vec3::new(r, r, 0.0));
     let (t0, t1) = (0.0, 0.9);
     let wall = flat_wall();
     let image = lane

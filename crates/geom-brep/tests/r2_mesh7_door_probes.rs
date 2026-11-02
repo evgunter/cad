@@ -145,10 +145,7 @@ fn a_zero_extent_cylinder_face_passes_the_shape_door_and_not_the_flux_lane() {
     };
     let mer = |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Line {
-                origin: p3(u.cos(), u.sin(), 0.0),
-                dir: v3(0.0, 0.0, 1.0),
-            },
+            Curve3::line(p3(u.cos(), u.sin(), 0.0), v3(0.0, 0.0, 1.0)),
             v0,
             v1,
             a,

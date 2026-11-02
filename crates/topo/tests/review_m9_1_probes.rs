@@ -53,10 +53,7 @@ fn plane_s(o: [f64; 3], n: [f64; 3]) -> geom::Surface<f64> {
 }
 
 fn xline() -> geom::Curve3<f64> {
-    geom::Curve3::Line {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    }
+    geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0))
 }
 
 /// CLAIM 1 — length margins are metered at UNIT arm: the arm must not

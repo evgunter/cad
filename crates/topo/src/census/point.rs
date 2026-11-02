@@ -304,7 +304,10 @@ pub(super) fn edge_face<T: Decide>(
                 return Read::Pushed;
             }
         },
-        (geom::Curve3::Line { origin, dir }, Some(Surface::Sphere { center, radius })) => {
+        (
+            geom::Curve3::Line(geom::Line { origin, dir }),
+            Some(Surface::Sphere { center, radius }),
+        ) => {
             let foot = origin + dir * dir.dot(center - origin);
             on_sphere((center, radius), foot, band, errors)
         }
