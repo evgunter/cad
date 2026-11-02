@@ -2524,7 +2524,11 @@ pub(crate) enum LineSheet {
 /// Every ray is fixed at its own bound's reach, the opposite ray at the
 /// line's. Nothing is decided here: which bound lies along the line is
 /// the sheet's ([`LineSheet`]), and the orbit's turn is the sectors'
-/// order.
+/// order. Each wedge is under half a turn, as a [`crate::link::Sector`]'s
+/// readers take it, because each sector is ([`build_sectors`] subdivides
+/// a reflex corner at its bisector): its far bound lies strictly on one
+/// side of the line, so the line's ray and its opposite each part from
+/// it by less than half a turn.
 pub(crate) fn line_fans<T: geom_core::Real>(
     sectors: &[BoolSector<T>],
     sheets: &[LineSheet],
