@@ -2345,6 +2345,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             Node::Loft {
                 first: profile.into(),
                 then: vec![pncad::document::LoftSection {
+                    id: None,
                     profile: profile_b.into(),
                     station: vec![pncad::document::StationMove::Slide {
                         along: Axis3::Z,
@@ -2352,6 +2353,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
                     }],
                 }],
                 v_degree: Formula::count(1),
+                first_id: None,
             },
         ),
         (

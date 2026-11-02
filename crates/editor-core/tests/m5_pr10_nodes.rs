@@ -55,6 +55,7 @@ fn lofted(profiles: &[RecipeNodeId], v_degree: Formula) -> editor_core::Authored
             .iter()
             .zip(1u32..)
             .map(|(&profile, i)| editor_core::LoftSection {
+                id: None,
                 profile: profile.into(),
                 station: vec![editor_core::StationMove::Slide {
                     along: editor_core::Axis3::Z,
@@ -63,6 +64,7 @@ fn lofted(profiles: &[RecipeNodeId], v_degree: Formula) -> editor_core::Authored
             })
             .collect(),
         v_degree,
+        first_id: None,
     }
 }
 
