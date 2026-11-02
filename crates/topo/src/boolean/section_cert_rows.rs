@@ -1511,10 +1511,7 @@ pub(super) fn tilted_slab() -> Body<f64> {
 #[test]
 fn w2_refuses_a_seamless_band_and_clears_a_banded_wall() {
     let (band_body, band_face) = seamless_band(-1.0, 1.0);
-    let surface = band_body
-        .get_surface(band_body.get_face(band_face).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = band_body.face_surface(band_face).unwrap().clone();
     let read = crate::pcurves::loop_windings(&band_body, band_face, &surface, band())
         .expect("the seamless band's loops read");
     assert!(
@@ -1729,11 +1726,7 @@ fn the_chart_cache_does_not_share_a_key_across_operands() {
     );
     // The sheet's seed face is the band's key in its own arena.
     assert!(wall_body.get_face(band_face).is_some(), "the keys coincide");
-    let surface = |b: &Body<f64>, f| {
-        b.get_surface(b.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
+    let surface = |b: &Body<f64>, f| b.face_surface(f).unwrap().clone();
     let mut cache = ops::ChartCache::default();
     assert!(matches!(
         cache.describes(

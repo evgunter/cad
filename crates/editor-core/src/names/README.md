@@ -161,7 +161,8 @@ vertex unnamed, so a `None` standing over surviving geometry cannot pass.
 **N1, the profile pieces: authored things are named by minted ids.** A name
 spells what the author made by the id it was minted with, and what the kernel
 made by the verdicts that decided it. Nodes and reads (`From`, DM4) follow
-this rule, and so do profile pieces:
+this rule, and so do profile pieces and loft sections (below, "Loft
+walls"):
 
 - **The id.** Every step of a profile program carries a `StepId` in the recipe
   (`ProfileProgram::ids`). It is minted when the step is authored, by
@@ -288,26 +289,32 @@ this rule, and so do profile pieces:
   with the step and role that drew it, read off the replay record's
   per-segment piece (`profile::ReplayStructure::pieces`), and the sweep
   emitters name what they iterate by it.
-- **Loft walls.** A loft pairs canonical segment `k` of every section into one
-  wall (DM8). The wall's role-path segment (`LoftWall`) holds one locator per
-  section, naming the pieces that pairing joined, and so does a seam edge
-  between two walls (`LoftSeam`): one vertex locator per section. A cap and its
-  rims and vertices belong to one section, and are named by that section's own
-  locators. If a value edit changes which pieces pair, the old wall's name
-  vanishes; it does not follow `k` to the new pairing.
-  A loft at v-degree 1 through three sections or more is one wall per
-  segment per slab (`crates/sweep/README.md`, "Walls"), so its roles carry
-  the slab or section they sit at, counted from the start section: a wall
-  (`LoftSlabWall`) holds its slab and the locators of the pieces it joins
-  at the slab's two sections, as a seam (`LoftSlabSeam`) holds its slab and
-  two vertex locators; an interior section's ring edge
-  (`LoftSectionEdge`) and vertex (`LoftSectionVertex`) hold the section and
-  that section's own locator. The slab or section is what tells two walls
-  of one segment apart, since two sections may be drawn by the same steps.
-  Counting from the start section is a positional PLACEHOLDER: inserting or
-  deleting an earlier section renames every later slab and ring. These
-  names are to key on each section's input identity instead
-  (`work/tess/loft-slab-and-section-names-are-positional.md`).
+- **Loft walls.** Every section of a loft, the first included, carries a
+  `SectionId` in the recipe, held on the section itself (`Node::Loft`'s
+  `first_id`, and each `LoftSection`'s `id`). A section is an authored
+  placement, not a read: its id is minted when it is authored, by
+  `InsertNode` or, for a section it adds, by `SetLoftSections`, which states
+  for each new section the id of the old one it keeps (as `SetProgram` states
+  its steps) and refuses a foreign or doubled id. The load door checks a
+  loft's ids as it checks a profile's step ids. A section is not keyed on its
+  station's reads, because a value typed at a slot mints a new variable
+  (VR6), so a read-keyed section would be renamed by a retype.
+  A loft pairs canonical segment `k` of every section into one wall (DM8).
+  The wall's role-path segment (`LoftWall`) holds a (section id, locator)
+  pair for each section it spans, naming the piece that pairing joined
+  there, and so does a seam edge between two walls (`LoftSeam`), with a
+  vertex locator per section. A wall spans every section, or, for a loft at
+  v-degree 1 through three sections or more, which is one wall per segment
+  per slab (`crates/sweep/README.md`, "Walls"), its slab's two sections. An
+  interior section's ring edge (`LoftSectionEdge`) and vertex
+  (`LoftSectionVertex`) hold the section's id and that section's own
+  locator. The ids are what tell two walls of one segment apart, since two
+  sections may be drawn by the same steps, and they leave every name of a
+  section untouched by an insertion, deletion or reordering elsewhere in the
+  list. A cap and its rims and vertices belong to an end section, and are
+  named by the end and that section's own locators. If a value edit changes
+  which pieces pair, the old wall's name vanishes; it does not follow `k` to
+  the new pairing.
   Setting the degree slot to 1 or from 1 changes the walls the body has,
   so the names of the other degree's walls vanish.
 - **Swept walls over a run.** Extrude and revolve build one wall per run of
@@ -326,8 +333,7 @@ this rule, and so do profile pieces:
   `AxisEdge`: `Lateral([p0, p1])` covers `Lateral([p0])`, so a selection made before a station was inserted
   is offered the run wall, and an edit that breaks a run offers its pieces'
   walls. A `LoftWall` holds one locator per section of ONE wall, not a set
-  of walls, so it has no constituents in that view, and neither has a
-  `LoftSlabWall`.
+  of walls, so it has no constituents in that view.
 
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment.
@@ -531,15 +537,26 @@ pairwise judgements, never from the fold, so every member order spells it
 alike. A reference to a member edge, or to a piece of one, that no longer
 resolves is offered every set listing that member edge.
 
-**A union's face is named for its PARENT.** Two member faces are linked when
-the pairwise judgement of their two members (DM4) merged or covered them:
-its two-member union merged the faces or held either face's region through
-the other (`BooleanNaming::merge_groups`, `BooleanNaming::substituted`). A pair
-the judgement never brought together links nothing. Linking is
-transitive. The member faces so linked are one parent, named `Merged` of all of
-them, and a member face nothing links is its own parent. A parent is a set of
+**A union's face is named for its PARENT.** Member faces are linked,
+transitively, when any of these holds:
+
+1. a pairwise judgement (DM4) merged them (`BooleanNaming::merge_groups`),
+   whether they are faces of its two members or two faces of one;
+2. a judgement held one face's region through the other
+   (`BooleanNaming::substituted`);
+3. the finished body holds area of both in one face, read exactly: by the
+   area each holds, never by the fold's lineage, which only grows and would
+   make the names depend on member order.
+
+The member faces so linked are one parent, named `Merged` of all of them, and
+a member face nothing links is its own parent. A parent is a set of
 member-face entities, never a name: the candidates of a tied row are separate
-parents that happen to be spelled alike.
+parents that happen to be spelled alike. A union covers material, so its
+members together can glue faces no two of them glue: a run of faces exposed
+only once several members are in. The union reads a finished face's descent
+off the fold's lineage, not exactly, so a face whose member faces only clause
+3 links refuses as that missing rule (`NamingError::UnsupportedUnjudgedGlue`),
+before any edge or vertex is named.
 
 A finished face takes the parent of the member faces it descends from; which
 faces a fold step merged, kept or discarded does not enter. So a member face

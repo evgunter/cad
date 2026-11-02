@@ -171,6 +171,8 @@ pub fn tangent_pair_relation<T: Decide>(
     t1: T,
     band: Band,
 ) -> Result<geom_core::MarginDiag, ContactRefusal> {
+    // This is a public door, so a stale face key is the caller's input
+    // and refuses typed.
     let (face_a, face_b) = (
         a.get_face(fa).ok_or(ContactRefusal::NotCertifiable {
             what: "the A-side face does not resolve",
@@ -180,14 +182,8 @@ pub fn tangent_pair_relation<T: Decide>(
         })?,
     );
     let (s1, s2) = (
-        a.get_surface(face_a.surface)
-            .ok_or(ContactRefusal::NotCertifiable {
-                what: "the A-side face has no surface",
-            })?,
-        b.get_surface(face_b.surface)
-            .ok_or(ContactRefusal::NotCertifiable {
-                what: "the B-side face has no surface",
-            })?,
+        a.face_surface_linked(fa, face_a),
+        b.face_surface_linked(fb, face_b),
     );
     tangent_locus_relation(s1, face_a.sense, s2, face_b.sense, carrier, t0, t1, band)
 }

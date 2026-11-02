@@ -322,13 +322,14 @@ type Leg<T> = region::Leg<T, LegShape<T>>;
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a key that does not resolve,
-/// a surface that is neither a cylinder nor a cone, or an outer loop with
+/// [`PointInSolidError::CorruptFace`] for a surface that is neither a
+/// cylinder nor a cone, or an outer loop with
 /// no cycle.
 ///
 /// # Panics
 ///
-/// Where a boundary edge's curve does not resolve (D2 row 4): a torn
+/// Where `face`, a face the kernel enumerated, or a boundary edge's
+/// curve does not resolve (D2 row 4): a torn
 /// curve is not null scaffolding. The links hold at rest and, on the
 /// reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
@@ -337,8 +338,8 @@ pub(crate) fn ruled_face_region<T: Decide>(
     face: FaceKey,
 ) -> Result<Option<RuledFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.get_face(face).ok_or_else(corrupt)?;
-    let surface = match *body.get_surface(f.surface).ok_or_else(corrupt)? {
+    let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+    let surface = match *body.face_surface_linked(face, f) {
         geom::Surface::Cylinder {
             origin,
             axis,

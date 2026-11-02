@@ -557,13 +557,11 @@ fn contains<T: Decide>(
         super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
         _ => unread,
     };
-    let f = body.get_face(face).ok_or(unread)?;
-    let read = match body.get_surface(f.surface) {
-        Some(geom::Surface::Plane { normal, .. }) => {
+    let read = match body.proven_face_surface(face) {
+        geom::Surface::Plane { normal, .. } => {
             super::contain::contfp(body, face, *normal, p, band).map(Some)
         }
-        Some(_) => super::contain::curved_face_containment(body, face, p, band),
-        None => return Err(unread),
+        _ => super::contain::curved_face_containment(body, face, p, band),
     };
     // The boundary pass placed the point at an arc's end and clear of
     // its corners, two definite readings no verdict reconciles at this

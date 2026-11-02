@@ -1028,13 +1028,10 @@ fn joined_spec<T: Decide>(
     // A declaration's parameter is affine in the carrier's, so the kept
     // edge's runs on over the joined span exactly as a split restricts
     // it; certification re-meters it.
-    let declared = match kept.authority() {
-        geom_brep::EdgeAuthority::Declared(mc) => {
-            let span = t1 - t0;
-            Some(mc.restrict((a - t0) / span, (b - t0) / span))
-        }
-        geom_brep::EdgeAuthority::Derived => None,
-    };
+    let declared = kept.authority().declared().map(|mc| {
+        let span = t1 - t0;
+        mc.restrict((a - t0) / span, (b - t0) / span)
+    });
     // The join's refusal of a pair or an image the rule refuses over
     // the joined span.
     let refused = |refusal| match refusal {

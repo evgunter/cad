@@ -3060,10 +3060,7 @@ pub(crate) mod tests {
     #[test]
     fn a_nurbs_patchs_interior_bulge_is_inside_its_box() {
         let (body, face, _) = nurbs_bulge_face();
-        let surface = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap()
-            .clone();
+        let surface = body.face_surface(face).unwrap().clone();
         // The lifted interior, on the surface itself — its boundary
         // curves all lie in `z = 0`, so no hull of the BOUNDARY can
         // contain this point.

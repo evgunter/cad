@@ -249,11 +249,14 @@ pub(super) fn classify_vertices_margined<T: Decide>(
             band,
         )
         .map_err(|refusal| match refusal {
-            VertexRefusal::Undecided(diag) => SplitReduceError::SliverVertex {
-                vertex: vertex_key,
-                diag,
-            },
+            VertexRefusal::Offset(diag) | VertexRefusal::Section(diag) => {
+                SplitReduceError::SliverVertex {
+                    vertex: vertex_key,
+                    diag,
+                }
+            }
             VertexRefusal::Walk(e) => e,
+            VertexRefusal::Sector(e) => e.split_refusal(vertex_key),
             VertexRefusal::Plane(what) => unreachable!(
                 "{vertex_key:?}: the split plane reads into the table whole, yet {what}"
             ),

@@ -2531,8 +2531,7 @@ fn plan_edge<'s, T: Decide>(
         // (`IsoRowError::Interior`) rather than reading another row.
         let extract = row.filter(|&(axis, at, _)| {
             self_shared || {
-                let held =
-                    body.face_surface_linked(other, proven(&body.faces, other, EntityId::Face));
+                let held = body.proven_face_surface(other);
                 crate::offset_derive::holds_the_move(old_surface, held, Some((axis, at)), d, band)
             }
         });
@@ -2697,23 +2696,22 @@ fn plan_edge<'s, T: Decide>(
     // the retirement bought, and this keeps it.
     let carried_declaration =
         || -> Result<Option<geom_brep::MappedCurve<T>>, ReplaceFaceError<T>> {
-            match curve.authority() {
-                geom_brep::EdgeAuthority::Derived => Ok(None),
-                geom_brep::EdgeAuthority::Declared(mc) => {
+            curve
+                .authority()
+                .declared()
+                .map(|mc| {
                     let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
                         edge,
                         what: "its declared sketch record cannot follow the face, whose offset \
                                is not a rigid shift",
                     })?;
-                    Ok(Some(translate_mapped(mc, delta).ok_or(
-                        ReplaceFaceError::CarrierLaneUnsupported {
-                            edge,
-                            what: "it was swept by a rotation, and its sweep does not shift with \
-                                   the face",
-                        },
-                    )?))
-                }
-            }
+                    translate_mapped(mc, delta).ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                        edge,
+                        what: "it was swept by a rotation, and its sweep does not shift with the \
+                               face",
+                    })
+                })
+                .transpose()
         };
 
     // Whether the section of the moved chart and an untouched neighbour
