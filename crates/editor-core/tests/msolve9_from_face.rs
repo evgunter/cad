@@ -413,6 +413,7 @@ fn a2_a_nurbs_face_refuses_not_planar_where_its_reader_evaluates() {
                 }],
             }],
             v_degree: Formula::count(1),
+            ids: Vec::new(),
         },
     );
     let ev = run(&part, &EvalOptions::default());

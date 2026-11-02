@@ -631,6 +631,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                 }],
             }],
             v_degree: Formula::count(1),
+            ids: Vec::new(),
         },
         Node::Sweep {
             profile: nid(1).into(),

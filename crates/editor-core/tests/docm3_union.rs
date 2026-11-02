@@ -1060,6 +1060,7 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
                 })
                 .collect(),
             v_degree: editor_core::Formula::count(2),
+            ids: Vec::new(),
         },
     );
     (doc, loft, profiles)
@@ -1097,6 +1098,7 @@ fn a_snapshot_carrying_a_loft_the_doors_refuse_loads() {
                 }],
             }],
             v_degree: editor_core::Formula::named(skin, editor_core::Dimension::Count),
+            ids: Vec::new(),
         },
     );
     let var = doc.var_named("skin").expect("declared");

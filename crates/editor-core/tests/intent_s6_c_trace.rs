@@ -526,6 +526,7 @@ fn a_lofts_first_section_stands_in_its_frame_and_a_later_one_refuses() {
             }],
         }],
         v_degree: Formula::count(1),
+        ids: Vec::new(),
     };
     let (framed, lofted) = fixture::insert(doc.clone(), loft(drawn, quad));
     let ev = eval(&framed);
@@ -1037,6 +1038,7 @@ fn the_pen_the_carrier_and_the_band_refuse_typed() {
                 ],
             }],
             v_degree: Formula::count(1),
+            ids: Vec::new(),
         },
     );
     let ev = eval(&doc);

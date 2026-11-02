@@ -1286,6 +1286,7 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
                 }],
             }],
             v_degree: Formula::count(1),
+            ids: Vec::new(),
         },
     );
     let body = gathers(&doc, loft);

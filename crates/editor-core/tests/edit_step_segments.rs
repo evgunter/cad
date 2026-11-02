@@ -578,6 +578,7 @@ fn loft_of_loops(
             first: ids[0].into(),
             then,
             v_degree: Formula::count(1),
+            ids: Vec::new(),
         },
     );
     (doc, ids, loft)
@@ -604,14 +605,13 @@ fn rim(
 }
 
 /// The degree-1 loft's wall at canonical segment `e` across slab
-/// `slab`: through two sections the one wall, named by the piece each
-/// draws there; through more, the slab's, named by its index and the
-/// pieces its two sections draw. `None` where a section draws none or
+/// `slab`: named by the slab's two sections, each by its id (`sids`)
+/// with the piece it draws there. `None` where a section draws none or
 /// the table has no such name.
 fn loft_wall(
     ev: &Evaluation<f64>,
     loft: RecipeNodeId,
-    sections: &[RecipeNodeId],
+    (sections, sids): (&[RecipeNodeId], &[editor_core::SectionId]),
     e: CanonicalSegment,
     slab: usize,
 ) -> Option<FaceKey> {
@@ -619,22 +619,11 @@ fn loft_wall(
         ValuePayload::Profile(pv) => pv.pieces.edge(e.loop_index as usize, e.segment as usize),
         _ => None,
     };
-    let seg = if sections.len() == 2 {
-        RoleSeg::LoftWall(
-            sections
-                .iter()
-                .map(|&s| piece(s))
-                .collect::<Option<Vec<_>>>()?,
-        )
-    } else {
-        RoleSeg::LoftSlabWall(
-            u32::try_from(slab).ok()?,
-            sections[slab..=slab + 1]
-                .iter()
-                .map(|&s| piece(s))
-                .collect::<Option<Vec<_>>>()?,
-        )
-    };
+    let seg = RoleSeg::LoftWall(
+        (slab..=slab + 1)
+            .map(|k| Some((sids[k], piece(sections[k])?)))
+            .collect::<Option<Vec<_>>>()?,
+    );
     match ev.table_at(loft)?.lookup(&fixture::fname(loft, seg))? {
         Entry::Unique(r) => match r.key {
             EntityKey::Face(f) => Some(f),
@@ -644,20 +633,17 @@ fn loft_wall(
     }
 }
 
-/// The edge of interior section `si`'s ring over canonical segment `e`,
-/// `None` where the table has no such name.
+/// The edge of the interior section `sid`'s ring over canonical
+/// segment `e`, `None` where the table has no such name.
 fn section_edge(
     ev: &Evaluation<f64>,
     node: RecipeNodeId,
-    si: usize,
+    sid: editor_core::SectionId,
     pieces: &editor_core::ProfilePieces,
     e: CanonicalSegment,
 ) -> Option<EdgeKey> {
     let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
-    let name = fixture::ename(
-        node,
-        RoleSeg::LoftSectionEdge(u32::try_from(si).ok()?, piece),
-    );
+    let name = fixture::ename(node, RoleSeg::LoftSectionEdge(sid, piece));
     match ev.table_at(node)?.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Edge(k) => Some(k),
@@ -723,6 +709,7 @@ fn assert_sections_bound_their_walls(
         panic!("{id}: the loft carries a body");
     };
     let last = ids.len() - 1;
+    let sids = fixture::section_ids(doc, loft);
     let mut every_wall = BTreeSet::new();
     for (si, &section) in ids.iter().enumerate() {
         let Some(Node::Profile(program)) = doc.node(section) else {
@@ -763,7 +750,7 @@ fn assert_sections_bound_their_walls(
                     // The slabs section `si` bounds: the one below it
                     // and the one above it.
                     for slab in si.saturating_sub(1)..si.min(last - 1) + 1 {
-                        let face = loft_wall(ev, loft, ids, *e, slab).unwrap_or_else(|| {
+                        let face = loft_wall(ev, loft, (ids, &sids), *e, slab).unwrap_or_else(|| {
                             panic!(
                                 "{id}: section {si} loop {li} step {step}: {e:?} names no wall \
                                  of slab {slab}"
@@ -791,7 +778,7 @@ fn assert_sections_bound_their_walls(
                                 "{id}: section {si} step {step}'s ref {e:?} names no {cap:?} rim"
                             )
                         }),
-                        None => section_edge(ev, loft, si, &pv.pieces, *e).unwrap_or_else(|| {
+                        None => section_edge(ev, loft, sids[si], &pv.pieces, *e).unwrap_or_else(|| {
                             panic!("{id}: section {si} step {step}'s ref {e:?} names no ring edge")
                         }),
                     };
@@ -1108,7 +1095,8 @@ fn a_twisted_loft_takes_the_twist_the_author_wrote() {
             RoleSeg::LoftSeam(
                 sections
                     .iter()
-                    .map(|&s| fixture::vpiece(&doc, s, 0, k))
+                    .zip(fixture::section_ids(&doc, loft))
+                    .map(|(&s, sid)| (sid, fixture::vpiece(&doc, s, 0, k)))
                     .collect(),
             ),
         );

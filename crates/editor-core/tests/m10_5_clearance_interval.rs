@@ -1349,6 +1349,7 @@ fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
             })
             .collect(),
         v_degree: Formula::count(2),
+        ids: Vec::new(),
     });
     let doc = r.doc;
     let sel = Selection::body_of(loft);

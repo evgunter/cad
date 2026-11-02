@@ -405,6 +405,14 @@ impl Mint {
         })
     }
 
+    /// Every loft section id the document has minted, ascending.
+    pub fn sections(&self) -> impl Iterator<Item = SectionId> + '_ {
+        self.log.iter().filter_map(|entry| match *entry {
+            Minted::Section(section) => Some(section),
+            Minted::Node(_) | Minted::Step(_) | Minted::Var(_) | Minted::Constraint(_) => None,
+        })
+    }
+
     /// Every node id the document has minted, ascending.
     #[cfg(test)]
     pub(crate) fn nodes(&self) -> impl Iterator<Item = RecipeNodeId> + '_ {

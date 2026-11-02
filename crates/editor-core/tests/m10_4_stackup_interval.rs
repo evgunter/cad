@@ -1777,6 +1777,7 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
             }],
         }],
         v_degree: Formula::count(1),
+        ids: Vec::new(),
     });
     let ev = eval(&r.doc);
     if let Some(e) = ev.node_error(loft) {

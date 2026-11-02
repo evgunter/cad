@@ -256,6 +256,7 @@ fn wired() -> (
                 }],
             }],
             v_degree: Formula::count(1),
+            ids: Vec::new(),
         },
         body,
     );
@@ -274,6 +275,7 @@ fn wired() -> (
                 }],
             }],
             v_degree: Formula::count(1),
+            ids: Vec::new(),
         },
         body,
     );

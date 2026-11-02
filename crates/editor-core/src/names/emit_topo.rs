@@ -6961,6 +6961,7 @@ mod wavy_loft {
                 first: first.into(),
                 then,
                 v_degree: Formula::count(2),
+                ids: Vec::new(),
             },
         )
     }

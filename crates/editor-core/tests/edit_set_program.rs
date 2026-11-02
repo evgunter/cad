@@ -2486,6 +2486,7 @@ fn lofted(
                 }],
             }],
             v_degree: Formula::count(1),
+            ids: Vec::new(),
         },
     );
     (doc, [sec0, sec1, loft])
@@ -2511,7 +2512,31 @@ fn loft_wall(
 ) -> StableName {
     fname(
         loft,
-        RoleSeg::LoftWall(secs.iter().map(|&s| fixture::piece(doc, s, 0, k)).collect()),
+        RoleSeg::LoftWall(
+            secs.iter()
+                .zip(fixture::section_ids(doc, loft))
+                .map(|(&s, sid)| (sid, fixture::piece(doc, s, 0, k)))
+                .collect(),
+        ),
+    )
+}
+
+/// A loft seam at canonical vertex `k`, spelled by each section's
+/// vertex there.
+fn loft_seam(
+    doc: &ProfileDoc,
+    loft: RecipeNodeId,
+    secs: [RecipeNodeId; 2],
+    k: usize,
+) -> StableName {
+    fixture::ename(
+        loft,
+        RoleSeg::LoftSeam(
+            secs.iter()
+                .zip(fixture::section_ids(doc, loft))
+                .map(|(&s, sid)| (sid, fixture::vpiece(doc, s, 0, k)))
+                .collect(),
+        ),
     )
 }
 
@@ -2525,13 +2550,7 @@ fn a_loft_names_its_walls_and_seams_by_every_sections_piece() {
     let t = table(&ev, loft);
     for k in 0..4 {
         let _ = fixture::face_of(t, "loft wall", &loft_wall(&doc, loft, [sec0, sec1], k));
-        let seam = fixture::ename(
-            loft,
-            RoleSeg::LoftSeam(vec![
-                fixture::vpiece(&doc, sec0, 0, k),
-                fixture::vpiece(&doc, sec1, 0, k),
-            ]),
-        );
+        let seam = loft_seam(&doc, loft, [sec0, sec1], k);
         let _ = edge_of(t, "loft seam", &seam);
         let bottom = fixture::rim_edge(loft, CapEnd::Start, fixture::piece(&doc, sec0, 0, k));
         let top = fixture::rim_edge(loft, CapEnd::End, fixture::piece(&doc, sec1, 0, k));
@@ -2605,13 +2624,7 @@ fn upper_section_names(
         .map(|k| {
             [
                 loft_wall(doc, loft, [sec0, sec1], k),
-                fixture::ename(
-                    loft,
-                    RoleSeg::LoftSeam(vec![
-                        fixture::vpiece(doc, sec0, 0, k),
-                        fixture::vpiece(doc, sec1, 0, k),
-                    ]),
-                ),
+                loft_seam(doc, loft, [sec0, sec1], k),
                 fixture::rim_edge(loft, CapEnd::End, fixture::piece(doc, sec1, 0, k)),
             ]
         })

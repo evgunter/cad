@@ -1782,7 +1782,7 @@ pub(super) mod tests {
 
     use crate::names::SegTag;
     use crate::names::role::{CapEnd, PieceRole, ProfileEdgeRef};
-    use crate::node::{SectionId, StepId};
+    use crate::node::StepId;
     use test_utils::own_thread::{WASM_STACK, on_the_smallest_stack};
 
     thread_local! {
@@ -2040,7 +2040,7 @@ pub(super) mod tests {
             ProfileVertexRef, Qualifier, RimSupport, RoleSeg, RunLine, SectionCircle, Sense,
             StableName,
         };
-        use crate::node::{RecipeNodeId, StepId};
+        use crate::node::{RecipeNodeId, SectionId, StepId};
 
         fn stamp_in_order(low: &NameRef, high: &NameRef) {
             let epoch = super::super::super::role::next_epoch().expect("an epoch");

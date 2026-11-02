@@ -85,6 +85,7 @@ fn loft_doc(
             }],
         }],
         v_degree: Formula::count(1),
+        ids: Vec::new(),
     });
     let loft = if u == [1.0, 0.0, 0.0] {
         loft

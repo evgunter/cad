@@ -122,6 +122,7 @@ fn loft_doc_of(
                 }],
             }],
             v_degree: Formula::count(1),
+            ids: Vec::new(),
         },
     )
 }

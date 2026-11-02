@@ -465,6 +465,7 @@ fn loft() -> (ProfileDoc, VarId) {
             }],
         }],
         v_degree: Formula::count(1),
+        ids: Vec::new(),
     });
     let ev = eval(&r.doc);
     if let Some(e) = ev.node_error(loft) {

@@ -98,13 +98,6 @@ impl SectionId {
     }
 }
 
-/// A section id is spoken whole, as the wire spells it.
-impl core::fmt::Display for SectionId {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
 /// **Why a loft's section ids were refused** at an edit door or the
 /// load door (`names/README.md`, N1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

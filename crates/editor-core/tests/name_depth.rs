@@ -142,7 +142,7 @@ fn a_split_remaps_a_name_past_every_stack_on_the_smallest_stack() {
             .collect();
         let indices = [(k, moved_k)].into_iter().collect();
         let moved =
-            remap_name(&name, &map, &Default::default(), &indices).expect("every id is mapped");
+            remap_name(&name, &map, &Default::default(), &Default::default(), &indices).expect("every id is mapped");
         let expect = (0..depth).fold(
             StableName {
                 kind: editor_core::EntityKind::Face,

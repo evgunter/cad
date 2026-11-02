@@ -2030,7 +2030,7 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
         "the part's program holds each step's image"
     );
     let reds = std::collections::BTreeMap::new();
-    let crossed = editor_core::remap_name(&was, &out.node_map, &out.step_map, &reds)
+    let crossed = editor_core::remap_name(&was, &out.node_map, &out.step_map, &out.section_map, &reds)
         .expect("the split's maps cover the run");
     let e2_part = out.node_map[&e2];
     assert_eq!(
@@ -2045,7 +2045,13 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
     );
     assert_eq!(
         run_lines(&crossed)[0],
-        editor_core::remap_name(&run_lines(&was)[0], &out.node_map, &out.step_map, &reds)
+        editor_core::remap_name(
+            &run_lines(&was)[0],
+            &out.node_map,
+            &out.step_map,
+            &out.section_map,
+            &reds,
+        )
             .expect("covered"),
         "the run keeps its order"
     );
@@ -2069,7 +2075,13 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
     );
     let e2_host = inlined.node_map[&e2];
     assert_eq!(
-        editor_core::remap_name(&was, &inlined.node_map, &inlined.step_map, &reds)
+        editor_core::remap_name(
+            &was,
+            &inlined.node_map,
+            &inlined.step_map,
+            &inlined.section_map,
+            &reds,
+        )
             .expect("the inline's maps cover the run"),
         run_over(
             e2_host,

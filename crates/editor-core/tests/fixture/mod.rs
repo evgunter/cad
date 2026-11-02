@@ -3732,8 +3732,6 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::SectionFace
         | RoleSeg::LoftWall(_)
         | RoleSeg::LoftSeam(_)
-        | RoleSeg::LoftSlabWall(..)
-        | RoleSeg::LoftSlabSeam(..)
         | RoleSeg::LoftSectionEdge(..)
         | RoleSeg::LoftSectionVertex(..) => Vec::new(),
     }
@@ -4056,4 +4054,14 @@ pub fn product_in_world(
         Some(map) => topo::transform_rigid(&product.body, &map, tol)
             .expect("a product composes into the world"),
     })
+}
+
+/// **The section ids of the loft `loft`**, first to last, as the
+/// document holds them.
+#[must_use]
+pub fn section_ids(doc: &ProfileDoc, loft: RecipeNodeId) -> Vec<editor_core::SectionId> {
+    match doc.node(loft) {
+        Some(Node::Loft { ids, .. }) => ids.clone(),
+        other => panic!("{loft:?} is a loft, got {other:?}"),
+    }
 }

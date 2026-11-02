@@ -91,6 +91,13 @@ impl fmt::Display for StepId {
     }
 }
 
+/// The bare tag, spelled as a node's is.
+impl fmt::Display for SectionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_tag(f, self.0)
+    }
+}
+
 /// **A read's tag**: `read` and the variable's digest as a node's tag is
 /// spelled (`read 3fa9c1d2a0b1`) — how a name said by tag says the read
 /// a carry came through, where no document says what defines it.

@@ -462,6 +462,7 @@ fn a_loft_section_stands_at_its_station() {
                 by: len(1.0),
             }])],
             v_degree: Formula::count(1),
+            ids: Vec::new(),
         },
     );
     let points = vertices(&slid, loft);
@@ -487,6 +488,7 @@ fn a_loft_section_stands_at_its_station() {
                 },
             ])],
             v_degree: Formula::count(1),
+            ids: Vec::new(),
         },
     );
     let top: Vec<[f64; 3]> = vertices(&spun, loft)

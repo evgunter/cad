@@ -63,6 +63,7 @@ fn lofted(profiles: &[RecipeNodeId], v_degree: Formula) -> editor_core::Authored
             })
             .collect(),
         v_degree,
+        ids: Vec::new(),
     }
 }
 

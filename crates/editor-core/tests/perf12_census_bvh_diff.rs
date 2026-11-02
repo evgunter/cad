@@ -228,6 +228,7 @@ fn loft_with_brick() -> ProfileDoc {
         first: bottom.into(),
         then: vec![up(middle, 1.0), up(top, 2.0)],
         v_degree: Formula::count(2),
+        ids: Vec::new(),
     });
     r.place(body);
     let brick = r.insert(Node::Profile(ProfileProgram {

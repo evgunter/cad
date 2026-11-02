@@ -73,6 +73,7 @@ pub fn document() -> CorpusDoc {
         first: bottom.into(),
         then: vec![up(middle, 1.0), up(top, 2.0)],
         v_degree: Formula::count(2),
+        ids: Vec::new(),
     });
 
     r.place_part(loft);
