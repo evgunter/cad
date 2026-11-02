@@ -349,13 +349,14 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     let assertion = insert(
         &mut doc,
         Node::Assertion(pncad::document::Claim::Value {
-                value: web,
-                bound: len(bound),
-                relation: AssertionRelation::AtLeast,
-            }),
+            value: web,
+            bound: len(bound),
+            relation: AssertionRelation::AtLeast,
+        }),
         tol,
     );
-    let Some(Node::Assertion(pncad::document::Claim::Value { value: web, .. })) = doc.node(assertion)
+    let Some(Node::Assertion(pncad::document::Claim::Value { value: web, .. })) =
+        doc.node(assertion)
     else {
         unreachable!("the assertion was inserted one line above")
     };

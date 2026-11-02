@@ -510,10 +510,10 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let assertion = insert(
         &mut doc,
         Node::Assertion(pncad::document::Claim::Value {
-                value: Formula::var(position, Dimension::Length),
-                bound: len(bound),
-                relation: AssertionRelation::AtMost,
-            }),
+            value: Formula::var(position, Dimension::Length),
+            bound: len(bound),
+            relation: AssertionRelation::AtMost,
+        }),
         tol,
     );
     Chain {
