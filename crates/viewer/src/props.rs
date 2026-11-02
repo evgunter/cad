@@ -898,15 +898,27 @@ fn slot_row(
             source: None,
         };
     };
+    formula_row(doc, slot, node.slot_label(slot), &expr)
+}
+
+/// **The row of `slot` were it written as `expr`**, read under `doc`'s
+/// variables: what a slot's row is of the expression it holds, and
+/// what a profile editor's field is of an argument its draft holds.
+pub(crate) fn formula_row(
+    doc: &Doc<ProfileProgram>,
+    slot: SlotId,
+    label: String,
+    expr: &Formula,
+) -> SlotRow {
     SlotRow {
         slot,
-        label: node.slot_label(slot),
+        label,
         dimension: slot.expr_dimension(),
         structural: slot.is_structural(),
-        driver: SlotDriver::of(doc, &expr),
-        value: reading(doc, &expr, slot.expr_dimension()),
+        driver: SlotDriver::of(doc, expr),
+        value: reading(doc, expr, slot.expr_dimension()),
         unit: expr.display_unit(),
-        source: Some(doc.unparse(&expr)),
+        source: Some(doc.unparse(expr)),
     }
 }
 

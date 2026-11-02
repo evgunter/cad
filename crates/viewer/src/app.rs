@@ -9833,56 +9833,6 @@ mod properties_pane_tests {
                     .collect::<Vec<_>>()
             );
         }
-
-        /// Decision 1, at the field: an expression typed over held edits.
-        #[test]
-        fn an_expression_typed_over_held_edits() {
-            let mut driven = driven_plate();
-            touch_far_y(&mut driven, 0.05);
-            let before = driven.app.session.committed_doc().clone();
-            let painted = driven.quiet();
-            // The anchor's x field (first "x " name run).
-            let at = painted
-                .iter()
-                .find(|(run, _)| run == "x ")
-                .map(|(_, rect)| rect.center())
-                .expect("a field named x");
-            let press = |pressed| egui::Event::PointerButton {
-                pos: at,
-                button: egui::PointerButton::Primary,
-                pressed,
-                modifiers: egui::Modifiers::default(),
-            };
-            driven.frame(vec![egui::Event::PointerMoved(at)]);
-            driven.frame(vec![press(true), press(false)]);
-            driven.frame(vec![egui::Event::Key {
-                key: egui::Key::A,
-                physical_key: None,
-                pressed: true,
-                repeat: false,
-                modifiers: egui::Modifiers::COMMAND,
-            }]);
-            driven.frame(vec![egui::Event::Text("w/7".to_owned())]);
-            driven.frame(vec![egui::Event::Key {
-                key: egui::Key::Enter,
-                physical_key: None,
-                pressed: true,
-                repeat: false,
-                modifiers: egui::Modifiers::default(),
-            }]);
-            let painted = driven.quiet();
-            let runs: Vec<&str> = painted.iter().map(|(r, _)| r.as_str()).collect();
-            let said = runs.iter().any(|r| r.contains("apply or revert"));
-            eprintln!(
-                "refusal said: {said}; doc unchanged: {}; far y {}; anchor {:?}",
-                driven.app.session.committed_doc().bit_eq(&before),
-                held_point(&driven, 3).y,
-                held_point(&driven, 0)
-            );
-            assert!(said, "{runs:?}");
-            assert!(driven.app.session.committed_doc().bit_eq(&before));
-            assert_eq!(held_point(&driven, 3).y, 0.05);
-        }
     }
 
     /// **The profile editor's fields are the profile's slots**: the
@@ -10017,6 +9967,247 @@ mod properties_pane_tests {
                 driven.app.session.committed_doc().bit_eq(&committed),
                 "nor does it reach the document"
             );
+        }
+
+        /// The startup plate with `w` declared at the plate's width, its
+        /// profile open in the editor.
+        fn with_w() -> Driven {
+            let mut driven = Driven::with(vec![
+                SessionOp::DeclareVar {
+                    name: pncad::document::VarName::from_static("w"),
+                    value: pncad::document::FreeVar::continuous(
+                        pncad::document::Dimension::Length,
+                        0.07,
+                    ),
+                },
+                SessionOp::Select(Selection::Node(profile())),
+            ]);
+            driven.quiet();
+            driven
+        }
+
+        /// The held draft, mutably.
+        fn edit(driven: &mut Driven) -> &mut crate::drafts::ProfileEdit {
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("the editor holds the profile")
+        }
+
+        /// Move the outline's far-left corner in the draft alone: an
+        /// edit the draft holds and the document does not.
+        fn hold_far_y(driven: &mut Driven, y: f64) {
+            let landed = driven.app.session.doc().clone();
+            edit(driven).set_step(
+                &landed,
+                (0, 3),
+                Step::LineTo(Target::Point(pncad::geom_core::Point2::new(0.0, y))),
+            );
+            driven.quiet();
+        }
+
+        /// Type `text` into the `nth` field named `x`, replacing what
+        /// it holds, and press Enter.
+        fn type_into_x(driven: &mut Driven, nth_x: usize, text: &str) {
+            let painted = driven.quiet();
+            let at = nth(&painted, |run| run == "x ", nth_x);
+            let key = |key, modifiers| egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            };
+            let press = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            driven.frame(vec![egui::Event::PointerMoved(at)]);
+            driven.frame(vec![press(true), press(false)]);
+            driven.frame(vec![key(egui::Key::A, egui::Modifiers::COMMAND)]);
+            driven.frame(vec![egui::Event::Text(text.to_owned())]);
+            driven.frame(vec![key(egui::Key::Enter, egui::Modifiers::default())]);
+            driven.quiet();
+        }
+
+        /// What argument `arg` of held row `row` holds, as written.
+        fn held_source(driven: &Driven, row: usize, arg: StepArg) -> Option<String> {
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .expect("held")
+                .held_row(driven.app.session.doc(), (0, row), arg)
+                .and_then(|held| held.source)
+        }
+
+        /// Apply, and the history states it took.
+        fn apply(driven: &mut Driven) -> usize {
+            let before = driven.app.session.history().len();
+            driven.click("Apply");
+            driven.settle();
+            driven.app.session.history().len() - before
+        }
+
+        /// **A formula typed over held edits goes into the draft, and
+        /// commits with them as one step.** The far corner is moved in
+        /// the draft; `w/7` typed into the anchor's x reaches neither
+        /// the document nor a refusal: the draft holds it, and previews
+        /// it as `w` reads (a variable set moves the held anchor). The
+        /// commit is one history state carrying both, and one undo
+        /// takes both back.
+        #[test]
+        fn a_formula_typed_over_held_edits_commits_with_them_in_one_step() {
+            let mut driven = with_w();
+            let before = driven.app.session.committed_doc().clone();
+            hold_far_y(&mut driven, 0.05);
+            type_into_x(&mut driven, 0, "w/7");
+            assert!(
+                driven.app.session.committed_doc().bit_eq(&before),
+                "the formula reached the document before the commit"
+            );
+            assert!(
+                held_source(&driven, 0, StepArg::PointX).is_some_and(|src| src.contains('w')),
+                "the draft holds the formula: {:?}",
+                held_source(&driven, 0, StepArg::PointX)
+            );
+            let Step::At(anchor) = held_step(&driven, 0) else {
+                panic!("the outline opens with its anchor")
+            };
+            assert_eq!(anchor.x, 0.01, "the held anchor previews at w/7");
+            let Step::LineTo(Target::Point(far)) = held_step(&driven, 3) else {
+                panic!("a point leg")
+            };
+            assert_eq!(far.y, 0.05, "the other held edit stands");
+            let var = driven
+                .app
+                .session
+                .committed_doc()
+                .var_named("w")
+                .expect("w");
+            let out = driven.app.session.perform(SessionOp::SetVariable {
+                var,
+                value: crate::props::SlotValue::Continuous(0.14),
+            });
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+            driven.quiet();
+            let Step::At(anchor) = held_step(&driven, 0) else {
+                panic!("the anchor")
+            };
+            assert_eq!(
+                anchor.x, 0.02,
+                "the preview reads w as the document now holds it"
+            );
+            let set = driven.app.session.committed_doc().clone();
+            assert_eq!(apply(&mut driven), 1, "one history state");
+            let row = driven.row(profile(), outline(0, StepArg::PointX));
+            assert!(row.driver.is_driven(), "the anchor's x is driven: {row:?}");
+            assert_eq!(
+                row.value
+                    .ok()
+                    .and_then(|value| value.one())
+                    .map(|v| v.as_f64()),
+                Some(0.02),
+                "by w/7"
+            );
+            let far = driven.row(profile(), outline(3, StepArg::TargetY));
+            assert_eq!(
+                far.value
+                    .ok()
+                    .and_then(|value| value.one())
+                    .map(|v| v.as_f64()),
+                Some(0.05),
+                "the held edit landed with it"
+            );
+            let out = driven.app.session.perform(SessionOp::Undo);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+            assert!(
+                driven.app.session.committed_doc().bit_eq(&set),
+                "one undo takes both back"
+            );
+        }
+
+        /// **A formula typed into a step the draft made commits too.**
+        /// A leg inserted in the draft has no committed slot; `w/2`
+        /// typed into its x is held, previewed and committed with the
+        /// new step in one history state.
+        #[test]
+        fn a_formula_typed_into_a_draft_only_step_commits_with_it() {
+            let mut driven = with_w();
+            let before = driven.app.session.committed_doc().clone();
+            let at = pncad::geom_core::Point2::new(0.03, -0.01);
+            edit(&mut driven)
+                .edit_row(
+                    0,
+                    crate::drafts::RowEdit::Insert {
+                        at: 1,
+                        step: Step::LineTo(Target::Point(at)),
+                    },
+                    crate::props::Notation::CANONICAL,
+                )
+                .expect("the leg is held");
+            driven.quiet();
+            type_into_x(&mut driven, 1, "w/2");
+            assert!(
+                driven.app.session.committed_doc().bit_eq(&before),
+                "nothing reached the document"
+            );
+            let Step::LineTo(Target::Point(new)) = held_step(&driven, 1) else {
+                panic!("the inserted leg")
+            };
+            assert_eq!(new.x, 0.035, "the new leg previews at w/2");
+            assert_eq!(apply(&mut driven), 1, "one history state");
+            let row = driven.row(profile(), outline(1, StepArg::TargetX));
+            assert!(
+                row.source.as_deref().is_some_and(|src| src.contains('w')),
+                "the new step carries the formula: {row:?}"
+            );
+            assert_eq!(
+                row.value
+                    .ok()
+                    .and_then(|value| value.one())
+                    .map(|v| v.as_f64()),
+                Some(0.035)
+            );
+        }
+
+        /// **A text that does not parse is refused at its field**, in
+        /// the slot door's words, holding nothing: the draft keeps the
+        /// edit it held and nothing else, the document does not move,
+        /// and the field keeps the text to amend.
+        #[test]
+        fn a_bad_expression_is_refused_at_the_field_and_holds_nothing() {
+            let mut driven = with_w();
+            let before = driven.app.session.committed_doc().clone();
+            hold_far_y(&mut driven, 0.05);
+            let held = edit(&mut driven).programs().expect("lowers");
+            let text = "w +";
+            let doc = driven.app.session.committed_doc().clone();
+            let words = crate::session::parse_text(&doc, text)
+                .expect_err("the text does not parse")
+                .to_string();
+            type_into_x(&mut driven, 0, text);
+            let painted = driven.quiet();
+            let runs: Vec<&str> = painted.iter().map(|(run, _)| run.as_str()).collect();
+            assert!(
+                runs.iter().any(|run| run.contains(&words)),
+                "the refusal is said in the slot door's words {words:?}: {runs:?}"
+            );
+            assert!(
+                runs.iter().any(|run| run.contains(text)),
+                "the field keeps the text: {runs:?}"
+            );
+            assert_eq!(
+                edit(&mut driven).programs().expect("lowers"),
+                held,
+                "the draft is unchanged"
+            );
+            assert!(driven.app.session.committed_doc().bit_eq(&before));
         }
 
         /// **A live drag in the editor's field moves the drawn outline,

@@ -11,22 +11,24 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Dimension, RecipeNodeId, SlotId, StepArg};
+use pncad::document::{RecipeNodeId, SlotId, StepArg};
 use pncad::geom_core::Tol;
 use pncad::profile::{Step, TipState, Verb};
-use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
+use pncad::quantity::{AngleUnit, LengthUnit};
 
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior};
-use crate::drafts::{ProfileEdit, RowEdit};
+use crate::drafts::{ProfileEdit, RefusedText, RowEdit};
 use crate::forms::ShapeKind;
 use crate::frame;
-use crate::props::{self, Notation, SlotRow};
+use crate::pane::properties::slot_showing;
+use crate::props::{self, Notation, SlotRow, SlotValue};
 use crate::session::{DocSession, SessionOp};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::Theme;
 use crate::tools::FormKind;
 use crate::widgets::{
-    ArgDoors, WrittenIn, angle_picker, length_picker, new_row_step, path_step_fields,
+    ArgDoors, FieldVocabulary, GestureVocabulary, WrittenIn, angle_picker, length_picker,
+    new_row_step, path_step_fields, value_field_ops,
 };
 
 impl ViewerBehavior<'_> {
@@ -43,11 +45,12 @@ impl ViewerBehavior<'_> {
     /// [`SessionOp::EditProfile`] ([`edit_door_ui`]).
     ///
     /// **Each argument's field is its slot's field** ([`HeldArgs`]):
-    /// a kept step's number is shown in the unit its slot is written
-    /// in, with the slot row's own doors beside it — the expression,
-    /// the unit, the range probe, the name — so the node has no second
-    /// set of rows for its arguments. An argument an expression drives
-    /// is held as that expression, its number the reading, locked.
+    /// the slot row's field over the argument as the draft holds it,
+    /// and for a kept step the slot row's own doors beside it — the
+    /// unit, the range probe, the name — so the node has no second set
+    /// of rows for its arguments. An argument an expression drives is
+    /// held as that expression, its number the reading, locked; text
+    /// typed into any field is an expression the draft holds.
     ///
     /// Returns `false`, having said why in the actionable colour, when
     /// the node is no profile the editor can hold: the caller shows the
@@ -78,10 +81,7 @@ impl ViewerBehavior<'_> {
             unreachable!("`Drafts::profile_edit` answered Ok, so the draft is held")
         };
         let untouched = !edit.differs_from_base();
-        // The rows the panel reads: the landed document's, so a driven
-        // field's reading follows a drag of what it reads.
         let mut slots = PaneSlots {
-            rows: props::slot_rows(session.doc(), node),
             pane: self,
             node,
             untouched,
@@ -106,145 +106,224 @@ impl ViewerBehavior<'_> {
 }
 
 /// **The pane's doors over one node's slots** — [`SlotDoors`] drawn by
-/// the slot row's own methods (`pane::properties`): the held field
-/// ([`ViewerBehavior::held_slot_field_ui`]), the unit picker
+/// the slot row's own methods (`pane::properties`): the unit picker
 /// ([`ViewerBehavior::slot_unit_ui`]), and the probe, naming and notes
 /// under a row ([`ViewerBehavior::held_slot_doors_ui`]).
 struct PaneSlots<'p, 'a> {
     pane: &'p mut ViewerBehavior<'a>,
     node: RecipeNodeId,
-    /// The node's slot rows, as the committed document holds them.
-    rows: Vec<SlotRow>,
     /// Whether the draft holds nothing the document does not
-    /// ([`ViewerBehavior::held_slot_field_ui`]'s gate).
+    /// ([`ViewerBehavior::held_slot_doors_ui`]'s gate).
     untouched: bool,
 }
 
-impl PaneSlots<'_, '_> {
-    fn rows_of(&self, slots: &[SlotId]) -> Vec<SlotRow> {
-        slots
-            .iter()
-            .filter_map(|slot| self.rows.iter().find(|row| row.slot == *slot).cloned())
-            .collect()
-    }
-}
-
 impl SlotDoors for PaneSlots<'_, '_> {
-    fn field(&mut self, ui: &mut egui::Ui, slot: SlotId, name: &str, value: &mut f64) -> bool {
-        let Some(row) = self.rows_of(&[slot]).pop() else {
-            return false;
-        };
-        self.pane
-            .held_slot_field_ui(ui, self.node, &row, name, value, self.untouched);
-        true
+    fn unit(&mut self, ui: &mut egui::Ui, rows: &[SlotRow]) {
+        self.pane.slot_unit_ui(ui, self.node, rows);
     }
 
-    fn unit(&mut self, ui: &mut egui::Ui, slots: &[SlotId]) {
-        let rows = self.rows_of(slots);
-        self.pane.slot_unit_ui(ui, self.node, &rows);
-    }
-
-    fn under(&mut self, ui: &mut egui::Ui, slots: &[(SlotId, String)]) {
-        let named: Vec<(SlotRow, String)> = slots
-            .iter()
-            .filter_map(|(slot, name)| Some((self.rows_of(&[*slot]).pop()?, name.clone())))
-            .collect();
+    fn under(&mut self, ui: &mut egui::Ui, rows: &[(SlotRow, String)]) {
         self.pane
-            .held_slot_doors_ui(ui, self.node, &named, self.untouched);
+            .held_slot_doors_ui(ui, self.node, rows, self.untouched);
     }
 }
 
-/// **What a committed slot's field is drawn with** at the edit door:
-/// the doors an argument of a kept step has because it is a slot.
-/// Behind a trait so a row can drive [`edit_door_ui`] with no pane.
+/// **What a committed slot's field has beside it** at the edit door:
+/// the doors an argument of a kept step has because it is a slot,
+/// each handed the slot's row as the draft holds the argument
+/// ([`ProfileEdit::held_row`]). Behind a trait so a row can drive
+/// [`edit_door_ui`] with no pane.
 pub(crate) trait SlotDoors {
-    /// The field over `slot`, named `name`, holding the draft's
-    /// canonical `value`; `false`, having drawn nothing, where the node
-    /// lists no such slot.
-    fn field(&mut self, ui: &mut egui::Ui, slot: SlotId, name: &str, value: &mut f64) -> bool;
-    /// The written-unit picker `slots` share, after their fields.
-    fn unit(&mut self, ui: &mut egui::Ui, slots: &[SlotId]);
-    /// The doors and notes of `slots`, each with its field's name,
+    /// The written-unit picker `rows` share, after their fields.
+    fn unit(&mut self, ui: &mut egui::Ui, rows: &[SlotRow]);
+    /// The doors and notes of `rows`, each with its field's name,
     /// under the row that drew them.
-    fn under(&mut self, ui: &mut egui::Ui, slots: &[(SlotId, String)]);
+    fn under(&mut self, ui: &mut egui::Ui, rows: &[(SlotRow, String)]);
 }
 
-/// **The edit door's arguments**, for one held loop. A row loaded as a
-/// committed step draws each argument through the slot doors as the
-/// committed slot it is — the position it was loaded from
-/// ([`ProfileEdit::loaded_at`]) and its role. A row the editor made, a
-/// role its committed step does not have, or a door drawn with no slot
-/// doors, draws the plain field: in the unit the literal is written
-/// in, which is the unit it lands in ([`ProfileEdit::units_at`]), and
-/// otherwise in the editor's notation.
+/// What one gesture or keyboard edit of a held field does
+/// ([`held_field`]).
+#[derive(Clone, Debug)]
+enum HeldAct {
+    /// The held number moves to this canonical value.
+    Hold(f64),
+    /// A number typed over an argument an expression drives.
+    OverExpression,
+    /// Text: an expression for the draft to parse.
+    Text(String),
+    /// A gesture's press, release or Escape: nothing is opened to land.
+    Rest,
+}
+
+/// **One argument's field over what the draft holds** — the slot row's
+/// value field ([`ViewerBehavior::slot_value_ui`]: the same widget, the
+/// same echo rule, [`slot_showing`]) drawn over `row`, the argument as
+/// the draft holds it ([`ProfileEdit::held_row`]), with `name` in the
+/// field. Nothing it does reaches the document: the draft holds it.
+///
+/// - **A literal** shows and holds `held` (canonical) in the unit it is
+///   written in; a drag or a typed number writes `held` every frame it
+///   moves, which is what makes the draft's preview follow the drag.
+/// - **An argument an expression drives is locked**: the field shows
+///   the expression's reading, a drag moves nothing, and a number typed
+///   over it is refused as the slot row refuses it
+///   ([`crate::session::driven_refusal`]), onto `notices`.
+/// - **Text is an expression**, answered for the draft to parse
+///   ([`ProfileEdit::write_text`]). `refused` is text the draft refused
+///   here, shown in place of the field's own until it moves.
+fn held_field(
+    ui: &mut egui::Ui,
+    (node, notation): (RecipeNodeId, Notation),
+    (row, name): (&SlotRow, &str),
+    held: &mut f64,
+    refused: Option<&str>,
+    notices: &mut Vec<frame::Message>,
+) -> Option<String> {
+    let mut showing = slot_showing(row, refused, notation);
+    showing.name = Some(name.to_owned());
+    let driven = row.driver.is_driven();
+    if !driven {
+        showing.number = props::shown_value(showing.writing.unit, *held);
+    }
+    let mut acts = Vec::new();
+    value_field_ops(
+        ui,
+        showing,
+        GestureVocabulary::held(
+            move |value| {
+                if driven {
+                    HeldAct::Rest
+                } else {
+                    HeldAct::Hold(value)
+                }
+            },
+            HeldAct::Rest,
+        ),
+        FieldVocabulary {
+            number: move |value: SlotValue| {
+                if driven {
+                    HeldAct::OverExpression
+                } else {
+                    HeldAct::Hold(value.as_f64())
+                }
+            },
+            text: HeldAct::Text,
+        },
+        &mut acts,
+        notices,
+    );
+    let mut typed = None;
+    for act in acts {
+        match act {
+            HeldAct::Hold(value) => *held = value,
+            HeldAct::OverExpression => {
+                if let Err(refusal) = crate::session::driven_refusal(node, row, notation) {
+                    notices.push(frame::refusal_message(&refusal));
+                }
+            }
+            HeldAct::Text(text) => typed = Some(text),
+            HeldAct::Rest => {}
+        }
+    }
+    typed
+}
+
+/// **The edit door's arguments**, for one held loop. Every argument
+/// is drawn as the draft holds it ([`held_field`]); one of a row
+/// loaded as a committed step also has its committed slot's doors
+/// beside it, through `slots`. What a field typed is kept for the
+/// door to write into the draft.
 struct HeldArgs<'d, 'o> {
     slots: Option<&'d mut (dyn SlotDoors + 'o)>,
-    plain: WrittenIn,
-    /// Per held row, the committed `(loop, step)` it was loaded from.
-    kept: Vec<Option<(u32, u32)>>,
-    /// Per held row, the unit each literal argument is written in.
-    units: Vec<Vec<(StepArg, UnitDef)>>,
+    node: RecipeNodeId,
+    notation: Notation,
+    theme: Theme,
+    /// Per held row, each argument's row as the draft holds it.
+    rows: Vec<Vec<(StepArg, SlotRow)>>,
+    /// Per held row, whether it was loaded as a committed step.
+    kept: Vec<bool>,
+    /// Text the draft refused in this loop, if one stands.
+    refused: Option<RefusedText>,
     /// The slot fields drawn in the row being drawn, with their names.
-    drawn: Vec<(usize, SlotId, String)>,
+    drawn: Vec<(usize, SlotRow, String)>,
+    /// Per field typed into: its row, its argument and the text.
+    typed: Vec<(usize, StepArg, String)>,
+    /// What the fields said.
+    notices: Vec<frame::Message>,
 }
 
 impl ArgDoors for HeldArgs<'_, '_> {
     fn field(&mut self, ui: &mut egui::Ui, row: usize, arg: StepArg, name: &str, value: &mut f64) {
-        let slot = self
-            .kept
+        let Some(held) = self
+            .rows
             .get(row)
-            .copied()
-            .flatten()
-            .map(|(loop_, step)| SlotId::Profile { loop_, step, arg });
-        if let (Some(doors), Some(slot)) = (self.slots.as_deref_mut(), slot)
-            && doors.field(ui, slot, name, value)
-        {
-            self.drawn.push((row, slot, name.to_owned()));
+            .and_then(|args| args.iter().find(|(each, _)| *each == arg))
+            .map(|(_, held)| held.clone())
+        else {
+            // A row the list made this frame, before the draft holds it.
+            WrittenIn::of(self.notation).field(ui, row, arg, name, value);
             return;
+        };
+        let refused = self
+            .refused
+            .as_ref()
+            .filter(|refused| refused.at.0.1 == row && refused.at.1 == arg)
+            .map(|refused| refused.text.as_str());
+        if let Some(text) = held_field(
+            ui,
+            (self.node, self.notation),
+            (&held, name),
+            value,
+            refused,
+            &mut self.notices,
+        ) {
+            self.typed.push((row, arg, text));
         }
-        let written = self
-            .units
-            .get(row)
-            .and_then(|units| units.iter().find(|(each, _)| *each == arg))
-            .map(|(_, unit)| *unit);
-        let mut plain = self.plain;
-        if let Some(unit) = written {
-            match arg.dimension() {
-                Dimension::Length => plain.length = unit,
-                Dimension::Angle => plain.angle = unit,
-                Dimension::Scalar | Dimension::Count => {}
-            }
+        if self.kept.get(row).copied().unwrap_or(false) {
+            self.drawn.push((row, held, name.to_owned()));
         }
-        plain.field(ui, row, arg, name, value);
     }
 
     fn unit(&mut self, ui: &mut egui::Ui, row: usize, args: &[StepArg]) {
-        let slots: Vec<SlotId> = self
+        let rows: Vec<SlotRow> = self
             .drawn
             .iter()
-            .filter(|(at, slot, _)| {
-                *at == row && matches!(slot, SlotId::Profile { arg, .. } if args.contains(arg))
+            .filter(|(at, held, _)| {
+                *at == row
+                    && matches!(held.slot, SlotId::Profile { arg, .. } if args.contains(&arg))
             })
-            .map(|(_, slot, _)| *slot)
+            .map(|(_, held, _)| held.clone())
             .collect();
         if let Some(doors) = self.slots.as_deref_mut()
-            && !slots.is_empty()
+            && !rows.is_empty()
         {
-            doors.unit(ui, &slots);
+            doors.unit(ui, &rows);
         }
     }
 
     fn under(&mut self, ui: &mut egui::Ui, row: usize) {
-        let slots: Vec<(SlotId, String)> = self
+        if let Some(refused) = self
+            .refused
+            .as_ref()
+            .filter(|refused| refused.at.0.1 == row)
+        {
+            crate::widgets::message_toned(
+                ui,
+                refused.why.clone(),
+                &self.theme,
+                frame::Tone::Actionable,
+            );
+        }
+        let rows: Vec<(SlotRow, String)> = self
             .drawn
             .drain(..)
             .filter(|(at, _, _)| *at == row)
-            .map(|(_, slot, name)| (slot, name))
+            .map(|(_, held, name)| (held, name))
             .collect();
         if let Some(doors) = self.slots.as_deref_mut()
-            && !slots.is_empty()
+            && !rows.is_empty()
         {
-            doors.under(ui, &slots);
+            doors.under(ui, &rows);
         }
     }
 }
@@ -268,12 +347,13 @@ impl ArgDoors for HeldArgs<'_, '_> {
 /// Each row is the held step's view at plain numbers, its fields
 /// written back over the step ([`ProfileEdit::write_step`]); a step
 /// with no view (one that lowers against the pen) is shown as written,
-/// with its row's controls. Each argument of a kept step is drawn
-/// through `slots`, the doors its committed slot has ([`HeldArgs`]);
-/// `None` draws every field plain, in `notation`. A moved argument of
-/// a kept step is written in the unit its slot is written in, so the
-/// number a slot field shows is the number that lands; what did not
-/// move is committed as it is written.
+/// with its row's controls. Every argument is drawn as the draft holds
+/// it ([`HeldArgs`]), text typed into it written into the draft as an
+/// expression ([`ProfileEdit::write_text`]); an argument of a kept step
+/// also has its committed slot's doors, through `slots` (`None` draws
+/// none). A moved argument of a kept step is written in the unit its
+/// slot is written in, so the number a slot field shows is the number
+/// that lands; what did not move is committed as it is written.
 ///
 /// Answers the op Apply formed, or the notice for what could not form
 /// one (a field that does not lower, a program that is not a loop's
@@ -294,6 +374,8 @@ pub(crate) fn edit_door_ui(
     let views = edit.steps(landed, tol);
     let mut rows = Vec::new();
     let mut written = Vec::new();
+    let mut typed = Vec::new();
+    let mut said = Vec::new();
     let mut removed = None;
     for (index, view) in views.into_iter().enumerate() {
         // A loop header only where there is more than one: "loop 0"
@@ -308,12 +390,30 @@ pub(crate) fn edit_door_ui(
             });
         }
         let salt = format!("edit_{}_{index}", node.full());
+        let held_rows = edit.loops()[index]
+            .iter()
+            .enumerate()
+            .map(|(row, held)| {
+                held.args()
+                    .into_iter()
+                    .filter_map(|(arg, _)| Some((arg, edit.held_row(landed, (index, row), arg)?)))
+                    .collect()
+            })
+            .collect();
         let mut args = HeldArgs {
             slots: slots.as_deref_mut(),
-            plain: WrittenIn::of(notation),
-            kept: edit.loaded_at(index),
-            units: edit.units_at(index),
+            node,
+            notation,
+            theme,
+            rows: held_rows,
+            kept: edit.loaded_at(index).iter().map(Option::is_some).collect(),
+            refused: edit
+                .refused()
+                .filter(|refused| refused.at.0.0 == index)
+                .cloned(),
             drawn: Vec::new(),
+            typed: Vec::new(),
+            notices: Vec::new(),
         };
         // A step with no view at plain numbers is shown as written.
         let mut list: Vec<StepRow> = view
@@ -328,6 +428,12 @@ pub(crate) fn edit_door_ui(
         if let Some(row) = step_rows_ui(ui, &salt, tol, &mut args, &mut list) {
             rows.push((index, row));
         }
+        typed.extend(
+            args.typed
+                .drain(..)
+                .map(|(row, arg, text)| ((index, row), arg, text)),
+        );
+        said.append(&mut args.notices);
         for (at, (was, now)) in shown.iter().zip(&list).enumerate() {
             if let (StepRow::Step(was), StepRow::Step(now)) = (was, now)
                 && !sketch::same_step(was, now)
@@ -345,6 +451,10 @@ pub(crate) fn edit_door_ui(
     for (at, step) in written {
         refusals.extend(edit.write_step(at, step, landed, notation, &noted).err());
     }
+    // A refused text is said at its field, from the draft.
+    for (at, arg, text) in typed {
+        let _held_at_its_field = edit.write_text(at, arg, &text, session.committed_doc());
+    }
     for (index, row) in rows {
         refusals.extend(edit.edit_row(index, row, notation).err());
     }
@@ -357,6 +467,9 @@ pub(crate) fn edit_door_ui(
     }
     if let Some(error) = refusals.first() {
         return Err(frame::tool_news(&FormKind::EditProfile.refuses(error)));
+    }
+    if let Some(notice) = said.into_iter().next() {
+        return Err(notice);
     }
     if edit.runs_from_the_pen() {
         crate::widgets::message_toned(ui, PEN_UNDRAWN, &theme, frame::Tone::Advisory);
