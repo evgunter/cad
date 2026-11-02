@@ -55,8 +55,9 @@ words yet, and `bool_contact_vertex`, which is raised under two
 decisions (the Boolean contact sweep's vertex-to-vertex coincidence and
 containment's boundary pre-pass), so no one decision's words are true of
 it. `WORDLESS` lists it under its own reason. Giving it words needs one
-predicate name per decision; `bool_contact_arc` is the same case,
-though a subtract does not log it.
+predicate name per decision. (`bool_contact_arc` was the same case;
+ONEHOME's PR 6327 retired the name, its split-point raise now reading
+`geom`'s `curve_carrier_*` rows.)
 
 ## The volume backstop left the operation path (2026-10-27)
 
