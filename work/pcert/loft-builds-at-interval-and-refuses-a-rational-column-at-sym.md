@@ -38,3 +38,5 @@ builds. The clearance row asks on the numeric lane by name
 (`ClearanceQuery::certified_at(SymbolicDials::off())`) and cites this
 file. Close this by making the two lanes agree, then dropping the dial
 from that row.
+
+- 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).

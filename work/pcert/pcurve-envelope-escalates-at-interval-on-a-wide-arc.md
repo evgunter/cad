@@ -81,3 +81,5 @@ reason. Two ways out:
 - have the extrude store a frame whose unit-ness is exact at every
   scalar (for example, the rim and its norm kept apart, and the
   normalisation done where the chart is read).
+
+- 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).

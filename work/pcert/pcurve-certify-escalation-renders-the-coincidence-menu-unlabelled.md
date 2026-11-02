@@ -85,3 +85,5 @@ is its check's (`SsiLimb::check`, through `geom_brep::certify::recourse`).
 ## Noted 2026-10-20 (ENCL, `encl/check-word-one-noun`)
 
 When `PcurveCheck` gains words in place of `{check:?}`, each should say its decision's noun, as `CertCheck`'s now do (`CertCheck`'s `Display`, `crates/geom-brep/src/certify.rs`). `ParamSpan` routes through `SpanDecision::Forward`, whose size is "length". `AzimuthPeriod` and `TubePeriod` route through `SpanDecision::Winding`, whose size is "arc" (`SpanDecision::size` in `crates/geom-brep/src/recourse.rs`), as its lever's "this arc" is; the edge's check word names the margin's quantity on that arc, "the stored arc's headroom to one full turn of its carrier", so theirs would name the image's arc the same way. Their definite payloads (`AzimuthPeriodExceeded`, `TubePeriodExceeded`) say "more than one full period", where the edge's winding decision says "one full turn of its carrier".
+
+- 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).

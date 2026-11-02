@@ -66,7 +66,7 @@
 //! on its start, its deck elements composed to the identity
 //! (`pcurves::loop_windings`' `zero`); nothing about how far the loop
 //! spans the chart enters, and the at-rest pass does not yet refuse a
-//! loop that winds (`work/pctail/a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one.md`). The parity of a path
+//! loop that winds (`work/pcert/a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one.md`). The parity of a path
 //! across a curve that bounds is its ends' sides of the disc, whichever
 //! way round the tube or the axis it goes.
 //!

@@ -53,3 +53,5 @@ checks the existing walk makes; or record in the guard's docs that
 the producer population is deliberately a survey, with the list
 above as the census so a new producer is at least a doc diff. The
 first is the one that would have caught `revert`.
+
+- 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).

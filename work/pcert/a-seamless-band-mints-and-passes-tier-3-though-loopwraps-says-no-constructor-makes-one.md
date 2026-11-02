@@ -68,3 +68,5 @@ off the run's orientation, which the parity never sees
 (`crate::ring_path`'s module docs). A constructor that makes such a
 band needs that reading, or a typed refusal there, first.
 
+
+- 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).

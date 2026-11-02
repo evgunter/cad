@@ -51,3 +51,5 @@ Decide reachability first. If the mint reaches it, it ends in the
 kernel-defect ending on that route, told apart from the hand-built
 image by its door rather than its text (the offset fit's `MintLimb`
 next to `Limb` is the same split).
+
+- 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).

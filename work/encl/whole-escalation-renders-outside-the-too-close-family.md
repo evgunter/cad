@@ -40,5 +40,5 @@ The other whole renders the sweep met are owned:
   tolerance") by
   `work/germ/plane-torus-section-degenerate-torus-ends-as-corruption.md`;
 - `PcurveCertifyError::Escalated` by
-  `work/pctail/pcurve-certify-escalation-renders-the-coincidence-menu-unlabelled.md`;
+  `work/pcert/pcurve-certify-escalation-renders-the-coincidence-menu-unlabelled.md`;
 - sweep's "too close to call" sites by `too-close-to-call-remainder`.

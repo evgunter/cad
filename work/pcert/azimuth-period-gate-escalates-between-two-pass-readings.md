@@ -63,3 +63,5 @@ fitted/general lane, now the item's whole subject.
 - Re-banded P3 → P2: a headroom between two passing readings escalates: interval and error propagation, P2 by `work/README.md` Priority.
 - Priced `M`, the effort the body describes.
 - Moved to PCTAIL (`work/pctail/`) by `git mv`, id and body unchanged: whose ground is `geom-brep`'s `pcurve_cache.rs` (the row names its PCERT overlap). CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+- 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).

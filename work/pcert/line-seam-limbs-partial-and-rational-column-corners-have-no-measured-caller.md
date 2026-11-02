@@ -43,3 +43,5 @@ hull over the full column, and the column's third control point,
 `Pcurve::General` degree-1 image certifies, since the general lane's
 hull reads the image's own span. `spline_region_rows.rs`'s `sheet`
 fixture states its creased-column sides that way for this reason.
+
+- 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).

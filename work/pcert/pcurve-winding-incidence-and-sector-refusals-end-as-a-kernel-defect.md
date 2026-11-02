@@ -22,3 +22,5 @@ Decide the class first. Look for an attach-door input that reaches each of the t
 
 - **Class 1**: the check's lever (move the edge clear of the chart's singular set, or keep it within one period).
 - **Class 2**, if the argument holds for a check: panic per `[failure]`, with its tests moved to `#[should_panic]`.
+
+- 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).

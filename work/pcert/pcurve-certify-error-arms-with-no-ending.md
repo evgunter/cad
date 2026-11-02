@@ -44,3 +44,5 @@ it. `FittedCertificate` can carry the SSI ending it flattened.
 Re-listed on `pcert/projected-image` (2026-10-08): `ArcNearPole` is
 retired with the Hermite image, and the projected image's
 `SectorRefused` joins the grouped `None` in its place.
+
+- 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).

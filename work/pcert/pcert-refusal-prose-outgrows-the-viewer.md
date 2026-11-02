@@ -51,3 +51,5 @@ variant to a short reason and one recourse in the viewer's terms
 measured by `editor-core/tests/refusal_concision_at_rest.rs` and no
 longer by this row. This row's subject is unchanged: the sentence
 itself, as the callers that hold a `PcurveCertifyError` (through `PcurveMintError::Certify`) directly still read it.
+
+- 2026-11-02 — moved from PCTAIL to PCERT by `git mv` when PCTAIL merged into PCERT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and PCTAIL had fallen far under it).
