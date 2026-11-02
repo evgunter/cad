@@ -19,7 +19,7 @@ use super::role::{
 };
 use super::table::{EntityKey, NameTable};
 use crate::eval::ProfilePieces;
-use crate::node::RecipeNodeId;
+use crate::node::{RecipeNodeId, SectionId};
 
 /// **An OFF-AXIS meridian vertex that stays unresolved.** Not a shape
 /// limitation: an off-axis vertex always has a rim, and a meridian edge
@@ -103,21 +103,16 @@ fn run_at(pieces: &ProfilePieces, l: usize, run: &[usize]) -> PieceRun {
 }
 
 /// **How a loft's per-position roles are spelled**: a wall and a seam
-/// spanning every section by every section's piece at that position
-/// (`RoleSeg::LoftWall`, `RoleSeg::LoftSeam`); one of a loft built one
-/// per slab by its slab and the pieces at the slab's two sections
-/// (`RoleSeg::LoftSlabWall`, `RoleSeg::LoftSlabSeam`), and an interior
-/// section's ring by the section and its own piece; its caps' rims and
-/// vertices by the end section's own. One profile per section, first to
-/// last.
-struct Sections<'a>(&'a [ProfilePieces]);
-
-/// A slab or section index as a role segment holds it.
-#[track_caller]
-fn index(i: usize) -> u32 {
-    u32::try_from(i).unwrap_or_else(|_| {
-        unreachable!("a loft's slab or section index {i} fits a u32: a section is a profile")
-    })
+/// by each section they span, by its id, with the piece or vertex at
+/// that position there (`RoleSeg::LoftWall`, `RoleSeg::LoftSeam`) —
+/// every section where the wall is the only one at its position, a
+/// degree-1 slab's two sections otherwise; an interior section's ring
+/// edge and vertex by the section's id and its own piece; its caps'
+/// rims and vertices by the end section's own. One profile and one id
+/// per section, first to last.
+struct Sections<'a> {
+    pieces: &'a [ProfilePieces],
+    ids: &'a [SectionId],
 }
 
 /// **Two adjacent slab walls that do not share exactly one edge**: the
@@ -142,8 +137,8 @@ impl Sections<'_> {
     #[track_caller]
     fn end(&self, end: CapEnd) -> &ProfilePieces {
         let section = match end {
-            CapEnd::Start => self.0.first(),
-            CapEnd::End => self.0.last(),
+            CapEnd::Start => self.pieces.first(),
+            CapEnd::End => self.pieces.last(),
         };
         let Some(section) = section else {
             unreachable!("a loft skins two sections or more, so it has two ends")
@@ -151,16 +146,25 @@ impl Sections<'_> {
         section
     }
 
+    /// The sections slab `s` of `slabs` spans, as `(id, pieces)`: every
+    /// section where it is the only slab, its two otherwise.
+    fn spanned(&self, s: usize, slabs: usize) -> impl Iterator<Item = (SectionId, &ProfilePieces)> {
+        let at = if slabs == 1 {
+            0..self.pieces.len()
+        } else {
+            s..s + 2
+        };
+        self.ids[at.clone()].iter().copied().zip(&self.pieces[at])
+    }
+
     /// The wall at canonical segment `k` of loop `l` across slab `s`
-    /// of `slabs`: across every section where it is the only one.
+    /// of `slabs`.
     #[track_caller]
     fn wall(&self, l: usize, k: usize, s: usize, slabs: usize) -> RoleSeg {
-        if slabs == 1 {
-            return RoleSeg::LoftWall(self.0.iter().map(|p| edge_at(p, l, k)).collect());
-        }
-        RoleSeg::LoftSlabWall(
-            index(s),
-            self.0[s..=s + 1].iter().map(|p| edge_at(p, l, k)).collect(),
+        RoleSeg::LoftWall(
+            self.spanned(s, slabs)
+                .map(|(id, p)| (id, edge_at(p, l, k)))
+                .collect(),
         )
     }
 
@@ -168,14 +172,9 @@ impl Sections<'_> {
     /// slab `s` of `slabs`, as [`Self::wall`].
     #[track_caller]
     fn strut(&self, l: usize, v: usize, s: usize, slabs: usize) -> RoleSeg {
-        if slabs == 1 {
-            return RoleSeg::LoftSeam(self.0.iter().map(|p| vertex_at(p, l, v)).collect());
-        }
-        RoleSeg::LoftSlabSeam(
-            index(s),
-            self.0[s..=s + 1]
-                .iter()
-                .map(|p| vertex_at(p, l, v))
+        RoleSeg::LoftSeam(
+            self.spanned(s, slabs)
+                .map(|(id, p)| (id, vertex_at(p, l, v)))
                 .collect(),
         )
     }
@@ -184,14 +183,14 @@ impl Sections<'_> {
     /// `k` of loop `l`.
     #[track_caller]
     fn section_edge(&self, i: usize, l: usize, k: usize) -> RoleSeg {
-        RoleSeg::LoftSectionEdge(index(i), edge_at(&self.0[i], l, k))
+        RoleSeg::LoftSectionEdge(self.ids[i], edge_at(&self.pieces[i], l, k))
     }
 
     /// The vertex of interior section `i` over canonical vertex `v` of
     /// loop `l`.
     #[track_caller]
     fn section_vertex(&self, i: usize, l: usize, v: usize) -> RoleSeg {
-        RoleSeg::LoftSectionVertex(index(i), vertex_at(&self.0[i], l, v))
+        RoleSeg::LoftSectionVertex(self.ids[i], vertex_at(&self.pieces[i], l, v))
     }
 
     /// The rim where the wall at `(l, k)` meets the cap at `end`.
@@ -303,16 +302,20 @@ pub(crate) fn name_extrude<T: topo::AtRestPolicy + Decide>(
 /// per slab, the first meeting the start cap and the last the end cap
 /// along one rim each, and adjacent slabs' walls along one rim of the
 /// section between them — with a wall and a seam named by the pieces
-/// the skin paired, one per section it spans (`sections`, first to
-/// last).
+/// the skin paired, one per section it spans (`sections` and their
+/// `ids`, first to last).
 pub(crate) fn name_loft<T: topo::AtRestPolicy + Decide>(
     node: RecipeNodeId,
     built: &sweep::Lofted<T>,
     sections: &[ProfilePieces],
+    ids: &[SectionId],
 ) -> Result<Arc<NameTable>, NamingError> {
     name_loft_topology(
         node,
-        &Sections(sections),
+        &Sections {
+            pieces: sections,
+            ids,
+        },
         &built.body,
         built.top,
         built.bottom,
@@ -898,7 +901,12 @@ mod tests {
             Tol::witness(),
         )
         .unwrap();
-        name_loft(node(), &lofted, &[pieces.clone(), pieces])
-            .unwrap_or_else(|e| panic!("the loft is named: {e:?}"));
+        name_loft(
+            node(),
+            &lofted,
+            &[pieces.clone(), pieces],
+            &[SectionId::new(1, 1), SectionId::new(2, 2)],
+        )
+        .unwrap_or_else(|e| panic!("the loft is named: {e:?}"));
     }
 }

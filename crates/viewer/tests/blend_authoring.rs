@@ -979,15 +979,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
     let mut session = session(tol);
     let a = common::xy_box_in(&mut session, [SIDE; 3]);
     let raw_b = common::xy_box_in(&mut session, [SIDE; 3]);
-    let b = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: raw_b.into(),
-            translation: len3([SIDE * 0.5, SIDE * 0.25, SIDE * 0.25]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
-    );
+    let b = common::moved_to(&mut session, raw_b, [SIDE * 0.5, SIDE * 0.25, SIDE * 0.25]);
     let union = session_insert(
         &mut session,
         SessionOp::AddBoolean {

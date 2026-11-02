@@ -235,7 +235,7 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     /// none is. The choice reads the frames' structure and no value, so
     /// the `f64` witness and every lane over a box compute in one frame
     /// and take one set of decisions.
-    pub(crate) fn computing_among<'a>(
+    pub fn computing_among<'a>(
         operands: impl IntoIterator<Item = &'a Self> + Clone,
     ) -> Option<&'a Self>
     where

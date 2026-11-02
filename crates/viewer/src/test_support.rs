@@ -463,6 +463,56 @@ pub fn square_profile(
     inserted(doc, square(side), tol)
 }
 
+/// The clearance scene's blocks' side, in x and y ([`two_blocks_apart`]).
+pub const CLEARANCE_SIDE: f64 = 0.02;
+/// Their height.
+pub const CLEARANCE_HEIGHT: f64 = 0.01;
+/// The gap between their facing walls, along x.
+pub const CLEARANCE_GAP: f64 = 0.01;
+
+/// **Two blocks side by side, [`CLEARANCE_GAP`] apart along x**, each a
+/// [`CLEARANCE_SIDE`] square extruded [`CLEARANCE_HEIGHT`], labelled
+/// `left` and `right`, and each placed into the world at the identity
+/// ([`placed`]) — two parts as they stand, the scene a clearance row
+/// is about. Answers the document, each block's extrude, and each
+/// block's world placement.
+pub fn two_blocks_apart(tol: Tol) -> (Doc<ProfileProgram>, [RecipeNodeId; 2], [RecipeNodeId; 2]) {
+    let mut doc = Doc::empty_derived("two-blocks-apart", tol);
+    let mut blocks = [RecipeNodeId::WORLD; 2];
+    let mut copies = [RecipeNodeId::WORLD; 2];
+    for (i, (x, label)) in [(0.0, "left"), (CLEARANCE_SIDE + CLEARANCE_GAP, "right")]
+        .into_iter()
+        .enumerate()
+    {
+        let (with, profile) = inserted(
+            &doc,
+            rectangle([x, 0.0], CLEARANCE_SIDE, CLEARANCE_SIDE),
+            tol,
+        );
+        let (with, block) = inserted(
+            &with,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(CLEARANCE_HEIGHT),
+            },
+            tol,
+        );
+        let (with, _) = edited(
+            &with,
+            DocEdit::SetLabel {
+                node: block,
+                label: Some(pncad::document::Label::new(label).expect("a label")),
+            },
+            tol,
+        );
+        let (with, copy) = placed(&with, block, tol);
+        doc = with;
+        blocks[i] = block;
+        copies[i] = copy;
+    }
+    (doc, blocks, copies)
+}
+
 /// The boss-on-a-face scene's block: 40 × 20 × 10 mm, centred on the
 /// world xy frame and extruded up ([`boss_on_block`]).
 pub const BOSS_BLOCK: [f64; 3] = [0.04, 0.02, 0.01];

@@ -1280,6 +1280,7 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
         Node::Loft {
             first: profiles[0].into(),
             then: vec![editor_core::LoftSection {
+                id: None,
                 profile: profiles[1].into(),
                 station: vec![editor_core::StationMove::Slide {
                     along: editor_core::Axis3::Z,
@@ -1287,6 +1288,7 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
                 }],
             }],
             v_degree: Formula::count(1),
+            first_id: None,
         },
     );
     let body = gathers(&doc, loft);

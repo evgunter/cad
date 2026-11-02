@@ -253,7 +253,7 @@ pub(crate) fn entry_side<T: Decide, E>(
     far: impl FnOnce(VertexKey) -> Result<PlaneSide, E>,
     band: Band,
 ) -> Result<(Vec3<T>, PlaneSide), EntryFault<E>> {
-    use crate::bound_side::{BoundSide, Reach, Side};
+    use crate::bound_side::{BoundSide, Descent, Reach, Side};
     let (final_vertex, dir, conic_bend) = chord(body, vertex, he).map_err(EntryFault::Walk)?;
     let Some(bend) = conic_bend else {
         return far(final_vertex)
@@ -265,14 +265,14 @@ pub(crate) fn entry_side<T: Decide, E>(
         bend,
     };
     let side = match crate::bound_side::read_plane_side(dir, reach, reference, band) {
-        Ok(BoundSide::Off(Side::Below) | BoundSide::Tangent(Side::Below)) => PlaneSide::Below,
-        Ok(BoundSide::Off(Side::Above) | BoundSide::Tangent(Side::Above)) => PlaneSide::Above,
-        Ok(BoundSide::Rides | BoundSide::Unread) => PlaneSide::On,
-        Err(fault) => {
-            return Err(EntryFault::Undecided(fault.diag().unwrap_or_else(|| {
-                unreachable!("a plane's datum carries no curvature charge to refuse")
-            })));
+        Ok(BoundSide::Off(Side::Below) | BoundSide::Tied(Descent::Leaves(Side::Below))) => {
+            PlaneSide::Below
         }
+        Ok(BoundSide::Off(Side::Above) | BoundSide::Tied(Descent::Leaves(Side::Above))) => {
+            PlaneSide::Above
+        }
+        Ok(BoundSide::Tied(Descent::Rides | Descent::Unresolved(_))) => PlaneSide::On,
+        Err(fault) => return Err(EntryFault::Undecided(fault.diag())),
     };
     Ok((dir, side))
 }

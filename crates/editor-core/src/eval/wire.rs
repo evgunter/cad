@@ -448,7 +448,16 @@ where
                 .iter()
                 .map(|section| section.station.as_slice())
                 .collect();
-            wire_loft(id, &sections, &stations, results, vals, tol)
+            let Some(ids) = node
+                .loft_section_ids()
+                .and_then(|ids| ids.into_iter().collect::<Option<Vec<_>>>())
+            else {
+                unreachable!(
+                    "loft {id} reached evaluation with a section that carries no id: the insert \
+                     door mints one per section and the load door refuses a section without"
+                )
+            };
+            wire_loft(id, &sections, &ids, &stations, results, vals, tol)
                 .and_then(|out| twisted(out, id, env, tol))
         }
         Node::Sweep { profile, path, .. } => {
@@ -2522,7 +2531,7 @@ where
             b,
         );
     }
-    let verdict = crate::clearance::verdict_of(report.verdict.clone(), param, refused);
+    let verdict = crate::clearance::verdict_of(report.verdict.clone(), param, sides, refused);
     answer(ClearanceReport::of(verdict, &report))
 }
 
@@ -4475,6 +4484,7 @@ fn need_count(
 fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
+    ids: &[crate::SectionId],
     stations: &[&[crate::node::StationMove]],
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -4519,8 +4529,9 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     })?;
     // Eager N4 emission, BEFORE the structural handoff is dropped. The
     // skin pairs canonical segment `k` of every section into wall `k`,
-    // so wall `k` is named by one locator per section.
-    let table = names::name_loft(id, &built, &pieces).map_err(NodeErrorKind::Naming)?;
+    // so wall `k` is named by one locator per section it spans, each
+    // with that section's id.
+    let table = names::name_loft(id, &built, &pieces, ids).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(values[0].framed(Arc::new(built.body))),
         table,

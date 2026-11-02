@@ -7644,6 +7644,49 @@ fn a_clearance_reports_payloads_are_nameable_from_the_facade() {
     assert_eq!(widths(DischargeWidths::empty()), 0);
 }
 
+/// **A refusal is said in the document's own words**: an engine refusal
+/// names each side by the body it is of, and a body the document labels
+/// is said by its label — never by the bare tag the document-free
+/// rendering falls back to.
+///
+/// Red if `ClearanceOutcome::of` renders a refusal without the
+/// document's speaker.
+#[test]
+fn a_clearance_refusal_names_each_side_as_the_document_says_it() {
+    use pncad::analysis::{
+        ClearanceOutcome, ClearanceRefusal, ClearanceVerdict, EngineRefusal, Which,
+    };
+    use pncad::document::{DocEdit, Label, Speaker, apply};
+    let (doc, solid) = plate_param_facade_only();
+    let doc = apply(
+        &doc,
+        &DocEdit::SetLabel {
+            node: solid,
+            label: Some(Label::new("plate").expect("a label")),
+        },
+        Tol::witness(),
+    )
+    .expect("the label lands")
+    .doc;
+    let refused = ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+        refusal: EngineRefusal::EmptyScope { side: Which::First },
+        sides: [(solid, 0), (solid, 0)],
+    });
+    let ClearanceOutcome::Refused { sentence, .. } =
+        ClearanceOutcome::of(&refused, Speaker::of(&doc))
+    else {
+        panic!("a refused verdict reads as refused");
+    };
+    assert!(
+        sentence.contains("\"plate\""),
+        "the side is said by its label: {sentence}"
+    );
+    assert!(
+        !sentence.contains(&format!("node {solid}")),
+        "no side is said by a bare tag: {sentence}"
+    );
+}
+
 /// **The nominal clearance door answers each clearance assertion in
 /// plain numbers, and stops on its cancel token.** The plate against
 /// itself meets itself, so `clearance ≥ 1 mm` is violated by a pair 0
@@ -7673,7 +7716,7 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
             ClearanceBounds::AtMost(len(0.001)),
         ),
     );
-    let answers = clearances_at_nominal(&doc, &CancelToken::new(), Tol::witness())
+    let answers = clearances_at_nominal(&doc, None, &CancelToken::new(), Tol::witness())
         .expect("an uncanceled run answers");
     let ids: Vec<_> = answers.iter().map(|a| a.assertion).collect();
     assert_eq!(
@@ -7693,7 +7736,7 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
     let cancel = CancelToken::new();
     cancel.cancel();
     assert_eq!(
-        clearances_at_nominal(&doc, &cancel, Tol::witness()),
+        clearances_at_nominal(&doc, None, &cancel, Tol::witness()),
         Err(Canceled)
     );
 }
