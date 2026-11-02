@@ -85,7 +85,7 @@ impl Fnv {
 
     fn curve3<T: Decide + Bounds>(&mut self, c: &Curve3<T>) {
         match c {
-            Curve3::Line { origin, dir } => {
+            Curve3::Line(geom::Line { origin, dir }) => {
                 self.u64(40);
                 self.p3(origin);
                 self.v3(dir);

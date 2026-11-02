@@ -312,7 +312,7 @@ impl<T: Decide> Body<T> {
         // positive, metered in meters like the certification span gate.
         let (t0, t1) = curve.params();
         let scale = match *curve.carrier() {
-            geom::Curve3::Line { .. } => InfSpeed::new(T::one()),
+            geom::Curve3::Line(_) => InfSpeed::new(T::one()),
             geom::Curve3::Circle { radius, .. } => InfSpeed::new(radius),
             // The conic lane (M5 PR 5, C12.3): metered at the SMALLER
             // semi-axis magnitude — the conservative meter

@@ -186,7 +186,7 @@ fn unit(v: [f64; 3]) -> Vec3<f64> {
 
 /// A line from `p` along the unit `d` over `[0, len]`.
 fn line(p: Point3<f64>, d: Vec3<f64>, len: f64) -> (Curve3<f64>, f64, f64) {
-    (Curve3::Line { origin: p, dir: d }, 0.0, len)
+    (Curve3::Line(geom::Line { origin: p, dir: d }), 0.0, len)
 }
 
 /// A coaxial arc about `+z` at height `z`, radius `r`, from azimuth `a`
@@ -370,14 +370,7 @@ fn skew_sector<T: Real>() -> (Surface<T>, Vec<LoopEdge<T>>) {
         LoopEdge::hand_built(carrier, T::zero(), t1, true, tag, (tag + 1) % 3)
     };
     let edges = vec![
-        edge(
-            Curve3::Line {
-                origin: apex,
-                dir: g(T::zero()),
-            },
-            two,
-            0,
-        ),
+        edge(Curve3::line(apex, g(T::zero())), two, 0),
         edge(
             Curve3::Circle {
                 center: apex + a * (two * ca),
@@ -389,10 +382,7 @@ fn skew_sector<T: Real>() -> (Surface<T>, Vec<LoopEdge<T>>) {
             1,
         ),
         edge(
-            Curve3::Line {
-                origin: apex + g(T::one()) * two,
-                dir: Vec3::zero() - g(T::one()),
-            },
+            Curve3::line(apex + g(T::one()) * two, Vec3::zero() - g(T::one())),
             two,
             2,
         ),

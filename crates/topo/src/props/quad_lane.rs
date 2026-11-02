@@ -48,7 +48,7 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
 /// refuse by name.
 fn harmonic_carrier<T: Decide>(carrier: &Curve3<T>) -> Result<(), PropsError> {
     match carrier {
-        Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => Ok(()),
+        Curve3::Line(_) | Curve3::Circle { .. } | Curve3::Ellipse { .. } => Ok(()),
         // The spiric's chart images are not harmonic (its `m`
         // channel is `√((R + r cos v)² − d²)`), so the trig
         // brackets this lane reads do not exist for it. Unreachable
@@ -306,10 +306,7 @@ pub(super) fn translated_surface<T: Decide>(
 pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> Option<Curve3<T>> {
     let shift = |p: Point3<T>| Point3::origin() + (p - by);
     Some(match curve.clone() {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: shift(origin),
-            dir,
-        },
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(shift(origin), dir),
         Curve3::Circle {
             center,
             axis,
@@ -674,7 +671,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
-        Curve3::Line { dir, .. } => (dir.norm() * Interval::point(span)).mag(),
+        Curve3::Line(geom::Line { dir, .. }) => (dir.norm() * Interval::point(span)).mag(),
         Curve3::Circle { radius, .. } => (radius * Interval::point(span)).mag(),
         Curve3::Ellipse { semi_u, semi_v, .. } => {
             (geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * Interval::point(span)).mag()
@@ -1406,7 +1403,7 @@ fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
     t1: T,
 ) -> Result<f64, PropsError> {
     Ok(match carrier {
-        Curve3::Line { dir, .. } => {
+        Curve3::Line(geom::Line { dir, .. }) => {
             (Interval::from_certified(dir.norm()) * Interval::from_certified(t1 - t0)).mag()
         }
         // The control polygon bounds the spline's arc length
@@ -1649,10 +1646,7 @@ mod tests {
 
         fn line(a: Point3<Interval>, b: Point3<Interval>, tags: (u32, u32)) -> LoopEdge<Interval> {
             LoopEdge::hand_built(
-                Curve3::Line {
-                    origin: a,
-                    dir: b - a,
-                },
+                Curve3::line(a, b - a),
                 iv(0.0),
                 iv(1.0),
                 true,

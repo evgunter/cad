@@ -504,7 +504,8 @@ impl EdgeOverlay {
 /// sees both of its lanes.
 ///
 /// A committed profile is marked in the same lanes, by its whole drawn
-/// outline ([`PickIndex::profile_outline`]): hovered where the cursor
+/// outline ([`PickIndex::drawn_outline`]), its edit preview's while one
+/// draws it in place: hovered where the cursor
 /// is over it, selected where its node is the selection, from the tree
 /// or the viewport alike. A profile is never free-moved, so its marks
 /// are never probed.
@@ -543,7 +544,7 @@ pub fn edge_overlay(
                 .map(|vertex| vertex_segments(index, display, vertex))
                 .unwrap_or_default(),
         );
-        for polyline in profile.map_or(&[][..], |node| index.profile_outline(node)) {
+        for polyline in profile.map_or(&[][..], |node| index.drawn_outline(node, display)) {
             // The seam's undrawn count is dropped here as the edge
             // mark's is (`edge_segments`): the profile lane carries the
             // same legs, and its count is the VNEWS badge row's.
@@ -1111,5 +1112,56 @@ mod tests {
         let (_, elsewhere) = compose(&index, &display, &Selection::None, None, &held(7));
         assert!(elsewhere.held.is_empty());
         assert_eq!(elsewhere.held_refused, None, "the ordinary arm stays quiet");
+    }
+
+    /// **A profile the edit door previews in place is marked by the
+    /// preview's outline.** The plate's profile is selected, once under
+    /// the view that previews nothing and once under one whose
+    /// [`DisplayView::previewed_profile`] draws it 0.1 m along x. Red if
+    /// the selected mark stays on the committed outline the profile lane
+    /// leaves out.
+    #[test]
+    fn a_profile_previewed_in_place_is_marked_by_its_preview() {
+        use crate::display::PreviewedProfile;
+
+        let (_, index, _) = plate_indexed(Tol::witness());
+        let (doc, _) = crate::scene::plate_with_hole(Tol::witness()).expect("the plate authors");
+        let profile = *doc
+            .ids()
+            .iter()
+            .find(|node| !index.profile_outline(**node).is_empty())
+            .expect("the plate draws a profile");
+        let selected = Selection::Node(profile);
+        let committed = super::edge_overlay(&index, &DisplayView::none(), &selected, None).selected;
+        let outline: Vec<Vec<Point3<f64>>> = index
+            .profile_outline(profile)
+            .iter()
+            .map(|lp| {
+                lp.iter()
+                    .map(|p| Point3::new(p.x + 0.1, p.y, p.z))
+                    .collect()
+            })
+            .collect();
+        let want: Vec<[f32; 3]> = outline
+            .iter()
+            .flat_map(|lp| LegLane::of_polyline(lp).into_segments())
+            .collect();
+        let previewing = DisplayView::none().previewing(Some(PreviewedProfile {
+            node: profile,
+            outline,
+        }));
+        let marked = super::edge_overlay(&index, &previewing, &selected, None).selected;
+        assert!(
+            !committed.is_empty(),
+            "the control: the committed outline is marked"
+        );
+        assert_ne!(
+            marked, committed,
+            "the committed outline is not marked while previewed"
+        );
+        assert_eq!(
+            marked, want,
+            "the preview's outline is marked as the selection"
+        );
     }
 }

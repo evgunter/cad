@@ -387,7 +387,7 @@ impl<'a> Writer<'a> {
         // arm an EXACT native AP214 entity (crate docs, "the analytic
         // subset"). Everything around this match is carrier-agnostic.
         let curve = match *carrier {
-            Curve3::Line { origin, dir } => {
+            Curve3::Line(geom::Line { origin, dir }) => {
                 let cp = self.cartesian_point(origin, "line origin")?;
                 let d = self.direction(dir, "line direction")?;
                 // Magnitude 1.0: `dir` is unit by convention, so the

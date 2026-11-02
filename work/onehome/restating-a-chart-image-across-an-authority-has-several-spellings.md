@@ -2,10 +2,11 @@
 id: restating-a-chart-image-across-an-authority-has-several-spellings
 kind: issue
 title: restating an edge as a chart image while carrying its declared authority across is spelled at three sites
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: E
+branch: onehome/small-bundle
 ---
 
 

@@ -649,6 +649,7 @@ fn options_doors() -> Vec<Roster> {
         symbols: _,
         pin: _,
         computing_twist: _,
+        member_budget: _,
     } = &eval;
 
     vec![
@@ -787,6 +788,7 @@ fn options_doors() -> Vec<Roster> {
                                  the computing frame no part of meaning compares both",
                     },
                 ),
+                ("member_budget", Bound(&["member_budget"])),
             ],
         ),
     ]
