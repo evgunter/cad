@@ -1031,9 +1031,8 @@ Notes on the neighbouring names:
   `side` and `advance` fields are never read by `on_segment`, so they
   are never minted.
 - `bool_contact_edge_span` is retired with the span gates it named.
-- `point_in_arc_loop_conic_on`, `point_in_arc_loop_conic_span`,
-  `bool_contact_arc` and `bool_contact_arc_span` move into `ConicRows`
-  fields.
+- `point_in_arc_loop_conic_on`, `point_in_arc_loop_conic_span` and
+  `bool_contact_arc_span` move into `ConicRows` fields.
 - `point_in_arc_loop_conic_window` decides only where a ray crosses an
   arc, as `arc_trim`'s trim row (ATREST-12's distance trim, the one home
   check 9's `ring_outer_arc_{end,trim}` also read).
