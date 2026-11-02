@@ -681,9 +681,8 @@ impl<T: Real> Reach<T> {
     /// which is what a tilt that moves the region by ε is ε over.
     ///
     /// - [`Self::Ball`]: the ball's far side from `pivot`.
-    /// - [`Self::Measured`]: the caller's length: the germ frame's longer
-    ///   of the larger radius and the walls' span, which the cylinder
-    ///   pair also floors at the foot's distance from `at`
+    /// - [`Self::Measured`]: the caller's length, which a pair of lines
+    ///   also floors at the foot's distance from `at`
     ///   ([`Self::lever_between`]).
     /// - [`Self::Face`]: its farthest distance from `at`: the plane×cone
     ///   arm levers its trileans at it. The plane×cylinder row reads a

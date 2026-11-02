@@ -163,10 +163,10 @@ crate::vocab::vocabulary! {
     /// edge the tool takes or an honest empty.
     ///
     /// **A profile is the third.** A committed profile's outline is
-    /// pickable, and only the revolve tool's seat reads a profile; a
-    /// tool handed one it cannot use drops it (the mate tool) or seats
-    /// a node its door refuses. So the outline answers only under
-    /// [`PickKinds::Any`], and every other tool's rule leaves it out
+    /// pickable, and no tool's seat reads a profile; a tool handed one
+    /// it cannot use drops it (the mate tool) or seats a node its door
+    /// refuses. So the outline answers only under [`PickKinds::Any`],
+    /// the bare cursor's rule, and every tool's rule leaves it out
     /// ([`PickKinds::admits`]).
     ///
     /// **This is deliberately not a filter vocabulary.** Each variant is
@@ -182,8 +182,7 @@ crate::vocab::vocabulary! {
     pub enum PickKinds {
         /// The bare cursor's rule: an edge or a committed profile's
         /// outline within [`EDGE_PICK_RADIUS_PX`] beats the face behind
-        /// it. Also the rule of a tool that reads a profile — the
-        /// revolve tool's seat.
+        /// it.
         #[default]
         Any,
         /// The bare cursor's rule less profiles: what a tool that reads

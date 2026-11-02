@@ -415,7 +415,7 @@ impl<'a> PairLane<'a> {
     }
 
     /// The ends' reader over this pair.
-    fn ends(&self) -> Ends<'_> {
+    fn ends(&self) -> Ends<'_, ParametricPairR4<'_>, 3, 4> {
         Ends::pair(
             &self.sys,
             self.ctx,

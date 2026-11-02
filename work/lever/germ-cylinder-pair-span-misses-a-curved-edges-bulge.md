@@ -2,10 +2,11 @@
 id: germ-cylinder-pair-span-misses-a-curved-edges-bulge
 kind: issue
 title: the germ frame's cylinder-pair span is its walls' vertex ball, which a curved rim's bulge reaches past
-status: open
+status: closed
 opened: 2026-10-07
 priority: P3
 cost: E
+closed: 2026-11-02
 ---
 
 
@@ -43,3 +44,19 @@ longer of the two (the axes drift apart by the sine times that), never
 at a whole turn of an arc the face does not hold. A spiric or spline
 edge is read at its torus's support or whole control net there, which
 `spiric-and-spline-axial-levers-read-past-the-span` covers.
+
+## Closed (2026-11-02, SECTARMS stage 3, branch `sectarms/cylinder-join-reads-value`)
+
+The subject retires. The join no longer reads a cylinder pair through a
+frame: it reads the pair's pose on the section value (`join::cylinder_read`).
+That pose levers `cc_axes_parallel` across the operation's region, the
+ball about the overlap of the two operands' boxes (C5). The region holds
+every section point the operation can use, a curved rim's bulge
+included, so no face's vertex ball is read.
+
+Also removed, since they now have no producer:
+- `frame_reading`'s cylinder-pair span;
+- `FrameExtent::Span`;
+- `pair_section_frame`'s cylinder arm.
+
+The plane × cylinder pair's own lever (`face_axial_range`) is unchanged.
