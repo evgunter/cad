@@ -365,9 +365,13 @@ jobs:
             scripts/check-fast-set-times.py --new-since "$BASE" > "$RUNNER_TEMP/new-tests.txt"
           fi
           echo "$(wc -w < "$RUNNER_TEMP/new-tests.txt") identifiers on the diff's added Rust lines"
+      - name: "MEASUREMENT ONLY: copy the restored target for the paired baseline"
+        run: cp -a target "$RUNNER_TEMP/ta"
       - name: build
         id: build
-        run: cargo nextest run --no-run --profile ci ${{ matrix.scope }}
+        run: |
+          TIMEFORMAT="MEASURE B2_build wall=%R user=%U sys=%S"
+          time cargo nextest run --no-run --profile ci ${{ matrix.scope }}
       # A wrapper that stops applying costs the build again and nothing
       # else shows it, so every integration binary this build wrote must be
       # in the wrapper's log, rewritten, or kept at a level above 1.
@@ -443,6 +447,18 @@ jobs:
             -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass || rc=$?
           scripts/nextest-failures.py "slow set" "$rc"
           exit $rc
+      - name: "MEASUREMENT ONLY: B2 vs A test times, then A's build (paired)"
+        if: '!cancelled()'
+        run: |
+          J=target/nextest/ci/junit.xml
+          cargo nextest run --profile ci ${{ matrix.scope }} --no-fail-fast 2>&1 | grep -E "Summary|  FAIL" | head -5
+          cp $J "$RUNNER_TEMP/jB2.xml"
+          TIMEFORMAT="MEASURE A_build wall=%R user=%U sys=%S"
+          time (env -u RUSTC_WORKSPACE_WRAPPER -u CAD_OPT0_LOG CARGO_TARGET_DIR="$RUNNER_TEMP/ta" cargo nextest run --no-run --profile ci ${{ matrix.scope }} >/dev/null 2>&1; echo "rc=$?")
+          env -u RUSTC_WORKSPACE_WRAPPER -u CAD_OPT0_LOG CARGO_TARGET_DIR="$RUNNER_TEMP/ta" cargo nextest run --profile ci ${{ matrix.scope }} --no-fail-fast 2>&1 | grep -E "Compiling|Summary|  FAIL" | head -5
+          cp $J "$RUNNER_TEMP/jA.xml"
+          lscpu | grep -m1 'Model name'
+          python3 .github/kba-list.py "$RUNNER_TEMP/jA.xml" "$RUNNER_TEMP/jB2.xml"
       - name: doc-tests
         if: '!cancelled()'
         run: cargo test --doc ${{ matrix.scope }}
