@@ -240,7 +240,7 @@ pub fn tangent_span_bounds<T: Real>(
     {
         return circle_span_bounds(s1, s2, center, axis, radius, u_ref, step);
     }
-    let Curve3::Line { origin: _, dir } = *carrier else {
+    let Some(geom::Line { origin: _, dir }) = carrier.as_line() else {
         return None;
     };
     // Per surface: (sup |f″| along the segment, sup |dκ/dt|).

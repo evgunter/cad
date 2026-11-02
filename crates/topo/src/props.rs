@@ -1843,7 +1843,7 @@ fn vertex_rings<T: Decide>(
     let lines = loops
         .iter()
         .flat_map(|(edges, _)| edges)
-        .all(|e| matches!(e.carrier, geom::Curve3::Line { .. }));
+        .all(|e| !e.carrier.is_curved());
     if !matches!(surface, Surface::Plane { .. }) || !lines {
         return Ok(None);
     }

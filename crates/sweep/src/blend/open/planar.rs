@@ -36,7 +36,6 @@ use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use topo::construction::Construct;
 
-use geom::Curve3;
 use geom::Surface;
 use geom_brep::intersect::{EqualCylinderSection, SectionError, cylinder_cylinder_section};
 use geom_brep::{EdgeCurveSpec, ExtentBall};
@@ -224,9 +223,9 @@ fn chamfer_feet<T: Decide + Bounds>(
             .filter_map(|o| {
                 let l = o.link();
                 let (trim, _) = l.trim_on(face)?;
-                match *trim {
-                    Curve3::Line { origin, dir } => Some(Ok((origin, dir))),
-                    _ => Some(Err(unbuilt_geometry(
+                match trim.as_line() {
+                    Some(geom::Line { origin, dir }) => Some(Ok((origin, dir))),
+                    None => Some(Err(unbuilt_geometry(
                         EntityId::Edge(l.edge),
                         "a chamfer strip's trimline is not a line",
                     ))),

@@ -4092,7 +4092,7 @@ mod limb2_quick {
 /// of a turn of its angle parameter, so a span's Taylor remainder is
 /// bounded by the turn's fraction whatever the arc's length.
 fn closed_form_grid<T: Real>(carrier: &Curve3<T>, lo: f64, hi: f64) -> Vec<f64> {
-    if matches!(carrier, Curve3::Line { .. }) {
+    if !carrier.is_curved() {
         return Vec::new();
     }
     #[allow(clippy::cast_precision_loss)]
@@ -8360,7 +8360,7 @@ fn seam_envelope<T: Decide>(
     // domain-excursion fold — each term an inequality, no
     // sampling. A RATIONAL column (`constant_weight` answers `None`)
     // refuses typed: linear precision is a polynomial-basis fact.
-    if let Curve3::Line { origin, dir } = carrier {
+    if let Some(geom::Line { origin, dir }) = carrier.as_line() {
         let u_start = p0.x + pl.x * t0;
         let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
         if b.constant_weight().is_none() {
@@ -8388,7 +8388,7 @@ fn seam_envelope<T: Decide>(
             #[allow(clippy::cast_precision_loss)]
             let xi = window[1..].iter().fold(window[0], |a, k| a + *k) / T::from_f64(p as f64);
             let t_at = (xi - p0.y) / pl.y;
-            hull = hull.max((*cp - (*origin + *dir * t_at)).norm());
+            hull = hull.max((*cp - (origin + dir * t_at)).norm());
         }
         // Domain containment, the siblings' gate verbatim on
         // this class's moving channel: the hull bound holds on

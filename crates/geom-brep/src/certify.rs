@@ -1788,9 +1788,9 @@ impl<T: Real> EdgeCurveSpec<T> {
         T: SpanLocate,
     {
         use geom_core::{Affine3, Point2, Point3};
-        let Curve3::Line { .. } = carrier else {
+        if carrier.is_curved() {
             return None;
-        };
+        }
         let start = carrier.eval(t0);
         Some(Self {
             description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(

@@ -281,7 +281,11 @@ impl<T: Decide> Curve3<T> {
     /// the interval it reads.
     pub fn foot(&self, q: Point3<T>, near: T) -> Foot<'_, T> {
         let seed = match self {
-            Self::Line { origin, dir } => crate::Line { origin: *origin, dir: *dir }.param(q),
+            Self::Line { origin, dir } => crate::Line {
+                origin: *origin,
+                dir: *dir,
+            }
+            .param(q),
             Self::Circle {
                 center,
                 axis,

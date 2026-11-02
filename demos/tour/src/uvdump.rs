@@ -309,7 +309,7 @@ fn traverse(
     // A straight carrier's chart image is straight on an affine chart
     // and a graph on a swept one; two samples are honest for the
     // former, so only genuinely straight-in-UV forms take the shortcut.
-    let straight = matches!(curve.carrier(), Curve3::Line { .. });
+    let straight = !curve.carrier().is_curved();
 
     // The stored cache is what the tessellator reads; the derive is the
     // fallback so that a cache-less face still draws (and says so).

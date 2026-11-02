@@ -2682,7 +2682,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     // The one-sided cover arms rest on a LINE's separation story; only an
     // uncovered circle reaches the endpoint arms (the circle rung above).
-    let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
+    let on_line = !curve.carrier().is_curved();
     let on_face = |diag| {
         let which = Coincide::VertexOnCurvedFace;
         BooleanError::coincidence(which, read(which), diag)
@@ -3043,7 +3043,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // Conservative direction is unchanged: a too-large charge only
         // sends more pairs to the typed frontier door, never accepts.
         (Sign::Positive, Sign::Positive) => {
-            let geom::Curve3::Line { origin: _, dir } = *curve.carrier() else {
+            let Some(geom::Line { origin: _, dir }) = curve.carrier().as_line() else {
                 return Err(frontier()); // unreachable: matched above
             };
             let (t0, t1) = curve.params();
@@ -4860,9 +4860,10 @@ fn wall_crossing<T: Decide + Bounds>(
         match place_crossing(y, face, p, nappe, band)? {
             Placed::Unplaced => return Ok(SpanVerdict::Unsettled),
             Placed::NappeGap(diag) => {
-                let decision = match carrier {
-                    geom::Curve3::Line { .. } => BooleanDecision::ConeRoots,
-                    _ => BooleanDecision::ArcConeRoots,
+                let decision = if carrier.is_curved() {
+                    BooleanDecision::ArcConeRoots
+                } else {
+                    BooleanDecision::ConeRoots
                 };
                 return escalate(decision, diag);
             }

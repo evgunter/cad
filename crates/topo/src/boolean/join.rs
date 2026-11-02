@@ -1665,9 +1665,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             sa.plan(&red.a, a_halves, seg_a)?,
             sb.plan(&red.b, b_halves, seg_b)?,
         );
-        let line_on = along_edge_conic((&red.a, &red.b), &germ)?.and_then(|along| {
-            matches!(along.carrier, geom::Curve3::Line { .. }).then_some(along.on)
-        });
+        let line_on = along_edge_conic((&red.a, &red.b), &germ)?
+            .and_then(|along| (!along.carrier.is_curved()).then_some(along.on));
         let along_line = |on: Operand| line_on == Some(on);
         let (curve_a, curve_b) = match lane {
             None => (

@@ -694,7 +694,7 @@ pub enum CurveData<'a, T: Real> {
 ///
 /// `dir` is unit by the carriers' convention; the readings divide by
 /// `dir·dir`, so they hold for any nonzero `dir`.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct Line<T: Real> {
     /// The point at `t = 0`.
     pub origin: Point3<T>,
@@ -1835,6 +1835,27 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **A line's foot is square to it, whatever `dir`'s length**: the
+    /// way from the foot to the point is perpendicular to `dir`. A
+    /// reading that took `dir` as unit would land `|dir|²` times too far
+    /// along.
+    #[test]
+    fn a_lines_foot_is_square_to_it_at_any_dir_length() {
+        let origin = Point3::new(0.5, -1.0, 2.0);
+        let p = Point3::new(3.0, 1.0, -0.5);
+        for scale in [1.0, 0.25, 3.0] {
+            let line = Line {
+                origin,
+                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
+            };
+            let foot = line.foot(p);
+            assert!(
+                (p - foot).dot(line.dir).abs() < 1e-12,
+                "|dir| = {scale}: the way to the foot is square to the line"
+            );
+        }
+    }
 
     /// **A reversed carrier is the same locus run back**: its point at
     /// `t` is the original's at `−t`, on every kind it reverses — a

@@ -2334,7 +2334,7 @@ fn prism_inside<T: Decide>(
                 .half_edge_end(he)
                 .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face edge's end"))?;
             let carrier = carrier_of(body, edge)?;
-            if let Curve3::Line { dir, .. } = carrier.0 {
+            if let Some(geom::Line { dir, .. }) = carrier.0.as_line() {
                 lines.push((carrier, u, w, dir));
                 continue;
             }

@@ -2419,7 +2419,7 @@ fn reads_curve(surface: &Surface<Interval>, rim: &Rim) -> bool {
 /// a line; on a chart, an image that is no coordinate line.
 fn is_curved(surface: &Surface<Interval>, rim: &Rim) -> bool {
     match surface {
-        Surface::Plane { .. } => !matches!(rim.arc, Some((Curve3::Line { .. }, _))),
+        Surface::Plane { .. } => rim.arc.as_ref().is_none_or(|(c, _)| c.is_curved()),
         _ => rim.uses.iter().any(|u| u.iso.is_none()),
     }
 }

@@ -457,9 +457,9 @@ impl<T: Bounds> CapSliver<T> {
     /// semi-axis.
     pub(in crate::blend) fn clearance(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
         let whole = self.whole_clearance(carrier, window)?;
-        Some(match *carrier {
-            Curve3::Line { origin, dir } => whole.max(self.line_clearance(origin, dir, window)),
-            _ => whole,
+        Some(match carrier.as_line() {
+            Some(geom::Line { origin, dir }) => whole.max(self.line_clearance(origin, dir, window)),
+            None => whole,
         })
     }
 
@@ -631,7 +631,7 @@ fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
         Some((near - outer).max(inner - far))
     };
     let side = |(x, _): Piece<'_, T>, (y, window): Piece<'_, T>| {
-        let Curve3::Line { origin, dir } = *x else {
+        let Some(geom::Line { origin, dir }) = x.as_line() else {
             return None;
         };
         let (low, high) = piece_along(y, window, origin, n.cross(dir).normalize())?;
@@ -930,7 +930,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
             .collect();
         // A chord end whose rims are lines cuts off the triangle
         // `V, foot_a, foot_b`.
-        let lines = pieces.iter().all(|(c, _)| matches!(c, Curve3::Line { .. }));
+        let lines = pieces.iter().all(|(c, _)| !c.is_curved());
         let exact = match round {
             Some((_, axis)) => Exact::Round(SliverBoundary {
                 feet: [foot_a, foot_b],

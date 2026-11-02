@@ -381,7 +381,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             // move bit-identical. The endpoints still SLIDE along the
             // line, because the third plane at each corner is moving
             // too, so the parameters are read afresh.
-            let Curve3::Line { origin, dir } = old_carrier else {
+            let Some(geom::Line { origin, dir }) = old_carrier.as_line() else {
                 return Err(ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
                     what: "it joins two flat faces but is not straight",

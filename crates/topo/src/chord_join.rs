@@ -2686,7 +2686,7 @@ pub(crate) fn apex_section_ruling<T: Decide>(
     };
     let mut inside = None;
     for line in lines {
-        let geom::Curve3::Line { dir, .. } = line else {
+        let Some(geom::Line { dir, .. }) = line.as_line() else {
             unreachable!("{face:?}: a cone's section ruling through its apex is a line")
         };
         let z = apex.onto_nappe_of(dir, to);

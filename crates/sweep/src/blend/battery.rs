@@ -3067,7 +3067,7 @@ fn consumption_sweep<T: Decide + Bounds>(
             };
             // A joint is plane–plane by its verdict, and
             // `arms::plane_plane_blend` mints its trimlines as lines.
-            let Curve3::Line { origin, dir } = trim else {
+            let Some(line) = trim.as_line() else {
                 return Err(BlendError::SurgeryInvariant {
                     at: EntityId::Edge(link.edge),
                     detail: "a plane–plane joint's trimline is not a line",
@@ -3077,7 +3077,7 @@ fn consumption_sweep<T: Decide + Bounds>(
                 .get_vertex(*v)
                 .and_then(|x| body.get_point(x.point))
                 .ok_or_else(|| unresolved(EntityId::Vertex(*v), "a joint's stored point"))?;
-            let foot = *origin + *dir * ((*p - *origin).dot(*dir) / dir.dot(*dir));
+            let foot = line.foot(*p);
             let run_edges = members(link.edge);
             for (e, carrier, _) in &boundary {
                 if run_edges.contains(e) || !touches_any(body, &run_edges, &[*e])? {
@@ -3087,7 +3087,7 @@ fn consumption_sweep<T: Decide + Bounds>(
                 // end edge is straight unless the corner's third support
                 // is curved — which no corner carves, and which refuses
                 // here as that rather than being sampled.
-                let Curve3::Line { origin: o, dir: d } = *carrier else {
+                let Some(geom::Line { origin: o, dir: d }) = carrier.as_line() else {
                     return Err(unbuilt_geometry(
                         EntityId::Edge(*e),
                         CORNER_SUPPORT_NOT_PLANAR,

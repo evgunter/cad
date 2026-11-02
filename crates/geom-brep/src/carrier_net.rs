@@ -908,13 +908,13 @@ fn enclosing_net<T: CertifiedBounds>(
     if breaks.len() < 2 {
         return Err(refuse(whole));
     }
-    if let Curve3::Line { origin, dir } = carrier {
+    if let Some(geom::Line { origin, dir }) = carrier.as_line() {
         // A line's controls are its points at the breaks, evaluated in
         // place and then framed: there is no expansion for a frame to
         // spare, and an origin and direction framed apart lose what an
         // interval point's channels share (measured: a widened extrude's
         // edge bounds 1.2e-9 framed apart and under 1e-9 framed after).
-        let (o, d) = (lift_p(*origin), lift_v(*dir));
+        let (o, d) = (lift_p(origin), lift_v(dir));
         let mut knots = vec![first];
         knots.extend_from_slice(breaks);
         knots.push(last);

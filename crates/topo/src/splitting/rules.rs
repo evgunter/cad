@@ -455,10 +455,9 @@ impl<T: Decide> ParallelFace<T> {
 /// tangent to a cylinder or a cone makes, along a ruling.
 fn straight<T: Decide>(body: &Body<T>, edge: EdgeKey) -> bool {
     let curve = proven(&body.edges, edge, EntityId::Edge).curve;
-    matches!(
-        body.get_curve_geom(curve).and_then(crate::null::CurveGeom::certified),
-        Some(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
-    )
+    body.get_curve_geom(curve)
+        .and_then(crate::null::CurveGeom::certified)
+        .is_some_and(|c| !c.carrier().is_curved())
 }
 
 /// Rule (b): reclassify every remaining ON entry by its cyclic

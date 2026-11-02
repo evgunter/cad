@@ -546,7 +546,7 @@ pub fn require_one_chart_branch<T: Decide>(
         Surface::Cylinder { .. } => Ok(()),
         Surface::Cone { apex, .. } => {
             for (i, e) in outer.iter().enumerate() {
-                let Curve3::Line { origin, dir } = e.carrier else {
+                let Some(geom::Line { origin, dir }) = e.carrier.as_line() else {
                     continue;
                 };
                 // GENERATORS only, by the parse's own generator margin
@@ -1354,7 +1354,7 @@ fn cylinder_chart<T: Decide>(
         // closed form has no arm for, refuses as itself.
         let b = cylinder_boundary(origin, axis, radius, edges, band)?;
         for e in edges.iter() {
-            if let Curve3::Line { .. } = e.carrier {
+            if !e.carrier.is_curved() {
                 length = length + (e.p1() - e.p0()).norm();
             }
         }
@@ -2841,7 +2841,7 @@ fn cone_loop_winding<T: Decide>(
                 }
             }
             AtApex::AlongGenerator => {
-                let line = matches!(e.carrier, Curve3::Line { .. });
+                let line = !e.carrier.is_curved();
                 match (
                     off("props_cone_loop_off_apex", a.norm())?,
                     off("props_cone_loop_off_apex", b.norm())?,

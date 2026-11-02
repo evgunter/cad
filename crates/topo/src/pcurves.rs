@@ -1250,7 +1250,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                  here"
             )
         };
-        let line = matches!(carrier, geom::Curve3::Line { .. });
+        let line = !carrier.is_curved();
         // The iso candidates are offered to the carriers the iso
         // class certifies: a spline and a line. A circle's exact
         // class is the arc rim, tried below; an ellipse or a spiric
@@ -1525,7 +1525,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         geom_brep::EdgeDescription::Chart(_)
         | geom_brep::EdgeDescription::Scaffold(_)
         | geom_brep::EdgeDescription::OnPair { .. }
-            if matches!(carrier, geom::Curve3::Line { .. }) =>
+            if !carrier.is_curved() =>
         {
             iso_schedule("pcurve_iso_line_rim", Vec::new())
         }

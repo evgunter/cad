@@ -1485,7 +1485,7 @@ fn step_ball<T: Decide>(
             ball,
             conic_arc_ball(curve.carrier(), curve.params()).unwrap_or(ball),
         ])),
-        None if matches!(curve.carrier(), geom::Curve3::Line { .. }) => Ok(None),
+        None if !curve.carrier().is_curved() => Ok(None),
         None => Err(PointInLoopError::CorruptLoop { r#loop }),
     }
 }
