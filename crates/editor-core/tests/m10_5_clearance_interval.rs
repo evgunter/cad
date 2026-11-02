@@ -136,12 +136,8 @@ use std::collections::BTreeMap;
 
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
-use editor_core::clearance::{
-    Budgets, CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery,
-    ClearanceRefusal, ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle,
-    NoTangents, Pruning, Selection, Which, clearance, clearance_over, clearance_with,
-    self_intersection,
-};
+use editor_core::clearance::{Budgets, CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle, NoTangents, Pruning, Selection, Which, clearance_over, clearance_with, self_intersection};
+use crate::fixture::clearance;
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
@@ -470,7 +466,7 @@ fn witness_distance(report: &ClearanceReport) -> f64 {
 /// A query at a bound and a config, with no accelerator.
 fn query(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
-        bound: ClearanceBound::AtLeast(c),
+        bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
@@ -912,7 +908,7 @@ fn gap_run(
     oracle: &dyn MonotoneOracle,
 ) -> ClearanceReport {
     let q = ClearanceQuery {
-        bound: ClearanceBound::AtLeast(c),
+        bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config: ClearanceConfig {
             pruning,
@@ -964,7 +960,7 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
     );
     let facet = ParamBox::from_axes(facet_axes);
     let q = |pruning, oracle: &'static dyn MonotoneOracle| ClearanceQuery {
-        bound: ClearanceBound::AtLeast(0.5),
+        bound: ClearanceBound::at_least(0.5),
         tol: Tol::witness(),
         config: ClearanceConfig {
             pruning,
@@ -1033,7 +1029,7 @@ fn a_driver_certified_leaf_carries_the_certificate() {
         &verdict,
         &wa,
         &wb,
-        &ClearanceQuery::at_least(0.2, Tol::witness()),
+        &ClearanceQuery { bound: ClearanceBound::at_least(0.2), ..ClearanceQuery::strictly_positive(Tol::witness()) },
     );
     assert_eq!(fold.verdict, ClearanceVerdict::Holds);
     assert!(fold.receipt.holds(), "{:?}", fold.receipt);
@@ -1094,7 +1090,7 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         );
     };
     let [a, b] = plate.holes.map(Selection::body_of);
-    let query = ClearanceQuery::at_least(0.3e-3, tol);
+    let query = ClearanceQuery { bound: ClearanceBound::at_least(0.3e-3), ..ClearanceQuery::strictly_positive(tol) };
     let fold = clearance_over(&plate.doc, &analyzed, &verdict, &a, &b, &query);
     assert_eq!(
         fold.verdict,
@@ -1106,7 +1102,7 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         &leaf.box_,
         &a,
         &b,
-        &ClearanceQuery::at_least(0.3e-3, tol)
+        &ClearanceQuery { bound: ClearanceBound::at_least(0.3e-3), ..ClearanceQuery::strictly_positive(tol) }
             .certified_at(editor_core::drive::SymbolicDials::off()),
     );
     assert_eq!(

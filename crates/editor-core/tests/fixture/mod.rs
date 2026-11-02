@@ -1675,10 +1675,7 @@ pub fn reading<T: geom_core::Decide>(
     ev: &editor_core::Evaluation<T>,
     var: editor_core::VarId,
 ) -> Option<T> {
-    match ev.reading(doc, var) {
-        Ok(editor_core::Observed::Value(v)) => Some(v),
-        _ => None,
-    }
+    ev.reading(doc, var).ok()
 }
 
 /// **`measure`'s value**: the variable its one port defines.
@@ -1698,7 +1695,7 @@ pub fn output(doc: &ProfileDoc, measure: RecipeNodeId) -> editor_core::VarId {
 /// When `assertion` is not a live assertion of `doc`.
 pub fn assertion_value(doc: &ProfileDoc, assertion: RecipeNodeId) -> editor_core::VarId {
     match doc.node(assertion) {
-        Some(Node::Assertion { value, .. }) => *value,
+        Some(Node::Assertion { claim: editor_core::Claim::Value { value, .. } }) => *value,
         other => panic!("{assertion} is not an assertion: {other:?}"),
     }
 }
@@ -4056,4 +4053,76 @@ pub fn product_in_world(
         Some(map) => topo::transform_rigid(&product.body, &map, tol)
             .expect("a product composes into the world"),
     })
+}
+
+/// **A clearance at `bounds` between two selections over `leaf`, asked
+/// the one way a document asks it**: a clearance assertion inserted
+/// between them, answered by [`editor_core::drive::assertion_at`].
+///
+/// A selection is a seat: body 0 of its node whole, or one named face of
+/// it.
+///
+/// # Errors
+///
+/// The insert door's refusal of a seat.
+///
+/// # Panics
+///
+/// When a selection is not a seat, or the assertion has no verdict over
+/// `leaf`.
+pub fn clearance_within(
+    doc: &ProfileDoc,
+    leaf: &editor_core::analysis::ParamBox,
+    (a, b): (&editor_core::clearance::Selection, &editor_core::clearance::Selection),
+    bounds: editor_core::ClearanceBounds<f64>,
+    tol: Tol,
+) -> Result<editor_core::clearance::ClearanceReport, editor_core::EditError> {
+    use editor_core::clearance::FaceScope;
+    let seat = |s: &editor_core::clearance::Selection| {
+        assert_eq!(s.body, 0, "a seat reads a node's one body");
+        match &s.faces {
+            FaceScope::All => editor_core::Operand::Node(s.at),
+            FaceScope::Named(names) => {
+                assert_eq!(names.len(), 1, "a seat reads one face: {names:?}");
+                editor_core::Operand::select(s.at, names.clone())
+            }
+        }
+    };
+    let Ok(bounds) = bounds.try_map(|&c| Ok::<_, core::convert::Infallible>(len(c)));
+    let node = Node::clearance(seat(a), seat(b), bounds);
+    let applied = doc.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+        tol,
+    )?;
+    let id = applied
+        .record
+        .minted
+        .expect("the insert mints the assertion");
+    let doc = applied.doc;
+    match editor_core::drive::assertion_at(
+        &doc,
+        id,
+        leaf,
+        editor_core::drive::SymbolicDials::default(),
+        tol,
+    ) {
+        Some(editor_core::AssertionVerdict::Clearance(report)) => Ok(*report),
+        other => panic!("a clearance's verdict over the leaf: {other:?}"),
+    }
+}
+
+/// [`clearance_within`] at `clearance ≥ c`, the seats' kinds admitted.
+pub fn clearance(
+    doc: &ProfileDoc,
+    leaf: &editor_core::analysis::ParamBox,
+    a: &editor_core::clearance::Selection,
+    b: &editor_core::clearance::Selection,
+    c: f64,
+    tol: Tol,
+) -> editor_core::clearance::ClearanceReport {
+    clearance_within(doc, leaf, (a, b), editor_core::ClearanceBounds::AtLeast(c), tol)
+        .expect("each selection is a seat a clearance admits")
 }

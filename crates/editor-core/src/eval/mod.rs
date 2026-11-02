@@ -423,7 +423,7 @@ impl<T: Decide> Evaluation<T> {
         &self,
         doc: &Doc<P>,
         var: crate::VarId,
-    ) -> Result<measure::Observed<T>, measure::ObservedRefusal> {
+    ) -> Result<T, measure::ObservedRefusal> {
         let dim = doc.var(var).and_then(|v| v.kind().dimension()).ok_or(
             measure::ObservedRefusal::Expr(EvalError::UnresolvedVar { var }),
         )?;
@@ -441,7 +441,7 @@ impl<T: Decide> Evaluation<T> {
         &self,
         doc: &Doc<P>,
         formula: &crate::Formula,
-    ) -> Result<measure::Observed<T>, measure::ObservedRefusal> {
+    ) -> Result<T, measure::ObservedRefusal> {
         measure::observe_formula(doc, &self.env, &self.nodes, formula)
     }
 
@@ -455,7 +455,7 @@ impl<T: Decide> Evaluation<T> {
         &self,
         doc: &Doc<P>,
         var: crate::VarId,
-    ) -> Result<measure::Observed<T>, (Option<RecipeNodeId>, String)>
+    ) -> Result<T, (Option<RecipeNodeId>, String)>
     where
         T: Copy,
     {
@@ -680,12 +680,12 @@ pub(crate) fn usable_in<T: Decide>(
 }
 
 /// **An assertion's evaluated payload** ([`crate::node::payload_exprs`]):
-/// its value and its bound, in that order, each a value or the reason
-/// a measure under it has none at this scalar.
+/// a value claim's value and bound, or a clearance's bounds low to
+/// high, in that order.
 #[derive(Debug)]
 pub(crate) struct Payload<T> {
-    /// The value, then the bound.
-    pub(crate) observed: [measure::Observed<T>; 2],
+    /// The expressions' values.
+    pub(crate) values: Vec<T>,
 }
 
 /// Whether the evaluation ran to completion (spec D5).
@@ -1083,29 +1083,6 @@ pub enum ValuePayload<T: Decide> {
         /// a reader never has to reconstruct it from the number.
         dim: crate::expr::Dimension,
     },
-    /// **A `Measure` node that has no value AT THIS SCALAR** — a typed
-    /// absence, and the honest answer where the alternative would be a
-    /// number nothing backs.
-    ///
-    /// One primitive produces it today
-    /// ([`crate::MeasurePrimitive::MinClearance`], whose answer is an
-    /// ENCLOSURE the interval lane computes and a point scalar has no
-    /// channel for), and the reason it is a value rather than a node
-    /// error is the E10 shape: an assertion over it must report
-    /// [`crate::AssertionVerdict::Unevaluated`] — the third state,
-    /// used for exactly what it exists for — where a node error would
-    /// poison the assertion into having no verdict at all (F2), and
-    /// would additionally refuse every f64 build of a document
-    /// carrying such a measure, `drive`'s witness build included.
-    ///
-    /// It carries the dimension for the same reason
-    /// [`Self::Measure`] does: a reader knows WHAT was not measured.
-    MeasureUnavailable {
-        /// Why there is no value, in the measure layer's own words.
-        reason: crate::measure::MeasureUnavailableAt,
-        /// The F1 dimension the measure would have had.
-        dim: crate::expr::Dimension,
-    },
     /// An `Assertion` node's verdict (E10). REPORT-ONLY: no op in the
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
@@ -1258,12 +1235,6 @@ impl<T: Decide> ValuePayload<T> {
             Self::Split { .. } => family::SPLIT,
             Self::Instances(_) => family::INSTANCES,
             Self::Measure { .. } => family::MEASURE,
-            // The SAME family name as a measure that has a value: the
-            // node kind is what a typed operand mismatch is about, and
-            // "measure" is what this node is either way. Which of the
-            // two a reader is holding is a question about the value,
-            // and the two variants are how it is asked.
-            Self::MeasureUnavailable { .. } => family::MEASURE,
             Self::Assertion(_) => family::ASSERTION,
             Self::Family => family::FAMILY,
         }
@@ -2002,9 +1973,6 @@ pub enum NodeErrorKind {
         /// The expression evaluator's refusal, unaltered.
         source: EvalError,
     },
-    /// The clearance engine refused a `min_clearance` measurement: its
-    /// own typed refusal (E7's refusal vocabulary), carried unaltered.
-    MeasureClearanceRefused(topo::clearance::MinSeparationRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
     /// measure it constrains — comparing metres with radians is a
     /// document fault, refused rather than compared.
@@ -2406,14 +2374,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 index,
                 source,
             } => write!(f, "{what} {index} failed to evaluate: {source}"),
-            // The engine's one rendering, its two sides the measure's
-            // operands.
-            Self::MeasureClearanceRefused(refusal) => {
-                f.write_str("the clearance engine refused: ")?;
-                refusal
-                    .engine()
-                    .say(f, [&"the first operand", &"the second operand"])
-            }
             Self::AssertionDimension { measured, bound } => write!(
                 f,
                 "the assertion's bound is {} {bound} and the measure it constrains is \
@@ -2948,17 +2908,10 @@ pub(crate) mod leaf {
                 .collect();
         }
         if let Some(var) = want.measure {
-            out.measure = Some(match ev.reading_spoken(doc, var) {
-                Ok(super::measure::Observed::Value(value)) => {
-                    out.measure_bracket = Some((value.lo(), value.hi()));
-                    Ok(geom_core::CertifiedEnclosure::certified_bracket(value))
-                }
-                Ok(super::measure::Observed::Unavailable(reason)) => Err((
-                    Some(super::measure::unavailable_at(doc, var)),
-                    format!("{reason}"),
-                )),
-                Err(refusal) => Err(refusal),
-            });
+            out.measure = Some(ev.reading_spoken(doc, var).map(|value| {
+                out.measure_bracket = Some((value.lo(), value.hi()));
+                geom_core::CertifiedEnclosure::certified_bracket(value)
+            }));
         }
         if let Some(id) = want.assertion {
             out.assertion = match ev.value(id).map(|v| &v.payload) {
@@ -3702,8 +3655,11 @@ where
     // nominal document's bodies (`wire::trace`), as every program
     // expression resolves off the nominal environment: a lane that is
     // not the nominal `f64` one reads them from an evaluation of it,
-    // built once here, its decisions its own and not this run's.
-    let nominal_ev = (doc_reads_a_trace(doc)
+    // built once here, its decisions its own and not this run's. A
+    // certifying lane over no box whose document asserts a clearance
+    // reads it too: it is the rebuild that verifies the sweep's pairs.
+    let asserts_clearance = T::clearance_lane().is_some() && doc_asserts_a_clearance(doc);
+    let nominal_ev = ((doc_reads_a_trace(doc) || (asserts_clearance && opts.param_box.is_none()))
         && T::nominal_results(&BTreeMap::new(), &env, &nominal_env).is_none())
     .then(|| {
         let nominal_opts = EvalOptions {
@@ -3726,6 +3682,49 @@ where
         })
         .0
     });
+    // Over a box, a clearance's pairs are verified at the box's
+    // midpoint, which is a point of the box where the nominal need not
+    // be: an `f64` evaluation there, built once.
+    let midpoint_ev = opts
+        .param_box
+        .as_ref()
+        .filter(|_| asserts_clearance)
+        .map(|leaf| {
+            let midpoint_opts = EvalOptions {
+                param_box: Some(Arc::new(crate::clearance::midpoint_of(leaf))),
+                seed: None,
+                symbols: false,
+                pin: false,
+                ..opts.clone()
+            };
+            let ev = geom_core::k_stats::detached(|| {
+                evaluate_at_descent::<f64>(
+                    doc,
+                    None,
+                    cancel,
+                    &midpoint_opts,
+                    None,
+                    PassTwo::SkippedAtF64,
+                    tol,
+                )
+            })
+            .0;
+            (ev, crate::clearance::witness_point(leaf))
+        });
+    let witness = match (&midpoint_ev, &nominal_ev) {
+        _ if !asserts_clearance => None,
+        (Some((ev, param)), _) => Some(wire::Witnessing {
+            results: &ev.nodes,
+            param: param.clone(),
+        }),
+        (None, Some(ev)) => Some(wire::Witnessing {
+            results: &ev.nodes,
+            param: crate::clearance::ParamWitness {
+                offsets: Vec::new(),
+            },
+        }),
+        (None, None) => None,
+    };
     // The parts, entered before anything below reads one: handed down
     // by the descent below the top, and entered here at the top, in
     // one serial pass that reuses what the prior carried (`parts`
@@ -3753,6 +3752,7 @@ where
             params: &env,
             nominal: &nominal_env,
             nominal_results: nominal_ev.as_ref().map(|ev| &ev.nodes),
+            witness: witness.as_ref(),
             pass_two,
         },
     };
@@ -4010,6 +4010,18 @@ fn doc_reads_a_trace(doc: &Doc<ProfileProgram>) -> bool {
     doc.ids()
         .into_iter()
         .any(|id| matches!(doc.node(id), Some(crate::node::Node::Profile(p)) if p.reads_a_trace()))
+}
+
+/// Whether `doc` asserts a clearance ([`crate::Claim::Clearance`]).
+fn doc_asserts_a_clearance(doc: &Doc<ProfileProgram>) -> bool {
+    doc.ids().into_iter().any(|id| {
+        matches!(
+            doc.node(id),
+            Some(crate::node::Node::Assertion {
+                claim: crate::measure::Claim::Clearance { .. }
+            })
+        )
+    })
 }
 
 /// A program's resolution refusal as the node's.
@@ -4378,8 +4390,8 @@ where
                 frame: drawn.map(|d| d.frame),
             }
         }
-        // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound are
-        // not slots. They are evaluated exactly once here, under the
+        // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound, and
+        // a clearance's bounds, are not slots. They are evaluated exactly once here, under the
         // discipline `slots` states and for the same reason: these
         // values feed BOTH the content key and the op, so a parameter
         // edit under a bound moves the key rather than serving a stale
@@ -4387,46 +4399,50 @@ where
         // this run (`measure::observe`): it is the one read of a
         // measured value, and the environment every construction reads
         // holds none.
-        crate::node::Node::Assertion {
-            value,
-            bound,
-            relation,
-        } => {
-            let reads = crate::node::assertion_reads(doc, *value, *bound);
-            let observe = |index: usize| {
-                let (var, dim) = reads[index];
-                measure::observe(doc, env, results, var, dim).map_err(|refusal| match refusal {
-                    measure::ObservedRefusal::Expr(source) => NodeErrorKind::PayloadExpr {
-                        what: if index == 0 {
-                            "the assertion's value,"
-                        } else {
-                            "the assertion's bound,"
+        crate::node::Node::Assertion { claim } => {
+            let reads = crate::node::claim_reads(doc, claim);
+            let mut values = Vec::with_capacity(reads.len());
+            for (index, &(var, dim)) in reads.iter().enumerate() {
+                let read = measure::observe(doc, env, results, var, dim).map_err(|refusal| {
+                    match refusal {
+                        measure::ObservedRefusal::Expr(source) => NodeErrorKind::PayloadExpr {
+                            what: match (claim, index) {
+                                (crate::measure::Claim::Value { .. }, 0) => "the assertion's value,",
+                                (crate::measure::Claim::Value { .. }, _) => "the assertion's bound,",
+                                (crate::measure::Claim::Clearance { .. }, _) => {
+                                    "the clearance's bound,"
+                                }
+                            },
+                            index,
+                            source,
                         },
-                        index,
-                        source,
-                    },
-                    // Every measure under the value is upstream of this
-                    // node, and a failed one poisoned it above.
-                    measure::ObservedRefusal::Measure(standing) => NodeErrorKind::MissingInput {
-                        input: standing.node(),
-                    },
-                })
-            };
-            let value_read = match observe(0) {
-                Ok(observed) => observed,
-                Err(kind) => return fail(bracket, kind),
-            };
-            let bound_read = match observe(1) {
-                Ok(observed) => observed,
-                Err(kind) => return fail(bracket, kind),
-            };
-            let [(_, value_dim), (_, bound_dim)] = reads;
-            wire::OpInput::Assertion {
-                relation: *relation,
-                dims: (value_dim, bound_dim),
-                payload: Payload {
-                    observed: [value_read, bound_read],
-                },
+                        // Every measure under the value is upstream of
+                        // this node, and a failed one poisoned it above.
+                        measure::ObservedRefusal::Measure(standing) => {
+                            NodeErrorKind::MissingInput {
+                                input: standing.node(),
+                            }
+                        }
+                    }
+                });
+                match read {
+                    Ok(value) => values.push(value),
+                    Err(kind) => return fail(bracket, kind),
+                }
+            }
+            let payload = Payload { values };
+            match claim {
+                crate::measure::Claim::Value { relation, .. } => {
+                    let [(_, value_dim), (_, bound_dim)] = reads[..] else {
+                        unreachable!("a value claim reads its value and its bound")
+                    };
+                    wire::OpInput::Assertion {
+                        relation: *relation,
+                        dims: (value_dim, bound_dim),
+                        payload,
+                    }
+                }
+                crate::measure::Claim::Clearance { .. } => wire::OpInput::Clearance { node, payload },
             }
         }
         _ => wire::OpInput::Other(node),
@@ -5445,10 +5461,8 @@ where
                 P::Distance { .. } => 1,
                 P::Angle { .. } => 2,
                 P::Gap { .. } => 3,
-                // APPENDED, never reused: a content-key tag is an
-                // identity, so the day a primitive is retired its tag
-                // retires with it.
-                P::MinClearance { .. } => 4,
+                // Tag 4 was a retired primitive's: a content-key tag is
+                // an identity, so it retired with it and is not reused.
             });
             for &r in primitive.refs() {
                 let names = selected(selections, r);
@@ -5462,15 +5476,36 @@ where
         // expressions, whose evaluated values are fed with the others
         // below; the measures under the value are upstream, so their
         // own keys carry them.
-        Node::Assertion {
+        Node::Assertion { claim: crate::measure::Claim::Value {
             value: _,
             bound: _,
             relation,
-        } => h.write_tag(match relation {
+        } } => h.write_tag(match relation {
             crate::measure::AssertionRelation::AtLeast => 1,
             crate::measure::AssertionRelation::AtMost => 2,
             crate::measure::AssertionRelation::Equal => 3,
         }),
+        // A clearance's BOUND SHAPE is payload, its bounds' values are
+        // fed below, and its seats are reads, keyed as a measure's are:
+        // by their bodies upstream and by the names a selection feeds.
+        Node::Assertion {
+            claim: crate::measure::Claim::Clearance { a, b, bounds },
+        } => {
+            use crate::measure::ClearanceBounds as B;
+            h.write_tag(match bounds {
+                B::AtLeast(_) => 4,
+                B::AtMost(_) => 5,
+                B::Equal(_) => 6,
+                B::Within { .. } => 7,
+            });
+            for r in [a, b] {
+                let names = selected(selections, *r);
+                h.write_u64(names.len() as u64);
+                for name in names {
+                    feed_stable_name(&mut h, name);
+                }
+            }
+        }
         // A tube's WINDOW VARIANT is recipe payload, not a slot: which
         // variant it is decides whether the node has window slots at
         // all, so re-authoring a full ring into an arc must move the
@@ -5607,30 +5642,11 @@ where
     // extrude's distance does. No nominal rides them, and [`tag::slot`]
     // carries why. Absent (not empty) for every node kind that carries
     // none, so no existing document's key moves by a byte.
-    // An expression with no value at this scalar is left out, and its
-    // position is a word of its own, so a value missing and a bound
-    // missing do not key alike.
     if let Some(payload) = payload_values {
-        let values = || {
-            payload
-                .observed
-                .iter()
-                .filter_map(|observed| match observed {
-                    measure::Observed::Value(v) => Some(v),
-                    measure::Observed::Unavailable(_) => None,
-                })
-        };
-        h.write_u64(values().count() as u64);
-        for v in values() {
+        h.write_u64(payload.values.len() as u64);
+        for v in &payload.values {
             v.feed(&mut h);
         }
-        h.write_u64(
-            payload
-                .observed
-                .iter()
-                .position(|observed| matches!(observed, measure::Observed::Unavailable(_)))
-                .map_or(u64::MAX, |index| index as u64),
-        );
     }
     // The pose definitions the node reads ([`tag::pose`]): absent for
     // a node reading none, so no other node's key moves by a byte.

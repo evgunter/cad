@@ -79,10 +79,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom::Surface;
-use geom_core::k_stats::decide;
-use geom_core::{Band, BandError, Margin, Point3, Sign, Tol};
+use geom_core::{Band, BandError, Point3, Sign, Tol};
 use topo::Body;
-use topo::clearance::{BoundVerdict, Side, Stations, Sweep};
+use topo::clearance::{Ask, BoundVerdict, Side, Stations, Sweep};
 use topo::entity::FaceKey;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
@@ -222,7 +221,10 @@ impl MonotoneOracle for NoTangents {
 /// them out of step between two calls would be comparing two different
 /// questions' answers.
 pub struct ClearanceQuery<'a> {
-    /// Which question ([`ClearanceBound`]).
+    /// Which question ([`ClearanceBound`]). A document asks a bounded
+    /// clearance as an assertion ([`crate::Claim::Clearance`]) through
+    /// [`crate::drive::assertion_at`]; this door is the engine's, at its
+    /// dials.
     pub bound: ClearanceBound,
     /// The run's tolerance — the linear band every compare classifies
     /// against.
@@ -247,20 +249,6 @@ pub struct ClearanceQuery<'a> {
 }
 
 impl ClearanceQuery<'_> {
-    /// The plain `separation ≥ c` question at the shipped dials, with
-    /// no accelerator, over a leaf a default drive certified
-    /// ([`crate::drive::DriveConfig::default`]'s tier).
-    pub fn at_least(c: f64, tol: Tol) -> Self {
-        Self {
-            bound: ClearanceBound::AtLeast(c),
-            tol,
-            config: ClearanceConfig::default(),
-            oracle: &NoTangents,
-            resolver: None,
-            symbolic: crate::drive::SymbolicDials::default(),
-        }
-    }
-
     /// The self-intersection question at the shipped dials.
     pub fn strictly_positive(tol: Tol) -> Self {
         Self {
@@ -275,6 +263,19 @@ impl ClearanceQuery<'_> {
 }
 
 impl<'a> ClearanceQuery<'a> {
+    /// The same question at other dials ([`ClearanceConfig`]).
+    #[must_use]
+    pub fn with_config(self, config: ClearanceConfig) -> Self {
+        Self { config, ..self }
+    }
+
+    /// The same question with the accelerator's seam answered by
+    /// `oracle` ([`MonotoneOracle`]).
+    #[must_use]
+    pub fn with_oracle(self, oracle: &'a dyn MonotoneOracle) -> Self {
+        Self { oracle, ..self }
+    }
+
     /// The same question over a document whose parts resolve through
     /// `resolver` ([`ClearanceQuery::resolver`]).
     #[must_use]
@@ -342,13 +343,23 @@ pub enum FaceScope {
     Named(Vec<StableName>),
 }
 
-/// The E7 trichotomy.
+/// The E7 trichotomy: two holding arms, two violated arms, and the
+/// typed third state.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClearanceVerdict {
-    /// The bound holds over the whole leaf and both carrier windows.
+    /// A bound with no upper end holds over the whole box and both
+    /// carrier windows.
     Holds,
-    /// A definite violation, witnessed and re-verified at `f64`.
-    Violated(Box<Violation>),
+    /// A bound with an upper end holds: any lower end as [`Self::Holds`]
+    /// says, and this pair, verified at `f64`, lies within the upper
+    /// end, which proves it.
+    Within(Box<Witness>),
+    /// The lower bound is violated: this pair, verified at `f64`, is
+    /// closer than it.
+    Violated(Box<Witness>),
+    /// The upper bound is violated: every pair of the two scopes is
+    /// certified clear of it.
+    Exceeded,
     /// Typed, never silence.
     Refused(ClearanceRefusal),
 }
@@ -357,8 +368,8 @@ impl ClearanceVerdict {
     /// The verdict's state as a word, for reports.
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Holds => "Holds",
-            Self::Violated(_) => "Violated",
+            Self::Holds | Self::Within(_) => "Holds",
+            Self::Violated(_) | Self::Exceeded => "Violated",
             Self::Refused(_) => "Refused",
         }
     }
@@ -369,21 +380,65 @@ impl ClearanceVerdict {
     /// convention).
     pub fn holds(&self) -> Option<bool> {
         match self {
-            Self::Holds => Some(true),
-            Self::Violated(_) => Some(false),
+            Self::Holds | Self::Within(_) => Some(true),
+            Self::Violated(_) | Self::Exceeded => Some(false),
             Self::Refused(_) => None,
         }
     }
 }
 
-/// A definite violation: where in the parameter box, and where on the
-/// two carriers.
+/// A verified pair: where in the parameter box, and where on the two
+/// faces.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Violation {
+pub struct Witness {
     /// The parameter point, re-evaluated at `f64` to verify.
     pub param: ParamWitness,
     /// The closest-point pair the `f64` rebuild found.
     pub geometry: GeometryWitness,
+}
+
+impl Witness {
+    /// The goldening lines of this pair, under `verdict`'s word.
+    fn serialize(&self, verdict: &str, s: &mut String) {
+        use core::fmt::Write as _;
+        let g = &self.geometry;
+        let _ = writeln!(
+            s,
+            "verdict {verdict} distance={:016x} faces=first:{:?}/second:{:?}",
+            g.distance.to_bits(),
+            g.a,
+            g.b
+        );
+        let uv = |(u, v): (f64, f64)| format!("{:016x},{:016x}", u.to_bits(), v.to_bits());
+        let pt = |p: Point3<f64>| {
+            format!(
+                "{:016x},{:016x},{:016x}",
+                p.x.to_bits(),
+                p.y.to_bits(),
+                p.z.to_bits()
+            )
+        };
+        let _ = writeln!(s, "witness a uv={} at={}", uv(g.a_uv), pt(g.a_point));
+        let _ = writeln!(s, "witness b uv={} at={}", uv(g.b_uv), pt(g.b_point));
+        for (name, offset) in &self.param.offsets {
+            let _ = writeln!(s, "witness param {} {:016x}", name.full(), offset.to_bits());
+        }
+    }
+
+    /// The pair in words, each face named by its side.
+    fn render(&self, s: &mut String) {
+        use core::fmt::Write as _;
+        let g = &self.geometry;
+        let _ = writeln!(
+            s,
+            "    {} m between face {:?} of the first scope and face {:?} of the second, \
+             verified at f64",
+            g.distance, g.a, g.b
+        );
+        for (name, offset) in &self.param.offsets {
+            let _ = writeln!(s, "    at variable {name} = nominal {offset:+}");
+        }
+    }
 }
 
 /// A concrete parameter point inside the leaf.
@@ -491,8 +546,17 @@ pub enum ClearanceRefusal {
     /// Refused at the door rather than subdivided against — a budget
     /// refusal after a full sweep would be the wrong name for it.
     NotADistance {
-        /// The bound, as given.
+        /// The bound's offending end, as evaluated.
         c: f64,
+    },
+    /// **This build's scalar cannot certify.** A clearance is decided by
+    /// the certified sweep, which reads enclosures; a point scalar has
+    /// none, and a pair it found closest is an upper bound on the
+    /// minimum, not a verdict. The requirement stays recorded and is
+    /// answered at the certifying lane.
+    NeedsCertifyingLane {
+        /// The scalar this build ran at ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
     /// The run's tolerance admits no linear band, so nothing here can be
     /// classified at all.
@@ -524,6 +588,7 @@ impl ClearanceRefusal {
             Self::Selection(r) => r.payload(),
             Self::NothingCertified { refused_leaves } => format!("refused_leaves={refused_leaves}"),
             Self::NotADistance { c } => format!("{:016x}", c.to_bits()),
+            Self::NeedsCertifyingLane { scalar } => (*scalar).to_owned(),
             Self::ToleranceHasNoBand(error) => format!("{error:?}"),
             Self::RecordedContact { a, b } => format!("{a:?}/{b:?}"),
         }
@@ -537,6 +602,7 @@ impl ClearanceRefusal {
             Self::Selection(_) => "selection",
             Self::NothingCertified { .. } => "nothing_certified",
             Self::NotADistance { .. } => "not_a_distance",
+            Self::NeedsCertifyingLane { .. } => "needs_certifying_lane",
             Self::ToleranceHasNoBand(_) => "tolerance_has_no_band",
             Self::RecordedContact { .. } => "recorded_contact",
         }
@@ -570,7 +636,15 @@ impl crate::spoken::Say for ClearanceRefusal {
             ),
             Self::NotADistance { c } => write!(
                 f,
-                "the bound {c} is not a distance: a clearance bound is finite and non-negative"
+                "the bound {c} is not a distance: a clearance bound is finite and non-negative. \
+                 Recourse: write the bound as a non-negative length"
+            ),
+            Self::NeedsCertifyingLane { scalar } => write!(
+                f,
+                "a clearance is decided by the certified sweep, which the {scalar} scalar cannot \
+                 run: a point search finds a near pair, not a verdict. Recourse: certify it at \
+                 the {interval} lane",
+                interval = <geom_core::Interval as geom_core::Real>::NAME,
             ),
             Self::ToleranceHasNoBand(error) => {
                 write!(f, "the run's tolerance admits no linear band: {error}")
@@ -886,11 +960,12 @@ impl ClearanceReport {
         let r = self.receipt;
         let _ = writeln!(
             s,
-            "receipt candidates={} discharged={} violated={} refused={} splits={} \
+            "receipt candidates={} discharged={} violated={} within={} refused={} splits={} \
              abandoned={} outside={} certified={} by_kind={} holds={}",
             r.candidates,
             r.discharged,
             r.violated,
+            r.within,
             r.refused,
             r.splits,
             r.abandoned,
@@ -903,29 +978,10 @@ impl ClearanceReport {
             ClearanceVerdict::Holds => {
                 let _ = writeln!(s, "verdict holds");
             }
-            ClearanceVerdict::Violated(v) => {
-                let g = &v.geometry;
-                let _ = writeln!(
-                    s,
-                    "verdict violated distance={:016x} faces={:?}/{:?}",
-                    g.distance.to_bits(),
-                    g.a,
-                    g.b
-                );
-                let uv = |(u, v): (f64, f64)| format!("{:016x},{:016x}", u.to_bits(), v.to_bits());
-                let pt = |p: Point3<f64>| {
-                    format!(
-                        "{:016x},{:016x},{:016x}",
-                        p.x.to_bits(),
-                        p.y.to_bits(),
-                        p.z.to_bits()
-                    )
-                };
-                let _ = writeln!(s, "witness a uv={} at={}", uv(g.a_uv), pt(g.a_point));
-                let _ = writeln!(s, "witness b uv={} at={}", uv(g.b_uv), pt(g.b_point));
-                for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(s, "witness param {} {:016x}", name.full(), offset.to_bits());
-                }
+            ClearanceVerdict::Within(w) => w.serialize("within", &mut s),
+            ClearanceVerdict::Violated(w) => w.serialize("violated", &mut s),
+            ClearanceVerdict::Exceeded => {
+                let _ = writeln!(s, "verdict exceeded");
             }
             ClearanceVerdict::Refused(r) => {
                 let _ = writeln!(s, "verdict refused {} {}", r.name(), r.payload());
@@ -965,18 +1021,21 @@ impl ClearanceReport {
         let mut s = String::new();
         match &self.verdict {
             ClearanceVerdict::Holds => {
-                let _ = writeln!(s, "HOLDS over the whole leaf box and both carrier windows");
+                let _ = writeln!(s, "HOLDS over the whole box and both carrier windows");
             }
-            ClearanceVerdict::Violated(v) => {
-                let g = &v.geometry;
+            ClearanceVerdict::Within(w) => {
+                let _ = writeln!(s, "HOLDS: a pair lies within the upper bound");
+                w.render(&mut s);
+            }
+            ClearanceVerdict::Violated(w) => {
+                let _ = writeln!(s, "VIOLATED: a pair is closer than the lower bound");
+                w.render(&mut s);
+            }
+            ClearanceVerdict::Exceeded => {
                 let _ = writeln!(
                     s,
-                    "VIOLATED: {} m between faces {:?} and {:?}, verified at f64",
-                    g.distance, g.a, g.b
+                    "VIOLATED: every pair is certified clear of the upper bound"
                 );
-                for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(s, "    at variable {name} = nominal {offset:+}");
-                }
             }
             ClearanceVerdict::Refused(r) => {
                 let _ = writeln!(s, "REFUSED ({}): {r}", r.name());
@@ -986,13 +1045,15 @@ impl ClearanceReport {
         let _ = writeln!(
             s,
             "  {} candidate pair(s); {} discharged ({} of them vacuously, off the face, {} by \
-             a local certificate, {} by kind), {} violated, {} refused, {} split, {} abandoned",
+             a local certificate, {} by kind), {} violated, {} within, {} refused, {} split, \
+             {} abandoned",
             r.candidates,
             r.discharged,
             r.outside,
             r.certified,
             r.by_kind,
             r.violated,
+            r.within,
             r.refused,
             r.splits,
             r.abandoned
@@ -1015,8 +1076,18 @@ impl ClearanceReport {
         s
     }
 
+    /// `verdict`, with the sweep's receipt, widths and region count.
+    pub(crate) fn of<W>(verdict: ClearanceVerdict, report: &topo::clearance::BoundReport<W>) -> Self {
+        Self {
+            verdict,
+            receipt: report.receipt,
+            widths: report.widths,
+            decided: report.decided,
+        }
+    }
+
     /// A report that never got as far as a subdivision.
-    fn refused(refusal: ClearanceRefusal) -> Self {
+    pub(crate) fn refused(refusal: ClearanceRefusal) -> Self {
         Self {
             verdict: ClearanceVerdict::Refused(refusal),
             receipt: CellReceipt::default(),
@@ -1027,25 +1098,6 @@ impl ClearanceReport {
 }
 
 // ------------------------------------------------------------- doors
-
-/// **The clearance question over one certified leaf** (E7): is the
-/// separation between the two selections at least `c` metres,
-/// everywhere in the leaf's parameter box?
-///
-/// The caller iterates leaves; [`clearance_over`] is the convenience
-/// that folds a whole [`ParamBoxVerdict`]. The leaf is replayed at the
-/// default drive's tier; a leaf certified at another is asked through
-/// [`clearance_with`] with [`ClearanceQuery::certified_at`].
-pub fn clearance(
-    doc: &Doc<ProfileProgram>,
-    leaf: &ParamBox,
-    a: &Selection,
-    b: &Selection,
-    c: f64,
-    tol: Tol,
-) -> ClearanceReport {
-    clearance_with(doc, leaf, a, b, &ClearanceQuery::at_least(c, tol))
-}
 
 /// **Global self-intersection freedom over one certified leaf** (E7's
 /// census made global and parametric): the selection's boundary is
@@ -1066,15 +1118,13 @@ pub fn self_intersection(
     clearance_with(doc, leaf, of, of, &ClearanceQuery::strictly_positive(tol))
 }
 
-/// The full door: both questions, both budgets, and the accelerator
-/// seam.
+/// The full door: the strict question between two selections, both
+/// budgets, and the accelerator seam.
 ///
-/// `a` and `b` may name the same selection, which is what makes this
-/// one engine rather than two: a query against itself pairs each face
-/// with itself and each later face of the same body. The strict bound
-/// over one body is the injectivity question; every other question is
-/// metric, and two scopes of one body that meet are at distance 0 on
-/// the cell they share.
+/// `a` and `b` may name the same selection: a query against itself
+/// pairs each face with itself and each later face of the same body,
+/// and the strict bound over one body is the injectivity question.
+/// Between two bodies it is metric.
 ///
 /// The verdict combines the pairs' outcomes in one fixed order: a
 /// definite violation outranks a refusal, which outranks `Holds`. A
@@ -1099,13 +1149,6 @@ fn clearance_on(
     query: &ClearanceQuery<'_>,
     lane: crate::eval::LeafLane,
 ) -> ClearanceReport {
-    let c = query.bound.c();
-    if !c.is_finite() || c < 0.0 {
-        // Not a distance. Refused at the door: subdividing against a
-        // NaN bound classifies nothing, burns the whole budget and
-        // comes back `Budget`, which is the wrong name for it.
-        return ClearanceReport::refused(ClearanceRefusal::NotADistance { c });
-    }
     for (sel, side) in [(a, Which::First), (b, Which::Second)] {
         if sel.is_empty_scope() {
             return ClearanceReport::refused(ClearanceRefusal::Engine {
@@ -1229,7 +1272,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         // distance from itself.
         let same_body = a.at == b.at && a.body == b.body;
         if same_body
-            && query.bound == ClearanceBound::StrictlyPositive
+            && matches!(query.bound, ClearanceBound::StrictlyPositive)
             && let Some((x, y)) = recorded_contact(ev, a, &body_a, &faces_a, &faces_b)
         {
             return ClearanceReport::refused(ClearanceRefusal::RecordedContact { a: x, b: y });
@@ -1256,24 +1299,18 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         };
         let report = engine.sweep(&sweep, &windows_a, &windows_b, same_body, |candidate| {
             let faces = candidate.faces();
+            let ask = candidate.ask();
             verify_witness(
                 doc,
                 queried,
                 (a, b),
                 (faces, || engine.on_face_stations(candidate)),
-                (query.bound, band),
+                (ask, band),
                 query.resolver,
                 query.tol,
             )
         });
-        let verdict = match report.verdict {
-            BoundVerdict::Holds => ClearanceVerdict::Holds,
-            BoundVerdict::Violated(geometry) => ClearanceVerdict::Violated(Box::new(Violation {
-                param: witness_point(queried),
-                geometry,
-            })),
-            BoundVerdict::Refused(r) => ClearanceVerdict::Refused(refused(r)),
-        };
+        let verdict = verdict_of(report.verdict, || witness_point(queried), refused);
         ClearanceReport {
             verdict,
             receipt: report.receipt,
@@ -1402,8 +1439,8 @@ impl ClearanceMass {
     /// Folds one leaf's mass into the column its verdict names.
     fn price(&mut self, verdict: &ClearanceVerdict, mass: Result<f64, MeasureUnavailable>) {
         let column = match verdict {
-            ClearanceVerdict::Holds => &mut self.holds,
-            ClearanceVerdict::Violated(_) => &mut self.violated,
+            ClearanceVerdict::Holds | ClearanceVerdict::Within(_) => &mut self.holds,
+            ClearanceVerdict::Violated(_) | ClearanceVerdict::Exceeded => &mut self.violated,
             ClearanceVerdict::Refused(r) => self.refused.entry(r.name()).or_insert(Ok(0.0)),
         };
         // The FIRST refusal wins the column, exactly as the drive's own
@@ -1537,8 +1574,8 @@ impl LeafFold {
 /// the answer is a function of the deterministic pair order.
 fn combine(acc: ClearanceVerdict, next: ClearanceVerdict) -> ClearanceVerdict {
     match (&acc, &next) {
-        (ClearanceVerdict::Violated(_), _) => acc,
-        (_, ClearanceVerdict::Violated(_)) => next,
+        (ClearanceVerdict::Violated(_) | ClearanceVerdict::Exceeded, _) => acc,
+        (_, ClearanceVerdict::Violated(_) | ClearanceVerdict::Exceeded) => next,
         (ClearanceVerdict::Refused(_), _) => acc,
         (_, ClearanceVerdict::Refused(_)) => next,
         _ => ClearanceVerdict::Holds,
@@ -1726,7 +1763,7 @@ fn recorded_contact<T: geom_core::Decide>(
 /// driver's split rule cuts at and its K-telemetry replay samples: a
 /// witness is a point the analysis actually stood on, not a new one
 /// minted here.
-fn witness_point(leaf: &ParamBox) -> ParamWitness {
+pub(crate) fn witness_point(leaf: &ParamBox) -> ParamWitness {
     ParamWitness {
         offsets: leaf
             .order()
@@ -1734,6 +1771,20 @@ fn witness_point(leaf: &ParamBox) -> ParamWitness {
             .filter_map(|&name| Some((name, leaf.get(name)?.midpoint())))
             .collect(),
     }
+}
+
+/// **The box collapsed to its midpoint** ([`witness_point`]'s point), as
+/// a box an `f64` rebuild evaluates over.
+pub(crate) fn midpoint_of(leaf: &ParamBox) -> ParamBox {
+    let mid: BTreeMap<VarId, BoxAxis> = leaf
+        .axes()
+        .iter()
+        .map(|(&n, a)| {
+            let m = a.midpoint();
+            (n, BoxAxis::Varying { lo: m, hi: m })
+        })
+        .collect();
+    ParamBox::from_axes_in(mid, leaf.order())
 }
 
 /// **The witness verification** (E7's witness clause), the verifier the
@@ -1764,20 +1815,12 @@ fn verify_witness(
     leaf: &ParamBox,
     (sel_a, sel_b): (&Selection, &Selection),
     ((face_a, face_b), stations): ((FaceKey, FaceKey), impl FnOnce() -> (Stations, Stations)),
-    (bound, band): (ClearanceBound, Band),
+    (ask, band): (Ask, Band),
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
-    let mid: BTreeMap<VarId, BoxAxis> = leaf
-        .axes()
-        .iter()
-        .map(|(&n, a)| {
-            let m = a.midpoint();
-            (n, BoxAxis::Varying { lo: m, hi: m })
-        })
-        .collect();
     let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::from_axes_in(mid, leaf.order()))),
+        param_box: Some(Arc::new(midpoint_of(leaf))),
         resolver: resolver.cloned(),
         ..lane_opts()
     };
@@ -1812,31 +1855,41 @@ fn verify_witness(
             ));
         }
     };
+    closest_pair((&bx, &by), (face_a, face_b), stations(), (ask, band))
+}
+
+/// **The verifier's core**: the closest pair of the two faces' admitted
+/// stations on the `f64` rebuild's own charts, confirmed against `ask`
+/// ([`Ask::confirms`]).
+///
+/// **The closest pair on the cells' own lattice**, not their midpoints:
+/// both are inside the cells the interval pass classified, so either
+/// confirms; the midpoint pair is just a much worse REPORT. Chosen by
+/// the smallest `f64` distance under `total_cmp`. **Only a station the
+/// face's point door places on the face is a candidate**
+/// ([`topo::clearance::Candidate::on_face_stations`]), so a witness is a
+/// pair of points of the two FACES, not of their carrier windows.
+///
+/// # Errors
+///
+/// The prose of what the rebuild could not confirm.
+pub(crate) fn closest_pair(
+    (bx, by): (&Body<f64>, &Body<f64>),
+    (face_a, face_b): (FaceKey, FaceKey),
+    (lattice_a, lattice_b): (Stations, Stations),
+    (ask, band): (Ask, Band),
+) -> Result<GeometryWitness, String> {
     let surface_at = |body: &Body<f64>, face: FaceKey| -> Option<Surface<f64>> {
         let f = body.get_face(face)?;
         Some(body.get_surface(f.surface)?.clone())
     };
-    let (Some(sa), Some(sb)) = (surface_at(&bx, face_a), surface_at(&by, face_b)) else {
+    let (Some(sa), Some(sb)) = (surface_at(bx, face_a), surface_at(by, face_b)) else {
         return Err(
-            "the f64 rebuild does not carry both faces of the violating pair — the leaf's \
-             key identity did not survive the replay"
+            "the f64 rebuild does not carry both faces of the pair — the key identity did not \
+             survive the rebuild"
                 .to_owned(),
         );
     };
-    // **The closest pair on the cells' own lattice**, not their
-    // midpoints. Both are inside the cell the interval pass proved
-    // violating, so either verifies; the midpoint pair is just a much
-    // worse REPORT — measured 0.70 m on a pair whose closest approach is
-    // 0.50 m. Chosen by the smallest `f64` distance under `total_cmp`.
-    //
-    // **Only a station the face's point door places on the face is a
-    // candidate**, so a witness is a pair of points of the two FACES,
-    // not of their carrier windows. A cell pair with no admitted station
-    // on either side leaves `best` empty and the engine reports
-    // `WitnessUnverified`, which is the honest answer for a cell the
-    // interval pass proved violating whose face material, if any, sits
-    // between stations, or whose stations the door does not place.
-    let (lattice_a, lattice_b) = stations();
     let mut best: Option<Station> = None;
     for &(au, av) in &lattice_a {
         let pa = sa.eval(au, av);
@@ -1865,20 +1918,10 @@ fn verify_witness(
         b_point: pb,
     }) = best
     else {
-        return Err("the violating cells carry no lattice point to verify at".to_owned());
+        return Err("the cells carry no station on their faces to verify at".to_owned());
     };
-    let definite = match decide(bound.predicate(), Margin::of(d - bound.c()), band) {
-        Ok(Sign::Negative) => true,
-        Ok(Sign::Zero) => !bound.zero_discharges(),
-        _ => false,
-    };
-    if !definite {
-        return Err(format!(
-            "the f64 rebuild measures {d} between the witness points, which does not classify \
-             as a violation of the bound {} at this run's tolerance",
-            bound.c()
-        ));
-    }
+    ask.confirms(<geom_core::Interval as geom_core::Real>::from_f64(d), band)
+        .map_err(|why| format!("the f64 rebuild measures {d} between the closest stations: {why}"))?;
     Ok(GeometryWitness {
         a: face_a,
         a_uv,
@@ -1888,6 +1931,29 @@ fn verify_witness(
         b_point: pb,
         distance: d,
     })
+}
+
+/// **The sweep's verdict as the document reads it**, each verified pair
+/// stood at the parameter point `param` names and each engine refusal
+/// carried by `refused` with its sides.
+pub(crate) fn verdict_of(
+    verdict: BoundVerdict<GeometryWitness>,
+    param: impl Fn() -> ParamWitness,
+    refused: impl FnOnce(EngineRefusal) -> ClearanceRefusal,
+) -> ClearanceVerdict {
+    let at = |geometry| {
+        Box::new(Witness {
+            param: param(),
+            geometry,
+        })
+    };
+    match verdict {
+        BoundVerdict::Holds => ClearanceVerdict::Holds,
+        BoundVerdict::Within(geometry) => ClearanceVerdict::Within(at(geometry)),
+        BoundVerdict::Violated(geometry) => ClearanceVerdict::Violated(at(geometry)),
+        BoundVerdict::Exceeded => ClearanceVerdict::Exceeded,
+        BoundVerdict::Refused(r) => ClearanceVerdict::Refused(refused(r)),
+    }
 }
 
 /// One candidate of [`verify_witness`]'s lattice search: a pair of

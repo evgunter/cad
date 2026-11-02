@@ -56,7 +56,7 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
-    AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
+    AssertionRelation, AssertionVerdict, CancelToken, ClearanceBounds, Dimension, Distribution, DocEdit,
     EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
     ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
 };
@@ -126,8 +126,8 @@ const BUDGETS: &[Budget] = &[
         document: "min_clearance_neck",
         // The ε-scaled placement box certifies whole (issue 1191 is
         // about boxes WIDER than this), so the same reasoning gives
-        // zero. The document's point is the min_clearance assertion,
-        // not the mass.
+        // zero. The document's point is the clearance assertion, not
+        // the mass.
         unresolved: 0.0,
         basis: "priced",
     },
@@ -331,11 +331,11 @@ fn distributed_plate() -> ProfileDoc {
     // threshold below the nominal web, so the verdict is a plain
     // `Holds` rather than a band-coincident one. Row 1 is about the
     // verdict being taken and holding, not about the band.
-    r.insert(Node::Assertion {
+    r.insert(Node::Assertion { claim: editor_core::Claim::Value {
         value: web,
         bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
         relation: AssertionRelation::AtLeast,
-    });
+    } });
     r.doc
 }
 
@@ -365,12 +365,12 @@ fn half() -> f64 {
 }
 
 /// A prism whose two neck walls are `0.4` apart, placed by a document
-/// parameter, with a `min_clearance` measure over those two walls and
-/// an assertion that the neck clears `0.3`.
+/// parameter, with an assertion that the clearance between those two
+/// walls is at least `0.3`.
 ///
-/// The `min_clearance` entry row 1 is required to carry: its measure
-/// has NO value at the f64 witness build (E10's third state), and
-/// `Holds` over every certified leaf.
+/// The clearance entry row 1 is required to carry: its assertion reads
+/// the third state at the f64 witness build, and `Holds` over every
+/// certified leaf.
 fn min_clearance_neck() -> ProfileDoc {
     let (doc, _) = neck_with(Distribution::Uniform {
         lo: -half(),
@@ -435,26 +435,12 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             Formula::zero(Dimension::Length),
         ],
     );
-    let measured = r.measure(
-        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
-        &[
-            SitedRef::new(
-                placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-            ),
-            SitedRef::new(
-                placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
-            ),
-        ],
-    );
-    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
-    r.insert(Node::Assertion {
-        value: fixture::read_var(&r.doc, measure_value),
-        bound: len(0.3),
-        relation: AssertionRelation::AtLeast,
-    });
-    (r.doc, measure)
+    let wall = |r: &Recorder, seg: u32| {
+        SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, seg)))
+    };
+    let (a, b) = (wall(&r, 2), wall(&r, 9));
+    let assertion = r.insert(Node::clearance(a, b, ClearanceBounds::AtLeast(len(0.3))));
+    (r.doc, assertion)
 }
 
 /// **ROW 1.** Every assertion of every registered document holds over
@@ -585,6 +571,14 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
                     AssertionVerdict::Unevaluated { reason } => panic!(
                         "{}: assertion node {} has no verdict over a certified leaf: {reason}",
                         entry.name, node.0
+                    ),
+                    AssertionVerdict::Clearance(report) => assert_eq!(
+                        report.verdict().holds(),
+                        Some(true),
+                        "{}: clearance node {} over a certified leaf: {}",
+                        entry.name,
+                        node.0,
+                        report.render()
                     ),
                 }
             }
@@ -901,10 +895,10 @@ fn plain_distance_doc() -> ProfileDoc {
         ],
     );
     let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
-    r.insert(Node::Assertion {
+    r.insert(Node::Assertion { claim: editor_core::Claim::Value {
         value: fixture::read_var(&r.doc, measure_value),
         bound: len(0.5),
         relation: AssertionRelation::AtLeast,
-    });
+    } });
     r.doc
 }

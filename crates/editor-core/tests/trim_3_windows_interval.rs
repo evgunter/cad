@@ -17,10 +17,8 @@ use std::collections::BTreeMap;
 
 use editor_core::UnitSym;
 use editor_core::analysis::{BoxAxis, ParamBox};
-use editor_core::clearance::{
-    Budgets, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
-    ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection, clearance,
-};
+use editor_core::clearance::{Budgets, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport, ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection};
+use crate::fixture::clearance;
 use editor_core::{
     CapEnd, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, VarName,
@@ -190,7 +188,7 @@ fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
 
 fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
-        bound: ClearanceBound::AtLeast(c),
+        bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,

@@ -254,11 +254,10 @@ fn a_selection_authored_twice_is_two_variables_and_a_named_one_is_shared() {
 }
 
 /// What each measure primitive admits, as the door says it (FORK-VTX).
-const TABLE: [(MeasureVerb, [bool; 4]); 4] = [
+const TABLE: [(MeasureVerb, [bool; 4]); 3] = [
     // [body, face, edge, vertex]
     (MeasureVerb::Distance, [false, true, true, true]),
     (MeasureVerb::Angle, [false, true, true, false]),
-    (MeasureVerb::MinClearance, [true, true, false, false]),
     (MeasureVerb::Gap, [false, true, true, true]),
 ];
 
@@ -266,7 +265,6 @@ fn primitive<R>(verb: MeasureVerb, a: R, b: R) -> MeasurePrimitive<R> {
     match verb {
         MeasureVerb::Distance => MeasurePrimitive::Distance { a, b },
         MeasureVerb::Angle => MeasurePrimitive::Angle { a, b },
-        MeasureVerb::MinClearance => MeasurePrimitive::MinClearance { a, b },
         MeasureVerb::Gap => MeasurePrimitive::Gap { outer: a, inner: b },
     }
 }
@@ -324,9 +322,8 @@ fn each_primitive_admits_its_kinds_at_the_edit_door() {
 /// **FORK-VTX at the load door**: a file whose measure reads a vertex
 /// under a primitive that does not admit one refuses `SlotVarKind` at
 /// load. The file is a saved `distance` between a vertex and a face
-/// with its primitive's tag re-spelled `MinClearance` (a length too, so
-/// the output's signature still holds): every other byte is what a
-/// door wrote.
+/// with its primitive's tag re-spelled `Angle`, which reads no vertex:
+/// every other byte is what a door wrote.
 #[test]
 fn a_file_whose_measure_reads_an_unadmitted_kind_refuses_at_load() {
     let (doc, p) = prism(blank("s2e-vtx-load"), 0.0);
@@ -341,15 +338,15 @@ fn a_file_whose_measure_reads_an_unadmitted_kind_refuses_at_load() {
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert!(load(&text, Tol::witness()).is_ok(), "the saved file loads");
     assert_eq!(text.matches("\"Distance\"").count(), 1, "one distance");
-    let corrupt = text.replace("\"Distance\"", "\"MinClearance\"");
+    let corrupt = text.replace("\"Distance\"", "\"Angle\"");
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             found: VarKind::Vertex,
-            expected: SlotKind::Measured(MeasureVerb::MinClearance),
+            expected: SlotKind::Measured(MeasureVerb::Angle),
             ..
         })) => {}
         other => {
-            panic!("a min_clearance at a vertex must refuse by the seat's kind, got {other:?}")
+            panic!("an angle at a vertex must refuse by the seat's kind, got {other:?}")
         }
     }
 }
@@ -613,19 +610,19 @@ fn a_selection_authored_off_its_body_is_reported_by_neither_door() {
     assert_eq!(stranded_selections(&written.maintenance), 0);
 }
 
-/// **FORK-VTX at the slot door**: re-pointing a `min_clearance`
-/// reference to an edge refuses as the seat's kind, whether the edge is
-/// a selection authored at the write or a variable read by name.
+/// **FORK-VTX at the slot door**: re-pointing a clearance seat to an
+/// edge refuses as the seat's kind, whether the edge is a selection
+/// authored at the write or a variable read by name.
 #[test]
-fn the_slot_door_holds_a_measure_reference_to_its_primitive_kinds() {
+fn the_slot_door_holds_a_clearance_seat_to_its_kinds() {
     let (doc, p) = prism(blank("s2e-vtx-slot"), 0.0);
-    let (doc, measure) = fixture::measure_node(
-        &doc,
-        MeasurePrimitive::MinClearance { a: 0, b: 1 },
-        vec![
+    let (doc, measure) = insert(
+        doc,
+        Node::clearance(
             crate::fixture::sited_ref(p.faces[0].clone()),
             crate::fixture::sited_ref(p.faces[1].clone()),
-        ],
+            editor_core::ClearanceBounds::AtLeast(len(0.1)),
+        ),
     );
     let (doc, fillet) = insert(
         doc,
@@ -646,10 +643,7 @@ fn the_slot_door_holds_a_measure_reference_to_its_primitive_kinds() {
             &doc,
             &DocEdit::SetParam {
                 node: measure,
-                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Measured(
-                    MeasureVerb::MinClearance,
-                    0,
-                )),
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Cleared(0)),
                 value: editor_core::SlotValue::Read(read.clone()),
                 fresh: Vec::new(),
             },
@@ -659,7 +653,7 @@ fn the_slot_door_holds_a_measure_reference_to_its_primitive_kinds() {
             matches!(
                 refused,
                 Err(EditError::SlotVarKind {
-                    expected: SlotKind::Measured(MeasureVerb::MinClearance),
+                    expected: SlotKind::Cleared,
                     ..
                 })
             ),
@@ -669,12 +663,12 @@ fn the_slot_door_holds_a_measure_reference_to_its_primitive_kinds() {
     }
 }
 
-/// **A whole body named at a measure seat must be the body read.** The
+/// **A whole body named at a clearance seat must be the body read.** The
 /// body's own name is read as the body; another body's name at it
 /// refuses `OtherBody`, rather than measuring the body read under a
 /// name that says otherwise.
 #[test]
-fn a_measure_reads_a_whole_body_only_under_its_own_name() {
+fn a_clearance_reads_a_whole_body_only_under_its_own_name() {
     let (doc, p) = prism(blank("s2e-other-body"), 0.0);
     let (doc, q) = prism(doc, 4.0);
     let body = |node| StableName {
@@ -682,35 +676,23 @@ fn a_measure_reads_a_whole_body_only_under_its_own_name() {
         node,
         path: Vec::new(),
     };
-    let clearance = |a: SitedRef| {
-        editor_core::measure(
-            &doc,
-            &[MeasurePrimitive::MinClearance {
-                a,
-                b: crate::fixture::sited_ref(p.faces[0].clone()),
-            }],
-            Tol::witness(),
+    let node = |a: SitedRef| {
+        Node::clearance(
+            a,
+            crate::fixture::sited_ref(p.faces[0].clone()),
+            editor_core::ClearanceBounds::AtLeast(len(0.1)),
         )
     };
-    let own = clearance(SitedRef::new(p.node, body(p.node))).expect("its own body");
-    let read = own
-        .doc
-        .node(own.measured.measures[0])
-        .expect("a measure")
-        .operand_rows()[0]
-        .1;
-    assert_eq!(
-        Some(read),
-        own.doc.output(p.node, 0),
-        "read as the body itself"
-    );
+    let (own, id) = insert(doc.clone(), node(SitedRef::new(p.node, body(p.node))));
+    let read = own.node(id).expect("a clearance").operand_rows()[0].1;
+    assert_eq!(Some(read), own.output(p.node, 0), "read as the body itself");
     assert!(
         matches!(
-            clearance(SitedRef::new(p.node, body(q.node))),
-            Err(EditError::SelectionShape {
+            fixture::insert_refused(&doc, node(SitedRef::new(p.node, body(q.node)))),
+            EditError::SelectionShape {
                 fault: editor_core::SelectionFault::OtherBody,
                 ..
-            })
+            }
         ),
         "another body's name refuses"
     );

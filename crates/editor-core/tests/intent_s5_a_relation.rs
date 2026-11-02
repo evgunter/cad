@@ -51,11 +51,11 @@ fn assert_on(
 ) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Assertion {
+        Node::Assertion { claim: editor_core::Claim::Value {
             value,
             bound,
             relation,
-        },
+        } },
     )
 }
 
@@ -101,6 +101,7 @@ fn equal_decides_a_measured_distance() {
                 "the sliver band, not {reason:?}"
             ),
             AssertionVerdict::Holds { .. } => {}
+            AssertionVerdict::Clearance(_) => panic!("a value claim's verdict is no clearance's"),
         }
     }
 }
@@ -120,10 +121,10 @@ fn the_relation_is_the_wire_field_and_dir_refuses() {
     assert!(
         matches!(
             loaded.doc.node(id),
-            Some(Node::Assertion {
+            Some(Node::Assertion { claim: editor_core::Claim::Value {
                 relation: AssertionRelation::Equal,
                 ..
-            })
+            } })
         ),
         "`=` round-trips"
     );

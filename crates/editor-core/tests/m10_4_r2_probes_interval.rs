@@ -48,7 +48,7 @@ use editor_core::stackup::{
 };
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, Observed, ParamValue,
+    FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ParamValue,
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, VarId,
     VarName, evaluate, seed_env,
 };
@@ -116,14 +116,14 @@ fn push(doc: &editor_core::ProfileDoc, edit: DocEdit<ProfileProgram>) -> Profile
 
 fn measured(doc: &ProfileDoc, ev: &Evaluation<Dual64>, var: VarId) -> Dual64 {
     match ev.reading(doc, var) {
-        Ok(Observed::Value(value)) => value,
+        Ok(value) => value,
         other => panic!("{var:?} did not read: {other:?}"),
     }
 }
 
 fn measured_f64(doc: &ProfileDoc, ev: &Evaluation<f64>, var: VarId) -> f64 {
     match ev.reading(doc, var) {
-        Ok(Observed::Value(value)) => value,
+        Ok(value) => value,
         other => panic!("{var:?} did not read: {other:?}"),
     }
 }
@@ -877,8 +877,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
     .unwrap_or_else(|e| panic!("E9: {e}"));
     assert_eq!(
         report
-            .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal"),
+            .nominal,
         0.0
     );
     // The enclosure of an angle in [0, π] arrives a few subnormals
@@ -975,8 +974,7 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
     .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         report
-            .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal"),
+            .nominal,
         -1.0
     );
     let row = &report.per_param[0];
@@ -994,12 +992,10 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
         wc.hi
             > report
                 .nominal
-                .expect("this fixture measures a closed form, which has an f64 nominal")
                 + row.contribution.clone().unwrap(),
         "the linearized top {} is below the hull's {}",
         report
-            .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal"),
+            .nominal,
         wc.hi
     );
     println!("curvature hull {wc:?} vs linearized [-1, -1]; true range [-1, -0.75]");
@@ -1049,7 +1045,7 @@ fn the_shared_prior_does_not_move_the_hull() {
                     },
                     Tol::witness(),
                 );
-                let Ok(Observed::Value(value)) = ev.reading(&s.doc, s.measure) else {
+                let Ok(value) = ev.reading(&s.doc, s.measure) else {
                     panic!("a certified leaf measures")
                 };
                 CertifiedEnclosure::certified_bracket(value).expect("certified")
@@ -1148,8 +1144,7 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
     .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         report
-            .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal"),
+            .nominal,
         4.0
     );
     let sigma_u = 0.4 / 12f64.sqrt();

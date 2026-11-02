@@ -24,10 +24,10 @@ test_utils::roster! {
         "the enclosure over carriers the unit's own fixture never uses — two CYLINDERS \
          — at four budgets from starved to the shipped one, containing the \
          hand-derived truth at every one and narrowing monotonically",
-    min_clearance_between_two_separated_bodies_brackets_their_gap:
+    a_clearance_between_two_separated_bodies_reads_their_gap:
         "two solids 0.1 m apart, one non-convex, whose carrier windows interpenetrate: \
-         the `min_clearance` bracket contains the true 0.1, and the requirement \
-         `min_clearance >= 0.05`, met by them twice over, never reads `Violated`",
+         `clearance >= 0.05`, met by them twice over, holds, and `clearance <= 0.15` is \
+         proved by a pair no closer than the true 0.1",
     report_key_tells_the_dials_that_move_a_report_apart:
         "the cache seam's key. The run dials were missing from the (kind, slice, box, \
          eps, K) tuple, unnoticed rather than decided, so two MC runs a consumer would \
@@ -41,10 +41,6 @@ test_utils::roster! {
          the accounting integrates, driven by a stream re-stated here from the \
          algorithms; and the report is bit-identical across rayon schedules while \
          moving with the seed",
-    the_typed_absence_names_its_verb_scalar_and_door:
-        "the PAYLOAD's own sentence when a `min_clearance` measure is read at `f64`: it \
-         must name the verb, the scalar and the door that CAN answer, because the \
-         binding that formats it for a Python caller is not in this crate",
 }
 
 use crate::fixture;
@@ -60,7 +56,7 @@ use editor_core::{
     Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc, ProfileProgram,
     RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload, VarName,
 };
-use geom_core::{Bounds, Tol};
+use geom_core::Tol;
 use topo::clearance::{Budgets, Side, min_separation};
 
 use fixture::{Recorder, len};
@@ -188,13 +184,13 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         ],
     );
     let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
-    let assertion = r.insert(Node::Assertion {
+    let assertion = r.insert(Node::Assertion { claim: editor_core::Claim::Value {
         value: fixture::read_var(&r.doc, measure_value),
         // The bound IS the measured value, so no enclosure separates
         // them: E10's third state at every leaf.
         bound: len(1.0),
         relation: AssertionRelation::AtLeast,
-    });
+    } });
     (r.doc, assertion)
 }
 
@@ -382,7 +378,7 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
 ///
 /// The two solids' true minimum separation is 0.1: the block's top face
 /// (`y = 0.7`) against the neck's lower wall (`y = 0.8`).
-fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn notched_pair(bounds: editor_core::ClearanceBounds<Formula>) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     let c_profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![
@@ -422,77 +418,56 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         distance: len(2.0),
     });
     let block = r.against(c, block, &editor_core::Frame::IDENTITY);
-    let measured = r.measure(
-        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
-        &[
-            SitedRef::new(c, bname(c)),
-            SitedRef::new(block, bname(block)),
-        ],
-    );
-    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
-    let assertion = r.insert(Node::Assertion {
-        value: fixture::read_var(&r.doc, measure_value),
-        bound: len(bound),
-        relation: AssertionRelation::AtLeast,
-    });
-    (r.doc, measure, assertion)
+    let assertion = r.insert(Node::clearance(
+        SitedRef::new(c, bname(c)),
+        SitedRef::new(block, bname(block)),
+        bounds,
+    ));
+    (r.doc, assertion)
 }
 
-/// **Two separated solids, one non-convex, bracket their gap.**
+/// **Two separated solids, one non-convex, read their gap.**
 ///
 /// The two solids are 0.1 m apart. The C's planar cap faces are
 /// non-convex, and the engine's window for a planar face is the
 /// rectangle hull of its boundary, so the C's cap window covers the
 /// notch the block sits in and the two windows interpenetrate. The cells
-/// of that window decided outside the C drop out of the lower end, and
-/// the upper end is read only off points of the faces, so the bracket
-/// contains the solids' own 0.1, and `min_clearance ≥ 0.05`, which they
-/// meet twice over, is never `Violated`.
+/// of that window decided outside the C drop out, and a pair is read
+/// only off points of the faces, so `clearance ≥ 0.05`, which they meet
+/// twice over, holds, and `clearance ≤ 0.15` is proved by a pair of face
+/// points no closer than the solids' own 0.1.
 #[test]
-fn min_clearance_between_two_separated_bodies_brackets_their_gap() {
+fn a_clearance_between_two_separated_bodies_reads_their_gap() {
+    use editor_core::ClearanceBounds;
+    use editor_core::clearance::ClearanceVerdict;
     let truth = 0.1;
-    let (doc, measure, assertion) = notched_pair(0.05);
-    let ev: editor_core::Evaluation<geom_core::Interval> = eval_over(&doc, None);
-    let Some(NodeResult::Ok(v)) = ev.result(measure) else {
-        panic!("the measure evaluated: {:?}", ev.result(measure));
+    let report = |bounds| {
+        let (doc, assertion) = notched_pair(bounds);
+        let ev: editor_core::Evaluation<geom_core::Interval> = eval_over(&doc, None);
+        let Some(NodeResult::Ok(a)) = ev.result(assertion) else {
+            panic!("the assertion evaluated");
+        };
+        let ValuePayload::Assertion(AssertionVerdict::Clearance(report)) = &a.payload else {
+            panic!("a clearance's value is the sweep's report");
+        };
+        (**report).clone()
     };
-    let ValuePayload::Measure { value, .. } = &v.payload else {
-        panic!("the measure has a value at the interval scalar");
-    };
-    println!(
-        "notched pair: min_clearance = [{}, {}], true solid separation {truth}",
-        value.lo(),
-        value.hi()
+    let held = report(ClearanceBounds::AtLeast(len(0.05)));
+    println!("notched pair ≥ 0.05: {}", held.render());
+    assert_eq!(
+        held.verdict(),
+        &ClearanceVerdict::Holds,
+        "`clearance >= 0.05` is met by the solids twice over: {}",
+        held.render()
     );
-    assert!(
-        value.lo() <= truth && truth <= value.hi(),
-        "the enclosure [{}, {}] contains the solids' {truth}",
-        value.lo(),
-        value.hi()
-    );
-    // The upper end is a station pair straight across the gap, so it is
-    // tight: within the band of the truth. A bracket whose upper end is
-    // read off anything looser goes red here. The lower end is 0 at the
-    // shipped budget (measured), because the cells of the C's cap that
-    // straddle its notch stay undecided and their enclosures meet the
-    // block's; that is the lower end's honest looseness, not pinned.
-    let band = band();
-    assert!(
-        value.hi() - truth <= band.zero(),
-        "the upper end {} is within the band ({:e}) of the solids' {truth}",
-        value.hi(),
-        band.zero()
-    );
-    let Some(NodeResult::Ok(a)) = ev.result(assertion) else {
-        panic!("the assertion evaluated");
+    let proved = report(ClearanceBounds::AtMost(len(0.15)));
+    let ClearanceVerdict::Within(w) = proved.verdict() else {
+        panic!("a 0.1 gap is within 0.15: {}", proved.render());
     };
-    let ValuePayload::Assertion(verdict) = &a.payload else {
-        panic!("an assertion's value is a verdict");
-    };
-    println!("notched pair: the assertion reads {verdict:?}");
+    let d = w.geometry.distance;
     assert!(
-        !matches!(verdict, AssertionVerdict::Violated { .. }),
-        "`min_clearance >= 0.05` is met by the solids twice over: {verdict:?}"
+        truth - band().zero() <= d && d <= 0.15,
+        "the proving pair is two face points, so no closer than the solids' {truth}: {d}"
     );
 }
 
@@ -679,47 +654,4 @@ fn the_mc_stream_is_re_derived_bit_for_bit() {
     };
     assert_eq!(run(3, true), run(3, false), "rayon cannot move a number");
     assert_ne!(run(3, false), run(4, false), "the seed rides the report");
-}
-
-/// **The typed absence used to lose its whole payload at the Python
-/// read door, and say something self-contradictory on the way out** —
-/// fixed, and this row now pins what it says instead.
-///
-/// `ValuePayload::MeasureUnavailable::kind_name()` returns `"measure"`
-/// on purpose (`eval/mod.rs`, "The SAME family name as a measure that
-/// has a value"). `pncad-py`'s `Value.measure` formatted that into its
-/// mismatch fallthrough, so a Python consumer who loaded a document
-/// carrying a `min_clearance` measure and read it at `f64` got ``a
-/// `measure` value is not a measure`` — with the verb, the scalar and
-/// the door that CAN answer all dropped. Its sibling `Value.assertion`
-/// carried the reason through, so it was one door, not the design.
-///
-/// The door now has its own arm (`measure_unavailable`) and formats
-/// the reason. This row pins the PAYLOAD's own sentence — the text
-/// that arm interpolates — because the binding is not in this crate:
-/// if the reason ever stops naming the door, the Python message stops
-/// being actionable and this reds.
-#[test]
-fn the_typed_absence_names_its_verb_scalar_and_door() {
-    let payload: editor_core::ValuePayload<f64> = editor_core::ValuePayload::MeasureUnavailable {
-        reason: editor_core::MeasureUnavailableAt::NeedsEnclosure {
-            verb: "min_clearance",
-            scalar: "f64",
-            door: "topo::ClearanceLane",
-        },
-        dim: Dimension::Length,
-    };
-    let editor_core::ValuePayload::MeasureUnavailable { reason, .. } = &payload else {
-        unreachable!()
-    };
-    let sentence = reason.to_string();
-    for part in ["min_clearance", "f64", "topo::ClearanceLane"] {
-        assert!(
-            sentence.contains(part),
-            "the reason a Python caller is handed must name {part}: {sentence}"
-        );
-    }
-    // And the family name is still shared, which is what made the old
-    // sentence possible: the fix is the door's arm, not a rename.
-    assert_eq!(payload.kind_name(), "measure");
 }

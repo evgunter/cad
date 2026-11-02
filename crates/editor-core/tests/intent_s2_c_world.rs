@@ -227,11 +227,11 @@ fn a_measured_and_asserted_block_placed_is_the_product() {
     );
     let (doc, _) = insert(
         doc.clone(),
-        Node::Assertion {
+        Node::Assertion { claim: editor_core::Claim::Value {
             value: crate::fixture::value_of(&doc, measure),
             bound: len(0.5),
             relation: AssertionRelation::AtLeast,
-        },
+        } },
     );
     let (doc, _) = place(doc, b);
     let run = ev(&doc);
@@ -272,11 +272,11 @@ fn a_failing_measure_and_its_assertion_gate_no_placement() {
     );
     let (doc, assertion) = insert(
         doc.clone(),
-        Node::Assertion {
+        Node::Assertion { claim: editor_core::Claim::Value {
             value: crate::fixture::value_of(&doc, measure),
             bound: len(0.5),
             relation: AssertionRelation::AtLeast,
-        },
+        } },
     );
     let (doc, _) = place(doc, b);
     let run = ev(&doc);

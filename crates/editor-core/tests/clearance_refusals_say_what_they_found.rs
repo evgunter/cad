@@ -14,10 +14,8 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::ParamBox;
-use editor_core::clearance::{
-    CertificateArm, ClearanceRefusal, ClearanceVerdict, EngineRefusal, FaceScope,
-    MinSeparationRefusal, Selection, SelectionRefusal, SharedCell, Which, clearance,
-};
+use editor_core::clearance::{CertificateArm, ClearanceRefusal, ClearanceVerdict, EngineRefusal, FaceScope, MinSeparationRefusal, Selection, SelectionRefusal, SharedCell, Which};
+use crate::fixture::clearance;
 use editor_core::{EntityKind, Entry, EvalOptions, Node, ProfileDoc, RecipeNodeId, StableName};
 use geom_core::{BandError, Tol};
 use topo::entity::FaceKey;
@@ -194,16 +192,6 @@ fn a_one_face_refusal_names_its_side() {
         collapsed.payload(),
         "second=FaceKey(null) VertexKey(null)",
         "the collapsed chart's payload names its side"
-    );
-    let measured = editor_core::NodeErrorKind::MeasureClearanceRefused(
-        MinSeparationRefusal::PoisonEnclosure { a: k, b: k },
-    );
-    assert_eq!(
-        measured.to_string(),
-        "the clearance engine refused: the enclosure between face FaceKey(null) of the first \
-         operand and face FaceKey(null) of the second operand did not evaluate, which is \
-         geometry, not a budget",
-        "the measure door says the engine's words, its operands the sides"
     );
     let name = StableName {
         kind: EntityKind::Face,

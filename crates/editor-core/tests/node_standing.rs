@@ -23,9 +23,8 @@
 
 use crate::fixture::{self, insert, len, minted, on_frame, step};
 use editor_core::analysis::ParamBox;
-use editor_core::clearance::{
-    ClearanceRefusal, ClearanceVerdict, Selection, SelectionRefusal, clearance,
-};
+use editor_core::clearance::{ClearanceRefusal, ClearanceVerdict, Selection, SelectionRefusal};
+use crate::fixture::clearance;
 use editor_core::{
     CancelToken, ChecksConfig, ChecksError, DocEdit, EntityKind, EvalOptions, Evaluation,
     HitTestError, InterrogateError, NameLookupError, Node, NodePick, NodePickError, NodeStanding,

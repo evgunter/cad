@@ -94,11 +94,11 @@ fn measure_arithmetic_is_a_definition_the_assertion_reads() {
     .expect("Length - Length");
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion {
+        Node::Assertion { claim: editor_core::Claim::Value {
             value: margin,
             bound: len(1.0),
             relation: AssertionRelation::AtLeast,
-        },
+        } },
     );
     let value = fixture::assertion_value(&doc, assertion);
     let held = doc.var(value).expect("the value is a variable");
@@ -290,7 +290,7 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
     // An assertion reads it.
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion {
+        Node::Assertion { claim: editor_core::Claim::Value {
             value: Formula::add(
                 Formula::named(VarName::new("m").unwrap(), Dimension::Length),
                 len(0.001),
@@ -298,7 +298,7 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
             .unwrap(),
             bound: len(0.5),
             relation: AssertionRelation::AtLeast,
-        },
+        } },
     );
     assert!(matches!(
         verdict(&crate::corpus::eval::<f64>(&doc), assertion),
@@ -348,11 +348,11 @@ fn a_redefinition_over_a_measure_binds_after_the_measure_runs() {
     );
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion {
+        Node::Assertion { claim: editor_core::Claim::Value {
             value: Formula::named(w.clone(), Dimension::Length),
             bound: len(0.0),
             relation: AssertionRelation::AtLeast,
-        },
+        } },
     );
     let (doc, measure) = fixture::measure_node(
         &doc,
@@ -403,11 +403,11 @@ fn an_assertion_over_a_definition_is_poisoned_by_the_measure_under_it() {
     let out = fixture::output(&doc, measure);
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion {
+        Node::Assertion { claim: editor_core::Claim::Value {
             value: Formula::add(Formula::var(out, Dimension::Length), len(1.0)).unwrap(),
             bound: len(0.0),
             relation: AssertionRelation::AtLeast,
-        },
+        } },
     );
     let ev = crate::corpus::eval::<f64>(&doc);
     assert!(
@@ -437,11 +437,11 @@ fn a_split_refuses_an_assertion_over_a_stranded_measure() {
     let out = fixture::output(&doc, measure);
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion {
+        Node::Assertion { claim: editor_core::Claim::Value {
             value: Formula::var(out, Dimension::Length),
             bound: len(0.0),
             relation: AssertionRelation::AtLeast,
-        },
+        } },
     );
     let (doc, _) = fixture::step(doc, DocEdit::DeleteNode { id: measure });
     let mut cut = std::collections::BTreeSet::from([assertion]);
@@ -465,46 +465,3 @@ fn a_split_refuses_an_assertion_over_a_stranded_measure() {
     }
 }
 
-/// **Which side of an assertion has no value is a word of its key.** A
-/// value with no value at `f64` (a `min_clearance`) bounded by a length,
-/// and that length bounded by the same clearance, leave one evaluated
-/// number each and the same upstream: their keys differ by where the
-/// missing one stood.
-#[test]
-fn an_unavailable_side_keys_by_its_position() {
-    let (doc, a, b) = slabs("s2d-unavailable", 2.5);
-    // `b` in `a`'s space, so the clearance reads one space.
-    let (doc, b_at) = fixture::slid(doc, a, b, [0.0; 3]);
-    let b_cap = cap_ref(b, CapEnd::End).name;
-    let (doc, clearance) = fixture::measure_node(
-        &doc,
-        MeasurePrimitive::MinClearance { a: 0, b: 1 },
-        vec![
-            cap_ref(a, CapEnd::End),
-            editor_core::SitedRef::new(b_at, b_cap),
-        ],
-    );
-    let gap = Formula::var(fixture::output(&doc, clearance), Dimension::Length);
-    let (doc, low) = insert(
-        doc,
-        Node::Assertion {
-            value: gap.clone(),
-            bound: len(0.5),
-            relation: AssertionRelation::AtLeast,
-        },
-    );
-    let (doc, high) = insert(
-        doc,
-        Node::Assertion {
-            value: len(0.5),
-            bound: gap,
-            relation: AssertionRelation::AtLeast,
-        },
-    );
-    let ev = crate::corpus::eval::<f64>(&doc);
-    let value = |node| {
-        ev.value(node)
-            .expect("an assertion with no value is Unevaluated")
-    };
-    assert_ne!(value(low).content_key, value(high).content_key);
-}

@@ -117,11 +117,11 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ],
     );
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
-    let assertion = r.insert(Node::Assertion {
+    let assertion = r.insert(Node::Assertion { claim: editor_core::Claim::Value {
         value: fixture::read_var(&r.doc, measure_value),
         bound: len(1.0),
         relation: AssertionRelation::AtLeast,
-    });
+    } });
     (r.doc, measure, assertion)
 }
 
@@ -200,7 +200,6 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         !rendered.contains(&format!(
             "{:016x}",
             one.nominal
-                .expect("a closed-form measure has an f64 nominal")
                 .to_bits()
         )),
         "the human form does not print bits"
@@ -209,7 +208,6 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         one.serialize().contains(&format!(
             "{:016x}",
             one.nominal
-                .expect("a closed-form measure has an f64 nominal")
                 .to_bits()
         )),
         "and the goldening form prints nothing else"

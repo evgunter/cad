@@ -483,7 +483,7 @@ pub fn monte_carlo(
     // first assertion reading it.
     let mut values: Vec<VarId> = Vec::new();
     for &(id, is_measure) in &sinks {
-        if let (false, Some(Node::Assertion { value, .. })) = (is_measure, doc.node(id))
+        if let (false, Some(Node::Assertion { claim: crate::measure::Claim::Value { value, .. } })) = (is_measure, doc.node(id))
             && !values.contains(value)
         {
             values.push(*value);
@@ -558,10 +558,7 @@ pub fn monte_carlo(
             .collect();
         let read = values
             .iter()
-            .map(|&var| match ev.reading(doc, var) {
-                Ok(crate::eval::measure::Observed::Value(v)) => Some(v),
-                _ => None,
-            })
+            .map(|&var| ev.reading(doc, var).ok())
             .collect();
         Sample {
             readings,

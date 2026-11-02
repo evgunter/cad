@@ -616,56 +616,6 @@ pub enum RefusalReason {
     /// partial answer, and never a leaf quietly dropped from the
     /// receipt.
     Budget(BudgetKind),
-    /// **A measure could not be taken, for a reason the BOX cannot
-    /// change** (M10-6, R1's MINOR-6): a selection that names the wrong
-    /// kind of entity, a scope naming no face, a carrier the engine does
-    /// not support.
-    ///
-    /// These are facts about the DOCUMENT, not about the parameter
-    /// values, so every sub-box inherits them exactly. Before this
-    /// class they fell to the catch-all `Bisect` and the driver split
-    /// its way through the whole leaf budget re-deriving the same
-    /// refusal — a measured >60 s on a pairing fixture — and
-    /// then priced the mass as `Budget`, which named the symptom
-    /// instead of the cause. Refusing terminally is both faster and
-    /// truer: the mass is refused under its own class, and the class
-    /// carries the engine's own name for the refusal.
-    MeasureRefused {
-        /// The measure node that could not be taken.
-        node: RecipeNodeId,
-        /// Which refusal it was, typed.
-        class: MeasureRefusalClass,
-    },
-}
-
-/// **Which measure refusal a smaller box cannot change**, as a type
-/// rather than a name.
-///
-/// The wiring's own arm and the clearance engine's refusal are two
-/// vocabularies, and one `&'static str` carrying both let a reader that
-/// wanted the arm match a string while nothing stopped the two
-/// colliding. The engine's typed refusal arrives at the measure layer
-/// already typed, and this is one hop further on, so it stays typed:
-/// `Clearance` holds the engine's own value.
-///
-/// [`Self::name`] is the serialized form, which is unchanged — the
-/// receipt reads only the name.
-#[derive(Debug, Clone, PartialEq)]
-pub enum MeasureRefusalClass {
-    /// The clearance engine refused, with its own refusal
-    /// ([`NodeErrorKind::MeasureClearanceRefused`]).
-    Clearance(topo::clearance::MinSeparationRefusal),
-}
-
-impl MeasureRefusalClass {
-    /// The class's name in a receipt: the wiring's own for its arm, the
-    /// engine's own for the engine's.
-    #[must_use]
-    pub fn name(&self) -> &'static str {
-        match self {
-            Self::Clearance(r) => r.name(),
-        }
-    }
 }
 
 impl RefusalReason {
@@ -677,7 +627,6 @@ impl RefusalReason {
             Self::Bifurcation(_) => ReasonClass::Bifurcation,
             Self::Infeasible => ReasonClass::Infeasible,
             Self::Budget(_) => ReasonClass::Budget,
-            Self::MeasureRefused { .. } => ReasonClass::MeasureRefused,
         }
     }
 }
@@ -717,8 +666,6 @@ pub enum ReasonClass {
     Infeasible,
     /// [`RefusalReason::Budget`].
     Budget,
-    /// [`RefusalReason::MeasureRefused`].
-    MeasureRefused,
 }
 
 impl ReasonClass {
@@ -730,7 +677,6 @@ impl ReasonClass {
             Self::Bifurcation => "bifurcation",
             Self::Infeasible => "infeasible",
             Self::Budget => "budget",
-            Self::MeasureRefused => "measure_refused",
         }
     }
 }
@@ -1651,11 +1597,8 @@ fn classify_replay<T: geom_core::Decide>(
     // escalation and the profile lift's guided abort — are the two E6
     // names as the cue to bisect.
     //
-    // HOW IT ASKS, AND IN WHAT ORDER. Three reads per node, and the
-    // order is a rule: (1) a DEFINITE box-independent refusal is
-    // terminal whatever else the op recorded — bisection cannot change
-    // a fact about the document — so it is read first; (2) the node's
-    // escalation log decides among the box-DEPENDENT outcomes: every
+    // HOW IT ASKS, AND IN WHAT ORDER. Two reads per node, and the
+    // order is a rule: (1) the node's escalation log decides among the box-DEPENDENT outcomes: every
     // indeterminate outcome the FUNNEL produced while the op ran is on
     // it — on the value if the op built anyway, on the error if it did
     // not — so an escalation an op wrapped in its own error enum (a
@@ -1669,14 +1612,14 @@ fn classify_replay<T: geom_core::Decide>(
     // bisect (a later sliver behind a refinable escalation does not
     // argue — refinement may never reach it on the branch a definite
     // first decision takes — so that order is the conservative one);
-    // (3) the error-enum arms, a CONSERVATIVE read with no live path
+    // (2) the error-enum arms, a CONSERVATIVE read with no live path
     // to them today. Every mint of either kind — `NodeErrorKind::`
     // `Escalated` and the `ProfileLaneReplay` structure refusal — is in
     // `eval::wire`, inside the bracket `eval_node` opens around the op,
-    // so the escalation is on the node's log and read (2) answers
+    // so the escalation is on the node's log and read (1) answers
     // first. That is a search, not a proof: it says no path reaches
     // these arms, not that none can. Deleting them is a behaviour
-    // change of its own — read (2) speaks for the log's FIRST
+    // change of its own — read (1) speaks for the log's FIRST
     // escalation where an arm speaks for the one the error carried, and
     // those differ on a node that recovered from an earlier one — so it
     // wants its own red-first row and its own measurement, which
@@ -1704,29 +1647,11 @@ fn classify_replay<T: geom_core::Decide>(
             NodeResult::Failed(e) => (&e.escalations, Some(e)),
             NodeResult::Poisoned { .. } => continue,
         };
-        // (1) **Box-independent measure refusals are TERMINAL** (M10-6,
-        // R1's MINOR-6). A selection naming the wrong kind of entity,
-        // or a scope naming no face, is a fact about the document:
-        // every sub-box inherits it exactly, so refining
-        // re-derives the same refusal until the budget runs out and
-        // then prices the mass `Budget`, naming the symptom. The
-        // classes listed in `box_independent_measure_class` are the
-        // ones that provably cannot move under refinement; a clearance
-        // refusal that CAN (a cell budget, a poisoned enclosure, an
-        // unverified witness) still bisects, because for those a
-        // smaller box is exactly the remedy. Read BEFORE the log: an
-        // escalation the same op also recorded changes nothing about
-        // a refusal no box can move.
-        if let Some(err) = failure
-            && let Some(class) = box_independent_measure_class(&err.kind)
-        {
-            return LeafVerdict::Refused(RefusalReason::MeasureRefused { node, class });
-        }
-        // (2) The escalation log.
+        // (1) The escalation log.
         if let Some(verdict) = log_read(escalations) {
             return verdict;
         }
-        // (3) The error-enum arms.
+        // (2) The error-enum arms.
         let Some(err) = failure else {
             continue;
         };
@@ -1803,9 +1728,9 @@ fn classify_replay<T: geom_core::Decide>(
     })
 }
 
-/// Read (2) of [`classify_replay`]: what a node's escalation log makes
+/// Read (1) of [`classify_replay`]: what a node's escalation log makes
 /// of the leaf — its FIRST escalation speaks — or `None` for an empty
-/// log, which leaves the node to read (3).
+/// log, which leaves the node to read (2).
 fn log_read(escalations: &[geom_core::k_stats::Escalation]) -> Option<LeafVerdict> {
     escalations
         .first()
@@ -2014,9 +1939,6 @@ fn render_reason(r: &RefusalReason) -> String {
     use core::fmt::Write as _;
     match r {
         RefusalReason::SliverTerminal { predicate } => format!("sliver_terminal {predicate}"),
-        RefusalReason::MeasureRefused { node, class } => {
-            format!("measure_refused {} {}", node.full(), class.name())
-        }
         RefusalReason::FlipCrossing { flipped } => {
             let mut s = String::from("flip_crossing");
             // Deterministic by construction: `FlipSet` is a `BTreeMap`
@@ -2101,6 +2023,11 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
 /// band exists to deny. The tour's tolerance cell made it; this door is
 /// what it should have called.
 ///
+/// A clearance assertion ([`crate::Claim::Clearance`]) is answered the
+/// same way, per leaf: its verdict is the sweep's at its bounds over
+/// the leaf's box, each pair verified at the box's midpoint
+/// ([`AssertionVerdict::Clearance`](crate::AssertionVerdict::Clearance)).
+///
 /// `None` when `assertion` is not an `Assertion` node, or the
 /// evaluation over `box_` did not produce a verdict for it.
 ///
@@ -2135,38 +2062,6 @@ pub fn assertion_at(
     .assertion
 }
 
-/// The measure-refusal classes a smaller box cannot change
-/// ([`RefusalReason::MeasureRefused`]).
-///
-/// Conservative by construction: a class is terminal only when
-/// refinement PROVABLY cannot alter it, and everything else keeps
-/// bisecting. The two mistakes are not priced alike. A class wrongly
-/// kept bisecting costs budget: the driver re-derives the same refusal
-/// down to its depth limit and prices the mass as `Budget`, visibly and
-/// under the symptom's name. A class wrongly made terminal costs a leaf
-/// that a smaller box would have certified. So the terminal classes are
-/// enumerated, and every refusal not listed bisects.
-fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalClass> {
-    match kind {
-        NodeErrorKind::MeasureClearanceRefused(r) => {
-            use topo::clearance::MinSeparationRefusal as E;
-            match r {
-                // Which faces are in scope, and whether the carrier has
-                // an implementation, are decided by the document's own
-                // topology and the engine's support table, not by the box.
-                E::EmptyScope { .. } | E::Unsupported { .. } => {
-                    Some(MeasureRefusalClass::Clearance(r.clone()))
-                }
-                // An enclosure that did not evaluate over this box (NaI,
-                // or empty) may evaluate over a smaller one, so nothing
-                // proves it box-independent.
-                E::PoisonEnclosure { .. } => None,
-            }
-        }
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -2180,47 +2075,6 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).expect("the run's linear band")
-    }
-
-    /// **An engine refusal under `min_clearance` that no smaller box can
-    /// change is refused mass under its own class, not a bisection to a
-    /// `Budget`**: the pricing the planted `NoAdmittedPair` row once
-    /// carried (`m10_6_r1_probes_interval`, row 5), re-pinned with the
-    /// refusals the engine still raises. A scope naming no face and a
-    /// carrier with no window are facts about the document; an enclosure
-    /// that did not evaluate may evaluate over a smaller box, so it
-    /// bisects.
-    #[test]
-    fn a_box_independent_clearance_refusal_is_terminal_refused_mass() {
-        use topo::clearance::MinSeparationRefusal as R;
-        let refused = |r: R| NodeErrorKind::MeasureClearanceRefused(r);
-        for r in [
-            R::EmptyScope {
-                side: topo::clearance::Which::First,
-            },
-            R::Unsupported {
-                carrier: "an approximated face",
-                face: topo::FaceKey::default(),
-                side: topo::clearance::Which::First,
-            },
-        ] {
-            let class = box_independent_measure_class(&refused(r.clone()));
-            assert_eq!(
-                class,
-                Some(MeasureRefusalClass::Clearance(r.clone())),
-                "{r:?}"
-            );
-            let reason = RefusalReason::MeasureRefused {
-                node: RecipeNodeId::new(0, 0),
-                class: class.unwrap(),
-            };
-            assert_eq!(reason.class(), ReasonClass::MeasureRefused, "{r:?}");
-        }
-        let poison = R::PoisonEnclosure {
-            a: topo::FaceKey::default(),
-            b: topo::FaceKey::default(),
-        };
-        assert_eq!(box_independent_measure_class(&refused(poison)), None);
     }
 
     /// A tangency certificate of the line `(x, 0, z)`, `z ∈ [0, 1]`,
@@ -2296,7 +2150,7 @@ mod tests {
     /// the definite refusal it is, not as an osculating sliver.** The
     /// second-order enclosure is wholly in band and the parallelism
     /// defect at the folded arm is definite (`sin θ = 0.9`): the log is
-    /// empty, so read (2) passes the node to read (3), which reads the
+    /// empty, so read (1) passes the node to read (2), which reads the
     /// error the same way whatever order the certificate's readings took.
     #[test]
     fn a_renamed_tangent_refusal_is_not_a_second_order_sliver() {

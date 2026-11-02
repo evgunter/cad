@@ -676,7 +676,6 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
     assert!(
         (report
             .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal")
             - 8.0)
             .abs()
             < 1e-12
@@ -700,13 +699,11 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
         wc.hi
             > report
                 .nominal
-                .expect("this fixture measures a closed form, which has an f64 nominal")
                 + contribution,
         "the hull top {} must exceed the linearized top {}",
         wc.hi,
         report
             .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal")
             + contribution
     );
     // The linearized band's BOTTOM is below the true minimum, which is
@@ -715,13 +712,11 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
     assert!(
         report
             .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal")
             - contribution
             < wc.lo,
         "the linearized bottom {} understates the true minimum {}",
         report
             .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal")
             - contribution,
         wc.lo
     );

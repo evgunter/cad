@@ -113,11 +113,11 @@ fn gap(
     let value = crate::fixture::value_of(&doc, measure);
     insert(
         doc,
-        Node::Assertion {
+        Node::Assertion { claim: editor_core::Claim::Value {
             value,
             bound: len(bound),
             relation,
-        },
+        } },
     )
 }
 
@@ -739,11 +739,11 @@ fn a_hosts_gap_over_picks_quiets_no_carried_finding() {
     let value = crate::fixture::value_of(&host, measure);
     let (host, assertion) = insert(
         host,
-        Node::Assertion {
+        Node::Assertion { claim: editor_core::Claim::Value {
             value,
             bound: len(-0.01),
             relation: AssertionRelation::AtMost,
-        },
+        } },
     );
     let run = crate::fixture::run(&host, &opts);
     assert!(
@@ -1128,11 +1128,11 @@ fn a_gap_over_a_pick_of_the_piece_quiets_its_contact() {
         let value = crate::fixture::value_of(&doc, measure);
         let (doc, assertion) = insert(
             doc,
-            Node::Assertion {
+            Node::Assertion { claim: editor_core::Claim::Value {
                 value,
                 bound: len(0.0),
                 relation: AssertionRelation::Equal,
-            },
+            } },
         );
         let report = checks(&doc);
         let contacts: Vec<_> = of(&report, CheckId::UnprovenCoincidence)

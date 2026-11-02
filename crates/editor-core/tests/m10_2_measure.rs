@@ -381,11 +381,11 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion {
+            node: Box::new(Node::Assertion { claim: editor_core::Claim::Value {
                 value,
                 bound: len(MIN_WEB),
                 relation: AssertionRelation::AtLeast,
-            }),
+            } }),
             fresh: Vec::new(),
         },
     );
@@ -727,11 +727,11 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion {
+            node: Box::new(Node::Assertion { claim: editor_core::Claim::Value {
                 value: over_zero,
                 bound: len(1.0),
                 relation: AssertionRelation::AtLeast,
-            }),
+            } }),
             fresh: Vec::new(),
         },
     );
@@ -1061,11 +1061,11 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion {
+            node: Box::new(Node::Assertion { claim: editor_core::Claim::Value {
                 value: crate::fixture::value_of(&doc, measure),
                 bound: len(0.1),
                 relation: AssertionRelation::AtLeast,
-            }),
+            } }),
             fresh: Vec::new(),
         },
     );

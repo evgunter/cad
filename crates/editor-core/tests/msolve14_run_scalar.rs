@@ -2141,7 +2141,7 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
             &leaf,
             &Selection::body_of(b.bolt),
             &copy2,
-            &ClearanceQuery::at_least(c, Tol::witness()).resolved_by(&resolver),
+            &ClearanceQuery { bound: editor_core::clearance::ClearanceBound::at_least(c), ..ClearanceQuery::strictly_positive(Tol::witness()) }.resolved_by(&resolver),
         )
         .verdict()
         .clone()
@@ -2198,7 +2198,7 @@ fn r1_clearance_answers_alike_in_either_order() {
             &leaf,
             x,
             y,
-            &ClearanceQuery::at_least(c, Tol::witness()).resolved_by(&resolver),
+            &ClearanceQuery { bound: editor_core::clearance::ClearanceBound::at_least(c), ..ClearanceQuery::strictly_positive(Tol::witness()) }.resolved_by(&resolver),
         );
         format!("{:?}", r.verdict())
             .chars()
