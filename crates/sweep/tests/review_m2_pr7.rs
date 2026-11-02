@@ -251,14 +251,11 @@ fn negative_revolve_angle_is_positively_oriented() {
 /// Scale attack: a large-scale washer — the V/A margin of the +V
 /// check is a length and scales linearly; the closed forms must hold
 /// to the same relative accuracy with no overflow or misclassification.
-/// The scale tracks the run's ε (s = ε·1e14): f64 carries ~2e-16
-/// relative noise, so a FIXED 1e6 scale at ε = 1e-12 is outside the
-/// absolute-ε envelope and revolve correctly REFUSES to certify it
-/// (typed `ResidualExceeded` — executed at the 1e-12 row; the honest
-/// D4 posture, not a defect).
+/// The scale tracks the run's ε (s = ε·1e14), held inside the session
+/// box (the washer's outer radius `2s` at most 900 m).
 #[test]
 fn megascale_washer_matches_and_validates() {
-    let s = (geom_core::Tol::witness().get().eps * 1e14).max(1.0);
+    let s = (geom_core::Tol::witness().get().eps * 1e14).clamp(1.0, 4.5e2);
     let lp = ProfileLoop::polygon([
         Point2::new(s, 0.0),
         Point2::new(2.0 * s, 0.0),

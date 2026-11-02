@@ -4631,7 +4631,7 @@ impl EditError {
                     f,
                     format_args!(
                         "keep the tolerance the document records, or offer a length in metres of \
-                         at least {EPS_MIN:e}"
+                         at least {EPS_MIN:.2e}"
                     ),
                 )
             }

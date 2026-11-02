@@ -460,14 +460,11 @@ fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
 /// cannot, the split's at-rest gate refuses the halves, and every finding
 /// is the volume the props lane could not compute.
 ///
-/// Two ε floors are not this cut's: the `(1.55, 100)` operand does not
-/// revolve below ε = 1e-9, its far cap rim's return half missing its
-/// start vertex
-/// (`a-full-revolves-return-half-rim-misses-its-start-by-two-rounded-half-turns`), and at
-/// scale 100 the props lane's bound on the section ellipse's elevation
-/// escalates at ε = 1e-12
+/// One ε floor is not this cut's: at scale 100 the props lane's bound
+/// on the section ellipse's elevation escalates at ε = 1e-12
 /// (`props-cone-ellipse-elevation-over-reads-a-section-ellipse-by-twenty-fold`),
-/// so the `(1.3, 100)` split refuses there.
+/// so the `(1.3, 100)` split refuses there. `(1.55, 100)`, whose cap
+/// reaches 4.8 km, is past the session box.
 #[test]
 fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
     use geom_core::{Affine3, test_support::rigid};
@@ -485,7 +482,6 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
         (1.55, 1.0, 0.3, 0.0, 0.0),
         (1.55, 1.0, 0.5, 0.0, 0.0),
         (1.55, 1.0, 0.7, 0.0, 0.0),
-        (1.55, 100.0, 0.5, 1e-9, 1e-9),
     ] {
         let what = format!("alpha {alpha}, S {scale}, f {f}");
         if eps < builds_from {

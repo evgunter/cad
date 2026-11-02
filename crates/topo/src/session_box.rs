@@ -33,6 +33,10 @@ pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
     vertices.chain(edges).fold(T::zero(), T::max)
 }
 
+/// The session box's decision: its margin the box's extent less the
+/// body's reach.
+pub(crate) const SESSION_BOX_REACH: &str = "session_box_reach";
+
 /// **`session_box_reach`**: whether `body` lies in the session box, the
 /// margin the box's extent less [`body_reach`]. Only a definitely negative
 /// margin refuses: geometry within the band of the box's edge is in it.
@@ -42,7 +46,7 @@ pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
 /// [`ValidationError::OutsideSessionBox`], with the margin.
 pub(crate) fn in_session_box<T: Decide>(body: &Body<T>, band: Band) -> Result<(), ValidationError> {
     let margin = Margin::of(T::from_f64(SESSION_BOX_EXTENT) - body_reach(body));
-    match crate::validate::decide_reported("session_box_reach", margin, band) {
+    match crate::validate::decide_reported(SESSION_BOX_REACH, margin, band) {
         Ok(geom_core::Decided {
             sign: Sign::Negative,
             margin,

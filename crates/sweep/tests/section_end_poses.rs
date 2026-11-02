@@ -443,7 +443,8 @@ fn translation_tilt(eps: f64) -> Option<f64> {
 /// **Where the part sits across the miss does not move the reading.**
 /// The seam vertex `ε` off a plane tilted `t` off square (`1e-2` at
 /// ε = 1e-12, `1e-3` at 1e-9), on the unit cylinder moved `x0` across
-/// the miss (0, 30 m and 1 km at 1e-12, 30 km at 1e-9): each refuses as
+/// the miss (0, 30 m and 900 m at 1e-12, 900 m at 1e-9, inside the
+/// session box): each refuses as
 /// the vertex on the plane, with its lever, and the lever builds.
 #[test]
 fn a_section_end_reads_the_same_wherever_the_part_sits() {
@@ -452,7 +453,7 @@ fn a_section_end_reads_the_same_wherever_the_part_sits() {
     let Some(t) = translation_tilt(eps) else {
         return;
     };
-    let at: &[f64] = if t == 1e-2 { &[0.0, 30.0, 1e3] } else { &[3e4] };
+    let at: &[f64] = if t == 1e-2 { &[0.0, 30.0, 9e2] } else { &[9e2] };
     let mut wrong = Vec::new();
     for &x0 in at {
         let cut = moved_cut((x0, 0.0), t, tol);
@@ -475,8 +476,8 @@ fn a_section_end_reads_the_same_wherever_the_part_sits() {
 }
 
 /// **Along the miss, the vertex and the section end read one offset.**
-/// The same pose with the cylinder's base at `z0` (30 m and 1 km at
-/// ε = 1e-12, 1 km at 1e-9), so the miss runs along the large
+/// The same pose with the cylinder's base at `z0` (30 m and 900 m at
+/// ε = 1e-12, 900 m at 1e-9), so the miss runs along the large
 /// coordinate. The plane passes the vertex by the two offsets `z0`'s
 /// grid holds either side of ε. The vertex's reading off the plane and
 /// the section end's miss read that one offset, to within far less than
@@ -492,7 +493,7 @@ fn along_the_miss_the_vertex_and_its_section_end_read_one_offset() {
     let Some(t) = translation_tilt(eps) else {
         return;
     };
-    let at: &[f64] = if t == 1e-2 { &[30.0, 1e3] } else { &[1e3] };
+    let at: &[f64] = if t == 1e-2 { &[30.0, 9e2] } else { &[9e2] };
     let mut wrong = Vec::new();
     for &z0 in at {
         let cut = moved_cut((0.0, z0), t, tol);

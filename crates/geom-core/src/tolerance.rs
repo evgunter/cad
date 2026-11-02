@@ -147,10 +147,9 @@ impl fmt::Display for EpsFloor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "a tolerance is a finite length whose headroom (K - 1)·eps covers \
-             {ADMISSION_FLOOR:e} m, the rounding of a short chain at the edge of the \
-             {SESSION_BOX_EXTENT:e} m session box (D4 ¶4): at least {EPS_MIN:e} m at the \
-             default K = {DEFAULT_K}; a smaller one decides nothing a coordinate can state"
+            "a tolerance is a finite length of at least {EPS_MIN:.2e} m at the default K, so \
+             that its headroom (K - 1)·eps covers rounding at the edge of the \
+             {SESSION_BOX_EXTENT:e} m session box (D4 ¶4)"
         )
     }
 }
@@ -354,7 +353,7 @@ impl fmt::Display for ToleranceEnvError {
             ToleranceEnvErrorKind::Invalid { value } if self.var == ENV_K => write!(
                 f,
                 "tolerance env var {} = {:?} (= {value:e}) must be finite and > 1, with \
-                 headroom (K - 1)·eps covering {ADMISSION_FLOOR:e} m; the compiled default \
+                 headroom (K - 1)·eps covering {ADMISSION_FLOOR:.2e} m; the compiled default \
                  was used instead",
                 self.var, self.raw
             ),
@@ -1065,7 +1064,7 @@ mod tests {
             assert_eq!(err.kind, ToleranceEnvErrorKind::BelowFloor { value: eps });
         }
         let said = ToleranceError::BelowFloor { value: 1e-14 }.to_string();
-        let floor = format!("{EPS_MIN:e} m");
+        let floor = format!("{EPS_MIN:.2e} m");
         assert!(
             said.contains("1e-14") && said.contains(&floor) && said.contains("session box"),
             "{said}"

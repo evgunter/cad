@@ -11,7 +11,8 @@
 //!
 //! Read about the world origin, the same cut carried `s = 100` along
 //! `(8, −3, 5)` and turned by 0.7 rad about a skew axis stood ~990 m
-//! off: each spiric face's vector area kept ~7e-11 of width per
+//! off (measured there; the rows carry it `s = 90`, ~890 m, so the
+//! half-space stays in the session box): each spiric face's vector area kept ~7e-11 of width per
 //! component at the last round, the lever made the flux ~8.6e-8 wide,
 //! and `T ∩ P`, `P ∩ T` and `T ∖ P` stopped short of the resolution at every
 //! ε (width 3.6e-8 against 1024ε = 1.024e-9 at 1e-12). Carried without
@@ -70,12 +71,12 @@ fn built(s: f64) -> Vec<(&'static str, AtRestBody<f64>)> {
 #[test]
 fn every_op_far_off_and_turned_measures_its_volume_at_home() {
     let tol = Tol::witness();
-    for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(100.0)) {
+    for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(90.0)) {
         let at = |b: &AtRestBody<f64>, s: f64| {
             topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                 .unwrap_or_else(|e| panic!("s = {s}, {label}: the volume: {e:?}"))
         };
-        let (home, far) = (at(&home, 0.0), at(&far, 100.0));
+        let (home, far) = (at(&home, 0.0), at(&far, 90.0));
         assert!(
             (far.enclosure.volume - home.enclosure.volume).abs()
                 <= far.enclosure.volume_pad + home.enclosure.volume_pad,
@@ -104,7 +105,7 @@ fn every_spiric_face_meets_its_target_at_the_round_it_does_at_home() {
         rounds.sort_unstable();
         rounds
     };
-    for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(100.0)) {
+    for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(90.0)) {
         let (home, far) = (rounds(&home), rounds(&far));
         for kind in ["Plane", "Torus"] {
             assert!(
@@ -140,7 +141,7 @@ fn every_spiric_face_meets_its_target_at_the_round_it_does_at_home() {
 #[test]
 fn every_op_far_off_and_turned_keeps_its_pads_at_home() {
     let tol = Tol::witness();
-    for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(100.0)) {
+    for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(90.0)) {
         let pad = |b: &AtRestBody<f64>| {
             topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                 .expect("the measured body")
@@ -163,7 +164,7 @@ fn every_op_far_off_and_turned_keeps_its_pads_at_home() {
 /// quadrature faces: the lever is their extent, not the shell's, and that
 /// extent is unbounded (the row below). Measured:
 /// with a 900 m bar, 1.04× apart at every ε row (4.27e-6 against 4.10e-6
-/// at 1e-9); the cut far off and turned (s = 100), 1.11× at 1e-9, 1.10×
+/// at 1e-9); the cut far off and turned (measured at s = 100), 1.11× at 1e-9, 1.10×
 /// at 1e-12 and 1.55× at 1e-6. Each ratio is pinned with headroom, so an
 /// order the rule starts reading across the shell turns it red. Read
 /// about the shell's first face's start, the bar pair sat 14.3× apart at
@@ -209,7 +210,7 @@ fn one_solid_in_two_face_orders_carries_nearly_one_pad() {
         ),
         tol,
     );
-    let (t, p) = posed(100.0);
+    let (t, p) = posed(90.0);
     for (what, (ratio, xy, yx), bound) in [
         ("the 900 m bar", apart(&torus(2.0, 0.5), &bar), bar_bound),
         ("the cut far off and turned", apart(&t, &p), turned_bound),
@@ -333,7 +334,7 @@ fn a_shells_pad_reads_alike_whichever_quadrature_face_it_stores_first() {
         "two tori a kilometre apart: pads {pads:?}, {}× apart, past {pin}",
         ratio(&pads)
     );
-    let (t, p) = posed(100.0);
+    let (t, p) = posed(90.0);
     let cut = topo::subtract(&p, &t, tol)
         .unwrap()
         .body()
@@ -879,7 +880,7 @@ fn a_shell_whose_regions_all_lie_near_its_point_reads_as_about_one_point_bit_for
     .unwrap()
     .body
     .clone();
-    for (label, body) in built(100.0).into_iter().chain([("T ∪ P at home", home)]) {
+    for (label, body) in built(90.0).into_iter().chain([("T ∪ P at home", home)]) {
         for (_, regions) in topo::test_support::region_carries_of(&body) {
             assert!(
                 regions.iter().all(|(_, carry)| carry.is_none()),
@@ -979,7 +980,7 @@ fn a_region_near_its_shells_point_is_read_about_it_bit_for_bit() {
 #[test]
 fn each_shell_is_read_about_the_first_face_its_walk_measures_by_quadrature() {
     let tol = Tol::witness();
-    let (t, p) = posed(100.0);
+    let (t, p) = posed(90.0);
     let bodies = [
         (
             "T ∪ P at home",

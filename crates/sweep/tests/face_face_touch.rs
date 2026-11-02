@@ -1155,7 +1155,7 @@ fn a_solid_missing_its_cusp_edges_leaves_a_solid_in_its_bore_cleared() {
 /// this row reads only what the same-solid pass says.
 #[test]
 fn the_void_and_material_pinches_read_alike_at_every_pose() {
-    for (s, d) in [(1.0e-2, 0.0), (1.0e2, 0.0), (1.0, 1.0e3)] {
+    for (s, d) in [(1.0e-2, 0.0), (1.0e2, 0.0), (1.0, 5.0e2)] {
         let r = bridged_rod_posed(s, d, 0.0, false, false);
         let errors = topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).unwrap_err();
         let touches = errors

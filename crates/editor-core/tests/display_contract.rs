@@ -1402,11 +1402,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::EpsilonInvalid { value: 0.0 },
-            vec![
-                "recorded ε",
-                "is not admissible",
-                "at least 2.220446049250313e-13 m",
-            ],
+            vec!["recorded ε", "is not admissible", "at least 1.97e-13 m"],
         ),
         (
             SnapshotError::ConstraintNotMinted {
