@@ -8370,8 +8370,6 @@ pub(crate) fn tier3_local_checks_marked<
     // vertex's stored point.
     // ------------------------------------------------------------------
     for (face_key, flat) in flattened.iter() {
-        use crate::boolean::solid_contain::PointInSolidError;
-        use crate::boolean::{ContainError, CurvedPlacement, FaceContainment};
         use geom_brep::chart_singularity::{
             FaceLoop, Lies, SideUnread, Undecided, place_on_boundary, singular_points,
         };
@@ -8422,45 +8420,39 @@ pub(crate) fn tier3_local_checks_marked<
                     });
                 }
                 Ok(Some(_)) => {}
-                Ok(None) => match crate::boolean::cycle_side(body, face, &every, x, band) {
-                    Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => {
+                Ok(None) => match crate::one_region::door_side(body, face, &every, x, band) {
+                    Ok(Some(true)) => {
                         errors.push(ValidationError::ChartSingularityNotAVertex {
                             face,
                             point,
                             lies: SingularityLies::Interior,
                         });
                     }
-                    Err(ContainError::Escalated { diag, .. }) => {
+                    // Outside. Or unplaced: a face no door reads, no path
+                    // settled, or the door's own boundary reading placing
+                    // the point within the zero band of an arc. That last
+                    // is the distance `place_on_boundary` read off the
+                    // boundary first, past the band's far edge, so it is
+                    // reachable only through the two readings' rounding,
+                    // which the band's gap is far wider than.
+                    Ok(Some(false) | None) => {}
+                    // The door's boundary reading in band is the same
+                    // distance, so it carries the boundary's ending; any
+                    // other reading in band is the side's.
+                    Err(diag) => {
+                        let reading = if diag.predicate.is_some_and(|p| {
+                            p.starts_with("curve_carrier_") || p.starts_with("curve_pair_span_")
+                        }) {
+                            Undecided::Boundary(diag)
+                        } else {
+                            Undecided::Side(SideUnread::Banded(diag))
+                        };
                         errors.push(ValidationError::ChartSingularityUndecided {
                             face,
                             point,
-                            reading: Undecided::Side(SideUnread::Banded(diag)),
+                            reading,
                         });
                     }
-                    // Outside; or on the door's own boundary reading
-                    // where the incidence reading placed it off, which
-                    // reads no side; or a face no door reads.
-                    Ok(CurvedPlacement::Trim(
-                        None
-                        | Some(
-                            FaceContainment::Out
-                            | FaceContainment::OnEdge(_)
-                            | FaceContainment::OnVertex(_),
-                        ),
-                    )) => {}
-                    Ok(CurvedPlacement::OffCarrier) => {
-                        unreachable!("a cut reading reads no carrier")
-                    }
-                    // Unplaced, exempt (the not-yet-checked list), as
-                    // `crate::one_region` reads them.
-                    Err(
-                        ContainError::RayExhausted
-                        | ContainError::Curved(
-                            PointInSolidError::EdgeCarrierUnsupported { .. }
-                            | PointInSolidError::CorruptFace { .. },
-                        ),
-                    ) => {}
-                    Err(other) => unreachable!("the curved doors answer no {other:?}"),
                 },
                 Err(why) => {
                     if let Some(reading) = Undecided::of(&why) {

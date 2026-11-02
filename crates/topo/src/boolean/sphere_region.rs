@@ -445,17 +445,8 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
             place: first.arc(corner),
             row: "bool_sphere_region_corner",
         };
-        let (center, radius) = (self.center, self.radius);
-        let then = move || {
-            let normal = if then_forward { a } else { -a };
-            Leg::whole(Round {
-                center: center + a * (radius * cos),
-                normal,
-                radius: radius * sin,
-                e1: side,
-                e2: normal.cross(side),
-            })
-        };
+        let center = self.center;
+        let then = move || Leg::whole(region::parallel(center, a, corner, then_forward));
         Ok((first, end, then))
     }
 }
@@ -552,9 +543,19 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
                 to_end(end, T::zero() - root.from(arc.t1)),
                 to_end(start, root.from(arc.t0)),
             );
-            let Some(sideless) =
-                span_at_nearer_end("bool_sphere_region_span", to_end, radius, band)?
-            else {
+            let y = center + toward * radius;
+            // A root past a bounded leg's end is no crossing of the leg,
+            // so a span reading of it in band does not set the leg aside:
+            // a first leg ends at its corner short of `p`'s antipode,
+            // where a vertex there puts every arc's root in band.
+            let lands = match span_at_nearer_end("bool_sphere_region_span", to_end, radius, band) {
+                Err(fault) if ray.end.is_some() => match ray.place(y, Self::AT, band) {
+                    Ok(None) => continue,
+                    _ => return Err(fault),
+                },
+                lands => lands?,
+            };
+            let Some(sideless) = lands else {
                 continue;
             };
             // `ahead` is undecided only for a root at the middle, where
@@ -564,7 +565,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
             // places sideless wherever the enclosure is narrower than
             // the band's zero.
             let theta = (T::zero() - ahead).select_le_zero(mid + off, mid - off);
-            out.push((center + toward * radius, theta, sideless));
+            out.push((y, theta, sideless));
         }
         Ok(out)
     }
