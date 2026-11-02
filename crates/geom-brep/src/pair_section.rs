@@ -2506,7 +2506,7 @@ mod wiring {
         );
     }
 
-    /// Two walls of radius `0.5`, about `z` and `0.05` rad off it `0.1`
+    /// Two walls of radius `0.5`, about `z` and `0.3` rad off it `0.1`
     /// apart, over a region of radius `1.5` about the origin, which cuts
     /// their section in two arcs: the section, and the march's two
     /// branches.
@@ -2521,7 +2521,7 @@ mod wiring {
         let a = wall(Point3::origin(), Vec3::unit_z());
         let b = wall(
             Point3::new(0.1, 0.0, 0.0),
-            Vec3::new(0.0, 0.05f64.sin(), 0.05f64.cos()),
+            Vec3::new(0.0, 0.3f64.sin(), 0.3f64.cos()),
         );
         let region = crate::ExtentBall::new(Point3::origin(), 1.5);
         let section = match super::pair_section(&a, &b, Some(region), None, band()) {

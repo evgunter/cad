@@ -381,7 +381,9 @@ fn walls_touching_outside_are_one_point() {
 /// past the region) cut by the region.
 ///
 /// The ruling sweep counts that section in two arcs across the region,
-/// each with its two cut ends on the region's sphere, with no 3-D sweep.
+/// each with its two cut ends on the region's sphere, with no 3-D sweep
+/// (at ε 1e-12 the tilt's inverse levers the meetings' rounding past the
+/// band, and the sweep escalates on `ruling_cut` instead).
 /// The march then refuses typed: limb 3 cannot prove one arc in the tube
 /// of either 2 m, nearly parallel arc (`ssi_tube_one_arc` undecided;
 /// `work/ssimarch/limb-three-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
@@ -400,7 +402,21 @@ fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
         ),
         "levered at the rods' size the tilt reads parallel"
     );
-    let far = built(&a, &b, ExtentBall::new(Point3::origin(), 1.0));
+    let far_region = ExtentBall::new(Point3::origin(), 1.0);
+    // At ε 1e-12 the tilt is 3e-10 rad, and the meetings' rounding,
+    // levered by its inverse, outgrows the band about the region's sphere:
+    // the sweep cannot place a cut end and escalates on the cut's row.
+    if band().zero() < 1e-10 {
+        match geom_brep::pair_section(&a, &b, Some(far_region), None, band()) {
+            Err(SectionError::Escalated(diag)) => assert!(
+                diag.predicate.is_some_and(|p| p.starts_with("ruling_cut")),
+                "on the cut: {diag:?}"
+            ),
+            other => panic!("at ε {:e} the sweep escalates: {other:?}", band().zero()),
+        }
+        return;
+    }
+    let far = built(&a, &b, far_region);
     let geom_brep::PairPose::CylinderCylinder(pose) = far.pose() else {
         panic!("a cylinder pair's pose");
     };

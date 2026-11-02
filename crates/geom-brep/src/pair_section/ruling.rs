@@ -477,6 +477,9 @@ impl<T: Real> Ruled<T> for RuledCylinders<T> {
         // `x′ = −ρ sin φ`, so `(√(r² − x²))′ = ρ·x·sin φ / √(r² − x²)`.
         let root = self.root(cell);
         let ds = self.x(cell).times(cell.sin).scale(self.rho).over(root);
+        // `t′`'s rounding: the root's charge `along`, and `ds`'s quotient by
+        // the root, which levers the numerator's rounding by `ρ/√(r² − x²)`
+        // (`|x·sin φ| ≤ ρ + |gap|`, already in `along`'s size).
         let (_, along) = self.charge();
         let dt = cell
             .cos
@@ -1206,6 +1209,8 @@ pub(crate) fn coverage(
             gap(bx.y, centre.y),
             gap(bx.z, centre.z),
         );
+        // The f64 distance and radius each held a relative 1e-12 to the
+        // safe side, far past the few roundings between them.
         (gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt() * (1.0 - 1e-12) > radius * (1.0 + 1e-12)
     };
     let mut hint = 0usize;
