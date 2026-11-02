@@ -426,6 +426,13 @@ pub enum Refusal {
         /// The pick reading it.
         pick: SpokenVar,
     },
+    /// **Add to the product** was asked of a copy the product reads
+    /// already ([`super::SessionOp::AddToProduct`]): adding it again
+    /// would write the slot as it stands.
+    InTheProduct {
+        /// The copy's placement.
+        copy: SpokenNode,
+    },
 }
 
 impl Refusal {
@@ -449,6 +456,7 @@ impl Refusal {
                 wanted,
             },
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
+            Self::InTheProduct { copy } => Self::InTheProduct { copy: again(copy) },
             Self::StrandedPick { copy, pick } => Self::StrandedPick {
                 copy: again(copy),
                 pick: pick.respoken(doc),
@@ -527,7 +535,8 @@ impl Refusal {
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
-            | Self::StrandedPick { .. } => None,
+            | Self::StrandedPick { .. }
+            | Self::InTheProduct { .. } => None,
         }
     }
 
@@ -569,6 +578,7 @@ impl Refusal {
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
             | Self::StrandedPick { .. }
+            | Self::InTheProduct { .. }
             | Self::Io(_) => 1,
             // The ONE arm whose rank is a per-payload decision: the
             // three gesture-order faults rank with their document
@@ -893,6 +903,7 @@ impl core::fmt::Display for Refusal {
                  pieces: a pick is never re-pointed, so the takeover would leave it naming a \
                  piece its copy no longer holds"
             ),
+            Self::InTheProduct { copy } => write!(f, "{copy} is in the product already"),
         }
     }
 }

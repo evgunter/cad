@@ -793,9 +793,24 @@ tiers".
      never scanning to bless.
 
   A **finished body** (`AtRestBody`) passes tier 3′ against its own
-  contact records, none for a body that touches nothing, once, at the
-  door that built it; construction state becomes a finished body only
-  through that gate. The validity class rides the result wrapper
+  contact records, none for a body that touches nothing, and its
+  boundary is **embedded** off those records (it meets itself only
+  along its own edges and its recorded contacts), certified by the
+  clearance engine's body-level injectivity question at every scalar
+  with certification rights (`f64`, `Probe`, `Interval` and `Sym`;
+  a scalar without them, such as a dual, cannot reach the gate). At a point scalar (`f64`,
+  `Probe`) the question decides with the band every verdict decides
+  with, K·ε ([tolerance.recourse]). Pieces of the boundary that do not
+  meet in the body (no shared edge, vertex or recorded contact) are
+  more than K·ε apart. Where faces do meet, or a face is read against
+  itself, the local reading (how the faces leave their shared edge or
+  vertex, or a face's own turning) passes by more than the band. A
+  reading inside the band refuses as ambiguous, never as Holds or
+  Violated. At
+  `Interval` and `Sym` the stored brackets carry the family instead.
+  It passes both once, at the door that
+  built it; construction state becomes a finished body only through
+  that gate. The validity class rides the result wrapper
   (`BooleanBody`, body and contacts), never a mutable `Body` field.
 - **The census reads one number per cell pair.** `[topology.census]`
   A census finding decides one number per pair of cells (two edges,
@@ -1128,12 +1143,14 @@ suits the slot.
   ([placement.values]).
 - *Poses:* `Point`, `Direction`, `Axis`, `Plane`, `Pivot`, `Flag`, `Frame`
   ([variables.poses]).
+- *2-D poses:* `Point2`, `Direction2`, in one profile's coordinates
+  ([variables.poses]).
 - *Shapes:* `Body`; `Bodies`, an ordered list of bodies whose length
   is a `Count`; and `Profile`. Only an operation defines a shape. A
   `Profile` is 2-D shape whose numbers are read only against each
   other; a sweep reads a profile and, at most, a heading and a tilt in
-  the profile's own axes (an extrude's slant, held to one side of the
-  profile's plane) or a point and a heading (a revolve's axis line). A
+  the profile's own axes (an extrude's signed depth, above or below the
+  profile's plane, and its slant) or a point and a heading (a revolve's axis line). A
   profile drawn on a `Frame` may read traces in its plane
   ("Constructing a coincidence").
 - *Spaces:* `Space`, a coordinate system ([placement.spaces]). A
@@ -1169,7 +1186,7 @@ A name is also the mark that a value is wanted for itself.
 
 **Poses.** `[variables.poses]` A pose is only ever defined: read off a
 body's geometry (a face's plane, a carrier's axis or centre, a
-vertex's point); moved from another pose by a slide along, or a spin
+vertex's point, a face's flag along one of its edges); moved from another pose by a slide along, or a spin
 about, a direction or axis the definition reads; by a construction
 over other poses; as a pose of a copy; or as an output of an
 operation. So no pose is free and none is defined from nothing. A
@@ -1199,9 +1216,13 @@ Every number a pose, a construction's axis or a placement holds is a
 component of a direction or of a frame's axis, and a 2-D direction is
 an angle. A face reads as a plane and a vertex as a point; no reader
 takes a carrier's reference direction. A 2-D value (a profile's step,
-a revolve's axis line) lives in the node that holds its frame, as
-length and angle slots, and is never a variable of a 2-D kind; its
-lift to a 3-D pose is how it leaves.
+a revolve's axis line) is a `Point2` or `Direction2` in the
+coordinates of one profile, scoped to it as a selection is to its body:
+it is read only by that profile's later steps, by a node that reads
+that profile, or by a profile drawn on the same frame. Its plane is
+established by its scope and never checked between two values. Where
+the profile is drawn on a frame, its lift is a pose of that frame's
+space; a free profile's lifts nowhere (PATHS-DESIGN §1b).
 
 ### Operations `[operations]`
 
@@ -1329,10 +1350,17 @@ recognised from the program for display only.
 until a placement relates them to something: a part has no location,
 so how two parts relate is always stated explicitly. Every
 construction is built in coordinates of its own, which are its space,
-and spaces are related only at placement: a feature on a face is a
+and spaces are related only at placement: a body on a face is a
 construction placed into the space the face's body is in, against the
 face by mates and values, then combined, and which side of the face
-its material lies on is the mates' to say. Only a placement relates
+its material lies on is the mates' to say. A sketch on a face is not
+placed: it is a profile drawn on a frame read off the face's own
+geometry, and it and every sweep of it are in the face's body's space.
+The frame's x points toward a cell of the body off the face's normal
+where the gesture names one; on a face with none (a bare disc) it is
+the space's x carried onto the face by the least turn, as a
+placement's spin is measured ([placement.values]). Either way the
+frame's spin then turns it. Only a placement relates
 two spaces (FORK-S3P), so a feature at several positions is one body placed
 several times, each placement a copy.
 

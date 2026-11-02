@@ -59,16 +59,16 @@ fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
         .is_some_and(|at| at.is_identity_bits())
 }
 
-/// **`instance` placed into the world by hand**: the session's document
-/// saved to `path` with the instance re-targeted into the world, as the
-/// product door moves a copy nothing in its space reads, and reopened.
-fn into_world(session: &mut DocSession, instance: RecipeNodeId, path: &Path, tol: Tol) {
-    common::reopened_with(
-        session,
-        path,
-        |doc| common::into_world(doc, instance, tol),
-        tol,
-    );
+/// **`instance` added to the product** through the one door
+/// ([`SessionOp::AddToProduct`]), landed: the outcome's edits.
+fn add_to_product(session: &mut DocSession, instance: RecipeNodeId) -> usize {
+    let outcome = session.perform(SessionOp::AddToProduct {
+        node: instance,
+        body: None,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    outcome.committed.len()
 }
 
 // --- the acceptance ------------------------------------------------
@@ -142,9 +142,23 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     let cancelled = session.perform(SessionOp::CancelFreeMove);
     assert!(cancelled.refusal.is_none(), "{:?}", cancelled.refusal);
 
-    // The shelf placed into the world by hand; the probe, which moves
-    // another shown space, then refuses it typed.
-    into_world(&mut session, shelf_i, &path, tol);
+    // The shelf added to the product: nothing in its space reads its
+    // copy, so the door re-targets it into the world, deletes the space
+    // its insert minted and sets the product to it, in one action. The
+    // probe, which moves another shown space, then refuses it typed.
+    let minted = session.committed_doc().node_space(shelf_i);
+    assert_eq!(
+        add_to_product(&mut session, shelf_i),
+        3,
+        "the re-target, the minted space's delete, and the product slot"
+    );
+    let doc = session.committed_doc();
+    assert_eq!(doc.node_space(shelf_i), Some(pncad::document::VarId::WORLD));
+    assert!(
+        minted.and_then(|space| doc.defined_by(space)).is_none(),
+        "the space the insert minted is gone with the copy it held"
+    );
+    assert_eq!(viewer::world::product_reads(doc), doc.outputs(shelf_i));
     let probe = |session: &mut DocSession| {
         let outcome = session.perform(SessionOp::BeginFreeMove { node: shelf_i });
         assert!(
@@ -206,8 +220,13 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     session.pump();
     probe(&mut session);
     assert!(!tree::has_faults(&session.tree_rows()));
-    // What the assembly makes: its two copies.
-    common::product_is(&mut session, &[post_i, shelf_i]);
+    // What the assembly makes: its two copies — the post, mated into
+    // the world, is a world copy now, and the door adds it to the slot.
+    assert_eq!(
+        add_to_product(&mut session, post_i),
+        2,
+        "a `⊔` and the slot"
+    );
 
     // Save, reload, re-evaluate: the same document, from the file.
     let saved = session.perform(SessionOp::Save(path.clone()));

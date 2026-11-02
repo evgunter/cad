@@ -2620,3 +2620,66 @@ fn a_gap_over_a_metre_is_read_in_metres() {
         }
     }
 }
+
+/// **The walk reads its charts and edges through their memos.** A
+/// half-turn helical sweep's spline walls and spline edges, read into
+/// windows and asked a few dozen pairs: every spline
+/// chart and spline edge of the windows keeps a memo, and the walk has
+/// filled the charts' and the edges'. Red if a window's chart or a
+/// lifted edge is read without its memo, so that each pair restricts
+/// its cells afresh.
+#[test]
+fn the_walk_reads_its_charts_and_edges_through_their_memos() {
+    let path = helix(0.5, 0.4);
+    let place = normal_start_place(&path);
+    let body = sweep_body::<f64>(
+        &lifted(&quad([
+            (-0.08, -0.08),
+            (0.08, -0.08),
+            (0.08, 0.08),
+            (-0.08, 0.08),
+        ])),
+        plane_at(&place),
+        &path,
+        9,
+        3,
+        tol(),
+    )
+    .expect("the half-turn helix sweeps")
+    .body;
+    let side = Side {
+        body: &body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let windows = side.windows(Which::First).expect("every face has a window");
+    let sweep = Sweep {
+        bound: ClearanceBound::StrictlyPositive,
+        band: band(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: 64,
+        },
+    };
+    let _ = sweep.run(
+        &windows,
+        &windows,
+        true,
+        verify(&body, ClearanceBound::StrictlyPositive),
+    );
+    let (charts, edges) = windows.spline_memos();
+    assert!(
+        !charts.is_empty() && !edges.is_empty(),
+        "the sweep has spline walls ({}) and spline edges ({})",
+        charts.len(),
+        edges.len()
+    );
+    assert!(
+        charts.iter().chain(&edges).all(Option::is_some),
+        "every spline chart and edge keeps a memo: charts {charts:?}, edges {edges:?}"
+    );
+    let filled = |m: &[Option<usize>]| m.iter().flatten().sum::<usize>();
+    assert!(
+        filled(&charts) > 0 && filled(&edges) > 0,
+        "the walk read through the memos: charts {charts:?}, edges {edges:?}"
+    );
+}

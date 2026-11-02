@@ -23,6 +23,7 @@ use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
 
 use crate::display::PruneReport;
+use crate::layout::LayoutReport;
 use crate::props::SlotValue;
 use crate::session::author::{PartSelectSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
@@ -388,11 +389,17 @@ pub enum SessionOp {
     /// the document to get it re-drawn. The memo makes the re-run of an
     /// unchanged document nearly free.
     Reevaluate,
-    /// Replace the session's document with a file's.
+    /// Replace the session's document with a file's, and restore the
+    /// display frames its saved layout holds ([`crate::layout`]); what
+    /// of the layout does not restore is the outcome's
+    /// [`OpOutcome::layout`], and refuses nothing.
     Open(PathBuf),
     /// Write the committed document at a path, identity kept (DI4):
     /// through the store of the folder the file lands in, with no
-    /// edit log (GQ3). Save and Save As… both push this.
+    /// edit log (GQ3). Save and Save As… both push this. The committed
+    /// display frames are kept beside the file, in its layout
+    /// ([`crate::layout`]), never in it; a layout not written is the
+    /// outcome's [`OpOutcome::layout`], and the save stands.
     ///
     /// That folder's scan decides the act before anything is written:
     /// a resave, a create at the chosen name, or a refusal. A folder
@@ -415,7 +422,8 @@ pub enum SessionOp {
     /// new id as one operation, so no undo returns to the original's
     /// identity. The original's file is untouched, and inbound
     /// `DocRef`s keep naming it. Like [`SessionOp::Save`], the session
-    /// is then backed by the path and its resolver follows the folder.
+    /// is then backed by the path and its resolver follows the folder,
+    /// and its layout is written beside the path under the new id.
     SaveAsNewDocument(PathBuf),
     /// Turn the toggle of the body `node` builds on or off (G3): a
     /// DISPLAY operation over what the toggle reads now — off drops
@@ -709,8 +717,9 @@ pub enum SessionOp {
     ///
     /// **The result takes the operands' place in the world** (A10, Ev's
     /// residue 1): the placements of the first operand the world
-    /// places, in the spec's order, are re-pointed to the boolean
-    /// through the slot door, and every other operand's placements are
+    /// places, in the spec's order, are taken over by the boolean
+    /// (`Recording::take_over`: re-pointed, and what read them
+    /// rebound where it carries it), and every other operand's placements are
     /// deleted, in the same action — so a combine of placed bodies
     /// leaves the world `[result]`, and one undo restores them. A
     /// repeated operand counts once; operands nothing places place
@@ -761,8 +770,8 @@ pub enum SessionOp {
     ///
     /// A body the world draws becomes the symmetric part: the image
     /// (`Node::Mirror`) and the union of the body and its image, in the
-    /// body's space, the body's drawn copies re-pointed to the union —
-    /// the feature takeover a fillet makes — so the part is drawn where
+    /// body's space, the body's drawn copies taken over by the union —
+    /// the feature takeover a fillet makes (`Recording::take_over`) — so the part is drawn where
     /// each copy stands and moves with the copy's placement. A mate that
     /// another placement seats on a face of the body's copy goes stale
     /// at the takeover, as it does at a fillet's. A body nothing places
@@ -784,7 +793,8 @@ pub enum SessionOp {
     /// in (`Node::Place`, no mate), its values on that space's axes —
     /// rotated by `rotation_angle` about `rotation_axis` through the
     /// body's own origin, then translated — and the body's world
-    /// placements re-pointed to it (A10, Ev's residue 1), as one action.
+    /// placements taken over by it (A10, Ev's residue 1;
+    /// `Recording::take_over`), as one action.
     ///
     /// The translation is written as the three slides, each formula as
     /// given; a rotation about one of the space's axes is the spin about
@@ -843,8 +853,8 @@ pub enum SessionOp {
     /// unfused pattern fuses it with a boolean over the family instead.
     ///
     /// **The fused body takes the prototype's place in the world** (A10,
-    /// Ev's residue 1): the prototype's placements are re-pointed to it
-    /// in the same action.
+    /// Ev's residue 1): the prototype's placements are taken over by it
+    /// (`Recording::take_over`) in the same action.
     ///
     /// **Whether the copies meet is the union's question, not this
     /// door's**: the door authors what the user asked for and the union
@@ -1028,10 +1038,29 @@ pub enum SessionOp {
     /// the order given, inserted in the same action; to nothing where
     /// `bodies` is empty. One action, one undo. The door refuses a read
     /// whose body is not in the world. The properties pane offers it on a
-    /// selected world copy: add it to the product, or take it out.
+    /// copy the product reads, to take it out; a body joins the product
+    /// through [`SessionOp::AddToProduct`].
     SetProduct {
         /// The bodies the document makes.
         bodies: Vec<Operand>,
+    },
+    /// **Add to the product** (D10 `[operations]`): the one door a body
+    /// reaches the product through, offered on the body under a viewport
+    /// pick, on a drawn body's tree row, and as the action of the
+    /// product's recourses and the `unused` finding's. A copy in the
+    /// world is added to the slot; a placement's copy nothing reads has
+    /// its placement re-targeted into the world, a `new_space()` it
+    /// leaves empty deleted, and is added; any other body is placed into
+    /// the world by the identity bundle and that copy added. One action,
+    /// one undo. A copy the product reads already is refused
+    /// ([`super::Refusal::InTheProduct`]).
+    AddToProduct {
+        /// The node whose body is added: a pick's drawn node
+        /// ([`super::Selection::seat_node`]) or a tree row's.
+        node: RecipeNodeId,
+        /// The output body a viewport pick hit, for a node with several
+        /// outputs (a split's halves); `None` for a tree row.
+        body: Option<u32>,
     },
     /// **A creation, labelled**: the creation's own edits and then a
     /// `DocEdit::SetLabel` on the node it made (`OpOutcome::made`), as
@@ -1279,6 +1308,7 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
+            | Self::AddToProduct { .. }
             | Self::CreateLabelled { .. } => false,
         }
     }
@@ -1363,6 +1393,7 @@ impl SessionOp {
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
             | Self::SetProduct { .. }
+            | Self::AddToProduct { .. }
             | Self::CreateLabelled { .. } => None,
         }
     }
@@ -1590,7 +1621,8 @@ impl SessionOp {
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
-            | Self::SetProduct { .. } => false,
+            | Self::SetProduct { .. }
+            | Self::AddToProduct { .. } => false,
             // A labelled creation is its creation, labelled.
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_value_gesture(),
         }
@@ -1722,7 +1754,8 @@ impl SessionOp {
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
-            | Self::SetProduct { .. } => true,
+            | Self::SetProduct { .. }
+            | Self::AddToProduct { .. } => true,
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
         }
     }
@@ -1797,7 +1830,8 @@ impl SessionOp {
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
-            | Self::SetProduct { .. } => false,
+            | Self::SetProduct { .. }
+            | Self::AddToProduct { .. } => false,
             Self::CreateLabelled { creation, .. } => creation.op().replaces_the_document(),
         }
     }
@@ -1906,6 +1940,16 @@ pub struct OpOutcome {
     /// gesture's previews: a preview enters no history, so nothing it
     /// did has happened yet.
     pub maintenance: Vec<Maintenance>,
+    /// **What the document's saved layout came to** — the frames an
+    /// open could not restore and why, or a layout an open could not
+    /// read or a save could not write ([`crate::layout`]). Neither
+    /// refuses the open or the save: the document file never depends on
+    /// its layout, so the document is opened or saved all the same and
+    /// this says what of its layout was not.
+    ///
+    /// Empty on every operation but [`SessionOp::Open`],
+    /// [`SessionOp::Save`] and [`SessionOp::SaveAsNewDocument`].
+    pub layout: LayoutReport,
 }
 
 impl OpOutcome {
