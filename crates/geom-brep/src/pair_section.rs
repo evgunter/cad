@@ -45,7 +45,7 @@
 //! classification: it costs no march and needs no lane, but on a plane
 //! and a spline past its hull and door, whose classification is the
 //! boundary pass, the regularity sweep and, where that declines, C3's
-//! whole reading on the same pass ([`plane_spline`]), read through the
+//! whole reading on the same pass ([`spline_implicit`]), read through the
 //! march door.
 //! [`PairSection::carry`] turns it into a [`CarriedSection`], which lists
 //! the components, every one holding a carrier a reader can take a foot
@@ -72,8 +72,8 @@
 //! sphere, a cylinder or another ring torus, [`torus`]) and two
 //! cylinders ([`cylinders`]), which have no bounded side and are read
 //! over the operation's region; and, through the march door, a plane
-//! against a NURBS or approximating surface ([`plane_spline`],
-//! [`PlaneSplinePose`], read by the section certificate alone). Each
+//! against a NURBS or approximating surface ([`spline_implicit`],
+//! [`SplineImplicitPose`], read by the section certificate alone). Each
 //! analytic pair's pose
 //! ([`CylinderSpherePose`], [`SphereTorusPose`], [`CylinderTorusPose`],
 //! [`TorusTorusPose`], [`CylinderCylinderPose`]) is decided once, and
@@ -97,7 +97,7 @@ use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 
 pub mod cylinders;
 pub mod gap;
-pub mod plane_spline;
+pub mod spline_implicit;
 pub mod spline_pair;
 pub mod torus;
 mod torus_arms;
@@ -106,7 +106,7 @@ pub mod winds;
 
 pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
-pub use plane_spline::PlaneSplinePose;
+pub use spline_implicit::SplineImplicitPose;
 pub use spline_pair::{KnownPair, KnownRow, SplinePairPose};
 pub use torus::{
     AxisPose, CtStance, CylinderTorusPose, Ring, SphereTorusPose, StStance, TorusGap,
@@ -742,7 +742,7 @@ pub struct SectionComponent<T: Real> {
     pub winds: [bool; 2],
     /// One point of it, where the arm names one: in closed form, or a
     /// spline section's wall point with a point of the component
-    /// bracketed near it ([`plane_spline`]).
+    /// bracketed near it ([`spline_implicit`]).
     pub witness: Option<Point3<T>>,
     /// **How far the witness may stand from the component**, in metres:
     /// zero for a closed form, the bracket's bound for a spline
@@ -784,7 +784,7 @@ pub enum Components<T: Real> {
     /// sides of each surface's chart [`Reached`] names, and none is
     /// counted or listed. No component at all is an empty
     /// [`Components::Counted`]. A plane × spline pose's regularity sweep
-    /// answers it ([`plane_spline`]); a reader that needs the list reads
+    /// answers it ([`spline_implicit`]); a reader that needs the list reads
     /// the pose whole ([`PairSection::read_whole`]).
     Reaching(Reached),
 }
@@ -813,7 +813,7 @@ pub enum PairPose<T: Real> {
     /// Cylinder × cylinder.
     CylinderCylinder(CylinderCylinderPose<T>),
     /// A plane and a spline wall.
-    PlaneSpline(Box<PlaneSplinePose<T>>),
+    SplineImplicit(Box<SplineImplicitPose<T>>),
     /// Two spline walls.
     SplinePair(Box<SplinePairPose<T>>),
 }
@@ -827,7 +827,7 @@ impl<T: Real> PairPose<T> {
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
             | Self::CylinderCylinder(_)
-            | Self::PlaneSpline(_)
+            | Self::SplineImplicit(_)
             | Self::SplinePair(_) => None,
         }
     }
@@ -842,7 +842,7 @@ impl<T: Decide> PairPose<T> {
             Self::CylinderTorus(p) => p.operands(),
             Self::TorusTorus(p) => p.operands(),
             Self::CylinderCylinder(p) => p.operands(),
-            Self::PlaneSpline(p) => p.operands(),
+            Self::SplineImplicit(p) => p.operands(),
             Self::SplinePair(p) => p.operands(),
         }
     }
@@ -865,7 +865,7 @@ impl<T: Decide> PairPose<T> {
             Self::CylinderTorus(p) => p.ball(),
             Self::TorusTorus(p) => p.ball(),
             Self::CylinderCylinder(p) => p.ball(),
-            Self::PlaneSpline(p) => p.ball(),
+            Self::SplineImplicit(p) => p.ball(),
             Self::SplinePair(p) => p.ball(),
         }
     }
@@ -879,7 +879,7 @@ impl<T: Decide> PairPose<T> {
             | Self::SphereTorus(_)
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
-            | Self::PlaneSpline(_)
+            | Self::SplineImplicit(_)
             | Self::SplinePair(_) => false,
         }
     }
@@ -896,7 +896,7 @@ impl PairPose<f64> {
     /// ball cut by the region.
     #[must_use]
     pub fn domain(&self) -> SsiDomain {
-        if let Self::PlaneSpline(p) = self {
+        if let Self::SplineImplicit(p) = self {
             return p.domain();
         }
         let ball = self.ball();
@@ -964,7 +964,7 @@ pub enum SectionRead<T: Real> {
 /// no bounded side asked with no `region` ([`SectionError::NoRegion`]);
 /// a plane and a spline asked with no `lane` ([`SectionError::NoMarch`]),
 /// and with one, the whole reading's refusal, mapped by name
-/// ([`plane_spline`]).
+/// ([`spline_implicit`]).
 ///
 /// `region` is the operation's (C5): the ball about the overlap of the
 /// two operands' boxes, padded, which holds every section point the
@@ -974,7 +974,7 @@ pub enum SectionRead<T: Real> {
 ///
 /// `lane` is the march door: a plane and a spline wall (an approximating
 /// surface read as its fit) are read through it, since their section is
-/// C3's whole reading, a march ([`plane_spline`]). No other pair reads it.
+/// C3's whole reading, a march ([`spline_implicit`]). No other pair reads it.
 pub fn pair_section<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
@@ -1020,21 +1020,20 @@ pub fn pair_section<T: Decide>(
                 }),
             }
         }
-        (Plane, Nurbs | Approx) | (Nurbs | Approx, Plane) => {
-            plane_spline::classified(a, b, lane, band).map(SectionRead::Built)
+        (Plane | Cylinder | Sphere | Torus, Nurbs | Approx)
+        | (Nurbs | Approx, Plane | Cylinder | Sphere | Torus) => {
+            spline_implicit::classified(a, b, lane, band).map(SectionRead::Built)
         }
         (Nurbs | Approx, Nurbs | Approx) => {
             spline_pair::classified(a, b, spline_pair::KnownPair::default(), lane, band)
                 .map(SectionRead::Built)
         }
         (Plane, Plane | Cylinder | Cone | Sphere | Torus)
-        | (Cylinder, Plane | Cone | Nurbs | Approx)
+        | (Cylinder, Plane | Cone)
         | (Cone, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Sphere, Plane | Cone | Sphere | Nurbs | Approx)
-        | (Torus, Plane | Cone | Nurbs | Approx)
-        | (Nurbs | Approx, Cylinder | Cone | Sphere | Torus) => {
-            Ok(SectionRead::Elsewhere(route(ka, kb)))
-        }
+        | (Sphere, Plane | Cone | Sphere)
+        | (Torus, Plane | Cone)
+        | (Nurbs | Approx, Cone) => Ok(SectionRead::Elsewhere(route(ka, kb))),
     }
 }
 
@@ -1273,13 +1272,13 @@ impl<T: Decide> PairSection<T> {
     /// # Errors
     ///
     /// [`SectionError::NoMarch`] with no `lane`, and the whole reading's
-    /// refusal ([`plane_spline`]).
+    /// refusal ([`spline_implicit`]).
     pub fn read_whole(&self, lane: Option<SsiLane<T>>, band: Band) -> Result<Self, SectionError> {
         if !matches!(self.components, Components::Reaching(_)) {
             return Ok(self.clone());
         }
-        let PairPose::PlaneSpline(pose) = &self.pose else {
-            unreachable!("only a plane × spline pose's classification reaches")
+        let PairPose::SplineImplicit(pose) = &self.pose else {
+            unreachable!("only a spline × implicit pose's classification reaches")
         };
         let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
         (lane.whole)(pose, band)
@@ -1302,7 +1301,7 @@ impl<T: Decide> PairSection<T> {
                 band,
             )?,
             Components::Reaching(_) => {
-                return Err(CarryError::Unminted(plane_spline::UNCARRIED));
+                return Err(CarryError::Unminted(spline_implicit::UNCARRIED));
             }
             Components::Counted(listed) => {
                 for c in listed {
@@ -1566,12 +1565,12 @@ pub struct SsiLane<T: Real> {
     /// against the pose's operands ([`PairSection::seat`]).
     seat: fn(&PairPose<T>, &CarriedComponent<T>, T, Band) -> Seated<T>,
     /// A plane and a spline wall's classification past the door
-    /// ([`plane_spline`]): the boundary pass, the regularity sweep, and
+    /// ([`spline_implicit`]): the boundary pass, the regularity sweep, and
     /// where it declines the whole reading.
-    spline: fn(PlaneSplinePose<T>, Band) -> Result<PairSection<T>, SectionError>,
+    spline: fn(SplineImplicitPose<T>, Band) -> Result<PairSection<T>, SectionError>,
     /// A plane and a spline wall's section read whole, on the pass its
     /// classification carried.
-    whole: fn(&PlaneSplinePose<T>, Band) -> Result<PairSection<T>, SectionError>,
+    whole: fn(&SplineImplicitPose<T>, Band) -> Result<PairSection<T>, SectionError>,
     /// Two spline walls' section, read whole ([`spline_pair`]).
     spline_pair: fn(SplinePairPose<T>, Band) -> Result<PairSection<T>, SectionError>,
 }
@@ -1590,8 +1589,8 @@ impl SsiLane<f64> {
         Self {
             march: march_over_the_ball,
             seat: seat_at,
-            spline: plane_spline::section,
-            whole: plane_spline::whole,
+            spline: spline_implicit::section,
+            whole: spline_implicit::whole,
             spline_pair: spline_pair::section,
         }
     }
@@ -1616,8 +1615,8 @@ fn march_over_the_ball(
         PairPose::CylinderCylinder(p) => crate::ssi::march_cylinder_cylinder(p, domain, band),
         // Its components are read whole when the section is built, and
         // none is carried.
-        PairPose::PlaneSpline(_) => {
-            return Err(CarryError::Unminted(plane_spline::UNCARRIED));
+        PairPose::SplineImplicit(_) => {
+            return Err(CarryError::Unminted(spline_implicit::UNCARRIED));
         }
         PairPose::SplinePair(_) => {
             return Err(CarryError::Unminted(spline_pair::UNCARRIED));
@@ -1800,7 +1799,9 @@ fn seat_at(
     band: Band,
 ) -> Result<CarriedComponent<f64>, CarryError> {
     match pose {
-        PairPose::PlaneSpline(_) => return Err(CarryError::Unminted(plane_spline::UNCARRIED)),
+        PairPose::SplineImplicit(_) => {
+            return Err(CarryError::Unminted(spline_implicit::UNCARRIED));
+        }
         PairPose::SplinePair(_) => return Err(CarryError::Unminted(spline_pair::UNCARRIED)),
         _ => {}
     }
@@ -2159,15 +2160,15 @@ mod wiring {
         }
         if !std::ptr::fn_addr_eq(
             SsiLane::marched().spline,
-            super::plane_spline::section as fn(_, _) -> _,
+            super::spline_implicit::section as fn(_, _) -> _,
         ) {
-            return Err("spline is not `plane_spline::section`");
+            return Err("spline is not `spline_implicit::section`");
         }
         if !std::ptr::fn_addr_eq(
             SsiLane::marched().whole,
-            super::plane_spline::whole as fn(_, _) -> _,
+            super::spline_implicit::whole as fn(_, _) -> _,
         ) {
-            return Err("whole is not `plane_spline::whole`");
+            return Err("whole is not `spline_implicit::whole`");
         }
         if !std::ptr::fn_addr_eq(
             SsiLane::marched().spline_pair,

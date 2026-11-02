@@ -1,22 +1,27 @@
-//! **The regularity sweep of a plane × spline pose**: stage 3 of the
-//! pair's classification (C5), for `φ = n·(S − o)`, the height of the
-//! wall's point over the plane. Over the plane, `∇φ = n·[S_u S_v]`,
-//! so `∇φ` bounded off zero is the wall's normal bounded off `±n`.
+//! **The regularity sweep of a spline × implicit pose**: stage 3 of the
+//! pair's classification (C5), for `φ = f∘S`. Against a plane `φ` is
+//! the height of the wall's point over it, `φ = n·(S − o)`, and
+//! `∇φ = n·[S_u S_v]`, so `∇φ` bounded off zero is the wall's normal
+//! bounded off `±n`; against a cylinder, sphere or torus `φ` is its
+//! canonical form along the wall ([`Curved`]), and `∇φ = ∇f(S)·[S_u S_v]`.
 //!
 //! The wall's knot rectangle is swept by the chart lane's one
 //! recursion ([`sweep_chart_regular`], shared with seeding and C3's
 //! accounting), to the accounting floor. A cell is:
 //!
-//! - **excluded** where the plane's height over it, on the accounting's
-//!   own enclosure ([`crate::ssi::exhaust::chart_plane_height`]), is
-//!   decided past the band
-//!   (`plane_spline_sweep_excluded`): so is `φ − c` for every height `c`
-//!   within the band;
-//! - **regular** where the wall's slope off the plane along `u` or `v`,
-//!   `n·S_d / (‖n‖·sup‖S_d‖)` on the closed cell's derivative boxes
-//!   ([`NurbsBoxes::deriv_box_closed`], [`NurbsBoxes::speed_sup`]),
-//!   levered by the feature extent, is decided off zero
-//!   (`plane_spline_sweep_regular`), as the march decides
+//! - **excluded** where `φ` over it is decided past the band
+//!   (`plane_spline_sweep_excluded`): on the plane its height on the
+//!   accounting's own enclosure
+//!   ([`crate::ssi::exhaust::chart_plane_height`]), over the normal's
+//!   length; on a curved partner `f` over the cell's box, a floor in
+//!   metres ([`Curved::floor_metres`]). So is `φ − c` for every `c`
+//!   within the band, the band read in metres;
+//! - **regular** where the wall's slope off the partner along `u` or
+//!   `v`, `∇f·S_d / (sup‖∇f‖·sup‖S_d‖)` on the closed cell's derivative
+//!   boxes ([`NurbsBoxes::deriv_box_closed`], [`NurbsBoxes::speed_sup`])
+//!   and, on a curved partner, `∇f` over the cell's box (`n` and its
+//!   length on the plane), levered by the feature extent, is decided off
+//!   zero (`plane_spline_sweep_regular`), as the march decides
 //!   transversality;
 //! - neither, and halved; one such cell at the floor declines the sweep.
 //!
@@ -37,9 +42,11 @@
 //!
 //! That each component ends where the boundary pass found a crossing or
 //! a region, the sides the verdict names, rests on stage 2 having
-//! refused every graze of a side ([`crate::PlaneSection`]'s pass): a
+//! refused every graze of a side ([`crate::ssi::boundary`]'s pass): a
 //! component touching a side without crossing it leaves no crossing
-//! there.
+//! there. That the verdict covers the zero set at all rests on stage 1:
+//! a wall within the band of the partner everywhere has no level set the
+//! band parts from its neighbours, and its cells can each read regular.
 //!
 //! The argument needs `∇φ` continuous: at a crease (a knot of
 //! multiplicity at least the degree) each side's one-sided gradient may
@@ -55,15 +62,22 @@
 
 use std::cell::RefCell;
 
-use geom::Surface;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Interval, Margin, Real, Sign};
+use geom_core::{Band, Interval, Margin, Point3, Real, Sign, Vec3};
 
-use super::Pivot;
-use crate::PlaneSection;
 use crate::ssi::SsiError;
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
-use crate::ssi::exhaust::{UvRect, sweep_chart_regular};
+use crate::ssi::exhaust::{SweepFloor, UvRect, chart_plane_height, sweep_chart_regular};
+use crate::ssi::residual::Curved;
+
+/// **The partner the sweep reads `φ` of.**
+#[derive(Clone, Copy)]
+pub(super) enum Phi<'a> {
+    /// A plane, read at its pivot: its origin and its normal as stored.
+    Plane(Point3<f64>, Vec3<f64>),
+    /// A cylinder, sphere or torus.
+    Curved(&'a Curved),
+}
 
 /// What the sweep answers.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -102,11 +116,16 @@ struct Excluded {
     regular: bool,
 }
 
-/// **The sweep of the reading's wall against the plane read at its
-/// pivot**, at the reading's band (module docs); `extent` is the
-/// feature extent the slopes are levered by.
-pub(super) fn sweep(reading: &PlaneSection<'_>, pivot: &Pivot, band: Band, extent: f64) -> Sweep {
-    let boxes: &NurbsBoxes<'_, f64> = reading.boxes();
+/// **The sweep of a wall against its partner `phi`** to `floor`, at
+/// `band` (module docs); `extent` is the feature extent the slopes are
+/// levered by.
+pub(super) fn sweep(
+    boxes: &NurbsBoxes<'_, f64>,
+    phi: Phi<'_>,
+    floor: SweepFloor<UvRect>,
+    band: Band,
+    extent: f64,
+) -> Sweep {
     let net = boxes.surface();
     let (ud, vd) = (net.knot_values_u().domain(), net.knot_values_v().domain());
     let Some(domain) = UvWindow::new(ud.0, ud.1, vd.0, vd.1) else {
@@ -115,11 +134,6 @@ pub(super) fn sweep(reading: &PlaneSection<'_>, pivot: &Pivot, band: Band, exten
     if !boxes.first_order_continuous_in(domain) {
         return Sweep::Declined(Declined::Crease);
     }
-    let Surface::Plane { origin, normal, .. } = pivot.plane else {
-        unreachable!("the pivot holds a plane")
-    };
-    let n = normal.map(Interval::from_certified);
-    let length = (n.x.powi(2) + n.y.powi(2) + n.z.powi(2)).sqrt();
     let arm = Interval::from_certified(extent);
     let off = |name, margin| {
         matches!(
@@ -127,10 +141,26 @@ pub(super) fn sweep(reading: &PlaneSection<'_>, pivot: &Pivot, band: Band, exten
             Ok(Sign::Positive | Sign::Negative)
         )
     };
+    // `∇f` over a window, and an upper bound on its length there.
+    let gradient = |w: UvWindow| match phi {
+        Phi::Plane(_, normal) => {
+            let n = normal.map(Interval::from_certified);
+            let length = (n.x.powi(2) + n.y.powi(2) + n.z.powi(2)).sqrt();
+            (n, length)
+        }
+        Phi::Curved(curved) => {
+            let q = curved.framed(boxes.rect_box(w));
+            (
+                curved.gradient(q),
+                Interval::from_certified(curved.gradient_sup(q)),
+            )
+        }
+    };
     let regular = |cell: UvRect| {
         let Some(w) = cell.window() else {
             return false;
         };
+        let (n, length) = gradient(w);
         [true, false].into_iter().any(|along_u| {
             let speed = boxes.speed_sup(w, along_u);
             if !(speed.is_finite() && speed > 0.0) {
@@ -142,17 +172,34 @@ pub(super) fn sweep(reading: &PlaneSection<'_>, pivot: &Pivot, band: Band, exten
             off("plane_spline_sweep_regular", Margin::levered(slope, arm))
         })
     };
+    // `φ` over a cell, in metres: a floor on its distance, signed.
+    let value = |cell: UvRect| match phi {
+        Phi::Plane(origin, normal) => {
+            let n = normal.map(Interval::from_certified);
+            let length = (n.x.powi(2) + n.y.powi(2) + n.z.powi(2)).sqrt();
+            chart_plane_height(boxes, origin, normal, cell).map(|height| height / length)
+        }
+        Phi::Curved(curved) => {
+            let b = cell
+                .window()
+                .map_or_else(crate::ssi::enclose::refused_box, |w| boxes.rect_box(w));
+            let q = curved.framed(b);
+            let metres = curved.floor_metres(curved.value(q), q);
+            if metres.is_certified() {
+                Ok(metres)
+            } else {
+                Err(SsiError::UnsupportedCertificate {
+                    what: "a curved partner's form over a cell of the wall does not certify",
+                })
+            }
+        }
+    };
     let excluded = RefCell::new(Vec::new());
     let declined = sweep_chart_regular(
-        boxes,
-        (origin, normal),
-        reading.account_floor(),
-        |cell, height| {
-            let above = match decide(
-                "plane_spline_sweep_excluded",
-                Margin::of(height / length),
-                band,
-            ) {
+        value,
+        floor,
+        |cell, metres| {
+            let above = match decide("plane_spline_sweep_excluded", Margin::of(metres), band) {
                 Ok(Sign::Positive) => true,
                 Ok(Sign::Negative) => false,
                 _ => return false,
@@ -226,13 +273,19 @@ fn joined(cells: &[Excluded], root: UvRect) -> Sweep {
 /// The sweep of the pair `p`, `w` at `band`, read as the arm reads it.
 #[cfg(test)]
 #[allow(clippy::expect_used)]
-fn swept(p: &Surface<f64>, w: &Surface<f64>, band: Band) -> Sweep {
-    let pose = super::PlaneSplinePose::of(p, w).expect("a plane and a spline");
+fn swept(p: &geom::Surface<f64>, w: &geom::Surface<f64>, band: Band) -> Sweep {
+    let pose = super::SplineImplicitPose::of(p, w).expect("a plane and a spline");
     let pivot = pose.pivot();
     let band = pivot.band(band).expect("the shift pads the band");
-    let reading =
-        PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), band).expect("the pair is read");
-    sweep(&reading, &pivot, band, pose.domain().extent)
+    let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), band)
+        .expect("the pair is read");
+    sweep(
+        reading.boxes(),
+        pivot.phi(),
+        reading.account_floor(),
+        band,
+        pose.domain().extent,
+    )
 }
 
 #[cfg(test)]

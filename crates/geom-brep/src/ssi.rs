@@ -128,6 +128,7 @@ mod one_arc;
 pub(crate) mod pair;
 mod plane;
 mod refine;
+pub(crate) mod residual;
 pub mod section;
 pub mod system;
 
@@ -3522,12 +3523,14 @@ fn boundary_pass(
         wall,
         boxes: charted.own_boxes(),
         speeds: charted.speeds(),
-        plane: boundary::PassPlane {
-            origin,
-            normal,
-            u_ref,
+        partner: boundary::PlanePartner {
+            plane: boundary::PassPlane {
+                origin,
+                normal,
+                u_ref,
+            },
+            sys,
         },
-        sys,
         tol,
         floor: domain.floor(band),
         extent: domain.extent,

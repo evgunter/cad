@@ -40,12 +40,14 @@ use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
+use geom_core::spline::compose::{CurveCertData, canonical_composite};
 use geom_core::spline::weight_scale::unit_scale_exact;
 use geom_core::spline::{RingRefinement, restrict_segment};
 use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::SsiError;
 use super::exhaust::{ParamSpan, SweepFloor, isolate_section};
+use super::residual::Curved;
 use crate::dihedral::decide_reported;
 use crate::recourse::{Refused, RefusedArm};
 
@@ -142,6 +144,18 @@ type Piece = ((f64, f64), Vec<Interval>, Vec<Interval>);
 struct Pieces {
     /// The pieces, ascending.
     pieces: Vec<Piece>,
+    /// How `φ` reads in metres, for a curved partner; `None` for a
+    /// plane, whose `φ` is its distance.
+    scale: Option<Scale>,
+}
+
+/// **A curved partner's `φ` in metres along a curve**: `φ` is the
+/// partner's canonical form `f` ([`Curved`]), read against the band
+/// through its divisor over the curve's control hull in the partner's
+/// frame, which holds every point of the curve.
+struct Scale {
+    curved: Curved,
+    hull: Vec3<Interval>,
 }
 
 impl Pieces {
@@ -157,6 +171,72 @@ impl Pieces {
             .map(|c| [c.x, c.y, c.z].map(Interval::point))
             .collect();
         Self::enclosed(curve.knots_f64_interim(), &control, curve.weights(), (o, n))
+    }
+
+    /// **The curve's pieces against a curved partner**: `φ = f∘C`, the
+    /// partner's canonical form along the curve, in rational Bernstein
+    /// form over the curve's knot spans
+    /// ([`geom_core::spline::compose::canonical_composite`], the curve ×
+    /// face table's ring composite), the curve's net written in the
+    /// partner's frame in certification arithmetic. Its denominator is a
+    /// power of the weight function, of the numerator's degree, and its
+    /// coefficients are positive, so `φ = h/W` as on the plane.
+    fn implicit(curve: &NurbsCurve3<f64>, curved: &Curved) -> Option<Self> {
+        let framed: Vec<Vec3<Interval>> = curve
+            .control()
+            .iter()
+            .map(|&p| curved.framed_point(p))
+            .collect();
+        if !framed
+            .iter()
+            .all(|g| g.x.is_certified() && g.y.is_certified() && g.z.is_certified())
+        {
+            return None;
+        }
+        let coords = [
+            framed.iter().map(|g| g.x).collect::<Vec<_>>(),
+            framed.iter().map(|g| g.y).collect(),
+            framed.iter().map(|g| g.z).collect(),
+        ];
+        // The weights at unit scale where that is exact, as on the plane:
+        // numerator and denominator carry one power of the factor.
+        let weights: Vec<f64> = unit_scale_exact(curve.weights())
+            .map_or_else(|| curve.weights().to_vec(), |(_, scaled)| scaled);
+        let data = CurveCertData::new(curve.knots_f64_interim(), &weights, &coords).ok()?;
+        let form = canonical_composite(&data, &curved.form()).ok()?;
+        let pieces: Vec<Piece> = form
+            .num
+            .breaks()
+            .windows(2)
+            .zip(form.num.spans().iter().zip(form.den.spans()))
+            .map(|(k, (h, w))| ((k[0], k[1]), h.clone(), w.clone()))
+            .collect();
+        if pieces.is_empty() || pieces.iter().any(|(_, h, w)| h.len() != w.len()) {
+            return None;
+        }
+        let hull = Vec3::new(hull(&coords[0]), hull(&coords[1]), hull(&coords[2]));
+        Some(Self {
+            pieces,
+            scale: Some(Scale {
+                curved: curved.clone(),
+                hull,
+            }),
+        })
+    }
+
+    /// An upper bound in metres on the curve's distance from the
+    /// partner where `|φ| ≤ sup` along it: `sup` itself on a plane.
+    fn metres(&self, sup: f64) -> f64 {
+        self.scale
+            .as_ref()
+            .map_or(sup, |s| s.curved.ceiling_metres(sup, s.hull))
+    }
+
+    /// An upper bound on `‖∇f‖` over the curve, which a slope of a
+    /// curved partner's `φ` is divided by to read as a sine; `None` on a
+    /// plane, whose normal is a unit.
+    fn gradient_sup(&self) -> Option<f64> {
+        self.scale.as_ref().map(|s| s.curved.gradient_sup(s.hull))
     }
 
     /// [`Pieces::of`] from a curve's parts, its control points enclosed:
@@ -206,7 +286,10 @@ impl Pieces {
             };
             pieces.push(((pair[0], pair[1]), hc.to_vec(), wc.to_vec()));
         }
-        Some(Self { pieces })
+        Some(Self {
+            pieces,
+            scale: None,
+        })
     }
 
     /// The plane distance `φ = h/W` over the whole curve, enclosed
@@ -478,6 +561,55 @@ pub fn boundary_section(
     )
 }
 
+/// [`boundary_section`] of a curved partner: `φ` the partner's form
+/// along the curve ([`Pieces::implicit`]), its sup read against the band
+/// as a ceiling in metres and each root's slope over `‖∇f‖` (module docs
+/// of [`super::residual`]); everything else as on the plane.
+///
+/// # Errors
+///
+/// As [`boundary_section`].
+pub(crate) fn implicit_section(
+    curve: &NurbsCurve3<f64>,
+    curved: &Curved,
+    speed: SupSpeed<f64>,
+    floor_meters: f64,
+    arm: f64,
+    band: Band,
+) -> Result<BoundarySection, SsiError> {
+    let pieces = Pieces::implicit(curve, curved).ok_or(UNSUPPORTED)?;
+    read_section(
+        curve,
+        &pieces,
+        speed,
+        (floor_meters, arm, band),
+        SIDE_SIGN_HALVINGS,
+    )
+}
+
+/// [`boundary_roots`] of a curved partner ([`implicit_section`]).
+///
+/// # Errors
+///
+/// As [`boundary_section`].
+pub(crate) fn implicit_roots(
+    curve: &NurbsCurve3<f64>,
+    curved: &Curved,
+    speed: SupSpeed<f64>,
+    floor_meters: f64,
+    arm: f64,
+    band: Band,
+) -> Result<BoundarySection, SsiError> {
+    let pieces = Pieces::implicit(curve, curved).ok_or(UNSUPPORTED)?;
+    roots(curve, &pieces, speed, floor_meters, arm, band)
+}
+
+/// A curve whose Bernstein form the knot algebra, or the composite,
+/// refused.
+const UNSUPPORTED: SsiError = SsiError::UnsupportedCertificate {
+    what: "a boundary curve's Bernstein form was refused by the knot algebra",
+};
+
 /// [`boundary_section`], its sign read within `halvings`.
 fn section_within(
     (curve, origin, normal): (&NurbsCurve3<f64>, Point3<f64>, Vec3<f64>),
@@ -485,10 +617,19 @@ fn section_within(
     (floor_meters, arm, band): (f64, f64, Band),
     halvings: usize,
 ) -> Result<BoundarySection, SsiError> {
-    let unsupported = SsiError::UnsupportedCertificate {
-        what: "a boundary curve's Bernstein form was refused by the knot algebra",
-    };
-    let pieces = Pieces::of(curve, origin, normal).ok_or(unsupported)?;
+    let pieces = Pieces::of(curve, origin, normal).ok_or(UNSUPPORTED)?;
+    read_section(curve, &pieces, speed, (floor_meters, arm, band), halvings)
+}
+
+/// The section of a curve read off its pieces, its sign within
+/// `halvings`.
+fn read_section(
+    curve: &NurbsCurve3<f64>,
+    pieces: &Pieces,
+    speed: SupSpeed<f64>,
+    (floor_meters, arm, band): (f64, f64, Band),
+    halvings: usize,
+) -> Result<BoundarySection, SsiError> {
     // ---- On: the curve's sup distance from the plane ----
     let d = pieces.distance();
     let sup = magnitude(d);
@@ -503,7 +644,11 @@ fn section_within(
             })?,
         })
     };
-    match decide("ssi_boundary_on_plane", Margin::of(sup), band) {
+    match decide(
+        "ssi_boundary_on_plane",
+        Margin::of(pieces.metres(sup)),
+        band,
+    ) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) => return on(),
         Err(cause) if cause.margin.is_invalid() => {
@@ -514,7 +659,7 @@ fn section_within(
         Err(_) => return on(),
     }
 
-    roots(curve, &pieces, speed, floor_meters, arm, band)
+    roots(curve, pieces, speed, floor_meters, arm, band)
 }
 
 /// **The roots of the plane distance along a curve**, isolated to the
@@ -591,7 +736,11 @@ fn roots(
         // than a zero slope it would read as a graze.
         let slope = if rising.is_some() {
             let num = super::enclose::zero_free_lower_bound(dh);
-            let den = magnitude(Interval::point(w_hi) * Interval::point(speed.get()));
+            let den = Interval::point(w_hi) * Interval::point(speed.get());
+            let den = magnitude(match pieces.gradient_sup() {
+                Some(g) => den * Interval::point(g),
+                None => den,
+            });
             geom_core::interval::div_down(num, den)
         } else if dh.is_certified() {
             0.0
@@ -670,7 +819,37 @@ pub(crate) fn settle_root(
     bracket: (f64, f64),
     tol: f64,
 ) -> Option<f64> {
-    let phi = |t: f64| normal.dot(curve.eval(t) - origin);
+    settle_by(
+        |t| normal.dot(curve.eval(t) - origin),
+        |t| normal.dot(curve.deriv(t)),
+        bracket,
+        tol,
+    )
+}
+
+/// [`settle_root`] for a curved partner: the partner's residual in
+/// metres along the curve ([`Curved::residual`]) settled to `tol`.
+pub(crate) fn settle_implicit_root(
+    curve: &NurbsCurve3<f64>,
+    curved: &Curved,
+    bracket: (f64, f64),
+    tol: f64,
+) -> Option<f64> {
+    settle_by(
+        |t| curved.residual(curve.eval(t)),
+        |t| curved.residual_rate(curve.eval(t), curve.deriv(t)),
+        bracket,
+        tol,
+    )
+}
+
+/// [`settle_root`]'s safeguarded Newton on `phi`, its rate `dphi`.
+fn settle_by(
+    phi: impl Fn(f64) -> f64,
+    dphi: impl Fn(f64) -> f64,
+    bracket: (f64, f64),
+    tol: f64,
+) -> Option<f64> {
     let (mut lo, mut hi) = bracket;
     let (mut f_lo, f_hi) = (phi(lo), phi(hi));
     if !(f_lo.is_finite() && f_hi.is_finite()) {
@@ -698,7 +877,7 @@ pub(crate) fn settle_root(
         } else {
             hi = t;
         }
-        let df = normal.dot(curve.deriv(t));
+        let df = dphi(t);
         let newton = t - f / df;
         t = if newton.is_finite() && newton > lo && newton < hi {
             newton

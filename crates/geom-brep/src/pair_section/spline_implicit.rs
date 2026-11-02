@@ -1,36 +1,50 @@
-//! **Plane × spline: the pair classified, then read whole.** The pair
-//! decides its tangency and coincidence once, in its classification on
-//! `φ`, the height of the wall's point over the plane, over the wall's
-//! knot rectangle (C5), in three stages run in this order:
+//! **A spline wall and an implicit partner: the pair classified.** The
+//! partner is a surface with an implicit residual in metres, a plane, a
+//! cylinder, a sphere or a torus, and the wall a NURBS surface (an
+//! approximating surface read as its fit). The section is the zero set of
+//! `φ = f∘S` over the wall's knot rectangle (C3's residual × chart trace
+//! shape), and the pair decides its tangency and coincidence once, in its
+//! classification on `φ`, before any march (C5), in three stages run in
+//! this order:
 //!
-//! 1. **the hull** (`PlaneSplinePose::hull`), at every scalar and with
-//!    no march door: a net whose every control point is decided on one
-//!    side of the plane is apart; one whose largest height is decided
-//!    within the zero band lies on the plane
-//!    ([`SectionError::CoincidentSurfaces`]), and one in band escalates.
-//!    Then the door (`PlaneSplinePose::door`): a side of the rectangle
-//!    collapsed to a point
-//!    ([`crate::chart_singularity::spline_collapsed_row`]), its row not
-//!    decided clear of the plane, every point on one side, refuses,
-//!    named. A poison net refuses at the hull, with or without a lane;
+//! 1. **the hull**, the bound on `φ` its net gives: a net decided on one
+//!    side of the partner is apart; one within the zero band of it lies
+//!    on it ([`SectionError::CoincidentSurfaces`]), and one in band
+//!    escalates. Then the door: a side of the rectangle collapsed to a
+//!    point ([`crate::chart_singularity::spline_collapsed_row`]) not
+//!    decided clear of the partner refuses, named. On the plane `φ` is
+//!    linear, the net's control heights bound it, and both read at every
+//!    scalar and with no march door (`SplineImplicitPose::hull`); a
+//!    curved partner's `f` is not, and its hull is the Bernstein hull of
+//!    the tensor composite `f∘S`, formed in certification arithmetic
+//!    through the march door ([`curved`]);
 //! 2. **the boundary pass**, through the march door, each side of the
-//!    rectangle against the plane ([`crate::PlaneSection`]'s, run once):
-//!    a graze or a side held tangent refuses by name, and its crossings
-//!    and `Side` and `Corner` regions are where the section ends;
+//!    rectangle against the partner (the plane's [`crate::PlaneSection`]
+//!    pass, or a curved partner's [`crate::ssi::boundary`] pass on its
+//!    form, run once): a graze or a side held tangent refuses by name,
+//!    and its crossings and `Side` and `Corner` regions are where the
+//!    section ends;
 //! 3. **the regularity sweep** ([`sweep`]): where `∇φ` is bounded off
 //!    zero, past the band's exclusions, no component closes in the
 //!    wall's chart. That verdict is the section, no component where the
 //!    pass found no end and otherwise [`Components::Reaching`] on the
-//!    sides it found them on, the pass carried on the pose; the
-//!    interior-loop guard's loop-free stage is it. Where the sweep
-//!    declines, the pose is read whole on the same pass.
+//!    sides it found them on; the interior-loop guard's loop-free stage
+//!    is it. Where the sweep declines, a plane's pose is read whole on
+//!    the same pass, the pass carried on the pose; a curved partner's
+//!    whole reading over the rectangle is not built, and its pose refuses
+//!    as the general rung's ([`SectionError::RoutesToGeneralRung`]).
+//!
+//! The order is the proof's: the sweep's loop-free verdict says nothing
+//! of a wall within the band of the partner everywhere, which the hull
+//! decides, nor of a component touching a side without crossing it,
+//! which the pass refuses as a graze.
 //!
 //! Read whole, the section of a plane and a NURBS wall (an approximating
 //! surface read as its fit) is [`crate::PlaneSection::all`] over the
 //! wall's whole knot rectangle: every branch with its three-limb certificate, every
 //! boundary region, and the accounting that they are all of them. The
 //! plane is read at its pivot, its origin moved to its foot nearest the
-//! wall ([`PlaneSplinePose::anchored`]), so where its origin is stored
+//! wall ([`SplineImplicitPose::anchored`]), so where its origin is stored
 //! changes nothing. The foot is found in `f64`, so the plane read may
 //! stand off the stored one; that shift is certified and charged: the
 //! reading's band is padded by it, and the witness's bracket reads the
@@ -86,54 +100,72 @@ use crate::ssi::enclose::{Box3, NurbsBoxes, UvWindow};
 use crate::ssi::exhaust::UvRect;
 use crate::ssi::{BranchEnd, SsiBoundaryContact, SsiBranch, SsiDomain, SsiTube};
 
+mod curved;
 mod sweep;
 
-/// **A plane and a spline wall**, in the order the section was asked
-/// of.
+/// **A spline wall and an implicit partner**, in the order the section
+/// was asked of.
 #[derive(Clone, Debug)]
-pub struct PlaneSplinePose<T: Real> {
-    plane: Surface<T>,
+pub struct SplineImplicitPose<T: Real> {
+    partner: Surface<T>,
     wall: Surface<T>,
     /// The wall's net: a NURBS wall's own, an approximating surface's
     /// fit's.
     net: geom::NurbsSurface<T>,
-    plane_first: bool,
+    partner_first: bool,
     /// The boundary pass the classification ran (stage 2), carried to
     /// the whole reading so it runs once.
     pass: Option<std::sync::Arc<BoundaryPass>>,
 }
 
-impl<T: Real> PlaneSplinePose<T> {
-    /// The pose of `a` and `b`, one a plane and the other a NURBS or an
-    /// approximating surface; `None` for any other pair.
+impl<T: Real> SplineImplicitPose<T> {
+    /// The pose of `a` and `b`, one a plane, a cylinder, a sphere or a
+    /// torus and the other a NURBS or an approximating surface; `None`
+    /// for any other pair.
     #[must_use]
     pub fn of(a: &Surface<T>, b: &Surface<T>) -> Option<Self> {
-        let (plane, wall, plane_first) = match (a, b) {
-            (Surface::Plane { .. }, w) => (a, w, true),
-            (w, Surface::Plane { .. }) => (b, w, false),
-            _ => return None,
+        let implicit = |s: &Surface<T>| {
+            matches!(
+                s,
+                Surface::Plane { .. }
+                    | Surface::Cylinder { .. }
+                    | Surface::Sphere { .. }
+                    | Surface::Torus { .. }
+            )
+        };
+        let (partner, wall, partner_first) = if implicit(a) {
+            (a, b, true)
+        } else if implicit(b) {
+            (b, a, false)
+        } else {
+            return None;
         };
         Some(Self {
-            plane: plane.clone(),
+            partner: partner.clone(),
             wall: wall.clone(),
             net: wall.spline_chart()?.clone(),
-            plane_first,
+            partner_first,
             pass: None,
         })
     }
 
     /// The two surfaces in the order the pose was asked of.
     pub fn operands(&self) -> (&Surface<T>, &Surface<T>) {
-        if self.plane_first {
-            (&self.plane, &self.wall)
+        if self.partner_first {
+            (&self.partner, &self.wall)
         } else {
-            (&self.wall, &self.plane)
+            (&self.wall, &self.partner)
         }
     }
 
-    /// The plane.
-    pub fn plane(&self) -> &Surface<T> {
-        &self.plane
+    /// The implicit partner.
+    pub fn partner(&self) -> &Surface<T> {
+        &self.partner
+    }
+
+    /// Whether the partner is a plane, whose `φ` is linear.
+    pub fn is_plane(&self) -> bool {
+        matches!(self.partner, Surface::Plane { .. })
     }
 
     /// The wall's net: a NURBS wall's own, an approximating surface's
@@ -142,12 +174,13 @@ impl<T: Real> PlaneSplinePose<T> {
         &self.net
     }
 
-    /// `[on the plane, on the wall]` in the order the pose was asked of.
-    pub(super) fn order<V>(&self, on_plane: V, on_wall: V) -> [V; 2] {
-        if self.plane_first {
-            [on_plane, on_wall]
+    /// `[on the partner, on the wall]` in the order the pose was asked
+    /// of.
+    pub(super) fn order<V>(&self, on_partner: V, on_wall: V) -> [V; 2] {
+        if self.partner_first {
+            [on_partner, on_wall]
         } else {
-            [on_wall, on_plane]
+            [on_wall, on_partner]
         }
     }
 
@@ -174,7 +207,7 @@ impl<T: Real> PlaneSplinePose<T> {
     }
 }
 
-impl<T: Real> PlaneSplinePose<T> {
+impl<T: Real> SplineImplicitPose<T> {
     /// The pose of a pair the arm serves.
     ///
     /// # Errors
@@ -182,7 +215,7 @@ impl<T: Real> PlaneSplinePose<T> {
     /// [`SectionError::WrongLane`] for any other pair.
     fn served(a: &Surface<T>, b: &Surface<T>) -> Result<Self, SectionError> {
         Self::of(a, b).ok_or(SectionError::WrongLane {
-            expected: "a plane and a NURBS or approximating surface",
+            expected: "a plane, cylinder, sphere or torus and a NURBS or approximating surface",
         })
     }
 
@@ -190,7 +223,7 @@ impl<T: Real> PlaneSplinePose<T> {
     fn section(self, components: Components<T>) -> PairSection<T> {
         let lever = self.ball().radius();
         PairSection {
-            pose: PairPose::PlaneSpline(Box::new(self)),
+            pose: PairPose::SplineImplicit(Box::new(self)),
             decided: Vec::new(),
             components,
             nodes: Vec::new(),
@@ -208,7 +241,7 @@ enum Hull {
     Cuts,
 }
 
-impl<T: Decide> PlaneSplinePose<T> {
+impl<T: Decide> SplineImplicitPose<T> {
     /// **Stage 1, the hull**: the wall lies in its net's convex hull (its
     /// weights are positive), so the control points' heights over the
     /// plane bound the wall's. A net whose every height is decided of one
@@ -283,14 +316,14 @@ impl<T: Decide> PlaneSplinePose<T> {
 
     /// The height of `p` over the plane, in metres.
     fn height(&self, p: Point3<T>) -> T {
-        let Surface::Plane { origin, normal, .. } = self.plane else {
+        let Surface::Plane { origin, normal, .. } = self.partner else {
             unreachable!("the pose holds a plane")
         };
         (p - origin).dot(normal / normal.norm())
     }
 }
 
-impl PlaneSplinePose<f64> {
+impl SplineImplicitPose<f64> {
     /// **The plane read at its pivot**: the same carrier, its origin
     /// moved to the foot on it of the wall's ball's centre, so the
     /// reading's window stands where the wall is wherever the plane's
@@ -310,7 +343,7 @@ impl PlaneSplinePose<f64> {
             origin,
             normal,
             u_ref,
-        } = self.plane
+        } = self.partner
         else {
             unreachable!("the pose holds a plane")
         };
@@ -339,13 +372,18 @@ impl PlaneSplinePose<f64> {
         }
     }
 
-    /// **The reading's domain**: the window of the plane read at its
-    /// pivot ([`Self::anchored`]), reaching twice the farthest control
-    /// point from the pivot plus the feature extent, so it holds the wall
-    /// and a march ends only on the wall's rectangle; the feature extent
-    /// the net ball's diameter ([`super::domain_about`]).
+    /// **The reading's domain**: against a plane, the window of the plane
+    /// read at its pivot ([`Self::anchored`]), reaching twice the farthest
+    /// control point from the pivot plus the feature extent, so it holds
+    /// the wall and a march ends only on the wall's rectangle; against a
+    /// curved partner, the cube about the net's ball. The feature extent
+    /// is the net ball's diameter ([`super::domain_about`]).
     #[must_use]
     pub fn domain(&self) -> SsiDomain {
+        if !self.is_plane() {
+            let ball = self.ball();
+            return super::domain_about(ball.center(), ball.radius() * 1.01, ball.radius() * 2.0);
+        }
         let Surface::Plane { origin, .. } = self.anchored() else {
             unreachable!("the pose holds a plane")
         };
@@ -360,7 +398,7 @@ impl PlaneSplinePose<f64> {
     }
 }
 
-/// **The plane read at its pivot** ([`PlaneSplinePose::anchored`]).
+/// **The plane read at its pivot** ([`SplineImplicitPose::anchored`]).
 struct Pivot {
     /// The plane, its origin at the foot.
     plane: Surface<f64>,
@@ -374,6 +412,14 @@ struct Pivot {
 }
 
 impl Pivot {
+    /// The plane read at its pivot, as the sweep reads it.
+    fn phi(&self) -> sweep::Phi<'static> {
+        let Surface::Plane { origin, normal, .. } = self.plane else {
+            unreachable!("the pivot holds a plane")
+        };
+        sweep::Phi::Plane(origin, normal)
+    }
+
     /// The reading's band: `band` padded by the shift.
     ///
     /// # Errors
@@ -561,46 +607,56 @@ fn bracket(
     pad.is_finite().then_some((q, pad))
 }
 
-/// **The pair's classification before any lane is read**: stage 1,
-/// the hull, and the door's collapsed sides, at every scalar; past
-/// them, the march door's arm ([`section`]).
+/// **The pair's classification before any lane is read**: against a
+/// plane, stage 1, the hull, and the door's collapsed sides, at every
+/// scalar; past them, and for a curved partner from the hull on, the
+/// march door's arm ([`section`]).
 ///
 /// # Errors
 ///
-/// [`SectionError::WrongLane`] for a pair that is not a plane and a
-/// spline; the hull's and the door's; [`SectionError::NoMarch`] for a
-/// pose they do not decide, asked with no `lane`; and [`section`]'s.
+/// [`SectionError::WrongLane`] for a pair that is not an implicit
+/// surface and a spline; the plane's hull's and door's;
+/// [`SectionError::NoMarch`] for a pose they do not decide, asked with no
+/// `lane`; and [`section`]'s.
 pub(super) fn classified<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
     lane: Option<SsiLane<T>>,
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
-    let pose = PlaneSplinePose::served(a, b)?;
-    if pose.hull(band)? == Hull::Apart {
-        return Ok(pose.section(Components::Counted(Vec::new())));
+    let pose = SplineImplicitPose::served(a, b)?;
+    if pose.is_plane() {
+        if pose.hull(band)? == Hull::Apart {
+            return Ok(pose.section(Components::Counted(Vec::new())));
+        }
+        pose.door(band)?;
     }
-    pose.door(band)?;
     let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
     (lane.spline)(pose, band)
 }
 
-/// **The pair's classification past the door, the march door's arm**:
-/// stage 2, the boundary pass ([`crate::PlaneSection`]'s, run once), whose
-/// grazes and side tangencies refuse by name; then stage 3, the
+/// **The pair's classification, the march door's arm**: for a curved
+/// partner, stages 1 to 3 ([`curved`]); for a plane past its door, stage
+/// 2, the boundary pass ([`crate::PlaneSection`]'s, run once), whose
+/// grazes and side tangencies refuse by name, then stage 3, the
 /// regularity sweep ([`sweep`]). Its loop-free verdict is the section:
 /// no component where the pass found no end, else
 /// [`Components::Reaching`] on the sides the pass's crossings and
 /// regions lie on, the pass carried on the pose. Where the sweep
-/// declines, the reading lists the section whole on the same pass.
+/// declines, the plane's reading lists the section whole on the same
+/// pass.
 ///
 /// # Errors
 ///
-/// The pass's refusal and the whole reading's, mapped (module docs).
+/// The pass's refusal and the whole reading's, mapped (module docs), and
+/// [`curved::section`]'s.
 pub(super) fn section(
-    mut pose: PlaneSplinePose<f64>,
+    mut pose: SplineImplicitPose<f64>,
     band: Band,
 ) -> Result<PairSection<f64>, SectionError> {
+    if !pose.is_plane() {
+        return curved::section(pose, band);
+    }
     let pivot = pose.pivot();
     let read_band = pivot.band(band)?;
     let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
@@ -615,9 +671,13 @@ pub(super) fn section(
             .fold(ChartReach::default(), ChartReach::or);
         (reach, std::sync::Arc::new(pass.clone()))
     };
-    if let sweep::Sweep::Declined(_) =
-        sweep::sweep(&reading, &pivot, read_band, pose.domain().extent)
-    {
+    if let sweep::Sweep::Declined(_) = sweep::sweep(
+        reading.boxes(),
+        pivot.phi(),
+        reading.account_floor(),
+        read_band,
+        pose.domain().extent,
+    ) {
         let out = reading.all().map_err(super::whole_reading_refused)?;
         return listed(pose, &pivot, out);
     }
@@ -637,11 +697,20 @@ pub(super) fn section(
 ///
 /// The whole reading's refusal, mapped (module docs), and
 /// [`SectionError::Unaccounted`] for a branch that ends off the wall's
-/// rectangle, which the plane lane's reading never marches.
+/// rectangle, which the plane lane's reading never marches; a curved
+/// partner's whole reading is not built
+/// ([`SectionError::RoutesToGeneralRung`]).
 pub(super) fn whole(
-    pose: &PlaneSplinePose<f64>,
+    pose: &SplineImplicitPose<f64>,
     band: Band,
 ) -> Result<PairSection<f64>, SectionError> {
+    if !pose.is_plane() {
+        return Err(SectionError::RoutesToGeneralRung {
+            pair: "a NURBS wall and a cylinder, sphere or torus",
+            why: "the whole reading over the wall's knot rectangle is not built for a curved \
+                  partner",
+        });
+    }
     let pivot = pose.pivot();
     let read_band = pivot.band(band)?;
     let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
@@ -673,7 +742,7 @@ fn contact_reach(region: &SsiBoundaryContact) -> ChartReach {
 /// [`SectionError::Unaccounted`] for a branch that ends off the wall's
 /// rectangle.
 fn listed(
-    pose: PlaneSplinePose<f64>,
+    pose: SplineImplicitPose<f64>,
     pivot: &Pivot,
     out: crate::ssi::SsiOutcome,
 ) -> Result<PairSection<f64>, SectionError> {
