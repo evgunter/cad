@@ -5636,8 +5636,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "section_id_fault_tag",
         values: &[
-            "count",
-            "not_minted",
             "not_this_lofts",
             "preminted",
             "repeated",

@@ -2273,6 +2273,11 @@ NOT_BOUND = {
     "Select": SHAPE,
     "SelectionCount": SHAPE,
     "SelectionBodyFault": SHAPE,
+    # A saved loft's section ids no door would write: a load's refusal,
+    # crossing as `PersistError.inner_variant` `section_ids` and its
+    # sentence (which carries the regenerate recourse for a file from
+    # before sections were minted); no Python door writes a save's ids.
+    "SectionIdBreak": SHAPE,
     "OutputPort": SHAPE,
     "PortKind": SHAPE,
     # An operand's address and what it admits: Python names a refused

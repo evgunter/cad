@@ -347,7 +347,7 @@ pub use editor_core::{Carry, Piece, Pieces};
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
-    SelectionBodyFault, SnapshotError, load, save,
+    SectionIdBreak, SelectionBodyFault, SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as
