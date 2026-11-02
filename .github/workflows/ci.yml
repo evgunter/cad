@@ -351,9 +351,23 @@ jobs:
             scripts/check-fast-set-times.py --new-since "$BASE" > "$RUNNER_TEMP/new-tests.txt"
           fi
           echo "$(wc -w < "$RUNNER_TEMP/new-tests.txt") identifiers on the diff's added Rust lines"
+      - name: "MEASUREMENT ONLY, removed before merge: variant B (test crates at opt-level 0) on this runner"
+        id: mb
+        run: |
+          lscpu | grep -m1 'Model name'; nproc
+          cp -a target "$RUNNER_TEMP/tb"
+          [ "${{ matrix.shard }}" != kernel ] || cp -a target "$RUNNER_TEMP/tc"
+          printf '#!/usr/bin/env bash\nrustc=$1; shift\ncase " $* " in *" --test "*) exec "$rustc" "$@" -C opt-level=0 ;; esac\nexec "$rustc" "$@"\n' > "$RUNNER_TEMP/opt0.sh"
+          chmod +x "$RUNNER_TEMP/opt0.sh"
+          TIMEFORMAT="MEASURE B_build wall=%R user=%U sys=%S"
+          time (CARGO_TARGET_DIR="$RUNNER_TEMP/tb" RUSTC_WORKSPACE_WRAPPER="$RUNNER_TEMP/opt0.sh" cargo nextest run --no-run --profile ci ${{ matrix.scope }} --timings >/dev/null 2>&1)
+          python3 .github/kba-units.py "$(ls -t $RUNNER_TEMP/tb/cargo-timings/*.html | head -1)" "" 12
       - name: build
         id: build
-        run: cargo nextest run --no-run --profile ci ${{ matrix.scope }}
+        run: |
+          TIMEFORMAT="MEASURE A_build wall=%R user=%U sys=%S"
+          time cargo nextest run --no-run --profile ci ${{ matrix.scope }} --timings
+          python3 .github/kba-units.py "$(ls -t target/cargo-timings/*.html | head -1)" "" 12
       - name: test (default eps; a fast-set test at 0.5 s if new, 1 s otherwise, fails it)
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
@@ -410,6 +424,19 @@ jobs:
             -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass || rc=$?
           scripts/nextest-failures.py "slow set" "$rc"
           exit $rc
+      - name: "MEASUREMENT ONLY, removed before merge: test times A vs B, then variant C (sweep split in 2)"
+        if: '!cancelled()'
+        run: |
+          TIMEFORMAT="MEASURE A_test wall=%R user=%U sys=%S"
+          time (cargo nextest run --profile ci ${{ matrix.scope }} --no-fail-fast 2>&1 | grep -E "Summary|FAIL" | head -5)
+          TIMEFORMAT="MEASURE B_test wall=%R user=%U sys=%S"
+          time (CARGO_TARGET_DIR="$RUNNER_TEMP/tb" RUSTC_WORKSPACE_WRAPPER="$RUNNER_TEMP/opt0.sh" cargo nextest run --profile ci ${{ matrix.scope }} --no-fail-fast 2>&1 | grep -E "Compiling|Summary|FAIL" | head -5)
+          [ "${{ matrix.shard }}" = kernel ] || exit 0
+          python3 .github/kba-split.py crates/sweep 2
+          TIMEFORMAT="MEASURE C_build wall=%R user=%U sys=%S"
+          time (CARGO_TARGET_DIR="$RUNNER_TEMP/tc" cargo nextest run --no-run --profile ci ${{ matrix.scope }} --timings >/dev/null 2>&1)
+          python3 .github/kba-units.py "$(ls -t $RUNNER_TEMP/tc/cargo-timings/*.html | head -1)" "" 12
+          git checkout -- crates/sweep && rm -f crates/sweep/tests/all2.rs
       - name: doc-tests
         if: '!cancelled()'
         run: cargo test --doc ${{ matrix.scope }}
