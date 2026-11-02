@@ -105,7 +105,7 @@ pub fn wall_outward(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, Vec3<f64>)
     wall_outward_at(body, face, 0.5, 0.5)
 }
 
-/// ONE wall's chord: `side_faces[0][0]`, mid-`u`, from `v = 0` to
+/// ONE wall's chord: `side_faces[0][0][0]`, mid-`u`, from `v = 0` to
 /// `v = 1`. The wall is whichever one the builder emitted first, so a
 /// change in emission order moves this vector — and every minimum
 /// measured against it — on a geometrically identical body.
@@ -120,7 +120,7 @@ pub fn wall_outward(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, Vec3<f64>)
 /// that wants the STACK differences [`ring_centroid`] at `v = 0` and
 /// `v = 1`.
 pub fn first_wall_chord(lofted: &Lofted<f64>) -> Vec3<f64> {
-    let first = lofted.side_faces[0][0];
+    let first = lofted.side_faces[0][0][0];
     wall_point_at(&lofted.body, first, 0.5, 1.0) - wall_point_at(&lofted.body, first, 0.5, 0.0)
 }
 
@@ -176,7 +176,7 @@ pub fn assert_walls_face_out(
     assert_probe_step(delta);
     let mut n = 0;
     for (li, walls) in lofted.side_faces.iter().enumerate() {
-        for (si, &fk) in walls.iter().enumerate() {
+        for (si, &fk) in walls.iter().flatten().enumerate() {
             for &(su, sv) in samples {
                 let (p, outward) = wall_outward_at(&lofted.body, fk, su, sv);
                 let (inward_side, outward_side) = probe_sides(oracle, p, outward, delta);
@@ -240,7 +240,7 @@ pub fn assert_caps_face_out(lofted: &Lofted<f64>, oracle: &Oracle<'_>, delta: f6
 pub fn ring_centroid(lofted: &Lofted<f64>, t: f64) -> Point3<f64> {
     let walls = &lofted.side_faces[0];
     let mut acc = Vec3::new(0.0, 0.0, 0.0);
-    for &fk in walls {
+    for &fk in walls.iter().flatten() {
         let p = wall_point_at(&lofted.body, fk, 0.5, t);
         acc = acc + Vec3::new(p.x, p.y, p.z);
     }
@@ -323,7 +323,7 @@ fn level_ring_plane(lofted: &Lofted<f64>, t: f64) -> (Point3<f64>, Vec3<f64>) {
     let walls = &lofted.side_faces[0];
     let per_wall = RING_PLANE_MIN_SAMPLES.div_ceil(walls.len());
     let mut ring: Vec<Point3<f64>> = Vec::with_capacity(walls.len() * per_wall);
-    for &fk in walls {
+    for &fk in walls.iter().flatten() {
         for k in 0..per_wall {
             #[allow(clippy::cast_precision_loss)]
             let su = (k as f64 + 0.5) / per_wall as f64;
@@ -388,7 +388,7 @@ fn level_ring(
     let mut loops = Vec::with_capacity(lofted.side_faces.len());
     for walls in &lofted.side_faces {
         let mut poly = Vec::with_capacity(walls.len() * LEVEL_SAMPLES);
-        for &fk in walls {
+        for &fk in walls.iter().flatten() {
             let run = poly.len();
             for i in 0..LEVEL_SAMPLES {
                 #[allow(clippy::cast_precision_loss)]

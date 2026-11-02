@@ -2,9 +2,8 @@
 id: census-face-pair-confirm-is-a-trial-ladder
 kind: issue
 title: confirm_face_pair tries four readers in turn instead of dispatching the face pair to one
-status: parked
+status: open
 opened: 2026-10-14
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 cost: M
 ---
 
@@ -38,3 +37,5 @@ at-rest findings, which INTENT stages 4 and 5 rebuild. Per RESTREAD's
 plan (a row needing declared pairs or contact parks and moves to
 CONTACTHOLD), it moved here by `git mv` with its id unchanged. Priced
 `M` where it carried no cost. (RESTREAD orchestrator)
+
+**Re-read 2026-10-29 (INTENT, D10 hold):** re-parked on `a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band`. The ladder survives stage 4 unchanged (`crates/topo/src/census.rs:9688-9800`). Its second rung sends an in-band carrier pair to `confirm_patch` as "the declaration the patch door's rung 3 reads" (`:9712`), which is the bridging rung that row is deciding. One pose reading cannot be written until it is known whether that rung stays.

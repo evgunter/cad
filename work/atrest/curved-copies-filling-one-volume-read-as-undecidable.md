@@ -100,3 +100,7 @@ are its subject), and `coincident-curved-copies-overlap-is-unlocalized`.
 ## Re-prioritised (2026-10-27, ATREST orchestrator): P1 → P2
 
 The row's core ask merged (#5853 / #5827). What stays is residue that needs machinery not yet built: exact coincidence or metric rungs for cone, torus and NURBS carriers, a curved inner edge's extremal points, and the in-band and rim-pair readings. Each case stays loud and could-not-look, never a wrong verdict, so it is P2 work rather than a P1 defect.
+
+## 2026-10-29: the ladder carries a cone (SPLITDOOR)
+
+`boolean::carrier_eq` has a cone arm (`splitdoor/curved-copy`). The census's curved same-side arm still takes only what `carrier_eq::exact_curved` names (cylinder, sphere), so coincident cone copies stay as this row describes.

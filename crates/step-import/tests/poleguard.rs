@@ -45,12 +45,12 @@
 //! near-pole feature is inside it. Measured refusals, pinned cell by
 //! cell in `tier_gate.rs`'s `EPS_ROWS`: span escalation where the
 //! span lands in the band, `IntervalNotForward` where it certifies
-//! zero, and — for the 9e-8 twins at 1e-12, where their spans
-//! certify — the pcurve re-mint on the adopted body refusing a chart
-//! image's map residual in the band (the fragment `tier_gate.rs`
-//! pins). The rim/sphere near-tangency refused one level up at
-//! adoption until the wedge between an edge's faces was levered at the
-//! faces' extent (`topo::wedge_reach`); there it certifies.
+//! zero, and — for the 9e-8 twins at 1e-12 — import's reading of
+//! the pole itself, before adoption: the near-pole vertices lie inside
+//! the file's band of the pole (ε_in = 1e-10 m, K·ε_in = 1e-9 m), so
+//! whether the pole is a vertex of the face is a guess, and a chart
+//! singularity in a face is a vertex of it
+//! (`chart_singularity_vertex.rs`).
 //!
 //! # The door enumeration, honest
 //!
@@ -154,30 +154,25 @@ fn a_junction_inside_the_pole_band_cannot_enter_through_the_import_door() {
 /// **The halfcap_eps7 witness, band-shaped** (the corrected en-route
 /// finding, and the in-tree falsifier of the issue's premise): the
 /// one committed file with a non-pole vertex inside a suite band's
-/// reach of an undeclared chart pole. Whether that vertex is a regular
-/// point of its meridian arc is the join's reading, and the import ends
-/// with the join (Ev, PR 4251), so the band decides what ships:
+/// reach of an undeclared chart pole. A chart singularity in a face is
+/// a vertex of it, so whether that vertex IS the pole is import's first
+/// reading (`chart_singularity_vertex.rs`), and the band decides what
+/// ships:
 ///
 /// - At 1e-6 the vertex is identified with the pole, no joinable
 ///   vertex, and the body ships as stated and TESSELLATES WATERTIGHT,
 ///   guard quiet — the identified half the guard deliberately does not
 ///   assert, live in tree.
-/// - At 1e-9 the reading lands in the sliver band, and the import
-///   refuses typed, naming the tolerance that decides it: the file is
-///   finer than the run.
-/// - At 1e-12 the vertex is a regular point, and the import joins it:
-///   the body ships the arc whole, a pole-crossing meridian arc — the
-///   walk's one-azimuth-per-meridian model meeting an arc that lies on
-///   two chart meridians — which shows up in the two places that own
-///   it. `mesh::tessellate` REFUSES the face typed, NAMING the premise
-///   (`UnsupportedCurvedShape` carrying props' `NotOneChartBranch`,
-///   issue 1571); `topo::examine_chart_coherence` REPORTS the arc's
-///   carrier a half-turn from its own endpoint (`MeridianClosure`),
-///   once, at the whole arc's lever arm.
-///
-/// Issue 1571 fixed the arc premise at props; this row owns seeing it
-/// through the door defective coordinates actually arrive at, and it
-/// is the only row in tree that does.
+/// - At 1e-9 the vertex lies in the band of the pole, neither on it nor
+///   off it, and the import refuses typed rather than guess.
+/// - At 1e-12 the vertex is off the pole, so the arc holds the pole
+///   inside it: import splits the arc there and joins the vertex, a
+///   regular point. The body ships the pole as a vertex of two meridian
+///   halves, tessellates watertight, and reports no coherence finding;
+///   the pole-crossing arc the walk's one-azimuth-per-meridian model
+///   refuses (`UnsupportedCurvedShape` carrying props'
+///   `NotOneChartBranch`, issue 1571) no longer arrives through this
+///   door.
 #[test]
 fn the_halfcap_eps7_witness_is_band_shaped() {
     let eps = Tol::witness().get().eps;
@@ -188,12 +183,13 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     let text = std::fs::read_to_string(&p).unwrap();
     let imported = import_step(&text, &ImportOptions::default(), Tol::witness());
     if (0.99e-9..=1.01e-9).contains(&eps) {
-        let Err(e @ step_import::StepImportError::Join { .. }) = imported else {
-            panic!("at eps {eps:e} the join reads in the sliver band and refuses: {imported:?}");
+        let Err(e @ step_import::StepImportError::SingularityUndecided { .. }) = imported else {
+            panic!("at eps {eps:e} the pole's reading lands in the band and refuses: {imported:?}");
         };
         assert!(
-            e.to_string()
-                .contains("if this size is intended, tighten the tolerance below"),
+            e.to_string().ends_with(
+                "if this distance is intended, tighten the tolerance below 1.0000000011961913e-10 m"
+            ),
             "the refusal names the tolerance that decides it: {e}"
         );
         return;
@@ -259,49 +255,28 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
             report.findings
         );
     } else if (0.99e-12..=1.01e-12).contains(&eps) {
+        let kinds: Vec<_> = normalizations.iter().map(|n| n.kind).collect();
         assert_eq!(
-            normalizations
-                .iter()
-                .filter(|n| n.kind == step_import::NormalizationKind::JoinedEdges)
-                .count(),
-            1,
-            "the witness vertex is a regular point at this band, and is joined"
+            kinds,
+            [
+                step_import::NormalizationKind::ChartSingularityVertex {
+                    found: step_import::SingularityFound::InsideEdge,
+                },
+                step_import::NormalizationKind::JoinedEdges,
+            ],
+            "the pole inside the arc is made a vertex, and the witness vertex joined"
         );
         assert!(
-            nearest > 1.1e-9,
-            "the witness vertex is gone; the nearest is {nearest:e} m from the pole"
+            nearest <= 1e-12,
+            "the pole is a vertex; the nearest is {nearest:e} m from it"
         );
-        let err = out.expect_err("the arc premise is not met at this band");
+        let mesh = out.expect("tessellates");
+        mesh::validate::check_mesh(&mesh).expect("watertight");
         assert!(
-            matches!(
-                err,
-                mesh::TessellateError::UnsupportedCurvedShape {
-                    source: geom_brep::props::PropsError::NotOneChartBranch { .. },
-                    ..
-                }
-            ),
-            "a typed refusal naming the premise, not a panic and not a mesh; got {err:?}"
+            report.findings.is_empty(),
+            "no arc crosses the pole, so no half-turn: {:?}",
+            report.findings
         );
-        let kinds: Vec<_> = report.findings.iter().map(|f| f.condition).collect();
-        assert!(
-            matches!(
-                kinds.as_slice(),
-                [topo::CoherenceCondition::MeridianClosure { .. }]
-            ),
-            "the whole arc's carrier sits a half-turn from its own endpoint, read once: {kinds:?}"
-        );
-        for f in &report.findings {
-            assert!(
-                (f.gap - core::f64::consts::PI).abs() < 1e-12,
-                "a half-turn, got {} rad",
-                f.gap
-            );
-            assert!(
-                f.metres >= eps,
-                "every finding clears its own band: {} m over {eps:e}",
-                f.metres
-            );
-        }
     }
     // Other ambient bands: the import and the no-panic assertions
     // above still ran; the walk outcome is unpinned there.

@@ -30,10 +30,10 @@
 //!   derived without the kernel and so is
 //!   [`super::oracles::box_volume`].
 
-use geom_core::{Point2, Tol, Vec2};
+use geom_core::{Decide, Point2, Tol, Vec2};
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop, SketchPlane};
-use sweep::test_support::{block, brick, corners, prism_at, revolved_about_y};
+use sweep::test_support::{block, brick, corners, prism_at, revolved_about_y, revolved_about_y_at};
 use sweep::{ExtrudeSide, Extrusion, Revolution, RevolveAxis};
 use topo::{Body, ShellKey, ShellRole, SolidKey};
 
@@ -44,7 +44,12 @@ use sweep::test_support::finished;
 /// the `y` axis — a solid cylinder of radius `r` and height `h`,
 /// bounded by one cylinder wall and two planar caps. The perf fixture.
 pub fn vessel(r: f64, h: f64) -> Body<f64> {
-    revolved_about_y(
+    vessel_at(r, h)
+}
+
+/// [`vessel`] at any scalar the revolve door takes.
+pub fn vessel_at<T: Decide + topo::AtRestPolicy>(r: f64, h: f64) -> Body<T> {
+    revolved_about_y_at(
         corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)]),
         Revolution::Full,
         Tol::witness(),
@@ -54,7 +59,12 @@ pub fn vessel(r: f64, h: f64) -> Body<f64> {
 /// **The tube**: the annular meridian `[ri, ro] × [0, h]` revolved a
 /// full turn — the curved two-shell shape the STEP gate is recorded on.
 pub fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
-    revolved_about_y(
+    tube_at(ri, ro, h)
+}
+
+/// [`tube`] at any scalar the revolve door takes.
+pub fn tube_at<T: Decide + topo::AtRestPolicy>(ri: f64, ro: f64, h: f64) -> Body<T> {
+    revolved_about_y_at(
         corners(&[(ri, 0.0), (ro, 0.0), (ro, h), (ri, h)]),
         Revolution::Full,
         Tol::witness(),

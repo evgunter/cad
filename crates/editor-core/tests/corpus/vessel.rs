@@ -97,6 +97,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![meridian()],
         ids: Vec::new(),
+        on: None,
     }));
     let pot = r.insert(revolve_about(
         profile,
@@ -177,6 +178,7 @@ pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![capped_meridian()],
         ids: Vec::new(),
+        on: None,
     }));
     let pot = r.insert(revolve_about(
         profile,

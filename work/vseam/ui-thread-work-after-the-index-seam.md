@@ -4,8 +4,9 @@ kind: issue
 title: Three unbounded steps still run inside the frame after the pick index moved off it
 status: open
 opened: 2026-09-05
-priority: P1
-cost: D
+priority: P3
+design: true
+cost: H
 ---
 
 
@@ -265,3 +266,16 @@ One contained redundancy found on the way is filed on its own:
 ## A fourth frame-thread evaluation (AUTHOR, 2026-09-30)
 
 Found by a designer on AUTHOR's boolean-judge fork (#3587). `session::probe` evaluates a candidate document synchronously on the frame thread through `evalseam::evaluate_beside`, once per sample, with a `CancelToken` nothing can set. It is the range probe's other caller of that door. The boolean door is the first, and #3587 would retire it. This row lists three UI-thread hits and not this one. (AUTHOR orchestrator)
+
+## 2026-10-31 — re-banded P1 → P3, re-priced D → H, design open
+
+What is left is not P1's class. Hit (1) is done. Hit (3) is under
+6 ms on 27 of 28 corpus documents. Hit (2), the largest, is measured
+at ~0.7 s per hide or focus change on the worst corpus document at
+δ = 1e-5 and 82 ms at 1e-4 (above). That is a responsiveness cost on
+dense documents. It is not two implementations of one logic, not a
+special case, and not a defect Ev reported. The lever this row's own
+measurement names, an incremental `SceneMesh` instead of a full
+rebuild, has to be decided before anything is built, so `design` is
+set. AUTHOR's fourth hit (the range probe's synchronous evaluation)
+stays on this row.

@@ -620,7 +620,7 @@ macro_rules! wrapped_edge_of {
         match $seg {
             RoleSeg::From { of: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
-            | RoleSeg::Instance { of: n, .. } => Some(n),
+            | RoleSeg::Member { of: n, .. } => Some(n),
             _ => None,
         }
     };
@@ -1213,6 +1213,20 @@ pub enum RoleSeg {
     /// A loft seam: the wall–wall edge through the vertices the skin
     /// paired, one per section, in section order.
     LoftSeam(Vec<ProfileVertexRef>),
+    /// A wall of a loft built one per slab (v-degree 1 through three
+    /// sections or more): the slab, counted from the start section, and
+    /// the pieces the skin paired into it at the slab's two sections.
+    LoftSlabWall(u32, Vec<ProfileEdgeRef>),
+    /// A seam of a loft built one per slab: the slab, and the vertices
+    /// it joins at the slab's two sections.
+    LoftSlabSeam(u32, Vec<ProfileVertexRef>),
+    /// An edge of an interior section's ring, between two slabs' walls:
+    /// the section, counted from the start section, and the piece it
+    /// lies on there.
+    LoftSectionEdge(u32, ProfileEdgeRef),
+    /// A vertex of an interior section: the section, and the profile
+    /// vertex it lies on there.
+    LoftSectionVertex(u32, ProfileVertexRef),
 
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
     /// A wall (band) face swept from a run of profile pieces on one
@@ -1537,16 +1551,22 @@ pub enum RoleSeg {
         hole: u32,
     },
 
-    // ---- Pattern ----
-    /// Instance `i` of the pattern's master (i is the D8-structural
-    /// index — A8/N1; `of` is the master entity's name).
-    Instance {
-        /// The structural instance index.
-        i: u32,
-        /// The master entity this instance copy corresponds to.
+    // ---- Repetition ----
+    /// **A family's member** (D10 `[repetition]`): the entity `of` as
+    /// the member at `at` holds it.
+    Member {
+        /// Each index the family reaches, outermost first, at the
+        /// member's value.
+        at: MemberAt,
+        /// The member's own name of the entity.
         of: NameRef,
     },
 }
+
+/// **Where a member stands in its family** ([`RoleSeg::Member`]): each
+/// index the family reaches, outermost first, by its variable, at the
+/// member's value.
+pub type MemberAt = Vec<(VarId, u32)>;
 
 /// **The band face swept from the profile piece `piece`** on the
 /// revolve at `node` (in a full revolve's wire case, a curved wall's
@@ -1690,7 +1710,7 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Instance { .. } => None,
+        | RoleSeg::Member { .. } => None,
     }
 }
 
@@ -1700,14 +1720,6 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
 /// the input's names come through.
 #[derive(Debug)]
 pub(crate) enum VerbatimEdge<'a> {
-    /// The one body of `of` that `select` names, projected: a
-    /// [`Node::Part`](crate::node::Node::Part).
-    Selected {
-        /// The read of the pattern's copies.
-        of: crate::VarId,
-        /// Which body of it.
-        select: &'a crate::node::PartSelect,
-    },
     /// The entities of the split target the split leaves intact: a
     /// [`Node::Split`](crate::node::Node::Split). Which ones those are
     /// is the geometry's answer, not the recipe's: a walk that holds a
@@ -1756,17 +1768,15 @@ pub(crate) enum VerbatimEdge<'a> {
 ///
 /// What the compiler cannot hold — that this classification agrees
 /// with what the evaluator actually passes through (`eval::wire`'s
-/// `wire_part`, `wire_split`) — is held at runtime by
+/// `wire_split`) — is held at runtime by
 /// `tests/names_verbatim_edge_evaluator.rs`, per edge over an evaluated
-/// corpus: a `Selected` node publishes only names headed by other
-/// nodes, an `Intact` one publishes both kinds, and a `None` node heads
-/// every row itself. Every node kind the corpus can evaluate is sampled
+/// corpus: an `Intact` node publishes both kinds, and a `None` node
+/// heads every row itself. Every node kind the corpus can evaluate is sampled
 /// with rows, except the kinds that publish none at all, which that
 /// suite names and holds at zero.
 pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {
-        Node::Part { of, select } => Some(VerbatimEdge::Selected { of: *of, select }),
         Node::Split { target, .. } => Some(VerbatimEdge::Intact {
             target: target.read,
         }),
@@ -1792,10 +1802,8 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Union { .. }
         | Node::Intersect { .. }
         | Node::Assemble { .. }
-        | Node::Pattern { .. }
         | Node::World
         | Node::Space
-        | Node::PlacedUnion { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -1866,6 +1874,10 @@ macro_rules! locator_seg {
             | $crate::names::RoleSeg::CapVertex(..)
             | $crate::names::RoleSeg::LoftWall(_)
             | $crate::names::RoleSeg::LoftSeam(_)
+            | $crate::names::RoleSeg::LoftSlabWall(..)
+            | $crate::names::RoleSeg::LoftSlabSeam(..)
+            | $crate::names::RoleSeg::LoftSectionEdge(..)
+            | $crate::names::RoleSeg::LoftSectionVertex(..)
             | $crate::names::RoleSeg::Band(_)
             | $crate::names::RoleSeg::BandRim(_)
             | $crate::names::RoleSeg::BandRimPi(_)
@@ -1965,6 +1977,15 @@ pub(crate) trait SegRewrite {
     fn read(&mut self, r: VarId) -> Result<VarId, Self::Error> {
         Ok(r)
     }
+
+    /// An index of a [`RoleSeg::Member`] — a bare variable id the
+    /// member's values are of, which a rewrite of the document's id
+    /// space has to move too; its value is the recipe's, and crosses.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error>;
 }
 
 /// What a rewrite does with a name a segment carries.
@@ -2016,6 +2037,10 @@ impl<'s, W: SegRewrite> Deep<'_, 's, W> {
 
     fn read(&mut self, r: VarId) -> Result<VarId, Stopped<'s, W::Error>> {
         self.w.read(r).map_err(Stopped::Refused)
+    }
+
+    fn index(&mut self, index: VarId) -> Result<VarId, Stopped<'s, W::Error>> {
+        self.w.index(index).map_err(Stopped::Refused)
     }
 }
 
@@ -2154,6 +2179,15 @@ impl RoleSeg {
             R::LoftSeam(vs) => {
                 R::LoftSeam(vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?)
             }
+            R::LoftSlabWall(s, es) => {
+                R::LoftSlabWall(*s, es.iter().map(|e| w.edge(*e)).collect::<Result<_, _>>()?)
+            }
+            R::LoftSlabSeam(s, vs) => R::LoftSlabSeam(
+                *s,
+                vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?,
+            ),
+            R::LoftSectionEdge(s, e) => R::LoftSectionEdge(*s, w.edge(*e)?),
+            R::LoftSectionVertex(s, v) => R::LoftSectionVertex(*s, w.vertex(*v)?),
             R::Band(run) => R::Band(run.try_map(|e| w.edge(e))?),
             R::BandRim(v) => R::BandRim(w.vertex(*v)?),
             R::BandRimPi(v) => R::BandRimPi(w.vertex(*v)?),
@@ -2248,8 +2282,11 @@ impl RoleSeg {
                 of: rewrite_ref(of, w)?,
                 hole: *hole,
             },
-            R::Instance { i, of } => R::Instance {
-                i: *i,
+            R::Member { at, of } => R::Member {
+                at: at
+                    .iter()
+                    .map(|&(index, value)| w.index(index).map(|index| (index, value)))
+                    .collect::<Result<_, _>>()?,
                 of: rewrite_ref(of, w)?,
             },
         })
@@ -2371,6 +2408,11 @@ impl SegRewrite for StepPieces {
     ) -> Result<Option<StableName>, Self::Error> {
         Ok(None)
     }
+
+    /// An index is the document's own: stepping a piece keeps it.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
+    }
 }
 /// The [`RoleSeg`] variants a BOOLEAN emitter never mints, as a
 /// PATTERN rather than a predicate.
@@ -2406,6 +2448,10 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::CapVertex(..)
             | $crate::names::RoleSeg::LoftWall(_)
             | $crate::names::RoleSeg::LoftSeam(_)
+            | $crate::names::RoleSeg::LoftSlabWall(..)
+            | $crate::names::RoleSeg::LoftSlabSeam(..)
+            | $crate::names::RoleSeg::LoftSectionEdge(..)
+            | $crate::names::RoleSeg::LoftSectionVertex(..)
             | $crate::names::RoleSeg::Band(_)
             | $crate::names::RoleSeg::BandRim(_)
             | $crate::names::RoleSeg::BandRimPi(_)
@@ -2437,7 +2483,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::Inner(_)
             | $crate::names::RoleSeg::Rim(_)
             | $crate::names::RoleSeg::HoleRim { .. }
-            | $crate::names::RoleSeg::Instance { .. }
+            | $crate::names::RoleSeg::Member { .. }
     };
 }
 

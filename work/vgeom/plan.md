@@ -39,10 +39,10 @@ FIT's five rows arrived by `git mv`, ids and bodies unchanged:
   patches is reachable (`NodePick::patch_names`, editor-core).
 - two rows parked on the D10 hold (stage 3 D′,
   `a-placement-pins-by-written-values-without-a-mate`):
-  `a-moved-copys-pick-span-crosses-its-frame-unconverted` (P1, E) and
-  `one-failed-root-refuses-the-whole-pick-index` (P2, M, design).
-  Re-read both against the walk D′ leaves once it lands; each body says
-  what to check.
+  `a-moved-copys-pick-span-crosses-its-frame-unconverted` (P1, E).
+  Re-read it against the walk D′ leaves once it lands; its body says
+  what to check. (Its sibling `one-failed-root-refuses-the-whole-pick-index`
+  went to CHROME on 2026-11-01, claimed by the P0 that carries it.)
 
 FIT's review tiers carry over for its rows: a full review for a change
 that moves a type or a frame order or adds a certified door, a style

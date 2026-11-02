@@ -16,7 +16,7 @@ deviation for every face of the body. A body whose faces span radii
 pays its smallest feature's budget on its largest faces.
 
 The tour now states a per-body delta (`SceneBody::finer`,
-`demos/tour/src/main.rs`; `work/show/a-tour-scene-meshes-every-body-at-one-delta.md`),
+`demos/tour/src/lib.rs`; `work/show/a-tour-scene-meshes-every-body-at-one-delta.md`),
 which is the most a caller can do through this door.
 `tiltedcut/tiltedcut_above` (`demos/tour/src/curvedcut.rs`) is the case
 that is left: the engraved glyphs' inner arcs (radius 0.1 to 0.15) want

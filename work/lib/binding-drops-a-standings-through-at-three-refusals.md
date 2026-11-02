@@ -24,7 +24,7 @@ message:
 - `SelectRefusal`'s `node_has_no_value` (the same function, the
   `R::NodeHasNoValue` arm, new in the fix pass: the flush query refuses
   a node with no value) sets neither the node nor `through`.
-- `ChecksError`'s `root_without_value` (`py/checks.rs`, `checks_err`)
+- `ChecksError`'s `placement_without_value` (`py/checks.rs`, `checks_err`)
   sets `node` and no `through`.
 
 Adding an attribute to a Python class is this program's surface call,

@@ -120,7 +120,7 @@ re-derive, and that a `subject()` on the enum would state once:
    which is what a saved document commits when its stored ε is read
    back through `Tolerance::init_document_eps`. That is the user path
    the badging complaint
-   (`work/chrome/band-refusal-still-badges-every-row.md`) sits on, and
+   (`work/placing/band-refusal-still-badges-every-row.md`) sits on, and
    it is worth stating on the enum rather than rediscovered per
    consumer.
 
@@ -148,7 +148,7 @@ next steps, and whoever takes the row picks one:
   asymmetry there, so it has one home instead of two comments.
 
 Either way the `Band` half is CHROME's to badge and MSOLVE's to
-describe; `work/chrome/band-refusal-still-badges-every-row.md` is the
+describe; `work/placing/band-refusal-still-badges-every-row.md` is the
 badging half and does not wait on this row.
 
 ## Closed (2026-09-19, PR 2896)

@@ -2,10 +2,12 @@
 id: the-volume-backstops-plus-v-posture-reads-a-sign-the-side-reader-cannot
 kind: issue
 title: The volume backstop's vol(R) ≥ 0 posture reads tier 3's +V sign off a summed volume, which the side-at-infinity reader cannot answer
-status: open
+status: closed
 opened: 2026-10-14
 priority: P3
 cost: E
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -42,3 +44,7 @@ every solid of the result through the reader at the door
 (`finished_body_refusal`). If they do, the posture should read its sign
 under its own name (`volume_backstop_*`) and not through
 `validate::plus_v_read`, so that check 7's words have one reader.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. The +V posture went with it, and `validate::plus_v_read` and `props::read_role`, its only readers, are deleted; every volume-sign-to-role read goes through `props::role_walk`.

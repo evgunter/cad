@@ -547,7 +547,11 @@ fn the_seams_traffic_is_send() {
 fn index_request(session: &DocSession, generation: Generation) -> IndexRequest {
     let (doc, _) = session.landed_pair().expect("a landed pair");
     IndexRequest {
-        key: PictureKey::of(generation, common::plate_delta()),
+        key: PictureKey::of(
+            generation,
+            common::plate_delta(),
+            viewer::world::Shown::none(),
+        ),
         doc: doc.clone(),
         evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
         tol: session.tol(),
@@ -571,14 +575,25 @@ fn the_index_seam_answers_with_the_key_it_was_asked_with() {
     assert!(seam.busy(), "asked, and not yet answered");
     let done = seam.poll().expect("the inline seam answers inside poll");
     assert!(!seam.busy());
-    assert_eq!(done.key, PictureKey::of(generation, common::plate_delta()));
+    assert_eq!(
+        done.key,
+        PictureKey::of(
+            generation,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        )
+    );
     let index = done.index.expect("the plate indexes");
     assert_eq!(
         index.generation(),
         generation,
         "the index is stamped with the generation the answer is filed under",
     );
-    assert!(index.current_for(Some(PictureKey::of(generation, common::plate_delta()))));
+    assert!(index.current_for(Some(PictureKey::of(
+        generation,
+        common::plate_delta(),
+        viewer::world::Shown::none()
+    ))));
     assert!(seam.poll().is_none(), "and there is nothing else to take");
 }
 
@@ -648,19 +663,20 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
     });
     broken.pump();
     // **The premise, asserted where it is used.** The discrimination
-    // below is `Ok` against `Err`, so a broken document that started
-    // indexing cleanly would leave the row passing in both directions
-    // instead of going red. It is checked here rather than inherited
-    // from a row in another file.
+    // below is a whole picture against one holding an undrawn copy, so
+    // a broken document that drew its copy would leave the row passing
+    // in both directions instead of going red. It is checked here rather
+    // than inherited from a row in another file.
     let mut probe = InlineIndexer::new();
     probe.submit(index_request(&broken, generation));
+    let broken_index = probe
+        .poll()
+        .expect("the inline seam answers inside poll")
+        .index
+        .expect("a failed copy does not refuse the index");
     assert!(
-        probe
-            .poll()
-            .expect("the inline seam answers inside poll")
-            .index
-            .is_err(),
-        "a zero-distance extrude must refuse to index, or this row \
+        !broken_index.undrawn().is_empty(),
+        "a zero-distance extrude must leave its copy undrawn, or this row \
          measures nothing",
     );
 
@@ -673,6 +689,7 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
     other.key = PictureKey::of(
         generation,
         common::plate_delta().scaled(2.0).expect("a positive delta"),
+        viewer::world::Shown::none(),
     );
     seam.submit(other);
     seam.submit(index_request(&broken, generation));
@@ -682,10 +699,17 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
     assert_eq!(results.len(), 1, "one answer for one picture");
     assert_eq!(
         results[0].key,
-        PictureKey::of(generation, common::plate_delta())
+        PictureKey::of(
+            generation,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        )
     );
     assert!(
-        results[0].index.is_ok(),
+        results[0]
+            .index
+            .as_ref()
+            .is_ok_and(|index| index.undrawn().is_empty()),
         "the answer in hand was kept, not thrown away and rebuilt",
     );
 }

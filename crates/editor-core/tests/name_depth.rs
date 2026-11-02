@@ -2,7 +2,8 @@
 //! smallest stack a door runs on.**
 //!
 //! A name nests one whole name per derivation level: a chain of K
-//! patterns, each over the one before, names its faces K levels deep.
+//! unions, each of the one before alone, names its faces K levels deep,
+//! each level carrying its member's name in through its read.
 //! Every door that holds such a name — evaluation and the drop of its
 //! result, a name's `Debug`, the edit door, the split's re-map, save,
 //! load and the content pin — runs here on a thread whose stack is the
@@ -14,17 +15,17 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, DocEdit, EntityKind, EvalOptions, MetaValue, Node, PatternKind, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName, all_faces, canonical_bytes, content_pin, load,
+    CapEnd, DocEdit, EntityKind, EvalOptions, MetaValue, Node, PersistError, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, VarId, all_faces, canonical_bytes, content_pin, load,
     remap_name, save,
 };
-use fixture::{in_copy, insert, len, on_frame, run, square};
+use fixture::{in_member, insert, len, on_frame, run, square};
 use geom_core::Tol;
 use test_utils::own_thread::on_the_smallest_stack;
 
-/// A square extrude, then `k` patterns each over the one before, one
-/// copy each: the top pattern names its faces `k` levels deep. Returns
-/// the document, the extrude and the patterns in order.
+/// A square extrude, then `k` unions each of the one before alone: the
+/// top union names its faces `k` levels deep. Returns the document, the
+/// extrude and the unions in order.
 fn chain(label: &str, k: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
     let (doc, profile) = on_frame(
@@ -41,75 +42,70 @@ fn chain(label: &str, k: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>)
             distance: len(1.0),
         },
     );
-    let mut patterns = Vec::with_capacity(k);
+    let mut unions = Vec::with_capacity(k);
     let mut input = extrude;
     for _ in 0..k {
-        let (next, pattern) = insert(
+        let (next, union) = insert(
             doc,
-            Node::Pattern {
-                input: input.into(),
-                count: editor_core::Formula::count(1),
-                kind: PatternKind::Linear {
-                    direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
-                    spacing: len(2.0),
-                },
+            Node::Union {
+                members: editor_core::Bodies::Spelled(vec![input.into()]),
             },
         );
         doc = next;
-        patterns.push(pattern);
-        input = pattern;
+        unions.push(union);
+        input = union;
     }
-    (doc, extrude, patterns)
+    (doc, extrude, unions)
 }
 
 /// Past the depth a recursive `Debug` of one name reached on this
 /// stack in a dev build (about 700 levels), and far past the reader's
 /// recursion limit a saved name had to fit (41 levels for a bare name).
-const PATTERNS: usize = 1_000;
+const LEVELS: usize = 1_000;
 
 /// One chain, through every door that holds its names: evaluated, a
 /// name printed, the evaluation dropped; then a fillet authoring the
 /// deepest edge name through the edit door, and the document saved,
 /// loaded, re-saved and pinned.
 #[test]
-fn a_chain_of_patterns_names_past_every_stack_through_every_door_on_the_smallest_stack() {
+fn a_chain_of_unions_names_past_every_stack_through_every_door_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
         let tol = Tol::witness();
-        let (doc, extrude, patterns) = chain("name-depth", PATTERNS);
-        let top = *patterns.last().expect("a pattern");
+        let (doc, extrude, unions) = chain("name-depth", LEVELS);
+        let top = *unions.last().expect("a union");
         let ev = run(&doc, &EvalOptions::default());
         let faces = all_faces(&ev, top);
-        assert_eq!(
-            faces.len(),
-            6,
-            "the top pattern's one copy has a block's faces"
-        );
+        assert_eq!(faces.len(), 6, "the top union's body is a block's");
         let shown = format!("{:?}", faces[0]);
         assert_eq!(
-            shown.matches("Instance").count(),
-            PATTERNS,
-            "the name nests one copy per pattern, and Debug renders each"
+            shown.matches("From").count(),
+            LEVELS,
+            "the name nests one read per union, and Debug renders each"
         );
         drop(faces);
         drop(ev);
-        // An edge of the top copy, named through every pattern: the
+        // An edge of the top union, named through every union: the
         // name a pick on it would author.
         let rim = fixture::rim_edge(
             extrude,
             editor_core::CapEnd::End,
             fixture::piece(&doc, extrude, 0, 0),
         );
-        let deep = patterns.iter().fold(rim, |n, &p| in_copy(p, 0, n));
-        // Through the edit door, at the top pattern's one copy: a
-        // fillet reads one body, and a pattern's value is a list.
-        let (doc, copy) = insert(
-            doc,
-            Node::Part {
-                of: top.into(),
-                select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
-            },
-        );
-        let (doc, _) = insert(doc, Node::fillet(copy, len(0.1), vec![deep.clone()]));
+        let mut member = extrude;
+        let mut deep = rim;
+        for &union in &unions {
+            deep = StableName {
+                kind: deep.kind,
+                node: union,
+                path: vec![RoleSeg::From {
+                    read: fixture::out(&doc, member),
+                    of: deep.into(),
+                }],
+            };
+            member = union;
+        }
+        // Through the edit door, at the top union's body.
+        let (doc, _) = insert(doc, Node::fillet(top, len(0.1), vec![deep.clone()]));
         let text = save(&doc, &[], tol).expect("the document saves");
         let loaded = load(&text, tol).expect("and loads back");
         assert_eq!(loaded.doc, doc, "the loaded document is the saved one");
@@ -137,21 +133,23 @@ fn a_split_remaps_a_name_past_every_stack_on_the_smallest_stack() {
             node: RecipeNodeId::new(0, 1),
             path: vec![editor_core::RoleSeg::Cap(editor_core::CapEnd::End)],
         };
+        let (k, moved_k) = (VarId::new(0, 7), VarId::new(0, 107));
         let name = (0..depth).fold(leaf, |n, level| {
-            in_copy(RecipeNodeId::new(0, 2 + level % 3), 0, n)
+            in_member(RecipeNodeId::new(0, 2 + level % 3), vec![(k, 0)], n)
         });
         let map = (1..=4)
             .map(|n| (RecipeNodeId::new(0, n), RecipeNodeId::new(0, n + 100)))
             .collect();
-        let moved = remap_name(&name, &map, &Default::default(), &Default::default())
-            .expect("every id is mapped");
+        let indices = [(k, moved_k)].into_iter().collect();
+        let moved =
+            remap_name(&name, &map, &Default::default(), &indices).expect("every id is mapped");
         let expect = (0..depth).fold(
             StableName {
                 kind: editor_core::EntityKind::Face,
                 node: RecipeNodeId::new(0, 101),
                 path: vec![editor_core::RoleSeg::Cap(editor_core::CapEnd::End)],
             },
-            |n, level| in_copy(RecipeNodeId::new(0, 102 + level % 3), 0, n),
+            |n, level| in_member(RecipeNodeId::new(0, 102 + level % 3), vec![(moved_k, 0)], n),
         );
         assert!(
             moved == expect,
@@ -187,21 +185,21 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId, StableName, StableName) {
     (doc, extrude, rim, cap)
 }
 
-/// `name` under `levels` pattern instances, as the top of a chain of
-/// patterns that long names what its bottom one copies.
+/// `name` under `levels` `Member` qualifiers, one family's member
+/// wrapped in another's.
 fn in_parts(name: StableName, levels: usize) -> StableName {
     (0..levels).fold(name, |of, _| StableName {
         kind: of.kind,
         node: of.node,
-        path: vec![RoleSeg::Instance {
-            i: 0,
+        path: vec![RoleSeg::Member {
+            at: vec![(VarId::new(0, 9), 0)],
             of: of.into(),
         }],
     })
 }
 
 /// The block with a fillet over its rim edge and a metadata record on
-/// its cap, each name `levels` pattern instances deep, through the edit
+/// its cap, each name `levels` member qualifiers deep, through the edit
 /// door; saved, and the saved text loaded back.
 fn names_in_parts(levels: usize) -> (ProfileDoc, String) {
     let tol = Tol::witness();
@@ -228,12 +226,11 @@ fn names_in_parts(levels: usize) -> (ProfileDoc, String) {
 /// **Names nested past the load door's limit save and load, on the
 /// smallest stack, and the file stays linear in their depth**: a
 /// fillet's edge and a metadata record's face each named 1 024
-/// pattern instances deep, as a chain of patterns names what its
-/// bottom one copies, round-trip through save and load, byte for byte and pin
+/// member qualifiers deep round-trip through save and load, byte for byte and pin
 /// for pin. Twice as deep writes a file under twice as long: the pretty
 /// layout stops indenting where only a name nests.
 #[test]
-fn names_a_thousand_pattern_instances_deep_save_and_load_on_the_smallest_stack() {
+fn names_a_thousand_member_qualifiers_deep_save_and_load_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
         let tol = Tol::witness();
         let (doc, text) = names_in_parts(1_024);
@@ -291,8 +288,8 @@ fn holding<'v>(
 }
 
 /// **What nests outside a name is bounded as before, whatever keys sit
-/// beside it**: a pattern's count, which sits beside the pattern's
-/// `kind`; a metadata value under a user's `"kind"` key; and a metadata
+/// beside it**: an index's count, which sits beside its `within`; a
+/// metadata value under a user's `"kind"` key; and a metadata
 /// object spelled like a name, its `"path"` an array. Each nested past
 /// the load door's limit is refused by the scan, on the smallest stack,
 /// before a reader descends into it.
@@ -300,17 +297,9 @@ fn holding<'v>(
 fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_it() {
     let tol = Tol::witness();
     let (doc, extrude, _, cap) = block("outside-names");
-    let (doc, _) = insert(
-        doc,
-        Node::Pattern {
-            input: extrude.into(),
-            count: editor_core::Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
+    let (doc, k, _) = crate::fixture::linear(doc, extrude, [1.0, 0.0, 0.0], 2.0, 2);
+    // An index within `k`, so a saved count sits beside a `within`.
+    let (doc, _) = crate::fixture::index_of(doc, "j", editor_core::Formula::count(2), Some(k));
     let read = crate::fixture::painted_in(&doc, &cap);
     let (doc, _) = fixture::step(
         doc,
@@ -344,11 +333,11 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
     let array = |v| serde_json::json!([v]);
     let cases = [
         (
-            "a pattern's count beside its kind",
+            "an index's count beside its within",
             edited(&|v| {
-                let pattern = holding(v, &["count"]).expect("the pattern's fields");
-                let count = pattern.remove("count").expect("a count");
-                pattern.insert("count".to_owned(), nested(count, past, neg));
+                let index = holding(v, &["count", "within"]).expect("the index's fields");
+                let count = index.remove("count").expect("a count");
+                index.insert("count".to_owned(), nested(count, past, neg));
             }),
         ),
         (
@@ -387,7 +376,7 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
 
 /// **A malformed name nested deep in a document refuses where it is
 /// written**, in the words the derived form gives there: a misspelled
-/// variant at the bottom of a name 1 024 pattern instances deep, and an
+/// variant at the bottom of a name 1 024 member qualifiers deep, and an
 /// unknown field in a name nested a few levels down, each at its own
 /// line and column of the body.
 #[test]
@@ -423,10 +412,10 @@ fn a_malformed_name_nested_deep_in_a_document_refuses_where_it_is_written() {
             }
             other => panic!("{levels} deep: unreadable, got {other:?}"),
         }
-        let bad = text.replacen("\"Instance\": {", "\"Instance\": {\n\"x\": 0,", 2);
+        let bad = text.replacen("\"Member\": {", "\"Member\": {\n\"x\": 0,", 2);
         let refused = load(&bad, Tol::witness()).err();
         assert!(
-            matches!(&refused, Some(PersistError::Unreadable { detail, .. }) if detail.starts_with("unknown field `x`, expected `i` or `of`")),
+            matches!(&refused, Some(PersistError::Unreadable { detail, .. }) if detail.starts_with("unknown field `x`, expected `at` or `of`")),
             "{levels} deep: an unknown field in a nested segment, got {refused:?}"
         );
     }

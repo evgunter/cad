@@ -167,6 +167,40 @@ fn a_two_level_rim_row_from_the_certifying_doors_reports_its_gap() {
     );
 }
 
+/// **The rim-only cap the Euler doors state is no face of this kernel**:
+/// each of its two faces holds a pole inside it, so tier 3 names the
+/// north pole in one and the south in the other.
+#[test]
+fn tier_3_refuses_each_rim_only_cap_for_the_pole_inside_it() {
+    use geom_brep::chart_singularity::Singularity;
+    let tol = Tol::witness();
+    let body = two_level_rim_cap(1.5 * tol.eps() / RS).unwrap();
+    let errors = topo::validate_geometric(&body, tol).unwrap_err();
+    let mut named: Vec<(topo::FaceKey, Singularity)> = errors
+        .iter()
+        .filter_map(|e| match e {
+            topo::ValidationError::ChartSingularityNotAVertex {
+                face,
+                point,
+                lies: topo::SingularityLies::Interior,
+            } => Some((*face, *point)),
+            _ => None,
+        })
+        .collect();
+    named.sort_by_key(|&(_, p)| p == Singularity::South);
+    let faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
+    assert_eq!(named.len(), 2, "one pole per face: {errors:?}");
+    assert_eq!(
+        (named[0].1, named[1].1),
+        (Singularity::North, Singularity::South),
+        "{errors:?}"
+    );
+    assert!(
+        named[0].0 != named[1].0 && named.iter().all(|(f, _)| faces.contains(f)),
+        "each face holds its own pole: {errors:?}"
+    );
+}
+
 /// **The re-mint admits the gaps the examination reports — the record,
 /// pinned on one body with no file.** `topo::mint_pcurves` is the gate
 /// `import_step` re-mints through, and it no longer decides the

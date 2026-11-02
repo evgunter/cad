@@ -50,3 +50,15 @@ Neither mentions the other.
 program; `blend.rs` by AUTHOR, CHROME and VSEAM. The sentences are
 held-pick news, this program's vocabulary since PR 3281, which is why
 the row is filed here.
+
+## After `doors/face-words` (PR 6262, 2026-11-01)
+
+- The panels' held-picks line and the add-profile form's latch rows now
+  share one empty spelling, `seats::NONE_PICKED` (`none picked`). It
+  covers an open seat (formerly `—`), a line holding nothing (formerly
+  `no picks yet`), and an empty latch row.
+- Still left: the blend panel's `no edges picked yet`, and
+  `SeatError::Empty`'s refusal, which name what is missing.
+- The face pick's second spelling is gone. A face or edge pick is said
+  through `tree::PickedName`, and a drawn body through `tree::DrawnBody`
+  (`BlendTarget` is folded into it).

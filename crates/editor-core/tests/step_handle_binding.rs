@@ -77,6 +77,7 @@ fn placed_twice(loop_: &LoopProgram<Formula>) -> (ProfileDoc, RecipeNodeId, Reci
             Node::Profile(ProfileProgram {
                 loops: vec![loop_.clone()],
                 ids: Vec::new(),
+                on: None,
             }),
         )
     };
@@ -209,6 +210,7 @@ fn a_piece_door_refuses_a_role_its_verb_never_draws() {
     let free = ProfileProgram {
         loops: p.loops.clone(),
         ids: Vec::new(),
+        on: None,
     };
     assert_eq!(free.step(0, &a.top), Err(StepHandleRefusal::Unminted));
 }

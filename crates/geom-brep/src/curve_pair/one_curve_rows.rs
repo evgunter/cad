@@ -71,7 +71,7 @@ fn two_sections_read_coplanar_in_band_are_one_curve_only_where_they_are() {
             let got = met(x, y, b);
             let fault = got.as_ref().err().map(|r| r.fault);
             let two = matches!(fault, Some(MeetFault::Unsettled(_)));
-            let escalated = matches!(fault, Some(MeetFault::Escalated(_)));
+            let escalated = matches!(fault, Some(MeetFault::Escalated(_) | MeetFault::Touch(_)));
             assert!(
                 two || escalated,
                 "k = {k}, {order}: two crossing sections are not one curve: {got:?}"

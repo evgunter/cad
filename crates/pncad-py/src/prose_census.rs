@@ -1720,6 +1720,23 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[];
 /// `work/fix/prose-census-undecided-residue.md`. A disclosed list with
 /// no schedule is a record of work done rather than an open thread.
 const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
+    // Pinned red, not yet a reason: SelectionRefusal's face arm
+    // (`work/clear/main-red-prose-census-cannot-decide-the-selection-refusal-face-arm.md`).
+    (
+        "crates/editor-core/src/clearance.rs",
+        "SelectionRefusal",
+        POSITIONAL,
+        1,
+        "a positional `{}` over `c.body`, an expression this census does not type",
+    ),
+    (
+        "crates/editor-core/src/clearance.rs",
+        "SelectionRefusal",
+        "k",
+        1,
+        "`k` is bound by `Some(k)` in a `match` on `c.key.face()`, a method \
+         call's result this census does not type",
+    ),
     (
         "crates/editor-core/src/names/emit.rs",
         "NamingError",
@@ -1734,6 +1751,18 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "`profile::Verb` resolves to its declaration in a `macro_rules!` body, \
          which the shared lexer does not expand, so its shape is unreadable",
+    ),
+    // Pinned red, not yet a reason: CertifyError's two `check` reads
+    // (`work/splice/main-red-prose-census-cannot-decide-certify-errors-check.md`).
+    (
+        "crates/geom-brep/src/certify.rs",
+        "CertifyError",
+        "check",
+        2,
+        "the binding is introduced by a pattern NESTED inside the field pattern \
+         this census reads — `refusal: RowRefusal::Image(Some(check))` and \
+         `refusal: RowRefusal::ImageEscalated { check, cause }` — so no declared \
+         type reaches it",
     ),
     (
         "crates/geom-brep/src/nurbs_iso.rs",
@@ -1781,6 +1810,26 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "the binding is a closure parameter — `errors.iter().map(|e| ..)` — not a \
          match binding, and this census types patterns and fields",
+    ),
+    // Pinned red, not yet a reason: the glue record's surface pair
+    // (`work/contacthold/main-red-prose-census-cannot-decide-the-glue-record-broken-surfaces.md`).
+    (
+        "crates/topo/src/merge_faces.rs",
+        "MergeCoplanarError",
+        "a",
+        1,
+        "the binding is introduced by a tuple pattern NESTED inside the field \
+         pattern this census reads — `surfaces: (a, b)` — so no declared type \
+         reaches it",
+    ),
+    (
+        "crates/topo/src/merge_faces.rs",
+        "MergeCoplanarError",
+        "b",
+        1,
+        "the binding is introduced by a tuple pattern NESTED inside the field \
+         pattern this census reads — `surfaces: (a, b)` — so no declared type \
+         reaches it",
     ),
     (
         "crates/topo/src/offset_derive.rs",

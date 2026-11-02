@@ -21,13 +21,13 @@ for `topo::BooleanError`: the feature-tree census samples only its
 its `forward` (`crates/editor-core/tests/refusal_concision_chains.rs:1185`, `UNWELDED_BOOLEAN`) cites this row for `NodeErrorKind::Boolean`. The list
 renders "every arm whose prose the concision pass wrote", by hand: a
 scripted comparison of its constructors against the enum finds 37 of
-76 arms, so 39 never render through the budget there — `Band`,
+75 arms, so 38 never render through the budget there — `Band`,
 `CrossingAtConeApex`, `NormalAtConeApex`, `UnjoinedOperand`,
 `PoisonedCarrierDatum`, `DeclarationContradicted`,
 `ContactContradicted`, `ContinuationContradicted`,
 `UnsupportedDeclarationClass`, `InvalidInput`, `PairingMismatch`,
 `ClassificationInvariant`, `CrossingInsertion`, `Euler`, `Pcurves`,
-`Join`, `JoinUndecided`, `JoinCarrierUnsupported`, `RestPieceUnread`,
+`Join`, `JoinUndecided`, `JoinCarrierUnsupported`,
 `CarryRefused`, `JoinDesync`, `SplitLineage`, `LineageRow`,
 `EdgeUndescribed`, `MixedSeam`, `TornComponent`, `SeamOrientation`,
 `ZipCorrespondence`, `Merge`, `ResultInvalid`,
@@ -50,3 +50,7 @@ the list's rows, as `every_forwarded_arm_has_a_row` does; then a row
 per arm the roster turns up, or a named reason. When it lands, move
 `NodeErrorKind::Boolean` in the chains census's `forward` off
 `Unwelded(UNWELDED_BOOLEAN)`.
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. Four of the arms it lists are gone with the enum's variants; the hand-kept list is still this row's.

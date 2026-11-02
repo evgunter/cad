@@ -771,6 +771,24 @@ impl<T: SpanLocate> RigidMotion<T> {
     }
 }
 
+impl RigidMotion<f64> {
+    /// **This motion entered at `T` as the computed values it is**:
+    /// every component through [`Real::from_computed`]. The crossing
+    /// changes no component's value, so the axes stay witnesses; at an
+    /// enclosure scalar each component is the point it was. The
+    /// crossing the other way is [`RigidMotion::point_value`].
+    #[must_use]
+    pub fn computed_at<T: Real>(self) -> RigidMotion<T> {
+        let axis = |a: UnitVec3<f64>| UnitVec3::by_construction(a.get().map(T::from_computed));
+        RigidMotion {
+            origin: self.origin.map(T::from_computed),
+            u: axis(self.u),
+            v: axis(self.v),
+            w: axis(self.w),
+        }
+    }
+}
+
 impl<T: Decide> RigidMotion<T> {
     /// **The decided door**: a raw [`Affine3`] admitted as a rigid
     /// motion when every rigidity margin classifies `Zero` against the

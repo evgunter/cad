@@ -27,7 +27,7 @@ gathered across M2's full pipeline.
   (predicate, margin, band, outcome) with decisions bit-identical to
   f64. That premise is checked, not argued:
   `crates/editor-core/tests/m4_pr8_k_probe.rs`'s
-  `probe_agrees_with_f64_bit_for_bit_over_the_corpus` evaluates the
+  `probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits` evaluates the
   registered corpus at `Probe` and at `f64` and compares them bit for
   bit (value channel, mass properties, content keys, name tables,
   verdict and escalation logs), once per ε row `scripts/k_probe_sweep.sh`
@@ -925,6 +925,29 @@ Dimensions and dispositions: `docs/predicate-dimension-audit.md`'s
 still decides under `point_in_loop_*`, so the polygon population is
 unchanged by this walk.
 
+**Roster change (ONEREAD): the boolean reads the other operand through
+one cone.** The boolean's vertex-vertex rows read each own edge through
+one cone of the other operand gathered at the vertex's point
+(`topo::link::Cone::gathered`, `boolean::vtxfac::cone_classes`), so the
+link's readings take names of the link rather than the census's
+(every `census_touch_*` row still read), and its four cone readings are
+now sampled by both readers. The boolean's own cone
+reader retires with its names: `bool_cone_arc`, `bool_cone_arc_span`,
+`bool_cone_within`, `bool_cone_facing`, `bool_cone_apart`,
+`bool_cone_pointed` and `bool_corner_one_plane` (`sectors.rs`), and the
+layering of partners' cones, `bool_partner_half_plane` and
+`bool_partner_glued_side` (`vtxfac.rs`); their samples end there.
+
+| name | carrier | what it is |
+|---|---|---|
+| `link_plane` | a named `const` (`LINK_PLANE`) | renamed from `census_touch_plane`; pools with it |
+| `link_wedge` | a named `const` (`LINK_WEDGE`) | renamed from `census_touch_wedge`; pools with it |
+| `link_ahead` | a named `const` (`LINK_AHEAD`) | renamed from `census_touch_ahead`; pools with it |
+| `link_arc` | a named `const` (`LINK_ARC`) | renamed from `census_touch_arc`; pools with it |
+| `link_piece_reach` | a named `const` (`LINK_PIECE_REACH`) | renamed from `census_touch_piece_reach`; pools with it |
+| `link_piece_meet` | a named `const` (`LINK_PIECE_MEET`) | renamed from `census_touch_piece_meet`; pools with it |
+| `link_normal` | a named `const` (`LINK_NORMAL`), passed to `geom_brep::classify_material_pairing_as` | renamed from `census_touch_normal`; pools with it |
+
 **Roster change (RESTREAD link reading): the census's touch analysis
 reads two links.** The touch analysis no longer certifies a plane or a
 complement; it reads each solid's whole link at the touch point and
@@ -1104,9 +1127,9 @@ for its boundary pre-pass:
 
 | name | carrier |
 |---|---|
-| `bool_torus_region_component` | a bare literal: which of a plane's two curves a root lies on, in metres (a meridian plane's `(y − c)·ρ̂`, a parallel plane's `ρ − R` against the edge's decided side, a circle's distance from its mirror and from itself, an oval's `(y − c)·m`); and whether an edge in a leg's plane is on the leg's own circle (a meridian's centre against the leg's `ρ̂`, a parallel's radius less the leg's) |
+| `bool_torus_region_component` | a bare literal: which of a plane's two curves a root lies on, in metres (a meridian plane's `(y − c)·ρ̂`, a circle's distance from its mirror and from itself, an oval's `(y − c)·m`); and whether an edge in a leg's plane is on the leg's own circle (a meridian's centre against the leg's `ρ̂`, a parallel's radius less the leg's) |
 | `bool_torus_region_family` | a bare literal: whether a circle edge is a parallel (the sine between its axis and the torus's, at its radius) off the top and bottom circles (`ρ − R`, metres): a class selection between two readings, each sound |
-| `bool_torus_region_span` | a bare literal: a root's parameter against its edge's span ends, at the circle's radius or the tube's |
+| `bool_torus_region_span` | a bare literal: a crossing's parameter against its edge's span ends, at the circle's radius or the tube's; where that is in band, the cosine of its angle from the span's middle against the half-span's, at the same lever |
 | `bool_torus_region_at` | a bare literal: a crossing's place along its leg from the leg's start, at the leg's radius |
 | `bool_torus_region_corner` | a bare literal: a first leg's crossing, or an end of an edge on its circle, against its corner |
 | `bool_torus_region_order` | a bare literal: two crossings' places along the path |
@@ -1649,7 +1672,7 @@ cc_axes_coplanar  cc_axes_parallel  cc_coaxial
 cc_declared_radius_equality  cc_parallel_gap  pc_parallel_gap
 pn_apex_on_plane  pn_apex_section  pn_axis_normal
 nurbs_span_meter  fillet3_chain_arm  fillet3_chain_g1
-split_conic_departure  split_conic_inplane_mid
+split_conic_inplane_mid
 split_tangent_chord_forward
 tangent_sector_order2  tangent_sector_order2_arm
 tangent_sector_osculation
@@ -3371,3 +3394,24 @@ are `docs/predicate-dimension-audit.md`'s rows of the same names. They
 are asked by the clearance sweep per (window, cell), so their
 populations are the sweep's cells times each face's features; they
 pool with nothing, and with each other not at all.
+
+## CARVE addendum (2026-10-31): the sweep frame is carried station to station
+
+The path sweep's carry is computed once in `f64` from the path and the
+station count (`crates/sweep/README.md` `[sweep.frame]`), so its
+decisions are taken at `f64` at every lane scalar; the driver dump was
+not re-taken for this addendum, so no population count is claimed.
+
+- **`sweep_path_chord` is added** (`sweep`'s `skin.rs`,
+  `PathCarry::of`): the step from each station to the next decided
+  into a direction witness through `UnitVec3::new`, a length against
+  the linear band. Coincident stations decide it zero.
+- **`sweep_path_turn` changes its pair.** It is still F22's
+  `1 + a·b` inside `RigidMotion::turned_between`, now for `a` station
+  `i`'s tangent mirrored in the chord and `b` station `i + 1`'s, the
+  double reflection's second reflection. It is asked once per step
+  whose two tangents differ in their bits, rather than once per
+  station against the start tangent, and its margin approaches zero
+  only where the path turns a half turn between two stations.
+- **`sweep_path_tangent` is unchanged** in what it decides, and is now
+  decided at `f64` rather than at the lane scalar.

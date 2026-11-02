@@ -30,7 +30,7 @@ use std::collections::BTreeMap;
 
 use crate::common;
 
-use pncad::document::{Doc, Evaluation, Formula, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{NodePick, UnnamedEntity};
@@ -44,10 +44,9 @@ fn delta() -> scene::DisplayTolerance {
     scene::DisplayTolerance::new(1.0e-3).expect("a positive delta")
 }
 
-/// The document every row here indexes: six placements, six drawn
-/// copies (A10).
+/// The document every row here indexes: six drawn copies (A10).
 ///
-/// - a linear pattern of three blocks, each copy projected and placed;
+/// - a row of three blocks, each member read and placed;
 /// - two world placements of one extrude, each at its own pose — one
 ///   body's names under two copies' wraps;
 /// - a bare extrude, placed — the last part.
@@ -62,27 +61,10 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         },
         tol,
     );
-    let (doc, pattern) = common::inserted(
-        &doc,
-        Node::Pattern {
-            input: block.into(),
-            count: Formula::count(3),
-            kind: pncad::document::PatternKind::Linear {
-                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                spacing: common::len(0.05),
-            },
-        },
-        tol,
-    );
+    let (doc, pattern) =
+        common::row_of_copies(&doc, block, 3, (pncad::document::TargetAxis::X, 0.05), tol);
     let doc = (0..3).fold(doc, |doc, index| {
-        let (doc, copy) = common::inserted(
-            &doc,
-            Node::Part {
-                of: pattern.into(),
-                select: pncad::document::PartSelect::Instance(Formula::count(index)),
-            },
-            tol,
-        );
+        let (doc, copy) = common::member_read(&doc, pattern, index, tol);
         common::placed(&doc, copy, tol).0
     });
     let (doc, twinned) = common::square_profile(&doc, 0.015, tol);

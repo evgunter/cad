@@ -2353,7 +2353,7 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
     assert!(r.implemented, "Nurbs×Nurbs is implemented");
     assert!(r.note.contains("TWO-CHART"), "{}", r.note);
     for (a, b) in [
-        (SurfaceKind::Cylinder, SurfaceKind::Torus),
+        (SurfaceKind::Cone, SurfaceKind::Torus),
         (SurfaceKind::Nurbs, SurfaceKind::Cylinder),
         (SurfaceKind::Cone, SurfaceKind::Sphere),
     ] {
@@ -3877,7 +3877,7 @@ fn a_straight_branch_is_one_hermite_span_at_any_length() {
             "{at}: spans {span:e}"
         );
         let b = &out.branches[0];
-        let BranchEnd::Crossings { from, to } = b.end else {
+        let BranchEnd::Rim { from, to } = b.end else {
             panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
         };
         assert_ne!(from.side, to.side, "{at}: one end on each of two sides");
@@ -3935,7 +3935,7 @@ fn a_curved_branch_the_hermite_cannot_certify_is_marched() {
         "{at}: spans {span:e}"
     );
     let b = &out.branches[0];
-    let BranchEnd::Crossings { from, to } = b.end else {
+    let BranchEnd::Rim { from, to } = b.end else {
         panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
     };
     assert!(
@@ -4076,7 +4076,7 @@ fn converging_crossings_certify_no_wrong_pairing() {
             .map(|b| (b.carrier.eval(b.params.0), b.carrier.eval(b.params.1)))
             .collect();
         for (n, b) in out.branches.iter().enumerate() {
-            let BranchEnd::Crossings { from, to } = b.end else {
+            let BranchEnd::Rim { from, to } = b.end else {
                 panic!("{at}: branch {n} ends at its crossings, got {:?}", b.end);
             };
             assert!(
@@ -4147,7 +4147,7 @@ fn a_plane_three_eps_off_a_flat_walls_edge_traces_the_edge_long_branch() {
     assert!((span - 1.0).abs() < 1.0e-6, "{what}: spans {span:e}");
     assert_eq!(out.exhaustiveness.contact, 0, "{what}: no region banked");
     let b = &out.branches[0];
-    let BranchEnd::Crossings { from, to } = b.end else {
+    let BranchEnd::Rim { from, to } = b.end else {
         panic!("{what}: the branch ends at its crossings, got {:?}", b.end);
     };
     assert!(
@@ -4221,7 +4221,7 @@ fn a_side_the_plane_crosses_inside_the_band_ends_its_arc_at_its_own_root() {
     assert!(bracket.0 <= 0.5 && 0.5 <= bracket.1, "c = 3ε: {bracket:?}");
     let (out, span) = one_branch("c = 8ε", run(8.0 * eps));
     assert!((span - 0.5).abs() < 1.0e-6, "c = 8ε: spans {span:e}");
-    let BranchEnd::Crossings { from, to } = out.branches[0].end else {
+    let BranchEnd::Rim { from, to } = out.branches[0].end else {
         panic!("c = 8ε: the branch ends at its crossings");
     };
     assert!(
@@ -4772,7 +4772,7 @@ fn a_curved_domes_oblique_arc_certifies_across_its_inflections() {
         panic!("{at}: expected one branch, got {}", out.branches.len());
     };
     assert!(
-        matches!(branch.end, BranchEnd::Crossings { .. }),
+        matches!(branch.end, BranchEnd::Rim { .. }),
         "{at}: an arc between two crossings: {:?}",
         branch.end
     );
@@ -5330,7 +5330,7 @@ fn a_flat_wall_whose_chart_bends_answers_as_the_plane_it_is() {
         let [b] = out.branches.as_slice() else {
             panic!("{at}: expected one branch, got {}", out.branches.len());
         };
-        let BranchEnd::Crossings { from, to } = b.end else {
+        let BranchEnd::Rim { from, to } = b.end else {
             panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
         };
         assert!(
@@ -5976,7 +5976,7 @@ fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
         let [b] = out.branches.as_slice() else {
             panic!("{at}: expected one branch, got {}", out.branches.len());
         };
-        let BranchEnd::Crossings { from, to } = b.end else {
+        let BranchEnd::Rim { from, to } = b.end else {
             panic!("{at}: the branch ends at its crossings, got {:?}", b.end);
         };
         assert!(

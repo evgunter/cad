@@ -32,7 +32,7 @@ use crate::entity::FaceKey;
 ///   of the materials: whether the pair is a contact, an overlap, a seam
 ///   or a nested touch is read where it is consumed (C7).
 ///
-/// It is also the class a contact claim names ([`DeclaredContact`]'s
+/// It is also the class a contact pair names ([`ContactPair`]'s
 /// `class`), which the façade's curated lists carry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum GlueClass {
@@ -46,7 +46,6 @@ pub enum GlueClass {
 
 impl GlueClass {
     /// Every class.
-    #[cfg(test)]
     pub(crate) const ALL: &'static [GlueClass] = &[Self::Rest, Self::Continuation, Self::Tangent];
 
     /// The class's name, for messages.
@@ -65,9 +64,9 @@ impl GlueClass {
         matches!(self, Self::Rest | Self::Continuation)
     }
 
-    /// The relation that glues a face pair under this class: the
-    /// inverse of [`crate::Relation::glued_class`] on the relations
-    /// that glue.
+    /// **The relation that glues a face pair under this class**: the one
+    /// table between classes and relations. [`crate::Relation::glued_class`],
+    /// [`Self::of_senses`] and [`Self::carrier_relation`] read it.
     #[must_use]
     pub const fn relation(self) -> crate::Relation {
         match self {
@@ -78,44 +77,49 @@ impl GlueClass {
     }
 
     /// **The one-carrier class two faces' senses make them**, the one
-    /// place a sense is read as a class: opposed senses are a `Rest`
-    /// contact, aligned senses a continuation (C4). Two distinct
-    /// carriers are neither, and name no class.
+    /// place a sense is read as a class: the class whose
+    /// [`Self::carrier_relation`] it is. Two distinct carriers are
+    /// neither, and name no class.
     pub(crate) fn of_senses(relation: crate::boolean::CarrierRelation) -> Option<Self> {
-        match relation {
-            crate::boolean::CarrierRelation::SameOriented => Some(Self::Continuation),
-            crate::boolean::CarrierRelation::SameOpposite => Some(Self::Rest),
-            crate::boolean::CarrierRelation::Distinct => None,
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|class| class.carrier_relation() == Some(relation))
+    }
+
+    /// The carrier relation a one-carrier class glues under: its
+    /// [`Self::relation`] as the carrier ladder spells it. `None` for a
+    /// tangency, whose carriers are distinct.
+    pub(crate) const fn carrier_relation(self) -> Option<crate::boolean::CarrierRelation> {
+        match self.relation() {
+            crate::Relation::SameOriented => Some(crate::boolean::CarrierRelation::SameOriented),
+            crate::Relation::SameOpposite => Some(crate::boolean::CarrierRelation::SameOpposite),
+            _ => None,
         }
     }
 }
 
-/// **The two-arm recourse menu** for a contact refusal (SELECT-DESIGN
-/// §3d, ratified; C4's failure table verbatim): declare the named
-/// class, or move the geometry.
+/// **The recourse for a contact refusal**: move the geometry so the
+/// faces clearly touch or clearly part.
 ///
-/// This is deliberately NOT `geom_core::COINCIDENCE_RECOURSE`. That
-/// sentence's third arm ("lower the tolerance") predates §3d's
-/// ratification and is wrong at a contact site: a contact refusal is
-/// about intent that was never recorded, and loosening ε cannot
-/// supply intent — it can only hide the absence. The two-tolerance
-/// principle keeps the three-arm sentence at every site whose
-/// question really is "is this margin decidable"; contact sites ask
-/// "did anyone declare this", and answer with these two arms.
-pub const CONTACT_RECOURSE: &str = "declare the named contact class, or move the geometry";
+/// This is deliberately NOT `geom_core::COINCIDENCE_RECOURSE`, whose
+/// "lower the tolerance" arm does not reach a contact: the glue door
+/// glues a pair whose margin decides Zero and refuses one in band under
+/// every setting (D10), so a contact that is too close to call is
+/// settled only by geometry that is not.
+pub const CONTACT_RECOURSE: &str = "move the geometry so the faces clearly touch or clearly part";
 
 /// [`CONTACT_RECOURSE`] with the recourse marker, as a finding the
 /// viewer shows ends on it (`contact_recourse_is_one_sentence` holds
 /// the two spellings to one).
 pub(crate) const CONTACT_RECOURSE_MARKED: &str =
-    "Recourse: declare the named contact class, or move the geometry";
+    "Recourse: move the geometry so the faces clearly touch or clearly part";
 
-/// The recourse for a contradicted declaration. The declaration is
-/// what the geometry refutes, so re-declaring it is no way through:
-/// the declaration is corrected or removed, or the geometry is moved
-/// until it holds.
+/// The recourse for a contradicted record. The record is what the
+/// geometry refutes: the faces an operation recorded in contact no
+/// longer meet as it read them, so the geometry is moved until they do.
 pub const CONTRADICTION_RECOURSE: &str =
-    "Recourse: correct or remove the declaration, or move the geometry so it holds";
+    "Recourse: move the geometry so the recorded contact holds";
 
 /// A contradiction's reason, as the message states it where the site
 /// carries no fact of its own (a site that does, the Boolean's `Rest`
@@ -129,25 +133,7 @@ pub const CONTRADICTION_RECOURSE: &str =
 /// in the payload and `Debug`.
 pub const CONTRADICTION_REASON: &str = "the geometry does not match it";
 
-/// **The trilean a contact verification returns** (C4's per-class
-/// tables, AQ6's shape): every declaration states three lists, and
-/// this is the verdict that says which one the geometry landed in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ContactVerdict {
-    /// Every must-verify-DEFINITE condition is definitely satisfied:
-    /// the contact holds on the geometry's own evidence, and the
-    /// declaration added nothing.
-    Definite,
-    /// The definite conditions hold and the residual margins landed
-    /// in band — the declaration BRIDGES exactly this residue and
-    /// nothing else (C4's invariant). A bridged verdict is only ever
-    /// reachable with a declaration in hand.
-    Bridged,
-}
-
-/// **A contact verification's typed refusal** — the two failing arms
-/// of the trilean, kept off [`ContactVerdict`] so a caller cannot
-/// pattern-match a refusal into a pass.
+/// **A contact verification's typed refusal**.
 ///
 /// `Clone` and `PartialEq` because the refusal is CARRIED: the census
 /// wraps it in
@@ -163,25 +149,18 @@ pub enum ContactVerdict {
     strum_discriminants(name(ContactRefusalKind), vis(pub(crate)), derive(strum::EnumIter))
 )]
 pub enum ContactRefusal {
-    /// Definite counter-evidence: the declaration is contradicted
-    /// where the lie meets geometry. Every definite verdict wins over
-    /// every declaration (C4's invariant).
+    /// Definite counter-evidence: the recorded contact is contradicted
+    /// where it meets geometry. Every definite verdict wins over every
+    /// record.
     Contradicted {
         /// The contradicting predicate's diagnostics — the margin the
         /// message names.
         diag: Indeterminate,
     },
-    /// In-band geometry with no declaration to bridge it, or an
-    /// escalation inside a definite condition: terminal, priced,
-    /// honest.
+    /// In-band geometry, or an escalation inside a definite condition:
+    /// terminal, priced, honest.
     Escalated {
         /// The escalating predicate's diagnostics.
-        diag: Indeterminate,
-    },
-    /// Geometry that touches with no backing declaration at all:
-    /// near-coincidence NEVER silently becomes contact (F6).
-    Undeclared {
-        /// The site's diagnostics.
         diag: Indeterminate,
     },
     /// The configuration is outside the class's certifiable set — the
@@ -195,7 +174,7 @@ pub enum ContactRefusal {
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
-// the PROBLEM in the contact vocabulary — declaration, definite
+// the PROBLEM in the contact vocabulary — the record, definite
 // counter-evidence, in-band residue, the certifiable set — plus the
 // recourse where an author has one.
 //
@@ -207,10 +186,9 @@ pub enum ContactRefusal {
 // boolean's own refusals make, so one contact story is told in one
 // sentence shape wherever it surfaces.
 //
-// [`Self::NotCertifiable`] carries no recourse: a declaration cannot
-// move a configuration inside the certifiable set, so the two-arm menu
-// would be a false lead, and `what` is the only honest steering there
-// is.
+// [`Self::NotCertifiable`] carries no recourse: moving the geometry
+// within the band does not move a configuration inside the certifiable
+// set, and `what` is the only honest steering there is.
 impl core::fmt::Display for ContactRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -219,68 +197,46 @@ impl core::fmt::Display for ContactRefusal {
             // "indeterminate" (`CONTRADICTION_REASON`).
             Self::Contradicted { .. } => write!(
                 f,
-                "the declared contact is contradicted: {CONTRADICTION_REASON}. \
+                "the recorded contact is contradicted: {CONTRADICTION_REASON}. \
                  {CONTRADICTION_RECOURSE}"
             ),
             Self::Escalated { diag } => write!(
                 f,
-                "whether the declared faces touch escalated ({}), and no declaration can \
-                 bridge it; {CONTACT_RECOURSE}",
+                "whether the faces touch escalated ({}); {CONTACT_RECOURSE}",
                 diag.payload()
             ),
-            Self::Undeclared { diag } => write!(
-                f,
-                "the faces touch on the geometry's own evidence ({}) with no declaration \
-                 behind them — near-coincidence never silently becomes contact; \
-                 {CONTACT_RECOURSE}",
-                diag.payload()
-            ),
-            Self::NotCertifiable { what } => write!(
-                f,
-                "this contact cannot be certified ({what}), and a declaration cannot move a \
-                 configuration into the certifiable set"
-            ),
+            Self::NotCertifiable { what } => {
+                write!(f, "this contact cannot be certified ({what})")
+            }
         }
     }
 }
 
 impl std::error::Error for ContactRefusal {}
 
-/// **A contact CLAIM**: this face pair, asserted to be in contact of
-/// this class. What a declaration says, and what a refusal quotes back.
+/// **A face pair and the contact class it is read as**: what a record
+/// names, what a finding reports, and what a refusal quotes back.
 ///
 /// Key-based because it is the kernel's currency; the recipe layer's
 /// name-based form carries the same class (G1: names cross the
 /// boundary, keys never do).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DeclaredContact {
+pub struct ContactPair {
     /// The A-side face.
     pub a: FaceKey,
     /// The B-side face.
     pub b: FaceKey,
-    /// The class the pair is claimed to be in contact of.
+    /// The class the pair is read as.
     pub class: GlueClass,
 }
 
 /// **The kernel contact finding** — "this face pair would verify as
-/// this class, on this evidence" (SELECT-DESIGN §3a: a VALUE, never
-/// itself a declaration).
-///
-/// A finding is a [`DeclaredContact`] PLUS the verdict that decided
-/// it, by composition rather than by repeating the fields: the claim
-/// and the evidence for it are different things, and a refusal carries
-/// only the claim. Keeping the verdict off the claim is what stops the
-/// pun the two failure gates would otherwise make — a contradiction
-/// has no verification verdict to report, and it must not borrow
-/// `Definite` to mean "the counter-evidence was definite".
+/// this class" (SELECT-DESIGN §3a: a VALUE, never itself a record). A
+/// finding is only ever minted on a definite reading.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContactFinding {
-    /// What was claimed.
-    pub pair: DeclaredContact,
-    /// The verdict the verify door reported. A finding is only ever
-    /// minted on [`ContactVerdict::Definite`] — a bridged pair needs a
-    /// declaration, so it cannot be evidence FOR one.
-    pub verdict: ContactVerdict,
+    /// What was found.
+    pub pair: ContactPair,
 }
 
 #[cfg(test)]
@@ -296,29 +252,28 @@ mod tests {
         }
     }
 
-    /// The two-arm menu is exactly two arms: §3d's ratified shape.
-    /// The three-arm coincidence sentence must not leak in — its
-    /// "lower the tolerance" arm cannot supply missing intent.
+    /// The contact recourse moves the geometry and nothing else: the
+    /// three-arm coincidence sentence must not leak in, since no
+    /// tolerance moves a glue (D10), and nothing is declared.
     #[test]
-    fn recourse_has_two_arms_and_no_tolerance_lever() {
-        assert!(CONTACT_RECOURSE.contains("declare"), "{CONTACT_RECOURSE}");
+    fn recourse_moves_the_geometry_and_has_no_tolerance_lever() {
         assert_eq!(
             CONTACT_RECOURSE_MARKED,
             format!("Recourse: {CONTACT_RECOURSE}")
         );
-        assert!(CONTACT_RECOURSE.contains("move the geometry"));
+        assert!(CONTACT_RECOURSE.starts_with("move the geometry"));
         assert!(
-            !CONTACT_RECOURSE.contains("tolerance"),
-            "the #256 ruling: a contact refusal has no tolerance arm"
+            !CONTACT_RECOURSE.contains("tolerance") && !CONTACT_RECOURSE.contains("declare"),
+            "a contact refusal has no tolerance arm and no declaration to make"
         );
         assert!(
-            !geom_core::COINCIDENCE_RECOURSE.contains("contact class"),
+            !geom_core::COINCIDENCE_RECOURSE.contains("faces clearly touch"),
             "the three-arm sentence stays the DECIDABILITY sentence"
         );
     }
 
     #[test]
-    fn class_names_are_the_declaration_spelling() {
+    fn class_names_are_the_records_spelling() {
         assert_eq!(GlueClass::Continuation.name(), "Continuation");
         assert_eq!(GlueClass::Rest.name(), "Rest");
         assert_eq!(GlueClass::Tangent.name(), "Tangent");

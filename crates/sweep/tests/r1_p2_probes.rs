@@ -166,7 +166,7 @@ fn intrinsic_seam_at(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: carrier.eval((t0 + t1) * 0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval((t0 + t1) * 0.5)),
             },
             carrier,
             param_start: t0,

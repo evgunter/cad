@@ -782,6 +782,22 @@ pub fn posed_prism(h: &Hole, pose: &Pose, tol: Tol) -> AtRestBody<f64> {
 /// body (a base wound clockwise from the apex is inside out).
 #[allow(clippy::panic)]
 pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
+    posed_pyramid_at(base, apex, pose, tol)
+}
+
+/// [`posed_pyramid`] at any scalar the Euler operators take, its posed
+/// corners lifted.
+///
+/// # Panics
+///
+/// As [`posed_pyramid`].
+#[allow(clippy::panic)]
+pub fn posed_pyramid_at<T: geom_core::Decide + crate::AtRestPolicy>(
+    base: &[[f64; 3]],
+    apex: [f64; 3],
+    pose: &Pose,
+    tol: Tol,
+) -> AtRestBody<T> {
     posed_pyramid_kept(base, apex, pose, tol)
         .unwrap_or_else(|e| panic!("a pyramid is not a finished body: {e:?}"))
 }
@@ -797,21 +813,22 @@ pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -
 ///
 /// Where an Euler operator refuses.
 #[allow(clippy::unwrap_used)]
-pub(crate) fn posed_pyramid_kept(
+pub(crate) fn posed_pyramid_kept<T: geom_core::Decide + crate::AtRestPolicy>(
     base: &[[f64; 3]],
     apex: [f64; 3],
     pose: &Pose,
     tol: Tol,
-) -> Result<AtRestBody<f64>, Vec<crate::ValidationError>> {
+) -> Result<AtRestBody<T>, Vec<crate::ValidationError>> {
     let n = base.len();
     assert!(n >= 3, "a pyramid needs at least three base corners");
-    let bot: Vec<_> = base.iter().map(|&q| pose.at(q)).collect();
-    let top = pose.at(apex);
-    let face = |corners: &[Point3<f64>]| FaceSurface::New {
+    let lift = |q: [f64; 3]| pose.at(q).map(T::from_f64);
+    let bot: Vec<_> = base.iter().map(|&q| lift(q)).collect();
+    let top = lift(apex);
+    let face = |corners: &[Point3<T>]| FaceSurface::New {
         surface: plane(corners, tol),
         sense: true,
     };
-    let mut body = Body::<f64>::new();
+    let mut body = Body::<T>::new();
     let seed = body.mvfs(bot[0], true).unwrap();
     let mut chain = vec![
         body.mev(
@@ -886,7 +903,7 @@ pub(crate) fn posed_pyramid_kept(
     body.set_face_surface(seed.face, face(&[bot[n - 1], bot[0], top]))
         .unwrap();
     describe_as_intersections(&mut body, tol);
-    <f64 as crate::AtRestPolicy>::gate_at_rest_kept(body, tol)
+    T::gate_at_rest_kept(body, tol)
 }
 
 /// Three base corners relative to [`MEET`]: two at radius `r` 15° either

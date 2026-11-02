@@ -26,7 +26,7 @@ use crate::corpus;
 /// crate's evaluation lane lacked is below.) `m4_pr8_k_probe`'s `run_doc` asserts the same predicate over
 /// every corpus document — this one included — at three ε on every
 /// merge, and its
-/// `probe_agrees_with_f64_bit_for_bit_over_the_corpus` is where the
+/// `probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits` is where the
 /// bit-identity this reaches for is actually compared; what this row
 /// adds is that this file executes.
 #[test]

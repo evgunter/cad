@@ -2,10 +2,11 @@
 id: a-tie-summed-seam-decline-has-no-end-to-end-witness
 kind: issue
 title: After PR 5876 nothing end-to-end witnesses the tie-summed decline, or a tied pair seam group's own count
-status: dispatched
+status: closed
 opened: 2026-10-28
 priority: P3
 cost: E
+closed: 2026-10-28
 ---
 
 Filed by the WIRE orchestrator from the PR 5876 review (MINOR).
@@ -81,3 +82,39 @@ proposal. Then retire
 `group_resized`'s doc saying the rung never reaches such a group.
 `emit_union`'s one call passes `tied = false` and is
 `wire-unionrecord`'s ground.
+
+## Closed (2026-10-28, `wire/joined-sets-record-per-candidate`)
+
+The decline this row wanted witnessed no longer exists:
+`GroupRecord::record_by_name`, `Group::tie_summed` and the `None`
+count are deleted, so no group the emitter records is a tie's sum.
+
+- **Joined sets** (`name_boolean_edges`, the `joined_sets` loop) record
+  with `GroupRecord::record(.., Parent::Elsewhere)`. The set is keyed by
+  the operand edges themselves, so a tied set's group is one
+  candidate's. The closed-carrier case above would answer with its own
+  count instead of declining, if it can be built (below).
+- **Pair seam vertices** (`name_boolean_vertices`, the last loop) record
+  nothing. They are always minted bare (`defer::mint_candidates`), so
+  the rung returned at `fragment_base` before reading them. Their
+  group was keyed by name, so recording it with `record` would have
+  stored a tie's sum as one parent's count.
+
+Over the editor-core `ci` profile (2,784 tests), before and after,
+every `Emitted` table hashes the same (1,733 emissions). The only
+change in the group records is that 5,150 seam-vertex groups are gone:
+4,790 `Crossing`, 216 `EdgeCrossing` and 2 `Seam`, all of count 1, plus
+142 tied `Crossing` groups that read `None`. No joined set was tied.
+
+The closed-carrier witness is still unbuilt, and no fixture was tried.
+Building one needs two result edges on one circle that no member arc
+holds whole, with every member arc overlapping both. That means two
+vertices on the circle that survive the output stage's join. The
+operand whose feature keeps such a vertex has its own rim broken
+there, so its arcs overlap one result edge only. A crossing the
+boolean makes removes one side of the rim. So the shape looks
+unreachable from a pair boolean, but this is argued, not proved. The
+lead the brief named, a lateral face merged across two coaxial
+coincident cylinders, was not tried. With the tie-summed path deleted,
+nothing is left for such a witness to tell apart, so it is not
+scheduled.

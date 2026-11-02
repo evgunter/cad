@@ -6,23 +6,13 @@
 //! orientation* / *different plane* — plus the typed refusals. The
 //! rungs, in order:
 //!
-//! 1. **Declared-pair rung (recipe intent, F5)**: the consuming op's
-//!    recipe data declares THIS face pair coincident
-//!    ([`PlaneIdentity::declared`]). The declaration is verified, not
-//!    trusted, as one displacement over the consumed extent
-//!    (`carrier_eq::declared_reading`): a point of a face definitely
-//!    off the other plane refuses ([`PlaneEqError::Contradicted`]) — a
-//!    wrong declaration must never force wrong geometry; a displacement
-//!    in band at every point of the extent is bridged, with the decided
-//!    orientation sign picking Same±; anything between is
-//!    [`PlaneEqError::Unsettled`].
-//! 2. **Geometric trilean (definite-different)**: parallelism margin
+//! 1. **Geometric trilean (definite-different)**: parallelism margin
 //!    `‖n₁ × n₂‖·arm` (`bool_plane_parallel`, the arm the extent's
 //!    radius, the offsets read at its centre) definitely positive ⇒
 //!    [`PlaneRelation::Distinct`]; else offset margin `(d₁ − σ·d₂)`
 //!    (`bool_plane_offset`, σ the orientation sign) definitely nonzero
 //!    ⇒ parallel-but-offset ⇒ `Distinct`.
-//! 3. **Zero glues** (D10, Booleans): an offset margin decided Zero is
+//! 2. **Zero glues** (D10, Booleans): an offset margin decided Zero is
 //!    one plane, `SameOriented` or `SameOpposite` by the decided
 //!    orientation, and the decided margin rides out with the verdict
 //!    for the caller to record ([`crate::coincidence`]). An offset in
@@ -33,12 +23,12 @@
 //! ([`PlaneEqError::Escalated`]), naming the rung that could not decide
 //! ([`PlaneRung`]). Whether two planes are one construction is not the
 //! kernel's question: the document's coincidence door decides it
-//! (D10, Coincidence).
+//! (D10, Coincidence). A pair an operation glued is read through its
+//! record, never through this ladder (`[coincidence.booleans]`).
 
-use super::carrier_eq::{CarrierDesc, CoincidenceMeasure, ConsumedExtent};
+use super::carrier_eq::{CoincidenceMeasure, ConsumedExtent};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
-use crate::contact::ContactVerdict;
 use crate::validate::{decide, decide_nonzero, decide_reported};
 use geom_core::k_stats::NonzeroSign;
 
@@ -62,9 +52,8 @@ pub use super::carrier_eq::CarrierEqError as PlaneEqError;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum PlaneRung {
-    /// Whether the two planes are parallel (`bool_plane_parallel`). On
-    /// an undeclared pair an in-band margin is a sliver a declaration
-    /// would bridge; on a declared pair the rung bridges it.
+    /// Whether the two planes are parallel (`bool_plane_parallel`). An
+    /// in-band margin is a sliver.
     Parallel,
     /// Whether the two planes face the same way or opposite ways
     /// (`bool_plane_orient`). Its margin is the normals' cosine levered
@@ -77,8 +66,7 @@ pub enum PlaneRung {
     Orientation,
     /// Whether the two planes' normals can be read at all: the
     /// parallelism rung's norm read definitely negative, poisoned input
-    /// (`unreadable_norm`). No declaration and no move of the parts
-    /// reads it.
+    /// (`unreadable_norm`). No move of the parts reads it.
     Norm,
 }
 
@@ -93,36 +81,6 @@ impl PlaneRung {
             Self::Norm => "whether the normals of two faces can be read",
         }
     }
-}
-
-/// The orientation rung's refusal of a zero verdict, its decided
-/// margin riding the diagnostics.
-pub(super) fn orientation_zero(margin: MarginDiag, band: Band) -> PlaneEqError {
-    PlaneEqError::Escalated {
-        rung: PlaneRung::Orientation,
-        diag: Indeterminate {
-            margin,
-            band,
-            predicate: Some("bool_plane_orient"),
-            terminal_sliver: false,
-        },
-    }
-}
-
-/// Whether the consuming op's recipe data declares the face pair
-/// coincident (F5). The no-declaration value
-/// ([`PlaneIdentity::NONE`]) runs the geometric rungs only.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct PlaneIdentity {
-    /// The face pair is declared coincident by recipe data.
-    pub declared: bool,
-}
-
-impl PlaneIdentity {
-    /// No declaration: the geometric rungs decide.
-    pub const NONE: PlaneIdentity = PlaneIdentity { declared: false };
-    /// A declared pair, read as one displacement over its extent.
-    pub const DECLARED: PlaneIdentity = PlaneIdentity { declared: true };
 }
 
 /// One plane's conventional description: a point on it and its unit
@@ -141,72 +99,32 @@ pub struct PlaneDesc<T: geom_core::Real> {
     pub normal: Vec3<T>,
 }
 
-/// **`oriented_plane_eq`** — module docs for the ladder. `id` says
-/// whether the pair is declared (F5); `extent` the region the verdict
-/// is consumed on — the offsets are read at its centre and the angular
-/// margins levered at its radius, and a declared pair reads as one
-/// displacement over it ([`super::carrier_eq::ConsumedExtent`]); `band`
-/// the run's linear band.
+/// **`oriented_plane_eq`** — module docs for the ladder. `extent` is
+/// the region the verdict is consumed on — the offsets are read at its
+/// centre and the angular margins levered at its radius
+/// ([`super::carrier_eq::ConsumedExtent`]); `band` the run's linear
+/// band.
 ///
 /// # Errors
 ///
-/// [`PlaneEqError`] — sliver escalation, an undecided coincidence, or a
-/// contradicted declaration.
+/// [`PlaneEqError`] — sliver escalation, or an undecided coincidence.
 pub fn oriented_plane_eq<T: Decide>(
     p1: &PlaneDesc<T>,
     p2: &PlaneDesc<T>,
-    id: PlaneIdentity,
-    extent: &ConsumedExtent<'_, T>,
+    extent: &ConsumedExtent<T>,
     band: Band,
 ) -> Result<PlaneRelation, PlaneEqError> {
-    oriented_plane_eq_verdict(p1, p2, id, extent, band).map(|(rel, _)| rel)
-}
-
-/// [`oriented_plane_eq`] plus the TRILEAN: whether the verdict stands
-/// on the geometry's own definite evidence
-/// ([`ContactVerdict::Definite`]) or on the declaration bridging an
-/// in-band residue ([`ContactVerdict::Bridged`]).
-///
-/// One implementation, two projections — the plain door drops the
-/// trilean for the callers that only need the relation, and no second
-/// traversal of the margins exists to drift from this one. C4's
-/// invariant ("a declaration is trusted exactly on its bridged
-/// residue and nowhere else") is only checkable by a caller that can
-/// SEE the residue, which is what this door is for.
-///
-/// # Errors
-///
-/// [`PlaneEqError`] — as [`oriented_plane_eq`].
-pub fn oriented_plane_eq_verdict<T: Decide>(
-    p1: &PlaneDesc<T>,
-    p2: &PlaneDesc<T>,
-    id: PlaneIdentity,
-    extent: &ConsumedExtent<'_, T>,
-    band: Band,
-) -> Result<(PlaneRelation, ContactVerdict), PlaneEqError> {
-    plane_ladder(p1, p2, id, extent, band).map(|(rel, verdict, _)| (rel, verdict))
+    plane_ladder(p1, p2, extent, band).map(|(rel, _)| rel)
 }
 
 /// The ladder itself (module docs), with the margin that decided a
-/// coincidence: the declared reading's, or the offset's decided Zero.
+/// coincidence: the offset's decided Zero.
 pub(super) fn plane_ladder<T: Decide>(
     p1: &PlaneDesc<T>,
     p2: &PlaneDesc<T>,
-    id: PlaneIdentity,
-    extent: &ConsumedExtent<'_, T>,
+    extent: &ConsumedExtent<T>,
     band: Band,
 ) -> Result<super::carrier_eq::CarrierReading, PlaneEqError> {
-    // Rung 1: declared pair (F5) — verified intent, never trusted
-    // blindly, through the one declared reading every carrier kind
-    // shares.
-    if id.declared {
-        let desc = |p: &PlaneDesc<T>| CarrierDesc::Plane {
-            origin: p.origin,
-            normal: p.normal,
-        };
-        return super::carrier_eq::declared_reading(&desc(p1), &desc(p2), extent, band)
-            .map(|(rel, verdict, margin)| (rel, verdict, Some(margin)));
-    }
     // Offsets read at the extent's centre (`d = n̂·(origin − c)`) for
     // the geometric rungs, which lever the angular data at its radius.
     let centre = extent.reach.center();
@@ -214,7 +132,7 @@ pub(super) fn plane_ladder<T: Decide>(
     let d1 = p1.normal.dot(p1.origin - centre);
     let d2 = p2.normal.dot(p2.origin - centre);
 
-    // Rung 2: definite-different by geometry. Parallelism first.
+    // Rung 1: definite-different by geometry. Parallelism first.
     let parallel_margin = Margin::levered(p1.normal.cross(p2.normal).norm(), arm);
     // The offset's Zero below decides one plane only with this one, so
     // the row's margin stands for both.
@@ -222,7 +140,7 @@ pub(super) fn plane_ladder<T: Decide>(
         Ok(Decided {
             sign: Sign::Positive,
             ..
-        }) => return Ok((PlaneRelation::Distinct, ContactVerdict::Definite, None)),
+        }) => return Ok((PlaneRelation::Distinct, None)),
         Ok(Decided {
             sign: Sign::Zero,
             margin,
@@ -266,16 +184,12 @@ pub(super) fn plane_ladder<T: Decide>(
         Ok(Decided {
             sign: Sign::Positive | Sign::Negative,
             ..
-        }) => Ok((PlaneRelation::Distinct, ContactVerdict::Definite, None)),
-        // Rung 3: one plane, decided by its margin — Zero glues.
+        }) => Ok((PlaneRelation::Distinct, None)),
+        // Rung 2: one plane, decided by its margin — Zero glues.
         Ok(Decided {
             sign: Sign::Zero,
             margin,
-        }) => Ok((
-            relation,
-            ContactVerdict::Definite,
-            Some(margin.jointly(parallel)),
-        )),
+        }) => Ok((relation, Some(margin.jointly(parallel)))),
         Err(coincidence) => Err(PlaneEqError::Undecided {
             coincidence,
             relation,
@@ -284,7 +198,7 @@ pub(super) fn plane_ladder<T: Decide>(
 }
 
 /// **Which way two faces' outward normals point, as a door reads it
-/// for the declaration it offers**: the orientation rung's own question
+/// for the class it names**: the orientation rung's own question
 /// (`bool_plane_orient`, the cosine levered at `arm`), asked of a pair
 /// whose parallelism a rung could not decide. `None` where the sign is
 /// not definite: the senses are unread, and no class is offered on them.
@@ -359,14 +273,8 @@ mod tests {
                 origin: Point3::new(k(0.0), k(0.0), k(0.0)),
                 normal: Vec3::new(k(0.0), t, k(1.0)),
             };
-            let (rel, _, margin) = plane_ladder(
-                &flat,
-                &leaning,
-                PlaneIdentity::NONE,
-                &ConsumedExtent::arm(k(1.0)),
-                band(),
-            )
-            .unwrap();
+            let (rel, margin) =
+                plane_ladder(&flat, &leaning, &ConsumedExtent::arm(k(1.0)), band()).unwrap();
             (
                 rel,
                 discharge(margin.expect("a Zero verdict carries its margin")),
@@ -386,56 +294,12 @@ mod tests {
             (p1, PlaneRelation::SameOriented),
             (p1_rev, PlaneRelation::SameOpposite),
         ] {
-            let (rel, verdict, margin) = plane_ladder(
-                &p1,
-                &other,
-                PlaneIdentity::NONE,
-                &ConsumedExtent::arm(1.0),
-                band(),
-            )
-            .unwrap();
-            assert_eq!((rel, verdict), (want, ContactVerdict::Definite));
+            let (rel, margin) =
+                plane_ladder(&p1, &other, &ConsumedExtent::arm(1.0), band()).unwrap();
+            assert_eq!(rel, want);
             let margin = margin.expect("a Zero verdict carries the margin it was decided on");
             assert_eq!(margin.kind(), geom_core::MarginKind::Value, "{margin:?}");
         }
-    }
-
-    /// The declared-pair rung (F5): intent + non-contradiction glues
-    /// (both orientations); a definitely-distinct pair refuses
-    /// `Contradicted` — declarations are verified, never trusted.
-    #[test]
-    fn declared_pair_rung() {
-        let declared = PlaneIdentity::DECLARED;
-        let p1 = plane([1.0, 2.0, 5.0], [0.0, 0.0, 1.0]);
-        let p2 = plane([-3.0, 7.0, 5.0], [0.0, 0.0, 1.0]);
-        assert_eq!(
-            oriented_plane_eq(&p1, &p2, declared, &ConsumedExtent::arm(1.0), band()).unwrap(),
-            PlaneRelation::SameOriented
-        );
-        let p3 = plane([0.0, 0.0, 5.0], [0.0, 0.0, -1.0]);
-        assert_eq!(
-            oriented_plane_eq(&p1, &p3, declared, &ConsumedExtent::arm(1.0), band()).unwrap(),
-            PlaneRelation::SameOpposite
-        );
-        // Contradiction, offset flavor: declared but definitely apart.
-        let apart = plane([0.0, 0.0, 9.0], [0.0, 0.0, 1.0]);
-        let err = oriented_plane_eq(&p1, &apart, declared, &ConsumedExtent::arm(1.0), band())
-            .unwrap_err();
-        assert!(matches!(err, PlaneEqError::Contradicted { .. }), "{err:?}");
-        // Contradiction, angle flavor: declared but not parallel.
-        // Only a point known on a face can show it: unwitnessed, the
-        // tilt is unsettled.
-        let tilted = plane([1.0, 2.0, 5.0], [0.0, 1.0, 0.0]);
-        let err = oriented_plane_eq(&p1, &tilted, declared, &ConsumedExtent::arm(1.0), band())
-            .unwrap_err();
-        assert!(matches!(err, PlaneEqError::Escalated { .. }), "{err:?}");
-        let on_p1 = [Point3::new(1.0, 3.0, 5.0)];
-        let witnessed = ConsumedExtent {
-            on: [&on_p1, &[]],
-            ..ConsumedExtent::arm(1.0)
-        };
-        let err = oriented_plane_eq(&p1, &tilted, declared, &witnessed, band()).unwrap_err();
-        assert!(matches!(err, PlaneEqError::Contradicted { .. }), "{err:?}");
     }
 
     /// Definitely different planes: non-parallel, and parallel-offset.
@@ -444,39 +308,18 @@ mod tests {
         let p1 = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let tilted = plane([0.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
         assert_eq!(
-            oriented_plane_eq(
-                &p1,
-                &tilted,
-                PlaneIdentity::NONE,
-                &ConsumedExtent::arm(1.0),
-                band()
-            )
-            .unwrap(),
+            oriented_plane_eq(&p1, &tilted, &ConsumedExtent::arm(1.0), band()).unwrap(),
             PlaneRelation::Distinct
         );
         let offset = plane([0.0, 0.0, 4.0], [0.0, 0.0, 1.0]);
         assert_eq!(
-            oriented_plane_eq(
-                &p1,
-                &offset,
-                PlaneIdentity::NONE,
-                &ConsumedExtent::arm(1.0),
-                band()
-            )
-            .unwrap(),
+            oriented_plane_eq(&p1, &offset, &ConsumedExtent::arm(1.0), band()).unwrap(),
             PlaneRelation::Distinct
         );
         // Opposite-oriented offset plane is also distinct.
         let offset_flip = plane([0.0, 0.0, 4.0], [0.0, 0.0, -1.0]);
         assert_eq!(
-            oriented_plane_eq(
-                &p1,
-                &offset_flip,
-                PlaneIdentity::NONE,
-                &ConsumedExtent::arm(1.0),
-                band()
-            )
-            .unwrap(),
+            oriented_plane_eq(&p1, &offset_flip, &ConsumedExtent::arm(1.0), band()).unwrap(),
             PlaneRelation::Distinct
         );
     }
@@ -489,16 +332,8 @@ mod tests {
     fn a_decided_zero_offset_glues_and_a_poisoned_one_refuses() {
         let p1 = plane([0.0, 0.0, 5.0], [0.0, 0.0, 1.0]);
         let eps = geom_core::Tol::witness().get().eps;
-        let read = |p2: PlaneDesc<f64>| {
-            plane_ladder(
-                &p1,
-                &p2,
-                PlaneIdentity::NONE,
-                &ConsumedExtent::arm(1.0),
-                band(),
-            )
-        };
-        let (rel, _, margin) = read(plane([0.0, 0.0, 5.0 + 0.25 * eps], [0.0, 0.0, 1.0]))
+        let read = |p2: PlaneDesc<f64>| plane_ladder(&p1, &p2, &ConsumedExtent::arm(1.0), band());
+        let (rel, margin) = read(plane([0.0, 0.0, 5.0 + 0.25 * eps], [0.0, 0.0, 1.0]))
             .expect("a quarter-ε offset decides zero");
         assert_eq!(rel, PlaneRelation::SameOriented);
         assert_eq!(
@@ -525,14 +360,7 @@ mod tests {
         let eps = geom_core::Tol::witness().get().eps;
         let k = geom_core::Tol::witness().get().k;
         let p2 = plane([0.0, 0.0, 5.0 + 0.5 * k * eps], [0.0, 0.0, 1.0]);
-        let err = oriented_plane_eq(
-            &p1,
-            &p2,
-            PlaneIdentity::NONE,
-            &ConsumedExtent::arm(1.0),
-            band(),
-        )
-        .unwrap_err();
+        let err = oriented_plane_eq(&p1, &p2, &ConsumedExtent::arm(1.0), band()).unwrap_err();
         assert!(matches!(
             err,
             PlaneEqError::Undecided {
@@ -559,11 +387,10 @@ mod tests {
         let down = plane([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]);
         for frac in [0.1, 0.5, 1.0] {
             let arm = frac * band.zero();
-            let extent =
-                ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), arm));
+            let extent = ConsumedExtent::new(geom_brep::ExtentBall::new(Point3::origin(), arm));
             for (other, cos) in [(up, 1.0), (down, -1.0)] {
                 let bracket = Bracket::open();
-                let got = oriented_plane_eq(&up, &other, PlaneIdentity::NONE, &extent, band);
+                let got = oriented_plane_eq(&up, &other, &extent, band);
                 let log = bracket.finish();
                 let what = format!("arm {arm:e}, cos {cos}");
                 let Err(PlaneEqError::Escalated {

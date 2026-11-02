@@ -330,7 +330,7 @@ fn survives_plane_cylinder_partial_rim_certifies() {
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),
-            witness: Point3::new(0.0, 1.0, 0.0),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, 1.0, 0.0)),
         },
         carrier: Curve3::Circle {
             center: Point3::origin(),
@@ -388,7 +388,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     let mk = |t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),
-            witness: Point3::new(0.0, 1.0, 0.0),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, 1.0, 0.0)),
         },
         carrier: Curve3::Circle {
             center: Point3::origin(),
@@ -454,7 +454,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     };
     wrong_side.description = EdgeDescriptionSpec::Intersection {
         pair,
-        witness: Point3::new(0.0, -1.0, 0.0),
+        selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, -1.0, 0.0)),
     };
     let refusal = EdgeCurve::certify(
         wrong_side,
@@ -512,7 +512,7 @@ fn fixed_full_period_rim_intersection_certifies() {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),
             // The mid-parameter point of t: 0 → tau is carrier(pi).
-            witness: Point3::new(-1.0, 0.0, 0.0),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(-1.0, 0.0, 0.0)),
         },
         carrier: Curve3::Circle {
             center: Point3::origin(),
@@ -712,7 +712,7 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: carrier.eval(0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5)),
             },
             carrier: carrier.clone(),
             param_start: 0.0,

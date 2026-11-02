@@ -4,18 +4,15 @@
 //! 1. **The operand gate lets a torus through.** The torus is on the
 //!    KIND roster, so no torus pair is the gate's question; the peg
 //!    seated in its socket builds through the join, and a coincident
-//!    pair refuses typed, further on.
+//!    pair is one body.
 //! 2. **A G1 tube chain refuses at the crossing layer**: an edge of one
 //!    segment rides the other's wall.
-//! 3. **∖ and ∩ stop where ∪ does**, except on the socket. The torus is
-//!    on the revert roster, so each fixture under a subtract (both
-//!    orders) or an intersect refuses at the door its union meets; the
-//!    peg seated in the socket shares no interior with it, so its ∩ is
-//!    empty and each difference its minuend whole.
-//!
-//! **What this suite also RECORDS is where the lane stops**: a
-//! coincident torus pair passes the crossing layer and stops at the
-//! no-crossings fallback's section pass, on the pair's tangency.
+//! 3. **∖ and ∩ meet the doors ∪ does.** The torus is on the revert
+//!    roster, so each fixture under a subtract (both orders) or an
+//!    intersect answers at the door its union meets; the peg seated in
+//!    the socket shares no interior with it, so its ∩ is empty and each
+//!    difference its minuend whole, and a coincident pair less itself
+//!    is nothing.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -217,25 +214,55 @@ fn peg_in_socket_union_holds(s: &AtRestBody<f64>, p: &AtRestBody<f64>) {
     sweep::test_support::assert_legal_operand("peg ∪ socket", &bb.body, Tol::witness());
 }
 
-/// **A coincident full torus pair reaches past the operand gate.** A
-/// full torus carries NOTHING but its two wall faces, and the two
-/// operands are the SAME torus: one carrier, one material side, which
-/// the boolean decides a continuation by margin — so the operation
-/// reaches the classification layer, and the gate is not what refuses.
+/// **Two coincident full tori are one body.** A full torus carries
+/// nothing but its two wall faces, and the two operands are the same
+/// torus: every wall pair is one carrier with one material side, which
+/// the boolean decides a continuation by margin, so the gate is not the
+/// question. No crossing cuts either torus, and the section pass defers
+/// each coincident pair to the shells' `On` verdict: each torus lies on
+/// the other. `∪` and `∩` build the torus, at Pappus' `2π²·R·r²` within
+/// its pad and through tier 3 and 3′; each difference is nothing.
 #[test]
-fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
+fn two_coincident_full_tori_are_one_body() {
     let (a, b) = (full_torus(RING), full_torus(RING));
     assert_eq!(
         a.faces().count(),
         torus_faces(&a, TUBE).len(),
         "a full torus must carry nothing but wall faces"
     );
-    let err = topo::union(&a, &b, Tol::witness())
-        .expect_err("the lane still stops downstream of the gate");
-    assert!(
-        !matches!(err, BooleanError::CurvedPairUnsupported { .. }),
-        "every pair is one carrier, so the gate must not be what refuses: {err:?}"
-    );
+    let want = 2.0 * core::f64::consts::PI.powi(2) * RING * TUBE * TUBE;
+    for (op, r) in [("A ∪ B", topo::union(&a, &b, Tol::witness()))]
+        .into_iter()
+        .chain(subtract_both_orders_and_intersect(&a, &b))
+    {
+        if op.contains('∖') {
+            assert!(
+                matches!(r, Ok(BooleanResult::Empty)),
+                "{op}: one body less itself is nothing: {r:?}"
+            );
+            continue;
+        }
+        let Ok(BooleanResult::Body(bb)) = r else {
+            panic!("{op}: one body: {r:?}");
+        };
+        assert_eq!(
+            topo::validate_geometric(&bb.body, Tol::witness()),
+            Ok(()),
+            "{op}: tier 3"
+        );
+        assert_eq!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, Tol::witness()),
+            Ok(()),
+            "{op}: tier 3′"
+        );
+        let m = topo::test_support::pinned_volume("the measured body", &bb.body, Tol::witness());
+        assert!(
+            (m.volume - want).abs() <= m.volume_pad + 1e-9 * want,
+            "{op}: volume {} ± {} against Pappus {want}",
+            m.volume,
+            m.volume_pad
+        );
+    }
 }
 
 /// **The peg seated in its socket builds.** The socket carries an
@@ -251,41 +278,6 @@ fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
         return;
     };
     peg_in_socket_union_holds(&s, &p);
-}
-
-/// **Where the lane stops once the gate is past, held still.** Two
-/// coincident full tori, every wall pair one carrier.
-///
-/// The seam meridians ride the other torus's carrier, where the
-/// residual is identically zero; the carrier-identity rung reads the
-/// glued pair before the sampled clearance, so the edge's clearance is
-/// zero by that certificate.
-///
-/// What stops the lane now is the no-crossings fallback's section pass:
-/// no crossing cuts either torus, and a coincident coaxial pair is the
-/// tangent row of the torus × torus classification (the tube circles
-/// coincide, so the nesting margin is zero) — exactly the case the
-/// vertex probe cannot decide (every vertex it would probe lies on the
-/// other torus), so the pass refuses typed before the probe runs. The property is the one
-/// this row has always held: a coincident torus pair never reaches a
-/// body it cannot justify.
-#[test]
-fn the_admitted_torus_lane_stops_at_the_section_pass() {
-    let (a, b) = (full_torus(RING), full_torus(RING));
-    let err = topo::union(&a, &b, Tol::witness())
-        .expect_err("a coincident torus pair still has no classification verdict");
-    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-        panic!(
-            "the coincident pair passes the crossing layer and stops at \
-             the section pass: {err:?}"
-        );
-    };
-    // The tangency sentence (R-tan): the coincident tube circles are the
-    // torus × torus classification's zero nesting margin.
-    assert!(
-        what.contains("tangent or near-tangent carriers"),
-        "the pass refuses the coincident pair as a tangency: {what}"
-    );
 }
 
 // -------------------------------------------------------------------
@@ -326,7 +318,8 @@ fn osculates(err: &BooleanError) -> bool {
 // -------------------------------------------------------------------
 
 /// **∖ and ∩ pass the revert roster; the seated peg answers the closed
-/// form and the rest stop where ∪ does.** The torus is on the roster,
+/// form and the rest stop where ∪ does.** The coincident pair's are
+/// [`two_coincident_full_tori_are_one_body`]'s. The torus is on the roster,
 /// so a torus pair under a subtract or an intersect reaches the same
 /// doors as under a union, in both operand orders:
 ///
@@ -334,22 +327,11 @@ fn osculates(err: &BooleanError) -> bool {
 ///   each difference its minuend whole, the volumes by Pappus
 ///   (`πr²·Rθ` for a tube of radius `r` turned through `θ` on a ring of
 ///   radius `R`);
-/// - the coincident pair (a continuation, both materials on one side)
-///   stops at the no-crossings section pass on the tangency (R-tan);
 /// - the chain refuses at the glue door on its osculating poles, and
 ///   the kissing pair at the crossing layer (escalated where the run's
 ///   band puts the sampled margin in its window).
 #[test]
 fn subtract_and_intersect_on_the_torus_rest_fixtures() {
-    let tangency = |what: &str, err: &BooleanError| {
-        let BooleanError::FallbackExtentUnsupported { what: w, .. } = err else {
-            panic!("{what}: the section pass refuses the tangency: {err:?}");
-        };
-        assert!(
-            w.contains("tangent or near-tangent carriers"),
-            "{what}: {w}"
-        );
-    };
     let (Some(s), Some(p)) = (socket(), segment_a()) else {
         return;
     };
@@ -394,10 +376,6 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
             (r, want) => panic!("{what}: want {want:?} (None: empty), got {r:?}"),
         }
     }
-    let (a, b) = (full_torus(RING), full_torus(RING));
-    for (op, r) in subtract_both_orders_and_intersect(&a, &b) {
-        tangency(&format!("coincident pair, {op}"), &r.expect_err(op));
-    }
     if let (Some(sa), Some(sb)) = (segment_a(), segment_b()) {
         for (op, r) in subtract_both_orders_and_intersect(&sa, &sb) {
             let err = r.expect_err(op);
@@ -412,7 +390,9 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
             let err = r.expect_err(op);
             // The escalation is the circle rung's sampled clearance
             // landing in the band's window (the `1e-6` row); at the
-            // finer rows the same edge refuses at the pierce door.
+            // finer rows the same edge's touch, read in the band's gap,
+            // escalates on the circle × torus roots, at the edge and the
+            // torus.
             assert!(
                 matches!(
                     err,
@@ -422,6 +402,10 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
                                 predicate: Some("bool_conic_curved_clearance"),
                                 ..
                             },
+                            ..
+                        }
+                        | BooleanError::CurvedPierceEscalated {
+                            decision: topo::BooleanDecision::ArcTorusRoots,
                             ..
                         }
                 ),

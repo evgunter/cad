@@ -166,7 +166,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(plane, bowed),
-                witness: carrier.eval((t0 + t1) * 0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval((t0 + t1) * 0.5)),
             },
             carrier,
             param_start: t0,
@@ -315,7 +315,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(bowed, bowed),
-                    witness: carrier.eval((t0 + t1) * 0.5),
+                    selector: geom_brep::CurveSelector::Witness(carrier.eval((t0 + t1) * 0.5)),
                 },
                 carrier,
                 param_start: t0,

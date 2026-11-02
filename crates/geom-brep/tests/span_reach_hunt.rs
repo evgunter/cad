@@ -46,8 +46,8 @@ fn farthest(c: &Curve3<f64>, t0: f64, t1: f64, p: Point3<f64>) -> f64 {
         if ds[k] >= ds[lo] && ds[k] >= ds[hi] {
             let (mut a, mut b) = (ts[lo], ts[hi]);
             for _ in 0..80 {
-                let m1 = a + (b - a) * 0.381_966;
-                let m2 = a + (b - a) * 0.618_034;
+                let m1 = a + (b - a) * (1.0 - geom_core::GOLDEN_SECTION);
+                let m2 = a + (b - a) * geom_core::GOLDEN_SECTION;
                 if d(m1) < d(m2) {
                     a = m1;
                 } else {

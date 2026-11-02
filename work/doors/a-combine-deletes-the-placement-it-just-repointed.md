@@ -2,11 +2,11 @@
 id: a-combine-deletes-the-placement-it-just-repointed
 kind: issue
 title: combine_in_world deletes a two-shape placement after re-pointing it, when the placement copies two of the combine's operands
-status: parked
+status: closed
 opened: 2026-10-25
 priority: P1
 cost: E
-blocked_on: [5636]
+closed: 2026-11-01
 ---
 
 Found while reading `combine_in_world` (`crates/viewer/src/session.rs`) for PR 5693. Not probed. It reads off the code; it is not measured.
@@ -21,3 +21,7 @@ Banded P1 E and parked on PR 5636 at PR 5693's merge (orchestrator). It shows on
 
 AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
 successors on the viewer authoring files. Id and body unchanged.
+
+## Closed (2026-11-01, absorbed by D′3)
+
+D′3 (PR 5636, merged at `29110056`) gave `Node::Place` one `source`, so a placement copies at most one operand. `combine_in_world` (`crates/viewer/src/session.rs`) collects each distinct operand's `placements_of_read`, and those lists are now disjoint: no placement can be re-pointed as the first operand's and then deleted as a later one's. Closed as absorbed on the orchestrator's read, as the row asked. (DOORS orchestrator)

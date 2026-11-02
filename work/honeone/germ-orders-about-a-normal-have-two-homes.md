@@ -47,3 +47,95 @@ re-baseline of its own, on the boolean's ground.
 One cyclic-order door serves both lanes, ties reported to the caller,
 with one set of K names, and the predicate audit's rows for both point
 at it.
+
+## A third rule for one tie (2026-10-28, SPLITDOOR `splitdoor/hole-rim-tangent-germs`)
+
+Two germs along one direction now meet three different rules:
+
+- `splitting/insert.rs` `section_chords` orders them one order down
+  (`curving`): each face's section curvature off the shared tangent,
+  `geom_brep::implicit_graph_acceleration`, differenced and read by
+  `geom_brep::enters_material_order2`; an exact zero refuses
+  `Coincident`, a singular face `Singular`.
+- `boolean/vtxfac.rs` `germ_order` breaks the tie by the partners'
+  nesting (`tie_breaks_after`: the germ whose run's other germ lies
+  nearer clockwise comes after, so the chords nest).
+- `boolean/insert.rs` `strut_order` refuses it (`bool_strut_order`
+  through `decide_nonzero`), which a boolean tangent to a hole's rim at
+  a vertex reaches
+  (`work/splitdoor/a-boolean-whose-face-is-tangent-to-a-holes-rim-at-a-vertex-refuses-its-strut-order.md`).
+
+One door would also have to say which of these a tie means.
+
+## One home for the tie's second order (2026-10-28, SPLITDOOR `splitdoor/boolean-strut-order`)
+
+`geom_brep::tied_germ_turn` now orders two germs along one tangent by
+their bends (each section's acceleration off the tangent toward
+`n × t`, `implicit_graph_acceleration` in a plane,
+`implicit_section_acceleration` in a curved face's tangent plane),
+returning the tie (`Zero`) and a singular bend to the caller. The
+split's `section_chords` (`curving`) and the pierce ring's
+`germ_order` both read it; `insert::strut_order` takes the caller's
+tie as a closure, so the rules that remain are the caller's, stated
+where they apply:
+
+- one pierce's two germs along one direction (the ring) and two
+  sectors' germs (the split): one order down, then refused;
+- two pierces' germs along one ray (the ring): the chords' nesting
+  (`tie_breaks_after`), unchanged: cones touching along a ray in the
+  face have sections tangent to it, which read no bend;
+- the orbit walk's two germs in one entry (`walk_faces_first`,
+  `walks_after`): still first order alone
+  (`work/splitdoor/the-booleans-orbit-walk-orders-two-germs-along-one-direction-at-first-order-alone.md`).
+
+The first-order readings, their K names and the sense difference are
+as before.
+
+## The orbit walk and the ring's ties read second order now (2026-11-01, CLEAVE `cleave/two-lumps-pinch-rays`)
+
+The last bullet above is stale since `119e857190` (PR 5812): the orbit
+walk's tie of two germs along one direction in one entry, each along
+one of the other solid's coincident edges, is read one order further by
+`insert::beside_order` (through `insert::cut_order`, the orbit's one
+position order, since PR 6184): each germ lies on the
+side of the line where the other solid's face flush with the sector
+borders its edge (`bool_beside_flush`), read by `walks_after`. That is a
+second home for "which cone's copy lies on which side of the ray",
+beside `vtxfac::tie_breaks_after` (the ring's two pierces' germs along
+one ray, by their chords' nesting). Since PR 6170 the join reads the
+ring's tie too: `PierceRingRecord::ties` keeps each tie's two strut
+halves in the ring's order, and `join::tie_winding` winds a ring run of
+no area by it, so one door would also serve that reader.
+
+## Three rules for which side of the line a tied cut lies on (2026-11-01, CLEAVE `cleave/orbit-readings-read-the-beside-tie`, PR 6184)
+
+Two cuts tied at first order at a vertex now meet three rules, each
+answering the same question, which side of the shared line each copy
+lies on, from different evidence:
+
+- `insert::beside_order`: the side of the other solid's face flush with
+  the sector beside each cut's edge (its flankers). Since PR 6184 every
+  position reader of the orbit asks it, through `insert::cut_order`.
+- `insert::tied_held`: the side each pair's run leaves the line to, read
+  off its own piece's codes. Reached since PR 6184 only where
+  `beside_order` reads nothing (no flush flanker, or one offset).
+- `vtxfac::tie_breaks_after`: the side each pierce germ's partner lies
+  on, by the chords' nesting.
+
+Nothing makes them agree. Measured on PR 6184's branch over the whole
+`topo` integration suite (1211 tests, ε default): at every `held_cut`
+call where `beside_order` decided a tie (1015 calls, in the slit tests
+of `a_keel_on_the_floor_subtracts_as_a_slit` and the flush pinch
+witnesses of `union_flush_onto_edge_contact`), the run's held cut read
+the same with the tie read by the codes instead (`tied_held`, as main
+read it): 1015 of 1015 agree. Without `beside_order`, `tied_held` is
+reached 1476 times; with it, 461, all ties `beside_order` cannot read.
+`tie_breaks_after` was not compared: its germs carry no flankers.
+
+One door for the tie would name which evidence decides and check the
+others against it.
+
+Unwitnessed (PR 6184's review): `beside_order` also reads two cuts
+whose flush flankers lie on one side of the line, at different offsets
+from it, apart. That reading comes from the far bounds' angles from
+the line, not from a side, and no test or pose reaches it.

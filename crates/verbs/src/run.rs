@@ -12,7 +12,7 @@ use topo::splitting::SplitNaming;
 use topo::{
     AtRestBody, Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind,
     ContactRecords, GlueVerdict, NaryMember, NaryRun, ShellDoor, ShellError, ShellNaming, Shelled,
-    SplitError, SplitPart, SplitResult, SweepStrategy, boolean_op_with, nary_boolean, split,
+    SplitError, SplitPart, SplitResult, SweepStrategy, boolean_op_with, nary_boolean_apart, split,
 };
 
 use crate::verb::{Blend, Boolean, Members, Shell, Split, Sweep};
@@ -330,7 +330,7 @@ impl Members {
         sweep: SweepStrategy,
         tol: Tol,
     ) -> NaryRun<T> {
-        let Self { op, members } = self;
+        let Self { op, members, apart } = self;
         if bodies.len() != members.len() {
             unreachable!(
                 "an n-ary boolean of {} members was run over {} bodies",
@@ -343,7 +343,7 @@ impl Members {
             .zip(members)
             .map(|(&body, inputs)| NaryMember { body, inputs })
             .collect();
-        nary_boolean(*op, &members, sweep, tol)
+        nary_boolean_apart(*op, &members, apart, sweep, tol)
     }
 }
 

@@ -39,9 +39,9 @@ Split the import door's unsized endings by whose data the miss is (the file's, o
 
 The split finds no unsized check that reads the file's data alone at the import door, so all of them keep `KERNEL_OR_FILE_DEFECT_ENDING` past ε_in. That ending is now chosen by `recourse::culprit` for `Provenance::Derived` (`Unsized::recourse`, `crates/geom-brep/src/recourse.rs`). The repair shape above assumed the endpoint residuals were the file's; they are not:
 
-- An ellipse edge's `t0`/`t1` are a scaled angle, not the nearest point (`work/exch/ellipse-edge-parameters-overstate-the-endpoint-miss.md`).
-- A seam generator is a carrier the import mints through one rim vertex (`work/exch/minted-seam-generator-can-put-endpoint-end-two-eps-in-off.md`).
-- A B-spline edge's parameters are pinned to its domain ends (`work/exch/partial-bspline-edges-are-refused-for-domain-pinned-parameters.md`).
+- An ellipse edge's `t0`/`t1` are a scaled angle, not the nearest point (`work/interp/ellipse-edge-parameters-overstate-the-endpoint-miss.md`).
+- A seam generator is a carrier the import mints through one rim vertex (`work/interp/minted-seam-generator-can-put-endpoint-end-two-eps-in-off.md`).
+- A B-spline edge's parameters are pinned to its domain ends (`work/interp/partial-bspline-edges-are-refused-for-domain-pinned-parameters.md`).
 - The witness is the carrier's mid-parameter point (`adopt.rs`), on such a carrier and at such parameters.
 
 Only a sized decision's stored side names the file there (`SizedDecision::words`, `Provenance::Stored`).

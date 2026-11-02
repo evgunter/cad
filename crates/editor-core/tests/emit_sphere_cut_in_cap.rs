@@ -39,6 +39,7 @@ pub(crate) fn ball(doc: ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId
         Node::Profile(ProfileProgram {
             loops: vec![meridian],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

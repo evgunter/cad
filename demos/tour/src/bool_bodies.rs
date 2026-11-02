@@ -4,9 +4,8 @@
 //!
 //! Every scene carries an EXACT expected volume (box arithmetic) via
 //! `booleans::check`. This oracle first caught (pre-PR-5-fix-pass) a
-//! silent wrong-component defect on single-face seams; the PR 5 fix
-//! pass made every failure a typed refusal, and PR 5.5's seam
-//! discipline closed the R1 orientation-dependent refusals entirely.
+//! silent wrong-component defect on single-face seams, and the kernel
+//! checks no result's volume, so it is what would catch one now.
 //!
 //! The open box and void box stops retired at the #91 refresh: the
 //! project box (`crate::projectbox`) is the cavity story now, and the

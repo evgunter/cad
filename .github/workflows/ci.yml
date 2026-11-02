@@ -57,7 +57,8 @@ jobs:
       sha: ${{ steps.target.outputs.sha }}
       render_dispatch: ${{ steps.render-tag.outputs.render_dispatch }}
       tier: ${{ steps.classify.outputs.TIER }}
-      cargo_scope: ${{ steps.paths.outputs.cargo_scope }}
+      test_scope: ${{ steps.classify.outputs.TEST_SCOPE }}
+      test_shards: ${{ steps.classify.outputs.TEST_SHARDS }}
       run_build: ${{ steps.classify.outputs.RUN_BUILD }}
       test_filter: ${{ steps.classify.outputs.TEST_FILTER }}
       seeds: ${{ steps.classify.outputs.SEEDS }}
@@ -71,6 +72,7 @@ jobs:
       run_mesh_budget: ${{ steps.paths.outputs.mesh_budget }}
       run_demos: ${{ steps.paths.outputs.demos }}
       run_tools: ${{ steps.paths.outputs.tools }}
+      run_filter_selftest: ${{ steps.paths.outputs.filter_selftest }}
       eps_extra: ${{ steps.paths.outputs.eps_extra }}
       base: ${{ steps.base.outputs.sha }}
     steps:
@@ -158,7 +160,6 @@ jobs:
           TIER: ${{ steps.classify.outputs.TIER }}
           SEEDS: ${{ steps.classify.outputs.SEEDS }}
           PKGS: ${{ steps.classify.outputs.PKGS }}
-          CARGO_SCOPE: ${{ steps.classify.outputs.CARGO_SCOPE }}
           EPS_EXTRA: ${{ steps.classify.outputs.EPS_EXTRA }}
         run: |
           # A row keyed here runs when the diff touches its own subject, and
@@ -173,6 +174,9 @@ jobs:
             flag step_export "seeded step-export"
             flag mesh_budget "case ',$PKGS,' in *,mesh,*) true;; *) false;; esac"
             flag demos "touched '^demos/'"
+            # The filter's selftest reads the script, the slow-set parser it
+            # imports, and the member graph (a manifest edit is TIER=all).
+            flag filter_selftest "touched '^scripts/(ci-filter|slow_set)\.py$'"
             # k-lint's predicate roster reads its MINT_SOURCES as text, so an
             # edit there is the roster's own subject too.
             flag tools "touched '^(tools/|crates/geom-brep/src/props/quad/|crates/topo/src/props\.rs$|crates/topo/src/props/settle\.rs$)'"
@@ -180,15 +184,6 @@ jobs:
             # crates, and the rows of the test files this diff changes).
             # Every row runs at every eps nightly.
             if [ "$DRAFT" = true ]; then echo "eps_extra="; else echo "eps_extra=$EPS_EXTRA"; fi
-            # test-utils holds the tree-wide source-reader ledger and has no
-            # dependencies, so every closure builds it: a new source-reading
-            # test anywhere owes that ledger a line, and this is where it
-            # hears about it.
-            case "$TIER: $CARGO_SCOPE " in
-              closure:*" -p test-utils "*) echo "cargo_scope=$CARGO_SCOPE" ;;
-              closure:*) echo "cargo_scope=$CARGO_SCOPE -p test-utils" ;;
-              *) echo "cargo_scope=$CARGO_SCOPE" ;;
-            esac
           } | tee -a "$GITHUB_OUTPUT"
       # HEAD^2 of the test merge is the PR head. render.yml's own commits
       # carry `[skip ci]`, and a dispatch never reaches this step, so the
@@ -252,6 +247,9 @@ jobs:
           python3 scripts/check-slow-set-names.py --selftest
       - name: fast-set time check self-test
         run: python3 scripts/check-fast-set-times.py --selftest
+      - name: change filter self-test
+        if: needs.filter.outputs.run_filter_selftest == 'true'
+        run: python3 scripts/ci-filter.py --selftest
       - name: install ruff (pinned, official prebuilt)
         run: |
           mkdir -p "$HOME/ruff-bin"
@@ -278,12 +276,7 @@ jobs:
       - name: gates (scripts/gates)
         run: |
           rc=0
-          for g in scripts/gates/*.sh; do
-            case "$(basename "$g")" in lib.sh) continue ;; esac
-            echo "::group::$g"
-            bash "$g" || { echo "::error::$g failed"; rc=1; }
-            echo "::endgroup::"
-          done
+          scripts/run-gates.sh || rc=1
           python3 scripts/payload-rung-sweep.py --check || rc=1
           exit $rc
       - uses: dtolnay/rust-toolchain@stable
@@ -300,7 +293,7 @@ jobs:
         if: needs.filter.outputs.run_build == 'true'
         env:
           TIER: ${{ needs.filter.outputs.tier }}
-          SCOPE: ${{ needs.filter.outputs.cargo_scope }}
+          SCOPE: ${{ needs.filter.outputs.test_scope }}
           TOOLKIT: ${{ needs.filter.outputs.run_viewer_toolkit }}
         run: |
           # viewer's `app` feature is the eframe/wgpu graph; the viewer job
@@ -314,10 +307,14 @@ jobs:
           fi
 
   test:
-    name: test
+    name: test (${{ matrix.shard }})
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: needs.filter.outputs.run_build == 'true' && needs.filter.outputs.test_shards != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.filter.outputs.test_shards) }}
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
@@ -356,13 +353,13 @@ jobs:
           echo "$(wc -w < "$RUNNER_TEMP/new-tests.txt") identifiers on the diff's added Rust lines"
       - name: build
         id: build
-        run: cargo nextest run --no-run --profile ci ${{ needs.filter.outputs.cargo_scope }}
+        run: cargo nextest run --no-run --profile ci ${{ matrix.scope }}
       - name: test (default eps; a fast-set test at 0.5 s if new, 1 s otherwise, fails it)
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           rc=0
-          cargo nextest run --profile ci ${{ needs.filter.outputs.cargo_scope }} \
+          cargo nextest run --profile ci ${{ matrix.scope }} \
             ${TEST_FILTER:+-E "$TEST_FILTER"} --no-fail-fast || rc=$?
           # Before nextest-failures.py, which deletes the junit report.
           slow=0
@@ -382,14 +379,14 @@ jobs:
             echo "::group::eps=$eps: $EPS_EXTRA"
             r=0
             CAD_TOLERANCE_EPS=$eps cargo nextest run --profile ci \
-              ${{ needs.filter.outputs.cargo_scope }} -E "$expr" --no-fail-fast --no-tests=warn || r=$?
+              ${{ matrix.scope }} -E "$expr" --no-fail-fast --no-tests=warn || r=$?
             scripts/nextest-failures.py "eps $eps" "$r"
             [ "$r" = 0 ] || rc=1
             echo "::endgroup::"
           done
           exit $rc
       - name: the slow set did not run (an all-tier run that seeds no crate)
-        if: '!cancelled() && needs.filter.outputs.seeds == '''' && needs.filter.outputs.tier == ''all'''
+        if: '!cancelled() && matrix.shard == ''kernel'' && needs.filter.outputs.seeds == '''' && needs.filter.outputs.tier == ''all'''
         env:
           ALL_REASON: ${{ needs.filter.outputs.all_reason }}
         run: |
@@ -409,23 +406,25 @@ jobs:
           pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
           echo "slow set over: $pkgs"
           rc=0
-          cargo nextest run --profile ci --ignore-default-filter ${{ needs.filter.outputs.cargo_scope }} \
+          cargo nextest run --profile ci --ignore-default-filter ${{ matrix.scope }} \
             -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass || rc=$?
           scripts/nextest-failures.py "slow set" "$rc"
           exit $rc
       - name: doc-tests
         if: '!cancelled()'
-        run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }}
+        run: cargo test --doc ${{ matrix.scope }}
       - name: the slow set names only tests that exist (the packages this run built)
         if: '!cancelled() && steps.build.outcome == ''success'''
         env:
-          SCOPE: ${{ needs.filter.outputs.cargo_scope }}
+          SCOPE: ${{ matrix.scope }}
         run: |
           set -o pipefail
-          case " $SCOPE " in *" --workspace "*) complete=--complete ;; *) complete= ;; esac
+          # Each shard checks the entries of the packages it built; an entry
+          # naming no workspace member is dead in either.
+          members="$(cargo metadata --no-deps --format-version 1 | jq -r '[.packages[].name] | join(",")')"
           # shellcheck disable=SC2086 # SCOPE is a list of -p flags
           cargo nextest list --ignore-default-filter $SCOPE --message-format json \
-            | python3 scripts/check-slow-set-names.py $complete
+            | python3 scripts/check-slow-set-names.py --members "$members"
       # Last, so the failing rows close the log whatever ran after them.
       - name: failing tests (name, panic, seed) and slow fast-set tests
         if: failure()
@@ -606,9 +605,11 @@ jobs:
           (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
           (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
       # The `ci` profile (demos/tour/.config/nextest.toml) leaves out the
-      # tour rows that run only nightly.
+      # tour rows that run only nightly. The `ci-tour` cargo profile is
+      # release at opt-level 1, with its assertions still armed; its header
+      # in demos/tour/Cargo.toml has the measurement.
       - name: demos tour suite
-        run: cd demos/tour && cargo nextest run --release --profile ci --no-fail-fast
+        run: cd demos/tour && cargo nextest run --cargo-profile ci-tour --profile ci --no-fail-fast
 
   tools:
     name: tools (k-lint, tess-lint, tess-meter)

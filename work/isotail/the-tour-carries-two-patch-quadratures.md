@@ -17,3 +17,8 @@ PR 5642 (the teapot) added a private `patch_quadrature` fn in
 projectbox now use. These are two spellings of one user-side reference
 integral. Fix (E): move teapot onto `patch_quadrature::measure`, keeping
 its two-order error estimate, and delete the private fn.
+
+2026-10-29 (GREEN, PR #6039): the tour is now a lib with a thin bin.
+`patch_quadrature.rs` stays in `src/`, as a `pub mod` of that lib
+(`demo_tour::patch_quadrature`); its callers are the suites under
+`tests/`, and `src/teapot.rs` can call `measure` directly.

@@ -927,6 +927,8 @@ pub(crate) struct FullTurn {
     pub(crate) strut: EdgeKey,
     /// The near rim's plus half, in the wall.
     pub(crate) near_in_wall: HalfEdgeKey,
+    /// The near rim's minus half, in `near_face`.
+    pub(crate) near_minus: HalfEdgeKey,
     /// The near rim.
     pub(crate) near: EdgeKey,
     /// The face holding the near rim's minus half.
@@ -989,6 +991,7 @@ pub(crate) fn build_full_turn<T: Decide + topo::AtRestPolicy>(
         wall: far.face,
         strut: strut.edge,
         near_in_wall: near.he_plus,
+        near_minus: near.he_minus,
         near: near.edge,
         near_face: near.face,
     })
@@ -1027,28 +1030,45 @@ pub(crate) fn transient_disc<T: Real>(cap: SurfaceKey) -> FaceSurface<T> {
     }
 }
 
+/// A swept one-segment loop's result, read by [`full_turn_hole`]: the
+/// face holding its near rim's minus half, which the hole's near cap
+/// consumes.
+pub(crate) trait NearFace {
+    /// The face holding the near rim's minus half.
+    fn near_face(&self) -> FaceKey;
+}
+
+impl NearFace for FullTurn {
+    fn near_face(&self) -> FaceKey {
+        self.near_face
+    }
+}
+
 /// **A one-segment hole, whole**: its ring planted at its FAR vertex
 /// `far` ([`plant_hole_ring`]) — it is swept whole there, far rim first
 /// ([`build_full_turn`]), so the ring keeps the far rim — the turn
 /// swept into that ring by `sweep`, handed the [`transient_disc`] on
 /// `near_cap`'s surface as its near face, and that disc consumed into
-/// `near_cap`: its loop becomes the cap's ring.
-pub(crate) fn full_turn_hole<T, S, E>(
+/// `near_cap`: its loop becomes the cap's ring. The turn is one
+/// [`FullTurn`] for extrude and revolve, and a stack of them for a
+/// degree-1 loft's slabs.
+pub(crate) fn full_turn_hole<T, R, S, E>(
     body: &mut Body<T>,
     anchor: HalfEdgeKey,
     far: Point3<T>,
     near_cap: FaceKey,
     tol: Tol,
-    sweep: impl FnOnce(&mut Body<T>, topo::LoopKey, FaceSurface<T>) -> Result<(FullTurn, S), E>,
-) -> Result<(FullTurn, S), E>
+    sweep: impl FnOnce(&mut Body<T>, topo::LoopKey, FaceSurface<T>) -> Result<(R, S), E>,
+) -> Result<(R, S), E>
 where
     T: Decide + topo::AtRestPolicy,
+    R: NearFace,
     E: From<EulerOpError>,
 {
     let (ring, _) = plant_hole_ring(body, anchor, far, tol)?;
     let disc = transient_disc(face_surface_key(body, near_cap));
     let (turn, swept) = sweep(body, ring, disc)?;
-    body.kfmrh(near_cap, turn.near_face)?;
+    body.kfmrh(near_cap, turn.near_face())?;
     Ok((turn, swept))
 }
 

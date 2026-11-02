@@ -62,6 +62,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     });
     let applied = editor_core::apply(
         &r.doc,

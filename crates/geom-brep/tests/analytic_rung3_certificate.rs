@@ -93,7 +93,7 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(k1, k2),
-            witness: c.eval(T::from_f64(0.5 * (d0 + d1))),
+            selector: geom_brep::CurveSelector::Witness(c.eval(T::from_f64(0.5 * (d0 + d1)))),
         },
         carrier: c.clone(),
         param_start: t0,
@@ -231,7 +231,7 @@ fn a_schedule_defect_refuses_as_itself() {
     let spec = |t0: f64, t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(k1, k2),
-            witness: c.eval(0.5),
+            selector: geom_brep::CurveSelector::Witness(c.eval(0.5)),
         },
         carrier: c.clone(),
         param_start: t0,
@@ -282,7 +282,7 @@ fn rest_re_derives_an_analytic_rung3_edges_certificate() {
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(k1, k2),
-            witness: c.eval(0.5),
+            selector: geom_brep::CurveSelector::Witness(c.eval(0.5)),
         },
         carrier: c.clone(),
         param_start: 0.0,
@@ -408,7 +408,7 @@ fn certify_over(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(k1, k2),
-            witness: c.eval(0.5 * (t0 + t1)),
+            selector: geom_brep::CurveSelector::Witness(c.eval(0.5 * (t0 + t1))),
         },
         carrier: c.clone(),
         param_start: t0,

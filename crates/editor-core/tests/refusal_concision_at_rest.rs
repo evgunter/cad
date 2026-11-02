@@ -41,8 +41,8 @@ const LABELS: &[(&str, &str)] = &[
     ("checks, product", "checks"),
     ("product", "product"),
     ("checks, product", "product"),
-    ("product", "placement 000000000005 output 0"),
-    ("checks, product", "placement 000000000005 output 0"),
+    ("product", "piece 000000000005 output 0"),
+    ("checks, product", "piece 000000000005 output 0"),
     // A sentence whose clause carries no word the shape check reads as
     // a sentence's: a numeral subject and a bare verb.
     ("InstanceInterference", "two instances overlap"),
@@ -97,7 +97,7 @@ const KERNEL_KEYED: &[&str] = &[
 /// Every wrapper `error` can arrive in, rendered as the viewer draws it.
 fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
     let at_rest = AtRestEvidence::NoLane(error.clone());
-    let product = ProductError::RootInvalid {
+    let product = ProductError::PieceInvalid {
         findings: vec![SourceFinding {
             node: RecipeNodeId::new(0, tagged(5)),
             output: 0,

@@ -90,6 +90,7 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -121,6 +122,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -129,6 +131,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     let p2 = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p2.into(),
@@ -444,6 +447,7 @@ fn evidence_only_e2e_consumer_walk() {
                 },
             ],
             ids: Vec::new(),
+            on: None,
         }));
         r.insert(Node::Extrude {
             profile: p.into(),

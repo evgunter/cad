@@ -54,3 +54,19 @@ pub fn bernstein_restriction_as_retired(
 ) -> Result<Vec<crate::Interval>, crate::spline::BlossomError> {
     crate::spline::blossom::bernstein_restriction_as_retired(row, ends)
 }
+
+/// **A refused point bracket at `x`**: both ends exactly `x`, its
+/// decoration below `Def` (`√[-1, 1]·0 + x`). The plant a census row
+/// reads to show a site asks [`crate::Interval::is_certified`] rather
+/// than trusting ordinary ends.
+#[must_use]
+pub fn refused_point(x: f64) -> crate::Interval {
+    use crate::{Bounds as _, Real as _};
+    let p = crate::Interval::from_bounds(-1.0, 1.0).sqrt() * crate::Interval::from_bounds(0.0, 0.0)
+        + crate::Interval::from_bounds(x, x);
+    assert!(
+        !p.is_certified() && p.lo() == x && p.hi() == x,
+        "the plant must be a refused point bracket at {x:e}: {p:?}"
+    );
+    p
+}

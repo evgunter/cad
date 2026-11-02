@@ -172,6 +172,7 @@ mod real_bodies {
             Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
         );
         insert(

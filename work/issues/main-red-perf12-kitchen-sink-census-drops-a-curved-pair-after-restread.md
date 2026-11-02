@@ -2,8 +2,9 @@
 id: main-red-perf12-kitchen-sink-census-drops-a-curved-pair-after-restread
 kind: issue
 title: Main red: perf12's kitchen_sink census reads 28 findings, the curved pair (face 47, face 21) cleared since #5817, golden unblessed
-status: open
+status: closed
 opened: 2026-10-27
+closed: 2026-10-28
 ---
 
 
@@ -34,3 +35,7 @@ Main's at-rest-check merge re-blessed the census goldens (an `at rest:`
 outcome line above the census) but not this pair: on a clean
 `fd74ba95` the row reds at line 48 (eps=1e-9), the outcome line's count
 (29 → 28 on E, which also drops the census count and the same pair).
+
+## Closed (INTENT, 2026-10-28)
+
+Duplicate of `work/restread/main-red-perf12-census-golden-kitchen-sink-loses-a-curved-pair-at-5817.md` (P1, RESTREAD, which owns the cause, PR 5817), as found by the 10-28 nightly triage (PR 5917). Read that row.

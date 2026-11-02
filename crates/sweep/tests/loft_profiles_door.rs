@@ -57,6 +57,7 @@ fn wall_values<T: geom_core::spline::SpanLocate, R>(
         .side_faces
         .iter()
         .flatten()
+        .flatten()
         .flat_map(|face| {
             let face = lofted.body.get_face(*face).expect("a built face");
             match lofted

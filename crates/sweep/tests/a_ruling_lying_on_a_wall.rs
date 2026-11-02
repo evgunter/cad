@@ -30,7 +30,7 @@ use geom_brep::EdgeDescription;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, corners, finished, prism_at};
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::{AtRestBody, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanDecision, BooleanError, BooleanResult, Coincide, DeclarationRead};
 
 /// The tube's radius and height.
 const R: f64 = 1.0;
@@ -135,27 +135,30 @@ type Census = (usize, usize, usize, usize);
 type Want = Option<(Census, [usize; 6])>;
 
 /// **The prism's edge on the wall builds every op undeclared**, but
-/// `t ∖ b` on a seam ruling. Two
+/// `t ∖ b` inside one face and on a seam ruling. Two
 /// poses off the seam rulings (`0.3` and `0.5` rad) and the two seam
 /// rulings themselves (`0` and `π`), each with the edge inside one wall
 /// face (`z ∈ [0.5, 1.5]`) and across the top rim (`z ∈ [1, 3]`).
 ///
 /// Inside, the union is the tube, the intersection the prism, `b ∖ t`
 /// empty, and `t ∖ b` the tube with a prism-shaped void that touches
-/// the wall along the edge: its two shells are recorded touching at
-/// the edge's ends, v-f against the wall face off a seam ruling and,
-/// on one, v-e against the ruling the join made whole again, with the
-/// edge-edge record of the prism's edge lying along that ruling. Across the rim, the prism's
-/// part above `z = H` is `b ∖ t`, and `t ∖ b` is a notch whose edge
-/// runs down the wall from the rim, its lower end recorded the same
-/// way. On a seam ruling `t ∖ b` refuses `LineWedges`: its result keeps
-/// the seam edge (180°) and the void's edge along it (270°) on one line,
-/// overlapping, which every tier passed; the material there is two
-/// 45° wedges, each between a void face and the wall. It returns with
-/// the re-pairing
+/// the wall along the edge, the void's two faces leaving it into the
+/// wall's material. Off a seam ruling the edge is two, a ring of no area
+/// in the wall, which refuses `EdgeInFace` (`CurvedFace`); the census
+/// and the v-f rests it pinned are owed back with the ring
+/// (`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`).
+/// Across the rim, the prism's part above `z = H` is `b ∖ t`, and
+/// `t ∖ b` is a notch whose edge runs down the wall from the rim: off a
+/// seam ruling two edges, a slit of the curved wall, which refuses
+/// `CurvedFace` as well. On a seam ruling `t ∖ b` refuses
+/// `LineWedges`, inside and across: its result keeps the seam edge
+/// (180°) and the void's edge along it (270°) on one line, overlapping,
+/// which every tier passed; the material there is two 45° wedges, each
+/// between a void face and the wall. It returns, with the v-e and
+/// edge-edge records it pinned against the ruling, with the re-pairing
 /// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 #[test]
-fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
+fn a_prism_edge_on_the_tubes_wall_builds_every_op_but_its_parting() {
     let tol = Tol::witness();
     let t = rod_z(0.0, H);
     let tube = PI * R * R * H;
@@ -163,27 +166,9 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
     let prism: Want = Some(((6, 12, 8, 1), nothing));
     for turn in [0.3, 0.5, 0.0, PI] {
         let on_seam = turn == 0.0 || turn == PI;
-        // `[∪, t ∖ b, b ∖ t, ∩]` inside one face, then across the rim.
-        let inside: [Want; 4] = if on_seam {
-            [
-                Some(((4, 6, 4, 1), nothing)),
-                Some(((10, 18, 12, 2), [0, 0, 2, 1, 0, 0])),
-                None,
-                prism,
-            ]
-        } else {
-            [
-                Some(((4, 6, 4, 1), nothing)),
-                Some(((10, 18, 12, 2), [0, 2, 0, 0, 0, 0])),
-                None,
-                prism,
-            ]
-        };
-        let notch = if on_seam {
-            [0, 0, 1, 1, 0, 0]
-        } else {
-            [0, 1, 0, 0, 0, 0]
-        };
+        // `[∪, t ∖ b, b ∖ t, ∩]` inside one face, then across the rim. A
+        // `t ∖ b` that refuses (below) holds nothing here.
+        let inside: [Want; 4] = [Some(((4, 6, 4, 1), nothing)), None, None, prism];
         // On a seam ruling the prism's edge meets the rim at the tube's
         // own rim vertex, one vertex fewer.
         let rim = if on_seam {
@@ -191,7 +176,8 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
         } else {
             (9, 19, 12, 1)
         };
-        let across: [Want; 4] = [Some((rim, nothing)), Some((rim, notch)), prism, prism];
+        // Off a seam ruling `t ∖ b` refuses (below) and holds nothing here.
+        let across: [Want; 4] = [Some((rim, nothing)), None, prism, prism];
         for (extent, z0, h, census, [union, t_less_b, b_less_t, common]) in [
             ("inside", 0.5, 1.0, inside, [tube, tube - AREA, 0.0, AREA]),
             (
@@ -213,6 +199,19 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
             ];
             for ((op, r), (want, volume)) in six(&t, &b).into_iter().zip(wants) {
                 let label = format!("turn {turn}, {extent}: {op}");
+                if !on_seam && op == "t ∖ b" {
+                    assert!(
+                        matches!(
+                            r,
+                            Err(BooleanError::EdgeInFace {
+                                gap: topo::EdgeInFaceGap::CurvedFace,
+                                ..
+                            })
+                        ),
+                        "{label}: {r:?}, not the curved face's refusal"
+                    );
+                    continue;
+                }
                 if on_seam && op == "t ∖ b" {
                     assert!(
                         matches!(
@@ -284,7 +283,8 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
 ///   sliver band of the wall, and the vertex placement escalates;
 /// - **leaned** about the wall's normal through its lower end, so the
 ///   upper end slides `±3·z` along the wall: both ends are on it, and
-///   whether the edge runs along the axis escalates;
+///   whether the edge runs along the axis escalates, at the edge and the
+///   wall (`CurvedPierceEscalated`);
 /// - **leaned** `±40·z`: the edge is decided off the axis, over its
 ///   whole span and over either half the rim splits it into: a chord
 ///   whose two crossings the root door cannot separate, which keeps the
@@ -317,8 +317,16 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
                 );
                 for (op, r) in six(&t, &b) {
                     let label = format!("z0 = {z0}, {how} {d}: {op}");
-                    let Err(BooleanError::Escalated { decision, .. }) = r else {
-                        panic!("{label}: escalates: {r:?}");
+                    // The span's door reads the lean in band, located at
+                    // the edge and the wall; the shift, elsewhere.
+                    let decision = match r {
+                        Err(BooleanError::CurvedPierceEscalated { decision, .. })
+                            if how == "leaned" =>
+                        {
+                            decision
+                        }
+                        Err(BooleanError::Escalated { decision, .. }) => decision,
+                        r => panic!("{label}: escalates: {r:?}"),
                     };
                     if how == "leaned" {
                         assert_eq!(
@@ -352,7 +360,7 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
     }
 }
 
-/// **A ruling across an ellipse builds every op undeclared.** The tube
+/// **A ruling across an ellipse builds every op undeclared but `t ∖ b`.** The tube
 /// from `z = −1` with its bottom cut by the plane `z = 0.5 + 0.2·x`, so
 /// each wall face is bounded below by an ellipse arc, and the prism
 /// from `z = 0` to `1`, its edge on the wall running out through that
@@ -360,11 +368,14 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
 /// plane and is split there. The tube holds `π·R²·1.5`; the prism above
 /// the plane holds `A·(0.5 − 0.2·x̄)`, `x̄ = 0.6·cos turn` its
 /// centroid's `x`. `t ∖ b` is a notch whose edge runs up the wall from
-/// the ellipse, its upper end recorded on the wall face. The wall's
+/// the ellipse, both its faces going into the wall's material, so it is
+/// two edges, a slit of the curved wall, which refuses `EdgeInFace`
+/// (`CurvedFace`) rather than ship one edge
+/// (`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`). The wall's
 /// ellipse trim is measured by certified quadrature, so each volume is
 /// read to the enclosure's own half-width.
 #[test]
-fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
+fn a_ruling_across_an_ellipse_builds_every_op_but_its_slit() {
     let tol = Tol::witness();
     let t = slanted_tube();
     let tube = PI * R * R * 1.5;
@@ -374,7 +385,7 @@ fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
         let wants = [
             (tube + AREA - common, whole, [0; 4]),
             (tube + AREA - common, whole, [0; 4]),
-            (tube - common, whole, [0, 1, 0, 0]),
+            (tube - common, (0, 0, 0, 0), [0; 4]),
             (AREA - common, prism, [0; 4]),
             (common, prism, [0; 4]),
             (common, prism, [0; 4]),
@@ -383,6 +394,19 @@ fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
             six(&t, &square(turn, 0.0, 1.0)).into_iter().zip(wants)
         {
             let label = format!("turn {turn}: {op}");
+            if op == "t ∖ b" {
+                assert!(
+                    matches!(
+                        r,
+                        Err(BooleanError::EdgeInFace {
+                            gap: topo::EdgeInFaceGap::CurvedFace,
+                            ..
+                        })
+                    ),
+                    "{label}: {r:?}, not the curved slit's refusal"
+                );
+                continue;
+            }
             let Ok(BooleanResult::Body(bb)) = r else {
                 panic!("{label}: builds: {r:?}");
             };
@@ -751,17 +775,30 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// `100(1 + d)`: their ellipse rims cross at `(0, ±0.01, 0)`. With
 /// `d = k·ε` the planes' tilt carries `0.01·k·ε` across the ellipses, so
 /// the band reads them parallel and through one point at every `k`
-/// here, while the rims' far ends lie `k·ε` apart. At `k` = 0.1, 0.5
-/// and 0.9 the rims are one curve within the band, and every op
-/// refuses `FallbackExtentUnsupported` further on. At 2 and 5 a seam
-/// ruling's crossing with the other rim's plane lies `k·ε` from the
-/// ruling's end, and every op refuses `Escalated`: the ruling's end,
-/// read against the rim first, lies in the band's gap of its carrier
-/// (`curve_carrier_gap`). At 30 and
-/// 80 the rims are definitely two curves, which no closed form here
-/// places, and every op refuses `CurvedPierceUnsupported`, but for the
-/// three with the first rod first at 80, which escalate on the sector
-/// reading's `conic_bend` before reaching that frontier. None reads the
+/// here, while the rims' far ends lie `k·ε` apart. At `k` = 0, 0.1, 0.5
+/// and 0.9 the rims are one curve within the band, the two operands one
+/// body, and every op builds it ([`a_cut_rod_and_its_band_copy_are_one_body`]):
+/// `∪` and `∩` the cut rod, `3π·0.01²` within its pad, `∖` nothing. At 2
+/// and 5 a seam ruling's crossing with the other rim's plane lies `k·ε`
+/// from the ruling's end, and every op refuses `CurvedPierceEscalated`
+/// on the meeting (`CurveMeeting`): the ruling's end, read against the
+/// rim first, lies in the band's gap of its carrier (`curve_carrier_gap`). At 30 and 80 the band decides the two
+/// cut planes one carrier and the rims two curves, which touch in the
+/// planes' common plane at `(0, ±0.01, 0)` and stay within the band's
+/// escalation of each other over `|cos θ| < 10/k` of their angle: the
+/// level of one on the other has no definite sign across that stretch,
+/// and the coplanar ellipse reading's walk can cut it nowhere definite.
+/// At 30 that meeting is in band: the walk's side reading lands in the
+/// gap (`curve_pair_coplanar_sub_side`), and every op refuses
+/// `CurvedPierceEscalated` on the meeting, at the ruling and the face,
+/// its text naming the meeting and its lever. At 80 the three with the
+/// first rod first escalate on the sector reading's `conic_bend` first,
+/// and the other three keep the `CurvedPierceUnsupported` frontier: the
+/// walk's clear reading decides zero there, a decided reading the band
+/// does not cut, which is the frontier's and not an escalation. At 200
+/// the ops escalate in band too, the first rod first on a vertex's side
+/// of a face (`bool_vertex_face_side`), the second on the meeting, the
+/// transverse arm's swing (`curve_pair_pose_swing`). None reads the
 /// rims' crossings away.
 ///
 /// **At a coarse ε the one-curve poses refuse `CurvedPierceUnsupported`
@@ -774,14 +811,15 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
 /// which fails once `ε` passes about `2.5·10⁻⁸`: at `k` below one the
 /// reading refuses `Unsettled::Meter`
 /// (`work/cpair/curve-pair-polish-meters-refuse-shallow-meetings.md`) and
-/// the pierce is unread. There the three ops with the first rod first
-/// at 80 refuse `CurvedPierceUnsupported` too, before the sector
-/// reading, on the same meter: the seam ruling lies on the other rod's
+/// the pierce is unread. There every op at 30 and past refuses
+/// `CurvedPierceUnsupported` too, a precision limit and not a reading in
+/// band, and the three with the first rod first at 80 do so before the
+/// sector reading, on the same meter: the seam ruling lies on the other rod's
 /// wall, the interior question reads its meetings with that wall's rim
 /// (`boolean::carrier_cross`), and the line × ellipse pose's basin meter
 /// (`curve_pair_pose_basin`) decides negative, so the crossing is unread
-/// and the pierce keeps the frontier. Every one of the coarse ε's thirty
-/// pierce refusals here is that meter. The rest of the table holds at
+/// and the pierce keeps the frontier. Every one of the coarse ε's pierce
+/// refusals here is that meter. The rest of the table holds at
 /// every ε.
 #[test]
 fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
@@ -789,7 +827,7 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let rod = rod_of(0.01, -3.0, 6.0);
     let e = geom_core::Band::linear(tol).unwrap().escalate();
     let meter_refuses = 2.0 * 1e4 * 2.0 * (e / 0.01 + e) >= 1.0;
-    for k in [0.1, 0.5, 0.9, 2.0, 5.0, 30.0, 80.0] {
+    for k in [0.0, 0.1, 0.5, 0.9, 2.0, 5.0, 30.0, 80.0, 200.0] {
         let d = k * tol.eps();
         let (a, b) = (
             cut_below(&rod, 100.0, 0.0),
@@ -803,35 +841,120 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                     "{label}: the basin meter refuses at this ε: {res:?}"
                 );
             } else if k < 1.0 {
-                assert!(
-                    matches!(res, Err(BooleanError::FallbackExtentUnsupported { .. })),
-                    "{label}: one curve, refused past it: {res:?}"
-                );
+                one_body(&label, op, res);
             } else if k < 10.0 {
-                let Err(BooleanError::Escalated { diag, .. }) = &res else {
-                    panic!("{label}: escalates: {res:?}");
+                let Err(BooleanError::CurvedPierceEscalated { decision, diag, .. }) = &res else {
+                    panic!("{label}: escalates, located: {res:?}");
                 };
+                assert_eq!(*decision, BooleanDecision::CurveMeeting, "{label}");
                 assert_eq!(
                     diag.predicate,
                     Some("curve_carrier_gap"),
                     "{label}: on the end's reading"
                 );
+            } else if meter_refuses {
+                assert!(
+                    matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                    "{label}: the basin meter refuses at this ε: {res:?}"
+                );
             } else {
-                // Exactly the ops with the first rod first, at 80, reach the
-                // sector reading first.
-                let sector = k > 50.0 && op.starts_with('t') && !meter_refuses;
-                if sector {
-                    let Err(BooleanError::Escalated { diag, .. }) = &res else {
-                        panic!("{label}: escalates on the sector reading: {res:?}");
+                let first = op.starts_with('t');
+                let meeting = |res: &Result<_, BooleanError>, predicate: &str| {
+                    let Err(e @ BooleanError::CurvedPierceEscalated { decision, diag, .. }) = res
+                    else {
+                        panic!("{label}: the meeting escalates, located: {res:?}");
                     };
-                    assert_eq!(diag.predicate, Some("conic_bend"), "{label}");
-                } else {
+                    assert_eq!(*decision, BooleanDecision::CurveMeeting, "{label}");
+                    assert_eq!(diag.predicate, Some(predicate), "{label}");
+                    let text = e.to_string();
                     assert!(
-                        matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                        "{label}: two curves unplaced: {res:?}"
+                        text.contains("meets a curve of that face's boundary is undecided")
+                            && text
+                                .contains("make the two cuts of the curved face one construction"),
+                        "{label}: the text names the meeting and its lever: {text}"
                     );
+                };
+                let escalated = |res: &Result<_, BooleanError>, want, predicate| {
+                    let Err(BooleanError::Escalated { decision, diag }) = res else {
+                        panic!("{label}: escalates on {predicate}: {res:?}");
+                    };
+                    assert_eq!(*decision, want, "{label}");
+                    assert_eq!(diag.predicate, Some(predicate), "{label}");
+                };
+                let coincidence = |c| BooleanDecision::Coincidence(c, DeclarationRead::Moot);
+                match (k as u32, first) {
+                    (80, true) => escalated(&res, coincidence(Coincide::SectorSide), "conic_bend"),
+                    // The walk's clear reading decides zero there: main's frontier.
+                    (80, false) => assert!(
+                        matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                        "{label}: a decided zero keeps the frontier: {res:?}"
+                    ),
+                    (200, true) => escalated(
+                        &res,
+                        coincidence(Coincide::VertexOnFace),
+                        "bool_vertex_face_side",
+                    ),
+                    (200, false) => meeting(&res, "curve_pair_pose_swing"),
+                    _ => meeting(&res, "curve_pair_coplanar_sub_side"),
                 }
             }
+        }
+    }
+}
+
+/// What `op` on two operands that are one body yields: `∪` and `∩` that
+/// body, the cut rod of [`two_rims_the_band_reads_coplanar_are_one_curve_only_within_it`],
+/// at `3π·0.01²` within its pad and tier 3 and 3′; `∖` nothing.
+fn one_body(label: &str, op: &str, res: Result<BooleanResult<f64>, BooleanError>) {
+    let tol = Tol::witness();
+    if op.contains('∖') {
+        assert!(
+            matches!(res, Ok(BooleanResult::Empty)),
+            "{label}: one body less itself is nothing: {res:?}"
+        );
+        return;
+    }
+    let Ok(BooleanResult::Body(bb)) = res else {
+        panic!("{label}: one body: {res:?}");
+    };
+    topo::validate_geometric(&bb.body, tol).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+        .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+    let m = topo::test_support::pinned_volume(label, &bb.body, tol);
+    let want = 3.0 * PI * 0.01 * 0.01;
+    assert!(
+        (m.volume - want).abs() <= m.volume_pad + 1e-9 * want,
+        "{label}: the closed form: {} ± {} vs {want}",
+        m.volume,
+        m.volume_pad
+    );
+}
+
+/// **A cut rod and its copy within the band are one body.** The rod of
+/// [`two_rims_the_band_reads_coplanar_are_one_curve_only_within_it`] cut
+/// below the plane of slope `100`, against its cut at `100(1 + ε/2)`,
+/// whose rim lies `ε/2` from the first's: every face pair is one
+/// carrier, nothing crosses, and each operand's shell lies on the
+/// other's. `∪` and `∩` build that body and `∖` nothing, in both orders.
+/// At a coarse ε the basin meter refuses first, as in that row. Red where
+/// the coincident wall pair's section refuses the no-crossings path.
+#[test]
+fn a_cut_rod_and_its_band_copy_are_one_body() {
+    let tol = Tol::witness();
+    let e = geom_core::Band::linear(tol).unwrap().escalate();
+    let meter_refuses = 2.0 * 1e4 * 2.0 * (e / 0.01 + e) >= 1.0;
+    let rod = rod_of(0.01, -3.0, 6.0);
+    let a = cut_below(&rod, 100.0, 0.0);
+    let b = cut_below(&rod, 100.0 * (1.0 + 0.5 * tol.eps()), 0.0);
+    for (op, res) in six(&a, &b) {
+        let label = format!("against its band copy: {op}");
+        if meter_refuses {
+            assert!(
+                matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                "{label}: the basin meter refuses at this ε: {res:?}"
+            );
+        } else {
+            one_body(&label, op, res);
         }
     }
 }
@@ -874,6 +997,55 @@ fn two_slanted_bottoms_crossing_on_one_wall_build_every_op() {
                 m.enclosure.volume,
                 m.enclosure.volume_pad
             );
+        }
+    }
+}
+
+/// Review R1 probe (PR 5993): the rendered text of the two rims' new
+/// escalation, per op, at k = 30 and 200.
+#[test]
+#[ignore = "review probe"]
+fn review_r1_two_rims_escalation_text() {
+    let tol = Tol::witness();
+    let rod = rod_of(0.01, -3.0, 6.0);
+    for k in [30.0, 80.0, 200.0] {
+        let d = k * tol.eps();
+        let (a, b) = (
+            cut_below(&rod, 100.0, 0.0),
+            cut_below(&rod, 100.0 * (1.0 + d), 0.0),
+        );
+        for (op, res) in six(&a, &b) {
+            match res {
+                Err(e) => println!("k={k} {op}: {e:?}\n   TEXT: {e}"),
+                Ok(_) => println!("k={k} {op}: built"),
+            }
+        }
+    }
+}
+
+/// Review 3 probe (PR 5993): the two rims at `k = 80` and `200`, each
+/// op's outcome, one op at a time (`RV_PROBE` prints the walk's exits).
+#[test]
+#[ignore = "review probe"]
+fn review3_two_rims_per_op() {
+    let tol = Tol::witness();
+    let rod = rod_of(0.01, -3.0, 6.0);
+    for k in [80.0, 200.0] {
+        let d = k * tol.eps();
+        let (a, b) = (
+            cut_below(&rod, 100.0, 0.0),
+            cut_below(&rod, 100.0 * (1.0 + d), 0.0),
+        );
+        for (op, res) in [
+            ("b ∪ t", topo::union(&b, &a, tol)),
+            ("b ∖ t", topo::subtract(&b, &a, tol)),
+            ("b ∩ t", topo::intersect(&b, &a, tol)),
+        ] {
+            eprintln!("RV OP {op}");
+            eprintln!("RV RESULT k = {k}: {op}: {res:?}");
+            if let Err(e) = &res {
+                crate::review_r1_roots_split::review3_locate(&format!("k {k} {op}"), &b, &a, e);
+            }
         }
     }
 }

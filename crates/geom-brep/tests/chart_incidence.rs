@@ -1251,10 +1251,11 @@ fn a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet() {
 ///   levers it by the height (`2δ²h²/R`, here `100·ε`).
 ///
 /// Each is shown on its face at `f64` and at `Interval`: the mint images
-/// it or refuses it for a reason that is no incidence read. Past `2¹⁰` m
-/// from the anchor the box reads in band where `u·D` passes the zero
-/// band, never off. The same placements half a metre off are the
-/// definite miss.
+/// it or refuses it for a reason that is no incidence read. Far from the
+/// anchor `Interval`'s enclosure of the distance widens with the
+/// distance slid, so it reads in band past a measured `2ᵏ⁰` (pinned per
+/// ε row), never off. The same placements half a metre off are the
+/// definite miss at both lanes.
 #[test]
 fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
     let e = eps();
@@ -1354,10 +1355,7 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
             ),
         ]
     };
-    let on = rows
-        .into_iter()
-        .map(|(what, s, c)| (what.to_owned(), s, c))
-        .chain(far_anchor(10, 0.0));
+    let on = rows.into_iter().map(|(what, s, c)| (what.to_owned(), s, c));
     for (what, surface, carrier) in on {
         for (lane, got) in at_both(&carrier, &surface) {
             assert!(
@@ -1369,20 +1367,56 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
             );
         }
     }
-    // Farther out, the box's slide from the chart's anchor to the
-    // carrier's foot is an enclosure about `u·D` wide (`D` the distance
-    // slid): past the zero band it is not shown on the face, and never
-    // shown off it.
-    for (what, surface, carrier) in [14, 17, 23].into_iter().flat_map(|k| far_anchor(k, 0.0)) {
-        for (lane, got) in at_both(&carrier, &surface) {
-            let read = got.as_ref().err().and_then(geom_brep::IncidenceRead::of);
-            assert!(
+    // The anchor `2ᵏ` m from the carrier, `k` up to 30: `f64` reads the
+    // exact placement on its face at every `k` (its charge covers its
+    // rounding). `Interval` charges nothing, its enclosure holding the
+    // rounding already, and the enclosure of the distance widens with
+    // the distance slid, about eight ulps of `2ᵏ` for the rim and half an
+    // ulp for the plane's circle (measured: `1.88e-12` at `2¹⁰` and
+    // `1.82e-12` at `2¹⁴`), less where the read of the carrier where it
+    // sits encloses tighter (a power of two further for the rim). So it
+    // reads the placement on below the `k`
+    // where that width passes the zero band, in band from there, never
+    // off: the row pins the measured `k` at each ε row CI runs, and that
+    // one transition at any other.
+    let boundary = |shape: usize| match (shape, e) {
+        (0, 1e-9) => Some(21),
+        (0, 1e-12) => Some(11),
+        (0, 1e-6) => Some(31),
+        (1, 1e-9) => Some(24),
+        (1, 1e-12) => Some(14),
+        (1, 1e-6) => Some(31),
+        _ => None,
+    };
+    for shape in [0, 1] {
+        let mut first_in_band = None;
+        for k in 0..=30 {
+            let (what, surface, carrier) = far_anchor(k, 0.0)[shape].clone();
+            for (lane, got) in at_both(&carrier, &surface) {
+                let read = got.as_ref().err().and_then(geom_brep::IncidenceRead::of);
                 if lane == "f64" {
-                    read.is_none()
-                } else {
-                    !read.is_some_and(geom_brep::IncidenceRead::is_definite)
-                },
-                "{what} ({lane}): shown on its face, or over the box at least not off it: {got:?}"
+                    assert!(read.is_none(), "{what} (f64): shown on its face: {got:?}");
+                    continue;
+                }
+                assert!(
+                    !read.is_some_and(geom_brep::IncidenceRead::is_definite),
+                    "{what} (Interval): never read off: {got:?}"
+                );
+                match (read, first_in_band) {
+                    (None, None) => {}
+                    (Some(_), None) => first_in_band = Some(k),
+                    (Some(_), Some(_)) => {}
+                    (None, Some(from)) => {
+                        panic!("{what} (Interval): on again past 2^{from}, where it read in band")
+                    }
+                }
+            }
+        }
+        if let Some(k0) = boundary(shape) {
+            assert_eq!(
+                first_in_band.unwrap_or(31),
+                k0,
+                "shape {shape} at ε {e:e}: the Interval read leaves the face's zero band at 2^{k0}"
             );
         }
     }
@@ -1524,6 +1558,111 @@ fn a_stored_chart_edge_on_a_moved_chart_ends_as_its_incidence_read() {
                     }
                 }
             }
+        }
+    }
+}
+
+/// **A corner and an edge exactly on a tilted plane, far from its
+/// anchor, are read on it** (D3): `topo`'s planar tier reads a flat
+/// face's corners and edges by the mint's own decider
+/// ([`geom_brep::read_point_incidence`], [`geom_brep::read_incidence`]),
+/// in their own frame and less their rounding, so the tier and the mint
+/// never read one edge two ways. On the plane through the origin with
+/// normal `(0, 0.6, 0.8)`, a point `2ᵏ` m along it and a line through
+/// that point in the plane, `k` up to 30: `f64` reads both on at every
+/// `k`; `Interval`, which charges nothing, reads them on below the
+/// measured `2ᵏ⁰` where its enclosure's width passes the zero band, in
+/// band from there, never off. Moved half a metre off the plane, each is
+/// the definite miss at both lanes.
+#[test]
+fn a_corner_and_an_edge_on_a_tilted_plane_far_from_its_anchor_are_read_on_it() {
+    let e = eps();
+    let n = Vec3::new(0.0, 0.6, 0.8);
+    let plane = Surface::Plane {
+        origin: Point3::origin(),
+        normal: n,
+        u_ref: Vec3::unit_x(),
+    };
+    let lift = Interval::from_f64;
+    let lift_point = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
+    let reads = |p: Point3<f64>| {
+        let line = Curve3::Line {
+            origin: p,
+            dir: Vec3::unit_x(),
+        };
+        [
+            (
+                "corner, f64",
+                geom_brep::read_point_incidence(p, &plane, band()),
+            ),
+            (
+                "corner, Interval",
+                geom_brep::read_point_incidence(lift_point(p), &plane.map_scalar(lift), band()),
+            ),
+            (
+                "edge, f64",
+                geom_brep::read_incidence(&line, 0.0, 1.0, &plane, band()),
+            ),
+            (
+                "edge, Interval",
+                geom_brep::read_incidence(
+                    &line.map_scalar(lift),
+                    lift(0.0),
+                    lift(1.0),
+                    &plane.map_scalar(lift),
+                    band(),
+                ),
+            ),
+        ]
+    };
+    let k0 = match e {
+        1e-9 => Some(24),
+        1e-12 => Some(14),
+        1e-6 => Some(31),
+        _ => None,
+    };
+    let mut first_in_band = [None; 2];
+    for k in 0..=30 {
+        let p = Point3::origin() + (Vec3::unit_x() + n.cross(Vec3::unit_x())) * 2f64.powi(k);
+        for (i, (what, got)) in reads(p).into_iter().enumerate() {
+            let read = got.as_ref().err().and_then(geom_brep::IncidenceRead::of);
+            if what.ends_with("f64") {
+                assert!(read.is_none(), "{what} 2^{k} m out: read on: {got:?}");
+                continue;
+            }
+            assert!(
+                !read.is_some_and(geom_brep::IncidenceRead::is_definite),
+                "{what} 2^{k} m out: never read off: {got:?}"
+            );
+            let slot = &mut first_in_band[i / 2];
+            match (read, *slot) {
+                (Some(_), None) => *slot = Some(k),
+                (None, Some(from)) => panic!("{what}: on again at 2^{k}, past 2^{from}"),
+                _ => {}
+            }
+        }
+    }
+    if let Some(k0) = k0 {
+        for (i, first) in first_in_band.into_iter().enumerate() {
+            assert_eq!(
+                first.unwrap_or(31),
+                k0,
+                "{} at ε {e:e}: Interval leaves the zero band at 2^{k0}",
+                ["corner", "edge"][i]
+            );
+        }
+    }
+    for k in [0, 20] {
+        let p =
+            Point3::origin() + (Vec3::unit_x() + n.cross(Vec3::unit_x())) * 2f64.powi(k) + n * 0.5;
+        for (what, got) in reads(p) {
+            assert!(
+                got.as_ref()
+                    .err()
+                    .and_then(geom_brep::IncidenceRead::of)
+                    .is_some_and(geom_brep::IncidenceRead::is_definite),
+                "{what} 2^{k} m out, 0.5 m off: the definite miss: {got:?}"
+            );
         }
     }
 }

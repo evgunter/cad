@@ -886,7 +886,7 @@ mod tests {
                 Ok(TangentLocus::Line { .. }) => {}
                 other => panic!("{label}: the witness mints the ruling: {other:?}"),
             }
-            match cylinder_cylinder_section(a, b, &Reach::Ball(metre), band) {
+            match cylinder_cylinder_section(a, b, &metre, band) {
                 Ok(EqualCylinderSection::TangentLine(_)) => {}
                 other => panic!("{label}: the section classifies the same tangency: {other:?}"),
             }

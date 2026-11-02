@@ -40,8 +40,17 @@ to refuse. Each lane's doc says so ("nor is a hole decided to lie inside
 the loops that bound the face, beyond the sum of the holes").
 
 The repair is a containment decide for each hole against the loops that
-bound the face, on the chart, refusing a hole outside them by name;
-until then a body's tier-3 validity is what catches it.
+bound the face, on the chart, refusing a hole outside them by name. At
+the time this was filed tier 3 did not catch it either: no tier-3 check
+read a curved face's holes against its region.
+
+**Tier 3 now does** (RESTCURVE's region arm, PR 6163,
+`crates/topo/src/one_region.rs`): it refuses a curved face's hole
+outside its face (`CycleOffFaceSide`). P09, P47 and P49 are its rows
+(`crates/sweep/tests/one_region_rows.rs`). So a valid body never carries
+this shape; what remains here is the lane measuring an unvalidated body
+silently, and its guards retire onto the arm
+(`work/conearm/props-cone-region-guards-retire-onto-the-region-arm.md`).
 
 ## Owner (Ev's decision on PR 4822)
 

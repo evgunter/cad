@@ -30,7 +30,7 @@
 //! whatever scope the destination is inside (`SurgeryDepth`'s
 //! `Clone`), so the staging door's own scope on it is outermost and
 //! its close DOES sweep — once per call, not once per setter.
-//! `merge_coplanar_faces_declared` is the same shape: one scope over
+//! `merge_coplanar_faces` is the same shape: one scope over
 //! its staged clone for the whole run, and one more over each
 //! recorded-skip group's trial clone. That is correct rather than
 //! unfortunate: no outer door ever promised to sweep that clone, and
@@ -52,7 +52,7 @@
 //! - a door whose typed gate is tier 3 (the boolean, `shell`, the
 //!   split, STEP import) runs the sweep at its close and the at-rest
 //!   gate later, over a body it has changed since;
-//! - `merge_coplanar_faces_declared` closes gated and then
+//! - `merge_coplanar_faces` closes gated and then
 //!   re-describes the kept faces' boundaries in a second, sweeping
 //!   scope — the describer needs a body that has passed the gate
 //!   before it can walk it, and it writes edge descriptions the sweep
@@ -805,7 +805,7 @@ pub(crate) mod tests {
     /// reds this row.
     ///
     /// **The arms this replaced were vacuous** and worth naming so
-    /// they are not written again: `merge_coplanar_faces_declared` on
+    /// they are not written again: `merge_coplanar_faces` on
     /// an empty declaration list over a prism returns before any group
     /// is staged, and with an unresolvable declared key it refuses at
     /// the entry gate — neither reached a `begin_surgery` at all, so

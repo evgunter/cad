@@ -24,7 +24,7 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 |---|---|
 | Extrude: translational sweep along the sketch normal; caps, walls, hole rings, rim upgrades | `crates/sweep/src/extrude.rs` |
 | Revolve: axis and angle conventions, partial wedge and full ring, seam meridians, the `tube_along_arc` torus door | `crates/sweep/src/revolve/` (`mod.rs`, `axis.rs`, `partial.rs`, `full.rs`, `chain.rs`, `surfaces.rs`, `upgrade.rs`, `tube.rs`) |
-| Loft and path sweep bodies: extrude's topology over NURBS walls | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`) |
+| Loft and path sweep bodies: extrude's topology over NURBS walls, slab by slab at v-degree 1 | `crates/sweep/src/loft.rs` (`loft_body`, `loft_profiles`, `sweep_body`, `slab_walls`) |
 | Skinned and swept NURBS surfaces (the definitional geometry, not an approximation) | `crates/sweep/src/skin.rs` |
 | The lowering every profile sweep shares: traversal order, carriers, cosurface decisions | `crates/sweep/src/swept.rs` |
 | The two blend doors, one per verb; each attaches its `BlendKind` once | `crates/sweep/src/fillet.rs`, `crates/sweep/src/chamfer.rs` |
@@ -242,6 +242,86 @@ and a partial revolve's run of on-axis segments is one axis edge. It
 stays in the profile, where `ProfileVertexRef` names it.
 Loft builds one wall per corresponding segment pair: across sections
 nothing declares two walls one surface, and the station pins the ruling.
+At v-degree 1 through three sections or more it builds one wall per
+segment per slab (the stretch between two consecutive sections): the
+skinned net's control rows are its sections, so slab `s`'s wall is rows
+`s` and `s + 1`, a single ruled span in `v`, and the loft is `k − 1`
+two-section lofts glued at the shared sections. A degree-1 wall through
+three sections or more is not C¹ at its interior sections by its knot
+structure, so the loft cuts there (DESIGN [topology]: "a wall keeps the
+cuts its author wrote: the kernel adds none, except where a face or edge
+carrier is not C¹ by its knot structure").
+Each interior section is a ring of edges on the placed sketch segments,
+the same carriers as the cap rims, described in the row of the slab wall
+below; each strut is one straight boundary column per slab. An arc
+whose row the other sections' sub-arc joints refine has no arc-rim image
+there, and the loft refuses it (`LoftError::SectionRim`, recourse
+v-degree 2;
+`work/isotail/a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim.md`).
+Slab walls lie on distinct spline surfaces, which no merge glues (a spline pair is
+outside the carrier ladder's inventory), so a translated polygon's slab
+walls stay distinct though coplanar. At v-degree 2 or more one wall
+spans every section, its sections interior knots of a smooth net.
+
+## The path sweep's frame `[sweep.frame]`
+
+A path sweep places the same section at `n` stations sampled at
+uniform shares of the path's parameter, and the frame each station
+takes is the author's start frame carried along the path by parallel
+transport: the rotation-minimizing frame, which turns about no tangent.
+The author owns the start placement and nothing else; the carry is the
+kernel's one law, because Frenet's frame is undefined on a straight run
+and a fixed reference direction would read the world axes.
+
+- **The discretization is double reflection** (Wang, Jüttler, Zheng
+  and Liu, "Computation of Rotation Minimizing Frames", ACM TOG 2008).
+  The step from station `i` to `i + 1` reflects in the plane normal to
+  the chord `pᵢ₊₁ − pᵢ`, then in the plane that carries the reflected
+  tangent onto `tᵢ₊₁`. Its error is fourth order in the step: on a
+  helix of the tour coil's proportions (radius 0.14, pitch 0.08) the
+  end roll after six turns is 9.2e-7 rad off the exact frame at 16
+  stations a turn, 5.7e-8 at 32 and 3.5e-9 at 64.
+- **The carry is a function of the `f64` path and the station count.**
+  It is computed once, its decisions taken there, and every scalar lane
+  composes it onto its own start plane; station 0 is the start plane
+  itself, and a step whose two tangents are equal bit for bit is the
+  identity with no rounding (the exact law's answer: its second
+  reflection is its first).
+- **The pivot is the path's start point `p₀`.** Station `i` is the
+  start frame turned about `p₀` by the carried rotation `Cᵢ`, then
+  moved onto the path: its origin is `pᵢ + Cᵢ·(o − p₀)` for `o` the
+  start frame's origin, so where the sketch origin sits does not
+  change the body.
+- **A step refuses where it has no reflection.** Coincident stations
+  have no chord (`SkinError::PathStationsCoincide`). Where the path
+  folds back across the chord between two stations — the arrival
+  tangent is the departure tangent mirrored in the plane normal to the
+  chord, so the path leaves along the chord and comes back against it
+  — the reflected tangent is opposed to the next one and the second
+  reflection has no plane (`SkinError::PathFoldsBack`). A smooth fold
+  sweeps with more stations; a kink that doubles back on itself (a
+  hairpin corner) refuses at every station count, and only smoothing
+  it cures it. Each is decided under the band, with its in-band twin
+  `SkinError::PathUndecided`. A path whose end tangent is its start
+  tangent reversed is not one of these: a planar U-turn sweeps, its
+  end frame the start frame turned a half turn about the plane's
+  normal, and so does a semicircle between two stations.
+- **A section sits at its station's path parameter**: station `i` at
+  `v = i / (n − 1)`, which no spelling of the profile and no roll of
+  the start frame enters. The path parameter is not arc length on a
+  rational path, and the skin's fit pays for it: the quarter-arc elbow
+  (`sweep::test_support`, a rational quarter circle, 9 stations) falls
+  1.03e-5 short of its Pappus volume, where stations at its chord
+  lengths fell 3.8e-6 short.
+
+What the law makes of a path is physics, not a choice per path: on a
+planar path the frame turns only about the plane's normal, and closes
+on a closed one; on a helix of angle `α` the section rolls against the
+helix's axis by `2π·sin α` a turn — a rod bent without twist — about
+196° over the tour coil's six turns. A section held to a direction
+(a spring whose wire keeps a face toward its axis) is a frame held to
+something other than the path, which is placement vocabulary and not
+this law.
 
 ## Blend vocabulary (BLEND-VOCAB-DESIGN V1–V4)
 

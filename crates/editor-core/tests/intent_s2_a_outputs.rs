@@ -6,12 +6,12 @@
 //! signatures of its nodes.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, ang, insert, len, on_frame, revolve_about, scl, xform};
+use crate::fixture::{self, ang, insert, len, on_frame, revolve_about, xform};
 use crate::wire::{doctored, up_to_ids, wire_body};
 use editor_core::{
-    CarryForwardDoor, DocEdit, EditError, Formula, FreeValue, Node, OutputFault, PatternKind,
-    PersistError, ProfileDoc, RecipeNodeId, SeedError, SlotId, SnapshotError, VarDef, VarKind,
-    VarName, load, save,
+    CarryForwardDoor, DocEdit, EditError, Formula, FreeValue, Node, OutputFault, PersistError,
+    ProfileDoc, RecipeNodeId, SeedError, SlotId, SnapshotError, VarDef, VarKind, VarName, load,
+    save,
 };
 use geom_core::Tol;
 
@@ -70,17 +70,7 @@ fn every_operation_defines_its_signature_at_insert() {
             tool,
         },
     );
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: extrude.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(3.0),
-            },
-        },
-    );
+    let (doc, _, pattern) = crate::fixture::linear(doc, extrude, [1.0, 0.0, 0.0], 3.0, 3);
     // Placements, as inserted: a signature is the insert's, before any
     // mate places them.
     let placement = |of: RecipeNodeId| {
@@ -96,10 +86,13 @@ fn every_operation_defines_its_signature_at_insert() {
         (extrude, vec![VarKind::Body, VarKind::Space]),
         (revolve, vec![VarKind::Body, VarKind::Axis, VarKind::Space]),
         (split, vec![VarKind::Body, VarKind::Body]),
-        (pattern, vec![VarKind::Bodies]),
-        (moved_copies, vec![VarKind::Bodies]),
+        // A family's copy is a body at each member (D10
+        // `[repetition]`): its repetition is its reach, not its kind,
+        // and so is that of every placement of it.
+        (pattern, vec![VarKind::Body]),
+        (moved_copies, vec![VarKind::Body]),
         (moved_body, vec![VarKind::Body]),
-        (twice_moved, vec![VarKind::Bodies]),
+        (twice_moved, vec![VarKind::Body]),
     ] {
         assert_eq!(kinds(&doc, node), want, "{:?}", doc.node(node));
     }
@@ -512,16 +505,7 @@ fn every_node_shape_states_its_signature() {
         "Place -> [copy:placed]",
         "World -> [space:Space]",
         "Space -> [space:Space]",
-        "Pattern -> [bodies:Bodies]",
-        "PlacedUnion -> [body:Body]",
-        "PlacedUnion -> [body:Body]",
-        "Pattern -> [bodies:Bodies]",
-        "PlacedUnion -> [body:Body]",
-        "PlacedUnion -> [body:Body]",
-        "Pattern -> [bodies:Bodies]",
-        "PlacedUnion -> [body:Body]",
-        "PlacedUnion -> [body:Body]",
-        "Part -> [body:Body]",
+        "Place -> [copy:placed]",
         "InstantiatePart -> [copy:Body]",
         "Place -> [copy:placed]",
         "Measure -> [value:Length]",

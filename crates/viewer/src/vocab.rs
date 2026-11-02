@@ -62,7 +62,7 @@
 //! Either way it is not a hole in this one.
 //!
 //! A DELIBERATELY PARTIAL mirror is not a vocabulary either
-//! ([`crate::frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER`] names two of five
+//! ([`crate::frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER`] names three of six
 //! `Subject`s on purpose, and each tool's own seat list names its own
 //! seats). Those stay hand-written, because completeness is exactly
 //! what they do not claim — and a MIRROR among them takes
@@ -285,7 +285,7 @@ pub(crate) use vocabulary;
 /// is the same restriction [`vocabulary`] states, and it holds this
 /// arm to the case it argues: a form's choice enum. A partial mirror
 /// whose offering is a payload-carrying enum
-/// (`session::author::PatternRuleSpec` over `PatternKind`) is not
+/// (`session::author::PatternRuleSpec`) is not
 /// served by this arm.
 macro_rules! partial_mirror {
     // The exhaustive half, which is the same match whatever the

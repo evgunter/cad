@@ -111,14 +111,17 @@ fn checks(doc: &editor_core::ProfileDoc, cfg: &ChecksConfig) -> ChecksReport {
 
 #[test]
 fn disjoint_union_is_one_finding() {
-    let (doc, root) = disjoint_union();
+    let (doc, placement) = disjoint_union();
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
     assert_eq!(
         report.findings,
         vec![CheckFinding {
             check: CheckId::Connectedness,
-            subject: editor_core::FindingSubject::Output { root, output_ix: 0 },
+            subject: editor_core::FindingSubject::Output {
+                placement,
+                output_ix: 0
+            },
             evidence: CheckEvidence::Connectedness {
                 actual: 2,
                 expected: 1,
@@ -140,9 +143,9 @@ fn disjoint_union_is_one_finding() {
 
 #[test]
 fn stated_expectation_clears_the_finding() {
-    let (doc, root) = disjoint_union();
+    let (doc, placement) = disjoint_union();
     let cfg = ChecksConfig {
-        expected_components: BTreeMap::from([((root, 0), 2)]),
+        expected_components: BTreeMap::from([((placement, 0), 2)]),
         ..ChecksConfig::default()
     };
     let report = checks(&doc, &cfg);
@@ -245,12 +248,12 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
 
 #[test]
 fn stale_expectation_on_a_vanished_body() {
-    // Expectations are two-directional: the entry names a root whose
+    // Expectations are two-directional: the entry names a placement whose
     // boolean annihilated, so NO subject consumes it — the entry is
     // stale, and staleness is a finding, never a silent ignore.
-    let (doc, root) = annihilated();
+    let (doc, placement) = annihilated();
     let cfg = ChecksConfig {
-        expected_components: BTreeMap::from([((root, 0), 1)]),
+        expected_components: BTreeMap::from([((placement, 0), 1)]),
         ..ChecksConfig::default()
     };
     let report = checks(&doc, &cfg);
@@ -258,7 +261,10 @@ fn stale_expectation_on_a_vanished_body() {
         report.findings,
         vec![CheckFinding {
             check: CheckId::Connectedness,
-            subject: editor_core::FindingSubject::Output { root, output_ix: 0 },
+            subject: editor_core::FindingSubject::Output {
+                placement,
+                output_ix: 0
+            },
             evidence: CheckEvidence::StaleExpectation { expected: 1 },
             quiet: None,
         }]
@@ -278,13 +284,13 @@ fn annihilation_without_a_stated_expectation_is_clean() {
 }
 
 #[test]
-fn stale_expectation_on_a_nonexistent_root() {
+fn stale_expectation_on_a_nonexistent_placement() {
     // The key names no placement output at all (wrong id): same staleness,
     // attributed at the entry's own key.
-    let (doc, root) = disjoint_union();
-    let ghost = RecipeNodeId::new(root.0.ordinal() + 999, root.0.digest());
+    let (doc, placement) = disjoint_union();
+    let ghost = RecipeNodeId::new(placement.0.ordinal() + 999, placement.0.digest());
     let cfg = ChecksConfig {
-        expected_components: BTreeMap::from([((root, 0), 2), ((ghost, 0), 1)]),
+        expected_components: BTreeMap::from([((placement, 0), 2), ((ghost, 0), 1)]),
         ..ChecksConfig::default()
     };
     let report = checks(&doc, &cfg);
@@ -293,7 +299,7 @@ fn stale_expectation_on_a_nonexistent_root() {
         vec![CheckFinding {
             check: CheckId::Connectedness,
             subject: editor_core::FindingSubject::Output {
-                root: ghost,
+                placement: ghost,
                 output_ix: 0,
             },
             evidence: CheckEvidence::StaleExpectation { expected: 1 },
@@ -377,11 +383,11 @@ fn a_findings_attribution_resolves_to_its_subject() {
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("checks run");
     let finding = &report.findings[0];
     let editor_core::FindingSubject::Output {
-        root: at,
+        placement: at,
         output_ix,
     } = finding.subject
     else {
-        panic!("a connectedness finding is about a root output")
+        panic!("a connectedness finding is about a placement output")
     };
     let (body, contacts) = subject_body(&ev, at, output_ix)
         .expect("the attribution resolves against the evaluation it came from");
@@ -411,11 +417,11 @@ fn a_findings_attribution_resolves_to_its_subject() {
 // ---------------------------------------------------------------------
 //
 // Claims pinned below:
-// - two roots overlapping are ONE interference finding naming BOTH, and
-//   the same two roots moved apart are clean;
-// - roots that merely TOUCH are the lint's contact, never this
+// - two placements overlapping are ONE interference finding naming BOTH, and
+//   the same two placements moved apart are clean;
+// - placements that merely TOUCH are the lint's contact, never this
 //   resident's finding;
-// - one root's own multi-solid body is NOT this resident's subject;
+// - one placement's own multi-solid body is NOT this resident's subject;
 // - `Off` is visibly skipped, independently of the other resident;
 // - `Error` refuses a loud overlap at `enforce_checks` and nowhere else;
 // - the report is deterministic across runs.
@@ -423,7 +429,7 @@ fn a_findings_attribution_resolves_to_its_subject() {
 /// Two slabs placed as two SEPARATE copies (no boolean joining them),
 /// `b` centered at `cx`: the two placements, the shape a document
 /// grows when a body is placed beside what it was meant to join.
-fn two_roots(cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn two_placements(cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-two-roots", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 0.5, 1.0);
     let (doc, b) = slab(doc, cx, 0.5, 1.0);
@@ -445,10 +451,10 @@ fn at_rest(report: &editor_core::ChecksReport) -> Vec<CheckFinding> {
 }
 
 #[test]
-fn overlapping_roots_are_one_interference_finding_naming_both() {
+fn overlapping_placements_are_one_interference_finding_naming_both() {
     // Half over each other: the census decides the two copies' material
     // overlaps, and the check bounds the overlap.
-    let (doc, a, b) = two_roots(0.5);
+    let (doc, a, b) = two_placements(0.5);
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
     let found = at_rest(&report);
@@ -471,20 +477,20 @@ fn overlapping_roots_are_one_interference_finding_naming_both() {
 }
 
 #[test]
-fn roots_moved_apart_are_clean() {
-    // Same two roots, far apart: the census finds no pair at all.
-    let (doc, _, _) = two_roots(3.0);
+fn placements_moved_apart_are_clean() {
+    // Same two placements, far apart: the census finds no pair at all.
+    let (doc, _, _) = two_placements(3.0);
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(report.findings, Vec::new());
     assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
 }
 
 #[test]
-fn touching_roots_are_the_lints_contact_and_no_at_rest_finding() {
+fn touching_placements_are_the_lints_contact_and_no_at_rest_finding() {
     // Face-to-face at x = 0.5: disjoint interiors, shared boundary. The
     // census records the contact as a row, the lint reports it, and the
     // at-rest check reports nothing of it.
-    let (doc, _, _) = two_roots(1.0);
+    let (doc, _, _) = two_placements(1.0);
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(at_rest(&report), Vec::new(), "{report}");
     let rests = report
@@ -502,7 +508,7 @@ fn touching_roots_are_the_lints_contact_and_no_at_rest_finding() {
 }
 
 /// A legitimately disjoint multi-solid body draws no at-rest finding:
-/// `disjoint_union` is ONE root denoting one solid with two outer
+/// `disjoint_union` is ONE placement denoting one solid with two outer
 /// shells, and the census reads nothing inside one arrival.
 #[test]
 fn a_deliberately_disjoint_body_draws_no_at_rest_finding() {
@@ -563,7 +569,7 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
 
 #[test]
 fn at_rest_off_is_visibly_skipped_and_independent() {
-    let (doc, _, _) = two_roots(0.5);
+    let (doc, _, _) = two_placements(0.5);
     let cfg = ChecksConfig {
         at_rest: Severity::Off,
         ..ChecksConfig::default()
@@ -654,15 +660,13 @@ fn the_registry_order_is_every_check() {
     for check in CheckId::ALL {
         let position = match check {
             CheckId::Connectedness => 0,
-            // Second, not last, and the reason is the registry's
-            // refusal order rather than taste: a resident that reads
-            // no subject must answer BEFORE `run_checks_on` can refuse
-            // `ChecksError::Product` on one that does. Moved after
-            // `UnprovenCoincidence`, this resident would lose every
-            // finding on exactly the documents that do not gather.
+            // Before the residents that read a subject, so a refusal
+            // of one that reads none is reported ahead of a product
+            // refusal; either refusal discards the whole report.
             CheckId::ChartCoherence => 1,
-            CheckId::UnprovenCoincidence => 2,
-            CheckId::AtRest => 3,
+            CheckId::Unused => 2,
+            CheckId::UnprovenCoincidence => 3,
+            CheckId::AtRest => 4,
         };
         assert_eq!(
             CheckId::ALL[position],
@@ -672,7 +676,7 @@ fn the_registry_order_is_every_check() {
     }
     assert_eq!(
         CheckId::ALL.len(),
-        4,
+        5,
         "a variant added without a place in `ALL` is a resident the \
          registry would never gather for"
     );
@@ -709,7 +713,7 @@ fn the_registry_order_is_every_check() {
 /// exception).
 #[test]
 fn at_rest_refuses_a_loud_interference_at_error_only() {
-    let (doc, _, _) = two_roots(0.5);
+    let (doc, _, _) = two_placements(0.5);
     let warn = ChecksConfig::default();
     let report = checks(&doc, &warn);
     assert_eq!(at_rest(&report).len(), 1, "{report}");
@@ -725,7 +729,7 @@ fn at_rest_refuses_a_loud_interference_at_error_only() {
 #[test]
 fn at_rest_findings_are_certified_and_deterministic() {
     assert_eq!(CheckId::AtRest.kind(), CheckKind::Certified);
-    let (doc, _, _) = two_roots(0.5);
+    let (doc, _, _) = two_placements(0.5);
     let cfg = ChecksConfig::default();
     assert_eq!(checks(&doc, &cfg), checks(&doc, &cfg));
 }
@@ -776,12 +780,12 @@ fn coherence_only(knob: Advisory) -> ChecksConfig {
 /// body) reds here rather than reporting a quiet subject.
 #[test]
 fn the_chart_coherence_resident_carries_the_whole_kernel_report() {
-    let (doc, root) = washer();
+    let (doc, placement) = washer();
     let ev = run(&doc);
     let report = run_checks(&doc, &ev, &coherence_only(Advisory::Warn), Tol::witness())
         .expect("the examination reads the evaluation and needs no product");
 
-    let (body, _) = subject_body(&ev, root, 0).expect("the revolve denotes one body");
+    let (body, _) = subject_body(&ev, placement, 0).expect("the revolve denotes one body");
     let door = topo::examine_chart_coherence(body.body(), Tol::witness());
 
     let measured = report
@@ -804,7 +808,11 @@ fn the_chart_coherence_resident_carries_the_whole_kernel_report() {
             .findings
             .iter()
             .all(|f| f.check == CheckId::ChartCoherence
-                && f.subject == editor_core::FindingSubject::Output { root, output_ix: 0 }),
+                && f.subject
+                    == editor_core::FindingSubject::Output {
+                        placement,
+                        output_ix: 0
+                    }),
         "every finding is attributed to the rest body it was measured on"
     );
     assert!(
@@ -853,7 +861,7 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
         findings: vec![CheckFinding {
             check: CheckId::ChartCoherence,
             subject: editor_core::FindingSubject::Output {
-                root: RecipeNodeId::new(0, tagged(3)),
+                placement: RecipeNodeId::new(0, tagged(3)),
                 output_ix: 0,
             },
             evidence: CheckEvidence::ChartCoherenceUnexamined {
@@ -906,7 +914,7 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
     let finding = CheckFinding {
         check: CheckId::ChartCoherence,
         subject: editor_core::FindingSubject::Output {
-            root: RecipeNodeId::new(0, tagged(4)),
+            placement: RecipeNodeId::new(0, tagged(4)),
             output_ix: 1,
         },
         evidence: CheckEvidence::ChartCoherence {
@@ -944,7 +952,7 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
     );
 }
 
-/// **A root tier 3 refuses is a finding, never a silent skip** (F6): the
+/// **A placement tier 3 refuses is a finding, never a silent skip** (F6): the
 /// connectedness check reads a finished body, so a subject the at-rest
 /// gate refuses is reported `NotAtRest` with the validator's findings
 /// verbatim, its rendering names the first, and `enforce_checks` at
@@ -954,13 +962,13 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
 /// turned inside out (`Body::revert`, a public op), which tier 3 refuses
 /// `NegativeVolume`.
 #[test]
-fn a_root_tier_3_refuses_is_reported_not_at_rest() {
+fn a_placement_tier_3_refuses_is_reported_not_at_rest() {
     use editor_core::{NodeResult, ValuePayload};
     let doc = ProfileDoc::empty_derived("dsc-checks-not-at-rest", Tol::witness());
     let (doc, slab) = slab(doc, 0.0, 0.5, 1.0);
-    let (doc, root) = fixture::place(doc, slab);
+    let (doc, placement) = fixture::place(doc, slab);
     let mut ev = run(&doc);
-    let Some(NodeResult::Ok(value)) = ev.nodes.get_mut(&root) else {
+    let Some(NodeResult::Ok(value)) = ev.nodes.get_mut(&placement) else {
         panic!("the slab evaluates");
     };
     let ValuePayload::Body(body) = &value.payload else {
@@ -974,7 +982,7 @@ fn a_root_tier_3_refuses_is_reported_not_at_rest() {
     value.payload = ValuePayload::Body(editor_core::Framed::own(std::sync::Arc::new(reverted)));
 
     // The at-rest and coincidence residents read the gathered
-    // product, whose own at-rest gate refuses this root first; off, the
+    // product, whose own at-rest gate refuses this placement first; off, the
     // connectedness pass is the one that speaks.
     let cfg = ChecksConfig {
         connectedness: Severity::Error,
@@ -987,7 +995,10 @@ fn a_root_tier_3_refuses_is_reported_not_at_rest() {
         report.findings,
         vec![CheckFinding {
             check: CheckId::Connectedness,
-            subject: editor_core::FindingSubject::Output { root, output_ix: 0 },
+            subject: editor_core::FindingSubject::Output {
+                placement,
+                output_ix: 0
+            },
             evidence: CheckEvidence::NotAtRest {
                 errors: errors.clone()
             },

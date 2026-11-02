@@ -45,7 +45,9 @@ Compared against a span or window (b):
 - `topo/src/splitting/classify.rs:626`;
 - `topo/src/boolean/circle_roots.rs:305`;
 - `topo/src/boolean/rim_wedge.rs:874`;
-- `topo/src/boolean/sphere_region.rs:389`;
+- ~~`topo/src/boolean/sphere_region.rs:389`~~ fixed by RESTCURVE's
+  pole-door PR (#6252): the door reads roots as directions, and a root
+  against its arc at the nearer end, relative to that end's parameter;
 - `topo/src/boolean/boxes.rs:1841`;
 - `topo/src/boolean/section_cert.rs:1677`;
 - `topo/src/shell.rs:2532`, `:4590`.

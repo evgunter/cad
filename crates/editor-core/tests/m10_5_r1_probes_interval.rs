@@ -24,9 +24,9 @@ use bvh::Aabb;
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
-    CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
-    ClearanceVerdict, FaceScope, NoTangents, Selection, clearance, clearance_over, clearance_with,
-    self_intersection,
+    Budgets, CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
+    ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, NoTangents, Selection, Which,
+    clearance, clearance_over, clearance_with, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -95,6 +95,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -117,7 +118,16 @@ fn blocks(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         1.0,
     );
     let by = Formula::add(len(1.0), param("gap")).expect("a length");
-    let b = translated(&mut r, a, a, [by, len(0.0), len(0.0)]);
+    let b = translated(
+        &mut r,
+        a,
+        a,
+        [
+            by,
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
+    );
     (r.doc, a, b)
 }
 
@@ -137,6 +147,7 @@ fn query(bound: ClearanceBound, config: ClearanceConfig) -> ClearanceQuery<'stat
         config,
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     }
 }
 
@@ -218,7 +229,10 @@ fn a_pair_the_tree_hands_over_is_classified_at_the_funnel() {
     let strict = query(
         ClearanceBound::StrictlyPositive,
         ClearanceConfig {
-            max_cell_pairs: 4_096,
+            budgets: Budgets {
+                max_cell_pairs: 4_096,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
     );
@@ -264,7 +278,16 @@ fn l_plate_and_floating_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Reci
         1.0,
     );
     let up = Formula::add(len(1.5), param("lift")).expect("a length");
-    let floated = translated(&mut r, plate, block, [len(0.0), len(0.0), up]);
+    let floated = translated(
+        &mut r,
+        plate,
+        block,
+        [
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+            up,
+        ],
+    );
     (r.doc, plate, block, floated)
 }
 
@@ -390,12 +413,22 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![chain],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
     });
-    let placed = translated(&mut r, solid, solid, [param("place"), len(0.0), len(0.0)]);
+    let placed = translated(
+        &mut r,
+        solid,
+        solid,
+        [
+            param("place"),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
+    );
     (r.doc, solid, placed)
 }
 
@@ -409,12 +442,17 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// rounded body got a budget refusal for its answer.
 ///
 /// **FLIPPED by deciding cells off the face.** The bump's window is
-/// still the whole turn, so the pair reaches the tree
-/// (`candidates == 1`); every cell of the phantom lower half meets no
-/// edge of the bump on its own carrier (the end circles read as their
-/// half arcs, not as whole circles) and its station is out of the face,
-/// so it drops (`outside > 0`) and the touching pair is never
-/// classified. The body's real minimum gap is 0.5.
+/// still the whole turn, so the pair reaches the tree; every cell of
+/// the phantom lower half meets no edge of the bump on its own carrier
+/// (the end circles read as their half arcs, not as whole circles) and
+/// its station is out of the face, so it drops (`outside > 0`) and the
+/// phantom contact is never classified. The body's real minimum gap is
+/// 0.5.
+///
+/// Since SELFX the question proves the boundary injective, so every
+/// face pair is examined, not just this one (`candidates > 1`), and the
+/// pairs that touch — the bump against the walls it stands on — are
+/// certified by a local certificate (`certified > 0`).
 #[test]
 fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
     let (doc, solid, _placed) = bumped_block();
@@ -423,11 +461,15 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         bound: ClearanceBound::StrictlyPositive,
         tol: Tol::witness(),
         config: ClearanceConfig {
-            max_cell_pairs: 8_192,
+            budgets: Budgets {
+                max_cell_pairs: 8_192,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     };
     let report = clearance_with(&doc, &box_of(&doc, "place"), &sel, &sel, &q);
     println!(
@@ -444,10 +486,10 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         r.candidates,
         report.decided()
     );
-    assert_eq!(
-        (r.candidates, r.outside > 0),
-        (1, true),
-        "the bump's whole-turn window reaches the bottom wall, and its phantom cells drop: {}",
+    assert!(
+        r.candidates > 1 && r.outside > 0 && r.certified > 0,
+        "every pair is examined, the bump's whole-turn window reaches the bottom wall and its \
+         phantom cells drop, and the touching pairs certify: {}",
         report.serialize()
     );
     assert_eq!(
@@ -503,8 +545,8 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         block,
         block,
         [
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
             Formula::add(len(-0.2), param("place")).expect("a length"),
         ],
     );
@@ -527,7 +569,10 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         ClearanceVerdict::Refused(ClearanceRefusal::Selection(s)) => {
             println!("[r1] interval_lane_skipped_revolve_did_not_build: {s}");
         }
-        ClearanceVerdict::Refused(ClearanceRefusal::Unsupported { carrier, face }) => {
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+            refusal: EngineRefusal::Unsupported { carrier, face, .. },
+            ..
+        }) => {
             println!("[r1] interval_lane_skipped_unsupported: {carrier} at {face:?}");
         }
         ClearanceVerdict::Violated(v) => {
@@ -594,7 +639,16 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
         revolve,
         &fixture::axes_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     );
-    let placed = translated(&mut r, block, block, [len(0.0), param("place"), len(0.0)]);
+    let placed = translated(
+        &mut r,
+        block,
+        block,
+        [
+            Formula::zero(Dimension::Length),
+            param("place"),
+            Formula::zero(Dimension::Length),
+        ],
+    );
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let started = std::time::Instant::now();
     let report = clearance(
@@ -635,8 +689,10 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     let leaf = box_of(&doc, "gap");
     let cfg = |pairs: usize, depth: u32| ClearanceConfig {
-        max_cell_pairs: pairs,
-        max_cell_depth: depth,
+        budgets: Budgets {
+            max_cell_pairs: pairs,
+            max_cell_depth: depth,
+        },
         ..ClearanceConfig::default()
     };
     let run = |c: f64, config: ClearanceConfig| {
@@ -662,8 +718,10 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         assert!(
             matches!(
                 starved.verdict(),
-                ClearanceVerdict::Refused(ClearanceRefusal::Budget(CellBudget::Pairs { .. }))
-                    | ClearanceVerdict::Violated(_)
+                ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+                    refusal: EngineRefusal::Budget(CellBudget::Pairs { .. }),
+                    ..
+                }) | ClearanceVerdict::Violated(_)
             ),
             "pairs = {pairs}: {}",
             starved.serialize()
@@ -691,7 +749,10 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
     let infinite = run(
         f64::INFINITY,
         ClearanceConfig {
-            max_cell_pairs: 1_024,
+            budgets: Budgets {
+                max_cell_pairs: 1_024,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
     );
@@ -718,7 +779,10 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
     assert!(
         matches!(
             vacuous.verdict(),
-            ClearanceVerdict::Refused(ClearanceRefusal::EmptyScope)
+            ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+                refusal: EngineRefusal::EmptyScope { side: Which::First },
+                ..
+            })
         ),
         "{}",
         vacuous.serialize()
@@ -739,7 +803,10 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         faces: FaceScope::Named(vec![wall]),
     };
     let cfg_small = ClearanceConfig {
-        max_cell_pairs: 256,
+        budgets: Budgets {
+            max_cell_pairs: 256,
+            ..ClearanceConfig::default().budgets
+        },
         ..ClearanceConfig::default()
     };
     let doubled = clearance_with(
@@ -777,7 +844,10 @@ fn a_nan_bound_is_not_refused_at_the_door() {
         &query(
             ClearanceBound::AtLeast(f64::NAN),
             ClearanceConfig {
-                max_cell_pairs: 4_096,
+                budgets: Budgets {
+                    max_cell_pairs: 4_096,
+                    ..ClearanceConfig::default().budgets
+                },
                 ..ClearanceConfig::default()
             },
         ),
@@ -814,7 +884,10 @@ fn the_fold_is_the_same_under_both_driver_schedules() {
     let q = query(
         ClearanceBound::AtLeast(0.4),
         ClearanceConfig {
-            max_cell_pairs: 16_384,
+            budgets: Budgets {
+                max_cell_pairs: 16_384,
+                ..ClearanceConfig::default().budgets
+            },
             ..ClearanceConfig::default()
         },
     );
@@ -880,7 +953,7 @@ fn channel_and_slider(place_half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
         [
             Formula::add(len(1.0), param("place")).expect("a length"),
             len(1.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
         ],
     );
     (r.doc, channel, placed)
@@ -1074,7 +1147,10 @@ fn a_refused_leaf_is_priced_under_its_own_refusal_by_the_fold() {
         &query(
             ClearanceBound::AtLeast(0.5),
             ClearanceConfig {
-                max_cell_pairs: 4,
+                budgets: Budgets {
+                    max_cell_pairs: 4,
+                    ..ClearanceConfig::default().budgets
+                },
                 ..ClearanceConfig::default()
             },
         ),
@@ -1152,7 +1228,11 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
         &mut r,
         dumbbell,
         dumbbell,
-        [param("place"), len(0.0), len(0.0)],
+        [
+            param("place"),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
     );
     let report = self_intersection(
         &r.doc,

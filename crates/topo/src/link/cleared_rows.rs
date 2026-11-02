@@ -1,5 +1,5 @@
 //! **A planar face with an edge that is not a line, read as the disc
-//! its other edges clear** ([`Sector::cleared`], [`clearance`]): the
+//! its other edges clear** ([`FaceSector::cleared`], [`clearance`]): the
 //! disc's radius, reach and side on a half-disc cap, a hole nearer than
 //! the outer loop, the curve clearance as a lower bound, and
 //! [`rest::judge`] over cleared sectors only, where an edge lying in a
@@ -65,8 +65,8 @@ fn cap(center: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Cap {
 
 impl Cap {
     /// The cap's sectors at `p`, held as `holds` say.
-    fn cleared(&self, p: Point3<f64>, holds: &[Hold]) -> Result<Vec<Sector<f64>>, TouchUnread> {
-        Sector::cleared(&self.body, self.face, self.outward, p, holds)
+    fn cleared(&self, p: Point3<f64>, holds: &[Hold]) -> Result<Vec<FaceSector<f64>>, TouchUnread> {
+        FaceSector::cleared(&self.body, self.face, self.outward, p, holds)
     }
 
     /// The hold inside the cap's chord.
@@ -127,10 +127,10 @@ fn a_cleared_sector_is_the_disc_its_other_edges_clear_on_the_faces_side() {
         .cleared(at, &[Hold::Inside])
         .expect("the disc inside the cap");
     assert_eq!(inside.len(), 1, "one sector inside the face");
-    let s = &inside[0];
+    let s = &inside[0].sector;
     assert!(s.closed, "the disc closes about the point");
     assert_eq!(s.wedges.len(), 8, "eight wedges of an eighth of a turn");
-    let r = s.clear.expect("a cleared radius");
+    let r = inside[0].face.clear.expect("a cleared radius");
     assert!((r - 0.3).abs() < 1e-12, "the chord clears: {r}");
     past_the_face(s, at);
     let at = p(0.2, 0.0, 0.0);
@@ -138,10 +138,10 @@ fn a_cleared_sector_is_the_disc_its_other_edges_clear_on_the_faces_side() {
         .cleared(at, &[c.chord()])
         .expect("the half-disc inside the chord");
     assert_eq!(on_chord.len(), 1, "the chord's one pass");
-    let s = &on_chord[0];
+    let s = &on_chord[0].sector;
     assert!(!s.closed, "a half-disc is bounded by the chord");
     assert_eq!(s.wedges.len(), 4, "four wedges of an eighth of a turn");
-    let r = s.clear.expect("a cleared radius");
+    let r = on_chord[0].face.clear.expect("a cleared radius");
     assert!((r - 0.8).abs() < 1e-12, "the arc clears: {r}");
     past_the_face(s, at);
     for q in fan(s) {
@@ -200,9 +200,9 @@ fn a_ring_nearer_than_the_outer_loop_bounds_the_disc() {
         .unwrap()
         .vec();
     let q = p(1.0, 1.6, 1.0);
-    let s = Sector::cleared(&body, top, outward, q, &[Hold::Inside]).expect("the top's disc");
+    let s = FaceSector::cleared(&body, top, outward, q, &[Hold::Inside]).expect("the top's disc");
     assert_eq!(s.len(), 1, "one sector inside the face");
-    let r = s[0].clear.expect("a cleared radius");
+    let r = s[0].face.clear.expect("a cleared radius");
     assert!(
         (r - 0.1).abs() < 1e-12,
         "the ring clears, not the outer loop: {r}"
@@ -326,7 +326,7 @@ fn an_edge_in_a_face_of_cleared_sheets_rests_crosses_or_refuses_in_band() {
     );
     let at = p(0.1, 0.0, 0.0);
     let b = cap(Point3::origin(), v(0.0, 0.0, 1.0), v(-1.0, 0.0, 0.0));
-    let rim = (b.cleared(at, &[b.chord()]).unwrap()[0].wedges[0].0 - at).norm();
+    let rim = (b.cleared(at, &[b.chord()]).unwrap()[0].sector.wedges[0].0 - at).norm();
     let band = band();
     let tilt = ((band.zero() * band.escalate()).sqrt() / rim).asin();
     assert_eq!(

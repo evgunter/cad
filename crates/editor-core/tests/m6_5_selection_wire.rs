@@ -30,6 +30,7 @@ fn the_selection_reaches_the_wire_canonical() {
         Node::Profile(editor_core::ProfileProgram {
             loops: vec![square],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (mut doc, body) = fixture::insert(

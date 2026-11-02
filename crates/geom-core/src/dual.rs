@@ -515,6 +515,11 @@ impl<T: KinkJacobian> Real for Dual<T> {
         Self::constant(T::one())
     }
 
+    /// `(sin(τ/12), 0)`, `T`'s: a constant of the run.
+    fn sin_of_a_twelfth() -> Self {
+        Self::constant(T::sin_of_a_twelfth())
+    }
+
     /// `(π, 0)` — a constant of the run, not a function of the parameter.
     fn pi() -> Self {
         Self::constant(T::pi())

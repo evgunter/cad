@@ -63,8 +63,7 @@ fn refused_inside_out<T: Decide + AtRestPolicy>(what: &str, body: &Body<T>, insi
 
 /// The clockwise wedge refuses at the gate that would finish it for any
 /// op, on its one solid. Red before the type: ∖ answered 0.0352 and ∩
-/// 0.9648 (each the other's volume), and ∪ was refused
-/// `ResultVolumeImplausible` by the backstop.
+/// 0.9648, each the other's volume.
 fn refuses_inside_out<T: Decide + Bounds + AtRestPolicy>(scalar: &str) {
     let (_, wedge) = operands::<T>(false, Tol::witness());
     refused_inside_out(scalar, &wedge, 1);

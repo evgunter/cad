@@ -419,3 +419,34 @@ nothing measured it on today's main, and this change only adds clears.
 ## 2026-10-27 — the touch behind it now reads (ATREST, `atrest/gap-reads-a-cell-against-a-curved-face`)
 
 The touch analysis now reads a vertex resting strictly inside a sphere or cylinder face of another solid, where that face is all the other solid holds at the point. It judges the vertex's planar link against the face's carrier (`topo::link::rest::by_round`, through `Germ::touch_at_point` in `census.rs`). This arm still refuses such a pair (`CurvedWithinReach`) before any record site is read: the pair is the vertex's planar faces against the round face. So no verdict moves, and the instrumented topo, sweep, step-import and editor-core suites never reach the new reading. When this row clears a curved × planar pair down to its touches, a recorded vertex-on-sphere or vertex-on-cylinder touch reads Rest or Crossing, not `TouchUnreadable`. A plain deferral of the pair to its recorded touches is not sound. This arm is the only reader of a curved × planar pair, because the exact sweeps hold planar boundaries only. The two faces can also meet away from every record, for example where the vertex's planar face cuts the sphere elsewhere, and a deferral would hide that meeting. The clear needs the pair's whole meeting accounted for: its separation off a neighbourhood of each recorded touch, or a meeting set the touches cover.
+
+## Also measured: two lumps touching along a line, one a disc slab (2026-10-30)
+
+PR 6053's review (`crates/sweep/tests/review_arm_vs_reach_probes.rs`
+`review_curved`): the disc slab of radius `r` (`0.5`, `0.05`, `2.0`)
+through the origin, centred below it, beside a quad slab whose long
+edge leaves the origin `θ` off the disc's tangent. Where the two touch
+along a line, the union is two lumps and fails tier 3′ on
+`CensusUndecidable { MayOverlap }` (curved faces of two lumps in
+reach), on main as on that PR's head, at `θ = −0.1` too. PR 6053 makes
+more of these unions build where main refused (`θ = ±10⁻²`), so the
+finding now shows at more poses; the census reading is unchanged.
+
+## Also measured: two rods tangent outside along a ruling (CLEAVE, PR 5852, 2026-10-31)
+
+PR 5852's probe (`rev5808r`'s `S7 rods out`): `A` the cylinder
+`r = 0.3` about the origin, `z ∈ [0, 1]`, its vertex at azimuth 0 on
+the tangent line through `(0.3, 0)`; `B` the cylinder `r = 0.1` about
+`(0.4, 0)` over `z ∈ [0, 1]`, `[0.5, 1.5]` or `[−0.5, 1.5]`, its vertex
+at azimuth 0 or π; the one-segment and two-arc forms, at rest and
+turned. `A ∪ B` and `B ∪ A` return `Ok`, two solids touching along the
+ruling, the closed-form volume, tiers 1 and 3 and the certificate
+passing, and tier 3′ refuses with `CensusUndecidable` ("a curved face
+of one is within reach of the other"): 44 cells at the default ε, on
+PR 5852's head and on `main` (`45f6be756b`) alike, and at ε 1e-6 and
+1e-12 the same 44. With `A`'s vertex off the line every cell refuses
+typed, `CurvedPierceUnsupported`. With PR 5793 merged (riders reading
+every edge in a face), four more join them at the default ε: the
+one-segment unions with `B`'s vertex at 0 over `[−0.5, 1.5]`, at rest
+and turned, which refused `EdgeInFace` before, now build and reach the
+same `CensusUndecidable`, 48 in all.

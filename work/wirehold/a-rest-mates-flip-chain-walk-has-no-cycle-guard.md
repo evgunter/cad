@@ -2,10 +2,11 @@
 id: a-rest-mates-flip-chain-walk-has-no-cycle-guard
 kind: issue
 title: mate::rested_faces walks a Flip chain of document vars with an unbounded loop and no cycle guard
-status: open
+status: closed
 opened: 2026-10-19
 priority: P3
 cost: E
+closed: 2026-11-01
 ---
 
 
@@ -32,3 +33,12 @@ recurses through each `RoleRead<VarId>` with no depth bound and no
 visited set. The question stands there: whether document validation
 rules out a pose cycle among a document's vars, and if it does, the
 walk should cite that check.
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Moot: a cycle cannot be represented.**
+- `definition_edges` includes `VarDef::Pose` (`doc.rs:1338-1345`), and `definition_reads` takes a pose's reads (`doc.rs:1316-1319`). So `Doc::expansion_fault` refuses any definition cycle (`doc.rs:1789-1799`), at the edit door (`edit.rs:6124`) and at load (`persist/check.rs:858`).
+- The walks are now at `mate.rs:177` (`poses_equated`'s `unwound` loop), `mate/value.rs:117` (`flipped`) and `eval/wire/pose.rs:408`.
+- Neither `while` loop cites the check that makes it finite. That one-line citation rides `missing-slot-stays-typed-on-the-held-placement-datum-and-pattern-readers`.

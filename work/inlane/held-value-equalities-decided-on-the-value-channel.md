@@ -5,7 +5,7 @@ title: Equalities between held NURBS values are decided on the f64 value channel
 status: open
 opened: 2026-10-11
 priority: P2
-refs: [nurbs-weights-and-knots-are-the-scalar, carriers-compare-in-canonical-form]
+refs: [4708, 4628]
 ---
 
 

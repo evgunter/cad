@@ -310,6 +310,7 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                             }
                         }
                     }
+                    ValuePayload::Family => d.u64(19),
                     ValuePayload::Instances(bodies) => {
                         d.u64(18);
                         d.u64(bodies.len() as u64);
@@ -490,6 +491,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![disc],
         ids: Vec::new(),
+        on: None,
     }));
     let puck = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -520,7 +522,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let p_f = product_recorded(&doc, &ev_f, tol);
     let p_d = product_recorded(&doc, &ev_d, tol);
     // The two arms agree EXCEPT where the certified at-rest gate
-    // decides: `RootInvalid` is minted only by `gate_at_rest`, which
+    // decides: `PieceInvalid` is minted only by `gate_at_rest`, which
     // is structurally absent at `Dual` (DUAL-DESIGN DL3), so an f64
     // gate refusal — which this document produces at tight ε, where
     // `props_quad_converged` escalates on the arc-walled split — is
@@ -533,7 +535,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
             "f64 gathered but Dual64 refused: {:?}",
             p_d.as_ref().err()
         ),
-        Err(ProductError::RootInvalid { .. }) => assert!(
+        Err(ProductError::PieceInvalid { .. }) => assert!(
             p_d.is_ok(),
             "the at-rest gate is structurally absent at Dual64 (DL3), so an \
              f64 gate refusal must leave the Dual64 gather Ok; got {:?}",

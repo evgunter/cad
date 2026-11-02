@@ -57,3 +57,18 @@ axis the record is still missing and 3′ reports nothing, so the "the
 census refuses every such configuration" premise above does not hold
 for this pose; the missing record then ships silently. Not measured
 further.
+
+## Measured recorded on the spun pose (PARTING, 2026-11-01)
+
+`parting/sweep-records-edge-in-face` moves the record to the reduction
+sweep (`boolean::reduce::settle_in_plane`), which no longer needs a
+bound at the crossing: it records each piece of a line edge the sweep
+read lying in a plane face whose end the sweep recorded inside the face
+or whose midpoint the face holds. On
+`two_tubes_in_the_zero_band::a_rod_on_a_puck_with_its_seam_on_the_ruling`
+(the puck spun 1 rad) ∪ now carries the seam / top-face record beside
+the rim's two edge-edge touches, in both operand orders (records 2 → 3),
+with tier 3′'s findings unchanged. The seam is not split at the rim
+crossings there, so the record names the whole seam edge, whose
+interior meets the face's between them. The unspun pose (the rod ending
+on the rim, `review_5389_probes`) was not measured.

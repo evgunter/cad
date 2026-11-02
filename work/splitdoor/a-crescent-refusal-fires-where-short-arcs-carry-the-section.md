@@ -2,10 +2,13 @@
 id: a-crescent-refusal-fires-where-short-arcs-carry-the-section
 kind: issue
 title: The crescent refusal fires where short arcs either side of the tip carry the section, refusing a union main builds
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: M
+closed: 2026-10-28
+pr: 5949
+branch: splitdoor/crescent-short-arcs
 ---
 
 
@@ -54,3 +57,13 @@ vertex pair. The refusal would have to read that run, not the pair alone.
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. Band P1 as filed. CLEAVE keeps its siblings from PR 5687 (`a-union-across-a-tangent-crescent-refuses-unbuilt`, `one-segment-tangent-rims-refuse-where-their-two-arc-forms-build`); whoever takes one reads the others. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Closed (2026-10-28, PR 5949)
+
+`sectors.rs` `crescent` skips a bound pair only where the corners' other edges are a coincident
+run (lines or arcs of at most a half-turn, far ends a recorded vertex pair, tangent at their own
+reach) and the read bounds part at their own reach; the short-arc unions build SOUND in one shell
+at their closed form (pin `short_arcs_at_a_crescents_tip`, renamed from
+`short_arcs_at_a_crescents_tip_refuse_the_union`). The one-rim-only poses this row named escalate
+`Crossing(OnEdge)` upstream on today's main. FULL single review (mergeable after fixes; the reflex
+bound and the 1e-12 build fixed in the fix pass).

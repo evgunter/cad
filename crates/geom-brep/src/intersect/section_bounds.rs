@@ -101,6 +101,7 @@
 
 use geom::{NurbsCurve3, Surface, SurfaceKind};
 use geom_core::interval::certification::Certification;
+use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::pieces::span_row;
 use geom_core::{Band, Bounds, CertifiedBounds, Interval, Point3, Vec3};
 
@@ -579,7 +580,7 @@ fn control_hulls<T: CertifiedBounds>(
             let masses = span_row(weights.get(window.clone())?, &knots, s - p, ends)?;
             let mut hull: Option<Box3> = None;
             for (pw, w) in points.into_iter().zip(masses) {
-                if !(w.is_certified() && w.lo() > 0.0) {
+                if !certainly_positive(&[w]) {
                     return None;
                 }
                 let c = pw / w;

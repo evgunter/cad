@@ -186,7 +186,7 @@ fn elliptic_edge(b_in_major: bool) -> (Body<f64>, EdgeKey) {
     let arc = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(plane, cyl),
-            witness: carrier.eval(0.5 * (t0 + t1)),
+            selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5 * (t0 + t1))),
         },
         carrier,
         param_start: t0,
@@ -264,7 +264,7 @@ fn a_ball_holding_a_face_vertex_in_the_band_of_its_foot_is_not_off_the_face() {
         ("half a radian past the sheet", on(-0.5, 0.5), true),
         ("in the sheet's middle", on(0.7, 0.5), false),
     ] {
-        let got = ball_off_face(&body, face, foot, 1e-3, 1.0, band);
+        let got = ball_off_face(&body, face, foot, 1e-3, super::Reach::Bounded(1.0), band);
         assert!(
             matches!(got, Ok(b) if b == off),
             "a ball about a foot {what}: {got:?}"
@@ -371,7 +371,7 @@ fn edge_on(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(a, b),
-            witness: carrier.mid_point(t0, t1),
+            selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
         },
         carrier,
         param_start: t0,

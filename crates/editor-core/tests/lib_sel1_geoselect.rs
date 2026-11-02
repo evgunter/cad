@@ -428,6 +428,7 @@ fn a_face_that_is_no_plane_refuses() {
         Node::Profile(editor_core::ProfileProgram {
             loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, cylinder) = insert(

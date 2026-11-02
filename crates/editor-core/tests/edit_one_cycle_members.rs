@@ -55,6 +55,7 @@ fn rod(
                 radius: len(A),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = fixture::insert(doc, extrude(p, length));

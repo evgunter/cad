@@ -77,3 +77,29 @@ FRAME orchestrator. `path_start_frame` has no kernel caller; it is an authoring 
 ## Released (INTENT, 2026-10-26)
 
 This row was parked on the stage-3 placement pivot (`a-placement-pins-by-written-values-without-a-mate`). All three of its PRs are merged: D′1 (PR 5592), D′2 (PR 5613) and D′3 (PR 5636, `29110056e8`). Re-check this row against main, then fix, narrow or close it. That is the owning track's call.
+
+## A caller gone, and a second door for interior frames (CARVE, 2026-10-31)
+
+Evidence from `carve/sweep-frame-is-a-minimal-rotation-from-the-start-tangent`;
+nothing here is fixed by it.
+
+- **The klein scene's hand-built interior frames are gone.**
+  `demos/tour/src/klein.rs` used to loft its loop through station
+  frames it minted itself (`lofted_loop`: `RigidMotion::from_aim_and_reference`
+  on each station's tangent, rolled by the `path_start_frame` it read
+  at the start), because `sweep_body` refused a half-turn spine. The
+  sweep now carries the start frame along the path, so the loop is one
+  `sweep_body` again and the scene calls `path_start_frame` at the
+  spine's start only. The interior-station callers this row names
+  (`demos/tour/src/skinned.rs`'s `tube_place`,
+  `crates/sweep/tests/common/mod.rs`) are unchanged.
+- **`sweep::sweep_places` is now a door for frames at interior points
+  of a path**: it returns the author's start frame carried by the
+  rotation-minimizing frame to each of `n` uniform stations
+  (`crates/sweep/README.md` `[sweep.frame]`). A loft that wants the
+  normal plane at its stations can read them there instead of calling
+  `path_start_frame` at each, and those frames do not flip roll where
+  a tangent crosses the ladder's pole band (the discontinuity above),
+  because only the start frame reads the ladder. That bears on the
+  row's two shapes: the interior-station case may already have its
+  door, and what is left is the name.

@@ -44,7 +44,8 @@ use crate::combine::{
     TransformTool,
 };
 use crate::matetool::{MateTool, MateToolEvent};
-use crate::pickindex::PickKinds;
+use crate::pickcache::NotIndexed;
+use crate::pickindex::{PickIndex, PickKinds};
 use crate::revolvetool::RevolveTool;
 use crate::seats::SeatEvent;
 use crate::session::{Selection, SessionOp};
@@ -55,7 +56,7 @@ vocabulary! {
     /// notice are addressed in.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ToolKind {
-        /// The mate tool: two face picks.
+        /// The mate tool: two picks, a face, an edge or a vertex each.
         Mate,
         /// The revolve tool: a profile and an axis.
         Revolve,
@@ -130,9 +131,7 @@ impl ToolKind {
     /// capitalised, as a tool, with the ellipsis of a button that opens
     /// a panel rather than acting.
     pub fn button(self) -> String {
-        let name = self.label();
-        let (first, rest) = name.split_at(name.chars().next().map_or(0, char::len_utf8));
-        format!("{}{rest} tool…", first.to_uppercase())
+        format!("{} tool…", capitalised(self.label()))
     }
 
     /// The words on the button that commits this tool's edit.
@@ -143,7 +142,9 @@ impl ToolKind {
     /// **What the cursor may pick while this tool is open** — an open
     /// tool narrows the priority rule, it does not re-decide it.
     ///
-    /// The mate tool takes faces, and on a real part whole faces sit
+    /// The mate tool's rule is its panel's chosen kind's
+    /// ([`Tools::pick_kinds_choosing`]); its own is a plane's, the kind
+    /// the panel opens on. A plane takes faces, and on a real part whole faces sit
     /// within the edge radius of their own boundary — a narrow shelf, a
     /// small hole's wall — so with edges always winning those faces
     /// were unpickable for as long as the tool was open. The blend tool
@@ -205,7 +206,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         // Two ops, one tool: the output choice picks the door, and
         // either one landing is this tool's edit committed. The blend
         // tool's kind choice does the same.
-        SessionOp::AddPattern { .. } | SessionOp::AddPlacedUnion { .. } => Some(ToolKind::Pattern),
+        SessionOp::AddPattern { .. } | SessionOp::AddFusedPattern { .. } => Some(ToolKind::Pattern),
         SessionOp::AddFillet { .. } | SessionOp::AddChamfer { .. } => Some(ToolKind::Blend),
         // ONE op for both selectors: the two doors mint the same op with
         // different payloads, so a landed `AddPart` is this tool's edit
@@ -226,6 +227,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
+        | SessionOp::Stage { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetVariable { .. }
@@ -247,7 +249,9 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
-        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::SaveAsNewDocument(_)
+        | SessionOp::SetBodyOn { .. }
+        | SessionOp::SetSpaceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
         | SessionOp::CommitFreeMove { .. }
@@ -255,6 +259,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::SketchOnFace { .. }
+        | SessionOp::AddDrawnProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddInstance { .. }
@@ -291,24 +296,45 @@ pub enum ToolNotice {
         /// What it lost.
         event: SeatEvent,
     },
+    /// A viewport click aimed at the open tool met nothing of the kinds
+    /// it picks ([`Tools::pick_kinds_choosing`]), so the tool took no
+    /// pick.
+    Missed {
+        /// The open tool.
+        tool: ToolKind,
+        /// The kinds the cursor could pick.
+        kinds: PickKinds,
+    },
 }
 
-/// The mate and seated arms say the node their event carries
-/// (`SpokenNode`, kept by [`Tools::respeak`]), so the speaker reaches
-/// the blend arm alone, whose event holds bare ids.
+/// The seated arm says the node its event carries (`SpokenNode`, kept
+/// by [`Tools::respeak`]); the blend arm's event holds bare ids, and a
+/// dropped face pick is said by the speaker, a node it does not hold as
+/// the tool kept it.
 impl Say for ToolNotice {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let said = match self {
-            Self::Mate(event) => ToolKind::Mate.says(event),
+            Self::Mate(event) => ToolKind::Mate.says(&Said(event, by)),
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
-            Self::Mirror(event) => ToolKind::Mirror.says(event),
+            Self::Mirror(event) => ToolKind::Mirror.says(&Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
+            Self::Missed { tool, kinds } => tool.says(&format_args!(
+                "{} under the cursor — no pick taken",
+                kinds.nothing()
+            )),
         };
         f.write_str(&said)
     }
 }
 
 /// The sentence a panel speaks: its name, then what it has to say.
+/// **`text` with its first letter capitalised**, as a label that opens
+/// a line reads.
+pub(crate) fn capitalised(text: &str) -> String {
+    let (first, rest) = text.split_at(text.chars().next().map_or(0, char::len_utf8));
+    format!("{}{rest}", first.to_uppercase())
+}
+
 fn compose(name: &str, what: &impl core::fmt::Display) -> String {
     format!("{name}: {what}")
 }
@@ -424,10 +450,7 @@ impl ToolNotice {
     /// name within its table in that document's evaluation
     /// ([`Speaker::within`]); by its tag, in full, with nothing landed.
     pub fn said(&self, landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>) -> String {
-        let by = landed.map_or(Speaker::TAG, |(doc, evaluation)| {
-            Speaker::of(doc).within(evaluation)
-        });
-        Said(self, by).to_string()
+        Said(self, crate::frame::landed_speaker(landed)).to_string()
     }
 }
 
@@ -666,6 +689,16 @@ impl Tools {
             .map_or(PickKinds::Any, ToolKind::pick_kinds)
     }
 
+    /// [`Tools::pick_kinds`] with the mate panel's chosen kind `mate`
+    /// narrowing the mate tool's rule ([`crate::matetool::pick_kinds`]):
+    /// what the viewport's cursor picks with.
+    pub fn pick_kinds_choosing(&self, mate: pncad::document::VarKind) -> PickKinds {
+        match self.open_kind() {
+            Some(ToolKind::Mate) => crate::matetool::pick_kinds(mate),
+            _ => self.pick_kinds(),
+        }
+    }
+
     /// **Whether an operation is the open tool's one committed edit**,
     /// which is what closes it. Answered against the OPEN tool rather
     /// than against the op alone, so an op that no tool authored — or
@@ -704,6 +737,13 @@ impl Tools {
     /// [`Tools::reconcile`] answers with and are shown the same way; a
     /// frame in which every pick landed answers with none.
     ///
+    /// **`index` is what an edge pick means** — the whole drawn edge it
+    /// is part of ([`PickIndex::whole_edge`]), so a click on a circle
+    /// the body holds as two arcs reaches the blend tool as the circle.
+    /// It is the index the pick was made through, or why there is none
+    /// ([`NotIndexed`]); the blend tool refuses a new edge pick without
+    /// one rather than hold what may be half a circle.
+    ///
     /// **`doc` is what routes a seated tool's pick**, not what
     /// judges it: a seat asks the document what KIND of node was
     /// picked so a pick that only one of two seats can hold lands in
@@ -714,7 +754,12 @@ impl Tools {
     /// how a declined pick becomes a click that silently did nothing,
     /// which is the bug this return value exists to prevent.
     #[must_use = "a declined pick is only reported if its notice is shown"]
-    pub fn feed(&mut self, doc: &Doc<ProfileProgram>, ops: &[SessionOp]) -> Vec<ToolNotice> {
+    pub fn feed(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        index: Result<&PickIndex, NotIndexed>,
+        ops: &[SessionOp],
+    ) -> Vec<ToolNotice> {
         let mut notices = Vec::new();
         for op in ops {
             let SessionOp::Select(selection) = op else {
@@ -722,14 +767,15 @@ impl Tools {
             };
             match &mut self.open {
                 None => {}
-                Some(OpenTool::Mate(tool)) => {
-                    if let Some(face) = selection.face() {
-                        tool.pick(doc, face.clone());
-                    }
-                }
+                Some(OpenTool::Mate(tool)) => match selection {
+                    Selection::Face(face) => tool.pick(doc, face.clone()),
+                    Selection::Edge(edge) => tool.pick(doc, edge.clone()),
+                    Selection::Vertex(vertex) => tool.pick(doc, vertex.clone()),
+                    Selection::None | Selection::Node(_) | Selection::Variable(_) => {}
+                },
                 Some(OpenTool::Blend(tool)) => {
                     if let Some(edge) = selection.edge() {
-                        notices.extend(tool.pick(doc, edge).map(ToolNotice::Blend));
+                        notices.extend(tool.pick(doc, edge, index).map(ToolNotice::Blend));
                     }
                 }
                 Some(OpenTool::Revolve(tool)) => {

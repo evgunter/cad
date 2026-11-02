@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-19
 priority: P1
 cost: E
-blocked_on: [boolean-door-runs-the-census-over-its-result, transform-and-pattern-drop-a-values-contact-records, a-placement-carries-its-sources-at-rest-result, each-space-runs-its-census-between-arrivals]
+blocked_on: [boolean-door-runs-the-census-over-its-result, each-space-runs-its-census-between-arrivals]
 refs: [a-census-contact-is-a-row-and-a-record]
 ---
 

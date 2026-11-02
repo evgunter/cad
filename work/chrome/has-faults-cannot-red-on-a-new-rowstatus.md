@@ -48,7 +48,7 @@ Recorded here because the criterion is the defect, not the miss.
 
 ## It meets `band-refusal-still-badges-every-row`, and neither row can see that from its own side
 
-`work/chrome/band-refusal-still-badges-every-row` proposes closing
+`work/placing/band-refusal-still-badges-every-row` proposes closing
 its symptom with a row status that names the CLUSTER rather than the
 row — *"may want its own status, which is why it is filed rather than
 folded into 1769"*. **That fix is the event this row is about.** The

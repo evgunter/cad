@@ -325,7 +325,8 @@ pub struct QuarticRows {
 /// # Errors
 ///
 /// [`RootRefusal::Escalated`], an in-band classifying sign, and
-/// [`RootRefusal::Unsettled`], the rungs above that certify no count.
+/// [`RootRefusal::Unsettled`], the rungs above that certify no count:
+/// each is a reading legal input reaches.
 #[allow(clippy::too_many_lines)] // one closed form and its ladder
 pub fn depressed_quartic_roots<T: Decide>(
     p: T,
@@ -446,7 +447,8 @@ pub fn depressed_quartic_roots<T: Decide>(
         }
         .into());
     }
-    Ok(Roots::of(&ts[..found]).ok_or(Unsettled::ImpossibleCount)?)
+    Ok(Roots::of(&ts[..found])
+        .unwrap_or_else(|| unreachable!("two factors make at most four roots")))
 }
 
 #[cfg(test)]

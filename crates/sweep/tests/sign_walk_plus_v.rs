@@ -171,10 +171,10 @@ fn a_relation_run_out_at_the_wall_is_the_refusal_carrying_the_bracket() {
 /// number and settles its `1e-8` sign.
 /// The family's disposition is a function of `delta/s` alone, which is
 /// why two thicknesses pin the same two arms at every ε row rather than
-/// going vacuous at one of them. Both traversal
-/// senses are built: the reversed strip is the inside-out twin, and
-/// an undecided sign cannot tell it from the upright one, which is
-/// the whole reason an undecided sign may not pass.
+/// going vacuous at one of them. Both traversal senses are built; the
+/// profile canonicalizes traversal (`profile`'s "winding is invisible"),
+/// so both are the one positive body and each must land as the other
+/// does.
 ///
 /// A body that settles at a LATER round and passes is the roster row
 /// below, whose `strictly_early` requirement is exactly that.
@@ -199,8 +199,10 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
                 let errors = plain.expect_err("the doors agree");
                 // The refusal carries the enclosure the walk stopped on,
                 // and it holds the strip's closed form: the two bulges
-                // cancel, so V = ±2·s·delta·s (the loft is `s` tall).
-                let truth = if reversed { -1.0 } else { 1.0 } * 2.0 * s * (rel * s) * s;
+                // cancel, so V = 2·s·delta·s (the loft is `s` tall). The
+                // profile canonicalizes traversal, so both senses build
+                // this one body.
+                let truth = 2.0 * s * (rel * s) * s;
                 let bracket = errors.iter().find_map(|e| match e {
                     topo::ValidationError::VolumeSignUnresolved {
                         limit: topo::SignLimit::Quadrature,
@@ -552,70 +554,6 @@ fn the_sign_walk_takes_every_open_solid_past_the_numbers_resolution() {
     assert_eq!(
         together, alone,
         "one walk over two solids reads each solid's role at the rounds it reads alone"
-    );
-}
-
-/// **THE BACKSTOP STARTS FROM ROUND 0.** An intersection planted with
-/// the arc loft at `1e9·ε` as its result, inside one brick taken as both
-/// operands: every bound the backstop asks (the result at most each
-/// operand, and at least zero) holds on the result's round-0 enclosure,
-/// so the backstop reads each of the result's quadrature faces once and
-/// no further. The number door runs the same faces to the resolution,
-/// rounds past round 0 that a backstop reading from the reporting walk
-/// would pay.
-#[test]
-fn the_backstop_reads_from_round_zero() {
-    let tol = Tol::witness();
-    let s = 1.0e9 * tol.get().eps;
-    let result = arc_loft(s);
-    let brick: Body<f64> = sweep::test_support::brick(
-        (-10.0 * s, 10.0 * s),
-        (-10.0 * s, 10.0 * s),
-        (-10.0 * s, 10.0 * s),
-        tol,
-    );
-    let number = quad_rounds(|| {
-        topo::mass_properties(
-            &topo::test_support::finished("the loft", result.clone(), tol),
-            tol,
-            topo::test_support::pinned_resolution(tol),
-        )
-        .expect("the loft measures");
-    });
-    // Every quadrature face is a curved one: the loft's planar caps are
-    // closed forms.
-    let curved = result
-        .faces()
-        .filter(|(_, face)| {
-            !matches!(
-                result.get_surface(face.surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        })
-        .count();
-    let backstop = quad_rounds(|| {
-        topo::test_support::volume_backstop(
-            topo::BooleanOp::Intersect,
-            &brick,
-            &brick,
-            &result,
-            tol,
-        )
-        .expect("every bound holds");
-    });
-    assert!(
-        backstop > 0,
-        "the loft has a quadrature wall, so its round 0 runs one"
-    );
-    assert!(
-        backstop <= curved,
-        "the backstop reads each quadrature face once: {backstop} rounds over {curved} curved \
-         faces"
-    );
-    assert!(
-        backstop < number,
-        "the backstop reads round 0 and the number door refines past it: {backstop} rounds \
-         against the number's {number}"
     );
 }
 

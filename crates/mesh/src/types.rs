@@ -127,11 +127,13 @@ pub enum TessellateError {
     /// B-spline carrier (legal rational carriers meter through the
     /// quotient-rule sagitta arm of `chords`), a trimmed face on a
     /// chart whose TRIMMED-TESSELLATION lane is not written
-    /// (cone/sphere/torus — those charts mint stored pcurves, but the
-    /// written trimmed lane's geometry is the cylinder chart's), or a
-    /// trimmed face missing its stored pcurve caches. The
-    /// conic-on-cylinder case is a CONSTRUCTION lane (`trimmed`), not
-    /// a refusal.
+    /// (cone/torus, and a sphere bounded by anything but circles —
+    /// those charts mint stored pcurves, but the written trimmed lane's
+    /// geometry is the cylinder chart's and the circle-bounded
+    /// sphere's), or a trimmed face missing its stored pcurve caches (a
+    /// trimmed sphere face whose shape that arm does not mesh refuses
+    /// [`Self::SphereTrimShape`] instead). The conic-on-cylinder and tilted-circle-on-sphere
+    /// cases are CONSTRUCTION lanes (`trimmed`), not refusals.
     UnsupportedCurve {
         /// The offending edge.
         edge: EdgeKey,
@@ -194,9 +196,10 @@ pub enum TessellateError {
     /// uncertified mesh is never shipped. Each lane sizes its worst
     /// triangle at δ by its theorem (`crates/mesh/README.md`
     /// `[mesh.sizing]`), so this is a kernel defect, a triangle outside
-    /// what its lane's theorem covers (the trimmed cylinder's beside a
-    /// trim chord, which sizes at `trimmed::UNPROVED_HEADROOM` for that
-    /// reason), or degenerate geometry.
+    /// what its lane's theorem covers (the trimmed cylinder's or
+    /// sphere's beside a trim chord, which size at
+    /// `trimmed::UNPROVED_HEADROOM` for that reason), or degenerate
+    /// geometry.
     CertificateExceeded {
         /// The face whose patch failed.
         face: FaceKey,
@@ -388,11 +391,15 @@ pub enum TessellateError {
     /// around a sphere's pole or a cone's apex is not a face of this
     /// kernel, and on a cylinder such a loop bounds no finite face at
     /// all. The name is accordingly not `Unsupported*`, which row 2
-    /// reserves for valid input. Bodies carrying the face can pass
-    /// `topo`'s validation as it stands — the sphere member measures
-    /// its exact volume — and STEP import and the Euler doors both state
-    /// it, which is why this lane refuses it itself rather than lean on
-    /// a door in front of it.
+    /// reserves for valid input. Tier 3 refuses the sphere and cone
+    /// members for the pole or apex inside them
+    /// (`topo::ValidationError::ChartSingularityNotAVertex`), but the
+    /// Euler doors state them, the sphere member measures its exact
+    /// volume, and `tessellate` does not re-validate, which is why this
+    /// lane refuses the face itself rather than lean on a door in front
+    /// of it. STEP import does not ship it: a file's statement of it is
+    /// re-minted in the seamed form
+    /// (`step_import::NormalizationKind::ChartSingularityVertex`).
     ///
     /// Row 0 (can the state be made unrepresentable?) is answered no:
     /// whether an edge is a rim or a meridian is a geometric
@@ -528,6 +535,112 @@ pub enum TessellateError {
         /// The band construction failure.
         error: geom_core::BandError,
     },
+    /// A trimmed face's boundary polygon on an analytic chart (cylinder
+    /// or sphere) winds against the face's orientation: the loop runs
+    /// interior-left about the face's outward normal, so its polygon in
+    /// the chart runs counter-clockwise exactly when `sense` is true,
+    /// and one that does not bounds the face's complement. Meshing it
+    /// would ship the complement, or the face wound inward, as a closed
+    /// manifold mesh, so it refuses. A valid body does not reach it (the
+    /// sphere arm's pole placement, `trimmed::choose_pole_azimuths`,
+    /// refuses its own scope limits as [`Self::SphereTrimShape`]); a
+    /// face whose `sense` disagrees with its loops does.
+    TrimLoopOrientation {
+        /// The face whose trim polygon was refused.
+        face: FaceKey,
+    },
+    /// A trimmed face's triangle is wound against the face in 3-D: its
+    /// normal points into the surface it stands for. The CDT runs in
+    /// the chart, so a lattice point inside the UV trim polygon but
+    /// past the 3-D chord beside it (within the boundary arc's sagitta)
+    /// makes a triangle that folds over that chord. The mesh would
+    /// still be closed and manifold, so the per-triangle winding census
+    /// refuses it.
+    FoldedTriangle {
+        /// The face whose patch folds.
+        face: FaceKey,
+    },
+    /// A trimmed face on an analytic chart keeps an ear of its boundary
+    /// polygon (a triangle on three consecutive chord points) after the
+    /// retry budget: the neighbour across that chain may cut the same
+    /// ear, which would make one triangle twice and their diagonal an
+    /// edge of four triangles, so it refuses.
+    BoundaryEar {
+        /// The face whose patch keeps the ear.
+        face: FaceKey,
+    },
+    /// A trimmed sphere face whose shape the sphere arm does not mesh
+    /// ([`SphereTrimCause`] names which), at `edge`, the boundary edge
+    /// that shows it.
+    SphereTrimShape {
+        /// The refused face.
+        face: FaceKey,
+        /// The boundary edge the cause is read on.
+        edge: EdgeKey,
+        /// What the arm cannot mesh.
+        cause: SphereTrimCause,
+    },
+}
+
+/// Why the trimmed lane's sphere arm refuses a face's shape
+/// ([`TessellateError::SphereTrimShape`]).
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `mesh` whole — the Python binding projects it as the error's `note`
+/// ([`SphereTrimCause::name`]), and the refusal's sentence states the
+/// shape. What a person does with any cause is the same: re-pose or
+/// re-author the face so its chart poles are away from its circles.
+///
+/// **The falsifier is a caller that acts on the cause by itself**: a
+/// driver that turns the sphere's chart when it reads `ThroughPole` but
+/// splits the face when it reads `PoleInside`. Then carry it and delete
+/// this paragraph and the disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SphereTrimCause {
+    /// An edge's image runs past a chart pole mid-edge (`|v| > π/2`):
+    /// the arm meets a pole only at a loop vertex.
+    PastPole,
+    /// The loop winds about a pole inside the face: a side other than a
+    /// pole side turns more than 3π/2 in azimuth, so the image does not
+    /// close in the chart.
+    PoleInside,
+    /// The loop visits one mesh vertex at two chart locations off a
+    /// pole (a seam traversed twice).
+    SeamTwice,
+    /// A tilted circle's image comes so near a pole that the arm's
+    /// closed-form azimuth speed bound `|p′|/ρ` is unbounded on it: no
+    /// chord schedule is sized, because none is bounded.
+    ThroughPole,
+    /// The loop passes its chart poles at more junctions than the arm
+    /// searches the runs between them for (`trimmed::MAX_POLE_JUNCTIONS`).
+    PoleJunctions,
+    /// No placement of the loop's runs between its poles a whole turn
+    /// either way bounds a region of the face's orientation with an
+    /// area inside the sphere's, or two placements tie.
+    PoleAzimuth,
+    /// The sphere's tightening asks one edge for more chords than the
+    /// arm's per-edge budget (`trimmed::MAX_SPHERE_EDGE_CHORDS`): a
+    /// tilted circle passing near a chart pole, whose uniform schedule is
+    /// as fine everywhere as at its closest approach.
+    ChordBudget,
+}
+
+impl SphereTrimCause {
+    /// The cause as a sortable word.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::PastPole => "past_pole",
+            Self::PoleInside => "pole_inside",
+            Self::SeamTwice => "seam_twice",
+            Self::ThroughPole => "through_pole",
+            Self::PoleJunctions => "pole_junctions",
+            Self::PoleAzimuth => "pole_azimuth",
+            Self::ChordBudget => "chord_budget",
+        }
+    }
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -669,7 +782,8 @@ impl core::fmt::Display for TessellateError {
                     K::Sphere | K::Cone => {
                         "restate it in the seamed form — two half-faces, each bounded \
                          by half the rim and two meridians that meet at a vertex on the \
-                         pole or apex — which this lane meshes"
+                         pole or apex — which this lane meshes, and into which STEP \
+                         import re-mints a file's statement of the face"
                     }
                     K::Cylinder => {
                         "a cylinder face with a single rim is unbounded, so there is \
@@ -722,6 +836,62 @@ impl core::fmt::Display for TessellateError {
                  props classifies with ({error}) — a configuration failure of \
                  the run, not a statement about the body",
             ),
+            Self::TrimLoopOrientation { .. } => f.write_str(
+                "tessellate: a trimmed face's boundary polygon in its chart winds \
+                 against the face's orientation, so it bounds the face's complement \
+                 — refused rather than meshed inside out; a tier-valid body does not \
+                 reach this, so it is a kernel defect",
+            ),
+            Self::FoldedTriangle { .. } => f.write_str(
+                "tessellate: a trimmed face's triangle folds over the chord beside \
+                 it and is wound against the face in 3-D — the mesh would be \
+                 closed and wrong, so it is refused; a finer δ may clear it",
+            ),
+            Self::BoundaryEar { .. } => f.write_str(
+                "tessellate: a trimmed face's patch keeps a triangle on three \
+                 consecutive boundary chord points after its retries — the face \
+                 across that chain may cut the same one, leaving an edge of four \
+                 triangles; a different δ may clear it",
+            ),
+            Self::SphereTrimShape { cause, .. } => {
+                let what = match cause {
+                    SphereTrimCause::PastPole => {
+                        "an edge's image runs past a chart pole mid-edge, and the \
+                         sphere arm meets a pole only at a loop vertex"
+                    }
+                    SphereTrimCause::PoleInside => {
+                        "its loop winds about a chart pole inside the face, and the \
+                         sphere arm meshes a face that holds no pole inside it"
+                    }
+                    SphereTrimCause::SeamTwice => {
+                        "its loop visits one vertex at two chart locations off a pole \
+                         (a seam traversed twice)"
+                    }
+                    SphereTrimCause::ThroughPole => {
+                        "a tilted circle of its boundary passes so near a chart pole \
+                         that its image's azimuth speed has no bound to size chords by"
+                    }
+                    SphereTrimCause::PoleJunctions => {
+                        "its loop passes the chart's poles at more junctions than the \
+                         arm searches"
+                    }
+                    SphereTrimCause::PoleAzimuth => {
+                        "no placement of its loop's runs between the chart's poles \
+                         bounds a region of the face's orientation and area"
+                    }
+                    SphereTrimCause::ChordBudget => {
+                        "a tilted circle of its boundary passes so near a chart pole \
+                         that chording it asks more points of one edge than the arm's \
+                         budget; re-pose the sphere so its chart poles are away from \
+                         its circles"
+                    }
+                };
+                write!(
+                    f,
+                    "tessellate: a trimmed sphere face is outside the sphere arm's \
+                     shapes — {what}",
+                )
+            }
         }
     }
 }

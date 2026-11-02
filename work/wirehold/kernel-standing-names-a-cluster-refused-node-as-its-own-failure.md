@@ -34,14 +34,14 @@ consumer that is not the viewer:
 - `appearance::AppearanceLossCause::Indeterminate`
   (`crates/editor-core/src/appearance.rs`), which is what the CHROME row
   named. The viewer does not surface appearance losses today;
-- `resolve::ResolveIndeterminate`, `checks::ChecksError::Root`,
+- `resolve::ResolveIndeterminate`, `checks::ChecksError::Placement`,
   `names::interrogate::InterrogateError::Standing`,
   `resolve::pick::NodePickError::Standing` and `NameLookupError::Standing`,
   `resolve::hit::HitTestError::Standing`, `stackup`'s no-measure
   refusal, `clearance::SelectionRefusal::NodeDidNotBuild`,
   `names::geompred`'s `NodeHasNoValue`/`DatumHasNoValue`;
-- `product::ProductError::Root`, which carries the root's standing
-  whole and renders it as `product: root {standing}`, so it inherits
+- `product::ProductError::Read`, which carries the read's standing
+  whole and renders it as `product: the body the slot reads: {standing}`, so it inherits
   the standing's recourse, *"fix the node's own failure"* included.
 
 **The viewer builds kernel values that break their own field docs.**
@@ -61,8 +61,8 @@ inside kernel containers (`Resolution`, `InterrogateError`) that the
 viewer's selection and tool values hold. The product gather is not
 re-attributed: `session.product_fault()` hands out the gather's own
 value, and no chrome surface draws its standing: the tree badges the
-refused root at its row, and the at-rest badge takes no verdict on a
-gather refusal (since 2026-10-01; before that it drew the root's
+refused read at its row, and the at-rest badge takes no verdict on a
+gather refusal (since 2026-10-01; before that it drew the read's
 standing re-read by `standing_as_drawn`).
 
 The question is a design one. Should `NodeStanding`, or a sibling
@@ -84,3 +84,16 @@ Signed (WIRE orchestrator).
 ## Unparked (2026-10-20, INTENT stage 3 D lane)
 
 Its trigger fired: `a-mate-relates-two-poses` (stage 3 C, PR #5267) merged on 2026-10-18, so mate-cluster blame now stands on the tree it waited for and the design question is open to weigh.
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Still real, reshaped.**
+- The blame is now a placement that holds a constraint (`viewer/src/tree.rs:1134-1145`, `blamed_mates`).
+- `NodeStanding`'s "fix the node's own failure" is unchanged (`eval/mod.rs:625`), and the viewer still re-reads through `standing_as_drawn` (`tree.rs:876`).
+- `FILED_NO_RECOURSE` parks `MeasureRefUnreadable/NodeFailed` and `/NodePoisoned` on this row (`tests/refusal_concision_chains.rs:257-259`).
+- Stale citations of this row as `work/wire/…` are at `viewer/src/tree.rs:875`, `blend.rs:247`, `combine.rs:1111` and `session/select.rs:343`. Repoint them to `work/wirehold/` with the fix.
+- Sibling: `msolve/a-mate-is-poisoned-through-a-member-its-own-solve-faulted` (open).
+
+A design fork: designer pair, then `[ev]`.

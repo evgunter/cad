@@ -20,10 +20,10 @@
 //! reported, and any new nonconformer fails the suite (a finding, not
 //! noise).
 //!
-//! # The F3+F4 flip — THIS UNIT is the one the old comments promised
+//! # The F4 flip — THIS UNIT is the one the old comments promised
 //!
-//! This suite's ε-row structure used to encode two deferred findings.
-//! Both are now FIXED, and the pins moved with them:
+//! This suite's ε-row structure used to encode a deferred finding. It
+//! is now FIXED, and the pin moved with it:
 //!
 //! - **F4** (`bool_ring_run_winding`): the mm twin's ring-winding AREA
 //!   margins (measured 2e-6/6e-6/8e-6 here) landed INSIDE
@@ -38,19 +38,6 @@
 //!   arm and the `Option` return that carried it are GONE: the pocket
 //!   subtract computes on every row, and `bool_ring_run_winding` is
 //!   pinned LINEAR below.
-//! - **F3** (`volume_backstop`): the backstop's raw `sign_within`
-//!   bypass is retired — both its gates decide through the funnel,
-//!   under `volume_backstop` / `volume_backstop_operand`, metered to
-//!   lengths (ΔV over the compared bodies' summed surface area;
-//!   measured here 1.0e-5 / 2.1e-5 m and 2.1e-4 / 3.3e-4 m at mm
-//!   scale). The stale-name contamination of `witness_at_mid_parameter`
-//!   that this suite MEASURED and allowlisted is therefore gone — and
-//!   the proof is that its decisive list is now EMPTY at both scales
-//!   (the {1, 1, 3, 8, 8, 16} m³ "witness distances" were the whole of
-//!   it; its own samples are coincident residuals, as the old comment
-//!   claimed). Both its nonlinearity entry and its scale-dependent-count
-//!   exemption are dropped, so the pin now holds it to the full
-//!   elementwise claim.
 //!
 //! **The nightly executes this suite; the PR gate only builds it.** It is
 //! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
@@ -252,10 +239,10 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
     // refactor stops one from firing, the pin goes vacuous — fail
     // loudly instead so the pin moves with the code.
     //
-    // `bool_ring_run_winding` (F4) and the three `volume_backstop*`
-    // gates (F3) are on this list BECAUSE of this unit: their
-    // presence here is what makes their absence from KNOWN_NONLINEAR
-    // a claim rather than a silence — they fire, and they scale. So is
+    // `bool_ring_run_winding` (F4) is on this list BECAUSE of this
+    // unit: its presence here is what makes its absence from
+    // KNOWN_NONLINEAR a claim rather than a silence — it fires, and it
+    // scales. So is
     // `bool_point_in_solid_denom` (F2): the plane arm's cosine, levered
     // by the selection's reach.
     //
@@ -270,9 +257,6 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
         "bool_join_facing",
         "pm_census_ee_parallel",
         "bool_ring_run_winding",
-        "volume_backstop",
-        "volume_backstop_operand",
-        "volume_backstop_violation",
         "bool_point_in_solid_denom",
     ] {
         assert!(

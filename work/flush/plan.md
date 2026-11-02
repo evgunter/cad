@@ -10,11 +10,13 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 
 ## The slate
 
-**15 points** of dispatchable work against a ceiling of 32 (2026-10-27, after PR 5772 made the n-ary union and intersect a kernel door). FLUSH measured 41.5 when PR 5368 closed its P1, so it was cut along its priority seam: the eight P3 rows and the one P4 row moved to **FLUSHTAIL** (`work/flushtail/`) by `git mv`, with ids unchanged. Three older rows are unpriced and charged 2.5 each. `work/flush/program.md` states why the ceiling is not 30.
+**17 points** of dispatchable work against a ceiling of 32 (2026-10-31). PR 5781's five P2 residue rows took the slate to 45, so they moved by `git mv` to **SIDETIES** (`work/sideties/`), the side reader's remaining exact ties. Before that, FLUSH measured 41.5 when PR 5368 closed its P1 and was cut along its priority seam: its eight P3 rows and one P4 row went to **FLUSHTAIL** (`work/flushtail/`), ids unchanged. Three older rows are unpriced. `work/flush/program.md` says why the ceiling is not 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P2 | `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal` | H | the curved aims still decide exact ties at a document's nominal: `cut_cylinder` reads 62 exact zeros (the cap's aim and in-face walk; the wall's region walk at each root); unparked by PR 5697 |
+| P3 | `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch` | H | PR 5706's residue |
+
+Nothing in flight. Both P1s closed on 2026-11-01: the partial-torus rim ray with PR 6168, and the aimed ray's reach with PR 6174. FLUSH is handed back `ready`. The P0s are parked on REACHHOLD, and the rest is tail for a successor.
 
 Parked, and not counted:
 

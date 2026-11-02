@@ -97,7 +97,7 @@
 //! wire-shaped step type is `editor-core`'s; this one is the resolved,
 //! scalar-valued form the driver consumes.
 
-use geom_core::{Decide, Point2, Real};
+use geom_core::{Decide, Point2, Real, Vec2};
 
 use super::{
     ArcCarrierScalar, Bulge, Center, Flavor, HasAng, HasPos, NoAng, NoPos, Open, PartialPath,
@@ -2957,6 +2957,74 @@ pub fn replay_guided<T: ArcCarrierScalar>(
         }
     }
     Ok(closed.loop_)
+}
+
+/// **Where a chain's prefix leaves the pen**: the tip's position, and
+/// the heading a leg from it would run along.
+///
+/// The heading is the bound director where one is bound, else the
+/// incoming leg's end tangent ([`Self::directed`] says which); a plain
+/// point with no director has none.
+#[derive(Clone, Copy, Debug)]
+pub struct Pen<T: Real> {
+    /// The tip's position.
+    pub at: Point2<T>,
+    /// The unit ray a leg from the tip departs along, if any.
+    pub heading: Option<Vec2<T>>,
+    /// Whether [`Self::heading`] is a bound director rather than the
+    /// incoming tangent.
+    pub directed: bool,
+}
+
+/// **The pen after `steps`**, a prefix of a chain program: replayed
+/// through the same driver as [`replay`], guided by `structure` where
+/// one is given (a lane's second pass, so the prefix makes the
+/// record's choices rather than its own). `None` where the tip has no
+/// position (the entry, a direction bound first, a fillet's open
+/// arrival) or the prefix closed the loop.
+///
+/// # Errors
+///
+/// [`ReplayError`], as the replay of the prefix refuses.
+pub fn pen<T: ArcCarrierScalar>(
+    steps: &[Step<T>],
+    structure: Option<&ReplayStructure>,
+    tol: Tol,
+) -> Result<Option<Pen<T>>, ReplayError<T>> {
+    let mut guide = structure.map_or_else(Guide::recording, |s| Guide::guided(s.clone()));
+    let mut tip = DynTip::Entry;
+    for (i, step) in steps.iter().enumerate() {
+        match apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError { step: i, kind })? {
+            Applied::Tip(next) => tip = next,
+            Applied::Closed(_) => return Ok(None),
+        }
+    }
+    fn of<T: Real, P, A>(p: &PartialPath<T, P, A>) -> Option<Pen<T>> {
+        let pos = p.tip.pos.as_ref()?;
+        let bound = p.tip.ang.as_ref().map(|b| b.dir.unit);
+        let incoming = pos.incoming.as_ref().map(|i| i.ang.unit);
+        Some(Pen {
+            at: pos.at,
+            heading: bound.or(incoming),
+            directed: bound.is_some(),
+        })
+    }
+    Ok(match &tip {
+        DynTip::PlainPoint(p) => of(p),
+        DynTip::DirectedPoint(p) => of(p),
+        DynTip::DirectedPlain(p) => of(p),
+        DynTip::DirectedIncoming(p) => of(p),
+        DynTip::Entry
+        | DynTip::Open(_)
+        | DynTip::Angle(_)
+        | DynTip::RadiusArrival(_)
+        | DynTip::RadiusArrivalAt(_)
+        | DynTip::RadiusArrivalDir(_)
+        | DynTip::ViaArrival(_)
+        | DynTip::ViaArrivalStart(_)
+        | DynTip::ArcOnto(_)
+        | DynTip::ArcOntoStart(_) => None,
+    })
 }
 
 /// A loop the path lattice constructed: the loop, the fact that every

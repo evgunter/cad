@@ -25,13 +25,12 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use bvh::Aabb;
-use editor_core::{HitTestError, NameLookupError, NodePickError, NodeStanding, UnnamedEntity};
-use pncad::document::{EditError, RecipeNodeId, Said, Speaker};
+use editor_core::{HitTestError, NodeStanding, UnnamedEntity};
+use pncad::document::{RecipeNodeId, Said, Speaker};
 use pncad::geom_core::Point3;
 use pncad::mesh::TessellateError;
 use test_utils::refusal::tagged;
 use viewer::camera::{Camera, CameraError, CameraOp, CameraOpError};
-use viewer::history::ReplayError;
 use viewer::matetool::MateToolError;
 use viewer::pickindex::{
     EdgeNameFault, EdgeNamesRefused, IdMapError, PatchId, PickError, PickIndexError,
@@ -333,65 +332,6 @@ fn pick_index_error_forwards_its_id_arm() {
     assert_eq!(outer, inner.to_string());
 }
 
-/// The indexing arm carries `editor-core`'s own refusal, and the
-/// placement it names is this layer's contribution. The arm claims only
-/// that the placement was not indexed, which is true of every payload: why — no
-/// value, no body, a tessellation refusal — is the payload's to say.
-#[test]
-fn pick_index_error_says_only_that_its_placement_was_not_indexed() {
-    let node = RecipeNodeId::new(0, tagged(7));
-    let not_a_body = NodePickError::NotABody { node };
-    let standing = NodeStanding::Failed { node };
-    for inner in [not_a_body, NodePickError::Standing(standing)] {
-        let outer = PickIndexError::Node {
-            node,
-            error: inner.clone(),
-        }
-        .to_string();
-        assert_eq!(
-            outer,
-            format!(
-                "placement 000000000007 could not be indexed: {}",
-                Said(&inner, Speaker::TAG.about(node))
-            )
-        );
-    }
-}
-
-/// A node with no value is the one fact a pick-index refusal shares
-/// with the tree, at the build and at the name doors alike; every
-/// other refusal is the index's own.
-#[test]
-fn pick_index_error_reads_a_standing_at_the_build_and_at_the_name_doors() {
-    let node = RecipeNodeId::new(0, tagged(7));
-    let standing = NodeStanding::Failed { node };
-    let build = PickIndexError::Node {
-        node,
-        error: NodePickError::Standing(standing),
-    };
-    let names = PickIndexError::Names(NameLookupError::Standing(standing));
-    let not_a_body = PickIndexError::Node {
-        node,
-        error: NodePickError::NotABody { node },
-    };
-    assert_eq!(
-        (build.standing(), names.standing(), not_a_body.standing()),
-        (Some(standing), Some(standing), None)
-    );
-    let poisoned = NodeStanding::Poisoned {
-        node,
-        through: RecipeNodeId::new(0, tagged(3)),
-    };
-    assert_eq!(
-        names.restated(|_| poisoned),
-        Some((
-            standing,
-            PickIndexError::Names(NameLookupError::Standing(poisoned))
-        )),
-        "the standing is re-read in its own seat"
-    );
-}
-
 /// The layout arm is this layer's OWN finding — no payload to forward
 /// — so it names the address it refused, which is the only thing a
 /// reader can act on.
@@ -477,28 +417,6 @@ fn edge_names_refused_forwards_its_first_refusal() {
     prose(&said, "EdgeNamesRefused");
 }
 
-/// The replay forwards the refusal's problem and ends as a damaged
-/// file or a defect does: nobody is making the logged edit, so the edit
-/// door's recourse is not the reader's.
-#[test]
-fn replay_error_names_the_log_position_and_forwards_the_problem() {
-    let inner = EditError::UnknownNode {
-        id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, tagged(4))),
-    };
-    let outer = ReplayError::Refused {
-        index: 3,
-        error: inner.clone(),
-    }
-    .to_string();
-    assert!(outer.contains('3'), "{outer}");
-    assert!(outer.contains(&inner.problem().to_string()), "{outer}");
-    assert!(
-        outer.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING) && !outer.contains("Recourse:"),
-        "{outer}"
-    );
-    prose(&outer, "Refused");
-}
-
 /// The indeterminate-resolution status line forwards the cause's own
 /// words and contributes only the noun it is talking about.
 #[cfg(feature = "app")]
@@ -539,6 +457,12 @@ fn startup_error_forwards_every_payload_arm() {
         doc.contains(&SceneDocError::NoNodeMinted.to_string()),
         "{doc}"
     );
+
+    let entropy = || pncad::workspace::WorkspaceError::RandomnessUnavailable {
+        message: "the entropy source is closed".to_owned(),
+    };
+    let id = StartupError::Identity(entropy()).to_string();
+    assert!(id.contains(&entropy().to_string()), "{id}");
 
     prose(
         &StartupError::NoWgpuRenderState.to_string(),

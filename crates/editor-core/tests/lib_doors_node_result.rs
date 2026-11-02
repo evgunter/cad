@@ -30,6 +30,7 @@ fn square(o: f64, s: f64) -> AuthoredNode {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -313,7 +314,6 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
                 at_solve: vec![],
             },
         }),
-        K::PlacementRule(editor_core::PlacementRuleFault::NonFiniteFrame { index: 3 }),
         K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
         K::Revolve(sweep::RevolveError::DegenerateAxis),
         K::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
@@ -368,7 +368,6 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
             K::Expr { source, .. } => source.to_string(),
             K::SelectResolve { error, .. } => error.to_string(),
             K::WitnessBifurcation(e) => e.to_string(),
-            K::PlacementRule(e) => e.to_string(),
             K::Extrude(e) => e.to_string(),
             K::Revolve(e) => e.to_string(),
             K::Skin(e) => e.to_string(),
@@ -501,9 +500,8 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
 #[test]
 fn the_document_layers_own_payloads_render_their_own_stories() {
     use editor_core::{
-        BifurcationKind, BranchMarginEvidence, Diagnosis, EntityKind, EvalError,
-        PlacementRuleFault, RecipeEditRef, ResolveError, RoleSeg, StableName, WitnessAge,
-        WitnessBifurcation,
+        BifurcationKind, BranchMarginEvidence, Diagnosis, EntityKind, EvalError, RecipeEditRef,
+        ResolveError, RoleSeg, StableName, WitnessAge, WitnessBifurcation,
     };
 
     let name = |kind| StableName {
@@ -578,13 +576,6 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
                 "margin 2e-10",
                 "re-solve to record a fresh witness",
             ],
-        ),
-        (
-            PlacementRuleFault::CountSpelling {
-                shape: editor_core::CountMismatch::ListedOnPattern,
-            }
-            .to_string(),
-            &["disagree about how many placements"],
         ),
     ];
     for (rendered, expected) in cases {

@@ -54,6 +54,7 @@ fn bored_square_doc(chamfer: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, block) = fixture::insert(

@@ -86,8 +86,8 @@ pub enum OpGroup {
     /// fenced by the ratified verb-vocabulary decision
     /// (`crates/sweep/README.md`, settled ground).
     Fillet,
-    /// Pattern.
-    Pattern,
+    /// Repetition: a family's member (D10 `[repetition]`).
+    Repetition,
     /// Shell (the hollowing verb's cavity, rim and hole-rim roles).
     /// Its outer wall speaks as [`SegTag::From`], which groups under
     /// [`OpGroup::Shared`]: the tag names the SHAPE (an entity carried
@@ -138,6 +138,10 @@ seg_tags! {
     // Loft
     LoftWall,
     LoftSeam,
+    LoftSlabWall,
+    LoftSlabSeam,
+    LoftSectionEdge,
+    LoftSectionVertex,
     // Revolve
     Band,
     BandRim,
@@ -180,7 +184,7 @@ seg_tags! {
     Rim,
     HoleRim,
     // Pattern
-    Instance,
+    Member,
 }
 
 /// The end/side discriminator a role segment can carry — the closed,
@@ -227,6 +231,10 @@ impl SegTag {
             RoleSeg::CapVertex(..) => Self::CapVertex,
             RoleSeg::LoftWall(..) => Self::LoftWall,
             RoleSeg::LoftSeam(..) => Self::LoftSeam,
+            RoleSeg::LoftSlabWall(..) => Self::LoftSlabWall,
+            RoleSeg::LoftSlabSeam(..) => Self::LoftSlabSeam,
+            RoleSeg::LoftSectionEdge(..) => Self::LoftSectionEdge,
+            RoleSeg::LoftSectionVertex(..) => Self::LoftSectionVertex,
             RoleSeg::Band(..) => Self::Band,
             RoleSeg::BandRim(..) => Self::BandRim,
             RoleSeg::BandRimPi(..) => Self::BandRimPi,
@@ -264,7 +272,7 @@ impl SegTag {
             RoleSeg::Inner(..) => Self::Inner,
             RoleSeg::Rim(..) => Self::Rim,
             RoleSeg::HoleRim { .. } => Self::HoleRim,
-            RoleSeg::Instance { .. } => Self::Instance,
+            RoleSeg::Member { .. } => Self::Member,
         }
     }
 
@@ -278,7 +286,11 @@ impl SegTag {
             | Self::LateralEdge
             | Self::CapVertex
             | Self::LoftWall
-            | Self::LoftSeam => OpGroup::Extrude,
+            | Self::LoftSeam
+            | Self::LoftSlabWall
+            | Self::LoftSlabSeam
+            | Self::LoftSectionEdge
+            | Self::LoftSectionVertex => OpGroup::Extrude,
             Self::Band
             | Self::BandRim
             | Self::BandRimPi
@@ -311,7 +323,7 @@ impl SegTag {
             | Self::BandCut
             | Self::BandSlit => OpGroup::Fillet,
             Self::Inner | Self::Rim | Self::HoleRim => OpGroup::Shell,
-            Self::Instance => OpGroup::Pattern,
+            Self::Member => OpGroup::Repetition,
         }
     }
 }
@@ -340,6 +352,10 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::LateralEdge(_)
         | RoleSeg::LoftWall(_)
         | RoleSeg::LoftSeam(_)
+        | RoleSeg::LoftSlabWall(..)
+        | RoleSeg::LoftSlabSeam(..)
+        | RoleSeg::LoftSectionEdge(..)
+        | RoleSeg::LoftSectionVertex(..)
         | RoleSeg::Band(_)
         | RoleSeg::BandRim(_)
         | RoleSeg::BandRimPi(_)
@@ -367,7 +383,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Instance { .. } => None,
+        | RoleSeg::Member { .. } => None,
     }
 }
 
@@ -398,8 +414,8 @@ struct Args<'a> {
 /// it.
 ///
 /// **Only NAMES.** [`RoleSeg::From`] contributes its `of` and not its
-/// `read`, exactly as [`RoleSeg::Instance`] contributes its `of` and not
-/// its `i`: a bare [`crate::VarId`] is not a name and a walk over names
+/// `read`, exactly as [`RoleSeg::Member`] contributes its `of` and not
+/// its `at`: a bare [`crate::VarId`] is not a name and a walk over names
 /// cannot see it. The consumers that need the read — the content key,
 /// the re-map, and `derivation_nodes` — reach it through
 /// [`crate::names::read_edge`], which is where "which segments carry a
@@ -436,7 +452,7 @@ fn name_args(seg: &RoleSeg) -> Args<'_> {
             edge: n,
             support: _,
         }
-        | RoleSeg::Instance { of: n, i: _ } => seq(vec![n]),
+        | RoleSeg::Member { of: n, at: _ } => seq(vec![n]),
         RoleSeg::Crossing {
             edge,
             face,

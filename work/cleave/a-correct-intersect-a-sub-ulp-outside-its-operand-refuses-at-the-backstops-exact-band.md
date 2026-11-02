@@ -2,11 +2,13 @@
 id: a-correct-intersect-a-sub-ulp-outside-its-operand-refuses-at-the-backstops-exact-band
 kind: issue
 title: A correct A ∩ B whose stored geometry sits a sub-ulp outside A refuses ResultVolumeImplausible at the backstop's exact band
-status: open
+status: closed
 opened: 2026-10-20
 priority: P2
 cost: M
 refs: [a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop, 5442]
+pr: 5842
+closed: 2026-10-27
 ---
 
 Found by FLUX's spiric-budget unit (branch
@@ -68,3 +70,7 @@ goes red when this is fixed. Remove the pin then.
 
 The pose builds `x` (or the arm's slack is ruled), and the pin is
 removed.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. The pinned cell (ε 1e-12, `turned`, inside the lying pyramid 100ε off the top) now builds; `a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose` takes it through `builds_or_refuses`, which holds tier 3, the material at its probes, the edge classes, the volume identities and the volume relations, and its pin is gone.

@@ -66,9 +66,9 @@
       "cone": 3
     },
     "die_tool": {
-      "about": "the die's multi-shell cutting tool as one PlacedUnion(Explicit) node",
-      "nodes": 8,
-      "cone": 5
+      "about": "the die's multi-shell cutting tool: six pip placements, one union",
+      "nodes": 14,
+      "cone": 11
     },
     "face_sketch": {
       "about": "DOCM-1: a boss sketched ON a box's top face through a derived frame (Datum::FaceFrame)",
@@ -76,19 +76,19 @@
       "cone": 4
     },
     "part_select": {
-      "about": "DOCM-2: a split's two halves read by port, and a pattern's middle instance (Node::Part)",
-      "nodes": 9,
+      "about": "DOCM-2: a split's two halves read by port, and a row's middle member read as row[1]",
+      "nodes": 8,
       "cone": 4
     },
     "heat_sink": {
-      "about": "parametric fin strip: Pattern instances + explicit union chain",
-      "nodes": 27,
-      "cone": 24
+      "about": "parametric fin strip: one placement over an index, unioned with its base and placed beside it",
+      "nodes": 9,
+      "cone": 6
     },
     "heat_sink_fins": {
-      "about": "the parametric fin group as ONE node: PlacedUnion(fin, Linear) driven by the fins param",
-      "nodes": 4,
-      "cone": 3
+      "about": "the parametric fin group fused: a union of one family over the fins index",
+      "nodes": 5,
+      "cone": 4
     },
     "tube_ring": {
       "about": "a solid ring torus from its intent parameters, R = 2, r = 0.5",
@@ -117,8 +117,8 @@
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
-      "nodes": 27,
-      "cone": 9
+      "nodes": 20,
+      "cone": 5
     },
     "loft_prism": {
       "about": "R5 shape (iii): three-section polyline loft, non-affine middle (M6-3)",
@@ -149,6 +149,26 @@
       "about": "a rod's section on a block, one crease filleted, the block reshaped under it",
       "nodes": 4,
       "cone": 3
+    },
+    "pin_in_bore": {
+      "about": "a shouldered pin seated in a bore by an axis mate, pressed and loose",
+      "nodes": 13,
+      "cone": 4
+    },
+    "axis_projection": {
+      "about": "two copies of one bushing stacked spigot in socket along its own axis, unioned",
+      "nodes": 5,
+      "cone": 4
+    },
+    "blocks_on_one_floor": {
+      "about": "two cubes each resting on one floor by a mate, abutting, unioned",
+      "nodes": 12,
+      "cone": 7
+    },
+    "revolves_on_one_axis": {
+      "about": "two rings whose revolves read one pair of axis variables, stacked and unioned",
+      "nodes": 7,
+      "cone": 4
     },
     "symmetric_plate": {
       "about": "a mirror is a construction: an L plate and its mirror across the plane of its own face, unioned",

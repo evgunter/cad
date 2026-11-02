@@ -1272,9 +1272,10 @@ pub fn reask_pair<T: Decide>(
     let (pair, [sa, sb]) = crate::SurfacePair::sorted(ka, a, kb, b);
     let witness = carrier.mid_point(t0, t1);
     match must_carry_over_edge(sa, sb, carrier, t0, t1, reach, band) {
-        MustCarryVerdict::Transverse => {
-            Ok(crate::EdgeDescriptionSpec::Intersection { pair, witness })
-        }
+        MustCarryVerdict::Transverse => Ok(crate::EdgeDescriptionSpec::Intersection {
+            pair,
+            selector: crate::CurveSelector::Witness(witness),
+        }),
         MustCarryVerdict::JetDeterminate => {
             Ok(crate::EdgeDescriptionSpec::TangentIntersection { pair, witness })
         }
@@ -2985,7 +2986,7 @@ mod seam_rows {
     }
 
     fn chart_arm(chart: &NurbsSurface<f64>, p: Point3<f64>, reach: f64) -> Option<f64> {
-        NurbsLane::certified().chart_arm(chart, p, reach)
+        NurbsLane::certified().chart_arm(chart, p, reach).ok()
     }
 
     /// The certified curvature bound over every cell of `chart`: the

@@ -170,6 +170,7 @@ fn request_at(session: &DocSession, at: DisplayTolerance) -> IndexRequest {
                 .landed_generation()
                 .expect("a landed evaluation has a generation"),
             at,
+            viewer::world::Shown::none(),
         ),
         doc: doc.clone(),
         evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
@@ -180,7 +181,7 @@ fn request_at(session: &DocSession, at: DisplayTolerance) -> IndexRequest {
 /// A seam's answer for a request, waited for: the inline seam answers
 /// inside `poll`, the threaded one when its worker is done.
 fn answer(seam: &mut impl IndexService, request: IndexRequest) -> IndexDone {
-    let key = request.key;
+    let key = request.key.clone();
     seam.submit(request);
     for _ in 0..100_000 {
         if let Some(done) = seam.poll() {
@@ -292,9 +293,8 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
     // closes the picture either way, so a placement that refuses partway
     // leaves its counted patch hits alive with no tables beside them,
     // and the NEXT picture can report `face_hits > table_hits`
-    // legitimately. Every document this differential drives lands (the
-    // refusal arm is asserted in `assert_same_answer` and never
-    // reaches here), so the equality holds over every row it is
+    // legitimately. A picture holding an undrawn copy never reaches
+    // here (`whole`), so the equality holds over every row it is
     // asserted on — it is not a claim about pictures after a refusal.
     assert_eq!(
         (r.table_hits, r.table_misses),
@@ -546,6 +546,11 @@ fn assert_same_picture(
     session: &DocSession,
 ) -> usize {
     assert_eq!(
+        seam.undrawn(),
+        fresh.undrawn(),
+        "{name} after {step}: the seam leaves different copies undrawn"
+    );
+    assert_eq!(
         seam.parts().len(),
         fresh.parts().len(),
         "{name} after {step}: the seam draws a different number of bodies"
@@ -703,7 +708,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
         let index = seam_index(&mut seam, &session);
         let fresh = common::index_at(&session, common::corpus_delta());
         let landed = assert_same_answer(name, step, &index, &fresh, &session);
-        if let Ok(index) = &index {
+        if let Ok(index) = whole(&index, name, step) {
             assert_memo_is_one_picture(name, step, &seam, index);
         }
         assert_hit_floor(name, step, &MemoReport::of(seam.memo()));
@@ -727,7 +732,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
     let mut cold = InlineIndexer::new();
     let _ = seam_index_at(&mut cold, &session, finer);
     let finer_self_hits = reading(&cold).face_hits;
-    if let Ok(index) = &index {
+    if let Ok(index) = whole(&index, name, "the δ change") {
         let r = reading(&seam);
         assert_eq!(
             (r.node_hits, r.face_hits, r.table_hits),
@@ -740,6 +745,27 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
         assert_memo_is_one_picture(name, "the δ change", &seam, index);
     }
     steps
+}
+
+/// The index when it draws every copy: the memo rows' exact counts
+/// are about such a picture. A copy whose build refused partway leaves
+/// counted hits and misses with no part beside them, and patch entries
+/// with no table, so its picture and the next are out of their reach —
+/// the plain door's agreement with the seam still holds over it
+/// (`assert_same_answer`).
+fn whole<'a>(
+    index: &'a Result<PickIndex, viewer::pickindex::PickIndexError>,
+    name: &str,
+    step: &str,
+) -> Result<&'a PickIndex, ()> {
+    match index {
+        Ok(index) if index.undrawn().is_empty() => Ok(index),
+        Ok(index) => {
+            println!("# {name} after {step}: undrawn {:?}", index.undrawn());
+            Err(())
+        }
+        Err(_) => Err(()),
+    }
 }
 
 fn faces_of(index: &PickIndex) -> usize {
@@ -1353,3 +1379,81 @@ const REACH: f64 = 1.48;
 /// winning triangle's exact test rounds it. Re-derive from the
 /// probe's failure message if the ring's tessellation changes.
 const RING_CORNER_T: f64 = 1.48;
+
+/// **Fixing one copy rebuilds that copy and reuses the rest — including
+/// the copies AFTER it in placement order.** The broken copy is placed
+/// first, so an index that stopped at the first refusal (the all-or-
+/// nothing walk) would never reach the healthy copy on the broken
+/// picture, the memo would evict it, and the fixed picture would build
+/// it again: `node_hits` 0. The per-copy walk keeps it: the broken
+/// picture and the fixed one each answer the healthy copy from the memo.
+#[test]
+fn a_fixed_copy_rebuilds_alone_and_the_copy_placed_after_it_is_reused() {
+    use pncad::document::{Doc, Node, ProfileProgram};
+    use viewer::props::SlotValue;
+    let tol = Tol::witness();
+    let empty: Doc<ProfileProgram> = Doc::empty_derived("review-6205-memo", tol);
+    let (doc, first_profile) = common::square_profile(&empty, 0.02, tol);
+    let (doc, first) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: first_profile.into(),
+            distance: common::len(0.008),
+        },
+        tol,
+    );
+    let (doc, second_profile) = common::square_profile(&doc, 0.04, tol);
+    let (doc, second) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: second_profile.into(),
+            distance: common::len(0.008),
+        },
+        tol,
+    );
+    let (doc, first_copy) = common::placed(&doc, first, tol);
+    let (doc, second_copy) = common::placed(&doc, second, tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let mut seam = InlineIndexer::new();
+    let whole = seam_index(&mut seam, &session).expect("the healthy document indexes");
+    assert!(whole.undrawn().is_empty());
+    let set = |session: &mut DocSession, distance: f64| {
+        let outcome = session.perform(SessionOp::SetSlot {
+            node: first,
+            slot: SlotId::Distance,
+            value: SlotValue::Continuous(distance),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        session.pump();
+    };
+
+    set(&mut session, 0.0);
+    let broken = seam_index(&mut seam, &session).expect("a failed copy does not refuse");
+    assert_eq!(
+        broken
+            .undrawn()
+            .iter()
+            .map(|c| c.node())
+            .collect::<Vec<_>>(),
+        vec![first_copy],
+        "the first copy, placed before the healthy one, is undrawn"
+    );
+    assert!(!broken.ids_of_node(second_copy).is_empty());
+    let r = reading(&seam);
+    assert_eq!(
+        (r.node_hits, r.nodes),
+        (1, 1),
+        "the broken picture reaches the healthy copy after the refusal and reuses it: {r:?}"
+    );
+
+    set(&mut session, 0.008);
+    let fixed = seam_index(&mut seam, &session).expect("the fixed document indexes");
+    assert!(fixed.undrawn().is_empty());
+    let r = reading(&seam);
+    assert_eq!(
+        (r.node_hits, r.node_misses, r.nodes),
+        (1, 1, 2),
+        "the fix rebuilds the fixed copy alone and reuses the copy after it: {r:?}"
+    );
+}

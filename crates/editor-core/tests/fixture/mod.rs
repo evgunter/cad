@@ -90,6 +90,17 @@ pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
     ev
 }
 
+/// **`doc` evaluated over `prior`**: what the memo reuses by key.
+pub fn run_with_prior(doc: &editor_core::ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
+    evaluate::<f64>(
+        doc,
+        Some(prior),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+}
+
 /// **Every placement whose bundle holds a mate**, in document order:
 /// the placements mated to other copies.
 pub fn constrained(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
@@ -700,6 +711,7 @@ where
     let cfg = editor_core::ChecksConfig {
         connectedness: editor_core::Severity::Off,
         unproven_coincidence: editor_core::Advisory::Off,
+        unused: editor_core::Advisory::Off,
         ..editor_core::ChecksConfig::default()
     };
     editor_core::run_checks(doc, ev, &cfg, Tol::witness()).map(|report| report.findings)
@@ -977,16 +989,305 @@ pub fn face(name: impl Into<StableName>) -> editor_core::FaceName {
     editor_core::FaceName::new(name.into()).expect("the fixture names a face")
 }
 
-/// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
-/// wrapper, the segment a pattern's table puts round every master
-/// name it emits. Nest the calls for a nested copy.
-pub fn in_copy(pattern: RecipeNodeId, i: u32, of: impl Into<StableName>) -> StableName {
+/// **A name worn by member `at` of the family `family` defines** — one
+/// `Member { at, of }` wrapper, the segment a family's table puts round
+/// every name of a member. Nest the calls for a family of families.
+pub fn in_member(
+    family: RecipeNodeId,
+    at: editor_core::MemberAt,
+    of: impl Into<StableName>,
+) -> StableName {
     let of: StableName = of.into();
     StableName {
         kind: of.kind,
-        node: pattern,
-        path: vec![RoleSeg::Instance { i, of: of.into() }],
+        node: family,
+        path: vec![RoleSeg::Member { at, of: of.into() }],
     }
+}
+
+/// [`in_member`] of a one-index family: member `i` of `index`.
+pub fn in_copy(
+    family: RecipeNodeId,
+    index: VarId,
+    i: u32,
+    of: impl Into<StableName>,
+) -> StableName {
+    in_member(family, vec![(index, i)], of)
+}
+
+/// **`doc` with the index `name = index(count)` declared** (D10
+/// `[repetition]`), and the index.
+pub fn index(doc: ProfileDoc, name: &str, count: i64) -> (ProfileDoc, VarId) {
+    index_of(doc, name, Formula::count(count), None)
+}
+
+/// [`index`] with any count expression, `within` another index or
+/// none.
+pub fn index_of(
+    doc: ProfileDoc,
+    name: &str,
+    count: Formula,
+    within: Option<VarId>,
+) -> (ProfileDoc, VarId) {
+    let name = editor_core::VarName::new(name).expect("an index name");
+    let doc = step(
+        doc,
+        DocEdit::DeclareVar {
+            name: name.clone(),
+            def: editor_core::VarDecl::Index {
+                count,
+                within: within.map(|w| Formula::var(w, editor_core::Dimension::Count)),
+            },
+        },
+    )
+    .0;
+    let id = doc.var_named(name.as_str()).expect("the index is declared");
+    (doc, id)
+}
+
+/// `scalar(index)`, a `Scalar` reading the index.
+pub fn scalar_of(index: VarId) -> Formula {
+    Formula::count_to_scalar(Formula::var(index, editor_core::Dimension::Count))
+        .expect("an index is a count")
+}
+
+/// **A family of copies of `body` in `body`'s own space**: one
+/// placement whose mateless bundle writes `values`, each of which may
+/// read an index. The document and the placement.
+pub fn family_of(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    values: Vec<(editor_core::Coord, Formula)>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let target = space(&doc, body);
+    let read = body_read(&doc, body.into());
+    let placed = editor_core::Placed::of(&doc, Vec::new(), values);
+    insert(
+        doc,
+        Node::place(
+            editor_core::BodyRead::plain(read),
+            editor_core::Operand::Var(target),
+            placed.bundle(),
+        ),
+    )
+}
+
+/// **A row of `n` copies of `body`** in its own space, under the index
+/// `name = index(n)`: copy `k` slid `scalar(k)·pitch` along `axis` (D10
+/// `[repetition]`: a slide of `scalar(k)·pitch` is a row). The
+/// document, the index and the placement whose copy is the family.
+pub fn row(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    (name, n): (&str, i64),
+    axis: editor_core::TargetAxis,
+    pitch: f64,
+) -> (ProfileDoc, VarId, RecipeNodeId) {
+    let (doc, k) = index(doc, name, n);
+    let slide = Formula::mul(scalar_of(k), len(pitch)).expect("a length");
+    let (doc, row) = family_of(doc, body, vec![(editor_core::Coord::Slide(axis), slide)]);
+    (doc, k, row)
+}
+
+/// **A ring of `n` copies of `body`** in its own space, under the index
+/// `name = index(n)`: copy `k` spun `scalar(k)·turn/n` about its
+/// space's `axis` (D10 `[repetition]`: a spin of `scalar(k)·turn/N` is
+/// a ring). The document, the index and the placement.
+pub fn ring(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    (name, n): (&str, i64),
+    axis: editor_core::TargetAxis,
+) -> (ProfileDoc, VarId, RecipeNodeId) {
+    let (doc, k) = index(doc, name, n);
+    let step = Formula::turn_over(u64::try_from(n).expect("a count")).expect("a turn's fraction");
+    let spin = Formula::mul(scalar_of(k), step).expect("an angle");
+    let (doc, ring) = family_of(
+        doc,
+        body,
+        vec![(editor_core::Coord::Spin(Some(axis)), spin)],
+    );
+    (doc, k, ring)
+}
+
+/// **The edit giving the index `k` the count `count`**, its `within`
+/// kept.
+pub fn recount_edit(doc: &ProfileDoc, k: VarId, count: Formula) -> DocEdit<ProfileProgram> {
+    let within = doc
+        .var(k)
+        .and_then(|v| v.def().index())
+        .and_then(|index| index.within)
+        .map(|w| Formula::var(w, editor_core::Dimension::Count));
+    DocEdit::DefineVar {
+        var: editor_core::VarRef::Id(k),
+        def: editor_core::VarDecl::Index { count, within },
+        fresh: Vec::new(),
+    }
+}
+
+/// `doc` with the index `k` given the count `count` ([`recount_edit`]).
+pub fn recount(doc: ProfileDoc, k: VarId, count: Formula) -> ProfileDoc {
+    let edit = recount_edit(&doc, k, count);
+    step(doc, edit).0
+}
+
+/// **A fresh index name**: `k`, else the first `k1`, `k2`, … the
+/// document does not name.
+pub fn fresh_index_name(doc: &ProfileDoc) -> String {
+    std::iter::once("k".to_owned())
+        .chain((1..).map(|n| format!("k{n}")))
+        .find(|name| doc.var_named(name).is_none())
+        .expect("an unnamed index")
+}
+
+/// **The slides that move a copy `scalar(k)·spacing` along `dir`**,
+/// one per nonzero component on its space's axes.
+pub fn slides_along(k: VarId, dir: [f64; 3], spacing: f64) -> Vec<(editor_core::Coord, Formula)> {
+    use editor_core::TargetAxis as A;
+    [A::X, A::Y, A::Z]
+        .into_iter()
+        .zip(dir)
+        .filter(|&(_, d)| d != 0.0)
+        .map(|(axis, d)| {
+            let by = Formula::mul(scalar_of(k), len(d * spacing)).expect("a length");
+            (editor_core::Coord::Slide(axis), by)
+        })
+        .collect()
+}
+
+/// **A row of `count` copies of `input` along `dir`, `spacing` apart**
+/// (D10 `[repetition]`), under a fresh index: the document, the index
+/// and the placement whose copy is the family.
+pub fn linear(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    dir: [f64; 3],
+    spacing: f64,
+    count: i64,
+) -> (ProfileDoc, VarId, RecipeNodeId) {
+    let name = fresh_index_name(&doc);
+    let (doc, k) = index(doc, &name, count);
+    let (doc, row) = family_of(doc, input, slides_along(k, dir, spacing));
+    (doc, k, row)
+}
+
+/// **An axis read as a mate's operand**: a plain read as it is, and a
+/// read through a role (a frame's `z`) as the axis slid zero along
+/// itself, which is that axis.
+pub fn axis_operand(
+    axis: editor_core::pose::RoleRead<editor_core::Operand>,
+) -> editor_core::Operand {
+    match axis.role {
+        None => axis.read,
+        Some(_) => editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Slide {
+            pose: axis.clone(),
+            along: axis,
+            by: Formula::zero(editor_core::Dimension::Length),
+        })),
+    }
+}
+
+/// **A ring of `count` copies of `input` about `axis`, `step` radians
+/// apart** (D10 `[repetition]`), under a fresh index: one placement in
+/// `input`'s space whose `Axis` mate equates `axis` read off the copy
+/// with `axis` read off `input`, spun `scalar(k)·step` and slid zero
+/// along the target axis `along` it runs on. `axis` reads `input`'s own
+/// geometry. The document, the index and the placement.
+pub fn circular(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    (axis, along): (
+        editor_core::pose::RoleRead<editor_core::Operand>,
+        editor_core::TargetAxis,
+    ),
+    step: f64,
+    count: i64,
+) -> (ProfileDoc, VarId, RecipeNodeId) {
+    let name = fresh_index_name(&doc);
+    let (doc, k) = index(doc, &name, count);
+    let axis = axis_operand(axis);
+    let spin = Formula::mul(scalar_of(k), ang(step)).expect("an angle");
+    let target = space(&doc, input);
+    let read = body_read(&doc, input.into());
+    let placed = editor_core::Placed::of(
+        &doc,
+        vec![mate(axis.clone(), axis)],
+        vec![
+            (editor_core::Coord::SPIN, spin),
+            (editor_core::Coord::Slide(along), len(0.0)),
+        ],
+    );
+    let (doc, ring) = insert(
+        doc,
+        Node::place(
+            editor_core::BodyRead::plain(read),
+            editor_core::Operand::Var(target),
+            placed.bundle(),
+        ),
+    );
+    (doc, k, ring)
+}
+
+/// **A row of `count` copies of `input` along `dir`, the first one
+/// `spacing` on** (D10 `[repetition]`), under a fresh index: member `k`
+/// slid `(scalar(k) + 1)·spacing`, so no member stands where `input`
+/// does — a family placed in the world is in the product beside its
+/// source. The document, the index and the placement.
+pub fn linear_on(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    dir: [f64; 3],
+    spacing: f64,
+    count: i64,
+) -> (ProfileDoc, VarId, RecipeNodeId) {
+    use editor_core::TargetAxis as A;
+    let name = fresh_index_name(&doc);
+    let (doc, k) = index(doc, &name, count);
+    let next = Formula::count_to_scalar(
+        Formula::add(
+            Formula::var(k, editor_core::Dimension::Count),
+            Formula::count(1),
+        )
+        .expect("a count"),
+    )
+    .expect("a count");
+    let values = [A::X, A::Y, A::Z]
+        .into_iter()
+        .zip(dir)
+        .filter(|&(_, d)| d != 0.0)
+        .map(|(axis, d)| {
+            let by = Formula::mul(next.clone(), len(d * spacing)).expect("a length");
+            (editor_core::Coord::Slide(axis), by)
+        })
+        .collect();
+    let (doc, row) = family_of(doc, input, values);
+    (doc, k, row)
+}
+
+/// **Member `i` of `family`, alone**: a copy of the one indexed read
+/// `family[i]` standing in the family's space at the identity, which
+/// carries the member's names verbatim.
+pub fn member(doc: ProfileDoc, family: RecipeNodeId, i: i64) -> (ProfileDoc, RecipeNodeId) {
+    member_at(doc, family, vec![Formula::count(i)])
+}
+
+/// [`member`] at any index expressions, outer first.
+pub fn member_at(
+    doc: ProfileDoc,
+    family: RecipeNodeId,
+    at: Vec<Formula>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let node = member_node(&doc, family, at);
+    insert(doc, node)
+}
+
+/// The placement [`member_at`] inserts.
+pub fn member_node(doc: &ProfileDoc, family: RecipeNodeId, at: Vec<Formula>) -> AuthoredNode {
+    Node::place(
+        editor_core::BodyRead::indexed(family, at),
+        editor_core::Operand::Var(space(doc, family)),
+        editor_core::stand().bundle(),
+    )
 }
 
 /// **A copy of `input` moved within its own space**: rotated by
@@ -1705,6 +2006,7 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -1767,6 +2069,7 @@ pub fn desc(loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<Formula> {
     ProfileProgram {
         loops,
         ids: Vec::new(),
+        on: None,
     }
 }
 
@@ -1836,6 +2139,15 @@ pub fn along_x() -> Formula {
 /// The heading along the profile's +y: the constant `turn/4`.
 pub fn along_y() -> Formula {
     Formula::turn_over(4).expect("a quarter turn")
+}
+
+/// **The leading identifier of a `Debug` rendering**: the variant
+/// name, without its fields.
+pub fn variant_name(debug: &str) -> String {
+    debug
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect()
 }
 
 /// An axis-aligned square of half-width `h` centered at (cx, cy).
@@ -2105,6 +2417,79 @@ impl Recorder {
             editor_core::test_support::moves_at(at),
         );
         self.insert_placed(read, placed)
+    }
+
+    /// **The index `name` over `count`** (D10 `[repetition]`), declared
+    /// and recorded ([`index_of`]).
+    pub fn index(&mut self, name: &str, count: Formula) -> VarId {
+        let name = editor_core::VarName::new(name).expect("an index name");
+        self.push(DocEdit::DeclareVar {
+            name: name.clone(),
+            def: editor_core::VarDecl::Index {
+                count,
+                within: None,
+            },
+        });
+        self.doc
+            .var_named(name.as_str())
+            .expect("the index is declared")
+    }
+
+    /// **A row of `count` copies of `input` along `dir`, `spacing`
+    /// apart**, under a fresh index, recorded ([`linear`]): the index
+    /// and the placement.
+    pub fn linear(
+        &mut self,
+        input: RecipeNodeId,
+        dir: [f64; 3],
+        spacing: f64,
+        count: i64,
+    ) -> (VarId, RecipeNodeId) {
+        let name = fresh_index_name(&self.doc);
+        let k = self.index(&name, Formula::count(count));
+        let row = self.copies(input, slides_along(k, dir, spacing));
+        (k, row)
+    }
+
+    /// **Member `i` of `family`, alone**, recorded ([`member`]).
+    pub fn member(&mut self, family: RecipeNodeId, i: i64) -> RecipeNodeId {
+        let node = member_node(&self.doc, family, vec![Formula::count(i)]);
+        self.insert(node)
+    }
+
+    /// **A family of copies of `body` in `body`'s own space**, recorded
+    /// ([`family_of`]).
+    pub fn copies(
+        &mut self,
+        body: impl Into<editor_core::Operand>,
+        values: Vec<(editor_core::Coord, Formula)>,
+    ) -> RecipeNodeId {
+        let read = body_read(&self.doc, body.into());
+        let at = match &read {
+            editor_core::Operand::Node(id) | editor_core::Operand::Output { node: id, .. } => *id,
+            editor_core::Operand::Var(var) => self.doc.operation_of(*var).expect("a body read"),
+            other => panic!("a body read, got {other:?}"),
+        };
+        self.copies_in(read, at, values)
+    }
+
+    /// **A family of copies of `body` in the space `of` is in**,
+    /// recorded: one placement whose mateless bundle writes `values` on
+    /// that space's axes.
+    pub fn copies_in(
+        &mut self,
+        body: impl Into<editor_core::Operand>,
+        of: RecipeNodeId,
+        values: Vec<(editor_core::Coord, Formula)>,
+    ) -> RecipeNodeId {
+        let read = body_read(&self.doc, body.into());
+        let target = space(&self.doc, of);
+        let placed = editor_core::Placed::of(&self.doc, Vec::new(), values);
+        self.insert(Node::place(
+            editor_core::BodyRead::plain(read),
+            editor_core::Operand::Var(target),
+            placed.bundle(),
+        ))
     }
 
     /// **A copy of `body` placed against `target`'s geometry at `at`**
@@ -3296,7 +3681,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::SectionEdge { face: x, .. }
         | RoleSeg::SplitFragment { parent: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
-        | RoleSeg::Instance { of: x, .. }
+        | RoleSeg::Member { of: x, .. }
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }
@@ -3346,7 +3731,11 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::SplitBody
         | RoleSeg::SectionFace
         | RoleSeg::LoftWall(_)
-        | RoleSeg::LoftSeam(_) => Vec::new(),
+        | RoleSeg::LoftSeam(_)
+        | RoleSeg::LoftSlabWall(..)
+        | RoleSeg::LoftSlabSeam(..)
+        | RoleSeg::LoftSectionEdge(..)
+        | RoleSeg::LoftSectionVertex(..) => Vec::new(),
     }
 }
 

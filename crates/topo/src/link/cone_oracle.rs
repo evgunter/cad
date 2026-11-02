@@ -104,21 +104,16 @@ impl Cone {
         let sectors = self
             .fans
             .iter()
-            .map(|(m, pts)| Sector {
-                surface: geom::Surface::Plane {
-                    origin: p0,
-                    normal: c(*m),
-                    u_ref: c(pts[0]).normalize(),
-                },
-                sense: true,
-                outward: c(*m),
-                apex: p0,
-                wedges: pts
-                    .windows(2)
-                    .map(|w| (p0 + c(w[0]), p0 + c(w[1])))
-                    .collect(),
-                closed: false,
-                clear: None,
+            .map(|(m, pts)| {
+                FaceSector::planar(Sector {
+                    outward: c(*m),
+                    apex: p0,
+                    wedges: pts
+                        .windows(2)
+                        .map(|w| (p0 + c(w[0]), p0 + c(w[1])))
+                        .collect(),
+                    closed: false,
+                })
             })
             .collect();
         Link::of(p0, sectors).unwrap_or_else(|_| panic!("a link"))

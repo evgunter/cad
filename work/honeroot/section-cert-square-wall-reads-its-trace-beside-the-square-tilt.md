@@ -43,3 +43,17 @@ fold drift's numerator beside `slop`. The square-wall search
 
 - Re-banded P3 → P2: the trace read as if the decided-square axis stood exactly square: margins decided one at a time, or one verdict read off two decisions: interval and error propagation, P2 by `work/README.md` Priority.
 - Moved to HONEROOT (`work/honeroot/`) by `git mv`, id and body unchanged: whose charter is the boolean's root doors and sector readers and their margins. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+2026-10-31 (SPLICE's W5 lane, evidence only): one red of
+`section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`
+at ε 1e-12 on `splice/w5-loop-free-sweep`. The harness logged its seed
+(`fuzz::start`, and the assertion message), but the run's output was
+filtered before the seed was kept, so it is lost; nine re-runs at 1e-12
+were green. That branch changes no torus or cylinder
+reading (the shared chart recursion gains a duty; its seeding and
+accounting duties are unchanged), so the mismatch is this fuzzer's,
+possibly this row's drift.
+
+## 2026-11-01 (SPLITDOOR, `splitdoor/prism-tilt-reach`)
+
+The seed was kept this time. At 1e-12, `CAD_FUZZ_SEED=0xa41aea6672750390` makes `section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section` disagree, at the "R-tan at Degeneracy … Tangent" case. It reproduces on main too (the SPLITDOOR review of PR 6212), so it is not that PR's.

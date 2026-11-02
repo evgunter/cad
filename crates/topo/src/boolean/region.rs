@@ -6,10 +6,9 @@
 //! its surface's legs ([`Legs`], and [`Paths`] for a roster of them), its
 //! landings, and its own rows and crossing arithmetic.
 
-use geom_brep::roots::{RootRefusal, Roots};
+use geom_brep::roots::{OnCarrier, RootRefusal, Roots};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
-use super::circle_roots::FirstHarmonicRoots;
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey};
@@ -128,6 +127,41 @@ pub(crate) fn span<T: Decide>(
         .then_some(start == Sign::Zero || end == Sign::Zero))
 }
 
+/// **A root against its edge's span, read at the nearer end**: `to_end`
+/// is the root's signed angle to the end of the span nearer it, positive
+/// inside, and `lever` the edge's speed — [`span`]'s reading, whose
+/// nearer end's margin is this number, without the angle of the root
+/// itself. The farther end's margin is at least `lever` times the
+/// span's half-width, so it is not read. `None` definitely past the end;
+/// `Some(sideless)` within, `sideless` where it lies within the band of
+/// the end, where no side is read.
+///
+/// # Errors
+///
+/// As [`span`]'s.
+pub(crate) fn span_at_nearer_end<T: Decide>(
+    row: &'static str,
+    to_end: T,
+    lever: T,
+    band: Band,
+) -> Result<Option<bool>, Fault> {
+    Ok(
+        match decide(row, Margin::of(lever * to_end), band).map_err(in_band)? {
+            Sign::Negative => None,
+            Sign::Zero => Some(true),
+            Sign::Positive => Some(false),
+        },
+    )
+}
+
+/// **The unsigned angle between the unit vectors `a` and `b`**, in
+/// `[0, π]`: `2·atan2(|a − b|, |a + b|)`, both arguments norms, so no
+/// cut lies anywhere on it and an enclosure of it is as tight at `π` as
+/// at `0`.
+pub(crate) fn between<T: Decide>(a: Vec3<T>, b: Vec3<T>) -> T {
+    (a - b).norm().atan2((a + b).norm()) * T::from_f64(2.0)
+}
+
 /// A crossing as the verdict reads it at the closest: the path's unit
 /// heading there and the face's side of the edge (`N × τ`).
 pub(crate) struct Hit<T: geom_core::Real> {
@@ -167,20 +201,20 @@ pub(crate) fn side_at_closest<T: Decide>(
     }
 }
 
-/// An angle in `(−π, π]` as a turn in `[0, 2π)`.
-fn turn<T: Decide>(s: T) -> T {
-    (T::zero() - s).select_le_zero(s, s + T::tau())
-}
-
 /// A first-harmonic root door's answer on one leg: its roots, none for a miss; an edge
 /// in the leg's plane or a tangency grazes.
-pub(crate) fn found<T: Decide>(
-    roots: Result<FirstHarmonicRoots<T>, RootRefusal>,
-) -> Result<Vec<T>, Fault> {
+pub(crate) fn found<R: Copy>(
+    roots: Result<Roots<R, 2, OnCarrier>, RootRefusal>,
+) -> Result<Vec<R>, Fault> {
     match roots {
         Ok(Roots::Miss) => Ok(Vec::new()),
         Ok(Roots::Certified(found)) => Ok(found.roots().to_vec()),
-        Ok(Roots::On(_)) | Err(RootRefusal::Unsettled(_)) => Err(RayFault::Graze),
+        // A touch of the leg is the probe's, as a limit is; a fault grazes
+        // too (`work/splitdoor/ray-lanes-graze-on-a-root-finders-fault.md`).
+        Ok(Roots::On(_))
+        | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
+            Err(RayFault::Graze)
+        }
         Err(RootRefusal::Escalated(diag)) => Err(in_band(diag)),
     }
 }
@@ -197,6 +231,9 @@ pub(crate) struct RegionEdge<T: geom_core::Real> {
     pub(crate) edge: EdgeKey,
     /// The loop the edge bounds.
     pub(crate) r#loop: LoopKey,
+    /// The surface cycle the edge is on, its index in
+    /// [`crate::surface_boundary::surface_cycles`]'s order.
+    pub(crate) cycle: usize,
     pub(crate) carrier: geom::Curve3<T>,
     pub(crate) t0: T,
     pub(crate) t1: T,
@@ -231,18 +268,21 @@ pub(crate) enum Scaffolding {
     Refused,
 }
 
-/// **`face`'s boundary**: every edge of its outer loop and its rings, in
-/// loop order, each on its certified carrier. `None` where a carrier's
-/// kind is not one of `admits`, or where an edge has no certified curve: an uncertified edge between two points is a gap in
-/// the boundary no reading may step over, and null scaffolding is as
-/// `scaffolding` says. An edge both of whose sides are the face (a seam,
-/// both its half-edges in the face's loops) is no boundary of it and is
-/// left out.
+/// **`face`'s boundary**: its surface boundary
+/// ([`crate::surface_boundary::surface_cycles`]), each edge on its
+/// certified carrier, cycle by cycle in walk order, each edge naming its
+/// cycle ([`RegionEdge::cycle`]). An edge the face lies on both sides of
+/// (a seam, a wrap edge, a spur) is no boundary of it and the walk turns
+/// through it; none for a face that covers its surface. `None` where a
+/// carrier's kind of any edge of its loops is not one of `admits`, or
+/// where such an edge has no certified curve: an uncertified edge
+/// between two points is a gap in the boundary no reading may step
+/// over, and null scaffolding is as `scaffolding` says.
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a key that does not resolve or
-/// an outer loop with no cycle.
+/// [`PointInSolidError::CorruptFace`] for a key that does not resolve,
+/// an outer loop with no cycle, or a surface boundary that does not walk.
 ///
 /// # Panics
 ///
@@ -257,7 +297,7 @@ pub(crate) fn boundary<T: Decide>(
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.get_face(face).ok_or_else(corrupt)?;
-    let mut edges = Vec::new();
+    let mut null = Vec::new();
     for (i, &lk) in core::iter::once(&f.outer).chain(&f.rings).enumerate() {
         let first = match body.get_loop(lk).ok_or_else(corrupt)?.boundary {
             LoopBoundary::Cycle { first } => first,
@@ -278,6 +318,7 @@ pub(crate) fn boundary<T: Decide>(
                     if point(edge.he_plus).ok_or_else(corrupt)?
                         == point(edge.he_minus).ok_or_else(corrupt)?
                     {
+                        null.push(edge_key);
                         continue;
                     }
                 }
@@ -286,10 +327,25 @@ pub(crate) fn boundary<T: Decide>(
             if !admits.contains(&curve.carrier().kind()) {
                 return Ok(None);
             }
+        }
+    }
+    let cycles = crate::surface_boundary::surface_cycles(body, face).map_err(|_| corrupt())?;
+    let mut edges = Vec::new();
+    for (cycle, members) in cycles.iter().enumerate() {
+        for &he in members {
+            let h = body.get_half_edge(he).ok_or_else(corrupt)?;
+            if null.contains(&h.edge) {
+                continue;
+            }
+            let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
+            let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() else {
+                unreachable!("every edge of the face's loops was read certified above")
+            };
             let (t0, t1) = curve.params();
             edges.push(RegionEdge {
-                edge: edge_key,
-                r#loop: lk,
+                edge: h.edge,
+                r#loop: h.parent_loop,
+                cycle,
                 carrier: curve.carrier().clone(),
                 t0,
                 t1,
@@ -298,13 +354,10 @@ pub(crate) fn boundary<T: Decide>(
             });
         }
     }
-    let seam = |e: EdgeKey| edges.iter().filter(|a| a.edge == e).count() > 1;
-    let seams: Vec<EdgeKey> = edges.iter().map(|a| a.edge).filter(|&e| seam(e)).collect();
-    edges.retain(|a| !seams.contains(&a.edge));
     Ok(Some(edges))
 }
 
-/// Three points of every edge, in loop order, at [`TARGET_SHARES`] of
+/// Three points of every edge, in walk order, at [`TARGET_SHARES`] of
 /// its span: the aimed paths' targets.
 pub(crate) fn targets<T: Decide>(edges: &[RegionEdge<T>]) -> impl Iterator<Item = Point3<T>> + '_ {
     edges.iter().flat_map(|edge| {
@@ -320,6 +373,22 @@ pub(crate) fn targets<T: Decide>(edges: &[RegionEdge<T>]) -> impl Iterator<Item 
 pub(crate) trait Region<T: Decide> {
     /// The face's boundary ([`boundary`]).
     fn edges(&self) -> &[RegionEdge<T>];
+
+    /// The face's boundary, to cut ([`Region::keep_cycles`]).
+    fn edges_mut(&mut self) -> &mut Vec<RegionEdge<T>>;
+
+    /// **The region the surface cycles `keep` bound alone**: the boundary
+    /// less every edge of another cycle ([`RegionEdge::cycle`]), the one
+    /// cut a reading of a face against some of its cycles takes
+    /// ([`super::contain::cycle_side`]).
+    #[must_use]
+    fn keep_cycles(mut self, keep: &[usize]) -> Self
+    where
+        Self: Sized,
+    {
+        self.edges_mut().retain(|e| keep.contains(&e.cycle));
+        self
+    }
 
     /// The face's outer loop, named by an exhaustion.
     fn outer(&self) -> LoopKey;
@@ -338,7 +407,7 @@ pub(crate) trait Region<T: Decide> {
     ) -> Result<bool, RegionRefusal>;
 
     /// **The boundary pre-pass**: whether `p` is on an edge, read edge by
-    /// edge in loop order before any path. A crossing's place along a
+    /// edge in walk order before any path. A crossing's place along a
     /// path is no measure of `p`'s distance from the edge it crosses, so
     /// the paths never answer it.
     ///
@@ -697,17 +766,20 @@ impl<T: Decide> Round<T> {
         self.center + (self.e1 * cs + self.e2 * sn) * self.radius
     }
 
-    /// The angle of `y`, a point of the circle, from the start, in
-    /// `(−π, π]`.
-    fn angle(&self, y: Point3<T>) -> T {
+    /// The angle round the circle between the start and `y`, a point of
+    /// the circle, the shorter way, in `[0, π]` ([`between`]).
+    fn swept(&self, y: Point3<T>) -> T {
         let w = y - self.center;
-        w.dot(self.e2).atan2(w.dot(self.e1))
+        between(w / w.norm(), self.e1)
     }
 
     /// The arc length from the start round to `y`, a point of the
-    /// circle, in `[0, 2π·radius)`.
+    /// circle, in `[0, 2π·radius)`: the shorter way where `y` lies ahead
+    /// of the start's diameter, the longer way where it lies behind.
     pub(crate) fn arc(&self, y: Point3<T>) -> T {
-        self.radius * turn(self.angle(y))
+        let s = self.swept(y);
+        let ahead = (y - self.center).dot(self.e2);
+        self.radius * (T::zero() - ahead).select_le_zero(s, T::tau() - s)
     }
 }
 
@@ -717,7 +789,7 @@ impl<T: Decide> Course<T> for Round<T> {
     /// Read the shorter way round ([`ray_walk::apart`]), then as a turn
     /// ahead.
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
-        let s = self.angle(y);
+        let s = self.swept(y);
         ray_walk::apart(at, Margin::of((self.radius * s).abs()), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?;
         Ok(Some(self.arc(y)))
@@ -808,33 +880,42 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
     .unwrap();
 }
 
-/// A fixture edge's turn over `(t0, t1)`: a unit circle's arc over that
-/// interval, certified, whose interval and extent are what a conic
-/// reading of the fixture reads (its own carrier supplies the rest).
-#[cfg(test)]
-pub(crate) fn fixture_turn(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<f64>> {
-    let band = Band::new(1e-9, 1e-8).ok()?;
-    let circle = geom::Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1)?;
-    let (start, end) = (circle.eval(t0), circle.eval(t1));
-    geom_brep::EdgeCurve::certify(
-        spec,
-        start,
-        end,
-        |_| None,
-        1.0,
-        band,
-        geom_brep::NurbsLane::certified(),
-    )
-    .ok()?
-    .turn()
-    .copied()
+/// A fixture edge's turn over `(t0, t1)`, at each scalar a fixture is
+/// built at: a unit circle's arc over that interval, certified, whose
+/// interval and extent are what a conic reading of the fixture reads (its
+/// own carrier supplies the rest).
+macro_rules! fixture_turns {
+    ($($name:ident: $t:ty),*) => {$(
+        #[cfg(test)]
+        pub(crate) fn $name(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<$t>> {
+            let lift = <$t as geom_core::Real>::from_f64;
+            let band = Band::new(1e-9, 1e-8).ok()?;
+            let circle = geom::Curve3::Circle {
+                center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+                axis: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+                radius: lift(1.0),
+                u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+            };
+            let (t0, t1) = (lift(t0), lift(t1));
+            let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1)?;
+            let (start, end) = (circle.eval(t0), circle.eval(t1));
+            geom_brep::EdgeCurve::certify(
+                spec,
+                start,
+                end,
+                |_| None,
+                lift(1.0),
+                band,
+                geom_brep::NurbsLane::certified(),
+            )
+            .ok()?
+            .turn()
+            .copied()
+        }
+    )*};
 }
+
+fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
@@ -864,6 +945,7 @@ mod tests {
         RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(1)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier,
             t0,
             t1,

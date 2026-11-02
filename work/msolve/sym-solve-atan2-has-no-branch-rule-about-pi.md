@@ -6,8 +6,8 @@ status: closed
 opened: 2026-10-18
 priority: P2
 cost: E
-parent: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
 closed: 2026-10-23
+refs: [5613]
 ---
 
 Interval's `SolveScalar::solve_atan2` (`crates/editor-core/src/eval/mod.rs:3312-3322`) reads an angle across the negative x axis on the branch about π, because the principal branch's cut widens the enclosure to the whole circle there. Sym's (`crates/editor-core/src/eval/mod.rs:3457-3459`) is the plain `geom_core::Real::atan2`. A copy whose chart x lies near −x, with a little width in y, therefore reads a turn that spans [−π, π] on the symbolic tier. That is the `[-3.8, 1.8]` map the INTENT stage 3 D m10 lane measured.

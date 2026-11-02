@@ -18,7 +18,7 @@
 //!
 //! [`crate::session::SessionOp::AddFillet`] and its chamfer twin carry
 //! ONE target — a fillet reads one `Edges` selection, which states its
-//! body once and resolves through that body's name table and no other. So the accumulator holds one [`BlendTarget`] and a set of
+//! body once and resolves through that body's name table and no other. So the accumulator holds one [`DrawnBody`] and a set of
 //! names under it: the first pick fixes the target, and a pick on
 //! another drawn body has nowhere to land. It is refused as a typed
 //! event ([`BlendEvent::OtherTarget`]) rather than silently ignored,
@@ -57,7 +57,9 @@
 //! whole-set drop when the target node itself goes
 //! ([`BlendEvent::TargetLost`]). Nothing here is silent: every drop is
 //! a typed event the chrome shows, and the count the panel reads is
-//! the count a commit would author.
+//! the picks a commit would author: a drawn circle the body holds as
+//! several arcs is one pick and commits every arc
+//! ([`BlendTool`], a drawn circle is one pick).
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -65,13 +67,17 @@
 use std::collections::BTreeSet;
 
 use pncad::document::{
-    Doc, Evaluation, Formula, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker,
-    SpokenNode,
+    Doc, Evaluation, Formula, HeldNodes, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say,
+    Speaker, SpokenNode,
 };
 use pncad::prelude::StableName;
 
-use crate::pickindex::EdgeNamesRefused;
-use crate::session::{EdgeSelection, FaceSelection, Selection, SessionOp};
+use editor_core::resolve::RimNameFault;
+
+use crate::pickcache::NotIndexed;
+use crate::pickindex::{EdgeNamesRefused, PickIndex};
+use crate::session::{EdgeSelection, SessionOp};
+use crate::tree::{DrawnBody, PickedName};
 use crate::vocab::vocabulary;
 
 /// **What the tool's panel says about the freeze**, so the ratified
@@ -81,84 +87,13 @@ pub const FREEZE_NOTE: &str = "the picked edges freeze at commit: an upstream ed
      blend, and one that removes a picked edge refuses on the node rather than shrinking it \
      (only a deliberate rebind rewrites a stored selection)";
 
-/// The drawn body a blend's edges belong to: the node whose value it
-/// is, and which of that node's output bodies.
-///
-/// The NODE is the one whose output the fillet's selection reads, and
-/// what the selection's names resolve through. The BODY index rides along
-/// because an edge pick carries one and a set drawn from two bodies of
-/// one node would be as wrong as a set drawn from two nodes — the
-/// accumulator scopes to the pair it was opened on, and the refusal
-/// names the pair.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BlendTarget {
-    /// The node whose body carries the edges.
-    pub node: RecipeNodeId,
-    /// The output body index within that node's value.
-    pub body: u32,
-}
-
-impl BlendTarget {
-    /// The target an edge pick is about.
-    pub fn of(edge: &EdgeSelection) -> Self {
-        Self {
-            node: edge.node,
-            body: edge.body,
-        }
-    }
-
-    /// The target a face pick is about — [`Self::of`]'s twin, for the
-    /// other selection that names a drawn body.
-    ///
-    /// A door of its own rather than a destructure inside
-    /// [`Self::of_selection`], because a face pick reaches this scope
-    /// from more than that one place: the add-profile form's
-    /// on-the-picked-face row holds a [`FaceSelection`] and names the
-    /// same scope in the same sentence.
-    pub fn of_face(face: &FaceSelection) -> Self {
-        Self {
-            node: face.node,
-            body: face.body,
-        }
-    }
-
-    /// **The drawn body a selection is a pick on**, when it is one.
-    ///
-    /// A face pick and an edge pick both carry `(node, body)` — they
-    /// name something DRAWN, which is the only kind of selection that
-    /// can say which body. `Selection::Node` is a feature picked in
-    /// the tree and names no body at all; answering `body: 0` for it
-    /// would be a guess, and precisely on the multi-body nodes where
-    /// the narrowing matters it would be the wrong one. So it answers
-    /// `None` and the affordance that needs a body says what it wants.
-    pub fn of_selection(selection: &Selection) -> Option<Self> {
-        match selection {
-            Selection::Edge(edge) => Some(Self::of(edge)),
-            Selection::Face(face) => Some(Self::of_face(face)),
-            Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
-        }
-    }
-}
-
-/// **Destructured rather than field-read**, so a field added to
-/// [`BlendTarget`] is E0027 here. The pair above is the scope an
-/// accumulator opens on and the scope a refusal names, and this
-/// sentence is how the refusal names it: a target that grew a third
-/// component while the sentence still named two would name the wrong
-/// scope.
-impl Say for BlendTarget {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
-        let Self { node, body } = self;
-        write!(f, "{} body {body}", by.node(*node))
-    }
-}
-
-/// The sentence where no document is at hand: the node by its tag.
-impl core::fmt::Display for BlendTarget {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
-    }
-}
+// **The drawn body a blend's edges belong to is a [`DrawnBody`]**: the
+// node whose output the fillet's selection reads, and which of that
+// node's output bodies. The BODY index rides along because an edge pick
+// carries one and a set drawn from two bodies of one node would be as
+// wrong as a set drawn from two nodes — the accumulator scopes to the
+// pair it was opened on, and the refusal names the pair. It is the
+// pair a pick is said on, so one type and one sentence serve both.
 
 vocabulary! {
     /// Which blend is being authored — the tool's kind choice, and the
@@ -211,15 +146,16 @@ pub enum BlendEvent {
     /// picks).
     OtherTarget {
         /// The body the held edges are on.
-        held: BlendTarget,
-        /// The body the refused pick was on.
-        picked: BlendTarget,
+        held: DrawnBody,
+        /// The refused pick, said as the chrome says a pick
+        /// ([`PickedName`]).
+        picked: EdgeSelection,
     },
     /// The target has a value and no edges, so nothing was loaded and
     /// the held set is untouched.
     NoEdgesOnTarget {
         /// The body that was asked.
-        target: BlendTarget,
+        target: DrawnBody,
     },
     /// The index draws edges on the target that it cannot name, so
     /// "every edge" is not a set the tool can hold: nothing was loaded
@@ -233,7 +169,7 @@ pub enum BlendEvent {
     /// untouched. The standing says why and where the repair is.
     TargetHasNoValue {
         /// The body that was asked.
-        target: BlendTarget,
+        target: DrawnBody,
         /// Its node's standing, as the feature tree draws it
         /// ([`crate::tree::standing_as_drawn`]).
         ///
@@ -247,7 +183,7 @@ pub enum BlendEvent {
     /// once.
     TargetLost {
         /// The body the set was about.
-        target: BlendTarget,
+        target: DrawnBody,
         /// The target's node by the last label the document gave it:
         /// the node is gone, so no later document says it.
         node: SpokenNode,
@@ -258,15 +194,46 @@ pub enum BlendEvent {
     /// not — the strand case, dropped loudly rather than carried to a
     /// commit that would refuse on arrival (module docs: why this is
     /// not the silent shrink #217 forbids).
+    ///
+    /// **Its sentence counts the lost edges and says none of them.** A
+    /// lost name is one the edit removed: the profile steps and nodes
+    /// its words cite may be gone with it, and the tool keeps no
+    /// labels per edge, so its words would be tags. And a held set can
+    /// be a whole body's edges (the all-edges door), which no status
+    /// line lists. The names ride the value for a chrome that draws
+    /// them and for a row to assert on.
     EdgesLost {
         /// The body the set is about.
-        target: BlendTarget,
+        target: DrawnBody,
         /// The names that stopped being edges of it, in canonical
         /// order — carried rather than counted, so a chrome that wants
         /// to say WHICH can, and a row can assert on them.
         names: Vec<StableName>,
-        /// How many are still held.
+        /// How many held picks lost a name: a rim that lost one arc is
+        /// one pick, as the panel counted it.
+        picks: usize,
+        /// How many picks are still held.
         kept: usize,
+    },
+    /// An edge pick arrived with no pick index to say what drawn edge
+    /// it is part of, so the tool cannot tell a whole edge from one
+    /// arc of a circle: the pick is refused rather than held as a
+    /// possible half, and the held set is untouched.
+    Unindexed {
+        /// The refused pick, said as the chrome says a pick
+        /// ([`PickedName`]).
+        picked: EdgeSelection,
+        /// Why there is no index: one being built, or none and none
+        /// coming ([`NotIndexed::Absent`], whose reason the pick-index
+        /// badge carries).
+        why: NotIndexed,
+    },
+    /// The index could not say which drawn edge the pick is part of
+    /// ([`PickIndex::whole_edge`]): a naming or pairing bug, so the pick
+    /// is refused and the held set is untouched.
+    RimUnanswered {
+        /// The rim door's refusal.
+        fault: RimNameFault,
     },
 }
 
@@ -275,10 +242,9 @@ impl Say for BlendEvent {
         match self {
             Self::OtherTarget { held, picked } => write!(
                 f,
-                "the held edges are on {}, so the edge on {} was not taken; cancel to start on \
-                 another body",
+                "the held edges are on {}, so {} was not taken; cancel to start on another body",
                 Said(held, by),
-                Said(picked, by)
+                Said(&PickedName::edge(picked), by)
             ),
             Self::NoEdgesOnTarget { target } => {
                 write!(f, "{} has no edges to select", Said(target, by))
@@ -290,29 +256,57 @@ impl Say for BlendEvent {
                 f,
                 "{} has no edges to select: {}",
                 Said(target, by),
-                Said(standing, by.about(target.node))
+                Said(standing, by.about(target.node()))
             ),
             Self::TargetLost {
                 target,
                 node,
                 edges,
-            } => write!(
-                f,
-                "{node} body {} is no longer in the document; the tool dropped all {edges} \
-                 picked edges",
-                target.body
-            ),
+            } => {
+                // The node is gone, so it is said as the tool kept it.
+                let kept: HeldNodes = [node.clone()].into_iter().collect();
+                write!(
+                    f,
+                    "{} is no longer in the document; the tool dropped all {edges} picked edges",
+                    Said(target, Speaker::held(&kept))
+                )
+            }
             Self::EdgesLost {
                 target,
-                names,
+                names: _,
+                picks,
                 kept,
             } => write!(
                 f,
-                "an edit removed {} of the picked edges from {}; the tool dropped them and \
-                 still holds {kept}",
-                names.len(),
+                "an edit removed all or part of {picks} of the picked edges from {}; the tool \
+                 dropped what went and still holds {kept}",
                 Said(target, by)
             ),
+            Self::Unindexed { picked, why } => {
+                write!(
+                    f,
+                    "{} was not taken: without a pick index the tool cannot tell a whole edge \
+                     from one arc of a circle; ",
+                    Said(&PickedName::edge(picked), by)
+                )?;
+                match why {
+                    NotIndexed::Building => {
+                        write!(
+                            f,
+                            "the picture is still being indexed, so pick it again then"
+                        )
+                    }
+                    NotIndexed::Absent | NotIndexed::AnotherPicture => write!(
+                        f,
+                        "no index is being built — the pick-index badge says why the last \
+                         build refused, and an edit or a new display tolerance is what builds \
+                         it again"
+                    ),
+                }
+            }
+            Self::RimUnanswered { fault } => {
+                write!(f, "the edge was not taken: {}", Said(fault, by))
+            }
         }
     }
 }
@@ -327,13 +321,22 @@ impl core::fmt::Display for BlendEvent {
 /// **The blend tool**: one target body, an accumulating set of its
 /// edges, and one committed blend edit.
 ///
-/// The set is a `BTreeSet` of stable names, which makes three of this
+/// The set is a `BTreeSet` of stable names, which makes two of this
 /// tool's rules structural rather than checked: a name cannot be held
-/// twice, the live count is the set's size, and what
-/// [`BlendTool::selection`] hands the canonicalizing constructor is
-/// already in canonical order. Picking a held edge again REMOVES it —
-/// the per-pick add/remove the plan asks for, and the only correction
-/// a set-valued pick needs.
+/// twice, and what [`BlendTool::selection`] hands the canonicalizing
+/// constructor is already in canonical order. Picking a held edge
+/// again REMOVES it — the per-pick add/remove the plan asks for, and
+/// the only correction a set-valued pick needs.
+///
+/// # A drawn circle is one pick
+///
+/// **A pick is the whole drawn edge** ([`PickIndex::whole_edge`]): on
+/// a rim the picture draws as one circle but the body holds as several
+/// arcs, one click holds every arc. `rims` records which held names
+/// came in together, so the live count is the picks the user made
+/// rather than the names a commit stores, and un-picking any arc of a
+/// rim drops the whole rim. Every rim is a subset of `edges`, the rims
+/// are disjoint, and each holds two names or more.
 ///
 /// # The invariant the two fields keep together
 ///
@@ -350,6 +353,7 @@ impl core::fmt::Display for BlendEvent {
 pub struct BlendTool {
     target: Option<HeldTarget>,
     edges: BTreeSet<StableName>,
+    rims: BTreeSet<BTreeSet<StableName>>,
 }
 
 /// The body the held edges are on, and its node as the document last
@@ -357,7 +361,7 @@ pub struct BlendTool {
 /// names it by once the node is gone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct HeldTarget {
-    at: BlendTarget,
+    at: DrawnBody,
     node: SpokenNode,
 }
 
@@ -368,13 +372,15 @@ impl BlendTool {
     }
 
     /// The body the held edges are on, once a pick has fixed it.
-    pub fn target(&self) -> Option<BlendTarget> {
+    pub fn target(&self) -> Option<DrawnBody> {
         self.target.as_ref().map(|held| held.at)
     }
 
-    /// How many edges are held — the panel's live count.
+    /// How many edges are held — the panel's live count, a rim
+    /// counting once.
     pub fn count(&self) -> usize {
-        self.edges.len()
+        let in_rims = |name: &&StableName| self.rims.iter().any(|rim| rim.contains(*name));
+        self.edges.iter().filter(|name| !in_rims(name)).count() + self.rims.len()
     }
 
     /// Whether this edge is one of the held ones.
@@ -406,8 +412,8 @@ impl BlendTool {
             .iter()
             .map(|name| EdgeSelection {
                 name: name.clone(),
-                node: target.node,
-                body: target.body,
+                node: target.node(),
+                body: target.body(),
             })
             .collect()
     }
@@ -416,33 +422,102 @@ impl BlendTool {
     /// names, `None` while nothing is held (the struct's invariant).
     pub fn held_edges(&self) -> Option<crate::marks::HeldEdges<'_>> {
         self.target().map(|target| crate::marks::HeldEdges {
-            node: target.node,
-            body: target.body,
+            node: target.node(),
+            body: target.body(),
             names: &self.edges,
         })
     }
 
-    /// **Feed one edge pick**: add it, or REMOVE it when it is already
-    /// held.
+    /// **Feed one edge pick**: add the whole drawn edge it is part of,
+    /// or REMOVE it when it is already held.
+    ///
+    /// `index` says what the pick's whole is ([`PickIndex::whole_edge`]):
+    /// every arc of a rim drawn as one circle, or why there is no index.
+    /// A new pick with no index is refused ([`BlendEvent::Unindexed`]), and so is one whose rim
+    /// the index could not answer ([`BlendEvent::RimUnanswered`]);
+    /// un-picking a held edge needs neither.
     ///
     /// The first pick fixes the target; un-picking the last edge
     /// releases it again (the struct's invariant). A pick on another
     /// body is refused ([`BlendEvent::OtherTarget`]) and changes
     /// nothing. `doc` says the target's node when the pick fixes it.
-    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, edge: &EdgeSelection) -> Option<BlendEvent> {
-        let picked = BlendTarget::of(edge);
+    pub fn pick(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        edge: &EdgeSelection,
+        index: Result<&PickIndex, NotIndexed>,
+    ) -> Option<BlendEvent> {
+        let picked = DrawnBody::new(edge.node, edge.body);
         match self.target() {
             Some(held) if held != picked => {
-                return Some(BlendEvent::OtherTarget { held, picked });
+                return Some(BlendEvent::OtherTarget {
+                    held,
+                    picked: edge.clone(),
+                });
             }
-            Some(_) => {}
-            None => self.fix(doc, picked),
+            Some(_) if self.holds(&edge.name) => {
+                self.drop_pick(&edge.name);
+                self.release_if_empty();
+                return None;
+            }
+            Some(_) | None => {}
         }
-        if !self.edges.remove(&edge.name) {
-            self.edges.insert(edge.name.clone());
+        // A pick from a source other than the viewport (a refusal's
+        // named-cell link) can arrive while the index is being built.
+        // Held as named it could be half a circle, which is the commit
+        // that refuses at the seam vertex, so it is refused instead.
+        let index = match index {
+            Ok(index) => index,
+            Err(why) => {
+                return Some(BlendEvent::Unindexed {
+                    picked: edge.clone(),
+                    why,
+                });
+            }
+        };
+        let whole = match index.whole_edge(edge) {
+            Ok(whole) => whole,
+            Err(fault) => return Some(BlendEvent::RimUnanswered { fault }),
+        };
+        if self.target.is_none() {
+            self.fix(doc, picked);
         }
-        self.release_if_empty();
+        self.take(whole);
         None
+    }
+
+    /// Hold one pick's names: a rim absorbs any of its arcs already
+    /// held, so the rims stay disjoint.
+    fn take(&mut self, whole: Vec<StableName>) {
+        let whole: BTreeSet<StableName> = whole.into_iter().collect();
+        if whole.len() > 1 {
+            // An arc held alone joins the rim (a partial revolve turned
+            // full under a held arc). A held RIM meeting a new whole is
+            // not reachable: the clicked name is not held, and within one
+            // index the rims partition the drawn edges.
+            debug_assert!(
+                self.rims.iter().all(|rim| rim.is_disjoint(&whole)),
+                "a held rim meets the new pick {whole:?}: {:?}",
+                self.rims
+            );
+            self.rims.insert(whole.clone());
+        }
+        self.edges.extend(whole);
+    }
+
+    /// Drop the pick holding `name`: its whole rim, or the name alone.
+    fn drop_pick(&mut self, name: &StableName) {
+        match self.rims.iter().find(|rim| rim.contains(name)).cloned() {
+            Some(rim) => {
+                self.rims.remove(&rim);
+                for arc in &rim {
+                    self.edges.remove(arc);
+                }
+            }
+            None => {
+                self.edges.remove(name);
+            }
+        }
     }
 
     /// **The all-edges affordance**: load every edge of `target` as it
@@ -495,22 +570,22 @@ impl BlendTool {
     /// button rather than implying every loaded set is buildable.
     pub fn load_all_edges(
         &mut self,
-        target: BlendTarget,
+        target: DrawnBody,
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-        index: &crate::pickindex::PickIndex,
+        index: &PickIndex,
     ) -> Option<BlendEvent> {
-        if let Err(standing) = eval.usable(target.node) {
+        if let Err(standing) = eval.usable(target.node()) {
             return Some(BlendEvent::TargetHasNoValue {
                 target,
                 standing: crate::tree::standing_as_drawn(standing, eval),
             });
         }
-        let drawn = index.edge_names_in(target.node, target.body);
+        let drawn = index.edge_names_in(target.node(), target.body());
         if let Some(refused) = drawn.refused {
             return Some(BlendEvent::EdgesUnnamed { refused });
         }
-        let named: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
+        let named: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node())
             .into_iter()
             .collect();
         let edges: BTreeSet<StableName> = drawn
@@ -523,16 +598,32 @@ impl BlendTool {
         if edges.is_empty() {
             return Some(BlendEvent::NoEdgesOnTarget { target });
         }
+        let mut rims = BTreeSet::new();
+        for name in &edges {
+            let edge = EdgeSelection {
+                name: name.clone(),
+                node: target.node(),
+                body: target.body(),
+            };
+            let rim: BTreeSet<StableName> = match index.whole_edge(&edge) {
+                Ok(whole) => whole.into_iter().collect(),
+                Err(fault) => return Some(BlendEvent::RimUnanswered { fault }),
+            };
+            if rim.len() > 1 && rim.is_subset(&edges) {
+                rims.insert(rim);
+            }
+        }
         self.fix(doc, target);
+        self.rims = rims;
         self.edges = edges;
         None
     }
 
     /// Fix the target, with its node as `doc` says it.
-    fn fix(&mut self, doc: &Doc<ProfileProgram>, target: BlendTarget) {
+    fn fix(&mut self, doc: &Doc<ProfileProgram>, target: DrawnBody) {
         self.target = Some(HeldTarget {
             at: target,
-            node: doc.spoken(target.node),
+            node: doc.spoken(target.node()),
         });
     }
 
@@ -554,9 +645,14 @@ impl BlendTool {
     /// state a fresh tool is in, which is what lets the next click
     /// start on any body.
     pub fn clear(&mut self) {
-        let Self { target, edges } = self;
+        let Self {
+            target,
+            edges,
+            rims,
+        } = self;
         *target = None;
         edges.clear();
+        rims.clear();
     }
 
     /// Release the target when the last edge leaves, keeping the
@@ -612,8 +708,8 @@ impl BlendTool {
         let Some(HeldTarget { at: target, node }) = self.target.clone() else {
             return Vec::new();
         };
-        if doc.node(target.node).is_none() {
-            let edges = self.edges.len();
+        if doc.node(target.node()).is_none() {
+            let edges = self.count();
             self.clear();
             return vec![BlendEvent::TargetLost {
                 target,
@@ -629,10 +725,10 @@ impl BlendTool {
         // picks the moment an upstream slot went momentarily bad. Say
         // nothing and wait for a run that has an answer; the node's
         // badge carries its standing.
-        if eval.usable(target.node).is_err() {
+        if eval.usable(target.node()).is_err() {
             return Vec::new();
         }
-        let live: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
+        let live: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node())
             .into_iter()
             .collect();
         let names: Vec<StableName> = self
@@ -644,14 +740,28 @@ impl BlendTool {
         if names.is_empty() {
             return Vec::new();
         }
+        let lost_from_rims = self
+            .rims
+            .iter()
+            .filter(|rim| names.iter().any(|name| rim.contains(name)))
+            .count();
+        let picks = lost_from_rims
+            + names
+                .iter()
+                .filter(|name| !self.rims.iter().any(|rim| rim.contains(*name)))
+                .count();
         for name in &names {
             self.edges.remove(name);
         }
+        // A rim that lost an arc is no longer one drawn circle held
+        // whole: what is left of it stands as single picks.
+        self.rims.retain(|rim| rim.is_subset(&self.edges));
         self.release_if_empty();
         vec![BlendEvent::EdgesLost {
             target,
             names,
-            kept: self.edges.len(),
+            picks,
+            kept: self.count(),
         }]
     }
 
@@ -692,7 +802,7 @@ impl BlendTool {
             !self.edges.is_empty(),
             "a target is held exactly while an edge is"
         );
-        self.target().map(|target| target.node)
+        self.target().map(|target| target.node())
     }
 }
 
@@ -705,7 +815,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used, clippy::panic)]
 
-    use super::{BlendEvent, BlendTarget, BlendTool, Said, Speaker};
+    use super::{BlendEvent, BlendTool, DrawnBody, Said, Speaker};
     use crate::pickindex::{EdgeId, EdgeNameFault, EdgeNamesRefused};
     use crate::session::EdgeSelection;
     use crate::test_support::plate_indexed;
@@ -719,10 +829,7 @@ mod tests {
         let (eval, mut index, copy) = plate_indexed(pncad::geom_core::Tol::witness());
         let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
             .expect("the plate authors");
-        let target = BlendTarget {
-            node: copy,
-            body: 0,
-        };
+        let target = DrawnBody::new(copy, 0);
         let drawn = index.edges_in(copy, 0).to_vec();
         let mut tool = BlendTool::new();
         let held = EdgeSelection {
@@ -730,7 +837,7 @@ mod tests {
             node: copy,
             body: 0,
         };
-        assert_eq!(tool.pick(&doc, &held), None);
+        assert_eq!(tool.pick(&doc, &held, Ok(&index)), None);
         let before = tool.clone();
 
         let first = index.unname_edge(drawn[2]);
@@ -791,10 +898,7 @@ mod tests {
         let (eval, index, copy) = plate_indexed(pncad::geom_core::Tol::witness());
         let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
             .expect("the plate authors");
-        let target = BlendTarget {
-            node: copy,
-            body: 7,
-        };
+        let target = DrawnBody::new(copy, 7);
         assert!(matches!(
             index.edge_name_of(EdgeId {
                 node: copy,

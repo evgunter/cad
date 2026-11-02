@@ -2,12 +2,11 @@
 id: add-parameter-create-owes-the-name-doors-sentence
 kind: issue
 title: The add-parameter Create button's name conjunct is silent while ParamName::new has a sentence for it
-status: parked
+status: open
 opened: 2026-09-24
 refs: [a-disabled-control-says-why-in-four-shapes, three-spellings-say-a-parameter-is-not-declared]
 priority: P3
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Filed by EDIT's `no-door-refuses-a-blank-parameter-name` lane (branch
@@ -69,3 +68,5 @@ refusal. Not a wording decision either — the sentence is the type's,
 and `three-spellings-say-a-parameter-is-not-declared` is the row that
 decides how a chrome paraphrase and a session refusal are held in
 step. This row is only the hover text.
+
+**Re-read 2026-10-29 (INTENT, D10 hold):** released. Stage 1 is built and the defect carried over to the new shape: `add_variable_ui` folds `VarName::new(..).ok()` to a bool (`crates/viewer/src/pane/properties.rs:317`), and only the dimension conjunct has its hover text (`:335`). The door is now `VarName` (`crates/editor-core/src/doc.rs:41`), with its fault at `parse.rs:458`.

@@ -94,15 +94,9 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
             Door::ConicTorus,
             "the torus residual along the conic, of degree two on a circle and four on an ellipse",
         ),
-        (Nurbs, Plane) => built(
+        (Nurbs, Plane | Cylinder | Cone | Sphere | Torus) => built(
             Door::SplineComposite,
-            "the plane's residual composed along the spline span, read on its pieces",
-        ),
-        (Nurbs, Cylinder | Cone | Sphere | Torus) => unbuilt(
-            Door::SplineComposite,
-            "the face's residual composed along the spline span, which the curved \
-             lane does not read yet \
-             (work/splice/nurbs-edge-crossing-rung-is-the-ring-composite)",
+            "the face's residual composed along the spline span, read on its pieces",
         ),
         (Line | Circle | Ellipse | Nurbs, SurfaceKind::Nurbs | Approx) => built(
             Door::SplineFace,
@@ -153,9 +147,12 @@ pub enum Boundary<T: geom_core::Real> {
 /// Why [`boundary`] gave no answer.
 #[derive(Clone, Copy, Debug)]
 pub enum BoundaryRefusal {
-    /// A decision fell in the band's gap: where a boundary vertex sits on
-    /// the span, or the meeting reading's own.
+    /// Where a boundary vertex sits on the span fell in the band's gap.
     Escalated(Indeterminate),
+    /// A decision of the meeting reading fell in the band's gap.
+    Meeting(Indeterminate),
+    /// The span and a boundary edge meet in band ([`MeetFault::Touch`]).
+    Touch(Indeterminate),
     /// A reading could not run: a root finder, a meter or a walk that
     /// could not certify, or a pose with no closed form. Nothing is known
     /// about the span's interior.
@@ -228,7 +225,8 @@ impl BoundaryRefusal {
     #[must_use]
     pub fn of(fault: MeetFault) -> Self {
         match fault {
-            MeetFault::Escalated(diag) => Self::Escalated(diag),
+            MeetFault::Escalated(diag) => Self::Meeting(diag),
+            MeetFault::Touch(diag) => Self::Touch(diag),
             MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => Self::Unread(fault),
             MeetFault::Desync | MeetFault::Contradiction { .. } => Self::Fault(fault),
         }

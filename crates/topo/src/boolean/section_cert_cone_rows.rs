@@ -245,15 +245,15 @@ fn a_ball_on_the_lateral_face_is_one_null_loop() {
             "the loop's witness {w:?} is on the ball's nappe"
         );
         assert_eq!(
-            certify(&s, false, |_| Sheet::One, at(IN, IN)),
+            certify(&s, false, band(), |_| Sheet::One, at(IN, IN)),
             Err(Refusal::Loop)
         );
         assert_eq!(
-            certify(&s, true, |_| Sheet::One, at(IN, IN)),
+            certify(&s, true, band(), |_| Sheet::One, at(IN, IN)),
             Ok(vec![Cleared::LoneEvented])
         );
         assert_eq!(
-            certify(&s, false, |_| Sheet::One, at(OUT, IN)),
+            certify(&s, false, band(), |_| Sheet::One, at(OUT, IN)),
             Ok(vec![Cleared::Out(Side::F)])
         );
     }
@@ -412,7 +412,7 @@ fn cone_rim(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(cone, rim_plane),
-            witness: p(-z, 0.0, z),
+            selector: geom_brep::CurveSelector::Witness(p(-z, 0.0, z)),
         },
         carrier: Curve3::Circle {
             center: p(0.0, 0.0, z),

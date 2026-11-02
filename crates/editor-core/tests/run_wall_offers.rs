@@ -29,6 +29,7 @@ fn build(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ex) = insert(
@@ -186,6 +187,7 @@ fn run_names_agree_across_scalar_types() {
             Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::Chain(steps)],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         let (doc, n) = if revolve {

@@ -106,6 +106,7 @@ fn r2_the_declared_arrivals_survive_the_wire() {
             // the plane points at.
             loops: vec![LoopProgram::Chain(doc)],
             ids: Vec::new(),
+            on: None,
         };
         let text = serde_json::to_string(&before).expect("serializes");
         println!("R2: {name} wire -> {text}");

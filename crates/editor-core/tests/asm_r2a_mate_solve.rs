@@ -21,6 +21,7 @@
 
 use crate::fixture;
 use crate::wire::doctored;
+use editor_core::Dimension;
 use editor_core::Formula;
 
 use editor_core::CapEnd;
@@ -1179,7 +1180,9 @@ fn an_orientation_on_a_point_mate_refuses_at_the_door() {
         point_of(read(kit.corner(ids[0], CapEnd::End, 2))),
     );
     let write = |mate: editor_core::Mate<Formula>| {
-        let values = [X, Y, Z].map(|a| (Coord::Spin(Some(a)), ang(0.0))).to_vec();
+        let values = [X, Y, Z]
+            .map(|a| (Coord::Spin(Some(a)), Formula::zero(Dimension::Angle)))
+            .to_vec();
         apply(
             &doc,
             &editor_core::Placed {
@@ -1304,7 +1307,7 @@ fn a_lone_point_mates_chain_turns_its_copy_in_the_order_written() {
         "a second spin about x right after the first: {twice:?}"
     );
     let mut slid = chain(&[(Z, tz), (X, tx), (Y, ty)]);
-    slid.push((Coord::Slide(X), len(0.0)));
+    slid.push((Coord::Slide(X), Formula::zero(Dimension::Length)));
     let slid = refused(slid);
     assert!(
         matches!(&*slid, MateFault::Overconstrained { constraints, .. } if constraints.len() == 2),

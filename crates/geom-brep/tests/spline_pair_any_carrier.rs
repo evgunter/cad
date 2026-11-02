@@ -205,6 +205,13 @@ fn verdict(name: &str, got: &Limbs) -> (Verdict, f64) {
     match got {
         Ok(l) => (Verdict::Certified, l.hull_sup),
         Err(PlaneNurbsRefusal::Limb { limb, margin }) => (Verdict::Refused(*limb), upper(*margin)),
+        // A circle no boundary row holds reads its fitted image, and its
+        // limb's refusal carries that no exact image held.
+        Err(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Refused {
+            iso: None,
+            limb,
+            bound,
+        })) => (Verdict::Refused(*limb), upper(*bound)),
         // A miss inside the band refuses undecided, on the bound it read.
         Err(PlaneNurbsRefusal::Escalated { limb, cause }) => {
             (Verdict::Refused(*limb), upper(cause.margin))
@@ -703,7 +710,7 @@ fn door_spec(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: t0,

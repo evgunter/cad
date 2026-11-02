@@ -403,7 +403,7 @@ impl Rim {
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(s1, s2),
-                witness: self.mid,
+                selector: geom_brep::CurveSelector::Witness(self.mid),
             },
             carrier: geom::Curve3::Nurbs(std::sync::Arc::new(spline.clone())),
             param_start: domain.0,

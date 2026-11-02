@@ -310,9 +310,13 @@ pub(super) fn circle_torus_roots<T: Decide>(
                 ),
                 DECISION,
             ),
-            // A negative length is not an answer; an in-band one is a
-            // near-coaxial pose neither arm can stand behind.
-            Ok(Sign::Negative) | Err(_) => Ok(Err(Unsettled::SignInBand)),
+            // An in-band offset is a near-coaxial pose neither arm can
+            // stand behind.
+            Err(diag) => Err(BooleanError::Escalated {
+                decision: DECISION,
+                diag,
+            }),
+            Ok(Sign::Negative) => unreachable!("a norm reads no negative offset"),
         };
     }
 
@@ -666,7 +670,9 @@ fn parallel_axes_roots<T: Decide>(
             count += 1;
         }
     }
-    Ok(CircleRoots::of(&thetas[..count]).ok_or(Unsettled::ImpossibleCount)?)
+    // `thetas` is the capacity's own size, so `count` fits.
+    Ok(CircleRoots::of(&thetas[..count])
+        .unwrap_or_else(|| unreachable!("the roots array is the capacity")))
 }
 
 #[cfg(test)]
@@ -686,6 +692,7 @@ mod tests {
     //! red on the pose that reaches it.
 
     use super::*;
+    use crate::boolean::circle_roots::door_answer;
     use geom_core::{Bounds, Interval, Real, Tol};
 
     /// The door on a circle given by its parts.
@@ -787,8 +794,10 @@ mod tests {
         out
     }
 
-    fn door(pose: Pose, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Unsettled> {
-        roots_of(
+    /// The door's answer ([`door_answer`]): its roots, or its refusal, a
+    /// limit or `None` for an escalation.
+    fn door(pose: Pose, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Option<Unsettled>> {
+        door_answer(roots_of(
             Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
@@ -797,8 +806,7 @@ mod tests {
             t1,
             &torus(),
             band(),
-        )
-        .unwrap()
+        ))
     }
 
     /// The door's roots that fall in `[t0, t1]`, sorted.

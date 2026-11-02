@@ -4,11 +4,12 @@
 //! point key only at an ON vertex with two runs, which it records.
 #![allow(clippy::panic)]
 
+use core::f64::consts::PI;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::SketchPlane;
 use sweep::test_support::{brick, prism_on};
-use topo::test_support::finished;
-use topo::{AtRestBody, BooleanResult, SectionGermFault, SplitError, SplitReduceError};
+use topo::test_support::{finished, pinned_volume};
+use topo::{AtRestBody, BooleanResult, SplitError, SplitReduceError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -33,10 +34,12 @@ fn pinched_at_the_graze(parts: [Option<&topo::Body<f64>>; 2]) -> bool {
 /// plane through its rim point `(1, 0, 0)` at three normals: tilted
 /// `±z` (grazing the rim circle alone) and `(1, 0, 0)` (tangent to the
 /// side along its ruling). The convex rod lands at each with no row and
-/// no pinch. The concave bore refuses `SectionGermsUnordered
-/// { Coincident }` tilted `+z` and `KnifeEdge` tangent, and lands tilted
-/// `−z`, its rim's ON point no pinch. Red if a graze lands with two
-/// vertices of one part on one key and no row.
+/// no pinch. The concave bore refuses `KnifeEdge` tangent, and lands
+/// tilted `±z`, its two sides' volumes summing to its own: tilted `−z`
+/// its rim's ON point no pinch; tilted `+z` the trace touches the rim
+/// with material on both sides, the piece between them two horns
+/// meeting at the point, a pinch with its row. Red if a graze lands
+/// with two vertices of one part on one key and no row.
 #[test]
 fn a_grazed_rim_lands_whole_or_refuses_typed() {
     let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
@@ -79,23 +82,37 @@ fn a_grazed_rim_lands_whole_or_refuses_typed() {
             Err(e) => panic!("the rod {what} lands: {e:?}"),
         }
     }
-    match split(&bored, up) {
-        Err(SplitError::Reduce(SplitReduceError::SectionGermsUnordered {
-            fault: SectionGermFault::Coincident,
-            ..
-        })) => {}
-        other => panic!("the bore +z refuses with unordered germs: {other:?}"),
-    }
     match split(&bored, side) {
         Err(SplitError::Reduce(SplitReduceError::KnifeEdge(_))) => {}
         other => panic!("the bore tangent refuses a knife edge: {other:?}"),
     }
-    match split(&bored, down) {
-        Ok(s) => assert!(
-            !pinched_at_the_graze([s.above.body().map(|b| &**b), s.below.body().map(|b| &**b)]),
-            "the bore -z: no pinch at the rim: {:?}",
-            s.coincidences
-        ),
-        Err(e) => panic!("the bore -z lands: {e:?}"),
+    let whole = (16.0 - PI) * 2.0;
+    for (what, n, horns) in [("+z", up, true), ("-z", down, false)] {
+        match split(&bored, n) {
+            Ok(s) => {
+                let parts = [s.above.body(), s.below.body()];
+                assert_eq!(
+                    pinched_at_the_graze(parts.map(|b| b.map(|b| &**b))),
+                    horns,
+                    "the bore {what}: a pinch at the rim: {:?}",
+                    s.coincidences
+                );
+                assert_eq!(
+                    s.coincidences.is_empty(),
+                    !horns,
+                    "the bore {what}: a row with the pinch"
+                );
+                let (mut kept, mut pad) = (0.0, 0.0);
+                for b in parts.into_iter().flatten() {
+                    let m = pinned_volume(what, b, tol());
+                    (kept, pad) = (kept + m.volume, pad + m.volume_pad);
+                }
+                assert!(
+                    (kept - whole).abs() <= pad + 1e-9 * whole,
+                    "the bore {what}: the sides keep {kept} ± {pad} of {whole}"
+                );
+            }
+            Err(e) => panic!("the bore {what} lands: {e:?}"),
+        }
     }
 }

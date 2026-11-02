@@ -85,7 +85,7 @@ fn swap_first_edge_for_a_chord_net(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(s1, s2),
-            witness: q0.lerp(q1, iv(0.5)),
+            selector: geom_brep::CurveSelector::Witness(q0.lerp(q1, iv(0.5))),
         },
         carrier: carrier.clone(),
         param_start: iv(t0),

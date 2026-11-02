@@ -391,7 +391,7 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::Root(NodeStanding::Poisoned { through, .. })) if *through == extrude
+            Some(ProductError::Read(NodeStanding::Poisoned { through, .. })) if *through == extrude
         ),
         "the premise: a placement poisoned by its failed body, which is a refusal and not \
          an absence: {:?}",

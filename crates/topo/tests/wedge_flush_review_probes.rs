@@ -109,7 +109,7 @@ fn row(label: &str, pose: &Pose, theta: f64) {
     let (block, tool) = build(pose, theta, tol);
     let (fb, ft) = (face_facing(&block, 1.0), face_facing(&tool, pose.facing));
     let (block_off, tool_off) = standoffs(pose, theta, &block, fb, &tool, ft);
-    let glue = match topo::flush_pair_relation(&block, fb, &tool, ft, false, band) {
+    let glue = match topo::flush_pair_relation(&block, fb, &tool, ft, band) {
         Ok(Ok(rel)) => format!("{rel:?}"),
         Ok(Err(topo::PlaneEqError::Escalated { rung, diag })) => {
             format!("Esc({rung:?} {:.2}ε)", upper(diag.margin) / eps)

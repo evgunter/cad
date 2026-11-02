@@ -61,6 +61,7 @@ pub fn document() -> CorpusDoc {
                 .expect("finite plate corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
@@ -74,6 +75,7 @@ pub fn document() -> CorpusDoc {
                 radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
             }],
             ids: Vec::new(),
+            on: None,
         })
     };
     let pa = r.insert(hole(-HOLE_X));

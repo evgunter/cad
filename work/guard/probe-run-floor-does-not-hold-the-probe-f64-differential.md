@@ -15,7 +15,7 @@ cost: D
 `scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR` rosters
 `ignored:editor-core:m4_pr8_k_probe:1`. That module now carries TWO
 `#[ignore]`d tests: `dump_corpus_k_samples` (the K-telemetry dump) and
-`probe_agrees_with_f64_bit_for_bit_over_the_corpus` (SUITE/D114's
+`probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits` (SUITE/D114's
 `Probe`-vs-f64 differential, the only check of the recording scalar's
 wrapper property **at the evaluation lane**).
 
@@ -71,7 +71,7 @@ Filed by SUITE/D114.
 `scripts/gates/probe-suite-census.sh` (:193) now rosters
 `ignored:editor-core:m4_pr8_k_probe:2`, with a comment saying why it is
 two. Both `#[ignore]`d tests (`dump_corpus_k_samples`,
-`probe_agrees_with_f64_bit_for_bit_over_the_corpus`) are still there,
+`probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits`) are still there,
 and `k_probe_sweep.sh`'s `run_dump` selects `--ignored "$module::"`, so
 the sweep runs both. The floor's executed half only runs in the nightly
 sweep, so the orchestrator should check the next nightly's

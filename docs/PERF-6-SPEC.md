@@ -69,7 +69,7 @@ and then measures pays one quadrature — `validate_geometric_certificate`
 hands back the `Sign` certificate and the continuation is the second
 half. That is the "two entry points, the second reusing the first's
 rounds" of Ev's item, and it is what the riding item's consumers (the
-tour at `demos/tour/src/main.rs:402,423`, the Python
+tour's `run_body` in `demos/tour/src/lib.rs`, the Python
 `validate_geometric()` + `mass_properties()` pair) will call.
 
 **What must not change.** `plus_v_invariant`'s decision rule (margin

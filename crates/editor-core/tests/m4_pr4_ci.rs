@@ -36,7 +36,8 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 ///
 /// What the pin holds: flip-vanish → PredicateFlip on the cutting
 /// slab's wall, which slid from inside `a` to outside; cascade → Cascade;
-/// structural-param → StructuralParam; node-gone; ambiguous. It moves
+/// structural-param → IndexCount (the row's index's count shrinks);
+/// node-gone; ambiguous. It moves
 /// with every spelling the diagnosed names carry (node and profile step
 /// ids, `Borders` on the ambiguous row's piece, `Ends` on the probed rim
 /// pieces) as well as with a row's diagnosis; a move that keeps every
@@ -91,11 +92,25 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// through): the ambiguous row's piece's wall moved from the tool's bare
 /// face name to that `From`. Every row keeps its shape: a spelling
 /// change. Re-measured with both merged.
-const DIAGNOSIS_DIGEST: u64 = 0xd1bb_9861_e24b_88c2;
+const DIAGNOSIS_DIGEST: u64 = 0xe3b5_eba1_51c9_d9ca;
 
 #[test]
 fn diagnosis_corpus_is_golden() {
     let rows = diagnosis_corpus::<f64>();
+    // Each row's shape, so a drift says whether a row changed its
+    // diagnosis or only its spelling.
+    for ((label, res), shape) in rows.iter().zip([
+        "diagnosis: PredicateFlip",
+        "diagnosis: Cascade",
+        "diagnosis: IndexCount",
+        "error: NodeGone",
+        "error: Ambiguous",
+    ]) {
+        assert!(
+            format!("{res:?}").contains(shape),
+            "{label}: not {shape}: {res:?}"
+        );
+    }
     assert_eq!(
         digest(&rows),
         DIAGNOSIS_DIGEST,

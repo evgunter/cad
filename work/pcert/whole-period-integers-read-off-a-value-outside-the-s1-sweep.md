@@ -62,7 +62,7 @@ with this item.
   decide the shift by the marks, escalating at the tie.
 
 (`step-import`'s outerness `unwrap` is the same class, filed as
-`work/exch/step-import-unwrap-reads-a-whole-period-off-a-value.md`.)
+`work/foreign/step-import-unwrap-reads-a-whole-period-off-a-value.md`.)
 
 ## Fixed on main since filing
 

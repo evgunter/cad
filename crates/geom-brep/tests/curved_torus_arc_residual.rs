@@ -676,8 +676,8 @@ fn the_k_sample_door_is_not_monotone_and_this_is_the_bound() {
 /// **What a COINCIDENT torus pair reads on the sampled enclosure, and
 /// why the crossing layer does not ask it.** MATE-7a's boundary row
 /// (`sweep/tests/mate7a_torus_rest.rs`'s
-/// `the_admitted_torus_lane_stops_at_the_section_pass`) puts two
-/// identical tori through a declared union. Its edges are seam
+/// `two_coincident_full_tori_are_one_body`) puts two identical tori
+/// through a union. Its edges are seam
 /// meridians of the torus they ride, so the residual is identically
 /// zero along them — and the sampled enclosure is therefore
 /// `±charge`, whose one-sidedness margin is `−charge`.

@@ -2,11 +2,14 @@
 id: a-split-through-a-pocket-floor-touching-the-block-walls-refuses-a-sliver-sector
 kind: issue
 title: A split along a pocket floor whose diamond outline touches the block's walls at its corners refuses SliverSector (sector_straight indeterminate)
-status: open
+status: closed
 opened: 2026-10-20
 priority: P1
 cost: M
 refs: [a-split-touching-a-wall-at-a-vertex-refuses-a-crossing-vertex-emission, a-pinch-carried-through-a-later-fold-step-refuses-naming]
+branch: splitdoor/pocket-floor-sliver
+closed: 2026-10-29
+pr: 5982
 ---
 
 
@@ -58,3 +61,13 @@ looks like a rejected certificate rather than a tight decision.
 
 - Re-banded P2 → P1: a split of a body the subtracts build refuses on a margin of 2.0: verb breadth beyond the everyday shapes (a split or boolean that refuses, or ships a body its own gate fails, on a legal input), P1 by `work/README.md` Priority.
 - Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Closed (2026-10-29, PR 5982)
+
+The `sector_straight` refusal was a definite reading taken the wrong way. At a slit tip (two distinct edges on one segment, legal per [topology]) the wall wraps 2π, and cos θ = +1 cannot tell that from a 0° spike. `sector_shape::corner_shape` is now the one reading. It takes `CornerBounds { Distinct, OneEdge, SlitTip }` and turns a positive straight-corner rejection at a slit tip into a full turn whose quarters each lane takes in its own order (`FullTurn::quarters(TurnOrder)`). The split's `wide_entries` and the Boolean's `push_full_turn` both call it.
+
+All six moats and the ring's four tip cuts build at their closed forms and tier 3′ at three ε. The reviewer's 11 oblique tip cuts, each checked against an independent integration, refused on the base and build now.
+
+FULL single review: APPROVE. A fix pass made the full-turn reading single.
+
+Filed: `a-slit-tip-on-a-curved-face-or-at-a-cone-apex-reads-its-full-turn-as-a-spike` (P2), covering `vertex_section::entered_faces` and the cone-apex arm, plus the (vertex, face) keying gap.

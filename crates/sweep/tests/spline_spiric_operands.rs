@@ -407,6 +407,30 @@ fn cavity_census() -> Vec<String> {
 
 #[test]
 fn no_spline_or_spiric_operand_builds_wrong() {
+    // Pinned red, two ways. At ε = 1e-6 the lofted cylinder's far union
+    // builds a volume 3.2e-5 off its closed form
+    // (`work/spliceseam/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`); at
+    // 1e-12 the bare operand's measurement stops at its wall
+    // (`work/spliceseam/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12`).
+    let eps = geom_core::Tol::witness().eps();
+    let says: &[&str] = if test_utils::kernel_limit::at_row(eps, &[1e-6]) {
+        &[
+            "lofted cylinder / far / O ∪ B: builds V = 7.283217721708709, the closed form gives 7.283185307179586",
+        ]
+    } else {
+        &["the operand measures: the measurement did not meet its resolution: it stopped at `wall`"]
+    };
+    test_utils::pinned_red::row(
+        eps,
+        &[1e-6, 1e-12],
+        "the spline and spiric operands",
+        says,
+        no_spline_or_spiric_operand_builds_wrong_row,
+    );
+}
+
+/// The row [`no_spline_or_spiric_operand_builds_wrong`] runs, under its pins.
+fn no_spline_or_spiric_operand_builds_wrong_row() {
     let mut lines = loft_prism_census();
     lines.extend(lofted_cylinder_census());
     lines.extend(cavity_census());

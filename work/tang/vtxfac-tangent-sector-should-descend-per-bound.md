@@ -54,3 +54,13 @@ at the e-e door (`recl.rs`'s flanking pairs, `tangent_lump`).
    whole-sector today.
 
 Filed from PR 3747's style review (the TANG m9-3 residues fix pass).
+
+## A per-bound reading for the germ alone (TANGRIM, 2026-11-01)
+
+The fillet line–arc junction branch (`tangrim/fillet-line-arc-junction`)
+keeps the whole-sector lump for the classes, but where a one-carrier
+lump and a tangent lump share a bound the one-carrier lump now claims
+it, so the run boundary lands in the tangent sector, whose germ reads
+its bounds per bound (`TangentRead` in `vtxfac`): the bound riding the
+locus is its cell and its direction. Step 1 above, switching the
+classes themselves to per bound, is still this row's.

@@ -215,6 +215,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
             // vocabulary, and nothing else here mentions one.
             loops: vec![circle(RO_MM), circle(RI_MM)],
             ids: Vec::new(),
+            on: None,
         })),
     );
     let revolved = insert(

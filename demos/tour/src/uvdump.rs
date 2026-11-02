@@ -844,7 +844,7 @@ fn escape(s: &str) -> String {
 /// and the chart jump — are NOT here. Each is drawn into the cell's
 /// own SVG, which is where a reader meets it, and the corpus-wide
 /// aggregate of the same numbers is printed by the run that measures
-/// them (see the uv-lane block in `main`). A second copy in a file
+/// them (see the uv-lane block in [`crate::cli`]). A second copy in a file
 /// nothing reads is a third place for them to disagree.
 pub fn manifest_json(dumps: &[FaceDump]) -> String {
     let entries: Vec<String> = dumps

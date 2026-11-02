@@ -2,7 +2,8 @@
 id: placement-rule-refusals-state-no-recourse
 kind: issue
 title: The placement, instance and face-frame refusals the feature tree draws state no recourse
-status: open
+status: closed
+closed: 2026-10-28
 opened: 2026-10-19
 priority: P3
 cost: E
@@ -45,3 +46,7 @@ Placement ground, so it waits on the D10 stage 3 unit
 placement-rule door, the instance placements and the authored frames
 these refusals come from: re-read each arm then, since the rebuild may
 already give it a recourse or retire it.
+
+## Closed by G (`patterns-are-index-variables`)
+
+Every arm this row held on placement-rule ground retired with `PatternKind` and `placement_rule_fault` (`CountSpelling`, `NoPlacements`, `NonFiniteFrame`, `NonRigidFrame`, `PlacementsUncertified`, `InstanceOutOfRange`), and the face-frame arms had already left `FILED_NO_RECOURSE` with D's retirement of `Transform`. None of this row's entries is left on the list.

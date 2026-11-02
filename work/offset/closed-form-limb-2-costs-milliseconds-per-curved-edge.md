@@ -183,3 +183,10 @@ span's rows read only its own ends; its joint hull is re-formed).
 
 The `Sym::free_identity` eager build above is not where this row's
 time goes.
+
+## 2026-11-01 — a renamed test (SPLITDOOR, `splitdoor/sided-followups`)
+
+`coaxial_equal_cylinders_unite`, in the timing table above, is now
+`a_closed_conic_in_the_partners_face::coaxial_equal_cylinders_build_every_op`.
+It runs every op in both orders, not only the unions, so its time is no
+longer comparable with the row above (0.30 s at ε 1e-9 locally).

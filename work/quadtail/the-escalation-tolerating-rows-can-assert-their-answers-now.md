@@ -36,3 +36,7 @@ asserts less than it now could:
 Per row, measure which poses still refuse at all three ε. Assert the
 answer on the rest, and pin what remains by type, with its own cause,
 at the ε where it was measured.
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. `a_split_through_a_wrap_edges_vertex.rs`'s `VolumeUnmeasured` arm is gone: the variant no longer exists, and those poses build and are checked. Three rows remain.

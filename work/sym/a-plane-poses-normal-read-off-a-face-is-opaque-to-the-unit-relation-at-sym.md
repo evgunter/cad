@@ -10,7 +10,7 @@ cost: M
 
 Found by the designer pair on MSOLVE's `a-plane-poses-foot-outgrows-the-coincidence-doors-budget` (record on `analysis/design-fork/msolve-plane-foot-sym-budget`), and filed by its implementer on PR 5624.
 
-The tier folds `|n|² = 1` for a unit vector built from plain symbols. It does not fold it for the normal of a plane pose read off a face in the `Sym` replay. That normal is the carrier's stored normal, minted by Newell's method (`work/carve/an-extrudes-cap-carrier-is-minted-by-newell-not-by-its-frame.md`) and normalised again by the pose read (`read_off` in `crates/editor-core/src/eval/wire/pose.rs`, through `pose_unit`).
+The tier folds `|n|² = 1` for a unit vector built from plain symbols. It does not fold it for the normal of a plane pose read off a face in the `Sym` replay. That normal is the carrier's stored normal, minted by Newell's method (`work/lathe/an-extrudes-cap-carrier-is-minted-by-newell-not-by-its-frame.md`) and normalised again by the pose read (`read_off` in `crates/editor-core/src/eval/wire/pose.rs`, through `pose_unit`).
 
 Measured on PR 5624's branch:
 - The split tool read off a box's cap has a normal whose `x` and `y` have value `0.0` but are not the literal zero node.

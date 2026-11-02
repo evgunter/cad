@@ -275,6 +275,17 @@ impl<T: Real> ReferenceNormal<T> {
         Self(normal)
     }
 
+    /// The side of a **germ** in a plane (a splitting plane, or a
+    /// face's tangent plane a section leaves a vertex in): `dir`, in the
+    /// plane whose normal is `normal`, turned a quarter counterclockwise
+    /// about it (`n̂ × d̂`), so Above is the side the plane's
+    /// counterclockwise turn leaves the germ to. Defined by the plane's
+    /// normal, as an order about it is.
+    #[must_use]
+    pub fn of_germ(normal: Vec3<T>, dir: Vec3<T>) -> Self {
+        Self(normal.normalize().cross(dir.normalize()))
+    }
+
     /// A **face's outward normal** as the reference side: Above is
     /// outside the face's material, Below is inside it. The sound
     /// widening (the sense bit was folded in when the
@@ -285,9 +296,10 @@ impl<T: Real> ReferenceNormal<T> {
         Self(normal.vec())
     }
 
-    /// The reference normal as a plain vector — crate-internal, for
-    /// the predicates' own dot products.
-    pub(crate) fn vec(self) -> Vec3<T> {
+    /// The reference normal as a plain vector, for the predicates' own
+    /// dot products. Extraction cannot mint an [`OutwardNormal`].
+    #[must_use]
+    pub fn vec(self) -> Vec3<T> {
         self.0
     }
 }
@@ -331,7 +343,31 @@ pub fn enters_material_reported<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<(EntersMaterial, MarginDiag), LeverEscalation> {
-    let margin = sense_margin(dir, outward_normal, arm, band)?;
+    departure_side_reported(
+        dir,
+        ReferenceNormal::of_face_outward(outward_normal),
+        arm,
+        band,
+    )
+}
+
+/// [`enters_material_reported`] against any reference side: `dir`'s
+/// first-order departure from the plane whose normal is
+/// `reference_normal`, levered at `arm`, against the normal
+/// `Enters`, along it `Exits`, a decided zero `Tangent`. The one
+/// first-order reading of a bound's side, of a face's material or of a
+/// splitting plane's sides alike.
+///
+/// # Errors
+///
+/// As [`enters_material`].
+pub fn departure_side_reported<T: Decide>(
+    dir: Vec3<T>,
+    reference_normal: ReferenceNormal<T>,
+    arm: T,
+    band: Band,
+) -> Result<(EntersMaterial, MarginDiag), LeverEscalation> {
+    let margin = sense_margin(dir, reference_normal.vec(), arm, band)?;
     let Decided { sign, margin } =
         crate::dihedral::decide_reported("enters_material", margin, band)
             .map_err(LeverEscalation::reading)?;
@@ -436,7 +472,7 @@ impl<T: Decide> ParallelNormal<T> {
     /// `"enters_material_arm"`, or [`LeverRung::Reading`], predicate
     /// `"enters_material"`, which also carries the gate's rejection.
     pub fn sense(self) -> Result<(ParallelSense, MarginDiag), LeverEscalation> {
-        let margin = sense_margin(self.dir, self.outward_normal, self.arm, self.band)?;
+        let margin = sense_margin(self.dir, self.outward_normal.vec(), self.arm, self.band)?;
         let (sign, read) =
             crate::dihedral::decide_nonzero_reported("enters_material", margin, self.band)
                 .map_err(LeverEscalation::reading)?;
@@ -456,16 +492,13 @@ impl<T: Decide> ParallelNormal<T> {
 /// (`"enters_material_arm"`).
 fn sense_margin<T: Decide>(
     dir: Vec3<T>,
-    outward_normal: OutwardNormal<T>,
+    normal: Vec3<T>,
     arm: T,
     band: Band,
 ) -> Result<Margin<T>, LeverEscalation> {
     crate::dihedral::decide_positive("enters_material_arm", Margin::of(arm), band)
         .map_err(LeverEscalation::arm)?;
-    Ok(Margin::levered(
-        dir.normalize().dot(outward_normal.vec()),
-        arm,
-    ))
+    Ok(Margin::levered(dir.normalize().dot(normal), arm))
 }
 
 /// **`enters_material_order2`** — the second-order descent of the
@@ -510,9 +543,71 @@ pub fn enters_material_order2<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
+    // The parting against a plane (`κ_b = 0`), normalized for speed after
+    // the dot product, as an interval reading keeps it narrowest.
+    decide_order2(
+        Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm),
+        arm,
+        band,
+    )
+}
+
+/// **How far one curve stands past another it leaves tangent to, one
+/// order down**: two curves leave a point along one tangent, bending
+/// with curvature vectors `κ` and `κ_b` (per arc length squared, normal
+/// to the tangent), and at arc length `l` along it the first stands
+/// `(κ − κ_b)·û·l²/2` past the second toward the unit `u` (square to the
+/// tangent). `bend` is the difference `κ − κ_b`, formed by the caller
+/// before the dot product: where both bends share a factor (a germ's
+/// `n̂ × t̂`, a reference normal), the caller differences the scalars
+/// first, so an interval reading of that factor does not widen the
+/// margin twice. Positive where the curve with `κ` stands past the one
+/// with `κ_b` toward `u`. Its sign does not depend on `l`, which sets
+/// only the size the margin is decided at: the lever is the caller's,
+/// the shorter of the two curves' reaches where both are edges.
+///
+/// The one reading of a second-order parting between two sheets or
+/// curves tangent at a point or along a line: a curve against a plane
+/// (`κ_b` zero, [`enters_material_order2`]), two germs tied along one
+/// tangent ([`tied_germ_turn`]), two carriers' normal sections along a
+/// shared tangent, and the boolean's in-plane bound-against-bound and
+/// wall-against-floor readings, each deciding the margin under its own
+/// predicate.
+#[must_use]
+pub fn parting<T: Real>(bend: Vec3<T>, u: Vec3<T>, l: T) -> Margin<T> {
+    Margin::sagitta(bend.dot(u), l)
+}
+
+/// **[`parting`]'s side against a reference normal**, decided: where
+/// the bend difference `bend = κ − κ_b` carries the first curve past
+/// the second along the reference normal it `Exits`, against it
+/// `Enters`, and an exactly-zero parting is `Tangent` (the caller's
+/// tie: never guess). The arm is gated first
+/// (`"tangent_sector_order2_arm"`), the parting decided under
+/// `"tangent_sector_order2"`.
+///
+/// # Errors
+///
+/// As [`enters_material_order2`].
+pub fn parting_side<T: Decide>(
+    bend: Vec3<T>,
+    reference_normal: ReferenceNormal<T>,
+    arm: T,
+    band: Band,
+) -> Result<EntersMaterial, LeverEscalation> {
+    decide_order2(parting(bend, reference_normal.vec(), arm), arm, band)
+}
+
+/// The second-order verdict's two gates: the arm
+/// (`"tangent_sector_order2_arm"`), then the margin
+/// (`"tangent_sector_order2"`).
+fn decide_order2<T: Decide>(
+    margin: Margin<T>,
+    arm: T,
+    band: Band,
+) -> Result<EntersMaterial, LeverEscalation> {
     crate::dihedral::decide_positive("tangent_sector_order2_arm", Margin::of(arm), band)
         .map_err(LeverEscalation::arm)?;
-    let margin = Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm);
     Ok(
         match crate::dihedral::decide("tangent_sector_order2", margin, band)
             .map_err(LeverEscalation::reading)?
@@ -522,6 +617,56 @@ pub fn enters_material_order2<T: Decide>(
             Sign::Zero => EntersMaterial::Tangent,
         },
     )
+}
+
+/// Why [`tied_germ_turn`] gave no order.
+#[derive(Clone, Copy, Debug)]
+pub enum TiedGermsError {
+    /// A germ's bend did not read: its section's surface is singular at
+    /// the point (a cone's apex), has no implicit form, or meets the
+    /// plane tangentially there.
+    Singular,
+    /// The arm or the second-order reading escalated.
+    Lever(LeverEscalation),
+}
+
+/// **Two germs tied along one tangent, ordered one order down**: two
+/// germs leave a point along the unit `t` in the plane whose unit
+/// normal is `normal`, and `bends` say how fast each one's section
+/// leaves `t` toward `normal × t` at unit speed
+/// ([`crate::implicit_graph_acceleration`] in a plane,
+/// [`crate::implicit_section_acceleration`] in a curved face's tangent
+/// plane). Positive where germ 1 curves counterclockwise of germ 0 about
+/// `normal`, Negative where clockwise, and Zero where they curve alike:
+/// the caller's tie. The reading is [`parting_side`]'s, the
+/// displacement the bends' difference makes at `arm`.
+///
+/// # Errors
+///
+/// [`TiedGermsError::Singular`] where a bend is poison or unbounded;
+/// [`TiedGermsError::Lever`] where [`enters_material_order2`] escalates.
+pub fn tied_germ_turn<T: Decide>(
+    normal: Vec3<T>,
+    t: Vec3<T>,
+    bends: [T; 2],
+    arm: T,
+    band: Band,
+) -> Result<Sign, TiedGermsError> {
+    let bend = bends[1] - bends[0];
+    if !bend.is_bounded() {
+        return Err(TiedGermsError::Singular);
+    }
+    match parting_side(
+        normal.cross(t) * bend,
+        ReferenceNormal::of_germ(normal, t),
+        arm,
+        band,
+    ) {
+        Ok(EntersMaterial::Exits) => Ok(Sign::Positive),
+        Ok(EntersMaterial::Enters) => Ok(Sign::Negative),
+        Ok(EntersMaterial::Tangent) => Ok(Sign::Zero),
+        Err(escalation) => Err(TiedGermsError::Lever(escalation)),
+    }
 }
 
 /// The verdict of [`bends_into_material`]: which way a wall curves off

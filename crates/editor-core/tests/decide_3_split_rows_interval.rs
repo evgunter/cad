@@ -76,12 +76,13 @@ fn decide_3_no_predicate_loses_a_decision() {
                 "  {p}: {b:?} -> {a:?}{}",
                 if a == *b { "" } else { "  <- moved" }
             );
-            // **TWO predicates are pinned at their numbers, with their
-            // reasons**, both on R2's link, `[symbolic, numeric]` on both
-            // sides, so any further drift reds and says which. Neither
-            // loses a decision; they are the ones this unit's dials
-            // MOVE, and a pin on both sides is what tells a re-baseline
-            // from a drift.
+            // **TWO predicates are pinned at their numbers on R2's link,
+            // and one on the bracket, with their reasons**,
+            // `[symbolic, numeric]` on both sides, so any further drift
+            // reds and says which. The link's lose no decision; they are
+            // the ones this unit's dials MOVE, and a pin on both sides is
+            // what tells a re-baseline from a drift. The bracket's is the
+            // one trade, and its reason is beside it.
             //
             // `carrier_on_surface_1`/`_2` is rule G's trade: the tangent
             // arc's quarter-tangent `2w / sqrt(4w²)`, which rule G
@@ -113,14 +114,30 @@ fn decide_3_no_predicate_loses_a_decision() {
             // after its transform:
             // +36 symbolic on each `carrier_on_surface_*` slot and +18 on
             // `carrier_matches_mapped_source`, on both sides alike, so
-            // each trade is the one it was.
+            // each trade is the one it was. Rule H's angle sums take
+            // eight more of `carrier_matches_mapped_source` on both
+            // sides alike (`[170, 28] -> [178, 20]`, `[174, 24] ->
+            // [182, 16]`).
             let pinned: Option<([u64; 2], [u64; 2])> = match (*name, *p) {
                 ("r2_link", "carrier_on_surface_1" | "carrier_on_surface_2") => {
                     Some(([132, 12], [136, 8]))
                 }
-                ("r2_link", "carrier_matches_mapped_source") => Some(([170, 28], [174, 24])),
+                ("r2_link", "carrier_matches_mapped_source") => Some(([178, 20], [182, 16])),
+                // **The one decision rule G trades, against rule H**: on
+                // the bracket rule H's angle sums take six of
+                // `carrier_matches_mapped_source` with rule G shut and two
+                // with it on (`[339, 12]` on both sides before rule H),
+                // the canonical root re-keying four of the roots the
+                // rewrite's sums would meet. One attempt per rung is what
+                // this row runs; the drive's kept-atom ladder, whose first
+                // attempt shuts rule G, takes them back and two more
+                // (`[347, 4]` under `editor_core::drive::DEFAULT_SYM_RETRY`).
+                ("r2_filleted_bracket", "carrier_matches_mapped_source") => {
+                    Some(([345, 6], [341, 10]))
+                }
                 _ => None,
             };
+            let traded = (*name, *p) == ("r2_filleted_bracket", "carrier_matches_mapped_source");
             if let Some(expected) = pinned {
                 assert_eq!(
                     (*b, a),
@@ -128,7 +145,7 @@ fn decide_3_no_predicate_loses_a_decision() {
                     "{name}/{p}: the pinned predicate moved: re-measure it and say what"
                 );
             }
-            if a[0] < b[0] {
+            if a[0] < b[0] && !traded {
                 lost.push(format!("{name}/{p}: discharges fell {b:?} -> {a:?}"));
             }
         }

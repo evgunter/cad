@@ -9,7 +9,7 @@ against a `cargo nextest list --message-format json` listing and fails, naming
 each entry, when one matches nothing.
 
     cargo nextest list --ignore-default-filter <scope> --message-format json \\
-      | check-slow-set-names.py [--complete] [--selftest]
+      | check-slow-set-names.py [--complete | --members a,b,...] [--selftest]
 
 WHAT A LISTING CAN DECIDE. A scoped listing (the per-PR `test` job builds the
 crates the diff seeds) holds some packages and not others. An entry is checked
@@ -17,7 +17,13 @@ when its binary's PACKAGE is in the listing: the binary must be there, and the
 name must be one of its tests. An entry whose package the listing does not
 hold is left unchecked and counted, never passed silently. `--complete` says
 the listing is the whole workspace (the nightly's), so every entry is checked
-and a package absent from it is itself a dead entry.
+and a package absent from it is itself a dead entry. `--members` names the
+workspace's packages instead (the per-PR `test` job, whose two shards each
+list part of the scope): an entry whose package is no member is dead, and one
+whose member this listing does not hold is left unchecked. THE GAP: an entry
+naming a real member whose package has no test binary in EITHER shard's
+listing is unchecked in both, which `--complete` would have failed; no shard
+sees the other's listing, so nothing per-PR closes it.
 
 The listing is the default-feature build both gating `--profile ci` runs over
 the kernel use; a name that exists only under a feature would read as dead
@@ -56,13 +62,19 @@ def entries(filter_text: str) -> list[tuple[str, str]]:
 
 
 def check(
-    pairs: list[tuple[str, str]], suites: dict[str, set[str]], complete: bool
+    pairs: list[tuple[str, str]],
+    suites: dict[str, set[str]],
+    complete: bool,
+    members: set[str] | None = None,
 ) -> int:
     """Print the verdict and return the exit status."""
     packages = {b.split("::")[0] for b in suites}
     dead, unchecked = [], Counter()
     for binary, name in pairs:
-        if not complete and binary.split("::")[0] not in packages:
+        package = binary.split("::")[0]
+        if members is not None and package not in members:
+            dead.append(f"{binary}: {name} (no workspace package `{package}`)")
+        elif not complete and package not in packages:
             unchecked[binary] += 1
         elif binary not in suites:
             dead.append(f"{binary}: {name} (no test binary `{binary}` in the listing)")
@@ -118,6 +130,19 @@ def selftest() -> int:
         check(pairs, {"a::all": {"m::x", "m::y"}, "b::all": set()}, complete=False) == 1
     ), "package in scope, binary gone"
     assert check([*pairs, ("b", "n::z")], live, complete=True) == 1, "duplicate"
+    half = {"a::all": {"m::x", "m::y"}}
+    assert check(pairs, half, complete=False, members={"a", "b"}) == 0, (
+        "member another shard lists"
+    )
+    assert check(pairs, half, complete=False, members={"a"}) == 1, "no such package"
+    # THE GAP: `b` is a member, but no listing holds a `b` binary. Each shard
+    # passes it unchecked; the whole-workspace `--complete` listing fails it.
+    assert check(pairs, half, complete=False, members={"a", "b"}) == 0, (
+        "member with no binary in any listing passes under --members"
+    )
+    assert check(pairs, half, complete=True) == 1, (
+        "the same listing fails it under --complete"
+    )
     try:
         entries(text.replace("test(=m::x)", "test(=m::x )"))
     except SystemExit:
@@ -131,9 +156,22 @@ def selftest() -> int:
 def main(argv: list[str]) -> int:
     if "--selftest" in argv:
         return selftest()
+    members = None
+    if "--members" in argv:
+        i = argv.index("--members")
+        if i + 1 >= len(argv) or not argv[i + 1]:
+            die("--members takes a comma-separated package list")
+        members = set(argv[i + 1].split(","))
+        argv = argv[:i] + argv[i + 2 :]
+    if "--complete" in argv and members is not None:
+        die(
+            "--complete and --members are mutually exclusive: a complete listing "
+            "needs no member list"
+        )
     if set(argv) - {"--complete"}:
         die(
-            f"unknown arguments {argv}; usage: check-slow-set-names.py [--complete] [--selftest]"
+            f"unknown arguments {argv}; usage: check-slow-set-names.py "
+            "[--complete | --members a,b,...] [--selftest]"
         )
     complete = "--complete" in argv
     try:
@@ -145,7 +183,7 @@ def main(argv: list[str]) -> int:
         listing = json.load(sys.stdin)
     except json.JSONDecodeError as exc:
         die(f"stdin is not a JSON listing ({exc})")
-    return check(entries(text), suites_of(listing), complete)
+    return check(entries(text), suites_of(listing), complete, members)
 
 
 if __name__ == "__main__":

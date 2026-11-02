@@ -63,3 +63,21 @@ Pinned only as "refuses typed in the band" by the near rows of
 
 - Re-banded P3 → P2: a subdivision ray along the trace reads in band at ±0.6ε: interval and error propagation, P2 by `work/README.md` Priority.
 - Moved to HONEPOSE (`work/honepose/`) by `git mv`, id and body unchanged: the P2 track opened for in-band refusals at measured poses: a reading that lands in band where the pose is not near a decision. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Also measured: the Boolean's coplanar overlap (2026-10-29)
+
+Branch `splitdoor/arm-vs-reach`, while building
+`crates/sweep/tests/a_long_bound_beside_a_short_arm.rs`: with the boss's
+quad `(0, 0), 0.4·(cos θ, −sin θ), (0.4, 0.3), s·(cos 45°, sin 45°)`
+(`θ = 10⁻²`, `s = 300ε`) on the plate holed by
+`(0, 0), (0.5, 0), (0.5, 0.5), (0, s)`, every op at ε 1e-6 on that
+branch's head (main refuses earlier, at the shared corner) refuses
+`Escalated { decision: Coincidence(Sectors, Moot) }` on
+`bool_sector_within`, margin `±6.58e-6`. The site is the vertex where
+the boss's edge to `(0.4, 0.3)` crosses the hole's edge `y = 0`: the
+plate top's corner there is straight, split at the bisector `(0, −1)`
+(`Reach::Bisector(0.1)`), and `boolean/sectors.rs` `sector_overlap`
+reads the boss's edge, `6.58e-5` rad off that bisector, against it at
+the bisector's reach. The bisector is no geometry, so the in-band
+reading refuses a pose nothing in the operands puts in band. Moving
+the boss's vertex to `(0.35, 0.25)` clears it.

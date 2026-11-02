@@ -60,7 +60,7 @@ test_utils::f6_variants! {
 test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, UnplaceablePart, Unresolved,
-        EpsilonSeam, PartCarriesMetadata, VarNameConflict,
+        EpsilonSeam, PartCarriesMetadata, VarNameConflict, UnreadPose,
         UnresolvedVarCrossesCut, InstanceBodyNameReferenced, NameOnDroppedStep,
         StrandedPartName,
         StrandedPartRead, Edit,
@@ -216,6 +216,12 @@ fn inline_refusals() -> Vec<InlineError> {
             key: "author".to_owned(),
         },
         InlineError::VarNameConflict { name: param() },
+        InlineError::UnreadPose {
+            var: editor_core::SpokenVar::new(
+                editor_core::VarId::new(0, test_utils::refusal::tagged(9)),
+                Some(param()),
+            ),
+        },
         InlineError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(
                 editor_core::VarId::new(0, test_utils::refusal::tagged(9)),

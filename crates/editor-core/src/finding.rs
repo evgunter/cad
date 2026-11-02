@@ -40,7 +40,7 @@ use core::fmt;
 /// generic tail on top of a story that has one.
 pub(crate) trait Finding {
     /// Writes what the finding is ABOUT — the attribution a user can
-    /// act on (a check and its `(root, output)` subject, a mate's
+    /// act on (a check and its `(placement, output)` subject, a mate's
     /// declaration, a refusing op). No trailing punctuation;
     /// [`compose`] supplies the joint.
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;

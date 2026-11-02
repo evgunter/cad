@@ -34,3 +34,13 @@ spelling. Measure what moves at each site first: `pair_search`'s
 unsigned reading feeds the coincidence ladder, which reads orientation
 itself.
 
+
+## The third site retired (2026-11-01, ONEREAD)
+
+`wedge_classes` and its `bool_corner_one_plane` reading are deleted by
+ONEREAD's `the-boolean-reads-the-other-operand-through-one-cone`
+(branch `oneread/boolean-one-cone`): the boolean's vertex-vertex rows
+now read each edge through one gathered cone (`topo::link::Cone`),
+whose signs are points' distances from planes. Two sites remain,
+`pair_search`'s `bool_faces_parallel` and the pierce lump's
+`bool_sector_coplanar`.

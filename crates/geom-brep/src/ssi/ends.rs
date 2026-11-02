@@ -367,7 +367,7 @@ impl<'a> Ends<'a> {
         used: &[bool],
     ) -> Result<(usize, SsiBranch), SsiError> {
         let (b, states) = self.march_from(a, crossings, used)?;
-        let end = BranchEnd::Crossings {
+        let end = BranchEnd::Rim {
             from: a.at,
             to: crossings[b].at,
         };
@@ -514,7 +514,7 @@ impl<'a> Ends<'a> {
         close_at(self.sys, &mut forth, crossings[to].state);
         let mut states = back;
         states.extend_from_slice(&forth[1..]);
-        let end = BranchEnd::Crossings {
+        let end = BranchEnd::Rim {
             from: crossings[from].at,
             to: crossings[to].at,
         };
@@ -648,7 +648,7 @@ impl<'a> Ends<'a> {
                 what: "the Hermite candidate is not a finite cubic",
             });
         };
-        let end = BranchEnd::Crossings {
+        let end = BranchEnd::Rim {
             from: a.at,
             to: b.at,
         };

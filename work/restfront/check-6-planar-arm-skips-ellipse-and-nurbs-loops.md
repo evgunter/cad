@@ -5,7 +5,7 @@ title: check 6's planar arm does not examine a planar loop riding a spiric or NU
 status: open
 opened: 2026-09-24
 priority: P2
-cost: D
+cost: M
 refs: [3190, m6-sense-gate-recorded-residuals, 3238]
 ---
 

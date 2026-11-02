@@ -5,7 +5,7 @@ title: pncad-py raises PoseRefusal::OtherSpace (a copy placed into another space
 status: open
 opened: 2026-10-22
 priority: P3
-parent: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
+refs: [5613]
 ---
 
 

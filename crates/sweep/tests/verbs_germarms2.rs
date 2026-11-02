@@ -376,3 +376,43 @@ fn same_door_tells_a_decided_zero_from_a_coincidence_in_band() {
         "two decided zeros a band-width apart at most are one door"
     );
 }
+
+/// **A face-interior cylinder record keeps the join's frame lane**: a
+/// thin rod through a drum's one-face wall, its axis square to the
+/// drum's and off it, cuts the wall in two loops round the rod, each
+/// meeting the rod's wrap edge at one site. The section table holds the
+/// pair, but the join reads two cylinders through its own frame, so
+/// every operation answers the frame's verdict on the skew pair
+/// (`GermFrameUnsupported`), as before the table held it, and never the
+/// one-site loop's refusal.
+#[test]
+fn a_rod_through_a_drum_wall_keeps_the_frames_verdict() {
+    let tol = Tol::witness();
+    let drum = finished("the drum", cyl(0.5, 1.0), tol);
+    let rod = spin(
+        &cyl(0.1, 2.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        core::f64::consts::FRAC_PI_2,
+    );
+    let rod = topo::transform_rigid(
+        &rod,
+        &geom_core::test_support::rigid(
+            &geom_core::Affine3::translation(Vec3::new(0.0, 0.2, 0.3)),
+            tol,
+        ),
+        tol,
+    )
+    .unwrap();
+    let rod = finished("the rod", rod, tol);
+    for (op, r) in [
+        ("drum ∪ rod", topo::union(&drum, &rod, tol)),
+        ("rod ∪ drum", topo::union(&rod, &drum, tol)),
+        ("drum ∖ rod", topo::subtract(&drum, &rod, tol)),
+        ("drum ∩ rod", topo::intersect(&drum, &rod, tol)),
+    ] {
+        assert!(
+            matches!(r, Err(BooleanError::GermFrameUnsupported { .. })),
+            "{op}: the frame's verdict on the skew pair, got {r:?}"
+        );
+    }
+}

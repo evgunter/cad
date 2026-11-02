@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-08
 priority: P3
 cost: M
-refs: [operands-are-reads, measure-is-an-operation]
+refs: [4342, 4355]
 ---
 
 Found by INTENT stage 2 unit B (`operands-are-reads`). Every operand

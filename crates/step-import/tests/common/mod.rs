@@ -178,6 +178,80 @@ pub fn halfcap_fixture(name: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path}: {e}"))
 }
 
+/// `halfcap_nosplit.step`'s solid as the file states it: its meridian
+/// arc ONE edge through the pole. Import makes the pole a vertex
+/// (`chart_singularity_vertex.rs`), so the arc ships as two edges
+/// meeting there; the vertex is killed here by hand and the arc
+/// re-described across it, reaching the stated state as construction
+/// state for the rows that read the pole-crossing arc itself.
+pub fn halfcap_with_its_arc_through_the_pole(tol: Tol) -> Body<f64> {
+    use topo::construction::Construct;
+    let Ok(step_import::StepImport::Solid { body, .. }) = step_import::import_step(
+        &halfcap_fixture("halfcap_nosplit.step"),
+        &step_import::ImportOptions::default(),
+        tol,
+    ) else {
+        panic!(
+            "halfcap_nosplit must import as a solid at eps {:e}",
+            tol.eps()
+        );
+    };
+    let mut body = body.into_body();
+    let (centre, axis, radius) = body
+        .faces()
+        .find_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(geom::Surface::Sphere {
+                center,
+                axis,
+                radius,
+                ..
+            }) => Some((*center, *axis, *radius)),
+            _ => None,
+        })
+        .expect("a sphere face");
+    let pole = body
+        .vertex_points()
+        .find(|(_, p)| (*p - (centre + axis * radius)).norm() < 1e-12)
+        .map(|(v, _)| v)
+        .expect("the pole vertex import mints");
+    // The two meridian halves meeting at the pole, as (edge, carrier,
+    // interval, the half-edge leaving the far end toward the pole).
+    let halves: Vec<_> = body
+        .edges()
+        .filter_map(|(e, d)| {
+            let c = body.get_curve_geom(d.curve)?.certified()?;
+            let (plus, minus) = (d.he_plus, d.he_minus);
+            let start = body.get_half_edge(plus)?.start;
+            let end = body.get_half_edge(minus)?.start;
+            let toward = if end == pole {
+                plus
+            } else if start == pole {
+                minus
+            } else {
+                return None;
+            };
+            Some((e, c.carrier().clone(), c.params(), end == pole, toward))
+        })
+        .collect();
+    let [first, second] = halves.as_slice() else {
+        panic!("two meridian halves at the pole: {}", halves.len());
+    };
+    // `ending` runs into the pole, `leaving` out of it, on one carrier.
+    let (ending, leaving) = if first.3 {
+        (first, second)
+    } else {
+        (second, first)
+    };
+    let tau = core::f64::consts::TAU;
+    let shift = ((ending.2.1 - leaving.2.0) / tau).round() * tau;
+    let whole =
+        geom_brep::EdgeCurveSpec::arc_of_circle(ending.1.clone(), ending.2.0, leaving.2.1 + shift)
+            .expect("a circle arc");
+    body.kev_describing(leaving.4, &[(ending.0, whole)], tol)
+        .expect("the pole vertex is killed and the arc runs across it");
+    body
+}
+
 /// The imported solid body, panicking on a wireframe disposition.
 pub fn import_body(name: &str) -> (Body<f64>, f64) {
     match import_fixture(name) {

@@ -97,6 +97,19 @@ the lane is the first pass itself. Junction checks re-run under every
 binding, and every constructed tangency is re-verified by `validate`,
 never trusted.
 
+A profile drawn on a frame may hold steps that read a face's trace in
+the frame's `xy` (`editor_core::trace`), and any profile may run a leg
+to a written `x` or `y`. The profile itself reads no surface. Before
+the replay, an evaluation lowers each such step to the kernel step it
+lands on, from the pen its prefix leaves (`profile::pen`):
+
+- a leg to a crossing, or to a written `x` or `y`, becomes its length;
+- an arc to a crossing becomes the crossing's point;
+- a heading along the trace becomes the trace's gradient components.
+
+The first pass reads the traces off the nominal f64 evaluation, and
+every lane re-reads them at its own scalar.
+
 `ProfileProgram::check` runs resolve + replay + validate under the
 current parameter environment at the edit door
 (`ProgramRefusal::{Resolve, Transition, Geometry, Validate}`);
@@ -133,7 +146,8 @@ on PR 3102's thread (2026-09-23); names spelling minted step ids rather
 than canonical positions on #3193, with the role lists on #3202.*
 
 **V4 — The stored form, chain-only.** `Node::Profile` carries
-`ProfileProgram { frame: VarId, loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>> }`.
+`ProfileProgram { loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>>, on: Option<DrawnOn> }`,
+`on` the frame and faces a drawn profile reads (none for a free one).
 `LoopProgram` is `Chain(Vec<ProgramStep>)`, `Circle { centre, radius }`
 or `CircleSplit { centre, radius, n, phase }`, the carrier forms being
 one-step programs whose form is structural. There is one wire
@@ -208,8 +222,13 @@ independent closed-form oracles.
   sub-path mechanism (`Expr::descend`) is reused unchanged.
 - **VQ4 — Exact directors.** `toward(dx, dy)` stores the normalized ray
   verbatim; `angle(θ)` stays for genuinely angular authoring.
-- **VQ5 — Steps are core verbs only.** Anything built above the table
-  expands to table steps at authoring; no sugar step exists on the wire.
+- **VQ5 — A step keeps what was written.** A step's arguments are the
+  numbers its author wrote; the document's program stores them as such,
+  each step lowering to the table's core verbs at replay, and no stored
+  number is computed from them (`[recipe.forms]`). A builder whose
+  numbers already are some table step's arguments (`polygon`: its
+  corners) expands to those steps at authoring and stores nothing of its
+  own.
 - **VQ6 — One tolerance.** Replay-time junction checks and both
   validations run under the run's `Tolerance::get()`, reached through
   the `Tol` witness; there is no per-call tolerance value.

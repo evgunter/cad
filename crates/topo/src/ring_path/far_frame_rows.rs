@@ -444,7 +444,7 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
                         1.0 + m,
                         (0.0, 1.0),
                     ))],
-                    crest,
+                    crest.clone(),
                 ),
             ),
             (

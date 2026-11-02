@@ -99,7 +99,9 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Node, Operand, ProfileProgram, RecipeNodeId, SpokenNode};
+use pncad::document::{
+    Doc, HeldNodes, Node, Operand, ProfileProgram, RecipeNodeId, Speaker, SpokenNode,
+};
 use pncad::select::SplitHalf;
 
 use crate::session::{NodeKindWanted, admits};
@@ -298,6 +300,13 @@ pub struct Seats {
     held: [Option<SpokenNode>; 2],
     /// Which output of its node each seat reads.
     ports: [Port; 2],
+    /// **The drawn part each viewport pick hit**: the node whose drawn
+    /// part was under the pointer — a placement's copy, which the seat
+    /// reads past to the body it places ([`crate::world::seat_read`]),
+    /// or a body drawn as itself. `None` for a tree pick, which hit no
+    /// part. Where the person aimed, for a preview drawn where they
+    /// aimed.
+    through: [Option<RecipeNodeId>; 2],
 }
 
 /// **Which output of its node a pick reads** — a seat's, or a boolean
@@ -355,10 +364,12 @@ impl Port {
     }
 }
 
-/// **A pick as the panel says it**: the node as `doc` speaks it, and
-/// the half it reads or still waits for.
-pub(crate) fn pick_said(doc: &Doc<ProfileProgram>, node: RecipeNodeId, port: Port) -> String {
-    let node_said = doc.spoken(node).to_string();
+/// **A pick as the panel says it**: the node said by `by`, a node `by`
+/// does not hold as the tool kept it (`kept`, its last label), and the
+/// half it reads or still waits for.
+pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: Port) -> String {
+    let held: HeldNodes = [kept.clone()].into_iter().collect();
+    let node_said = by.or_held(&held).node(kept.id()).to_string();
     match port {
         Port::Half(half) => format!("{node_said}, {} half", half.name()),
         Port::HalfPending => format!("{node_said}, half not chosen"),
@@ -373,6 +384,7 @@ impl Seats {
             roles,
             held: [None, None],
             ports: [Port::Alone, Port::Alone],
+            through: [None, None],
         }
     }
 
@@ -394,6 +406,8 @@ impl Seats {
             roles,
             held: [a.map(|p| p.0), b.map(|p| p.0)],
             ports,
+            // Re-seated, not picked: no copy was aimed at.
+            through: [None, None],
         }
     }
 
@@ -431,10 +445,12 @@ impl Seats {
         self.ports.get(i) == Some(&Port::HalfPending)
     }
 
-    /// **Seat `i`'s pick as the panel says it** ([`pick_said`]), the
+    /// **Seat `i`'s pick as the panel says it** ([`pick_said`]) by
+    /// `by`, a node `by` does not hold by the label the seat kept: the
     /// item [`seat_line`] composes; `None` for an open seat.
-    pub(crate) fn said(&self, doc: &Doc<ProfileProgram>, i: usize) -> Option<String> {
-        self.held(i).map(|node| pick_said(doc, node, self.ports[i]))
+    pub(crate) fn said(&self, by: Speaker<'_>, i: usize) -> Option<String> {
+        let kept = self.held[i].as_ref()?;
+        Some(pick_said(by, kept, self.ports[i]))
     }
 
     /// Seat `i`'s role.
@@ -485,6 +501,8 @@ impl Seats {
 
     /// [`Seats::pick`] of the output `body` a viewport pick hit.
     pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        // A viewport pick names the body it hit; a tree pick names none.
+        let through = body.map(|_| node);
         let (node, port) = crate::world::seat_read(doc, node, body);
         let state = |seat: Seat| Port::of_pick(doc, node, port, seat.wants());
         // **A one-seat tool has one seat, and its role names itself
@@ -500,6 +518,7 @@ impl Seats {
         if self.arity() == 1 {
             self.held[0] = said;
             self.ports[0] = state(self.roles[0]);
+            self.through[0] = through;
             return;
         }
         let plain = usize::from(self.held[0].is_some());
@@ -512,6 +531,7 @@ impl Seats {
         };
         self.held[seat] = said;
         self.ports[seat] = state(self.roles[seat]);
+        self.through[seat] = through;
     }
 
     /// Empty every seat — the chrome's "start the picks over" door.
@@ -527,6 +547,7 @@ impl Seats {
     pub fn clear(&mut self) {
         self.held = [None, None];
         self.ports = [Port::Alone, Port::Alone];
+        self.through = [None, None];
     }
 
     /// **The held picks' nodes, spoken again from `doc`**, the shown
@@ -535,6 +556,23 @@ impl Seats {
     /// keeps the last it had, which is what a drop names it by.
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         respeak_each(&mut self.held, doc);
+        self.drop_stale_through(doc);
+    }
+
+    /// **A drawn part that no longer draws its seat's pick is forgotten**:
+    /// gone from the document, or now drawing another body (a takeover
+    /// re-pointed the copy). The pick stands; where it was aimed is no
+    /// longer drawn.
+    fn drop_stale_through(&mut self, doc: &Doc<ProfileProgram>) {
+        for i in 0..2 {
+            let held = self.held(i);
+            if let Some(part) = self.through[i]
+                && (doc.node(part).is_none()
+                    || Some(crate::world::seat_read(doc, part, None).0) != held)
+            {
+                self.through[i] = None;
+            }
+        }
     }
 
     /// Re-read the held picks against the document, dropping any whose
@@ -549,13 +587,21 @@ impl Seats {
                 && let Some(node) = self.held[i].take()
             {
                 self.ports[i] = Port::Alone;
+                self.through[i] = None;
                 events.push(SeatEvent::PickLost {
                     seat: self.roles[i],
                     node,
                 });
             }
         }
+        self.drop_stale_through(doc);
         events
+    }
+
+    /// **The drawn part seat `i`'s viewport pick hit** (the field's
+    /// rule), `None` for a tree pick or an empty seat.
+    pub fn through(&self, i: usize) -> Option<RecipeNodeId> {
+        self.through.get(i).copied().flatten()
     }
 
     /// Seat `i`'s pick, or the typed "still empty" refusal naming it.
@@ -627,18 +673,20 @@ pub(crate) fn respeak_each(held: &mut [Option<SpokenNode>], doc: &Doc<ProfilePro
 /// order, or name ones the tool no longer has, and still compile.
 ///
 /// Each item is said in the words a seat's drop notice uses
-/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick as `doc`
-/// speaks it, so the panel and the notice about the same pick call it
-/// one thing.
-pub fn seat_line(seats: &Seats, doc: &Doc<ProfileProgram>) -> String {
-    picks_line((0..seats.arity()).map(|i| (seats.roles[i].name(), seats.said(doc, i))))
+/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick by `by`,
+/// the landed speaker the chrome speaks
+/// ([`crate::frame::landed_speaker`]), a node it no longer holds by the
+/// label the seat kept — the label the drop notice says — so the panel
+/// and the notice about the same pick call it one thing.
+pub fn seat_line(seats: &Seats, by: Speaker<'_>) -> String {
+    picks_line((0..seats.arity()).map(|i| (seats.roles[i].name(), seats.said(by, i))))
 }
 
 /// **The composition of the seated tools' and the mate tool's
-/// held-picks line**: `no picks yet` while nothing is held, else one
-/// `role: pick` item per seat, `—` for an open one, joined on `"; "`.
+/// held-picks line**: [`NONE_PICKED`] while nothing is held, else one
+/// `role: pick` item per seat, [`NONE_PICKED`] for an open one, joined on `"; "`.
 /// [`seat_line`] reaches it for the seated tools and
-/// [`crate::matetool::MateToolState::line`] for the mate tool, whose
+/// [`crate::matetool::MateTool::line`] for the mate tool, whose
 /// picks are faces and whose state is not [`Seats`] (module docs) but
 /// whose line has this shape. Each caller spells its own items; the
 /// shape, the empty sentence and the mark are this function's.
@@ -655,16 +703,22 @@ pub fn seat_line(seats: &Seats, doc: &Doc<ProfileProgram>) -> String {
 /// second level misread"). Nor does the mark earn a constant of its
 /// own: nothing splits a panel line back into its items, so there is
 /// no hold for a name to carry.
+/// **What a panel says of a pick it does not hold**: an open seat in a
+/// held-picks line, a line holding nothing at all, and a form's latch
+/// row with no face latched (`crate::drafts::latch_said`). The one
+/// spelling of an empty pick.
+pub(crate) const NONE_PICKED: &str = "none picked";
+
 pub(crate) fn picks_line<R: core::fmt::Display>(
     picks: impl IntoIterator<Item = (R, Option<String>)>,
 ) -> String {
     let picks: Vec<_> = picks.into_iter().collect();
     if picks.iter().all(|(_, held)| held.is_none()) {
-        return "no picks yet".to_owned();
+        return NONE_PICKED.to_owned();
     }
     picks
         .iter()
-        .map(|(role, held)| format!("{role}: {}", held.as_deref().unwrap_or("—")))
+        .map(|(role, held)| format!("{role}: {}", held.as_deref().unwrap_or(NONE_PICKED)))
         .collect::<Vec<_>>()
         .join("; ")
 }

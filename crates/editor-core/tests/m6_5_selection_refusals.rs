@@ -51,6 +51,7 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
         Node::Profile(ProfileProgram {
             loops: vec![square],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, body) = fixture::insert(

@@ -66,3 +66,13 @@ parameter is "a place to read, never a decision".
 
 Either moves `Interval` bits on every polished pose. A design fork:
 weighed by the designer pair before any `[ev]` PR.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`
+is still red at 1e-12 (tier 3′: `ContactLane(NotCertifiable { the meeting
+reading of two curved edges could not settle a count })`). It is pinned
+at 1e-12 on that text, citing this row; the pin goes red the day the row
+passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.

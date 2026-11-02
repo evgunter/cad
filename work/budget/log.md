@@ -25,3 +25,11 @@ dispatched.
     - `tess-budget-baseline-drifts-from-mains-own-numbers-between-cuts` into `tess-lint-re-cut-folds-uncompared-columns`.
   - The slate table is re-generated. **Load:** 26/30.
 - 2026-10-26 — (easy-fixes lane) Closed `tess-lint-recourse-quote-half-pinned`: `cli_contract.rs` asserts `docs/TESS-BUDGET.md` still carries the sentence the recourse quotes.
+
+## A note from GREEN (2026-10-28) — rows re-homed or re-banded
+
+GREEN (`work/green/`) opened with a priority-seam cut across the infra
+group and took this program's green-main or gate-latency rows by
+`git mv`, ids unchanged; `work/green/log.md` lists them. Any P1 left
+here was re-banded where it was test-side rather than production
+architecture; the row's own `## Re-banded` section says why.

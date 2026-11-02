@@ -1,6 +1,6 @@
 //! **The section table**: the section of every cross-operand surface
 //! pair whose faces' boxes meet and whose kinds the section value builds
-//! ([`geom_brep::pair_section`]), read once per operation at the glue
+//! ([`geom_brep::pair_section()`]), read once per operation at the glue
 //! door ([`super::glue::section_door`]) and held on the reduction.
 //!
 //! Keyed by surface pair, A's surface then B's: two faces on one carrier
@@ -12,21 +12,24 @@
 //!   whose section stands on a coincidence decided `Zero` is recorded
 //!   from it, never by a second reading;
 //! - the interior-loop guard ([`super::section_cert::of_pair_section`]),
-//!   which takes the pair's components and decides its verdict from them
-//!   with the reduction's events, so the verdict is the guard's, not the
-//!   table's;
+//!   which takes the pair's components, counted or carried, and decides
+//!   its verdict from them with the reduction's events, so the verdict is
+//!   the guard's, not the table's;
 //! - the germ mint ([`super::join::germ_branch`]), which takes a site's
-//!   component;
+//!   component, its foot's on the carried section;
 //! - the join's matcher, which takes a site's foot on its component,
 //!   once per germ ([`SectionTable::germ_foot`]), keyed by the germ's
 //!   operand, its half-edge and the pair it was read on.
 //!
 //! The table is classified when it is built, and a pair is carried on
-//! its first read that needs a carrier, through the scalar's march door
-//! ([`crate::AtRestPolicy::ssi_lane`]) held from the build: so only a
-//! pair whose germs the join matches is ever marched. The table is read
-//! through a [`SectionReader`], which takes the operation's one band at
-//! its making, so every pair is classified and carried at that band. An
+//! its first read that needs a carrier or a list no closed form counts,
+//! through the scalar's march door ([`crate::AtRestPolicy::ssi_lane`])
+//! held from the build: so only a pair with a germ, or one the guard
+//! reads whose components are the march's, is ever marched. The table is read
+//! through a [`SectionReader`], which takes the operation's one band and
+//! one region at its making, so every pair is classified and carried at
+//! that band, and every pair traced in ℝ³ over that region
+//! ([`SectionTable::region_for`]). An
 //! empty table (`Default`) is a reduction that read no section: a
 //! sweep-only door's.
 
@@ -34,7 +37,8 @@ use std::cell::{OnceCell, RefCell};
 use std::collections::BTreeMap;
 
 use geom_brep::{
-    CarriedSection, CarryError, PairSection, SectionError, SiteFoot, SiteRefusal, SsiLane,
+    CarriedComponent, CarriedSection, CarryError, ExtentBall, PairSection, Seated, SectionError,
+    SiteFoot, SiteRefusal, SsiLane,
 };
 use geom_core::{Band, Indeterminate, Real};
 
@@ -50,6 +54,9 @@ struct Held<T: Real> {
     read: Result<PairSection<T>, SectionError>,
     band: Band,
     carried: OnceCell<Result<CarriedSection<T>, CarryError>>,
+    /// Each carried component, seated on the first ask for it
+    /// ([`SectionTable::seated`]).
+    seated: OnceCell<Vec<OnceCell<Seated<T>>>>,
 }
 
 /// **The table's key**: A's surface, then B's. Both are keys of their
@@ -99,6 +106,7 @@ struct FootKey {
 pub(crate) struct SectionTable<T: Real> {
     pairs: BTreeMap<PairKey, Held<T>>,
     lane: Option<SsiLane<T>>,
+    region: Option<ExtentBall<T>>,
     feet: RefCell<BTreeMap<FootKey, Result<GermFoot<T>, FootRefusal>>>,
 }
 
@@ -116,6 +124,7 @@ impl<T: Real> Default for SectionTable<T> {
         Self {
             pairs: BTreeMap::new(),
             lane: None,
+            region: None,
             feet: RefCell::new(BTreeMap::new()),
         }
     }
@@ -125,7 +134,14 @@ impl<T: geom_core::Decide> SectionReader<T> {
     /// Reads surface `ka` of A against `kb` of B at the reader's band,
     /// the band the pair is classified and carried at: the section on the
     /// pair's first read, the held one after, at the same band. `None`
-    /// where the value does not build the kind pair.
+    /// where the value does not build the kind pair. The glue door's
+    /// filter (`pair_section::serves`) keeps a spline out, against a plane
+    /// or another spline: read here, with no march door, a plane and a
+    /// spline would be the hull's where it decides the pose (apart,
+    /// coincident, or in band) and otherwise `SectionError::NoMarch`, and
+    /// two splines `NoMarch`, which the guard would read as R-lane
+    /// (`Section::NoLane`), with no shared row handed in. The guard
+    /// refuses a held spline pair rather than read it.
     pub(crate) fn read(
         &mut self,
         (ka, sa): (SurfaceKey, &geom::Surface<T>),
@@ -133,10 +149,11 @@ impl<T: geom_core::Decide> SectionReader<T> {
     ) -> Option<&Result<PairSection<T>, SectionError>> {
         use std::collections::btree_map::Entry;
         let band = self.band;
+        let region = self.table.region_for(sa, sb);
         match self.table.pairs.entry(PairKey { a: ka, b: kb }) {
             Entry::Occupied(held) => Some(&held.into_mut().read),
             Entry::Vacant(slot) => {
-                let read = match geom_brep::pair_section(sa, sb, band) {
+                let read = match geom_brep::pair_section(sa, sb, region, None, band) {
                     Ok(geom_brep::SectionRead::Elsewhere(_)) => return None,
                     Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
                     Err(e) => Err(e),
@@ -147,6 +164,7 @@ impl<T: geom_core::Decide> SectionReader<T> {
                             read,
                             band,
                             carried: OnceCell::new(),
+                            seated: OnceCell::new(),
                         })
                         .read,
                 )
@@ -163,14 +181,32 @@ impl<T: geom_core::Decide> SectionReader<T> {
 impl<T: geom_core::Decide> SectionTable<T> {
     /// The reader of a table that classifies every pair at `band`, the
     /// operation's, and carries through `lane`.
-    pub(crate) fn reader(lane: Option<SsiLane<T>>, band: Band) -> SectionReader<T> {
+    pub(crate) fn reader(
+        lane: Option<SsiLane<T>>,
+        region: Option<ExtentBall<T>>,
+        band: Band,
+    ) -> SectionReader<T> {
         SectionReader {
             table: Self {
                 lane,
+                region,
                 ..Self::default()
             },
             band,
         }
+    }
+
+    /// **The region a pair of `sa` and `sb` is read over** (C3, C5): the
+    /// operation's, for a pair traced in ℝ³
+    /// ([`geom_brep::pair_section::traced_in_r3`]), and none otherwise.
+    pub(crate) fn region_for(
+        &self,
+        sa: &geom::Surface<T>,
+        sb: &geom::Surface<T>,
+    ) -> Option<ExtentBall<T>> {
+        geom_brep::pair_section::traced_in_r3(sa.kind(), sb.kind())
+            .then_some(self.region)
+            .flatten()
     }
 
     /// The section held for A's face `fa` against B's `fb`, by their
@@ -201,6 +237,85 @@ impl<T: geom_core::Decide> SectionTable<T> {
         Some(
             held.carried
                 .get_or_init(|| section.carry(self.lane, held.band))
+                .as_ref()
+                .map_err(Uncarried::Carry),
+        )
+    }
+
+    /// **Whether the join reads the pair of `a` and `b` from the table**:
+    /// every pair the table holds but two cylinders, which the join reads
+    /// through its own frame and bisector lanes
+    /// (`join::cylinder_pair_frame`, `node.rs`) and not the value, whose
+    /// bisector arcs a site at a node lies on more than one of. The one
+    /// gate both of the join's readings ([`Self::held_at_the_join`],
+    /// [`Self::carried_at_the_join`]) take.
+    fn join_reads(a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> bool {
+        let cylinder = |(body, f): (&Body<T>, FaceKey)| {
+            body.get_face(f)
+                .and_then(|face| body.get_surface(face.surface))
+                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
+        };
+        !(cylinder(a) && cylinder(b))
+    }
+
+    /// [`Self::held`], for the join ([`Self::join_reads`]).
+    pub(crate) fn held_at_the_join(
+        &self,
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+    ) -> Option<&Result<PairSection<T>, SectionError>> {
+        Self::join_reads(a, b).then(|| self.held(a, b)).flatten()
+    }
+
+    /// [`Self::carried`], for the join ([`Self::join_reads`]).
+    pub(crate) fn carried_at_the_join(
+        &self,
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+    ) -> Option<Result<&CarriedSection<T>, Uncarried<'_>>> {
+        Self::join_reads(a, b).then(|| self.carried(a, b)).flatten()
+    }
+
+    /// **Component `k` of the pair's carried section, seated**
+    /// ([`PairSection::seat`]) at its parameter `at`, on the first ask
+    /// for that component, and held for the operation: every chord cut
+    /// from the component reads the one seated carrier, so both
+    /// operands' chords cut the same bits. `None` where the table holds
+    /// no section for the pair.
+    ///
+    /// **`at` is the component's seat, the same on every ask**: the join
+    /// reads it once per component, from the section and its sites alone
+    /// (`join::carried_seats`), before any chord is cut, so the seat held
+    /// is the one every later ask names, whichever segment asks first.
+    pub(crate) fn seated(
+        &self,
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+        k: usize,
+        at: T,
+    ) -> Option<Result<&CarriedComponent<T>, Uncarried<'_>>> {
+        let held = self.entry(a, b)?;
+        let section = match &held.read {
+            Ok(section) => section,
+            Err(e) => return Some(Err(Uncarried::Section(e))),
+        };
+        let carried = match self.carried(a, b)? {
+            Ok(carried) => carried,
+            Err(e) => return Some(Err(e)),
+        };
+        let Some(component) = carried.components().get(k) else {
+            return Some(Err(Uncarried::Component));
+        };
+        let slots = held.seated.get_or_init(|| {
+            carried
+                .components()
+                .iter()
+                .map(|_| OnceCell::new())
+                .collect()
+        });
+        Some(
+            slots[k]
+                .get_or_init(|| section.seat(self.lane, component, at, held.band))
                 .as_ref()
                 .map_err(Uncarried::Carry),
         )
@@ -251,8 +366,10 @@ impl<T: geom_core::Decide> SectionTable<T> {
 pub(crate) enum Uncarried<'t> {
     /// The pair's section refused at the glue door.
     Section(&'t SectionError),
-    /// The section did not carry.
+    /// The section did not carry, or a component did not seat.
     Carry(&'t CarryError),
+    /// A germ names a component the carried section does not have.
+    Component,
 }
 
 #[cfg(test)]

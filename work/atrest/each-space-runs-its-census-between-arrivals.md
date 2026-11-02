@@ -2,12 +2,12 @@
 id: each-space-runs-its-census-between-arrivals
 kind: unit
 title: Each ⊔ decides its operands' meetings: the census at each Assemble's door decides between arrivals and nothing inside one, confirms and matches what an arrival carries, and reports each finding once, at the ⊔ that decided it
-status: parked
+status: open
 opened: 2026-10-19
 priority: P1
 cost: M
-refs: [a-census-contact-is-a-row-and-a-record, a-placement-carries-its-sources-at-rest-result]
-blocked_on: [a-placement-carries-its-sources-at-rest-result]
+refs: [a-census-contact-is-a-row-and-a-record, 5903]
+blocked_on: []
 ---
 
 **Sequencing:** `docs/INTENT-STAGE3-SPEC.md` §12 ("Sequencing: the seat and census units"), step 6. Parked on the carry, whose solid-pair match is this unit's confirm-and-match arm; the carry waits on D′3 and E's core. The id keeps its pre-5494 wording ("each space"); ids are stable (`work/README.md`), and `scripts/work.py` has no rename.

@@ -11,10 +11,10 @@
 //! loops about the rod, essential on its wall) and the ops answer in
 //! closed form.
 //!
-//! A rod that does cross the tube still stops, one wall later, at the
-//! join's germ frame: the certificate answers every pair, and the frame
-//! of a torus × cylinder germ has no arm
-//! (`work/sect/torus-germ-pairs-have-no-section-frame.md`).
+//! A rod that does cross the tube still stops, at the reduction's germ
+//! mint: the certificate answers every pair, and the section value lists
+//! the square wall's components without telling a site's component apart
+//! among them (`work/sect/torus-germ-pairs-have-no-section-frame.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -227,14 +227,18 @@ fn a_rod_threading_the_hole_answers_every_op() {
     );
 }
 
-/// **A radial hole through the tube stops at the germ frame, with every
-/// certificate pair answered.** Through both walls, through the inner
-/// side only, through the outer side only, and off the axis: the section
-/// report holds no refusal (each torus × wall pair was R-reach before
-/// the arm), and ∖ refuses at the join, naming the torus and the rod's
-/// wall. Mutant: drop the arm, and the report carries `Err(Reach)`.
+/// **A radial hole through the tube joins, and stops at the result
+/// gate's volume, with every certificate pair answered.** Through both
+/// walls, through the inner side only, through the outer side only, and
+/// off the axis: the section pass's report holds no refusal (each torus ×
+/// wall pair was R-reach before the square-wall arm), each germ's
+/// component is its site's foot on the carried section, and ∖ builds
+/// past the join to the volume of a face its fitted chords bound, which
+/// props does not integrate
+/// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
+/// Mutant: drop the arm, and the report carries `Err(Reach)`.
 #[test]
-fn a_radial_hole_through_the_tube_stops_at_the_germ_frame() {
+fn a_radial_hole_through_the_tube_stops_at_the_volume() {
     let d = donut();
     for (what, r) in [
         ("through both walls", rod((1.0, 3.0), (0.0, 0.0), 0.2)),
@@ -242,20 +246,28 @@ fn a_radial_hole_through_the_tube_stops_at_the_germ_frame() {
         ("through the outer side", rod((2.0, 3.0), (0.0, 0.0), 0.2)),
         ("off the axis", rod((1.0, 3.0), (0.1, 0.15), 0.2)),
     ] {
-        let report = topo::test_support::section_report(Op::Subtract, &d, &r, Tol::witness())
-            .expect("the reduction runs");
+        let report = topo::test_support::no_event_section_report(&d, &r, Tol::witness())
+            .expect("the section pass runs");
         assert!(!report.is_empty(), "{what}: the certificate is asked");
         for (_, _, v) in &report {
             assert!(v.starts_with("Ok("), "{what}: {v}");
         }
         match topo::subtract(&d, &r, Tol::witness()) {
-            Err(topo::BooleanError::GermFrameUnsupported { a_kind, b_kind, .. }) => {
-                assert_eq!(
-                    (a_kind, b_kind),
-                    (geom::SurfaceKind::Torus, geom::SurfaceKind::Cylinder),
-                    "{what}"
-                );
-            }
+            Err(topo::BooleanError::ResultInvalid { errors }) => assert!(
+                matches!(
+                    errors.as_slice(),
+                    [topo::ValidationError::VolumeUncomputable {
+                        source: topo::MassPropsError::Face {
+                            source: geom_brep::PropsError::QuadratureUnsupported { what },
+                            ..
+                        },
+                        ..
+                    }] if what.starts_with(
+                        "curved-cut face half-edge carries a pcurve with no harmonic form",
+                    )
+                ),
+                "{what}: {errors:?}"
+            ),
             other => panic!("{what}: {:?}", other.map(|r| r.body().map(|b| b.kind))),
         }
     }

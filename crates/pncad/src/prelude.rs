@@ -484,18 +484,22 @@ pub use geom::SurfaceKind;
 // fenced arm is the last one a reader needs and not the first.
 // Stated so the next curation pass re-measures rather than
 // re-deriving.
+//
+// **`CurveSelector` and `Structural` ARE here**: the discriminant a reader
+// of an at-rest `Intersection` branches on. `SharedRow`'s payload is a
+// `Pcurve`, which stays out on the argument above.
 pub use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, Cited, Cites, ContactRecords, Curve3, EdgeCarrierSite, EdgeDescription,
-    EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation,
-    ShellOrientation, Surface, TransformError, VertexKey, intersect, subtract, transform_rigid,
-    union,
+    BooleanResultKind, Cited, Cites, ContactRecords, Curve3, CurveSelector, EdgeCarrierSite,
+    EdgeDescription, EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite,
+    PlaneRelation, ShellOrientation, Structural, Surface, TransformError, VertexKey, intersect,
+    subtract, transform_rigid, union,
 };
 
 // --- 5. The validation ladder ---------------------------------
 // The tier-3′ census vocabulary rides with `ValidationError` for the
 // group-9 reason again, and here the list was already half-persuaded:
-// `DeclaredContact` — the payload of `ValidationError::
+// `ContactPair` — the payload of `ValidationError::
 // ContactContradicted` — has been curated (through `crate::select`)
 // all along, so the surface already carried ONE payload of this
 // refusal and left its siblings a module hop away. These are
@@ -538,8 +542,7 @@ pub use topo::{
 // contact vocabulary; `ReadbackError::Dangling` carries an
 // `EntityId`, which rides in group 4 with the keys it sums over. What
 // this list still stops at is the rung under THOSE — a
-// `ContactFinding` is a `DeclaredContact` plus a `ContactVerdict`,
-// both already here, a `CensusSubject` is an `EntityId` or two
+// `ContactFinding` is a `ContactPair`, already here, a `CensusSubject` is an `EntityId` or two
 // `FaceKey`s, all three already here, and the sums' remaining key
 // kinds are bound out of an arm and never branched on. The rule is
 // unchanged and only
@@ -689,8 +692,8 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `NotBound` row with its reason.
 pub use step_import::{
     CurvePromotion, FaceCensus, ImportOptions, NormalizationKind, PlacedInstance,
-    PromotedCurveKind, PromotedKind, StepImport, StepImportError, StructureNormalization,
-    import_step,
+    PromotedCurveKind, PromotedKind, SingularityFound, StepImport, StepImportError,
+    StructureNormalization, import_step,
 };
 pub use topo::{CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined};
 // `StlError` is the writers' own refusal type — what `write_ascii` and
@@ -732,9 +735,9 @@ pub use stl::{
 pub use crate::document::{
     AuthoredNode, CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr,
     FaceName, Formula, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError,
-    PatternKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload, VarDecl,
-    VarDef, VarEnv, VarName, VarNameFault, apply, evaluate, parse_formula, unparse,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation,
+    RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload, VarDecl, VarDef, VarEnv,
+    VarName, VarNameFault, apply, evaluate, parse_formula, unparse,
 };
 pub use editor_core::{NameTextError, StableName};
 
@@ -746,14 +749,14 @@ pub use editor_core::{NameTextError, StableName};
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
 pub use crate::select::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactFinding, ContactRefusal, ContactVerdict, CurveKind,
-    CurveKindSet, DeclaredContact, Denotation, EntityKind, GeomPred, GlueClass, InterrogateError,
-    MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, PieceRun, Pose,
-    ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, RunLine,
-    SEL_PLANE_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side,
-    SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame,
-    face_name, select, select_where, vertex_position,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactFinding, ContactPair, ContactRefusal, CurveKind,
+    CurveKindSet, Denotation, EntityKind, GeomPred, GlueClass, InterrogateError, MeridianEnd,
+    NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, PieceRun, Pose, ProfileEdgeRef,
+    ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE,
+    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side, SplitHalf, StepId,
+    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, denotation,
+    edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame, face_name, select,
+    select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

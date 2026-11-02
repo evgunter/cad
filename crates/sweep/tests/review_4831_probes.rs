@@ -146,6 +146,16 @@ fn four(
     out
 }
 
+/// **A row refused `EdgeInFace` (`Tangent`)**, D1's doubled cusp, read
+/// off its outcome line: the refusal's kind, then the gap's words.
+fn refuses_the_cusp(pose: &str, row: &str) {
+    assert!(
+        row.starts_with("REFUSED EdgeInFace")
+            && row.contains("one of the edge's faces is tangent to the face along it"),
+        "{pose}: {row}"
+    );
+}
+
 /// Every op answered.
 fn all_answer(pose: &str, got: &[String]) {
     assert!(got.iter().all(|r| r.starts_with("OK")), "{pose}: {got:#?}");
@@ -369,7 +379,11 @@ fn p3_a_nested_touch_just_off_tangent() {
 }
 
 /// A witness on part of the locus: the cutter's face `x = 1` covers only
-/// z ∈ [0.5, 1] of the hole's ruling.
+/// z ∈ [0.5, 1] of the hole's ruling. `A ∖ B` leaves the ruling in that
+/// face over that piece with the hole's wall tangent to it on both
+/// sides, D1's doubled cusp, and refuses `EdgeInFace` (`Tangent`) as the
+/// whole ruling does (`wedge_end_doors::a_plane_tangent_to_a_hole_answers_every_op`);
+/// every other op answers.
 #[test]
 fn p4_a_plane_tangent_to_part_of_a_hole() {
     let pi = std::f64::consts::PI;
@@ -393,7 +407,8 @@ fn p4_a_plane_tangent_to_part_of_a_hole() {
         [Some(66.0 - pi), Some(30.0 - pi), Some(30.0), Some(6.0)],
         &grid(),
     );
-    all_answer("p4", &got);
+    refuses_the_cusp("p4 A ∖ B", &got[1]);
+    all_answer("p4", &[0, 2, 3].map(|k| got[k].clone()));
 }
 
 /// `wedge_end_doors::a_plane_tangent_to_a_hole_answers_every_op`, read
@@ -670,7 +685,9 @@ fn p11_the_new_rows_in_the_other_order() {
         [Some(66.0 - pi), Some(30.0), Some(30.0 - pi), Some(6.0)],
         &grid(),
     );
-    all_answer("p11 p4 swapped", &got);
+    // B ∖ A here is p4's `A ∖ B`, the doubled cusp: it refuses as there.
+    refuses_the_cusp("p11 p4 swapped B ∖ A", &got[2]);
+    all_answer("p11 p4 swapped", &[0, 1, 3].map(|k| got[k].clone()));
     let fat = ext("fat", vec![circle(0.0, 0.0, 2.0)], 0.0, 1.0);
     let thin = ext("thin long", vec![circle(1.0, 0.0, 1.0)], -1.0, 3.0);
     let got = four(

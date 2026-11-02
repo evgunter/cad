@@ -20,8 +20,8 @@
 //! workaround's deletion by one commit, and `die_pips::half_disc_
 //! program`, which it reuses, is the bulge-1 semicircle pole to pole.
 //! What was left banked was the crossing: nothing executed the whole
-//! `die_tool` vocabulary — Profile, Revolve, Place,
-//! PlacedUnion(Explicit), Boolean(Subtract) — from Python.
+//! `die_tool` vocabulary — Profile, Revolve, Place, Union,
+//! Subtract — from Python.
 //!
 //! # What this file pins, and why as BYTES
 //!

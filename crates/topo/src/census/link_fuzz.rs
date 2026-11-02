@@ -43,7 +43,7 @@ test_utils::gated_to![
 ];
 
 use super::*;
-use crate::link::TOUCH_PLANE;
+use crate::link::LINK_PLANE;
 use crate::link::metric::{self, Distance};
 use test_utils::fuzz::Rng;
 
@@ -620,9 +620,8 @@ fn verdict_at<T: Decide + crate::props::AtRestPolicy>(
         .verts
         .iter()
         .filter(|&&(_, q)| {
-            axes.iter().all(|&e| {
-                metric::sign(TOUCH_PLANE, Distance::of(q, o, e), band) == Some(Sign::Zero)
-            })
+            axes.iter()
+                .all(|&e| metric::sign(LINK_PLANE, Distance::of(q, o, e), band) == Some(Sign::Zero))
         })
         .map(|&(v, _)| v)
         .collect();

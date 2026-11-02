@@ -193,6 +193,7 @@ fn width_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![chain],
         ids: Vec::new(),
+        on: None,
     }));
     let slab = r.insert(Node::Extrude {
         profile: p.into(),

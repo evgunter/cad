@@ -268,15 +268,17 @@ fn a_gap_whose_cells_parted_is_violated_and_there_is_no_row() {
     assert_eq!(of(&report, CheckId::AtRest), Vec::new(), "{report}");
 }
 
-/// **(Row 12) A flush pair is never quieted by an assertion.** Two
-/// blocks side by side, touching wall to wall: their walls rest, and
-/// their caps lie flush. A holding `Gap = 0` over the two end caps
-/// quiets nothing: a flush pair is no contact, and only a flag mate or
-/// the replay establishes it.
+/// **(Row 12) A flush pair is quiet under a `Gap = 0` over its two
+/// faces, and only that pair.** Two blocks side by side, touching wall
+/// to wall: their walls rest, and their caps and side walls lie flush.
+/// A holding `Gap = 0` over the two end caps, read on their sides, says
+/// that flush pair (`[assertions]`), and every other flush pair stays
+/// loud.
 ///
-/// *Breaks if* the flush pair quiets.
+/// *Breaks if* the asserted flush pair stays loud, or the assertion
+/// quiets a flush pair it is not over.
 #[test]
-fn a_flush_pair_stays_loud_under_a_gap() {
+fn a_flush_pair_is_quiet_under_its_gap() {
     let doc = ProfileDoc::empty_derived("s5c-flush", Tol::witness());
     let (doc, a) = block(doc, 0.5, 1.0);
     let (doc, b) = block(doc, 0.5, 1.0);
@@ -300,10 +302,10 @@ fn a_flush_pair_stays_loud_under_a_gap() {
     let report = checks(&doc);
     let flush = rows(&report, topo::Relation::SameOriented);
     assert!(!flush.is_empty(), "the caps lie flush: {report}");
-    assert!(
-        flush.iter().all(|f| f.quiet.is_none()),
-        "no assertion quiets a flush pair: {flush:?}"
-    );
+    let quiet: Vec<_> = flush.iter().filter(|f| f.quiet.is_some()).collect();
+    assert_eq!(quiet.len(), 1, "the end caps' pair alone: {flush:?}");
+    assert_eq!(quiet[0].quiet, Some(assertion), "{flush:?}");
+    assert!(flush.len() > 1, "other flush pairs to stay loud: {flush:?}");
 }
 
 /// Which of the prism's cells rests on the block.
@@ -945,7 +947,7 @@ fn an_overlap_no_assertion_could_quiet_refuses_at_no_severity() {
 /// **Two shafts side by side stay loud at every bearing** (the quieting
 /// rule's opposed test, D10 `[assertions.quiet]`). A shaft of radius 1
 /// and one of 0.3 stand 1.2 apart, clashing 0.1 deep, under a holding
-/// `Gap(A, B) ≤ −0.01` (it reads −0.5). Neither wall is a socket for
+/// `Gap(A, B) ≤ −0.01` (it reads −0.1). Neither wall is a socket for
 /// the other, and two cylinders off one axis pair their materials
 /// differently from point to point, so no reading at one point answers
 /// for the pair: it is not opposed, and the finding is loud wherever B
@@ -966,6 +968,7 @@ fn shafts_side_by_side_stay_loud_at_every_bearing() {
             Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::<Formula>::circle(cx, cy, r).expect("a circle")],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         insert(

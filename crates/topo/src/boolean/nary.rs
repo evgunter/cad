@@ -72,6 +72,46 @@ pub struct NaryMember<'m, T: Real> {
     pub inputs: &'m MemberInputs,
 }
 
+/// **The member pairs certified apart** before any judgement runs:
+/// each `(a, b)`, `a < b`, a pair whose two bodies are rigid images of
+/// one body that its separation certificate separates
+/// ([`crate::Separation::apart`]). A pair certified apart cannot meet,
+/// so its judgement would find nothing and is not run; every other pair
+/// whose hulls meet is judged.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Apart(BTreeSet<(usize, usize)>);
+
+impl Apart {
+    /// The pairs `pairs`, each read in ascending order.
+    #[must_use]
+    pub fn of(pairs: impl IntoIterator<Item = (usize, usize)>) -> Self {
+        Self(
+            pairs
+                .into_iter()
+                .map(|(a, b)| (a.min(b), a.max(b)))
+                .collect(),
+        )
+    }
+
+    /// Whether members `a` and `b` are certified apart.
+    #[must_use]
+    pub fn holds(&self, a: usize, b: usize) -> bool {
+        self.0.contains(&(a.min(b), a.max(b)))
+    }
+
+    /// How many pairs are certified apart.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Whether no pair is.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
 /// **A member face**: the member's place in the list and the face in
 /// that member's keys.
 pub type MemberFace = (usize, FaceKey);
@@ -465,6 +505,23 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
     sweep: SweepStrategy,
     tol: Tol,
 ) -> NaryRun<T> {
+    nary_boolean_apart(op, members, &Apart::default(), sweep, tol)
+}
+
+/// [`nary_boolean`] over members some pairs of which are certified
+/// apart ([`Apart`]): those pairs are not judged, and the run is the
+/// one a judgement of each, finding nothing, would make.
+///
+/// # Panics
+///
+/// As [`nary_boolean`].
+pub fn nary_boolean_apart<T: Decide + Bounds + AtRestPolicy>(
+    op: NaryOp,
+    members: &[NaryMember<'_, T>],
+    apart: &Apart,
+    sweep: SweepStrategy,
+    tol: Tol,
+) -> NaryRun<T> {
     // Two members are one pair: its one step is its judgement.
     let pairwise = members.len() > 2;
     let mut run = NaryRun {
@@ -473,7 +530,7 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
         pairwise,
         end: NaryEnd::Built,
     };
-    run.end = match run_members(op, members, sweep, tol, &mut run) {
+    run.end = match run_members(op, members, apart, sweep, tol, &mut run) {
         Ok(()) => NaryEnd::Built,
         Err(end) => end,
     };
@@ -485,6 +542,7 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
 fn run_members<T: Decide + Bounds + AtRestPolicy>(
     op: NaryOp,
     members: &[NaryMember<'_, T>],
+    apart: &Apart,
     sweep: SweepStrategy,
     tol: Tol,
     run: &mut NaryRun<T>,
@@ -526,7 +584,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
     let mut verdicts = Vec::new();
     if pairwise {
         let ranks: Vec<u32> = members.iter().map(|m| m.inputs.rank).collect();
-        for (a, b) in judged_pairs(&hulls, &ranks) {
+        for (a, b) in judged_pairs(&hulls, &ranks).filter(|&(a, b)| !apart.holds(a, b)) {
             let judged = boolean_op_given(
                 op.op(),
                 members[a].body,

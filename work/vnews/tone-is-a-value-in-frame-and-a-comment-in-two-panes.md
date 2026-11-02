@@ -105,7 +105,7 @@ module states twice — *"one arm per variant so a new node type cannot
 fall into a wildcard"*, *"Exhaustive on purpose"* — and the header
 anticipates the very variant that would have walked through it (*"a
 status saying 'the run, not this row'"*,
-`work/chrome/band-refusal-still-badges-every-row`). `tone()` stays
+`work/placing/band-refusal-still-badges-every-row`). `tone()` stays
 total; the call site is a `match` with `Ok` drawing nothing as its own
 arm. Receipt: a planted `RowStatus::RunFault` reds `pane/features.rs`
 along with `badge()`, `tone()` and `message()` — four sites, where the

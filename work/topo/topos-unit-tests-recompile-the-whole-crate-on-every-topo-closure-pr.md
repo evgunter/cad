@@ -12,7 +12,7 @@ opened: 2026-10-13
 A local cold build of a 17-crate PR closure (PR 4954's scope), with
 deps warm, the ci profile (opt-1, line tables) and 4 cores, took
 18m19s: 337 units, 3871 cpu-s. Hosted builds of the same closure take
-16–20 min (`work/ciw/a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar.md`).
+16–20 min (`work/green/a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar.md`).
 
 | unit | cpu-s |
 |---|---|

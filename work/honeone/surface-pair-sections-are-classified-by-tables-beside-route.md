@@ -32,8 +32,10 @@ consults it (`crates/topo/src/replace_face.rs`, ~l.2130, 2574, 2924). Five other
 - `offset_axial`'s meridian `Profile` solve: `crates/topo/src/offset_axial.rs` header says
   "It does not route through the C5 table". It re-solves coaxial pairs, and calls `plane_torus_section` by name as a wildcard arm (~l.2117).
 
-Parallel cylinders of unequal radius show the cost. `route_pose` refuses them, while
-`join` (`parallel_radical_plane`), `section_cert::cylinder_cylinder` and `locus::cylinders_locus` each serve them.
+Parallel cylinders of unequal radius showed the cost: `route_pose` refused them, while
+`join` (`parallel_radical_plane`), `section_cert::cylinder_cylinder` and `locus::cylinders_locus` each served them.
+Since SECTARMS's PRs 6139 and 6151, `route_pose` and the section certificate both read the pair's
+pose on the section value (`geom_brep::pair_section::cylinders`); `join` and `locus` still read their own.
 
 ## Owed
 

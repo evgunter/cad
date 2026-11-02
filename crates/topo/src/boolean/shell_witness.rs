@@ -17,10 +17,13 @@
 //!   only when the operands have no crossings, and for a curved
 //!   boundary the extent certificates that run before it
 //!   (`ops::sphere_extent_scan`, `ops::section_extent_pass`) certify
-//!   that none was missed; `setopfinish` classifies a component that
-//!   carries no section face, so its ground is the join's: every
-//!   crossing of the two boundaries was found and cut, and this
-//!   component met none.
+//!   that none was missed. The one pair they leave is a face pair the
+//!   reduction settled one carrier, whose section is no curve: the
+//!   section pass defers it to the shells' verdicts
+//!   (`ops::OnDeferred::answered` states when they answer it).
+//!   `setopfinish` classifies a component that carries no section face,
+//!   so its ground is the join's: every crossing of the two boundaries
+//!   was found and cut, and this component met none.
 //! - **section-loop role resolution** (`join::resolve_roles_geometric`):
 //!   the region faces flanking each loop of a completed section
 //!   polygon, read once every polygon is cut, so no crossing runs
@@ -68,10 +71,17 @@
 //! orientations, no partner covered back — the boolean refuses
 //! [`BooleanError::CoincidentShell`].
 //!
-//! The same shell is also what reaches `On` when its faces off the
-//! other boundary are all curved, since tier 3 reads planar faces only.
-//! Such a face has no settled pair unless the recipe or a declaration
-//! made it one carrier with a face of the other, so it refuses typed.
+//! A shell whose faces off the other boundary are all curved reaches
+//! the `On` question too, since the ladder takes an interior witness on
+//! a planar face only: on a curved face its witnesses are the face's
+//! vertices and its edges' midpoints. Such a shell reads `On` where each
+//! of its faces is settled one carrier with a face of the other (by the
+//! glue door's margin, a declaration or the recipe) and every one of
+//! those witnesses lies on the other's boundary. Two faces on one
+//! carrier whose patches differ read `On` only where their edges
+//! coincide as well; where an edge of one leaves the other solid's
+//! boundary, its midpoint sides the shell. Any other such shell refuses
+//! typed.
 
 use geom_core::{Band, Decide, Tol};
 use std::collections::BTreeSet;
@@ -339,12 +349,10 @@ fn on_verdict<T: Decide>(
 }
 
 /// **The keep rule for an `On` shell**, per operand: Eq. 15.3's lump
-/// for a coincident face pair, kept where it is the side `op` keeps
-/// ([`super::tables::kept_copy`]'s rule, cell for cell). Aligned, ∪
-/// and ∩ keep A's copy and ∖ neither; opposed, ∪ and ∩ keep neither
-/// and ∖ keeps A's.
+/// for a coincident face pair keeps `operand`'s copy where it keeps the
+/// glue's kept side's ([`super::tables::kept_copy`]).
 pub(super) fn on_kept(op: BooleanOp, operand: Operand, relation: CarrierRelation) -> bool {
-    super::tables::eq15_3_lump(op, operand, relation) == super::finish::kept_side(op, operand)
+    super::tables::kept_copy(op, relation) == Some(operand)
 }
 
 /// The shells of `verdicts` that `op` keeps for `operand`, in order.

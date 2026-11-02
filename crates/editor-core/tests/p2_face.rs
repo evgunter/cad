@@ -23,11 +23,11 @@ use crate::p2_split::{pinned_at, seat_at, seated};
 
 use editor_core::{
     CapEnd, DocEdit, DocumentId, EvalOptions, FaceName, MateFault, MateRef, MateSide, Node,
-    PartResolver, PatternKind, ProfileDoc, RecipeNodeId, SitedFace, SplitError, StableName,
+    PartResolver, ProfileDoc, RecipeNodeId, SitedFace, SplitError, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
-use fixture::{head, head_at, in_copy, insert, len, run, scl, solve, step};
+use fixture::{head, head_at, in_copy, insert, len, run, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -88,15 +88,22 @@ fn target_world(
     if copy_shift == [0.0; 3] {
         assert!(member.chain.is_empty(), "a plain read: {member:?}");
     } else {
-        assert_eq!(member.copy().len(), 1, "a copy read: {member:?}");
+        assert_eq!(member.chain.len(), 1, "a member's read: {member:?}");
     }
     let face = editor_core::head_face(doc, head).expect("the head names a part face");
-    let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(member.instance) else {
+    // A family's member stands on the instance the family places.
+    let instance = match doc.node(member.instance) {
+        Some(Node::Place { source, .. }) => {
+            doc.operation_of(source.read).expect("the family's source")
+        }
+        _ => member.instance,
+    };
+    let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(instance) else {
         panic!("the member stands on an instance");
     };
     let pose = part_face_pose(o, doc_ref, &face);
     let placed = solve(doc, o, Tol::witness())
-        .placement(doc, member.instance)
+        .placement(doc, instance)
         .expect("the member is placed")
         .affine::<f64>();
     let origin = placed.transform_point(pose.origin);
@@ -185,6 +192,121 @@ fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
 
 // ---- the seam ----
 
+/// **A kept mate's target written in place crosses split; the same
+/// target named refuses**. `face_across`'s `m` reads the top's upper cap through a pose: written
+/// in place it is re-authored over the instance's copy, named it is no
+/// read the crossing walk carries, and `k` is severed from the cut.
+///
+/// *Breaks if* the anonymous target stops crossing, or the named one
+/// is admitted without its pose being carried.
+#[test]
+fn a_kept_mates_named_target_is_severed_where_its_written_one_crosses() {
+    for named in [false, true] {
+        let label = if named {
+            "p2-face-named-to"
+        } else {
+            "p2-face-written-to"
+        };
+        let (p, doc, [base, top, k], m) = face_across(label);
+        let o = p.opts();
+        let doc = if named {
+            let to = fixture::constraint(&doc, m).to;
+            step(
+                doc,
+                DocEdit::RenameVar {
+                    var: to.into(),
+                    name: Some(editor_core::VarName::from_static("seat_plane")),
+                },
+            )
+            .0
+        } else {
+            doc
+        };
+        if named {
+            match split_err(&doc, &[base, top], label, &o) {
+                SplitError::SeveredEdge {
+                    consumer,
+                    consumer_is_cut: false,
+                    ..
+                } => assert_eq!(consumer.id(), k, "{label}: the kept mate's placement"),
+                other => panic!("{label}: expected SeveredEdge, got {other:?}"),
+            }
+        } else {
+            split(&doc, &[base, top], label, &o);
+        }
+    }
+}
+
+/// **A named number a kept mate's target slides by, and a cut node
+/// reads, is one variable on both sides** (`UncutVarReference`): the
+/// pose's numbers are its reader's reads, so the split refuses rather
+/// than move the number and leave the kept mate reading none.
+///
+/// *Breaks if* a pose's numbers stop counting as its reader's reads.
+#[test]
+fn a_named_number_a_kept_mates_target_and_a_cut_node_read_refuses() {
+    let label = "p2-face-shared-number";
+    let p = parts(label);
+    let o = p.opts();
+    let gap = || {
+        editor_core::Formula::named(
+            editor_core::VarName::from_static("gap"),
+            editor_core::Dimension::Length,
+        )
+    };
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, _) = step(
+        doc,
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::from_static("gap"),
+            def: editor_core::VarDecl::defined(len(0.0)),
+        },
+    );
+    let (doc, k) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, base) = pinned_at(doc, p.base, [4.0, 0.0, 0.0], &o);
+    let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _seat) = seated(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
+    let mut rest = fixture::rest(head(p.top_cap(k)), head(p.top_upper_cap(top)));
+    rest.to = editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Slide {
+        pose: rest.to.clone().into(),
+        along: editor_core::pose::RoleRead {
+            read: rest.to.clone(),
+            role: Some(editor_core::pose::PoseRole::Normal),
+        },
+        by: gap(),
+    }));
+    let (doc, _) = fixture::constrain_at(doc, k, rest);
+    let (doc, profile) = fixture::on_frame(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(9.0, 0.0, 0.5)],
+    );
+    let (doc, extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: gap(),
+        },
+    );
+    let mut ids = cut(&doc, &[base, top]);
+    ids.extend([profile, extrude]);
+    match editor_core::split(
+        &doc,
+        &ids,
+        DocumentId::derive(&format!("{label}-part")),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    ) {
+        Err(SplitError::UncutVarReference { var, kept_node, .. }) => {
+            assert_eq!(var.name().map(editor_core::VarName::as_str), Some("gap"));
+            assert_eq!(kept_node.id(), k, "the kept mate's placement reads it");
+        }
+        other => panic!("expected UncutVarReference, got {other:?}"),
+    }
+}
+
 /// **A valued mate whose target reads a mate-placed copy crosses
 /// split, and stands where it stood** (D′2). The kept constraint `m`
 /// reads the top — placed by its mate, not pinned — through its head
@@ -223,22 +345,20 @@ fn a_valued_mate_reading_a_mate_placed_copy_crosses_split() {
     crate::p2_gauges::close(before, after, "k stands where it stood");
 }
 
-/// **A mate whose target reads a pattern copy crosses split and inline,
-/// and the target's world pose does not move.** The head names the
-/// copy's face and crosses as it is, the copy placed at the identity. A
-/// leg patterned three times two apart along x, and a kept constraint
-/// placing `k` whose target reads copy 2's upper cap. Split cuts the
-/// leg and its pattern, and the target then reads the instance plainly,
-/// its face the copy's cap as the new part names it; inline unwraps it
-/// back onto copy 2 of the inner pattern, and flatten folds the new
-/// space away. The target's world pose is the same through the split
-/// and the inline, and `flatten(inline(split(d)))` is `d` up to node
-/// ids but for the target's read, which lands on the identity placement
-/// that copies copy 2 rather than on its `Part`.
+/// **A mate whose target reads a family's member crosses split and
+/// inline, and the target's world pose does not move.** The head names
+/// the member's face and crosses as it is. A leg in a row of three two
+/// apart along x, every member in the world, and a kept constraint
+/// placing `k` whose target reads member 2's upper cap. Split cuts the
+/// leg and its family, and the target then reads the instance plainly,
+/// its face the member's cap as the new part names it; inline unwraps
+/// it back onto member 2 of the family, and flatten folds the new space
+/// away. The target's world pose is the same through the split and the
+/// inline.
 ///
-/// *Breaks if* the copy's face crosses as its master's, or moves.
+/// *Breaks if* the member's face crosses as its master's, or moves.
 #[test]
-fn a_mate_reading_a_pattern_copy_crosses_split_and_inline_unmoved() {
+fn a_mate_reading_a_family_member_crosses_split_and_inline_unmoved() {
     let label = "p2-face-copy-seam";
     let p = parts(label);
     let o = p.opts();
@@ -247,27 +367,8 @@ fn a_mate_reading_a_pattern_copy_crosses_split_and_inline_unmoved() {
     // splices, so the round trip keeps the placements' order (A4).
     let (doc, k) = insert(doc, fixture::mated_instance(p.top));
     let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.top), &o);
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: leg.into(),
-            count: editor_core::Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
-    let doc = crate::fix_pattern_mate_crossing::place_copies(doc, pattern, 3, &o);
-    // One copy of the pattern is read through its `Part`, as a reader of
-    // one copy reads it, so the round trip below reads it there again.
-    let part_two = doc
-        .ids()
-        .into_iter()
-        .filter(|&id| matches!(doc.node(id), Some(Node::Part { .. })))
-        .nth(2)
-        .expect("copy 2's Part, the third `place_copies` inserts");
-    let copy_cap = head_at(part_two, in_copy(pattern, 2, p.top_upper_cap(leg)));
+    let (doc, kk, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 3);
+    let copy_cap = head(in_copy(pattern, kk, 2, p.top_upper_cap(leg)));
     let (doc, m) = face_mate(doc, k, head(p.top_cap(k)), copy_cap);
     let copy_two = [4.0, 0.0, 0.0];
     let before = target_world(&doc, &o, m, copy_two);
@@ -289,21 +390,13 @@ fn a_mate_reading_a_pattern_copy_crosses_split_and_inline_unmoved() {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("inline refused: {e}"));
-    // Flattened, the target reads copy 2 on the identity placement the
-    // part copied it into the world by, which split's crossing read it
-    // through, rather than on its `Part`: the one difference from `d`,
-    // and the copy lands where it landed.
+    // Flattened, the target reads member 2 of the family again: the
+    // member's name maps back through its index, so inline of split is
+    // the document up to ids.
     let flat = crate::fixture::round_trip::flat(&back);
     let (map, steps) = composed(&doc, &out, &back);
-    let said = same_up_to_ids(&doc, &flat, &map, &steps)
-        .expect_err("the target reads the identity placement's copy");
-    let [only] = said.lines().collect::<Vec<_>>()[..] else {
-        panic!("the target's read is the one difference: {said}")
-    };
-    assert!(
-        only.starts_with(&format!("payload: {k:?} -> ")),
-        "the kept mate's target: {said}"
-    );
+    same_up_to_ids(&doc, &flat, &map, &steps)
+        .unwrap_or_else(|said| panic!("inline of split is the document up to ids: {said}"));
     let corner = |doc: &ProfileDoc| {
         crate::p2_gauges::min_corner(&crate::p2_gauges::body_of(&run(doc, &o), k))
     };
@@ -385,39 +478,29 @@ fn a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split() {
 
 // ---- the strip at a pattern copy ----
 
-/// **A mate's target on a pattern copy reads its master's face, carried
-/// by the copy map.** A leg patterned three times two apart along x,
-/// and a base seated on copy 2's upper cap: the head is `Instance(2)`
-/// round the leg's part name, the strip takes off that one qualifier,
-/// reading the part's own name at the instance, and the base's bottom
-/// lands on the master's cap plane. A value on a target read off a
-/// pattern's copy is charted on the space's frame
-/// (`work/intent/a-value-on-a-placed-copy-target-is-charted-on-the-space.md`),
-/// so the seat's slide of 4 along x stands the base over copy 2.
+/// **A mate's target on a family's member reads its master's face,
+/// carried by the member's motion.** A leg in a row of three two apart
+/// along x, and a base seated on member 2's upper cap: the head is
+/// `Member { (k, 2) }` round the leg's part name, the strip takes off
+/// that one qualifier, reading the part's own name at the instance, and
+/// the base's bottom lands on the master's cap plane. A value on a
+/// target read off a member is charted on the target space's axes,
+/// whichever member it is (D′2,
+/// `work/intent/a-value-on-a-placed-copy-target-is-charted-on-the-space.md`),
+/// so the seat's slide of 4 along x stands the base over member 2.
 ///
-/// *Breaks if* the strip reads another face, or the copy map is not
-/// applied.
+/// *Breaks if* the strip reads another face, or the member's motion is
+/// not applied.
 #[test]
-fn a_mate_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
+fn a_mate_on_a_family_member_reads_the_masters_face_at_the_member() {
     let label = "p2-face-copy";
     let p = parts(label);
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.top), &o);
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: leg.into(),
-            count: editor_core::Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
+    let (doc, kk, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 3);
     let (doc, mover) = insert(doc, fixture::mated_instance(p.base));
-    let doc = crate::fix_pattern_mate_crossing::place_copies(doc, pattern, 3, &o);
-    let copy_cap = in_copy(pattern, 2, p.top_upper_cap(leg));
+    let copy_cap = in_copy(pattern, kk, 2, p.top_upper_cap(leg));
     let (doc, m) = seat_at(
         doc,
         mover,
@@ -432,8 +515,14 @@ fn a_mate_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
         ev.node_error(m.placement)
     );
     let b = &fixture::side_head(&doc, target_var(&doc, m));
-    let member = editor_core::member_of(&doc, b).expect("a copy is a member");
-    assert_eq!(member.copy(), vec![(pattern, 2)]);
+    let member = editor_core::member_of(&doc, b).expect("a member of a family is a member");
+    assert_eq!(
+        member.chain,
+        vec![editor_core::Placing::Member {
+            family: pattern,
+            at: vec![(kk, 2)],
+        }]
+    );
     let master = editor_core::head_face(&doc, b).expect("the strip");
     assert_eq!(
         master.clone().into_name(),
@@ -451,7 +540,7 @@ fn a_mate_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
             .iter()
             .zip(want)
             .all(|(x, y)| (x - y).abs() <= 1e-12),
-        "the master's cap, moved to copy 2: {:?} vs {want:?}",
+        "the master's cap, moved to member 2: {:?} vs {want:?}",
         placed.translation
     );
 }

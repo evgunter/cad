@@ -1,16 +1,17 @@
 //! **A split's port is its half** (FORK-1, DM3): a split defines two
-//! bodies, read by port, and no `Part` selects a half. A file written
-//! while one did refuses at load with the regenerate recourse.
+//! bodies, read by port, and no node selects a half. A file holding a
+//! `Part` node, which once did, refuses at load with the regenerate
+//! recourse.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, insert, len, on_frame, scl};
-use editor_core::{Formula, Node, PartSelect, PatternKind, ProfileDoc, load, save};
+use crate::fixture::{self, insert, len, on_frame};
+use editor_core::{Node, ProfileDoc, load, save};
 use geom_core::Tol;
 
 /// **A file holding a `Part` that selects a split's half refuses
 /// `Unreadable`**, naming the variant this build no longer has, with
-/// the regenerate recourse: the selector is a doctored
-/// `Part { Instance }` spelled as the retired `SplitHalf`.
+/// the regenerate recourse: the node is a doctored extrude, spelled as
+/// the retired `Part { select: SplitHalf }`.
 #[test]
 fn a_file_holding_a_split_half_part_refuses_unreadable() {
     let (doc, profile) = on_frame(
@@ -27,31 +28,13 @@ fn a_file_holding_a_split_half_part_refuses_unreadable() {
             distance: len(1.0),
         },
     );
-    let (doc, copies) = insert(
-        doc,
-        Node::Pattern {
-            input: block.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
-    let (doc, part) = insert(
-        doc,
-        Node::Part {
-            of: copies.into(),
-            select: PartSelect::Instance(Formula::count(0)),
-        },
-    );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let at = text.find('{').expect("the JSON body follows the id header");
     let (header, body) = text.split_at(at);
     let mut body: serde_json::Value = serde_json::from_str(body).expect("the body parses");
     let mut doctored = 0;
     doctor(&mut body, &mut doctored);
-    assert_eq!(doctored, 1, "the one Part's selector, {part:?}");
+    assert_eq!(doctored, 1, "the block's extrude, {block:?}");
     let old = format!(
         "{header}{}",
         serde_json::to_string_pretty(&body).expect("prints")
@@ -60,7 +43,7 @@ fn a_file_holding_a_split_half_part_refuses_unreadable() {
     assert!(
         matches!(
             &refusal,
-            Some(editor_core::PersistError::Unreadable { detail, .. }) if detail.contains("SplitHalf")
+            Some(editor_core::PersistError::Unreadable { detail, .. }) if detail.contains("Part")
         ),
         "{refusal:?}"
     );
@@ -71,16 +54,20 @@ fn a_file_holding_a_split_half_part_refuses_unreadable() {
     );
 }
 
-/// Every `select` object spelled `{"Instance": …}` re-spelled as a
-/// pre-retirement half selector, counted.
+/// Every node object spelled `{"Extrude": …}` re-spelled as a
+/// pre-retirement `Part` selecting a split's half, counted.
 fn doctor(value: &mut serde_json::Value, count: &mut usize) {
     match value {
         serde_json::Value::Object(map) => {
-            if let Some(select) = map.get_mut("select")
-                && select.get("Instance").is_some()
-            {
-                *select = serde_json::json!({ "SplitHalf": "Above" });
+            if map.len() == 1 && map.contains_key("Extrude") {
+                let of = map["Extrude"]["profile"].clone();
+                map.clear();
+                map.insert(
+                    "Part".to_owned(),
+                    serde_json::json!({ "of": of, "select": { "SplitHalf": "Above" } }),
+                );
                 *count += 1;
+                return;
             }
             map.values_mut().for_each(|v| doctor(v, count));
         }

@@ -63,12 +63,8 @@ fn rest_union_evaluates_green() {
         Tol::witness(),
     );
     let value = ev.value(u).expect("union evaluated");
-    let ValuePayload::Boolean(BooleanValue::Body {
-        body,
-        kind,
-        contacts,
-    }) = &value.payload
-    else {
+    let contacts = &value.carry.contacts;
+    let ValuePayload::Boolean(BooleanValue::Body { body, kind }) = &value.payload else {
         panic!("expected a boolean body, got {}", value.payload.kind_name());
     };
     assert_eq!(*kind, topo::BooleanResultKind::Seamed);

@@ -41,7 +41,7 @@
 //! and a certified leaf, and the answer a document-layer consumer wants
 //! from it comes through the `min_clearance` MEASURE, which is document
 //! state and is carried by [`crate::document`] — together with the
-//! engine's refusal vocabulary (`ClearanceRefusal` and its payloads),
+//! engine's refusal vocabulary (`MinSeparationRefusal`),
 //! because that is what the measure refuses with. The engine's doors
 //! are not.
 
@@ -87,7 +87,7 @@ pub use editor_core::drive::assertion_at;
 /// The three-state verdict [`assertion_at`] answers with, and the
 /// reasons its third state carries — a consumer that cannot NAME the
 /// states cannot keep them three.
-pub use editor_core::{AssertionVerdict, Certified, UnevaluatedReason, WINDOW_TIGHTENING};
+pub use editor_core::{AssertionVerdict, UnevaluatedReason};
 
 /// **The E11.1 advisory estimator**: pure `f64` replay, as E11.1 says.
 /// [`summarize`] rides here for the reason it is public at all: a

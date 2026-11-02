@@ -24,9 +24,9 @@ refusals a Python caller can ever see. `min_clearance` is answered by
 an engine whose value is an ENCLOSURE, and the binding evaluates at
 `f64` alone — a point scalar, with nowhere to put one. So
 `MeasureUnavailableAt` is reachable here and is exercised below, while
-the engine's own `ClearanceRefusal` is not reachable: its one
-producer on the measure path is the interval lane's `MinClearanceLane`
-impl, at a scalar the binding does not evaluate at. That refusal's tag and prose are
+the engine's own `MinSeparationRefusal` is not reachable: its one producer
+on the measure path is the `topo::ClearanceLane` door, which only a
+certifying scalar holds, and the binding does not evaluate at one. That refusal's tag and prose are
 pinned in Rust instead (`src/tests.rs`).
 
 NOTHING HERE READS INSIDE A NAME. Every reference is a `(node, name)`
@@ -54,6 +54,7 @@ from pncad import (
     MeasurePrimitive,
     NamePat,
     Node,
+    PoseDef,
     VarName,
     Selector,
     SurfaceKind,
@@ -265,6 +266,23 @@ class TestTheClosedForms(unittest.TestCase):
         # A Length measure answers through the typed quantity too.
         self.assertAlmostEqual(answer.length.meters, 2 * offset, places=12)
 
+    def test_a_distance_reads_two_axes_read_off_the_walls(self):
+        """A reference may be a pose read off a cell: the axes of two
+        parallel walls read their separation, which is what an
+        assertion `= 0` over an unproven coaxiality says. The
+        references come back as they were passed."""
+        doc = Doc()
+        offset = 0.30
+        left = cylinder(doc, -offset, 0.2)
+        right = cylinder(doc, offset, 0.2)
+        ev = evaluate(doc)
+        a = PoseDef.axis(left, wall(ev, left))
+        b = PoseDef.axis(right, wall(ev, right))
+        primitive = MeasurePrimitive.distance(a, b)
+        self.assertIsInstance(primitive.refs[0], PoseDef)
+        node = doc.insert(Node.measure(primitive))
+        self.assertAlmostEqual(measured(doc, node).value, 2 * offset, places=12)
+
     def test_the_angle_between_opposed_caps_is_a_straight_angle(self):
         """An extruded prism's caps are parallel with OPPOSED chart
         normals, so the angle between their carriers is pi. The oracle
@@ -303,22 +321,24 @@ class TestTheClosedForms(unittest.TestCase):
                 )
                 self.assertAlmostEqual(measured(doc, node).value, air, places=12)
 
-    def test_the_gap_sign_convention_walks_all_three_regimes(self):
-        """A bore and a pin on ONE axis, so the axis offset is zero and
-        the signed gap is exactly `r_bore - r_pin` — clearance, contact
-        and interference from one document shape."""
-        for bore_r, pin_r in ((0.51, 0.50), (0.50, 0.50), (0.49, 0.50)):
-            with self.subTest(bore=bore_r, pin=pin_r):
+    def test_the_gap_sign_convention_walks_all_three_regimes_on_two_coaxial_rods(self):
+        """Two solid rods on ONE axis, so the axis offset is zero. Their
+        walls are both convex, a nested pair, so the signed gap is how
+        far the inner wall stands out of the outer rod's material,
+        exactly `r_inner - r_outer`: all three signs from one document
+        shape."""
+        for outer_r, inner_r in ((0.51, 0.50), (0.50, 0.50), (0.49, 0.50)):
+            with self.subTest(outer=outer_r, inner=inner_r):
                 doc = Doc()
-                bore = cylinder(doc, 0.0, bore_r)
-                pin = cylinder(doc, 0.0, pin_r)
+                outer = cylinder(doc, 0.0, outer_r)
+                inner = cylinder(doc, 0.0, inner_r)
                 ev = evaluate(doc)
                 node = doc.insert(
-                    Node.measure(MeasurePrimitive.gap((bore, wall(ev, bore)), (pin, wall(ev, pin))))
+                    Node.measure(MeasurePrimitive.gap((outer, wall(ev, outer)), (inner, wall(ev, inner))))
                 )
                 answer = measured(doc, node)
                 self.assertEqual(answer.dimension, "Length")
-                self.assertAlmostEqual(answer.value, bore_r - pin_r, places=12)
+                self.assertAlmostEqual(answer.value, inner_r - outer_r, places=12)
 
     def test_the_authors_own_arithmetic_spells_the_web(self):
         """The worked example's shape: the web between two holes is
@@ -421,7 +441,7 @@ class TestTheFourthVerb(unittest.TestCase):
         self.assertEqual(refusal.scalar, "f64")
         # The recourse is IN the refusal: it names the door that can
         # answer rather than handing back a worse number.
-        self.assertEqual(refusal.door, "clearance::min_separation")
+        self.assertEqual(refusal.door, "topo::ClearanceLane")
         self.assertIn(refusal.door, str(refusal))
 
     def test_it_is_not_the_analysis_lanes_refusal_of_the_same_name(self):
@@ -451,7 +471,7 @@ class TestTheFourthVerb(unittest.TestCase):
         self.assertIsNone(answer.measured)
         self.assertIsNone(answer.bound)
         self.assertIn("min_clearance", answer.reason)
-        self.assertIn("clearance::min_separation", answer.reason)
+        self.assertIn("topo::ClearanceLane", answer.reason)
 
     def test_it_refuses_typed_on_an_edge_reference(self):
         """A reference's entity kind is the selection's face scope, and

@@ -8,7 +8,7 @@ priority: P2
 cost: E
 pr: 5292
 closed: 2026-10-18
-refs: [the-from-f64-gate-reads-every-generic-crate]
+refs: [4596]
 ---
 
 `editor-core/src/mate/coset.rs`'s `Arm::of(parts, datum)` sums two

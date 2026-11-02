@@ -85,7 +85,7 @@ Pinned by `crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`:
 `a_boss_over_a_hole_by_pose` (16 poses, one cell per pose for both
 forms), `a_boss_over_a_hole_tangent_to_it_turned` (the 12 tangent poses
 turned), `a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch`,
-`a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds`
+`a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit`
 and `one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed`, at
 the default ε, 1e-6 and 1e-12. Every tangent-outside pose builds `SOUND`
 in every op; every tangent-inside pose refuses the union

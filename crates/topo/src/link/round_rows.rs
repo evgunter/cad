@@ -182,19 +182,12 @@ fn turned_link(at: Point3<f64>, rot: &dyn Fn(Vec3<f64>) -> Vec3<f64>, fans: &Fan
         .iter()
         .map(|(m, pts)| {
             let pts: Vec<Point3<f64>> = pts.iter().map(|&d| at + rot(d)).collect();
-            Sector {
-                surface: geom::Surface::Plane {
-                    origin: at,
-                    normal: rot(*m),
-                    u_ref: (pts[0] - at).normalize(),
-                },
-                sense: true,
+            FaceSector::planar(Sector {
                 outward: rot(*m),
                 apex: at,
                 wedges: pts.windows(2).map(|w| (w[0], w[1])).collect(),
                 closed: false,
-                clear: None,
-            }
+            })
         })
         .collect();
     Link::of(at, sectors).expect("the fans make a link")
@@ -500,19 +493,12 @@ fn a_corner_meeting_a_bores_wall_again_within_reach_crosses() {
                 m = -m;
                 pts.reverse();
             }
-            Sector {
-                surface: geom::Surface::Plane {
-                    origin: p,
-                    normal: m,
-                    u_ref: (pts[0] - p).normalize(),
-                },
-                sense: true,
+            FaceSector::planar(Sector {
                 outward: m,
                 apex: p,
                 wedges: vec![(pts[0], pts[1])],
                 closed: false,
-                clear: None,
-            }
+            })
         })
         .collect();
     let link = Link::of(p, sectors).expect("the fans make a link");

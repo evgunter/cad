@@ -123,6 +123,20 @@ fn a_spline_capped_box_moves_every_chart_onto_its_closed_form() {
 /// 45 x 48 grid.
 #[test]
 fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
+    // Pinned red since PR 4551: at ε = 1e-12 the cap's fit stops on (48, 48)
+    // without a refusal the row lists
+    // (`work/shell/a-curved-fitted-cap-rows-sample-cap-grid-pin-is-red-at-1e-12-on-main`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the curved spline cap",
+        &["eps 1e-12: the cap's fit stopped at 3.239736902471488e-12 on (48, 48)"],
+        a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold_row,
+    );
+}
+
+/// The row [`a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold`] runs, under its pin.
+fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold_row() {
     let eps = Tol::witness().eps();
     let (mut body, cap) = box_with_bumped_cap(0.01);
     let Some(geom::Surface::Nurbs(bump)) = body

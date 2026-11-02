@@ -184,7 +184,7 @@ fn the_corpus_band_trim_census_is_the_recorded_one() {
             "{name}: {n} band-trim names, the digest suite's comment says {want}"
         );
     }
-    assert_eq!(got.len(), 30, "the registry the comment counts over");
+    assert_eq!(got.len(), 34, "the registry the comment counts over");
 }
 
 /// The pinned invariant on the lantern's BASE rim (profile vertex 1:

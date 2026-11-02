@@ -8,7 +8,7 @@ closed: 2026-10-24
 priority: P1
 cost: M
 design: true
-refs: [a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space]
+refs: [5613]
 ---
 
 

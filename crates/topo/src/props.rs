@@ -31,13 +31,18 @@
 //! [`role_walk_set`], the measurement door's sign walk ([`measure_to`]),
 //! stopped at the round the validator's own decision is complete, and
 //! hands back the [`SignCertificate`] a caller continues to the number.
+//!
+//! The file is also the per-scalar POLICY home: [`AtRestPolicy`], which
+//! says for each scalar which at-rest gates it runs and which injected
+//! doors it holds, beside two of those door values ([`QuadLane`],
+//! [`ShellDoor`]).
 
 use core::fmt;
 
 use geom::Surface;
 use geom_brep::props::quad::{LaneEnd, LaneRun, LaneStop, RoundWindow};
 use geom_brep::props::{
-    CarrierId, FaceContribution, LoopEdge, PropsError, curved_face_loops, planar_face,
+    CarrierId, FaceContribution, LoopEdge, PropsError, curved_face_holding, planar_face,
 };
 use geom_brep::recourse::{Classified, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::interval::{self, Interval};
@@ -75,12 +80,7 @@ use crate::validate::ValidationError;
 /// **The rule for a reader:** a decision on a zero-pad value re-derives
 /// it (`certify_role`: the body's interval re-derivation, or a stated
 /// bound on its rounding where there is no lane), or decides on an
-/// enclosure of it. It never takes a zero pad as exactness. The readers
-/// known to break the rule are the boolean volume backstop's: its
-/// magnitude arm
-/// (`work/cleave/the-backstops-magnitude-arm-meters-the-f64-margin-after-the-interval-has-cleared-it`),
-/// and its Bound arm's held read, its operand gate and its +V posture
-/// (`work/cleave/the-backstop-reads-an-unpadded-f64-volume-as-exact-where-it-passes-or-switches-off-a-bound`).
+/// enclosure of it. It never takes a zero pad as exactness.
 #[derive(Clone, Copy, Debug)]
 pub struct MassProperties<T: Real> {
     /// The **signed** enclosed volume by the divergence theorem —
@@ -1181,39 +1181,12 @@ impl<U: Real> SignReading<U> {
             Self::Bracket(e) => (e.volume_lo, e.volume_hi, e.surface_area),
         }
     }
-
-    /// Whether this is one value rather than a bracket.
-    pub(crate) fn is_exact(self) -> bool {
-        matches!(self, Self::Exact { .. })
-    }
-
-    /// The signed sum `self + sign·other` of two readings over the sum of
-    /// their levers: exact when both are, else the bracket of the two
-    /// ends that make it widest.
-    pub(crate) fn plus(self, other: Self, negate_other: bool) -> Self {
-        let (lo, hi, lever) = self.ends();
-        let (olo, ohi, olever) = other.ends();
-        let (olo, ohi) = if negate_other {
-            (-ohi, -olo)
-        } else {
-            (olo, ohi)
-        };
-        match (self, other) {
-            (Self::Exact { .. }, Self::Exact { .. }) => Self::exact(lo + olo, lever + olever),
-            _ => Self::Bracket(VolumeEnclosure {
-                volume_lo: lo + olo,
-                volume_hi: hi + ohi,
-                surface_area: lever + olever,
-            }),
-        }
-    }
 }
 
 impl<T: Real> MassProperties<T> {
     /// This sum as a role read takes it: one value where no face carried
     /// a quadrature pad, else the bracket. One value is not an exact one:
-    /// its rounding is the reader's to state ([`certify_role`]; the type's
-    /// docs name the reader that does not).
+    /// its rounding is the reader's to state ([`certify_role`]).
     pub(crate) fn reading(&self) -> SignReading<T> {
         if self.volume_pad == 0.0 {
             SignReading::exact(self.volume, self.surface_area)
@@ -1286,51 +1259,6 @@ impl RoleUnread {
     }
 }
 
-/// **The role read** — the one place a volume's sign becomes a role,
-/// every caller's: check 7, check 10, the shell classification and
-/// point containment's side at infinity. `V/A` is a length (check 7's
-/// margin convention): the mean displacement of the boundary the volume
-/// corresponds to. An exact volume is decided once; a bracket's high end
-/// first, then its low end only when the high end decides nothing
-/// ([`ShellRole::decided_at`]).
-///
-/// [`RoleRead::Unread`] when no end decides a role.
-pub(crate) fn read_role<U: Decide>(
-    reading: SignReading<U>,
-    names: RoleNames,
-    band: Band,
-) -> RoleRead {
-    let sign = |name, volume, lever| {
-        crate::validate::decide_reported(name, Margin::over_lever(volume, lever), band)
-    };
-    let role_at = |end, decided: Result<Decided, Indeterminate>| {
-        decided
-            .ok()
-            .and_then(|decided| ShellRole::decided_at(end, decided.sign))
-    };
-    let read = |role: Option<ShellRole>, unread| match role {
-        Some(role) => RoleRead::Decided(role),
-        None => RoleRead::Unread(unread),
-    };
-    match reading {
-        SignReading::Exact { volume, lever } => {
-            let one = sign(names.high, volume, lever);
-            read(
-                role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
-                RoleUnread { lo: one, hi: one },
-            )
-        }
-        SignReading::Bracket(ends) => {
-            let hi = sign(names.high, ends.volume_hi, ends.surface_area);
-            if let Some(role) = role_at(BracketEnd::High, hi) {
-                return RoleRead::Decided(role);
-            }
-            let lo = sign(names.low, ends.volume_lo, ends.surface_area);
-            read(role_at(BracketEnd::Low, lo), RoleUnread { lo, hi })
-        }
-    }
-}
-
 /// **The bandless sign read** (D10): `reading`'s ends read for their
 /// sign alone ([`Margin::sign_of`] against [`Band::enclosure_sign`]), the
 /// high end first, the low end only where it decides nothing
@@ -1369,7 +1297,7 @@ pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) ->
     }
 }
 
-/// What [`read_role`] read.
+/// What [`read_sign`] read.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum RoleRead {
     /// An end decided the role.
@@ -1629,6 +1557,7 @@ fn rederived<T: Decide>(
 type ClosedFormAt<T> = fn(
     &Surface<T>,
     &[Vec<LoopEdge<T>>],
+    &[Point3<T>],
     bool,
     Band,
     Point3<Interval>,
@@ -1648,17 +1577,19 @@ fn closed_form_or_carried<T: Decide>(
     closed_form: ClosedFormAt<T>,
     surface: &Surface<T>,
     loops: &[Vec<LoopEdge<T>>],
+    held: &[Point3<T>],
     sense: bool,
     band: Band,
     from: Point3<Interval>,
 ) -> Result<(FaceContribution<Interval>, bool), PropsError> {
-    if let Ok(read) = closed_form(surface, loops, sense, band, from, None) {
+    if let Ok(read) = closed_form(surface, loops, held, sense, band, from, None) {
         return Ok(read);
     }
-    let (origin, _) = closed_form(surface, loops, sense, band, Point3::origin(), None)?;
+    let (origin, _) = closed_form(surface, loops, held, sense, band, Point3::origin(), None)?;
     let (carried, _) = closed_form(
         surface,
         loops,
+        held,
         sense,
         band,
         from,
@@ -1748,6 +1679,7 @@ fn rederive_faces<T: Decide>(
         let (face, surface) = resolve_face(body, run.face);
         let flat = flat_loops(body, face)?;
         let loops = edges_of(&flat);
+        let held = face_tips(body, face)?;
         let refused = |source| MassPropsError::Face {
             face: run.face,
             source,
@@ -1798,6 +1730,7 @@ fn rederive_faces<T: Decide>(
                     lane.closed_form,
                     surface,
                     &loops,
+                    &held,
                     face.sense,
                     band,
                     from,
@@ -4211,16 +4144,22 @@ fn resolve_face<T: Real>(body: &Body<T>, face_key: FaceKey) -> (&crate::entity::
 /// walked, in traversal order.
 pub(crate) type FlatLoop<T> = (Vec<LoopEdge<T>>, Vec<HalfEdgeKey>);
 
-/// A face's loops flattened with their half-edges, the outer first,
-/// then the rings.
+/// A face's loops as every integrator reads them: each loop's chart
+/// image ([`chart_image_edges`]) with its half-edges, the outer first,
+/// then the rings, those that bound area
+/// ([`geom_brep::chart_image::bounds_area`]). Empty where none does.
 fn flat_loops<T: Decide>(
     body: &Body<T>,
     face: &crate::entity::Face,
 ) -> Result<Vec<FlatLoop<T>>, MassPropsError> {
-    core::iter::once(&face.outer)
-        .chain(&face.rings)
-        .map(|&lk| Ok(loop_edges(body, lk)?))
-        .collect()
+    let mut loops = Vec::new();
+    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+        let image = chart_image_edges(body, lk)?;
+        if geom_brep::chart_image::bounds_area(&image.0) {
+            loops.push(image);
+        }
+    }
+    Ok(loops)
 }
 
 /// A face's loops flattened ([`flat_loops`]), their edges alone.
@@ -4244,14 +4183,17 @@ fn edges_of<T: Decide>(loops: &[FlatLoop<T>]) -> Vec<Vec<LoopEdge<T>>> {
 fn closed_form_of<U: Decide>(
     surface: &Surface<U>,
     loops: &[Vec<LoopEdge<U>>],
+    held: &[Point3<U>],
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<U>, PropsError> {
     match *surface {
-        Surface::Plane { origin, .. } => planar_face(origin, loops),
+        // A plane with no loop that bounds area takes the empty rule's
+        // dispatch below, which refuses it.
+        Surface::Plane { origin, .. } if !loops.is_empty() => planar_face(origin, loops),
         _ => {
             let loops: Vec<&[LoopEdge<U>]> = loops.iter().map(Vec::as_slice).collect();
-            curved_face_loops(surface, &loops, sense, band)
+            curved_face_holding(surface, &loops, held, sense, band)
         }
     }
 }
@@ -4264,6 +4206,7 @@ fn closed_form_of<U: Decide>(
 fn closed_form_about<U: Decide>(
     surface: &Surface<U>,
     loops: &[Vec<LoopEdge<U>>],
+    held: &[Point3<U>],
     sense: bool,
     band: Band,
     about: Point3<U>,
@@ -4272,7 +4215,11 @@ fn closed_form_about<U: Decide>(
         what: "a closed-form face whose carrier has no datum to carry to its shell's reference",
     };
     let (moved, loops) = quad_lane::moved_by(surface, loops, about).ok_or_else(unmoved)?;
-    closed_form_of(&moved, &loops, sense, band)
+    let held: Vec<Point3<U>> = held
+        .iter()
+        .map(|&p| quad_lane::moved_point(p, about))
+        .collect();
+    closed_form_of(&moved, &loops, &held, sense, band)
 }
 
 /// The stored start vertex of the outer loop of the face `face`.
@@ -4921,9 +4868,10 @@ fn seam_refusals<T: Decide>(
     use geom_brep::props::{MaterialSign, SeamCover};
     let own = |member: FaceKey| {
         let (rec, surface) = resolve_face(body, member);
+        let held = face_tips(body, rec).ok()?;
         face_loops(body, rec).ok().and_then(|loops| {
             let loops: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
-            geom_brep::props::boundary_material_sign_loops(surface, &loops, band).ok()
+            geom_brep::props::boundary_material_sign_holding(surface, &loops, &held, band).ok()
         })
     };
     let mut seams = std::collections::BTreeMap::new();
@@ -5043,39 +4991,16 @@ pub(crate) fn seam_region<T: Decide>(
     }
     let inside =
         |h: HalfEdgeKey| -> Result<bool, &'static str> { Ok(members.contains(&across(h)?)) };
-    let mut open: Vec<HalfEdgeKey> = inside_of
+    let exits: Vec<HalfEdgeKey> = inside_of
         .iter()
         .filter(|(_, interior)| !interior)
         .map(|&(h, _)| h)
         .collect();
     let mut boundary = Vec::new();
     let mut pinched = false;
-    while let Some(&first) = open.first() {
-        // One boundary cycle: from a boundary half-edge to the next one
-        // out of its end vertex, turning through the region's interior
-        // edges there.
-        let mut cycle = Vec::new();
-        let mut h = first;
-        loop {
-            cycle.push(h);
-            open.retain(|&x| x != h);
-            let mut n = half_edge(h)?.next;
-            let mut turns = 0;
-            while inside(n)? {
-                n = half_edge(body.mate(n).ok_or(unresolved)?)?.next;
-                turns += 1;
-                if turns > half_edges.len() {
-                    return Err("a seam region's vertex has no finite rotation");
-                }
-            }
-            if n == first {
-                break;
-            }
-            if !open.contains(&n) {
-                return Err("a seam region's boundary half-edge has no one successor");
-            }
-            h = n;
-        }
+    for cycle in
+        crate::surface_boundary::boundary_cycles(body, exits, half_edges.len(), inside, |_, _| {})?
+    {
         let mut starts = Vec::with_capacity(cycle.len());
         for &h in &cycle {
             starts.push(half_edge(h)?.start);
@@ -5289,16 +5214,23 @@ fn face_flux_about<T: Decide>(
     let mut area_pad = 0.0f64;
     let mut enclosure = None;
     let mut state = FaceState::Closed;
+    let loops = flat_loops(body, face)?;
+    let held = face_tips(body, face)?;
     let plane_loops = match surface {
-        Surface::Plane { .. } => Some(face_loops(body, face)?),
+        Surface::Plane { .. } => Some(edges_of(&loops)),
         _ => None,
     };
     let contribution: FaceContribution<T> = match plane_loops {
+        // No loop bounds area: the empty rule's one dispatch reads the
+        // face whole, or refuses it on a surface that is not closed or
+        // has no closed form (`geom_brep::props::whole_surface`).
+        _ if loops.is_empty() => {
+            geom_brep::props::curved_face_loops(surface, &[], face.sense, band).map_err(wrap)?
+        }
         Some(loops) if !takes_quadrature(surface, loops.iter().flatten().map(|e| &e.carrier)) => {
-            closed_form_about(surface, &loops, face.sense, band, about).map_err(wrap)?
+            closed_form_about(surface, &loops, &held, face.sense, band, about).map_err(wrap)?
         }
         _ => {
-            let loops = flat_loops(body, face)?;
             let trimmed = loops
                 .iter()
                 .flat_map(|(edges, _)| edges)
@@ -5377,7 +5309,8 @@ fn face_flux_about<T: Decide>(
                 None => {
                     let loops: Vec<Vec<LoopEdge<T>>> =
                         loops.into_iter().map(|(edges, _)| edges).collect();
-                    closed_form_about(surface, &loops, face.sense, band, about).map_err(wrap)?
+                    closed_form_about(surface, &loops, &held, face.sense, band, about)
+                        .map_err(wrap)?
                 }
             }
         }
@@ -5472,6 +5405,93 @@ pub fn loop_edges<T: Decide>(
         return Err(corrupt("broken half-edge cycle"));
     };
     Ok((run_edges(body, &cycle)?, cycle))
+}
+
+/// **A loop's chart image, flattened**: [`loop_edges`] over the loop's
+/// cycle with its spurs taken out ([`crate::surface_boundary::chart_image`]),
+/// its seams kept. The view every integrator and chart reader takes; empty
+/// where the loop is all spurs.
+///
+/// # Errors
+///
+/// As [`loop_edges`].
+#[allow(clippy::type_complexity)]
+pub fn chart_image_edges<T: Decide>(
+    body: &Body<T>,
+    lk: LoopKey,
+) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), LoopEdgesError> {
+    let (_, cycle) = loop_edges(body, lk)?;
+    image_of_cycle(body, &cycle)
+}
+
+/// [`chart_image_edges`] of a loop's cycle the caller has walked.
+///
+/// # Errors
+///
+/// As [`loop_edges`].
+pub(crate) fn image_of_cycle<T: Decide>(
+    body: &Body<T>,
+    cycle: &[crate::entity::HalfEdgeKey],
+) -> Result<FlatLoop<T>, LoopEdgesError> {
+    Ok(image_with_tips(body, cycle)?.0)
+}
+
+/// [`image_of_cycle`] with the stored point of every tip the chart image
+/// drops ([`crate::surface_boundary::tips`]), the datum of the face's
+/// side ([`geom_brep::props::boundary_material_sign_holding`]).
+///
+/// # Errors
+///
+/// As [`loop_edges`].
+pub(crate) fn image_with_tips<T: Decide>(
+    body: &Body<T>,
+    cycle: &[crate::entity::HalfEdgeKey],
+) -> Result<(FlatLoop<T>, Vec<Point3<T>>), LoopEdgesError> {
+    let image =
+        crate::surface_boundary::chart_image(body, cycle).ok_or(LoopEdgesError::Corrupt {
+            what: "half-edge mate does not resolve",
+        })?;
+    let tips = tip_points(body, &image.tips)?;
+    Ok((
+        (run_edges(body, &image.half_edges)?, image.half_edges),
+        tips,
+    ))
+}
+
+/// The stored points of the tips of every loop of `face`
+/// ([`crate::surface_boundary::tips`]), each loop's as
+/// [`image_with_tips`] reads them: the points the face holds that its
+/// chart image drops.
+///
+/// # Errors
+///
+/// As [`loop_edges`].
+pub(crate) fn face_tips<T: Decide>(
+    body: &Body<T>,
+    face: &crate::entity::Face,
+) -> Result<Vec<Point3<T>>, LoopEdgesError> {
+    let mut held = Vec::new();
+    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+        let (_, cycle) = loop_edges(body, lk)?;
+        let tips = crate::surface_boundary::tips(body, &cycle).ok_or(LoopEdgesError::Corrupt {
+            what: "half-edge mate does not resolve",
+        })?;
+        held.extend(tip_points(body, &tips)?);
+    }
+    Ok(held)
+}
+
+/// The stored point of each vertex of `tips`.
+fn tip_points<T: Real>(
+    body: &Body<T>,
+    tips: &[VertexKey],
+) -> Result<Vec<Point3<T>>, LoopEdgesError> {
+    tips.iter()
+        .map(|&v| body.points.get(body.vertices.get(v)?.point).copied())
+        .collect::<Option<Vec<_>>>()
+        .ok_or(LoopEdgesError::Corrupt {
+            what: "tip vertex or point key does not resolve",
+        })
 }
 
 /// [`loop_edges`]' flattening over any closed run of half-edges, in
@@ -6476,12 +6496,8 @@ impl<T: Decide> QuadLane<T> {
 /// let _ = ShellDoor::<Dual64>::certified();
 /// ```
 ///
-/// The code is `E0599` for [`QuadLane`]'s reason: `certified` EXISTS on
-/// `ShellDoor<Dual64>` and its `impl` block's bounds are not met, which
-/// `rustc` reports as "the associated function exists … but its trait
-/// bounds were not satisfied". Stable rustdoc verifies only that the
-/// block fails to build, so the code beside the fence is a statement
-/// and not a check.
+/// Why the code is `E0599`, and what the fence does not check:
+/// [`QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct ShellDoor<T: Decide> {
@@ -6555,7 +6571,7 @@ mod wiring_rows {
         }
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().closed_form,
-            quad_lane::closed_form::<T> as fn(_, _, _, _, _, _) -> _,
+            quad_lane::closed_form::<T> as fn(_, _, _, _, _, _, _) -> _,
         ) {
             return Err("closed_form is not `quad_lane::closed_form`");
         }
@@ -6692,10 +6708,7 @@ mod wiring_rows {
 /// The **scalar policy for the certified at-rest gates**
 /// (`docs/DUAL-DESIGN.md` DL3): whether an evaluation-service
 /// consumer of [`crate::validate_geometric`] /
-/// [`crate::validate_pseudomanifold`] runs them at this scalar, and
-/// whether the boolean engine runs its volume backstop
-/// ([`AtRestPolicy::gate_volume_backstop`]), which measures its
-/// operands and its result through the certified quadrature.
+/// [`crate::validate_pseudomanifold`] runs them at this scalar.
 ///
 /// Certified validation is an act of certification — its tier-3
 /// battery re-derives surface certificates
@@ -6732,15 +6745,19 @@ mod wiring_rows {
 /// bounds admit; this trait only decides which scalars'
 /// evaluation-service gates consult them.
 ///
-/// The trait also carries the four INJECTED DOORS whose presence is a
+/// The trait also carries the nine INJECTED DOORS whose presence is a
 /// per-scalar fact, for the same reason it carries the gates: it is
 /// the per-scalar policy home. [`AtRestPolicy::offset_fit_lane`] is
 /// the offset fit's, [`AtRestPolicy::fitted_lane`] is the fitted
 /// pcurve derivations', [`AtRestPolicy::spline_foot`] is the spline
-/// re-anchor's, and [`AtRestPolicy::shell_door`] is the hollowing
-/// verb's; each answers `None` for its own reason — a derivation
-/// written at some scalars, or certification rights (DL1) — and the doc
-/// on each method says which. The edge door is not one of them: it is
+/// re-anchor's, [`AtRestPolicy::section_lane`] and
+/// [`AtRestPolicy::ssi_lane`] are the two marches', [`AtRestPolicy::shell_door`]
+/// is the hollowing verb's, [`AtRestPolicy::quad_lane`] the
+/// quadrature's, [`AtRestPolicy::region_lane`] the chart-region
+/// doors', and [`AtRestPolicy::clearance_lane`] the clearance engine's;
+/// each answers `None` for its own reason — a derivation written at
+/// some scalars, certification rights (DL1), or a value only an
+/// enclosure can hold — and the doc on each method says which. The edge door is not one of them: it is
 /// two functions every scalar implements ([`AtRestPolicy::attach_edge`],
 /// [`AtRestPolicy::reattach_edge`]), and the scalar names what its
 /// edges carry ([`geom_core::Real::Carries`]). What a reader gets from the
@@ -6773,9 +6790,7 @@ pub trait AtRestPolicy: Decide {
     /// as the per-scalar policy that cut leaves standing): the door
     /// itself is a value the passes take as a parameter, and this is
     /// the one place each scalar's answer is written. The same holds
-    /// of the fitted-pcurve, spline-foot and shell doors beside it
-    /// ([`AtRestPolicy::fitted_lane`], [`AtRestPolicy::spline_foot`],
-    /// [`AtRestPolicy::shell_door`]) — four doors, one policy, no trait
+    /// of every door beside it — nine doors, one policy, no trait
     /// apiece.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>>;
 
@@ -6899,17 +6914,18 @@ pub trait AtRestPolicy: Decide {
     >;
 
     /// **A certified lower bound on a spline chart's arm at `p` over
-    /// `reach`, at this scalar, or `None` where none is read here** — the
-    /// lower end of the bracket the boolean's seam reading levers a spline
-    /// face's normal over ([`geom_brep::NurbsLane::chart_arm`],
-    /// [`geom_brep::classify_seam`]). It is read from certified curvature
-    /// bounds, at the certifying scalars alone; a dual answers `None`, and
-    /// the seam reads smooth or escalates, never transverse.
+    /// `reach`, at this scalar, or why none is read here** — the lower end
+    /// of the bracket the boolean's seam reading levers a spline face's
+    /// normal over ([`geom_brep::NurbsLane::chart_arm`],
+    /// [`geom_brep::classify_seam`]), and a spline pierced face's lever. It
+    /// is read from certified curvature bounds, at the certifying scalars
+    /// alone; a dual answers [`geom_brep::ChartArmRefusal::NoLane`], and the
+    /// seam reads smooth or escalates, never transverse.
     fn spline_chart_arm(
         chart: &geom::NurbsSurface<Self>,
         p: geom_core::Point3<Self>,
         reach: Self,
-    ) -> Option<f64>;
+    ) -> Result<f64, geom_brep::ChartArmRefusal>;
 
     /// **This scalar's section lane, or `None` where it is not
     /// derived here** — the offset door's plane × spline-wall
@@ -6959,6 +6975,22 @@ pub trait AtRestPolicy: Decide {
     /// as `validate_pseudomanifold` hands the census at a certifying
     /// scalar. `None` leaves a face–face pair unread.
     fn region_lane() -> Option<crate::RegionLane<Self>>;
+
+    /// **This scalar's clearance engine, or `None` where it does not
+    /// answer** — the ONE seam the `Some` comes from, read by the
+    /// `min_clearance` measure and the document-level clearance query.
+    ///
+    /// The engine's answer is a BRACKET on a minimum over a box, so the
+    /// door answers at the enclosure scalars and wherever the symbolic
+    /// tier wraps one. `None` at a dual is certification rights (DL1),
+    /// as [`AtRestPolicy::shell_door`]'s is. `None` at `f64` and at the
+    /// recording scalar is not a right but a shape: a point build
+    /// evaluates one parameter point, where the engine's walk would
+    /// answer an upper bound on the minimum found by search, not the
+    /// minimum, and that value would sit in the witness build beside
+    /// a leaf's bracket as if the two were one quantity
+    /// (`work/clear/min-separation-tightening-crosses-the-drive.md`).
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>>;
 
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
@@ -7010,23 +7042,6 @@ pub trait AtRestPolicy: Decide {
         group: &dyn Fn(crate::SolidKey) -> Option<u32>,
         band: Band,
     ) -> crate::FlushAtRest;
-
-    /// The boolean engine's volume backstop over an op's two operands
-    /// and its result (`crate::boolean::volume_backstop`, measuring
-    /// through [`QuadLane::certified`], at certifying scalars; absent at
-    /// duals, and the outcome says which).
-    ///
-    /// # Errors
-    ///
-    /// The backstop's own refusal, verbatim, where the scalar runs it.
-    fn gate_volume_backstop(
-        op: crate::BooleanOp,
-        a: &Body<Self>,
-        b: &Body<Self>,
-        result: &Body<Self>,
-        band: Band,
-        tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError>;
 }
 
 /// What an [`AtRestPolicy`] gate's success MEANS — the word that keeps
@@ -7112,7 +7127,7 @@ impl AtRestPolicy for f64 {
         chart: &geom::NurbsSurface<Self>,
         p: geom_core::Point3<Self>,
         reach: Self,
-    ) -> Option<f64> {
+    ) -> Result<f64, geom_brep::ChartArmRefusal> {
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
@@ -7137,6 +7152,10 @@ impl AtRestPolicy for f64 {
 
     fn region_lane() -> Option<crate::RegionLane<Self>> {
         Some(crate::RegionLane::certified())
+    }
+
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+        None
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -7165,18 +7184,6 @@ impl AtRestPolicy for f64 {
         band: Band,
     ) -> crate::FlushAtRest {
         crate::census::flush_at_rest(body, group, band, Self::region_lane())
-    }
-
-    fn gate_volume_backstop(
-        op: crate::BooleanOp,
-        a: &Body<Self>,
-        b: &Body<Self>,
-        result: &Body<Self>,
-        band: Band,
-        tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
-            .map(|()| AtRestOutcome::Validated)
     }
 }
 
@@ -7255,7 +7262,7 @@ impl AtRestPolicy for geom_core::Probe {
         chart: &geom::NurbsSurface<Self>,
         p: geom_core::Point3<Self>,
         reach: Self,
-    ) -> Option<f64> {
+    ) -> Result<f64, geom_brep::ChartArmRefusal> {
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
@@ -7284,6 +7291,10 @@ impl AtRestPolicy for geom_core::Probe {
         Some(crate::RegionLane::certified())
     }
 
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -7310,18 +7321,6 @@ impl AtRestPolicy for geom_core::Probe {
         band: Band,
     ) -> crate::FlushAtRest {
         crate::census::flush_at_rest(body, group, band, Self::region_lane())
-    }
-
-    fn gate_volume_backstop(
-        op: crate::BooleanOp,
-        a: &Body<Self>,
-        b: &Body<Self>,
-        result: &Body<Self>,
-        band: Band,
-        tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
-            .map(|()| AtRestOutcome::Validated)
     }
 }
 
@@ -7396,7 +7395,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
         chart: &geom::NurbsSurface<Self>,
         p: geom_core::Point3<Self>,
         reach: Self,
-    ) -> Option<f64> {
+    ) -> Result<f64, geom_brep::ChartArmRefusal> {
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
@@ -7422,6 +7421,10 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     fn region_lane() -> Option<crate::RegionLane<Self>> {
         Some(crate::RegionLane::certified())
+    }
+
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+        Some(crate::ClearanceLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -7451,18 +7454,6 @@ impl AtRestPolicy for geom_core::interval::Interval {
     ) -> crate::FlushAtRest {
         crate::census::flush_at_rest(body, group, band, Self::region_lane())
     }
-
-    fn gate_volume_backstop(
-        op: crate::BooleanOp,
-        a: &Body<Self>,
-        b: &Body<Self>,
-        result: &Body<Self>,
-        band: Band,
-        tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
-            .map(|()| AtRestOutcome::Validated)
-    }
 }
 
 /// **The symbolic tier over a certifying scalar**: the gates are the
@@ -7474,6 +7465,7 @@ impl<T> AtRestPolicy for geom_core::Sym<T>
 where
     geom_core::Sym<T>: Decide + geom_core::Bounds,
     T: geom_core::CertifiedBounds,
+    T: AtRestPolicy,
 {
     /// The fit is derived at `f64` only. The tier changes how a margin
     /// DECIDES, not which derivations exist, so wrapping a scalar
@@ -7546,7 +7538,7 @@ where
         chart: &geom::NurbsSurface<Self>,
         p: geom_core::Point3<Self>,
         reach: Self,
-    ) -> Option<f64> {
+    ) -> Result<f64, geom_brep::ChartArmRefusal> {
         geom_brep::NurbsLane::certified().chart_arm(chart, p, reach)
     }
 
@@ -7577,6 +7569,13 @@ where
         Some(crate::RegionLane::certified())
     }
 
+    /// Exactly where the base scalar's engine answers: the tier
+    /// changes how a margin decides, not whether a bracket has
+    /// somewhere to go.
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+        T::clearance_lane().map(|_| crate::ClearanceLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -7603,18 +7602,6 @@ where
         band: Band,
     ) -> crate::FlushAtRest {
         crate::census::flush_at_rest(body, group, band, Self::region_lane())
-    }
-
-    fn gate_volume_backstop(
-        op: crate::BooleanOp,
-        a: &Body<Self>,
-        b: &Body<Self>,
-        result: &Body<Self>,
-        band: Band,
-        tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
-            .map(|()| AtRestOutcome::Validated)
     }
 }
 
@@ -7714,8 +7701,8 @@ where
         _chart: &geom::NurbsSurface<Self>,
         _p: geom_core::Point3<Self>,
         _reach: Self,
-    ) -> Option<f64> {
-        None
+    ) -> Result<f64, geom_brep::ChartArmRefusal> {
+        Err(geom_brep::ChartArmRefusal::NoLane)
     }
 
     /// The march is written at `f64` alone.
@@ -7745,6 +7732,10 @@ where
         None
     }
 
+    fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(_body: &Body<Self>, _tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         Ok(AtRestOutcome::NotRunAtThisScalar)
     }
@@ -7770,20 +7761,6 @@ where
         _band: Band,
     ) -> crate::FlushAtRest {
         crate::FlushAtRest::default()
-    }
-
-    /// The backstop is a validation of the result, and the quadrature
-    /// it measures with is certification arithmetic: absent here, the
-    /// base-scalar run of the same recipe is the check of record.
-    fn gate_volume_backstop(
-        _op: crate::BooleanOp,
-        _a: &Body<Self>,
-        _b: &Body<Self>,
-        _result: &Body<Self>,
-        _band: Band,
-        _tol: Tol,
-    ) -> Result<AtRestOutcome, crate::BooleanError> {
-        Ok(AtRestOutcome::NotRunAtThisScalar)
     }
 }
 
@@ -8075,27 +8052,6 @@ mod at_rest_policy_tests {
             T::spline_foot().is_some(),
             "a certifying scalar holds the spline foot"
         );
-        // The volume backstop runs, on a planted wrong result: a union
-        // "result" half the size of an operand.
-        let (cube, half) = planted_union::<T>(tol);
-        let band = geom_core::Band::linear(tol).expect("the witness tolerance forms a band");
-        assert!(
-            matches!(
-                T::gate_volume_backstop(crate::BooleanOp::Union, &cube, &cube, &half, band, tol),
-                Err(crate::BooleanError::ResultVolumeImplausible { .. })
-            ),
-            "the certifying arm runs the volume backstop"
-        );
-    }
-
-    /// A unit cube and a half-height brick on it, the second standing
-    /// in as a union's "result" that is smaller than an operand.
-    fn planted_union<T: Decide + crate::props::AtRestPolicy>(tol: Tol) -> (Body<T>, Body<T>) {
-        let brick = crate::test_support_fixtures::brick::<T>;
-        (
-            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
-            brick((0.0, 1.0), (0.0, 1.0), (0.0, 0.5), tol),
-        )
     }
 
     #[test]
@@ -8158,21 +8114,6 @@ mod at_rest_policy_tests {
                 tol
             ),
             Ok(AtRestOutcome::NotRunAtThisScalar)
-        );
-        let (cube, half) = planted_union::<geom_core::Dual64>(tol);
-        let band = geom_core::Band::linear(tol).expect("the witness tolerance forms a band");
-        assert_eq!(
-            <geom_core::Dual64 as AtRestPolicy>::gate_volume_backstop(
-                crate::BooleanOp::Union,
-                &cube,
-                &cube,
-                &half,
-                band,
-                tol
-            )
-            .map_err(|e| e.kind()),
-            Ok(AtRestOutcome::NotRunAtThisScalar),
-            "a dual runs no volume backstop, even on a result a certifying scalar refuses"
         );
         // The shell door's absence is the same fact one step earlier:
         // the call is never formed at all, so there is no refusal to
@@ -9010,6 +8951,7 @@ mod shell_reference_rows {
     fn refusing_up_planes(
         surface: &Surface<f64>,
         loops: &[Vec<LoopEdge<f64>>],
+        held: &[Point3<f64>],
         sense: bool,
         band: Band,
         centre: Point3<Interval>,
@@ -9026,7 +8968,7 @@ mod shell_reference_rows {
                 what: "the row's planted refusal about the shell's reference",
             });
         }
-        quad_lane::closed_form(surface, loops, sense, band, centre, measured)
+        quad_lane::closed_form(surface, loops, held, sense, band, centre, measured)
     }
 
     /// **A closed-form face that refuses about its shell's reference is
@@ -9096,9 +9038,16 @@ mod shell_reference_rows {
             let (face, surface) = resolve_face(&body, run.face);
             let loops = face_loops(&body, face).unwrap();
             let from = corner_of(lane, run);
-            let (c, moved) =
-                closed_form_or_carried(refusing_up_planes, surface, &loops, face.sense, band, from)
-                    .unwrap();
+            let (c, moved) = closed_form_or_carried(
+                refusing_up_planes,
+                surface,
+                &loops,
+                &face_tips(&body, face).unwrap(),
+                face.sense,
+                band,
+                from,
+            )
+            .unwrap();
             carried += usize::from(!moved);
             flux = flux + c.flux;
         }

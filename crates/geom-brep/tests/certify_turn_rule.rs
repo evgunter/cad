@@ -61,7 +61,7 @@ impl Steep {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: self.pair,
-                witness: e.eval(0.5 * (t0 + t1)),
+                selector: geom_brep::CurveSelector::Witness(e.eval(0.5 * (t0 + t1))),
             },
             carrier: e.clone(),
             param_start: t0,

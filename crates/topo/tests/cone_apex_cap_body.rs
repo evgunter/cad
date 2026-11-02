@@ -136,4 +136,24 @@ fn the_unbounded_complement_is_caught_by_check_6() {
         named, disagreeing,
         "check 6 names exactly the face whose boundary contradicts its bit: {errs:?}"
     );
+    // The cap that agrees with its bit holds the apex inside it, where
+    // a chart singularity is a vertex of every face whose closure holds
+    // it: the chart-singularity arm names it, and nothing else.
+    let cap: Vec<FaceKey> = encoded
+        .iter()
+        .map(|(k, _, _)| *k)
+        .filter(|k| !disagreeing.contains(k))
+        .collect();
+    let apex: Vec<FaceKey> = errs
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::ChartSingularityNotAVertex {
+                face,
+                point: geom_brep::chart_singularity::Singularity::Apex,
+                lies: topo::SingularityLies::Interior,
+            } => Some(*face),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(apex, cap, "the apex cap holds its apex: {errs:?}");
 }

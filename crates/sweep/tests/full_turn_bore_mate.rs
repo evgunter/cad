@@ -39,7 +39,7 @@ use core::f64::consts::PI;
 use geom_core::{Affine3, Point3, Tol};
 use sweep::test_support::finished;
 use topo::construction::Construct;
-use topo::{AtRestBody, Body, BooleanOp, BooleanResult};
+use topo::{AtRestBody, Body, BooleanOp, BooleanResult, SideCode};
 
 /// The collar's bore and outer radii and its span in `y`.
 const BORE: f64 = 0.5;
@@ -416,17 +416,23 @@ fn intersect_and_differences_answer_the_closed_form() {
     }
 }
 
-/// **The mate's vertices on the bore's rims are read no partner of,
-/// and say so**: a shaft ruling on the bore's seam meets the collar at
-/// a rim vertex, where neither the bore nor the end face holds a
-/// subdivision bisector to read their wedge by
-/// (`UnreadNeighbourhood::NoBisector`), so the boolean classes none of
-/// the shaft's edges there; the record lists each such shaft vertex and
-/// why (`BooleanNaming::unread_partners`), which naming refuses by
-/// (`NamingError::PartnerUnread`) rather than reading a missing row,
-/// and no listed vertex holds a class.
+/// **The mate's vertices on the bore's rims are classed**: a shaft
+/// ruling on the bore's seam meets the collar at a rim vertex, the bore
+/// and the end face meeting there along the rim; the boolean reads the
+/// shaft's edges there through one cone of the collar's faces at the
+/// point, so it lists no partner unread and classes every edge.
+///
+/// By hand, the collar's material at a rim is the side of the end face
+/// it lies behind and outside the bore. A shaft ruling through the rim
+/// runs along the bore into the collar (`On`) and out past the end face
+/// (`Out`); at a shaft cap on the rim, the cap's circle runs along the
+/// rim, on both faces (`On`), and the ruling into the collar along the
+/// bore (`On`). So at each of the shaft's vertices paired with the
+/// collar's, a ruling (a line edge) in two pieces, split at the rim,
+/// reads one piece `On` and the other `Out`, and every other row (the
+/// cap's circle, split or not, and a ruling ending at the rim) `On`.
 #[test]
-fn the_mate_records_its_unread_partners() {
+fn the_mate_classes_the_shafts_edges_at_the_rims() {
     let tol = Tol::witness();
     let c = finished("the collar", collar(), tol);
     for &(span, y0, h) in &SPANS {
@@ -439,26 +445,58 @@ fn the_mate_records_its_unread_partners() {
                     other.err()
                 ),
             };
-            let unread = &bb.naming.unread_partners;
-            assert!(
-                !unread.is_empty(),
-                "{span}, {order}: no partner went unread"
+            let naming = &bb.naming;
+            assert_eq!(
+                naming.unread_partners,
+                [],
+                "{span}, {order}: every partner reads"
             );
-            for u in unread {
-                assert_eq!(
-                    (u.operand == topo::Operand::A, u.neighbourhood),
-                    (
-                        order.starts_with("shaft"),
-                        topo::UnreadNeighbourhood::NoBisector
-                    ),
-                    "{span}, {order}: the shaft's vertex at the rim, no bisector: {u:?}"
-                );
+            let shaft_side = if order.starts_with("shaft") {
+                topo::Operand::A
+            } else {
+                topo::Operand::B
+            };
+            let rims: std::collections::BTreeSet<_> = naming
+                .reduction_contacts
+                .vv
+                .iter()
+                .map(|c| match shaft_side {
+                    topo::Operand::A => c.a,
+                    topo::Operand::B => c.b,
+                })
+                .collect();
+            assert!(!rims.is_empty(), "{span}, {order}: the shaft meets a rim");
+            for v in rims {
+                let mut edges = std::collections::BTreeMap::new();
+                for r in naming
+                    .edge_classes
+                    .iter()
+                    .filter(|r| (r.operand, r.vertex) == (shaft_side, v))
+                {
+                    edges.entry(r.edge).or_insert_with(Vec::new).push(r.class);
+                }
+                for pieces in edges.values_mut() {
+                    pieces.sort();
+                }
+                let shaft: &topo::Body<f64> = &p;
+                // Per edge: a ruling (a line edge) split at the rim reads one
+                // piece `On` and the other `Out`; every other edge `On`.
+                let want: std::collections::BTreeMap<_, Vec<_>> = edges
+                    .iter()
+                    .map(|(&e, pieces)| {
+                        let ruling =
+                            topo::query::edge_carrier_kind(shaft, e) == Some(geom::CurveKind::Line);
+                        let mut want = match pieces.len() {
+                            2 if ruling => vec![SideCode::Out, SideCode::On],
+                            n => vec![SideCode::On; n],
+                        };
+                        want.sort();
+                        (e, want)
+                    })
+                    .collect();
                 assert!(
-                    !bb.naming
-                        .edge_classes
-                        .iter()
-                        .any(|c| (c.operand, c.vertex) == (u.operand, u.vertex)),
-                    "{span}, {order}: an unread vertex holds a class: {u:?}"
+                    !edges.is_empty() && edges == want,
+                    "{span}, {order}: the shaft's vertex {v:?} at a rim reads {edges:?}"
                 );
             }
         }

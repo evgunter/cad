@@ -55,14 +55,17 @@
 //! Every value is formed in the scalar the sections are held in, under
 //! those decisions: an arc's weight `cos(Δ/2)` and its poles
 //! ([`segment_curve`]), the compatible nets through the knot algebra
-//! ([`make_compatible`]), the chord-length parameters
+//! ([`make_compatible`]), a loft's chord-length parameters
 //! ([`skin_parameters`]), the averaged knots and the banded collocation
 //! solve ([`skin_on`], `geom::curves::fit::interpolate_columns_in`). So
 //! a section whose arc sweep is a function of a document's variables
 //! gives a wall whose weights, knots and poles are functions of them
 //! too, and at an enclosure scalar a section over a box gives walls
 //! that enclose the box's family. The sines and cosines are `Real`'s,
-//! the pure-Rust `libm` D9 prescribes.
+//! the pure-Rust `libm` D9 prescribes. A path sweep is the exception on
+//! its path's side: the path is `f64`, so its stations' parameters
+//! (`v = i/(n − 1)`) and its carried rotations are computed in `f64`
+//! and enter the sections' scalar as the points they are (`PathCarry`).
 //!
 //! A carrier's weights and knots are points at every scalar for now, so
 //! at an enclosure scalar an arc whose weight `cos(Δ/2)` is wider than a
@@ -75,9 +78,11 @@
 //! it stands for ([`SkinError::ArcSweepUndecided`]). The knot algebra
 //! that makes sections compatible runs homogeneous at an enclosure
 //! scalar ([`make_compatible`], C6 S4), and its result enters through
-//! the same door. No topology decision is
-//! made here, so nothing routes through `k_stats`; the raw `f64`
-//! comparisons below are structure selection under C6.
+//! the same door. No topology decision is made here. A path sweep's
+//! three decisions read their margins against the band through
+//! `k_stats`, under `sweep_path_tangent`, `sweep_path_chord` and
+//! `sweep_path_turn` ([`sweep_places`]); the raw `f64` comparisons
+//! below are structure selection under C6.
 
 use core::num::NonZeroUsize;
 use std::sync::Arc;
@@ -90,7 +95,7 @@ use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, Knots, SpanLocate, SplineError};
 use geom_core::{
     Affine3, Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag,
-    Point2, Point3, RANGE_RECOURSE, Real, RigidMotion, TurnError, UnitVec3, UnitVec3Error,
+    Point2, Point3, RANGE_RECOURSE, Real, RigidMotion, TurnError, Turns, UnitVec3, UnitVec3Error,
 };
 use profile::{
     CanonicalStructure, ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop,
@@ -144,6 +149,29 @@ impl core::fmt::Display for ArcSweepDecision {
     }
 }
 
+/// Which of a path sweep's decisions [`SkinError::PathUndecided`]
+/// names ([`sweep_places`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PathDecision {
+    /// Whether the path's tangent at the station vanishes.
+    Tangent,
+    /// Whether the station coincides with the one before it.
+    Chord,
+    /// Whether the path folds back across the chord between the station
+    /// and the one before it.
+    FoldBack,
+}
+
+impl core::fmt::Display for PathDecision {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Tangent => "whether the path's tangent vanishes at station",
+            Self::Chord => "whether the path's stations coincide at station",
+            Self::FoldBack => "whether the path folds back across its chord into station",
+        })
+    }
+}
+
 /// Typed refusal of the §10.3/§10.4 constructions (closed enum, D4 ¶3).
 ///
 /// Every arm but the path sweep's is a STRUCTURAL statement about the
@@ -152,10 +180,10 @@ impl core::fmt::Display for ArcSweepDecision {
 /// those has an in-band twin; [`SkinError::DegenerateSection`]
 /// documents where the banded half of its user situation actually
 /// lives and carries that door's recourse. The path sweep decides its
-/// station tangents and turns under the band ([`sweep_places`]), so
-/// [`SkinError::PathTangentVanishes`] and
-/// [`SkinError::PathTangentReversal`] have their in-band twin,
-/// [`SkinError::PathTangentUndecided`].
+/// station tangents, chords and fold-backs under the band
+/// ([`sweep_places`]), so [`SkinError::PathTangentVanishes`],
+/// [`SkinError::PathStationsCoincide`] and [`SkinError::PathFoldsBack`]
+/// have their in-band twin, [`SkinError::PathUndecided`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum SkinError {
     /// Fewer sections than a skin needs (≥ 2 always; ≥ `degree + 1`
@@ -249,20 +277,31 @@ pub enum SkinError {
         /// The station where the tangent vanished.
         station: usize,
     },
-    /// The path's tangent at a station doubles back on the start
-    /// tangent (`1 + t₀·tᵢ` decided zero), where every axis
-    /// perpendicular to the two is a minimal rotation and no stated
-    /// frame picks one ([`sweep_places`]).
-    PathTangentReversal {
-        /// The station where the frame failed.
+    /// The path's station coincides with the one before it: the chord
+    /// between them is decided zero, so no reflection carries the
+    /// frame across it ([`sweep_places`]).
+    PathStationsCoincide {
+        /// The later station of the pair.
         station: usize,
     },
-    /// A station's tangent length, or whether it doubles back on the
-    /// start tangent, could not be decided under the band
-    /// ([`sweep_places`]).
-    PathTangentUndecided {
+    /// The path folds back across the chord between a station and the
+    /// one before it: the later tangent is decided to be the earlier
+    /// one mirrored in the plane normal to their chord, so it leaves
+    /// along the chord and arrives back against it, and the step's
+    /// second reflection has no plane ([`sweep_places`]). A smooth
+    /// half turn spread over the step (a semicircle) is not this case;
+    /// a hairpin is.
+    PathFoldsBack {
+        /// The later station of the pair.
+        station: usize,
+    },
+    /// One of the path sweep's decisions at a station could not be
+    /// taken under the band ([`sweep_places`]).
+    PathUndecided {
         /// The station where the decision escalated.
         station: usize,
+        /// Which decision.
+        which: PathDecision,
         /// The decision's own diagnostic.
         source: Indeterminate,
     },
@@ -315,17 +354,17 @@ pub enum SkinError {
 /// The recourse a path sweep's vanishing tangent ends with.
 const PATH_RECOURSE: &str = "smooth the path there";
 
-/// The recourse a path sweep's reversed tangent ends with: a sweep
-/// turns every station from the start tangent, so no smoothing of a
-/// path that doubles back gives it a frame.
-const REVERSAL_RECOURSE: &str = "loft the section through planes stated at the stations \
-                                 (`loft_body`), or sweep the path in pieces that each turn \
-                                 less than a half turn";
+/// The recourse a path sweep's fold-back between two stations ends
+/// with: closer stations cure a smooth fold, and only smoothing cures a
+/// kink that doubles back on itself.
+const FOLD_BACK_RECOURSE: &str = "smooth the path's kink there, or add stations";
 
-/// The recourse a path sweep's undecided tangent or turn ends with.
-const PATH_UNDECIDED_RECOURSE: &str = "smooth the path there; where it doubles back, loft the \
-                                       section through planes stated at the stations \
-                                       (`loft_body`)";
+/// The recourse a path sweep's coincident stations end with.
+const COINCIDENT_STATIONS_RECOURSE: &str = "change the station count so consecutive stations \
+                                            are apart, or smooth the path there";
+
+/// The recourse a path sweep's undecided decision ends with.
+const PATH_UNDECIDED_RECOURSE: &str = "add stations, or smooth the path there";
 
 impl core::fmt::Display for SkinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -377,17 +416,26 @@ impl core::fmt::Display for SkinError {
                 "the path's tangent vanishes at station {station}, so no rigid frame carries \
                  the profile through it. Recourse: {PATH_RECOURSE}"
             ),
-            Self::PathTangentReversal { station } => write!(
+            Self::PathStationsCoincide { station } => write!(
                 f,
-                "the path's tangent at station {station} doubles back on its start tangent, so \
-                 no one minimal rotation carries the start frame there. Recourse: \
-                 {REVERSAL_RECOURSE}"
+                "the path's stations {} and {station} coincide, so no chord carries the frame \
+                 between them. Recourse: {COINCIDENT_STATIONS_RECOURSE}",
+                station.saturating_sub(1),
             ),
-            Self::PathTangentUndecided { station, source } => source
+            Self::PathFoldsBack { station } => write!(
+                f,
+                "the path folds back across its chord between stations {} and {station}, so \
+                 no rotation-minimizing step carries the frame across it. Recourse: \
+                 {FOLD_BACK_RECOURSE}",
+                station.saturating_sub(1),
+            ),
+            Self::PathUndecided {
+                station,
+                which,
+                source,
+            } => source
                 .undecided(
-                    format_args!(
-                        "whether the path's tangent vanishes or reverses at station {station}"
-                    ),
+                    format_args!("{which} {station}"),
                     source.lever_ending(PATH_UNDECIDED_RECOURSE),
                 )
                 .fmt(f),
@@ -1334,22 +1382,6 @@ pub fn loft_geometry<L: SectionLoop>(
     skin_strips(validated, compat, v_degree, params)
 }
 
-/// [`loft_geometry`] at [`loft_parameters`]' answer — the loft body's
-/// construction, sharing the validated sections and compatible strips
-/// between the parameters and the walls.
-pub(crate) fn loft_geometry_by_chord_length<L: SectionLoop>(
-    sections: &[Section<L>],
-    places: &[SketchPlane<f64>],
-    v_degree: usize,
-    tol: Tol,
-) -> Result<LoftGeometry, SkinError> {
-    skin_validated(
-        validate_loft(sections, places, v_degree, tol)?.0,
-        places,
-        v_degree,
-    )
-}
-
 /// [`loft_geometry`]'s first half: every refusal that reads the
 /// sections one at a time or by count — section and placement counts,
 /// the degree, each section's profile door, and the loop and segment
@@ -1506,16 +1538,21 @@ fn skin_strips<T: SpanLocate>(
 }
 
 /// [`loft_geometry`]'s second half: the walls skinned over sections
-/// [`validate_loft`] already accepted, at [`loft_parameters`]' answer —
-/// one pass over the compatible strips serves both the parameters and
-/// the walls.
+/// [`validate_loft`] already accepted, at `params` where the caller
+/// states them (a path sweep's path parameters) and otherwise at
+/// [`loft_parameters`]' answer — one pass over the compatible strips
+/// serves both the parameters and the walls.
 pub(crate) fn skin_validated<T: SpanLocate>(
     validated: Vec<ValidatedProfile<T>>,
     places: &[SketchPlane<T>],
     v_degree: usize,
+    params: Option<&[f64]>,
 ) -> Result<LoftGeometry<T>, SkinError> {
     let compat = compatible_strips(&validated, places)?;
-    let params = strip_parameters(&compat)?;
+    let params = match params {
+        Some(params) => params.iter().map(|v| T::from_computed(*v)).collect(),
+        None => strip_parameters(&compat)?,
+    };
     skin_strips(validated, compat, v_degree, &params)
 }
 
@@ -1611,9 +1648,11 @@ pub fn loft_parameters<L: SectionLoop>(
 /// instantiate-and-skin; C11's scope box, verbatim: rigid profile,
 /// path-following, **no** variable sections and **no** scaling laws).
 ///
-/// The frame is path-FOLLOWING: at each station the profile is turned
-/// by the minimal rotation carrying the path's tangent at station 0 to
-/// its tangent there, then translated onto the path ([`sweep_places`]).
+/// The stations are placed by the path's carry of `plane`
+/// ([`sweep_places`]; the law is `crates/sweep/README.md`
+/// `[sweep.frame]`), and station `i`'s section sits at
+/// `v = i / (stations − 1)`, the share of the path's parameter it was
+/// sampled at.
 ///
 /// `plane` — the STARTING frame the rest is carried from — is the
 /// caller's, and `geom_core::linalg::frame::path_start_frame` is where
@@ -1639,127 +1678,235 @@ pub fn sweep_geometry<L: SectionLoop>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
-    let places = sweep_places(plane, path, stations, tol)?;
+    let carry = PathCarry::of(path, stations, tol)?;
+    let places = carry.place(plane)?;
     let sections: Vec<Section<L>> = core::iter::repeat_n(profile.to_vec(), stations).collect();
-    // v is the loft's chord-length rule ([`loft_parameters`]), not the
-    // path parameter: the frame spins the section about its tangent
-    // near anti-parallel to the start tangent, and chord-length v
-    // absorbs the spin
-    // (`work/carve/sweep-frame-is-a-minimal-rotation-from-the-start-tangent.md`).
-    loft_geometry_by_chord_length(&sections, &places, v_degree, tol)
+    loft_geometry(&sections, &places, v_degree, &carry.params(), tol)
 }
 
 /// The K funnel name of a path sweep's station tangent: the path's
 /// derivative decided into a direction witness.
 pub(crate) const SWEEP_PATH_TANGENT: &str = "sweep_path_tangent";
 
-/// The K funnel name of a path sweep's station turn: `1 + t₀·tᵢ`, the
-/// margin of the minimal rotation carrying the start tangent onto the
-/// station's ([`RigidMotion::turned_between`]).
+/// The K funnel name of a path sweep's chord: the step from one
+/// station to the next decided into a direction witness.
+pub(crate) const SWEEP_PATH_CHORD: &str = "sweep_path_chord";
+
+/// The K funnel name of a path sweep's step turn: `1 + m·tᵢ₊₁`, for
+/// `m` the tangent `tᵢ` mirrored in the chord, the margin of the
+/// minimal rotation carrying `m` onto `tᵢ₊₁`
+/// ([`RigidMotion::turned_between`]).
 pub(crate) const SWEEP_PATH_TURN: &str = "sweep_path_turn";
 
-/// The rigid section planes of a §10.4 path sweep — the path-following
-/// frame of [`sweep_geometry`], factored so the BODY assembly (M6-3,
-/// `crate::loft`) rides the exact same machinery with no semantic fork.
-///
-/// Station `i`'s plane is `plane`'s frame turned about its own origin
-/// by the minimal rotation carrying the start tangent `t₀` onto the
-/// station's tangent `tᵢ` ([`RigidMotion::turned_between`]: the
-/// quaternion `(1 + t₀·tᵢ, t₀ × tᵢ)`'s matrix, no normalized axis and
-/// no angle), then
-/// translated by the path's displacement from its start point. A
-/// rotation of a frame is a frame, so no station is decided again.
-///
-/// Two decisions per station, each under the band:
-///
-/// - **the tangent** — the path's derivative decided into a
-///   [`UnitVec3`] (`sweep_path_tangent`): a vanishing, overflowed or
-///   poisoned derivative has no direction;
-/// - **the turn** — `1 + t₀·tᵢ > 0` (`sweep_path_turn`): a tangent
-///   that doubles back on the start tangent has every axis
-///   perpendicular to the two as a minimal rotation, and no stated
-///   frame picks one. Where the path doubles back exactly, the turn
-///   refuses decided; within the band of doubling back, undecided.
-///
-/// At station 0, and at every station whose tangent is `t₀` bit for
-/// bit, the turn is the identity with no rounding.
-///
-/// # At a lane scalar
-///
-/// `plane` is the caller's, in `T`, and the turn's centre is its
-/// origin. What the path contributes — each station's tangent and its
-/// offset from the start point — is computed in `f64` from the path
-/// and enters `T` as the computed values it is
-/// ([`Real::from_computed`]); the tangents and the turn are decided
-/// there, at `T`.
+/// **The path's carry**: for each station, where the path is and the
+/// rotation carrying the start frame there — `crates/sweep/README.md`
+/// `[sweep.frame]`, the rotation-minimizing frame by double reflection.
+/// It is a function of the `f64` path and the station count alone, so
+/// it is computed once and every scalar lane composes it onto its own
+/// start plane ([`Self::place`]).
+pub(crate) struct PathCarry {
+    /// The path's start point, the pivot every station's rotation
+    /// turns about.
+    start: Point3<f64>,
+    /// Each station's point on the path and the rotation carrying the
+    /// start frame there, about the coordinate origin; `None` where
+    /// that rotation is the identity with no rounding.
+    stations: Vec<(Point3<f64>, Option<RigidMotion<f64>>)>,
+}
+
+impl PathCarry {
+    /// The carry of `path` sampled at `stations` uniform shares of its
+    /// parameter.
+    ///
+    /// Each step from station `i` to `i + 1` is Wang, Jüttler, Zheng and
+    /// Liu's double reflection (ACM TOG 2008): the reflection in the
+    /// plane normal to the chord `c`, then the reflection carrying the
+    /// mirrored tangent onto `tᵢ₊₁`. Their product is evaluated as the
+    /// product of the half turns about `tᵢ` and about `ĉ` (the two
+    /// reflections' product with `H_tᵢ` inserted), followed by the
+    /// minimal rotation carrying `m = H_c·H_tᵢ·tᵢ` onto `tᵢ₊₁`
+    /// ([`RigidMotion::turned_between`]), whose one decision is the
+    /// second reflection's margin. A step whose two tangents are equal
+    /// bit for bit is the identity with no rounding, as the exact law
+    /// makes it (the second reflection is then the first).
+    ///
+    /// Three decisions, each under the band:
+    ///
+    /// - **the tangent** at each station (`sweep_path_tangent`): a
+    ///   vanishing, overflowed or poisoned derivative has no direction;
+    /// - **the chord** into each station after the first
+    ///   (`sweep_path_chord`): coincident stations have no chord to
+    ///   reflect in;
+    /// - **the fold-back** (`sweep_path_turn`): `1 + m·tᵢ₊₁ > 0`.
+    ///   Where `tᵢ₊₁` is `tᵢ` mirrored in the plane normal to the
+    ///   chord (the path leaves along the chord and comes back against
+    ///   it), `m` is opposed to `tᵢ₊₁` and the second reflection has no
+    ///   plane.
+    pub(crate) fn of(
+        path: &NurbsCurve3<f64>,
+        stations: usize,
+        tol: Tol,
+    ) -> Result<Self, SkinError> {
+        if stations < 2 {
+            return Err(SkinError::TooFewSections {
+                have: stations,
+                need: 2,
+            });
+        }
+        let band = Band::linear(tol).map_err(SkinError::Band)?;
+        let (lo, hi) = path.domain();
+        let shares = station_shares(stations);
+        let samples = shares
+            .iter()
+            .enumerate()
+            .map(|(station, s)| {
+                let (p, d) = path.ders1((hi - lo).mul_add(*s, lo));
+                UnitVec3::new(d, SWEEP_PATH_TANGENT, band)
+                    .map(|t| (p, t))
+                    .map_err(|e| direction_refusal(e, station, PathDirection::Tangent))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let not_finite = |station| move |_| SkinError::StationNotFinite { station };
+        let half = Turns::new(1, 2).unwrap_or_else(|| unreachable!("a nonzero denominator"));
+        let o = Point3::origin();
+        let mut turn: Option<RigidMotion<f64>> = None;
+        let mut carried = vec![(samples[0].0, None)];
+        for (i, pair) in samples.windows(2).enumerate() {
+            let station = i + 1;
+            let ((p, t), (q, next)) = (pair[0], pair[1]);
+            let chord = UnitVec3::new(q - p, SWEEP_PATH_CHORD, band)
+                .map_err(|e| direction_refusal(e, station, PathDirection::Chord))?;
+            let (a, b) = (t.get(), next.get());
+            let same = [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
+                .iter()
+                .all(|(x, y)| x.to_bits() == y.to_bits());
+            if !same {
+                let mirror = RigidMotion::turned(o, chord, half)
+                    .compose(RigidMotion::turned(o, t, half))
+                    .map_err(not_finite(station))?;
+                let step =
+                    RigidMotion::turned_between(mirror.turn(t), next, o, SWEEP_PATH_TURN, band)
+                        .map_err(|e| match e {
+                            TurnError::Opposed => SkinError::PathFoldsBack { station },
+                            TurnError::Undecided(source) => SkinError::PathUndecided {
+                                station,
+                                which: PathDecision::FoldBack,
+                                source,
+                            },
+                            TurnError::NonFinite(_) => SkinError::StationNotFinite { station },
+                        })?
+                        .compose(mirror)
+                        .map_err(not_finite(station))?;
+                turn = Some(match turn {
+                    None => step,
+                    Some(c) => step.compose(c).map_err(not_finite(station))?,
+                });
+            }
+            carried.push((q, turn));
+        }
+        Ok(Self {
+            start: samples[0].0,
+            stations: carried,
+        })
+    }
+
+    /// Each station's normalised path parameter, `i / (stations − 1)`:
+    /// the v its section sits at.
+    pub(crate) fn params(&self) -> Vec<f64> {
+        station_shares(self.stations.len())
+    }
+
+    /// The carry composed onto `plane`: station 0 is `plane` itself;
+    /// station `i` is `plane` turned about the path's start point `p₀`
+    /// by the station's rotation `Cᵢ`, then translated onto the path —
+    /// its origin `pᵢ + Cᵢ·(o − p₀)`. The rotation enters `T` as the
+    /// computed values it is ([`RigidMotion::computed_at`]), so a lane
+    /// decides nothing again.
+    pub(crate) fn place<T: Real>(
+        &self,
+        plane: SketchPlane<T>,
+    ) -> Result<Vec<SketchPlane<T>>, SkinError> {
+        let start = plane.frame();
+        let at = |p: Point3<f64>| p.map(T::from_computed);
+        let back = Point3::origin() - at(self.start);
+        self.stations
+            .iter()
+            .enumerate()
+            .map(|(station, (p, turn))| {
+                if station == 0 {
+                    return Ok(plane);
+                }
+                match turn {
+                    None => start.translated((*p - self.start).map(T::from_computed)),
+                    Some(turn) => start.translated(back).and_then(|f| {
+                        turn.computed_at::<T>()
+                            .compose(f)?
+                            .translated(at(*p) - Point3::origin())
+                    }),
+                }
+                .map(SketchPlane::from_frame)
+                .map_err(|_| SkinError::StationNotFinite { station })
+            })
+            .collect()
+    }
+}
+
+/// `i / (stations − 1)` for each of `stations ≥ 2` stations: `0` and
+/// `1` exactly at the ends.
+fn station_shares(stations: usize) -> Vec<f64> {
+    #[allow(clippy::cast_precision_loss)]
+    let last = (stations - 1) as f64;
+    #[allow(clippy::cast_precision_loss)]
+    (0..stations).map(|i| i as f64 / last).collect()
+}
+
+/// The two path decisions that normalize a vector: the fold-back is
+/// a turn's margin, not a direction, so it has no arm here.
+#[derive(Clone, Copy)]
+enum PathDirection {
+    Tangent,
+    Chord,
+}
+
+/// A path direction's refusal at `station`: a vector with no direction
+/// refuses as its decision's own arm, and an undecided one names it.
+fn direction_refusal(e: UnitVec3Error, station: usize, which: PathDirection) -> SkinError {
+    match (e, which) {
+        (UnitVec3Error::Escalated(source), _) => SkinError::PathUndecided {
+            station,
+            which: match which {
+                PathDirection::Tangent => PathDecision::Tangent,
+                PathDirection::Chord => PathDecision::Chord,
+            },
+            source,
+        },
+        (_, PathDirection::Chord) => SkinError::PathStationsCoincide { station },
+        (_, PathDirection::Tangent) => SkinError::PathTangentVanishes { station },
+    }
+}
+
+/// The rigid section planes of a §10.4 path sweep: `plane` carried
+/// along `path` to each of `stations` uniform shares of its parameter
+/// (`crates/sweep/README.md` `[sweep.frame]`). The body assembly
+/// ([`crate::sweep_body`]) and [`sweep_geometry`] place their stations
+/// here.
 ///
 /// # Errors
 ///
 /// [`SkinError::TooFewSections`] for `stations < 2`,
 /// [`SkinError::Band`] for a tolerance with no band,
 /// [`SkinError::PathTangentVanishes`] naming the station whose
-/// tangent vanishes, [`SkinError::PathTangentReversal`] the station
-/// whose tangent doubles back, [`SkinError::PathTangentUndecided`]
-/// naming the station where either could not be decided, and
-/// [`SkinError::StationNotFinite`] for a station whose placement
-/// overflows.
-pub fn sweep_places<T: Decide>(
+/// tangent vanishes, [`SkinError::PathStationsCoincide`] the station
+/// that coincides with the one before it, [`SkinError::PathFoldsBack`]
+/// the station the path folds back into,
+/// [`SkinError::PathUndecided`] naming the station and decision that
+/// could not be taken, and [`SkinError::StationNotFinite`] for a
+/// station whose placement overflows.
+pub fn sweep_places<T: Real>(
     plane: SketchPlane<T>,
     path: &NurbsCurve3<f64>,
     stations: usize,
     tol: Tol,
 ) -> Result<Vec<SketchPlane<T>>, SkinError> {
-    if stations < 2 {
-        return Err(SkinError::TooFewSections {
-            have: stations,
-            need: 2,
-        });
-    }
-    let band = Band::linear(tol).map_err(SkinError::Band)?;
-    let (lo, hi) = path.domain();
-    #[allow(clippy::cast_precision_loss)]
-    let last = (stations - 1) as f64;
-    let t_of = |i: usize| {
-        #[allow(clippy::cast_precision_loss)]
-        let s = i as f64 / last;
-        (hi - lo).mul_add(s, lo)
-    };
-    let tangents = (0..stations)
-        .map(|station| {
-            let (p, d) = path.ders1(t_of(station));
-            UnitVec3::new(d.map(T::from_computed), SWEEP_PATH_TANGENT, band)
-                .map(|t| (p, t))
-                .map_err(|e| match e {
-                    UnitVec3Error::Escalated(source) => {
-                        SkinError::PathTangentUndecided { station, source }
-                    }
-                    UnitVec3Error::Degenerate
-                    | UnitVec3Error::NonFiniteLength
-                    | UnitVec3Error::UnderflowedLength => {
-                        SkinError::PathTangentVanishes { station }
-                    }
-                })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let start = plane.frame();
-    let (base_point, base) = tangents[0];
-    tangents
-        .into_iter()
-        .enumerate()
-        .map(|(station, (p, tangent))| {
-            let turn =
-                RigidMotion::turned_between(base, tangent, start.origin(), SWEEP_PATH_TURN, band)
-                    .map_err(|e| match e {
-                    TurnError::Opposed => SkinError::PathTangentReversal { station },
-                    TurnError::Undecided(source) => {
-                        SkinError::PathTangentUndecided { station, source }
-                    }
-                    TurnError::NonFinite(_) => SkinError::StationNotFinite { station },
-                })?;
-            turn.compose(start)
-                .and_then(|f| f.translated((p - base_point).map(T::from_computed)))
-                .map(SketchPlane::from_frame)
-                .map_err(|_| SkinError::StationNotFinite { station })
-        })
-        .collect()
+    PathCarry::of(path, stations, tol)?.place(plane)
 }

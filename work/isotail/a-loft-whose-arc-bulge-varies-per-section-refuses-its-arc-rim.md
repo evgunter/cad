@@ -49,3 +49,23 @@ from something else in `pick_arc_rim`. The next measurement is
 
 `loft_v_is_the_section_set::an_arc_walled_loft_is_the_same_under_every_spelling`
 asserts that loft's geometry only, for this reason.
+
+**An interior section reaches the same class** (2026-10-28,
+`tess/degree1-loft-slabs`, PR 5923). At v-degree 1 through `k ≥ 3`
+sections each interior section is a ring of rims described in the row
+`v = 1` of the slab wall below it, and an arc whose sub-arc count is
+smaller than another section's reaches that row refined. A square
+whose +x side carries bulges `[1.0, 0.2, 1.0]` at z = `[0, 1, 2]`
+refuses `LoftError::SectionRim { section: 1, source: None }`
+(`geom_brep::pick_arc_rim` → `Ok(None)`), and so do
+`[1, 0.2, 0, 0.7, 1]` (section 1) and `[0, 1, 0.3, 0]` (section 2).
+These lofts built on `main`, where the degree-1 wall spanned every
+section and was unmeshable; the same sections at v-degree 2 build, pass
+tier 3 and mesh, which is the refusal's recourse. The arc-rim
+certificate (`run_iso_arc_checks`, `pcurve_cache.rs`) compares the
+column's knots against the arc's own uniform sub-arc breaks exactly, so
+a refined row is refused there too, even where the image's map is right
+(knot refinement keeps a single arc's `u ↦ angle` map). Describing the
+refined row is one fix for both this case and the two-section cap rim.
+Pinned by
+`sweep::all degree1_loft_slabs::an_interior_arc_refined_by_its_neighbours_refuses_typed`.

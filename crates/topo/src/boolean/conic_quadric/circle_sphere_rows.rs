@@ -561,11 +561,12 @@ fn the_interval_lane_encloses_the_oracle_roots() {
 /// direction's own parameter.
 #[test]
 fn a_line_through_a_sphere_has_two_roots_on_it_and_a_clear_one_misses() {
-    use super::super::solid_contain::{WallRoots, line_sphere_roots};
+    use super::super::solid_contain::{About, WallRoots, line_sphere_roots};
     let (c, r) = (Point3::new(0.0, 0.0, -0.5), 0.3);
     let q = Point3::new(0.06, 0.0, -0.92);
     for d in [Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 2.5)] {
-        let WallRoots::Two(ts) = line_sphere_roots(q, d, c, r, band()).unwrap() else {
+        let WallRoots::Two(ts, _) = line_sphere_roots(q, d, c, r, band(), About::Start).unwrap()
+        else {
             panic!("the line along {d:?} crosses the sphere");
         };
         for t in ts {
@@ -575,11 +576,11 @@ fn a_line_through_a_sphere_has_two_roots_on_it_and_a_clear_one_misses() {
             );
         }
         assert!(matches!(
-            line_sphere_roots(Point3::new(0.5, 0.0, 0.0), d, c, r, band()).unwrap(),
+            line_sphere_roots(Point3::new(0.5, 0.0, 0.0), d, c, r, band(), About::Start).unwrap(),
             WallRoots::Miss
         ));
         assert!(matches!(
-            line_sphere_roots(Point3::new(0.3, 0.0, 0.0), d, c, r, band()).unwrap(),
+            line_sphere_roots(Point3::new(0.3, 0.0, 0.0), d, c, r, band(), About::Start).unwrap(),
             WallRoots::Tangent
         ));
     }

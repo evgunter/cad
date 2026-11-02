@@ -275,7 +275,7 @@ fn a1_a_slide_value_is_the_documents_nominal_parameter_bit_for_bit() {
         "msolve7-a1-slide",
         &params,
         named("s", Dimension::Length),
-        ang(0.0),
+        Formula::zero(Dimension::Angle),
     );
     // The number through the public expression door against the
     // document's own nominal environment.
@@ -288,7 +288,12 @@ fn a1_a_slide_value_is_the_documents_nominal_parameter_bit_for_bit() {
     )
     .unwrap();
     assert_eq!(nominal.to_bits(), 5.0_f64.to_bits());
-    let control = scene("msolve7-a1-slide-control", &params, len(nominal), ang(0.0));
+    let control = scene(
+        "msolve7-a1-slide-control",
+        &params,
+        len(nominal),
+        Formula::zero(Dimension::Angle),
+    );
     let (t, c) = (top_pose(&test, "s = 5"), top_pose(&control, "5 m"));
     assert_eq!(bits(&t), bits(&c), "the slide is the nominal, bit for bit");
     // The environment is the DOCUMENT's: a new nominal, a new pose.
@@ -297,7 +302,12 @@ fn a1_a_slide_value_is_the_documents_nominal_parameter_bit_for_bit() {
         ..test.clone()
     };
     let t2 = top_pose(&edited, "s = 7.5");
-    let control2 = scene("msolve7-a1-slide-control2", &params, len(7.5), ang(0.0));
+    let control2 = scene(
+        "msolve7-a1-slide-control2",
+        &params,
+        len(7.5),
+        Formula::zero(Dimension::Angle),
+    );
     assert_eq!(
         bits(&t2),
         bits(&top_pose(&control2, "7.5 m")),
@@ -320,7 +330,12 @@ fn a1_a_slide_value_is_the_documents_nominal_parameter_bit_for_bit() {
 #[test]
 fn a1_a_spin_value_follows_the_documents_angle_parameter() {
     let params = [("th", FreeVar::continuous(Dimension::Angle, 0.7))];
-    let control = scene("msolve7-a1-spin-control", &params, len(1.0), ang(0.0));
+    let control = scene(
+        "msolve7-a1-spin-control",
+        &params,
+        len(1.0),
+        Formula::zero(Dimension::Angle),
+    );
     let c = top_pose(&control, "control").affine::<f64>();
     let s = scene(
         "msolve7-a1-spin",

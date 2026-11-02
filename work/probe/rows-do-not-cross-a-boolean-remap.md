@@ -37,7 +37,7 @@ Two facts, both measured on this head AND on the merge base:
 1. **A boolean's own records are not a mate's.**
    `wire_boolean` reads its operands through `body_operand`
    (`crates/editor-core/src/eval/wire.rs:~555`), which takes the BODY
-   and nothing else, so a boolean's `BooleanValue::Body::contacts` are
+   and nothing else, so a boolean's own contact records are
    its own `Declare` node's pairs remapped — pairs no mate authored.
    `Attribution::Unattributed` is the correct answer for one of them.
 2. **No instance carrying a declaration can BE a boolean operand.** A

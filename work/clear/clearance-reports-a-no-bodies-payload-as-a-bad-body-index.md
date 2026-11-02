@@ -2,11 +2,14 @@
 id: clearance-reports-a-no-bodies-payload-as-a-bad-body-index
 kind: issue
 title: clearance.rs discards two typed causes - InterrogateError::NoBodies reported as a bad body index, and a BandError dropped into the unit variant ToleranceHasNoBand
-status: open
+status: closed
 opened: 2026-09-11
 refs: [2378]
 priority: P1
 cost: E
+branch: clear/cleartext
+pr: 5977
+closed: 2026-10-29
 ---
 
 
@@ -216,3 +219,13 @@ fn a_clearance_over_a_datum_node_says_the_value_carries_no_bodies() {
     );
 }
 ```
+
+## Closed
+CLEARTEXT (#5977), with this commit last. The clearance refusals now
+name each face by its side, and editor-core names each side by its
+selection. They carry their causes: `NoBodies` and `ToleranceHasNoBand`
+keep the error, and `KeyOfAnotherKind` ends in the kernel-defect line.
+A named scope asks what a name denotes before how many things answer
+to it. A single STYLE review at `25f81b1897` returned
+APPROVE-WITH-FIXES. Its fix pass (`7bc8900b`) was read and accepted
+by the orchestrator.

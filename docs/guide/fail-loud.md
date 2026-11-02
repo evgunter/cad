@@ -207,7 +207,7 @@ let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 // The profile is a dependency of the extrude: the square in the
 // profile's own plane, and the extrude up its own +z.
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Box::new(Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new() })),
+    node: Box::new(Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new(), on: None })),
     fresh: Vec::new(),
 }, tol)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));

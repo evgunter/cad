@@ -15,7 +15,8 @@ The region skeleton's leg courses are hand-written carriers beside the
 
 - `Round` (`:681`) is a circle: `Round::at` (`:690`) evaluates
   `center + radius·(e1 cos s + e2 sin s)` by `sin_cos`, and
-  `Round::angle` (`:697`) and its `Course::heading` (`:729`) are its
+  `Round::swept` (the angle from the start, by the half-angle form) and
+  its `Course::heading` are its
   inverse and tangent, where `Curve3::Circle` (`center`, `axis`,
   `radius`, `u_ref`) has `eval` and `deriv`.
 - `Line` (`:737`) is `Curve3::Line` (`origin`, `dir`) under other names.

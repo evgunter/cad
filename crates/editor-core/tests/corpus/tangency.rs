@@ -58,6 +58,7 @@ pub fn document() -> CorpusDoc {
     let fillet_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![filleted],
         ids: Vec::new(),
+        on: None,
     }));
     let fillet_body = r.insert(Node::Extrude {
         profile: fillet_p.into(),
@@ -91,6 +92,7 @@ pub fn document() -> CorpusDoc {
     let tangent_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![bracket],
         ids: Vec::new(),
+        on: None,
     }));
     let tangent_body = r.insert(Node::Extrude {
         profile: tangent_p.into(),

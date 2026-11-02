@@ -18,3 +18,7 @@ D′3 merged (PR 5636). `ResolveError::vanished_fallback` is still on main, so t
 ## Slate triage (2026-10-28, INTENT)
 
 Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to REFS's charter (names scoped by their read). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).
+
+## Run on main (CHROME, 2026-11-01)
+
+Confirmed on main, and Ev hit it. A face selection on the plate's world copy goes stale when sketch-on-face re-points the copy to the union. Properties reads "the recorded reference disagrees with the recipe as it stands on the derivation path (Extrude "Extrude 1" (12b76f99b7dd)'s payload differs)". Extrude 1 is unedited: the copy's source changed. The diagnosis is `RecipeEdit { NodeChanged { node: <Extrude 1> } }` with `last_good: None`, from the single-run `resolve` the viewer asks (`viewer::tree::pick_resolution`), so it is the no-prior fallback. Repro and the takeover half are in `work/doors/a-mate-on-a-taken-over-copys-face-goes-stale.md` (`## Evidence`) and `work/chrome/a-findings-face-reference-reads-as-stale.md`. DOORS' re-seat removes this case. A consumed face that stays stale still gets this false sentence.

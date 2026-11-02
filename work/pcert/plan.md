@@ -88,6 +88,9 @@ this order:
 - **E1e**: a refusal's `Display` carries only its payload, and its ending exists only
   through `render(at)`. A gate counts the production spelling sites per door. Before cutting
   E1e, check whether the refusal-shape guard and the step-import fixtures read `Display`.
+  It also takes `topo::chart_region`'s `TrimOffFace`, whose `Display` ends at rest even
+  when a build's region query renders it (E1c review, S5; left to E1e by the
+  orchestrator).
 - **E2**: a cylinder line gets a projected lane, together with the
   cylinder `pcurve_chart_radial_moving` tie-break and
   `chart_iso_family`'s re-read. D3's "own envelope carries the miss"

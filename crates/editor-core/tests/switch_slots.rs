@@ -15,9 +15,9 @@ use editor_core::AuthoredNode;
 use editor_core::{
     AssertionRelation, CancelToken, CapEnd, ContentPin, Dimension, DocEdit, DocRef, DocumentId,
     EditError, EvalOptions, ExprPath, Formula, FreeVar, InterfaceRecord, LoopProgram, Node,
-    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, ProgramArcData,
-    ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, StepArg, TubeWindow,
-    ValuePayload, VarName, evaluate,
+    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, ProgramArcData, ProgramRefusal,
+    ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, StepArg, TubeWindow, ValuePayload,
+    VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -32,6 +32,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
             node: Box::new(Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },
@@ -255,6 +256,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
                         radius: Formula::named(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -310,6 +312,7 @@ fn insert_node_checks_program_dimensions() {
             radius: ang(0.5),
         }],
         ids: Vec::new(),
+        on: None,
     };
     match doc.apply(
         &DocEdit::InsertNode {
@@ -411,6 +414,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 },
             ])],
             ids: Vec::new(),
+            on: None,
         });
 
         // Both roles are enumerated, once each.
@@ -515,9 +519,6 @@ test_utils::f6_variants! {
         Place,
         World,
         Space,
-        Pattern,
-        Part,
-        PlacedUnion,
         InstantiatePart,
         Measure,
         Assertion,
@@ -581,9 +582,8 @@ fn slide_z(n: u64, by: f64) -> editor_core::Constraint<Formula> {
 
 /// One value per node SHAPE — every kind of the roster above, and
 /// every payload shape that answers a different slot list: a tube
-/// window open and closed, the three pattern kinds, a
-/// part selected two ways, and a placed union with and without its
-/// count.
+/// window open and closed, placements of values, of a mate and of one
+/// member of a family.
 pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
     let mut nodes: Vec<ProfileNode> = Vec::new();
     let window = || TubeWindow::Arc {
@@ -689,37 +689,13 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         // A new space: no slot either.
         Node::Space,
     ]);
-    for kind in [
-        PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(1.0),
-        },
-        PatternKind::Circular {
-            axis: nid(0).into(),
-            step: ang(0.5),
-        },
-        PatternKind::Explicit(Vec::new()),
-    ] {
-        nodes.push(Node::Pattern {
-            input: nid(1).into(),
-            count: Formula::count(3),
-            kind: kind.clone(),
-        });
-        nodes.push(Node::PlacedUnion {
-            input: nid(1).into(),
-            count: Some(Formula::count(3)),
-            kind: kind.clone(),
-        });
-        nodes.push(Node::PlacedUnion {
-            input: nid(1).into(),
-            count: None,
-            kind,
-        });
-    }
     nodes.extend([
-        Node::Part {
-            of: nid(1).into(),
-            select: PartSelect::Instance(Formula::count(0)),
+        // A copy of one member of a family, `xs[0]`: its index is a
+        // structural slot of the read's seat.
+        Node::Place {
+            source: editor_core::BodyRead::indexed(nid(1), vec![Formula::count(0)]),
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
+            constraints: Vec::new(),
         },
         Node::InstantiatePart {
             doc_ref: DocRef {
@@ -1015,7 +991,7 @@ fn tag_operands(
 ) {
     let mut next = reads.iter().copied();
     let retagged = node.try_map_slots(
-        |p, f| p.try_map_slots(&mut |e| f(e)),
+        |p, f, r| p.try_map_slots(&mut |e| f(e), r),
         &mut |e: &editor_core::VarId| Ok::<_, core::convert::Infallible>(*e),
         &mut |_, _| Ok(next.next().expect("one tag per operand")),
     );

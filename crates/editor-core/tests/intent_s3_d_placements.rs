@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{self, ang, insert, len};
+use editor_core::Dimension;
 use editor_core::pose::PoseDef;
 use editor_core::{
     BodyRead, Coord, EvalOptions, Formula, LoftSection, Mate, Node, NodeResult, Operand,
@@ -273,7 +274,7 @@ fn a_bundle_with_no_mate_places_by_its_chain_in_written_order() {
         let mut values = slides();
         values.push((Coord::Spin(Some(first)), quarter()));
         values.push((Coord::Spin(Some(then)), quarter()));
-        values.push((Coord::Spin(Some(first)), ang(0.0)));
+        values.push((Coord::Spin(Some(first)), Formula::zero(Dimension::Angle)));
         values
     };
     // R = Rx·Rz: (x, y, z) ↦ (−y, −z, x), then slid by (1, 2, 3).

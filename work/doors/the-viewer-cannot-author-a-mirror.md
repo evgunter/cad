@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-22
 priority: P0
 cost: M
-refs: [a-mirror-is-a-construction]
+refs: [5607]
 closed: 2026-10-25
 pr: 5683
 branch: authtail/viewer-mirror

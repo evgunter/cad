@@ -1,7 +1,8 @@
 //! **DOCM-2 under the Interval lane** — A7's lane rows: the
 //! `part_select` corpus document evaluates at `Interval` with a
-//! WIDENED parameter the split's body reads, and the Part's body is
-//! the instance's own, read off the pattern's value at the same lane;
+//! WIDENED parameter the split's body reads, and the read member's
+//! body is the member's own, read off the family's value at the same
+//! lane;
 //! and the amendment's `Sym<Interval>` pin of the exact document.
 //!
 //! The widening is scaled to the row's ε because the hosted matrix
@@ -21,8 +22,7 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, FreeVar, Node,
-    PartSelect, ProfileDoc, RecipeNodeId, SplitSide, UnitSym, ValuePayload, VarName, apply,
-    evaluate,
+    ProfileDoc, RecipeNodeId, SplitSide, UnitSym, ValuePayload, VarName, apply, evaluate,
 };
 use geom_core::{Bounds, Decide, Interval, SymBudget, Tol};
 use topo::Body;
@@ -80,30 +80,32 @@ fn widened_document(width: f64) -> ProfileDoc {
     .doc
 }
 
-/// Every Part of `doc` with the node it reads and its selector.
-fn parts(doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId, PartSelect)> {
+/// Every placement of `doc` whose source is an indexed read, with the
+/// family it reads.
+fn parts(doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId)> {
     doc.ids()
         .iter()
         .filter_map(|&id| match doc.node(id) {
-            Some(Node::Part { of, select }) => Some((id, doc.operation_of(*of)?, select.clone())),
+            Some(Node::Place { source, .. }) if source.is_member() => {
+                Some((id, doc.operation_of(source.read)?))
+            }
             _ => None,
         })
         .collect()
 }
 
-/// **The Part's body IS the body read off the value at the lane** —
-/// the same `Arc`, and description for description.
+/// **The read member's body IS the body read off the value at the
+/// lane** — the same `Arc`, and description for description.
 fn assert_parts_are_their_bodies(ev: &Evaluation<Interval>, doc: &ProfileDoc, label: &str) {
     let found = parts(doc);
-    assert_eq!(found.len(), 1, "{label}: one instance");
-    for (id, of, select) in found {
-        let ValuePayload::Body(part) = &ev.value(id).expect("the Part").payload else {
+    assert_eq!(found.len(), 1, "{label}: one member read");
+    for (id, of) in found {
+        let ValuePayload::Body(part) = &ev.value(id).expect("the copy").payload else {
             panic!("{label}: a body value");
         };
-        let read: &Arc<Body<Interval>> = match (&select, &ev.value(of).expect("the input").payload)
-        {
-            (PartSelect::Instance(_), ValuePayload::Instances(v)) => v[1].shared(),
-            other => panic!("{label}: {other:?}"),
+        let read: &Arc<Body<Interval>> = match &ev.value(of).expect("the input").payload {
+            ValuePayload::Instances(v) => v[1].shared(),
+            other => panic!("{label}: {}", other.kind_name()),
         };
         assert!(
             Arc::ptr_eq(part.shared(), read),
@@ -245,7 +247,7 @@ const A7_DIVISOR: f64 = 128.0;
 /// **A7 — the corpus document at `Interval`, nominal and widened.** The
 /// height the split's body reads is widened by ε/`A7_DIVISOR`; the
 /// split and the union of its halves recompute through the upstream
-/// key; the Part's body is the instance's own at the lane.
+/// key; the read member's body is the member's own at the lane.
 #[test]
 fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
     let width = Tol::witness().eps() / A7_DIVISOR;
@@ -282,8 +284,8 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
     assert_parts_are_their_bodies(&widened, &doc, "widened");
     // The profile reads no parameter and is served from the memo; the
     // box and everything that reads it — the split (its tool plane is
-    // read off the box), the union of its halves, the pattern, the
-    // instance, its placement — recompute.
+    // read off the box), the union of its halves, the family, the
+    // lifted member's placement — recompute.
     assert_eq!(widened.reused, 1, "the one parameter-free leaf");
     assert_eq!(widened.recomputed, doc.len() - 1);
     // The widened box reaches the halves: the above half's top cap

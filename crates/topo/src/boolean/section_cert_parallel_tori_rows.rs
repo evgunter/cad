@@ -95,10 +95,12 @@ type Row = ((f64, f64), (f64, f64), (f64, f64), usize, &'static str);
 /// Mutants: listing one mirror copy of a loop clear of `Π` (count),
 /// witnessing every point of `Π` instead of every other (count), the
 /// parity started on a point's strand read off the wrong sheet (two
-/// parts on one traced component), a lost meridian-circle pair (count).
+/// parts on one traced component), a lost meridian-circle pair (count),
+/// a level end refused even where its node clears the triangle (not
+/// classified).
 #[test]
 fn parallel_tori_every_class_against_the_trace() {
-    let rows: [Row; 8] = [
+    let rows: [Row; 12] = [
         (
             (2.0, 0.5),
             (2.0, 0.5),
@@ -143,6 +145,34 @@ fn parallel_tori_every_class_against_the_trace() {
             3,
             "the partner's tube spanning the first's heights",
         ),
+        (
+            (2.0, 0.5),
+            (2.0, 0.5),
+            (4.9, 0.0),
+            1,
+            "equal tubes level, their node beyond the triangle",
+        ),
+        (
+            (2.0, 0.3),
+            (1.0, 0.3),
+            (0.5, 0.0),
+            1,
+            "equal tubes level, their node within the triangle's near edge",
+        ),
+        (
+            (2.0, 0.5),
+            (2.0, 0.25),
+            (4.6, 0.25),
+            1,
+            "tops level, the partner owning the bottom, the node beyond",
+        ),
+        (
+            (2.0, 0.5),
+            (2.0, 0.5),
+            (4.5, 1.0),
+            0,
+            "slabs level, the node beyond",
+        ),
     ];
     for ((big_r, r), (big_r2, r2), (e, h), count, what) in rows {
         let f = torus(p(0.0, 0.0, 0.0), big_r, r);
@@ -173,18 +203,155 @@ fn parallel_tori_every_class_against_the_trace() {
     }
 }
 
-/// **Two tubes of one radius at one height refuse R-tan**: their tops
-/// stand level, where the matching curve `W` has a node (both sheets
-/// turning at once), and the arm does not read its loops through it.
-/// Mutant: the top row decided on its near side (loops read through
-/// the node).
+/// **Level ends whose node lies inside the triangle refuse R-tan**: the
+/// matching curve `W` has a node at `(R, R₂)` there (both tubes' sheets
+/// turning at once), and inside `|ρ − ρ₂| < e < ρ + ρ₂` it is a pair of
+/// points of both tori where both normals lie along the axes, a
+/// tangency. Two tubes of one radius at one height (their tops level),
+/// and two stacked so one's top meets the other's bottom (their slabs
+/// level). The pose's critical gap decides each tangency before the arm
+/// counts, so the refusal is named by it (`tt_critical_gap`). Mutant: the
+/// gap read past (the arm's level rows name them).
 #[test]
-fn level_tubes_of_one_radius_refuse_as_a_tangency() {
-    let s = classify(
-        &torus(p(0.0, 0.0, 0.0), 2.0, 0.5),
-        &torus(p(1.0, 0.0, 0.0), 2.0, 0.5),
-    );
-    assert_eq!(tangent(&s), "section_torus_parallel_tori_top");
+fn level_ends_with_the_node_inside_refuse_as_a_tangency() {
+    for (h, row) in [(0.0, "tt_critical_gap"), (1.0, "tt_critical_gap")] {
+        let s = classify(
+            &torus(p(0.0, 0.0, 0.0), 2.0, 0.5),
+            &torus(p(1.0, 0.0, h), 2.0, 0.5),
+        );
+        assert_eq!(tangent(&s), row, "h = {h}");
+    }
+}
+
+/// Inside arcs of the matching curve of two level tubes of one radius
+/// `r` (`h = 0`), read off its closed form: `W` is the two loops
+/// `ρ − R = ±(ρ₂ − R₂) = r cos θ`, `y = r sin θ`, and each arc of a loop
+/// inside `|ρ − ρ₂| < e < ρ + ρ₂` closes with its mirror into one
+/// component, a loop wholly inside into two. An oracle the chart trace
+/// cannot be near tangent tops, where its cells straddle both tubes.
+fn level_tubes_count(big_r: f64, big_r2: f64, r: f64, e: f64) -> usize {
+    const M: usize = 200_000;
+    [1.0, -1.0]
+        .into_iter()
+        .map(|branch: f64| {
+            let inside: Vec<bool> = (0..M)
+                .map(|k| {
+                    let w = r * (TAU * k as f64 / M as f64).cos();
+                    let (rho, rho2) = (big_r + w, big_r2 + branch * w);
+                    (rho - rho2).abs() < e && e < rho + rho2
+                })
+                .collect();
+            if inside.iter().all(|&x| x) {
+                2
+            } else {
+                (0..M)
+                    .filter(|&k| inside[k] && !inside[(k + M - 1) % M])
+                    .count()
+            }
+        })
+        .sum()
+}
+
+/// **Level tubes of one radius, the node near either edge of the
+/// triangle, against the matching curve's closed form.** Each row's
+/// node `(R, R₂)` clears the triangle by about one neck
+/// `√(2r·escalate)` or three, beyond `R + R₂` or within `|R − R₂|`.
+/// Mutants: a neck doubled (the one-neck rows refuse), the parity
+/// started on the wrong sheet (count).
+#[test]
+fn level_tubes_near_the_edge_against_the_closed_form() {
+    let esc = band().escalate();
+    for (big_r2, r, sense) in [(2.0_f64, 0.5_f64, 1.0_f64), (1.0, 0.3, -1.0)] {
+        let neck = (2.0 * r * esc).sqrt();
+        for necks in [1.05, 3.0] {
+            let e = if sense > 0.0 {
+                2.0 + big_r2 + necks * neck + 2.0 * esc
+            } else {
+                (2.0 - big_r2) - necks * neck - 2.0 * esc
+            };
+            let what = format!("R₂ {big_r2}, the node {necks} necks off the edge");
+            let f = torus(p(0.0, 0.0, 0.0), 2.0, r);
+            let g = torus(p(e, 0.0, 0.0), big_r2, r);
+            let s = classify(&f, &g);
+            let (ps, _) = parts(&s);
+            let count = level_tubes_count(2.0, big_r2, r, e);
+            assert_eq!(count, 1, "{what}: the closed form counts one");
+            assert_eq!(ps.len(), count, "{what}: one part per component: {s:?}");
+            for c in ps {
+                on_both(c.witness.expect("a witness"), &f, &g);
+            }
+        }
+    }
+}
+
+/// A pinched slabs row whose node clears the triangle by more than
+/// the neck but less than both sheets' deviations together: the tori
+/// meet, so the arm may not read no section. Mutant: the slabs neck
+/// halved.
+#[test]
+fn level_slabs_within_the_sheets_sum_of_the_node_do_not_read_none() {
+    let esc = band().escalate();
+    for (big_r2, r, sense) in [(2.0_f64, 0.5_f64, 1.0_f64), (1.0, 0.3, -1.0)] {
+        let neck = (2.0 * r * esc).sqrt();
+        let h = 2.0 * r - 0.9 * esc;
+        let e = if sense > 0.0 {
+            2.0 + big_r2 + 1.05 * neck + 2.0 * esc
+        } else {
+            (2.0 - big_r2) - 1.1 * neck - 2.0 * esc
+        };
+        let s = classify(
+            &torus(p(0.0, 0.0, 0.0), 2.0, r),
+            &torus(p(e, 0.0, h), big_r2, r),
+        );
+        assert!(
+            !matches!(&s, Section::Components { parts, .. } if parts.is_empty()),
+            "R₂ {big_r2}: the tori meet, yet the arm reads none: {s:?}"
+        );
+    }
+}
+
+/// **A level end off true level by `0.9·escalate`, its node `0.8√escalate`
+/// past the edge, refuses on its level row**: the true end's sheets stand
+/// `≈ 0.95√escalate` from the node, inside the triangle, and the neck the
+/// row proves (`√(2r·1.9·escalate) ≈ 1.38√escalate`) does not clear.
+/// Where only the bottom stands near level, the pose's critical gap reads
+/// a critical value in the band first, and the refusal is its
+/// (`tt_critical_gap`). Three `√escalate` past, the node clears and the
+/// pair classifies, its witnesses on both tori. Mutant: the level ends'
+/// neck halved (the first row refuses on the order row instead, the
+/// second classifies).
+#[test]
+fn a_level_end_off_level_refuses_within_its_neck_and_reads_past_it() {
+    let esc = band().escalate();
+    let s = esc.sqrt();
+    for (what, r2, h, row) in [
+        (
+            "both ends",
+            0.5,
+            0.9 * esc,
+            "section_torus_parallel_tori_top",
+        ),
+        (
+            "the top",
+            0.25,
+            0.25 + 0.9 * esc,
+            "section_torus_parallel_tori_top",
+        ),
+        ("the bottom", 0.25, -0.25 + 0.9 * esc, "tt_critical_gap"),
+    ] {
+        let f = torus(p(0.0, 0.0, 0.0), 2.0, 0.5);
+        let near = torus(p(4.0 + 0.8 * s, 0.0, h), 2.0, r2);
+        assert_eq!(
+            tangent(&classify(&f, &near)),
+            row,
+            "{what}, within the neck"
+        );
+        let far = torus(p(4.0 + 3.0 * s, 0.0, h), 2.0, r2);
+        let out = classify(&f, &far);
+        let (ps, _) = parts(&out);
+        assert_eq!(ps.len(), 1, "{what}, past the neck: {out:?}");
+        on_both(ps[0].witness.expect("a witness"), &f, &far);
+    }
 }
 
 /// The lily's stem torus, and its arch torus at the given offset `e`
@@ -199,20 +366,6 @@ fn lily(e: f64, h: f64) -> [Surface<f64>; 2] {
         torus_about(stem_c, down, 5.0, 0.060),
         torus_about(stem_c + toward * e + down * h, down, 1.1, 0.052),
     ]
-}
-
-/// The lily's reach: the ball about its fork.
-fn classify_lily(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
-    let a = 22f64.to_radians();
-    super::classify(
-        f,
-        g,
-        Reach {
-            centre: p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin()),
-            radius: 2.0,
-        },
-        band(),
-    )
 }
 
 /// **The lily's wall 1 pair: two loops, mirror images across the plane
@@ -230,7 +383,7 @@ fn the_lilys_tube_walls_meet_in_two_mirror_loops_off_the_weld_plane() {
     };
     let weld_normal = Vec3::new(-(22f64.to_radians().sin()), 0.0, 22f64.to_radians().cos());
     for (f, g, order) in [(&stem, &arch, "stem, arch"), (&arch, &stem, "arch, stem")] {
-        let s = classify_lily(f, g);
+        let s = classify(f, g);
         let (ps, single) = parts(&s);
         assert_eq!(ps.len(), 2, "{order}: two loops: {s:?}");
         assert!(!single, "{order}: two components are never single");
@@ -264,7 +417,7 @@ fn the_lilys_tube_walls_meet_in_two_mirror_loops_off_the_weld_plane() {
 #[test]
 fn the_lilys_pair_either_side_of_its_tangencies() {
     let [stem, arch] = lily(3.9 + 0.02, 0.0);
-    let s = classify_lily(&stem, &arch);
+    let s = classify(&stem, &arch);
     let (ps, single) = parts(&s);
     let a = 22f64.to_radians();
     let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
@@ -289,20 +442,16 @@ fn the_lilys_pair_either_side_of_its_tangencies() {
     );
     let [stem, arch] = lily(3.9 + 0.008, 0.0);
     assert_eq!(
-        tangent(&classify_lily(&stem, &arch)),
-        "section_torus_parallel_tori_nest",
+        tangent(&classify(&stem, &arch)),
+        "tt_critical_gap",
         "the meridian circles tangent at the fork refuse R-tan"
     );
     let [stem, arch] = lily(3.9, 0.2);
-    assert_eq!(
-        parts(&classify_lily(&stem, &arch)).0.len(),
-        0,
-        "slabs apart"
-    );
+    assert_eq!(parts(&classify(&stem, &arch)).0.len(), 0, "slabs apart");
     let [stem, arch] = lily(3.9, 0.112);
     assert_eq!(
-        tangent(&classify_lily(&stem, &arch)),
-        "section_torus_parallel_tori_slabs",
+        tangent(&classify(&stem, &arch)),
+        "tt_critical_gap",
         "slabs touching refuse R-tan"
     );
 }
@@ -317,16 +466,16 @@ fn the_lilys_pair_either_side_of_its_tangencies() {
 #[test]
 fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
     let [stem, arch] = lily(3.9, 0.0);
-    let s = classify_lily(&stem, &arch);
+    let s = classify(&stem, &arch);
     let a = 22f64.to_radians();
     let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
     let fork = p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin());
     // The stem's window ends at the weld plane, the arch's starts there.
-    let windows = |w: Point3<f64>| {
+    let windows = |w: Point3<f64>, _| {
         let after = (w - fork).dot(weld_normal) > 0.0;
         [if after { OUT } else { IN }, if after { IN } else { OUT }]
     };
-    let mut cleared = certify(&s, false, |_| Sheet::Not, windows)
+    let mut cleared = certify(&s, false, band(), |_| Sheet::Not, windows)
         .expect("windows parted by the weld plane clear both loops");
     cleared.sort_by_key(|c| format!("{c:?}"));
     assert_eq!(
@@ -335,49 +484,44 @@ fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
         "one loop outside the stem's window, the other outside the arch's"
     );
     assert_eq!(
-        certify(&s, false, |_| Sheet::Not, at(IN, IN)),
+        certify(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Loop),
         "windows reaching over a loop with no event refuse R-loop"
     );
 }
 
-/// **The first row read across a nonzero slack: a tilt within the band
-/// widens the nest row.** The partner's near tube circle stands `10 ε`
+/// **A tilt within the band routes parallel, and the gap reads the
+/// operands as they stand.** The partner's near tube circle stands `n ε`
 /// past internally tangent to the torus's outer one
-/// (`d − |r − r₂| = 10 ε`). With the axes exactly parallel the nest row
-/// decides and the pair has one loop; tilted by `ε / 100` the pose still
-/// routes parallel, and the turn onto the torus axis swings the partner
-/// across the reach by more than that margin, so the nest row's floor
-/// reads Zero and the pair refuses R-tan naming it. Both offsets are in
-/// band units, so the row reads alike at every ε. Mutant: the reach and
-/// nest rows read bare of the slack (the tilted pose answers one loop).
+/// (`d − |r − r₂| = n ε`). At `30 ε`, exactly parallel or tilted by
+/// `ε / 100` (which the lever over the partner's ball reads parallel), the
+/// pair has one loop; at `3 ε` the critical gap is in the band and both
+/// refuse R-tan on it. Both offsets are in band units, so the rows read
+/// alike at every ε. Mutants: the tilt levered by a reach the value does
+/// not hold (the tilted pose refuses on reach), the gap read bare of the
+/// band (the `3 ε` pose answers).
 #[test]
-fn a_tilt_within_the_band_widens_the_nest_row() {
+fn a_tilt_within_the_band_routes_parallel_and_the_gap_reads_the_operands() {
     let eps = geom_core::Tol::witness().eps();
-    let reach = Reach {
-        centre: p(0.0, 0.0, 0.0),
-        radius: 6.0,
-    };
     let f = torus(p(0.0, 0.0, 0.0), 2.0, 0.5);
-    let tilted = |t: f64| Surface::Torus {
-        center: p(3.2 + 10.0 * eps, 0.0, 0.0),
+    let partner = |n: f64, t: f64| Surface::Torus {
+        center: p(3.2 + n * eps, 0.0, 0.0),
         axis: Vec3::new(t.sin(), 0.0, t.cos()),
         major_radius: 1.0,
         minor_radius: 0.3,
         u_ref: Vec3::new(t.cos(), 0.0, -t.sin()),
     };
-    assert_eq!(
-        parts(&super::classify(&f, &tilted(0.0), reach, band()))
-            .0
-            .len(),
-        1,
-        "exactly parallel: one loop"
-    );
-    assert_eq!(
-        tangent(&super::classify(&f, &tilted(eps / 100.0), reach, band())),
-        "section_torus_parallel_tori_nest_floor",
-        "tilted within the band: the nest row's floor straddles"
-    );
+    for t in [0.0, eps / 100.0] {
+        assert_eq!(
+            parts(&classify(&f, &partner(30.0, t))).0.len(),
+            1,
+            "tilted by {t}: one loop"
+        );
+        assert!(
+            tangent(&classify(&f, &partner(3.0, t))).starts_with("tt_critical_gap"),
+            "tilted by {t}: the gap in the band"
+        );
+    }
 }
 
 /// **With an event on the pair, the lily's two loops refuse R-undec
@@ -389,21 +533,21 @@ fn a_tilt_within_the_band_widens_the_nest_row() {
 #[test]
 fn an_evented_lily_pair_clears_only_by_its_witnesses() {
     let [stem, arch] = lily(3.9, 0.0);
-    let s = classify_lily(&stem, &arch);
+    let s = classify(&stem, &arch);
     assert_eq!(
-        certify(&s, true, |_| Sheet::Not, at(IN, IN)),
+        certify(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided),
         "evented, both witnesses inside both faces: R-undec"
     );
     let a = 22f64.to_radians();
     let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
     let fork = p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin());
-    let windows = |w: Point3<f64>| {
+    let windows = |w: Point3<f64>, _| {
         let after = (w - fork).dot(weld_normal) > 0.0;
         [if after { OUT } else { IN }, if after { IN } else { OUT }]
     };
     let mut cleared =
-        certify(&s, true, |_| Sheet::Not, windows).expect("each witness out of one window");
+        certify(&s, true, band(), |_| Sheet::Not, windows).expect("each witness out of one window");
     cleared.sort_by_key(|c| format!("{c:?}"));
     assert_eq!(cleared, [Cleared::Out(Side::F), Cleared::Out(Side::G)]);
 }

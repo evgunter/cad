@@ -11,7 +11,7 @@ use editor_core::{
     CancelToken, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc, RecipeNodeId, RoleSeg,
     evaluate,
 };
-use fixture::{insert, len, on_frame, scl};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -258,20 +258,19 @@ fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
     );
 }
 
-// ---- R7: a pattern never conflates a split's halves under instance
+// ---- R7: a family never conflates a split's halves under member
 // body indices. ----
 //
 // **R7 register, closed by reads (INTENT stage 2 unit B).** The
 // deferral was a master with several output BODIES — body index is
-// the instance index there. A split named alone is either of its two
-// bodies, so the door refuses it as a pattern's operand
+// the member index there. A split named alone is either of its two
+// bodies, so the door refuses it as a placement's source
 // (`AmbiguousOutput`), and a read of one port IS that half: the
-// pattern is a pattern of one body, each copy carrying the half's rows
-// and no row of the other half. A master whose single body holds several
-// SOLIDS was always admitted (`names::emit::pattern_tests`).
+// family is a family of one body, each member carrying the half's rows
+// and no row of the other half.
 
 #[test]
-fn a_pattern_of_a_split_port_is_the_pattern_of_its_half() {
+fn a_family_of_a_split_port_is_the_family_of_its_half() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 2.0);
     let plane = fixture::plane_on(&doc, d, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
@@ -282,13 +281,20 @@ fn a_pattern_of_a_split_port_is_the_pattern_of_its_half() {
             tool: plane,
         },
     );
-    let pattern = |input: editor_core::Operand| Node::Pattern {
-        input,
-        count: editor_core::Formula::count(2),
-        kind: editor_core::PatternKind::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(5.0),
-        },
+    let (doc, k) = crate::fixture::index(doc, "k", 2);
+    let target = crate::fixture::space(&doc, d);
+    let placed = editor_core::Placed::of(
+        &doc,
+        Vec::new(),
+        crate::fixture::slides_along(k, [1.0, 0.0, 0.0], 5.0),
+    );
+    let bundle = placed.bundle();
+    let pattern = |input: editor_core::Operand| {
+        Node::place(
+            editor_core::BodyRead::plain(input),
+            editor_core::Operand::Var(target),
+            bundle.clone(),
+        )
     };
     let refusal = crate::fixture::insert_refused(&doc, pattern(sp.into()));
     assert!(
@@ -358,6 +364,7 @@ fn graze_split_edge_names(
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).expect("a finite circle")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, cylinder) = insert(

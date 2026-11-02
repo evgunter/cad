@@ -1133,8 +1133,8 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
     );
 }
 
-/// **∖ and ∩ refuse where ∪ does, both orders.** With the torus on the
-/// revert roster, a subtract or an intersect over the fixtures above
+/// **∖ and ∩ reach the doors ∪ does, both orders.** With the torus on
+/// the revert roster, a subtract or an intersect over the fixtures above
 /// reaches the same doors as their unions:
 ///
 /// - the near-perpendicular bar's tilted faces cut general spiric
@@ -1146,14 +1146,18 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 /// - the slab's face-interior oval is a certified interior loop
 ///   (R-loop), and so is the bite a cylinder grazing the outer equator
 ///   takes out of the tube (its axis square to the torus's, its trace
-///   sunk `0.05` into the tube circle); two tori meeting in an oval have
-///   no section classification (R-reach);
-/// - the dumbbell's waists stop at the section pass on their tangency
-///   (R-tan).
+///   sunk `0.05` into the tube circle), and so is the oval two tori side
+///   by side cut, level tubes whose node stands beyond the section's
+///   triangle;
+/// - the dumbbell's halves touch across the joint disc, their waists on
+///   one torus: the section pass defers the waist pair, and the halves'
+///   sides (each `Out` the other) answer it, so each difference is its
+///   minuend and the intersection nothing.
 ///
-/// None of the others is a body.
+/// The near-perpendicular bar, the slab, the two tori and the grazing
+/// cylinder refuse.
 #[test]
-fn subtract_and_intersect_refuse_where_union_does() {
+fn subtract_and_intersect_reach_the_doors_union_does() {
     use geom_core::{Affine3, Mat3, Vec3};
     let d = donut();
     let near = framed_bar(
@@ -1255,18 +1259,12 @@ fn subtract_and_intersect_refuse_where_union_does() {
             &bar((-0.8, 0.8), (-0.4, 0.4), (2.45, 3.0)),
             "a closed loop interior to both faces",
         ),
-        ("two tori", &d, &far, "has no section classification"),
+        ("two tori", &d, &far, "a closed loop interior to both faces"),
         (
             "grazing cylinder",
             &d,
             &cyl,
             "a closed loop interior to both faces",
-        ),
-        (
-            "dumbbell",
-            &halves.0,
-            &halves.1,
-            "tangent or near-tangent carriers",
         ),
     ] {
         for (op, r) in subtract_both_orders_and_intersect(a, b) {
@@ -1276,5 +1274,41 @@ fn subtract_and_intersect_refuse_where_union_does() {
             };
             assert!(what.contains(says), "{name}, {op}: {what}");
         }
+    }
+    // The dumbbell's halves touch across the joint disc, their waists on
+    // one torus meeting along its circle: each difference is its
+    // minuend, and the intersection is nothing.
+    let tol = Tol::witness();
+    let vol = |b: &AtRestBody<f64>| topo::test_support::pinned_volume("half", b, tol).volume;
+    for (op, r) in subtract_both_orders_and_intersect(&halves.0, &halves.1) {
+        let want = match op {
+            "A ∖ B" => vol(&halves.0),
+            "B ∖ A" => vol(&halves.1),
+            _ => {
+                assert!(
+                    matches!(r, Ok(topo::BooleanResult::Empty)),
+                    "dumbbell, {op}: nothing: {r:?}"
+                );
+                continue;
+            }
+        };
+        let Ok(topo::BooleanResult::Body(bb)) = r else {
+            panic!("dumbbell, {op}: the minuend: {r:?}");
+        };
+        assert_eq!(
+            topo::validate_geometric(&bb.body, tol),
+            Ok(()),
+            "dumbbell, {op}: tier 3"
+        );
+        assert_eq!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+            Ok(()),
+            "dumbbell, {op}: tier 3′"
+        );
+        let v = vol(&bb.body);
+        assert!(
+            (v - want).abs() <= 1e-9 * want,
+            "dumbbell, {op}: volume {v} against {want}"
+        );
     }
 }

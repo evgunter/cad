@@ -2,10 +2,9 @@
 //! or constraint in one walk, and every formula that walk reaches refuses
 //! typed where it does not lower — never a panic.
 //!
-//! The review rows (p1–p4) pin the base's refusals: a count beside a
-//! listed placement rule refuses the rule's own words, a definition of
-//! another kind refuses its kind before its names, and a refused insert
-//! speaks one id whether its held names were written by name or by id.
+//! The review rows pin the base's refusals: a definition of another kind
+//! refuses its kind before its names, and a refused insert speaks one
+//! id whether its held names were written by name or by id.
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::blocks::block;
@@ -13,9 +12,9 @@ use crate::corpus;
 use crate::fixture::resolver::PartStore;
 use crate::fixture::{len, scl};
 use editor_core::{
-    AuthoredNode, CapEnd, CountMismatch, Dimension, DocEdit, DocRef, DocumentId, EditError,
-    Formula, Frame, FreeVar, LoopProgram, Node, PatternKind, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RoleSeg, TubeWindow, VarDecl, VarName, apply, content_pin,
+    AuthoredNode, CapEnd, Dimension, DocEdit, DocRef, DocumentId, EditError, Formula, FreeVar,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, TubeWindow, VarDecl,
+    VarName, apply, content_pin,
 };
 use geom_core::Tol;
 use std::collections::BTreeSet;
@@ -75,58 +74,6 @@ fn reference(doc: &ProfileDoc) -> DocRef {
     }
 }
 
-/// p1: a pattern listing its placements and also spelling a count, the
-/// count an unheld name. The rule spells its count twice, and that is
-/// the refusal, as it is whatever the count holds.
-#[test]
-fn a_listed_pattern_with_an_unheld_count_refuses_the_rule_not_a_panic() {
-    let (doc, b) = body();
-    let refused = edit(
-        &doc,
-        &insert(Node::Pattern {
-            input: b.into(),
-            count: Formula::named(name("nope"), Dimension::Count),
-            kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
-        }),
-    )
-    .expect_err("the rule spells its count twice");
-    assert!(
-        matches!(
-            refused,
-            EditError::PlacementRuleMismatch {
-                shape: CountMismatch::ListedOnPattern,
-                ..
-            }
-        ),
-        "{refused:?}"
-    );
-}
-
-/// p2: the placed-union twin of p1.
-#[test]
-fn a_listed_union_with_an_unheld_count_refuses_the_rule_not_a_panic() {
-    let (doc, b) = body();
-    let refused = edit(
-        &doc,
-        &insert(Node::PlacedUnion {
-            input: b.into(),
-            count: Some(Formula::named(name("nope"), Dimension::Count)),
-            kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
-        }),
-    )
-    .expect_err("the rule spells its count twice");
-    assert!(
-        matches!(
-            refused,
-            EditError::PlacementRuleMismatch {
-                shape: CountMismatch::ListedWithCount,
-                ..
-            }
-        ),
-        "{refused:?}"
-    );
-}
-
 /// p3: a definition of another kind that also reads an unheld name
 /// refuses its kind first, as the base did.
 #[test]
@@ -175,16 +122,20 @@ fn a_refused_insert_speaks_one_id_by_name_or_by_id() {
     .expect("w declares");
     let w = applied.record.minted_var.expect("a declare mints");
     let doc = applied.doc;
+    let target = crate::fixture::space(&doc, b);
     let node = |first: Formula| -> AuthoredNode {
-        Node::Pattern {
-            input: b.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: Formula::add(first, Formula::named(name("nope"), Dimension::Length))
-                    .expect("two lengths add"),
-            },
-        }
+        let by = Formula::add(first, Formula::named(name("nope"), Dimension::Length))
+            .expect("two lengths add");
+        let placed = editor_core::Placed::of(
+            &doc,
+            Vec::new(),
+            vec![(editor_core::Coord::Slide(editor_core::TargetAxis::X), by)],
+        );
+        Node::place(
+            editor_core::BodyRead::plain(editor_core::Operand::Node(b)),
+            editor_core::Operand::Var(target),
+            placed.bundle(),
+        )
     };
     let by_name = edit(
         &doc,
@@ -222,14 +173,6 @@ impl Unheld {
             ),
             Self::Fresh => Formula::fresh(0, dim),
         }
-    }
-
-    /// Whether `refused` is this form's refusal at a slot or the
-    /// payload, or — for a node's count no slot addresses — the
-    /// placement rule's own (p1's edge).
-    fn refuses(self, refused: &EditError) -> bool {
-        matches!(refused, EditError::PlacementRuleMismatch { .. })
-            || self.refuses_at_a_slot(refused)
     }
 
     /// Whether `refused` is this form's refusal where every formula has
@@ -282,11 +225,11 @@ fn kind_of(node: &AuthoredNode) -> String {
 
 /// **Every formula field the door's walk reaches, written in each slot
 /// form as something the document does not hold — a name, an id, a
-/// fresh entry — refuses typed.** Over every node of every corpus document plus
-/// p1/p2's listed-rule nodes: each node re-authored, and for each
-/// formula `try_map_slots` visits — slots, payload leaves, a profile's
-/// program, a placement's steps, a mate's pose, a value's number,
-/// the count no slot addresses — that one formula unheld, inserted. Then the
+/// fresh entry — refuses typed.** Over every node of every corpus
+/// document plus the slot types no corpus document holds: each node
+/// re-authored, and for each formula `try_map_slots` visits — slots,
+/// payload leaves, a profile's program, a placement's steps, a mate's
+/// pose, a value's number — that one formula unheld, inserted. Then the
 /// same over every profile's program at `SetProgram`. A slot type the
 /// walk reaches and the refusal does not is a red row, not a panic in
 /// a caller.
@@ -306,22 +249,11 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             .expect("the block holds it")
     };
     let profile = held(|n| matches!(n, Node::Profile(_)));
-    // The listed-rule counts no slot addresses (p1/p2), and the slot
-    // types no corpus document holds: a shell, a sweep, a windowed
+    // The slot types no corpus document holds: a shell, a sweep, a windowed
     // tube, an instance's mate, a placement's mate and a value beside
     // it. Each operand reads a live output of the kind its slot
     // admits, so the refusal is the formula's.
     let edges: Vec<AuthoredNode> = vec![
-        Node::Pattern {
-            input: b.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
-        },
-        Node::PlacedUnion {
-            input: b.into(),
-            count: Some(Formula::count(2)),
-            kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
-        },
         Node::shell(b, len(0.01), Vec::new()),
         Node::Sweep {
             profile: profile.into(),
@@ -389,7 +321,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             loop {
                 let (mutated, seen) = unheld_at(form, at, |f| {
                     node.try_map_slots(
-                        |p, g| p.try_map_slots(&mut |e| g(e)),
+                        |p, g, r| p.try_map_slots(&mut |e| g(e), r),
                         &mut |e| f(e),
                         &mut |_, read| Ok(read.clone()),
                     )
@@ -400,7 +332,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
                 formulas += 1;
                 let refused = edit(doc, &insert(mutated)).expect_err("an unheld read refuses");
                 assert!(
-                    form.refuses(&refused),
+                    form.refuses_at_a_slot(&refused),
                     "{doc_name}: {} formula {at} as {form:?}: {refused:?}",
                     kind_of(node)
                 );
@@ -494,9 +426,10 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     // inserts and no document writes: a kind added to the vocabulary
     // that no corpus document holds owes an edge above. D′3's `⊔`
     // joined it: every assembly's product reads one.
+    // A pattern is a `Place` over an index, its member an indexed read.
     assert_eq!(
         kinds.len(),
-        23,
+        20,
         "a node kind the sweep does not reach: {kinds:?}"
     );
 }
@@ -514,6 +447,10 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
     fn lower<E>(
         authored: &Unlisted<Formula>,
         f: &mut dyn FnMut(&Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(Unlisted {
             hidden: f(&authored.hidden)?,
@@ -522,6 +459,7 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
     fn authored_with(
         &self,
         reader: &mut dyn FnMut(editor_core::VarId, Dimension) -> Formula,
+        _: &mut dyn FnMut(editor_core::VarId) -> editor_core::Operand,
     ) -> Unlisted<Formula> {
         Unlisted {
             hidden: reader(self.hidden, Dimension::Length),

@@ -23,11 +23,9 @@
 //!   the two rim circles and the hole's wall resting on the plug's; the
 //!   differences give each operand back; the intersection is empty.
 //! - **tilted plug**: the plug tilted `θ` back in its hole, its rims
-//!   ellipses, the hole's wall resting on the plug's across them. The
-//!   intersections are empty and the differences give each operand
-//!   back; the union refuses
-//!   `GermEdgeCarrierUnsupported` at every pose
-//!   (`cleave/a-tilted-plug-union-refuses-at-the-germ-segment-and-section-copy-rosters`).
+//!   ellipses, the hole's wall resting on the plug's across them. As
+//!   plugged: the union is the slab again, the differences give each
+//!   operand back, and the intersections are empty.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -36,7 +34,7 @@ use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, prism_on, sketch_from_axes};
 use topo::test_support::finished;
-use topo::{AtRestBody, Body, BooleanError, BooleanResult, Cell, RowCell};
+use topo::{AtRestBody, Body, BooleanResult, Cell, RowCell};
 
 /// The rod's radius.
 const R: f64 = 0.25;
@@ -45,6 +43,13 @@ const TILT: f64 = PI / 3.0;
 /// The slab: `x ∈ [−3, 3]`, `y ∈ [−1, 1]`, `z ∈ [0, 1]`.
 const SLAB: [(f64, f64); 3] = [(-3.0, 3.0), (-1.0, 1.0), (0.0, 1.0)];
 const SLAB_VOLUME: f64 = 12.0;
+/// The widest certified volume enclosure (`volume_pad`, m³) a result is
+/// read against its closed form through: measured on PR 5940
+/// (2026-10-28) at most `1.4e-6` at ε = 1e-9, `1.2e-5` at 1e-6 and
+/// `5.0e-10` at 1e-12, all at the tilted plug's ellipse-bounded faces,
+/// where `differential::VOLUME_PAD_BUDGET` (`1e-7`) does not hold above
+/// 1e-12. A pad past it is a quadrature that widened, not a pass.
+const PAD_CEILING: f64 = 1e-4;
 
 /// The rigid poses the scene is turned through, together: the identity
 /// and three turns about each world axis and about a skew one, all
@@ -113,13 +118,8 @@ fn posed(what: &str, body: &Body<f64>, map: &Affine3<f64>, tol: Tol) -> AtRestBo
 /// What one op reads, compared across poses.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Reading {
-    Body {
-        faces: usize,
-        face_pair_rows: usize,
-    },
+    Body { faces: usize, face_pair_rows: usize },
     Empty,
-    /// The germ join's typed refusal of an edge carrier it cannot pair.
-    GermEdgeRefused,
 }
 
 /// What one op is held to.
@@ -129,8 +129,6 @@ enum Want {
     Builds(f64),
     /// No body: the operands share no volume.
     Empty,
-    /// The germ join's typed refusal.
-    GermEdgeRefused,
 }
 
 /// The rows naming a face of each operand.
@@ -176,13 +174,6 @@ fn every_op(
         let label = format!("{label}, {op}");
         let truth = match want {
             Want::Builds(volume) => volume,
-            Want::GermEdgeRefused => {
-                assert!(
-                    matches!(out, Err(BooleanError::GermEdgeCarrierUnsupported { .. })),
-                    "{label}: the germ join refuses the edge carrier: {out:?}"
-                );
-                return Reading::GermEdgeRefused;
-            }
             Want::Empty => {
                 assert!(
                     matches!(out, Ok(BooleanResult::Empty)),
@@ -202,13 +193,22 @@ fn every_op(
             Ok(()),
             "{label}: tier 3"
         );
-        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
+        assert_eq!(
+            topo::validate_pseudomanifold(&out.body, &out.contacts, tol),
+            Ok(()),
+            "{label}: tier 3′"
+        );
+        let m = topo::test_support::pinned_volume(&label, &out.body, tol);
         assert!(
-            (m.enclosure.volume - truth).abs() <= m.enclosure.volume_pad + 1e-9 * truth,
+            m.volume_pad <= PAD_CEILING,
+            "{label}: the volume enclosure ± {} is wider than {PAD_CEILING}",
+            m.volume_pad
+        );
+        assert!(
+            (m.volume - truth).abs() <= m.volume_pad + 1e-9 * truth,
             "{label}: volume {} ± {} against the closed form {truth}",
-            m.enclosure.volume,
-            m.enclosure.volume_pad
+            m.volume,
+            m.volume_pad
         );
         // A legal operand: its union with a far unit brick builds and
         // holds the brick beside it.
@@ -219,18 +219,21 @@ fn every_op(
         );
         let joined = topo::union(&out.body, &far, tol)
             .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: {e:?}"));
-        let j = topo::mass_properties(
+        let j = topo::test_support::pinned_volume(
+            &format!("{label}: ∪ a far brick"),
             &joined.body().expect("not empty").body,
             tol,
-            topo::test_support::pinned_resolution(tol),
-        )
-        .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: mass properties {e:?}"));
+        );
         assert!(
-            (j.enclosure.volume - (truth + 1.0)).abs()
-                <= j.enclosure.volume_pad + 1e-9 * (truth + 1.0),
+            j.volume_pad <= PAD_CEILING,
+            "{label}: ∪ a far brick: the volume enclosure ± {} is wider than {PAD_CEILING}",
+            j.volume_pad
+        );
+        assert!(
+            (j.volume - (truth + 1.0)).abs() <= j.volume_pad + 1e-9 * (truth + 1.0),
             "{label}: ∪ a far brick: volume {} ± {} against {}",
-            j.enclosure.volume,
-            j.enclosure.volume_pad,
+            j.volume,
+            j.volume_pad,
             truth + 1.0
         );
         Reading::Body {
@@ -315,9 +318,9 @@ fn a_plug_in_its_hole_reads_alike_at_every_pose() {
 }
 
 /// **tilted plug**: the plug tilted `0.3` rad and [`TILT`] back in its
-/// hole. The intersections are empty, each difference gives its operand
-/// back with its own faces and the six face-pair rows the plugged union
-/// records, and the union refuses `GermEdgeCarrierUnsupported`.
+/// hole. As plugged: the union is the slab's six faces with the six
+/// face-pair rows, each difference gives its operand back with its own
+/// faces and those rows, and the intersections are empty.
 #[test]
 fn a_tilted_plug_in_its_hole_reads_alike_at_every_pose() {
     let tol = Tol::witness();
@@ -329,12 +332,16 @@ fn a_tilted_plug_in_its_hole_reads_alike_at_every_pose() {
                 label,
                 &posed("the plug", &plug, map, tol),
                 &posed("the holed slab", &hole, map, tol),
-                (Want::GermEdgeRefused, [v_a, v_b]),
+                (Want::Builds(SLAB_VOLUME), [v_a, v_b]),
             )
         });
         assert_eq!(
-            reference[3..],
+            [reference[0], reference[3], reference[4]],
             [
+                Reading::Body {
+                    faces: 6,
+                    face_pair_rows: 6
+                },
                 Reading::Body {
                     faces: 4,
                     face_pair_rows: 6
@@ -344,8 +351,93 @@ fn a_tilted_plug_in_its_hole_reads_alike_at_every_pose() {
                     face_pair_rows: 6
                 },
             ],
-            "tilted {tilt}: each difference is its operand's faces, with the face pairs \
-             the plugged union records"
+            "tilted {tilt}: the union is the slab and each difference its operand's faces, \
+             with the face pairs the plugged union records"
         );
     }
+}
+
+/// **spun plug** (review of PR 5940): the plug cut from the rod spun
+/// `1` rad about its own axis, back in the hole the unspun rod drilled.
+/// The rims are one ellipse on each side, but the plug's vertices sit
+/// elsewhere on it than the hole's, so the sweep splits each rim at the
+/// other's vertices before the germ join reads the pieces as one
+/// segment (`sectors::same_construction`). Read as plugged.
+#[test]
+fn a_spun_tilted_plug_in_its_hole_reads_as_plugged() {
+    let tol = Tol::witness();
+    let tilt: f64 = 0.3;
+    let (s, c) = tilt.sin_cos();
+    let spin = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.5), Vec3::new(s, 0.0, c), 1.0);
+    let slab = finished("the slab", brick(SLAB[0], SLAB[1], SLAB[2], tol), tol);
+    let rod0 = finished("the rod", rod(tilt, tol), tol);
+    let rod1 = posed("the spun rod", &rod0, &spin, tol);
+    let body = |what: &str, out| match out {
+        Ok(BooleanResult::Body(b)) => b.body,
+        other => panic!("{what}: {other:?}"),
+    };
+    let plug = body("slab ∩ spun rod", topo::intersect(&slab, &rod1, tol));
+    let hole = body("slab ∖ rod", topo::subtract(&slab, &rod0, tol));
+    let v_a = plug_volume(tilt);
+    let got = every_op(
+        "spun plug, identity",
+        &plug,
+        &hole,
+        (Want::Builds(SLAB_VOLUME), [v_a, SLAB_VOLUME - v_a]),
+    );
+    assert_eq!(
+        [got[0], got[3], got[4]],
+        [
+            Reading::Body {
+                faces: 6,
+                face_pair_rows: 6
+            },
+            Reading::Body {
+                faces: 4,
+                face_pair_rows: 6
+            },
+            Reading::Body {
+                faces: 8,
+                face_pair_rows: 6
+            },
+        ],
+        "spun plug: the union is the slab and each difference its operand's faces"
+    );
+}
+
+/// **proud plug** (review of PR 5940): the tilted plug standing half a
+/// unit proud of the slab's top. Only the bottom rims run together
+/// (one plane section on each side, `sectors::same_construction`); the
+/// hole's top rim lies in the plug's wall. The union is the slab with
+/// the stub on it, the differences give each operand back, and the
+/// intersections are empty.
+#[test]
+fn a_proud_tilted_plug_unites_to_the_slab_and_its_stub() {
+    let tol = Tol::witness();
+    let tilt = 0.3;
+    let slab = finished("the slab", brick(SLAB[0], SLAB[1], SLAB[2], tol), tol);
+    let tall = finished(
+        "the tall slab",
+        brick(SLAB[0], SLAB[1], (0.0, 1.5), tol),
+        tol,
+    );
+    let rod0 = finished("the rod", rod(tilt, tol), tol);
+    let body = |what: &str, out| match out {
+        Ok(BooleanResult::Body(b)) => b.body,
+        other => panic!("{what}: {other:?}"),
+    };
+    let plug = body("tall ∩ rod", topo::intersect(&tall, &rod0, tol));
+    let hole = body("slab ∖ rod", topo::subtract(&slab, &rod0, tol));
+    let (v_a, v_b) = (1.5 * plug_volume(tilt), SLAB_VOLUME - plug_volume(tilt));
+    let got = every_op(
+        "proud plug, identity",
+        &plug,
+        &hole,
+        (Want::Builds(v_a + v_b), [v_a, v_b]),
+    );
+    assert!(
+        matches!(got[0], Reading::Body { faces: 9, .. }),
+        "proud plug: the union's faces, as measured at review: {:?}",
+        got[0]
+    );
 }

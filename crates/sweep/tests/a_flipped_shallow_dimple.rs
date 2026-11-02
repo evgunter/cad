@@ -79,7 +79,9 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
     });
     // Each flipped half claims its complement, which holds the other, so
     // the cover census refuses their region as claimed twice, named by
-    // its first member, before the face reads name each flipped half.
+    // its first member, before the face reads name each flipped half;
+    // that complement holds the north pole too, which the
+    // chart-singularity arm names after them.
     assert_eq!(
         topo::validate_geometric(&flipped, tol),
         Err(
@@ -92,9 +94,17 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
                     .iter()
                     .map(|&face| topo::ValidationError::CurvedSenseInverted { face })
             )
+            .chain(dimple.iter().map(|&face| {
+                topo::ValidationError::ChartSingularityNotAVertex {
+                    face,
+                    point: geom_brep::chart_singularity::Singularity::North,
+                    lies: topo::SingularityLies::Interior,
+                }
+            }))
             .collect()
         ),
-        "check 6 names the overlap and both flipped faces, and nothing else does"
+        "check 6 names the overlap, both flipped faces and the pole each holds, and nothing \
+         else does"
     );
     assert!(
         matches!(

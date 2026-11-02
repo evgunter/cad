@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-22
 priority: P4
 cost: M
-refs: [a-mirror-is-a-construction]
+refs: [5607]
 ---
 
 

@@ -278,10 +278,6 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ),
     // ---- Pipelines composed of asserting operators. ----
     (
-        "merge_coplanar_faces",
-        "calls `merge_coplanar_faces_declared` with no declarations",
-    ),
-    (
         "replace_face_offset",
         "the one-face spelling of `replace_faces_offset`, which it calls",
     ),
@@ -291,7 +287,7 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          `merge_coplanar_faces_staged` and asserts tier 1 through its surgery scope",
     ),
     (
-        "merge_coplanar_faces_declared",
+        "merge_coplanar_faces",
         "runs `merge_coplanar_faces_staged`, which asserts tier 1 through its surgery \
          scope and runs `join_edges` on its staging clone before adopting it",
     ),

@@ -10,7 +10,7 @@ cost: M
 
 Found by PATHS 5a (`retire-the-stored-bulge`, PR 3527). The committed
 pass counts profiles it could not draw (`viewer::sketch::CommittedProfiles`'s
-`undrawn`, surfaced as `ViewerApp::profiles_undrawn` and
+`undrawn`, surfaced as `ViewerApp::viewport_reads.profiles_undrawn` and
 `frame::profiles_badge`). Its one witness was `profile_draw`'s subnormal
 bulge row (now `a_validated_sub_tolerance_arc_draws_as_its_line`), whose arc the pass used to count undrawn. Since 5a the
 committed pass draws the VALIDATED kind, and validation classifies that

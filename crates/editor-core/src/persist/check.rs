@@ -44,7 +44,6 @@ use crate::expr::Expr;
 use crate::meta::MetaVersionError;
 use crate::node::SlotId;
 use crate::node::{AssertionBoundFault, Node, RecipeNodeId};
-use crate::placement::{FrameFault, FrameSite};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::{derivation_nodes, derivation_reads};
 use crate::spoken::SpokenVar;
@@ -360,7 +359,7 @@ impl Walk {
                     fault,
                 }
             }),
-            Walk::Snapshot => validate_snapshot(snapshot, tol)
+            Walk::Snapshot => validate_snapshot(snapshot)
                 .err()
                 .map(super::PersistError::Snapshot),
         }
@@ -750,7 +749,12 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 } else {
                     crate::SlotKind::Placeable
                 };
-                match snapshot.read_fault(held, expected, crate::doc::Reader::Observes)? {
+                match snapshot.read_fault(
+                    select.body,
+                    held,
+                    expected,
+                    crate::doc::Reader::Observes,
+                )? {
                     crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
                         body: Box::new(snapshot.spoken_var(select.body)),
                         found,
@@ -919,6 +923,7 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             let held = snapshot.var(var)?;
             Some(
                 match snapshot.read_fault(
+                    var,
                     held,
                     node.seat_kind(slot),
                     crate::doc::Reader::of(node.seat_kind(slot)),
@@ -945,18 +950,6 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 /// NODE, because that is the address the expression has. Runs after the
 /// slot read walk, so a document broken in a slot AND in a payload is
 /// diagnosed at the slot, which is the address that carries more.
-///
-/// **The domain's edge, stated because it is not empty.** A node's rows
-/// and [`crate::node::payload_exprs`] together do NOT reach every
-/// `Expr` a node can hold: a `Node::Pattern`'s or `Node::PlacedUnion`'s
-/// COUNT expression under an `Explicit` rule is addressed by no slot
-/// and is no payload either. Such a file is still refused — by
-/// [`Walk::Snapshot`], as `PlacementRule` with
-/// `PlacementRuleFault::CountSpelling` — so no document reaches memory
-/// carrying an unchecked reader; what it does not get is this walk's
-/// sentence.
-/// `rv_payloadrefs_probes::rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref`
-/// is the row that pins that.
 fn first_payload_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, VarReadFault)> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
         node.payload_reads(snapshot)
@@ -1145,11 +1138,11 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // A definition's floats are its expression's literals, finite
         // by the construction door.
         | DocEdit::DeclareVar {
-            def: crate::var::VarDecl::Defined(_),
+            def: crate::var::VarDecl::Defined(_) | crate::var::VarDecl::Index { .. },
             ..
         }
         | DocEdit::DefineVar {
-            def: crate::var::VarDecl::Defined(_),
+            def: crate::var::VarDecl::Defined(_) | crate::var::VarDecl::Index { .. },
             ..
         }
         // A notation is a table code, not a float.
@@ -1460,28 +1453,6 @@ pub enum SnapshotError {
         /// The id.
         constraint: crate::node::ConstraintId,
     },
-    /// A placement frame carrying a non-finite coordinate — a literal
-    /// step of a transform's placement, or of a constraint's frame
-    /// offset. The edit door refuses it, so a file holding one is
-    /// corrupt — refused, never repaired.
-    PlacementNonFinite {
-        /// The node holding the placement.
-        node: SpokenNode,
-        /// Which of its frames.
-        at: FrameSite,
-    },
-    /// A proper placement frame that is not definitely a rigid motion
-    /// at tolerance. The edit door refuses it by the predicate the
-    /// evaluation moves a body by.
-    PlacementNonRigid {
-        /// The node holding the placement.
-        node: SpokenNode,
-        /// Which of its frames.
-        at: FrameSite,
-        /// The rigidity check that refused; routing, never rendered by
-        /// name.
-        check: &'static str,
-    },
     /// A constraint the edit door would refuse on what the recipe
     /// decides of it ([`crate::mate::solve::admit_mate`]): its `on` reads
     /// no copy, its world read is no pose, or its two poses are of two
@@ -1493,15 +1464,6 @@ pub enum SnapshotError {
         constraint: crate::node::ConstraintId,
         /// The admission's refusal.
         fault: Box<crate::MateFault>,
-    },
-    /// A placement-rule node carrying a rule the edit door would have
-    /// refused (GROUP-BOOLEAN-DESIGN): the count spelled two ways, an
-    /// empty explicit list, or a non-finite or non-rigid frame.
-    PlacementRule {
-        /// The offending node.
-        node: SpokenNode,
-        /// What is wrong with it.
-        fault: crate::node::PlacementRuleFault,
     },
     /// A node reading a variable id this document never minted. A
     /// deleted variable's reader is legal (its id is in the mint log);
@@ -1652,35 +1614,9 @@ pub enum SnapshotError {
 impl SnapshotError {}
 
 /// **A placement frame's refusal at load**: the frame's subject at its
-/// site and the frame rule's own clause, then what a user holding the
-/// file can do. The edit doors never admitted a non-finite or a
-/// mirrored frame, so a file holding one was not written by them; a
-/// frame that scales or shears was admitted by earlier builds at the
-/// registry and in an explicit rule, and a current build refuses it at
-/// the edit door with that frame's own recourse.
-fn frame_refusal(
-    f: &mut core::fmt::Formatter<'_>,
-    node: &SpokenNode,
-    at: FrameSite,
-    fault: FrameFault,
-) -> core::fmt::Result {
-    write!(f, "{} {fault}. ", at.subject(node))?;
-    match fault {
-        FrameFault::NonFinite => f.write_str(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
-        FrameFault::NotRigid { .. } => {
-            write!(
-                f,
-                "{}",
-                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
-            )
-        }
-    }
-}
-
 // The document layer's prose for a corrupt snapshot: each arm states
 // WHAT is wrong and WHERE, and forwards the payload's own `Display`
-// wherever the payload has one (`PlacementRuleFault`,
-// `MetaVersionError`) — a site that re-states a payload it holds
+// wherever the payload has one (`MetaVersionError`) — a site that re-states a payload it holds
 // invents a second vocabulary for a refusal that already has one. A
 // node or a name renders through its spoken `Display` (`SpokenNode`,
 // `SpokenName`), never a hand-rolled respelling.
@@ -1882,22 +1818,11 @@ impl core::fmt::Display for SnapshotError {
                 "{node}'s constraint {constraint} was minted as no constraint's id, or is held \
                  twice"
             ),
-            // The frame clause is the frame rule's own
-            // (`crate::placement::FrameFault`); these arms supply only
-            // the subject, so a reader sees one sentence about a frame
-            // wherever a frame was refused.
-            Self::PlacementNonFinite { node, at } => {
-                frame_refusal(f, node, *at, FrameFault::NonFinite)
-            }
-            Self::PlacementNonRigid { node, at, check } => {
-                frame_refusal(f, node, *at, FrameFault::NotRigid { check })
-            }
             Self::MateRefused {
                 node,
                 constraint,
                 fault,
             } => write!(f, "{node}'s constraint {constraint} is refused: {fault}"),
-            Self::PlacementRule { node, fault } => write!(f, "{node}: {fault}"),
             Self::ReaderOfUnmintedVar { node, var } => write!(
                 f,
                 "{node} reads variable {var}, which this document never minted"
@@ -1959,7 +1884,7 @@ impl core::fmt::Display for SnapshotError {
 
 /// Re-checks the document invariants `apply` maintains — on a parsed
 /// snapshot (load) and on the in-memory snapshot (save) alike.
-fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
+fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     // The recorded ε, by the same `doc::epsilon_admissible` the edit
     // door asks before it records one.
     if !crate::doc::epsilon_admissible(doc.epsilon) {
@@ -2030,24 +1955,12 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 }
             }
         }
-        // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked because
-        // a saved file is DATA,
-        // and every rule on the wire must be one the edit door would
-        // have accepted — one spelling of the count, at least one
-        // placement, and frames that are finite and proper.
-        if let Some(fault) = node.placement_rule_fault(tol) {
-            return Err(SnapshotError::PlacementRule {
-                node: doc.spoken(id),
-                fault,
-            });
-        }
-        // DM5's third caller, for the reason the placement rule above
-        // has one: a saved file is DATA, and a SNAPSHOT is the one way
+        // DM5's third caller: a saved file is DATA, and a SNAPSHOT is the one way
         // a node reaches a document without passing `apply`. The edit
         // log replays through the doors and is covered by them; the
         // snapshot beside it is not, so the rule is asked here, of the
         // same function, in this door's vocabulary.
-        if let Some(fault) = node.input_fault() {
+        if let Some(fault) = node.input_fault(doc) {
             return Err(SnapshotError::InputList {
                 node: doc.spoken(id),
                 fault: fault.list_fault(),
@@ -2351,7 +2264,6 @@ mod tests {
     use crate::expr::Dimension;
     use crate::node::{Node, RecipeNodeId, SlotId};
     use crate::persist::{PersistError, SnapshotError, save};
-    use crate::placement::FrameSite;
     use crate::program::ProfileDoc;
     use geom_core::Tol;
 
@@ -2443,10 +2355,7 @@ mod tests {
             PickPath,
             EpsilonInvalid,
             ConstraintNotMinted,
-            PlacementNonFinite,
-            PlacementNonRigid,
             MateRefused,
-            PlacementRule,
             InputList,
             AssertionBound,
             MetadataUnversioned,
@@ -2506,10 +2415,7 @@ mod tests {
             | SnapshotError::PickPath { .. }
             | SnapshotError::EpsilonInvalid { .. }
             | SnapshotError::ConstraintNotMinted { .. }
-            | SnapshotError::PlacementNonFinite { .. }
-            | SnapshotError::PlacementNonRigid { .. }
             | SnapshotError::MateRefused { .. }
-            | SnapshotError::PlacementRule { .. }
             | SnapshotError::InputList { .. }
             | SnapshotError::AssertionBound { .. }
             | SnapshotError::MetadataUnversioned { .. } => Walk::Snapshot,
@@ -2683,15 +2589,6 @@ mod tests {
                 node: node(),
                 constraint: crate::node::ConstraintId(crate::MintId::new(2, 2)),
             },
-            SnapshotError::PlacementNonFinite {
-                node: node(),
-                at: FrameSite::Listed { index: 0 },
-            },
-            SnapshotError::PlacementNonRigid {
-                node: node(),
-                at: FrameSite::Listed { index: 1 },
-                check: "transform_rigid_col0_unit",
-            },
             SnapshotError::MateRefused {
                 node: node(),
                 constraint: crate::node::ConstraintId(crate::MintId::new(2, 2)),
@@ -2701,10 +2598,6 @@ mod tests {
                         crate::node::ConstraintId(crate::MintId::new(2, 2)),
                     ),
                 }),
-            },
-            SnapshotError::PlacementRule {
-                node: node(),
-                fault: crate::node::PlacementRuleFault::NoPlacements,
             },
             SnapshotError::InputList {
                 node: node(),
@@ -2825,6 +2718,7 @@ mod tests {
             Box::new(Node::Profile(crate::program::ProfileProgram {
                 loops: vec![triangle],
                 ids: Vec::new(),
+                on: None,
             })),
         );
         let doc = doc

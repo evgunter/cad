@@ -232,6 +232,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, block) = fixture::insert(

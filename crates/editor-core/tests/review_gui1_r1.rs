@@ -26,6 +26,8 @@
 //!    the cube; the exact oracle computes every triangle hit as a
 //!    rational, picks the documented winner, and the service must
 //!    agree (face and `t`); an oracle miss must be the typed miss.
+//!    Case 0 is aimed through the cube's centre, so every sweep
+//!    compares at least one hit whatever the seed.
 //!    Distinct rational `t`s on this geometry differ by ≥ 1/64, so
 //!    f64 noise cannot blur the comparison; exact ties assert
 //!    membership in the tied minimal set (the strict flat-order pin
@@ -549,6 +551,11 @@ fn random_integer_rays_match_the_exact_oracle() {
             o[a] = rng.below(7) as i128 - 3; // [-3, 3]
             d[a] = rng.below(5) as i128 - 2; // [-2, 2], zeros welcome
         }
+        if case == 0 {
+            // The planted hit: aim through the cube's centre, which the
+            // ray reaches at t = 1/2 whatever the drawn origin.
+            d = o.map(|c| 1 - 2 * c);
+        }
         let r = ray(
             [o[0] as f64, o[1] as f64, o[2] as f64],
             [d[0] as f64, d[1] as f64, d[2] as f64],
@@ -604,12 +611,11 @@ fn random_integer_rays_match_the_exact_oracle() {
             }
         }
     }
-    // Anti-vacuity is structural, not searched (the battery row covers
-    // guaranteed hits); still, a sweep where nothing ever hit would be
-    // a broken generator worth hearing about.
+    // Case 0 is planted through the centre, so a zero here is the
+    // oracle missing a ray that cannot miss, never an unlucky draw.
     assert!(
         hits_seen > 0,
-        "no draw hit the cube — generator shape broke; {}",
+        "the planted case-0 ray through the cube's centre was not a hit; {}",
         fuzz::replay()
     );
 }

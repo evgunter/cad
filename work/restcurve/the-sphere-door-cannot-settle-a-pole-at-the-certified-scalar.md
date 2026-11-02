@@ -1,0 +1,105 @@
+---
+id: the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar
+kind: issue
+title: The sphere door cannot settle a pole at the certified (interval) scalar, so tier 3's pole side still reads locate
+status: closed
+closed: 2026-11-01
+opened: 2026-10-31
+priority: P1
+cost: M
+refs: [validate-tier3-curved-boundary-containment, a-loop-the-chart-singularity-walk-cannot-certify-is-exempt, import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave]
+branch: restcurve/pole-door
+pr: 6252
+---
+
+## What
+
+DESIGN `[topology.tiers]`: "whether a point lies in a face has one
+reading, the point-in-face doors'". Unit 2 of
+`validate-tier3-curved-boundary-containment` (the region arm) was to read
+a sphere pole's or cone apex's side, off the face's boundary, through the
+face's door (`boolean::cycle_side` with every surface cycle kept) in
+place of `geom_brep::chart_singularity::locate`'s side reading. Built
+that way, tier 3 refused six bodies the kernel's doors build, each at the
+certified (interval) scalar, each `ChartSingularityUndecided` from the
+sphere door; every one passes at the base, where `locate`'s stereographic
+closed form decides the pole:
+
+- `sweep` `a_tube_ending_on_a_ball::the_witness_brackets_its_closed_forms_at_the_certified_scalar`
+  (North: `bool_sphere_region_at` over `[0, 4.443]`);
+- `band_planar_cut_off_interval::the_box_rows_carve_at_the_certified_scalar_and_bracket_their_closed_forms`
+  (South: `bool_sphere_region_span` over `[-0.236, 0.393]`);
+- `fillet_h5_hostless_rim_interval::the_plane_sphere_hostless_carve_brackets_its_closed_form_at_the_certified_scalar`;
+- `m5_s13_pips_interval::certified::interval_finding_union_is_bracketed`
+  and `::interval_pip_pair_is_bracketed_and_additive`;
+- `m6_surgery_interval::certified::interval_one_pip_composed_die_is_bracketed`.
+
+Across them the enclosures seen were `bool_sphere_region_at` over
+`[0, π]`, `[0, π/2]`, `[0, 0.283]` and `[0, 4.443]`, and
+`bool_sphere_region_span` over `[-0.236, 0.393]` and `[-π/2, 3π/2]`
+(band `(1e-9, 1e-8)`): a crossing's place along a great circle from the
+pole, and a root's parameter against its arc's span, each read through an
+angle whose interval enclosure spans most of a turn. No path settles, and
+the walk answers the first in-band refusal. At `f64` the switch refused
+nothing in topo's suite, step-import's, or the sweep crate's.
+
+So the region-arm PR left tier 3's pole side on `locate` (as on its base)
+and kept only the split of `locate`'s boundary placement into
+`place_on_boundary`.
+
+## Owed
+
+The sphere door (and the cone door at an apex, which no interval row
+reached) settles a singular point at the certified scalar: its crossing
+places and span reads made without an angle whose enclosure spans a
+turn. Then tier 3's chart-singularity arm reads the side through the
+door (the switch the region-arm branch built and reverted: the face's
+door at the point, every surface cycle kept; a door's in-band reading
+refuses as `ChartSingularityUndecided` with `SideUnread::Banded`), and
+tier 3's use of `walk_loop` retires. The row that pins the pole reading
+today, and must keep passing through the switch, is
+`crates/topo/tests/props_sphere_cap_door.rs`
+`a_tilted_cap_holds_a_pole_by_its_region` (a cap tilted against its
+sphere's axis, holding the north pole or neither). The split-out
+`geom_brep::chart_singularity::place_on_boundary` is `pub(crate)` until
+this row needs it from topo. This is the ratified design, one
+reader and the doors, with its order changed. Import follows
+(`work/foreign/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`).
+Filed by RESTCURVE's region-arm lane.
+
+## Spec (RESTCURVE orchestrator, 2026-11-01)
+
+Branch `restcurve/pole-door`. Review tier: **dual**: the fix is in a door the boolean shares, and it moves a tier-3 reading onto that door (difficulty M). Arm: **HOLDOUT**, a concurrent pair (byte 198, mod 3 = 0).
+
+1. **Root-cause the six enclosures.** For each named test, record which path, which leg and which reading gives the whole-turn enclosure at Interval (`bool_sphere_region_at`: a crossing's place along a great circle from the pole; `bool_sphere_region_span`: a root against its arc's span). Write it in the PR body before changing code.
+2. **Make the sphere door settle a point at a pole at the certified scalar**, with no reading through an angle whose enclosure spans a turn. Read crossings and spans by certified algebraic predicates (signs of dot and cross products against the arc's plane and endpoints) where the angle is ill-conditioned, or aim the paths from a pole along meridians where the angle is exact. Do the same for the cone door at an apex if the same reading is used there; if no row reaches it, say so and file a P3.
+   **Stop and report** if the choice of reading would change an answer the boolean relies on, or needs a design choice.
+3. **The switch.** Tier 3's chart-singularity side reads through the face's door, with every surface cycle kept, at the singular point. An in-band reading refuses `ChartSingularityUndecided` with `SideUnread::Banded`. The at-a-vertex and inside-an-edge placements stay on `place_on_boundary`, the one incidence reading. Tier 3's use of `walk_loop` and its area-error bound retires, and `a-loop-the-chart-singularity-walk-cannot-certify-is-exempt` closes by retirement if nothing else reads it (say what still does: import, per FOREIGN's row).
+4. **Rows:**
+   - the six named interval tests pass;
+   - `props_sphere_cap_door::a_tilted_cap_holds_a_pole_by_its_region` passes, now through the door;
+   - a sphere face holding a pole near a boundary (1e-2, 1e-3, 1e-4 rad) at f64 and Interval;
+   - PR 6054's 10 µm sliver 1 cm from a pole passes;
+   - a pole read in band escalates typed with its margin.
+5. **No false refusal:** topo, step-import, step-export and sweep at ε 1e-6, the default and 1e-12, plus every interval/certified sweep test. **No answer moves:** a base-vs-head differential of `curved_face_containment` on sphere bodies (grid, near-pole and arc-edge points, f64 and Interval). Any definite flip must be explained.
+
+## Closed — the door half landed; the switch moved (pole door, 2026-11-01)
+
+The six enclosures had one cause: a crossing at a ray's antipode placed
+by `atan2` on its branch cut. Every great circle through a pole passes
+the other pole there, and each body's face has an arc ending at it, so
+`bool_sphere_region_at` enclosed `[0, π·R]` on every ray. The door now
+reads a place round a circle by the half-angle form
+(`region::between`), and a root as a direction
+(`circle_roots::first_harmonic_root_directions`) against its span at the
+nearer end (`region::span_at_nearer_end`); all
+six read the pole `out` with the switch built. The `span` enclosures
+were set-aside paths of the same shape (a root a half turn from its
+arc's middle; the phase on its cut), fixed and pinned beside it.
+
+The switch itself stops on a false refusal at ε 1e-6
+(`blend4_r1_probes::p2_slim_skews_carve_valid_or_refuse_typed_never_worse`),
+which no great-circle ray can read. It moved, with the retirement of
+tier 3's `walk_loop`, to
+`the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band`
+(orchestrator's ruling: option 2). Tier 3's pole side stays on `locate`.

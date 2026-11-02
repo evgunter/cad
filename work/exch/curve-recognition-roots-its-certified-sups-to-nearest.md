@@ -4,6 +4,8 @@ kind: issue
 title: recognize_curve roots a certified sup and a lower bound to nearest, so each can land an ulp on the unsafe side
 status: open
 opened: 2026-10-01
+priority: P3
+cost: E
 ---
 
 

@@ -19,6 +19,8 @@ use pncad::document::{
     ParseError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, ValuePayload, VarId,
     VarName,
 };
+use std::path::{Path, PathBuf};
+
 use pncad::workspace::WorkspaceError;
 
 // The recourse this module's `NoSuchVariable` arm ends on, read from its
@@ -45,13 +47,12 @@ pub enum NodeKindWanted {
     Profile,
     /// A read of ONE body — the combining seats' kind: a node whose one
     /// output is a body ([`combine::denotes_body`] carries the
-    /// admissible set and why a pattern's instances are not in it), or
-    /// a split's half read by its port ([`admits_read`]).
+    /// admissible set), or a split's half read by its port
+    /// ([`admits_read`]).
     Body,
-    /// A node whose value is a pattern's INSTANCES — what a
-    /// [`pncad::document::PartSelect::Instance`] indexes: read alone,
-    /// it defines a `Bodies` variable, a pattern's or a transform's of
-    /// one (its kind fixed at minting off its operand).
+    /// A FAMILY — what an indexed read (`BodyRead::indexed`) indexes: a
+    /// node evaluated once per value of the indices it reaches (D10
+    /// `[repetition]`), or one whose output is a `Bodies` variable.
     Instances,
 }
 
@@ -71,12 +72,19 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
     let held = doc.node(node);
     match wanted {
         NodeKindWanted::Body => combine::denotes_body(doc, node),
-        NodeKindWanted::Instances => doc
-            .read_of_node(node)
-            .and_then(|read| doc.var(read))
-            .is_some_and(|var| {
-                pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
-            }),
+        NodeKindWanted::Instances => {
+            held.is_some()
+                && doc
+                    .node_reach(node)
+                    .chain()
+                    .is_some_and(|chain| !chain.is_empty())
+                || doc
+                    .read_of_node(node)
+                    .and_then(|read| doc.var(read))
+                    .is_some_and(|var| {
+                        pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
+                    })
+        }
         NodeKindWanted::Profile => held.and_then(seat_kind) == Some(wanted),
     }
 }
@@ -115,7 +123,6 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         Node::Profile(_) => Some(NodeKindWanted::Profile),
         Node::Split { .. }
         | Node::Mirror { .. }
-        | Node::Pattern { .. }
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
@@ -129,8 +136,6 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Union { .. }
         | Node::Intersect { .. }
         | Node::Assemble { .. }
-        | Node::Part { .. }
-        | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
         | Node::Place { .. }
         | Node::World
@@ -278,10 +283,7 @@ pub enum Refusal {
         /// The evaluator's refusal, in its own words.
         source: EvalError,
     },
-    /// The New door was asked for a blank name. The document id is
-    /// derived from the name (`DocumentId::derive` — the identity
-    /// rule GAUTH's orchestrator decided at the program's opening), so a nameless document
-    /// would carry an identity nobody could ever re-derive.
+    /// The New door was asked for a blank name.
     EmptyName,
     /// A creation op named a node that is not the kind its seat
     /// requires — absent, or of another kind. Refusing here keeps
@@ -588,13 +590,14 @@ impl Refusal {
                 DisplayFault::Admission(fault) => match fault {
                     AdmissionFault::NotEvaluated { .. } => 2,
                     AdmissionFault::NoSuchNode { .. }
-                    | AdmissionFault::NotAnInstance { .. }
+                    | AdmissionFault::NotABody { .. }
+                    | AdmissionFault::NotDrawn { .. }
+                    | AdmissionFault::NotASpace { .. }
                     | AdmissionFault::InTheWorld { .. }
                     | AdmissionFault::NoSpace { .. }
                     | AdmissionFault::MovedSpace { .. }
                     | AdmissionFault::NoSuchSpace { .. }
-                    | AdmissionFault::NotShown { .. }
-                    | AdmissionFault::FusedGeometry { .. } => 1,
+                    | AdmissionFault::NotShown { .. } => 1,
                 },
             },
             Self::NoGesture
@@ -662,13 +665,10 @@ impl Refusal {
     /// refuses, and the New-document form's Create button, which
     /// disables and shows the words.
     ///
-    /// **It hands back the NAME rather than a verdict** because the
-    /// trim is part of the rule and not each caller's own step. A
-    /// control that gated on the raw text would offer a click the door
-    /// refuses; a caller that trimmed again on its own would be a
-    /// second copy of the normalisation with nothing holding the two
-    /// in step — which is the defect one home for the emptiness alone
-    /// still leaves open.
+    /// It hands back the trimmed name, which the form sends in the op.
+    /// Nothing past this check reads the name yet: the door validates
+    /// it and discards it
+    /// (`work/vseam/a-new-documents-typed-name-is-kept-nowhere`).
     ///
     /// The name says `new_document` and not `name`: a blank
     /// *variable* name is a different question with a different
@@ -762,6 +762,25 @@ impl Refusal {
         format!("create variable {}?", name.as_str())
     }
 
+    /// **The choice this refusal offers**, when it is a save that
+    /// would give the document a second file in one folder.
+    pub fn save_choice(&self) -> Option<SaveChoice> {
+        match self {
+            Self::Workspace(error) => match &**error {
+                WorkspaceError::SaveWouldDuplicateId {
+                    existing,
+                    requested,
+                    ..
+                } => Some(SaveChoice {
+                    existing: existing.clone(),
+                    requested: requested.clone(),
+                }),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     /// The accept-offer question, and its one home — shown under an
     /// instance row whose pin no longer holds. It names the part by
     /// its file, as the row does, and says the accept reaches every
@@ -826,12 +845,7 @@ impl core::fmt::Display for Refusal {
                 "{var} already has a name, and the slot shares it by that name — accept \
                  the offer without giving it another"
             ),
-            Self::EmptyName => {
-                write!(
-                    f,
-                    "a new document needs a name; its identity is derived from it"
-                )
-            }
+            Self::EmptyName => write!(f, "a new document needs a name"),
             Self::WrongNodeKind { node, wanted } => {
                 write!(f, "{node} is not {} in this document", wanted.name())
             }
@@ -884,6 +898,52 @@ impl core::fmt::Display for Refusal {
 }
 
 impl core::error::Error for Refusal {}
+
+impl From<WorkspaceError> for Refusal {
+    fn from(error: WorkspaceError) -> Self {
+        Self::Workspace(Box::new(error))
+    }
+}
+
+/// **The choice a save that would give the document a second file
+/// puts in front of the person** (DI4), drawn from
+/// `SaveWouldDuplicateId`'s own payload: save over the file that
+/// already holds this document, or save at the chosen name as a new
+/// document. Dismissing it is the third answer and emits nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SaveChoice {
+    existing: PathBuf,
+    requested: PathBuf,
+}
+
+impl SaveChoice {
+    /// The label of the control that saves over the existing file.
+    pub fn over_label(&self) -> String {
+        format!("Save over {}", file_name(&self.existing))
+    }
+
+    /// The label of the control that forks at the chosen name.
+    pub fn fork_label(&self) -> String {
+        format!("Save {} as a new document", file_name(&self.requested))
+    }
+
+    /// Saving over the file that holds this document already.
+    pub fn over(&self) -> SessionOp {
+        SessionOp::Save(self.existing.clone())
+    }
+
+    /// Saving at the chosen name as a new document.
+    pub fn fork(&self) -> SessionOp {
+        SessionOp::SaveAsNewDocument(self.requested.clone())
+    }
+}
+
+/// A path as a label names it: its file name, both files of a
+/// [`SaveChoice`] being in one folder.
+fn file_name(path: &Path) -> std::borrow::Cow<'_, str> {
+    path.file_name()
+        .map_or_else(|| path.to_string_lossy(), |name| name.to_string_lossy())
+}
 
 /// **The offer an instance whose pin no longer holds makes**: accept
 /// its part's updated version ([`crate::frame::version_offer`] reads
@@ -957,6 +1017,9 @@ pub enum GestureFrameFault {
     },
     /// The body offers no geometry to read the frame off.
     Geometry(pncad::document::PinRefusal),
+    /// No frame reads off a traced face and a plane face
+    /// ([`pncad::trace::traced_frame`]).
+    Traced(std::sync::Arc<pncad::trace::TracedFrameFault>),
 }
 
 impl core::fmt::Display for GestureFrameFault {
@@ -973,6 +1036,7 @@ impl core::fmt::Display for GestureFrameFault {
             }
             Self::Direction { field, refusal } => write!(f, "the {field} {refusal}"),
             Self::Geometry(refusal) => write!(f, "{refusal}"),
+            Self::Traced(fault) => write!(f, "{fault}"),
         }
     }
 }
@@ -1004,6 +1068,7 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&pncad::document::
         | ValuePayload::Profile(_)
         | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)
+        | ValuePayload::Family
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,

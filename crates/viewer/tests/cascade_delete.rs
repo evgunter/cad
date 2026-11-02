@@ -276,16 +276,13 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     );
 }
 
-/// The saved log is FLAT: the file records edits, so a reopened
-/// document walks the cascade back one edit at a time. That is the
-/// price of grouping being viewer-local state, and it is pinned rather
-/// than assumed.
+/// A saved cascade is the document's state: the file holds the
+/// document the cascade left, and its reopened history starts there.
 #[test]
-fn a_saved_cascade_replays_as_its_individual_edits() {
+fn a_saved_cascade_reopens_as_its_document() {
     let tol = Tol::witness();
     let die = die_shaped(tol);
     let target = die.booleans[10];
-    let cone = cascade_delete_order(&die.doc, target).len();
     let mut session = DocSession::inline(die.doc, tol);
     assert!(
         session
@@ -293,7 +290,6 @@ fn a_saved_cascade_replays_as_its_individual_edits() {
             .refusal
             .is_none()
     );
-    assert_eq!(session.history().path_edits().len(), cone);
 
     let dir = common::tempdir("cascade-delete");
     let file = dir.join("die.pncad");
@@ -312,10 +308,9 @@ fn a_saved_cascade_replays_as_its_individual_edits() {
         live(session.committed_doc()),
         "the reopened document is the one that was saved"
     );
-    assert_eq!(reopened.history().path_edits().len(), cone);
     assert_eq!(
         reopened.history().len(),
-        cone + 1,
-        "root plus one state per LOGGED edit: grouping did not survive the file"
+        1,
+        "one state, the opened document: undo ends at an open"
     );
 }

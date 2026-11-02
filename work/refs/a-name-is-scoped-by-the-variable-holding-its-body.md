@@ -7,7 +7,7 @@ opened: 2026-10-09
 priority: P0
 cost: H
 blocked_on: []
-refs: [part-split-half-retires, operands-are-reads]
+refs: [4618, 4342]
 pr: 4674
 closed: 2026-10-11
 ---

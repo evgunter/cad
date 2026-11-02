@@ -25,7 +25,9 @@
 #                              that the bindings hand a host language;
 #   viewer/src/pickindex.rs    the picture's parts, drawn and picked where
 #                              their frames put them;
-#   viewer/src/scene.rs        the product's picture.
+#   viewer/src/scene.rs        the product's picture;
+#   viewer/src/splitplane.rs   the split tool's plane, drawn over the
+#                              picture where its target is drawn.
 #
 # AN ALIAS HIDES A CALL. `use … in_space as x` (or a façade composer
 # renamed so) makes every later call one this pattern cannot read, so an
@@ -80,6 +82,7 @@ IN_SPACE_HOMES=(
   crates/pncad/src/export.rs
   crates/viewer/src/pickindex.rs
   crates/viewer/src/scene.rs
+  crates/viewer/src/splitplane.rs
 )
 IN_SPACE_CRATES='^crates/(editor-core|pncad|pncad-py|viewer)/src/'
 # The façade's composers and the files that may call them (see above).

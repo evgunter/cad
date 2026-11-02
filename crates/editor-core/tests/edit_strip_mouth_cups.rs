@@ -55,6 +55,7 @@ fn post(
                 radius: len(A),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, body) = fixture::insert(doc, extrude(p, length));

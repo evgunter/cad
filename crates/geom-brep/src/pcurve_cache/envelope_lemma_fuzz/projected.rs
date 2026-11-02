@@ -466,7 +466,7 @@ fn least_over_a_turn(g: impl Fn(f64) -> f64) -> f64 {
         .map(|k| f64::from(k) * step)
         .min_by(|a, b| g(*a).total_cmp(&g(*b)))
         .expect("the grid is not empty");
-    let golden = (5f64.sqrt() - 1.0) / 2.0;
+    let golden = geom_core::GOLDEN_SECTION;
     let (mut a, mut b) = (best - step, best + step);
     for _ in 0..100 {
         let (c, d) = (b - golden * (b - a), a + golden * (b - a));

@@ -33,3 +33,7 @@ are not `0` and `±1`), so they stayed on `sketch_frame` /
 `sketch_from_axes`. Some fixtures may want the decided door on
 purpose (to exercise a mint's rounding); each site says which before
 it moves.
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. `reach_volume_backstop.rs` is now `curved_trims_build_at_their_volumes.rs`; its `tilted_about_x` frame is unchanged.

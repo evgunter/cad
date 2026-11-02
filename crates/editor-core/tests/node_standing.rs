@@ -195,7 +195,7 @@ fn every_standing_renders_one_way_through_every_door() {
     ] {
         let checks = run_checks(&placed, &eval, &ChecksConfig::default(), Tol::witness())
             .expect_err("a placement with no value refuses the registry");
-        assert_eq!(checks, ChecksError::Root(standing));
+        assert_eq!(checks, ChecksError::Placement(standing));
         speaks(
             "the checks registry",
             "checks: placement ",
@@ -206,7 +206,7 @@ fn every_standing_renders_one_way_through_every_door() {
             .expect_err("a placement with no value refuses the gather");
         speaks(
             "the product gather",
-            "product: placement ",
+            "product: the body the slot reads: ",
             &gather,
             standing,
         );
@@ -295,7 +295,7 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
         .expect_err("a poisoned placement refuses the registry");
     assert_eq!(
         refusal,
-        ChecksError::Root(NodeStanding::Poisoned {
+        ChecksError::Placement(NodeStanding::Poisoned {
             node: placement,
             through: s.failed
         })
@@ -321,7 +321,7 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     let standing = NodeStanding::Failed { node: placement };
     let refusal = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
         .expect_err("a failed placement refuses the registry");
-    assert_eq!(refusal, ChecksError::Root(standing));
+    assert_eq!(refusal, ChecksError::Placement(standing));
     speaks(
         "the checks registry",
         "checks: placement ",
@@ -468,15 +468,29 @@ fn reads(code: &str) -> usize {
 /// [`reads`]'s hits in the file's code; a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
-const READERS: [(&str, usize, &str); 14] = [
+const READERS: [(&str, usize, &str); 15] = [
+    (
+        "crates/editor-core/src/eval/members.rs",
+        20,
+        "the per-member schedule (D10 `[repetition]`) is the evaluator's at one value of the \
+         indices: it holds the result map as the evaluator writes it, overlays each member's \
+         raw values on the family's (a member's result where it has one, carrying the \
+         family it stands for, a failure poisoning its readers), and reads each \
+         member's own result to write the family's: its values, or the refusal the family \
+         refuses with naming the member (`MemberRefused`); its unit tests hand-build each \
+         member's result and read the family's",
+    ),
     (
         "crates/editor-core/src/eval/mod.rs",
-        27,
+        33,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
          test-support hand-built evaluation takes its result map whole; the solve reads each \
          placement's answer off the evaluation (`SolvedPoses::of`): its value's motion, or the \
          mate fault a FAILED placement carries, a standing and not a value (a node's space is \
-         the recipe's, `Doc::node_space`, and no value is read for it)",
+         the recipe's, `Doc::node_space`, and no value is read for it); it hands the result \
+         map to the per-member schedule (`eval/members.rs`) and writes the family's refusal it \
+         returns; a profile lane hands its result map whole as the nominal document's \
+         (`ProfileLane::nominal_results`)",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
@@ -549,7 +563,7 @@ const READERS: [(&str, usize, &str); 14] = [
     (
         "crates/editor-core/src/eval/parts.rs",
         1,
-        "moves the failure behind a failed or poisoned part root out of the part's \
+        "moves the failure behind a failed or poisoned piece of the part's product out of the part's \
          evaluation, which the standing does not carry",
     ),
 ];

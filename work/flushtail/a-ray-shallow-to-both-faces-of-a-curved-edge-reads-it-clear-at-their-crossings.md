@@ -46,13 +46,19 @@ the wrong side. This row's earlier text said
 where the crossing lies near the passage
 (`side_at_infinity_met_edge_represents` /
 `bool_point_in_solid_met_edge_represents`, not past the band from the
-passage's span), or where the face definitely holds it. This applies on a face not every
+passage's span), or where the face definitely holds it and the ray
+reaches it from the passage in band of the carrier: always for a plane's
+crossing, and for a curved face's root where its rise off the carrier
+over that distance, at its incidence there, is not past the passage's
+own clearance (`side_at_infinity_met_edge_reaches` /
+`bool_point_in_solid_met_edge_reaches`, PR 6168). This applies on a face not every
 edge of which is a line edge read exactly; on a face every edge of which
 is (planes only, `edge_meets`), every edge the ray passes in band is
 met. Otherwise the edge reads nothing there.
 - Measured on the kinked bore, the scan reads 0 wrong at ε 1e-9, 1e-6
   and 1e-12 (`a_ray_shallow_to_a_face_past_its_curved_edge_reads_right`).
-- **What it costs.** The rule also reads nothing where the half would
+- **What it costs** (measured before PR 6168 narrowed the curved
+  roots' arm, which sets a few more of these rays aside). The rule also reads nothing where the half would
   have counted right. A ray nearly along a cylinder's wall passes the
   rim and crosses the cap's plane outside the disc, across the rim
   itself.

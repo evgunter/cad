@@ -2,11 +2,13 @@
 id: a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop
 kind: issue
 title: A union of a block resting a Zero-band gap above another refuses ResultVolumeImplausible: the glue closes the gap and the backstop has no slack for it
-status: dispatched
+status: closed
 opened: 2026-10-13
 priority: P0
 cost: M
 branch: cleave/volume-relations-a-test-oracle
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -73,3 +75,7 @@ The same backstop refuses a pose whose pair glues with a Zero-band *tilt*, not o
 - At ε 1e-9, θ 2e-12, every φ ∈ {2, 5, 20, 60, 90}° refuses `ResultVolumeImplausible` in both orders. For example, got 14.366025403784464 against bound 14.36602540378444 at 60°, and 14.500000000000034 against 14.5 at 90°.
 - At ε 2e-11, θ 5e-12 it refuses the same way, with got minus bound 5e-15 to 8e-14.
 - The glue closes the wedge face's Zero-band tilt onto the block's top, and `volume_backstop` (`ops.rs`) has no slack for the volume that closes. The fix the row owes covers both: the bound admits the displacement the glue's own Zero verdicts allow.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. Each cell of the table builds, in both operand orders, holds tiers 3 and 3′ and one solid, measures at the union's closed form to within the gap over the glued area, and holds the volume relations: `crates/topo/tests/a_block_resting_in_the_zero_band_unions.rs`, at gaps spelled in ε (1e-4ε … 0.5ε, and overlaps −1e-3ε, −0.1ε) and B's bottom one and four ulp up, over the three footprints. FLUSH's tilted wedge (θ = 2e-3ε and 0.25ε, every opening) is pinned beside it the same way.

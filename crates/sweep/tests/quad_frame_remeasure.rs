@@ -14,11 +14,10 @@ use crate::common::arc_section;
 use geom_brep::props::quad::{PatchNet, RVec3, mean_boundary_displacement, nurbs_patch_face};
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, RigidMotion, Tol, UnitVec3, Vec3};
-use profile::{ProfileLoop, SketchPlane, circle, circle_split, test_support::bulge_loop};
-use sweep::test_support::{extruded, finished, sketch_from_axes};
+use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, RigidMotion, Tol, UnitVec3};
+use profile::{ProfileLoop, SketchPlane, circle, circle_split};
 use sweep::{loft_body, sweep_body};
-use topo::{AtRestBody, Body, BooleanError, BooleanOp, ValidationError};
+use topo::{Body, ValidationError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -114,74 +113,6 @@ fn row5_rational_wall_rotated() {
             };
             patch(&format!("rotated {deg}° about {name}"), &rot);
         }
-    }
-}
-
-// ---------------------------------------------------------------- row 2
-
-fn body_of(r: Result<topo::BooleanResult<f64>, BooleanError>, what: &str) -> AtRestBody<f64> {
-    r.unwrap_or_else(|e| panic!("{what}: the boolean refuses: {e:?}"))
-        .body()
-        .expect("a body remains")
-        .body
-        .clone()
-}
-
-fn scaled_cutter(s: f64) -> AtRestBody<f64> {
-    let square = bulge_loop(
-        [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
-            .into_iter()
-            .map(|(x, y)| (Point2::new(x * s, y * s), 0.0))
-            .collect(),
-    );
-    let plane = sketch_from_axes(
-        Point3::new(0.0, 0.0, 3.5 * s),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 20f64.to_radians().cos(), 20f64.to_radians().sin()),
-        tol(),
-    );
-    finished(
-        "cutter",
-        extruded(plane, vec![square], 2.0 * s, tol()),
-        tol(),
-    )
-}
-
-fn scaled_oblique_rod(s: f64, r: f64) -> AtRestBody<f64> {
-    let disc = profile::circle(Point2::new(0.0, 0.0), r * s, tol()).unwrap();
-    let rod = finished(
-        "rod",
-        extruded(SketchPlane::xy(), vec![disc.into()], 4.0 * s, tol()),
-        tol(),
-    );
-    body_of(
-        topo::subtract(&rod, &scaled_cutter(s), tol()),
-        "oblique rod",
-    )
-}
-
-#[test]
-#[ignore = "measurement probe; run by hand"]
-fn row2_backstop_right_answer_by_scale() {
-    let scales: Vec<f64> = std::env::var("ROW2_SCALES").map_or_else(
-        |_| vec![1.0, 1e2, 1e3, 2e3, 3e3, 4e3, 6e3, 1e4],
-        |v| v.split(',').map(|x| x.parse().unwrap()).collect(),
-    );
-    for s in scales {
-        let (a, b) = (scaled_oblique_rod(s, 0.5), scaled_cutter(s));
-        let v = topo::test_support::volume_backstop(BooleanOp::Subtract, &a, &b, &a, tol());
-        println!(
-            "ROW2 eps={:e} s={s:e}: A∖B planted as A -> {:?}",
-            tol().eps(),
-            v.map_err(|e| e.to_string())
-        );
-        let fat = scaled_oblique_rod(s, 0.5 * (1.0 + 1e-12));
-        let v = topo::test_support::volume_backstop(BooleanOp::Subtract, &a, &b, &fat, tol());
-        println!(
-            "ROW2 eps={:e} s={s:e}: A∖B planted fattened 1e-12 -> {:?}",
-            tol().eps(),
-            v.map(|_| "accepted").map_err(|e| e.kind())
-        );
     }
 }
 

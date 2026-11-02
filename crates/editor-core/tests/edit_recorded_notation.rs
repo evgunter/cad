@@ -142,6 +142,7 @@ fn edits_of(program: LoopProgram<Formula>) -> [DocEdit<ProfileProgram>; 1] {
         node: Box::new(Node::Profile(ProfileProgram {
             loops: vec![program],
             ids: Vec::new(),
+            on: None,
         })),
         fresh: Vec::new(),
     }]
@@ -337,10 +338,12 @@ fn two_notations_of_one_leg_are_one_program_and_one_geometry() {
     let a = ProfileProgram {
         loops: vec![millimetres.clone()],
         ids: Vec::new(),
+        on: None,
     };
     let b = ProfileProgram {
         loops: vec![metres.clone()],
         ids: Vec::new(),
+        on: None,
     };
     assert!(a == b, "bit equality is blind to the notation");
     assert_eq!(

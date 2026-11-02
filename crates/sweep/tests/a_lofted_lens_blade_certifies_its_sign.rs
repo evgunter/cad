@@ -77,13 +77,13 @@ fn blade(tol: Tol) -> topo::Body<f64> {
 /// **A round tube big enough that its number stays open**: two
 /// circles (two semicircular arcs each, so every wall is rational) of
 /// radii `23.4·s` and `11.7·s`, lofted `125·s` apart, with
-/// `s = 64·(ε / 1e-9)`. The reporting target is `1024·ε` and the width a
-/// wall reaches at the work wall is a length that grows with the part,
+/// `s = 512·(ε / 1e-9)`. The reporting target is `1024·ε` and the width
+/// a wall reaches at the work wall is a length that grows with the part,
 /// so scaling the part with ε puts the same crossing at every ε row.
-/// Measured at ε = 1e-9: the tube certifies its number at `s = 32`,
-/// and at 48 and 64 each wall stops at the work wall after 11 rounds
-/// (the exact-v arm's round 10), 1.050e-6 and 1.400e-6 m against the
-/// 1.024e-6 m target. It is `pncad-py`'s `oversized_round_loft`.
+/// Measured at ε = 1e-9: the tube certifies its number at `s = 64`, and
+/// at 512 each wall stops at the work wall (the exact-v arm's round 11)
+/// with its bracket holding the frustum. It is `pncad-py`'s
+/// `oversized_round_loft`.
 fn round_tube(tol: Tol) -> topo::Body<f64> {
     let circle = |r: f64| {
         vec![bulge_loop(vec![
@@ -91,7 +91,7 @@ fn round_tube(tol: Tol) -> topo::Body<f64> {
             (Point2::new(-r, 0.0), -1.0),
         ])]
     };
-    let s = 64.0 * tol.eps() / geom_core::tolerance::DEFAULT_EPS;
+    let s = 512.0 * tol.eps() / geom_core::tolerance::DEFAULT_EPS;
     loft_body::<f64>(
         &[circle(23.4 * s), circle(11.7 * s)],
         &sweep::test_support::stacked_at(&[0.0, 125.0 * s]),
@@ -105,7 +105,7 @@ fn round_tube(tol: Tol) -> topo::Body<f64> {
 /// The blade certifies: tier 3 admits it on a positive enclosure, the
 /// reporting door measures it at the default ε and looser, and the
 /// number sits in the gate's bracket. At ε = 1e-9:
-/// `0.03460594915008527 ± 4.64e-7` m³, which holds the body's volume
+/// `0.034605927320410755 ± 1.04e-6` m³, which holds the body's volume
 /// as an independent quadrature of its two walls measures it (its own
 /// rational de Boor and Gauss–Legendre per knot span, about a point on
 /// both caps' planes), `0.0346059453481`.
@@ -143,8 +143,8 @@ fn a_lofted_lens_blade_certifies_its_sign_and_its_number() {
                         measured.enclosure.volume_pad.to_bits()
                     ),
                     (
-                        0.034_605_949_150_085_27_f64.to_bits(),
-                        4.641_116_041_851_727e-7_f64.to_bits()
+                        0.034_605_927_320_410_755_f64.to_bits(),
+                        1.035_232_624_013_726_6e-6_f64.to_bits()
                     ),
                     "the blade's bits at the default ε: {measured:?}"
                 );
@@ -203,40 +203,5 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_open() {
         b.volume_hi,
         enclosure.volume_lo,
         enclosure.volume_hi
-    );
-}
-
-/// **The backstop pays a refused face once per body it reads.** The
-/// volume backstop reads each body from round 0 and refines it while an
-/// inequality straddles. Here the planted result is the tube itself, so
-/// `vol(A ∪ B) ≥ vol(A)` straddles at every round, and the walk takes
-/// both bodies' walls to their own stop and no further, as the reporting
-/// door does: reading the tube twice (`A` and the planted result) costs
-/// exactly twice the door's quadrature readings. Counted, not timed: a
-/// round a refused face ran again would be another reading.
-#[test]
-fn the_volume_backstop_reads_a_refused_face_once_per_body() {
-    let tol = Tol::witness();
-    let body = topo::test_support::finished("the round tube", round_tube(tol), tol);
-    let brick = crate::common::square_prism();
-    let reporting = crate::common::quad_rounds(|| {
-        let measured =
-            topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
-                .expect("the door measures the tube");
-        assert_eq!(
-            measured.stop,
-            topo::Stop::Wall,
-            "the tube's number stops at the wall"
-        );
-    });
-    let backstop = crate::common::quad_rounds(|| {
-        topo::test_support::volume_backstop(topo::BooleanOp::Union, &body, &brick, &body, tol)
-            .expect_err("the backstop refuses a body it cannot measure");
-    });
-    assert_eq!(
-        backstop,
-        2 * reporting,
-        "the backstop read the tube's refused wall past its stop ({backstop} quadrature \
-         readings against the reporting door's {reporting} for one body)"
     );
 }

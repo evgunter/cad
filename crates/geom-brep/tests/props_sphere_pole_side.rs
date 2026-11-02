@@ -12,7 +12,7 @@
 //!   interior: a pole lies on each side of the rim, so under either bit
 //!   the face holds one and the loop encodes no side. It measures under
 //!   its bit, `2πR²(1 − sin v₀)`; refusing it is validity's (the form
-//!   import must normalise). Its seamed form, the pole a vertex,
+//!   STEP import normalises). Its seamed form, the pole a vertex,
 //!   encodes its side and measures the same.
 //! * **The L-shaped complement.** A half-cap and the rest of its sphere
 //!   share both edges traversed opposite ways; the complement holds the

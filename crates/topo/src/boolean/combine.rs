@@ -844,12 +844,19 @@ fn graft_solids_impl<T: geom_core::Decide>(
             continue;
         };
         let description = match *curve.description() {
-            geom_brep::EdgeDescription::Intersection { pair, witness } => {
-                geom_brep::EdgeDescriptionSpec::Intersection {
-                    pair: pair
-                        .map(|s| image(&surfaces, s, GeomRef::Surface, GeomRef::Curve(k), "pair")),
-                    witness,
-                }
+            geom_brep::EdgeDescription::Intersection { pair, ref selector } => {
+                let Some((pair, selector)) = selector.remapped(pair, |s| {
+                    Some(image(
+                        &surfaces,
+                        s,
+                        GeomRef::Surface,
+                        GeomRef::Curve(k),
+                        "pair",
+                    ))
+                }) else {
+                    unreachable!("graft (handle remap): an infallible map answers every key")
+                };
+                geom_brep::EdgeDescriptionSpec::Intersection { pair, selector }
             }
             geom_brep::EdgeDescription::TangentIntersection { pair, witness } => {
                 geom_brep::EdgeDescriptionSpec::TangentIntersection {
@@ -994,7 +1001,7 @@ mod recertify_door_tests {
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: p0.lerp(p1, 0.5),
+                selector: geom_brep::CurveSelector::Witness(p0.lerp(p1, 0.5)),
             },
             carrier: Curve3::Nurbs(Arc::new(
                 NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),

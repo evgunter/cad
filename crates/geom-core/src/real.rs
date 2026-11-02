@@ -572,6 +572,14 @@ pub trait Real:
         self.sin_cos().1
     }
 
+    /// **The sine of a twelfth of a turn**, exactly `1/2`. Defaults to
+    /// the literal. A scalar that records structure keeps the sine of
+    /// the angle instead, valued `1/2`, so what reads the structure sees
+    /// the angle and not only its value.
+    fn sin_of_a_twelfth() -> Self {
+        Self::from_f64(0.5)
+    }
+
     /// The tangent (argument in radians).
     fn tan(self) -> Self;
 
@@ -918,7 +926,8 @@ pub const fn pow2(e: i32) -> f64 {
 ///   [`RigidMotion::from_aim`](crate::RigidMotion::from_aim)), and
 ///   [`UnitVec3::new`](crate::UnitVec3::new), which `sweep` reaches
 ///   for the revolve's sketch axis (`revolve::axis::AxisFrame::build`)
-///   and for a path sweep's station tangents (`sweep_path_tangent`);
+///   and for a path sweep's station tangents and chords
+///   (`sweep_path_tangent`, `sweep_path_chord`);
 /// - `topo`'s `sector_shape`, which asks it of each bounding chord
 ///   separately because its arm is their `min` and [`Real::min`]
 ///   propagates `NaN` but not infinity, so a `min` hides an
@@ -1013,7 +1022,8 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 ///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites, and
 ///   [`UnitVec3::new`](crate::UnitVec3::new), which `sweep` reaches
 ///   for the revolve's sketch axis (`revolve::axis::AxisFrame::build`)
-///   and for a path sweep's station tangents (`sweep_path_tangent`);
+///   and for a path sweep's station tangents and chords
+///   (`sweep_path_tangent`, `sweep_path_chord`);
 /// - `topo`'s `sector_shape`, per bounding CHORD rather than of the
 ///   arm — the arm is the two chords' `min`, which has no witness of
 ///   its own and which an underflowed chord always wins, so asking the
@@ -1444,7 +1454,7 @@ pub mod bounds_allowlist {
     //! certificate is the base scalar's. **Whether they should carry
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure) anyway: answered NO, and the CALLER decides it,
     //! not the door** — the one production caller,
-    //! `editor_core::eval::wire::wire_placed_union`, sits beneath
+    //! `editor_core::eval::wire::images_apart`, sits beneath
     //! `evaluate<T>`, a MIXED pass whose node kinds are overwhelmingly
     //! non-certifying and which a [`CertifiedBounds`](super::CertifiedBounds) bound here would reach
     //! by propagation. **Doors tighten; passes keep their lanes.** (The
@@ -1477,6 +1487,24 @@ pub mod bounds_allowlist {
     //! PUBLIC and carries the bound for the same reason its walk does —
     //! it resumes that walk, so what it may read and what it may decide
     //! are the walk's, scalar for scalar.
+    //!
+    //! **The clearance engine's door rides the same seam** (CLEAR's
+    //! symbolic-tier ruling, 2026-10-27, applying the M5 PR 11
+    //! precedent): `topo::clearance` (`Side::windows`, `Sweep::run`,
+    //! `min_separation` and the window and region helpers beneath them)
+    //! and `topo::cell_region`'s two doors take a `Body<T>` at
+    //! `Decide + CertifiedBounds`. `QuadLane::certified` stays the only
+    //! entry from the props reporting walks; these are further doors of
+    //! the same kind, outside them. The argument is the same one. The
+    //! bracket half is what lifts each surface, curve and point the door
+    //! reads into interval arithmetic (`Interval::from_certified`), where
+    //! the cells, the enclosures, the funnelled `d − c` and the bracket
+    //! are computed. The `Decide` half is what places a cell's or a
+    //! witness station's point at `T` through the point-in-face doors.
+    //! No bracket of `T` is branched on. The weakest bound that works is
+    //! this one: drop the bracket term and no lift into interval
+    //! arithmetic can be formed; drop `Decide` and no station can be
+    //! placed.
     //!
     //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
     //! precedent; retroactive Ev review per the self-merge convention) — the

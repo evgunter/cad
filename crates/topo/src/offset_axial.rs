@@ -829,7 +829,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                         (cb.old_key, chart_moves(cb.distance, band)?),
                     ],
                     true,
-                    mid,
+                    (&carrier, t0, t1),
                     |mc| reauthor(mc, &carrier, (p_start, p_end), edge, band),
                     |declared| {
                         crate::offset_restate::re_ask_on_pair(

@@ -18,7 +18,7 @@
 //!   lanes do not land there: the NURBS lane spends its
 //!   `nurbs_cert::LATTICE_SHARE` of δ on its lattice (its sliver lands
 //!   at δ, its lattice cells at an eighth of it), and the trimmed
-//!   cylinder, which has no theorem, sizes at
+//!   cylinder and trimmed sphere, which have no theorem, size at
 //!   `trimmed::UNPROVED_HEADROOM` of δ.
 //! - a **step** — an increment in a *parameter* (a curve parameter, a
 //!   chart angle, a UV coordinate), always `f64`. Steps come from a
@@ -80,7 +80,7 @@
 //! of δ is a typed choice nothing has measured as the coarsest
 //! (`work/tess/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
 //! The lanes without a theorem say so at their call sites: the trimmed
-//! cylinder sizes at `trimmed::UNPROVED_HEADROOM` of δ, and a cone face
+//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and a cone face
 //! whose side carries a point keeps the lattice `curved::grid_counts`
 //! names.
 //!
@@ -559,42 +559,67 @@ pub(crate) fn sphere_grid_steps(target: f64, r: f64, widest: f64) -> (f64, f64) 
 pub(crate) const SPHERE_CELL_ASPECT: f64 = core::f64::consts::SQRT_2;
 
 /// The cosine of a sphere face's latitude nearest the equator: 1 when
-/// its latitude window holds the equator, else `cos` of the window's
-/// end nearest it. The window is read off the outer loop's vertices —
-/// a rim is a constant latitude and a meridian arc is monotone between
-/// its ends (the branch door, `require_one_chart_branch`) — so the
-/// chord pass and the curved lane read it from one place.
+/// its latitude window holds the equator, else `√(1 − s²)` at the
+/// window's end nearest it, `s` that end's height over the radius. The
+/// window is each boundary circle's own height range along the axis,
+/// `c + a·cos t + b·sin t` in its parameter, read in closed form over the
+/// edge's interval (`trimmed::harmonic_range`): a tilted circle's
+/// latitude turns inside its interval, so vertices alone do not bound
+/// it, and the curved lane's iso faces (rims constant, meridians
+/// monotone) read the same window from the same arithmetic. The chord
+/// pass, the curved lane and the trimmed lane's sphere arm read it from
+/// this one place.
 pub(crate) fn sphere_face_widest_cos(
     body: &topo::Body<f64>,
     fk: topo::FaceKey,
     surface: &geom::Surface<f64>,
 ) -> Result<f64, TessellateError> {
-    let Some(chart) = topo::chart::Chart::of(surface) else {
-        unreachable!("Chart::of answers every sphere, and this surface is one: {surface:?}")
+    let geom::Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    } = *surface
+    else {
+        return Err(TessellateError::MissingEntity {
+            what: "a sphere face's widest latitude on a non-sphere surface",
+        });
     };
     let face = body
         .get_face(fk)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
-    for (_, ek, _) in crate::walk::loop_half_edges(body, face.outer, fk)? {
-        let (vs, ve) = crate::chords::edge_vertices(body, ek)?;
-        for vk in [vs, ve] {
-            let p = topo::readback::vertex_point(body, vk)
-                .map_err(|_| TessellateError::MissingEntity { what: "vertex" })?;
-            let v = chart.v_of(p);
-            lo = lo.min(v);
-            hi = hi.max(v);
-        }
+    for (ek, _) in crate::walk::loop_edges(body, face.outer, fk)? {
+        let curve = body
+            .get_edge(ek)
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(|g| g.certified())
+            .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
+        let geom::Curve3::Circle { center: cc, .. } = *curve.carrier() else {
+            return Err(TessellateError::UnsupportedCurve {
+                edge: ek,
+                note: "a sphere face bounded by an edge that is not a circle — its \
+                       lattice is sized from its circles' latitude ranges",
+            });
+        };
+        let height = |p: geom_core::Point3<f64>| (p - center).dot(axis);
+        let c = height(cc);
+        let a = height(curve.carrier().eval(0.0)) - c;
+        let b = height(curve.carrier().eval(core::f64::consts::FRAC_PI_2)) - c;
+        let (z0, z1) = crate::trimmed::harmonic_range(c, a, b, curve.params());
+        lo = lo.min(z0);
+        hi = hi.max(z1);
     }
     if lo.is_nan() || hi.is_nan() || lo > hi {
         return Err(TessellateError::MissingEntity {
-            what: "sphere face vertex",
+            what: "sphere face latitude window",
         });
     }
     Ok(if lo <= 0.0 && hi >= 0.0 {
         1.0
     } else {
-        lo.abs().min(hi.abs()).cos()
+        let s = (lo.abs().min(hi.abs()) / radius).min(1.0);
+        (1.0 - s.powi(2)).sqrt()
     })
 }
 
@@ -741,8 +766,11 @@ pub(crate) fn torus_grid_steps(target: f64, major: f64, minor: f64) -> (f64, f64
 /// second copy of the threshold. That rule is total on circle
 /// carriers (`|n · axis| > 0.5` splits rim from meridian, every
 /// direction falling on one side), so nothing refuses HERE: a circle
-/// on a torus or a sphere that is neither iso-curve — a Villarceau
-/// circle, an oblique small circle — is refused by the face door
+/// on a sphere that is neither iso-curve and stores its projected image
+/// routes its face to the trimmed lane's sphere arm, which this
+/// function answers `None` for; any other non-iso circle on a torus or
+/// a sphere — a Villarceau circle, an oblique small circle with no
+/// stored image — is refused by the face door
 /// (`geom_brep::props::require_iso_rectangle`, through
 /// [`crate::curved`]) before any grid is built on the face, and a
 /// whole-body refusal is what a mis-tightened count on such an edge

@@ -2,11 +2,10 @@
 id: a-vector-unit-pick-is-one-undo-per-component
 kind: issue
 title: a vector unit pick commits one history action per component, so undoing one pick takes several Undos
-status: parked
+status: open
 opened: 2026-09-28
 priority: P3
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by review of `vnews/the-unit-picker-reads-its-refusal`. The
@@ -30,3 +29,5 @@ one op that carries the components (or a batch-level action) and
 commits their `props::slot_unit_edit`s through it. Mind the "some
 components are computed" case: the writable components are the ones
 in the action, and a refusal among them refuses the pick whole.
+
+**Re-read 2026-10-29 (INTENT, D10 hold):** released. Its ground is built, and `slot_unit_ui` still pushes one `SetSlotUnit` per writable component (`crates/viewer/src/pane/properties.rs:911-917`).

@@ -26,10 +26,13 @@
 //! alone, and split at one only where its covered parent and the face
 //! leave the meeting to opposite sides (`super::reduce`'s
 //! `sheets_part`): a rim whose wall is tangent to the face's carrier and
-//! runs the other way from the face, tangent in its plane to the face's
-//! own rim, touches the face only at that rim, and both are split there
-//! (`a_closed_conic_in_the_partners_face::a_boss_over_a_hole_by_pose`).
-//! Its `Clear` says nothing of such an edge.
+//! runs the other way from the face, meeting the face's own rim on the
+//! ruling the two carriers share, touches the face only at that rim, and
+//! both are split there. The two rims may be tangent in one plane
+//! (`a_closed_conic_in_the_partners_face::a_boss_over_a_hole_by_pose`)
+//! or cross there in two planes, a circle or an ellipse either side
+//! (`sheets_part_on_slanted_rims`). Its `Clear` says nothing of such an
+//! edge.
 //!
 //! **It reads, it does not solve.** Whether and where the edge meets the
 //! face's boundary is the curve × face table's boundary pass
@@ -52,7 +55,7 @@ use geom_core::{Band, Decide, Point3};
 use super::contain::FaceContainment;
 use super::{BooleanDecision, BooleanError, CrossingDecision, Operand};
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
 
@@ -76,6 +79,10 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
     /// No reading answers: nothing is known about the interior (module
     /// docs).
     Unread,
+    /// The edge and a boundary curve read in the band's gap where they
+    /// can meet ([`BoundaryRefusal::Touch`]): the caller places the
+    /// escalation where its frontier door stands.
+    Touch(geom_core::Indeterminate),
 }
 
 /// A point strictly inside `carrier`'s span `(t0, t1)` where it meets
@@ -88,8 +95,10 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] when a decision falls in band: where a
-/// boundary vertex sits against the span, a decision of the meeting
-/// reading, or the boundary pre-pass's own rows.
+/// boundary vertex sits against the span, or the boundary pre-pass's
+/// own rows. [`BooleanError::CurvedPierceEscalated`] at `edge` (an edge
+/// of `y_is`'s other operand) where a decision of the meeting reading
+/// does, its story [`meeting`]'s for an edge `on_carrier` or not.
 /// [`BooleanError::ClassificationInvariant`] where `face`, a key the
 /// caller passed, does not resolve.
 ///
@@ -101,7 +110,7 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
 /// hold mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(super) fn boundary_crossing<T: Decide>(
     y: &Body<T>,
-    y_is: Operand,
+    (y_is, edge, on_carrier): (Operand, EdgeKey, bool),
     face: FaceKey,
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
@@ -111,8 +120,10 @@ pub(super) fn boundary_crossing<T: Decide>(
     let t = match read_boundary(y, face, &swept, band)? {
         Some(Ok(Boundary::Meets { t, .. })) => t,
         Some(Ok(Boundary::Along { .. } | Boundary::Clear)) => return Ok(BoundaryCrossing::Clear),
+        Some(Err(BoundaryRefusal::Touch(diag))) => return Ok(BoundaryCrossing::Touch(diag)),
         Some(Err(refusal)) => {
-            return boundary_refusal(refusal).map(|()| BoundaryCrossing::Unread);
+            return boundary_refusal(refusal, (y_is.other(), face, edge), on_carrier)
+                .map(|()| BoundaryCrossing::Unread);
         }
         None => return Ok(BoundaryCrossing::Unread),
     };
@@ -187,21 +198,47 @@ fn boundary_spans<T: Decide>(
     Ok(Some(edges))
 }
 
-/// A boundary pass's refusal: an escalation is this module's, a reading
-/// that could not run is `Ok` (nothing is known), and a misread is a
-/// kernel fault.
-pub(super) fn boundary_refusal(refusal: BoundaryRefusal) -> Result<(), BooleanError> {
+/// A boundary pass's refusal: an escalation is this module's, a meeting
+/// in band the meeting's ([`meeting`], as the edge is `on_carrier` or
+/// not), located at the edge the triple names (its operand, the curved
+/// face, the edge), a reading that could not run is `Ok` (nothing is
+/// known), and a misread is a kernel fault, the readings that contradict
+/// named.
+pub(super) fn boundary_refusal(
+    refusal: BoundaryRefusal,
+    (operand, face, edge): (Operand, FaceKey, EdgeKey),
+    on_carrier: bool,
+) -> Result<(), BooleanError> {
     match refusal {
         BoundaryRefusal::Escalated(diag) => Err(escalated(diag)),
-        BoundaryRefusal::Unread(_) => Ok(()),
-        BoundaryRefusal::Fault(MeetFault::Contradiction { .. }) => {
-            Err(BooleanError::ClassificationInvariant {
-                what: "boundary pass: two readings of the meeting pose contradict",
+        BoundaryRefusal::Meeting(diag) | BoundaryRefusal::Touch(diag) => {
+            Err(BooleanError::CurvedPierceEscalated {
+                operand,
+                face,
+                edge,
+                decision: meeting(on_carrier),
+                diag,
             })
+        }
+        BoundaryRefusal::Unread(_) => Ok(()),
+        BoundaryRefusal::Fault(MeetFault::Contradiction { readings }) => {
+            Err(BooleanError::ClassificationInvariant { what: readings })
         }
         BoundaryRefusal::Fault(_) => Err(BooleanError::ClassificationInvariant {
             what: "boundary pass: a carrier the meeting table misread",
         }),
+    }
+}
+
+/// The decision a meeting of an edge with a curved face's boundary
+/// escalates as: an edge on the face's carrier and a boundary curve are
+/// two cuts of one surface ([`BooleanDecision::CurveMeeting`]); an edge
+/// off it only meets that curve ([`BooleanDecision::BoundaryMeeting`]).
+pub(super) fn meeting(on_carrier: bool) -> BooleanDecision {
+    if on_carrier {
+        BooleanDecision::CurveMeeting
+    } else {
+        BooleanDecision::BoundaryMeeting
     }
 }
 
@@ -224,7 +261,8 @@ mod crossing_rows {
     //! that needs the meeting reading.)
     use super::{BoundaryCrossing, boundary_crossing};
     use crate::boolean::contain::FaceContainment;
-    use crate::boolean::{BooleanError, Operand};
+    use crate::boolean::{BooleanDecision, BooleanError, Operand};
+    use crate::entity::EdgeKey;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
@@ -255,7 +293,16 @@ mod crossing_rows {
             radius: 0.3,
             u_ref: -out,
         };
-        match boundary_crossing(&body, Operand::B, face, &tilted, (-0.5, 0.5), band).unwrap() {
+        match boundary_crossing(
+            &body,
+            (Operand::B, EdgeKey::default(), true),
+            face,
+            &tilted,
+            (-0.5, 0.5),
+            band,
+        )
+        .unwrap()
+        {
             BoundaryCrossing::At { t, p: q, at, .. } => {
                 assert!(t.abs() < 1e-12, "the meeting is at the span's middle: {t}");
                 assert!(q.distance(p) < 1e-12, "at the rim point: {q:?}");
@@ -294,8 +341,15 @@ mod crossing_rows {
             semi_v: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.8) * (1.0 / k),
         };
-        let crossing = |span| match boundary_crossing(&body, Operand::B, face, &section, span, band)
-            .unwrap()
+        let crossing = |span| match boundary_crossing(
+            &body,
+            (Operand::B, EdgeKey::default(), true),
+            face,
+            &section,
+            span,
+            band,
+        )
+        .unwrap()
         {
             BoundaryCrossing::At { t, p, at, .. } => {
                 assert!(
@@ -309,7 +363,9 @@ mod crossing_rows {
                 Some(t)
             }
             BoundaryCrossing::Clear => None,
-            BoundaryCrossing::Unread => panic!("{span:?}: every carrier here is read"),
+            BoundaryCrossing::Unread | BoundaryCrossing::Touch(_) => {
+                panic!("{span:?}: every carrier here is read")
+            }
         };
         let at_ruling = crossing((1.0, 1.6)).expect("the ruling is crossed");
         assert!(
@@ -367,7 +423,7 @@ mod crossing_rows {
         let attempt = |gap: f64| {
             boundary_crossing(
                 &body,
-                Operand::B,
+                (Operand::B, EdgeKey::default(), true),
                 face,
                 &section,
                 (theta - gap * z, theta + 0.01),
@@ -385,8 +441,11 @@ mod crossing_rows {
         assert!(
             matches!(
                 attempt(0.8),
-                Err(BooleanError::Escalated { ref diag, .. })
-                    if diag.predicate == Some("curve_pair_meet_stretch")
+                Err(BooleanError::CurvedPierceEscalated {
+                    decision: BooleanDecision::CurveMeeting,
+                    ref diag,
+                    ..
+                }) if diag.predicate == Some("curve_pair_meet_stretch")
             ),
             "the end 0.8·z off the ruling and the crossing 16·z in, one stretch: {:?}",
             attempt(0.8)
@@ -441,7 +500,17 @@ mod crossing_rows {
             (section.eval(tc).z - 1.0).abs() < 1e-12,
             "t_c is on the top rim"
         );
-        let read = |span| boundary_crossing(&body, Operand::B, face, &section, span, band).unwrap();
+        let read = |span| {
+            boundary_crossing(
+                &body,
+                (Operand::B, EdgeKey::default(), true),
+                face,
+                &section,
+                span,
+                band,
+            )
+            .unwrap()
+        };
         for span in [(tc, tc + 0.3), (-tc - 0.3, -tc)] {
             assert!(
                 matches!(read(span), BoundaryCrossing::Clear),
@@ -508,7 +577,16 @@ mod crossing_rows {
             origin: foot,
             dir: Vec3::unit_z(),
         };
-        match boundary_crossing(&body, Operand::B, face, &along, (0.25, 0.75), band).unwrap() {
+        match boundary_crossing(
+            &body,
+            (Operand::B, EdgeKey::default(), true),
+            face,
+            &along,
+            (0.25, 0.75),
+            band,
+        )
+        .unwrap()
+        {
             BoundaryCrossing::At { t, at, .. } => {
                 assert!((t - 0.5).abs() < 1e-12, "at the dividing vertex: {t}");
                 assert_eq!(at, FaceContainment::OnVertex(mid), "the vertex itself");
@@ -549,7 +627,14 @@ mod crossing_rows {
         };
         assert!(
             matches!(
-                boundary_crossing(&body, Operand::B, face, &tilted, (-0.5, 0.5), band),
+                boundary_crossing(
+                    &body,
+                    (Operand::B, EdgeKey::default(), true),
+                    face,
+                    &tilted,
+                    (-0.5, 0.5),
+                    band
+                ),
                 Ok(BoundaryCrossing::At { .. })
             ),
             "the sound face meets the circle"
@@ -558,7 +643,14 @@ mod crossing_rows {
         stale.faces.remove(face);
         assert!(
             matches!(
-                boundary_crossing(&stale, Operand::B, face, &tilted, (-0.5, 0.5), band),
+                boundary_crossing(
+                    &stale,
+                    (Operand::B, EdgeKey::default(), true),
+                    face,
+                    &tilted,
+                    (-0.5, 0.5),
+                    band
+                ),
                 Err(crate::boolean::BooleanError::ClassificationInvariant { .. })
             ),
             "a face the caller passed that does not resolve refuses typed"
@@ -569,7 +661,16 @@ mod crossing_rows {
             "boundary_crossing (ring)",
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| boundary_crossing(b, Operand::B, face, &tilted, (-0.5, 0.5), band),
+            |b| {
+                boundary_crossing(
+                    b,
+                    (Operand::B, EdgeKey::default(), true),
+                    face,
+                    &tilted,
+                    (-0.5, 0.5),
+                    band,
+                )
+            },
         );
         // A member's start, on a span no candidate falls strictly inside:
         // no containment read follows, so the start is the only read that
@@ -577,7 +678,14 @@ mod crossing_rows {
         let clear = (0.4, 0.401);
         assert!(
             matches!(
-                boundary_crossing(&body, Operand::B, face, &tilted, clear, band),
+                boundary_crossing(
+                    &body,
+                    (Operand::B, EdgeKey::default(), true),
+                    face,
+                    &tilted,
+                    clear,
+                    band
+                ),
                 Ok(BoundaryCrossing::Clear)
             ),
             "the sound face is clear of the circle there"
@@ -590,7 +698,16 @@ mod crossing_rows {
             "boundary_crossing (start)",
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| boundary_crossing(b, Operand::B, face, &tilted, clear, band),
+            |b| {
+                boundary_crossing(
+                    b,
+                    (Operand::B, EdgeKey::default(), true),
+                    face,
+                    &tilted,
+                    clear,
+                    band,
+                )
+            },
         );
         let (edge, curve) = body
             .edges()
@@ -607,7 +724,16 @@ mod crossing_rows {
             "boundary_crossing",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| boundary_crossing(b, Operand::B, face, &tilted, (-0.5, 0.5), band),
+            |b| {
+                boundary_crossing(
+                    b,
+                    (Operand::B, EdgeKey::default(), true),
+                    face,
+                    &tilted,
+                    (-0.5, 0.5),
+                    band,
+                )
+            },
         );
     }
 }

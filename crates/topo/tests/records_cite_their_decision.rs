@@ -807,7 +807,7 @@ fn an_operands_copies_on_one_key_stay_on_one_key_at_every_normal() {
     )
     .body;
     let n = 40;
-    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let ga = geom_core::GOLDEN_ANGLE;
     let mut held = 0;
     for i in 0..n {
         let z = 1.0 - 2.0 * (f64::from(i) + 0.5) / f64::from(n);

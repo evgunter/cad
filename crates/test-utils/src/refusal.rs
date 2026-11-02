@@ -712,7 +712,7 @@ mod tests {
         let enclosure = "the op refused: the tube escalated: enclosure [-2e-9, 3e-9] cannot be \
                          classified against the ambiguity band (1e-9, 1e-8)";
         assert_eq!(subjectless_escalations(enclosure).len(), 1);
-        let parenthesised = "whether the declared faces touch escalated (margin 3e-11 lies inside \
+        let parenthesised = "whether the faces touch escalated (margin 3e-11 lies inside \
                              the ambiguity band (1e-12, 1e-9))";
         assert!(subjectless_escalations(parenthesised).is_empty());
     }

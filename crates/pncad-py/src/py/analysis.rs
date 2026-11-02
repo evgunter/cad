@@ -302,9 +302,9 @@ fn quantity(py: Python<'_>, canonical: f64, dim: d::Dimension) -> PyResult<Py<Py
 /// axis of it (VR8) — annotation is opt-in and means something, and
 /// the analysis never guesses a spread nobody stated.
 ///
-/// The shape is `PatternKind`'s and `PartSelect`'s: a frozen value
-/// class of static constructors, one per kernel arm, spelled in snake
-/// case. What it adds over those two is that the arguments are typed
+/// The shape is `StationMove`'s: a frozen value class of static
+/// constructors, one per kernel arm, spelled in snake case. What it
+/// adds over that one is that the arguments are typed
 /// quantities and the constructor CHECKS — see the module header for
 /// both halves.
 #[pyclass(frozen, module = "pncad", from_py_object)]

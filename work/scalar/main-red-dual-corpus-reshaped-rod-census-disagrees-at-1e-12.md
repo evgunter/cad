@@ -33,3 +33,11 @@ nightly reads it at 1e-12.
 Find which reading of `reshaped_rod`'s census differs between the f64
 and the Interval scalar at 1e-12, and whether it is a band edge both
 should escalate at or a scalar-specific decision.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Still red at 1e-12 with the same reading. The row is pinned at 1e-12
+on `reshaped_rod: the census disagreed across certifying scalars`; it
+goes red the day the row passes. Not bisected here.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.

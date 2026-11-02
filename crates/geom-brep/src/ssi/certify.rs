@@ -118,8 +118,8 @@ use geom_core::spline::algebra::{dehomogenize, domain_grid_points, range_grid_po
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::spline::{KnotVector, RingRefinement};
 use geom_core::{
-    Band, Bounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval, Margin, Point3,
-    Real, Sign, Vec3,
+    Band, Bounds, CertifiedBounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval,
+    Margin, Point3, Real, Sign, Vec3,
 };
 
 use crate::certify::CertCheck;
@@ -1315,10 +1315,10 @@ pub(crate) fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64
 /// The box chain covering a carrier: one padded box per span of its
 /// [`refined_net`], from the span's control hull (containment by the
 /// convex-hull property, positive weights making the rational basis a
-/// partition of unity).
+/// partition of unity), beside the box's axis and the span it hulls.
 fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
-) -> Vec<(Box3, Vec3<T>)> {
+) -> Vec<(Box3, Vec3<T>, (f64, f64))> {
     let mut out = Vec::new();
     // A refused insertion chain returns an EMPTY chain, which limb 3
     // reads as a definite refusal (no box, so nothing banked).
@@ -1368,7 +1368,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // that rung as unprobed ([`tube_margin`]).
         let t = carrier.deriv(T::from_f64(0.5 * (a + b)));
         let n = t.norm();
-        out.push((bx, t / n));
+        out.push((bx, t / n, (a, b)));
     }
     out
 }
@@ -1402,6 +1402,20 @@ impl Rung {
     }
 }
 
+/// **One padded chain box's graph margin** for an analytic pair: the
+/// zero-free reading ([`tube_margin`]) of `(∇f₁ × ∇f₂)·e` over `bx`
+/// ([`graph_margin`]); `None` where the enclosure is refused. Limb 3's
+/// probe and the coarse-span reading ([`coarse_tube_spans`]) read a box
+/// by it.
+fn box_graph_margin<T: CertifiedBounds>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    bx: Box3,
+    e: Vec3<T>,
+) -> Option<f64> {
+    tube_margin(graph_margin(s1, s2, bx, e))
+}
+
 /// Limb 3's **enclosure probe** for an analytic pair: the graph
 /// criterion in ℝ³ over a box chain of the given radius, and, where the
 /// margin is zero-free, the one-arc proof over the chain cut to `slab`
@@ -1417,7 +1431,7 @@ impl Rung {
 /// `None` when the chain is empty or broken, a definite structural
 /// refusal; [`Rung::refused`] where a box's transversality enclosure is.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
-    chain: &[(Box3, Vec3<T>)],
+    chain: &[(Box3, Vec3<T>, (f64, f64))],
     s1: &Surface<T>,
     s2: &Surface<T>,
     radius: f64,
@@ -1429,7 +1443,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     let mut worst = f64::INFINITY;
     let mut prev: Option<Box3> = None;
     let mut padded = Vec::with_capacity(chain.len());
-    for (raw, e) in chain.iter() {
+    for (raw, e, _) in chain.iter() {
         // The chain is built once (an O(n²) knot refinement) and padded
         // per ladder rung, which is a pure interval widening.
         let bx = raw.pad(radius);
@@ -1442,7 +1456,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         }
         prev = Some(bx);
         padded.push(bx);
-        let Some(m) = tube_margin(graph_margin(s1, s2, bx, *e)) else {
+        let Some(m) = box_graph_margin(s1, s2, bx, *e) else {
             return Some(Rung::refused(SsiTube::Spatial { radius }));
         };
         if m < worst {
@@ -1450,7 +1464,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         }
     }
     let axis = |e: &Vec3<T>| dominant_axis([e.x, e.y, e.z].map(|c| 0.5 * (c.lo() + c.hi())));
-    let (Some((_, e0)), Some((_, e1))) = (chain.first(), chain.last()) else {
+    let (Some((_, e0, _)), Some((_, e1, _))) = (chain.first(), chain.last()) else {
         return None;
     };
     let one_arc = (worst > 0.0).then(|| {
@@ -1624,6 +1638,8 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             u: surface.knots_u_f64_interim().domain(),
             v: surface.knots_v_f64_interim().domain(),
         };
+        // An `Undecided` here stays unnamed: past the side arm it may come
+        // from that arm's own in-band readings, which are indeterminate.
         one_arc(boxes, (n, p0), (domain, band), pcurve, &probed, ends)
     });
     #[allow(clippy::cast_possible_truncation)]
@@ -1711,7 +1727,7 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     (rung, (pad_a, pad_b)): (f64, PairPads),
     band: Band,
 ) -> Option<Rung> {
-    use super::four::{Box4, PairBoxes, dominant, graph_margin, one_arc_pair};
+    use super::four::{Box4, PairBoxes, dominant, end_reach, graph_margin, one_arc_pair};
     let (sa, sb) = (na.speeds(), nb.speeds());
     let speeds = [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()];
     let pair = PairBoxes::new(na, nb, speeds);
@@ -1722,10 +1738,7 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     // steers which determinant is asked.
     let tangent = |t: T| -> Option<[f64; 4]> {
         let (da, db) = (pa.deriv(t), pb.deriv(t));
-        let raw = [da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()];
-        let scaled: [f64; 4] = core::array::from_fn(|k| raw[k] * speeds[k]);
-        let n = scaled.iter().map(|v| v.powi(2)).sum::<f64>().sqrt();
-        (n.is_finite() && n > 0.0).then(|| scaled.map(|v| v / n))
+        super::four::scaled_unit([da.x.hi(), da.y.hi(), db.x.hi(), db.y.hi()], speeds)
     };
     let mut worst = f64::INFINITY;
     let mut boxes = Vec::with_capacity(chain.len());
@@ -1762,7 +1775,23 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
             (state(t), dominant(&pair, e))
         });
         let domain = Box4::of_charts(na.surface(), nb.surface());
-        one_arc_pair(&pair, (&boxes, domain), ends, band.zero())
+        let mut along = None;
+        for (k, p) in [pa, pb].into_iter().enumerate() {
+            let (u, v) = (2 * k, 2 * k + 1);
+            let rect = UvRect {
+                u: domain.0[u],
+                v: domain.0[v],
+            };
+            let within = (
+                end_reach(band.zero(), speeds[u]),
+                end_reach(band.zero(), speeds[v]),
+            );
+            if super::four::along_side(p, rect, within) {
+                along = u32::try_from(k).ok();
+                break;
+            }
+        }
+        one_arc_pair(&pair, (&boxes, domain, along), ends, band.zero())
     });
     #[allow(clippy::cast_possible_truncation)]
     Some(Rung {
@@ -1800,7 +1829,45 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Vec<Box3> {
     box_chain(carrier)
         .into_iter()
-        .map(|(b, _)| b.pad(radius))
+        .map(|(b, _, _)| b.pad(radius))
+        .collect()
+}
+
+/// [`tube_boxes`], each beside the axis limb 3 read it a graph over the
+/// slices square to, and the carrier's parameter span it hulls.
+pub(crate) fn tube_chain(
+    carrier: &NurbsCurve3<f64>,
+    radius: f64,
+) -> Vec<(Box3, Vec3<f64>, (f64, f64))> {
+    box_chain(carrier)
+        .into_iter()
+        .map(|(b, e, span)| (b.pad(radius), e, span))
+        .collect()
+}
+
+/// **The spans that hold an ℝ³ tube at the rung `radius`**
+/// ([`super::refine::refine_for_tube`]): with `up` the ladder's next
+/// rung above `radius` ([`tube_ladder`] over `extent` and `band`), the
+/// carrier's parameter intervals whose chain box ([`box_chain`]) is wider
+/// than `up` and, padded by it, is not shown a graph
+/// ([`box_graph_margin`]). A box no wider than the rung is held by its
+/// padding, which halving its span does not narrow, so it is not named.
+/// Empty where `radius` is the ladder's widest rung.
+pub(crate) fn coarse_tube_spans(
+    carrier: &NurbsCurve3<f64>,
+    (s1, s2): (&Surface<f64>, &Surface<f64>),
+    radius: f64,
+    (extent, band): (f64, Band),
+) -> Vec<RefusedSpan> {
+    let Some(up) = tube_ladder(extent, band).filter(|r| *r > radius).last() else {
+        return Vec::new();
+    };
+    box_chain(carrier)
+        .into_iter()
+        .filter(|(raw, e, _)| {
+            raw.width() > up && !box_graph_margin(s1, s2, raw.pad(up), *e).is_some_and(|m| m > 0.0)
+        })
+        .map(|(_, _, (lo, hi))| RefusedSpan { lo, hi })
         .collect()
 }
 
@@ -1830,9 +1897,28 @@ pub enum OneArcRefusal {
     Short,
     /// A walk of a box's boundary resolved no count, or a linking
     /// reading no sign. A solution on the boundary may be tangential to
-    /// it, sit on a corner, or lie below the walk's resolution. The
-    /// cause carries the escalation as the funnel recorded it.
+    /// it, sit where faces of the box meet, or lie below the walk's
+    /// resolution. The cause carries the escalation as the funnel
+    /// recorded it. On the two-chart tube the two shapes below are
+    /// renamed out of it.
     Undecided(Indeterminate),
+    /// The two-chart tube's walk resolved nothing, and the carrier's
+    /// image on a chart lies along a side of that chart's domain (a
+    /// boundary row or column) within the end box: the locus may run on
+    /// a face of every box rather than cross it, where no root is
+    /// isolated. The image is placed, not the locus.
+    AlongSide {
+        /// The chart: `0` the first operand's, `1` the second's.
+        chart: u32,
+    },
+    /// The two-chart tube's walk resolved nothing at an end of the
+    /// carrier, which lies on this many sides of the two charts' domains
+    /// at once, each within the end box: its root may sit on an edge or
+    /// corner where those sides meet, which no face's walk isolates.
+    EndOnSides {
+        /// How many domain sides the end lies on.
+        sides: u32,
+    },
 }
 
 impl core::fmt::Display for OneArcRefusal {
@@ -1857,8 +1943,23 @@ impl core::fmt::Display for OneArcRefusal {
                  slice through that end or within the tolerance of it"
             }
             Self::Undecided(_) => {
-                "a box's boundary walk resolved no count: a solution tangent to it, on a \
-                 corner, or below the walk's resolution"
+                "a box's boundary walk resolved no count: a solution tangent to it, where \
+                 its faces meet, or below the walk's resolution"
+            }
+            Self::AlongSide { chart } => {
+                return write!(
+                    f,
+                    "a box's boundary walk resolved no count, and the carrier lies along a \
+                     boundary row of chart {chart}'s domain: the locus may run on a face of every \
+                     box, where no root is isolated"
+                );
+            }
+            Self::EndOnSides { sides } => {
+                return write!(
+                    f,
+                    "the walk at an end of the carrier resolved nothing, and that end lies on \
+                     {sides} domain sides at once, where no face's walk isolates its root"
+                );
             }
         })
     }
@@ -1937,6 +2038,8 @@ fn limb_three<T: Decide>(
         Shortfall::Count(solutions) => OneArcRefusal::Count { solutions },
         Shortfall::Unlinked => OneArcRefusal::Unlinked,
         Shortfall::Short => OneArcRefusal::Short,
+        Shortfall::AlongSide(chart) => OneArcRefusal::AlongSide { chart },
+        Shortfall::EndOnSides(sides) => OneArcRefusal::EndOnSides { sides },
         // The walk read no margin it could classify, and the funnel
         // records that as it records any unreadable one; an unreadable
         // margin never classifies positive.
@@ -2977,7 +3080,7 @@ mod tests {
                 let chain = super::box_chain(&curve);
                 let worst = chain
                     .iter()
-                    .map(|(b, axis)| {
+                    .map(|(b, axis, _)| {
                         let leg = legs[usize::from(b.x.hi() > bend[0])];
                         (axis.x - leg[0])
                             .abs()
@@ -3184,14 +3287,14 @@ mod tests {
         };
         let at_f64: Vec<Box3> = super::box_chain(&curve)
             .into_iter()
-            .map(|(b, _)| b)
+            .map(|(b, _, _)| b)
             .collect();
         let at_f64 = misses(&at_f64);
         assert!(at_f64.is_empty(), "f64 chain missed {at_f64:?}");
         let at_interval: Vec<Box3> =
             super::box_chain(&curve.map_scalar(<Interval as geom_core::Real>::from_f64))
                 .into_iter()
-                .map(|(b, _)| b)
+                .map(|(b, _, _)| b)
                 .collect();
         let at_interval = misses(&at_interval);
         assert!(

@@ -2,10 +2,12 @@
 id: main-red-validate-pseudomanifold-is-an-undeclared-public-mutation-path
 kind: issue
 title: Main red (slow set): topo's tier-1 door census names props.rs::validate_pseudomanifold since PR 5741
-status: open
+status: closed
 opened: 2026-10-27
 priority: P1
 cost: E
+closed: 2026-10-30
+pr: 5824
 ---
 
 
@@ -40,4 +42,8 @@ Most likely an `ALLOWED` entry, with that reason, in
 `the_two_door_tables_cover_the_same_surface` wants the door in its
 table too. An earlier, different cause of the same row's red
 (`join_edges`) is recorded in
-`work/tcost/main-reds-editor-core-slow-set-and-the-k-probe-sweep.md`.
+`work/green/main-reds-editor-core-slow-set-and-the-k-probe-sweep.md`.
+
+## Closed
+
+A duplicate of `main-red-the-pseudomanifold-gate-door-is-off-the-tier1-mutation-roster`, which PR 5824 closed: `validate_pseudomanifold` is on the roster's `ALLOWED` list, with the reason that the certifier holds its body by shared reference. Both `every_public_mutation_path_preserves_tier1` and `the_two_door_tables_cover_the_same_surface` pass on main `4762c685` (re-run 2026-10-30, `--run-ignored all`).

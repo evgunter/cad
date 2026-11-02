@@ -2,11 +2,14 @@
 id: the-at-rest-face-face-confirm-bridges-an-in-band-relative-curvature
 kind: issue
 title: The at-rest face–face confirm reads the tangent table declared, so an in-band κ_rel that no op decided passes
-status: open
+status: closed
 opened: 2026-10-19
+closed: 2026-10-30
 priority: P2
 cost: E
 refs: [the-census-discovers-no-same-solid-tangent-touch-through-face-interiors]
+pr: 6079
+branch: contacthold/glued-pair-reads-its-record
 ---
 
 
@@ -37,3 +40,7 @@ The at-rest confirm reads the table undeclared, as the glue door does:
 an in-band κ_rel escalates (`CensusEscalated`), and a record bridges
 nothing. A probe: a face–face record whose two carriers' κ_rel sits
 inside the band confirms today and should escalate.
+
+## Closed
+
+Closed by PR 6079: contact_verify takes no `declared` flag; an in-band κ_rel escalates (`exact_kappa_zero_escalates`).

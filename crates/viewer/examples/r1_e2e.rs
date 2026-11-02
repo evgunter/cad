@@ -28,18 +28,13 @@ fn banner(text: &str) {
 
 fn show_tree(session: &DocSession) {
     for row in session.tree_rows() {
-        let indent = "  ".repeat(row.depth);
         let world = if row.placed { " ▸world" } else { "" };
         let message = row
             .status
             .message()
             .map(|m| format!("  [{m}]"))
             .unwrap_or_default();
-        println!(
-            "   {indent}{} {}{world}{message}",
-            row.status.badge(),
-            row.spoken
-        );
+        println!("   {} {}{world}{message}", row.status.badge(), row.spoken);
     }
 }
 
@@ -103,8 +98,14 @@ fn main() {
         .into_iter()
         .find(|row| !row.driver.is_driven() && !row.structural)
         .expect("the revolve has an editable continuous slot");
-    let base = match editable.value.as_ref().expect("it evaluates") {
-        SlotValue::Continuous(v) => *v,
+    let base = match editable
+        .value
+        .as_ref()
+        .expect("it evaluates")
+        .one()
+        .expect("one value")
+    {
+        SlotValue::Continuous(v) => v,
         SlotValue::Count(_) => panic!("expected continuous"),
     };
     for factor in [1.5, 2.0] {
@@ -131,14 +132,13 @@ fn main() {
     session.perform(SessionOp::Undo);
     session.perform(SessionOp::Redo);
     pump_until_idle(&mut session, "after undo/redo");
-    println!(
-        "   history states: {}, path edits: {}",
-        session.history().len(),
-        session.history().path_edits().len()
-    );
+    println!("   history states: {}", session.history().len());
 
-    // Save the branch's path and re-open it.
-    let out = std::env::temp_dir().join("r1-e2e-ring-branch.pncad");
+    // Save the branch's current document and re-open it: a file is the
+    // document's state, so the reopened history has nothing to undo.
+    let scratch = std::env::temp_dir().join(format!("r1-e2e-{}", std::process::id()));
+    std::fs::create_dir_all(&scratch).expect("a scratch folder");
+    let out = scratch.join("ring-branch.pncad");
     assert!(
         session
             .perform(SessionOp::Save(out.clone()))
@@ -146,15 +146,12 @@ fn main() {
             .is_none()
     );
     let reopened = docio::open(&out, tol).expect("the saved branch opens");
-    assert_eq!(
-        reopened.path_edits().len(),
-        2,
-        "the current path (edit + sibling), not the abandoned branch"
+    assert!(
+        reopened.doc().bit_eq(session.committed_doc()),
+        "the current document, not the abandoned branch"
     );
-    println!(
-        "   saved + reopened: {} path edits",
-        reopened.path_edits().len()
-    );
+    assert!(!reopened.can_undo(), "undo ends at an open");
+    println!("   saved + reopened: the current document, nothing to undo");
 
     // -- 2. The long evaluation: diefillet on the threaded seam, with
     // a real mid-flight cancel. -------------------------------------
@@ -256,8 +253,14 @@ fn main() {
         })
         .expect("some node carries an editable literal slot");
     let (node, slot) = (gesture_target.0, gesture_target.1.clone());
-    let base = match slot.value.as_ref().expect("it evaluates") {
-        SlotValue::Continuous(v) => *v,
+    let base = match slot
+        .value
+        .as_ref()
+        .expect("it evaluates")
+        .one()
+        .expect("one value")
+    {
+        SlotValue::Continuous(v) => v,
         SlotValue::Count(_) => panic!("expected continuous"),
     };
     let states_before = session.history().len();
@@ -290,7 +293,7 @@ fn main() {
     let mut session = DocSession::inline(history.doc().clone(), tol);
     session.pump();
     assert!(!tree::has_faults(&session.tree_rows()));
-    let out = std::env::temp_dir().join("r1-e2e-checks.pncad");
+    let out = scratch.join("checks.pncad");
     assert!(
         session
             .perform(SessionOp::Save(out.clone()))

@@ -47,16 +47,13 @@ use pncad::document::{Axis3, OperandSlot, SlotId};
 /// here is a slot a caller can read off a refusal and cannot write
 /// back at.
 pub fn slot_from_word(word: &str) -> Option<SlotId> {
-    // The two vector families spell their component INTO the word,
-    // exactly as the forward map does — `origin` alone names three
-    // slots, and a caller handing one back must say which.
+    // The vector family spells its component INTO the word, exactly as
+    // the forward map does — `origin` alone names three slots, and a
+    // caller handing one back must say which.
     let slot = match word {
         "origin_x" => SlotId::Origin(Axis3::X),
         "origin_y" => SlotId::Origin(Axis3::Y),
         "origin_z" => SlotId::Origin(Axis3::Z),
-        "direction_x" => SlotId::Direction(Axis3::X),
-        "direction_y" => SlotId::Direction(Axis3::Y),
-        "direction_z" => SlotId::Direction(Axis3::Z),
         "distance" => SlotId::Distance,
         "radius" => SlotId::Radius,
         "chamfer_distance" => SlotId::ChamferDistance,
@@ -68,10 +65,6 @@ pub fn slot_from_word(word: &str) -> Option<SlotId> {
         "tube_window_start" => SlotId::TubeWindowStart,
         "tube_window_end" => SlotId::TubeWindowEnd,
         "tube_wall" => SlotId::TubeWall,
-        "spacing" => SlotId::Spacing,
-        "step" => SlotId::Step,
-        "count" => SlotId::Count,
-        "instance" => SlotId::Instance,
         "v_degree" => SlotId::VDegree,
         "stations" => SlotId::Stations,
         // The operands, by their field's word (D10: an operand is a

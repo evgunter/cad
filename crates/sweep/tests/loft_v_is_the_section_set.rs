@@ -4,7 +4,7 @@
 //! of its own symmetries — builds bit-identical parameters and walls.
 //! (The cap planes are fitted in the authored vertex order, so they
 //! can differ by ulps:
-//! `work/carve/a-loft-caps-plane-is-summed-in-the-authored-vertex-order.md`.)
+//! `work/lathe/a-loft-caps-plane-is-summed-in-the-authored-vertex-order.md`.)
 //!
 //! Each fixture is chosen so that the strips of one section set carry
 //! DIFFERENT chord shares (a flared or off-centre middle section), so a

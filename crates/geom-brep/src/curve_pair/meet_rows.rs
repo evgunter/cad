@@ -538,45 +538,28 @@ fn two_coplanar_ellipses_apart_meet_nowhere() {
     }
 }
 
-/// **Two ellipses in one plane that touch are never read apart.** The
+/// **Two ellipses in one plane that touch meet once, at the touch.** The
 /// ellipses `(2, 1)` about the origin and about `(0, 2)` touch from
 /// outside at `(0, 1)`, a double root of the level. The two stay within
 /// the band of each other over about `10⁻⁴` of arc about it, wider than
-/// the band, so the subdivision finds no definite sign to split it at:
-/// the pair refuses typed (`Unsettled::SignInBand`, or `Tangency` where a
-/// piece narrows to the band first), never a decided miss, in either
-/// order.
-/// Pulled `10⁻³` apart they are decided apart; pushed `10⁻³` together
-/// they cross twice, near `(±0.09, 1)`. Red where the touch is cleared.
+/// the band, so no cut there reads a definite sign: the subdivision
+/// places the touch at the level's extremum, in either order. Pulled
+/// `10⁻³` apart they are decided apart; pushed `10⁻³` together they
+/// cross twice, near `(±0.09, 1)`. Red where the touch refuses or is
+/// cleared.
 #[test]
-fn two_coplanar_ellipses_that_touch_are_never_read_apart() {
+fn two_coplanar_ellipses_that_touch_meet_once_at_the_touch() {
     let x = flat_ellipse([0.0, 0.0], [1.0, 0.0], 2.0, 1.0);
+    let y = flat_ellipse([0.0, 2.0], [1.0, 0.0], 2.0, 1.0);
     let whole = (-PI, PI);
     for (order, got) in [
-        (
-            "first first",
-            meets(
-                (&x, whole),
-                (&flat_ellipse([0.0, 2.0], [1.0, 0.0], 2.0, 1.0), whole),
-            ),
-        ),
-        (
-            "second first",
-            meets(
-                (&flat_ellipse([0.0, 2.0], [1.0, 0.0], 2.0, 1.0), whole),
-                (&x, whole),
-            ),
-        ),
+        ("first first", meets((&x, whole), (&y, whole))),
+        ("second first", meets((&y, whole), (&x, whole))),
     ] {
+        let m = got.unwrap_or_else(|e| panic!("{order}: the touch refuses: {e:?}"));
         assert!(
-            matches!(
-                got,
-                Err(ref r) if matches!(
-                    r.fault,
-                    MeetFault::Unsettled(Unsettled::Tangency | Unsettled::SignInBand)
-                )
-            ),
-            "{order}: the touch refuses typed: {got:?}"
+            m.points.len() == 1 && (m.points[0].point - Point3::new(0.0, 1.0, 0.0)).norm() < ZERO,
+            "{order}: one meeting at the touch: {m:?}"
         );
     }
     let apart = meets(
@@ -598,6 +581,245 @@ fn two_coplanar_ellipses_that_touch_are_never_read_apart() {
             p.point
         );
     }
+}
+
+/// **Coplanar conic rims tangent at a vertex meet once, there, at every
+/// band.** The rims of `ellipse_rims_tangent_outside_build_every_op`
+/// (sweep): a boss `r = 0.3` about the origin and a hole `r = 0.1` about
+/// `(0.4, 0)`, both tilted `0.3` rad and cut flat, so ellipses tangent
+/// outside at `(0.3, 0)`; the hole as its circle; and an ellipse
+/// `(0.2, 0.2/cos 0.3)` about `(0.1, 0)` tangent inside the boss's. Whole
+/// turns starting at the touch, at its antipode, and short arcs about
+/// it, in both orders, at ε = 1e-6, 1e-9 and 1e-12: one meeting, at the
+/// touch. Red where the touch refuses (`curve_pair_coplanar_sub_side`).
+#[test]
+fn coplanar_conic_rims_tangent_at_a_vertex_meet_once_there() {
+    let c = 0.3f64.cos();
+    let boss = flat_ellipse([0.0, 0.0], [1.0, 0.0], 0.3, 0.3 / c);
+    let hole = flat_ellipse([0.4, 0.0], [1.0, 0.0], 0.1, 0.1 / c);
+    let round = circle([0.4, 0.0, 0.0], [0.0, 0.0, 1.0], 0.1);
+    let inner = flat_ellipse([0.1, 0.0], [1.0, 0.0], 0.2, 0.2 / c);
+    let touch = Point3::new(0.3, 0.0, 0.0);
+    for eps in [1e-6, 1e-9, 1e-12] {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        for (what, x, tx, y, ty) in [
+            (
+                "outside, both from the touch",
+                &boss,
+                (0.0, TAU),
+                &hole,
+                (PI, PI + TAU),
+            ),
+            (
+                "outside, the hole's from it",
+                &boss,
+                (-PI, PI),
+                &hole,
+                (PI, PI + TAU),
+            ),
+            ("outside, neither", &boss, (-PI, PI), &hole, (0.0, TAU)),
+            ("outside, two arcs", &boss, (-1.0, 1.0), &hole, (2.0, 4.0)),
+            ("a circle outside", &boss, (-1.0, 1.0), &round, (2.0, 4.0)),
+            (
+                "inside, from the touch",
+                &boss,
+                (0.0, TAU),
+                &inner,
+                (0.0, TAU),
+            ),
+            ("inside, neither", &boss, (-PI, PI), &inner, (-PI, PI)),
+        ] {
+            for (order, got) in [
+                (
+                    "first first",
+                    meet(&Span::new(x, tx), &Span::new(y, ty), band),
+                ),
+                (
+                    "second first",
+                    meet(&Span::new(y, ty), &Span::new(x, tx), band),
+                ),
+            ] {
+                let m = got.unwrap_or_else(|e| panic!("ε {eps:e}, {what}, {order}: {e:?}"));
+                assert!(
+                    m.points.len() == 1 && (m.points[0].point - touch).norm() < eps,
+                    "ε {eps:e}, {what}, {order}: one meeting at the touch: {m:?}"
+                );
+            }
+        }
+    }
+}
+
+/// `at` turned by `phi` about the origin, then moved by `shift`.
+fn turned_by(at: [f64; 2], phi: f64, shift: [f64; 2]) -> [f64; 2] {
+    let (s, c) = phi.sin_cos();
+    [
+        c * at[0] - s * at[1] + shift[0],
+        s * at[0] + c * at[1] + shift[1],
+    ]
+}
+
+/// **Ellipses crossing near a touch read one meeting only where the
+/// noise parts them.** Three families, at ε = 1e-6, 1e-9 and 1e-12,
+/// at three turns of the plane, in both orders:
+/// - two equal `(2, 1)` ellipses, one pushed down so they cross twice
+///   `s` apart, `s` from `0.1ε` to `10⁵ε`;
+/// - `(2, 1)` and `(3, 1.5)` touching outside at `(0, 1)`, pushed
+///   together likewise;
+/// - an osculating pair (`(2, 1)` and `(√8, 2)` about `(0, −1)`, equal
+///   curvature at the touch), pushed together, pulled apart, or touching.
+///
+/// No crossing pair reads no meeting. Crossings more than `10ε` apart
+/// whose depth is past the noise (`2·10⁻¹³`) never read as one meeting,
+/// and every meeting lies within `10ε` of a true crossing. A pair pulled
+/// apart past `10ε` reads none. Red where the touch's reach is not read.
+#[test]
+fn ellipses_crossing_near_a_touch_read_one_meeting_only_where_the_noise_parts_them() {
+    let mut bad = Vec::new();
+    for eps in [1e-6, 1e-9, 1e-12] {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        for phi in [0.0f64, 0.7, 2.3] {
+            let shift = if phi == 0.0 { [0.0, 0.0] } else { [3.1, -1.7] };
+            let u = [phi.cos(), phi.sin()];
+            // Case 1: equal ellipses (2, 1), the second pushed down by δ:
+            // crossings at (±2√(δ − δ²/4), 1 − δ/2).
+            for k in [0.1, 0.5, 2.0, 5.0, 20.0, 100.0, 1e3, 1e4, 1e5] {
+                let s = k * eps;
+                let cy = 2.0 - s * s / 16.0;
+                let delta = 2.0 - cy;
+                if delta == 0.0 {
+                    continue;
+                }
+                let half = 2.0 * (delta - delta * delta / 4.0).sqrt();
+                let s_true = 2.0 * half;
+                let a = flat_ellipse(turned_by([0.0, 0.0], phi, shift), u, 2.0, 1.0);
+                let b = flat_ellipse(turned_by([0.0, cy], phi, shift), u, 2.0, 1.0);
+                let truth = [
+                    turned_by([half, 1.0 - delta / 2.0], phi, shift),
+                    turned_by([-half, 1.0 - delta / 2.0], phi, shift),
+                ];
+                for (order, got) in [
+                    (
+                        "ab",
+                        meet(&Span::new(&a, (-PI, PI)), &Span::new(&b, (-PI, PI)), band),
+                    ),
+                    (
+                        "ba",
+                        meet(&Span::new(&b, (-PI, PI)), &Span::new(&a, (-PI, PI)), band),
+                    ),
+                ] {
+                    let label = format!("eq eps {eps:e} phi {phi} s {s_true:.3e} ({k}eps) {order}");
+                    if let Ok(m) = &got {
+                        if m.points.is_empty() {
+                            bad.push(format!("{label}: no meeting"));
+                        }
+                        if m.points.len() == 1 && s_true > 10.0 * eps && delta > 2e-13 {
+                            bad.push(format!("{label}: one meeting, crossings {s_true:e} apart"));
+                        }
+                        for p in &m.points {
+                            let d = truth
+                                .iter()
+                                .map(|t| (p.point - Point3::new(t[0], t[1], 0.0)).norm())
+                                .fold(f64::INFINITY, f64::min);
+                            if d > 10.0 * eps && delta > 2e-13 {
+                                bad.push(format!("{label}: point {d:e} off a crossing"));
+                            }
+                        }
+                    }
+                }
+            }
+            // Case 2: (2, 1) and (3, 1.5) touching outside at (0, 1),
+            // pushed together δ: crossings at x ≈ ±√(24δ/5).
+            for k in [0.5, 2.0, 5.0, 20.0, 1e3, 1e5] {
+                let s = k * eps;
+                let x = s / 2.0;
+                let cy = 2.5 - x * x * 5.0 / 24.0;
+                let delta = 2.5 - cy;
+                if delta == 0.0 {
+                    continue;
+                }
+                let half = (24.0 * delta / 5.0).sqrt();
+                let a = flat_ellipse(turned_by([0.0, 0.0], phi, shift), u, 2.0, 1.0);
+                let b = flat_ellipse(turned_by([0.0, cy], phi, shift), u, 3.0, 1.5);
+                for (order, got) in [
+                    (
+                        "ab",
+                        meet(&Span::new(&a, (-PI, PI)), &Span::new(&b, (-PI, PI)), band),
+                    ),
+                    (
+                        "ba",
+                        meet(&Span::new(&b, (-PI, PI)), &Span::new(&a, (-PI, PI)), band),
+                    ),
+                ] {
+                    let label = format!(
+                        "uneq eps {eps:e} phi {phi} s {:.3e} ({k}eps) {order}",
+                        2.0 * half
+                    );
+                    if let Ok(m) = &got {
+                        if m.points.is_empty() {
+                            bad.push(format!("{label}: no meeting"));
+                        }
+                        if m.points.len() == 1 && 2.0 * half > 10.0 * eps && delta > 2e-13 {
+                            bad.push(format!("{label}: one meeting, crossings apart"));
+                        }
+                    }
+                }
+            }
+            // Case 3: osculating. (2, 1) about the origin and (√8, 2)
+            // about (0, −1): equal curvature 1/4 at (0, 1), the second
+            // above by x⁴/256. Pushed down δ they cross at
+            // x = ±(256δ)^¼; pulled up δ they are δ apart.
+            for dy in [
+                0.0,
+                -1e-14,
+                -1e-12,
+                -1e-10,
+                -1e-8,
+                1e-14,
+                1e-10,
+                -0.1 * eps,
+                -eps,
+                -100.0 * eps,
+                0.5 * eps,
+                5.0 * eps,
+                100.0 * eps,
+            ] {
+                let cy = -1.0 + dy;
+                let delta = -(cy + 1.0);
+                let a = flat_ellipse(turned_by([0.0, 0.0], phi, shift), u, 2.0, 1.0);
+                let b = flat_ellipse(turned_by([0.0, cy], phi, shift), u, 8.0f64.sqrt(), 2.0);
+                let s_true = if delta > 0.0 {
+                    2.0 * (256.0 * delta).powf(0.25)
+                } else {
+                    0.0
+                };
+                for (order, got) in [
+                    (
+                        "ab",
+                        meet(&Span::new(&a, (-PI, PI)), &Span::new(&b, (-PI, PI)), band),
+                    ),
+                    (
+                        "ba",
+                        meet(&Span::new(&b, (-PI, PI)), &Span::new(&a, (-PI, PI)), band),
+                    ),
+                ] {
+                    let label =
+                        format!("osc eps {eps:e} phi {phi} dy {dy:e} s {s_true:.3e} {order}");
+                    if let Ok(m) = &got {
+                        if delta > 0.0 && m.points.is_empty() {
+                            bad.push(format!("{label}: crossing, no meeting"));
+                        }
+                        if delta < -10.0 * eps && !m.points.is_empty() {
+                            bad.push(format!("{label}: apart, met"));
+                        }
+                        if m.points.len() == 1 && s_true > 10.0 * eps && delta > 1e-13 {
+                            bad.push(format!("{label}: one meeting, crossings {s_true:e} apart"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
 /// What a pair whose least distance is in the zero band may answer: a

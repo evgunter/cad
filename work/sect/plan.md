@@ -42,94 +42,68 @@ PR A (`the-join-builds-what-the-rest-zip-builds`, PR 4364), which
 rewrote the join's ring re-homing on a wall chart and deleted the REST
 zip. PR 4364 merged 2026-10-09T21:06Z.
 
+## Where it stands
+
+Handed back 2026-10-31 (the sitting's P0 and P1 rows are done):
+
+- **Every torus pair has a section and passes the germ mint**: sphere ×
+  torus by its closed-form readings and the torus ring path (PRs 5924,
+  5974), cylinder × torus and torus × torus by their doors (PR 5972), and
+  every pose by its foot on the carried section (PR 6011, fork row 212),
+  read at 1e-6 again (PR 6153). Teapot wall 2 stops at SPIRICARM's volume
+  door. C5 now holds the ratified rule that an analytic pair decides
+  tangency once, on its pose (PR 5975).
+- **Reds closed**: the cs near-node march (PR 5961), the seam-region row's
+  15× cost (PR 6062), PR 6011's 1e-6 rows (PR 6153). Decided-twice rows
+  (PR 5994), the circle crossing (PR 6001), cylinder-face re-homing
+  (PR 6047), the march counter (PR 6056).
+- **Left**: the P2/P3/P4 rows in the slate. Elsewhere: the nightly
+  `full-suite` job outgrowing 180 minutes (GREEN P1), and the per-op
+  certificate cost of fitted chord edges (SECTRUNG's cost row).
+
 ## The slate
 
-**36 budget points** of dispatchable work against a ceiling of 36
-(`work/sect/program.md` states why). Re-cut 2026-10-25 in a refold
-approved in chat: the torus × torus certificate arm came from ORBIT and
-the C5 plane × torus and cone × cylinder arms from GERM, beside the
-torus frame; the P2/P3 rows went to SECTTAIL; step 1's lane is P0
-because every P0 here is built on the object it introduces.
-
-| pri | item | cost | title |
-|---|---|---|---|
-| P0 | `cylinder-sphere-germ-pair-has-no-join-lane` | H +design | A transverse cylinder wall x sphere germ pair has its section frame and no chord lane at the join (CurvedBooleanUnsuppor |
-| P0 | `the-lilys-stem-and-arch-walls-have-no-certificate-arm` | M | The lily's stem glue builds through the join and refuses at the interior-loop guard: two tori with parallel axes apart h |
-| P0 | `torus-germ-pairs-have-no-section-frame` | H +design | A torus wall against a sphere, a cylinder or another torus reaches the join and refuses GermFrameUnsupported: no frame n |
-| P1 | `a-closed-edge-lying-in-a-cone-cylinder-or-torus-face-has-no-join-arm` | H | A closed edge lying in a cone, cylinder or torus face refuses at the crossing layer, and the one-site join has no arm to |
-| P1 | `c5-plane-torus-cone-cylinder-arms` | H +design | C5 table - plane x torus and cone x cylinder section arms (blocking the Klein wall-pair debt) |
-| P1 | `cone-germ-pairs-against-a-curved-face-have-no-section-frame` | H +design | A cone wall crossing an oblique cylinder or another cone reaches the join and refuses GermFrameUnsupported: no frame nam |
-| P1 | `cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times` | M | The cylinder x sphere walls' tangency is decided at two sites under two names and two radius conventions, and the axis-t |
-| P1 | `in-band-axis-offset-is-noarm-at-one-arm-and-escalates-at-another` | E +design | An axis offset in the band folds to NoArm at the cylinder × sphere frame and escalates at the parallel cylinder arm |
-| P1 | `skew-cylinder-germ-pair-has-no-section-frame` | M | Two cylinder walls with skew axes reach the join and refuse GermFrameUnsupported: their quartic section has no frame |
-| P1 | `the-walk-order-is-spelled-twice` | M | The order along a section conic is spelled twice: the boolean's partner ranking reads the side of an axis plane, the spl |
+| pri | item | cost | status | title |
+|---|---|---|---|---|
+| P0 | `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6` | M | closed (PR 5961) | The cs section exhausts its cell budget near the node at ε 1e-6 since PR 5872 |
+| P0 | `each-torus-pair-decides-tangency-on-one-pose` | H | closed (PR 5924) | One pose per torus pair, the critical gap |
+| P0 | `torus-germ-pairs-have-no-section-frame` | H +design | closed (PRs 5972, 5974, 6011) | Torus walls against a sphere, cylinder or torus reach the join with no section (teapot wall 2) |
+| P0 | `cylinder-torus-rung-three-arm-is-unretired` | M | closed (PR 5972) | The cylinder × torus door over a Positive gap |
+| P0 | `torus-torus-rung-three-arm-is-unretired` | M | closed (PR 5972) | The torus × torus door over a Positive gap |
+| P1 | `main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot` | M | dispatched | Five torus rows refuse at ε 1e-6 since PR 6011 (pinned red by GREEN) |
+| P1 | `main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord` | M | dispatched | The seam-region door row runs 15× slower since PR 5894; held out of the nightly's 1e-12 row |
+| P3 | `a-surface-pairs-march-is-repeated-per-operation-and-per-germ` | M | open (PR 6056 measured) | Cross-operation sharing of a carried section (≤ ~11 %; waits on canonical order) |
+| P1 | `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord` | M | closed (PR 6047) | A cylinder face holding a bystander ring re-homes it on a chart that reads no spline chord |
+| P0 | `a-general-torus-pose-lists-no-components` | H (decided) | closed (PR 6011) | A section's components are the march's; a site's component is its foot (fork row 212) |
+| P1 | `torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose` | M | closed (PR 5994) | Two tori decided one surface twice (C5: decided once) |
+| P1 | `a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane` | M | closed (PR 5994) | A tube-circle tangency read twice (C5: decided once) |
+| P1 | `circle-pair-crossing-is-spelled-three-times` | E | closed (PR 6001) | "Two circles cross transversally" is decided three times |
 
 ## Order
 
-The build order is the one `[ev]` PR 4313's body set out and Ev
-approved with it, three H units:
-
-1. the section object, with cylinder × sphere chords and closure;
-2. sphere × sphere, plane × curved and parallel cylinders moved onto
-   it, retiring the radical-plane code;
-3. matching by component parameter, retiring `pair_section_frame`.
-
-So:
-
-1. **Dispatch step 1 as the cylinder × sphere lane.**
-   `cylinder-sphere-germ-pair-has-no-join-lane` is the first instance
-   of the section object. `cylinder-sphere-tangency-is-decided-twice-…`
-   and `in-band-axis-offset-is-noarm-…` ride with it: the section door
-   is the one home for tangency and an in-band offset, and the frame
-   that spells them today retires. The brief is written against row
-   100 and the 4313 body; where writing it finds a choice they leave
-   open (the section object's type and home, or the seam between the
-   door's coincidence decision and INTENT E's record), that choice goes
-   to one Opus and one Fable designer (`docs/prompts/designer.md`,
-   `memories/orchestration-model.md`) before the lane builds.
-2. **Step 2**, once step 1 lands. The planar lanes become closed-form
-   instances of the same object, and the ring-lane islands close by
-   the chord's curve.
-3. **Step 3, and the rows it settles.** Matching by foot parameter
-   retires the frames. `skew-cylinder-germ-pair-has-no-section-frame`
-   owes no frame proof and joins once C5 has its rung-3 arm;
-   `torus-germ-pairs-have-no-section-frame` refuses typed at C5 (C2
-   limb 2) rather than in the join; `along-edge-ring-on-a-curved-face-…`
-   falls out, because its chord copies an edge whose curve is known.
-   `the-walk-order-is-spelled-twice`, `a-bar-through-a-ball-…` and
-   `the-travel-slack-…` are read again then: each may close by
-   retirement, and the ones that do not are built.
-   (`along-edge-ring-…`, `a-bar-through-a-ball-…` and the two
-   travel-slack rows are on SECTTAIL since 2026-10-25; this step is
-   where SECTTAIL reads them again.)
-4. **The torus pairs, the reason this track is P0.** Teapot wall 2
-   (sphere × torus) waits on `torus-germ-pairs-have-no-section-frame`
-   and lily wall 1 (torus × torus) on
-   `the-lilys-stem-and-arch-walls-have-no-certificate-arm`. Both are
-   built on the section object, and the torus pairs refuse at C5 until
-   `c5-plane-torus-cone-cylinder-arms` and the torus frame row give C5
-   its torus arms. Steps 1–3 are therefore the critical path, not a
-   prelude: dispatch the C5 arms' design read alongside step 1 so the
-   torus rows are not waiting on it when step 3 lands. SPLICE's klein
-   wall 3 and teapot wall 3 also need the object's rung-3 arm (a NURBS
-   face against a curved face); say so in the step that builds it.
-5. **`closed-in-face-section-loop-has-one-site`** is not D10-gated (its
-   fixture is undeclared, and the missing self-loop arm is the join's
-   topology; released from the hold on 2026-10-08). Its transverse
-   cases landed in PR 4345. It is built on the section object, in
-   whichever step first reaches a conic lying in the partner's face.
+1. **The main red**, now: it is a red nightly, and a lane holds it.
+2. **The torus poses' fix pass**, then merge (PR 5924). That opens the
+   cylinder × torus and torus × torus door rows.
+3. **Teapot wall 2** (`torus-germ-pairs-have-no-section-frame`, the sphere
+   × torus half). It carries a general sphere × torus pose through the
+   carried lane and island closure of step 1b onto a torus face. Step 1b
+   limits spline arcs to cylinder and sphere faces, so the torus face's
+   `ring_path` arm with a spline is the work. The row's design flag is
+   read again then: the section object answers most of it.
+4. **The two door rows**, then the cylinder and torus halves of the torus
+   frames row.
+5. **The two follow-ups** when their ground is open: the cylinder-face
+   ring re-homing and the circle-crossing spelling.
 
 ## Review posture
 
 Per unit, at dispatch, by the review tiers of
-`memories/orchestration-model.md` and `docs/DUAL-REVIEW-PROTOCOL.md`
-(an H unit draws a concurrent pair, an M unit a urandom draw); the log
-names each tier and its reason. The A/B experiment is suspended, so the
-track carries no band.
-
-A lane measures its row's repro on current main before it builds.
+`memories/orchestration-model.md` and `docs/DUAL-REVIEW-PROTOCOL.md`; the
+log names each tier and its reason. A lane measures its row's repro on
+current main before it builds. A slow-set row on ground a PR edits is run
+locally by its lane, since the per-PR gate does not run it.
 
 ## Exit
 
-The slate is closed or re-homed. This plan sets no `## Exit criteria`,
-so the program closes without an exit walk.
+The slate is closed or re-homed. This plan sets no `## Exit criteria`, so
+the program closes without an exit walk.

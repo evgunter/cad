@@ -423,25 +423,44 @@ fn not_valid_but_for_joins(body: &Body<f64>) -> bool {
 }
 
 /// **The member another door owns.** The sphere cut along a whole great
-/// circle through both poles is tier-3 VALID but for its two arcs, which
-/// the join would take into one closed edge (check 11; the half-arcs are
-/// what this row meshes), and its two faces are
-/// hemispheres — a legitimate decomposition this lane cannot walk,
-/// because each bounding arc carries a pole in its interior where the
-/// azimuth it holds constant jumps by π. Props' branch door says exactly
-/// that and `tessellate` answers `UnsupportedCurvedShape`, ahead of the
-/// walk. The recourse is to state the poles as vertices, which turns each
-/// face into the two-column band the lane meshes.
+/// circle through both poles has two hemispheres for faces, each
+/// bounding arc carrying a pole in its interior, where the azimuth it
+/// holds constant jumps by π. A chart singularity in a face's closure is
+/// a vertex of it, so tier 3 refuses each face for each pole inside its
+/// arc, beside the two arcs the join would take into one closed edge
+/// (check 11; the half-arcs are what this row meshes). The Euler doors
+/// state it all the same, and `tessellate` does not re-validate:
+/// props' branch door says what the walk cannot read and `tessellate`
+/// answers `UnsupportedCurvedShape`, ahead of the walk. The recourse is
+/// to state the poles as vertices, which turns each face into the
+/// two-column band the lane meshes.
 #[test]
 fn a_hemisphere_pair_is_refused_at_the_branch_door_not_by_the_walk() {
+    use geom_brep::chart_singularity::Singularity;
     let body = sphere_on_one_great_circle();
+    let arcs: Vec<topo::EdgeKey> = body.edges().map(|(edge, _)| edge).collect();
+    let inside = |face, point, edge| topo::ValidationError::ChartSingularityNotAVertex {
+        face,
+        point,
+        lies: topo::SingularityLies::InsideEdge { edge },
+    };
     assert_eq!(
         topo::validate_geometric(&body, Tol::witness()),
         Err(body
-            .vertices()
-            .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex })
+            .faces()
+            .flat_map(|(face, _)| {
+                [
+                    inside(face, Singularity::North, arcs[0]),
+                    inside(face, Singularity::South, arcs[1]),
+                ]
+            })
+            .chain(
+                body.vertices()
+                    .map(|(vertex, _)| topo::ValidationError::JoinableVertexAtRest { vertex })
+            )
             .collect()),
-        "a sphere cut along a great circle is tier-3 valid but for its two joinable vertices"
+        "each hemisphere holds a pole inside each of its arcs, and the arcs meet at two \
+         joinable vertices"
     );
     assert_eq!(
         doors(&body, SurfaceKind::Sphere),

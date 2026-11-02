@@ -68,7 +68,7 @@ fn turn((u, w): (V3, V3), psi: f64) -> (V3, V3) {
 
 /// Fibonacci direction `i` of `n`, renormalised as review r2 reads it.
 fn fib(i: u32, n: u32) -> V3 {
-    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let ga = geom_core::GOLDEN_ANGLE;
     let z = 1.0 - 2.0 * (f64::from(i) + 0.5) / f64::from(n);
     let r = (1.0 - z * z).sqrt();
     let t = ga * f64::from(i);

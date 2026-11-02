@@ -1075,14 +1075,14 @@ pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected chain that is tange
 /// `blend_recourse_followability::the_convexity_recourse_has_no_witness_in_this_suite`.
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
-/// The recourse for an end no band builds — it names the ends that DO
-/// carve: all three edges, two (meeting in the mitre where their feet
+/// The recourse for an end no band builds, in words a person at the
+/// viewer can act on — it names the ends that DO carve: all three edges, two (meeting in the mitre where their feet
 /// on the third edge are one point, the far band overrunning it where
 /// they stand clearly apart), and one alone. "Whatever is requested"
 /// covers a vertex that mixes convexity: it ends no chain whether the
 /// request names one of its edges, two, or all three, because its
 /// configuration is read before the count. Its last clause, "in one
-/// call", answers the four-edge vertex a mitre leaves where the third
+/// operation", answers the four-edge vertex a mitre leaves where the third
 /// edge ends: that edge blended in a later call ends at a valence-4
 /// vertex, and requested in the mitre's own call it builds the corner
 /// patch instead. The run-outs' own details name their shapes.
@@ -1096,9 +1096,9 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// being the shared arm both doors render. Held to it by
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
 /// and `band_planar_cut_off`, which build each end it names.
-pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of one convexity \
-     between planes, whatever is requested: all three edges, two whose feet on the third meet or \
-     stand clearly apart, or one cut off in a plane end face, in one call";
+pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner, \
+     uniformly convex or concave, blending all three edges, two meeting on the third or clearly \
+     apart, or one ending at a flat face, in one operation";
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third

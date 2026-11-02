@@ -49,3 +49,14 @@ comparing that directory and the open document's id against the
 session's current ones is enough. The census's reachability assumption
 is that New and Open can be reached while the non-modal chooser window
 is open; confirm that first.
+
+## 2026-10-31 — the door now exists
+
+`viewerapp-document-derived-state-has-no-boundary` put the viewer's
+reset for a replaced document in one place, `ViewerApp::document_replaced`
+(`crates/viewer/src/app.rs`), reached for exactly the operations
+`SessionOp::replaces_the_document` names. Its sweep left `part_chooser`
+outside on purpose: dropping the chooser is one answer and rescanning it
+against the new directory and id is another, and that choice is this
+row's. Whichever it is, it belongs in that door — not in a second match
+on `Open` / `NewDocument`.

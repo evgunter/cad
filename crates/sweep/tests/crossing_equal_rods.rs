@@ -18,17 +18,20 @@
 //! The germ runs along `A`'s ellipse edge inside `B`'s wall, so the join
 //! reads the walls' axes, finds them apart, and hands the germ to the
 //! edge-plane lane rather than the parallel pair's radical plane. That
-//! lane copies its edge on the edge's own side, which it does for a line
-//! or a circle and not for an ellipse
-//! (`cleave/the-edge-plane-lane-copies-no-ellipse-edge`): every op ends
-//! there, and the pins name that ending exactly, so a fix to it moves
-//! them.
-
+//! lane copies its edge on the edge's own side, the ellipse's own curve.
+//! Past the copy, at spins `(0, 0)` every op builds a sound body at its
+//! closed form, but above ε = 1e-12 its certified enclosure is wider
+//! than `differential`'s budget (to `1.1e-5` m³ at ε = 1e-9, `5.7e-5`
+//! at 1e-6), so it is judged against [`PAD_CEILING`]; at every other
+//! pose every op refuses
+//! `UnpairedLooseEnds`
+//! (`honejoin/the-edge-plane-lane-copies-no-ellipse-edge`). The pins
+//! name those endings exactly, so a fix to either moves them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use crate::common::differential::outcome;
+use crate::common::differential::{VOLUME_PAD_BUDGET, Verdict, judged_within, outcome};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{brick, finished};
 use topo::{AtRestBody, BooleanError, BooleanResult, SplitJoinError};
@@ -90,19 +93,25 @@ fn shared(x0: f64) -> f64 {
     f(1.0) - f(x0)
 }
 
-/// What the edge-plane lane's copy of `A`'s ellipse edge refuses
-/// (`chord_join::along_edge_spec`).
-const NO_ELLIPSE_COPY: &str = "a section segment along an edge whose carrier has no chord lane";
+/// How one op ends past the edge-plane lane's copy of `A`'s ellipse
+/// edge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Ending {
+    /// A body `differential` judges `SOUND` against an enclosure no
+    /// wider than [`PAD_CEILING`].
+    Builds,
+    /// The join's loose ends left unpaired.
+    LooseEnds,
+}
 
 /// The lines of the six ops at `(spin A, spin B, x0)` that do not end
-/// at the edge-plane lane's copy of the ellipse edge, each with what it
-/// did against its closed form.
-fn not_at_the_copy((sa, sb, x0): (f64, f64, f64)) -> Vec<String> {
+/// as `want`, each with what it did against its closed form.
+fn not_ending((sa, sb, x0): (f64, f64, f64), want: Ending) -> Vec<String> {
     let tol = Tol::witness();
     let (a, b) = (mitred(sa), crossing(sb, x0));
     let (va, vb, s) = (3.0 * PI, (3.0 - x0) * PI, shared(x0));
     let mut lines = Vec::new();
-    for (op, r, want) in [
+    for (op, r, volume) in [
         ("A ∪ B", topo::union(&a, &b, tol), va + vb - s),
         ("B ∪ A", topo::union(&b, &a, tol), va + vb - s),
         ("A ∩ B", topo::intersect(&a, &b, tol), s),
@@ -110,15 +119,20 @@ fn not_at_the_copy((sa, sb, x0): (f64, f64, f64)) -> Vec<String> {
         ("A ∖ B", topo::subtract(&a, &b, tol), va - s),
         ("B ∖ A", topo::subtract(&b, &a, tol), vb - s),
     ] {
-        let at_the_copy = matches!(
+        let loose = matches!(
             &r,
-            Err(BooleanError::Join(j)) if matches!(
-                j.error(),
-                SplitJoinError::SectionInvariant { what, .. } if what.starts_with(NO_ELLIPSE_COPY)
-            )
+            Err(BooleanError::Join(j)) if matches!(j.error(), SplitJoinError::UnpairedLooseEnds { .. })
         );
-        if !at_the_copy {
-            let line = outcome(r, want, tol);
+        let (ending, line) = if loose {
+            (Some(Ending::LooseEnds), outcome(r, volume, tol))
+        } else {
+            let j = judged_within(r, Some(volume), tol, PAD_CEILING);
+            (
+                (j.verdict == Verdict::Sound).then_some(Ending::Builds),
+                j.line,
+            )
+        };
+        if ending != Some(want) {
             lines.push(format!(
                 "spins ({sa}, {sb}), B from x = {x0} | {op} | {line}"
             ));
@@ -128,33 +142,38 @@ fn not_at_the_copy((sa, sb, x0): (f64, f64, f64)) -> Vec<String> {
 }
 
 /// **The crossing pair is not read as parallel**: at the row's pose
-/// every op in both orders ends at the edge-plane lane's copy of the
-/// ellipse edge, a kernel-invariant refusal on valid input that
-/// `cleave/the-edge-plane-lane-copies-no-ellipse-edge` owns, and none
-/// at the parallel pair's radical plane (`JoinDesync`). An op that
-/// builds, or refuses otherwise, moves this pin with that row.
+/// every op in both orders gets past the edge-plane lane's copy of the
+/// ellipse edge and refuses `UnpairedLooseEnds`, a refusal on valid
+/// input that `honejoin/the-edge-plane-lane-copies-no-ellipse-edge`
+/// owns, and none at the parallel pair's radical plane (`JoinDesync`).
+/// An op that builds, or refuses otherwise, moves this pin with that
+/// row.
 #[test]
-fn crossing_rods_end_at_the_ellipse_edge_copy() {
-    let moved = not_at_the_copy((0.4, 0.3, 0.2));
+fn crossing_rods_end_past_the_ellipse_edge_copy() {
+    let moved = not_ending((0.4, 0.3, 0.2), Ending::LooseEnds);
     assert!(
         moved.is_empty(),
-        "the-edge-plane-lane-copies-no-ellipse-edge: every op ends at the copy\n{}",
+        "the-edge-plane-lane-copies-no-ellipse-edge: every op leaves loose ends\n{}",
         moved.join("\n")
     );
 }
 
-/// [`crossing_rods_end_at_the_ellipse_edge_copy`] at two more spin
+/// [`crossing_rods_end_past_the_ellipse_edge_copy`] at two more spin
 /// pairs, both seam rulings at `±x` among them, and with `B` from
-/// `x = 0.5`.
+/// `x = 0.5`. With both seams at `±x`, every op builds.
 #[test]
-fn crossing_rods_end_at_the_ellipse_edge_copy_at_every_spin() {
-    let moved: Vec<String> = [(1.0, -0.7, 0.2), (0.0, 0.0, 0.2), (0.4, 0.3, 0.5)]
-        .into_iter()
-        .flat_map(not_at_the_copy)
-        .collect();
+fn crossing_rods_end_past_the_ellipse_edge_copy_at_every_spin() {
+    let moved: Vec<String> = [
+        ((1.0, -0.7, 0.2), Ending::LooseEnds),
+        ((0.0, 0.0, 0.2), Ending::Builds),
+        ((0.4, 0.3, 0.5), Ending::LooseEnds),
+    ]
+    .into_iter()
+    .flat_map(|(pose, want)| not_ending(pose, want))
+    .collect();
     assert!(
         moved.is_empty(),
-        "the-edge-plane-lane-copies-no-ellipse-edge: every op ends at the copy\n{}",
+        "the-edge-plane-lane-copies-no-ellipse-edge: each pose ends as pinned\n{}",
         moved.join("\n")
     );
 }
@@ -190,4 +209,125 @@ fn the_shared_closed_form_agrees_with_a_slicing() {
             shared(x0)
         );
     }
+}
+
+/// The widest certified volume enclosure (`volume_pad`, m³) these
+/// bodies are judged against at any ε the suite runs, in place of
+/// `differential::VOLUME_PAD_BUDGET`, which they do not meet above
+/// ε = 1e-12: measured at review of PR 5940 (2026-10-28) at most
+/// `5.7e-5` for the rods and `4.3e-4` for the halves (ε = 1e-6),
+/// `1.1e-5` and `6.6e-6` at 1e-9.
+const PAD_CEILING: f64 = 1e-3;
+
+/// How far the enclosure's midpoint may sit from the closed form, m³:
+/// measured at review at most `1.4e-6` (the rods' intersection, ε =
+/// 1e-6) and under `1e-7` everywhere else.
+const MIDPOINT: f64 = 1e-5;
+
+/// `r` judged `SOUND` against [`PAD_CEILING`], its enclosure's midpoint
+/// within [`MIDPOINT`] of `want`, and at ε ≤ 1e-12 its enclosure within
+/// `differential`'s own budget. The failing line otherwise.
+fn held(
+    what: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: f64,
+    tol: Tol,
+) -> Option<String> {
+    let j = judged_within(r, Some(want), tol, PAD_CEILING);
+    let midpoint = j.volume.is_some_and(|v| (v - want).abs() <= MIDPOINT);
+    let tight = tol.eps() > 1e-12 || j.pad.is_some_and(|pad| pad <= VOLUME_PAD_BUDGET);
+    (!(j.verdict == Verdict::Sound && midpoint && tight)).then(|| format!("{what} | {}", j.line))
+}
+
+/// **At spins `(0, 0)` the six ops hold their closed forms to a
+/// bounded enclosure** (review of PR 5940): what
+/// [`crossing_rods_end_past_the_ellipse_edge_copy_at_every_spin`] reads
+/// as `Builds`, held here to [`MIDPOINT`] as well.
+#[test]
+fn crossing_rods_at_rest_spins_hold_a_bounded_enclosure() {
+    let tol = Tol::witness();
+    let x0 = 0.2;
+    let (a, b) = (mitred(0.0), crossing(0.0, x0));
+    let (va, vb, s) = (3.0 * PI, (3.0 - x0) * PI, shared(x0));
+    let bad: Vec<String> = [
+        ("A ∪ B", topo::union(&a, &b, tol), va + vb - s),
+        ("B ∪ A", topo::union(&b, &a, tol), va + vb - s),
+        ("A ∩ B", topo::intersect(&a, &b, tol), s),
+        ("B ∩ A", topo::intersect(&b, &a, tol), s),
+        ("A ∖ B", topo::subtract(&a, &b, tol), va - s),
+        ("B ∖ A", topo::subtract(&b, &a, tol), vb - s),
+    ]
+    .into_iter()
+    .filter_map(|(op, r, want)| held(op, r, want, tol))
+    .collect();
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// **The rod cut by `z = x` and glued back is the rod** (review of PR
+/// 5940): the two halves' rims are one plane section of one cylinder,
+/// so the germ join reads them as one segment
+/// (`sectors::same_construction`), at two spins and in both orders
+/// (six unions at three spins took about 240 s in debug at review).
+/// The halves' intersection and differences are not this row's: they
+/// refuse `FallbackExtentUnsupported` upstream of the join.
+#[test]
+fn a_rod_cut_obliquely_and_glued_back_is_the_rod() {
+    let tol = Tol::witness();
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -PI / 4.0);
+    let slab = brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol);
+    let under = finished(
+        "the half-space under z = x",
+        topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol), tol).unwrap(),
+        tol,
+    );
+    let mut bad = Vec::new();
+    for spin in [0.0, 1.0] {
+        let upper = mitred(spin);
+        let lower = match topo::intersect(&rod(spin, (-3.0, 3.0)), &under, tol) {
+            Ok(BooleanResult::Body(b)) => b.body,
+            other => panic!("the lower half builds: {other:?}"),
+        };
+        for (op, r) in [
+            ("U ∪ L", topo::union(&upper, &lower, tol)),
+            ("L ∪ U", topo::union(&lower, &upper, tol)),
+        ] {
+            bad.extend(held(&format!("spin {spin}, {op}"), r, 6.0 * PI, tol));
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// **Offsetting the mitred wall refuses typed**: `A ∪ B` at spins
+/// `(0, 0)` holds the ellipse edge between the two walls; moving `A`'s
+/// wall out by 0.05 asks the section of a radius-1.05 and a radius-1
+/// cylinder on meeting axes, which the C5 pose question serves (every
+/// cylinder pose is on the section value). Past that gate the offset
+/// door refuses at the moved vertex
+/// (`shelf/an-offset-wall-against-a-crossing-cylinder-refuses-as-a-vertex-disagreement`);
+/// the row moves when that is built.
+#[test]
+fn offsetting_the_mitred_wall_refuses_typed() {
+    let tol = Tol::witness();
+    let (a, b) = (mitred(0.0), crossing(0.0, 0.5));
+    let Ok(BooleanResult::Body(u)) = topo::union(&a, &b, tol) else {
+        panic!("A ∪ B builds at spins (0, 0)");
+    };
+    let mut body = u.body.into_body();
+    // `A`'s wall, every face that wears its surface.
+    let walls: Vec<_> = body
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { axis, .. }) if axis.z.abs() > 0.9
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert!(!walls.is_empty(), "A's wall");
+    let got = topo::replace_faces_offset(&mut body, &walls, 0.05, tol);
+    assert!(
+        matches!(got, Err(topo::ReplaceFaceError::VertexDisagreement { .. })),
+        "{got:?}"
+    );
 }

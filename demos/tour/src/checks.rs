@@ -60,6 +60,7 @@ fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, dz: f64, tol: Tol) -> RecipeNodeI
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::polygon(corners).expect("finite corners")],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );

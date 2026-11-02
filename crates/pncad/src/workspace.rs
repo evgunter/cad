@@ -29,9 +29,12 @@
 //! "save a copy beside the original" would otherwise leave two files
 //! claiming one identity, and then every scan of that store refuses
 //! for every document in it.
+//! It also refuses a target file that holds a DIFFERENT document,
+//! which the write would otherwise delete from the store.
 //! [`Workspace::save_as_new_document`] is the other act: the same
-//! content under a FRESH id, an explicit fork that leaves every
-//! inbound `DocRef` pinning the old id resolving to the original.
+//! content under a FRESH id at a caller-named file, an explicit fork
+//! that leaves every inbound `DocRef` pinning the old id resolving to
+//! the original.
 //! Every writer here writes the CURRENT state as a snapshot with an
 //! empty log (history is not state; a refactoring's own record is its
 //! returned edit lists).
@@ -64,6 +67,15 @@ pub fn random_document_id() -> Result<DocumentId, WorkspaceError> {
     })?;
     Ok(DocumentId(u128::from_be_bytes(bytes)))
 }
+
+/// The recourse a [`WorkspaceError::SaveWouldReplaceDocument`] ends on,
+/// after its `Recourse:` label.
+pub const SAVE_WOULD_REPLACE_RECOURSE: &str =
+    "save under another name, or remove that document from the store first";
+
+/// The extension of a store's document files: a store is a flat
+/// directory of `*.pncad` files.
+pub const DOC_EXTENSION: &str = "pncad";
 
 /// The recourse a [`WorkspaceError::PinMismatch`] ends on, after its
 /// `Recourse:` label, naming the edit that legitimately moves a pin
@@ -171,6 +183,17 @@ pub enum WorkspaceError {
         existing: PathBuf,
         /// The file this save would have written.
         requested: PathBuf,
+    },
+    /// A [`Workspace::save_at`] target that is the file of ANOTHER
+    /// document: the write would replace it, and the store would lose
+    /// that part with every reference pinning it. Nothing is wrong on
+    /// disk; the recourse is another name, or removing that document
+    /// first.
+    SaveWouldReplaceDocument {
+        /// The document the target file holds.
+        id: DocumentId,
+        /// The target file.
+        path: PathBuf,
     },
     /// A [`Workspace::save_at`] target that is not a document file of
     /// THIS store. A store is a flat directory of `*.pncad` files, so
@@ -282,6 +305,13 @@ impl Staged for WorkspaceError {
                 existing.display(),
                 requested.display()
             ),
+            Self::SaveWouldReplaceDocument { id, path } => write!(
+                f,
+                "`{}` holds document {id}, a different document, so saving there would \
+                 replace it. {}",
+                path.display(),
+                Recourse(SAVE_WOULD_REPLACE_RECOURSE)
+            ),
             Self::SaveTargetNotInStore { path } => write!(
                 f,
                 "`{}` is not a save target in this store — a stored document is \
@@ -339,7 +369,7 @@ impl Workspace {
         for entry in std::fs::read_dir(&root).map_err(io(&root))? {
             let entry = entry.map_err(io(&root))?;
             let path = entry.path();
-            if path.is_file() && path.extension().is_some_and(|ext| ext == "pncad") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == DOC_EXTENSION) {
                 paths.push(path);
             }
         }
@@ -463,7 +493,7 @@ impl Workspace {
     /// validator refuses, [`WorkspaceError::Io`] naming the file.
     pub fn create(&mut self, doc: &ProfileDoc, tol: Tol) -> Result<PathBuf, WorkspaceError> {
         let id = doc.id();
-        let path = self.root.join(format!("{id}.pncad"));
+        let path = self.root.join(format!("{id}.{DOC_EXTENSION}"));
         if let Some(first) = self.by_id.get(&id) {
             return Err(WorkspaceError::DuplicateId {
                 id,
@@ -520,6 +550,9 @@ impl Workspace {
     /// The scan decides which act this is, before anything is
     /// written:
     ///
+    /// - `target` is the file of a DIFFERENT document — refused
+    ///   [`WorkspaceError::SaveWouldReplaceDocument`], because the
+    ///   write would delete that document from the store;
     /// - the id is claimed by a file at a DIFFERENT path — refused
     ///   [`WorkspaceError::SaveWouldDuplicateId`], naming both, because
     ///   two files claiming one identity make every later scan of this
@@ -541,7 +574,9 @@ impl Workspace {
     ///
     /// [`WorkspaceError::SaveTargetNotInStore`] for a target outside
     /// this store, [`WorkspaceError::SaveWouldDuplicateId`] for an id
-    /// this store holds elsewhere, [`WorkspaceError::Save`] for a
+    /// this store holds elsewhere,
+    /// [`WorkspaceError::SaveWouldReplaceDocument`] for a target that
+    /// holds another document, [`WorkspaceError::Save`] for a
     /// document the shared validator refuses, and
     /// [`WorkspaceError::Io`] naming the file.
     pub fn save_at(
@@ -552,6 +587,17 @@ impl Workspace {
     ) -> Result<PathBuf, WorkspaceError> {
         let path = self.store_path(target.as_ref())?;
         let id = doc.id();
+        // Replacing another document is refused first: it is refused
+        // whichever act this would have been, so a save that also
+        // collides on its own id is offered the choice only when both
+        // ways on would land.
+        if let Some((&held, _)) = self
+            .by_id
+            .iter()
+            .find(|&(&held, at)| held != id && at == &path)
+        {
+            return Err(WorkspaceError::SaveWouldReplaceDocument { id: held, path });
+        }
         if let Some(existing) = self.by_id.get(&id)
             && existing != &path
         {
@@ -575,7 +621,8 @@ impl Workspace {
     }
 
     /// Saves `doc` AS A NEW DOCUMENT: the same content under a fresh
-    /// random identity, at `{newid}.pncad`. The SECOND of the two
+    /// random identity, at `target` (a file of this store, as
+    /// [`Self::save_at`] reads it). The SECOND of the two
     /// acts a save is (ASSEMBLY-DESIGN A4) — an explicit fork,
     /// answering the new identity and its file.
     ///
@@ -593,24 +640,24 @@ impl Workspace {
     /// FILES differ, in the `id:` header line and the snapshot's own
     /// id.
     ///
-    /// Writes through [`Self::create`], so the fork runs the same
-    /// shared validator every other write runs and nothing is written
-    /// on any refusal.
+    /// Writes through [`Self::save_at`], so the fork runs the same
+    /// target rules and shared validator every other write runs, and
+    /// nothing is written on any refusal.
     ///
     /// # Errors
     ///
     /// [`WorkspaceError::RandomnessUnavailable`] if the OS entropy
-    /// source refuses the fresh id, then [`Self::create`]'s own arms:
-    /// [`WorkspaceError::Save`] and [`WorkspaceError::Io`]
-    /// ([`WorkspaceError::DuplicateId`] is create's and reachable
-    /// here only on a random collision).
+    /// source refuses the fresh id, then [`Self::save_at`]'s own arms
+    /// ([`WorkspaceError::SaveWouldDuplicateId`] is reachable here only
+    /// on a random collision).
     pub fn save_as_new_document(
         &mut self,
         doc: &ProfileDoc,
+        target: impl AsRef<Path>,
         tol: Tol,
     ) -> Result<(DocumentId, PathBuf), WorkspaceError> {
         let id = random_document_id()?;
-        let path = self.create(&doc.clone().under_identity(id), tol)?;
+        let path = self.save_at(&doc.clone().under_identity(id), target, tol)?;
         Ok((id, path))
     }
 
@@ -629,7 +676,7 @@ impl Workspace {
         let Some(name) = target.file_name() else {
             return Err(refuse());
         };
-        if !target.extension().is_some_and(|ext| ext == "pncad") {
+        if !target.extension().is_some_and(|ext| ext == DOC_EXTENSION) {
             return Err(refuse());
         }
         match target.parent() {
@@ -729,6 +776,7 @@ fn resolve_recourse(e: &WorkspaceError, scan: Scan) -> Option<String> {
         | WorkspaceError::Header { .. }
         | WorkspaceError::Save { .. }
         | WorkspaceError::SaveWouldDuplicateId { .. }
+        | WorkspaceError::SaveWouldReplaceDocument { .. }
         | WorkspaceError::SaveTargetNotInStore { .. }
         | WorkspaceError::RandomnessUnavailable { .. }
         | WorkspaceError::Update { .. } => None,
@@ -755,6 +803,7 @@ fn resolve_fault(e: &WorkspaceError) -> ResolveFault {
         | WorkspaceError::Pin { .. }
         | WorkspaceError::Save { .. }
         | WorkspaceError::SaveWouldDuplicateId { .. }
+        | WorkspaceError::SaveWouldReplaceDocument { .. }
         | WorkspaceError::SaveTargetNotInStore { .. }
         | WorkspaceError::RandomnessUnavailable { .. }
         | WorkspaceError::Update { .. } => ResolveFault::Unresolved,

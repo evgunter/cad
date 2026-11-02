@@ -873,7 +873,7 @@ fn a_report_rendered_from_another_document_fails_loud() {
 /// document holds it, while the report's own `Display` (no document at
 /// hand) says each by its tag.
 #[test]
-fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
+fn a_checks_report_and_its_refusal_speak_the_labelled_placements() {
     use editor_core::{CheckEvidence, ChecksConfig, Severity, enforce_checks, run_checks};
     let tol = Tol::witness();
     let doc = ProfileDoc::empty_derived("node-labels-checks", tol);
@@ -1092,20 +1092,20 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         format!("{plate} failed, so it has no value — fix the node's own failure")
     );
     assert_eq!(
-        ChecksError::Root(failed).spoken(&doc),
+        ChecksError::Placement(failed).spoken(&doc),
         format!(
             "checks: placement {plate} failed, so it has no value — fix the node's own failure"
         )
     );
     let changed = Diagnosis::StructuralParam {
         node: extrude,
-        param: SlotId::Count,
+        param: SlotId::Stations,
     };
     assert_eq!(
         changed.spoken(&doc),
         format!(
             "a structural parameter changed on the derivation path: slot {} of {plate}",
-            SlotId::Count.label()
+            SlotId::Stations.label()
         )
     );
     let vanished = ResolveError::Vanished {
@@ -1117,7 +1117,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
         vanished.spoken(&doc, &ev).starts_with(&format!(
             "the end cap of {plate} no longer resolves in this evaluation: a structural \
              parameter changed on the derivation path: slot {} of {plate}",
-            SlotId::Count.label()
+            SlotId::Stations.label()
         )),
         "{}",
         vanished.spoken(&doc, &ev)
@@ -1154,7 +1154,6 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
 /// the tag, and a node the line already names reads `this …`.
 #[test]
 fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
-    use editor_core::clearance::{ClearanceRefusal, SelectionRefusal};
     use editor_core::{
         MateFault, MateRef, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, spoken_by,
     };
@@ -1163,28 +1162,6 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     let doc = set_label(doc, body, Some("base plate"));
     let t = tag(body.0.digest());
     let spoken = format!("Extrude \"base plate\" ({t})");
-
-    // A clearance refusal inside a measure's failure speaks its node
-    // through the frame (`said_payload`).
-    let measured = NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Selection(
-        SelectionRefusal::NoSuchBody {
-            node: body,
-            index: 3,
-        },
-    ));
-    assert_eq!(
-        spoken_by(&measured, &doc),
-        format!(
-            "the clearance engine refused `selection` ({spoken}'s value carries no body at \
-             index 3)"
-        )
-    );
-    assert!(
-        measured
-            .to_string()
-            .contains(&format!("(node {t}'s value carries no body at index 3)")),
-        "{measured}"
-    );
 
     // A pose refusal names the placement it is about once.
     let placement = PoseRefusal::OtherSpace {
@@ -1233,8 +1210,8 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
 
 /// **An edit refusal spoken again from a later version of its document
 /// says each node as that version holds it** (`EditError::respoken`): a
-/// rename since the refusal is the label it says, in a node arm, a root
-/// arm and a name arm. A node the later version does not hold is said as
+/// rename since the refusal is the label it says, in a node arm and a name
+/// arm. A node the later version does not hold is said as
 /// the door said it — a node deleted since keeps its label — and
 /// `LabelUnchanged`,
 /// whose sentence is about the label the node held at the refusal, stays

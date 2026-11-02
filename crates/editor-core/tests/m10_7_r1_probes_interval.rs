@@ -342,6 +342,7 @@ fn bracket_with(
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![plate_loop],
         ids: Vec::new(),
+        on: None,
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
@@ -354,6 +355,7 @@ fn bracket_with(
                 radius: div(w(), 16.0),
             }],
             ids: Vec::new(),
+            on: None,
         }));
         r.insert(Node::Extrude {
             profile: profile.into(),

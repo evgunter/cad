@@ -34,3 +34,12 @@ that ground.
 Give `MateFault` and `PoseReadFault` an `f6_variants!` roster each, a
 row per arm labelled `{family}/{arm}`, and move their `forward` arms to
 `welded(..)`.
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Still real.**
+- `refusal_concision_chains.rs:1249-1251` covers `PoseRead`, `Mate` and `SpaceMismatch`, still unwelded. `MateFault` is at `mate.rs:761` and `PoseReadFault` at `pose.rs:1063`.
+- **Path hazard:** the test reds if this file is missing (`:1366-1370`). Any `git mv` must update `:1133-1135` in the same PR.
+- One unit with `placement-and-part-forwarders-the-census-does-not-weld`.

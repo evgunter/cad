@@ -182,7 +182,7 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
 /// an inside-out part cancel against its neighbour. Whether that still
 /// holds now that check 7 reads each solid's sign on its own faces
 /// ([`crate::validate_geometric`]) is an open question
-/// (`work/exch/the-per-instance-tier-3-gate-reads-every-assembly-face-twice.md`).
+/// (`work/importgate/the-per-instance-tier-3-gate-reads-every-assembly-face-twice.md`).
 /// This function decides only WHEN the parts are asked.
 ///
 /// **With one solid the part and the aggregate are the same body**, so

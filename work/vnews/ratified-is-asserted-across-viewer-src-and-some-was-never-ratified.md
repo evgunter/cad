@@ -544,3 +544,13 @@ lines are 12 left, 11 cited, 12 reworded, 3 listed and 2 out):
 Populations 3 and 4 (tracker and tests) were not in this unit: the
 tests and the README are VDOC's
 (`work/vdoc/viewer-tests-assert-ratifications-that-are-not`).
+
+## 2026-10-31 — three census members resolved
+
+The census rows for `SessionOp::NewDocument`, `Refusal::EmptyName` and
+`DocSession::new_document` (all FALSE, "the identity ruling") are
+resolved by `work/vseam/new-document-derives-its-id-from-the-typed-name`.
+The id is now random, so the claim and the rule it described are both
+gone. The three docs state the present rule and cite no ruling, and
+`EmptyName`'s words no longer say the identity is derived from the
+name. (VSEAM implementer)

@@ -269,6 +269,39 @@ impl<'a> PlaneSection<'a> {
         })
     }
 
+    /// **The boundary pass (C3)**, run at its first asking and kept: the
+    /// pair's classification reads it before its regularity sweep, and
+    /// [`PlaneSection::all`] reads the same pass.
+    ///
+    /// # Errors
+    ///
+    /// The pass's refusal.
+    pub(crate) fn pass(&self) -> Result<&BoundaryPass, SsiError> {
+        passed(&self.pass, || self.lane.pass())
+    }
+
+    /// The section with its boundary pass already run, over the same
+    /// plane, wall, domain and band ([`PlaneSection::pass`]'s answer
+    /// carried from an earlier reading of this pair), so no reading runs
+    /// it again.
+    pub(crate) fn with_pass(self, pass: BoundaryPass) -> Self {
+        Self {
+            pass: OnceCell::from(pass),
+            ..self
+        }
+    }
+
+    /// The wall's chart enclosures, minted once for the section.
+    pub(crate) fn boxes(&self) -> &super::enclose::NurbsBoxes<'a, f64> {
+        self.lane.wall.own_boxes()
+    }
+
+    /// The accounting floor over the wall's rectangle: the width at which
+    /// a cell no certificate holds is refused, or declined.
+    pub(crate) fn account_floor(&self) -> SweepFloor<UvRect> {
+        self.lane.account_floor
+    }
+
     /// **What holds `seed`** (module docs). The seed is a point in space;
     /// its feet on the plane's chart and the wall's, settled onto the
     /// section by Newton, are the state the answer is selected by. The

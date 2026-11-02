@@ -219,7 +219,7 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
     spec.description = EdgeDescriptionSpec::Intersection {
         pair: SurfacePair::new(foreign1, foreign1),
-        witness: p0.lerp(p1, 0.5),
+        selector: geom_brep::CurveSelector::Witness(p0.lerp(p1, 0.5)),
     };
     let err = body
         .set_edge_curve(edge_key, spec, Tol::witness())
@@ -343,7 +343,7 @@ fn near_tangent_intersection_attachment_escalates() {
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = EdgeDescriptionSpec::Intersection {
         pair: SurfacePair::new(flat, tilted),
-        witness: Point3::new(0.5, 0.0, 0.0),
+        selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
     };
     let err = body
         .set_edge_curve(split.edge, spec, Tol::witness())

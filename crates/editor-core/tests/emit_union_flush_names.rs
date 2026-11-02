@@ -280,8 +280,7 @@ fn published(
                 match failure(ev, union) {
                     None => each(case, at, ev, ids, tag, union),
                     Some(e) => {
-                        let shown = format!("{e:?}");
-                        let kind = shown.split([' ', '(', '{']).next().unwrap_or("").to_owned();
+                        let kind = crate::fixture::variant_name(&format!("{e:?}"));
                         let slot = refused
                             .entry((case.label.clone(), tag.to_owned()))
                             .or_default();

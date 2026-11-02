@@ -56,3 +56,5 @@ gone, so the rows' premise is gone with it. Ruled: the subject stays
   about 6 s, and its walls stop at the work wall after 11 rounds.
 - The backstop's count row moves to the tube as well:
   `the_volume_backstop_reads_a_refused_face_once_per_body`.
+
+**2026-10-30 (QUAD per-span lane, PR 6092 review).** The reviewers read `the_volume_backstop_reads_a_refused_face_once_per_body` red at 1e-6 and 1e-12 (main 50 against 100, the head 94 against 64). Under nextest, one test per process, it passes at 1e-9, 1e-6 and 1e-12 on main (`round_tube` at `s = 64`) and on the head (`s = 512`), release, and main's nightly 41008276467 does not list it among its failures. Its counts come from `geom_brep::props::quad::rounds_run_by`, a process-wide counter whose doc says a reading is one test's only where that test has its process to itself; the likeliest reading of the red counts is a runner that shared a process between tests (`cargo test`'s threads), which adds other tests' rounds to either side. Not reproduced that way here; nothing to fix in the row under nextest.

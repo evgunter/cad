@@ -361,6 +361,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     .expect("finite bar corners"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -381,6 +382,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     radius: len(PIN_RADIUS),
                 }],
                 ids: Vec::new(),
+                on: None,
             }),
             tol,
         );

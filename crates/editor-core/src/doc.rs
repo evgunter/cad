@@ -1108,7 +1108,10 @@ impl<P> Doc<P> {
     /// its input's; a selection in its body's, and a pose in the space
     /// of what it reads. `None` for a profile, a scalar, a space itself,
     /// or a read this document does not resolve. Nothing is evaluated.
-    pub fn space_of(&self, var: VarId) -> Option<VarId> {
+    pub fn space_of(&self, var: VarId) -> Option<VarId>
+    where
+        P: crate::program::SlotPayload<VarId>,
+    {
         SpaceWalk::new(self).var(var)
     }
 
@@ -1116,7 +1119,10 @@ impl<P> Doc<P> {
     /// node read through its body, an output, a variable by id or by
     /// name, or a selection's body. `None` for a read this document
     /// does not resolve, or one in no space.
-    pub fn operand_space(&self, read: &crate::Operand) -> Option<VarId> {
+    pub fn operand_space(&self, read: &crate::Operand) -> Option<VarId>
+    where
+        P: crate::program::SlotPayload<VarId>,
+    {
         match read {
             crate::Operand::Node(id) => self.node_space(*id),
             crate::Operand::Output { node, port } => self.space_of(self.output(*node, *port)?),
@@ -1133,13 +1139,19 @@ impl<P> Doc<P> {
 
     /// **The space `node`'s body is in** ([`Self::space_of`] of its
     /// body), `None` for a node that builds no body.
-    pub fn node_space(&self, id: RecipeNodeId) -> Option<VarId> {
+    pub fn node_space(&self, id: RecipeNodeId) -> Option<VarId>
+    where
+        P: crate::program::SlotPayload<VarId>,
+    {
         SpaceWalk::new(self).node(id)
     }
 
     /// **Every node's space** ([`Self::node_space`]), in one walk: what
     /// an evaluation holds of the recipe's derivation.
-    pub fn spaces(&self) -> BTreeMap<RecipeNodeId, VarId> {
+    pub fn spaces(&self) -> BTreeMap<RecipeNodeId, VarId>
+    where
+        P: crate::program::SlotPayload<VarId>,
+    {
         let mut walk = SpaceWalk::new(self);
         self.nodes
             .keys()
@@ -1151,7 +1163,10 @@ impl<P> Doc<P> {
     /// predicate a door comparing two nodes' geometry asks, from the
     /// recipe: `Some` naming the two spaces, `None` when both are in one
     /// or either builds no body.
-    pub fn across_spaces(&self, a: RecipeNodeId, b: RecipeNodeId) -> Option<(VarId, VarId)> {
+    pub fn across_spaces(&self, a: RecipeNodeId, b: RecipeNodeId) -> Option<(VarId, VarId)>
+    where
+        P: crate::program::SlotPayload<VarId>,
+    {
         two_spaces(self.node_space(a), self.node_space(b))
     }
 
@@ -1292,6 +1307,10 @@ impl<P> Doc<P> {
         let mut reads = Vec::new();
         match self.vars.get(&var).map(Var::def) {
             Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
+            Some(VarDef::Index(index)) => {
+                index.count.var_reads(&mut reads);
+                reads.extend(index.within.map(|within| (within, Dimension::Count)));
+            }
             Some(VarDef::Select(select)) => return vec![select.body],
             Some(VarDef::Pick(pick)) => return vec![pick.placement],
             Some(VarDef::Pose(def)) => {
@@ -1322,7 +1341,7 @@ impl<P> Doc<P> {
             // after everything it reads.
             if !matches!(
                 self.vars.get(&ids[at]).map(Var::def),
-                Some(VarDef::Defined(_) | VarDef::Pose(_))
+                Some(VarDef::Defined(_) | VarDef::Pose(_) | VarDef::Index(_))
             ) {
                 continue;
             }
@@ -1405,6 +1424,48 @@ impl<P> Doc<P> {
             })
             .map(|(&id, _)| id)
             .collect()
+    }
+
+    /// **What the person made and nothing uses** (D10 `[operations]`
+    /// "The product"), read off the recipe alone. A use is a read (a
+    /// slot, an operand or a definition reading it), being the product,
+    /// or being what an assertion states, which is a read of its slot.
+    /// Reported are the tips: each operation with outputs none of which
+    /// is used, in id order, and then each named variable nothing uses
+    /// and no reported operation defines, in id order. What a tip reads
+    /// is used by it, so deleting a tip surfaces the next. An unnamed
+    /// variable is a byproduct and never reported, and so is the world.
+    pub fn unused(&self) -> Unused
+    where
+        P: crate::ProfilePayload,
+    {
+        let readers = self.reader_counts();
+        // The world is exempt, named or not: one rule both passes read.
+        let used = |var: &VarId| {
+            *var == VarId::WORLD || readers.contains_key(var) || self.product == Some(*var)
+        };
+        let mut defines: BTreeMap<RecipeNodeId, Vec<VarId>> = BTreeMap::new();
+        for (&var, held) in &self.vars {
+            if let Some((node, _)) = held.def().output() {
+                defines.entry(node).or_default().push(var);
+            }
+        }
+        let operations: Vec<RecipeNodeId> = defines
+            .iter()
+            .filter(|(_, outputs)| !outputs.iter().any(used))
+            .map(|(&node, _)| node)
+            .collect();
+        let vars = self
+            .var_names
+            .keys()
+            .filter(|var| !used(var))
+            .filter(|var| {
+                self.defined_by(**var)
+                    .is_none_or(|(node, _)| operations.binary_search(&node).is_err())
+            })
+            .copied()
+            .collect();
+        Unused { operations, vars }
     }
 
     /// **The anonymous variables [`Node::written`] would not reproduce**:
@@ -1990,7 +2051,7 @@ impl<P> Doc<P> {
                 }
                 None
             }
-            VarDef::Free(_) | VarDef::Defined(_) => None,
+            VarDef::Free(_) | VarDef::Defined(_) | VarDef::Index(_) => None,
         };
         if let Some(at) = at
             && !out.contains(&at)
@@ -2019,7 +2080,7 @@ impl<P> Doc<P> {
                 .reads()
                 .into_iter()
                 .find_map(|(_, &read, _, _)| self.unresolved_read(read)),
-            VarDef::Free(_) | VarDef::Defined(_) => Some(var),
+            VarDef::Free(_) | VarDef::Defined(_) | VarDef::Index(_) => Some(var),
         }
     }
 
@@ -2088,13 +2149,25 @@ impl<P> Doc<P> {
     /// door's operand walk — so the rule is stated once; liveness is
     /// each door's own question, asked before. The world defines no
     /// variable, so no read reaches it (D10).
+    ///
+    /// A `Body` that reaches an index is a family of bodies (D10
+    /// `[repetition]`), so a seat admitting `Bodies` admits it.
     pub(crate) fn read_fault(
         &self,
+        var: VarId,
         held: &crate::Var,
         expected: crate::SlotKind,
         _reader: Reader,
-    ) -> Option<ReadFault> {
-        (!expected.admits(held)).then_some(ReadFault::Kind { found: held.kind() })
+    ) -> Option<ReadFault>
+    where
+        P: crate::ProfilePayload,
+    {
+        let family = || {
+            held.kind() == crate::VarKind::Body
+                && expected == crate::SlotKind::Is(crate::VarKind::Bodies)
+                && !self.var_reach(var).is_none()
+        };
+        (!expected.admits(held) && !family()).then_some(ReadFault::Kind { found: held.kind() })
     }
 
     /// **The variable port `port` of `node` defines**
@@ -2504,13 +2577,21 @@ impl<P> Doc<P> {
         }
     }
 
-    /// **The variable a node's slot reads** (VARIABLES-DESIGN VR4), or
-    /// `None` if the node is gone or does not carry the slot.
+    /// **The variable a node's slot reads** (VARIABLES-DESIGN VR4): an
+    /// expression slot's variable, or an operand's read; `None` if the
+    /// node is gone or does not carry the slot.
     pub fn slot(&self, node: RecipeNodeId, slot: SlotId) -> Option<VarId>
     where
         P: crate::ProfilePayload,
     {
-        self.nodes.get(&node)?.expr(slot).copied()
+        let node = self.nodes.get(&node)?;
+        match slot {
+            SlotId::Operand(at) => node
+                .operand_rows()
+                .into_iter()
+                .find_map(|(there, read)| (there == at).then_some(read)),
+            slot => node.expr(slot).copied(),
+        }
     }
 
     /// **The free variable a node's slot reads**, or `None` where the
@@ -2639,7 +2720,8 @@ impl<P> Doc<P> {
                 crate::VarDef::Output { .. }
                 | crate::VarDef::Select(_)
                 | crate::VarDef::Pose(_)
-                | crate::VarDef::Pick(_) => None,
+                | crate::VarDef::Pick(_)
+                | crate::VarDef::Index(_) => None,
             }
         })
     }
@@ -2705,9 +2787,39 @@ impl<P> Doc<P> {
                     .insert(id, crate::EvalError::OutputRead { var: id });
                 env.written.insert(id);
             }
+            // An index has a value in one member's evaluation alone
+            // ([`Self::bind_member`]).
+            if var.def().index().is_some() {
+                env.bindings.remove(&id);
+                env.refused
+                    .insert(id, crate::EvalError::IndexOutsideMember { var: id });
+            }
         }
         for id in self.definition_order() {
             self.bind_definition(id, env);
+        }
+    }
+
+    /// **`env` at one member** (D10 `[repetition]`): each index of `at`
+    /// bound to its value, and every definition reaching one of them
+    /// bound again over those values, in definition order.
+    pub(crate) fn bind_member<T: Decide>(&self, env: &mut VarEnv<T>, at: &[(VarId, i64)])
+    where
+        P: crate::ProfilePayload,
+    {
+        for &(index, value) in at {
+            env.refused.remove(&index);
+            env.bindings.insert(index, ParamValue::Count(value));
+        }
+        let mut reach = crate::repetition::Reach::new(self);
+        for id in self.definition_order() {
+            if self.vars.get(&id).and_then(|v| v.def().defined()).is_none() {
+                continue;
+            }
+            let reached = reach.of_var(id);
+            if at.iter().any(|(index, _)| reached.contains(index)) {
+                self.bind_definition(id, env);
+            }
         }
     }
 
@@ -2740,7 +2852,11 @@ impl<P> Doc<P> {
                 env.bindings.insert(id, bound);
                 // The form rides beside the value: a rotation by this
                 // variable reads its sine and cosine from it.
-                if let Some(turns) = expr.constant_turns(|v| env.turns.get(&v).copied()) {
+                let counts = |v| match env.bindings.get(&v) {
+                    Some(ParamValue::Count(n)) => Some(*n),
+                    _ => None,
+                };
+                if let Some(turns) = expr.constant_turns(|v| env.turns.get(&v).copied(), counts) {
                     env.turns.insert(id, turns);
                 }
             }
@@ -2767,6 +2883,17 @@ fn expanded_size(expr: &Expr, sizes: &BTreeMap<VarId, usize>, cap: usize) -> usi
         stack.extend((0..2).filter_map(|i| at.child(i)));
     }
     total
+}
+
+/// **The tips of a document's dead chains** ([`Doc::unused`]): what
+/// the `unused` check reports.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Unused {
+    /// The operations none of whose outputs is used, in id order.
+    pub operations: Vec<RecipeNodeId>,
+    /// The named variables nothing uses, in id order, but for those a
+    /// listed operation defines.
+    pub vars: Vec<VarId>,
 }
 
 /// **The adjacency of a document's definitions** ([`Doc::definition_edges`]),
@@ -3215,7 +3342,7 @@ struct SpaceWalk<'d, P> {
     memo: BTreeMap<RecipeNodeId, Option<VarId>>,
 }
 
-impl<'d, P> SpaceWalk<'d, P> {
+impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
     fn new(doc: &'d Doc<P>) -> Self {
         let own = doc
             .vars
@@ -3239,7 +3366,7 @@ impl<'d, P> SpaceWalk<'d, P> {
             VarDef::Pick(pick) => self.var(pick.placement),
             // A pose is in the first space it reaches.
             VarDef::Pose(_) => self.reached_all([var]).first().copied(),
-            VarDef::Free(_) | VarDef::Defined(_) => None,
+            VarDef::Free(_) | VarDef::Defined(_) | VarDef::Index(_) => None,
         }
     }
 
@@ -3265,8 +3392,24 @@ impl<'d, P> SpaceWalk<'d, P> {
                 self.var(*selection)
             }
             Node::Shell { open, .. } => self.var(*open),
-            Node::Pattern { input, .. } | Node::PlacedUnion { input, .. } => self.var(*input),
-            Node::Part { of, .. } => self.var(*of),
+            // A profile drawn on a frame is in the frame's space; a free
+            // profile is in none.
+            Node::Profile(_) => {
+                let Node::Profile(p) = self.doc.nodes.get(&id)? else {
+                    unreachable!("matched a profile")
+                };
+                let reads: Vec<VarId> = p.read_rows().into_iter().map(|(_, &v)| v).collect();
+                self.reached_all(reads).first().copied()
+            }
+            // A sweep of a profile drawn on a frame is in the frame's
+            // space; of a free one, in the space it defines.
+            Node::Extrude { profile, .. }
+            | Node::Revolve { profile, .. }
+            | Node::Sweep { profile, .. }
+            | Node::Loft { first: profile, .. } => {
+                let profile = *profile;
+                self.var(profile).or_else(|| self.own.get(&id).copied())
+            }
             // A construction is in the space it defines; nothing else
             // reads a body or defines a space.
             _ => self.own.get(&id).copied(),

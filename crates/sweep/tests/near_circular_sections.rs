@@ -768,7 +768,7 @@ fn bisector_rows(frame: &str, map: &Affine3<f64>, r: f64) {
     for s in gap_sines(r, r / 8.0) {
         let what = format!("{frame}, r {r:e}, sin φ {s:e}");
         let (a, b) = walls(s.asin());
-        let got = cylinder_cylinder_section(&a, &b, &reach, band());
+        let got = cylinder_cylinder_section(&a, &b, &reach.ball(), band());
         let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) = &got else {
             panic!("{what}: the two bisector ellipses, got {got:?}");
         };
@@ -785,7 +785,7 @@ fn bisector_rows(frame: &str, map: &Affine3<f64>, r: f64) {
         assert_on_within(&format!("{what}, along"), long, None, &[&a, &b], 4.0 * r);
     }
     let (a, b) = walls(banded_sine(r).asin());
-    let got = cylinder_cylinder_section(&a, &b, &reach, band());
+    let got = cylinder_cylinder_section(&a, &b, &reach.ball(), band());
     assert!(
         matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("cc_axes_parallel")),
         "{frame}, r {r:e} in the pose's band: got {got:?}"
@@ -821,7 +821,7 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
                 at: map.transform_point(Point3::origin()),
                 lever: r,
             };
-            let got = cylinder_cylinder_section(&a, &b, &reach, band());
+            let got = cylinder_cylinder_section(&a, &b, &reach.ball(), band());
             let (Surface::Cylinder { axis: aa, .. }, Surface::Cylinder { axis: ab, .. }) = (&a, &b)
             else {
                 unreachable!("two cylinders");

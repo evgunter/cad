@@ -56,3 +56,11 @@ definitely off a span says nothing about the spans. The two arcs'
 chordal hulls apart past the band, or the extreme's angle definitely
 outside the arc together with both arc ends definitely clear, are the
 candidate certificates.
+
+## Evidence: a census row reaches it (2026-11-01, `splitdoor/rims-seam-orientation`)
+
+In the same bodies as `two-coplanar-ellipses-have-no-meeting-method`'s 2026-11-01 evidence (`sheets_part_on_slanted_rims::rims_crossing_on_tangent_walls_build_every_op`), the section arc piece from `(1, ±1, z)` to `(0, 0, 0)` lies about a metre from its carriers' touch at `(2, 0, 0)`. Read against each piece of B's rim, it still escalates `curve_pair_coplanar_sub_side` (`MeetFault::Touch`). The touch is read on the whole carriers, off that arc's span.
+
+## Evidence: the coplanar touch no longer escalates off the arc (2026-11-01, `tangrim/coplanar-conic-touch`)
+
+The 2026-11-01 census instance above no longer escalates. The coplanar subdivision now places the carriers' touch as a candidate (`two-coplanar-ellipses-have-no-meeting-method`), and the candidate is read on both spans, so a touch off the arc reads no meeting. `sheets_part_on_slanted_rims::rims_crossing_on_tangent_walls_build_every_op` passes tier 3′ on every op at three ε. The row's own two poses (two arcs on near-one circles, and a line beside a circle) take other arms and are unchanged.

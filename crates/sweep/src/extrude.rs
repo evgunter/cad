@@ -1256,7 +1256,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     strut.edge,
                     EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(k_prev, k_next),
-                        witness: mid,
+                        selector: geom_brep::CurveSelector::Witness(mid),
                     },
                     tol,
                 )?;
@@ -1592,7 +1592,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
                 edge,
                 EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(cap, wall),
-                    witness,
+                    selector: geom_brep::CurveSelector::Witness(witness),
                 },
                 tol,
             )?;

@@ -26,9 +26,10 @@ Both leave `docs/` when the experiment concludes.
   What a second independent review buys; every unit the review tiers
   ([[orchestration-model]]) send to the dual tier is a row.
 - **Design-fork review** — `docs/DESIGN-FORK-PROTOCOL.md` (**read it
-  before dispatching the pair**) and `docs/DESIGN-FORK-LOG.md`. What
-  the Opus and Fable designers recommended, and what Ev then
-  decided; every design fork put to Ev is a row.
+  before dispatching the designers**) and `docs/DESIGN-FORK-LOG.md`.
+  What the Opus and Fable designers (and, on a drawn third of forks,
+  a second Opus) recommended, and what Ev then decided; every
+  design fork put to Ev is a row.
 
 **Suspended** (no need to read unless Ev reinstates it):
 

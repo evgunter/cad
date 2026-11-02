@@ -89,7 +89,7 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 /// The decisions the part's profile pre-pass makes on the one-solid
 /// part: the program's four junctions and the f64 validation of the
 /// assembled profile, drawn on its own xy.
-const PRE_PASS: usize = 88;
+const PRE_PASS: usize = 80;
 /// The one-solid part's log sizes by node at `f64`: profile, extrude,
 /// placement. At `f64` the Profile node's op takes the pre-pass's
 /// validated form (`editor_core::ProfileLane`) and logs what the second
@@ -99,7 +99,7 @@ const PRE_PASS: usize = 88;
 const EXTRUDE_LOG: usize = 679;
 /// The one-solid part's second pass: the op's own guided replay and
 /// validation, after the pre-pass in the Profile node's log.
-const LANE_OP: usize = 83;
+const LANE_OP: usize = 75;
 const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
 /// A placement standing where its body stands ([`fixture::place`]): the
 /// identity bundle, which the fold places by no map, deciding nothing.
@@ -524,11 +524,13 @@ fn a_pre_op_failure_has_empty_escalations() {
 /// f64 and would refuse an in-band one), then the parameter's VALUE is
 /// moved to an in-band distance inside the outer edge — a door that
 /// validates nothing, by design, because the evaluation's pre-pass is
-/// where a parameter's profile is decided. That pre-pass reads an
-/// island edge's gap to the outer right edge in band (`segment_gap`, a
-/// screen the pair then reads past on a definite carrier side), then
-/// escalates on `chord_side` between the outer edge and the island's,
-/// and the node refuses before its op runs. Both in-band readings are on
+/// where a parameter's profile is decided. That pre-pass reads two
+/// line pairs' gaps in band (`segment_gap`, a screen each pair then
+/// reads past): the island's right edge projects to a point that
+/// distance inside an outer edge's span, and the outer right edge to one
+/// that distance past an island edge's. It then escalates on
+/// `chord_side` between the outer edge and the island's, and the node
+/// refuses before its op runs. All three in-band readings are on
 /// the node's error, in the order made — the frame is the node's
 /// whether the refusal came from the op or from the pass before the key
 /// — and in no outer frame.
@@ -559,6 +561,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
             island,
         ],
         ids: Vec::new(),
+        on: None,
     };
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, extrude) = insert(
@@ -585,7 +588,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let named: Vec<&str> = err.escalations.iter().map(|e| e.predicate()).collect();
     assert_eq!(
         named,
-        ["segment_gap", "chord_side"],
+        ["segment_gap", "segment_gap", "chord_side"],
         "the pre-pass's escalation rides the refusal: {}",
         err.kind
     );
@@ -632,6 +635,7 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
             [len(0.0), len(1.0)],
         ])],
         ids: Vec::new(),
+        on: None,
     };
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, _) = step(

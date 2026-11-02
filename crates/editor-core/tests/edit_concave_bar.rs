@@ -71,6 +71,7 @@ fn barred_die() -> (ProfileDoc, RecipeNodeId) {
                 radius: len(A),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, bar) = fixture::insert(doc, extrude(p, 0.8));

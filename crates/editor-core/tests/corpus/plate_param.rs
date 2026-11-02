@@ -89,6 +89,7 @@ pub fn plate_profile() -> ProfileProgram<Formula> {
             hole_loop(HOLE_CENTRES[1]),
         ],
         ids: Vec::new(),
+        on: None,
     }
 }
 
@@ -116,6 +117,7 @@ pub fn document() -> CorpusDoc {
                 .expect("finite tab corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let tab = r.insert(Node::Extrude {
         profile: tab_p.into(),

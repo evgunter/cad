@@ -4,8 +4,8 @@ kind: issue
 title: compare a MassProperties by bits is written ~31 ways and they disagree about the pads
 status: open
 opened: 2026-09-15
-priority: P1
-cost: D
+priority: P3
+cost: M
 ---
 
 
@@ -81,3 +81,11 @@ roots, which `crates/*/tests` does not cover.
 Filed by SUITE/D114.
 
 **2026-09-28:** `sweep/tests/reporting_door_bit_digest.rs` was deleted, and `shell_census_is_thread_count_invariant.rs` lost its golden rows, in the 2026-09-28 CI-latency cut.
+
+## Re-banded P1 → P3 (2026-10-28, GREEN's cut)
+
+The duplication and classification this row names live in test
+support and in the gates, not in production code, so it is not P1's
+"architecture that entrenches as things are built on it". Its cost is
+what `work/README.md` puts at P3: tooling whose failure can let a
+silent bug through. Legacy `cost: D` re-priced `M`.

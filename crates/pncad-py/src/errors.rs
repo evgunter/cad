@@ -813,8 +813,8 @@ impl ValidationRefusal {
 ///
 /// Every variant but [`Self::NameSerialize`] carries the KERNEL VALUE
 /// behind it, and that is the rule `crate::py::doc`'s boundary raise
-/// states: where the value is a kernel enum ([`Self::PlacementRule`],
-/// [`Self::Label`], [`Self::Pin`]), the word is that enum's own map's,
+/// states: where the value is a kernel enum ([`Self::Label`],
+/// [`Self::Pin`]), the word is that enum's own map's,
 /// so a refusal a caller can reach through either door stays one word.
 /// The other two are one word each, minted in `crate::tags`:
 /// [`Self::NameSerialize`] because a `serde_json` failure has no arm
@@ -827,9 +827,6 @@ pub enum BoundaryEdit<'a> {
     /// serialization and the document layer never refuses a name for
     /// failing to produce it.
     NameSerialize,
-    /// A placement rule spelled through the wrong constructor, worded
-    /// by the document layer's own fault map.
-    PlacementRule(&'a pncad::document::PlacementRuleFault),
     /// A body `Doc.corner_frame` could read no frame off, worded by the
     /// kernel's own refusal map: it did not evaluate, is no body, is
     /// placed already, or offers no such corner.

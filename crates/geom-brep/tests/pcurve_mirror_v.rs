@@ -582,7 +582,7 @@ fn a_description_without_a_chart_image_is_invariant_under_the_door() {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(a, b),
-                witness: carrier.eval(0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5)),
             },
             carrier,
             param_start: 0.0,

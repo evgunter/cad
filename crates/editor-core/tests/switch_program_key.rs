@@ -44,6 +44,7 @@ fn doc_with(loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
             node: Box::new(Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },
@@ -154,6 +155,7 @@ fn resolved_values_feed_the_key() {
                         radius: Formula::named(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -207,6 +209,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                         radius: len(0.5),
                     }],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -261,6 +264,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
             node: Box::new(Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },

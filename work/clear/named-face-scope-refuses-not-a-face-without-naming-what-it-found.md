@@ -2,10 +2,13 @@
 id: named-face-scope-refuses-not-a-face-without-naming-what-it-found
 kind: issue
 title: clearance.rs's named face scope refuses NotAFace without the kind, and conflates a wrong kind with a wrong body
-status: open
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: E
+branch: clear/cleartext
+pr: 5977
+closed: 2026-10-29
 ---
 
 
@@ -62,3 +65,13 @@ the wrong-body case here reaches, so the two want deciding together.
 ## A third finding at the same four lines (emit, 2026-10-02)
 
 Found by `memoized-refusals-speak-inner-nodes-through-the-frame`'s sweep. Both `SelectionRefusal::Unresolved` and `NotAFace` store the name as `rendered()`, which is `format!("{name:?}")`, a `String` (`clearance.rs`, `windows_of`). So the refusal's words print the `StableName`'s derived `Debug` (`StableName { kind: Face, node: RecipeNodeId(…), path: [...] }`), and the clearance goldening form (`SelectionRefusal::payload`) prints the same dump. Every other node in that refusal is now said by the frame's speaker (`spoken::Say`), but this one cannot be: it is text, not an id. `prose_census` cannot see it either, because the field is a `String`. Holding the `StableName` itself would let the words say it with `Speaker::name` and the payload print its full id.
+
+## Closed
+CLEARTEXT (#5977), with this commit last. The clearance refusals now
+name each face by its side, and editor-core names each side by its
+selection. They carry their causes: `NoBodies` and `ToleranceHasNoBand`
+keep the error, and `KeyOfAnotherKind` ends in the kernel-defect line.
+A named scope asks what a name denotes before how many things answer
+to it. A single STYLE review at `25f81b1897` returned
+APPROVE-WITH-FIXES. Its fix pass (`7bc8900b`) was read and accepted
+by the orchestrator.

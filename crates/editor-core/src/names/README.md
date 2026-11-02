@@ -109,8 +109,9 @@ by the variable the input slot reads, DM4: a union's or intersect's members,
 a subtract's two seats, a shell's or blend's one input), boolean (`Seam`,
 `Merged`, `Fragment`), split (`SectionFace`, `SectionEdge`, `SplitFragment`,
 ...), blend (shared by fillet and
-chamfer, told apart by the minting node), pattern `Instance { i, of }`
-with `i` recipe-structural. Role arguments are themselves names; profile locators
+chamfer, told apart by the minting node), family `Member { at, of }`
+with `at` the member's index values, keyed by the family's index
+variables. Role arguments are themselves names; profile locators
 (`ProfileEdgeRef`, `ProfileVertexRef`) name a profile piece by the id its step
 was minted with, never by its position (below). Names contain no floats and no arena keys; a pass-through op (a
 split-intact entity, a read of a split's half, a `Part`'s projection of one instance, a mirror's
@@ -129,8 +130,9 @@ a name which output holds the entity, so a split's roles carry no half
 `CrossingVertex`): the variable says it, through the read that carries the
 entity on (`From { read: split.above, of }`) or the body a selection
 states. Each output has its own table, so a split's roles say no half;
-the pattern's `Instance { i }` segment still restates the output, only to
-keep one node's table distinct. D10 makes the compensation fail: `P1` and
+a family is one variable holding a body per value of its indices, so its
+`Member { at }` segment says which member holds the entity, the one
+segment a variable's own scope cannot. D10 makes the compensation fail: `P1` and
 `P2` are two placements of `X`, each equally a copy of it; pinned into one
 space, a later `Place [P1, P2]` defines two outputs carrying `X`'s rows
 verbatim (a placement adds no name segment, above), which one table per
@@ -291,6 +293,21 @@ this rule, and so do profile pieces:
   rims and vertices belong to one section, and are named by that section's own
   locators. If a value edit changes which pieces pair, the old wall's name
   vanishes; it does not follow `k` to the new pairing.
+  A loft at v-degree 1 through three sections or more is one wall per
+  segment per slab (`crates/sweep/README.md`, "Walls"), so its roles carry
+  the slab or section they sit at, counted from the start section: a wall
+  (`LoftSlabWall`) holds its slab and the locators of the pieces it joins
+  at the slab's two sections, as a seam (`LoftSlabSeam`) holds its slab and
+  two vertex locators; an interior section's ring edge
+  (`LoftSectionEdge`) and vertex (`LoftSectionVertex`) hold the section and
+  that section's own locator. The slab or section is what tells two walls
+  of one segment apart, since two sections may be drawn by the same steps.
+  Counting from the start section is a positional PLACEHOLDER: inserting or
+  deleting an earlier section renames every later slab and ring. These
+  names are to key on each section's input identity instead
+  (`work/tess/loft-slab-and-section-names-are-positional.md`).
+  Setting the degree slot to 1 or from 1 changes the walls the body has,
+  so the names of the other degree's walls vanish.
 - **Swept walls over a run.** Extrude and revolve build one wall per run of
   profile pieces on one carrier (`crates/sweep/README.md`, "Walls"). The
   wall's role-path segment (`Lateral` for extrude, `Band` for revolve) holds
@@ -307,7 +324,8 @@ this rule, and so do profile pieces:
   `AxisEdge`: `Lateral([p0, p1])` covers `Lateral([p0])`, so a selection made before a station was inserted
   is offered the run wall, and an edit that breaks a run offers its pieces'
   walls. A `LoftWall` holds one locator per section of ONE wall, not a set
-  of walls, so it has no constituents in that view.
+  of walls, so it has no constituents in that view, and neither has a
+  `LoftSlabWall`.
 
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment.
@@ -653,8 +671,9 @@ was stamped (D9). Epochs come from a process-wide counter that SATURATES rather
 than wrapping — an epoch is never reused, and a seal past that point simply
 leaves the table unstamped. A table is sealed the first time it is read as an
 operand, by `defer::upstream_name` for a table read one entity at a time and by
-`emit_union::member_view`, `emit::name_pattern`, `emit::name_placed_union` and
-`emit::name_in_part` for one read whole; a row inserted after a seal is
+`emit_union::member_view` (and its repeated and lone-member twins),
+`emit::name_family`, `emit::name_copy` and `emit::name_assemble` for one read
+whole; a row inserted after a seal is
 unstamped and compares structurally, and a clone starts unsealed so what it
 gains is stamped on its next operand use.
 
@@ -758,18 +777,19 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   not re-derived from the names. It counts the distinct entities of the node's
   output descended from the parent within the group by the emitter's own
   descent, however each is spelled: an undivided pass-through or an N3
-  `Merged` survivor. At a union, a face or seam group is formed over the
-  finished body, one per parent (or pair of parents); any other group counts
-  the published entities a fold step's group descends to, followed through
-  every later step. A piece a later step re-mints under a seam name of its own
-  is not a descendant by that descent and is not counted. An edge piece's group is its line's: every edge the node
-  holds on the line from an operand edge, whichever parent edge on the line it
-  descends from, whole or in pieces, counted together. Two tied parents that
-  share a base are two groups, each
-  counted on its own, where the emitter groups by parent entity; where it
-  groups by parent names (a pair boolean's seam vertices) their pieces share
-  one group and the rung declines. That is a statement about two recorded
-  groups, not a claimed flip.
+  `Merged` survivor. At a union, faces, seam edges and vertices are grouped
+  over the finished body: a face group per parent, a seam group per pair of
+  parents, and a vertex group per member corner, holding the corner's copies.
+  Any other edge group, and the group of a member corner whose copies keep
+  the name a fold step tied them under, counts the published entities a fold
+  step's group descends to, followed through every later step. A piece a
+  later step re-mints under a seam name of its own is not a descendant by
+  that descent and is not counted. An edge piece's group is its line's: every
+  edge the node holds on the line from an operand edge, whichever parent edge
+  on the line it descends from, whole or in pieces, counted together. Two tied parents that
+  share a base are two groups, each counted on its own: the emitter groups by
+  parent entity everywhere. That is a statement about two recorded groups, not
+  a claimed flip.
 - *The cutters.* `cutters` (`GroupCutters`, `resolve::group_cutters`) reads the
   minting node's two tables for the seam rows on the group's parent (a face
   group's seam edges, an edge group's seam and crossing vertices), matched on

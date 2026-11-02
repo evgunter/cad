@@ -146,8 +146,8 @@ is a typed document error).
 operation — it reads the bodies its references are sited at and
 defines one typed F1 quantity, its output, and no body. The quantity
 kind is the primitive's, never a per-kind node variant: measurement
-primitives are typed functions in the F7 extension — `distance(a, b)`,
-`min_clearance(a, b)` → Length; `angle(a, b)` → Angle; mass properties
+primitives are typed functions in the F7 extension — `distance(a, b)`
+→ Length; `angle(a, b)` → Angle; mass properties
 in their own dimensions (their Length-powers force the recorded
 *additive* F1 lattice growth, never a Measure-local type) — over
 StableName entity references read at a node. Arithmetic over measured
@@ -182,18 +182,38 @@ content-key cached like everything.
 
 **E3 amendments (revision E12, 2026-09-03).**
 
-- **`min_clearance` is BINARY**: `min_clearance(a, b)` over two
-  selections, each "which faces of which body" (a body reference is
-  all of its faces, a face reference is that one); the value is the
-  minimum over the pairs A × B and the closest pair is the OUTPUT
-  (the witness), never an input. The same body on both sides is its
-  self-clearance (adjacent pairs excluded by the wedge rule). The
-  earlier `min_clearance(sel)` spelling read as "this selection
-  against the rest of the document" — the assembly consumer's
-  question — which the binary door asks only pairwise; a complement
-  selection ("everything but this") is a LATER selection spelling,
-  not a different primitive. (M10-6 shipped the binary door and
-  disclosed the arity as deviation D8; ratified here.)
+- **A clearance is a requirement, not a measurement.** An E10
+  assertion may bound `clearance(a, b)`:
+  - from below, `≥ c`;
+  - from above, `≤ c`;
+  - or from both sides at once: `= c`, or a band `lo ≤ clearance(a, b)
+    ≤ hi`.
+
+  Each of `a` and `b` selects which faces of which body: a body
+  reference means all of its faces, a face reference means that one
+  face. The bounds are length formulas. The assertion reads like an
+  equation, though no clearance value exists.
+  - **Its verdict** comes from E7's sweep at the bounds, never from the
+    minimum. Each bound is decided with the margin every assertion
+    carries.
+    - A lower bound holds when every pair is certified clear of it. A
+      violating pair breaks it: two face points that the `f64` rebuild
+      decides are closer than the bound.
+    - An upper bound holds when a verified pair lies within it, and
+      that pair is its witness. It is violated when every pair is
+      certified clear of it.
+    - **Two bounds are one fused sweep**, never two searches. Each cell
+      pair is classified against both bounds in one subdivision. `= c`
+      is the band with `lo = hi = c`.
+    - A refusal, typed, is the verdict's third state.
+  - **The minimum is never computed.** No node holds a clearance
+    value, so a definition's arithmetic over a clearance cannot be
+    written.
+  - **Same body on both sides.** That body's self-clearance; scopes
+    that meet violate, named on the shared cell (*Self-intersection
+    scope*, E7).
+  - **Pairwise only.** A complement selection ("everything but this")
+    is a later selection spelling, not a different form.
 - **Parallelism verdicts a measure consumes are levered by the
   operands' EXTENT, with no floor.** `distance`/`gap` over plane or
   axis pairs consume `bool_plane_parallel` /
@@ -337,8 +357,8 @@ ratified default).
 
 For a **certified leaf** (fixed topology), the analysis answers two
 questions:
-global self-intersection-freedom, and `min-clearance ≥ c` for a
-pair of selections (a `min_clearance` Measure + E10 assertion).
+global self-intersection-freedom, and clearance `≥ c` for a pair of
+selections (E3's clearance assertion, answered by the sweep at `c`).
 
 **Mechanism**: two nested subdivisions. Outer: the E6 parameter
 leaves. Inner: geometry-domain subdivision with interval exclusion
@@ -791,6 +811,6 @@ d's — tail mass 1 − 0.9973² ≈ 0.54%, carried additively throughout.
 - **Implicit quantities over a box** (E12's frontier): per-family
   box certificates for iterated quantities — S-CERT's item; the
   driver names the refusal until then.
-- **The complement selection** for `min_clearance` (E3): "this
+- **The complement selection** for a clearance assertion (E3): "this
   selection against everything else" as a selection spelling, for
   the assembly consumer.

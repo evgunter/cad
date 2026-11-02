@@ -165,7 +165,8 @@ stand (`find_ref_sector(records, …)`, ~:1544) and returns `Ok(None)`,
 rewrites every On of a germ record, by design so as to fold a grazing
 bisector on the record's other side into that germ. Where the
 bisector's ray and the germ's are read apart by `parallel_same_dir`
-(~:719), as the vee300 edges are, the graze is a second event whose
+(~:719; since 2026-10-29 `sectors::parallel_same` passed
+`RAY_COLLINEAR`, PR 5983), as the vee300 edges are, the graze is a second event whose
 On an earlier germ consumed, and the `Ok(None)` is a silent skip, not
 a resolution. Both On codes of one record lie On the other sector's
 plane, so both lie on the pair's one common line to the band, and a
@@ -210,3 +211,7 @@ The prose-ending arms (`JoinDesync`, `TornComponent`, `SeamOrientation`,
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to CLEAVETAIL (`work/cleavetail/`) by `git mv`, id and body unchanged: the track opened for CLEAVE's P3 and P4 tail: refusal stories, guards that cannot go red, latent soundness and hygiene. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. Its `ResultVolumeImplausible` and `VolumeCorrupt` items, and the public door that made them class 1, are gone; the rest of the family stands.

@@ -7,8 +7,8 @@ because a stop nobody can observe is not a stop.
 
 **What is a PIN here and what is a MEASUREMENT.** Cancelling a run
 already under way is a race by construction: the kernel checks the
-token between nodes, and which node it stops at is whatever the
-scheduler decided. So the contract is pinned on the DETERMINISTIC
+token between nodes and a family's members, and which node it stops
+at is whatever the scheduler decided. So the contract is pinned on the DETERMINISTIC
 arm — a token canceled BEFORE the run starts, where the check before
 the first node fires every time and the prefix is exactly empty — and
 the concurrent arm is pinned only on the invariants that hold whatever

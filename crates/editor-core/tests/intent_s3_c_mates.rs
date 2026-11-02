@@ -19,6 +19,7 @@
 )]
 
 use crate::fixture::{self, ang, len};
+use editor_core::Dimension;
 use editor_core::mate::coset::{Coset, Subgroup, intersect};
 use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
@@ -570,8 +571,14 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
         written,
         // The wall faces `+x`, which the mate takes: the slides across it.
         [
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Slide(TargetAxis::Z), len(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Z),
+                Formula::zero(Dimension::Length),
+            ),
             (Coord::SPIN, ang(30.0_f64.to_radians())),
         ],
     );
@@ -683,7 +690,12 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         to: down,
         orient: editor_core::Orientation::IDENTITY,
     };
-    let doc = seat(doc, placement, written, [(Coord::SPIN, ang(0.0))]);
+    let doc = seat(
+        doc,
+        placement,
+        written,
+        [(Coord::SPIN, Formula::zero(Dimension::Angle))],
+    );
     let ev = fixture::run(&doc, &EvalOptions::default());
     assert!(
         !matches!(ev.result(placement), Some(NodeResult::Failed(_))),
@@ -982,8 +994,11 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
         written,
         [
             (Coord::Slide(TargetAxis::X), slide),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     let seeded = EvalOptions {
@@ -1150,8 +1165,14 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         placement,
         written,
         [
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
             (Coord::SPIN, turn),
         ],
     );
@@ -1230,8 +1251,14 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
         placement,
         written,
         [
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
             (Coord::SPIN, turn),
         ],
     );

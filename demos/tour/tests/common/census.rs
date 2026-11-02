@@ -1,7 +1,7 @@
 //! The Euler–Poincaré census as the tour's suites ask it — a built
 //! body's ring count and its genus, through
 //! `pncad::topo::readback::euler_counts`. Shared by every suite in this
-//! cargo root through `#[path]`, as `rim_select` is: one home, so a
+//! cargo root through `crate::common`, as `rim_select` is: one home, so a
 //! suite that asks a body its genus imports the question rather than
 //! spelling the identity.
 

@@ -27,7 +27,7 @@ from pncad import (
     NamePat,
     Node,
     VarName,
-    PatternKind,
+    StationMove,
     SegPat,
     SegTag,
     Selector,
@@ -101,7 +101,7 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
     def test_a_slot_driven_by_a_document_parameter_moves_with_it(self):
         """What the door buys beyond a new number: a slot holding a
         PARAMETER REFERENCE is a named, editable quantity from then
-        on, exactly as `bind_count_param` makes a structural one. One
+        on, exactly as `bind_v_degree_param` makes a structural one. One
         `set_var_value` afterwards moves the wall."""
         doc = Doc()
         _box, hollow = self.cup(doc)
@@ -167,23 +167,22 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         stream, so this door refuses at a Count-typed slot rather than
         quietly crossing it — whatever node it was aimed at."""
         doc = Doc()
-        box = blank(doc)
-        pattern = doc.insert(
-            Node.pattern(box, Formula.count(3), PatternKind.linear((
-                Formula.literal(1.0),
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-            ), Formula.length_in(2, m)))
+        a, b = (
+            doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in [(0, 0), (1, 0), (1, 1), (0, 1)]]))
+            for _ in range(2)
+        )
+        loft = doc.insert(
+            Node.loft(a, [(b, [StationMove.slide("z", Formula.length_in(1, m))])], Formula.count(1))
         )
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_param(pattern, "count", doc.parse_formula("4")))
+            doc.apply(DocEdit.set_param(loft, "v_degree", doc.parse_formula("1")))
         refusal = caught.exception
         self.assertEqual(refusal.variant, "structural_slot_needs_structural_edit")
-        self.assertEqual(refusal.slot, "count")
+        self.assertEqual(refusal.slot, "v_degree")
         self.assertIsNone(refusal.node)
         # And the door that IS this slot's still works on the node.
-        doc.apply(DocEdit.declare_var(VarName("copies"), FreeVar.count(4)))
-        doc.apply(DocEdit.bind_count_param(pattern, VarName("copies")))
+        doc.apply(DocEdit.declare_var(VarName("skin"), FreeVar.count(1)))
+        doc.apply(DocEdit.bind_v_degree_param(loft, VarName("skin")))
 
     def test_a_parameter_reference_is_checked_at_the_edit_door(self):
         """An expression parsed against one document and applied to

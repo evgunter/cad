@@ -105,19 +105,23 @@ pub use editor_core::cascade_delete_order;
 pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 
 // Node vocabulary. A union or intersect takes one `Bodies` argument (a
-// family read, or spelled reads); a subtract is binary. `CountMismatch`
-// rides with `PlacementRuleFault`: it is what that fault and
-// `EditError::PlacementRuleMismatch` carry. An operand field is an
+// family read, or spelled reads); a subtract is binary. An operand
+// field is an
 // `Operand` read, written at an `OperandSlot` (a `SlotId::Operand`)
 // that admits a `SlotKind`; `DocEdit::SetParam` writes a `SlotValue`.
 // A placement copies one source; a read of one member of a `⊔` (an
 // instance's copy of a part's product, say) is a pick of it. A
 // placement's constraints are addressed by their `ConstraintId`.
+// Repetition is an index (D10 `[repetition]`): `k = index(N)` is a
+// `VarDecl::Index`, a family's member is named under `Member { at }`;
+// the indices an expression reaches (`Doc::expr_reach`) and each member's
+// environment (`Doc::member_envs`) are what a reader of one evaluates in.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, ConstraintId, CountMismatch, InputFault, ListFault, LoftSection,
-    MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
-    PortKind, RecipeNodeId, SlotId, SlotKind, StationMove, TubeWindow, VectorSlot,
+    Axis3, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId, Node,
+    Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove,
+    TubeWindow, VectorSlot,
 };
+pub use editor_core::{Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached};
 
 // How a sentence names a node: the kind noun and tag a person reads, the
 // speaker a refusal holding bare ids is said by, the nodes a door kept
@@ -144,21 +148,20 @@ pub use editor_core::{Label, LabelFault};
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_PLANE_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
-// `MeasureUnavailableAt` and `ClearanceRefusal` are carried for the
+// `MeasureUnavailableAt` and `MinSeparationRefusal` (with `Which`, the
+// side its arms name a face by) are carried for the
 // reason a payload's payload always is: they are what
 // `UnevaluatedReason::MeasureUnavailable` and
 // `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
 // name the outer type and not the inner one can see that there is a
-// reason and never read it. `CellBudget` and `SelectionRefusal` are
-// `ClearanceRefusal`'s own `Budget` and `Selection` payloads, one rung
-// further down, for the same reason.
+// reason and never read it.
 // `SitedFace` is a mate's head — a `SitedRef` whose name is a
 // `FaceName`, so a mate whose head names an edge does not compile —
 // and `FaceName`/`NotAFaceName` are the type that makes that true and
 // the refusal its one constructor answers with. A caller authoring a
 // mate needs all three: the constructor is the door, and its refusal
 // is what a caller who read a name out of a file has to handle.
-pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
+pub use editor_core::clearance::{MinSeparationRefusal, Which};
 pub use editor_core::{
     ASSERT_BOUND, AssertionRelation, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
     MeasureUnavailableAt, MeasureVerb, Measured, NotAFaceName, Observed, ObservedRefusal,
@@ -327,11 +330,12 @@ pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
     DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation, Framed, Mispaired,
     NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    PoseValue, SplitSide, StepTurns, ValuePayload, evaluate,
+    PoseValue, SplitSide, ValuePayload, evaluate,
 };
-// The pieces a body holds (`NodeValue::pieces`): what a `⊔` grafted,
-// each by its read, which a pick reads one of.
-pub use editor_core::{Piece, Pieces};
+// What a body value carries from its source (`NodeValue::carry`), and
+// the pieces it holds: what a `⊔` grafted, each by its read, which a
+// pick reads one of.
+pub use editor_core::{Carry, Piece, Pieces};
 
 // Persistence: the doors, verbatim.
 // `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
@@ -396,8 +400,8 @@ pub use editor_core::gathers_on_this_thread;
 // carries the product's stable names — what an instance's own names
 // are minted from.
 pub use editor_core::{
-    AxisRefusal, Frame, FrameFault, FrameSite, PartFault, PartResolver, ResolveFailure,
-    ResolveFault, product_named,
+    AxisRefusal, Frame, FrameFault, PartFault, PartResolver, ResolveFailure, ResolveFault,
+    product_named,
 };
 
 // Mates: a placement's constraints (`Constraint`, addressed by a
@@ -513,7 +517,7 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // or evaluation); `enforce_checks` is the one refusing path, and the
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
 // (prelude membership is corpus-measured).
-// `subject_body` resolves a root-output finding's (root, output_ix) attribution
+// `subject_body` resolves a placement-output finding's (placement, output_ix) attribution
 // back to the flagged body and the declarations its producer minted
 // for it, in the same evaluation.
 // `run_checks_on` is the registry over a `Subject` the caller gathered
@@ -524,10 +528,13 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // over the decision lane has to spell it. The trait says which lanes
 // carry a chart-coherence examination — `f64` does, and a lane that
 // does not reports that as a finding rather than as a clean body.
+// `Unused` is what `Doc::unused` answers: the tips the `unused` check
+// reports, read off the recipe with nothing evaluated.
 pub use editor_core::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
     ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
-    Subject, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
+    Subject, Unused, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on,
+    subject_body,
 };
 // The coincidence door (D10): the rows an evaluation's nodes decided
 // from values, and what the door decides about each — the payload of
@@ -575,8 +582,16 @@ pub use topo::coincidence;
 // a caller writing `25 mm` through the path algebra hands
 // `LoopProgram::from_recorded_with_notation` so the document reads back
 // what they wrote.
+//
+// A profile drawn on a frame (`DrawnOn`) reads the traces of faces of
+// the frame's space: `ProgramTarget::OnTrace` and
+// `ProgramStep::AlongTrace` say which crossing and which way
+// (`TraceCrossing`, `TracePassage`, `TraceSense`), and a resolution
+// that refuses says why (`ProgramResolveFault`, `TraceRefusal`,
+// `TraceStepFault`).
 pub use editor_core::{
-    CanonicalSegment, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError,
-    WrittenLoopFault, resolve_loops, resolve_written_loops,
+    CanonicalSegment, DrawnOn, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramResolveFault, ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError,
+    StepArg, StepSegmentsError, TraceCrossing, TracePassage, TraceRefusal, TraceSense,
+    TraceStepFault, WrittenLoopFault, resolve_loops, resolve_written_loops,
 };

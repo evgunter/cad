@@ -652,7 +652,11 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
     else {
         panic!("an arc");
     };
-    let EdgeDescription::Intersection { pair, witness } = c.description() else {
+    let EdgeDescription::Intersection {
+        pair,
+        selector: geom_brep::CurveSelector::Witness(witness),
+    } = c.description()
+    else {
         panic!("a transverse intersection");
     };
     let (pair, witness) = (*pair, *witness);
@@ -682,7 +686,10 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         let attached = body.set_edge_curve(
             arc,
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection { pair, witness },
+                description: EdgeDescriptionSpec::Intersection {
+                    pair,
+                    selector: geom_brep::CurveSelector::Witness(witness),
+                },
                 carrier,
                 param_start: t0,
                 param_end: t1,

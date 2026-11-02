@@ -2,11 +2,12 @@
 id: clearance-replays-a-leaf-off-the-verdicts-lane
 kind: issue
 title: clearance_with replays a certified leaf at plain Interval whatever lane the drive certified it on
-status: open
+status: closed
 opened: 2026-10-27
 priority: P1
 cost: E
-rides_with: symbolic-tier-and-clearance-engine
+closed: 2026-10-28
+pr: 5928
 ---
 
 

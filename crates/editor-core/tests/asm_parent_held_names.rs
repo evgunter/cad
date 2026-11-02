@@ -71,6 +71,7 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap(),
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(

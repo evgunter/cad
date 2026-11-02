@@ -184,23 +184,22 @@ impl<T: Decide> Chart<T> {
 }
 
 impl Chart<f64> {
-    /// The chart's pole points with their v values (sphere poles, cone
-    /// apex; empty otherwise).
+    /// The chart's singular points with their v values: the list
+    /// [`geom_brep::chart_singularity::singular_points`] states (sphere
+    /// poles, cone apex; empty otherwise).
     pub fn poles(&self) -> Vec<(Point3<f64>, f64)> {
-        match self.kind {
-            ChartKind::Sphere { r } => vec![
-                (
-                    self.anchor() + self.axis() * r,
-                    core::f64::consts::FRAC_PI_2,
-                ),
-                (
-                    self.anchor() - self.axis() * r,
-                    -core::f64::consts::FRAC_PI_2,
-                ),
-            ],
-            ChartKind::Cone { .. } => vec![(self.anchor(), 0.0)],
-            ChartKind::Cylinder { .. } | ChartKind::Torus { .. } => Vec::new(),
-        }
+        use geom_brep::chart_singularity::Singularity;
+        geom_brep::chart_singularity::singular_points(&self.inverse)
+            .into_iter()
+            .map(|(which, p)| {
+                let v = match which {
+                    Singularity::North => core::f64::consts::FRAC_PI_2,
+                    Singularity::South => -core::f64::consts::FRAC_PI_2,
+                    Singularity::Apex => 0.0,
+                };
+                (p, v)
+            })
+            .collect()
     }
 }
 

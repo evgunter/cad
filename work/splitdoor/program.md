@@ -2,7 +2,7 @@
 id: splitdoor
 kind: program
 title: SPLITDOOR — split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build
-status: ready
+status: active
 opened: 2026-10-26
 group: kernel/boolean/split
 prefix: splitdoor/

@@ -518,7 +518,7 @@ class TestARestOnAWall(unittest.TestCase):
         self.assertEqual(fault.slides, ["y", "z"])
         self.assertIn("write the slides along y and z", str(fault))
         doc, copy, mate = self.scene()
-        pair = [MateValue(Coord.slide("y"), 0.0 * m), MateValue(Coord.slide("z"), 0.0 * m)]
+        pair = [MateValue(Coord.slide("y"), 0), MateValue(Coord.slide("z"), 0)]
         doc.set_constraints(copy, Placed.of(doc, [mate], pair))
         self.assertIsNone(solve_document(doc).fault(copy))
 

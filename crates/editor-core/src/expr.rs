@@ -963,6 +963,7 @@ macro_rules! binary_kind {
             | ExprKind::Atan2($a, $b)
             | ExprKind::Min($a, $b)
             | ExprKind::Max($a, $b)
+            | ExprKind::Mod($a, $b)
     };
 }
 
@@ -1037,6 +1038,9 @@ pub(crate) enum ExprKind<L: LeafSet> {
     Min(Box<ExprTree<L>>, Box<ExprTree<L>>),
     /// Same-dimension lattice maximum.
     Max(Box<ExprTree<L>>, Box<ExprTree<L>>),
+    /// The least non-negative remainder of a `Count` by a positive
+    /// `Count`, exact.
+    Mod(Box<ExprTree<L>>, Box<ExprTree<L>>),
     /// EXPLICIT Count→Scalar promotion (spec D4: never implicit).
     CountToScalar(Box<ExprTree<L>>),
 }
@@ -1321,6 +1325,18 @@ impl<L: LeafSet> ExprTree<L> {
         Self::same_dim("max", a, b, ExprKind::Max)
     }
 
+    /// **`a mod b`**: the least non-negative remainder of the `Count`
+    /// `a` by the `Count` `b`, which must evaluate positive. Refuses
+    /// any operand that is not a `Count`.
+    pub fn modulo(a: Self, b: Self) -> Result<Self, DimensionError> {
+        for operand in [&a, &b] {
+            if operand.dim != Dimension::Count {
+                return Err(DimensionError::NotCount { found: operand.dim });
+            }
+        }
+        Self::over(Dimension::Count, ExprKind::Mod(Box::new(a), Box::new(b)))
+    }
+
     /// EXPLICIT Count→Scalar promotion (spec D4: never implicit).
     /// Refuses non-Count operands.
     pub fn count_to_scalar(a: Self) -> Result<Self, DimensionError> {
@@ -1458,6 +1474,8 @@ impl<L: LeafSet> ExprTree<L> {
             (K::Min(a, _), 1) => Self::min(other(a), rebuilt),
             (K::Max(_, b), 0) => Self::max(rebuilt, other(b)),
             (K::Max(a, _), 1) => Self::max(other(a), rebuilt),
+            (K::Mod(_, b), 0) => Self::modulo(rebuilt, other(b)),
+            (K::Mod(a, _), 1) => Self::modulo(other(a), rebuilt),
             (K::Neg(_), 0) => Self::neg(rebuilt),
             (K::Sin(_), 0) => Self::sin(rebuilt),
             (K::Cos(_), 0) => Self::cos(rebuilt),
@@ -1508,6 +1526,7 @@ impl<L: LeafSet> ExprTree<L> {
             K::Atan2(a, b) => Self::atan2(go(a)?, go(b)?),
             K::Min(a, b) => Self::min(go(a)?, go(b)?),
             K::Max(a, b) => Self::max(go(a)?, go(b)?),
+            K::Mod(a, b) => Self::modulo(go(a)?, go(b)?),
             K::Neg(a) => Self::neg(go(a)?),
             K::Sin(a) => Self::sin(go(a)?),
             K::Cos(a) => Self::cos(go(a)?),
@@ -1535,7 +1554,8 @@ impl<L: LeafSet> ExprTree<L> {
             | K::Div(a, b)
             | K::Atan2(a, b)
             | K::Min(a, b)
-            | K::Max(a, b) => {
+            | K::Max(a, b)
+            | K::Mod(a, b) => {
                 a.visit_leaves(visit);
                 b.visit_leaves(visit);
             }
@@ -1593,6 +1613,7 @@ impl<L: LeafSet> ExprTree<L> {
             K::Atan2(a, b) => K::Atan2(map(a)?, map(b)?),
             K::Min(a, b) => K::Min(map(a)?, map(b)?),
             K::Max(a, b) => K::Max(map(a)?, map(b)?),
+            K::Mod(a, b) => K::Mod(map(a)?, map(b)?),
             K::Neg(a) => K::Neg(map(a)?),
             K::Sin(a) => K::Sin(map(a)?),
             K::Cos(a) => K::Cos(map(a)?),
@@ -1686,11 +1707,16 @@ impl<L: LeafSet> ExprTree<L> {
     /// **The rational fraction of a turn this angle is, as written**
     /// (D10 `[variables.literals]`: a rational fraction of a turn is a
     /// constant): `turn` and `0`, times or over constant rationals,
-    /// their sums, differences and negations, and readers of the angle
-    /// variables `turns` answers for. `None` for a tree of any other
-    /// form, of another dimension, or whose fraction is past the
-    /// rational bound.
-    pub fn constant_turns(&self, turns: impl Fn(VarId) -> Option<Ratio>) -> Option<Ratio> {
+    /// their sums, differences and negations, readers of the angle
+    /// variables `turns` answers for, and the promotion of a count whose
+    /// readers `counts` answers for (an index at one member's value). `None`
+    /// for a tree of any other form, of another dimension, or whose
+    /// fraction is past the rational bound.
+    pub fn constant_turns(
+        &self,
+        turns: impl Fn(VarId) -> Option<Ratio>,
+        counts: impl Fn(VarId) -> Option<i64>,
+    ) -> Option<Ratio> {
         use crate::tree::{Operands as O, Visit};
         use ExprKind as K;
         if self.dim != Dimension::Angle {
@@ -1708,6 +1734,10 @@ impl<L: LeafSet> ExprTree<L> {
                     K::Var(var) if expr.dim == Dimension::Angle => {
                         Visit::Value(turns(*var).ok_or(())?)
                     }
+                    K::CountToScalar(a) => {
+                        let count = a.constant_count(&counts).ok_or(())?;
+                        Visit::Value(Ratio::integer(count).map_err(|_| ())?)
+                    }
                     K::Neg(a) => Visit::One(a),
                     K::Add(a, b) | K::Sub(a, b) | K::Mul(a, b) | K::Div(a, b) => Visit::Two(a, b),
                     _ => return Err(()),
@@ -1723,6 +1753,26 @@ impl<L: LeafSet> ExprTree<L> {
             },
         )
         .ok()
+    }
+
+    /// The count this `Count` tree is, its readers answered by `counts`;
+    /// `None` where one is unanswered or the arithmetic leaves `i64`.
+    fn constant_count(&self, counts: &impl Fn(VarId) -> Option<i64>) -> Option<i64> {
+        use ExprKind as K;
+        let two = |a: &Self, b: &Self| Some((a.constant_count(counts)?, b.constant_count(counts)?));
+        match &self.kind {
+            K::Integer(n) => Some(*n),
+            K::Zero => Some(0),
+            K::Var(var) => counts(*var),
+            K::Neg(a) => a.constant_count(counts)?.checked_neg(),
+            K::Add(a, b) => two(a, b).and_then(|(a, b)| a.checked_add(b)),
+            K::Sub(a, b) => two(a, b).and_then(|(a, b)| a.checked_sub(b)),
+            K::Mul(a, b) => two(a, b).and_then(|(a, b)| a.checked_mul(b)),
+            K::Min(a, b) => two(a, b).map(|(a, b)| a.min(b)),
+            K::Max(a, b) => two(a, b).map(|(a, b)| a.max(b)),
+            K::Mod(a, b) => two(a, b).and_then(|(a, b)| (b > 0).then(|| a.rem_euclid(b))),
+            _ => None,
+        }
     }
 }
 
@@ -1894,6 +1944,16 @@ pub enum EvalError {
     /// structurally absurd anyway — are typed refusals, never inexact
     /// casts; ruled at the M4 PR 1 review, replacing the ±2⁵³ guard).
     CountToScalarOutOfRange(i64),
+    /// An index read outside the evaluation of one member: an index
+    /// has a value only where a reader reaching it is evaluated once
+    /// per value (D10 `[repetition]`).
+    IndexOutsideMember {
+        /// The index.
+        var: VarId,
+    },
+    /// A `mod` whose divisor evaluated to the count given, which is not
+    /// positive: a remainder is taken by a positive count only.
+    ModByNonPositive(i64),
     /// The evaluated result was NON-FINITE (ruled door 2 of the
     /// non-finite policy): with door 1 refusing non-finite literals
     /// and doc params, a non-finite RESULT means the arithmetic
@@ -1964,6 +2024,18 @@ impl core::fmt::Display for EvalError {
                 "count {count} is outside the exactly-promotable range — a promoted \
                  count must fit i32 so its f64 embedding is exact. {}",
                 Recourse("promote only a count within a 32-bit integer")
+            ),
+            Self::IndexOutsideMember { var } => write!(
+                f,
+                "index {var} has a value only in one member's evaluation, and it was read \
+                 outside one. {}",
+                Recourse("read the index where its reader is evaluated once per value")
+            ),
+            Self::ModByNonPositive(by) => write!(
+                f,
+                "a mod's divisor evaluated to {by}, and a remainder is taken by a positive \
+                 count only. {}",
+                Recourse("make the divisor evaluate to a count of at least 1")
             ),
             Self::NonFiniteResult => write!(
                 f,
@@ -2163,9 +2235,12 @@ pub fn eval_count<T>(root: &ExprTree<impl LeafSet>, params: &VarEnv<T>) -> Resul
                     }
                 },
                 K::Leaf(own) => Visit::Value(own.count(expr.dim)?),
-                K::Add(a, b) | K::Sub(a, b) | K::Mul(a, b) | K::Min(a, b) | K::Max(a, b) => {
-                    Visit::Two(a, b)
-                }
+                K::Add(a, b)
+                | K::Sub(a, b)
+                | K::Mul(a, b)
+                | K::Min(a, b)
+                | K::Max(a, b)
+                | K::Mod(a, b) => Visit::Two(a, b),
                 K::Neg(a) => Visit::One(a),
                 // Construction makes these unrepresentable at Count dimension.
                 K::Ratio(_)
@@ -2187,6 +2262,8 @@ pub fn eval_count<T>(root: &ExprTree<impl LeafSet>, params: &VarEnv<T>) -> Resul
             (K::Mul(..), O::Two(a, b)) => checked(a.checked_mul(b)),
             (K::Min(..), O::Two(a, b)) => Ok(a.min(b)),
             (K::Max(..), O::Two(a, b)) => Ok(a.max(b)),
+            (K::Mod(..), O::Two(a, b)) if b > 0 => Ok(a.rem_euclid(b)),
+            (K::Mod(..), O::Two(_, b)) => Err(EvalError::ModByNonPositive(b)),
             (kind, _) => unreachable!(
                 "{kind:?} is refused or valued when visited, or combined from as many operands \
                  as it has children"
@@ -2222,7 +2299,7 @@ fn precedence<L: LeafSet>(expr: &ExprTree<L>) -> u8 {
         ExprKind::Integer(n) if *n < 0 => PREC_UNARY,
         ExprKind::Leaf(own) if own.negative() => PREC_UNARY,
         ExprKind::Add(..) | ExprKind::Sub(..) => PREC_SUM,
-        ExprKind::Mul(..) | ExprKind::Div(..) => PREC_PRODUCT,
+        ExprKind::Mul(..) | ExprKind::Div(..) | ExprKind::Mod(..) => PREC_PRODUCT,
         ExprKind::Neg(_) => PREC_UNARY,
         ExprKind::Ratio(_)
         | ExprKind::Integer(_)
@@ -2363,6 +2440,7 @@ fn write_expr<L: LeafSet>(expr: &ExprTree<L>, names: Names<'_, '_>, out: &mut St
         K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, names, out),
         K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, names, out),
         K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, names, out),
+        K::Mod(a, b) => write_infix(a, "mod", b, PREC_PRODUCT, names, out),
         // A ratio written `p/q` is bracketed as a divisor: the parser
         // reads an unspaced pair after `/` as two divisions, left to
         // right (`w/2/3` is `w/6`).

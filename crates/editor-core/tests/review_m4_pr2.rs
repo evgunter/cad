@@ -10,7 +10,7 @@ use std::fmt::Write as _;
 
 use editor_core::{
     BooleanValue, CancelToken, DocEdit, EvalOptions, EvalOutcome, Evaluation, Formula, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, ValuePayload, evaluate,
+    NodeResult, ProfileDoc, RecipeNodeId, SlotId, ValuePayload, evaluate,
 };
 use fixture::{ang, die, insert, len, on_frame, revolve_about, scl, square, step};
 use geom_core::Tol;
@@ -337,7 +337,7 @@ fn canceled_partials_are_typed_and_never_pollute_the_memo() {
     );
 }
 
-/// A doc mixing a diamond, a circular pattern, a revolve, a split,
+/// A doc mixing a diamond, a ring, a revolve, a split,
 /// and a poisoned subgraph — the R5 stressor.
 fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
@@ -365,18 +365,14 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
             members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
         },
     );
-    // Circular pattern of base about an axis read off it (data only).
+    // A ring of base about an axis read off it (data only).
     let ax = crate::fixture::axis_on(&doc, base, [0.0; 3], [0.0, 0.0, 1.0]);
-    let (doc, pat) = insert(
+    let (doc, _, pat) = crate::fixture::circular(
         doc,
-        Node::Pattern {
-            input: base.into(),
-            count: Formula::count(4),
-            kind: editor_core::PatternKind::Circular {
-                axis: ax,
-                step: ang(std::f64::consts::FRAC_PI_2),
-            },
-        },
+        base,
+        (ax, editor_core::TargetAxis::Z),
+        std::f64::consts::FRAC_PI_2,
+        4,
     );
     // Revolve: half-turn of a square offset from the axis.
     let (doc, rp) = on_frame(
@@ -430,7 +426,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// A structural digest of an ENTIRE evaluation: every node's result
 /// kind, `through` targets, and full body fingerprints for every
-/// body-bearing payload (split sides and pattern instances included).
+/// body-bearing payload (split sides and family members included).
 fn eval_digest(ev: &Evaluation<f64>) -> String {
     let mut s = String::new();
     let _ = writeln!(s, "order {:?}", ev.order);
@@ -489,11 +485,11 @@ fn eval_digest(ev: &Evaluation<f64>) -> String {
 fn four_way_schedule_memo_identity_on_rich_doc() {
     let (doc, _ids) = rich_doc();
     let seq = run(&doc, None, false);
-    // The rich doc must actually be rich: union, split, pattern, and
+    // The rich doc must actually be rich: union, split, family, and
     // revolve all Ok; exactly the bad extrude Failed and its subtract
     // Poisoned.
     assert!(seq.value(_ids[4]).is_some(), "union must succeed");
-    assert!(seq.value(_ids[5]).is_some(), "pattern must succeed");
+    assert!(seq.value(_ids[5]).is_some(), "the ring must succeed");
     assert!(seq.value(_ids[7]).is_some(), "revolve must succeed");
     assert!(
         seq.value(_ids[8]).is_some(),
@@ -734,29 +730,31 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
 
 /// R6: the refusal doors — every wrong wiring is a TYPED refusal, at
 /// the edit door where the read's kind decides it and per node where
-/// its value does, never a panic and never a silent guess.
+/// its value does, never a panic and never a silent guess; a family at
+/// a body seat is no wrong wiring but a family of readers.
 #[test]
 fn wire_doors_refuse_typed() {
     let (doc, ids) = rich_doc();
     let (base, u, pat) = (ids[1], ids[4], ids[5]);
     let ax = crate::fixture::axis_on(&doc, base, [0.0; 3], [0.0, 0.0, 1.0]);
-    // Instances fed to a boolean (their flag #5): a boolean reads one
-    // body, so the door refuses the kind.
-    let refusal = crate::fixture::insert_refused(
-        &doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![u.into(), pat.into()]),
+    // A family read plainly at a pair's seat (their flag #5) makes the
+    // subtract a family under the same index (D10 `[repetition]`): one
+    // subtract per member, not a guess at one body.
+    let (per_member, cut) = crate::fixture::insert(
+        doc.clone(),
+        Node::Subtract {
+            from: u.into(),
+            tool: pat.into(),
         },
     );
+    assert_eq!(
+        per_member.node_reach(cut).chain(),
+        doc.node_reach(pat).chain(),
+        "the subtract is read per member"
+    );
     assert!(
-        matches!(
-            refusal,
-            editor_core::EditError::SlotVarKind {
-                found: editor_core::VarKind::Bodies,
-                ..
-            }
-        ),
-        "{refusal:?}"
+        doc.node_reach(pat).chain().is_some(),
+        "the read is a family"
     );
     // Split by an axis: the tool reads a plane, so the door refuses the
     // kind.
@@ -777,36 +775,6 @@ fn wire_doors_refuse_typed() {
         ),
         "{refusal:?}"
     );
-    // Pattern count 0: CountOutOfRange.
-    let (d, bad_pat) = insert(
-        doc.clone(),
-        Node::Pattern {
-            input: base.into(),
-            count: Formula::count(0),
-            kind: editor_core::PatternKind::Circular {
-                axis: ax,
-                step: ang(1.0),
-            },
-        },
-    );
-    let ev = run(&d, None, false);
-    match ev.nodes.get(&bad_pat) {
-        Some(NodeResult::Failed(e)) => {
-            assert!(
-                matches!(
-                    e.kind,
-                    NodeErrorKind::CountOutOfRange {
-                        slot: editor_core::SlotId::Count,
-                        count: 0,
-                        ..
-                    }
-                ),
-                "got {:?}",
-                e.kind
-            );
-        }
-        other => panic!("expected Failed, got {other:?}"),
-    }
 }
 
 /// R7: the Interval lane's memo — keys built from `repr_bits` must

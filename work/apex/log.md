@@ -14,3 +14,4 @@ unchanged. Rows dispatchable: 11, for 29.5 points.
 - 2026-10-25 — **Re-cut (refold approved in chat):** moved `a-touch-beside-a-spline-or-spiric-edge-is-not-certified-clear-of-it` to SPLICE by `git mv`, ids and bodies unchanged, each with a dated Moved note. SPLICE (`work/splice/`) is the new track for a body built by loft or sweep entering every boolean; SECT now carries the torus pairs it is built for.
 
 - 2026-10-26 — (tracker sweep) Every row kept. Stale `reduce.rs` citations were refreshed on the line × cone lead and depth rows and the straddle row. The lead row's `quadratic_roots` is now `geom_brep::quartic`'s.
+- 2026-11-01 — Note from TANGRIM: claimed a row from this program by `git mv` into `work/tangrim/` (the one bound-side reading decided for the tangent crescent; fork row 229). See TANGRIM's log. (TANGRIM orchestrator)

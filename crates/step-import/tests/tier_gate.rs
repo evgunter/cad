@@ -239,22 +239,25 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // and fine bands both certify with the exact closed-form volume
     // (`cert1_r1_import_probes.rs` holds the value), the split twin
     // with its ordinary vertex joined, so with the no-split census.
-    (NEARPOLAR_SPLIT, 1e-9, "file", Pass(1, 1, 3, 3, 2)),
+    // Each meridian arc crosses the pole, which import makes a vertex
+    // (`chart_singularity_vertex.rs`), so the census is that of the arc
+    // split there.
+    (NEARPOLAR_SPLIT, 1e-9, "file", Pass(1, 1, 3, 4, 3)),
     (
         NEARPOLAR_SPLIT,
         1e-6,
         "file",
         Escalated(NEARPOLAR_WEDGE_ESCALATED.0, NEARPOLAR_WEDGE_ESCALATED.1),
     ),
-    (NEARPOLAR_SPLIT, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
-    (NEARPOLAR_NOSPLIT, 1e-9, "file", Pass(1, 1, 3, 3, 2)),
+    (NEARPOLAR_SPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    (NEARPOLAR_NOSPLIT, 1e-9, "file", Pass(1, 1, 3, 4, 3)),
     (
         NEARPOLAR_NOSPLIT,
         1e-6,
         "file",
         Escalated(NEARPOLAR_WEDGE_ESCALATED.0, NEARPOLAR_WEDGE_ESCALATED.1),
     ),
-    (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
+    (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Pass(1, 1, 6, 12, 8)),
     (FTC11, 1e-9, "1e-6", Pass(1, 1, 6, 12, 8)),
@@ -293,17 +296,18 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // -- tests/fixtures/halfcap/halfcap_eps{6,7}.step (Ev, PR 4251) ---
     // The AMBIENT sweep only, at the files' own ε_in. The split vertex
     // sits 1e-8 m (eps6) and 1e-9 m (eps7) off the pole, and whether
-    // it is a regular point is the join's reading: at 1e-6 it reads AT
-    // the pole, so it is no joinable vertex and the file ships as
-    // stated; at the default band the reading lands in the sliver band
-    // and the import refuses, saying how fine a tolerance decides it;
-    // at 1e-12 it is a regular point, and the import joins it.
-    (HALFCAP_EPS6, 1e-9, "file", Refused(HALFCAP_EPS6_TIGHTEN)),
+    // it IS the pole is import's first reading, at the coarser of the
+    // file's band and the run's: at 1e-6 it reads AT the pole, so the
+    // pole is already a vertex and the file ships as stated; at the
+    // default band it lies in the band of the pole and the import
+    // refuses rather than guess; at 1e-12 it is off the pole, so the
+    // arc is split there and the vertex, a regular point, joined.
+    (HALFCAP_EPS6, 1e-9, "file", Refused(HALFCAP_EPS6_POLE)),
     (HALFCAP_EPS6, 1e-6, "file", Pass(1, 1, 3, 4, 3)),
-    (HALFCAP_EPS6, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
-    (HALFCAP_EPS7, 1e-9, "file", Refused(HALFCAP_EPS7_TIGHTEN)),
+    (HALFCAP_EPS6, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    (HALFCAP_EPS7, 1e-9, "file", Refused(HALFCAP_EPS7_POLE)),
     (HALFCAP_EPS7, 1e-6, "file", Pass(1, 1, 3, 4, 3)),
-    (HALFCAP_EPS7, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
+    (HALFCAP_EPS7, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
     // The AMBIENT sweep only, at this file's own ε_in: three cells,
     // all at the pcurve MINT on the l-bracket wall's ARC rim.
@@ -318,9 +322,13 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // slit holds its wall's boundary-column candidate in either
     // traversal order (`r1_dm1_probe`'s tripwire and l-bracket
     // witness). What every band meets now is the frontier past it:
-    // wall `#382` states four u spans while its rim circles are
-    // three-arc rationals, and the imported-chart arc-rim
-    // construction refuses the mint (`MapResidual`).
+    // wall `#382` states its circle as four rational spans whose end
+    // weights are 1 and 2 (unnormalized), against three-arc rational
+    // rim circles. Since the import splits the wall at its C⁰ knots,
+    // each sub-patch is one such span, and the arc-rim pick finds no
+    // row holding the rim circle at its probe; before the split, the
+    // whole-chart arc-rim construction refused the same rim at its
+    // residual (`MapResidual`).
     //
     // It was nine cells until the 2026-08-13 test-time audit — the six
     // dropped ones were the `1e-6` and `1e-12` ε_in tags, and they all
@@ -331,17 +339,21 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // promoted). That measurement is now RECORDED here rather than
     // re-executed every run; see [`eps_in_rows_for`] for what the
     // three imports it cost were buying and what was given up.
-    (DM1, 1e-9, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
-    (DM1, 1e-6, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
-    (DM1, 1e-12, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
+    (DM1, 1e-9, "file", Refused(ARC_RIM_NOT_HELD)),
+    (DM1, 1e-6, "file", Refused(ARC_RIM_NOT_HELD)),
+    (DM1, 1e-12, "file", Refused(ARC_RIM_NOT_HELD)),
     // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). The near-pole feature is
     // 0.9e-9 m by construction, so which certification refuses is a
     // function of the ambient band alone: the span escalates in the
-    // default band's indeterminate zone, certifies ZERO at 1e-6, and
-    // at 1e-12 the spans clear, the rim/sphere near-tangency certifies
-    // at its faces' extent, and the pcurve re-mint refuses —
+    // default band's indeterminate zone and certifies ZERO at 1e-6. At
+    // 1e-12 the pole the feature sits beside is read before any of it:
+    // 0.9e-9 m is inside the file's band (ε_in = 1e-10 m, K·ε_in =
+    // 1e-9 m), so whether it is a vertex of the face is undecided and
+    // the import refuses, its ending naming the file's coincidence
+    // distance (`chart_singularity_vertex.rs`); the pcurve
+    // re-mint that refused there before is no longer reached —
     // `poleguard.rs` holds the route argument.
     (
         POLEBAND,
@@ -350,7 +362,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
         Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
     ),
     (POLEBAND, 1e-6, "file", Refused(POLEBAND_ZERO_SPAN_TOLD)),
-    (POLEBAND, 1e-12, "file", Refused(POLEBAND_PCURVE_REMINT)),
+    (POLEBAND, 1e-12, "file", Refused(POLEBAND_POLE_IN_FILE_BAND)),
     // The ε-relative sibling's cells mirror the twins' one band down:
     // its 5.65e-12 m span escalates exactly where the band is 1e-12
     // and certifies ZERO at both coarser bands.
@@ -374,7 +386,12 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
         "file",
         Refused(POLEFRUSTUM_ZERO_SPAN_TOLD),
     ),
-    (POLEFRUSTUM, 1e-12, "file", Refused(POLEBAND_PCURVE_REMINT)),
+    (
+        POLEFRUSTUM,
+        1e-12,
+        "file",
+        Refused(POLEFRUSTUM_POLE_IN_FILE_BAND),
+    ),
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
@@ -422,18 +439,6 @@ const INTERVAL_ZERO_SPAN_UNTOLD: &str = "the stored parameter interval is not sh
      Recourse: move the geometry so this edge runs forward over a clear length, or, if this length \
      is intended, re-export the file with its uncertainty declared below 5.65487109168879e-12 m \
      and tighten the tolerance below 5.65487109168879e-13 m";
-/// The poleguard twins' fine-band sub-reason since the wedge between an
-/// edge's faces is levered at the faces' extent (`topo::wedge_reach`,
-/// TANG's U-lever). With the spans certified, adoption refused the
-/// rim/sphere near-tangency ("at sample 1 the faces are not shown to
-/// curve apart at second order (margin 1.62e-16 m)"), read at the
-/// edge's own length; at the faces' extent it reads determinate and
-/// adoption passes, so the import refuses one door later, loudly, at
-/// the pcurve re-mint on the adopted body: a chart image near the
-/// 0.9e-9 m feature by the pole whose map residual (5.9e-12 m) lies in
-/// the fine band
-/// (`work/pcert/the-poleband-twins-pcurve-re-mint-escalates-at-the-fine-band.md`).
-const POLEBAND_PCURVE_REMINT: &str = "pcurve re-mint on the adopted body: the pcurve of half-edge";
 /// [`INTERVAL_ZERO_SPAN_UNTOLD`]'s sentence on the fine band's
 /// escalation of the same span.
 const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). This length is \
@@ -448,34 +453,55 @@ const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). 
 // candidate in either traversal order —
 // `r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit` imports
 // the component that carries `#389` and gets past every polyline edge.
-/// dm1's cell, every band: past the retired gap, the pcurve MINT on
-/// the l-bracket wall's ARC rim refuses — wall `#382` states four u
-/// spans while its rim circles are three-arc rationals, so the
-/// imported-chart arc-rim construction's image misses its chart by
-/// more than the band (`MapResidual`, the typed mint residual). Named
+/// dm1's frontier at every band: the pcurve mint on the l-bracket
+/// wall's arc rim, split at its C⁰ knots into one-span sub-patches
+/// whose rows state the circle with end weights 1 and 2, and the
+/// arc-rim pick holds no row at its probe. Named
 /// specifically so a refusal that drifted to a different door cannot
 /// stand in.
-const ARC_RIM_MAP_RESIDUAL: &str = "MapResidual";
+const ARC_RIM_NOT_HELD: &str = "not an arc rim of this chart";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 const HALFCAP_EPS6: &str = "tests/fixtures/halfcap/halfcap_eps6.step";
 const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";
-/// The halfcap near-pole twins' default-band refusal (Ev, PR 4251):
-/// the join's regularity reading lands in the sliver band, and the
-/// recourse names both levers — moving the vertex, and the tolerance
-/// that decides it, the margin over K. Pinned as the whole message,
-/// solid, margin, band and number included, so a refusal that drifted
-/// to another door, another solid or lost a lever cannot stand in.
-const HALFCAP_EPS6_TIGHTEN: &str = "step import: joining the edges of the solid at #15: whether \
-     two edges meeting at a vertex on one curve are one edge is undecided (margin \
-     9.99999999978799e-9 lies inside the ambiguity band (1e-9, 1e-8)). Recourse: move the \
-     vertex clear of the pole, apex or tangency it sits near, or, if this size is intended, \
-     tighten the tolerance below 9.99999999978799e-10 m";
-/// As [`HALFCAP_EPS6_TIGHTEN`], for the twin a decade nearer the pole.
-const HALFCAP_EPS7_TIGHTEN: &str = "step import: joining the edges of the solid at #15: whether \
-     two edges meeting at a vertex on one curve are one edge is undecided (margin \
-     1.00000000119619e-9 lies inside the ambiguity band (1e-9, 1e-8)). Recourse: move the \
-     vertex clear of the pole, apex or tangency it sits near, or, if this size is intended, \
-     tighten the tolerance below 1.00000000119619e-10 m";
+/// The halfcap near-pole twins' default-band refusal: the split vertex
+/// lies in the RUN's band of the pole, so whether the pole is a vertex
+/// of the face is undecided, and the import door ends the sized
+/// decision with its margin and the tolerance that decides it. Pinned
+/// as the whole message, face, margin, band and number included.
+const HALFCAP_EPS6_POLE: &str = "step import: face #56: whether a sphere pole or cone apex, \
+     or where a meridian minted from one meets a face's boundary, lies on that boundary or at \
+     one of its vertices is undecided: margin 9.999999999789241e-9 \
+     lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
+     vertex, onto that point or clear of it, or, if this distance is intended, tighten \
+     the tolerance below 9.999999999789241e-10 m";
+/// As [`HALFCAP_EPS6_POLE`], for the twin a decade nearer the pole.
+const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or cone apex, \
+     or where a meridian minted from one meets a face's boundary, lies on that boundary or at \
+     one of its vertices is undecided: margin 1.0000000011961913e-9 \
+     lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
+     vertex, onto that point or clear of it, or, if this distance is intended, tighten \
+     the tolerance below 1.0000000011961913e-10 m";
+/// The poleguard twins' fine-band refusal: at 1e-12 the run's band
+/// reads their 0.9e-9 m distance clear, and the FILE's band, `(ε_in,
+/// K·ε_in)`, cannot call it, so no tolerance decides it and the ending
+/// names the file's coincidence distance instead.
+const POLEBAND_POLE_IN_FILE_BAND: &str = "step import: face #50: whether a sphere pole or cone \
+     apex, or where a meridian minted from one meets a face's boundary, lies on that boundary \
+     or at one of its vertices is undecided: margin \
+     8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
+     face's boundary, or its vertex, onto that point or clear of it, or, if this \
+     distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
+     smaller ε_in override): the distance lies in the band past the file's coincidence \
+     distance, which no tolerance of this run decides";
+/// As [`POLEBAND_POLE_IN_FILE_BAND`], for the frustum twin.
+const POLEFRUSTUM_POLE_IN_FILE_BAND: &str = "step import: face #70: whether a sphere pole or \
+     cone apex, or where a meridian minted from one meets a face's boundary, lies on that \
+     boundary or at one of its vertices is undecided: margin \
+     8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
+     face's boundary, or its vertex, onto that point or clear of it, or, if this \
+     distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
+     smaller ε_in override): the distance lies in the band past the file's coincidence \
+     distance, which no tolerance of this run decides";
 
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
@@ -497,7 +523,7 @@ const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 78] = [
+const CORPUS: [(&str, Disposition); 91] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
@@ -516,6 +542,17 @@ const CORPUS: [(&str, Disposition); 78] = [
     ("tests/fixtures/band/ftc11_uref_off.stp", EpsSensitive),
     ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 3, 2)),
     ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 3, 2)),
+    // The C⁰-knot split: each wall is two sub-patches, each ridge edge
+    // two sub-arcs and each cone rim two arcs, and a knot on an edge alone
+    // is a vertex the closing join keeps
+    // (`a_foreign_carrier_splits_at_each_c0_knot`).
+    ("tests/fixtures/c0-knot/half_cone.step", Pass(1, 1, 5, 9, 6)),
+    ("tests/fixtures/c0-knot/ridge_u.step", Pass(1, 1, 7, 15, 10)),
+    ("tests/fixtures/c0-knot/ridge_v.step", Pass(1, 1, 7, 15, 10)),
+    (
+        "tests/fixtures/c0-knot/seam_edge.step",
+        Pass(1, 1, 6, 13, 9),
+    ),
     ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
     (
         "tests/fixtures/freecad/box_fillet_corner.step",
@@ -559,6 +596,9 @@ const CORPUS: [(&str, Disposition); 78] = [
     // is issue 723's body with the split vertex EXACTLY on the pole
     // (the pole-membership decide sits on its Zero through this door).
     // `cert1_r1_import_probes.rs` holds all four to the closed form.
+    // Every one states a meridian arc across the pole or ending at it;
+    // where the pole lies inside the arc, import splits it there
+    // (`chart_singularity_vertex.rs`), so all four ship one census.
     // The nearpolar twins are AMBIENT-sensitive: their rim sits
     // 0.0208 rad off the pole on a 0.208 mm circle, and at ambient
     // 1e-6 the rim/plane wedge angle's adoption margin (~8.6e-6)
@@ -572,7 +612,7 @@ const CORPUS: [(&str, Disposition); 78] = [
     ("tests/fixtures/cert1-r1/nearpolar_split.step", EpsSensitive),
     (
         "tests/fixtures/cert1-r1/polesplit_nosplit.step",
-        Pass(1, 1, 3, 3, 2),
+        Pass(1, 1, 3, 4, 3),
     ),
     (
         "tests/fixtures/cert1-r1/polesplit_split.step",
@@ -587,10 +627,11 @@ const CORPUS: [(&str, Disposition); 78] = [
     // no-split refused degenerate (endpoint fold saw lo == hi) while
     // split MEASURED, tier 3 green, 47% low at pad = 0.0. Both now
     // pass, and `halfcap_pole.rs` holds both to the exact closed-form
-    // volume. The split twin's ordinary vertex is joined at import
-    // (`docs/DESIGN.md`, maximal edges), so it ships the no-split
-    // twin's census.
-    ("tests/fixtures/halfcap/halfcap.step", Pass(1, 1, 3, 3, 2)),
+    // volume. The arc holds the pole inside it, which import makes a
+    // vertex (`chart_singularity_vertex.rs`); the split twin's ordinary
+    // vertex is joined at import (`docs/DESIGN.md`, maximal edges), so
+    // it ships the no-split twin's census.
+    ("tests/fixtures/halfcap/halfcap.step", Pass(1, 1, 3, 4, 3)),
     // The near-pole split twins: the same solid with the ordinary
     // vertex 1e-6 / 1e-7 rad off the pole, ambient-sensitive since the
     // import joins (`EPS_ROWS`).
@@ -598,7 +639,7 @@ const CORPUS: [(&str, Disposition); 78] = [
     ("tests/fixtures/halfcap/halfcap_eps7.step", EpsSensitive),
     (
         "tests/fixtures/halfcap/halfcap_nosplit.step",
-        Pass(1, 1, 3, 3, 2),
+        Pass(1, 1, 3, 4, 3),
     ),
     // -- tests/fixtures/iso-rect/ (S58 / #649) ------------------------
     // #649's own fixtures. Both plus-domain solids are geometrically
@@ -646,38 +687,61 @@ const CORPUS: [(&str, Disposition); 78] = [
     // 900× outside that band and pin the adoption bar there instead).
     ("tests/fixtures/poleguard/poleband_eps12.step", EpsSensitive),
     ("tests/fixtures/poleguard/polefrustum.step", EpsSensitive),
+    // -- tests/fixtures/occ/ ------------------------------------------
+    // Open CASCADE's own statements of a sphere face reaching a pole
+    // (`gen_occ.py`): a cap and a side-cut ball, each a seam ending at a
+    // pole vertex of valence 1, which import completes into the pole
+    // form (`chart_singularity_vertex.rs`); and the side-cut ball whose
+    // cut misses OCC's seam, stated as a vertex loop beside the cut
+    // circle, which no re-mint covers.
+    ("tests/fixtures/occ/cap.step", Pass(1, 1, 3, 4, 3)),
+    ("tests/fixtures/occ/side_cut.step", Pass(1, 1, 3, 5, 4)),
+    (
+        "tests/fixtures/occ/side_cut_ring.step",
+        Refused("mixing a VERTEX_LOOP with other bounds"),
+    ),
     // -- tests/fixtures/rim-only-cap/ ---------------------------------
-    // A sphere cap stated as one rim circle and its base disc: the pole
-    // is interior to the sphere face and no meridian or pole vertex is
-    // stated. Both statements of the rim — one closed circle edge, two
-    // half arcs — are adopted as written and pass the gate; what the
-    // mesh lane answers for the sphere face is `meridian_free_cap.rs`'s
-    // row. BOTH CENSUSES MOVE BY DESIGN when import learns to re-mint
-    // this face in the seamed form
-    // (`work/exch/import-normalizes-the-rim-only-cap.md`): more faces,
-    // edges and vertices here is that unit working, not a regression.
+    // A sphere pole or cone apex in a face's closure that the file does
+    // not state as a pole-form vertex: inside the face (one rim, a
+    // tilted rim, a cone's rim, a rim wearing a meridian spur that stops
+    // short of the pole), or at the tip of a seam that is its only edge. Import makes each a vertex with two meridians
+    // (`chart_singularity_vertex.rs`), so each ships the census of a
+    // cap cut in two along them.
+    (
+        "tests/fixtures/rim-only-cap/conecap.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
     (
         "tests/fixtures/rim-only-cap/rimonly1.step",
-        Pass(1, 1, 2, 1, 1),
+        Pass(1, 1, 3, 4, 3),
     ),
     (
         "tests/fixtures/rim-only-cap/rimonly2.step",
-        Pass(1, 1, 2, 1, 1),
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "tests/fixtures/rim-only-cap/seamed.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    ("tests/fixtures/rim-only-cap/spur.step", Pass(1, 1, 3, 4, 3)),
+    (
+        "tests/fixtures/rim-only-cap/tilted.step",
+        Pass(1, 1, 3, 4, 3),
     ),
     // -- tests/fixtures/seam-region/ ---------------------------------
     // A ball with the cap x > 8 cut away and its sphere split at the
     // equator into two faces of one surface, each holding a chart pole
-    // off its loop: tier 3 reads no side for their seam region
+    // inside it, which import makes a vertex by cutting the face in two
     // (`poles_inside_a_seam_region.rs`). Its twin splits the lower face
-    // along the meridian through the south pole, where the region's side
-    // is then read.
+    // along the meridian through the south pole, which import splits
+    // there.
     (
         "tests/fixtures/seam-region/side_cut_equator_split.step",
-        Pass(1, 1, 3, 3, 2),
+        Pass(1, 1, 5, 10, 7),
     ),
     (
         "tests/fixtures/seam-region/side_cut_meridian_split.step",
-        Pass(1, 1, 4, 6, 4),
+        Pass(1, 1, 5, 10, 7),
     ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
@@ -704,6 +768,16 @@ const CORPUS: [(&str, Disposition); 78] = [
     ),
     (
         "tests/fixtures/split-iso/split_axis.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    // `split_axis` with one collinear half of its cylinder-side edge a
+    // straight degree-1 spline: the line is kept and the two join.
+    (
+        "tests/fixtures/line-beside-spline/mixed_lower.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/line-beside-spline/mixed_upper.step",
         Pass(1, 1, 4, 6, 4),
     ),
     (

@@ -30,6 +30,7 @@ fn disc(doc: ProfileDoc, lp: LoopProgram<Formula>, dz: f64) -> (ProfileDoc, Reci
         Node::Profile(ProfileProgram {
             loops: vec![lp],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

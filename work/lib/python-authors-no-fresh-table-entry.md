@@ -6,7 +6,7 @@ status: open
 priority: P3
 cost: M
 opened: 2026-10-09
-refs: [a-shared-variable-is-named-at-the-doors, python-edit-error-carries-no-handle-for-an-unnamed-variable]
+refs: [4463, python-edit-error-carries-no-handle-for-an-unnamed-variable]
 ---
 
 An edit's fresh table (`DocEdit::InsertNode`'s and the other arms' `fresh: Vec<FreshEntry>`, `crates/editor-core/src/var.rs`, `FreshEntry`) is how one edit mints a variable and reads it from several places. Since FORK-7 an entry carries a name, so one insert can mint a named variable that two of its slots share.

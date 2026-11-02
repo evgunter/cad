@@ -345,7 +345,7 @@ fn stored_minors(body: &Body<f64>) -> Vec<f64> {
 }
 
 /// The faces of the plane chart at station `y`.
-fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
+pub fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
         .filter(|(_, f)| {
             matches!(body.get_surface(f.surface),
@@ -391,7 +391,7 @@ fn assert_offset_sense(hollow: &Body<f64>, centre_rho: f64, what: &str) {
 /// — its walls are attempted on document NODES whose refusal payload
 /// the panel's note quotes, so probe and caption must read ONE
 /// evaluation and `teapot::wall_probes` takes it as an argument.)
-fn wall_probes(tol: Tol) {
+pub fn wall_probes(tol: Tol) {
     // ---- WALL 1: the SECTIONED vessel's picture ----
     //
     // A quarter turn of the same meridian — the cutaway a catalogue
@@ -865,35 +865,4 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             bodies: vec![SceneBody::plain("torusvesselcup", [0.76, 0.48, 0.36], cup)],
         },
     ]
-}
-
-#[cfg(test)]
-mod wall_probes_run_here {
-    //! The scene's wall, driven by the TEST SUITE.
-    //!
-    //! [`wall_probes`] is where the sectioned vessel's hollow is
-    //! attempted; until this test existed its only caller was
-    //! [`stops`], whose only caller is `main.rs`'s render walk. So the
-    //! frontier this scene pins was exercised when somebody RENDERED
-    //! the tour and never under `cd demos/tour && cargo test --release`
-    //! — the command CI's "demos tour suite" row runs. The rim carrier
-    //! could grow the torus arm, or the refusal could move to a
-    //! different variant, with the suite green either way.
-    //!
-    //! It has to be an in-bin test: `demo-tour` is bin-only (no
-    //! `[lib]`, modules hang off `main.rs`), so nothing under `tests/`
-    //! can name `torusvessel::wall_probes` at all. `teapot` carries its
-    //! own for the same reason.
-    //!
-    //! There is nothing here to assert that the probe does not already
-    //! assert: `crate::walls::wall` panics on BOTH off-nominal
-    //! outcomes — a different refusal, and no refusal at all. Running
-    //! it IS the check.
-
-    use super::*;
-
-    #[test]
-    fn the_sectioned_vessels_wall_is_attempted_by_the_suite() {
-        wall_probes(Tol::witness());
-    }
 }

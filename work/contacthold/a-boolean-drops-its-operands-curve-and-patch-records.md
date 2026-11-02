@@ -37,7 +37,8 @@ scenes that passed 3′ on F's carry hold vertex and edge contacts only.
 ## 2026-10-11 — an edge-face span the op now mints, dropped on carry (FLUSH, PR 4737)
 
 PR 4737 makes the boolean record a line edge's span in a plane face
-(`boolean::ops::record_spans`). `ContactRecords::carried` drops that
+(now the reduction sweep's `boolean::reduce::settle_in_plane`).
+`ContactRecords::carried` drops that
 record like any edge–face one, so the next op never sees it. The
 review probe battery `sweep` `review_4737_span_probes::review_4737_span_battery`
 (ignored, release) unites a triangle prism with a brick whose face

@@ -1,7 +1,7 @@
 # The north-star audit
 
 The standing goal, recorded by Ev on 2026-08-09 and written into
-the demos' own purpose block (`demos/tour/src/main.rs`):
+the demos' own purpose block (`demos/tour/src/lib.rs`):
 
 > Standing goal: every demo authorable through the Python bindings;
 > what a demo cannot do through the curated document surface is a
@@ -280,7 +280,7 @@ category B) and to any design doc or register item that owns it. The
 missing door — so the ids partition the 8 NO rows exactly; secondary
 blockers stay named in the last column.
 
-The rows are in TOUR ORDER: `walk_tour` in `demos/tour/src/main.rs` is
+The rows are in TOUR ORDER: `walk_tour` in `demos/tour/src/lib.rs` is
 the one enumeration of what the tour contains, and this table walks it.
 One row per `Stop`, which is what the roster guard compares against —
 so the narration-only passes `walk_tour` also makes (`checks`, the

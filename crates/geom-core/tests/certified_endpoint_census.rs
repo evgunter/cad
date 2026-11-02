@@ -298,11 +298,27 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          refuses one in a span",
     ),
     ("crates/geom-brep/src/curve_face/composite.rs", 9, 9, ""),
-    ("crates/geom-brep/src/curve_face/spline_face.rs", 5, 5, ""),
+    (
+        "crates/geom-brep/src/curve_face/spline_face.rs",
+        9,
+        8,
+        "`certified_window`, the NURBS carrier's window over a parameter enclosure, \
+         refuses one that does not certify by name: the sheet's boxes carry no \
+         decoration of the parameter's. The remainder is `end_state`'s midpoint of \
+         the carrier's point at a span end, which only seeds the chart foot search: \
+         the state it finds is re-enclosed at its exact coordinates, so the seed \
+         costs a proof and never makes one",
+    ),
+    (
+        "crates/geom-brep/src/intersect/section_bounds.rs",
+        13,
+        13,
+        "",
+    ),
     (
         "crates/geom-brep/src/krawczyk.rs",
-        2,
-        1,
+        5,
+        4,
         "the remainder is `midpoints`, the real matrix whose inverse `Y` \
          preconditions the operator: any `Y` keeps the test sound, so a midpoint \
          read off an enclosure that does not certify can cost a proof and never \
@@ -319,9 +335,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
-        7,
-        7,
-        "the mignitude and the curvature join refuse by name",
+        9,
+        9,
+        "the mignitude, the curvature join and `cell_distance` refuse by name: a cell \
+         whose partial does not certify is read at distance `0`, the vacuous lower \
+         bound",
     ),
     (
         "crates/geom-brep/src/patch_bound.rs",
@@ -432,8 +450,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        12,
-        12,
+        19,
+        19,
         "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all refuse \
          by name, and \
          so does the mignitude (`zero_free_lower_bound`, 4)",
@@ -441,15 +459,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-brep/src/ssi/four.rs",
-        3,
+        4,
         2,
         "the 2 that ask are the Krawczyk image's preconditioner midpoint and image \
          reads, which refuse a piece unless every image row is certified; its \
-         containment and miss tests compare the image's certified sides. The 1 that \
-         does not ask is `mean_value_excludes`' column midpoints, \
+         containment and miss tests compare the image's certified sides. Of the 2 that \
+         do not ask, `mean_value_excludes`' 1 is its column midpoints, \
          which select an exclusion direction: any fixed direction is sound, and the form \
          built along it is read only through `sign`, which refuses an uncertified \
-         enclosure by name",
+         enclosure by name. `row_crossing`'s 1 reads the graph margin's sign only \
+         after `tube_margin` has answered `Some`, which it does only for a margin \
+         that certifies",
     ),
     (
         "crates/geom-brep/src/ssi/one_arc.rs",
@@ -492,6 +512,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          and `mag`",
     ),
     ("crates/geom-core/src/spline/algebra.rs", 1, 1, ""),
+    ("crates/geom-core/src/spline/blossom.rs", 1, 1, ""),
     ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
@@ -503,8 +524,61 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          (`is_certified().then_some`), so every bracket read there certifies by \
          construction",
     ),
+    ("crates/geom-core/src/test_support.rs", 1, 1, ""),
+    (
+        "crates/geom/src/curves/nurbs.rs",
+        3,
+        3,
+        "`restricted` asks only of its hull weight (`h[3]`). Its two knot clip ends \
+         are safe whatever the ask: they select a span and are re-admitted, clamped \
+         to the span's own knots, by the blossom door (`admit`), which refuses one \
+         outside it",
+    ),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
+    (
+        "crates/geom/src/surfaces/nurbs.rs",
+        8,
+        2,
+        "the remainder is `rect_enclosure`'s and `rect_jet`'s 3 knot reads each: the \
+         domain check and the span clip select cells and clip ends, which are minted \
+         as fresh point brackets and re-admitted to the span's own knots by the \
+         blossom door (`admit`). What either claims is gated by name: \
+         `restricted_hull` and `restricted_jet` refuse a restricted weight unless it \
+         is certified positive, and a control point that does not certify carries \
+         its decoration through the restriction into the answer",
+    ),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
+    (
+        "crates/topo/src/clearance.rs",
+        25,
+        7,
+        "the 7 that ask are `poisoned`, `iso_bounded_domain`'s knots and joins (5) and \
+         `extent_of`. Of the other 18, `split_axis`'s 3 and the `coincidence` and \
+         `meeting_stations` seeds (3) are selections; `min_separation`'s admission (2), \
+         `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation `poisoned` \
+         has passed; and `window_of`'s windows (3), `boundary_of`'s span (1) and \
+         `row_of`'s parameters (1) read values `certified_lift` crossed, which refuses \
+         the face unless every crossing certifies",
+    ),
+    (
+        "crates/topo/src/injective.rs",
+        70,
+        27,
+        "the 27 that ask are `exactly`, `forward`, `along` (2), `present_chart` (12), \
+         `present_plane` (6) and the two `psi`s (5). `present_chart` asks each clip line \
+         where it is placed, so its touch, reach, merge, rectangle-side and apex reads \
+         see only certified lines; `present_plane` asks its one-edge `y`, and its other \
+         reads are behind the SPAN and CORNER funnels; `Curved::psi`'s shift reads \
+         finite parameters. Of the other 43, the seeds and selections (`mid`, \
+         `graph_read`'s `inside` and lever), the read behind `exactly` (`Pieces::of`'s \
+         `wind`), the parameter reads (`monotone_run`, `narrowed`, `leaves_graph`, \
+         `leaves_line`) and `run_on`'s, behind `along`'s and the placement asks, are \
+         sound. The rest read the window's carrier and the face's boundary, which \
+         `clearance`'s `window_of` admits only where every lifted value certifies; \
+         `present_wall`'s wall-image reads and `speeds`' jet bound also read an \
+         enclosure computed from them that may clamp, which is \
+         `work/clear/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`",
+    ),
     (
         "crates/topo/src/props.rs",
         5,

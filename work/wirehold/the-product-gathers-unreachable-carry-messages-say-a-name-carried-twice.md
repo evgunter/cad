@@ -43,3 +43,9 @@ so `wire-p4` left it alone and filed this rather than editing it.
 Parked on `transform-retires-into-a-placement`, the row whose landing
 releases that ground. Re-read both sites then: the gather may have
 moved.
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Still real.** `product.rs:1428-1431` (`tie_rows.finish`) and `:1649-1658` (`carry_names`) still word every `SeatingRefusal` as a name collision. The arms are `Duplicate`, `EntityNamed`, `KindMismatch` and `ShortTie` (`names/table.rs:331-338`).

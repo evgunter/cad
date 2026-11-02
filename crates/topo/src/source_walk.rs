@@ -1124,7 +1124,7 @@ fn after() {}
             "the walk found {} mutation door(s) against {DOORS_MEASURED} measured",
             doors.len()
         );
-        for name in ["mint_pcurves", "mev", "merge_coplanar_faces_declared"] {
+        for name in ["mint_pcurves", "mev", "merge_coplanar_faces"] {
             assert!(
                 doors.iter().any(|d| d.name == name),
                 "the walk lost `{name}`, which is a door"

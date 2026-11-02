@@ -2,10 +2,12 @@
 id: a-path-sweeps-station-turn-at-interval-widens-its-walls-past-the-band-at-the-tightest-eps
 kind: issue
 title: A path sweep's station turn, evaluated at Interval, widens its walls' pcurve residual past the band at eps 1e-12 (a wide-start-frame sweep refuses where main's f64-turned one certified)
-status: open
+status: closed
 opened: 2026-10-19
 priority: P2
 cost: M
+pr: 6138
+closed: 2026-10-31
 ---
 
 
@@ -48,3 +50,17 @@ gated row pins it now, so the reproduction is the 5e-13 run above.
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to INLANE (`work/inlane/`) when PATHS closed (`docs/doc-ledger/paths-leaves-the-tracker.md`), not to PATHS's successor PROFILE. The site is `crates/sweep/src/skin.rs`'s `sweep_places`, which is INLANE's territory. The question is what a station turn evaluated at the lane scalar costs the walls' certification, and that is INLANE's charter: every carrier's values in the lane scalar. The item's id, content and history are unchanged.
+
+## Closed by CARVE's PR 6138 (2026-10-31)
+
+PR 6138 (`work/carve/sweep-frame-is-a-minimal-rotation-from-the-start-tangent.md`)
+replaces the station turn with a carry computed once in `f64` from the
+path and the station count (`sweep::skin::PathCarry`; `crates/sweep/README.md`
+`[sweep.frame]`). Every station's rotation now enters the lane scalar as
+the point its `f64` entries are (`RigidMotion::computed_at`), and no
+station turn is evaluated at `Interval`. That is the narrowing this row
+owed: the decisions are taken once, and the entries are points. The
+reproduction, `a_sweep_from_a_wide_start_frame_encloses_its_family_at_interval`
+at `CAD_TOLERANCE_EPS=5e-13`, fails on main (PR 6138's reviewer, at
+`a7fdbf5db8`) and passes at the PR's head (re-run 2026-10-31 in a debug
+build).

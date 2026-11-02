@@ -144,6 +144,7 @@ fn pad_built(
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![pad_loop],
         ids: Vec::new(),
+        on: None,
     }));
     let thickness = len(1.2e-3);
     let body = r.insert(Node::Extrude {
@@ -157,6 +158,7 @@ fn pad_built(
             radius: plen("bore_r"),
         }],
         ids: Vec::new(),
+        on: None,
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_profile.into(),

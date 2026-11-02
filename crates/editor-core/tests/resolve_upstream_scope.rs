@@ -15,7 +15,7 @@ use editor_core::{
     ProfileDoc, Qualifier, RecipeEditRef, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx,
     SlotId, StableName, UpstreamCause, evaluate,
 };
-use fixture::{insert, len, scl, step};
+use fixture::{insert, len, step};
 use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::Verdict;
@@ -548,36 +548,24 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
     );
 }
 
-/// The structural-parameter lane, upstream. The cutter is one
-/// instance of a two-instance pattern of the bar (the second placed
-/// 2.5 further along y), selected by a `Part`; the edit re-selects
-/// instance 1 — a structural parameter at the `Part`, upstream of the
-/// cut and not in the ranked names — which lands the bar short of
-/// the far rim, with no flip.
+/// The structural-parameter lane, upstream. The cutter is a copy of
+/// one member of a two-member row of the bar (the second placed 2.5
+/// further along y), read as `row[0]`; the edit re-reads member 1 — a
+/// structural parameter at the copy, upstream of the cut and not in
+/// the ranked names — which lands the bar short of the far rim, with no
+/// flip.
 #[test]
 fn a_structural_parameter_upstream_is_reported_as_upstream() {
     let doc = ProfileDoc::empty_derived("upstream-scope", Tol::witness());
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
     let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
     let (doc, bar) = crate::fixture::slid(doc, a, bar, [0.0, 0.0, 0.5]);
-    let (doc, pat) = insert(
-        doc,
-        Node::Pattern {
-            input: bar.into(),
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(0.0), scl(1.0), scl(0.0)],
-                spacing: len(2.5),
-            },
-        },
-    );
-    let (doc, part) = insert(
-        doc,
-        Node::Part {
-            of: pat.into(),
-            select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
-        },
-    );
+    let (doc, _, pat) = crate::fixture::linear(doc, bar, [0.0, 1.0, 0.0], 2.5, 2);
+    let (doc, part) = crate::fixture::member(doc, pat, 0);
+    let index = SlotId::Index {
+        seat: editor_core::OperandSlot::Source,
+        k: 0,
+    };
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
@@ -590,7 +578,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
         doc.clone(),
         DocEdit::SetStructuralParam {
             node: part,
-            slot: SlotId::Instance,
+            slot: index,
             expr: editor_core::Formula::count(1),
             fresh: Vec::new(),
         },
@@ -604,7 +592,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
             node: cut,
             cause: UpstreamCause::StructuralParam {
                 node: part,
-                param: SlotId::Instance,
+                param: index,
             },
         }
     );

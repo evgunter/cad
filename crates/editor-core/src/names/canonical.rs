@@ -167,7 +167,7 @@ pub(crate) fn minted_segment(seg: RoleSeg) -> RoleSeg {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Instance { .. }
+        | RoleSeg::Member { .. }
         | name_free_seg!() => seg,
     }
 }

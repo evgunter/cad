@@ -321,6 +321,7 @@ pub(crate) fn d_rod(doc: ProfileDoc, end: (f64, f64)) -> (ProfileDoc, editor_cor
                 ProgramStep::LineTo(ProgramTarget::Start),
             ])],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

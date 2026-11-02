@@ -72,6 +72,7 @@ fn both_blends() -> BothBlends {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![square],
         ids: Vec::new(),
+        on: None,
     }));
     let cube = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -300,12 +301,18 @@ fn both_blends_evaluate_in_one_document() {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+///
+/// RE-BLESSED when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
+/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x4be9_87c3_76d7_814d_u64),
-        ("die_chamfer", 0xe4b5_16f2_ef50_6409),
+        ("die_fillet", 0xa849_edde_6a1d_0e11_u64),
+        ("die_chamfer", 0xc9bc_588c_0cb6_a135),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -558,13 +565,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+///
+/// RE-BLESSED when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
+/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x13f6_26db_b10e_0577_u64),
-        ("heat_sink", 0x38a3_e942_327a_45ea),
-        ("kiss_carry", 0xafd8_5b4e_c535_9cc2),
+        ("crossing_slots", 0xa187_0bd9_e3b5_134f_u64),
+        ("heat_sink", 0xa26d_5873_8dc7_6915),
+        ("kiss_carry", 0x2bcf_1c97_70eb_fb7a),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -675,6 +688,12 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+///
+/// RE-BLESSED when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
+/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape the digest reproduces main's value at all three ε rows,
+/// so nothing else moved.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -683,6 +702,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let pa = r.insert(Node::Profile(ProfileProgram {
         loops: vec![square(0.0)],
         ids: Vec::new(),
+        on: None,
     }));
     let a = r.insert(Node::Extrude {
         profile: pa.into(),
@@ -691,6 +711,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let pb = r.insert(Node::Profile(ProfileProgram {
         loops: vec![square(3.0)],
         ids: Vec::new(),
+        on: None,
     }));
     let b = r.insert(Node::Extrude {
         profile: pb.into(),
@@ -713,7 +734,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xd44d_7ecb_0b12_30cf,
+        got, 0x53a4_d4cd_70d2_b713,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

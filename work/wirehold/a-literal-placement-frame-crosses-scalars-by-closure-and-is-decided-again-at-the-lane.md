@@ -2,10 +2,11 @@
 id: a-literal-placement-frame-crosses-scalars-by-closure-and-is-decided-again-at-the-lane
 kind: issue
 title: A literal placement frame crosses to the lane scalar through Affine3::map and is decided rigid again there; the frame witness has an exact embed door now
-status: open
+status: closed
 opened: 2026-10-14
 priority: P3
 cost: M
+closed: 2026-11-01
 ---
 
 
@@ -66,3 +67,15 @@ this row. The lift stands after it: `Frame::affine` in
 `editor-core/src/placement.rs` still reads `affine_f64().map(T::from_f64)`,
 and `eval/wire.rs` still decides a listed frame rigid at `T` with
 `RigidMotion::check_rigid(&f.affine::<T>(), band)`.
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Moot.** Both lane re-decisions are gone:
+- `Frame::rigid_motion` and `Step::Literal` were removed in D (5bae0fff20, #5506).
+- `check_rigid(&f.affine::<T>(), band)` was removed in G (0901f338a0, #5954), which also retired `PlacedUnion`.
+
+The one `check_rigid` left is the solved map's (`mate/solve.rs:419`). `Frame::affine<T>` (`placement.rs:242`) has only f64 callers: the viewer and test_support.
+
+The residue is the module doc at `placement.rs:1-3`, which still says frames are listed "until patterns are index variables". It rides `missing-slot-stays-typed-on-the-held-placement-datum-and-pattern-readers`.

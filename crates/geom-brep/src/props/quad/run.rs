@@ -570,9 +570,9 @@ mod tests {
                 6,
             ),
             (
-                "rational exact-v, its 8 v block cells",
+                "rational exact-v, its 4 v block cells",
                 &|r| rational::round_cost(unit, bare, true, r),
-                10,
+                11,
             ),
             ("cylinder, 4 edges", &|r| cylinder::round_cost(4, r), 15),
             ("spiric, 1 edge", &|r| spiric::round_cost(1, 0, r), 13),

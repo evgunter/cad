@@ -222,8 +222,8 @@ class TestPatternBoundary(unittest.TestCase):
         self.assertEqual(len(ev.select(cube, Selector.of(caps).or_(rims))), 10)
 
 
-# A chain of patterns, each over the one before, names its faces one
-# level deeper per pattern; a pattern built by wrapping nests one level
+# A chain of rows, each over a member of the one before, names its
+# faces one level deeper per row; a pattern built by wrapping nests one level
 # per wrap. Both are walked on a `threading.Thread` given the wasm32
 # build's one-mebibyte stack, less than any thread the binding runs on.
 _NESTED = r"""
@@ -231,7 +231,7 @@ import json
 import sys
 import threading
 
-from pncad import Doc, Formula, NamePat, Node, PatternKind, SegPat, evaluate, m
+from pncad import Doc, DocEdit, Formula, NamePat, Node, SegPat, VarDecl, VarName, evaluate, m
 
 copies, wraps = int(sys.argv[1]), int(sys.argv[2])
 said = {}
@@ -252,12 +252,14 @@ def run():
         )
     )
     node = doc.insert(Node.extrude(square, one))
-    step = PatternKind.linear(
-        (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
-        Formula.length_in(2, m),
-    )
-    for _ in range(copies):
-        node = doc.insert(Node.pattern(node, Formula.count(1), step))
+    source = node
+    for level in range(copies):
+        k = VarName(f"k{level}")
+        doc.apply(DocEdit.declare_var(k, VarDecl.index(1)))
+        node = doc.insert(
+            Node.linear_pattern(k, source, doc.space(node), [("x", Formula.length_in(2, m))])
+        )
+        source = node[0]
     face = evaluate(doc).all_faces(node)[0]
     try:
         said["as_deep"] = nest(NamePat.any(), copies).matches(face)

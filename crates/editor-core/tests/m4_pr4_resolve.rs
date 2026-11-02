@@ -23,7 +23,7 @@ use editor_core::{
     ResolveIndeterminate, RoleSeg, RunCtx, SlotId, StableName, apply_with_names, evaluate,
     rebind_suggestions,
 };
-use fixture::{insert, len, minted, on_frame, scl, step};
+use fixture::{insert, len, minted, on_frame, step};
 use geom_core::Tol;
 
 /// Idealized (brute-force) boolean sweep since M5 PR 8: this file
@@ -587,33 +587,20 @@ fn a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit() {
     }
 }
 
-// ---- Vanished: StructuralParam diagnosis ----
+// ---- Vanished: a family's count shrink ----
 
 #[test]
-fn pattern_count_shrink_diagnoses_structural_param() {
+fn family_count_shrink_vanishes_the_member_it_drops_without_a_flip() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: body.into(),
-            count: editor_core::Formula::count(3),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
+    let (doc, k, pattern) = crate::fixture::linear(doc, body, [1.0, 0.0, 0.0], 2.0, 3);
     let ev1 = run(&doc, None);
-    let master_body = minted(EntityKind::Body, body, RoleSeg::OutputBody);
-    let inst2 = minted(
-        EntityKind::Body,
-        pattern,
-        RoleSeg::Instance {
-            i: 2,
-            of: master_body.into(),
-        },
+    let master_cap = minted(
+        EntityKind::Face,
+        body,
+        RoleSeg::Cap(editor_core::CapEnd::End),
     );
+    let inst2 = fixture::in_copy(pattern, k, 2, master_cap);
     assert!(matches!(
         crate::fixture::resolve_at_mint(
             RunCtx {
@@ -626,12 +613,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
     ));
     let (doc2, _) = step(
         doc.clone(),
-        DocEdit::SetStructuralParam {
-            node: pattern,
-            slot: SlotId::Count,
-            expr: editor_core::Formula::count(2),
-            fresh: Vec::new(),
-        },
+        fixture::recount_edit(&doc, k, editor_core::Formula::count(2)),
     );
     let ev2 = run(&doc2, Some(&ev1));
     let res = crate::fixture::resolve_with_prior_at_mint(
@@ -651,43 +633,22 @@ fn pattern_count_shrink_diagnoses_structural_param() {
     let ResolveError::Vanished { diagnosis, .. } = &f.error else {
         panic!("expected Vanished, got {:?}", f.error);
     };
-    assert_eq!(
-        *diagnosis,
-        Diagnosis::StructuralParam {
-            node: pattern,
-            param: SlotId::Count
-        },
-        "a count shrink is a structural-parameter diagnosis, not a flip"
+    assert!(
+        !matches!(diagnosis, Diagnosis::PredicateFlip { .. }),
+        "a count shrink is the recipe's edit, never a flip: {diagnosis:?}"
     );
 }
 
 // ---- Vanished: Cascade through a vanished operand name ----
 
 #[test]
-fn instance_of_vanished_master_name_diagnoses_cascade() {
+fn member_of_vanished_master_name_diagnoses_cascade() {
     let s = slide_union(0.5);
-    // Pattern the union so its names wrap the union's.
-    let (doc, pattern) = insert(
-        s.doc.clone(),
-        Node::Pattern {
-            input: s.union.into(),
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(0.0), scl(1.0), scl(0.0)],
-                spacing: len(5.0),
-            },
-        },
-    );
+    // A row of the union, so its names wrap the union's.
+    let (doc, k, pattern) = fixture::linear(s.doc.clone(), s.union, [0.0, 1.0, 0.0], 5.0, 2);
     let ev1 = run(&doc, None);
     let master = joined_rim_name(&ev1, s.union);
-    let inst = minted(
-        EntityKind::Edge,
-        pattern,
-        RoleSeg::Instance {
-            i: 1,
-            of: master.clone().into(),
-        },
-    );
+    let inst = fixture::in_copy(pattern, k, 1, master.clone());
     assert!(matches!(
         crate::fixture::resolve_at_mint(
             RunCtx {
@@ -928,7 +889,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::SectionEdge { face: x, .. }
         | RoleSeg::SplitFragment { parent: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
-        | RoleSeg::Instance { of: x, .. }
+        | RoleSeg::Member { of: x, .. }
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }
@@ -990,7 +951,11 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::SplitBody
         | RoleSeg::SectionFace
         | RoleSeg::LoftWall(_)
-        | RoleSeg::LoftSeam(_) => false,
+        | RoleSeg::LoftSeam(_)
+        | RoleSeg::LoftSlabWall(..)
+        | RoleSeg::LoftSlabSeam(..)
+        | RoleSeg::LoftSectionEdge(..)
+        | RoleSeg::LoftSectionVertex(..) => false,
     })
 }
 
@@ -1280,17 +1245,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
             members: editor_core::Bodies::Spelled(vec![b.into(), d.into()]),
         },
     );
-    let (doc1, n) = insert(
-        doc,
-        Node::Pattern {
-            input: x.into(),
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [0.0, 1.0, 0.0].map(fixture::scl),
-                spacing: len(2.0),
-            },
-        },
-    );
+    let (doc1, _, n) = fixture::linear(doc, x, [0.0, 1.0, 0.0], 2.0, 2);
     let ev1 = run(&doc1, None);
     let (doc2, _) = step(
         doc1,
@@ -1300,13 +1255,13 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
-    // The grandchild's table must speak C's names now (the pattern
+    // The grandchild's table must speak C's names now (the family
     // wraps the union's rows, whose member edge is the twin).
     let table = match ev2.nodes.get(&n) {
         Some(NodeResult::Ok(v)) => {
             assert!(
                 matches!(v.payload, ValuePayload::Instances(_)),
-                "grandchild is its instances"
+                "grandchild is its members"
             );
             ev2.table_at(n).expect("the grandchild's table")
         }
@@ -1334,28 +1289,15 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
     // with the recipe as it stands, the cause not in evidence.
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: body.into(),
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
+    let (doc, k, pattern) = crate::fixture::linear(doc, body, [1.0, 0.0, 0.0], 2.0, 2);
     let ev = run(&doc, None);
-    // Instance 5 was never minted by this 2-count pattern.
-    let master_body = minted(EntityKind::Body, body, RoleSeg::OutputBody);
-    let inst5 = minted(
-        EntityKind::Body,
-        pattern,
-        RoleSeg::Instance {
-            i: 5,
-            of: master_body.into(),
-        },
+    // Member 5 was never minted by this 2-member family.
+    let master_cap = minted(
+        EntityKind::Face,
+        body,
+        RoleSeg::Cap(editor_core::CapEnd::End),
     );
+    let inst5 = fixture::in_copy(pattern, k, 5, master_cap);
     let res = crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &doc,

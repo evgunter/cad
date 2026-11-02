@@ -43,7 +43,9 @@ profile at ε 1e-9: five refusals, in four tests, all
 
 On the section path these poses meet the join first, which shapes the
 dropped face (`join`'s `one_site_segments`, `LoneRing::Closed`) or
-refuses typed (`a_closed_edge_in_a_cylinder_or_cone_face_refuses_typed`).
+refused typed, until the carrier ladder's cone arm let the cylinder
+and cone straddles build
+(`a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op`).
 The fallback asks `cut` alone. The section path's `boss/holedlow ∩`
 (the PR 5706 review corpus) refuses at the same corner, on both trees:
 the cut now divides its two closed rims, then stops at a chord end on

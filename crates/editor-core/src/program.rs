@@ -175,10 +175,8 @@ document_vocabulary! {
 /// [`profile::Target`], so a form added here alone can be resolved into
 /// an existing kernel form and never be seen. [`Self::ALL_NAMES`] is
 /// what forces it to reach a witness instead.
-// No `deny_unknown_fields`: no variant here has a NAMED field, so the
-// attribute would have nothing to deny (`work/census/`'s rule; the
-// repo-wide census in `test-utils` reds on an inert one).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum ProgramTarget<S = crate::VarId> {
     /// An authored absolute point in the profile frame.
     Point([S; 2]),
@@ -188,6 +186,22 @@ pub enum ProgramTarget<S = crate::VarId> {
     /// structural tag, no expressions (so it contributes no slots) and
     /// no payload: there is exactly one declaration to make there.
     StartArriving,
+    /// **A crossing of a face's trace** (D10, "Constructing a
+    /// coincidence"): the piece runs on until it crosses the trace of
+    /// face `face` of the frame the profile is drawn on
+    /// ([`DrawnOn::faces`], by place) at `crossing`. A line runs along
+    /// its heading; an arc about its centre.
+    OnTrace {
+        /// The face, by its place in [`DrawnOn::faces`] (structural).
+        face: u32,
+        /// Which crossing (structural).
+        crossing: TraceCrossing,
+    },
+    /// The point along the heading whose sketch `x` is as written: a
+    /// line runs on until it reaches it.
+    AtX(S),
+    /// The point along the heading whose sketch `y` is as written.
+    AtY(S),
 }
 
 /// One Expr-bearing recorded verb — the document-layer mirror of
@@ -285,6 +299,15 @@ pub enum ProgramStep<S = crate::VarId> {
     FarEndTo([S; 2]),
     /// `.to(Start)` — the seam-fillet close (structural).
     CloseTo,
+    /// **The heading along a face's trace** (D10, "Constructing a
+    /// coincidence"): a director setting the departure to the tangent
+    /// of the trace the previous piece ran onto
+    /// ([`ProgramTarget::OnTrace`]), at the crossing it reached, with
+    /// or against it (structural).
+    AlongTrace {
+        /// With or against the trace.
+        sense: TraceSense,
+    },
 }
 
 /// The document-layer mirror of [`profile::ArcData`] (§2c's unified
@@ -405,15 +428,83 @@ pub enum LoopProgram<S = crate::VarId> {
 }
 }
 
+/// **Which crossing of a trace a piece runs to**: the `nth` (from 1)
+/// place along the piece where it enters, or leaves, the face's
+/// material — read off the face's outward normal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TraceCrossing {
+    /// Into the material, or out of it.
+    pub passage: TracePassage,
+    /// Which such crossing, from 1.
+    pub nth: u32,
+}
+
+impl TraceCrossing {
+    /// The first crossing in `passage`.
+    #[must_use]
+    pub fn first(passage: TracePassage) -> Self {
+        Self { passage, nth: 1 }
+    }
+}
+
+/// Which way a piece passes a face's carrier at a crossing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TracePassage {
+    /// Into the face's material: against its outward normal.
+    Enter,
+    /// Out of the face's material: along its outward normal.
+    Leave,
+}
+
+impl TracePassage {
+    /// The word a reader says.
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Enter => "enters",
+            Self::Leave => "leaves",
+        }
+    }
+}
+
+/// **Which way along a trace** [`ProgramStep::AlongTrace`] heads.
+/// `With` runs with the face's material on the left in the sketch:
+/// the in-plane outward normal turned a quarter turn the sketch's way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TraceSense {
+    /// Material on the left.
+    With,
+    /// Material on the right.
+    Against,
+}
+
+/// **The frame a profile is drawn on, and the faces it traces** (D10
+/// `[variables.kinds]`, "Constructing a coincidence"). The profile is in
+/// the frame's space, its plane the frame's `xy`, and so is every sweep
+/// of it ([placement.spaces]); each face is a face of that space whose
+/// trace a step reads by place.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DrawnOn<R = VarId> {
+    /// The frame: a `Frame` pose read.
+    pub frame: R,
+    /// The traced faces: `Face` selection reads.
+    pub faces: Vec<R>,
+}
+
 /// The profile node's payload: the loop programs, outer first then
 /// holes in description order.
 ///
 /// # A profile is 2-D
 ///
-/// A profile reads no plane: its numbers are read only against each
-/// other, in coordinates of its own (D10, `[placement]`). A
+/// A free profile reads no plane: its numbers are read only against
+/// each other, in coordinates of its own (D10, `[placement]`). A
 /// construction that reads it is built in its own coordinates, the
 /// profile's plane its `xy`, and a placement says where it stands.
+/// A profile drawn on a frame ([`ProfileProgram::on`]) is in the
+/// frame's space, its plane the frame's `xy`, and reads there the
+/// traces of faces of that space; every sweep of it is in that space.
 ///
 /// # Equality is BIT equality
 ///
@@ -439,6 +530,53 @@ pub struct ProfileProgram<S: crate::expr::Slot = crate::VarId> {
     /// one per step, unique across the document, which the load door
     /// checks.
     pub ids: Vec<Vec<StepId>>,
+    /// **The frame the profile is drawn on**, where it is drawn on one
+    /// ([`DrawnOn`]); a free profile reads nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on: Option<DrawnOn<S::Read>>,
+}
+
+impl<R> DrawnOn<R> {
+    /// The reads, each at its seat: the frame, then each traced face.
+    fn rows(&self) -> Vec<(crate::OperandSlot, &R)> {
+        let mut out = vec![(crate::OperandSlot::Frame, &self.frame)];
+        out.extend(
+            (0u32..)
+                .zip(&self.faces)
+                .map(|(i, face)| (crate::OperandSlot::Traced(i), face)),
+        );
+        out
+    }
+
+    /// [`Self::rows`], exclusive.
+    fn rows_mut(&mut self) -> Vec<(crate::OperandSlot, &mut R)> {
+        let mut out = vec![(crate::OperandSlot::Frame, &mut self.frame)];
+        out.extend(
+            (0u32..)
+                .zip(&mut self.faces)
+                .map(|(i, face)| (crate::OperandSlot::Traced(i), face)),
+        );
+        out
+    }
+
+    /// **The reads in another form**, each through `read`, handed its
+    /// seat.
+    ///
+    /// # Errors
+    ///
+    /// The first refusal of `read`.
+    pub fn try_map<R2, E>(
+        &self,
+        read: &mut dyn FnMut(crate::OperandSlot, &R) -> Result<R2, E>,
+    ) -> Result<DrawnOn<R2>, E> {
+        Ok(DrawnOn {
+            frame: read(crate::OperandSlot::Frame, &self.frame)?,
+            faces: (0u32..)
+                .zip(&self.faces)
+                .map(|(i, face)| read(crate::OperandSlot::Traced(i), face))
+                .collect::<Result<_, E>>()?,
+        })
+    }
 }
 
 /// The canonical `Doc` instantiation (the retired `ProfileDesc` seat).
@@ -471,6 +609,23 @@ pub trait SlotPayload<S> {
     fn rows_mut(&mut self) -> Vec<((u32, u32, StepArg), &mut S)> {
         Vec::new()
     }
+    /// **The operands it reads**, each at its seat, in seat order: a
+    /// profile drawn on a frame reads the frame and its traced faces
+    /// ([`DrawnOn`]). A payload that reads nothing has none.
+    fn read_rows(&self) -> Vec<(crate::OperandSlot, &S::Read)>
+    where
+        S: crate::expr::Slot,
+    {
+        Vec::new()
+    }
+    /// [`SlotPayload::read_rows`], exclusive: the same rows, in the same
+    /// order.
+    fn read_rows_mut(&mut self) -> Vec<(crate::OperandSlot, &mut S::Read)>
+    where
+        S: crate::expr::Slot,
+    {
+        Vec::new()
+    }
 }
 
 /// What `Node<P>` needs from a profile payload so slot addressing and
@@ -490,14 +645,16 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
         + PartialEq
         + serde::Serialize;
     /// **The stored payload `authored` lowers to**: every slot through
-    /// `f`, everything else kept.
+    /// `f`, every read through `read` (handed its seat, in
+    /// [`SlotPayload::read_rows`]' order), everything else kept.
     ///
     /// # Errors
     ///
-    /// `f`'s first refusal.
+    /// `f`'s or `read`'s first refusal.
     fn lower<E>(
         authored: &Self::Authored,
         f: &mut dyn FnMut(&crate::Formula) -> Result<VarId, E>,
+        read: &mut dyn FnMut(crate::OperandSlot, &crate::Operand) -> Result<VarId, E>,
     ) -> Result<Self, E>
     where
         Self: Sized;
@@ -513,15 +670,16 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     }
     /// **This payload re-authored**, every slot written by `reader`,
     /// handed the slot's variable and the dimension its argument is
-    /// read at.
+    /// read at, and every read by `operand`.
     fn authored_with(
         &self,
         reader: &mut dyn FnMut(VarId, Dimension) -> crate::Formula,
+        operand: &mut dyn FnMut(VarId) -> crate::Operand,
     ) -> Self::Authored;
     /// **This payload re-authored**: every slot a formula reading its
-    /// variable ([`crate::Formula::var`]).
+    /// variable ([`crate::Formula::var`]), every read its variable.
     fn authored(&self) -> Self::Authored {
-        self.authored_with(&mut crate::Formula::var)
+        self.authored_with(&mut crate::Formula::var, &mut crate::Operand::Var)
     }
     /// Whether any expression of this program reads the variable
     /// `var` — over `ProfilePayload::rows`, so every payload answers
@@ -659,6 +817,9 @@ pub enum ProgramRefusal {
     /// [`StepIdFault::Shape`]), so they name no step reliably.
     /// Answered only by [`ProfileProgram::pieces`].
     StepIds(StepIdFault),
+    /// A step lowering against the pen refused: outside an evaluation,
+    /// [`crate::trace::TraceStepFault::Unevaluated`].
+    Trace(crate::trace::TraceRefusal),
 }
 
 // LIB-DOORS F6 (reopened on review): a human-readable rendering. Each
@@ -693,6 +854,7 @@ impl core::fmt::Display for ProgramRefusal {
                  insert door mints them",
             ),
             Self::StepIds(fault) => write!(f, "the program's step ids are refused: {fault}"),
+            Self::Trace(refusal) => write!(f, "{refusal}"),
         }
     }
 }
@@ -1096,7 +1258,14 @@ macro_rules! target_roles {
                 $out.push((twin(second, StepArg::TargetX, StepArg::Target2X), x));
                 $out.push((twin(second, StepArg::TargetY, StepArg::Target2Y), y));
             }
-            ProgramTarget::Start | ProgramTarget::StartArriving => {}
+            ProgramTarget::AtX(x) => {
+                $out.push((twin(second, StepArg::TargetX, StepArg::Target2X), x))
+            }
+            ProgramTarget::AtY(y) => {
+                $out.push((twin(second, StepArg::TargetY, StepArg::Target2Y), y))
+            }
+            ProgramTarget::Start | ProgramTarget::StartArriving | ProgramTarget::OnTrace { .. } => {
+            }
         }
     }};
 }
@@ -1154,7 +1323,7 @@ macro_rules! step_roles {
                 $out.push((A::DirX, dx));
                 $out.push((A::DirY, dy));
             }
-            P::Tangent | P::Cusp | P::CloseTo => {}
+            P::Tangent | P::Cusp | P::CloseTo | P::AlongTrace { .. } => {}
             P::Turn(e) => $out.push((A::TurnVal, e)),
             P::Line(e) => $out.push((A::Length, e)),
             P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) | P::ArcOnto(t) => {
@@ -1464,7 +1633,7 @@ fn leaf<'r, T: Decide>(
 /// through a leaf built from `s`'s OWN rows — the one entry to
 /// [`res_step`], so the rows and the expressions they are looked up
 /// against are one borrow.
-fn res_chain_step<T: Decide>(
+pub(crate) fn res_chain_step<T: Decide>(
     s: &ProgramStep,
     env: &VarEnv<T>,
     loop_: u32,
@@ -1509,6 +1678,9 @@ where
         ProgramTarget::Start => profile::Target::Start,
         ProgramTarget::StartArriving => profile::Target::StartArriving,
         ProgramTarget::Point(p) => profile::Target::Point(res_point(p, res)?),
+        ProgramTarget::OnTrace { .. } | ProgramTarget::AtX(_) | ProgramTarget::AtY(_) => {
+            unreachable!("a step reading a trace resolves through `crate::trace`")
+        }
     })
 }
 
@@ -1558,6 +1730,9 @@ where
         },
         ProgramStep::FarEndTo(p) => Step::FarEndTo(res_point(p, res)?),
         ProgramStep::CloseTo => Step::CloseTo,
+        ProgramStep::AlongTrace { .. } => {
+            unreachable!("a step reading a trace resolves through `crate::trace`")
+        }
     })
 }
 
@@ -1611,25 +1786,100 @@ where
     })
 }
 
+/// **Why a program did not resolve**: an expression that does not
+/// evaluate, or a step reading a trace that refuses.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProgramResolveFault {
+    /// An expression failed to resolve.
+    Expr {
+        /// The failing slot.
+        slot: SlotId,
+        /// The evaluator's refusal, unaltered.
+        source: EvalError,
+    },
+    /// A step reading a trace refused ([`crate::trace`]).
+    Trace(crate::trace::TraceRefusal),
+}
+
+impl From<(SlotId, EvalError)> for ProgramResolveFault {
+    fn from((slot, source): (SlotId, EvalError)) -> Self {
+        Self::Expr { slot, source }
+    }
+}
+
+impl core::fmt::Display for ProgramResolveFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Expr { slot, source } => write!(f, "slot {}: {source}", slot.label()),
+            Self::Trace(refusal) => write!(f, "{refusal}"),
+        }
+    }
+}
+
+impl core::error::Error for ProgramResolveFault {}
+
 impl LoopProgram {
-    /// Resolves this loop's program at f64 (module docs: the verified
-    /// asymmetry — profile geometry is f64-pinned; C6 structure
-    /// selection must be lane-identical).
+    /// Resolves this loop's program outside an evaluation: a step that
+    /// lowers against the pen refuses
+    /// ([`crate::trace::TraceStepFault::Unevaluated`]).
     ///
     /// # Errors
     ///
-    /// The failing slot plus the evaluator's refusal, unaltered.
-    pub fn resolve<T: Decide>(
+    /// [`ProgramResolveFault`].
+    pub fn resolve<T: profile::ArcCarrierScalar>(
         &self,
         env: &VarEnv<T>,
         loop_: u32,
-    ) -> Result<Vec<Step<T>>, (SlotId, EvalError)> {
+    ) -> Result<Vec<Step<T>>, ProgramResolveFault> {
+        self.resolve_with(env, loop_, None)
+    }
+
+    /// **Whether a step of this loop reads a trace**
+    /// ([`ProfileProgram::reads_a_trace`]).
+    #[must_use]
+    pub fn reads_a_trace(&self) -> bool {
+        self.any_step(crate::trace::step_reads_a_trace)
+    }
+
+    /// **Whether a step of this loop lowers against the pen**
+    /// ([`ProfileProgram::runs_from_the_pen`]).
+    #[must_use]
+    pub fn runs_from_the_pen(&self) -> bool {
+        self.any_step(crate::trace::step_runs_from_the_pen)
+    }
+
+    fn any_step(&self, is: fn(&ProgramStep) -> bool) -> bool {
         match self {
-            LoopProgram::Chain(steps) => steps
+            LoopProgram::Chain(steps) => steps.iter().any(is),
+            LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => false,
+        }
+    }
+
+    /// Resolves this loop's program, its trace steps reading `traces`
+    /// ([`crate::trace`]). Profile geometry is resolved at f64 for the
+    /// first pass (module docs: the verified asymmetry — C6 structure
+    /// selection must be lane-identical) and at the lane scalar for the
+    /// second.
+    ///
+    /// # Errors
+    ///
+    /// [`ProgramResolveFault`]: the failing slot plus the evaluator's refusal,
+    /// unaltered, or a trace step's refusal.
+    pub fn resolve_with<T: profile::ArcCarrierScalar>(
+        &self,
+        env: &VarEnv<T>,
+        loop_: u32,
+        traces: Option<&crate::trace::Traces<'_, T>>,
+    ) -> Result<Vec<Step<T>>, ProgramResolveFault> {
+        match self {
+            LoopProgram::Chain(steps) if self.runs_from_the_pen() => {
+                crate::trace::resolve_chain(steps, env, loop_, traces)
+            }
+            LoopProgram::Chain(steps) => Ok(steps
                 .iter()
                 .enumerate()
                 .map(|(i, s)| res_chain_step(s, env, loop_, program_index(i)))
-                .collect(),
+                .collect::<Result<_, _>>()?),
             // A carrier form: its rows and its fields are both read
             // from `self`.
             LoopProgram::Circle { centre, radius } => {
@@ -1673,11 +1923,11 @@ impl LoopProgram {
 ///
 /// # Errors
 ///
-/// The failing slot plus the evaluator's refusal, unaltered.
-pub fn resolve_loops<T: Decide>(
+/// [`LoopProgram::resolve`]'s.
+pub fn resolve_loops<T: profile::ArcCarrierScalar>(
     loops: &[LoopProgram],
     env: &VarEnv<T>,
-) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
+) -> Result<Vec<Vec<Step<T>>>, ProgramResolveFault> {
     loops
         .iter()
         .enumerate()
@@ -1700,6 +1950,9 @@ pub enum WrittenLoopFault {
         /// The evaluator's refusal.
         source: EvalError,
     },
+    /// A step reads a trace, which loops resolved with no document
+    /// have none of.
+    Trace(crate::trace::TraceRefusal),
 }
 
 /// **Loops as written, resolved with no document**: each argument
@@ -1727,8 +1980,10 @@ pub fn resolve_written_loops(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    resolve_loops(&stored, &scratch.var_env::<f64>())
-        .map_err(|(slot, source)| WrittenLoopFault::Resolve { slot, source })
+    resolve_loops(&stored, &scratch.var_env::<f64>()).map_err(|fault| match fault {
+        ProgramResolveFault::Expr { slot, source } => WrittenLoopFault::Resolve { slot, source },
+        ProgramResolveFault::Trace(refusal) => WrittenLoopFault::Trace(refusal),
+    })
 }
 
 impl ProfileProgram {
@@ -1740,17 +1995,54 @@ impl ProfileProgram {
         ProfilePayload::reads(self, var)
     }
 
-    /// Resolves every loop at f64 — [`resolve_loops`] over this
-    /// program's own loops.
+    /// Resolves every loop — [`resolve_loops`] over this program's own
+    /// loops, reading no trace.
     ///
     /// # Errors
     ///
-    /// The failing slot plus the evaluator's refusal, unaltered.
-    pub fn resolve<T: Decide>(
+    /// [`LoopProgram::resolve`]'s.
+    pub fn resolve<T: profile::ArcCarrierScalar>(
         &self,
         env: &VarEnv<T>,
-    ) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
+    ) -> Result<Vec<Vec<Step<T>>>, ProgramResolveFault> {
         resolve_loops(&self.loops, env)
+    }
+
+    /// Resolves every loop, its trace steps reading `traces`
+    /// ([`LoopProgram::resolve_with`]).
+    ///
+    /// # Errors
+    ///
+    /// [`LoopProgram::resolve_with`]'s.
+    pub fn resolve_with<T: profile::ArcCarrierScalar>(
+        &self,
+        env: &VarEnv<T>,
+        traces: Option<&crate::trace::Traces<'_, T>>,
+    ) -> Result<Vec<Vec<Step<T>>>, ProgramResolveFault> {
+        self.loops
+            .iter()
+            .enumerate()
+            .map(|(li, lp)| lp.resolve_with(env, program_index(li), traces))
+            .collect()
+    }
+
+    /// **Whether a step of this program reads a face's trace**: such a
+    /// program reads the faces it traces at evaluation, and its first
+    /// pass reads them off the nominal document's.
+    #[must_use]
+    pub fn reads_a_trace(&self) -> bool {
+        self.loops.iter().any(LoopProgram::reads_a_trace)
+    }
+
+    /// **Whether a step of this program lowers against the pen**: a
+    /// trace, or a written coordinate along a heading
+    /// ([`crate::trace`]). Such a program resolves only in an
+    /// evaluation, which replays the prefix, so the doors that resolve
+    /// outside one — the authoring check, the pieces a program draws —
+    /// leave it to evaluation.
+    #[must_use]
+    pub fn runs_from_the_pen(&self) -> bool {
+        self.loops.iter().any(LoopProgram::runs_from_the_pen)
     }
 
     /// **Which profile edges one authored step became** (DM8).
@@ -1976,13 +2268,18 @@ impl ProfileProgram {
     /// replay every loop, validate the assembled profile — all under
     /// the run tolerance (VQ6: the same `Tolerance::get()` evaluation
     /// pins). Used by the edit door; evaluation re-runs the same
-    /// ladder per binding with full typed errors.
+    /// ladder per binding with full typed errors. A program that lowers
+    /// against the pen ([`Self::runs_from_the_pen`]) is checked where
+    /// the pen is, at evaluation.
     ///
     /// # Errors
     ///
     /// [`ProgramRefusal::Resolve`], [`ProgramRefusal::Transition`],
     /// [`ProgramRefusal::Geometry`] or [`ProgramRefusal::Validate`].
     pub fn check(&self, env: &VarEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
+        if self.runs_from_the_pen() {
+            return Ok(());
+        }
         self.validated(env, tol).map(|_| ())
     }
 
@@ -2091,9 +2388,10 @@ impl ProfileProgram {
         ),
         ProgramRefusal,
     > {
-        let resolved = self
-            .resolve(env)
-            .map_err(|(slot, source)| ProgramRefusal::Resolve { slot, source })?;
+        let resolved = self.resolve(env).map_err(|fault| match fault {
+            ProgramResolveFault::Expr { slot, source } => ProgramRefusal::Resolve { slot, source },
+            ProgramResolveFault::Trace(refusal) => ProgramRefusal::Trace(refusal),
+        })?;
         let mut loops = Vec::with_capacity(resolved.len());
         let mut records = Vec::with_capacity(resolved.len());
         for (li, steps) in resolved.iter().enumerate() {
@@ -2124,8 +2422,8 @@ impl PartialEq for ProfileProgram {
     /// The slots by variable, structure structurally: a stored program
     /// holds no float of its own.
     fn eq(&self, other: &Self) -> bool {
-        let Self { loops, ids } = self;
-        loops == &other.loops && ids == &other.ids
+        let Self { loops, ids, on } = self;
+        loops == &other.loops && ids == &other.ids && on == &other.on
     }
 }
 
@@ -2142,12 +2440,14 @@ where
         // functions below it match every variant by name and bind
         // every field of each, so a new loop shape is an E0004 and a
         // new field on an existing one an E0027, at each of them.
-        let Self { loops, ids } = self;
+        let Self { loops, ids, on } = self;
         let Self {
             loops: other_loops,
             ids: other_ids,
+            on: other_on,
         } = other;
         ids == other_ids
+            && on == other_on
             && loops.len() == other_loops.len()
             && loops
                 .iter()
@@ -2219,7 +2519,24 @@ fn target_bit_eq<L: crate::expr::LeafSet>(
         (ProgramTarget::Start, ProgramTarget::Start) => true,
         (ProgramTarget::StartArriving, ProgramTarget::StartArriving) => true,
         (ProgramTarget::Point(x), ProgramTarget::Point(y)) => pair_bit_eq(x, y),
-        (ProgramTarget::Start | ProgramTarget::StartArriving | ProgramTarget::Point(_), _) => false,
+        (
+            ProgramTarget::OnTrace { face, crossing },
+            ProgramTarget::OnTrace {
+                face: other_face,
+                crossing: other_crossing,
+            },
+        ) => face == other_face && crossing == other_crossing,
+        (ProgramTarget::AtX(x), ProgramTarget::AtX(y))
+        | (ProgramTarget::AtY(x), ProgramTarget::AtY(y)) => x.bit_eq(y),
+        (
+            ProgramTarget::Start
+            | ProgramTarget::StartArriving
+            | ProgramTarget::Point(_)
+            | ProgramTarget::OnTrace { .. }
+            | ProgramTarget::AtX(_)
+            | ProgramTarget::AtY(_),
+            _,
+        ) => false,
     }
 }
 
@@ -2299,6 +2616,7 @@ fn step_bit_eq<L: crate::expr::LeafSet>(
             xa.bit_eq(xb) && ya.bit_eq(yb)
         }
         (P::Tangent, P::Tangent) | (P::Cusp, P::Cusp) | (P::CloseTo, P::CloseTo) => true,
+        (P::AlongTrace { sense: a }, P::AlongTrace { sense: b }) => a == b,
         (P::LineTo(x), P::LineTo(y))
         | (P::ContinueTo(x), P::ContinueTo(y))
         | (P::TangentArcTo(x), P::TangentArcTo(y))
@@ -2353,6 +2671,7 @@ fn step_bit_eq<L: crate::expr::LeafSet>(
             | P::FilletArc { .. }
             | P::ArcFillet { .. }
             | P::ArcFilletArc { .. }
+            | P::AlongTrace { .. }
             | P::FarEndTo(_)
             | P::CloseTo,
             _,
@@ -2377,6 +2696,12 @@ macro_rules! program_rows {
 
 impl<S: crate::expr::Slot> SlotPayload<S> for ProfileProgram<S> {
     row_readers!(program_rows -> (u32, u32, StepArg), S);
+    fn read_rows(&self) -> Vec<(crate::OperandSlot, &S::Read)> {
+        self.on.iter().flat_map(DrawnOn::rows).collect()
+    }
+    fn read_rows_mut(&mut self) -> Vec<(crate::OperandSlot, &mut S::Read)> {
+        self.on.iter_mut().flat_map(DrawnOn::rows_mut).collect()
+    }
 }
 
 impl ProfilePayload for ProfileProgram {
@@ -2387,13 +2712,20 @@ impl ProfilePayload for ProfileProgram {
     fn lower<E>(
         authored: &Self::Authored,
         f: &mut dyn FnMut(&crate::Formula) -> Result<VarId, E>,
+        read: &mut dyn FnMut(crate::OperandSlot, &crate::Operand) -> Result<VarId, E>,
     ) -> Result<Self, E> {
-        authored.try_map_slots(&mut |slot| f(slot))
+        authored.try_map_slots(&mut |slot| f(slot), read)
     }
     fn authored_with(
         &self,
         reader: &mut dyn FnMut(VarId, Dimension) -> crate::Formula,
+        operand: &mut dyn FnMut(VarId) -> crate::Operand,
     ) -> Self::Authored {
+        let on = self.on.as_ref().map(|on| {
+            let Ok(on) =
+                on.try_map(&mut |_, &var| Ok::<_, core::convert::Infallible>(operand(var)));
+            on
+        });
         ProfileProgram {
             loops: self
                 .loops
@@ -2401,6 +2733,7 @@ impl ProfilePayload for ProfileProgram {
                 .map(|lp| lp.authored_with(reader))
                 .collect(),
             ids: self.ids.clone(),
+            on,
         }
     }
 
@@ -2421,7 +2754,11 @@ impl ProfilePayload for ProfileProgram {
         Some(&self.ids)
     }
     fn with_program(&self, loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>>) -> Option<Self> {
-        Some(Self { loops, ids })
+        Some(Self {
+            loops,
+            ids,
+            on: self.on.clone(),
+        })
     }
     fn mint_step_ids(&mut self, mint: &mut crate::Mint) -> Result<(), StepIdFault> {
         if self.carries_step_ids() {
@@ -2456,6 +2793,12 @@ impl<S> ProgramTarget<S> {
             ProgramTarget::Point(p) => ProgramTarget::Point(crate::node::map_array(p, f)?),
             ProgramTarget::Start => ProgramTarget::Start,
             ProgramTarget::StartArriving => ProgramTarget::StartArriving,
+            ProgramTarget::OnTrace { face, crossing } => ProgramTarget::OnTrace {
+                face: *face,
+                crossing: *crossing,
+            },
+            ProgramTarget::AtX(x) => ProgramTarget::AtX(f(x)?),
+            ProgramTarget::AtY(y) => ProgramTarget::AtY(f(y)?),
         })
     }
 }
@@ -2550,6 +2893,7 @@ impl<S> ProgramStep<S> {
             },
             ProgramStep::FarEndTo(p) => ProgramStep::FarEndTo(map_array(p, f)?),
             ProgramStep::CloseTo => ProgramStep::CloseTo,
+            ProgramStep::AlongTrace { sense } => ProgramStep::AlongTrace { sense: *sense },
         })
     }
 }
@@ -2604,16 +2948,20 @@ impl<S: crate::expr::Slot> ProfileProgram<S> {
             .collect()
     }
 
-    /// **This program in another slot form**: its loops through `f`
-    /// loop by loop, its step ids kept.
+    /// **This program in another slot form**: its reads through `read`
+    /// (handed each seat), its loops through `f` loop by loop, its step
+    /// ids kept.
     ///
     /// # Errors
     ///
-    /// The first refusal of `f`.
+    /// The first refusal of `read` or `f`.
+    #[allow(clippy::type_complexity)]
     pub fn try_map_slots<S2: crate::expr::Slot, E>(
         &self,
         f: &mut impl FnMut(&S) -> Result<S2, E>,
+        read: &mut dyn FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
     ) -> Result<ProfileProgram<S2>, E> {
+        let on = self.on.as_ref().map(|on| on.try_map(read)).transpose()?;
         Ok(ProfileProgram {
             loops: self
                 .loops
@@ -2621,6 +2969,7 @@ impl<S: crate::expr::Slot> ProfileProgram<S> {
                 .map(|lp| lp.try_map_slots(f))
                 .collect::<Result<_, E>>()?,
             ids: self.ids.clone(),
+            on,
         })
     }
 }

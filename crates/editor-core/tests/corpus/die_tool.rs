@@ -1,29 +1,23 @@
-//! Corpus document **die_tool** — the die tour's cutting tool as ONE
-//! node.
+//! Corpus document **die_tool** — the die tour's cutting tool, its
+//! pips written out.
 //!
-//! The tour's `diefillet` stop states the gap in a comment: assembling
-//! a multi-shell cutting tool from N placed balls costs N−1 pairwise
-//! `Boolean(Union)` nodes, and the FIRST ball's cavity faces come out
-//! N−1 `FromA`/`FromB` segments deep. The group discipline itself is
-//! load-bearing there — cutting the pips one at a time would present a
-//! body already carrying a TRIMMED sphere face as the next operand,
-//! which S13 refuses — so the tool is not optional, only expensive.
-//!
-//! `PlacedUnion(ball, Explicit(frames))` is the same tool said once:
-//! one prototype ball, one listed frame per pip, one body out. Every
-//! cavity face is then `Instance(i)` of a ball-local name — ONE
-//! segment, whatever the pip count.
+//! The tour's `diefillet` stop states why the tool is one body: cutting
+//! the pips one at a time would present a body already carrying a
+//! TRIMMED sphere face as the next operand, which S13 refuses. An
+//! irregular family is its members written out, each saying where it is
+//! (D10 `[repetition]`): one placement of the master ball per pip, each
+//! bundle its turns and lengths as written, and one `Union` of the six.
 //!
 //! Six pips here, one per face, rather than the tour's twenty-one: the
 //! subject is the tool's SHAPE, not the pip layout, and the corpus pays
 //! evaluation cost at every ε row, under Interval, and through both
 //! sweep strategies. Six is the smallest set that exercises all six
-//! face rotations — including the `±π/2` and `π` ones the tour
+//! face rotations — including the `±turn/4` and `turn/2` ones the tour
 //! authors — and leaves the pips 0.764 m apart centre to centre against
-//! a 0.09 m radius, comfortably certifiable.
+//! a 0.09 m radius.
 //!
-//! Vocabulary: Profile, Revolve, Place, PlacedUnion (Explicit),
-//! Boolean (Subtract), `InsertNode`, `SetParam`.
+//! Vocabulary: Profile, Revolve, Place, Union, Subtract, `InsertNode`,
+//! `SetParam`.
 //!
 //! # It crosses to Python, byte for byte
 //!
@@ -39,7 +33,7 @@
 //! day it was authored, `7581fb65d` having deleted the workaround one
 //! commit earlier — and
 //! `crates/pncad-py/tests/test_placed_union.py::TestTheDieTool` now
-//! says the same seven nodes through the bound Python doors. The claim
+//! says the same nodes through the bound Python doors. The claim
 //! is not eyeballed: `crates/editor-core/tests/lib_dietool_crossing.rs`
 //! pins THIS document's saved text as `corpus/die_tool.pncad`, and the
 //! Python row asserts its own `Doc.save()` against those bytes line for
@@ -51,11 +45,10 @@
 //! `die_pips`' reason verbatim: the oracle is `L³ − 6 · cap(R, H)` with
 //! `cap(r, h) = π h²(3r − h)/3`, π-valued and so not dyadic, while
 //! [`MassPin`](super::MassPin) asserts with `==`. What this document
-//! pins is validity and the census; `lib_placedunion.rs` pins the tool
-//! against the pairwise placement + union chain it replaces.
+//! pins is validity and the census.
 
 use super::PlacePart;
-use editor_core::{DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
+use editor_core::{Coord, DocEdit, Formula, LoopProgram, Node, ProfileProgram, SlotId, TargetAxis};
 
 use crate::fixture::{ang, len, revolve_about};
 
@@ -69,38 +62,41 @@ use super::{CorpusDoc, Recorder};
 const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 
 /// The six face-centre placements, in the tour's own order and with
-/// the tour's own authored rotations: each carries the master ball's
-/// `+Z` pole onto the face normal it is cut by, so every chart stays
-/// polar to the plane that cuts it.
-///
-/// Every turn is `0`, a quarter or a half turn about a coordinate axis,
-/// written as the fraction of a turn it is, so each frame's columns are
-/// `0` and `±1` exactly — the placement is DATA, not a runtime
-/// `cross`/`acos` branch, which is exactly what an explicit rule is for.
-fn placements() -> Vec<Frame> {
+/// the tour's own authored rotations, each as its bundle's values: one
+/// turn about a coordinate axis of the cube's space, written as the
+/// fraction of a turn it is, then the slides to the pip's centre. Each
+/// carries the master ball's `+Z` pole onto the face normal it is cut
+/// by, so every chart stays polar to the plane that cuts it.
+fn placements() -> Vec<Vec<(Coord, Formula)>> {
     let h = DIE_L / 2.0;
     let lo = DIE_L - PIP_C; // the −normal faces' centre coordinate
-    let x = [1.0, 0.0, 0.0];
-    let y = [0.0, 1.0, 0.0];
-    let z = [0.0, 0.0, 1.0];
     [
-        (z, (0, 1), [h, h, PIP_C]),
-        (x, (1, 2), [h, h, lo]),
-        (y, (1, 4), [PIP_C, h, h]),
-        (y, (-1, 4), [lo, h, h]),
-        (x, (-1, 4), [h, PIP_C, h]),
-        (x, (1, 4), [h, lo, h]),
+        (TargetAxis::Z, (0, 1), [h, h, PIP_C]),
+        (TargetAxis::X, (1, 2), [h, h, lo]),
+        (TargetAxis::Y, (1, 4), [PIP_C, h, h]),
+        (TargetAxis::Y, (-1, 4), [lo, h, h]),
+        (TargetAxis::X, (-1, 4), [h, PIP_C, h]),
+        (TargetAxis::X, (1, 4), [h, lo, h]),
     ]
     .into_iter()
     .map(|(axis, (num, den), t)| {
-        let turns = geom_core::Turns::new(num, den).expect("a fraction of a turn");
-        Frame::rotate_by_turns_then_translate(axis, turns, t, crate::fixture::band())
-            .expect("a literal axis has a definite direction")
+        let turn = Formula::mul(
+            Formula::ratio(num, den).expect("a fraction"),
+            Formula::turn(),
+        )
+        .expect("an angle");
+        let slides = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
+            .into_iter()
+            .zip(t)
+            .map(|(along, by)| (Coord::Slide(along), len(by)));
+        slides
+            .chain((num != 0).then_some((Coord::Spin(Some(axis)), turn)))
+            .collect()
     })
     .collect()
 }
 
-/// The one-node-tool corpus document.
+/// The written-out-tool corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
@@ -110,6 +106,7 @@ pub fn document() -> CorpusDoc {
     let cube_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![square],
         ids: Vec::new(),
+        on: None,
     }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p.into(),
@@ -120,6 +117,7 @@ pub fn document() -> CorpusDoc {
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![half_disc_program()],
         ids: Vec::new(),
+        on: None,
     }));
     // The pole axis is the meridian's own +y through (0, 0).
     let ball = r.insert(revolve_about(
@@ -138,8 +136,14 @@ pub fn document() -> CorpusDoc {
         crate::fixture::meridian_up(),
     );
 
-    // ---- the whole cutting tool, in ONE node ----
-    let tool = r.insert(Node::placed_union_at(master, placements()));
+    // ---- the cutting tool: one placement of the master per pip ----
+    let pips: Vec<editor_core::BodyRead<Formula>> = placements()
+        .into_iter()
+        .map(|values| editor_core::BodyRead::plain(r.copies(master, values)))
+        .collect();
+    let tool = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(pips),
+    });
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: tool.into(),
@@ -149,16 +153,16 @@ pub fn document() -> CorpusDoc {
 
     CorpusDoc {
         name: "die_tool",
-        about: "the die's multi-shell cutting tool as one PlacedUnion(Explicit) node",
+        about: "the die's multi-shell cutting tool: six pip placements, one union",
         edits: r.edits,
         doc: r.doc,
         result: Some(pipped),
         // π-valued spherical caps are not dyadic — see the module docs.
         pin: None,
         // D2's incremental probe: the cube's extrude distance, which
-        // moves ONLY the +Z face (every pip frame is absolute). The
+        // moves ONLY the +Z face (every pip's values are absolute). The
         // ball is reused; the cube, the master's placement (it reads
-        // the cube), the tool and the cut recompute.
+        // the cube), the pips, the tool and the cut recompute.
         // At 1.03125 the +Z pip still cuts a proper cap (the plane
         // sits 0.00875 below the ball's centre, leaving cap height
         // 0.08125 < 2R); every other pip is untouched.

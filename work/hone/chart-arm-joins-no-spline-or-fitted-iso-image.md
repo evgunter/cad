@@ -2,11 +2,10 @@
 id: chart-arm-joins-no-spline-or-fitted-iso-image
 kind: issue
 title: The curved join's Chart arm reads iso families off the analytic mint only: two pieces of one iso line on a spline chart, or of a fitted image, are left unjoined
-status: parked
+status: open
 opened: 2026-10-07
 priority: P2
 cost: H
-blocked_on: [a-tilted-plug-union-refuses-at-the-germ-segment-and-section-copy-rosters]
 ---
 
 ## The finding
@@ -46,3 +45,20 @@ Why nothing reaches it:
 This row therefore waits on the first lanes that could mint such an edge: cleave's germ roster for the oblique case, and REACHHOLD's NURBS crossing rung for the spline case.
 
 **For when it un-parks:** the row's "read the family off the minted `IsoLine`/`IsoArc` variant" covers only the spline-chart half. Even there, reading u-versus-v off `IsoLine`'s `pl` is a zero test on `T` unless the mint records the family beside the variant. The oblique half wants carrier identity instead. That is a design question to weigh with designers then.
+
+## Probe 4 since the germ roster widened (SPLITDOOR, 2026-10-28)
+
+PR 5940 (`splitdoor/tilted-plug-rosters`) reads two germ edges that are
+sections of one plane and one cylinder or cone, each edge's two faces
+door-verified one carrier with the other's, as one segment
+(`sectors::same_construction`). Its review's oblique-halves probe (a
+rod cut by `z = x` and its two halves glued back,
+`crossing_equal_rods.rs` `a_rod_cut_obliquely_and_glued_back_is_the_rod`)
+now builds the union, the rod at its closed form, at spins 0, 0.4 and 1,
+in both orders, at ε = 1e-9, 1e-6 and 1e-12. The halves' intersection
+and differences refuse `FallbackExtentUnsupported`, upstream of the
+join. Measured on the review's branch; this row's status is unchanged.
+Un-parked by SPLITDOOR at PR 5940's merge (2026-10-28): its trigger closed, the oblique case now
+reaches this lane, and no REACHHOLD row for the NURBS crossing rung exists to re-park the spline
+half on. The design question above (family recorded at the mint, carrier identity for the oblique
+half) stands for whoever takes it.

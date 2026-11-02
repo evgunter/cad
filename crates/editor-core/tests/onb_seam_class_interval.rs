@@ -33,7 +33,7 @@ use std::collections::BTreeMap;
 
 use editor_core::UnitSym;
 use editor_core::analysis::{BoxAxis, ParamBox};
-use editor_core::clearance::{ClearanceVerdict, Selection, clearance};
+use editor_core::clearance::{ClearanceVerdict, Selection, self_intersection};
 use editor_core::{
     Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
     ProfileProgram, RecipeNodeId, VarName,
@@ -285,6 +285,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: p.into(),
@@ -327,19 +328,17 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
 /// decides, and the engine certifies on the stored chart with no
 /// re-chart in the tree. The 30° tilt rides along as the second
 /// chamfer family a corpus actually uses.
+///
+/// Asked as the injectivity question over the whole body, which windows
+/// every face on its stored chart. (A clearance of the body against
+/// itself reads 0 since the scopes meet, so it no longer reaches the
+/// charts.)
 #[test]
 fn a_tilted_extrude_certifies_on_its_stored_charts() {
     for deg in [45.0, 30.0] {
         let (doc, placed) = tilted_prism(deg);
         let sel = Selection::body_of(placed);
-        let report = clearance(
-            &doc,
-            &box_of(&doc, "place"),
-            &sel,
-            &sel,
-            0.1,
-            Tol::witness(),
-        );
+        let report = self_intersection(&doc, &box_of(&doc, "place"), &sel, Tol::witness());
         assert_eq!(
             report.verdict(),
             &ClearanceVerdict::Holds,

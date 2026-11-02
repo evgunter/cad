@@ -77,24 +77,13 @@ pub(super) fn eval_at(pair: SplineCoeffs<'_, Interval>, t: f64) -> Interval {
 }
 
 /// Hull of a scalar B-spline over `range`: the hull of the active
-/// spans' coefficient hulls (conservative to span granularity).
-///
-/// A range that ENDS on a knot stops at the span ending there. The
-/// locator assigns the knot itself to the span starting at it, but a
-/// clamped spline (interior multiplicity ≤ degree) is continuous, so
-/// its value at that knot is the left span's endpoint value, which the
-/// left span's coefficients already hull. Reading the right span too
-/// would hull a neighbour the range only touches — on a sliver span
-/// beside a knot-aligned cell, a derivative 1e9 times the cell's own.
+/// spans' coefficient hulls (conservative to span granularity), the
+/// last span read by [`closed_range_last_span`].
 pub(super) fn range_hull(pair: SplineCoeffs<'_, Interval>, range: ParamRange) -> Interval {
     let knots = pair.knots();
     let (s0, s1) = knots.span_range(range);
     let (_, end) = range.ends();
-    let last = if s1.index() > s0.index() && knots.knots()[s1.index()] == end.get() {
-        s1.index() - 1
-    } else {
-        s1.index()
-    };
+    let last = closed_range_last_span(s0.index(), s1.index(), knots.knots(), end.get());
     let mut acc = Interval::refused();
     let mut seeded = false;
     for index in s0.index()..=last {
@@ -263,17 +252,47 @@ pub(super) fn raw_range_hull(
     range: ParamRange,
 ) -> Interval {
     let coeffs = loose_line(knots, coeffs);
-    let (start, end) = range.ends();
     let degree = knots.degree();
     let mut acc = Interval::refused();
     let mut seeded = false;
-    for span in knots.span_of(start)..=knots.span_of(end) {
+    for span in loose_spans_over(knots, range) {
         for c in &coeffs[span - degree..=span] {
             acc = if seeded { Interval::hull(acc, *c) } else { *c };
             seeded = true;
         }
     }
     acc
+}
+
+/// **The last span a closed range reads**: the one holding its end,
+/// unless the range ENDS on a knot, where it is the span before. The
+/// locator assigns a knot to the span starting at it, but the cells the
+/// lanes hull are closed cells `[x, k]` lying in ONE smooth piece, and
+/// what a cell's rule reads at `k` is the left piece's one-sided value.
+/// That holds for a derivative too, which may jump at a C⁰ knot: the
+/// cell's own piece's coefficients hull its one-sided values there, and
+/// the next span's describe a function the cell does not contain.
+/// Reading them hulls a neighbour the cell only touches (on a sliver
+/// span, a derivative 1e9 times the cell's own), and reads a cell
+/// ending at a C⁰ knot differently from the same cell of the one-span
+/// tile ending there. One rule for both knot holders: [`range_hull`]
+/// and [`loose_spans_over`].
+fn closed_range_last_span(first: usize, last: usize, knots: &[f64], end: f64) -> usize {
+    if last > first && knots[last] == end {
+        last - 1
+    } else {
+        last
+    }
+}
+
+/// **The nonempty spans of loose knots a closed range reads**: from the
+/// span holding its start to [`closed_range_last_span`].
+fn loose_spans_over(knots: &LooseKnots, range: ParamRange) -> impl Iterator<Item = usize> + '_ {
+    let (start, end) = range.ends();
+    let k = knots.knots();
+    let first = knots.span_of(start);
+    let last = closed_range_last_span(first, knots.span_of(end), k, end.get());
+    (first..=last).filter(move |&s| k[s] < k[s + 1])
 }
 
 /// Derivative coefficients on loose knots. `degree ≥ 1` and the
@@ -575,15 +594,10 @@ impl PatchGrid {
                         Some(mid) => line[knots.span_of(mid)],
                         None => Interval::refused(),
                     },
-                    Collapse::Over(range) => {
-                        let (start, end) = range.ends();
-                        let (a, b) = (knots.span_of(start), knots.span_of(end));
-                        let mut acc = line[a];
-                        for c in &line[a..=b.max(a)] {
-                            acc = Interval::hull(acc, *c);
-                        }
-                        acc
-                    }
+                    Collapse::Over(range) => loose_spans_over(knots, range)
+                        .map(|s| line[s])
+                        .reduce(Interval::hull)
+                        .unwrap_or_else(Interval::refused),
                 }
             }
         }
@@ -653,6 +667,32 @@ pub(super) fn refused_vec() -> RVec3 {
 }
 
 /// The zero-or-collapse read of an optional (derivative) grid.
+/// A grid's three channels collapsed in u, `None` where the derivative
+/// ladder has run out ([`grid_slice`]).
+pub(super) type GridSlice = Option<[Vec<Interval>; 3]>;
+
+/// **A grid's u-collapsed slice** ([`PatchGrid::slice_u`]), `None`
+/// where the derivative ladder has run out. A loop reading many cells
+/// of one column collapses u once here and each cell in v alone
+/// ([`grid_slice_at`]), so its cost is linear in the cells rather than
+/// in cells times rows.
+pub(super) fn grid_slice(g: Option<&PatchGrid>, u: Collapse<'_>) -> GridSlice {
+    g.map(|g| g.slice_u(u))
+}
+
+/// A [`grid_slice`] at one v collapse: [`grid_vec`]'s reading, the
+/// identically-zero derivative where the ladder has run out.
+pub(super) fn grid_slice_at(
+    g: Option<&PatchGrid>,
+    sl: Option<&[Vec<Interval>; 3]>,
+    v: Collapse<'_>,
+) -> RVec3 {
+    match (g, sl) {
+        (Some(g), Some(sl)) => g.at_v(sl, v),
+        _ => [Interval::zero(), Interval::zero(), Interval::zero()],
+    }
+}
+
 pub(super) fn grid_vec(g: Option<&PatchGrid>, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
     match g {
         Some(g) => g.vec(u, v),
@@ -744,20 +784,30 @@ pub(super) fn knots_inside(knots: &[f64], lo: f64, hi: f64) -> impl Iterator<Ite
 /// The knot-span intervals of a vector clipped to `[lo, hi]`, each
 /// with a strictly interior locator point.
 pub(super) fn clipped_spans(kv: &KnotVector, lo: f64, hi: f64) -> Vec<(f64, f64, f64)> {
-    let mut out = Vec::new();
-    let mut edges: Vec<f64> = vec![lo];
-    for k in knots_inside(kv.knots(), lo, hi) {
-        if edges.last().is_none_or(|e| *e != k) {
-            edges.push(k);
+    range_spans(kv.knots(), lo, hi)
+        .into_iter()
+        .map(|(a, b)| (a, b, a.midpoint(b)))
+        .collect()
+}
+
+/// **The knot spans a range meets**, clipped to it: the nonempty
+/// intervals between `lo`, each distinct knot of the sorted slice
+/// `knots` strictly inside `(lo, hi)`, and `hi`, in order. `hi` is the
+/// last end as ITSELF, so the spans tile `[lo, hi]` exactly. The one
+/// home of the span walk the cut lists, the exact rules and the
+/// quotient statement's cells all read.
+pub(super) fn range_spans(knots: &[f64], lo: f64, hi: f64) -> Vec<(f64, f64)> {
+    let mut ends: Vec<f64> = vec![lo];
+    for k in knots_inside(knots, lo, hi) {
+        if ends.last().is_none_or(|e| *e != k) {
+            ends.push(k);
         }
     }
-    edges.push(hi);
-    for w in edges.windows(2) {
-        if w[1] > w[0] {
-            out.push((w[0], w[1], w[0].midpoint(w[1])));
-        }
-    }
-    out
+    ends.push(hi);
+    ends.windows(2)
+        .filter(|w| w[1] > w[0])
+        .map(|w| (w[0], w[1]))
+        .collect()
 }
 
 /// `∂_u(S_u×S_v) = S_uu×S_v + S_u×S_uv` and `∂_v(S_u×S_v) =

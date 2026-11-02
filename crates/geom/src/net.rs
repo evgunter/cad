@@ -7,11 +7,19 @@
 //! — is a flat `Vec` of control points, a matching flat `Vec<T>` of
 //! weights with their `f64` value channel beside them, and one or two
 //! knot vectors held in `T`. The rank lives in the knot
-//! vectors; everything below is rank-blind and dimension-blind, so it
-//! is written once and used by all three.
+//! vectors; the helpers over the net are rank-blind and dimension-blind,
+//! so they are written once and used by all three.
+//!
+//! The last helpers are the home of a rational net's derivative over a
+//! cell ([`rational_slope`], [`rational_mixed`]). They read a cell's
+//! restricted hulls at `Interval` about a point of the cell in space, so
+//! they serve [`crate::curves::NurbsCurve3`] and
+//! [`crate::surfaces::NurbsSurface`]; the mixed partial is the surface's
+//! alone.
 
 use core::ops::{Mul, Sub};
 
+use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{Knots, SpanLocate, SplineError, Weights};
 use geom_core::{CertifiedBounds, Interval, Point2, Point3, Real, Vec2, Vec3};
 
@@ -289,4 +297,84 @@ pub(crate) fn removal_pass_bound<T: Real, P: ControlPoint<T>>(
     }
     // An empty net perturbs nothing.
     w_min.map_or_else(T::zero, |w_min| (c_max * bw + bwp) * (T::one() / w_min))
+}
+
+/// The middle of `[lo, hi]`, halved before the sum so it cannot
+/// overflow: where a cell's derivative is read about.
+pub(crate) fn middle(lo: f64, hi: f64) -> f64 {
+    0.5 * lo + 0.5 * hi
+}
+
+/// **The frame a rational net's derivative over a cell is read in**: a
+/// point of the cell's image, to `f64`, from an enclosure `p` of one
+/// (the evaluation at the cell's middle). `None` where a coordinate's
+/// middle is not finite: the evaluation at the cell is poison, and so is
+/// every reading of the cell. Nothing certifies the point, and nothing
+/// needs to ([`rational_slope`]).
+pub(crate) fn cell_origin(p: Point3<Interval>) -> Option<Point3<f64>> {
+    use geom_core::Bounds as _;
+    let c = p.map(|x| middle(x.lo(), x.hi()));
+    [c.x, c.y, c.z].iter().all(|x| x.is_finite()).then_some(c)
+}
+
+/// A homogeneous control point about `origin`: `[w·(P − origin), w]`.
+pub(crate) fn homogeneous_about(
+    w: Interval,
+    p: Point3<Interval>,
+    origin: Point3<f64>,
+) -> [Interval; 4] {
+    let o = origin.map(|x| Interval::from_bounds(x, x));
+    [w * (p.x - o.x), w * (p.y - o.y), w * (p.z - o.z), w]
+}
+
+/// The quotient rule's numerator `B′·w − B·w′` from the value hull `h`
+/// and a derivative hull `hd`.
+fn slope_numerator(h: [Interval; 4], hd: [Interval; 4]) -> Vec3<Interval> {
+    let b = Vec3::new(h[0], h[1], h[2]);
+    let bd = Vec3::new(hd[0], hd[1], hd[2]);
+    bd * h[3] - b * hd[3]
+}
+
+/// **The one home of a rational net's derivatives over a cell**, first
+/// order: `(B′·w − B·w′)/w²` from `h`, the hull of the cell's
+/// homogeneous net read about a point `c` ([`homogeneous_about`],
+/// [`cell_origin`]), and `hd`, the hull of its derivative's. `None`
+/// unless the weight hull `h[3]` is certainly positive
+/// ([`certainly_positive`]): no derivative is claimed there.
+///
+/// `B = A − c·w` is the homogeneous form of `C − c`, whose derivatives
+/// are `C`'s for ANY constant `c`, so the quotient over hulls that
+/// enclose `B`, `B′`, `w` and `w′` at every point of the cell encloses
+/// `C′` there, whatever `c` is: `c` costs width, never soundness, and is
+/// not certified. About a point of the cell, `B` is the size of the
+/// cell's own extent, so the width shrinks with the cell and does not
+/// move with the net. About a far origin, the hulls of `A′·w` and
+/// `A·w′` each carry that distance times the weight's slope, and
+/// subtracting two hulls cancels nothing.
+pub(crate) fn rational_slope(h: [Interval; 4], hd: [Interval; 4]) -> Option<Vec3<Interval>> {
+    certainly_positive(&[h[3]])
+        .then(|| slope_numerator(h, hd) * (Interval::from_f64(1.0) / h[3].powi(2)))
+}
+
+/// The home's second order: a surface cell's mixed partial
+/// `S_uv = (B_uv·w + B_u·w_v − B_v·w_u − B·w_uv)/w² − 2·N_u·w_v/w³`,
+/// `N_u = B_u·w − B·w_u` [`rational_slope`]'s numerator, from the hulls
+/// of the value net `h`, its partials `hu` and `hv`, and the mixed
+/// `huv`, all read about one point. `None` as [`rational_slope`]; the
+/// same argument makes `c` free.
+pub(crate) fn rational_mixed(
+    h: [Interval; 4],
+    hu: [Interval; 4],
+    hv: [Interval; 4],
+    huv: [Interval; 4],
+) -> Option<Vec3<Interval>> {
+    if !certainly_positive(&[h[3]]) {
+        return None;
+    }
+    let v3 = |x: [Interval; 4]| Vec3::new(x[0], x[1], x[2]);
+    let (w, wu, wv, wuv) = (h[3], hu[3], hv[3], huv[3]);
+    let one = Interval::from_f64(1.0);
+    let w2 = w.powi(2);
+    let spread = v3(huv) * w + v3(hu) * wv - v3(hv) * wu - v3(h) * wuv;
+    Some(spread * (one / w2) - slope_numerator(h, hu) * (wv * (one + one) / (w2 * w)))
 }

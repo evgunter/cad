@@ -11,10 +11,12 @@
 //! Every body an op returns is held to [`solid_truth::assert_is`]: its
 //! closed-form volume, tier 3, and `point_in_solid` at named points (one
 //! per region of the pair) and over a grid, against the operands'
-//! closed-form membership. Every pose that does not build refuses typed,
-//! and the rows name the door. The touching configurations — a plane
-//! resting along a generator, a cone sector lying on the cone face —
-//! stay refusals.
+//! closed-form membership; the sector on the cone face, whose bore the
+//! oracle does not describe, to its volume and tiers 3 and 3′. Every
+//! pose that does not build refuses typed, and the rows name the door. A
+//! plane resting along a generator stays a refusal; a cone sector lying
+//! on the cone face builds `∩` and the cone less it, and refuses the
+//! other two.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -377,6 +379,23 @@ fn small_cone(r: f64, h: f64, tilt: f64, at: Vec3<f64>) -> (AtRestBody<f64>, Sol
 /// rad at `(0.8, 0.55, 0.2)`, clear.
 #[test]
 fn an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms() {
+    // Pinned red since the row landed (PR 4522): at ε = 1e-6 and 1e-12 the
+    // clear rod's union refuses `FallbackExtentUnsupported` on near-tangent
+    // carriers (`work/germ/an-oblique-rod-clear-of-a-cone-refuses-the-extent-scan-at-1e-12`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-6, 1e-12],
+        "the oblique rod and tilted cone",
+        &[
+            "a rod clear, ∪: wanted Body(1.0511245420135849, 1.0511245420135848e-9), refused FallbackExtentUnsupported { operand: A, face: FaceKey(1v1)",
+            "tangent or near-tangent carriers and no crossing layer saw an event",
+        ],
+        an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms_row,
+    );
+}
+
+/// The row [`an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms`] runs, under its pin.
+fn an_oblique_rod_and_a_tilted_cone_inside_or_clear_build_their_closed_forms_row() {
     let v_cone = PI / 1500.0;
     let fixtures = [
         Builds {
@@ -465,21 +484,23 @@ fn the_bite_refuses_at_the_germ_frame() {
     }
 }
 
-/// **The touching configurations stay refusals.** Both are held behind
-/// D10 (`work/intent/d10-one-way-to-say-intent-is-unbuilt.md`): a
-/// tangency and a coincidence are not transverse verdicts.
+/// **A plane tangent along a generator refuses, and a sector lying on
+/// the cone face builds where its pairs certify.**
 ///
 /// - A brick resting on the plane `x + y = 1`, tangent to the cone
 ///   along the generator through `(1, 0, 0)`: the crossing layer's
-///   door, `CurvedPierceUnsupported`, on a brick edge that grazes.
+///   door, `CurvedPierceUnsupported`, on a brick edge that grazes. A
+///   tangency is not a transverse verdict
+///   (`work/intent/d10-one-way-to-say-intent-is-unbuilt.md`).
 /// - A quarter frustum sector of the cone's own carrier
-///   (`y ∈ [0.2, 0.6]`, bored `r = 0.1`), lying on the cone face: each
-///   member order refuses at the crossing layer on a generator lying on
-///   the other's carrier, the cone's seam meeting the apex
-///   (`CrossingAtConeApex`) or the sector's generator edge
-///   (`CurvedPierceUnsupported`).
+///   (`y ∈ [0.2, 0.6]`, bored `r = 0.1`), lying on the cone face: the
+///   carrier ladder settles the two cone faces one carrier. `∩` is the
+///   sector, `π/4·((0.8³ − 0.4³)/3 − 0.004)`, and the cone less it
+///   the rest of `π/3`. `∪` is the cone and the sector less the cone is
+///   nothing: the section pass defers the settled pair, and the shells'
+///   sides stand.
 #[test]
-fn a_tangent_plane_and_a_sector_on_the_cone_face_refuse() {
+fn a_tangent_plane_refuses_and_a_sector_on_the_cone_face_builds_where_it_certifies() {
     let (c, _) = cone(None);
     let (raw, _) = boxed((0.0, 0.5), (-0.5, 0.5), (-0.3, 0.3));
     let tangent = moved(
@@ -498,15 +519,43 @@ fn a_tangent_plane_and_a_sector_on_the_cone_face_refuse() {
         &[(0.1, 0.2), (0.8, 0.2), (0.4, 0.6), (0.1, 0.6)],
         Some(0.5 * PI),
     );
+    let sector = PI / 4.0 * ((0.8f64.powi(3) - 0.4f64.powi(3)) / 3.0 - 0.004);
     for (op, got) in every_op(&c, &on_face) {
+        let label = format!("the sector on the cone face, {op}");
+        let want = match op {
+            "∪" => V,
+            "∩" => sector,
+            "A ∖ B" => V - sector,
+            _ => {
+                assert!(
+                    matches!(&got, Ok(BooleanResult::Empty)),
+                    "{label}: nothing: {:?}",
+                    got.map(|r| r.body().map(|b| b.kind))
+                );
+                continue;
+            }
+        };
+        let Ok(BooleanResult::Body(bb)) = got else {
+            panic!("{label}: one body: {got:?}");
+        };
+        let tol = Tol::witness();
+        assert_eq!(
+            topo::validate_geometric(&bb.body, tol),
+            Ok(()),
+            "{label}: tier 3"
+        );
+        assert_eq!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+            Ok(()),
+            "{label}: tier 3′"
+        );
+        assert_eq!(bb.body.shells().count(), 1, "{label}: one shell");
+        let m = topo::test_support::pinned_volume(&label, &bb.body, tol);
         assert!(
-            matches!(
-                &got,
-                Err(BooleanError::CrossingAtConeApex { .. }
-                    | BooleanError::CurvedPierceUnsupported { .. })
-            ),
-            "the sector on the cone face, {op}: {:?}",
-            got.map(|r| r.body().map(|b| b.kind))
+            (m.volume - want).abs() <= m.volume_pad + 1e-9 * want,
+            "{label}: volume {} ± {} against {want}",
+            m.volume,
+            m.volume_pad
         );
     }
 }

@@ -27,64 +27,15 @@ const FILES: [&str; 5] = [
     "crates/pncad/tests/plate_param.pncad",
 ];
 
-/// Every document's product before the world, as the base gathered it
-/// over its A10 root list: the aggregate's digest word and the count
-/// of words fed. Taken at the base, before any placement existed: main
-/// with stage 2 unit B merged (`0811289515`), by [`print_product_rows`]'s
-/// gather over the root list there. The composed die's two rows moved
-/// from B's branch record with main's blend change (`d5a518b1b2`).
-/// `kitchen_sink`'s row moved when a revolve's turned vertex came to
-/// turn its offset from the axis: 8 of its points, by at most 2 ulps
-/// (`m10_p_fence`'s header has the dump). `declared_tangency`'s row
-/// moved when a chord's director became its components: 4 of its
-/// points, by at most `3.3e-16` (the same header). Eleven rows moved
-/// when a construction came to compute in its own coordinates and its
-/// placement to map it there: a body built off a datum moves by one
-/// composition's rounding, its word count kept (the two tubes stand
-/// about the world's `+y` by an exact `−turn/4` and hold their rows), and `face_sketch`'s
-/// boss is placed against the box and unioned with it, so the box joins
-/// its product (28 words to 52). Merged with main's union fold (the
-/// union's rows its decision log), `corner_table`'s product keeps its
-/// 32 points at their exact values and its word count, and its digest
-/// moves with the arena's order; `declared_tangency` reads the chord
-/// director's row again. `kitchen_sink` moved when its lone block's
-/// copies came to hang below the world's xy as its retired
-/// `SetExtrudeSide` edit had them, its revolve's quarter-turn placement
-/// leaving its corners an ulp's square off the union's edges
-/// (`work/intent/a-turn-by-the-nearest-quarter-turn-rounds.md`).
-/// Exact turns moved five rows, every word count kept: a turn written as
-/// a fraction of a turn takes its sine and cosine from the fraction, so
-/// `die_tool`'s ball (heading `turn/4`) is built on its axis exactly; the
-/// pips of `die_pips`, `die_composed` and the tour die stand on lines
-/// stated from the cube's corner; and `kitchen_sink`'s revolve stands
-/// upright by a bundle with no mate spun `turn/4`, its pattern's axis and
-/// split's plane read off its faces. The two saved files follow their
-/// documents. `die_tool` moved once more, its count kept, when its
-/// master ball came to stand on the cube's corner frame by an axis mate
-/// (where the retired place-against helper had turned it by `atan2`), with its rule's
-/// frames built from the fraction of a turn each is; its saved file
-/// follows it. `die` moved when its pips came to stand on frames stated
-/// from the cube's corner by exact turns: its world vertices are the
-/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its digest,
-/// which reads the carriers and the arena's order too, is new.
-/// `cut_cylinder` moved when a plane pose came to hold its normal and
-/// offset alone (main, `34a2e26e61`): its split reads the tilted plane's
-/// point nearest the origin, so its halves' section points moved at the
-/// rounding level, its word count kept. Main reds this row with the same
-/// value; D′3 carries the re-pin, and moves no product.
-/// Since INTENT E the gather computes in its first source's frame, so
-/// each row digests the product composed into the world through
-/// `in_space`, and 33 of the 35 rows held. The tour die and its
-/// committed file moved, their counts kept. The die's product is its
-/// last copy's body (`1621`), and against main (`b97c0195`, and again
-/// `cd5f9dee`, whose die row reads `ca0b8371cb38e973`) it moves exactly
-/// as `edit_placement_corpus_bits` says that copy moves: 18 of its 108
-/// points (the 15 pip-floor points four ulps further from `0.05`, and
-/// four `z` coordinates reading `0.5` where they read
-/// `0.49999999999999994`) and 2 of its 68 carriers (a sphere's and a
-/// torus's centres, the same `z`), because the pips' union computes in
-/// its first pip's frame and reads every other pip through `relative`.
-const PRE_C: [(&str, &str); 35] = [
+/// **Every document's product, as a digest word and the count of words
+/// fed** ([`print_product_rows`]), in the corpus's order, then the
+/// committed files'. A document that predates the world holds the
+/// product its base gathered over its root list before any placement
+/// existed, so test 6 holds its migration to that product; a document
+/// added since holds the product it had when it joined. A row moves
+/// only with what its product is, and the PR that moves one says which
+/// points moved and why.
+const PRE_C: [(&str, &str); 39] = [
     ("die", "18a00a4411472694/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
     ("heat_sink", "986dd0b900fe3d32/268"),
@@ -93,7 +44,7 @@ const PRE_C: [(&str, &str); 35] = [
     ("nested_islands_106_depth1", "32fed3f5e12387ee/52"),
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
     ("declared_tangency", "89b46a31a322fc03/88"),
-    ("kitchen_sink", "34a5423649535fd1/196"),
+    ("kitchen_sink", "fddfb7f84e02cfcd/196"),
     ("cut_cylinder", "d2acb2b37c5273db/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
     ("boss_union", "a07c97077aedd76c/46"),
@@ -101,7 +52,7 @@ const PRE_C: [(&str, &str); 35] = [
     ("die_chamfer", "934f10b8156f9396/76"),
     ("die_pips", "2859880c273d7b35/37"),
     ("heat_sink_fins", "8a57c326dc5f71aa/124"),
-    ("die_tool", "e426662d8439569d/82"),
+    ("die_tool", "f4d9c34d5c3d1451/82"),
     ("face_sketch", "7809b39224c44527/52"),
     ("part_select", "e54d217adfa64523/52"),
     ("symmetric_plate", "4988a8ebeaf80d66/52"),
@@ -115,8 +66,12 @@ const PRE_C: [(&str, &str); 35] = [
     ("hollow_tube_elbow", "9ae3e25a75d4fecd/28"),
     ("hollow_tube_ring", "1db62df6ebe2507d/16"),
     ("reshaped_rod", "128f9facfb4a7626/52"),
+    ("pin_in_bore", "76547864dbc6f32b/76"),
+    ("axis_projection", "9856d0ed9ba36a20/40"),
+    ("blocks_on_one_floor", "0a11e01c369a8633/52"),
+    ("revolves_on_one_axis", "17170d0ebb164176/22"),
     (FILES[0], "8853ddff30bcec28/154"),
-    (FILES[1], "e426662d8439569d/82"),
+    (FILES[1], "f4d9c34d5c3d1451/82"),
     (FILES[2], "b70c1bbdaed3e0e1/328"),
     (FILES[3], "07c4e18f181e9b69/16"),
     (FILES[4], "fd7b71fa51270532/88"),
@@ -399,7 +354,7 @@ fn an_empty_world_names_the_unplaced_and_a_stranded_placement_refuses() {
     // The slot reads the placement's copy, and the placement's read is
     // gone: the gather refuses at the placement, failed.
     match product(&doc, &ev(&doc), Tol::witness()) {
-        Err(ProductError::Root(editor_core::NodeStanding::Failed { node })) => {
+        Err(ProductError::Read(editor_core::NodeStanding::Failed { node })) => {
             assert_eq!(node, placement, "the gather names the stranded placement");
         }
         other => panic!("a stranded placement refuses: {other:?}"),
@@ -832,29 +787,16 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
     );
 }
 
-/// **An empty world names a pattern among the unplaced.** A block and a
-/// pattern of it, nothing placed: `EmptyProduct` lists both outputs,
-/// the pattern's `Bodies` included, and the recourse says how a list of
-/// bodies is placed.
+/// **An empty world holds a family placed in its block's own space.** A
+/// block and a row of it in the block's space, nothing in the world:
+/// the product is empty, and says it reads nothing.
 ///
-/// Red if `Doc::unplaced` lists `Body` outputs only (the pattern is
-/// missing), or the recourse does not name the `Part` pick.
+/// Red if a family placed outside the world reaches the product.
 #[test]
-fn an_empty_world_names_a_pattern_and_how_to_place_one_of_its_bodies() {
+fn an_empty_world_holds_no_family_placed_beside_its_block() {
     let doc = ProfileDoc::empty_derived("intent-c-unplaced-pattern", Tol::witness());
     let (doc, a) = block(doc, 0.0);
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: a.into(),
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [1.0, 0.0, 0.0].map(crate::fixture::scl),
-                spacing: len(2.0),
-            },
-        },
-    );
-    let _ = pattern;
+    let (doc, _, _) = crate::fixture::linear(doc, a, [1.0, 0.0, 0.0], 2.0, 2);
     let refused = product(&doc, &ev(&doc), Tol::witness()).expect_err("nothing is placed");
     assert!(
         matches!(&refused, ProductError::EmptyProduct),

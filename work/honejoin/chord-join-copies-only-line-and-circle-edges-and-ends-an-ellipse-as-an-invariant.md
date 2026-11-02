@@ -40,3 +40,26 @@ ellipse, and let `closed_edge_spec` take a closed ellipse. Where a kind
 genuinely has no copy, refuse typed "not yet" (as
 `SplitJoinError::RunImageNotYet` does). `chord_section_loop`'s Zero
 refuses with the decision's lever. Each needs a row through a body.
+
+## `along_edge_spec`, landed elsewhere (SPLITDOOR, 2026-10-28)
+
+`splitdoor/tilted-plug-rosters` took the first half of the Fix: past a
+line and a circle, `along_edge_spec` copies the edge's own spec over
+its span (`EdgeCurve::restated_spec`), run back where the chord runs
+against it (`chord_join::run_back`). Still open here: a scaffold edge
+that is neither a line nor a circle has no reversal (`run_back` refuses
+it `SectionInvariant`), `closed_edge_spec` still copies only a circle
+(with `cleave/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build`),
+and `chord_section_loop`'s Zero.
+
+## `closed_edge_spec`, landed elsewhere (TANGRIM, 2026-11-01)
+
+The "`closed_edge_spec` still copies only a circle" bullet is done by
+PR 6246 (`tangrim/one-segment-ellipse-rims`). `closed_edge_spec` copies
+a closed circle or ellipse (`chord_join::copies_closed_edge`, which
+`boolean::join`'s `site_cell` also reads). The copy carries the edge's
+own carrier and span (`EdgeCurve::restated_spec`), described as a
+derived image in the chart of the face it divides
+(`EdgeDescriptionSpec::chart`), with no declaration, and is run back by
+`run_back`'s general arm. Still open here: the scaffold reversal and
+`chord_section_loop`'s Zero.

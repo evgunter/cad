@@ -142,3 +142,23 @@ The other three rods refuse `CurvedPierceUnsupported` as before.
 - For the sphere row, find a union that needs the strut cover on
   sphere × cylinder once the doors above move, and widen the row with
   it as its witness.
+
+## With the side certificate (`splitdoor/rods-two-lengths`)
+
+The stacks' subtract and intersect now build: the difference is its
+minuend at its outline's closed-form area (tier 3 and 3′), and the
+intersection is nothing, in every stack and both member orders. The
+continued walls' settled pairs are answered by the plates' sides
+(`boolean::ops` `OnDeferred::sided`). `the_arc_joint_stacks_build_every_op`
+pins this, replacing
+`the_arc_joint_stacks_union_and_stop_at_the_fallback_extent` and
+`the_stacks_subtract_and_intersect_stop_at_the_fallback_extent`.
+
+## 2026-11-01 — `OnDeferred::sided` is gone (SPLITDOOR, `splitdoor/sided-followups`)
+
+The section above cites `OnDeferred::sided`. That method was the
+condition that one operand has no edge strictly inside the other's
+deferred faces, and it is now removed. The fallback runs with no null
+pair, and the side certificate rests on that alone
+(`OnDeferred::answered` gives the argument). `the_arc_joint_stacks_build_every_op`
+still passes, with the same answers.

@@ -7,7 +7,7 @@ opened: 2026-10-10
 priority: P3
 cost: M
 closed: 2026-10-18
-refs: [the-from-f64-gate-reads-every-generic-crate, under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move]
+refs: [4596, under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move]
 ---
 
 

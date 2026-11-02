@@ -48,3 +48,24 @@ Reproduce one row: `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep --profile
 `cargo nextest run -p sweep --features probe -E 'test(ray_wall_margin_twins::)'`
 fails the same way at the default ε: `curve_foot_branch: 62 pairs off,
 e.g. 9.990e2`.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`.
+
+- `bisector_nodes::slanted_bores_…`: still red at 1e-12; pinned there
+  (also `work/tang/main-red-slanted-bores-b-minus-a-exhausts-its-probe-ray-at-1e-12`).
+- `review_4781_r1_probes::review_4781_touch_pairs_every_op`: its 1e-12
+  stop moved again, from `RayExhausted` to limb 2's `KernelLimit` on a
+  cylinder, since PR 5728. Pinned there and filed as
+  `work/offset/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`.
+  The `RayExhausted` stop this row names is now behind it, unmeasured.
+- `verbs_germarms2_interval::the_meeting_axes_pose_…`: pinned at every
+  ε on `bool_ruled_region_span`
+  (`work/charttail/main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664`).
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the review_4781 r1 pin: this row's `RayExhausted`.
+
+The base six ray-wall pairs are owned by
+`work/issues/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
+since 2026-10-28 (PR 5966), which also pins the row at today's 62.

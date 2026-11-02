@@ -670,6 +670,10 @@ impl<T: Decide> Region<T> for RuledFaceRegion<T> {
         &self.edges
     }
 
+    fn edges_mut(&mut self) -> &mut Vec<Edge<T>> {
+        &mut self.edges
+    }
+
     fn outer(&self) -> LoopKey {
         self.outer
     }

@@ -6,7 +6,7 @@ status: open
 priority: P2
 cost: M
 opened: 2026-10-09
-refs: [a-shared-variable-is-named-at-the-doors]
+refs: [4463]
 ---
 
 `EditPayload` (`crates/pncad-py/src/edit_payload.rs`, `EditPayload`) carries the variable a refusal is about only as `param: Option<&VarName>`, so every arm whose subject is a variable crosses to Python with `param = None` when that variable has no name. About fifteen arms do this: `VarNameUnchanged`, `AnonymousVarUnread`, `SharedVarNeedsName`, `DeleteAnonymousVar`, `VarKindFixed`, `NonFiniteVar`, `InvalidDistribution`, `VarIsAnOutput`, the `Definition*` family, `SlotUnresolvedVar` and `PayloadUnresolvedVar` (the arms in `edit_payload`'s match that set `param: var.name()`).

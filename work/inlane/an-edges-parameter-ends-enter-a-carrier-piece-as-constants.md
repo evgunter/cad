@@ -5,7 +5,7 @@ title: An edge's parameter ends enter a carrier piece's knots as f64 constants, 
 status: open
 opened: 2026-10-11
 priority: P2
-refs: [nurbs-weights-and-knots-are-the-scalar, held-value-equalities-decided-on-the-value-channel]
+refs: [4708, held-value-equalities-decided-on-the-value-channel]
 ---
 
 

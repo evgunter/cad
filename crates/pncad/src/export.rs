@@ -260,7 +260,7 @@ pub fn pick_mesh_in_space(pick: &editor_core::NodePick) -> std::borrow::Cow<'_, 
 /// exchange file.
 ///
 /// This is the door that accepts what [`step_for_node`] refuses: a
-/// pattern's instances, a split's two halves, several disjoint tips.
+/// family's members, a split's two halves, several disjoint tips.
 /// One writer path serves both cases — `step_export` already emits one
 /// `MANIFOLD_SOLID_BREP` per solid, which is exactly
 /// the shape an imported multi-solid assembly round-trips through — so

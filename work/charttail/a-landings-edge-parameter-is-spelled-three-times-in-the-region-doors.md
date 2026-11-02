@@ -36,3 +36,13 @@ what moved.
 CHART folded into CHARTTAIL (Ev, in chat, 2026-10-26): CHART had closed
 every P0 and P1 row, and its last rows are the chart boundary's tail.
 Id and body unchanged.
+
+## Also (2026-10-30, RESTCURVE)
+
+A fourth spelling of the circle's own parameter at a point:
+`geom_brep::chart_singularity::foot` (a line's projection, a circle's
+`atan2` about its centre brought to the turn at or past a start), which
+the chart-singularity reading and step-import's meridian landing
+(`normalize/singularity.rs`, `param_at`) both cite since PR 6054. The one
+reading this row owes can be that function, or replace it. Filed here,
+not widened there (PR 6054's adjudication, S-b).

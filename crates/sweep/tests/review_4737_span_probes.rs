@@ -1,4 +1,5 @@
-//! Review probes for `record_spans` and the carry of an edge-edge record
+//! Review probes for a line edge's span lying in a face (the sweep's
+//! `reduce::settle_in_plane`) and the carry of an edge-edge record
 //! onto the reduction's split pieces (`ops::carried`): poses that stress
 //! a span's bounds, printed one line per run so base and head diff. Run
 //! with `--ignored --nocapture`.

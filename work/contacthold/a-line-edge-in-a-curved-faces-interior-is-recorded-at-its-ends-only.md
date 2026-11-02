@@ -48,14 +48,13 @@ rest in), and the two tests' counts move by one, named in their PR.
 
 ## 2026-10-11 — the planar case is minted (FLUSH)
 
-`boolean::ops::record_spans` (FLUSH's `an-apex-edge-…`, branch
-`flush/apex-edge-in-face-plane`) records a line edge's span between
-two consecutive bounds against each plane face, or line edge, both
-bounds touch and whose interior holds the span's midpoint. It skips a
-curved face by design: a line between two points of a curved face need
-not lie in it. When the curve-touch lane lands, this row's step is that
+The reduction sweep's `boolean::reduce::settle_in_plane` records each
+piece of a line edge lying in a plane face that the face holds (an end
+recorded inside it, else its midpoint inside). It skips a curved face
+by design: a line between two points of a curved face need not lie in
+it. When the curve-touch lane lands, this row's step is that
 function's face test widened to a curved face whose carrier holds the
-line, not a new producer.
+line (the sweep's `LyingIn::Curved`), not a new producer.
 
 ## 2026-10-19 — two tubes tangent along a seam (CONTACTHOLD)
 

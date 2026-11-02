@@ -15,7 +15,7 @@ use editor_core::{
     RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, VarName, WitnessDatum, apply, evaluate, load,
     save,
 };
-use fixture::{desc, insert, len, on_frame, scl};
+use fixture::{desc, insert, len, on_frame};
 use geom_core::Tol;
 
 fn small() -> (ProfileDoc, String) {
@@ -374,18 +374,45 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             expr: len(1.75),
         },
     );
-    // 6 pattern for SetStructuralParam
+    // 6 a row of the union and a copy of its member 0, for
+    // SetStructuralParam on the copy's index
+    push(
+        &mut doc,
+        DocEdit::DeclareVar {
+            name: VarName::from_static("k"),
+            def: editor_core::VarDecl::Index {
+                count: Formula::count(2),
+                within: None,
+            },
+        },
+    );
+    let k = doc.var_named("k").expect("the index");
+    let slide = Formula::mul(crate::fixture::scalar_of(k), len(4.0)).unwrap();
+    let placed = editor_core::Placed::of(
+        &doc,
+        Vec::new(),
+        vec![(editor_core::Coord::Slide(editor_core::TargetAxis::X), slide)],
+    );
+    let row = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::place(
+                editor_core::BodyRead::plain(editor_core::Operand::from(boole)),
+                editor_core::Operand::Var(in_e0),
+                placed.bundle(),
+            )),
+            fresh: Vec::new(),
+        },
+    )
+    .unwrap();
     let pat = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Pattern {
-                input: boole.into(),
-                count: Formula::count(2),
-                kind: editor_core::PatternKind::Linear {
-                    direction: [scl(1.0), scl(0.0), scl(0.0)],
-                    spacing: len(4.0),
-                },
-            }),
+            node: Box::new(Node::place(
+                editor_core::BodyRead::indexed(row, vec![Formula::count(0)]),
+                editor_core::Operand::Var(in_e0),
+                editor_core::stand().bundle(),
+            )),
             fresh: Vec::new(),
         },
     )
@@ -394,8 +421,11 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::SetStructuralParam {
             node: pat,
-            slot: SlotId::Count,
-            expr: Formula::count(3),
+            slot: SlotId::Index {
+                seat: editor_core::OperandSlot::Source,
+                k: 0,
+            },
+            expr: Formula::count(1),
             fresh: Vec::new(),
         },
     );
@@ -484,7 +514,8 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             key: "adv/probe2".into(),
         },
     );
-    // 12 Rebind: repair the body name onto the pattern's output body.
+    // 12 Rebind: repair the body name onto the member copy's output
+    // body.
     let to = StableName {
         kind: EntityKind::Body,
         node: pat,

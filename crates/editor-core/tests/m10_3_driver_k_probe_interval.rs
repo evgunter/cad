@@ -86,6 +86,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
                 .expect("finite square corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),

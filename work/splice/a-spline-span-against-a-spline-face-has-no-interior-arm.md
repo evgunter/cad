@@ -25,7 +25,7 @@ then `spline_interior`) refuses such an edge whose boundary pass reads
 
 **Lily wall 8 is this case, not the analytic one.** Measured on main
 at `6117d399` with a probe in `spline_face`'s `Clear` arm: both
-refusals `sweep`'s `a_sheath_on_its_blade_unions_past_the_shared_rim`
+refusals `sweep`'s `a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`
 pins are a `Nurbs` carrier on params `(0, 1)` (the blade's tip seams,
 ends `(0, ±0.085, 0)`), against the sheath's ridge wall. The analytic
 arm does not move it; `demos/tour/src/lily.rs` wall 8 and the sweep row
@@ -59,15 +59,15 @@ to the built arm; a spiric span stays unbuilt.
 
 Lily wall 8 moves past every face reduction in both operand orders and
 stops at the result's shared-rim seam, re-pinned in
-`a_sheath_on_its_blade_unions_past_the_shared_rim` and
+`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim` and
 `demos/tour/src/lily.rs` and filed as
 `the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`.
 
 Witness rows (`curve_face::spline_face::rows`):
 `a_nurbs_span_crosses_a_bicubic_patch_once`,
 `a_nurbs_span_crosses_a_bicubic_patch_twice`,
-`a_nurbs_span_tangent_to_a_dome_escalates`,
-`a_nurbs_pass_within_the_band_escalates`,
+`a_nurbs_span_tangent_to_a_dome_refuses_at_the_floor`,
+`a_nurbs_pass_within_the_band_refuses_at_the_floor`,
 `a_nurbs_pass_past_the_band_is_clear`,
 `a_meeting_on_a_crease_of_the_span_refuses_and_one_beside_it_reads`,
 `a_nurbs_meeting_on_a_crease_of_the_chart_refuses_and_one_beside_it_reads`,

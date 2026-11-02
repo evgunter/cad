@@ -2,10 +2,13 @@
 id: sphere-face-bounded-by-a-tilted-circle-has-no-tessellation-lane
 kind: issue
 title: A sphere face bounded by a circle tilted against its chart has no tessellation lane, so a carve that builds cannot be drawn
-status: open
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: H
+closed: 2026-10-28
+pr: 5920
+branch: tess/sphere-tilted-circle-lane
 ---
 
 
@@ -109,3 +112,29 @@ r = 0.03 and 0.08), and the unit cube clipped by the cube turned
 PR 5048 review built (15 bodies) refused at a corner face and nowhere
 else. `corner_patch_chart_poles` and the `f4` row read these bodies
 without a mesh for that reason.
+
+## Closed (2026-10-28, PR 5920)
+
+A sphere face bounded by tilted circles meshes through a sphere arm in the trimmed lane, and every witness above now meshes:
+- the tilted pairs;
+- the snowman bar and slab rows;
+- the `Tilted` and `Lumps` rows of `spheres_crossing_off_every_edge`;
+- the tilted tube;
+- the oblique fillet corners;
+- lily wall 7's one-seam carve.
+
+Each witness is held to `check_mesh`, to its mass-properties volume within δ × its B-rep area, and to outward winding. Dual review (tier H, concurrent): 3 defects tallied (an inside-out complement face, a fold-over, a shared-ear 4-use edge). All were fixed, and a delta review followed.
+
+Where the arm stops, it refuses typed:
+- a circle near a pole that asks more than the per-edge chord budget (`ChordBudget`);
+- a fold that survives the retries (`FoldedTriangle`);
+- a face shape the arm does not cover (`SphereTrimShape`).
+
+Residue rows:
+- `a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm`;
+- `a-trimmed-sphere-face-holding-a-pole-inside-it-refuses`;
+- `cone-and-sphere-faces-with-conic-or-spline-trims-have-no-trimmed-arm`;
+- `work/tesssize/the-trimmed-sphere-arm-has-no-worst-triangle-theorem`;
+- `work/tesslie/two-faces-cutting-one-ear-of-a-shared-chord-chain-leave-a-four-use-edge` (the curved and NURBS lanes).
+
+Lily wall 7's three seams refuse `RingOnCurvedFace` (`valid-ringed-torus-faces-build-but-cannot-be-meshed`).

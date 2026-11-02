@@ -127,15 +127,15 @@ def two_placed(x0):
 
 class TestTheConnectednessResident(unittest.TestCase):
     def test_a_disjoint_union_is_one_finding_naming_its_subject(self):
-        doc, root, _ = disjoint_union()
+        doc, placement, _ = disjoint_union()
         assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc))
         self.assertEqual(len(report), 1)
         (finding,) = report.findings
         self.assertEqual(finding.check, CheckId.Connectedness)
-        self.assertEqual(finding.root, root)
+        self.assertEqual(finding.placement, placement)
         self.assertEqual(finding.output_ix, 0)
-        self.assertIsNone(finding.node, "a root output's finding is about no lone node")
+        self.assertIsNone(finding.node, "a placement output's finding is about no lone node")
         self.assertEqual(finding.evidence.variant, "connectedness")
         self.assertEqual(finding.evidence.actual, 2)
         self.assertEqual(finding.evidence.expected, 1)
@@ -166,35 +166,35 @@ class TestTheConnectednessResident(unittest.TestCase):
         doc = Doc("checks-voided")
         outer = slab(doc, 0.0, 3.0, 0.0, 3.0, 0.0, 3.0)
         inner = slab(doc, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, on=outer)
-        doc.insert(Node.subtract(outer, inner))
+        doc.place(doc.insert(Node.subtract(outer, inner)), doc.world)
         assemble_world_copies(doc)
         self.assertEqual(run_checks(doc, evaluate(doc)).findings, [])
 
     def test_a_stated_expectation_is_the_acknowledgment(self):
-        doc, root, _ = disjoint_union()
-        cfg = ChecksConfig(expected_components=[(root, 0, 2)])
+        doc, placement, _ = disjoint_union()
+        cfg = ChecksConfig(expected_components=[(placement, 0, 2)])
         assemble_world_copies(doc)
         self.assertEqual(run_checks(doc, evaluate(doc), cfg).findings, [])
-        self.assertEqual(cfg.expected_components, [(root, 0, 2)])
+        self.assertEqual(cfg.expected_components, [(placement, 0, 2)])
 
     def test_an_expectation_nothing_consumed_is_stale_not_ignored(self):
         """Two-directional: the union CONSUMED `a`, so `a` is no
-        root and its expectation binds no subject. A stale
+        placement and its expectation binds no subject. A stale
         acknowledgment must not read as "checked and fine"."""
-        doc, root, consumed = disjoint_union()
-        cfg = ChecksConfig(expected_components=[(root, 0, 2), (consumed, 0, 1)])
+        doc, placement, consumed = disjoint_union()
+        cfg = ChecksConfig(expected_components=[(placement, 0, 2), (consumed, 0, 1)])
         assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc), cfg)
         (finding,) = report.findings
         self.assertEqual(finding.evidence.variant, "stale_expectation")
-        self.assertEqual(finding.root, consumed)
+        self.assertEqual(finding.placement, consumed)
         self.assertEqual(finding.evidence.expected, 1)
         self.assertIsNone(finding.evidence.actual)
 
     def test_one_subject_cannot_be_expected_twice(self):
-        _, root, _ = disjoint_union()
+        _, placement, _ = disjoint_union()
         with self.assertRaises(ValueError) as caught:
-            ChecksConfig(expected_components=[(root, 0, 2), (root, 0, 1)])
+            ChecksConfig(expected_components=[(placement, 0, 2), (placement, 0, 1)])
         self.assertIn("twice", str(caught.exception))
 
 
@@ -207,7 +207,7 @@ class TestTheAtRestResident(unittest.TestCase):
         self.assertEqual(finding.check, CheckId.AtRest)
         self.assertEqual(finding.evidence.variant, "interference")
         self.assertEqual(finding.census, doc.product, "the `⊔` whose census decided it")
-        self.assertIsNone(finding.root)
+        self.assertIsNone(finding.placement)
         self.assertIsNone(finding.node)
         self.assertIsNone(finding.quiet)
         interference = finding.evidence.interference
@@ -239,19 +239,20 @@ class TestTheReportGateSplit(unittest.TestCase):
     def test_a_flagged_document_is_a_working_document(self):
         """REPORTS, NEVER GATES. The finding says the almost-right
         picture is wrong; it stops nothing."""
-        doc, root, _ = disjoint_union()
+        doc, placement, _ = disjoint_union()
+        assemble_world_copies(doc)
         ev = evaluate(doc)
         self.assertEqual(len(run_checks(doc, ev)), 1)
         # Evaluated, measurable, exportable — all of it after the
         # finding, and none of it affected by it.
-        body = ev.value(root).body()
+        body = ev.value(placement).body()
         self.assertAlmostEqual(pinned(body).volume, 2.0, places=9)
-        self.assertIn("ISO-10303-21", ev.step_string(root))
+        self.assertIn("ISO-10303-21", ev.step_string(placement))
 
     def test_severity_moves_only_the_gate(self):
         """`Warn` and `Error` produce IDENTICAL findings; the only
         difference is whether `enforce_checks` refuses on them."""
-        doc, root, _ = disjoint_union()
+        doc, placement, _ = disjoint_union()
         ev = evaluate(doc)
         warn = ChecksConfig(connectedness=Severity.Warn)
         error = ChecksConfig(connectedness=Severity.Error)
@@ -264,7 +265,7 @@ class TestTheReportGateSplit(unittest.TestCase):
             enforce_checks(errored, error)
         (refusing,) = caught.exception.findings
         self.assertEqual(refusing, errored.findings[0])
-        self.assertEqual(refusing.root, root)
+        self.assertEqual(refusing.placement, placement)
         self.assertIsInstance(caught.exception, pncad.PncadError)
 
     def test_the_default_configuration_can_never_refuse(self):
@@ -278,6 +279,7 @@ class TestTheReportGateSplit(unittest.TestCase):
         """"Checked and fine" and "not checked" are different
         answers, and `skipped` is the difference."""
         doc, _, _ = disjoint_union()
+        assemble_world_copies(doc)
         ev = evaluate(doc)
         off = ChecksConfig(connectedness=Severity.Off)
         report = run_checks(doc, ev, off)
@@ -328,10 +330,11 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         each placement as the evaluated document holds it — kind, label and
         tag — and `repr()` keeps the full id. A label set after
         `evaluate` is not the evaluated document's, so it is not said."""
-        doc, root, _ = disjoint_union()
-        doc.apply(DocEdit.set_label(root, "joined"))
+        doc, placement, _ = disjoint_union()
+        assemble_world_copies(doc)
+        doc.apply(DocEdit.set_label(placement, "joined"))
         evaluation = evaluate(doc)
-        doc.apply(DocEdit.set_label(root, "renamed"))
+        doc.apply(DocEdit.set_label(placement, "renamed"))
         strict = ChecksConfig(connectedness=Severity.Error)
         report = run_checks(doc, evaluation, strict)
         (finding,) = report.findings
@@ -339,9 +342,9 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         self.assertIn(spoken, str(report))
         self.assertIn(spoken, str(finding))
         self.assertNotIn("renamed", str(report))
-        full = repr(root).removeprefix("NodeId(").removesuffix(")")
-        self.assertNotIn(f"root {full[:12]}", str(finding))
-        self.assertIn(f"root {full},", repr(finding))
+        full = repr(placement).removeprefix("NodeId(").removesuffix(")")
+        self.assertNotIn(f"placement {full[:12]}", str(finding))
+        self.assertIn(f"placement {full},", repr(finding))
         with self.assertRaises(CheckRefusal) as caught:
             enforce_checks(report, strict)
         self.assertIn(spoken, str(caught.exception))
@@ -380,12 +383,36 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         self.assertIn("no findings", str(run_checks(clean, evaluate(clean))))
 
 
+class TestTheUnusedResident(unittest.TestCase):
+    def test_what_nothing_uses_is_reported_by_node_and_by_name(self):
+        """An operation none of whose outputs is used is a `node`
+        finding; a named variable nothing reads is a `var` one, spoken
+        by its name."""
+        doc, _ = one_box()
+        assemble_world_copies(doc)
+        spare = slab(doc, 3.0, 4.0)
+        doc.apply(DocEdit.declare_var(VarName("gap"), FreeVar.scalar(0.0)))
+        report = run_checks(doc, evaluate(doc))
+        self.assertEqual([f.check for f in report.findings], [CheckId.Unused] * 2)
+        node, var = report.findings
+        self.assertEqual((node.node, node.var), (spare, None))
+        self.assertEqual((var.node, var.var), (None, doc.var(VarName("gap"))))
+        self.assertEqual(var.evidence.variant, "unused")
+        self.assertIn("check unused: gap: used by nothing", str(var))
+        self.assertEqual(CheckId.Unused.kind, CheckKind.Certified)
+        self.assertEqual(ChecksConfig().unused, Advisory.Warn, "the default")
+        off = run_checks(doc, evaluate(doc), ChecksConfig(unused=Advisory.Off))
+        self.assertEqual(off.findings, [])
+        self.assertIn(CheckId.Unused, off.skipped)
+
+
 class TestSubjectBody(unittest.TestCase):
     def test_a_findings_attribution_resolves_to_the_flagged_body(self):
         doc, _, _ = disjoint_union()
+        assemble_world_copies(doc)
         ev = evaluate(doc)
         (finding,) = run_checks(doc, ev).findings
-        body = subject_body(ev, finding.root, finding.output_ix)
+        body = subject_body(ev, finding.placement, finding.output_ix)
         self.assertIsNotNone(body)
         # The two unit cubes the count found, as one body.
         self.assertAlmostEqual(pinned(body).volume, 2.0, places=9)
@@ -401,9 +428,9 @@ class TestSubjectBody(unittest.TestCase):
         consumed the entry — and yet its body still resolves here,
         because the node evaluated. Staleness is a fact about the
         placements; this door is a fact about the evaluation."""
-        doc, root, consumed = disjoint_union()
+        doc, placement, consumed = disjoint_union()
         ev = evaluate(doc)
-        self.assertIsNone(subject_body(ev, root, 7))
+        self.assertIsNone(subject_body(ev, placement, 7))
         self.assertIsNotNone(subject_body(ev, consumed, 0))
 
         sliver = Doc("checks-sliver-subject")
@@ -427,17 +454,15 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
     made it a diagnosis a caller could not act on rather than a wrong
     blessing.
 
-    The subject here is an INSTANCE of the mated stand, which is the
-    carried-declaration home (`NodeValue.contacts`, the D-1
-    declarations a referenced document's product minted). Its sibling
-    home — a boolean's own `BooleanValue.contacts` — is the same
-    channel and the same `sources_of` reconciliation, but it cannot
-    carry this row: a declared glue WELDS the faces it declares, so
-    its record set comes out empty and its 3′ pass is vacuous
-    (`test_validate`'s module header states the same measurement). So
-    this row is the one of the two homes that can be observed from
-    Python at all, and it is named as such rather than presented as
-    the whole claim.
+    The subject here is an INSTANCE of the mated stand, whose records
+    are the D-1 declarations a referenced document's product minted,
+    carried in its value's carry. A boolean's own records ride the same
+    carry, but they cannot carry this row: a declared glue WELDS the
+    faces it declares, so its record set comes out empty and its 3′
+    pass is vacuous (`test_validate`'s module header states the same
+    measurement). So this row is the one record source that can be
+    observed from Python at all, and it is named as such rather than
+    presented as the whole claim.
     """
 
     def instance_of_the_stand(self):
@@ -493,7 +518,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
 
 
 class TestTheChecksCouldNotRun(unittest.TestCase):
-    def test_a_root_without_a_value_refuses_typed(self):
+    def test_a_placement_without_a_value_refuses_typed(self):
         """A report over a partial evaluation would claim more than
         was checked. `evaluate` is total, so the failure arrives as a
         valueless placement and the registry refuses on it rather than
@@ -519,7 +544,7 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
             ],
         )
         union = doc.insert(Node.union([a, b]))
-        root = doc.place(union, doc.world)
+        placement = doc.place(union, doc.world)
         self.assertAlmostEqual(
             pinned(evaluate(doc).value(union).body()).volume, 2.0, places=9
         )
@@ -527,8 +552,8 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         ev = evaluate(doc)
         with self.assertRaises(ChecksError) as caught:
             run_checks(doc, ev)
-        self.assertEqual(caught.exception.variant, "root_without_value")
-        self.assertEqual(caught.exception.node, root)
+        self.assertEqual(caught.exception.variant, "placement_without_value")
+        self.assertEqual(caught.exception.node, placement)
         self.assertIsInstance(caught.exception, pncad.PncadError)
 
 
@@ -575,6 +600,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
             connectedness=Severity.Off,
             at_rest=Severity.Off,
             unproven_coincidence=Advisory.Warn,
+            unused=Advisory.Off,
         )
         report = run_checks(doc, ev, cfg)
         self.assertEqual(len(report.findings), 5)
@@ -584,7 +610,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertEqual(finding.check, CheckId.UnprovenCoincidence)
         self.assertEqual(finding.check.kind, CheckKind.Certified)
         self.assertEqual(finding.node, glued)
-        self.assertIsNone(finding.root)
+        self.assertIsNone(finding.placement)
         self.assertIsNone(finding.output_ix)
         evidence = finding.evidence
         self.assertEqual(evidence.variant, "unproven_coincidence")

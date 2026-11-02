@@ -117,6 +117,12 @@ fn workspace_err(py: Python<'_>, err: &ws::WorkspaceError) -> PyErr {
         E::UnknownId { id: which } | E::Save { id: which, .. } => {
             (none(), id(which), none(), none(), none(), none())
         }
+        // The id is the document the target file holds, and `path`
+        // that file.
+        E::SaveWouldReplaceDocument {
+            id: which,
+            path: at,
+        } => (path(at), id(which), none(), none(), none(), none()),
         E::PinMismatch {
             id: which,
             path: at,
@@ -401,6 +407,11 @@ impl Workspace {
     /// write the content as a SECOND part, use
     /// `save_as_new_document`.
     ///
+    /// A `target` that is the file of a DIFFERENT document refuses too
+    /// (`variant == "save_would_replace_document"`, with `id` the
+    /// document that file holds and `path` the file), because the
+    /// write would delete that part from the store.
+    ///
     /// Otherwise the scan says which act this is: at the id's own
     /// scanned path it is a resave, and for an unclaimed id it is a
     /// create at the caller's name (`create` forces `{id}.pncad`;
@@ -422,8 +433,8 @@ impl Workspace {
     }
 
     /// Save `doc` AS A NEW DOCUMENT — the same content under a fresh
-    /// random identity, at `{newid}.pncad` — and answer
-    /// `(new id, path)`. The SECOND of the two acts a save is
+    /// random identity, at `target` (a save file of this store, read as
+    /// `save_at` reads it) — and answer `(new id, path)`. The SECOND of the two acts a save is
     /// (ASSEMBLY-DESIGN A4): an explicit fork.
     ///
     /// **The original is untouched**, so every inbound `DocRef`
@@ -445,10 +456,11 @@ impl Workspace {
         &mut self,
         py: Python<'_>,
         doc: &super::doc::Doc,
+        target: &str,
     ) -> PyResult<(String, String)> {
         let tol = Tol::witness();
         self.inner
-            .save_as_new_document(&doc.inner, tol)
+            .save_as_new_document(&doc.inner, target, tol)
             .map(|(id, path)| (id.hex(), path.display().to_string()))
             .map_err(|err| workspace_err(py, &err))
     }

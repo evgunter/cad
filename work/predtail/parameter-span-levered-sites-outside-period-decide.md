@@ -38,3 +38,5 @@ difference directly. The review named five; read one by one:
   a parameter**. `span = |p̂ × b̂|` is a sine of unit vectors, a
   dimensionless `x` that `Margin::levered` exists for. Legitimate; no
   change.
+
+**2026-11-01 (ONEREAD, PR 6247):** `bool_cone_arc_span` is retired with `sectors::arc_side`. The vertex-vertex rows' direction readings now live in `link::Cone` (`link_arc`, a point's distance from a plane, not a levered sine).

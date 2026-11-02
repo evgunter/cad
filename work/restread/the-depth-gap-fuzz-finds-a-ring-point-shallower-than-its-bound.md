@@ -33,3 +33,10 @@ its lower end by 4.5e-14 on a ring of zero minor radius (a circle).
 Either the ring's depth bound is not an enclosure at `minor = 0`, or
 the sample's own depth is computed outside the enclosure. Pin the seed
 as a deterministic row beside the fix.
+
+## Another seed (2026-10-28, PR 5956 CI, eps 1e-6)
+
+Draw 340 of seed `0xe2bf3f192c072cb8`: a point on a zero-minor ring
+(major 1.1416) read 8.06e-14 deeper than its centre bound 1.2484.
+PR 5956 (cone apex) does not touch `census/`. Reproduce with
+`CAD_FUZZ_SEED=0xe2bf3f192c072cb8 CAD_FUZZ_EFFORT=1 CAD_TOLERANCE_EPS=1e-6`.

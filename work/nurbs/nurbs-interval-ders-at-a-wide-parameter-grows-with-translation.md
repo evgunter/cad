@@ -51,3 +51,20 @@ that it is a thin-parameter door and refuse or flag a wide one.
 ## Re-homed from FLUX to KNOT (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. KNOT collects the spline, net and fit doors in `geom-core` and `geom`: refinement inside an enclosure, the net-state reads, the NURBS derivative and projection doors, and the fit's refusals and solves. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## The home (JETFRAME, CLEAR, 2026-11-01)
+
+A rational net's derivatives over a cell now have one home in `geom`:
+`net::rational_slope` (first order) and `net::rational_mixed` (`S_uv`),
+over hulls read about a point of the cell (`net::cell_origin`,
+`net::homogeneous_about`). `NurbsSurface::rect_jet` and
+`NurbsCurve3::span_deriv` read through it.
+
+This row's door is different: `SurfaceWindow::ders_in_span` is generic
+over every scalar and sums `A = Σ N·w·P` by the basis recurrence at the
+parameter itself, not over a restricted net's hulls. Reading it about a
+point would need a cell-local origin inside that generic sum (an `f64`
+change at rounding level on every caller), or the door refusing or
+flagging a parameter wider than a point. Neither is a few lines, so
+JETFRAME left it open. A wide-parameter caller that wants a derivative
+over a cell has `rect_jet` now.

@@ -36,18 +36,13 @@ fn fans<T: Decide>(fans: &[(Vec3<T>, Vec<Point3<T>>)]) -> Link<T> {
     let o = pt(0.0, 0.0, 0.0);
     let sectors = fans
         .iter()
-        .map(|(m, pts)| Sector {
-            surface: geom::Surface::Plane {
-                origin: o,
-                normal: *m,
-                u_ref: (pts[0] - o).normalize(),
-            },
-            sense: true,
-            outward: *m,
-            apex: o,
-            wedges: pts.windows(2).map(|w| (w[0], w[1])).collect(),
-            closed: false,
-            clear: None,
+        .map(|(m, pts)| {
+            FaceSector::planar(Sector {
+                outward: *m,
+                apex: o,
+                wedges: pts.windows(2).map(|w| (w[0], w[1])).collect(),
+                closed: false,
+            })
         })
         .collect();
     Link::of(o, sectors).expect("the fans make a link")

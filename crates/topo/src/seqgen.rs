@@ -1053,7 +1053,7 @@ fn split_edge_sites(body: &Body<f64>, tol: Tol) -> impl Iterator<Item = OpChoice
 /// constant is a way of MISSING the lattice, not a proof that it
 /// cannot be hit — what enforces distinctness is
 /// [`split_site`]'s separation filter.
-const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
+const SPLIT_FRACTION: f64 = geom_core::GOLDEN_SECTION;
 
 /// `edge`'s split parameter together with the parent's OWN spec,
 /// rebuilt from the certified curve — `None` when the edge is not

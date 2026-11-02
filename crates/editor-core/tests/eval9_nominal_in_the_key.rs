@@ -90,6 +90,7 @@ fn doc_with(nominal: f64, u_of: fn(Formula) -> Formula) -> ProfileDoc {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     };
     let doc = doc
         .apply(
@@ -354,10 +355,13 @@ fn the_probe_document_carries_the_parameter_only_in_the_profile() {
         panic!("a profile first");
     };
     let mut program_refs = Vec::new();
-    let _ = program.try_map_slots(&mut |slot| {
-        slot.var_reads(&mut program_refs);
-        Ok::<_, ()>(slot.clone())
-    });
+    let _ = program.try_map_slots(
+        &mut |slot| {
+            slot.var_reads(&mut program_refs);
+            Ok::<_, ()>(slot.clone())
+        },
+        &mut |_, read| Ok(read.clone()),
+    );
     assert!(
         program_refs.iter().any(|(v, _)| *v == var),
         "the program holds the parameter"

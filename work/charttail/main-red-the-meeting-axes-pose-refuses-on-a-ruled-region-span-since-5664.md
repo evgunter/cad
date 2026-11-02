@@ -49,3 +49,12 @@ holds it here because the door is the region skeleton CHART landed.
 at this pose (an angle read through a branch cut, or an `atan2` whose
 arguments straddle zero), fix it with a red-capable row at `Interval`,
 and turn this row green.
+
+## 2026-10-28 — pinned on main (GREEN, `green/full-suite-pins`)
+
+Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83c38`. Red at the default ε, 1e-6 and 1e-12, each escalating on
+`bool_ruled_region_span` (`Enclosure { lo: -1.5707963267956369, hi:
+4.712388980385431 }`). The row is pinned at all three on that predicate;
+it goes red the day the row passes.
+
+Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the 1e-12 pin: possibly `carrier_endpoint_end` (`germ/main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12`).

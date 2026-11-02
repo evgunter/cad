@@ -17,6 +17,7 @@ use editor_core::{
     Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PersistError, ProfileDoc, RecipeNodeId,
     RoleSeg, SlotId, SlotValue, TargetAxis, VarId, VarKind, apply, load, save,
 };
+use editor_core::{Dimension, Formula};
 use fixture::{insert, len, on_frame, run, square, step};
 use geom_core::Tol;
 
@@ -176,7 +177,10 @@ fn an_empty_bundle_and_a_plane_mate_with_one_value_refuse_unpinned() {
     );
     let one_value = editor_core::Placed {
         mates: vec![mate],
-        values: vec![(Coord::Slide(TargetAxis::X), len(0.0))],
+        values: vec![(
+            Coord::Slide(TargetAxis::X),
+            Formula::zero(Dimension::Length),
+        )],
     };
     let short = fixture::bundle_refusal(&doc, under, one_value.bundle());
     assert!(

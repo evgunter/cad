@@ -45,6 +45,8 @@ const OP: RecipeNodeId = RecipeNodeId::new(0, 3 << 16);
 /// The read a carry into [`OP`] comes through. No document holds it,
 /// so the words never say it.
 const READ: VarId = VarId::new(0, 4 << 16);
+/// The index a `Member` segment's value is of.
+const INDEX: VarId = VarId::new(0, 5 << 16);
 
 /// One of three reads a carry comes through, none of them held by a
 /// document.
@@ -213,7 +215,7 @@ fn random_minted(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
 /// around a leaf or as a join, and every list-bearing role: walls, caps
 /// and rim edges of the extrude; merged faces, seams, blend faces and
 /// band faces; a part bordering, along or between a list, or ranked; a
-/// split's half and a pattern's copy; a carry through a Boolean's B or
+/// split's half and a family's member; a carry through a Boolean's B or
 /// a union's member — each at one of three nodes.
 fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
     fn leaf(rng: &mut fuzz::Rng, pool: usize) -> StableName {
@@ -293,7 +295,13 @@ fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
         8 => face(node(rng), RoleSeg::SplitFragment { parent: inner(rng) }),
         9 => {
             let i = rng.below(2) as u32;
-            face(node(rng), RoleSeg::Instance { i, of: inner(rng) })
+            face(
+                node(rng),
+                RoleSeg::Member {
+                    at: vec![(INDEX, i)],
+                    of: inner(rng),
+                },
+            )
         }
         10 => face(node(rng), RoleSeg::BlendFace(inner(rng))),
         11 => StableName {
@@ -326,8 +334,8 @@ fn unsaid_nodes_erased(name: &StableName) -> StableName {
             RoleSeg::SplitFragment { parent } => RoleSeg::SplitFragment {
                 parent: erase(parent),
             },
-            RoleSeg::Instance { i, of } => RoleSeg::Instance {
-                i: *i,
+            RoleSeg::Member { at, of } => RoleSeg::Member {
+                at: at.clone(),
                 of: erase(of),
             },
             RoleSeg::BlendFace(of) => RoleSeg::BlendFace(erase(of)),
@@ -347,7 +355,7 @@ fn unsaid_nodes_erased(name: &StableName) -> StableName {
         .collect();
     let unsaid = matches!(
         path.first(),
-        Some(RoleSeg::From { .. } | RoleSeg::SplitFragment { .. } | RoleSeg::Instance { .. })
+        Some(RoleSeg::From { .. } | RoleSeg::SplitFragment { .. } | RoleSeg::Member { .. })
     );
     StableName {
         kind: name.kind,
@@ -419,8 +427,8 @@ fn a_join_beneath_a_wrap_reads_apart_from_one_above_it() {
     let copy = |name: StableName| StableName {
         kind: name.kind,
         node: OP,
-        path: vec![RoleSeg::Instance {
-            i: 1,
+        path: vec![RoleSeg::Member {
+            at: vec![(INDEX, 1)],
             of: NameRef::new(name),
         }],
     };

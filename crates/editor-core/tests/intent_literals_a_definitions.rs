@@ -345,6 +345,7 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
                     radius,
                 }],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         insert(

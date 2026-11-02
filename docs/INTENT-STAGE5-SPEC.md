@@ -66,7 +66,7 @@ The state C starts from (D′3 over main):
 
 **Findings at rest** (`checks.rs`, `checks/at_rest.rs`):
 
-- **An arrival** is one operand of a `⊔` at one value of its indices, as `[assertions]` defines it. The census names it by the read the operand entered the `⊔` through: the operand's `VarId`, and, until G, the output body of a `Pattern` or `PlacedUnion` operand (D′3's interim). `CopyRef` and `FaceSite` keep their shape, read as an arrival and a face as the arrival's own name table spells it (`StableName`), as D′3's `checks/at_rest.rs` already un-keys a `⊔`'s `From { read, of }`.
+- **An arrival** is one operand of a `⊔` at one value of its indices, as `[assertions]` defines it. The census names it by the read the operand entered the `⊔` through: the operand's `VarId`, at the member's index values for a family. `CopyRef` and `FaceSite` keep their shape, read as an arrival and a face as the arrival's own name table spells it (`StableName`), as D′3's `checks/at_rest.rs` already un-keys a `⊔`'s `From { read, of }`.
 - **A contact is the lint's, and only the lint's.** A touch the census records between two arrivals is a `CensusAtRest` row (`AtRestRow`) and a record citing it. `CheckId::UnprovenCoincidence` reports it unless the door proves it, once, under the `⊔` that decided it. `AtRest` has no contact finding. This holds for a flush pair as well.
 - **`CheckId::AtRest` reports two kinds of finding**, each under the `⊔` that decided it (`FindingSubject` names that `⊔`'s output):
   - **interference**: `InterferenceFinding` as B built it, between two arrivals, quiet or loud;

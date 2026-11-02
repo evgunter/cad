@@ -47,6 +47,11 @@ geom-core = { path = "../geom-core", features = ["sym-revalue-testing", "sym-pro
 # what keeps it off every shipped build path.
 test-utils = { path = "../test-utils" }
 proptest = { workspace = true }
+# The exact rational oracle `geom-core/tests/exact_q` (included by path
+# in `tests/surfaces/rect_enclosure.rs`) is built on these.
+num-bigint = { workspace = true }
+num-integer = { workspace = true }
+num-traits = { workspace = true }
 # DEV-ONLY interpolation oracle per docs/CURVO-AUDIT.md (Q5 verdict:
 # reference + test oracle; no curvo code enters the kernel). Pinned to
 # the audited commit; tolerant comparison only; NOT an oracle for

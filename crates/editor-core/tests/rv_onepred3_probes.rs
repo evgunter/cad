@@ -19,16 +19,24 @@ use crate::fixture;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, EditError, Formula, Node, PatternKind, PersistError, ProfileDoc,
-    RecipeNodeId, SlotId, SnapshotError, apply, load, save,
+    Dimension, DocEdit, EditError, Node, OperandSlot, PersistError, ProfileDoc, RecipeNodeId,
+    SlotId, SnapshotError, apply, load, save,
 };
-use fixture::{desc, insert, len, scl, square};
+use fixture::{desc, insert, len, square};
 use geom_core::Tol;
 
-/// An extrude, patterned linearly — the pattern's `count` is a
-/// Count-typed STRUCTURAL slot, a node kind beside the extrude the
-/// unit's own suite covers.
-fn patterned() -> (ProfileDoc, RecipeNodeId) {
+/// The index of a placement's read of one member — a Count-typed
+/// STRUCTURAL slot.
+const INDEX: SlotId = SlotId::Index {
+    seat: OperandSlot::Source,
+    k: 0,
+};
+
+/// An extrude, a row of it, and a copy of the row's member 1 — the
+/// copy's index ([`INDEX`]) is a Count-typed STRUCTURAL slot, a node
+/// kind beside the extrude the unit's own suite covers. Answers the
+/// document, the extrude and the copy.
+fn patterned() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, profile) = insert(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("rv-onepred3"),
@@ -43,30 +51,21 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
             distance: len(1.0),
         },
     );
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: extrude.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(3.0),
-            },
-        },
-    );
-    (doc, pattern)
+    let (doc, _, row) = crate::fixture::linear(doc, extrude, [1.0, 0.0, 0.0], 3.0, 3);
+    let (doc, read) = crate::fixture::member(doc, row, 1);
+    (doc, extrude, read)
 }
 
 /// PROBE 1 — a THIRD node kind with a typed slot, and a Count one:
-/// the pattern's instance count. Claim 1 of the review brief.
+/// a member read's index. Claim 1 of the review brief.
 #[test]
-fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
-    let (doc, pattern) = patterned();
+fn rv_a_retyped_member_index_is_refused_at_both_doors() {
+    let (doc, _, pattern) = patterned();
     match apply(
         &doc,
         &DocEdit::SetStructuralParam {
             node: pattern,
-            slot: SlotId::Count,
+            slot: INDEX,
             expr: len(3.0),
             fresh: Vec::new(),
         },
@@ -79,23 +78,23 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
         }) => assert_eq!(
             (slot, expected, found),
             (
-                SlotId::Count,
+                INDEX,
                 editor_core::SlotKind::Is(editor_core::VarKind::Count),
                 Dimension::Length
             )
         ),
-        other => panic!("the edit door must refuse a length count, got {other:?}"),
+        other => panic!("the edit door must refuse a length index, got {other:?}"),
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
-    // The count slot reads a free Count variable; the surgery swaps it
-    // for a well-formed LENGTH variable, so the only rule left to
-    // refuse it is the slot's own.
+    // The index slot reads a Count variable; the surgery swaps it for
+    // a well-formed LENGTH variable, so the only rule left to refuse it
+    // is the slot's own.
     let corrupt = doctored(&text, |wire| {
-        let var = wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["count"]
+        let var = wire["snapshot"]["nodes"][pattern.0.to_string()]["Place"]["source"]["at"][0]
             .as_str()
-            .expect("the count slot reads a variable")
+            .expect("the index slot reads a variable")
             .to_owned();
         let held = &mut wire["snapshot"]["vars"][var.as_str()];
         assert_eq!(held["kind"], serde_json::json!("Count"));
@@ -115,12 +114,12 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
             (node.id(), slot, declared, referenced),
             (
                 pattern,
-                SlotId::Count,
+                INDEX,
                 editor_core::VarKind::Length,
                 editor_core::VarKind::Count
             )
         ),
-        other => panic!("the load door must refuse a length count, got {other:?}"),
+        other => panic!("the load door must refuse a length index, got {other:?}"),
     }
 }
 
@@ -135,13 +134,13 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
 /// and this row is what says so out loud.
 #[test]
 fn rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before() {
-    let (doc, pattern) = patterned();
+    let (doc, extrude, _) = patterned();
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     let corrupt = doctored(&text, |wire| {
-        // (a) a non-profile slot retyped: spacing Length -> Angle.
+        // (a) a non-profile slot retyped: distance Length -> Angle.
         crate::wire::retype_slot_var(
             wire,
-            |wire| &wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["kind"]["Linear"]["spacing"],
+            |wire| &wire["snapshot"]["nodes"][extrude.0.to_string()]["Extrude"]["distance"],
             "Angle",
             "rad",
         );
@@ -159,8 +158,8 @@ fn rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before() {
         })) => assert_eq!(
             (node.id(), slot, declared, referenced),
             (
-                pattern,
-                SlotId::Spacing,
+                extrude,
+                SlotId::Distance,
                 editor_core::VarKind::Angle,
                 editor_core::VarKind::Length
             ),

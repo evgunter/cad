@@ -130,6 +130,7 @@ fn stepped_shaft_sized(
             LoopProgram::polygon([(-o, -o), (o, -o), (o, o), (-o, o)]).expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let base = r.insert(Node::Extrude {
         profile: base_p.into(),
@@ -140,6 +141,7 @@ fn stepped_shaft_sized(
             LoopProgram::polygon([(-i, -i), (i, -i), (i, i), (-i, i)]).expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let boss_raw = r.insert(Node::Extrude {
         profile: boss_p.into(),
@@ -151,7 +153,11 @@ fn stepped_shaft_sized(
         &mut r,
         base,
         boss_raw,
-        [len(0.0), len(0.0), param("h1", Dimension::Length)],
+        [
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+            param("h1", Dimension::Length),
+        ],
     );
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
@@ -219,6 +225,7 @@ fn arc_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![chain],
         ids: Vec::new(),
+        on: None,
     }));
     let slab = r.insert(Node::Extrude {
         profile: p.into(),
@@ -920,6 +927,14 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
 /// `1e-12`; measured 2026-09-05), and the study is a `Stackup` with a
 /// `ChamberCertified` chamber over the whole box. The row pins the new
 /// datum with the same strictness the old one had.
+///
+/// **Pinned at what main measures since PR 5728** (limb 2 for every
+/// carrier), identical at all three ε rows: the box certifies in four
+/// leaves after three splits, `Receipt { certified: 4, refused: 0,
+/// splits: 3 }`, and the study's chamber is the leaf `[-0.1, 0]` on both
+/// axes rather than the whole box. Why the whole box stopped certifying
+/// in one leaf is unread
+/// (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
 #[test]
 fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(0.1)), Some(uniform(0.1)));
@@ -947,9 +962,11 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
     println!("EVIDENCE-ONLY r1 ±0.1 stackup: {got:?}");
     match got {
         Ok(report) => {
-            // DATUM (M10-8): the whole ±0.1 box certifies in one leaf,
-            // and the study's chamber is that leaf — the whole box.
-            assert_eq!(verdict.certified().len(), 1, "{:?}", verdict.receipt());
+            // DATUM (since PR 5728): the ±0.1 box certifies in four
+            // leaves after three splits, and the study's chamber is the
+            // leaf at `[-0.1, 0]` on both axes.
+            assert_eq!(verdict.certified().len(), 4, "{:?}", verdict.receipt());
+            assert_eq!(verdict.receipt().splits, 3, "{:?}", verdict.receipt());
             assert!(verdict.refused().is_empty(), "{:?}", verdict.receipt());
             let Chamber::ChamberCertified { leaf, .. } = &report.chamber else {
                 panic!("DATUM changed — the chamber is {:?}", report.chamber)
@@ -960,7 +977,7 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
                     .expect("the axis")
                     .span();
                 assert!(
-                    (lo + 0.1).abs() < 1e-12 && (hi - 0.1).abs() < 1e-12,
+                    (lo + 0.1).abs() < 1e-12 && hi.abs() < 1e-12,
                     "{name}: [{lo}, {hi}]"
                 );
             }

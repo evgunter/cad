@@ -45,9 +45,9 @@ use editor_core::AuthoredNode;
 use crate::wire::doctored;
 use editor_core::CapEnd;
 use editor_core::{
-    Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula, Frame,
-    FrameSite, FreeVar, InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName, apply, load, save,
+    Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula, FreeVar,
+    InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node, PersistError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName, apply, load, save,
 };
 use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};
@@ -627,126 +627,6 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
     ) {
         Err(EditError::ConstraintOnNonPlacement { node }) => assert_eq!(node.id(), other),
         other => panic!("a constraint on a non-placement must refuse typed, got {other:?}"),
-    }
-}
-
-/// A part document and an explicit placed union of its body at
-/// `frame`, its one listed placement, inserted through the edit door.
-fn transformed(label: &str, frame: Frame) -> Result<(ProfileDoc, RecipeNodeId), EditError> {
-    let (doc, body) = part(label);
-    apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::placed_union_at(body, vec![frame])),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .map(|applied| {
-        let id = applied.record.minted.expect("an insert mints");
-        (applied.doc, id)
-    })
-}
-
-/// The saved text of a placed union at a unit translation along `x`,
-/// which the rows below corrupt, and the placed union.
-fn saved_transform(label: &str) -> (String, RecipeNodeId) {
-    let (doc, transform) =
-        transformed(label, Frame::translation([1.0, 0.0, 0.0])).expect("a proper rigid frame");
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    load(&text, Tol::witness()).expect("the fixture loads");
-    (text, transform)
-}
-
-/// The first entry of the first column of a placed union's one listed
-/// frame, on the wire.
-fn frame_cell(wire: &mut serde_json::Value, transform: RecipeNodeId) -> &mut serde_json::Value {
-    &mut wire["snapshot"]["nodes"][transform.0.to_string()]["PlacedUnion"]["kind"]["Explicit"][0]["columns"]
-        [0][0]
-}
-
-/// **A mirrored placement frame — both doors.** Every pose is proper:
-/// a mirror is a construction (`Node::Mirror`), so a frame that
-/// reflects is one that is not a rigid motion, refused by the
-/// predicate the evaluation moves a body by, on its determinant.
-#[test]
-fn a_mirrored_placement_is_refused_at_both_doors() {
-    let mirror = Frame {
-        columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        translation: [0.0, 0.0, 0.0],
-    };
-    match transformed("onepred-improper", mirror) {
-        Err(EditError::NonRigidPlacement { check, .. }) => {
-            assert_eq!(
-                check, "transform_rigid_det_plus_one",
-                "refused on its determinant"
-            );
-        }
-        other => panic!("a mirrored placement must refuse typed, got {other:?}"),
-    }
-
-    // The load door's half: a proper frame on the wire, mirrored by
-    // flipping the first column's sign.
-    let (text, transform) = saved_transform("onepred-improper");
-    let corrupt = doctored(&text, |wire| {
-        let entry = frame_cell(wire, transform);
-        assert_eq!(*entry, serde_json::json!(1.0), "aimed at the first axis");
-        *entry = serde_json::json!(-1.0);
-    });
-    match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PlacementRule {
-            node,
-            fault: editor_core::PlacementRuleFault::NonRigidFrame { index, check },
-            ..
-        })) => {
-            assert_eq!((node.id(), index), (transform, 0));
-            assert_eq!(
-                check, "transform_rigid_det_plus_one",
-                "refused on its determinant"
-            );
-        }
-        other => panic!("a mirrored frame must refuse typed at load, got {other:?}"),
-    }
-}
-
-/// **A proper placement frame that is not rigid — both doors.** A
-/// scaled frame is refused where it is written, by the predicate the
-/// evaluation moves a body by, rather than admitted and refused later
-/// as `NotRigid` on the placed union and on everything reading it.
-#[test]
-fn a_non_rigid_placement_is_refused_at_both_doors() {
-    let mut stretched = Frame::IDENTITY;
-    stretched.columns[0] = [2.0, 0.0, 0.0];
-    assert!(stretched.determinant() > 0.0, "the fixture is proper");
-    let step0 = FrameSite::Listed { index: 0 };
-    match transformed("onepred-non-rigid", stretched) {
-        Err(ref error @ EditError::NonRigidPlacement { at, .. }) => {
-            assert_eq!(at, step0, "the placed union's first listed frame");
-            let text = error.to_string();
-            assert!(
-                text.contains("not definitely rigid") && text.contains("Recourse:"),
-                "says what is wrong and what to do: {text}"
-            );
-        }
-        other => panic!("a scaled placement must refuse typed, got {other:?}"),
-    }
-
-    // The load door's half: a proper frame on the wire, stretched.
-    let (text, transform) = saved_transform("onepred-non-rigid");
-    let corrupt = doctored(&text, |wire| {
-        let entry = frame_cell(wire, transform);
-        assert_eq!(*entry, serde_json::json!(1.0), "aimed at the first axis");
-        *entry = serde_json::json!(2.0);
-    });
-    match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PlacementRule {
-            node,
-            fault: editor_core::PlacementRuleFault::NonRigidFrame { index, .. },
-            ..
-        })) => {
-            assert_eq!((node.id(), index), (transform, 0));
-        }
-        other => panic!("a scaled frame must refuse typed at load, got {other:?}"),
     }
 }
 

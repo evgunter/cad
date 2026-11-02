@@ -980,9 +980,9 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 460_396, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 470_050, "triangles over the whole sweep");
     assert_eq!(
-        t.nurbs_triangles, 390_646,
+        t.nurbs_triangles, 400_302,
         "triangles the Hessian-sized faces carry"
     );
 
@@ -992,14 +992,14 @@ fn the_committed_baseline_sizes_this_much() {
     // retired schedule's own (`NurbsColumns::nu` says so); the other
     // two are the optima the same certificates still admit
     // (whole-patch bound / per cell).
-    assert_eq!(t.grid_cells, 171_088.0, "grid cells the lane built");
-    assert_eq!(t.patch_cells, 190_615.0, "the whole-patch counterfactual");
+    assert_eq!(t.grid_cells, 175_334.0, "grid cells the lane built");
+    assert_eq!(t.patch_cells, 196_504.0, "the whole-patch counterfactual");
     assert_eq!(
-        t.opt_cells, 169_060.0,
+        t.opt_cells, 174_964.0,
         "cheapest split under the whole-patch bound"
     );
     assert_eq!(
-        t.span_opt_cells, 157_163.0,
+        t.span_opt_cells, 161_227.0,
         "per-cell sizing at the cheapest split in each cell"
     );
 
@@ -1007,11 +1007,11 @@ fn the_committed_baseline_sizes_this_much() {
     let held = t.span_held().expect("the sweep has Hessian-sized faces");
     let recoverable = t.recoverable().expect("the sweep has Hessian-sized faces");
     assert!(
-        (held - 1.1141).abs() < 5e-4,
+        (held - 1.1207).abs() < 5e-4,
         "the held span gain, patch_cells / grid_cells; got {held}"
     );
     assert!(
-        (recoverable - 1.0886).abs() < 5e-4,
+        (recoverable - 1.0875).abs() < 5e-4,
         "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
 }
@@ -1052,7 +1052,7 @@ fn the_committed_baseline_meets_the_split_bound_on_this_many_rows() {
         .collect();
     assert_eq!(
         at_bound.len(),
-        7,
+        8,
         "sized rows whose whole-patch schedule already is the cheapest split. \
          A row arriving or leaving is a face whose bound or divisions moved; \
          read which, then re-pin: {at_bound:#?}"

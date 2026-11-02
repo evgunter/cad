@@ -51,6 +51,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
                 node: Box::new(Node::Profile(ProfileProgram {
                     loops: vec![loop_],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },
@@ -178,6 +179,7 @@ fn circle_radius_edit_keeps_names() {
                     node: Box::new(Node::Profile(ProfileProgram {
                         loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                         ids: Vec::new(),
+                        on: None,
                     })),
                     fresh: Vec::new(),
                 },
@@ -315,6 +317,7 @@ fn hole_circle_anchor_recovers_reversal() {
                 node: Box::new(Node::Profile(ProfileProgram {
                     loops: vec![outer, hole],
                     ids: Vec::new(),
+                    on: None,
                 })),
                 fresh: Vec::new(),
             },

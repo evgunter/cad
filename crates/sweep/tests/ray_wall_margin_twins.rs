@@ -86,6 +86,26 @@ fn margins_at(
 
 #[test]
 fn the_wall_arms_margins_scale_linearly_with_the_model() {
+    // Pinned red: `curve_foot_branch`'s decisive margins read a million to
+    // one between the twins, where every other predicate's read a
+    // thousand. Six pairs were off before PR 5664 and 62 since
+    // (`work/issues/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
+    // owns the six, `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows.md`
+    // the widening). `k-lint (dev-probe)` runs this row once, at ε 1e-9,
+    // and the nightly's `--all-features` suite at the default ε, the same
+    // row; it reads the same at 1e-6 and 1e-12.
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the ray-wall twins",
+        &["[\"curve_foot_branch: 62 pairs off, e.g. 9.990e2\"]"],
+        the_wall_arms_margins_scale_linearly_with_the_model_row,
+    );
+}
+
+/// The row [`the_wall_arms_margins_scale_linearly_with_the_model`] runs,
+/// under its pin.
+fn the_wall_arms_margins_scale_linearly_with_the_model_row() {
     let ((mm, mm_verdicts), (m, m_verdicts)) = (margins_at(1e-3), margins_at(1.0));
     assert_eq!(mm_verdicts, m_verdicts, "the twins' verdicts");
     for rung in WALL_RUNGS {

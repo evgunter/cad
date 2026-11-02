@@ -21,17 +21,14 @@
 //! 3. **The names are a function of the recipe's names, not of its
 //!    numbers**: the rolled lid's name set at two radii is one set.
 //!
-//! The stations are copied from `src/teapot.rs` (a demo binary's
-//! module cannot be imported by an integration test — the same reason
-//! `verbs_teapot.rs` carries its own `genus`); `R_VENT` is this file's
-//! own, and the bore is what gives the class rows a closed rim at every
-//! vertex.
+//! The stations are the scene's (`demo_tour::teapot`); `R_VENT` is
+//! this file's own, and the bore is what gives the class rows a closed
+//! rim at every vertex.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[path = "common/printed.rs"]
-mod printed;
 use core::f64::consts::TAU;
+use demo_tour::booleans::at_rest;
 use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
@@ -46,29 +43,12 @@ use pncad::profile::ArcSweep;
 use pncad::select::{ProfilePieces, band_rim, band_rim_pi, edge_name};
 use pncad::topo::{AtRestBody, Body, EdgeKey};
 
-/// A copy of `body` finished for the measurement doors, which read a
-/// finished body (Ev's decision on PR 4822).
-fn at_rest(
-    body: &pncad::topo::Body<f64>,
-    tol: pncad::geom_core::Tol,
-) -> pncad::topo::AtRestBody<f64> {
-    pncad::topo::AtRestBody::validate(body.clone(), tol)
-        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
-}
+use demo_tour::teapot::{
+    DOME_C, LID_BASE, R_FLANGE, R_KNOB, R_NECK, ROLL, Y_FLANGE, Y_KNOB, Y_TOP,
+};
 
-// ---- the lid's stations, from `src/teapot.rs` ----
-const R_NECK: f64 = 3.0 / 64.0;
-const Y_MOUTH: f64 = 8.0 / 64.0;
-const LIFT: f64 = 1.0 / 32.0;
-const LID_BASE: f64 = Y_MOUTH + LIFT;
-const R_FLANGE: f64 = 14.0 / 256.0;
-const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
-const DOME_C: f64 = LID_BASE + 1.0 / 256.0;
-const R_KNOB: f64 = 5.0 / 256.0;
-const Y_KNOB: f64 = LID_BASE + 13.0 / 256.0;
-const Y_TOP: f64 = LID_BASE + 18.0 / 256.0;
+/// The steam vent's bore, this file's own.
 const R_VENT: f64 = 1.0 / 256.0;
-const ROLL: f64 = 2.0 / 256.0;
 
 /// The lid's three rolled rims, as the meridian vertex each stands at.
 const ROLLED: [u32; 3] = [1, 2, 4];
@@ -149,6 +129,7 @@ fn sharp_lid_in(
         Node::Profile(ProfileProgram {
             loops: vec![lid_meridian(bore)],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -416,9 +397,9 @@ fn one_request_builds_the_kernels_body() {
         bands(&doc_body),
         "the three bands' STORED (station, major, minor) must be identical bits"
     );
-    let p1 = pncad::topo::mass_properties(&at_rest(&kernel, tol), tol, printed::printed())
+    let p1 = pncad::topo::mass_properties(&at_rest(&kernel, tol), tol, demo_tour::printed())
         .expect("kernel props");
-    let p2 = pncad::topo::mass_properties(&at_rest(&doc_body, tol), tol, printed::printed())
+    let p2 = pncad::topo::mass_properties(&at_rest(&doc_body, tol), tol, demo_tour::printed())
         .expect("document props");
     assert!(
         ((p1.enclosure.volume - p2.enclosure.volume) / p1.enclosure.volume).abs() < 1e-14
@@ -694,6 +675,7 @@ fn a_split_carries_a_held_slits_band() {
                     .expect("finite corners"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );

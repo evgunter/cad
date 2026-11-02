@@ -504,14 +504,17 @@ fn the_placement_certificate_certifies_and_refuses_by_pair() {
     let sep = topo::Separation::of(&proto, Tol::witness()).expect("the prototype's boxes");
     let at = |x: f64| Affine3::translation(Vec3::new(x, 0.0, 0.0));
 
-    assert_eq!(sep.certify(&[at(0.0), at(10.0), at(20.0)]), Ok(()));
-    // Fewer than two placements is vacuously certified.
-    assert_eq!(sep.certify(&[at(0.0)]), Ok(()));
-    // Placement 2 lands on placement 1: the FIRST offending pair in
-    // ascending order is reported, deterministically.
     assert_eq!(
-        sep.certify(&[at(0.0), at(10.0), at(10.25)]),
-        Err(topo::PlacementsMeet { i: 1, j: 2 })
+        sep.apart(&[at(0.0), at(10.0), at(20.0)]),
+        vec![(0, 1), (0, 2), (1, 2)]
+    );
+    // Fewer than two placements has no pair.
+    assert_eq!(sep.apart(&[at(0.0)]), Vec::<(usize, usize)>::new());
+    // Placement 2 lands on placement 1: that pair alone is left out, and
+    // every other pair's certificate stands.
+    assert_eq!(
+        sep.apart(&[at(0.0), at(10.0), at(10.25)]),
+        vec![(0, 1), (0, 2)]
     );
 }
 

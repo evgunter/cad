@@ -59,3 +59,7 @@ End each in the shared constant; the Boolean arms that render keys or
 ## Evidence: the repair is the shape D2 retires (ENCL, 2026-10-21)
 
 `work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md` (`## Census, second pass`, main 69ab780194) classifies `JoinDesync` as class 1, sure: the public `graft_disjoint` reaches it with a caller's source. It classifies `TornComponent`, `SeamOrientation` and `ZipCorrespondence` as class 2, likely. HONE's child row `split-and-join-kernel-defect-endings-are-bug-only-typed-refusals` carries them. A bug-only state panics, so appending the constant moves them from one wrong shape to another. `pcurves.rs` `LoopWraps` is classified there too: class 1, unsure. The parent row carries it.
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. `ResultVolumeImplausible`, the variant it cites as folded, is gone; the refusals it lists stand.

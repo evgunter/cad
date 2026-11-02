@@ -84,8 +84,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use editor_core::{
-    CancelToken, ChecksConfig, DocEdit, EvalOptions, FreeValue, ProfileDoc, Subject, VarName,
-    apply, evaluate, product_recorded, run_checks, run_checks_on,
+    CancelToken, ChecksConfig, EvalOptions, ProfileDoc, Subject, evaluate, product_recorded,
+    run_checks, run_checks_on,
 };
 
 use corpus::{cone, documents, eval, failures};
@@ -442,22 +442,7 @@ const _: () = assert!(
 /// The corpus heat sink with its fin count driven to `fins`, and each
 /// fin placed.
 fn heatsink_at(fins: i64) -> ProfileDoc {
-    let tol = Tol::witness();
-    let entry = documents()
-        .into_iter()
-        .find(|d| d.name == "heat_sink")
-        .expect("the corpus carries the heat sink");
-    let driven = apply(
-        &entry.doc,
-        &DocEdit::SetVarValue {
-            var: VarName::from_static("fins").into(),
-            value: FreeValue::Count(fins),
-        },
-        tol,
-    )
-    .expect("the fin count is a document parameter")
-    .doc;
-    crate::corpus::place_pattern_to(driven, fins)
+    crate::corpus::heatsink::placed_fins(fins)
 }
 
 /// Takes the split (module docs on [`Split`]).

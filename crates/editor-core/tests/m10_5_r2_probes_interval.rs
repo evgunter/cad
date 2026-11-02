@@ -19,13 +19,19 @@
 //! Five rows below were named `..._r2_finding` and asserted the CURRENT
 //! behaviour where R2 believed the contract said otherwise. Each went
 //! red when the defect it described was fixed, which was the point: the
-//! finding is a gate, not a note in a review that scrolls away. Four of
-//! the five have since gone red and been FLIPPED — each now pins the
-//! fixed contract, and its doc comment states what the finding was and
-//! what replaced it. One survives as a finding:
-//! `self_intersection_over_a_sound_body_examines_nothing_r2_finding`,
-//! whose subject is the acceptance's own vacuity rather than a defect
-//! in the engine.
+//! finding is a gate, not a note in a review that scrolls away. All five
+//! have since gone red and been FLIPPED — each now pins the fixed
+//! contract, and its doc comment states what the finding was and what
+//! replaced it. The last was the acceptance's own vacuity
+//! (`self_intersection_over_a_sound_body_examines_every_face_pair`),
+//! flipped by SELFX.
+//!
+//! **A clearance is metric** (ERROR-DESIGN E7, *Self-intersection
+//! scope*): scopes that meet read 0 on the cell they share. So the
+//! comb's internal gaps are asked between two scopes that do not meet —
+//! the walls facing `+x` across the slots against the walls facing
+//! `−x` ([`slot_walls`]) — and "is the comb embedded at all" is the
+//! injectivity question, `self_intersection`.
 //!
 //! The basename carries `interval` because the suite's subject is the
 //! certified scalar.
@@ -39,9 +45,10 @@ use std::collections::BTreeMap;
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
-    CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
-    ClearanceReport, ClearanceVerdict, FaceScope, MonotoneOracle, NoTangents, Pruning,
-    SELF_INTERSECTION_GAP, Selection, clearance_over, clearance_with, self_intersection,
+    Budgets, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
+    ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle, NoTangents,
+    Pruning, SELF_INTERSECTION_GAP, Selection, Which, clearance_over, clearance_with,
+    self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -109,6 +116,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -134,9 +142,9 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
 ///
 /// The two pairs that matter, and their true separations:
 /// (seg7, seg9) at 0.5 m — slot A's walls — and (seg3, seg5) at 1.0 m —
-/// slot B's. Neither pair shares a vertex, so neither is excluded by
-/// the wedge rule. Nothing else in the body is closer than 0.5: the
-/// bottom face (seg0) stands 0.5 below each slot floor (seg4, seg8).
+/// slot B's. Neither pair touches, so each is decided by distance.
+/// Nothing else in the body is closer than 0.5: the bottom face (seg0)
+/// stands 0.5 below each slot floor (seg4, seg8).
 ///
 /// So `min gap over the body = 0.5`, from FOUR distinct non-adjacent
 /// pairs — which makes "is every internal gap at least c?" a real
@@ -167,10 +175,30 @@ fn comb() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         solid,
         solid,
         Formula::named(name("place"), Dimension::Length),
-        len(0.0),
-        len(0.0),
+        Formula::zero(Dimension::Length),
+        Formula::zero(Dimension::Length),
     );
     (r.doc, solid, placed)
+}
+
+/// **The comb's two slot scopes**: the walls facing `+x` across a slot
+/// (seg9 at `x = 0.5`, seg5 at `x = 1.5`) and the walls facing `−x`
+/// (seg7 at `x = 1.0`, seg3 at `x = 2.5`). No wall of one meets a wall
+/// of the other, so the clearance between them is measured: slot A
+/// (seg9, seg7) and the middle tooth (seg5, seg7) at 0.5, slot B (seg5,
+/// seg3) at 1.0, and (seg9, seg3) at 2.0. Its least gap is the comb's
+/// least internal one, 0.5.
+fn slot_walls(doc: &ProfileDoc, minted: RecipeNodeId) -> (Selection, Selection) {
+    (
+        named(
+            minted,
+            vec![wall_name(doc, minted, 9), wall_name(doc, minted, 5)],
+        ),
+        named(
+            minted,
+            vec![wall_name(doc, minted, 7), wall_name(doc, minted, 3)],
+        ),
+    )
 }
 
 /// **The D3 fixture**: an L-shaped prism and a small block parked in
@@ -218,7 +246,7 @@ fn ell_with_a_block_in_the_notch() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         solid,
         probe,
         Formula::named(name("place"), Dimension::Length),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         len(-0.05),
     );
     (r.doc, solid, placed)
@@ -235,14 +263,21 @@ fn blocks_apart(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let b = translated(&mut r, a, a, len(1.0 + gap), len(0.0), len(0.0));
+    let b = translated(
+        &mut r,
+        a,
+        a,
+        len(1.0 + gap),
+        Formula::zero(Dimension::Length),
+        Formula::zero(Dimension::Length),
+    );
     let _ = translated(
         &mut r,
         a,
         a,
         Formula::named(name("place"), Dimension::Length),
-        len(0.0),
-        len(0.0),
+        Formula::zero(Dimension::Length),
+        Formula::zero(Dimension::Length),
     );
     (r.doc, a, b)
 }
@@ -280,8 +315,10 @@ fn witness_distance(report: &ClearanceReport) -> f64 {
 
 fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
     ClearanceConfig {
-        max_cell_depth: depth,
-        max_cell_pairs: pairs,
+        budgets: Budgets {
+            max_cell_depth: depth,
+            max_cell_pairs: pairs,
+        },
         pruning: Pruning::Off,
     }
 }
@@ -293,6 +330,7 @@ fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         config,
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     }
 }
 
@@ -303,14 +341,16 @@ fn strict(config: ClearanceConfig) -> ClearanceQuery<'static> {
         config,
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     }
 }
 
 // ------------------------------ 1. the macroscopic question, end to end
 
 /// **The e2e a consumer actually asks**, on the comb: is every internal
-/// gap at least `c`? Three bounds, three answers, and the answers are
-/// the geometry's.
+/// gap at least `c`? Asked between the two slot scopes
+/// ([`slot_walls`]), which do not meet. Three bounds, three answers,
+/// and the answers are the geometry's.
 ///
 /// `c = 0.3` is under both slots and both floor clearances → `Holds`.
 /// `c = 0.7` is over slot A (0.5) and under slot B (1.0) → `Violated`.
@@ -321,10 +361,10 @@ fn strict(config: ClearanceConfig) -> ClearanceQuery<'static> {
 #[test]
 fn the_combs_internal_gaps_answer_at_three_bounds() {
     let (doc, minted, _placed) = comb();
-    let sel = Selection::body_of(minted);
+    let (plus, minus) = slot_walls(&doc, minted);
     let leaf = box_of(&doc, "place");
     for (c, expected) in [(0.3, "Holds"), (0.7, "Violated"), (1.5, "Violated")] {
-        let report = clearance_with(&doc, &leaf, &sel, &sel, &at_least(c, cfg(65_536, 40)));
+        let report = clearance_with(&doc, &leaf, &plus, &minus, &at_least(c, cfg(65_536, 40)));
         assert!(
             report.receipt().holds(),
             "receipt broken at c = {c}: {}",
@@ -359,14 +399,14 @@ fn the_leaf_fold_answers_the_same_question_over_a_real_drive() {
         "the drive certifies something to fold over: {}",
         verdict.serialize()
     );
-    let sel = Selection::body_of(minted);
+    let (plus, minus) = slot_walls(&doc, minted);
     for (c, expected) in [(0.3, "Holds"), (0.7, "Violated")] {
         let fold = clearance_over(
             &doc,
             &analyzed,
             &verdict,
-            &sel,
-            &sel,
+            &plus,
+            &minus,
             &at_least(c, cfg(65_536, 40)),
         );
         assert_eq!(fold.verdict.label(), expected, "at c = {c}");
@@ -389,15 +429,13 @@ fn the_leaf_fold_answers_the_same_question_over_a_real_drive() {
 #[test]
 fn the_combs_violation_witness_re_verifies_from_its_own_points() {
     let (doc, minted, _placed) = comb();
-    let sel = named(
-        minted,
-        vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)],
-    );
+    let left = named(minted, vec![wall_name(&doc, minted, 9)]);
+    let right = named(minted, vec![wall_name(&doc, minted, 7)]);
     let report = clearance_with(
         &doc,
         &box_of(&doc, "place"),
-        &sel,
-        &sel,
+        &left,
+        &right,
         &at_least(0.7, cfg(65_536, 40)),
     );
     let ClearanceVerdict::Violated(v) = report.verdict() else {
@@ -603,20 +641,19 @@ fn an_interpenetration_is_reported_violated_not_refused() {
     }
 }
 
-/// A vacuity that SURVIVES the fixes above, on the shipped
+/// **FLIPPED by SELFX.** The finding was a vacuity on the shipped
 /// acceptance's own shape: `self_intersection` over a sound prism
-/// examines ZERO pairs, because the wedge rule removes the adjacent
-/// pairs and the proximity prune — now `separation_lo > 0 + band`, but
-/// still a prune — removes every other one, the comb's faces being
-/// whole metres apart rather than a band's width.
+/// examined ZERO pairs, because the wedge rule removed every pair that
+/// shared a vertex and the proximity prune removed every other one, so
+/// the claim-6 row passed without the funnel classifying anything.
 ///
-/// So the suite's claim-6 row — "a sound prism certifies strictly
-/// positive between non-adjacent faces" — passes without the funnel
-/// classifying anything. It cannot go red for a body whose
-/// non-adjacent faces are a real distance apart, whatever the engine
-/// does with them, which is Q3's "can this test fail".
+/// Now the question proves the boundary injective, and every face pair
+/// is examined, a face against itself included: each of the comb's 14
+/// planar faces is discharged against itself by kind, the touching
+/// pairs (a wall and its neighbours, the caps) are certified by a local
+/// certificate, and only pairs that do not touch are left to distance.
 #[test]
-fn self_intersection_over_a_sound_body_examines_nothing_r2_finding() {
+fn self_intersection_over_a_sound_body_examines_every_face_pair() {
     let (doc, minted, _placed) = comb();
     let report = self_intersection(
         &doc,
@@ -624,14 +661,17 @@ fn self_intersection_over_a_sound_body_examines_nothing_r2_finding() {
         &Selection::body_of(minted),
         Tol::witness(),
     );
-    assert_eq!(report.verdict(), &ClearanceVerdict::Holds);
     assert_eq!(
-        report.receipt(),
-        CellReceipt::default(),
-        "the strictly-positive certificate over this body is entirely the \
-         BVH's, with no cell pair classified: {}",
+        report.verdict(),
+        &ClearanceVerdict::Holds,
+        "{}",
         report.serialize()
     );
+    let r = report.receipt();
+    assert!(r.holds(), "{r:?}");
+    assert_eq!(r.by_kind, 14, "every face against itself, by kind: {r:?}");
+    assert!(r.certified > 0, "the touching pairs certified: {r:?}");
+    assert_ne!(r, CellReceipt::default());
 }
 
 // ------------------------------ 3. D3: a witness outside the trimmed face
@@ -798,11 +838,13 @@ fn the_strict_question_is_total_over_budgets_too() {
     }
 }
 
-/// A query with no candidate pairs at all — a single-face selection
-/// against itself. It must not be silence, and its receipt must hold at
-/// zero.
+/// A single-face selection against itself. It used to be a query with
+/// no candidate pair at all, answering `Holds` at an empty receipt; a
+/// clearance is metric now, so the face meets itself and the two scopes
+/// are 0 apart, read off the topology at the root — `Violated` at 0,
+/// with the receipt holding and the rest of the frontier abandoned.
 #[test]
-fn a_selection_with_no_pair_answers_holds_at_an_empty_receipt() {
+fn a_single_face_against_itself_meets_itself_and_reads_zero() {
     let (doc, minted, _placed) = comb();
     let one = named(minted, vec![wall_name(&doc, minted, 0)]);
     let report = clearance_with(
@@ -812,9 +854,13 @@ fn a_selection_with_no_pair_answers_holds_at_an_empty_receipt() {
         &one,
         &at_least(1.0, cfg(65_536, 40)),
     );
-    assert_eq!(report.verdict(), &ClearanceVerdict::Holds);
-    assert_eq!(report.receipt(), CellReceipt::default());
+    let ClearanceVerdict::Violated(v) = report.verdict() else {
+        panic!("a face against itself is 0 apart: {}", report.serialize());
+    };
+    assert_eq!(v.geometry.distance, 0.0, "{}", report.serialize());
+    assert_eq!(v.geometry.a, v.geometry.b, "on the face itself");
     assert!(report.receipt().holds());
+    assert_eq!(report.receipt().splits, 0, "decided at the root");
 }
 
 /// A bound that is not a number. `c = NaN` must not be a silent pass
@@ -890,6 +936,7 @@ fn the_accelerator_changes_no_verdict_on_the_comb() {
                 },
                 oracle: &Constant,
                 resolver: None,
+                symbolic: editor_core::drive::SymbolicDials::default(),
             },
         );
         assert_eq!(
@@ -926,6 +973,7 @@ fn no_tangents_forfeits_the_pruning_and_nothing_else_on_the_comb() {
                 },
                 oracle: &NoTangents,
                 resolver: None,
+                symbolic: editor_core::drive::SymbolicDials::default(),
             },
         );
         assert_eq!(off.serialize(), forfeited.serialize(), "at c = {c}");
@@ -963,6 +1011,7 @@ fn a_lying_oracle_is_indistinguishable_at_the_seam() {
             },
             oracle: &AlwaysDecreasing,
             resolver: None,
+            symbolic: editor_core::drive::SymbolicDials::default(),
         },
     );
     assert_eq!(
@@ -1124,7 +1173,7 @@ fn the_answer_does_not_depend_on_the_order_names_are_written_in() {
 
 // -------------------------------------- 7. the refusal arms with no rows
 
-/// **`ClearanceRefusal::Unsupported` has no row in the shipped suite**,
+/// **`EngineRefusal::Unsupported` has no row in the shipped suite**,
 /// though §3 of the spec requires the behaviour and the suite's own
 /// comment promises "the table rows below". This is that row, on the
 /// carrier class the fixture library can actually build: a cylindrical
@@ -1137,27 +1186,42 @@ fn the_answer_does_not_depend_on_the_order_names_are_written_in() {
 fn the_unsupported_arm_names_its_carrier_class_when_it_fires() {
     // Every carrier this fixture library builds (plane) is admitted, so
     // the row asserts the reachable half: the refusal type carries a
-    // named class and a face, and `name()` is stable for goldening.
-    let refusal = ClearanceRefusal::Unsupported {
-        carrier: "a free-form face",
+    // named class and a face, and `name()` is stable for goldening —
+    // the engine's, and the document door's, which forwards it.
+    let refusal = EngineRefusal::Unsupported {
+        carrier: "an approximated face",
         face: topo::entity::FaceKey::default(),
+        side: Which::First,
     };
     assert_eq!(refusal.name(), "unsupported");
+    let at = RecipeNodeId::new(0, 0);
+    let refusal = ClearanceRefusal::Engine {
+        refusal,
+        sides: [(at, 0), (at, 0)],
+    };
+    assert_eq!(
+        refusal.name(),
+        "unsupported",
+        "the door forwards the engine's class"
+    );
     // And the engine's own admission door refuses rather than skipping:
     // a comb face that IS admitted produces a window, so the contrast
     // is that no code path drops a face silently — every face of a
     // selection reaches `window_of`, which either windows it or refuses
     // the whole query.
     let (doc, minted, _placed) = comb();
-    let sel = Selection::body_of(minted);
-    let report = clearance_with(
+    let report = self_intersection(
         &doc,
         &box_of(&doc, "place"),
-        &sel,
-        &sel,
-        &at_least(0.3, cfg(65_536, 40)),
+        &Selection::body_of(minted),
+        Tol::witness(),
     );
-    assert_eq!(report.verdict(), &ClearanceVerdict::Holds);
+    assert_eq!(
+        report.verdict(),
+        &ClearanceVerdict::Holds,
+        "{}",
+        report.serialize()
+    );
 }
 
 /// **The pair budget is enforced at admission, and the refusal is
@@ -1181,7 +1245,10 @@ fn a_one_pair_budget_refuses_and_still_accounts_for_every_candidate() {
     assert!(
         matches!(
             report.verdict(),
-            ClearanceVerdict::Refused(ClearanceRefusal::Budget(_)) | ClearanceVerdict::Violated(_)
+            ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+                refusal: EngineRefusal::Budget(_),
+                ..
+            }) | ClearanceVerdict::Violated(_)
         ),
         "a starved budget is priced, never silence: {}",
         report.serialize()
@@ -1239,14 +1306,14 @@ fn a_violation_outranks_a_refusal_and_the_receipt_shows_both() {
 #[test]
 fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     let (doc, minted, _placed) = comb();
-    let sel = named(
-        minted,
-        vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)],
-    );
+    // Two scopes, one wall each: a scope asked against itself meets
+    // itself and reads 0 off topology, which is not slot A's gap.
+    let left = named(minted, vec![wall_name(&doc, minted, 7)]);
+    let right = named(minted, vec![wall_name(&doc, minted, 9)]);
     let leaf = box_of(&doc, "place");
     let mut costs = Vec::new();
     for c in [2.0, 1.5, 1.0, 0.8, 0.6] {
-        let report = clearance_with(&doc, &leaf, &sel, &sel, &at_least(c, cfg(65_536, 40)));
+        let report = clearance_with(&doc, &leaf, &left, &right, &at_least(c, cfg(65_536, 40)));
         let r = report.receipt();
         assert!(r.holds());
         assert_eq!(
@@ -1272,7 +1339,7 @@ fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     // The frontier: `c` ON the pair's closest approach. Nothing is ever
     // definitely under it, nothing ever definitely clears it, and the
     // run spends the whole dial before refusing, priced.
-    let frontier = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.5, cfg(65_536, 40)));
+    let frontier = clearance_with(&doc, &leaf, &left, &right, &at_least(0.5, cfg(65_536, 40)));
     let fr = frontier.receipt();
     assert!(fr.holds(), "{fr:?}");
     let frontier_cells = fr.discharged + fr.violated + fr.refused;
@@ -1285,7 +1352,10 @@ fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     assert!(
         matches!(
             frontier.verdict(),
-            ClearanceVerdict::Refused(ClearanceRefusal::Budget(_))
+            ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+                refusal: EngineRefusal::Budget(_),
+                ..
+            })
         ),
         "the frontier is where a budget is actually spent: {}",
         frontier.serialize()

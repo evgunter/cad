@@ -1,6 +1,6 @@
 //! The public classification doors write ONE recording stream.
 //!
-//! `decide`, `decide_reported`, `decide_flagged` and `decide_invariant`
+//! `decide`, `decide_reported` and `decide_flagged`
 //! share a private `classify` (`decide_reported` hands back the verdict
 //! whole, its reporting margin beside the sign), and the gate doors (`decide_positive`, `decide_negative`, `decide_nonzero`,
 //! `gate_measured`) share the one write to the escalation channel with
@@ -31,9 +31,8 @@
 
 use geom_core::Tol;
 use geom_core::k_stats::{
-    Bracket, Escalation, Magnitude, NonzeroSign, Verdict, decide, decide_flagged, decide_invariant,
-    decide_magnitude, decide_negative, decide_nonzero, decide_positive, decide_reported,
-    gate_measured,
+    Bracket, Escalation, Magnitude, NonzeroSign, Verdict, decide, decide_flagged, decide_magnitude,
+    decide_negative, decide_nonzero, decide_positive, decide_reported, gate_measured,
 };
 use geom_core::{
     Band, Decided, ErrorTextReading, Indeterminate, Interval, Margin, MarginDiag, Sign,
@@ -46,12 +45,12 @@ fn band() -> Band {
 /// The fixture interleaves the doors deliberately — a run that grouped
 /// them would pass under any per-door ordering.
 #[test]
-fn the_four_doors_share_one_verdict_stream_in_decision_order() {
+fn the_doors_share_one_verdict_stream_in_decision_order() {
     let b = band();
     let mid = f64::midpoint(b.zero(), b.escalate());
     let bracket = Bracket::open();
     assert_eq!(decide("door_a", Margin::of(1.0f64), b), Ok(Sign::Positive));
-    assert_eq!(decide_invariant("door_b", -1.0f64, b), Ok(Sign::Negative));
+    assert_eq!(decide("door_b", Margin::of(-1.0f64), b), Ok(Sign::Negative));
     assert_eq!(
         decide_flagged("door_c", 1.0f64, b, "test fixture: door interleaving"),
         Ok(Sign::Positive)
@@ -69,7 +68,7 @@ fn the_four_doors_share_one_verdict_stream_in_decision_order() {
     // they are the frame's OTHER channel, in their own decision order.
     let d = decide("door_d", Margin::of(mid), b).unwrap_err();
     let e = decide_flagged("door_e", mid, b, "test fixture: door interleaving").unwrap_err();
-    let f = decide_invariant("door_f", mid, b).unwrap_err();
+    let f = decide("door_f", Margin::of(mid), b).unwrap_err();
     let s = decide_reported("door_s", Margin::of(mid), b).unwrap_err();
     assert_eq!(
         decide_flagged("door_g", 0.0f64, b, "test fixture: door interleaving"),
@@ -137,7 +136,7 @@ fn every_door_names_its_own_sample_for_the_recording_scalar() {
     let b = band();
     start_recording();
     decide("name_a", Margin::of(Probe(1.0)), b).unwrap();
-    decide_invariant("name_b", Probe(-1.0), b).unwrap();
+    decide("name_b", Margin::of(Probe(-1.0)), b).unwrap();
     decide_flagged("name_c", Probe(1.0), b, "test fixture: name channel").unwrap();
     decide_reported("name_d", Margin::of(Probe(1.0)), b).unwrap();
     let names: Vec<&str> = take_samples().iter().map(|s| s.predicate).collect();

@@ -1,5 +1,5 @@
 //! M4 PR 3 naming tests, part 1 (spec D6): per-op role coverage for
-//! the sweep ops, split, transform pass-through, pattern wrapping,
+//! the sweep ops, split, transform pass-through, family wrapping,
 //! and authored face names resolving against the real tables.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -157,6 +157,7 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops: vec![meridian],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -641,27 +642,17 @@ fn split_names_sections_fragments_and_crossings() {
     }
 }
 
-// ---- Placement wrapping + Pattern wrapping. ----
+// ---- Placement wrapping + family wrapping. ----
 
 #[test]
-fn a_placement_wraps_names_once_and_pattern_wraps_instances() {
+fn a_placement_wraps_names_once_and_a_family_wraps_members() {
     let (doc, ext) = cube(
         ProfileDoc::empty_derived("m4_pr3_names", Tol::witness()),
         0.0,
         1.0,
     );
     let (doc, tr) = fixture::slid(doc, ext, ext, [3.0, 0.0, 0.0]);
-    let (doc, pat) = insert(
-        doc,
-        Node::Pattern {
-            input: tr.into(),
-            count: editor_core::Formula::count(3),
-            kind: editor_core::PatternKind::Linear {
-                direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
+    let (doc, k, pat) = crate::fixture::linear(doc, tr, [1.0, 0.0, 0.0], 2.0, 3);
     let ev = run(&doc);
     // Placement: every name of the body carried as it is, at the same
     // entity; the copy's body row is its own.
@@ -679,7 +670,7 @@ fn a_placement_wraps_names_once_and_pattern_wraps_instances() {
             "{name:?} worn by the copy"
         );
     }
-    // Pattern: every master entry wrapped per instance, body = i.
+    // Family: every member's entry wrapped by its index value, body = i.
     let tp = table(&ev, pat);
     assert_eq!(tp.len(), 27 * 3);
     let master_end = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
@@ -687,14 +678,14 @@ fn a_placement_wraps_names_once_and_pattern_wraps_instances() {
         let wrapped = minted(
             EntityKind::Face,
             pat,
-            RoleSeg::Instance {
-                i,
+            RoleSeg::Member {
+                at: vec![(k, i)],
                 of: master_end.clone().into(),
             },
         );
         match tp.lookup(&wrapped) {
             Some(Entry::Unique(e)) => assert_eq!(e.body, i),
-            other => panic!("instance {i} end cap: {other:?}"),
+            other => panic!("member {i} end cap: {other:?}"),
         }
     }
 }

@@ -19,7 +19,7 @@
 //! certifies.
 //!
 //! The rows pin the outcome: every stack unions at its closed form,
-//! its subtract and intersect stop at the fallback extent; the
+//! its difference is its minuend and its intersection nothing; the
 //! one-profile capsule's
 //! sphere × cylinder strut, met by a coaxial rod, refuses at the
 //! crossing layer, save the rod ending on the joint, which unions at its
@@ -277,16 +277,16 @@ fn stacks(lower: Outline, upper: Outline) -> Vec<(String, topo::BooleanBody<f64>
         .collect()
 }
 
-/// **Every arc-joint stack unions and stops its subtract and intersect
-/// at the fallback extent**, in both member orders: the lower plate's tangent ruling ends on the upper plate's
-/// continued wall, and the cover takes each op past the crossing layer.
-/// The union builds ([`two_cylinders_tangent_along_a_ruling_cover_the_stack`]
-/// meters it); the subtract and intersect refuse
-/// `FallbackExtentUnsupported`, the no-crossings path unable to certify
-/// the continued walls' abutment
-/// ([`the_stacks_subtract_and_intersect_stop_at_the_fallback_extent`]).
+/// **Every arc-joint stack builds every op**, in both member orders:
+/// the lower plate's tangent ruling ends on the upper plate's continued
+/// wall, and the cover takes each op past the crossing layer. The union
+/// builds ([`two_cylinders_tangent_along_a_ruling_cover_the_stack`]
+/// meters it). The difference is its minuend and the intersection is
+/// nothing: the no-crossings path defers the continued walls' settled
+/// pairs, and each plate's side (`Out` the other) stands. Each difference is valid
+/// at tier 3 and 3′ at its outline's closed-form area.
 #[test]
-fn the_arc_joint_stacks_union_and_stop_at_the_fallback_extent() {
+fn the_arc_joint_stacks_build_every_op() {
     for (lower, upper) in STACKS {
         let (p, q) = (plate(lower, 0.0), plate(upper, 1.0));
         assert_eq!(
@@ -294,25 +294,38 @@ fn the_arc_joint_stacks_union_and_stop_at_the_fallback_extent() {
             [(SurfaceKind::Cylinder, SurfaceKind::Cylinder)],
             "{lower:?}: the plate's one strut, between its two walls"
         );
-        for (order, a, b) in [("P, Q", &p, &q), ("Q, P", &q, &p)] {
+        for (order, a, b, minuend) in [("P, Q", &p, &q, lower), ("Q, P", &q, &p, upper)] {
             let label = format!("{lower:?} under {upper:?}, {order}");
-            for (op, r) in [
-                ("∪", topo::union(a, b, tol())),
-                ("∖", topo::subtract(a, b, tol())),
-                ("∩", topo::intersect(a, b, tol())),
-            ] {
-                if op == "∪" {
-                    assert!(
-                        matches!(r, Ok(BooleanResult::Body(_))),
-                        "{label}, ∪: builds: {r:?}"
-                    );
-                } else {
-                    assert!(
-                        matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
-                        "{label}, {op}: {r:?}"
-                    );
-                }
-            }
+            let r = topo::union(a, b, tol());
+            assert!(
+                matches!(r, Ok(BooleanResult::Body(_))),
+                "{label}, ∪: builds: {r:?}"
+            );
+            let r = topo::intersect(a, b, tol());
+            assert!(
+                matches!(r, Ok(BooleanResult::Empty)),
+                "{label}, ∩: nothing: {r:?}"
+            );
+            let r = topo::subtract(a, b, tol());
+            let Ok(BooleanResult::Body(bb)) = r else {
+                panic!("{label}, ∖: builds: {r:?}");
+            };
+            assert_eq!(
+                topo::validate_geometric(&bb.body, tol()),
+                Ok(()),
+                "{label}, ∖: tier 3"
+            );
+            assert_eq!(
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+                Ok(()),
+                "{label}, ∖: tier 3′"
+            );
+            let want = area(minuend);
+            let v = topo::test_support::pinned_volume("the difference", &bb.body, tol()).volume;
+            assert!(
+                (v - want).abs() <= 1e-9 * want,
+                "{label}, ∖: volume {v} against the minuend's {want}"
+            );
         }
     }
 }
@@ -379,30 +392,6 @@ fn the_covered_stack_meets_its_point_probes() {
                 probed.iter().all(|&n| n > 50),
                 "{label}: probes on both sides {probed:?}"
             );
-        }
-    }
-}
-
-/// **The stack's subtract and intersect stop
-/// at the fallback extent**, as the rounded stack's do
-/// (`reach_continuation`;
-/// `rounded-stack-subtract-and-intersect-refuse-fallback-extent`): the
-/// cover takes them past the crossing layer, and the no-crossings path
-/// cannot certify the continued walls' abutment.
-#[test]
-fn the_stacks_subtract_and_intersect_stop_at_the_fallback_extent() {
-    for shape in [Outline::Inside, Outline::S] {
-        let (p, q) = (plate(shape, 0.0), plate(shape, 1.0));
-        for (order, a, b) in [("P, Q", &p, &q), ("Q, P", &q, &p)] {
-            for (op, r) in [
-                ("∖", topo::subtract(a, b, tol())),
-                ("∩", topo::intersect(a, b, tol())),
-            ] {
-                assert!(
-                    matches!(r, Err(BooleanError::FallbackExtentUnsupported { .. })),
-                    "{shape:?}, {order}, {op}: {r:?}"
-                );
-            }
         }
     }
 }
@@ -509,7 +498,13 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
                 (
                     "into the half ball" | "over the half ball" | "from the joint",
                     _,
-                    Err(BooleanError::CurvedPierceUnsupported { .. }),
+                    Err(
+                        BooleanError::CurvedPierceUnsupported { .. }
+                        | BooleanError::CurvedPierceEscalated {
+                            decision: topo::BooleanDecision::ArcCylinderRoots,
+                            ..
+                        },
+                    ),
                 ) => {}
                 _ => panic!("{pose}, {order}: {got:?}"),
             }

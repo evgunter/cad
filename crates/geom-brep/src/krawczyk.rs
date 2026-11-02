@@ -38,9 +38,20 @@ pub(crate) fn inverse3(m: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
     out.iter().flatten().all(|v| v.is_finite()).then_some(out)
 }
 
+/// An upper bound on `|v|` over the enclosure, `NaN` where it does not
+/// certify ([`Certification::mag`]).
+pub(crate) fn mag(v: Interval) -> f64 {
+    Certification::mag(v)
+}
+
+/// The midpoint of each enclosure of `v`.
+pub(crate) fn midpoint(v: &[Interval; 3]) -> [f64; 3] {
+    v.map(|c| c.lo() + (c.hi() - c.lo()) * 0.5)
+}
+
 /// The midpoint of each enclosure of `m`.
 pub(crate) fn midpoints(m: &[[Interval; 3]; 3]) -> [[f64; 3]; 3] {
-    m.map(|row| row.map(|v| v.lo() + (v.hi() - v.lo()) * 0.5))
+    m.map(|row| midpoint(&row))
 }
 
 /// **The operator's image** of the box `x` (module docs), `f` an
@@ -119,8 +130,6 @@ pub(crate) fn solution_reach(
     let sy: [[Interval; 3]; 3] = core::array::from_fn(|r| {
         core::array::from_fn(|c| Interval::point(scale[r]) * Interval::point(y[r][c]))
     });
-    // `|v|`'s upper end, a magnitude read off the bracket's ends.
-    let mag = |v: Interval| v.lo().abs().max(v.hi().abs());
     let (mut q, mut reach) = (0.0f64, 0.0f64);
     for (r, syr) in sy.iter().enumerate() {
         let mut row = Interval::point(0.0);

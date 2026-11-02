@@ -11,10 +11,11 @@
 //!
 //! - the open succeeds and every tree row evaluates `Ok` (the
 //!   resolver, on the real store);
-//! - per instance, hide either takes visible effect (the drawn
-//!   triangle count moves) or refuses typed — never
+//! - per instance the picture draws, hide takes visible effect (the
+//!   drawn triangle count moves) or refuses typed — never
 //!   accepted-and-inert (the M1 class, measured on exactly this
-//!   directory when it shipped);
+//!   directory when it shipped); an instance an operation reads as a
+//!   body is not drawn, and its hide is the state of its toggle;
 //! - per eligible instance, a committed probe marks at least one
 //!   drawn part distinct — same rule, other op.
 //!
@@ -42,7 +43,7 @@ fn probe_index(session: &viewer::session::DocSession) -> Option<viewer::pickinde
     viewer::pickindex::PickIndex::build(
         doc,
         eval,
-        viewer::pickindex::PictureKey::of(generation, delta),
+        viewer::pickindex::PictureKey::of(generation, delta, viewer::world::Shown::none()),
         session.tol(),
     )
     .ok()
@@ -139,9 +140,9 @@ fn main() {
                 row.id, row.status
             ));
         }
-        // The G3 items, per instance: hide takes effect or refuses
-        // typed; a committed probe marks something. Never a silent
-        // no-op. (The baseline tessellation is paid only for
+        // The G3 items, per instance: a drawn instance's hide takes
+        // effect or refuses typed; a committed probe marks something.
+        // Never a silent no-op. (The baseline tessellation is paid only for
         // documents that HAVE instances — the part documents' cost
         // here is the open and the tree.)
         if instances.is_empty() {
@@ -150,9 +151,9 @@ fn main() {
         let baseline = index_triangles(&session);
         for row in &instances {
             let hide = session
-                .perform(viewer::session::SessionOp::SetInstanceHidden {
-                    instance: row.id,
-                    hidden: true,
+                .perform(viewer::session::SessionOp::SetBodyOn {
+                    node: row.id,
+                    on: false,
                 })
                 .refusal;
             match hide {
@@ -162,15 +163,22 @@ fn main() {
                         "      node {}: hide accepted, drawn triangles {baseline:?} -> {after:?}",
                         row.id
                     );
-                    if after == baseline {
+                    let drawn = viewer::world::is_drawn(session.committed_doc(), row.id);
+                    if drawn && after == baseline {
                         violations.push(format!(
                             "{name}: node {} hide ACCEPTED BUT DREW NOTHING DIFFERENT",
                             row.id
                         ));
                     }
-                    session.perform(viewer::session::SessionOp::SetInstanceHidden {
-                        instance: row.id,
-                        hidden: false,
+                    if !drawn && after != baseline {
+                        violations.push(format!(
+                            "{name}: node {} is not drawn, yet its hide CHANGED THE PICTURE",
+                            row.id
+                        ));
+                    }
+                    session.perform(viewer::session::SessionOp::SetBodyOn {
+                        node: row.id,
+                        on: true,
                     });
                 }
                 Some(refusal) => {
@@ -178,15 +186,15 @@ fn main() {
                 }
             }
             if session
-                .perform(viewer::session::SessionOp::BeginFreeMove { instance: row.id })
+                .perform(viewer::session::SessionOp::BeginFreeMove { node: row.id })
                 .refusal
                 .is_none()
             {
                 session.perform(viewer::session::SessionOp::PreviewFreeMove {
-                    instance: row.id,
+                    node: row.id,
                     frame: pncad::document::Frame::translation([0.5, 0.0, 0.0]),
                 });
-                session.perform(viewer::session::SessionOp::CommitFreeMove { instance: row.id });
+                session.perform(viewer::session::SessionOp::CommitFreeMove { node: row.id });
                 let marked = probe_parts(&session);
                 println!(
                     "      node {}: free-move committed, scene probe_parts={marked:?}",
@@ -200,12 +208,12 @@ fn main() {
                 }
                 // Discard the probe so the next instance's baseline is
                 // clean.
-                session.perform(viewer::session::SessionOp::BeginFreeMove { instance: row.id });
+                session.perform(viewer::session::SessionOp::BeginFreeMove { node: row.id });
                 session.perform(viewer::session::SessionOp::PreviewFreeMove {
-                    instance: row.id,
+                    node: row.id,
                     frame: pncad::document::Frame::IDENTITY,
                 });
-                session.perform(viewer::session::SessionOp::CommitFreeMove { instance: row.id });
+                session.perform(viewer::session::SessionOp::CommitFreeMove { node: row.id });
             } else {
                 println!("      node {}: free-move refused typed", row.id);
             }

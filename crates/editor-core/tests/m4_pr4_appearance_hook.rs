@@ -20,7 +20,7 @@ use editor_core::{
     appearance_rebind_suggestions, enrich_appearance_loss, enrich_appearance_loss_with_prior,
     evaluate,
 };
-use fixture::{insert, len, minted, on_frame, scl, step};
+use fixture::{insert, len, minted, on_frame, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -308,26 +308,16 @@ fn node_gone_loss_enriches_with_the_derived_deletion_edit() {
 
 #[test]
 fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
-    // Count 3 -> 2 vanishes instance 2's face name; the coarse loss
-    // (empty structural candidates) enriches to the pinned
-    // StructuralParam diagnosis plus the last-good tombstone.
+    // The index's count 3 -> 2 vanishes member 2's face name; the
+    // coarse loss (empty structural candidates) enriches to the pinned
+    // diagnosis of the edit that took it plus the last-good tombstone.
     let (doc, ext) = block(
         ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         1.0,
     );
-    let (doc, pat) = insert(
-        doc,
-        Node::Pattern {
-            input: ext.into(),
-            count: editor_core::Formula::count(3),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
+    let (doc, k, pat) = crate::fixture::linear(doc, ext, [1.0, 0.0, 0.0], 2.0, 3);
     let ev = run(&doc);
     let inst2_face = ev
         .table_at(pat)
@@ -335,24 +325,17 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
         .iter()
         .find_map(|(n, _)| {
             (n.kind == EntityKind::Face
-                && matches!(n.path.first(), Some(RoleSeg::Instance { i: 2, .. })))
+                && matches!(n.path.first(), Some(RoleSeg::Member { at, .. }) if at.as_slice() == [(k, 2)]))
             .then(|| n.clone())
         })
-        .expect("pattern mints instance-2 face names");
+        .expect("the family mints member-2 face names");
     let doc = set(doc, inst2_face.clone(), red());
     let prior_doc = doc.clone();
     let prior_ev = run(&prior_doc);
     assert!(prior_ev.appearance.is_lossless());
 
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetStructuralParam {
-            node: pat,
-            slot: SlotId::Count,
-            expr: editor_core::Formula::count(2),
-            fresh: Vec::new(),
-        },
-    );
+    let edit = crate::fixture::recount_edit(&doc, k, editor_core::Formula::count(2));
+    let (doc, _) = step(doc, edit);
     let ev = rerun(&doc, &prior_ev);
     assert_eq!(ev.appearance.losses.len(), 1);
     let loss = &ev.appearance.losses[0];
@@ -386,19 +369,18 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
         panic!("expected Vanished, got {:?}", f.error);
     };
     assert_eq!(*name, inst2_face);
-    assert_eq!(
-        *diagnosis,
-        Diagnosis::StructuralParam {
-            node: pat,
-            param: SlotId::Count
-        }
+    // The count is the index's, a definition and no slot of the
+    // family: what took the name is the index's count.
+    assert!(
+        matches!(diagnosis, Diagnosis::IndexCount { node, .. } if *node == pat),
+        "{diagnosis:?}"
     );
     let t = last_good.as_ref().expect("the prior run resolved the name");
     assert_eq!(t.kind, EntityKind::Face);
     assert_eq!(t.patch.node, pat);
     // The coarse structural candidates (empty here) are a subset of
     // the ladder's offers by construction; nothing structural offers
-    // itself for a dropped instance.
+    // itself for a dropped member.
     assert!(f.offers.is_empty());
 }
 
@@ -699,4 +681,87 @@ fn suggestion_map_is_total_over_the_store() {
     let (key, offers) = suggestions.first_key_value().expect("one key");
     assert_eq!(key.name, cap);
     assert_eq!(*offers, Vec::<editor_core::AppearanceKey>::new());
+}
+
+/// **A count read through a named variable** is the index's count too:
+/// `k = index(N)`, `N` a free count 3 -> 2, vanishes member 2's face name
+/// with the diagnosis the index's own count edit gives.
+#[test]
+fn a_named_count_shrinking_is_the_indexs_count() {
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr4_appearance_hook", Tol::witness()),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        1.0,
+    );
+    let n = editor_core::VarName::from_static("n");
+    let declare = |doc, count| {
+        step(
+            doc,
+            editor_core::DocEdit::DefineVar {
+                var: n.clone().into(),
+                def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: count }),
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    };
+    let doc = step(
+        doc,
+        editor_core::DocEdit::DeclareVar {
+            name: n.clone(),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 3 }),
+        },
+    )
+    .0;
+    let count = editor_core::Formula::var(
+        doc.var_named("n").expect("n is declared"),
+        editor_core::Dimension::Count,
+    );
+    let (doc, k) = crate::fixture::index_of(doc, "k", count, None);
+    let pitch =
+        editor_core::Formula::mul(crate::fixture::scalar_of(k), len(2.0)).expect("a length");
+    let (doc, pat) = crate::fixture::family_of(
+        doc,
+        ext,
+        vec![(editor_core::Coord::Slide(editor_core::TargetAxis::X), pitch)],
+    );
+    let ev = run(&doc);
+    let inst2_face = ev
+        .table_at(pat)
+        .unwrap()
+        .iter()
+        .find_map(|(n, _)| {
+            (n.kind == EntityKind::Face
+                && matches!(n.path.first(), Some(RoleSeg::Member { at, .. }) if at.as_slice() == [(k, 2)]))
+            .then(|| n.clone())
+        })
+        .expect("the family mints member-2 face names");
+    let doc = set(doc, inst2_face.clone(), red());
+    let prior_doc = doc.clone();
+    let prior_ev = run(&prior_doc);
+    let doc = declare(doc, 2);
+    let ev = rerun(&doc, &prior_ev);
+    assert_eq!(ev.appearance.losses.len(), 1);
+    let r = enrich_appearance_loss_with_prior(
+        RunCtx {
+            doc: &doc,
+            eval: &ev,
+        },
+        RunCtx {
+            doc: &prior_doc,
+            eval: &prior_ev,
+        },
+        &ev.appearance.losses[0],
+    );
+    let Resolution::Failed(f) = r else {
+        panic!("expected Failed, got {r:?}");
+    };
+    let ResolveError::Vanished { diagnosis, .. } = &f.error else {
+        panic!("expected Vanished, got {:?}", f.error);
+    };
+    assert!(
+        matches!(diagnosis, Diagnosis::IndexCount { node, index } if *node == pat && *index == k),
+        "{diagnosis:?}"
+    );
 }

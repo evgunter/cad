@@ -404,6 +404,8 @@ fn rules_named(name: &str) -> SymRules {
         // conjunct dials shut), so a decision the ladder answers on that
         // attempt is rendered where this set leaves it numeric.
         "no_g" => SymRules::without_canonical_root(),
+        // Rule H's differential: the shipped set with angle sums shut.
+        "no_h" => SymRules::without_angle_sum(),
         // The cost breakdown: rule D alone, and rules A/B per node alone.
         "d_only" => SymRules {
             trig_of_atan: true,
@@ -439,7 +441,7 @@ fn rules_named(name: &str) -> SymRules {
         },
         other => panic!(
             "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | no_f | sym5 \
-             | no_reads | no_q | d_only | ab_only | top_only | d_top_only"
+             | no_reads | no_q | no_h | d_only | ab_only | top_only | d_top_only"
         ),
     }
 }

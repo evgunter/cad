@@ -1,7 +1,7 @@
 ---
 id: boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm
 kind: issue
-title: The boolean's bound-parallelism verdicts (parallel_same at the shorter arm, parallel_same_dir at 1 m) read a Zero as 'same ray' for long bounds that part by many bands
+title: The boolean's bound-parallelism verdicts (parallel_same, levered at the shorter of two sectors' arms) read a Zero as 'same ray' for long bounds that part by many bands
 status: open
 opened: 2026-09-29
 priority: P3
@@ -32,3 +32,17 @@ two bounds already lie within the band of each other's planes, which
 narrows the pose but does not close it. The metric reading here is the
 far vertices' distance from each other's line, or each far vertex's
 distance from the other bound's ray.
+
+## 2026-10-29 — one check now, both readings at the shorter arm (SPLITDOOR)
+
+`recl.rs` `parallel_same_dir` is gone: PR 5983 merged it into
+`sectors.rs` `parallel_same`, which both readings now call with their
+own `Parallelism` (`refusal_routes.rs`): `BOUNDS_PARALLEL`
+(`bool_dir_parallel`, `Coincide::Sectors`) and `RAY_COLLINEAR`
+(`bool_ee_collinear`, `Coincide::EdgeOnEdge`), both normalized before
+the lever. The second bullet's "at `T::one()`" premise was already
+stale before that merge: `recl_edges` levers the ray-event grouping at
+`mentions[i].arm.min(mentions[j].arm)`, the shorter mentioning sector's
+arm. So both readings are now the first bullet's case, a Zero at the
+shorter arm where each bound's own reach is known. The pose above
+stands for both.

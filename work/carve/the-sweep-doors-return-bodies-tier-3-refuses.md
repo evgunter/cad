@@ -2,10 +2,11 @@
 id: the-sweep-doors-return-bodies-tier-3-refuses
 kind: issue
 title: extrude, revolve, loft, sweep, fillet and chamfer gate their results by a tier-2 debug assert alone, and extrude returns bodies tier 3 refuses
-status: open
+status: parked
 opened: 2026-10-14
 priority: P3
 cost: M
+blocked_on: [the-at-rest-result-gate-and-its-typing-live-in-five-homes]
 ---
 
 
@@ -61,3 +62,13 @@ gate, typed as the Boolean and the split type it
 public door), and correct extrude's stated bar.
 Alternatively, write the "workspace convention" down: these doors return
 construction state, and the editor gates a leaf node's body.
+
+## Parked (2026-10-31) on ONEHOME's gate home
+
+Its two closes (gate each door at rest, typed like the Boolean and the
+split; or write down that the doors return construction state and the
+editor gates) are the question ONEHOME's
+`the-at-rest-result-gate-and-its-typing-live-in-five-homes` (P1, design)
+weighs for all five doors. Building a sixth home first would be what
+that row retires. This row waits for that row's answer, then builds
+the sweep doors' instance of it. (CARVE orchestrator)
