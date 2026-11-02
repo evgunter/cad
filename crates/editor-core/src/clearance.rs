@@ -1,6 +1,24 @@
-//! **The E7 clearance engine's document half**: the trichotomy over one
-//! certified leaf of the E6 driver, and the same engine run at `c = 0⁺`
-//! as the global parametric self-intersection check.
+//! **The E7 clearance engine's document half**: the verdict over one
+//! certified leaf of the E6 driver, the dials door the engine's own rows
+//! turn, and the same engine run at `c = 0⁺` as the global parametric
+//! self-intersection check.
+//!
+//! # Two routes, one sweep
+//!
+//! **A document asks a clearance as an assertion**
+//! ([`crate::Claim::Clearance`]): `eval/wire.rs`'s `wire_clearance`
+//! runs the sweep inside the evaluation at a certifying lane, and
+//! [`crate::drive::assertion_at`] reads it over a leaf. That is the
+//! product's route, and the only one `pncad` exposes.
+//!
+//! **This module's doors are the ENGINE's**: [`clearance_at_dials`] and
+//! [`clearance_over_at_dials`] ask a [`ClearanceQuery`] between two
+//! [`Selection`]s at dials a document assertion has no spelling for —
+//! budgets, the facet accelerator, a monotonicity oracle — and
+//! [`self_intersection`] asks the strict question. They exist for the
+//! engine's rows and for the strict question; a document question that
+//! reaches for them is asking the wrong door
+//! (`work/cleartail/the-metric-clearance-dials-door-outlives-the-assertion.md`).
 //!
 //! Two nested subdivisions. The OUTER one is [`mod@crate::drive`]'s: it
 //! hands this module a leaf whose topology is provably the witness
@@ -10,64 +28,74 @@
 //! domains with interval exclusion. This module evaluates the document
 //! with the leaf's parameters bound as intervals, resolves the two
 //! selections, reads both bodies into the frame the question is asked
-//! in, hands the engine their faces, and verifies at `f64` each witness
+//! in, hands the engine their faces, and verifies at `f64` each pair
 //! the engine offers. The windows, the cells, the sweep, its one-way
 //! looseness and its two funnelled compares are the engine's, and its
 //! module header states them.
 //!
 //! # What each verdict claims, exactly
 //!
-//! [`ClearanceVerdict::Holds`] is a certificate over the leaf's whole
-//! parameter box AND the whole of both selections: at every parameter
-//! point in the box and every pair of points on the two carrier
-//! windows **minus the cells decided outside their faces**
+//! Over a parameter box a lower bound's two verdicts and an upper
+//! bound's two do not have the same quantifiers, and each verdict says
+//! which it carries.
+//!
+//! [`ClearanceVerdict::Holds`] (`≥ c`) is a certificate over the leaf's
+//! whole parameter box AND the whole of both selections: at every
+//! parameter point in the box and every pair of points on the two
+//! carrier windows **minus the cells decided outside their faces**
 //! ([`topo::cell_region`]), the separation satisfies the bound. That
 //! set still CONTAINS both trimmed faces — a cell is dropped only when
 //! no boundary of its face meets it, decided in metres at `K · ε`, and
 //! the face's point door places a station of it outside — so the
 //! certificate is about the faces, and the places neither face
-//! occupies that it also covers are fewer. Nothing
-//! samples, nothing averages, and no probability enters — mass
-//! accounting applies to LEAVES (E6), never inside one.
+//! occupies that it also covers are fewer. Nothing samples, nothing
+//! averages, and no probability enters — mass accounting applies to
+//! LEAVES (E6), never inside one. [`ClearanceVerdict::Exceeded`] (`≤ c`)
+//! is the same certificate read the other way: at every point of the
+//! box every pair is past the bound.
 //!
-//! [`ClearanceVerdict::Violated`] carries a concrete parameter point
-//! and a concrete pair of surface points, and their distance is
-//! **re-verified at `f64`** by an independent rebuild before the
-//! verdict is minted (`verify_witness`, the verifier this module hands
-//! the engine). A witness the `f64` recomputation does not confirm is
-//! never reported as one: the engine refuses
-//! [`EngineRefusal::WitnessUnverified`] instead.
+//! [`ClearanceVerdict::Violated`] (`≥ c`) is EXISTENTIAL: it carries a
+//! concrete parameter point and a concrete pair of face points closer
+//! than the bound, **re-verified at `f64`** by an independent rebuild
+//! at that point before the verdict is minted. One point of the box
+//! breaks the bound.
 //!
-//! What a witness IS, precisely: a pair of points, one on each FACE —
-//! stations the faces' point doors place `In`, `OnEdge` or `OnVertex`
-//! ([`topo::cell_region::station_region`]) — whose `f64` separation the
-//! same funnel site calls a violation. It is the closest pair the rebuild's station lattice
+//! [`ClearanceVerdict::Within`] (`≤ c`) is UNIVERSAL: at every point of
+//! the box some pair is within the bound. It carries one pair of face
+//! stations whose separation, enclosed over every realization the lane
+//! covers ([`topo::clearance::Enclosure::separation`]), is within the
+//! bound — so the same two stations prove it at every point — and the
+//! `f64` rebuild's reading of them at one point as its report. A pair
+//! within the bound at one point only proves it there: the box decides
+//! it in part only, and the engine refuses
+//! [`EngineRefusal::BoxDependent`], which the drive bisects on.
+//!
+//! A pair the `f64` recomputation does not confirm is never reported:
+//! the engine refuses [`EngineRefusal::WitnessUnverified`] instead.
+//!
+//! What a pair IS, precisely: two points, one on each FACE — stations
+//! the faces' point doors place `In`, `OnEdge` or `OnVertex`
+//! ([`topo::cell_region::station_region`]) — whose separation the same
+//! funnel site reads against the bound ([`topo::clearance::Ask::confirms`]).
+//! A violation's pair is the closest the rebuild's station lattice
 //! FOUND, not the infimum over the two cells — on a flat pair the
 //! lattice attains the true closest approach, on a curved one it
-//! returns a near pair. For the strictly-positive question the witness
-//! reports a COINCIDENCE and never a signed penetration depth; that
-//! gap is scoped in `work/curved/signed-penetration-depth.md`.
+//! returns a near pair; an upper bound's is the pair whose enclosure
+//! reaches least far. For the strictly-positive question the pair
+//! reports a COINCIDENCE and never a signed penetration depth; that gap
+//! is scoped in `work/curved/signed-penetration-depth.md`.
 //!
-//! [`ClearanceVerdict::Refused`] is typed, in fourteen classes rather
-//! than the spec's two. Nine are the engine's ([`EngineRefusal`],
-//! carried as [`ClearanceRefusal::Engine`]): a terminal sliver (the
-//! driver's rule shape — the deciding enclosure sits wholly inside the
-//! funnel's band, so refinement provably cannot move it), a named
-//! budget, a carrier with no admitted window, an enclosure that did not
-//! evaluate, a scope that names nothing, a witness the `f64` rebuild
-//! would not confirm, and the injectivity question's three — a touching
-//! pair no local certificate discharged, a collapsed spline chart, a
-//! torus not decided a ring. Five are this module's: a selection that
-//! does not resolve, a fold over a drive that certified nothing, a bound
-//! that is not a distance, a tolerance the funnel cannot band, and a
-//! pair with a recorded contact. Each type carries the argument for
-//! each of its arms; the suite's own module door says which have no
-//! row and why.
-//!
-//! The minimum-separation question ([`topo::clearance::min_separation`])
-//! is asked by the `min_clearance` measure from inside an evaluation,
-//! where the body is already in hand, and this module does not stand
-//! between them.
+//! [`ClearanceVerdict::Refused`] is typed, never a poisoned node: the
+//! engine's own refusals ([`EngineRefusal`], carried as
+//! [`ClearanceRefusal::Engine`]) — a terminal sliver, a named budget, a
+//! carrier with no admitted window, an enclosure that did not evaluate,
+//! a scope that names nothing, a pair the `f64` rebuild would not
+//! confirm, an upper bound the box decides in part only, and the
+//! injectivity question's three — and this crate's: a selection that
+//! does not resolve, a fold over a drive that certified nothing, a
+//! bound that is not a distance, a lane that cannot certify, a
+//! tolerance the funnel cannot band, and a pair with a recorded
+//! contact. Each type carries the argument for each of its arms.
 //!
 //! # Read-only (E8)
 //!
@@ -123,7 +151,11 @@ pub enum Pruning {
     #[default]
     Off,
     /// A parameter the oracle proves the separation monotone in is
-    /// collapsed to the box facet where the separation is smallest.
+    /// collapsed to the box facet where the separation is smallest,
+    /// for a bound with no upper end (`≥ c`, the strict question): both
+    /// its verdicts are read at that facet, `Holds` universally and a
+    /// violation existentially. A bound with an upper end is examined
+    /// whole, since no one facet carries both its universal verdicts.
     /// An ACCELERATOR: the verdict is the same, the work is less.
     Facets,
 }
@@ -244,15 +276,19 @@ pub struct ClearanceQuery<'a> {
     /// **The tier the leaf was certified at**, which is the lane it is
     /// replayed on ([`crate::drive::ParamBoxVerdict::symbolic`]): a leaf
     /// the symbolic tier certified can carry a node a numeric replay
-    /// refuses. [`clearance_over`] reads it off the verdict instead.
+    /// refuses. [`clearance_over_at_dials`] reads it off the verdict instead.
     pub symbolic: crate::drive::SymbolicDials,
 }
 
 impl ClearanceQuery<'_> {
-    /// The self-intersection question at the shipped dials.
-    pub fn strictly_positive(tol: Tol) -> Self {
+    /// **The engine's question `bound`, at the shipped dials** — the one
+    /// constructor of this door. A document asks a bounded clearance as
+    /// an assertion ([`crate::Claim::Clearance`]); this door is for the
+    /// engine's own rows, which turn the dials an assertion has no
+    /// spelling for ([`ClearanceConfig`], [`MonotoneOracle`]).
+    pub fn at_dials(bound: ClearanceBound, tol: Tol) -> Self {
         Self {
-            bound: ClearanceBound::StrictlyPositive,
+            bound,
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
@@ -260,22 +296,14 @@ impl ClearanceQuery<'_> {
             symbolic: crate::drive::SymbolicDials::default(),
         }
     }
+
+    /// The self-intersection question at the shipped dials.
+    pub fn strictly_positive(tol: Tol) -> Self {
+        Self::at_dials(ClearanceBound::StrictlyPositive, tol)
+    }
 }
 
 impl<'a> ClearanceQuery<'a> {
-    /// The same question at other dials ([`ClearanceConfig`]).
-    #[must_use]
-    pub fn with_config(self, config: ClearanceConfig) -> Self {
-        Self { config, ..self }
-    }
-
-    /// The same question with the accelerator's seam answered by
-    /// `oracle` ([`MonotoneOracle`]).
-    #[must_use]
-    pub fn with_oracle(self, oracle: &'a dyn MonotoneOracle) -> Self {
-        Self { oracle, ..self }
-    }
-
     /// The same question over a document whose parts resolve through
     /// `resolver` ([`ClearanceQuery::resolver`]).
     #[must_use]
@@ -1118,7 +1146,7 @@ pub fn self_intersection(
     of: &Selection,
     tol: Tol,
 ) -> ClearanceReport {
-    clearance_with(doc, leaf, of, of, &ClearanceQuery::strictly_positive(tol))
+    clearance_at_dials(doc, leaf, of, of, &ClearanceQuery::strictly_positive(tol))
 }
 
 /// The full door: the strict question between two selections, both
@@ -1133,7 +1161,7 @@ pub fn self_intersection(
 /// definite violation outranks a refusal, which outranks `Holds`. A
 /// finding is a stronger statement than an unknown, and an unknown is
 /// never presented as a pass.
-pub fn clearance_with(
+pub fn clearance_at_dials(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
     a: &Selection,
@@ -1143,7 +1171,7 @@ pub fn clearance_with(
     clearance_on(doc, leaf, a, b, query, query.symbolic.lane())
 }
 
-/// [`clearance_with`] with the leaf replayed on `lane`.
+/// [`clearance_at_dials`] with the leaf replayed on `lane`.
 fn clearance_on(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
@@ -1179,8 +1207,13 @@ fn clearance_on(
     // sub-box of the leaf, so restricting to one restricts the geometry
     // the whole query is about. `Pruning::Off` is the identity.
     let queried = match query.config.pruning {
-        Pruning::Off => leaf.clone(),
-        Pruning::Facets => facet_restrict(leaf, query.oracle),
+        Pruning::Facets if query.bound.upper().is_none() => facet_restrict(leaf, query.oracle),
+        // An upper bound is not served by any one facet: its `Within`
+        // is universal and is proved on the facet of LARGEST separation,
+        // but its `Exceeded` is universal too and needs the smallest, so
+        // either facet alone would answer one verdict for the whole box
+        // on the other's evidence. The box is examined whole.
+        Pruning::Off | Pruning::Facets => leaf.clone(),
     };
     let opts = EvalOptions {
         param_box: Some(Arc::new(queried.clone())),
@@ -1364,7 +1397,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
 /// Nothing: the refusals are verdicts, not errors. The mass columns
 /// carry [`MeasureUnavailable`] where a parameter's law cannot price a
 /// leaf, exactly as the drive's own accounting does.
-pub fn clearance_over(
+pub fn clearance_over_at_dials(
     doc: &Doc<ProfileProgram>,
     analyzed: &AnalyzedBox,
     verdict: &ParamBoxVerdict,
@@ -1485,7 +1518,7 @@ impl ClearanceMass {
     }
 }
 
-/// What [`clearance_over`] answers.
+/// What [`clearance_over_at_dials`] answers.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LeafFold {
     /// The combined verdict over every certified leaf.

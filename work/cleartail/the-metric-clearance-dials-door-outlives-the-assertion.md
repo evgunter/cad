@@ -1,7 +1,7 @@
 ---
 id: the-metric-clearance-dials-door-outlives-the-assertion
 kind: issue
-title: clearance_with still takes a metric ClearanceBound at its dials, a second spelling beside the clearance assertion
+title: clearance_at_dials still takes a metric ClearanceBound at its dials, a second spelling beside the clearance assertion
 status: open
 opened: 2026-11-02
 priority: P3
@@ -16,7 +16,7 @@ door) and `ClearanceQuery::at_least` into the clearance assertion read
 through `drive::assertion_at` (ERROR-DESIGN E3's amendment, Ev on PR
 6261: "`editor_core::clearance`'s second spelling retires into it").
 
-What it left: `clearance_with` / `clearance_over`
+What it left: `clearance_at_dials` / `clearance_over_at_dials`
 (`crates/editor-core/src/clearance.rs`) still take a `ClearanceQuery`
 whose `bound` field is public, so a caller can still ask
 `ClearanceBound::at_least(c)` between two `Selection`s — at the dials a

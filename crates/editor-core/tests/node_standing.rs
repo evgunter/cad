@@ -219,8 +219,14 @@ fn every_standing_renders_one_way_through_every_door() {
         NodeStanding::NotInDocument { node: foreign },
     ] {
         let sel = Selection::body_of(standing.node());
-        let report =
-            crate::fixture::selection_clearance(&s.doc, &leaf, &sel, &sel, 0.1, Tol::witness());
+        let report = crate::fixture::dials_clearance(
+            &s.doc,
+            &leaf,
+            &sel,
+            &sel,
+            editor_core::clearance::ClearanceBound::at_least(0.1),
+            Tol::witness(),
+        );
         let ClearanceVerdict::Refused(ClearanceRefusal::Selection(refusal)) = report.verdict()
         else {
             panic!(

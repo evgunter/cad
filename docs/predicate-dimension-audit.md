@@ -1521,6 +1521,15 @@ Flagged, NOT fixed here (dispositions):
     driver to bisect a parameter box over cell pairs that only a
     smaller CELL answers (measured on the dumbbell neck: drives that
     certified at once ran past ten minutes).
+  - **The one reading that goes in**: an upper bound the box decides
+    only in part (`EngineRefusal::BoxDependent` — its closest pair's
+    separation over the box straddles the bound). A narrower BOX is
+    what answers that, so `wire_clearance` decides the pair's reach
+    against the bound once, logged, at `CLEARANCE_MARGIN`'s site: the
+    reading straddles the bound by construction, so it is
+    indeterminate — the driver's cue to bisect, and a leaf it cannot
+    narrow refuses
+    (`m10_6_clearance_assertion_interval`'s box-dependent rows).
 
   **Carried as `k_stats::unlogged("F30", ..)`**. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.

@@ -9,7 +9,7 @@
 //! each face as its own scope, and the body against itself reads 0.
 //!
 //! Everything here goes through the public doors a consumer has:
-//! `clearance` / `self_intersection` / `clearance_with` for the answer,
+//! `clearance` / `self_intersection` / `clearance_at_dials` for the answer,
 //! the report's own accessors for what it says, `drive` for a leaf that
 //! was actually certified. Nothing reaches past them.
 //!
@@ -146,7 +146,8 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     Budgets, CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery,
     ClearanceRefusal, ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle,
-    NoTangents, Pruning, Selection, Which, clearance_over, clearance_with, self_intersection,
+    NoTangents, Pruning, Selection, Which, clearance_at_dials, clearance_over_at_dials,
+    self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -597,7 +598,7 @@ fn a_starved_cell_budget_refuses_typed() {
             ..ClearanceConfig::default()
         },
     );
-    let report = clearance_with(&doc, &box_of(&doc, "place"), &fa, &fb, &q);
+    let report = clearance_at_dials(&doc, &box_of(&doc, "place"), &fa, &fb, &q);
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
             refusal: EngineRefusal::Budget(CellBudget::Pairs { max_cell_pairs }),
@@ -626,7 +627,7 @@ fn a_starved_cell_depth_refuses_on_its_own_axis() {
             ..ClearanceConfig::default()
         },
     );
-    let report = clearance_with(&doc, &box_of(&doc, "place"), &fa, &fb, &q);
+    let report = clearance_at_dials(&doc, &box_of(&doc, "place"), &fa, &fb, &q);
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
             refusal: EngineRefusal::Budget(CellBudget::Depth { max_cell_depth }),
@@ -661,7 +662,7 @@ fn every_run_lands_in_exactly_one_arm_with_a_holding_receipt() {
                     ..ClearanceConfig::default()
                 },
             );
-            let report = clearance_with(&doc, &leaf, &wa, &wb, &q);
+            let report = clearance_at_dials(&doc, &leaf, &wa, &wb, &q);
             let r = report.receipt();
             assert!(
                 r.holds(),
@@ -812,12 +813,12 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
         faces: FaceScope::Named(vec![fixture::ename(at, fixture::wall(&doc, at, 0))]),
     };
     let whole = Selection::body_of(at);
-    let report = crate::fixture::selection_clearance(
+    let report = crate::fixture::dials_clearance(
         &doc,
         &box_of(&doc, "place"),
         &sel,
         &whole,
-        0.1,
+        editor_core::clearance::ClearanceBound::at_least(0.1),
         Tol::witness(),
     );
     match report.verdict() {
@@ -832,12 +833,12 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
 fn a_node_that_does_not_exist_refuses_at_the_selection() {
     let (doc, _minted, _at) = hexagon();
     let sel = Selection::body_of(RecipeNodeId::new(0, 9999));
-    let report = crate::fixture::selection_clearance(
+    let report = crate::fixture::dials_clearance(
         &doc,
         &box_of(&doc, "place"),
         &sel,
         &sel,
-        0.1,
+        editor_core::clearance::ClearanceBound::at_least(0.1),
         Tol::witness(),
     );
     match report.verdict() {
@@ -932,7 +933,7 @@ fn gap_run(
         resolver: None,
         symbolic: editor_core::drive::SymbolicDials::default(),
     };
-    clearance_with(doc, &box_of(doc, "gap"), sa, sb, &q)
+    clearance_at_dials(doc, &box_of(doc, "gap"), sa, sb, &q)
 }
 
 /// **The accelerator is removable**: on the bounds the engine answers
@@ -984,7 +985,7 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
         resolver: None,
         symbolic: editor_core::drive::SymbolicDials::default(),
     };
-    let on = clearance_with(
+    let on = clearance_at_dials(
         &doc,
         &box_of(&doc, "gap"),
         &sa,
@@ -994,7 +995,7 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
             Box::leak(Box::new(GapIncreasing::of(&doc))),
         ),
     );
-    let at_facet = clearance_with(&doc, &facet, &sa, &sb, &q(Pruning::Off, &NoTangents));
+    let at_facet = clearance_at_dials(&doc, &facet, &sa, &sb, &q(Pruning::Off, &NoTangents));
     assert_eq!(
         on.serialize(),
         at_facet.serialize(),
@@ -1034,16 +1035,13 @@ fn a_driver_certified_leaf_carries_the_certificate() {
         verdict.serialize()
     );
     let (wa, wb) = neck_walls(&doc, minted, minted);
-    let fold = clearance_over(
+    let fold = clearance_over_at_dials(
         &doc,
         &analyzed,
         &verdict,
         &wa,
         &wb,
-        &ClearanceQuery {
-            bound: ClearanceBound::at_least(0.2),
-            ..ClearanceQuery::strictly_positive(Tol::witness())
-        },
+        &ClearanceQuery::at_dials(ClearanceBound::at_least(0.2), Tol::witness()),
     );
     assert_eq!(fold.verdict, ClearanceVerdict::Holds);
     assert!(fold.receipt.holds(), "{:?}", fold.receipt);
@@ -1104,29 +1102,23 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         );
     };
     let [a, b] = plate.holes.map(Selection::body_of);
-    let query = ClearanceQuery {
-        bound: ClearanceBound::at_least(0.3e-3),
-        ..ClearanceQuery::strictly_positive(tol)
-    };
-    let fold = clearance_over(&plate.doc, &analyzed, &verdict, &a, &b, &query);
+    let query = ClearanceQuery::at_dials(ClearanceBound::at_least(0.3e-3), tol);
+    let fold = clearance_over_at_dials(&plate.doc, &analyzed, &verdict, &a, &b, &query);
     assert_eq!(
         fold.verdict,
         ClearanceVerdict::Holds,
         "the holes clear 0.3 mm over the leaf, read on its own lane"
     );
-    let numeric = clearance_with(
+    let numeric = clearance_at_dials(
         &plate.doc,
         &leaf.box_,
         &a,
         &b,
-        &ClearanceQuery {
-            bound: ClearanceBound::at_least(0.3e-3),
-            ..ClearanceQuery::strictly_positive(tol)
-        }
-        .certified_at(editor_core::drive::SymbolicDials::off()),
+        &ClearanceQuery::at_dials(ClearanceBound::at_least(0.3e-3), tol)
+            .certified_at(editor_core::drive::SymbolicDials::off()),
     );
     assert_eq!(
-        *clearance_with(
+        *clearance_at_dials(
             &plate.doc,
             &leaf.box_,
             &a,
@@ -1329,8 +1321,15 @@ fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
         body: 0,
         faces: FaceScope::Named(Vec::new()),
     };
-    match crate::fixture::selection_clearance(&doc, &leaf, &empty, &sel, 0.2, Tol::witness())
-        .verdict()
+    match crate::fixture::dials_clearance(
+        &doc,
+        &leaf,
+        &empty,
+        &sel,
+        editor_core::clearance::ClearanceBound::at_least(0.2),
+        Tol::witness(),
+    )
+    .verdict()
     {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
             refusal: EngineRefusal::EmptyScope { side: Which::First },
@@ -1380,7 +1379,7 @@ fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
     let sel = Selection::body_of(loft);
     // On the numeric lane by name: at the symbolic tier this loft does
     // not build (work/pctail/loft-builds-at-interval-and-refuses-a-rational-column-at-sym.md).
-    let report = clearance_with(
+    let report = clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &sel,

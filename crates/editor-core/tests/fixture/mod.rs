@@ -4117,28 +4117,36 @@ pub fn clearance_within(
     }
 }
 
-/// **The `Selection` door's metric question**, `clearance ≥ c` between
-/// two selections through [`editor_core::clearance::clearance_with`] — the
-/// door a document assertion does not replace for rows that read the
+/// **The engine's dials door** ([`editor_core::clearance::clearance_at_dials`])
+/// asked `bound` between two selections at the shipped dials — the door
+/// a document assertion does not replace for rows that read the
 /// selection's own refusals, or a pair no assertion's seats admit
 /// (`work/cleartail/the-metric-clearance-dials-door-outlives-the-assertion.md`).
-pub fn selection_clearance(
+///
+/// It takes the ENGINE's bound, where [`clearance`] takes the
+/// document's `c`: the two routes cannot be swapped without the
+/// compiler saying so.
+pub fn dials_clearance(
     doc: &ProfileDoc,
     leaf: &editor_core::analysis::ParamBox,
     a: &editor_core::clearance::Selection,
     b: &editor_core::clearance::Selection,
-    c: f64,
+    bound: editor_core::clearance::ClearanceBound,
     tol: Tol,
 ) -> editor_core::clearance::ClearanceReport {
-    use editor_core::clearance::{ClearanceBound, ClearanceQuery};
-    let query = ClearanceQuery {
-        bound: ClearanceBound::at_least(c),
-        ..ClearanceQuery::strictly_positive(tol)
-    };
-    editor_core::clearance::clearance_with(doc, leaf, a, b, &query)
+    use editor_core::clearance::ClearanceQuery;
+    editor_core::clearance::clearance_at_dials(
+        doc,
+        leaf,
+        a,
+        b,
+        &ClearanceQuery::at_dials(bound, tol),
+    )
 }
 
-/// [`clearance_within`] at `clearance ≥ c`, the seats' kinds admitted.
+/// [`clearance_within`] at `clearance ≥ c`, the seats' kinds admitted:
+/// the DOCUMENT's route, an assertion read through
+/// `drive::assertion_at` ([`dials_clearance`] is the engine's).
 pub fn clearance(
     doc: &ProfileDoc,
     leaf: &editor_core::analysis::ParamBox,

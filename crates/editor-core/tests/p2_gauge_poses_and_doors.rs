@@ -361,12 +361,12 @@ fn the_clearance_door_refuses_two_selections_in_different_spaces() {
         fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &p.opts());
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, space) = fixture::into_new_space(doc, top);
-    let report = crate::fixture::selection_clearance(
+    let report = crate::fixture::dials_clearance(
         &doc,
         &ParamBox::from_axes(BTreeMap::new()),
         &Selection::body_of(base),
         &Selection::body_of(top),
-        0.5,
+        editor_core::clearance::ClearanceBound::at_least(0.5),
         Tol::witness(),
     );
     match report.verdict() {

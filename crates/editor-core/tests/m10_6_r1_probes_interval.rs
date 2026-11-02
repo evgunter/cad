@@ -50,7 +50,7 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
-use editor_core::clearance::{ClearanceQuery, Selection, clearance_over};
+use editor_core::clearance::{ClearanceQuery, Selection, clearance_over_at_dials};
 use editor_core::drive::{DriveConfig, VerdictVector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_key};
@@ -1080,16 +1080,13 @@ fn the_bracket_walk_through_the_public_doors() {
     assert!(report.worst_case.lo <= 1.0 && 1.0 <= report.worst_case.hi);
 
     eprintln!("== fold(post vs base ≥ 0.1)");
-    let fold = clearance_over(
+    let fold = clearance_over_at_dials(
         &doc,
         &analyzed,
         &verdict,
         &Selection::body_of(verdict_post(&doc)),
         &Selection::body_of(verdict_base(&doc)),
-        &ClearanceQuery {
-            bound: editor_core::clearance::ClearanceBound::at_least(0.1),
-            ..ClearanceQuery::strictly_positive(tol)
-        },
+        &ClearanceQuery::at_dials(editor_core::clearance::ClearanceBound::at_least(0.1), tol),
     );
     // **§2's two doors and the key, on the three reports that shipped
     // with no row at all** (R2's MINOR-10): `LeafFold`'s trio,

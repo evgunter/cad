@@ -27,7 +27,7 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     Budgets, CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
     ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, NoTangents, Selection, Which,
-    clearance_over, clearance_with, self_intersection,
+    clearance_at_dials, clearance_over_at_dials, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -182,7 +182,7 @@ fn the_bvh_prune_decides_inside_the_band_where_the_funnel_would_not() {
     let (doc, a, b) = blocks(eps() / 2.0);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     let strict = query(ClearanceBound::StrictlyPositive, ClearanceConfig::default());
-    let report = clearance_with(&doc, &box_of(&doc, "gap"), &sa, &sb, &strict);
+    let report = clearance_at_dials(&doc, &box_of(&doc, "gap"), &sa, &sb, &strict);
     let r = report.receipt();
     assert!(r.holds(), "{r:?}");
     assert_eq!(
@@ -237,7 +237,7 @@ fn a_pair_the_tree_hands_over_is_classified_at_the_funnel() {
             ..ClearanceConfig::default()
         },
     );
-    let report = clearance_with(&doc, &box_of(&doc, "gap"), &sa, &sb, &strict);
+    let report = clearance_at_dials(&doc, &box_of(&doc, "gap"), &sa, &sb, &strict);
     let r = report.receipt();
     println!("[r1] handed-over strict pair: {}", report.serialize());
     assert!(r.holds(), "{r:?}");
@@ -472,7 +472,7 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         resolver: None,
         symbolic: editor_core::drive::SymbolicDials::default(),
     };
-    let report = clearance_with(&doc, &box_of(&doc, "place"), &sel, &sel, &q);
+    let report = clearance_at_dials(&doc, &box_of(&doc, "place"), &sel, &sel, &q);
     println!(
         "[r1] bumped block self-intersection: {}",
         report.serialize()
@@ -652,12 +652,12 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
     );
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let started = std::time::Instant::now();
-    let report = crate::fixture::selection_clearance(
+    let report = crate::fixture::dials_clearance(
         &r.doc,
         &box_of(&r.doc, "place"),
         &sq,
         &sb,
-        1.0,
+        editor_core::clearance::ClearanceBound::at_least(1.0),
         Tol::witness(),
     );
     println!(
@@ -697,7 +697,7 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         ..ClearanceConfig::default()
     };
     let run = |c: f64, config: ClearanceConfig| {
-        let report = clearance_with(
+        let report = clearance_at_dials(
             &doc,
             &leaf,
             &sa,
@@ -775,8 +775,14 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         body: 0,
         faces: FaceScope::Named(vec![]),
     };
-    let vacuous =
-        crate::fixture::selection_clearance(&doc, &leaf, &nothing, &sb, 0.1, Tol::witness());
+    let vacuous = crate::fixture::dials_clearance(
+        &doc,
+        &leaf,
+        &nothing,
+        &sb,
+        editor_core::clearance::ClearanceBound::at_least(0.1),
+        Tol::witness(),
+    );
     println!("[r1] empty selection: {}", vacuous.serialize());
     assert!(
         matches!(
@@ -811,14 +817,14 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         },
         ..ClearanceConfig::default()
     };
-    let doubled = clearance_with(
+    let doubled = clearance_at_dials(
         &doc,
         &leaf,
         &twice,
         &sb,
         &query(ClearanceBound::at_least(0.5), cfg_small),
     );
-    let single = clearance_with(
+    let single = clearance_at_dials(
         &doc,
         &leaf,
         &once,
@@ -838,7 +844,7 @@ fn a_nan_bound_is_not_refused_at_the_door() {
     let (doc, a, b) = blocks(0.4);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     let started = std::time::Instant::now();
-    let report = clearance_with(
+    let report = clearance_at_dials(
         &doc,
         &box_of(&doc, "gap"),
         &sa,
@@ -901,7 +907,9 @@ fn the_fold_is_the_same_under_both_driver_schedules() {
         };
         let verdict = drive(&doc, &analyzed, &config, Tol::witness()).expect("builds");
         assert!(!verdict.certified().is_empty(), "{}", verdict.serialize());
-        folds.push(clearance_over(&doc, &analyzed, &verdict, &sa, &sb, &q));
+        folds.push(clearance_over_at_dials(
+            &doc, &analyzed, &verdict, &sa, &sb, &q,
+        ));
     }
     let cells = folds[0].receipt.discharged + folds[0].receipt.violated + folds[0].receipt.refused;
     println!(
@@ -1035,8 +1043,14 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     };
     for (c, expect) in [(0.3, "Holds"), (0.45, "Holds"), (0.55, "Violated")] {
         let started = std::time::Instant::now();
-        let report =
-            crate::fixture::selection_clearance(&doc, &leaf, &inner, &ss, c, Tol::witness());
+        let report = crate::fixture::dials_clearance(
+            &doc,
+            &leaf,
+            &inner,
+            &ss,
+            editor_core::clearance::ClearanceBound::at_least(c),
+            Tol::witness(),
+        );
         println!(
             "[r1 e2e] c = {c}: {:?} {}",
             started.elapsed(),
@@ -1064,7 +1078,7 @@ fn e2e_channel_slider_over_an_epsilon_box() {
 /// **E2E, the real-tolerance arm — FIXED, now the pin.** A placement
 /// tolerance of ±0.05 m is the question a user actually has. No node
 /// replays over that box (issue 1191's class), so the drive certifies
-/// NO leaf, and `clearance_over` used to answer `Holds` over zero
+/// NO leaf, and `clearance_over_at_dials` used to answer `Holds` over zero
 /// leaves: a pass over a document about which nothing was proved.
 /// It refuses `NothingCertified` now, carrying the drive's own refused
 /// count, and the mass columns beside it price the whole box as
@@ -1085,16 +1099,13 @@ fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
         verdict.refused().len(),
         verdict.accounting()
     );
-    let fold = clearance_over(
+    let fold = clearance_over_at_dials(
         &doc,
         &analyzed,
         &verdict,
         &sc,
         &ss,
-        &ClearanceQuery {
-            bound: ClearanceBound::at_least(0.3),
-            ..ClearanceQuery::strictly_positive(Tol::witness())
-        },
+        &ClearanceQuery::at_dials(ClearanceBound::at_least(0.3), Tol::witness()),
     );
     println!(
         "[r1 e2e] fold: leaves = {}, verdict = {:?}",
@@ -1144,7 +1155,7 @@ fn a_refused_leaf_is_priced_under_its_own_refusal_by_the_fold() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     let certified_mass = verdict.accounting().certified.clone();
-    let fold = clearance_over(
+    let fold = clearance_over_at_dials(
         &doc,
         &analyzed,
         &verdict,

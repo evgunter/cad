@@ -32,7 +32,14 @@ fn tagged() -> RecipeNodeId {
 /// The selection refusal a clearance between `a` and `b` answers.
 fn refused_selection(doc: &ProfileDoc, a: &Selection, b: &Selection) -> SelectionRefusal {
     let leaf = ParamBox::from_axes(BTreeMap::new());
-    let report = crate::fixture::selection_clearance(doc, &leaf, a, b, 0.1, Tol::witness());
+    let report = crate::fixture::dials_clearance(
+        doc,
+        &leaf,
+        a,
+        b,
+        editor_core::clearance::ClearanceBound::at_least(0.1),
+        Tol::witness(),
+    );
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Selection(r)) => r.clone(),
         other => panic!("expected a selection refusal, got {other:?}"),
@@ -132,8 +139,14 @@ fn a_refused_report_renders_the_refusal_in_words() {
     let whole = Selection::body_of(RecipeNodeId::new(0, 7));
     let doc = ProfileDoc::empty_derived("cleartext_render", Tol::witness());
     let leaf = ParamBox::from_axes(BTreeMap::new());
-    let report =
-        crate::fixture::selection_clearance(&doc, &leaf, &whole, &nothing, 0.1, Tol::witness());
+    let report = crate::fixture::dials_clearance(
+        &doc,
+        &leaf,
+        &whole,
+        &nothing,
+        editor_core::clearance::ClearanceBound::at_least(0.1),
+        Tol::witness(),
+    );
     let rendered = report.render();
     assert_eq!(
         rendered.lines().next(),

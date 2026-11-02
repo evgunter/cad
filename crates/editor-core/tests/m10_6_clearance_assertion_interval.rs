@@ -145,6 +145,7 @@ fn dumbbell(bounds: &[ClearanceBounds<f64>]) -> Dumbbell {
     Dumbbell {
         doc: r.doc,
         assertions,
+        walls: Vec::new(),
     }
 }
 
@@ -190,9 +191,19 @@ fn facing(bounds: &[ClearanceBounds<f64>]) -> Dumbbell {
             r.insert(Node::clearance(wall(a, 1), wall(b, 3), bound))
         })
         .collect();
+    let selection = |at: RecipeNodeId, seg: u32| editor_core::clearance::Selection {
+        at,
+        body: 0,
+        faces: editor_core::clearance::FaceScope::Named(vec![fixture::fname(
+            a,
+            fixture::wall(&r.doc, a, seg),
+        )]),
+    };
+    let walls = vec![selection(a, 1), selection(b, 3)];
     Dumbbell {
         doc: r.doc,
         assertions,
+        walls,
     }
 }
 
@@ -210,6 +221,9 @@ fn gap_box(doc: &ProfileDoc, lo: f64, hi: f64) -> ParamBox {
 struct Dumbbell {
     doc: ProfileDoc,
     assertions: Vec<RecipeNodeId>,
+    /// The two seats as the engine's selections, where the fixture
+    /// names them ([`facing`]).
+    walls: Vec<editor_core::clearance::Selection>,
 }
 
 /// Evaluates over a box at the caller's scalar, through the public door.
@@ -571,4 +585,58 @@ fn an_upper_bound_over_a_box_is_proved_at_every_point_or_not_at_all() {
     let ClearanceVerdict::Within(_) = nominal.verdict() else {
         panic!("0.4 apart is within 0.42: {}", nominal.render());
     };
+}
+
+/// **Row 8**: the dials door's facet pruning serves a bound with no
+/// upper end only. An oracle that proves the walls' separation
+/// non-decreasing in `gap` collapses the box to `gap = lo` — the facet
+/// of SMALLEST separation, where `≥ c` is read — and there `≤ 0.42`
+/// would read proved for the whole box on one facet's evidence. With an
+/// upper end in the question the box is examined whole, so the answer
+/// is the unpruned one: the box decides `≤ 0.42` in part only.
+#[test]
+fn facet_pruning_answers_an_upper_bound_as_the_whole_box_does() {
+    use editor_core::clearance::{
+        ClearanceBound, ClearanceConfig, ClearanceQuery, MonotoneOracle, Pruning,
+    };
+    struct Widening;
+    impl MonotoneOracle for Widening {
+        fn monotone_in(&self, _param: editor_core::VarId) -> Option<geom_core::Sign> {
+            Some(geom_core::Sign::Positive)
+        }
+    }
+    let f = facing(&[]);
+    let leaf = gap_box(&f.doc, -SPREAD, SPREAD);
+    let ask = |bound: ClearanceBound, pruning: Pruning| {
+        let query = ClearanceQuery {
+            config: ClearanceConfig {
+                pruning,
+                ..ClearanceConfig::default()
+            },
+            oracle: &Widening,
+            ..ClearanceQuery::at_dials(bound, Tol::witness())
+        };
+        editor_core::clearance::clearance_at_dials(&f.doc, &leaf, &f.walls[0], &f.walls[1], &query)
+    };
+    let upper = ClearanceBound::AtMost(geom_core::Interval::from_bounds(0.42, 0.42));
+    let (pruned, whole) = (ask(upper, Pruning::Facets), ask(upper, Pruning::Off));
+    assert_eq!(
+        pruned.verdict().label(),
+        whole.verdict().label(),
+        "{}",
+        pruned.render()
+    );
+    let ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+        refusal: EngineRefusal::BoxDependent { .. },
+        ..
+    }) = pruned.verdict()
+    else {
+        panic!("the box decides ≤ 0.42 in part only: {}", pruned.render());
+    };
+    // The lower bound IS pruned: its facet is the one it is read at.
+    let lower = ClearanceBound::at_least(0.3);
+    assert_eq!(
+        ask(lower, Pruning::Facets).verdict(),
+        &ClearanceVerdict::Holds
+    );
 }

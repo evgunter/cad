@@ -294,7 +294,7 @@ fn a_planted_approach_to_the_notch_wall_is_still_violated() {
     let (doc, ell, block_node) = ell_with_a_planted_block();
     let cap = named(ell, vec![fixture::fname(ell, RoleSeg::Cap(CapEnd::Start))]);
     let block = Selection::body_of(block_node);
-    let report = editor_core::clearance::clearance_with(
+    let report = editor_core::clearance::clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &cap,
