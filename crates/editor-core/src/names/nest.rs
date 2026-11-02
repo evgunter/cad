@@ -1855,12 +1855,10 @@ pub(super) mod tests {
                 R::RimEdge(CapEnd::End, e2.into()),
                 R::LateralEdge(v),
                 R::CapVertex(CapEnd::Start, v),
-                R::LoftWall(vec![e, e2]),
-                R::LoftSeam(vec![v]),
-                R::LoftSlabWall(1, vec![e, e2]),
-                R::LoftSlabSeam(2, vec![v, v]),
-                R::LoftSectionEdge(1, e),
-                R::LoftSectionVertex(3, v),
+                R::LoftWall(vec![(SectionId::new(1, 1), e), (SectionId::new(2, 2), e2)]),
+                R::LoftSeam(vec![(SectionId::new(1, 1), v)]),
+                R::LoftSectionEdge(SectionId::new(2, 2), e),
+                R::LoftSectionVertex(SectionId::new(3, 3), v),
                 R::Band(e.into()),
                 R::BandRim(v),
                 R::BandRimPi(v),
@@ -2042,7 +2040,7 @@ pub(super) mod tests {
             ProfileVertexRef, Qualifier, RimSupport, RoleSeg, RunLine, SectionCircle, Sense,
             StableName,
         };
-        use crate::node::{RecipeNodeId, StepId};
+        use crate::node::{RecipeNodeId, SectionId, StepId};
 
         fn stamp_in_order(low: &NameRef, high: &NameRef) {
             let epoch = super::super::super::role::next_epoch().expect("an epoch");

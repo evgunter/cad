@@ -25,7 +25,7 @@ use pncad::quantity::UnitDef;
 use pncad::trace::TraceMarks;
 
 use crate::blend::BlendKindChoice;
-use crate::combine::PatternOutputChoice;
+use crate::combine::{ClearanceBoundChoice, PatternOutputChoice};
 use crate::forms::{PatternLayoutChoice, ShapeKind};
 use crate::history::HistoryId;
 use crate::props::{self, Notation, SlotRow};
@@ -234,6 +234,13 @@ pub(crate) struct Drafts {
     /// ([`BlendKindChoice::size_label`]), and a second field would be
     /// a second place for the same quantity to be typed into.
     pub(crate) blend_size: f64,
+    /// The clearance form's choice of which side it bounds.
+    pub(crate) clearance_bound: ClearanceBoundChoice,
+    /// Its first length, metres: the one bound, or a band's lower end
+    /// ([`ClearanceBoundChoice::bounds`]).
+    pub(crate) clearance_lo: f64,
+    /// A band's upper end, metres.
+    pub(crate) clearance_hi: f64,
     /// **The path editor opened on a committed profile** — its
     /// program as written, held for the edit door
     /// ([`Drafts::profile_edit`] loads it). `None` while no profile is
@@ -986,6 +993,9 @@ impl Default for Drafts {
             part_instance: 1,
             blend_kind: BlendKindChoice::Fillet,
             blend_size: 0.001,
+            clearance_bound: ClearanceBoundChoice::AtLeast,
+            clearance_lo: 0.002,
+            clearance_hi: 0.004,
             profile_edit: None,
             label_text: None,
             creation_labels: BTreeMap::new(),

@@ -64,3 +64,4 @@
   - Aligned faces stay unread (the opposed gate is kept), because reading them moves one union from built to refused. Filed as P2.
   - Review tier: single FULL review. The crescent verdict now mints records that decide topology, but the change is local to one record source.
   - The witness lane was told that `crescent` now decides topology. (TANGRIM orchestrator)
+- 2026-11-02 — ONEREAD filed `work/oneread/the-line-cone-reads-a-flanks-side-beside-the-one-bound-side-reading.md` (P1, design): recl's edge-edge line cone (PR 6282) reads a flank's side of a face plane at first order beside your `bound_read` (PR 6253). Your log already says stage 2's descent belongs in the line cone there; this row is that seam, to be weighed jointly before a lane builds it. ONEREAD's edge-sector unit (PR 6363) keeps 6253's `bound_read` keys as they are. (ONEREAD orchestrator)
