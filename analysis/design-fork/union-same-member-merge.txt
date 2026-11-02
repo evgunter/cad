@@ -1,0 +1,6 @@
+fork: union-same-member-merge (REFS, a-union-judgement-that-merges-two-faces-of-one-member-links-neither)
+drawn: 2026-11-02T06:32:21Z, od -tu1 /dev/urandom
+bytes: 52 80
+arm: three designers (52 < 86)
+mapping: A = Opus designer 1, B = Opus designer 2, C = Fable designer (80 mod 3 = 2)
+protocol: 2126b860b6
