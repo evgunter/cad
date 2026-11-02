@@ -700,8 +700,8 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
     /// **A part's charge**: the listing steps of building it, which is
     /// the descent [`Self::resolve_and_evaluate`] runs, walked here
     /// with nothing built. Each document the build would evaluate is
-    /// charged one step for the build and its own families' listing
-    /// steps (`own`, over its nominal environment); the parts below it
+    /// charged its own families' listing steps (`own`, over its nominal
+    /// environment); the parts below it
     /// are charged where the build builds them — once per document that
     /// instantiates them, as the descent shares a row within a document
     /// and not across two. The descent's own refusals (a cycle, a depth
@@ -768,17 +768,14 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                 continue;
             }
             let listed = if super::recorded_at_process_eps(&current.doc, tol) {
-                match remaining.checked_sub(held + 1) {
-                    Some(room) => own(&current.doc, room)?,
-                    None => None,
-                }
+                own(&current.doc, remaining - held)?
             } else {
                 Some(0)
             };
-            let Some(listed) = listed.filter(|&listed| held + 1 + listed <= remaining) else {
+            let Some(listed) = listed else {
                 return Ok(None);
             };
-            held += 1 + listed;
+            held += listed;
             self.costs.insert((current.doc_ref, eps_bits), held - start);
             path.pop();
             match waiting.pop() {

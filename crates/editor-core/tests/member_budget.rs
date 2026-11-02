@@ -282,8 +282,7 @@ fn through(
 }
 
 /// A row part of `n` copies in `store`: its row listed twice (the row,
-/// and its world's placement of it), and one step for its build, so
-/// `2n + 1` steps.
+/// and its world's placement of it), so `2n` steps.
 fn row_part_in(
     store: &mut fixture::resolver::PartStore,
     name: &str,
@@ -292,7 +291,7 @@ fn row_part_in(
     store.insert_part(row_part(name, n), Tol::witness()).0
 }
 
-/// **A part is charged at its instance, warm or cold**: a part of 11
+/// **A part is charged at its instance, warm or cold**: a part of 10
 /// steps runs out of a budget of 3 at its instance, cold and over a
 /// prior that carries its row. Red if a carried row is not charged.
 #[test]
@@ -315,9 +314,9 @@ fn a_carried_part_is_charged_as_an_evaluated_one() {
     assert_eq!(through(&doc, &store, Some(&full), 3).outcome, out, "warm");
 }
 
-/// **Parts share the run's one budget**: parts of 5 and 7 steps each
+/// **Parts share the run's one budget**: parts of 4 and 6 steps each
 /// fit a budget of 8 and together cross it at the second instance, the
-/// first's 5 held, on both schedules. Red if each part's build is a run
+/// first's 4 held, on both schedules. Red if each part's build is a run
 /// of its own under the whole budget.
 #[test]
 fn two_parts_that_each_fit_together_run_out() {
@@ -339,7 +338,7 @@ fn two_parts_that_each_fit_together_run_out() {
             ev.outcome,
             EvalOutcome::Exhausted {
                 at: instances[1],
-                held: 5,
+                held: 4,
                 budget: 8
             },
             "parallel {parallel}: the second instance crosses"
@@ -352,8 +351,8 @@ fn two_parts_that_each_fit_together_run_out() {
 }
 
 /// **A part is charged before anything is built**: `p` instances two
-/// parts of 7 steps, so its build is 15. Under 14 the run runs out at
-/// `p`'s instance having built nothing; under 15 it builds all three.
+/// parts of 6 steps, so its build is 12. Under 11 the run runs out at
+/// `p`'s instance having built nothing; under 12 it builds all three.
 /// Red if a part's parts are built before they are charged.
 #[test]
 fn nested_parts_run_out_before_any_is_built() {
@@ -362,39 +361,39 @@ fn nested_parts_run_out_before_any_is_built() {
     let q2 = row_part_in(&mut store, "budget-q-two", 3);
     let p = store.insert(instances_of("budget-p", &[q1, q2]).0, Tol::witness());
     let (doc, instances) = instances_of("budget-nested", &[p]);
-    let out = through(&doc, &store, None, 14);
+    let out = through(&doc, &store, None, 11);
     assert_eq!(
         out.outcome,
         EvalOutcome::Exhausted {
             at: instances[0],
             held: 0,
-            budget: 14
+            budget: 11
         },
         "the instance runs out"
     );
     assert_eq!(out.part_evaluations, 0, "and no part was built");
-    let fits = through(&doc, &store, None, 15);
-    assert_eq!(fits.outcome, EvalOutcome::Completed, "15 admits it");
+    let fits = through(&doc, &store, None, 12);
+    assert_eq!(fits.outcome, EvalOutcome::Completed, "12 admits it");
     assert_eq!(fits.part_evaluations, 3, "and every part is built");
 }
 
 /// **A part whose build refuses is charged its listing all the same**:
-/// two parts with no world product, rows of 5 and 6 copies (6 and 7
-/// steps), fault at their instances, and a budget of 12 runs out at the
-/// second. Red if a faulted part charges nothing.
+/// two parts with no world product, rows of 5 and 6 copies, fault at
+/// their instances, and together list 11 steps, so a budget of 10 runs
+/// out at the second. Red if a faulted part charges nothing.
 #[test]
 fn faulting_parts_are_charged_what_they_list() {
     let mut store = fixture::resolver::PartStore::new();
     let five = store.insert(row_part("budget-fault-five", 5).0, Tol::witness());
     let six = store.insert(row_part("budget-fault-six", 6).0, Tol::witness());
     let (doc, instances) = instances_of("budget-faulting", &[five, six]);
-    let ev = through(&doc, &store, None, 12);
+    let ev = through(&doc, &store, None, 10);
     assert_eq!(
         ev.outcome,
         EvalOutcome::Exhausted {
             at: instances[1],
-            held: 6,
-            budget: 12
+            held: 5,
+            budget: 10
         },
         "the second instance crosses"
     );
@@ -405,32 +404,32 @@ fn faulting_parts_are_charged_what_they_list() {
 }
 
 /// **The top's instances of one part share its build, and its charge**:
-/// two instances of a part of 7 steps fit a budget of 7 and build it
-/// once, and run out of 6 at the first. Red if each instance is charged.
+/// two instances of a part of 6 steps fit a budget of 6 and build it
+/// once, and run out of 5 at the first. Red if each instance is charged.
 #[test]
 fn a_part_instanced_twice_at_the_top_is_charged_once() {
     let mut store = fixture::resolver::PartStore::new();
     let part = row_part_in(&mut store, "budget-twice", 3);
     let (doc, instances) = instances_of("budget-twice-top", &[part, part]);
-    let fits = through(&doc, &store, None, 7);
-    assert_eq!(fits.outcome, EvalOutcome::Completed, "charged once, 7 fits");
+    let fits = through(&doc, &store, None, 6);
+    assert_eq!(fits.outcome, EvalOutcome::Completed, "charged once, 6 fits");
     assert_eq!(fits.part_evaluations, 1, "and built once");
     assert_eq!(
-        through(&doc, &store, None, 6).outcome,
+        through(&doc, &store, None, 5).outcome,
         EvalOutcome::Exhausted {
             at: instances[0],
             held: 0,
-            budget: 6
+            budget: 5
         },
-        "and 6 does not, at the first instance"
+        "and 5 does not, at the first instance"
     );
 }
 
 /// **A child two parents share is charged where each builds it**: `a`
-/// and `b` each instance `c` (7 steps), and the build builds `c` once per
-/// parent, so each parent charges 8 and the run 16, the work of four
-/// builds. 16 admits it and builds four documents; 15 runs out at `b`
-/// with `a`'s 8 held. Red if `c` is charged once for two builds.
+/// and `b` each instance `c` (6 steps), and the build builds `c` once per
+/// parent, so each parent charges 6 and the run 12, the listing of both
+/// builds of `c`. 12 admits it and builds four documents; 11 runs out at
+/// `b` with `a`'s 6 held. Red if `c` is charged once for two builds.
 #[test]
 fn a_diamond_is_charged_the_builds_it_makes() {
     let mut store = fixture::resolver::PartStore::new();
@@ -438,64 +437,63 @@ fn a_diamond_is_charged_the_builds_it_makes() {
     let a = store.insert(instances_of("budget-diamond-a", &[c]).0, Tol::witness());
     let b = store.insert(instances_of("budget-diamond-b", &[c]).0, Tol::witness());
     let (doc, instances) = instances_of("budget-diamond", &[a, b]);
-    let fits = through(&doc, &store, None, 16);
+    let fits = through(&doc, &store, None, 12);
     assert_eq!(
         fits.outcome,
         EvalOutcome::Completed,
-        "16 admits the diamond"
+        "12 admits the diamond"
     );
     assert_eq!(fits.part_evaluations, 4, "a, b and c twice");
     assert_eq!(
-        through(&doc, &store, None, 15).outcome,
+        through(&doc, &store, None, 11).outcome,
         EvalOutcome::Exhausted {
             at: instances[1],
-            held: 8,
-            budget: 15
+            held: 6,
+            budget: 11
         },
-        "15 runs out at b"
+        "11 runs out at b"
     );
 }
 
 /// **A part built at the top and inside another is charged twice**:
-/// the top instances `p` (which instances `q`, 7 steps) and `q` itself;
-/// the build builds `q` in `p`'s descent and again at the top, so 15 is
-/// charged for three builds, and 14 runs out at `q`'s instance with
-/// `p`'s 8 held. Red if `q` is charged once.
+/// the top instances `p` (which instances `q`, 6 steps) and `q` itself;
+/// the build builds `q` in `p`'s descent and again at the top, so 12 is
+/// charged for its two builds, and 11 runs out at `q`'s instance with
+/// `p`'s 6 held. Red if `q` is charged once.
 #[test]
 fn a_part_at_the_top_and_below_it_is_charged_at_both() {
     let mut store = fixture::resolver::PartStore::new();
     let q = row_part_in(&mut store, "budget-both-q", 3);
     let p = store.insert(instances_of("budget-both-p", &[q]).0, Tol::witness());
     let (doc, instances) = instances_of("budget-both", &[p, q]);
-    let fits = through(&doc, &store, None, 15);
-    assert_eq!(fits.outcome, EvalOutcome::Completed, "15 admits both");
+    let fits = through(&doc, &store, None, 12);
+    assert_eq!(fits.outcome, EvalOutcome::Completed, "12 admits both");
     assert_eq!(fits.part_evaluations, 3, "p, and q twice");
     assert_eq!(
-        through(&doc, &store, None, 14).outcome,
+        through(&doc, &store, None, 11).outcome,
         EvalOutcome::Exhausted {
             at: instances[1],
-            held: 8,
-            budget: 14
+            held: 6,
+            budget: 11
         },
-        "14 runs out at q's instance"
+        "11 runs out at q's instance"
     );
 }
 
 /// **A lattice is charged as the build it makes, and refuses**: four
-/// levels of two documents, each instancing both below, over two empty
-/// documents (a build of one step, nothing listed). Each level's
-/// document is built once per parent, so a level charges `2c + 1` from
-/// the one below: 3, 7, 15, 31, and the top's two instances 62, for 62
-/// builds. 62 admits it and builds all 62; 61 runs out at the second
-/// instance, having built the first's 31. Red if a shared document is
-/// charged once for the builds the descent repeats.
+/// levels of two documents, each instancing both below, over two row
+/// parts of one copy with no world (1 step each, built and faulted).
+/// Each level's document is built once per parent, so a level charges
+/// twice the one below: 2, 4, 8, 16, and the top's two instances 32,
+/// over 62 builds. 32 admits it and builds all 62; 31 runs out at the
+/// second instance, having built the first's 31. Red if a shared
+/// document is charged once for the builds the descent repeats.
 #[test]
 fn a_lattice_is_charged_its_builds() {
     let mut store = fixture::resolver::PartStore::new();
-    let empty = |name: &str| ProfileDoc::empty_derived(name, Tol::witness());
     let mut level = [
-        store.insert(empty("budget-lattice-0a"), Tol::witness()),
-        store.insert(empty("budget-lattice-0b"), Tol::witness()),
+        store.insert(row_part("budget-lattice-0a", 1).0, Tol::witness()),
+        store.insert(row_part("budget-lattice-0b", 1).0, Tol::witness()),
     ];
     for depth in 1..=4 {
         level = [
@@ -510,22 +508,22 @@ fn a_lattice_is_charged_its_builds() {
         ];
     }
     let (doc, instances) = instances_of("budget-lattice", &level);
-    let fits = through(&doc, &store, None, 62);
+    let fits = through(&doc, &store, None, 32);
     assert_eq!(
         fits.outcome,
         EvalOutcome::Completed,
-        "62 admits the lattice"
+        "32 admits the lattice"
     );
-    assert_eq!(fits.part_evaluations, 62, "the charge is the work");
-    let out = through(&doc, &store, None, 61);
+    assert_eq!(fits.part_evaluations, 62, "every build the charge counted");
+    let out = through(&doc, &store, None, 31);
     assert_eq!(
         out.outcome,
         EvalOutcome::Exhausted {
             at: instances[1],
-            held: 31,
-            budget: 61
+            held: 16,
+            budget: 31
         },
-        "61 runs out at the second instance"
+        "31 runs out at the second instance"
     );
     assert_eq!(out.part_evaluations, 31, "having built the first alone");
 }

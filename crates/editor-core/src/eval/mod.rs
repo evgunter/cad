@@ -3705,7 +3705,7 @@ where
     // second pot, so such a document at a lane other than the nominal
     // one lists up to twice the budget; inside a part, under exactly
     // what the part's build was charged, which its own admission (the
-    // same charge, less the build's step) fits. Its admission is this
+    // same charge) fits. Its admission is this
     // run's (families are listed over the nominal environment either
     // way), so it runs out at the node this run runs out at.
     let asserts_clearance = T::clearance_lane().is_some() && doc_asserts_a_clearance(doc);
