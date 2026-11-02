@@ -15,8 +15,8 @@ use crate::combine::{
 };
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternLayoutChoice,
-    UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternLayoutChoice, UNIT_DRAG_SPEED,
+    boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_KINDS, MateTool, PlaceDoor};
@@ -24,9 +24,7 @@ use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seat, Seats, seat_line};
 use crate::session::BundleVerdict;
-use crate::session::{
-    Creation, NodeKindWanted, Selection, SessionOp, Staged, admits,
-};
+use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, Staged, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
@@ -919,12 +917,7 @@ impl ViewerBehavior<'_> {
         if let Some(withheld) = blocked {
             withheld_line(ui, &self.theme, withheld);
         }
-        let closing = commit_row(
-            ui,
-            NEW_TRACED_PROFILE,
-            blocked.map(Withheld::words),
-            |_| {},
-        );
+        let closing = commit_row(ui, NEW_TRACED_PROFILE, blocked.map(Withheld::words), |_| {});
         if closing.cancel {
             self.drafts.traced_open = false;
         }
@@ -940,9 +933,8 @@ impl ViewerBehavior<'_> {
                     ));
                 }
                 Err(error) => {
-                    self.notices.push(frame::tool_news(
-                        &FormKind::TracedProfile.refuses(&error),
-                    ));
+                    self.notices
+                        .push(frame::tool_news(&FormKind::TracedProfile.refuses(&error)));
                 }
             }
         }

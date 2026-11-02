@@ -1805,10 +1805,7 @@ impl SessionOp {
     pub fn selects_what_it_makes(&self) -> bool {
         match self {
             Self::CreateLabelled { creation, .. } => creation.op().selects_what_it_makes(),
-            op => matches!(
-                op,
-                Self::AddProfile { .. } | Self::AddDrawnProfile { .. }
-            ),
+            op => matches!(op, Self::AddProfile { .. } | Self::AddDrawnProfile { .. }),
         }
     }
 

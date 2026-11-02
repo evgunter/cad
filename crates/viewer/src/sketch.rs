@@ -1648,10 +1648,7 @@ impl Construction {
 
 /// The loops written, lowered and resolved — the first half of
 /// [`preview`]'s ladder.
-fn written_steps(
-    loops: &[Vec<Step<f64>>],
-    tol: Tol,
-) -> Result<Vec<Vec<Step<f64>>>, PreviewError> {
+fn written_steps(loops: &[Vec<Step<f64>>], tol: Tol) -> Result<Vec<Vec<Step<f64>>>, PreviewError> {
     let mut programs = Vec::with_capacity(loops.len());
     for steps in loops {
         programs.push(canonical(steps).map_err(PreviewError::Lowering)?);
@@ -2511,9 +2508,7 @@ mod tests {
         ArcData, ArcSide, PathErrorKind, ProfileError, SketchPlane, Step, Target, TipState, Verb,
     };
 
-    use super::{
-        LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview, arc_points,
-    };
+    use super::{LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview, arc_points};
     use crate::frame::Tone;
     use crate::test_support::{self, line_to, two_legs};
 

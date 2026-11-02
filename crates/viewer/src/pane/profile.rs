@@ -548,7 +548,10 @@ pub(crate) fn edit_door_ui(
         edit.remove_loop(index);
     }
     if let Some(kind) = added {
-        refusals.extend(edit.add_loop(crate::drafts::template_steps(kind), notation).err());
+        refusals.extend(
+            edit.add_loop(crate::drafts::template_steps(kind), notation)
+                .err(),
+        );
     }
     if let Some(error) = refusals.first() {
         return Err(frame::tool_news(&FormKind::EditProfile.refuses(error)));
@@ -1004,7 +1007,6 @@ mod tests {
         }
         edit
     }
-
 
     use eframe::egui;
     use pncad::document::{Doc, Node, ProfileProgram};

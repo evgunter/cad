@@ -2226,7 +2226,9 @@ impl eframe::App for ViewerApp {
             .as_ref()
             .filter(|_| self.profile_drawn.edit)
             .map(|held| sketch::drawn(sketch::profile_plane(), &held.loops, tol, delta))
-            .map_or((None, None), |(preview, built)| (Some(preview), Some(built)));
+            .map_or((None, None), |(preview, built)| {
+                (Some(preview), Some(built))
+            });
         // A traced path runs onto the trace at evaluation, which no
         // replay here can draw: the traced-profile form shows the trace.
         let landed = self.session.evaluation_arc().cloned();

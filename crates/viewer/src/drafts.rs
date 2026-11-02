@@ -15,9 +15,9 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Weak};
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, Evaluation, Formula, Label, LabelFault, LoopProgram,
-    Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, Speaker,
-    StepArg, StepId, VarId, VarName, slot_admits,
+    Dimension, DimensionError, Doc, Evaluation, Formula, Label, LabelFault, LoopProgram, Node,
+    ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, Speaker, StepArg, StepId, VarId,
+    VarName, slot_admits,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{Step, Target};
