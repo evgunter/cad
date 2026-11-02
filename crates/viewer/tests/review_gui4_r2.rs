@@ -59,9 +59,8 @@ fn proposal_sides_agree_with_the_standalone_part_documents() {
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
     let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
 
     // The oracle: resolve each pinned part from the store (the same
     // door the evaluator uses), evaluate it STANDALONE, and read the
@@ -85,7 +84,7 @@ fn proposal_sides_agree_with_the_standalone_part_documents() {
     let post = oracle(&bench.post, &bench.post_top);
     assert!(post.u_ref.is_some(), "the cap fixes a reference of its own");
     assert_eq!(
-        asm::side_face(doc, &proposal.on),
+        asm::side_face(doc, &proposal.mates[0].on[0]),
         Some(bench.post_top.clone()),
         "on names the post's own cap, the row the standalone part answers"
     );
@@ -95,7 +94,7 @@ fn proposal_sides_agree_with_the_standalone_part_documents() {
         "the cap fixes a reference of its own"
     );
     assert_eq!(
-        asm::side_face(doc, &proposal.to),
+        asm::side_face(doc, &proposal.mates[0].to[0]),
         Some(bench.shelf_bottom.clone()),
         "to names the shelf's own underside (the shelf placement's 0.08 m \
          y-translation is the solve's, applied to the resolved pose, never \
@@ -145,10 +144,8 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op_into_target_space());
 
     let centre = [
@@ -269,12 +266,13 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), top);
     tool.pick(session.doc(), side);
-    let (doc, _) = session.landed_pair().expect("landed");
     assert!(
         matches!(
-            tool.proposal(doc, asm::seat_choice()),
-            Err(viewer::matetool::MateToolError::SamePick { head })
-                if head.id() == bench.post_b
+            common::proposed(&session, &tool, asm::seat_choice()),
+            Err(viewer::matetool::MateToolError::SeatEmpty {
+                side: pncad::document::MateSide::To,
+                ..
+            })
         ),
         "a mate needs a PAIR of instances"
     );
@@ -297,10 +295,8 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a.clone());
     tool.pick(session.doc(), b.clone());
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op_into_target_space());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
@@ -311,14 +307,14 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
     // cannot both hold.
     let lower = {
         use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
-        let seat = crate::fixture::flip(crate::fixture::plane(proposal.to.clone()));
+        let seat = crate::fixture::flip(crate::fixture::plane(proposal.mates[0].to[0].clone()));
         pncad::document::Operand::Pose(Box::new(PoseDef::Slide {
             pose: RoleRead::plain(seat.clone()),
             along: RoleRead::through(seat, PoseRole::Normal),
             by: common::len(0.01),
         }))
     };
-    let mut second = proposal.mate.clone();
+    let mut second = proposal.mates[0].mate.clone();
     second.to = lower;
     let outcome = session.perform(SessionOp::AddMate {
         placement: bench.post_b,
@@ -368,10 +364,8 @@ fn a_mate_kills_an_in_flight_gesture() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     session.perform(SessionOp::PreviewFreeMove {
@@ -419,10 +413,8 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     session.perform(SessionOp::PreviewFreeMove {
