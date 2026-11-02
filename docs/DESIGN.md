@@ -812,14 +812,11 @@ tiers".
   `Interval` and `Sym` the stored brackets carry the family instead.
   It passes both once, at the door that
   built it; construction state becomes a finished body only through
-  that gate, whose refusal has two arms. **In band**: every finding
-  is a reading inside the band (an aimed ray meets two faces closer
-  than K·ε, so the shell's side cannot be told), and the refusal is
-  the binding reading's decision with its margin, recourse a smaller
-  tolerance or moved geometry. **Kernel**: any other finding (a
-  volume whose enclosure holds zero, a broken face, a limit), every
-  finding carried with its own ending. A door names only its subject
-  (import names the file, [tolerance.recourse]). A door that returns a body returns the
+  that gate. Its refusal is the list of what it found, every finding
+  kept, none folded into another: each finding belongs to a family
+  (the decision or check that made it), and a family's findings share
+  one text and one recourse, the decision's ([tolerance.recourse]). A
+  door names only its subject (import names the file). A door that returns a body returns the
   scalar's finished type, named in its at-rest policy, and the
   evaluator keeps it with the value, so no consumer gates an operand.
   At a scalar without certification rights the finished type is a
