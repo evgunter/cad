@@ -75,7 +75,6 @@ pub mod fitted_lane;
 mod grid_offsets;
 pub mod half_angle;
 pub(crate) mod harmonic;
-pub mod identity;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -153,7 +152,6 @@ pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// the spiric carrier's constructor reads it too); re-exported so the
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
-pub use identity::{IdentityWalk, identity_walk};
 pub use implicit::{
     ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, ConicHarmonics, ConicTorusHarmonics, SurfaceSide,
     circle_arc_residual_range, circle_residual_curvature_bound, circle_residual_extremes,

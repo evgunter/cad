@@ -5264,31 +5264,25 @@ impl RimSide {
                     band,
                 )
                 .map_err(escalated)?;
-                let mut reads = loop_points(body, outer)?.into_iter().map(|w| {
-                    decide(
-                        "bool_lone_ring_outer_side",
-                        Margin::of((w - center).dot(axis)),
-                        band,
-                    )
+                // The first point read definitely off the plane decides,
+                // and any such point reads the one side (the loop does not
+                // cross its ring's plane); an escalation escalates only
+                // where none does.
+                use geom_brep::ladder::{Answering, Climb, Rung, climb};
+                let points = loop_points(body, outer)?;
+                let read = climb(Answering::Any, points, |w| {
+                    let offset = Margin::of((w - center).dot(axis));
+                    Rung::decide("bool_lone_ring_outer_side", offset, band, |d| {
+                        (d.sign != Sign::Zero).then_some(d.sign)
+                    })
                 });
-                // The first point read definitely off the plane decides;
-                // an escalation escalates only where none does.
-                let mut first_escalation = None;
-                let outer_side = loop {
-                    match reads.next() {
-                        Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => break sign,
-                        Some(Ok(Sign::Zero)) => {}
-                        Some(Err(diag)) => {
-                            first_escalation.get_or_insert(diag);
-                        }
-                        None => {
-                            return Err(match first_escalation {
-                                Some(diag) => escalated(diag),
-                                None => invariant(
-                                    "the old face's outer loop lies on its pierce ring's plane",
-                                ),
-                            });
-                        }
+                let outer_side = match read {
+                    Climb::Answered { answer, .. } => answer,
+                    Climb::Undecided(diag) => return Err(escalated(diag)),
+                    Climb::Passed => {
+                        return Err(invariant(
+                            "the old face's outer loop lies on its pierce ring's plane",
+                        ));
                     }
                 };
                 match region {
