@@ -573,7 +573,7 @@ fn through_the_apex<T: Decide>(
     // carrier's top speed, must be definitely in the band
     // (`bool_conic_cone_root_slack`). A shallow crossing reads neither,
     // and refuses as the tangency it is near.
-    let width = T::from_f64(64.0 * band.escalate()) / conic.speed_lo();
+    let width = T::from_f64(64.0) * T::from_f64(band.escalate()) / conic.speed_lo();
     let residual = |theta: T| geom_brep::conic_cone_residual(conic, apex, axis, half_angle, theta);
     let side = |res: geom_core::Rounded<T>| {
         let clear = decide(
