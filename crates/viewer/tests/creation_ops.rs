@@ -1,8 +1,8 @@
 //! **From nothing to a solid, replayed headlessly** (GAUTH-1): the
 //! creation op vocabulary driving the real `DocSession` with no
 //! renderer — the new-document door, the profile/extrude/revolve/sketch-on-face
-//! inserts with their typed refusals, the revolve tool's held pick,
-//! and the ring acceptance stream.
+//! inserts with their typed refusals, a seat's held pick across a new
+//! document, and the ring acceptance stream.
 //!
 //! # The ring row's comparison, and its strength
 //!

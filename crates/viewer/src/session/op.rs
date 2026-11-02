@@ -705,8 +705,8 @@ pub enum SessionOp {
         /// for a new one (`DocEdit::SetProgram`'s `ids`).
         ids: Vec<Vec<Option<StepId>>>,
     },
-    /// Insert one extrude of an existing profile node — the extrude
-    /// tool's one committed action. It lands unplaced, drawn in its own
+    /// Insert one extrude of an existing profile node — what the
+    /// extrude button commits. It lands unplaced, drawn in its own
     /// space. A `profile` that is not a
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
@@ -722,7 +722,7 @@ pub enum SessionOp {
     },
     /// Insert one revolve of an existing profile node about an axis
     /// line in the profile's own plane, and its identity world
-    /// placement (A10) — the revolve tool's one committed action.
+    /// placement (A10) — what the revolve button commits.
     /// A wrong-kind profile pick refuses [`Refusal::WrongNodeKind`] at
     /// the door.
     AddRevolve {

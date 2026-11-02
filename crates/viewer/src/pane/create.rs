@@ -4,7 +4,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{DocumentId, Said, Speaker, TracePassage, TraceSense};
+use pncad::document::{DimensionError, DocumentId, Said, Speaker, TracePassage, TraceSense};
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
@@ -695,7 +695,7 @@ impl ViewerBehavior<'_> {
     /// or form in it behind its own button, so the pane at rest is the
     /// headers. A form whose op takes the selection is not here: it is
     /// drawn beside the selection while its op admits it
-    /// ([`Self::extrude_ui`]). Each form is minimal — its few required
+    /// ([`Self::sweep_ui`]). Each form is minimal — its few required
     /// fields with sensible defaults — and emits exactly one creation
     /// op; the property panel is the editor for everything after the
     /// insert — for a profile, through this section's own path editor
@@ -1439,17 +1439,16 @@ impl ViewerBehavior<'_> {
             .node(profile)
             .to_string();
         let notation = *self.notation;
+        let mut pushed: Option<(FormKind, &'static str, Result<SessionOp, DimensionError>)> = None;
         ui.horizontal(|ui| {
             if ui.button(format!("{EXTRUDE} {named}")).clicked() {
-                self.push_named(
+                pushed = Some((
+                    FormKind::Extrude,
                     EXTRUDE_NOUN,
-                    SessionOp::AddExtrude {
-                        profile,
-                        distance: notation
-                            .length_literal(DEFAULT_EXTRUDE_DISTANCE)
-                            .expect("the default distance is finite"),
-                    },
-                );
+                    notation
+                        .length_literal(DEFAULT_EXTRUDE_DISTANCE)
+                        .map(|distance| SessionOp::AddExtrude { profile, distance }),
+                ));
             }
             if ui.button(format!("{REVOLVE} {named}")).clicked() {
                 let x = self
@@ -1457,23 +1456,24 @@ impl ViewerBehavior<'_> {
                     .landed_pair()
                     .and_then(|(_, evaluation)| revolve_axis_x(evaluation.value(profile)?))
                     .unwrap_or(0.0);
-                self.push_named(
-                    REVOLVE_NOUN,
-                    SessionOp::AddRevolve {
+                let op = || {
+                    Ok(SessionOp::AddRevolve {
                         profile,
-                        axis_through: notation
-                            .point_literals([x, 0.0])
-                            .expect("the default axis point is finite"),
-                        axis_heading: notation
-                            .angle_literal(core::f64::consts::FRAC_PI_2)
-                            .expect("the default heading is finite"),
-                        angle: notation
-                            .angle_literal(core::f64::consts::TAU)
-                            .expect("the default angle is finite"),
-                    },
-                );
+                        axis_through: notation.point_literals([x, 0.0])?,
+                        axis_heading: notation.angle_literal(core::f64::consts::FRAC_PI_2)?,
+                        angle: notation.angle_literal(core::f64::consts::TAU)?,
+                    })
+                };
+                pushed = Some((FormKind::Revolve, REVOLVE_NOUN, op()));
             }
         });
+        match pushed {
+            Some((_, noun, Ok(op))) => self.push_named(noun, op),
+            Some((form, _, Err(error))) => {
+                self.notices.push(frame::tool_news(&form.refuses(&error)));
+            }
+            None => {}
+        }
     }
 
     /// **A create gesture's insert, named `Kind N`**: `op` queued as
@@ -1481,12 +1481,16 @@ impl ViewerBehavior<'_> {
     /// [`tree::proposed_label`] proposes for `noun`, the kind `op`
     /// makes, the insert and the label one undo step.
     fn push_named(&mut self, noun: &'static str, op: SessionOp) {
-        let creation = Creation::of(op).expect("a sweep's op creates a node");
-        self.ops
-            .push(match tree::proposed_label(self.session.doc(), noun) {
-                Some(label) => SessionOp::CreateLabelled { creation, label },
-                None => creation.into_op(),
-            });
+        self.ops.push(
+            match (
+                Creation::of(op),
+                tree::proposed_label(self.session.doc(), noun),
+            ) {
+                (Ok(creation), Some(label)) => SessionOp::CreateLabelled { creation, label },
+                (Ok(creation), None) => creation.into_op(),
+                (Err(op), _) => *op,
+            },
+        );
     }
 
     /// The boolean tool's panel: activation, the operation choice, the

@@ -3959,6 +3959,8 @@ fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
             FormKind::AddProfile,
             "add profile: the distance is not a number",
         ),
+        (FormKind::Extrude, "extrude: the distance is not a number"),
+        (FormKind::Revolve, "revolve: the distance is not a number"),
         (
             FormKind::EditProfile,
             "edit profile: the distance is not a number",
