@@ -6075,10 +6075,7 @@ mod declared_reach_rows {
                     .expect("live")
             };
             let (pa, pc) = (at(&body, a), at(&body, c));
-            let flat = body
-                .get_surface(body.get_face(top).expect("live").surface)
-                .expect("live")
-                .clone();
+            let flat = body.face_surface(top).expect("live").clone();
             let he1 = leaving(&body, top, a).expect("A is on the top");
             let he2 = leaving(&body, top, c).expect("C is on the top");
             // Lifts RechartStrandsDescriptions: the half on a key of its own is the declared pair; its rim's descriptions are not the row.

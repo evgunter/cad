@@ -292,10 +292,7 @@ fn upper_cone() -> (Body<f64>, FaceKey) {
 /// seed's placeholder, on `face`'s carrier under sense `true`, and
 /// returns it.
 fn twin_on_the_carrier(b: &mut Body<f64>, face: FaceKey) -> FaceKey {
-    let carrier = b
-        .get_surface(b.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone();
+    let carrier = b.face_surface(face).unwrap().clone();
     let twin = b.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
     b.lifting_rechart_refusals_for_tests(|b| {
         b.set_face_surfaces_describing(
