@@ -1,9 +1,9 @@
 //! **Display frames are saved with the document** (IDENTITY DI5;
 //! `crates/viewer/src/layout.rs`): a save keeps the committed frames —
 //! an "Add part…" insert's and a free-move's — in a layout file beside
-//! the document, outside its bytes, and an open restores them over the
-//! document it opened, dropping and saying any frame whose space that
-//! document does not show.
+//! the document, outside its bytes, each with a witness drawn in its
+//! space; an open restores a frame while its space is shown and its
+//! witness stands in it, and drops and says every other.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -15,9 +15,9 @@ use crate::common;
 use common::asm;
 use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId, VarId, content_pin, save};
 use pncad::geom_core::Tol;
-use viewer::display::Held;
+use viewer::display::Unheld;
 use viewer::frame::outcome_notices;
-use viewer::layout::{self, Layout, LayoutFault, LayoutReport, SavedFrame};
+use viewer::layout::{self, Layout, LayoutFault, LayoutReport, Skipped};
 use viewer::session::{DocSession, OpOutcome, SessionOp};
 
 /// A session over a new empty document saved into `bench`'s directory,
@@ -39,6 +39,18 @@ fn open_fresh(path: &Path, tol: Tol) -> (DocSession, OpOutcome) {
     (session, outcome)
 }
 
+/// Save `session` at `path`, accepted, and answer the outcome.
+fn saved(session: &mut DocSession, path: &Path) -> OpOutcome {
+    let outcome = session.perform(SessionOp::Save(path.to_path_buf()));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    outcome
+}
+
+/// The layout text beside `path`.
+fn layout_text(path: &Path) -> String {
+    std::fs::read_to_string(layout::path_of(path)).expect("the layout reads")
+}
+
 /// Every op of a free-move of `node`'s space to `frame`, each accepted.
 fn free_move(session: &mut DocSession, node: RecipeNodeId, frame: Frame) {
     for op in [
@@ -51,59 +63,61 @@ fn free_move(session: &mut DocSession, node: RecipeNodeId, frame: Frame) {
     }
 }
 
+/// The notices an outcome's layout puts on the line.
+fn said(outcome: &OpOutcome) -> Vec<String> {
+    outcome_notices(outcome)
+        .map(|message| message.text().to_string())
+        .filter(|text| text.starts_with("layout: "))
+        .collect()
+}
+
+/// A session holding two inserted parts, the first's space free-moved:
+/// the session, its path, the two spaces and the free-move's frame.
+fn two_parts(
+    bench: &asm::Bench,
+    label: &str,
+    tol: Tol,
+) -> (DocSession, PathBuf, [VarId; 2], Frame) {
+    let (mut session, path) = authored(bench, label, tol);
+    let first = common::instance_in(&mut session, bench.post.id);
+    let second = common::instance_in(&mut session, bench.post.id);
+    let doc = session.committed_doc();
+    let spaces = [first, second].map(|i| doc.node_space(i).expect("a space"));
+    let moved = Frame::translation([0.0, 0.0, 0.05]);
+    free_move(&mut session, first, moved);
+    (session, path, spaces, moved)
+}
+
 /// **Two inserted parts and a free-move reopen where they were drawn,
 /// and the document's bytes and pin are the layout-free ones.**
 ///
-/// Two "Add part…" of one part, the second drawn clear of the first by
-/// its insert's frame, then the first's space free-moved; saved; and
-/// opened in a fresh session. The reopened session draws both frames
-/// as saved. The document file holds exactly the bytes `save` writes
-/// for the document with no layout, its content pin is the session's,
-/// and the layout is a file of its own beside it.
-///
 /// *Breaks if* a save keeps no frame (the reopened parts are drawn on
 /// each other, at the identity), an open restores none or the wrong
-/// one, or a frame reaches the document's bytes or its pin.
+/// one, a frame reaches the document's bytes or its pin, or a fork's
+/// layout is not its own.
 #[test]
 fn two_inserted_parts_and_a_free_move_reopen_drawn_apart() {
     let tol = Tol::witness();
     let bench = asm::bench("saved-layout-apart", tol);
-    let (mut session, path) = authored(&bench, "apart", tol);
-    let first = common::instance_in(&mut session, bench.post.id);
-    let second = common::instance_in(&mut session, bench.post.id);
-    let doc = session.committed_doc().clone();
-    let [one, two] = [first, second].map(|i| doc.node_space(i).expect("a space"));
+    let (mut session, path, [one, two], moved) = two_parts(&bench, "apart", tol);
     let inserted = *session
         .display()
         .free_move_of(two)
         .expect("the premise: the second part is drawn clear of the first");
-    let moved = Frame::translation([0.0, 0.0, 0.05]);
-    free_move(&mut session, first, moved);
-
-    let saved = session.perform(SessionOp::Save(path.clone()));
-    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
-    assert_eq!(
-        saved.layout,
-        LayoutReport::default(),
-        "the layout is written"
-    );
-    assert!(
-        layout::path_of(&path).is_file(),
-        "the layout is a file beside the document"
-    );
+    let doc = session.committed_doc().clone();
+    assert_eq!(saved(&mut session, &path).layout, LayoutReport::default());
     let bytes = std::fs::read_to_string(&path).expect("the document reads");
     assert_eq!(
         bytes,
         save(&doc, &[], tol).expect("the document saves"),
         "the document file holds the document's own bytes, no frame in them"
     );
-    let pin = content_pin(&doc, tol).expect("the document pins");
 
-    let (reopened, opened) = open_fresh(&path, tol);
+    let (mut reopened, opened) = open_fresh(&path, tol);
     assert_eq!(opened.layout, LayoutReport::default(), "nothing dropped");
     assert_eq!(
-        content_pin(reopened.committed_doc(), tol).expect("the reopened document pins"),
-        pin,
+        content_pin(reopened.committed_doc(), tol).expect("pins"),
+        content_pin(&doc, tol).expect("pins"),
         "the reopened document is the same version"
     );
     assert_eq!(
@@ -116,8 +130,8 @@ fn two_inserted_parts_and_a_free_move_reopen_drawn_apart() {
         Some(moved),
         "the free-moved space reopens moved"
     );
+
     let fork = path.with_file_name("apart-fork.pncad");
-    let mut reopened = reopened;
     let forked = reopened.perform(SessionOp::SaveAsNewDocument(fork.clone()));
     assert!(forked.refusal.is_none(), "{:?}", forked.refusal);
     assert_eq!(forked.layout, LayoutReport::default());
@@ -125,242 +139,351 @@ fn two_inserted_parts_and_a_free_move_reopen_drawn_apart() {
     assert_eq!(
         fork_opened.layout,
         LayoutReport::default(),
-        "the fork's layout is written under the fork's id"
+        "the fork's own"
     );
     assert_eq!(
-        fork_session.display().saved_frames(),
-        reopened.display().saved_frames(),
+        fork_session
+            .display()
+            .saved_frames(fork_session.committed_doc()),
+        reopened.display().saved_frames(reopened.committed_doc()),
         "the fork reopens drawn as the original"
-    );
-    let view = reopened.display_view();
-    assert_eq!(view.moved_nodes.get(&first), Some(&moved), "drawn moved");
-    assert_eq!(
-        view.moved_nodes.get(&second),
-        Some(&inserted),
-        "drawn apart"
     );
 }
 
-/// **A document with no layout opens at the identity, and a save with
-/// no frame leaves none.**
+/// **A document with no layout opens at the identity; a session never
+/// given a frame writes no layout, and one that lost its frames writes
+/// none over the old one.**
 ///
-/// The bench's assembly is written through the store's API, so it has
-/// no layout: it opens with no frame and nothing said. A session that
-/// saved a frame and then lost it (an undo takes an insert's frame
-/// back) saves again with no frame, which clears the layout it left,
-/// so the reopen is at the identity too.
-///
-/// *Breaks if* an absent layout is said as a fault, a layout is
-/// invented, or a save with no frame leaves the earlier save's layout
-/// to draw the document by frames its session no longer holds.
+/// *Breaks if* an absent layout is said, a layout is invented, or a
+/// save with no frame leaves the earlier save's frames to draw by.
 #[test]
 fn a_document_saved_without_a_layout_opens_at_the_identity() {
     let tol = Tol::witness();
     let bench = asm::bench("saved-layout-none", tol);
     let (api, opened) = open_fresh(&bench.asm_path, tol);
     assert_eq!(opened.layout, LayoutReport::default(), "nothing said");
-    assert!(
-        api.display().saved_frames().is_empty(),
-        "an API-written document has no frame: {:?}",
-        api.display().saved_frames()
-    );
+    assert!(api.display().saved_frames(api.committed_doc()).is_empty());
 
     let (mut session, path) = authored(&bench, "cleared", tol);
-    common::instance_in(&mut session, bench.post.id);
-    let second = common::instance_in(&mut session, bench.post.id);
-    let two = session.committed_doc().node_space(second).expect("a space");
-    assert!(session.display().free_move_of(two).is_some(), "the premise");
     assert!(
-        session
-            .perform(SessionOp::Save(path.clone()))
-            .refusal
-            .is_none()
+        !layout::path_of(&path).exists(),
+        "a document never given a frame gets no layout"
     );
+    common::instance_in(&mut session, bench.post.id);
+    common::instance_in(&mut session, bench.post.id);
+    saved(&mut session, &path);
     assert!(layout::path_of(&path).is_file(), "the premise: a layout");
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     session.pump();
-    assert!(session.display().saved_frames().is_empty(), "the premise");
-    let saved = session.perform(SessionOp::Save(path.clone()));
-    assert_eq!(saved.layout, LayoutReport::default());
-    assert!(
-        !layout::path_of(&path).exists(),
-        "a save with no frame clears the layout"
-    );
+    assert_eq!(saved(&mut session, &path).layout, LayoutReport::default());
+    let (left, _) = Layout::parse(&layout_text(&path), tol).expect("parses");
+    assert!(left.frames.is_empty(), "the old frames are written over");
     let (reopened, _) = open_fresh(&path, tol);
-    assert!(reopened.display().saved_frames().is_empty());
+    assert!(
+        reopened
+            .display()
+            .saved_frames(reopened.committed_doc())
+            .is_empty()
+    );
 }
 
-/// **A saved frame whose space the opened document does not hold is
-/// dropped and said**, and the frames that hold are restored.
+/// **A frame whose space is gone is dropped and said by the space's
+/// saved name**, and the frame that holds is restored.
 ///
-/// A layout saved with two parts' frames is put back beside the same
-/// document after the second part was undone and the document saved
-/// again: its space is gone. The open restores the first frame (a
-/// free-move), drops the second naming the node and the gone space,
-/// and the chrome's notices say it.
-///
-/// *Breaks if* the gone space's frame is applied (to anything), is
-/// dropped in silence, or takes the frame that holds with it.
+/// *Breaks if* the gone space's frame is applied, dropped in silence,
+/// said by a bare id, or takes the frame that holds with it.
 #[test]
 fn a_frame_for_a_missing_space_is_dropped_and_reported() {
     let tol = Tol::witness();
     let bench = asm::bench("saved-layout-missing", tol);
-    let (mut session, path) = authored(&bench, "missing", tol);
-    let first = common::instance_in(&mut session, bench.post.id);
-    let second = common::instance_in(&mut session, bench.post.id);
-    let doc = session.committed_doc().clone();
-    let [one, two] = [first, second].map(|i| doc.node_space(i).expect("a space"));
-    let moved = Frame::translation([0.0, 0.0, 0.05]);
-    free_move(&mut session, first, moved);
-    assert!(
-        session
-            .perform(SessionOp::Save(path.clone()))
-            .refusal
-            .is_none()
-    );
-    let both = std::fs::read_to_string(layout::path_of(&path)).expect("the layout reads");
-
+    let (mut session, path, [one, two], moved) = two_parts(&bench, "missing", tol);
+    saved(&mut session, &path);
+    let both = layout_text(&path);
+    let (parsed, _) = Layout::parse(&both, tol).expect("parses");
+    let two_said = parsed
+        .frames
+        .iter()
+        .find(|saved| saved.space == two)
+        .expect("the second space's frame")
+        .space_said
+        .clone();
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     session.pump();
     assert!(session.committed_doc().var(two).is_none(), "the premise");
-    assert!(
-        session
-            .perform(SessionOp::Save(path.clone()))
-            .refusal
-            .is_none()
-    );
+    saved(&mut session, &path);
     std::fs::write(layout::path_of(&path), both).expect("the stale layout is put back");
 
     let (reopened, opened) = open_fresh(&path, tol);
-    assert_eq!(
-        reopened.display().free_move_of(one).copied(),
-        Some(moved),
-        "the frame that holds is restored"
-    );
-    assert!(
-        reopened.display().free_move_of(two).is_none(),
-        "the gone space's frame is not"
-    );
-    assert_eq!(opened.layout.fault, None);
+    assert_eq!(reopened.display().free_move_of(one).copied(), Some(moved));
+    assert!(reopened.display().free_move_of(two).is_none());
     let [dropped] = opened.layout.dropped.as_slice() else {
-        panic!("one frame dropped: {:?}", opened.layout.dropped);
+        panic!("one frame dropped: {:?}", opened.layout);
     };
-    assert_eq!(dropped.held, Held::Node(second), "named by its insert");
+    assert_eq!((dropped.space, &dropped.why), (two, &Unheld::Gone));
+    let notices = said(&opened);
     assert!(
-        matches!(
-            dropped.cause,
-            viewer::display::AdmissionFault::NoSuchSpace { .. }
-        ),
-        "dropped because its space is gone: {:?}",
-        dropped.cause
-    );
-    let said: Vec<String> = outcome_notices(&opened)
-        .map(|message| message.text().to_string())
-        .collect();
-    assert!(
-        said.iter()
-            .any(|text| text.starts_with("layout: a saved placement was not restored")),
-        "the drop is said: {said:?}"
+        notices.iter().any(|text| text.contains(&two_said)),
+        "said by the name the saving document gave the space, {two_said:?}: {notices:?}"
     );
 }
 
-/// **A layout of another document, or one this viewer does not write,
-/// restores nothing and is said; the document opens all the same.**
+/// **A space id minted again after an undo is not the space a saved
+/// frame was drawn for** (the review of PR 6296): a post inserted and
+/// free-moved, saved, undone, and a shelf inserted in its place mints
+/// the same space id. Its witness, the post, does not stand there, so
+/// the stale frame is dropped rather than drawn on the shelf.
 ///
-/// *Breaks if* a layout is applied to a document it was not written
-/// for, a malformed layout refuses the open or is half applied, or
-/// either is dropped in silence.
+/// *Breaks if* a restore asks the space id alone.
 #[test]
-fn a_foreign_or_malformed_layout_restores_nothing_and_is_said() {
+fn a_reused_space_id_does_not_take_the_old_frame() {
     let tol = Tol::witness();
-    let bench = asm::bench("saved-layout-foreign", tol);
-    let (mut session, path) = authored(&bench, "foreign", tol);
-    common::instance_in(&mut session, bench.post.id);
-    let second = common::instance_in(&mut session, bench.post.id);
-    assert!(
-        session
-            .perform(SessionOp::Save(path.clone()))
-            .refusal
-            .is_none()
+    let bench = asm::bench("saved-layout-reused", tol);
+    let (mut session, path) = authored(&bench, "reused", tol);
+    let post = common::instance_in(&mut session, bench.post.id);
+    let space = session.committed_doc().node_space(post).expect("a space");
+    free_move(&mut session, post, Frame::translation([0.0, 0.0, 0.05]));
+    saved(&mut session, &path);
+    let stale = layout_text(&path);
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    let shelf = common::instance_in(&mut session, bench.shelf.id);
+    assert_eq!(
+        session.committed_doc().node_space(shelf),
+        Some(space),
+        "the premise: the shelf's insert mints the same space id"
     );
-    let text = std::fs::read_to_string(layout::path_of(&path)).expect("the layout reads");
-    let mut saved = Layout::parse(&text, tol).expect("the session's own layout parses");
-    assert_eq!(saved.to_text(), text, "the layout round-trips");
-    let mut awkward = saved.clone();
+    saved(&mut session, &path);
+    std::fs::write(layout::path_of(&path), stale).expect("the stale layout is put back");
+
+    let (reopened, opened) = open_fresh(&path, tol);
+    assert!(
+        reopened.display().free_move_of(space).is_none(),
+        "the shelf is drawn where it stands"
+    );
+    let [dropped] = opened.layout.dropped.as_slice() else {
+        panic!("one frame dropped: {:?}", opened.layout);
+    };
+    assert!(
+        matches!(&dropped.why, Unheld::Replaced { .. }),
+        "{dropped:?}"
+    );
+    assert_eq!(said(&opened).len(), 1, "and said");
+}
+
+/// **A frame whose writer left its space reopens; a frame whose space
+/// is emptied does not.** The shelf's space holds the shelf and post_b;
+/// the shelf free-moves it, then rests in the world, so the frame's
+/// writer has left the space while post_b still shows it — a save then
+/// reopen keeps the frame (DI5: it is the space's). Then post_b is given
+/// a space of its own, which empties the shelf's space: the earlier
+/// layout, put back, is dropped as not shown.
+///
+/// *Breaks if* a restore asks for the writer rather than the space (the
+/// first half), or restores a frame on a space nothing is drawn in.
+#[test]
+fn a_frame_keeps_its_space_whoever_wrote_it() {
+    let tol = Tol::witness();
+    let bench = asm::bench("saved-layout-writer", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    asm::unpin(&mut session, bench.shelf_i);
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
+    );
+    session.pump();
+    let space = session
+        .committed_doc()
+        .node_space(bench.post_b)
+        .expect("a space");
+    let probe = Frame::translation([0.0, 0.0, 0.07]);
+    free_move(&mut session, bench.shelf_i, probe);
+    let rested = session.perform(asm::shelf_rest_op(&bench, bench.post_a, 0.0));
+    assert!(rested.refusal.is_none(), "{:?}", rested.refusal);
+    session.pump();
+    assert_ne!(
+        session.committed_doc().node_space(bench.shelf_i),
+        Some(space),
+        "the premise: the writer left the space"
+    );
+    assert_eq!(session.display().free_move_of(space), Some(&probe));
+    saved(&mut session, &bench.asm_path);
+    let kept = layout_text(&bench.asm_path);
+    let (reopened, opened) = open_fresh(&bench.asm_path, tol);
+    assert_eq!(opened.layout, LayoutReport::default());
+    assert_eq!(
+        reopened.display().free_move_of(space),
+        Some(&probe),
+        "save then reopen with no edit keeps the picture"
+    );
+
+    let own = session.perform(SessionOp::IntoOwnSpace {
+        placement: bench.post_b,
+    });
+    assert!(own.refusal.is_none(), "{:?}", own.refusal);
+    session.pump();
+    assert!(session.committed_doc().var(space).is_some(), "the premise");
+    saved(&mut session, &bench.asm_path);
+    std::fs::write(layout::path_of(&bench.asm_path), kept).expect("put back");
+    let (reopened, opened) = open_fresh(&bench.asm_path, tol);
+    assert!(reopened.display().free_move_of(space).is_none());
+    let [dropped] = opened.layout.dropped.as_slice() else {
+        panic!("one frame dropped: {:?}", opened.layout);
+    };
+    assert_eq!(dropped.why, Unheld::NotShown);
+}
+
+/// **A layout that cannot be read, or written, is said; the document
+/// opens, or is saved, all the same.** The layout's path is made a
+/// directory, which no user can read or write as a file.
+///
+/// *Breaks if* either is silent, refuses the document's own act, or the
+/// write's notice says a reopen draws at the identity while the old
+/// layout stands.
+#[test]
+fn a_layout_not_read_or_not_written_is_said() {
+    let tol = Tol::witness();
+    let bench = asm::bench("saved-layout-io", tol);
+    let (mut session, path, [one, _], _) = two_parts(&bench, "io", tol);
+    std::fs::create_dir_all(layout::path_of(&path)).expect("the layout path is a directory");
+
+    let saving = saved(&mut session, &path);
+    assert!(
+        matches!(saving.layout.fault, Some(LayoutFault::Write(_))),
+        "{:?}",
+        saving.layout
+    );
+    assert!(
+        said(&saving)
+            .iter()
+            .any(|text| text.contains("left as it was")),
+        "the notice says what stays: {:?}",
+        said(&saving)
+    );
+
+    let (reopened, opened) = open_fresh(&path, tol);
+    assert!(
+        matches!(opened.layout.fault, Some(LayoutFault::Read(_))),
+        "{:?}",
+        opened.layout
+    );
+    assert!(reopened.display().free_move_of(one).is_none());
+    assert!(
+        reopened.committed_doc().var(one).is_some(),
+        "the document opened"
+    );
+    assert_eq!(said(&opened).len(), 1, "said");
+}
+
+/// **The layout is read as the preferences are**: a key this viewer
+/// does not know, or a frame it cannot read, is skipped and said while
+/// the rest applies; a layout of another document, or one that is not
+/// TOML, applies nothing and is said.
+///
+/// *Breaks if* a stray key or one bad frame takes the whole layout, a
+/// bad frame (on the world, a mirror, an integer coordinate, two for
+/// one space) is applied, anything is dropped in silence, or a foreign
+/// layout is applied.
+#[test]
+fn a_layout_is_read_by_the_preferences_posture() {
+    let tol = Tol::witness();
+    let bench = asm::bench("saved-layout-posture", tol);
+    let (mut session, path, [one, two], moved) = two_parts(&bench, "posture", tol);
+    saved(&mut session, &path);
+    let text = layout_text(&path);
+    let (layout, skipped) = Layout::parse(&text, tol).expect("the session's own layout parses");
+    assert!(skipped.is_empty());
+    assert_eq!(layout.to_text(), text, "the layout round-trips");
+    let mut awkward = layout.clone();
     let turn = std::f64::consts::FRAC_1_SQRT_2;
     awkward.frames[0].frame = Frame {
         columns: [[turn, turn, 0.0], [-turn, turn, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.1 + 0.2, -0.0, 1e-300],
     };
-    let back = Layout::parse(&awkward.to_text(), tol).expect("an awkward frame parses");
+    let (back, _) = Layout::parse(&awkward.to_text(), tol).expect("parses");
     assert!(
         back.frames[0].frame.bit_eq(&awkward.frames[0].frame),
-        "every coordinate reads back bit for bit: {:?} vs {:?}",
-        back.frames[0].frame,
-        awkward.frames[0].frame
+        "every coordinate reads back bit for bit"
     );
 
-    let other = DocumentId::derive("saved-layout-someone-else");
-    saved.document = other;
-    std::fs::write(layout::path_of(&path), saved.to_text()).expect("the foreign layout is written");
-    let (reopened, opened) = open_fresh(&path, tol);
-    assert!(
-        matches!(
-            opened.layout.fault,
-            Some(LayoutFault::OtherDocument { layout, .. }) if layout == other
-        ),
-        "{:?}",
-        opened.layout
-    );
-    assert!(
-        reopened.display().saved_frames().is_empty(),
-        "nothing restored"
-    );
-    assert!(
-        reopened.committed_doc().node(second).is_some(),
-        "the document opened"
-    );
-
-    for (why, text) in [
-        ("not TOML", "document = ".to_string()),
+    // One frame per case spoiled; the other still applies.
+    let spoil = |edit: &dyn Fn(&mut Layout)| {
+        let mut layout = layout.clone();
+        edit(&mut layout);
+        layout.to_text()
+    };
+    let second = layout
+        .frames
+        .iter()
+        .position(|saved| saved.space == two)
+        .expect("the second space's frame");
+    let cases: [(&str, String); 5] = [
         ("a stray key", format!("extra = 1\n{text}")),
-        ("an integer coordinate", text.replacen("1.0", "1", 1)),
-        ("a frame on the world", world_frame(&saved, tol)),
-        ("a mirror", mirrored(&saved, tol)),
-    ] {
-        std::fs::write(layout::path_of(&path), &text).expect("the layout is written");
+        (
+            "a frame on the world",
+            spoil(&|l| l.frames[second].space = VarId::WORLD),
+        ),
+        (
+            "a mirror",
+            spoil(&|l| l.frames[second].frame.columns[0] = [-1.0, 0.0, 0.0]),
+        ),
+        (
+            "an integer coordinate",
+            spoil(&|l| l.frames[second].frame.translation[0] = 7.0).replacen("7.0", "7", 1),
+        ),
+        (
+            "two frames for one space",
+            spoil(&|l| {
+                let copy = l.frames[second].clone();
+                l.frames.push(copy);
+            }),
+        ),
+    ];
+    for (why, text) in cases {
+        std::fs::write(layout::path_of(&path), &text).expect("written");
         let (reopened, opened) = open_fresh(&path, tol);
-        assert!(
-            matches!(opened.layout.fault, Some(LayoutFault::Malformed { .. })),
-            "{why}: {:?}",
-            opened.layout
+        assert_eq!(opened.layout.fault, None, "{why}: the layout reads");
+        assert!(!opened.layout.skipped.is_empty(), "{why}: skipped and said");
+        assert_eq!(
+            said(&opened).len(),
+            opened.layout.skipped.len(),
+            "{why}: each said"
         );
+        assert_eq!(
+            reopened.display().free_move_of(one).copied(),
+            Some(moved),
+            "{why}: the rest applies"
+        );
+        if why == "a stray key" {
+            assert!(
+                matches!(&opened.layout.skipped[..], [Skipped::UnknownKey(key)] if key == "extra")
+            );
+            assert!(
+                reopened.display().free_move_of(two).is_some(),
+                "{why}: all of it applies"
+            );
+        } else {
+            assert!(
+                reopened.display().free_move_of(two).is_none(),
+                "{why}: the bad frame is not applied"
+            );
+        }
+    }
+
+    let mut foreign = layout.clone();
+    foreign.document = DocumentId::derive("saved-layout-someone-else");
+    for (why, text) in [
+        ("another document's", foreign.to_text()),
+        ("not TOML", "document = ".to_string()),
+    ] {
+        std::fs::write(layout::path_of(&path), &text).expect("written");
+        let (reopened, opened) = open_fresh(&path, tol);
+        assert!(opened.layout.fault.is_some(), "{why}: {:?}", opened.layout);
         assert!(
-            reopened.display().saved_frames().is_empty(),
+            reopened
+                .display()
+                .saved_frames(reopened.committed_doc())
+                .is_empty(),
             "{why}: nothing restored"
         );
-        assert!(
-            outcome_notices(&opened).any(|message| message.text().starts_with("layout: ")),
-            "{why}: said"
-        );
+        assert_eq!(said(&opened).len(), 1, "{why}: said");
     }
-}
-
-/// `layout`'s text with its first frame moved onto the world.
-fn world_frame(layout: &Layout, tol: Tol) -> String {
-    let mut layout = layout.clone();
-    layout.frames[0].space = VarId::WORLD;
-    let text = layout.to_text();
-    assert!(Layout::parse(&text, tol).is_err(), "the premise");
-    text
-}
-
-/// `layout`'s text with its first frame a mirror, which no pose is.
-fn mirrored(layout: &Layout, tol: Tol) -> String {
-    let mut layout = layout.clone();
-    let SavedFrame { frame, .. } = &mut layout.frames[0];
-    frame.columns[0] = [-1.0, 0.0, 0.0];
-    let text = layout.to_text();
-    assert!(Layout::parse(&text, tol).is_err(), "the premise");
-    text
 }

@@ -2889,7 +2889,8 @@ impl DocSession {
         let document = self.history.doc().id();
         match layout::read(path, self.tol) {
             Ok(None) => LayoutReport::default(),
-            Ok(Some(saved)) if saved.document != document => LayoutReport {
+            Ok(Some((saved, skipped))) if saved.document != document => LayoutReport {
+                skipped,
                 fault: Some(LayoutFault::OtherDocument {
                     path: layout::path_of(path),
                     layout: saved.document,
@@ -2897,9 +2898,10 @@ impl DocSession {
                 }),
                 ..LayoutReport::default()
             },
-            Ok(Some(saved)) => LayoutReport {
+            Ok(Some((saved, skipped))) => LayoutReport {
                 dropped: self.display.restore(self.history.doc(), &saved.frames),
-                ..LayoutReport::default()
+                skipped,
+                fault: None,
             },
             Err(fault) => LayoutReport {
                 fault: Some(fault),
@@ -2915,7 +2917,7 @@ impl DocSession {
     fn save_layout(&self, path: &Path) -> LayoutReport {
         let saved = Layout {
             document: self.history.doc().id(),
-            frames: self.display.saved_frames(),
+            frames: self.display.saved_frames(self.history.doc()),
         };
         LayoutReport {
             fault: layout::write(path, &saved).err(),

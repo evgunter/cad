@@ -236,9 +236,7 @@ pub enum AdmissionFault {
     /// The body a gesture was opened on is now in another space than the
     /// one the gesture moves: an edit re-targeted it. The gesture goes
     /// (DI5); the probe still admits the body, to the space it is in
-    /// now. Raised by the prune's tests, and by a restore's of a saved
-    /// frame whose node is now in another space
-    /// ([`DisplayState::restore`]).
+    /// now. Raised by the prune's tests alone.
     MovedSpace {
         /// The node the gesture was opened on, as the document held it.
         node: SpokenNode,
@@ -247,8 +245,7 @@ pub enum AdmissionFault {
     },
     /// The space a frame was drawn for is gone from the document — the
     /// `new_space()` or the construction minting it was deleted, or an
-    /// undo stepped back past it. Raised by the prune's and a restore's
-    /// tests alone ([`DisplayState::restore`]).
+    /// undo stepped back past it. Raised by the prune's tests alone.
     /// Nothing cascades from a deleted space to the placements into it
     /// (D10): they strand.
     NoSuchSpace {
@@ -657,19 +654,99 @@ fn shown_check(
     space: VarId,
     node: RecipeNodeId,
 ) -> Result<(), AdmissionFault> {
+    space_standing(doc, shown, space).map_err(|unstanding| {
+        let (node, space) = (doc.spoken(node), Box::new(doc.spoken_space(space)));
+        match unstanding {
+            Unstanding::Gone => AdmissionFault::NoSuchSpace { node, space },
+            Unstanding::NotShown => AdmissionFault::NotShown { node, space },
+        }
+    })
+}
+
+/// **Whether a frame keyed by `space` still belongs to it** — the ONE
+/// rule a held frame is asked by, at a prune ([`shown_check`]), at a
+/// restore ([`DisplayState::restore`]) and of a gesture in flight
+/// ([`gesture_check`]): the space is in `doc` and among the spaces
+/// `shown` (DI5).
+fn space_standing(
+    doc: &Doc<ProfileProgram>,
+    shown: &BTreeSet<VarId>,
+    space: VarId,
+) -> Result<(), Unstanding> {
     if doc.var(space).is_none() {
-        return Err(AdmissionFault::NoSuchSpace {
-            node: doc.spoken(node),
-            space: Box::new(doc.spoken_space(space)),
-        });
-    }
-    if shown.contains(&space) {
+        Err(Unstanding::Gone)
+    } else if shown.contains(&space) {
         Ok(())
     } else {
-        Err(AdmissionFault::NotShown {
-            node: doc.spoken(node),
-            space: Box::new(doc.spoken_space(space)),
-        })
+        Err(Unstanding::NotShown)
+    }
+}
+
+/// Why a space no longer holds its frame ([`space_standing`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Unstanding {
+    /// The space is not in the document.
+    Gone,
+    /// The space holds no body the picture draws.
+    NotShown,
+}
+
+/// **Why a saved frame was not restored** ([`DisplayState::restore`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Unheld {
+    /// The space is not in the opened document.
+    Gone,
+    /// The space holds no body the opened document's picture draws.
+    NotShown,
+    /// The node that stood in the space when the layout was saved does
+    /// not stand in it now, so the id names another space than the one
+    /// the frame was drawn for (one minted again after an undo).
+    Replaced {
+        /// The witness, as the saving document said it.
+        witness: String,
+    },
+}
+
+impl From<Unstanding> for Unheld {
+    fn from(unstanding: Unstanding) -> Self {
+        match unstanding {
+            Unstanding::Gone => Self::Gone,
+            Unstanding::NotShown => Self::NotShown,
+        }
+    }
+}
+
+/// **A saved frame an open did not restore**: its space, said as the
+/// document that saved the layout said it — the last document known to
+/// hold it, so a space or a witness gone is still said by name — and
+/// why.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Unrestored {
+    /// The space the frame was keyed by.
+    pub space: VarId,
+    /// The space as the saving document said it.
+    pub said: String,
+    /// Why it was not restored.
+    pub why: Unheld,
+}
+
+impl core::fmt::Display for Unrestored {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { said, why, .. } = self;
+        match why {
+            Unheld::Gone => write!(
+                f,
+                "the saved placement of {said} was not restored: the opened document has no                  such space"
+            ),
+            Unheld::NotShown => write!(
+                f,
+                "the saved placement of {said} was not restored: the opened document draws no                  body in it"
+            ),
+            Unheld::Replaced { witness } => write!(
+                f,
+                "the saved placement of {said} was not restored: {witness}, which stood in it                  when the layout was saved, does not stand in it now, so the space is another"
+            ),
+        }
     }
 }
 
@@ -705,33 +782,6 @@ fn gesture_check(
         }),
         Err(Unplaced::Refused) if answers == Answers::Structural => Ok(()),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
-            node: doc.spoken(node),
-        }),
-    }
-}
-
-/// **Whether a saved frame of `space`, written by `node`'s gesture,
-/// holds over `doc`** ([`DisplayState::restore`]): the space shown, and
-/// `node` in the document with its body in that space.
-fn restore_check(
-    doc: &Doc<ProfileProgram>,
-    shown: &BTreeSet<VarId>,
-    space: VarId,
-    node: RecipeNodeId,
-) -> Result<(), AdmissionFault> {
-    shown_check(doc, shown, space, node)?;
-    if doc.node(node).is_none() {
-        return Err(AdmissionFault::NoSuchNode {
-            node: doc.spoken(node),
-        });
-    }
-    match doc.node_space(node) {
-        Some(found) if found == space => Ok(()),
-        Some(found) => Err(AdmissionFault::MovedSpace {
-            node: doc.spoken(node),
-            into: Box::new(doc.spoken_space(found)),
-        }),
-        None => Err(AdmissionFault::NoSpace {
             node: doc.spoken(node),
         }),
     }
@@ -1257,50 +1307,74 @@ impl DisplayState {
     }
 
     /// **The committed frames, as a save keeps them** beside the
-    /// document ([`crate::layout`]): each space's frame and the node
-    /// whose gesture wrote it, in space order. A gesture in flight is
-    /// not committed and is not among them.
-    pub fn saved_frames(&self) -> Vec<SavedFrame> {
+    /// document ([`crate::layout`]), in space order: each space's frame
+    /// with a witness — a node `doc` draws in the space now, the one
+    /// whose gesture wrote the frame where it still is one — and how
+    /// `doc` says the two. A frame is the space's (DI5) whichever node
+    /// wrote it, so a writer since deleted or moved away does not lose
+    /// it: the witness is whatever stands in the space at the save. A
+    /// gesture in flight is not committed and is not among them.
+    pub fn saved_frames(&self, doc: &Doc<ProfileProgram>) -> Vec<SavedFrame> {
+        let drawn = crate::world::Picture::of(doc).nodes();
         self.moves
             .iter()
-            .map(|(&space, held)| SavedFrame {
-                space,
-                node: held.node,
-                frame: held.frame,
+            .map(|(&space, held)| {
+                let stands = |node: &RecipeNodeId| doc.node_space(*node) == Some(space);
+                let witness = Some(held.node)
+                    .filter(|node| drawn.contains(node) && stands(node))
+                    .or_else(|| drawn.iter().copied().find(stands))
+                    .unwrap_or(held.node);
+                SavedFrame {
+                    space,
+                    witness,
+                    frame: held.frame,
+                    space_said: doc.spoken_space(space).to_string(),
+                    witness_said: doc.spoken(witness).to_string(),
+                }
             })
             .collect()
     }
 
     /// **Restore the frames a layout saved** over the document just
-    /// opened, and answer the ones it cannot hold, each with the fault
-    /// that drops it.
+    /// opened, and answer the ones it cannot hold, each with why.
     ///
-    /// A frame is restored when its space is shown in `doc` and the
-    /// node that wrote it is still in `doc` with its body in that space:
-    /// a space id names the space one chain of edits minted, and the
-    /// node is what says the opened document reached it by the same
-    /// edits, so a frame is never drawn on another space under a reused
-    /// id. The tests are a prune's ([`space_check`], then the node's
-    /// own), asked of the recipe alone, so no evaluation is needed.
-    /// Every other frame is dropped: its space gone
-    /// ([`AdmissionFault::NoSuchSpace`]) or not shown
-    /// ([`AdmissionFault::NotShown`]), its node gone
-    /// ([`AdmissionFault::NoSuchNode`]), in another space
-    /// ([`AdmissionFault::MovedSpace`]) or in none
-    /// ([`AdmissionFault::NoSpace`]).
-    pub fn restore(&mut self, doc: &Doc<ProfileProgram>, frames: &[SavedFrame]) -> Vec<Withdrawn> {
+    /// A frame belongs to its space while the space is shown — the one
+    /// rule every held frame is asked by ([`space_standing`]; DI5) — so
+    /// that is asked here as the prune asks it. What a restore adds is
+    /// not a second rule about belonging but the check that the space
+    /// the id names is the one the frame was drawn for: its witness
+    /// still stands in it ([`Unheld::Replaced`]). The recipe answers
+    /// both, so no evaluation is needed.
+    pub fn restore(&mut self, doc: &Doc<ProfileProgram>, frames: &[SavedFrame]) -> Vec<Unrestored> {
         let shown = crate::world::shown_spaces(doc);
         let mut dropped = Vec::new();
         for saved in frames {
-            let SavedFrame { space, node, frame } = *saved;
-            match restore_check(doc, &shown, space, node) {
+            let held = space_standing(doc, &shown, saved.space)
+                .map_err(Unheld::from)
+                .and_then(|()| {
+                    if doc.node_space(saved.witness) == Some(saved.space) {
+                        Ok(())
+                    } else {
+                        Err(Unheld::Replaced {
+                            witness: saved.witness_said.clone(),
+                        })
+                    }
+                });
+            match held {
                 Ok(()) => {
-                    self.moves.insert(space, Moved { frame, node });
+                    self.moves.insert(
+                        saved.space,
+                        Moved {
+                            frame: saved.frame,
+                            node: saved.witness,
+                        },
+                    );
                     self.revision += 1;
                 }
-                Err(cause) => dropped.push(Withdrawn {
-                    held: Held::Node(node),
-                    cause,
+                Err(why) => dropped.push(Unrestored {
+                    space: saved.space,
+                    said: saved.space_said.clone(),
+                    why,
                 }),
             }
         }

@@ -1436,33 +1436,29 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 }
 
 /// **What of a document's saved layout an open or a save did not
-/// carry, as notices** ([`OpOutcome::layout`]): one for the frames an
-/// open dropped, counting them and each cause rendered by its own
-/// `Display` and joined with [`LIST_SEPARATOR`] as [`Withdrawal`]
-/// joins its own, and one for a layout not read or not written, in
-/// [`crate::layout::LayoutFault`]'s own sentence.
+/// carry, as notices** ([`OpOutcome::layout`]): one per frame an open
+/// dropped, one per key or frame it skipped, and one for a layout not
+/// read or not written, each in its own sentence
+/// ([`crate::display::Unrestored`], [`crate::layout::Skipped`],
+/// [`crate::layout::LayoutFault`]). One notice each rather than a
+/// joined list, because a space is said by the name the saving
+/// document gave it, which may hold any mark.
 ///
 /// [`Retold::Never`]: the picture shows a space at the identity and
 /// says nothing of a frame that was saved for it.
 pub fn layout_notices(report: &LayoutReport) -> impl Iterator<Item = Message> + '_ {
-    let LayoutReport { dropped, fault } = report;
-    let dropped = (!dropped.is_empty()).then(|| {
-        let mut text = match dropped.len() {
-            1 => "layout: a saved placement was not restored — ".to_string(),
-            count => format!("layout: {count} saved placements were not restored — "),
-        };
-        for (position, entry) in dropped.iter().enumerate() {
-            if position > 0 {
-                text.push_str(LIST_SEPARATOR);
-            }
-            text.push_str(&entry.cause.to_string());
-        }
-        Message::new(Subject::Document, text, Retold::Never)
-    });
-    let fault = fault
-        .as_ref()
-        .map(|fault| Message::new(Subject::Document, format!("layout: {fault}"), Retold::Never));
-    dropped.into_iter().chain(fault)
+    let LayoutReport {
+        dropped,
+        skipped,
+        fault,
+    } = report;
+    let said =
+        |text: String| Message::new(Subject::Document, format!("layout: {text}"), Retold::Never);
+    dropped
+        .iter()
+        .map(move |entry| said(entry.to_string()))
+        .chain(skipped.iter().map(move |entry| said(entry.to_string())))
+        .chain(fault.iter().map(move |fault| said(fault.to_string())))
 }
 
 /// **One edit's maintenance rows as notices**: each row

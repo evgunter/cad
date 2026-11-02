@@ -2091,12 +2091,20 @@ not a derived layout beside it). A save keeps every committed display
 frame in a layout file beside the document (`crate::layout`:
 `part.pncad.layout`), outside the document's bytes, its content pin and
 its evaluation, and an open restores them, so a reopened document draws
-its parts where they were drawn. A saved frame whose space the opened
-document does not show, or whose node is no longer in that space, is
-dropped and said (`DisplayState::restore`); a layout of another
-document or one the viewer cannot read restores nothing and is said;
-and a document with no layout, such as one written through the API,
-draws every space at the identity. Hides and shows are not saved.
+its parts where they were drawn. Each saved frame carries a witness, a
+node drawn in its space at the save: a frame is restored while its
+space is shown (the one rule a held frame is asked by, DI5) and its
+witness still stands in it, which is what tells the space apart from
+another minted under the same id after an undo
+(`DisplayState::restore`). Any other frame is dropped and said, by the
+names the saving document gave it. The file is read as the preferences
+are: a key the viewer does not know, or a frame it cannot read, is
+skipped and said while the rest applies; a layout of another document
+or one that is not TOML restores nothing and is said. A document with
+no layout draws every space at the identity. A document written
+through the API or `docio` over a file the viewer saved leaves that
+file's layout in place, and the next open restores it by the same rule.
+Hides and shows are not saved.
 
 A free-move frame is display state keyed by a shown space's `Space`
 variable and moves every body drawn in it; it is dropped when the space
