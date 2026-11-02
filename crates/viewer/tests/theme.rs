@@ -315,6 +315,23 @@ fn a_profile_is_told_from_the_preview() {
     }
 }
 
+/// **A fused step's construction is told from the preview drawn over
+/// it and the committed profile beside it**, by colour, in every
+/// palette and under every dichromacy the suite simulates — for
+/// [`a_profile_is_told_from_the_preview`]'s reason.
+#[test]
+fn a_construction_is_told_from_the_preview_and_the_profile() {
+    for theme in Theme::ALL {
+        let (worst, at) = cvd::worst_construction_separation(theme);
+        assert!(
+            worst >= cvd::MIN_SEPARATION,
+            "{}: the construction colour is only {worst:.4} from {at}, under the {:.4} bar",
+            theme.name,
+            cvd::MIN_SEPARATION,
+        );
+    }
+}
+
 /// Every theme that claims colourblind safety is actually checked.
 ///
 /// The registry and the claim are the only inputs, so a theme added
@@ -544,19 +561,22 @@ mod cvd {
     /// **What the GROUND is measured against**: every swatch, plus
     /// the two line colours.
     ///
-    /// `Theme::profile` is not a mark — it shades with nothing and
-    /// tints nothing — so it is absent from [`swatches`] and from the
-    /// marks check. It is still DRAWN IN THE VIEWPORT, though, which is
+    /// `Theme::profile` and `Theme::construction` are not marks — they
+    /// shade with nothing and tint nothing — so they are absent from
+    /// [`swatches`] and from the marks check. They are still DRAWN IN
+    /// THE VIEWPORT, though, which is
     /// the whole of what the ground check is about: a line the colour
-    /// of the surround is a line nobody can see. It is measured
+    /// of the surround is a line nobody can see. Each is measured
     /// unshaded, once, because a line is not lit.
     pub(super) fn against_ground(theme: &Theme, shade: f64) -> Vec<(&'static str, Color)> {
         let mut out = swatches(theme, shade);
-        let [r, g, b] = linear(theme.profile);
-        out.push((
-            "profile",
-            Color::new(f64::from(r), f64::from(g), f64::from(b)),
-        ));
+        for (label, line) in [
+            ("profile", theme.profile),
+            ("construction", theme.construction),
+        ] {
+            let [r, g, b] = linear(line);
+            out.push((label, Color::new(f64::from(r), f64::from(g), f64::from(b))));
+        }
         out
     }
 
@@ -613,11 +633,32 @@ mod cvd {
     /// [`KINDS`] whatever the palette claims: the preview, the probe
     /// mark over the body, drawn unshaded as the edge pass draws it.
     pub(super) fn worst_profile_separation(theme: &Theme) -> (f64, String) {
+        worst_line_separation(theme, theme.profile, &[])
+    }
+
+    /// The closest a theme's construction colour comes to the lines it
+    /// is drawn beside — the preview over it and the committed profile
+    /// under it — measured as [`worst_profile_separation`] is.
+    pub(super) fn worst_construction_separation(theme: &Theme) -> (f64, String) {
+        worst_line_separation(
+            theme,
+            theme.construction,
+            &[("the committed profile", theme.profile)],
+        )
+    }
+
+    /// The closest `line` comes to the preview and to each of `lines`,
+    /// under every vision type in [`KINDS`].
+    fn worst_line_separation(
+        theme: &Theme,
+        line: Rgba8,
+        lines: &[(&'static str, Rgba8)],
+    ) -> (f64, String) {
         let color = |c: Rgba8| {
             let [r, g, b] = linear(c);
             Color::new(f64::from(r), f64::from(g), f64::from(b))
         };
-        let profile = color(theme.profile);
+        let profile = color(line);
         // `swatches`' reason for asserting rather than defaulting: a
         // mark that does not composite measured as black would pass
         // every distance on a value nothing computed.
@@ -628,7 +669,8 @@ mod cvd {
             theme.name
         );
         let preview = composited.unwrap_or(theme.body);
-        let neighbours = [("the preview", color(preview))];
+        let neighbours = std::iter::once(("the preview", color(preview)))
+            .chain(lines.iter().map(|(name, c)| (*name, color(*c))));
         let mut worst = (f64::INFINITY, String::new());
         for (name, neighbour) in neighbours {
             for kind in KINDS {
