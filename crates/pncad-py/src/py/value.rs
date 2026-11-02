@@ -1470,9 +1470,9 @@ impl Evaluation {
         Err(standing_raise(py, &self.doc, &self.inner, *node, standing))
     }
 
-    /// **Whether this run was CANCELED** — the Python shape of the
-    /// kernel's `EvalOutcome`, whose two variants are a yes/no and
-    /// cross as one.
+    /// **Whether this run was CANCELED** — the kernel's
+    /// `EvalOutcome::Canceled`; its other stop, running out of member
+    /// budget, crosses as [`Self::exhausted`].
     ///
     /// `True` means the token passed as [`super::value::evaluate`]'s
     /// `cancel=` was observed set at a yield point, so
@@ -1490,6 +1490,25 @@ impl Evaluation {
     #[getter]
     fn canceled(&self) -> bool {
         self.inner.outcome == d::EvalOutcome::Canceled
+    }
+
+    /// **Where this run ran out of its member budget**, `None` where it
+    /// did not: `(at, held, budget)`, the family whose listing crossed
+    /// the budget, the listing steps the families before it were
+    /// charged, and the budget (`evaluate`'s `member_budget=`). Such a
+    /// run is a PARTIAL ANSWER as a canceled one is: the results hold
+    /// the prefix before `at`, and `at` and every node after it raise
+    /// `node_not_evaluated`. Unlike a cancel, the same document at the
+    /// same budget runs out at the same family again; the recourse is a
+    /// larger `member_budget=` or a smaller count.
+    #[getter]
+    fn exhausted(&self) -> Option<(super::doc::NodeId, u64, u64)> {
+        match self.inner.outcome {
+            d::EvalOutcome::Exhausted { at, held, budget } => {
+                Some((super::doc::NodeId(at), held, budget))
+            }
+            d::EvalOutcome::Completed | d::EvalOutcome::Canceled => None,
+        }
     }
 
     /// **The coincidences `node` decided from values** (D10), in
@@ -2719,21 +2738,28 @@ impl CancelToken {
 /// a recipe out from under a running evaluation. Measured, not
 /// reasoned: `tests/test_cancellation.py` executes it.
 ///
-/// `resolver` is the one `EvalOptions` field this door takes. The
-/// other six are not one kind of thing and the surface census's
-/// options roster says which each is — three are switches the kernel
-/// documents as answer-preserving, three change answers and are
-/// unreachable at this door's scalar rather than harmless. Its
+/// `member_budget` is the run's member budget: the listing steps every
+/// family of the run may take together (one per index value bound while
+/// a family's members are listed). Omitted, the kernel's one default
+/// (`DEFAULT_MEMBER_BUDGET`). A run that runs out returns its prefix
+/// with `Evaluation.exhausted` set.
+///
+/// `resolver` and `member_budget` are the `EvalOptions` fields this
+/// door takes. The others are not one kind of thing, and the surface
+/// census's options roster says which each is: switches the kernel
+/// documents as answer-preserving, and fields that change answers and
+/// are unreachable at this door's scalar rather than harmless. Its
 /// options are a literal naming every field, no `..default()` tail,
 /// which is what holds the door to that roster.
 #[pyfunction]
-#[pyo3(signature = (doc, *, resolver=None, prior=None, cancel=None))]
+#[pyo3(signature = (doc, *, resolver=None, prior=None, cancel=None, member_budget=None))]
 pub(crate) fn evaluate(
     py: Python<'_>,
     doc: &super::doc::Doc,
     resolver: Option<&super::store::Workspace>,
     prior: Option<&Evaluation>,
     cancel: Option<&CancelToken>,
+    member_budget: Option<u64>,
 ) -> Evaluation {
     let tol = Tol::witness();
     let defaults = d::EvalOptions::default();
@@ -2749,6 +2775,7 @@ pub(crate) fn evaluate(
         symbols: defaults.symbols,
         pin: defaults.pin,
         computing_twist: defaults.computing_twist,
+        member_budget: member_budget.unwrap_or(defaults.member_budget),
     };
     let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
     let recipe = &doc.inner;
