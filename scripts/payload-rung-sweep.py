@@ -156,6 +156,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                         "declaration in crates/step-import/src/error.rs; the carry "
                         "is the facade crate's row and owes the CUR3 property "
                         "row plus a Python word"),
+    "PinnedSite": ("argued", "non-carriage with its falsifier, beside the "
+                   "declaration in crates/sweep/src/loft.rs; the carry "
+                   "is the facade crate's row and owes the CUR3 property "
+                   "row plus a Python word"),
     "SetAsideWhy": ("argued", "non-carriage with its falsifier, beside the "
                     "declaration in crates/topo/src/side_reader.rs; the carry "
                     "is the facade crate's row and owes the CUR3 property "
@@ -198,6 +202,11 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # section was not built.
     "SectionUnbuilt": ("argued", "non-carriage with its falsifier, beside the declaration "
                        "in crates/topo/src/boolean/mod.rs"),
+    # `BooleanError::ApexSection`'s reading (and the split's
+    # `SplitReduceError::ApexSection`): how the section table disagrees
+    # with the walk at a cone's apex.
+    "ApexSectionReading": ("argued", "non-carriage with its falsifier, beside the declaration "
+                           "in crates/topo/src/splitting/mod.rs"),
     # `BooleanError::EdgeInFace`'s gap: why an edge lying in a face is not
     # parted.
     "EdgeInFaceGap": ("argued", "non-carriage with its falsifier, beside the declaration "

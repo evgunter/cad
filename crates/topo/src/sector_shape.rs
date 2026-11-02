@@ -22,7 +22,8 @@
 //!    entry suffice. At a cone's apex there is no tangent plane, and the
 //!    interior is the fan of rulings between the bounds at every width,
 //!    so none of this holds there: that sector is read by
-//!    [`apex_corner_shape`], against the plane the split cuts with.
+//!    [`apex_corner_shape`], against a plane through the apex: the one
+//!    the split cuts with, or the face a Boolean's vertex pierces.
 //! 3. **If not definitely convex, where does it get subdivided?** Any
 //!    interior direction with both sub-angles < 180° is valid. Definite
 //!    reflex ⇒ `−normalize(â + b̂)` (the true bisector of the reflex
@@ -737,15 +738,7 @@ fn apex_shape<T: Decide>(
     let (unit_own, unit_next) = (dir_own.normalize(), dir_next.normalize());
     let sin_a = apex.half_angle.sin();
     let tau = T::tau();
-    // The sweep's frame: `e1` along the next bound's azimuth, `e2` the
-    // way the interior leaves it.
-    let e1 = (unit_next - axis * unit_next.dot(axis)).normalize();
-    let e2 = axis.cross(e1) * apex.sweep(unit_next);
-    // An azimuth in `(0, 2π]`.
-    let azimuth = |d: Vec3<T>| {
-        let a = d.dot(e2).atan2(d.dot(e1));
-        a.select_le_zero(a + tau, a)
-    };
+    let azimuth = |d: Vec3<T>| apex.azimuth_from(unit_next, d);
     // The chord between the points a lever out along two rulings
     // `angle` apart.
     let chord = |angle: T| {

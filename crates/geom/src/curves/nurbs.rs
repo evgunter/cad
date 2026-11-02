@@ -170,8 +170,9 @@ use geom_core::spline::{
     derivative_net,
 };
 use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
+use crate::memo::{Table, kept, session_memo};
 use crate::net;
 
 /// The speed meter's piece schedule (D9: structure, never a decision):
@@ -186,18 +187,12 @@ use crate::net;
 /// `tests/curves/piece_coverage_meter.rs` that every piece is read.
 const SPEED_PIECE_SPLITS: usize = 32;
 
-/// A spline's memoised meter: `compute` afresh inside a symbolic
-/// session, `cell`'s value outside one (filled on first read). A
-/// session's table holds the nodes it saw built, and a node minted
-/// anywhere else freezes in it to an unknown of its own
-/// (`geom_core::sym`, "No session, no tier"), so a memo served across
-/// that boundary would change what the session decides; inside one
-/// nothing the meter mints is kept.
-pub(crate) fn session_memo<V: Copy>(cell: &OnceLock<V>, compute: impl FnOnce() -> V) -> V {
-    if geom_core::sym::session_installed() {
-        return compute();
-    }
-    *cell.get_or_init(compute)
+/// What a memoised edge has read, range by range
+/// ([`NurbsCurve3::with_span_memo`]), keyed by `[lo, hi]`'s bits.
+#[derive(Default)]
+pub(crate) struct SpanMemo {
+    enclosures: Table<[u64; 2], Option<Point3<Interval>>>,
+    derivs: Table<[u64; 2], Option<Vec3<Interval>>>,
 }
 
 /// A curve and a plan chain to apply to its net
@@ -209,7 +204,7 @@ struct PlanChain<'a, C, T> {
 }
 
 macro_rules! nurbs_curve {
-    ($Curve:ident, $Window:ident, $Point:ident, $Vector:ident, $dim:literal, $($c:ident),+) => {
+    ($Curve:ident, $Window:ident, $Point:ident, $Vector:ident, $dim:literal, $($c:ident),+ $(; memo $spans:ident)?) => {
         #[doc = concat!("The control window one knot span selects on **one** [`", stringify!($Curve), "`]")]
         /// — a borrow of the curve, exactly as `geom_core`'s [`Span`] is
         /// a borrow of the knot vector it indexes, and the same shape
@@ -333,13 +328,19 @@ macro_rules! nurbs_curve {
             /// [`Self::speed_upper_bound`], filled on first read, on the
             /// same terms as `speed`.
             speed_sup: OnceLock<geom_core::SupSpeed<T>>,
+            $(
+                /// Each range's restricted enclosure and derivative, kept
+                /// where [`NurbsCurve3::with_span_memo`] asked for them;
+                /// `None` keeps nothing.
+                $spans: Option<Arc<SpanMemo>>,
+            )?
         }
 
         /// The curve's value, without the speed memo: whether it has
         /// been read yet is not part of what the curve is.
         impl<T: Real> core::fmt::Debug for $Curve<T> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                let Self { knots, control, weights, speed: _, speed_sup: _ } = self;
+                let Self { knots, control, weights, speed: _, speed_sup: _, $($spans: _,)? } = self;
                 f.debug_struct(stringify!($Curve))
                     .field("knots", knots)
                     .field("control", control)
@@ -498,7 +499,7 @@ macro_rules! nurbs_curve {
                 let weight_channel = net::weight_channel(&weights)?;
                 net::validate_counts(knots.structure().control_count(), control.len(), &weight_channel)?;
                 let weights = Weights::from_point_parts(weights, weight_channel);
-                Ok(Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new() })
+                Ok(Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new(), $($spans: None,)? })
             }
 
             /// The same curve on another parameter domain: the knots
@@ -619,7 +620,7 @@ macro_rules! nurbs_curve {
                     knots.structure().control_count(),
                     weights.len()
                 );
-                Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new() }
+                Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new(), $($spans: None,)? }
             }
 
             /// The same curve read at another scalar: `f` applied to
@@ -1695,7 +1696,7 @@ macro_rules! nurbs_curve {
 }
 
 nurbs_curve!(NurbsCurve2, CurveWindow2, Point2, Vec2, 2, x, y);
-nurbs_curve!(NurbsCurve3, CurveWindow3, Point3, Vec3, 3, x, y, z);
+nurbs_curve!(NurbsCurve3, CurveWindow3, Point3, Vec3, 3, x, y, z; memo spans);
 
 /// The rational corrections through order `N − 1`, from one channel's
 /// homogeneous accumulators `a[k] = A⁽ᵏ⁾` and the weight channel
@@ -1742,6 +1743,30 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
 }
 
 impl NurbsCurve3<Interval> {
+    /// **The same edge, remembering what it restricts**: each range's
+    /// [`Self::span_enclosure`] and [`Self::span_deriv`] is computed on
+    /// its first read and served from then on, to this value and its
+    /// clones, keyed by the range's exact bits.
+    ///
+    /// **What the caller owes**, as [`crate::NurbsSurface::with_rect_memo`]:
+    /// the memo is never trimmed, so call this only on an edge owned by
+    /// one question and dropped with it. Nothing here enforces that.
+    #[must_use]
+    pub fn with_span_memo(&self) -> Self {
+        Self {
+            spans: Some(Arc::default()),
+            ..self.clone()
+        }
+    }
+
+    /// How many readings the memo holds, or `None` where this edge keeps
+    /// none ([`Self::with_span_memo`]).
+    pub fn memo_entries(&self) -> Option<usize> {
+        self.spans
+            .as_deref()
+            .map(|m| m.enclosures.len() + m.derivs.len())
+    }
+
     /// **The curve over the parameter range `lo..hi`**, enclosed: the
     /// hull of the dehomogenized control points of each knot span's
     /// piece restricted to the range, which narrows with the range.
@@ -1750,6 +1775,15 @@ impl NurbsCurve3<Interval> {
     ///
     /// `None` as [`Self::span_deriv`].
     pub fn span_enclosure(&self, lo: f64, hi: f64) -> Option<Point3<Interval>> {
+        kept(
+            self.spans.as_deref(),
+            |m| &m.enclosures,
+            [lo.to_bits(), hi.to_bits()],
+            || self.read_span_enclosure(lo, hi),
+        )
+    }
+
+    fn read_span_enclosure(&self, lo: f64, hi: f64) -> Option<Point3<Interval>> {
         let mut acc: Option<Point3<Interval>> = None;
         for (net, _) in self.restricted(lo, hi, &|_, _| Some(Point3::origin()))? {
             for [x, y, z, w] in net {
@@ -1785,6 +1819,15 @@ impl NurbsCurve3<Interval> {
     /// restriction the blossom door refuses, a weight not certified
     /// positive, and a piece whose middle evaluates to poison.
     pub fn span_deriv(&self, lo: f64, hi: f64) -> Option<Vec3<Interval>> {
+        kept(
+            self.spans.as_deref(),
+            |m| &m.derivs,
+            [lo.to_bits(), hi.to_bits()],
+            || self.read_span_deriv(lo, hi),
+        )
+    }
+
+    fn read_span_deriv(&self, lo: f64, hi: f64) -> Option<Vec3<Interval>> {
         let about = |a: f64, b: f64| {
             let m = net::middle(a, b);
             net::cell_origin(self.eval(Interval::from_bounds(m, m)))
@@ -1904,6 +1947,7 @@ impl<T: Real> NurbsCurve3<T> {
             weights: Weights::from_point_parts(vec![T::one(), T::one()], vec![1.0, 1.0]),
             speed: OnceLock::new(),
             speed_sup: OnceLock::new(),
+            spans: None,
         }
     }
 
