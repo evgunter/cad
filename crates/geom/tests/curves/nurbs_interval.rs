@@ -383,3 +383,47 @@ fn span_deriv_is_tight_against_its_own_range_off_the_origin() {
     }
     println!("[jet frame] the circle off the origin: worst width / spread {worst}");
 }
+
+/// **A memoised edge answers each range as the plain edge does, bit for
+/// bit.** The circle's domain halved eight levels deep, read parent
+/// first, so a range is asked after the range that holds it and beside
+/// its sibling: the memo's `span_enclosure` and `span_deriv` are the
+/// plain edge's, on the first read and on the second, which the memo
+/// serves. A memo keyed by less than the whole range serves a parent's
+/// or a sibling's answer here.
+#[test]
+fn a_memoised_edge_restricts_each_range_as_the_plain_edge_does() {
+    let plain = nurbs_circle().map_scalar(Interval::from_f64);
+    let memo = plain.with_span_memo();
+    let bits = |cs: [Interval; 3]| cs.map(|c| [c.lo().to_bits(), c.hi().to_bits()]);
+    let mut level = vec![(0.0, 1.0)];
+    for depth in 0..8 {
+        for &(lo, hi) in &level {
+            let want_enc = plain.span_enclosure(lo, hi).map(|p| bits([p.x, p.y, p.z]));
+            let want_der = plain.span_deriv(lo, hi).map(|d| bits([d.x, d.y, d.z]));
+            assert!(
+                want_enc.is_some() && want_der.is_some(),
+                "depth {depth}: the range {lo}..{hi} is inside the domain"
+            );
+            for pass in ["first", "second"] {
+                assert_eq!(
+                    memo.span_enclosure(lo, hi).map(|p| bits([p.x, p.y, p.z])),
+                    want_enc,
+                    "depth {depth}, {pass} read: the memo's enclosure of {lo}..{hi}"
+                );
+                assert_eq!(
+                    memo.span_deriv(lo, hi).map(|d| bits([d.x, d.y, d.z])),
+                    want_der,
+                    "depth {depth}, {pass} read: the memo's derivative over {lo}..{hi}"
+                );
+            }
+        }
+        level = level
+            .iter()
+            .flat_map(|&(lo, hi)| {
+                let m = 0.5 * (lo + hi);
+                [(lo, m), (m, hi)]
+            })
+            .collect();
+    }
+}

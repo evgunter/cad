@@ -2884,7 +2884,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     Ok(Window {
         face,
         region,
-        surface: charted,
+        surface: charted.with_rect_memo(),
         u,
         v,
         body,
@@ -3236,7 +3236,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             let curve = body.get_curve_geom(e.curve)?.certified()?;
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
-            let carrier = curve.carrier().map_scalar(|x| lift.of(x));
+            let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
             // The whole parameter span as ONE interval: the carrier's
             // interval evaluation over it encloses the entire arc, which is
             // what makes a curved boundary bound its own face's window.
@@ -3791,7 +3791,7 @@ fn split_axis<T: Real>(cell: Cell, root: &Window<'_, T>, axes: Axes) -> bool {
             let (mut v_least, mut v_most) = (f64::INFINITY, 0.0f64);
             for u in stations(cell.u) {
                 for v in stations(cell.v) {
-                    let j = root.surface.jet(at(u), at(v));
+                    let j = root.surface.point_jet(u, v);
                     let (su, sv) = (j.du.norm().hi(), j.dv.norm().hi());
                     (u_least, u_most) = (u_least.min(su), u_most.max(su));
                     (v_least, v_most) = (v_least.min(sv), v_most.max(sv));

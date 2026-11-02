@@ -1330,6 +1330,19 @@ pub fn spiric_radial<T: Real>(major: T, minor: T, offset: T, c: T) -> (T, T) {
     (rho, (rho.powi(2) - offset.powi(2)).sqrt())
 }
 
+impl Curve3<geom_core::Interval> {
+    /// **The same curve, remembering what its net restricts**
+    /// ([`NurbsCurve3::with_span_memo`]); a closed-form carrier, which
+    /// restricts nothing, as it is.
+    #[must_use]
+    pub fn with_span_memo(&self) -> Self {
+        match self {
+            Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.with_span_memo())),
+            other => other.clone(),
+        }
+    }
+}
+
 impl<T: SpanLocate> Curve3<T> {
     /// The point at parameter `t` (see the variant docs for each
     /// parameterization; the crate docs for units and periodicity).

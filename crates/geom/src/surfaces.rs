@@ -893,6 +893,29 @@ impl<T: SpanLocate> Surface<T> {
 }
 
 impl Surface<geom_core::Interval> {
+    /// **The same surface, remembering what its chart restricts**
+    /// ([`NurbsSurface::with_rect_memo`]); an analytic carrier, which
+    /// restricts nothing, as it is.
+    #[must_use]
+    pub fn with_rect_memo(&self) -> Self {
+        match self {
+            Surface::Nurbs(net) => Surface::Nurbs(Arc::new(net.with_rect_memo())),
+            other => other.clone(),
+        }
+    }
+
+    /// [`Surface::jet`] at the point `(u, v)`; a spline chart's from its
+    /// memo where it keeps one ([`NurbsSurface::point_ders`]).
+    pub fn point_jet(&self, u: f64, v: f64) -> SurfaceJet<geom_core::Interval> {
+        match self {
+            Surface::Nurbs(net) => net.point_ders(u, v),
+            _ => {
+                let at = |x: f64| geom_core::Interval::from_bounds(x, x);
+                self.jet(at(u), at(v))
+            }
+        }
+    }
+
     /// **An enclosure of the surface over the parameter rectangle
     /// `u × v`** that narrows as the rectangle does. A spline chart
     /// reads its restricted control net

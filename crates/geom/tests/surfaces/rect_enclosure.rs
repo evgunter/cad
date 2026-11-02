@@ -942,3 +942,94 @@ fn rect_jet_refuses_a_weight_not_certified_positive() {
         net.rect_jet((0.5, 1.0), (0.5, 1.0))
     );
 }
+
+/// Every bound of a point's coordinates, as bits.
+fn net_bits(points: &[Point3<Interval>]) -> Vec<[u64; 6]> {
+    points
+        .iter()
+        .map(|p| [p.x, p.y, p.z].map(|c| [c.lo().to_bits(), c.hi().to_bits()]))
+        .map(|[x, y, z]| [x[0], x[1], y[0], y[1], z[0], z[1]])
+        .collect()
+}
+
+#[allow(clippy::type_complexity)]
+fn jet_bits(jet: (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)) -> Vec<u64> {
+    [jet.0, jet.1, jet.2]
+        .iter()
+        .flat_map(|e| [e.x, e.y, e.z])
+        .flat_map(|c| [c.lo().to_bits(), c.hi().to_bits()])
+        .collect()
+}
+
+/// **A memoised chart answers each rectangle as the plain chart does,
+/// bit for bit.** A split tree of the rational quarter-circle wall, four
+/// levels deep, each cell halved on `u` then `v`, read parent first, so
+/// a cell is asked after the rectangle that holds it and beside its
+/// sibling: the memo's `rect_net` and `rect_jet`, and its point jets at
+/// the cell's corners and centre, are the plain chart's, on the first
+/// read and on the second, which the memo serves. A memo
+/// keyed by less than the whole rectangle serves a parent's or a
+/// sibling's answer here.
+#[test]
+fn a_memoised_chart_restricts_each_cell_as_the_plain_chart_does() {
+    let plain = quarter_circle_wall(0.0, 0.0);
+    let memo = plain.with_rect_memo();
+    let mut level = vec![((0.0, 1.0), (0.0, 1.0))];
+    for depth in 0..4 {
+        for &(u, v) in &level {
+            let want_net = plain.rect_net(u, v).map(|n| net_bits(&n));
+            let want_jet = plain.rect_jet(u, v).map(jet_bits);
+            assert!(
+                want_net.is_some() && want_jet.is_some(),
+                "depth {depth}: the cell {u:?} × {v:?} is inside the domain"
+            );
+            for pass in ["first", "second"] {
+                assert_eq!(
+                    memo.rect_net(u, v).map(|n| net_bits(&n)),
+                    want_net,
+                    "depth {depth}, {pass} read: the memo's net of {u:?} × {v:?}"
+                );
+                assert_eq!(
+                    memo.rect_jet(u, v).map(jet_bits),
+                    want_jet,
+                    "depth {depth}, {pass} read: the memo's jet of {u:?} × {v:?}"
+                );
+                for (a, b) in [
+                    (u.0, v.0),
+                    (u.1, v.1),
+                    (0.5 * (u.0 + u.1), 0.5 * (v.0 + v.1)),
+                ] {
+                    let at = |x: f64| Interval::from_bounds(x, x);
+                    let bits = |j: geom::SurfaceJet<Interval>| {
+                        jet_bits((j.du, j.dv, j.duv))
+                            .into_iter()
+                            .chain(jet_bits((
+                                Vec3::new(j.point.x, j.point.y, j.point.z),
+                                j.duu,
+                                j.dvv,
+                            )))
+                            .collect::<Vec<_>>()
+                    };
+                    assert_eq!(
+                        bits(memo.point_ders(a, b)),
+                        bits(plain.ders(at(a), at(b))),
+                        "depth {depth}, {pass} read: the memo's point jet at ({a}, {b})"
+                    );
+                }
+            }
+        }
+        level = level
+            .iter()
+            .flat_map(|&(u, v)| {
+                let m = |(a, b): (f64, f64)| 0.5 * (a + b);
+                let (mu, mv) = (m(u), m(v));
+                [
+                    ((u.0, mu), (v.0, mv)),
+                    ((u.0, mu), (mv, v.1)),
+                    ((mu, u.1), (v.0, mv)),
+                    ((mu, u.1), (mv, v.1)),
+                ]
+            })
+            .collect();
+    }
+}
