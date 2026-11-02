@@ -1867,12 +1867,12 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
 /// start corner at the carrier's start, its end corner at the carrier's
 /// end plus `off` (certified, so `off` lies within the run's zero band).
 /// Returns the body and the cap face.
-pub fn arc_cap(
-    carrier: Curve3<f64>,
-    span: (f64, f64),
-    off: Vec3<f64>,
+pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    carrier: Curve3<T>,
+    span: (T, T),
+    off: Vec3<T>,
     tol: Tol,
-) -> (Body<f64>, FaceKey) {
+) -> (Body<T>, FaceKey) {
     let Curve3::Circle {
         center,
         axis,
@@ -1882,7 +1882,7 @@ pub fn arc_cap(
     else {
         unreachable!("an arc cap is cut from a circle, and the caller passed another curve")
     };
-    let mut body = Body::<f64>::new();
+    let mut body = Body::<T>::new();
     let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1) + off);
     let seed = body.mvfs(p0, true).unwrap();
     let plane = body.add_surface(Surface::Plane {
@@ -1906,7 +1906,7 @@ pub fn arc_cap(
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(wall, plane),
                     selector: geom_brep::CurveSelector::Witness(
-                        carrier.eval(0.5 * (span.0 + span.1)),
+                        carrier.eval(geom::mid_param(span.0, span.1)),
                     ),
                 },
                 carrier,

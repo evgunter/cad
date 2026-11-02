@@ -4020,13 +4020,13 @@ fn pierce_inside<T: Decide>(
 /// already passes `(K − 1)ε` and the clearance always refuses.
 ///
 /// A boundary edge that is not a line is read on its carrier's lower
-/// bound on the distance from `S`'s middle `m` ([`crate::link::clearance`]):
-/// every point of `S` stands within `L/2` of `m`, and `c` more of the
-/// point `m` is computed at, so a bound that passes `L/2` and the reach
-/// by more than the band (`pm_census_ef_pierce_curve_clear`) leaves
-/// every point of the curve past `g` from every point of `S`, so over
-/// none of them. The bound is the one that reads a point off a carrier
-/// (`curve_carrier_clear`), on the same terms.
+/// bound on the distance from `S`'s middle `m` ([`crate::link::clearance`]).
+/// Every point of `S` stands within `L/2 + c` of the computed `m`, so a
+/// bound past `L/2 + reach` by more than `Kε`
+/// (`pm_census_ef_pierce_curve_clear`) leaves every point of the curve
+/// more than `Kε + reach − c` from every point of `S`. The height gate
+/// holds `h`, and so `2c`, under `(K − 1)ε`, so that is past `g`: no
+/// point of the curve lies over `S`.
 #[allow(clippy::too_many_arguments)] // the clearance's whole state
 fn span_clear<T: Decide>(
     body: &Body<T>,
@@ -4085,7 +4085,7 @@ fn span_clear<T: Decide>(
             }
             if edge_is_line(body, edge) {
                 let mut side = segment((p, q));
-                // The side's ends are the ring's stored vertices: their
+                // The side's ends are the face's stored vertices: their
                 // point keys go with them, as an edge's do.
                 side.points = [a, b].map(|v| geo.vpoint.get(&v).copied());
                 if interiors_meet(&s, &side, band, errors)? {
