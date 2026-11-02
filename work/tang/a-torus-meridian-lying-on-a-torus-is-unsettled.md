@@ -69,5 +69,5 @@ rim: `a-torus-seam-graze-needs-the-rim-root-deflated`, parked on
 (`mate7a_torus_rest::the_g1_tube_chain_declared_a_seam_stops_at_the_crossing_layer`).
 
 Filed by the F ≡ 0 sweep:
-`work/roots/an-oblique-cone-section-reads-a-zero-floor` and
+`work/germ/an-oblique-cone-section-reads-a-zero-floor` and
 `work/honeroot/a-villarceau-circle-lying-on-a-torus-is-unsettled`.

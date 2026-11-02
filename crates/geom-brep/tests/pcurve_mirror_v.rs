@@ -438,7 +438,7 @@ fn chart_edge(
         start,
         end,
         |_| Some(plane(n)),
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band,
         geom_brep::NurbsLane::certified(),
     )
@@ -467,12 +467,12 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
                 Vec2::new(0.0, 1.0),
                 Vec2::new(0.0, 0.0),
             ),
-            Curve3::Circle {
-                center: Point3::new(0.3, 0.4, 0.0),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            Curve3::circle(
+                Point3::new(0.3, 0.4, 0.0),
+                Vec3::unit_z(),
+                1.0,
+                Vec3::unit_x(),
+            ),
             0.2,
             1.4,
         ),
@@ -510,7 +510,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
             start,
             end,
             |_| Some(rev.clone()),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
         );
@@ -533,7 +533,7 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
                 start,
                 end,
                 |_| Some(rev.clone()),
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),
             )
@@ -582,7 +582,7 @@ fn a_description_without_a_chart_image_is_invariant_under_the_door() {
         start,
         end,
         |k| arena.get(k).cloned(),
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band,
         geom_brep::NurbsLane::certified(),
     )

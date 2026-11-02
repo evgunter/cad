@@ -81,19 +81,20 @@ pub enum PairUnread {
 
 /// **A face's consumed extent**: a ball enclosing every point of it,
 /// the region over which a verdict about its carrier is consumed
-/// ([`pair_extent`]). A sphere's or a torus's own ball
-/// ([`ExtentBall::of_carrier`]: the torus's `R + r`, whatever the
-/// trim); otherwise the ball around the face's certified box, from the
-/// kernel's one kind→box rule (`census::face_reach`). `None` where
-/// `face`, the caller's key, does not resolve, where that box has no
-/// claim to make, or where the ball does not read. The face's surface
-/// is a link, and its miss panics (on an at-rest operand by tier 1,
-/// mid-operation by [`crate::live::OPERATORS_KEEP_LINKS`]).
+/// ([`pair_extent`]). The carrier's whole cover's ball where the carrier
+/// is bounded ([`geom::Surface::cover`]: a sphere's ball, a torus's tube,
+/// a spline's net, whatever the trim); otherwise the ball around the
+/// face's certified box, from the kernel's one kind→box rule
+/// (`census::face_reach`). `None` where `face`, the caller's key, does
+/// not resolve, where that box has no claim to make, or where the ball
+/// does not read. The face's surface is a link, and its miss panics (on
+/// an at-rest operand by tier 1, mid-operation by
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
 fn face_ball<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> Option<ExtentBall<T>> {
     let f = body.get_face(face)?;
-    let ball = match ExtentBall::of_carrier(body.face_surface_linked(face, f)) {
-        Some(ball) => ball,
-        None => {
+    let ball = match body.face_surface_linked(face, f).cover() {
+        Ok(cover) => ExtentBall::of_cover(&cover),
+        Err(_) => {
             let (lo, hi) = crate::census::face_reach(body, face, band)?;
             ExtentBall::of_box(lo, hi)
         }
@@ -761,7 +762,7 @@ pub fn rest_locus<T: Decide>(
     // The ball about the edge's middle at its reach from there encloses
     // it, and is no larger than the edge's own measure from that point.
     let mid = carrier.mid_point(t0, t1);
-    let edge = ExtentBall::new(mid, geom_brep::edge_reach_from(carrier, t0, t1, mid));
+    let edge = ExtentBall::of_edge_from(carrier, (t0, t1), mid);
     let parts: Vec<_> = core::iter::once(edge)
         .chain(on_a.iter().chain(&on_b).map(|&p| ExtentBall::point(p)))
         .collect();
@@ -872,9 +873,9 @@ mod extent_rows {
             .unwrap(),
         ));
         let mid = arc.mid_point(0.0, 1.0);
-        let chord = arc.eval(0.0).distance(arc.eval(1.0));
-        let below = geom_brep::edge_extent_inf(&arc, 0.0, 1.0, chord);
-        let reach = geom_brep::edge_reach_from(&arc, 0.0, 1.0, mid);
+        let below =
+            geom_brep::edge_extent_inf(&arc, 0.0, 1.0, (arc.eval(0.0), arc.eval(1.0))).length();
+        let reach = geom_brep::edge_reach_from(&arc, 0.0, 1.0, mid).length();
         let theta = 0.45 * band.zero() / below;
         assert!(
             reach * theta >= band.escalate(),

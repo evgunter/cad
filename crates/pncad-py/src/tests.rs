@@ -2146,8 +2146,8 @@ fn inner_arm_tags_are_stable() {
         ("shell", Some("thickness"))
     );
     assert_eq!(
-        pair(&NodeErrorKind::Profile(ProfileError::EmptyProfile)),
-        ("profile", Some("empty_profile"))
+        pair(&NodeErrorKind::Profile(ProfileError::PlaneNotFinite)),
+        ("profile", Some("plane_not_finite"))
     );
     // The blend's carrier word is the VERB, so the two words here are
     // "which blend" and "what it refused about" — the clearest case
@@ -2156,6 +2156,7 @@ fn inner_arm_tags_are_stable() {
         pair(&NodeErrorKind::Blend {
             verb: BlendKind::Chamfer,
             error: BlendError::NonpositiveSize { size: -1.0 },
+            edge: None,
         }),
         ("chamfer", Some("nonpositive_size"))
     );
@@ -2782,7 +2783,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::ProfileProgramRefused {
             node: sp(1),
             refusal: Box::new(pncad::document::ProgramRefusal::Validate(
-                pncad::profile::ProfileError::EmptyProfile,
+                pncad::profile::ProfileError::PlaneNotFinite,
             )),
         },
         &["node"],
@@ -3101,6 +3102,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ChainG1,
         BlendDecision::ChainArm,
         BlendDecision::ConvexitySign,
+        BlendDecision::MaterialSide,
         BlendDecision::RingClearance,
         BlendDecision::SupportCoaxiality,
         BlendDecision::ContactArm,
@@ -4356,6 +4358,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "face_clearance",
             "face_clearance_uncertified",
             "inside_out_operand",
+            "knife_edge",
             "nonpositive_size",
             "op",
             "radius_headroom",
@@ -4365,7 +4368,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_irregular",
             "spine_unsupported",
             "surgery_invariant",
-            "tangential_edge",
             "unjoined_operand",
             "unsupported_chain",
             "unsupported_corner",
@@ -4453,7 +4455,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spline_crossing_unsettled",
             "split_lineage_cycle",
             "tangency_unsupported",
-            "tangent_crescent_unsupported",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
@@ -4835,6 +4836,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cap_plane",
             "cosurface_escalated",
             "degenerate_extrusion",
+            "empty_profile",
             "extrusion_escalated",
             "negative_depth",
             "oblique_extrusion",
@@ -5447,7 +5449,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_segment",
             "empty_loop",
-            "empty_profile",
             "escalated",
             "inconsistent_arc",
             "multiple_outer_loops",
@@ -5561,6 +5562,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cosurface_escalated",
             "degenerate_angle",
             "degenerate_axis",
+            "empty_profile",
             "full_range_angle",
             "hole_touches_axis",
             "non_finite_axis",
@@ -5734,6 +5736,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_section",
             "domain_not_unit",
+            "empty_profile",
             "fit",
             "knot_algebra",
             "no_parameter_step",
@@ -5994,6 +5997,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_a_run",
             "off_trace",
             "on_carrier",
+            "unbounded_carrier",
             "undrawn",
             "unevaluated",
             "unreached",
@@ -6299,6 +6303,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // refused at validation, and a body face's empty (scaffolding) loop,
     // refused by the tessellator.
     ("empty_loop", 2),
+    // One fact: the extrude, the revolve and the loft or path sweep each
+    // refuse a profile with no loops at their own door;
+    // `an_empty_profile_is_one_word_at_every_sweep` pins them.
+    ("empty_profile", 3),
     ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 5),
@@ -6517,6 +6525,20 @@ fn a_space_mismatch_has_one_word_at_the_door_and_at_evaluation() {
     assert_eq!(
         edit_error_tag(&refused),
         node_error_tag(NodeErrorClass::SpaceMismatch)
+    );
+}
+
+/// `empty_profile` is one fact at every sweep: a profile with no loops,
+/// refused at the extrude's door, the revolve's and the skin's.
+#[test]
+fn an_empty_profile_is_one_word_at_every_sweep() {
+    use crate::tags::{extrude_error_tag, revolve_error_tag, skin_error_tag};
+    use pncad::sweep::{ExtrudeError, RevolveError, SkinError};
+    let word = extrude_error_tag(&ExtrudeError::EmptyProfile);
+    assert_eq!(word, revolve_error_tag(&RevolveError::EmptyProfile));
+    assert_eq!(
+        word,
+        skin_error_tag(&SkinError::EmptyProfile { section: Some(0) })
     );
 }
 

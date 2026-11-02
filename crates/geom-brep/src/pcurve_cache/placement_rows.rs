@@ -15,12 +15,14 @@ fn band() -> Band {
 }
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle {
-        center,
-        axis,
+    Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    }
+    })
 }
 
 /// A named arm: its chart, its carrier, and an edge's span on it.
@@ -66,10 +68,7 @@ fn cone_ellipse() -> (Surface<f64>, Curve3<f64>) {
         normal: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
         u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
     };
-    let reach = crate::Reach::Measured {
-        at: Point3::new(0.0, 0.0, 0.0),
-        lever: 4.0,
-    };
+    let reach = crate::Reach::fixture(Point3::new(0.0, 0.0, 0.0), 4.0);
     match crate::intersect::plane_cone_section(&plane, &cone, &reach, band()) {
         Ok(crate::intersect::PlaneConeSection::TiltedEllipse(e)) => (cone, e),
         other => panic!("a tilted section of a cone is an ellipse: {other:?}"),
@@ -343,12 +342,15 @@ fn line_arms() -> Vec<Arm> {
 /// carrier at `t − by` is the first at `t`.
 fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
     match *carrier {
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => circle(
+        }) => circle(
             center,
             axis,
             radius,
@@ -374,7 +376,7 @@ fn a_carrier_restarted_derives_one_placed_image() {
     let band = band();
     let restartable = arms()
         .into_iter()
-        .filter(|(_, _, c, _)| matches!(c, Curve3::Circle { .. }))
+        .filter(|(_, _, c, _)| matches!(c, Curve3::Circle(..)))
         .chain(line_arms());
     for (name, surface, carrier, (t0, t1)) in restartable {
         let derive = |carrier: &Curve3<f64>, (a, b): (f64, f64)| {

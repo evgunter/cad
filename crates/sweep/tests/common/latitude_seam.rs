@@ -104,13 +104,12 @@ fn wall_side(body: &Body<f64>, face: FaceKey, h: f64, rr: f64) -> f64 {
 fn half_circle(h: f64, rr: f64, side: f64, surface: SurfaceKey) -> EdgeCurveSpec<f64> {
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::chart(surface),
-        carrier: Curve3::Circle {
-            center: Point3::new(0.0, h, 0.0),
-            // u × (−y·side) = side·z for u = +x.
-            axis: Vec3::new(0.0, -side, 0.0),
-            radius: rr,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        },
+        carrier: Curve3::circle(
+            Point3::new(0.0, h, 0.0),
+            Vec3::new(0.0, -side, 0.0),
+            rr,
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         param_start: 0.0,
         param_end: core::f64::consts::PI,
     }
@@ -377,7 +376,7 @@ pub fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, CertifyError)
                 vertex_point(body, start_v).expect("a live vertex"),
                 vertex_point(body, end_v).expect("a live vertex"),
                 |sk| body.get_surface(sk).cloned(),
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),
             )
@@ -471,14 +470,12 @@ fn latitude_arc(
                 angle: theta,
             },
         )),
-        carrier: Curve3::Circle {
-            center: Point3::new(0.0, station.y, 0.0),
-            // The rotation's own sense: `+y × +x = −z`, the way a
-            // positive turn about `+y` carries `+x`.
-            axis: Vec3::new(0.0, theta.signum(), 0.0),
-            radius: station.x,
-            u_ref: Vec3::new(cos, 0.0, -sin),
-        },
+        carrier: Curve3::circle(
+            Point3::new(0.0, station.y, 0.0),
+            Vec3::new(0.0, theta.signum(), 0.0),
+            station.x,
+            Vec3::new(cos, 0.0, -sin),
+        ),
         param_start: 0.0,
         param_end: theta.abs(),
     };

@@ -47,7 +47,7 @@
 //! rounds ([`stopped_falling`]) asks limb 3, and names the wall the step
 //! budget met ([`ResidualTrend`]). Each round's time is
 //! linear in the samples, and only the wall bounds the rounds
-//! (`work/ssimarch/ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall.md`).
+//! (`work/ssiarith/ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall.md`).
 //!
 //! **The tube rounds.** A certified ℝ³ branch is refined again where its
 //! uniqueness tube is held narrow by its samples ([`refine_for_tube`]):

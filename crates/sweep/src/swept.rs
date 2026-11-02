@@ -655,12 +655,14 @@ fn register_placed_carrier_end<T: Real>(
     start: Point2<T>,
     tol: Tol,
 ) {
-    let Curve3::Circle {
-        center,
-        axis,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    } = *carrier
+    }) = *carrier
     else {
         return;
     };
@@ -716,12 +718,12 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             // expression below rather than spelled twice: one
             // subtraction, one node, one set of bits.
             register_rigidity(rim, arc, seg.a(), tol);
-            let carrier = Curve3::Circle {
-                center: c_world,
-                axis: turn_axis(turn, normal),
-                radius: arc.radius,
-                u_ref: rim.normalize(),
-            };
+            let carrier = Curve3::circle(
+                c_world,
+                turn_axis(turn, normal),
+                arc.radius,
+                rim.normalize(),
+            );
             let param_end = arc_span(turn, arc);
             // The carrier end, stated where it is guaranteed
             // (`register_placed_carrier_end` carries the proof), about the
@@ -889,14 +891,12 @@ pub(crate) fn cap_plane<T: Decide>(
     // the two planes meet at an angle of order ε/w and the cosine is
     // ±1 to that order. Under the precondition above an escalation
     // here is a kernel defect.
-    let mut half_perimeter = T::zero();
-    for (i, &p) in ordered.iter().enumerate() {
-        half_perimeter = half_perimeter + (ordered[(i + 1) % ordered.len()] - p).norm();
-    }
-    half_perimeter = half_perimeter * T::from_f64(0.5);
     let agrees = decide(
         "cap_plane_orientation",
-        Margin::levered(normal.dot(expected_outward), half_perimeter),
+        Margin::levered(
+            normal.dot(expected_outward),
+            geom_brep::polygon_half_perimeter(&ordered),
+        ),
         band,
     )
     .map_err(CapPlaneError::Orientation)?;
@@ -1709,12 +1709,15 @@ mod tests {
             let to3 = |p: Point2<S>| place.transform_point(Point3::new(p.x, p.y, lit(0.0)));
             let (q_from, q_to) = (to3(seg.a), to3(seg.b));
             let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);
-            let Curve3::Circle {
-                center,
-                axis,
+            let Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            } = spec.carrier
+            }) = spec.carrier
             else {
                 panic!("an arc places onto a circle carrier");
             };
@@ -1983,7 +1986,8 @@ pub(crate) mod must_carry_fixtures {
         line: &Curve3<f64>,
         extent: f64,
     ) -> MustCarryEscalation {
-        match must_carry_over_edge(s1, s2, line, 0.0, extent, extent, band()) {
+        let reach = geom_core::test_support::fixture_lever(extent);
+        match must_carry_over_edge(s1, s2, line, 0.0, extent, reach, band()) {
             MustCarryVerdict::InBand(escalation) => escalation,
             other => panic!("the fixture must read in band, not {other:?}"),
         }

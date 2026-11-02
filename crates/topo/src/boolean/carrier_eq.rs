@@ -285,7 +285,7 @@ impl<T: geom_core::Real> ConsumedExtent<T> {
     /// names, for the rows that meter at one.
     #[cfg(test)]
     pub(crate) fn arm(arm: T) -> Self {
-        Self::new(geom_brep::ExtentBall::new(Point3::origin(), arm))
+        Self::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
     }
 }
 
@@ -538,7 +538,7 @@ fn sphere_data<T: Decide>(p1: Point3<T>, r1: T, p2: Point3<T>, r2: T) -> Vec<Dat
 fn cylinder_data<T: Decide>(
     (p1, a1, r1): (Point3<T>, Vec3<T>, T),
     (p2, a2, r2): (Point3<T>, Vec3<T>, T),
-    arm: T,
+    arm: geom_core::Lever<T>,
 ) -> Vec<Datum<T>> {
     vec![
         (
@@ -559,7 +559,7 @@ fn cylinder_data<T: Decide>(
 fn cone_data<T: Decide>(
     (p1, a1, t1): (Point3<T>, Vec3<T>, T),
     (p2, a2, t2): (Point3<T>, Vec3<T>, T),
-    arm: T,
+    arm: geom_core::Lever<T>,
 ) -> Vec<Datum<T>> {
     vec![
         ("carrier_cone_apex", Margin::norm3(p1 - p2)),
@@ -637,7 +637,7 @@ fn at_consumed_extent<T: geom_core::Real>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     reach: geom_brep::ExtentBall<T>,
-) -> (CarrierDesc<T>, CarrierDesc<T>, T) {
+) -> (CarrierDesc<T>, CarrierDesc<T>, geom_core::Lever<T>) {
     let centre = reach.center();
     let (c1, c2, pivot) = match (*c1, *c2) {
         (
@@ -662,7 +662,7 @@ fn at_consumed_extent<T: geom_core::Real>(
             )
         }
         (CarrierDesc::Cone { apex: p1, .. }, CarrierDesc::Cone { apex: p2, .. }) => {
-            return (*c1, *c2, reach.lever_from(p1) + (p1 - p2).norm());
+            return (*c1, *c2, reach.lever_from_within(p1, (p1 - p2).norm()));
         }
         (c1, c2) => (c1, c2, centre),
     };
@@ -751,9 +751,9 @@ fn reading<T: Decide>(
                 normal: n2,
             },
         ) => {
-            let (centre, radius) = (reach.center(), reach.radius());
+            let centre = reach.center();
             let offset = n1.dot(o1 - centre) - sigma * n2.dot(o2 - centre);
-            let swing = Margin::levered((n1 - n2 * sigma).norm(), radius).value();
+            let swing = Margin::levered((n1 - n2 * sigma).norm(), reach.lever()).value();
             ("bool_plane_reach", offset.abs() + swing)
         }
         (
@@ -784,7 +784,7 @@ fn reading<T: Decide>(
         ) => {
             let pivot = reach.foot_on(o2, a2);
             let apart = perpendicular(pivot - o1, a1).norm();
-            let arm = reach.lever_from(pivot) + apart;
+            let arm = reach.lever_from_within(pivot, apart);
             let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
             ("carrier_cyl_reach", (r1 - r2).abs() + core)
         }
@@ -803,7 +803,7 @@ fn reading<T: Decide>(
             },
         ) => {
             let apart = (p1 - p2).norm();
-            let arm = reach.lever_from(p1) + apart;
+            let arm = reach.lever_from_within(p1, apart);
             let core = apart + Margin::levered(line_tilt(a1, a2) + (t1 - t2).abs(), arm).value();
             ("carrier_cone_reach", core)
         }
@@ -1304,7 +1304,16 @@ mod tests {
         let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 5.0, 0.06, true);
         let over = [
             at(1.0),
-            ConsumedExtent::new(geom_brep::ExtentBall::of_torus(Point3::origin(), 5.0, 0.06)),
+            ConsumedExtent::new(geom_brep::ExtentBall::of_cover(
+                &geom::cover::Cover::tube(
+                    Point3::origin(),
+                    Vec3::unit_z(),
+                    Vec3::unit_x(),
+                    5.0,
+                    0.06,
+                )
+                .unwrap(),
+            )),
         ];
         for (what, other, one) in [
             (
@@ -1377,7 +1386,10 @@ mod tests {
             1.0,
             true,
         );
-        let ext = ConsumedExtent::new(geom_brep::ExtentBall::new(Point3::new(1.0, 0.0, 0.0), 1e-3));
+        let ext = ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(
+            Point3::new(1.0, 0.0, 0.0),
+            1e-3,
+        ));
         assert!(matches!(
             carrier_eq(&ring, &other, &ext, b),
             Err(CarrierEqError::Undecided { .. })

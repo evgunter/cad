@@ -784,7 +784,7 @@ fn true_reach(body: &topo::Body<f64>) -> (f64, usize) {
                             best = best.max((e.carrier.eval(t) - origin).norm());
                         }
                     }
-                    geom::Curve3::Circle { .. } => {
+                    geom::Curve3::Circle(..) => {
                         circles += 1;
                         let n = 4096;
                         for i in 0..=n {

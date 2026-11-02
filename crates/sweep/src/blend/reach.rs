@@ -731,7 +731,7 @@ fn off_surface<T: Real>(s: &Surface<T>, cell: &Cell<T>) -> Option<T> {
 /// surfaces of the supports whose sides bound it — a face on one of them
 /// lies on that side's zero set, which is the reach's boundary and never
 /// its inside.
-struct Reach<T: Real> {
+struct Stretch<T: Real> {
     bounds: Vec<Tagged<T>>,
     core: Vec<Bound<T>>,
     lo: Point3<T>,
@@ -833,12 +833,10 @@ fn faces_at<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Vec<FaceKey>, Ble
 fn foot_on<T: Real>(curve: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
     match *curve {
         Curve3::Line(line) => Some(line.foot(p)),
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
             radius,
-            ..
-        } => {
+        }) => {
             let a = axis.normalize();
             let v = p - center;
             Some(center + (v - a * v.dot(a)).normalize() * radius)
@@ -886,7 +884,7 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
     }
 }
 
-/// **The premise [`Reach::replaces`] stands on, metered**: the strip
+/// **The premise [`Stretch::replaces`] stands on, metered**: the strip
 /// of `face` a link's band replaces holds no vertex of `face` but the
 /// request's own (`ends`). `region` over-covers the strip on both sides
 /// of the edge; `across`, where the link has one, is the side of the
@@ -992,16 +990,8 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
             major_radius,
             minor_radius,
             u_ref,
-        } => foot_on(
-            &Curve3::Circle {
-                center,
-                axis,
-                radius: major_radius,
-                u_ref,
-            },
-            p,
-        )
-        .map(|c| (c, minor_radius)),
+        } => foot_on(&Curve3::circle(center, axis, major_radius, u_ref), p)
+            .map(|c| (c, minor_radius)),
         _ => None,
     };
     Ok(Station { p, fa, fb, c })
@@ -1017,7 +1007,7 @@ fn straight_reach<T: Decide + Bounds>(
     (request, taken): (&[VertexKey], &[LoopKey]),
     chain: usize,
     band: Band,
-) -> Result<Reach<T>, BlendError> {
+) -> Result<Stretch<T>, BlendError> {
     let start = point_of(body, link.start)?;
     let end = point_of(body, link.end)?;
     let tau = (end - start).normalize();
@@ -1232,7 +1222,7 @@ fn straight_reach<T: Decide + Bounds>(
     }
     .foot(start);
     let (a, b) = (base + tau * w_lo, base + tau * w_hi);
-    Ok(Reach {
+    Ok(Stretch {
         bounds,
         core: if exact { core } else { Vec::new() },
         lo: Point3::new(
@@ -1268,7 +1258,7 @@ fn circular_reach<T: Decide + Bounds>(
     request: &[VertexKey],
     chain: usize,
     band: Band,
-) -> Result<Reach<T>, BlendError> {
+) -> Result<Stretch<T>, BlendError> {
     let Surface::Torus {
         center,
         axis,
@@ -1370,7 +1360,7 @@ fn circular_reach<T: Decide + Bounds>(
     // are its band's own cross-section revolved, and `at_strict` takes
     // the slack the other way; a cone is read on both nappes and a
     // sphere's or a torus's trace is a circle, so those stay bounds.
-    Ok(Reach {
+    Ok(Stretch {
         core: if exact {
             bounds.iter().map(|(_, b)| b.clone()).collect()
         } else {
@@ -1396,7 +1386,7 @@ fn circular_reach<T: Decide + Bounds>(
 /// **An axis's canonical frame**: the point of the line nearest the
 /// origin, and its unit direction signed so that its largest component is
 /// positive. Coaxial bands share it, so the bounds of one are functions
-/// of the other's sheet too ([`Reach::sheet`]); a frame that differs in
+/// of the other's sheet too ([`Stretch::sheet`]); a frame that differs in
 /// a bit only loses that sharing.
 fn canonical_axis<T: Bounds>(p: Point3<T>, axis: Vec3<T>) -> (Point3<T>, Vec3<T>) {
     let a = axis.normalize();
@@ -1411,7 +1401,7 @@ fn canonical_axis<T: Bounds>(p: Point3<T>, axis: Vec3<T>) -> (Point3<T>, Vec3<T>
 
 /// A corner patch's reach, and the points its incident links' windows
 /// widen to.
-type CornerReach<T> = (Reach<T>, Vec<Point3<T>>);
+type CornerReach<T> = (Stretch<T>, Vec<Point3<T>>);
 
 /// **The reach of a corner patch** at `v` (module docs), and the points
 /// whose run along each incident edge widens that link's window: the
@@ -1541,7 +1531,7 @@ fn corner_reach<T: Decide + Bounds>(
     let far = far + far;
     let e = Vec3::new(far, far, far);
     Ok(Some((
-        Reach {
+        Stretch {
             bounds,
             core: Vec::new(),
             lo: pv - e,
@@ -1614,7 +1604,7 @@ impl<T: Bounds> Least<T> {
 /// **The least cell bound of one face against one reach in space**
 /// (module docs): positive certifies the face clear of it.
 fn face_bound<T: Decide + Bounds>(
-    reach: &Reach<T>,
+    reach: &Stretch<T>,
     surface: &Surface<T>,
     (lo, hi): ([f64; 3], [f64; 3]),
     extra: &dyn Fn(&Cell<T>) -> Option<T>,
@@ -1802,11 +1792,11 @@ fn sheet_clip<T: Decide + Bounds>(
                         [hi(|p| p.x).hi(), hi(|p| p.y).hi(), hi(|p| p.z).hi()],
                     ]
                 }
-                Curve3::Circle { .. } => {
+                Curve3::Circle(..) => {
                     let b = geom::curves::boxes::circle_arc_aabb(carrier, t0, t1, p0, p1)?;
                     [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]]
                 }
-                Curve3::Ellipse { .. } => {
+                Curve3::Ellipse(..) => {
                     let b = geom::curves::boxes::ellipse_arc_aabb(carrier, t0, t1, p0, p1)?;
                     [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]]
                 }
@@ -1832,12 +1822,10 @@ fn sheet_clip<T: Decide + Bounds>(
                 .max((z0 - zc).abs())
                 .max((z1 - zc).abs());
             let (d_theta, e_theta, e_j, z_e) = match *carrier {
-                Curve3::Circle {
-                    center,
-                    axis,
+                Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { center, axis, .. },
                     radius,
-                    ..
-                } => {
+                }) => {
                     let ax = axis.normalize();
                     let dot = ax.dot(a);
                     let d_lat = off(center) + tilt(ax) * radius;
@@ -1978,7 +1966,7 @@ fn sheet_clip<T: Decide + Bounds>(
 fn face_bound_in_sheet<T: Decide + Bounds>(
     body: &Body<T>,
     face: Option<FaceKey>,
-    reach: &Reach<T>,
+    reach: &Stretch<T>,
     surface: &Surface<T>,
     (lo, hi): ([f64; 3], [f64; 3]),
     extra: &dyn Fn(Rect<T>) -> Option<T>,
@@ -2643,7 +2631,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             .collect()
     };
     // Corner patches first: a link's window ends at its corner's.
-    let mut reaches: Vec<Reach<T>> = Vec::new();
+    let mut reaches: Vec<Stretch<T>> = Vec::new();
     let mut corners: Vec<(VertexKey, Vec<Point3<T>>)> = Vec::new();
     let mut verts: Vec<VertexKey> = all.iter().flat_map(|(_, l)| [l.start, l.end]).collect();
     verts.sort_unstable();
@@ -2785,7 +2773,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             let supports_a_band = reaches
                 .iter()
                 .any(|r| r.replaces.iter().any(|(f, _)| *f == face));
-            let exacts: Vec<&Reach<T>> = if supports_a_band {
+            let exacts: Vec<&Stretch<T>> = if supports_a_band {
                 Vec::new()
             } else {
                 reaches
@@ -2936,7 +2924,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         // concave reach (its faces' surviving parts above, its own band
         // surface here, the other way round).
         let removes = chains[reach.chain].first().convexity == Convexity::Convex;
-        let apart = |r: &Reach<T>| {
+        let apart = |r: &Stretch<T>| {
             r.chains
                 .iter()
                 .all(|x| reach.chains.iter().all(|y| x != y && !meet(*x, *y)))
@@ -3006,7 +2994,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
 
 /// Whether two reaches are read in one and the same meridian sheet, so
 /// that the bounds of one are functions of the other's sheet.
-fn same_sheet<T: Bounds>(a: &Reach<T>, b: &Reach<T>) -> bool {
+fn same_sheet<T: Bounds>(a: &Stretch<T>, b: &Stretch<T>) -> bool {
     matches!((a.sheet, b.sheet), (Some(x), Some(y)) if same_frame(x, y))
 }
 
@@ -3030,7 +3018,7 @@ fn same_frame<T: Bounds>(x: (Point3<T>, Vec3<T>), y: (Point3<T>, Vec3<T>)) -> bo
 fn metered<T: Decide + Bounds>(
     body: &Body<T>,
     face: Option<FaceKey>,
-    reach: &Reach<T>,
+    reach: &Stretch<T>,
     surface: &Surface<T>,
     bounds: ([f64; 3], [f64; 3]),
     extra: &dyn Fn(&Cell<T>) -> Option<T>,
@@ -3078,13 +3066,11 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
 ) -> Result<(), BlendError> {
     let mut links = Vec::with_capacity(req.edges.len());
     for edge in &req.edges {
-        links.push(super::battery::resolve_link(
-            req.body,
-            *edge,
-            req.size,
-            band,
-            BlendKind::Fillet,
-        )?);
+        if let super::battery::Resolved::Link(link) =
+            super::battery::resolve_link(req.body, *edge, req.size, band, BlendKind::Fillet)?
+        {
+            links.push(link);
+        }
     }
     let (chains, _) =
         super::battery::broken_at_turns(req.body, super::battery::walk_chains(links), band)?;
@@ -3820,12 +3806,12 @@ mod tests {
     #[test]
     #[allow(clippy::expect_used)]
     fn a_curve_is_read_in_a_core_piecewise_and_tightened() {
-        let circle = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let core = |d: f64| {
             [Bound::Affine {
                 n: Vec3::new(1.0, 0.0, 0.0),

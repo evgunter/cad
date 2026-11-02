@@ -18,7 +18,7 @@
 //! [`self_intersection`] asks the strict question. They exist for the
 //! engine's rows and for the strict question; a document question that
 //! reaches for them is asking the wrong door
-//! (`work/cleartail/the-metric-clearance-dials-door-outlives-the-assertion.md`).
+//! (`work/clear/the-metric-clearance-dials-door-outlives-the-assertion.md`).
 //!
 //! Two nested subdivisions. The OUTER one is [`mod@crate::drive`]'s: it
 //! hands this module a leaf whose topology is provably the witness

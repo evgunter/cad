@@ -514,7 +514,7 @@ mod tests {
                 slot: SlotId::Distance,
                 source: EvalError::NonFiniteResult,
             },
-            C::Profile => K::Profile(profile::ProfileError::EmptyProfile),
+            C::Profile => K::Profile(profile::ProfileError::PlaneNotFinite),
             C::ProfileReplay => K::ProfileReplay {
                 loop_: 0,
                 error: profile::ReplayError {
@@ -550,6 +550,7 @@ mod tests {
                     BlendKind::Chamfer
                 },
                 error: sweep::blend::BlendError::NonpositiveSize { size: 0.0 },
+                edge: None,
             },
             C::Boolean => K::Boolean(topo::BooleanError::UnrepresentableResult),
             C::Transform => K::Transform(topo::TransformError::NurbsPlaceholder),

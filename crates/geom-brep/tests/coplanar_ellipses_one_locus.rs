@@ -57,13 +57,11 @@ fn section(r: f64, tilt: f64, across: f64) -> Curve3<f64> {
     let d = (n * c + e1 * s + e2 * across).normalize();
     let sin_vec = d.cross(n);
     let minor = sin_vec / sin_vec.norm();
-    Curve3::Ellipse {
-        center: centre(),
-        axis: n,
-        semi_u: r / d.dot(n).abs(),
-        semi_v: r,
-        u_ref: minor.cross(n),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(centre(), n, minor.cross(n)),
+        r / d.dot(n).abs(),
+        r,
+    ))
 }
 
 /// The ellipse of semi-axes `a` along `e₁` turned by `turn` in the plane
@@ -72,13 +70,11 @@ fn section(r: f64, tilt: f64, across: f64) -> Curve3<f64> {
 fn turned(a: f64, b: f64, turn: f64, frame: f64, at: Point3<f64>) -> Curve3<f64> {
     let (n, e1, e2) = skew_frame();
     let (s, c) = (turn + frame).sin_cos();
-    Curve3::Ellipse {
-        center: at,
-        axis: n,
-        semi_u: a,
-        semi_v: b,
-        u_ref: (e1 * c + e2 * s).normalize(),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(at, n, (e1 * c + e2 * s).normalize()),
+        a,
+        b,
+    ))
 }
 
 /// Every reading of the pair: the pose either way round over arcs that
@@ -157,16 +153,18 @@ fn one_ellipse_in_two_frames_is_one_curve() {
             let swapped = turned(0.5 * r, r, 0.3, FRAC_PI_2, at);
             assert_one(&label("semi-axes swapped"), &e, &swapped, band);
             let (n, ..) = skew_frame();
-            let Curve3::Ellipse { u_ref, .. } = e else {
+            let Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { u_ref, .. },
+                ..
+            }) = e
+            else {
                 unreachable!()
             };
-            let upside = Curve3::Ellipse {
-                center: at,
-                axis: n * -1.0,
-                semi_u: r,
-                semi_v: 0.5 * r,
-                u_ref: u_ref * -1.0,
-            };
+            let upside = Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(at, n * -1.0, u_ref * -1.0),
+                r,
+                0.5 * r,
+            ));
             assert_one(&label("upside down"), &e, &upside, band);
             let a = 1.001 * r;
             let (e, f) = (
@@ -229,12 +227,16 @@ fn from_bits(line: &str) -> (Curve3<f64>, Curve3<f64>) {
         .map(|h| f64::from_bits(u64::from_str_radix(h, 16).unwrap()))
         .collect();
     assert_eq!(x.len(), 22, "two conics of eleven numbers: {line}");
-    let conic = |x: &[f64]| Curve3::Ellipse {
-        center: Point3::new(x[0], x[1], x[2]),
-        axis: Vec3::new(x[3], x[4], x[5]),
-        u_ref: Vec3::new(x[6], x[7], x[8]),
-        semi_u: x[9],
-        semi_v: x[10],
+    let conic = |x: &[f64]| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(x[0], x[1], x[2]),
+                Vec3::new(x[3], x[4], x[5]),
+                Vec3::new(x[6], x[7], x[8]),
+            ),
+            x[9],
+            x[10],
+        ))
     };
     (conic(&x[..11]), conic(&x[11..]))
 }
@@ -285,20 +287,22 @@ fn ellipses_whose_computed_frames_agree_past_their_exact_ones_are_not_one_curve(
 #[test]
 fn an_ellipse_with_its_frame_an_ulp_off_unit_past_the_zero_of_a_circle_is_not_one_curve() {
     let band = band_at(1e-12);
-    let circle = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 100.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let circle = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 1.0),
+        100.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     for (a, b) in [(100.0 + 1e-12, 100.0), (100.0, 100.0 + 1e-12)] {
-        let e = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(0.6f64.next_up(), 0.8, 0.0),
-            semi_u: a,
-            semi_v: b,
-        };
+        let e = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(0.6f64.next_up(), 0.8, 0.0),
+            ),
+            a,
+            b,
+        ));
         assert_not_one(&format!("a {a}, b {b}"), &e, &circle, band);
     }
 }

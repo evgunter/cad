@@ -86,8 +86,9 @@ fn a_short_shallow_strut_between_wide_walls_rests_as_their_intersection() {
     let mid = Point3::new(0.0, 0.0, h / 2.0);
     let reach = topo::edge_wedge_reach(&body, strut).unwrap();
     assert!(
-        reach >= 1.0,
-        "the walls reach a metre from the strut: {reach}"
+        reach.length() >= 1.0,
+        "the walls reach a metre from the strut: {}",
+        reach.length()
     );
     assert_eq!(
         geom_brep::classify_dihedral(&sf, &sg, mid, reach, band),
@@ -95,7 +96,13 @@ fn a_short_shallow_strut_between_wide_walls_rests_as_their_intersection() {
         "levered at the walls' extent the turn is a corner"
     );
     assert_eq!(
-        geom_brep::classify_dihedral(&sf, &sg, mid, h, band),
+        geom_brep::classify_dihedral(
+            &sf,
+            &sg,
+            mid,
+            geom_core::test_support::fixture_lever(h),
+            band
+        ),
         Ok(DihedralClass::Smooth),
         "levered at the strut's own length the same turn reads smooth"
     );
@@ -105,7 +112,7 @@ fn a_short_shallow_strut_between_wide_walls_rests_as_their_intersection() {
 /// convexity is the wedge between the strut's two walls, levered at
 /// their extent (`topo::wedge_reach`) like every other reader of it: at
 /// the strut's own length the turn's margin `α·h = ε/2` would refuse
-/// `TangentialEdge`, at the walls' metre it is a definite convex
+/// `KnifeEdge`, at the walls' metre it is a definite convex
 /// corner, and the fillet's refusal, if any, is not that one.
 #[test]
 fn the_fillet_battery_reads_the_short_shallow_strut_as_a_corner() {
@@ -116,7 +123,7 @@ fn the_fillet_battery_reads_the_short_shallow_strut_as_a_corner() {
     let at_rest = sweep::test_support::at_rest(&body, tol);
     // A radius whose trimlines clear the plate's other features at
     // every ε row: smaller ones refuse at 1e-6 on the strut's caps and
-    // corners, each a reading of its own, never `TangentialEdge`.
+    // corners, each a reading of its own, never `KnifeEdge`.
     let out = sweep::blend::fillet_edges(&at_rest, &[strut], 0.9, tol)
         .unwrap_or_else(|e| panic!("the strut fillets as the walls' corner: {e:?}"));
     assert_eq!(

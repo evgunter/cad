@@ -456,6 +456,16 @@ struct Crossing<T: Decide> {
     germ: Option<geom_core::Vec3<T>>,
 }
 
+/// The farthest a face's crossings stand from `from`: a read of the
+/// points they consume.
+fn crossing_reach<T: Decide>(crossings: &[Crossing<T>], from: Point3<T>) -> geom_core::Lever<T> {
+    crossings
+        .iter()
+        .fold(geom_brep::ExtentBall::point(from).lever(), |far, c| {
+            far.max(geom_brep::ExtentBall::point(c.point).lever_from(from))
+        })
+}
+
 /// A planar face's crossings paired along its section line: keyed by
 /// their along-line coordinate `(p − origin)·d̂`, `d = n_face × n_plane`,
 /// ordered by [`super::order::sort_along_line`], each taking the first
@@ -479,10 +489,7 @@ fn line_pairs<T: Decide>(
     crossings: &[Crossing<T>],
     band: Band,
 ) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
-    let mut spread = T::zero();
-    for c in crossings {
-        spread = spread.max((c.point - crossings[0].point).norm());
-    }
+    let spread = crossing_reach(crossings, crossings[0].point);
     let d = normal.cross(red.plane.normal.get());
     match decide(
         "split_join_face_line",
@@ -591,10 +598,7 @@ fn ruling_pairs<T: Decide>(
                 "split_join_ruling_germ",
                 Margin::levered(
                     germ.cross(lines[1].1).norm() - germ.cross(lines[0].1).norm(),
-                    crossings
-                        .iter()
-                        .map(|o| (o.point - c.point).norm())
-                        .fold(T::zero(), T::max),
+                    crossing_reach(crossings, c.point),
                 ),
                 band,
             ),
@@ -1112,17 +1116,11 @@ impl<T: Decide> Sweep<T> {
                 placeholders += 1;
                 continue;
             }
-            let Some(crate::loop_winding::ConicFrame {
-                center: c_e,
-                axis: axis_e,
-                sa,
-                sb,
-                reach,
-                ..
-            }) = crate::loop_winding::ConicFrame::of(curve.carrier())
-            else {
+            let Some(conic) = curve.carrier().conic() else {
                 continue;
             };
+            let (c_e, axis_e) = (conic.frame().center, conic.frame().axis);
+            let ((sa, sb), reach) = (conic.semi_axes(), conic.speed_hi());
             let (t0, t1) = curve.params();
             let span = t1 - t0;
             let forward = edge.he_plus == he;
@@ -1138,7 +1136,7 @@ impl<T: Decide> Sweep<T> {
                 - a.cross(b).dot(self.plane.normal.get());
             twice_area = twice_area + excess;
             // The arc's length over-stated by its larger semi-axis
-            // magnitude (`reach`), whichever is stored first.
+            // (`reach`), whichever is stored first.
             perimeter = perimeter + (reach * span.abs() - (b - a).norm());
         }
         // `twice_area` IS 2A (shoelace), so dividing by the full

@@ -28,5 +28,5 @@ at `window_of`'s cone arm. The second is a core living inside one
 consumer (clearance). The fix moves it to a home both read, and
 `cone_axial_window` takes it in place of the azimuth rule, with a row
 on a seamed frustum whose axial range stops short of the apex.
-`work/shelf/cone-v-window-misses-an-apex-held-inside-the-face.md`
+`work/shell/cone-v-window-misses-an-apex-held-inside-the-face.md`
 wants the same reading in `replace_face`.

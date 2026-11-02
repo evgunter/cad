@@ -2,7 +2,7 @@
 id: placing
 kind: program
 title: PLACING — how the viewer writes a placement: the mate tool, and the gestures that re-point, move or delete one
-status: ready
+status: active
 opened: 2026-11-01
 group: gui/author
 prefix: placing/

@@ -2,9 +2,11 @@
 id: the-add-profile-form-takes-numbers-and-no-formula
 kind: issue
 title: The add-profile form takes only numbers: a step's argument cannot be written as a variable or a formula until the profile is committed
-status: open
+status: dispatched
 opened: 2026-10-31
 priority: P1
+cost: E
+rides_with: the-profile-create-form-is-a-second-profile-editor
 ---
 
 

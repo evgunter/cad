@@ -34,7 +34,7 @@ faces share vertices. Examples are a triangle-section loft, where every
 wall shares a seam with both neighbours and a cap vertex with the
 other, and a cone's lateral faces. Adjacent loft walls that cross away
 from their shared seam can never be seen, which is the shape of
-`work/carvetail/loft-between-opposite-turning-joints-reverses-a-seam-between-stations.md`
+`work/lathe/loft-between-opposite-turning-joints-reverses-a-seam-between-stations.md`
 and of a roll near a half turn.
 
 The local justification (faces that share a vertex meet there) needs a

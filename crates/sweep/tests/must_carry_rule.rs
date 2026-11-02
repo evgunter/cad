@@ -281,7 +281,7 @@ fn is_strut(c: &Curve3<f64>) -> bool {
 /// The bored ring's smooth latitude join: the one circle at the bore
 /// radius. Every other latitude circle of the fixture is wider.
 fn is_bore_circle(r_bore: f64) -> impl Fn(&Curve3<f64>) -> bool {
-    move |c| matches!(c, Curve3::Circle { radius, .. } if (radius - r_bore).abs() < r_bore * 1e-9)
+    move |c| matches!(c, Curve3::Circle(geom::Circle { radius, .. }) if (radius - r_bore).abs() < r_bore * 1e-9)
 }
 
 /// The typed escalation an in-band row must carry: the predicate name
@@ -535,6 +535,7 @@ fn both_orders(
     t1: f64,
     extent: f64,
 ) -> (MustCarryVerdict, MustCarryVerdict) {
+    let extent = geom_core::test_support::fixture_lever(extent);
     (
         must_carry_over_edge(s1, s2, carrier, 0.0, t1, extent, band()),
         must_carry_over_edge(s2, s1, carrier, 0.0, t1, extent, band()),
@@ -595,12 +596,12 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
         radius: MERIDIAN_R,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let arc = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: MERIDIAN_R,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let arc = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        MERIDIAN_R,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     assert!(
         geom_brep::tangent_certificate_lane(&arc, &cap, &band_wall)
             && geom_brep::tangent_certificate_lane(&arc, &band_wall, &cap),
@@ -825,7 +826,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
         &ruling,
         pr(0.0),
         pr(MERIDIAN_R),
-        pr(MERIDIAN_R),
+        geom_core::test_support::fixture_lever(pr(MERIDIAN_R)),
         band(),
     );
     let spent = count(k_stats::take_samples());
@@ -849,7 +850,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
         &ruling,
         pr(0.0),
         pr(short),
-        pr(short),
+        geom_core::test_support::fixture_lever(pr(short)),
         band(),
     );
     let spent_under = count(k_stats::take_samples());
@@ -898,7 +899,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
             &carrier,
             Probe(0.0),
             Probe(1.0),
-            Probe(1.0),
+            geom_core::test_support::fixture_lever(Probe(1.0)),
             band(),
         );
         let after = k_stats::take_samples();

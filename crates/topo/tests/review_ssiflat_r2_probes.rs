@@ -51,12 +51,12 @@ fn tilted_plane<T: Real>() -> Surface<T> {
 }
 
 fn general_circle<T: Real>(radius: f64) -> Curve3<T> {
-    Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(T::from_f64(TILT.sin()), T::zero(), T::from_f64(TILT.cos())),
-        radius: T::from_f64(radius),
-        u_ref: Vec3::new(T::from_f64(TILT.cos()), T::zero(), T::from_f64(-TILT.sin())),
-    }
+    Curve3::circle(
+        Point3::origin(),
+        Vec3::new(T::from_f64(TILT.sin()), T::zero(), T::from_f64(TILT.cos())),
+        T::from_f64(radius),
+        Vec3::new(T::from_f64(TILT.cos()), T::zero(), T::from_f64(-TILT.sin())),
+    )
 }
 
 /// The arc as a RUNG-3 carrier at `T` (`fixture::arc_chain`): these

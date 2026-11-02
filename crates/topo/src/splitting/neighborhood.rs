@@ -90,6 +90,23 @@ use crate::sector_shape::{
 };
 use crate::validate::decide;
 
+impl SectorFaceError {
+    /// The split's refusal of `vertex`, whose sector the walk could not
+    /// resolve: a kind the split does not cut, or a cone's apex undecided.
+    pub(crate) fn split_refusal(self, vertex: VertexKey) -> SplitReduceError {
+        match self {
+            Self::Unsupported { face, kind }
+            | Self::Crease { face, kind }
+            | Self::Unplaced { face, kind } => {
+                SplitReduceError::CurvedBooleanUnsupported { face, kind }
+            }
+            Self::ApexUndecided { face, diag } => {
+                SplitReduceError::ApexUndecided { vertex, face, diag }
+            }
+        }
+    }
+}
+
 /// Resolves the sector face for the sector CW-after `he` (module docs:
 /// `face(loop(mate(he)))`) together with its outward normal **at the
 /// base vertex** and whether the surface is a plane.
@@ -133,16 +150,8 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<(FaceKey, VertexFace<T>, bool), SplitReduceError> {
-    let resolved = crate::sector_face::resolve(body, vertex, he, band).map_err(|e| match e {
-        SectorFaceError::Unsupported { face, kind }
-        | SectorFaceError::Crease { face, kind }
-        | SectorFaceError::Unplaced { face, kind } => {
-            SplitReduceError::CurvedBooleanUnsupported { face, kind }
-        }
-        SectorFaceError::ApexUndecided { face, diag } => {
-            SplitReduceError::ApexUndecided { vertex, face, diag }
-        }
-    })?;
+    let resolved =
+        crate::sector_face::resolve(body, vertex, he, band).map_err(|e| e.split_refusal(vertex))?;
     match resolved.carrier {
         SectorCarrier::Plane => Ok((resolved.face, resolved.at_vertex, true)),
         SectorCarrier::Cylinder | SectorCarrier::Cone => {
@@ -176,7 +185,7 @@ pub(super) fn sector_face<T: Decide>(
 ///   near-closed arcs, and is not a spline's direction), with the
 ///   edge's [`geom_brep::ConicBend`] there.
 #[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic bend) — one internal tuple
-pub(super) fn chord<T: Decide>(
+pub(crate) fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
@@ -200,12 +209,12 @@ pub(super) fn chord<T: Decide>(
     )?;
     match curve.carrier() {
         geom::Curve3::Line(_) => Ok((final_vertex, p_final - p_base, None)),
-        geom::Curve3::Circle { .. }
-        | geom::Curve3::Ellipse { .. }
+        geom::Curve3::Circle(..)
+        | geom::Curve3::Ellipse(..)
         | geom::Curve3::Spiric { .. }
         | geom::Curve3::Nurbs(_) => {
             let departure =
-                geom_brep::ConicDeparture::of(curve, he == edge.he_plus, p_final.distance(p_base));
+                geom_brep::ConicDeparture::of(curve, he == edge.he_plus, (p_final, p_base));
             Ok((final_vertex, departure.dir, Some(departure.bend)))
         }
     }
@@ -253,15 +262,15 @@ pub(crate) fn entry_side<T: Decide, E>(
     far: impl FnOnce(VertexKey) -> Result<PlaneSide, E>,
     band: Band,
 ) -> Result<(Vec3<T>, PlaneSide), EntryFault<E>> {
-    use crate::bound_side::{BoundSide, Descent, Reach, Side};
+    use crate::bound_side::{BoundSide, BoundSupport, Descent, Side};
     let (final_vertex, dir, conic_bend) = chord(body, vertex, he).map_err(EntryFault::Walk)?;
     let Some(bend) = conic_bend else {
         return far(final_vertex)
             .map(|side| (dir, side))
             .map_err(EntryFault::Far);
     };
-    let reach = Reach::Conic {
-        extent: dir.norm(),
+    let reach = BoundSupport::Conic {
+        extent: crate::boolean::sectors::departure_arm_lever(dir),
         bend,
     };
     let side = match crate::bound_side::read_plane_side(dir, reach, reference, band) {
@@ -329,7 +338,7 @@ pub(crate) fn wide_entries<T: Decide>(
         .map(|d: Vec3<T>| {
             let side = match decide(
                 "split_bisector_side",
-                Margin::levered(d.dot(normal), arm),
+                Margin::levered(d.dot(normal), crate::boolean::sectors::metering_arm(arm)),
                 band,
             )
             .map_err(sliver)?

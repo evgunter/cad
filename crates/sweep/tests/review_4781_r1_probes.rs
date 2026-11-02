@@ -395,7 +395,7 @@ fn review_4781_touch_pairs_every_op() {
     // Pinned since PR 5728 (limb 2 for every carrier): at ε = 1e-12 a
     // cylinder fixture (extent 2236) refuses as limb 2's kernel limit,
     // bound 3.67e-12
-    // (`work/offset/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`).
+    // (`work/shell/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],

@@ -120,7 +120,7 @@ fn seam_delta(
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -144,12 +144,12 @@ fn r2_probe_sphere_seam_bit_move() {
     };
     // Meridian in the x-z halfplane (x > 0): a circle about -y so the
     // traversal runs south-to-north, radius r + d (radial drift).
-    let carrier = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, -1.0, 0.0),
-        radius: r + d,
-        u_ref: Vec3::unit_x(),
-    };
+    let carrier = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, -1.0, 0.0),
+        r + d,
+        Vec3::unit_x(),
+    );
     let (delta, legacy, now) = seam_delta(
         sphere,
         Point3::origin(),

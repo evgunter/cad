@@ -52,12 +52,7 @@ fn sector<T: Real + AtRestPolicy>(alpha: f64) -> Result<Body<T>, String> {
             tol,
         )
         .map_err(|e| format!("mev ruling {e:?}"))?;
-    let rim = Curve3::Circle {
-        center: p(0.0, 0.0, h),
-        axis: v(0.0, 0.0, 1.0),
-        radius: f(r),
-        u_ref: v(1.0, 0.0, 0.0),
-    };
+    let rim = Curve3::circle(p(0.0, 0.0, h), v(0.0, 0.0, 1.0), f(r), v(1.0, 0.0, 0.0));
     let arc = body
         .mev(
             MevSite::Fan {
@@ -167,12 +162,8 @@ fn truncated<T: Real + AtRestPolicy>(alpha: f64, inner: f64) -> Result<Body<T>, 
     let (r_in, h_in, r_out, h_out) = (inner * s, inner * c, SL * s, SL * c);
     let (a1, a2) = (p(r_in, 0.0, h_in), p(r_out, 0.0, h_out));
     let (b1, b2) = (p(-r_in, 0.0, h_in), p(-r_out, 0.0, h_out));
-    let rim = |h: f64, r: f64| Curve3::Circle {
-        center: p(0.0, 0.0, h),
-        axis: v(0.0, 0.0, 1.0),
-        radius: f(r),
-        u_ref: v(1.0, 0.0, 0.0),
-    };
+    let rim =
+        |h: f64, r: f64| Curve3::circle(p(0.0, 0.0, h), v(0.0, 0.0, 1.0), f(r), v(1.0, 0.0, 0.0));
     let mut body = Body::<T>::new();
     let seed = body.mvfs(a1, true).map_err(|e| format!("mvfs {e:?}"))?;
     body.set_face_surface(

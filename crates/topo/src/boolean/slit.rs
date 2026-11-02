@@ -1253,7 +1253,7 @@ fn conic_or_line_on<T: Decide>(
             (Samples::Ends, RIDER_ON_PLANE, Coincide::EdgeOnPlane)
         }
         (
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. },
+            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
             &geom::Surface::Plane { origin, normal, .. },
         ) => {
             return match crate::splitting::plane_crossing_lane(
@@ -1297,7 +1297,7 @@ fn conic_or_line_on<T: Decide>(
             };
         }
         (
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. },
+            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
             | geom::Surface::Cone { .. }
@@ -1389,12 +1389,14 @@ mod torus_rows {
         radius: f64,
         u_ref: Vec3<f64>,
     ) -> geom::Curve3<f64> {
-        geom::Curve3::Circle {
-            center,
-            axis,
+        geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        }
+        })
     }
 
     #[test]
@@ -1462,13 +1464,11 @@ mod torus_rows {
             ("a meridian shifted 1e-3", meridian(3.001), false),
             (
                 "an ellipse of semi-axes 3 and 3.001 in the top plane, through (3, 0, 1)",
-                geom::Curve3::Ellipse {
-                    center: Point3::new(0.0, 0.0, 1.0),
-                    axis: Vec3::unit_z(),
-                    semi_u: 3.0,
-                    semi_v: 3.001,
-                    u_ref: Vec3::unit_x(),
-                },
+                geom::Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
+                    3.0,
+                    3.001,
+                )),
                 false,
             ),
             (
@@ -1521,12 +1521,12 @@ mod torus_rows {
         radius: f64,
     ) -> geom::Curve3<f64> {
         let v = |a: [f64; 3]| Vec3::new(a[0], a[1], a[2]);
-        geom::Curve3::Circle {
-            center: Point3::new(center[0], center[1], center[2]),
-            axis: v(axis).normalize(),
+        geom::Curve3::circle(
+            Point3::new(center[0], center[1], center[2]),
+            v(axis).normalize(),
             radius,
-            u_ref: v(u_ref).normalize(),
-        }
+            v(u_ref).normalize(),
+        )
     }
 
     /// The band at the default ε, whatever row the run is on.
@@ -1731,7 +1731,7 @@ fn walls_inside<T: Decide>(
                 ) else {
                     return Err(refused(unread));
                 };
-                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm);
+                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm.length());
                 let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, apart, band)
                     .map_err(sectors)?;
                 match side {
@@ -1824,7 +1824,7 @@ pub(super) const RIDER_WALL_BEND_ACROSS: &str = "bool_rider_wall_bend_across";
 fn coplanar_wall_inside<T: Decide>(
     normal: geom_core::Vec3<T>,
     floor: geom_core::Vec3<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
     refused: impl Fn(EdgeInFaceGap) -> BooleanError,
 ) -> Result<bool, BooleanError> {

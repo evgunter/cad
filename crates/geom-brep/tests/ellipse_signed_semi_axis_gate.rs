@@ -1,7 +1,6 @@
 //! The certify gate on an ellipse's stored semi-axes: it meters either
-//! ORDER (the smaller magnitude is the speed floor), refuses a
-//! non-positive `minor` as it always has, and admits a negative `major`
-//! as it always has (tier 3 refuses that one on its value).
+//! ORDER (the smaller semi-axis is the speed floor) and refuses a
+//! non-positive semi-axis, either one.
 
 #![allow(clippy::unwrap_used)]
 
@@ -12,19 +11,16 @@ use geom_brep::{
 use geom_core::{Band, Point3, Tol, Vec3};
 use slotmap::SlotMap;
 
-/// **The gate is not widened: a negative `minor` is refused, either
-/// order is metered.** The plane `z = 0` cuts a unit cylinder leaning
-/// 0.5 rad in xz in the ellipse `a = 1/cos 0.5`, `b = 1` about the
-/// origin. Stored as `(a, b)` or swapped as `(b, a)` with `u_ref` along
-/// the minor axis, its quarter arc certifies; stored with `minor = −1`
-/// (the same locus, traversed the other way) it is refused as a span
-/// that does not run forward (`StatedInterval`, at this minting door), as
-/// the gate refused it before the span meter
-/// read semi-axis magnitudes — read at `min(|a|, |b|)` it certified,
-/// which widened the gate. A negative `major` certifies as it always
-/// has (`tier3_tests` mints one so check 1 can refuse it).
+/// **Either order is metered; a negative semi-axis, either one, is
+/// refused.** The plane `z = 0` cuts a unit cylinder leaning 0.5 rad in
+/// xz in the ellipse `a = 1/cos 0.5`, `b = 1` about the origin. Stored as
+/// `(a, b)` or swapped as `(b, a)` with `u_ref` along the minor axis, its
+/// quarter arc certifies; stored with `minor = −1` or with `major = −a`
+/// and `u_ref` flipped (each the same locus, one traversed the other way)
+/// it is refused as a span that does not run forward (`StatedInterval`,
+/// at this minting door): both semi-axes are positive at every door.
 #[test]
-fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
+fn the_gate_meters_either_order_and_refuses_a_negative_semi_axis() {
     let band = Band::linear(Tol::witness()).unwrap();
     let alpha: f64 = 0.5;
     let (a, b) = (1.0 / alpha.cos(), 1.0);
@@ -42,13 +38,11 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
     });
     let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
     let certify = |major: f64, minor: f64, u_ref: Vec3<f64>| {
-        let e = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: major,
-            semi_v: minor,
-            u_ref,
-        };
+        let e = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), u_ref),
+            major,
+            minor,
+        ));
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(plane, cyl),
@@ -63,7 +57,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
             e.eval(0.0),
             e.eval(core::f64::consts::FRAC_PI_2),
             |k| surfaces.get(k).cloned(),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
         )
@@ -72,19 +66,19 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
     // Swapped: `u_ref` along the minor axis, `v_ref = axis × u_ref = −x̂`
     // along the major, so the semi-axis stored first is `b`.
     assert!(certify(b, a, y).is_ok(), "the swapped frame certifies");
-    let got = certify(a, -b, x);
-    assert!(
-        matches!(
-            got,
-            Err(CertifyError::StatedInterval {
-                refused: geom_brep::StatedSpan::Forward(_),
-            })
-        ),
-        "a negative minor: {:?}",
-        got.map(|_| "certified")
-    );
-    assert!(
-        certify(-a, b, -x).is_ok(),
-        "a negative major, u_ref flipped, certifies"
-    );
+    for (what, got) in [
+        ("a negative minor", certify(a, -b, x)),
+        ("a negative major, u_ref flipped", certify(-a, b, -x)),
+    ] {
+        assert!(
+            matches!(
+                got,
+                Err(CertifyError::StatedInterval {
+                    refused: geom_brep::StatedSpan::Forward(_),
+                })
+            ),
+            "{what}: {:?}",
+            got.map(|_| "certified")
+        );
+    }
 }

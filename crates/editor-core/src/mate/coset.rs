@@ -611,7 +611,9 @@ fn perpendicular<T: SolveScalar>(
     Ok(
         match decide(
             "mate_axis_normal_perpendicular",
-            Margin::levered(cosine, lever),
+            // Unsourced lever: the mate bundle's [`Arm`], the copy's reach plus the poses'
+            // distances from their origins, an `f64` sum no extent read spells.
+            Margin::levered(cosine, geom_core::Lever::unsourced(lever)),
             band,
         )? {
             Sign::Zero => None,

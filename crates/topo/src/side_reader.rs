@@ -385,7 +385,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
     let half = T::from_f64(0.5);
     let mut step = match *curve(first.edge)?.carrier() {
         geom::Curve3::Line(_) => None,
-        geom::Curve3::Circle { radius, .. } => Some(radius.abs() * half),
+        geom::Curve3::Circle(geom::Circle { radius, .. }) => Some(radius * half),
         _ => return None,
     };
     for e in &edges {
@@ -401,37 +401,41 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
 
 /// **How far from `aim` any face of the selection reaches**: the loops'
 /// reach ([`selection_reach`]), which holds a planar face (its outer
-/// loop's hull) and a wall (its rulings' segments), and for a sphere or a
-/// torus, which bulge past their loops' hull, the ball about `aim` that
-/// holds the whole surface (its centre's distance plus its radius, or its
-/// major plus its minor radius). An aimed ray starts twice this far from
-/// its aim, so its start lies beyond every face of the selection,
-/// whatever it is aimed at.
+/// loop's hull) and a wall (its rulings' segments), and for a face on a
+/// bounded carrier, which can bulge past its loops' hull, the farthest
+/// its carrier's whole cover reaches from `aim` ([`geom::Surface::cover`]:
+/// a sphere's ball, a torus's tube, a spline's net). An aimed ray starts
+/// twice this far from its aim, so its start lies beyond every face of
+/// the selection, whatever it is aimed at.
 ///
 /// # Errors
 ///
-/// A face that does not resolve.
+/// [`PointInSolidError::CorruptFace`] for a face that does not resolve,
+/// and for one whose carrier's region cannot be bounded (a poisoned net,
+/// data that is not a finite number), which no start is shown beyond.
 fn beyond<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     aim: Point3<T>,
 ) -> Result<T, PointInSolidError> {
-    let mut reach = selection_reach(body, faces, aim)?;
+    let mut reach = selection_reach(body, faces, aim)?.length();
     for &face in faces {
         let surface = body
             .face_surface(face)
             .ok_or(PointInSolidError::CorruptFace { face })?;
-        let whole = match *surface {
-            geom::Surface::Sphere { center, radius, .. } => (aim - center).norm() + radius.abs(),
-            geom::Surface::Torus {
-                center,
-                major_radius,
-                minor_radius,
-                ..
-            } => (aim - center).norm() + major_radius.abs() + minor_radius.abs(),
-            _ => continue,
-        };
-        reach = reach.max(whole);
+        match surface.cover() {
+            Ok(cover) => {
+                reach = reach.max(cover.distance_range(&geom::cover::Site::Point(aim)).1);
+            }
+            // An unbounded carrier's face is held by its loops' reach.
+            Err(e)
+                if e.unknowns()
+                    .iter()
+                    .all(|&(_, what)| what == geom::cover::Unknown::Unbounded) => {}
+            // A carrier whose region cannot be bounded leaves no start
+            // beyond its face: refuse rather than aim from inside it.
+            Err(_) => return Err(PointInSolidError::CorruptFace { face }),
+        }
     }
     Ok(reach)
 }
@@ -1072,6 +1076,28 @@ mod pre_filter_tests {
         assert!(
             matches!(face_geo(&body, spline, &sel.charts), Err(e) if e == want),
             "a ray meets the same refusal"
+        );
+    }
+
+    /// **A face whose carrier bounds no region refuses the reach**: a
+    /// placeholder spline's net is poison, so no start is shown beyond
+    /// it, and `beyond` refuses naming the face rather than reading the
+    /// face as adding nothing. The brick's planar faces alone read.
+    #[test]
+    fn a_face_whose_carrier_bounds_no_region_refuses_the_reach() {
+        let (mut body, faces) = brick_and_faces(Tol::witness());
+        let aim = Point3::new(0.5, 0.5, 0.5);
+        assert!(
+            beyond(&body, &faces, aim).is_ok(),
+            "the planar brick has a reach"
+        );
+        let spline = *faces.last().expect("a brick has faces");
+        let key = body.get_face(spline).expect("the face resolves").surface;
+        *body.surfaces.get_mut(key).expect("its surface resolves") = Surface::nurbs_placeholder();
+        assert_eq!(
+            beyond(&body, &faces, aim),
+            Err(PointInSolidError::CorruptFace { face: spline }),
+            "the poisoned net's face refuses"
         );
     }
 

@@ -56,6 +56,8 @@ mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
 
+#[path = "a_blend_leaves_a_smooth_edge_as_it_is.rs"]
+mod a_blend_leaves_a_smooth_edge_as_it_is;
 #[path = "a_carried_record_no_reading_covers.rs"]
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
@@ -300,6 +302,8 @@ mod pcurve_p1b_r2_probes;
 mod pieces_oblique_bore;
 #[path = "pinned_corners_at_the_loft_door.rs"]
 mod pinned_corners_at_the_loft_door;
+#[path = "pins_of_todays_blend_refusals.rs"]
+mod pins_of_todays_blend_refusals;
 #[path = "pipeline_null_edge_rows.rs"]
 mod pipeline_null_edge_rows;
 #[path = "pis_arc_capped_poses.rs"]
@@ -1269,6 +1273,9 @@ mod shell10_r2_dump;
 #[path = "cross_solid_apart.rs"]
 mod cross_solid_apart;
 
+#[path = "holdings_of_a_sunk_boss.rs"]
+mod holdings_of_a_sunk_boss;
+
 #[path = "census_containment_cause.rs"]
 mod census_containment_cause;
 
@@ -1358,6 +1365,8 @@ mod a_cone_apex_on_a_plane_through_it;
 mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
 mod a_plane_near_a_needle_cones_apex;
+#[path = "a_saddle_cut_by_its_tangent_plane.rs"]
+mod a_saddle_cut_by_its_tangent_plane;
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
 #[path = "review_5956_delta_needle.rs"]

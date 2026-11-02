@@ -616,9 +616,11 @@ Two edges of one seam between the same two faces are two pieces of that
 seam, told apart by their ends (N2), never by citing a retired
 constituent. Referencing a constituent fails with the merged name
 offered, and when an edit removes the coincidence the merged name vanishes with
-its constituents offered. Numeric coplanarity never merges, so merges change
-only at recipe edits, structural parameters, or recorded flips; nothing rebinds
-itself.
+its constituents offered. A merge glues on a coincidence decided Zero, at the
+current values, whether or not it was intended, and the `unproven-coincidence`
+lint reports one the document does not establish (DESIGN
+`[topology.conventions]`); so merges change at recipe edits, structural
+parameters, or recorded flips, each a re-evaluation; nothing rebinds itself.
 
 ## The name table
 

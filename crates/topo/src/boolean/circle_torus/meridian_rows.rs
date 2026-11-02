@@ -86,12 +86,7 @@ struct Circle {
 
 impl Circle {
     fn carrier(self) -> geom::Curve3<f64> {
-        geom::Curve3::Circle {
-            center: self.c,
-            axis: self.n,
-            radius: self.rho,
-            u_ref: self.u,
-        }
+        geom::Curve3::circle(self.c, self.n, self.rho, self.u)
     }
 
     /// The oracle's reading: the largest and smallest distance from the

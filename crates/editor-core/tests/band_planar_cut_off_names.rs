@@ -174,7 +174,7 @@ fn an_oblique_cut_off_is_named_by_its_elliptic_end_arcs_and_feet() {
                         .expect("a certified end curve");
                     match (chamfer, curve.carrier()) {
                         (true, geom::Curve3::Line(_)) => {}
-                        (false, geom::Curve3::Ellipse { semi_u, semi_v, .. }) => {
+                        (false, geom::Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. })) => {
                             assert!((semi_v - 0.1).abs() < 1e-15, "minor = r, got {semi_v}");
                             assert!(
                                 (semi_u - 0.1 / cos).abs() < 1e-12,

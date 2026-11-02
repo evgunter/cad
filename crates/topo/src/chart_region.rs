@@ -1533,7 +1533,12 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     signed_gate("chart_region_cyl_radius", Margin::of(a.radius - b.radius))?;
     norm_gate(
         "chart_region_cyl_tilt",
-        Margin::levered(a.axis.cross(b.axis).norm(), hyp),
+        Margin::levered(
+            a.axis.cross(b.axis).norm(),
+            // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
+            // and the larger radius; no extent read computes it.
+            geom_core::Lever::unsourced(hyp),
+        ),
     )?;
     let d_ab = b.origin - a.origin;
     let d_ba = a.origin - b.origin;
@@ -1547,7 +1552,12 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     //     goes through the metres door with an honest length.
     let sigma = match decide(
         "chart_region_cyl_axis_sense",
-        Margin::levered(a.axis.dot(b.axis), hyp),
+        Margin::levered(
+            a.axis.dot(b.axis),
+            // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
+            // and the larger radius; no extent read computes it.
+            geom_core::Lever::unsourced(hyp),
+        ),
         band,
     ) {
         Ok(Sign::Positive) => T::one(),
@@ -3336,7 +3346,11 @@ fn proper_crossings<T: Decide>(
             let mut outcomes = [Sign::Positive; 4];
             let mut indeterminate = None;
             for (slot, (frac, len)) in outcomes.iter_mut().zip(spans) {
-                match decide("chart_region_cross_span", Margin::levered(frac, len), band) {
+                match decide(
+                    "chart_region_cross_span",
+                    Margin::metered(frac, InfSpeed::new(len)),
+                    band,
+                ) {
                     Ok(sign) => *slot = sign,
                     Err(diag) => indeterminate = indeterminate.or(Some(diag)),
                 }
@@ -3441,7 +3455,7 @@ fn intersection_pieces<T: Decide + Bounds>(
                 continue; // distinct edges order exactly by index
             }
             let edge_len = (poly[(ei + 1) % poly.len()] - poly[ei]).norm();
-            let sep = Margin::levered(fj - fi, edge_len);
+            let sep = Margin::metered(fj - fi, InfSpeed::new(edge_len));
             match decide("chart_region_cross_order", sep, band) {
                 Ok(Sign::Positive) => {}
                 Ok(_) => {
@@ -4797,13 +4811,15 @@ mod tests {
         // sinusoid Harmonic (pa's v channel = 0.4·cos t).
         let k: f64 = 0.4;
         let major_len = (1.0 + k.powi(2)).sqrt();
-        let ellipse = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: Vec3::new(-k, 0.0, 1.0).normalize(),
-            semi_u: major_len,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, k).normalize(),
-        };
+        let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(-k, 0.0, 1.0).normalize(),
+                Vec3::new(1.0, 0.0, k).normalize(),
+            ),
+            major_len,
+            1.0,
+        ));
         let surface = cyl_surface(1.0);
         let pcurve = geom_brep::chart_pcurve(&ellipse, &surface, band()).unwrap();
         let Some((_, pa, _, _)) = pcurve.harmonic_form() else {

@@ -582,7 +582,7 @@ fn joinable<T: Decide>(
     let reach = [e1, e2]
         .into_iter()
         .filter_map(|e| crate::edge_wedge_reach(body, e))
-        .reduce(T::max);
+        .reduce(geom_core::Lever::max);
     let Some(reach) = reach else {
         return Ok(None);
     };
@@ -999,9 +999,7 @@ fn joined_spec<T: Decide>(
     let tx = if join.closed {
         let period = T::from_f64(core::f64::consts::TAU);
         match carrier {
-            geom::Curve3::Circle { .. }
-            | geom::Curve3::Ellipse { .. }
-            | geom::Curve3::Spiric { .. } => {
+            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
                 if backward {
                     t1 - period
                 } else {
