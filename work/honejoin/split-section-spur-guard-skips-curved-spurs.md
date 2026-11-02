@@ -5,6 +5,7 @@ title: The split join's spur guard decides straight tips only; a curved out-and-
 status: closed
 closed: 2026-11-02
 branch: onehome/small-bundle
+pr: 6365
 opened: 2026-09-24
 priority: P3
 cost: M
