@@ -21,10 +21,12 @@
 //!   once per germ ([`SectionTable::germ_foot`]), keyed by the germ's
 //!   operand, its half-edge and the pair it was read on.
 //!
-//! It also holds, beside the sections it reads, each plane×cone pair's
-//! apex line pair, read once per operation by the first germ minted on
-//! the pair and taken by every later mint and by the join
-//! ([`SectionTable::apex_lines`]).
+//! It also holds each plane×cone pair whose faces' boxes meet, read once
+//! at the glue door at the cone surface's reach (the ball about every
+//! face of the operand on that surface), not one face's: the pair's
+//! frame or its apex line pair ([`SectionTable::plane_cone`]). The germ
+//! mint and the join's frame read take it; the value does not build the
+//! pair, so it is held beside the sections, not among them.
 //!
 //! The table is classified when it is built, and a pair is carried on
 //! its first read that needs a carrier or a list no closed form counts,
@@ -85,7 +87,7 @@ pub(crate) struct GermFoot<T: Real> {
 }
 
 /// **A plane×cone pair's two lines through the cone's apex**
-/// ([`SectionTable::apex_lines`]): the apex, the lines' directions in
+/// ([`SectionTable::plane_cone`]): the apex, the lines' directions in
 /// the order `geom_brep::plane_cone_section` returns them, and the
 /// lever its decisions were read at.
 #[derive(Clone, Copy, Debug)]
@@ -124,8 +126,12 @@ pub(crate) struct SectionTable<T: Real> {
     lane: Option<SsiLane<T>>,
     region: Option<ExtentBall<T>>,
     feet: RefCell<BTreeMap<FootKey, Result<GermFoot<T>, FootRefusal>>>,
-    apex: RefCell<BTreeMap<PairKey, Option<ApexLines<T>>>>,
+    plane_cone: BTreeMap<PairKey, PlaneCone<T>>,
 }
+
+/// A plane×cone pair's reading at the glue door: its section as the
+/// join takes it, or the reading's refusal.
+pub(super) type PlaneCone<T> = Result<super::join::PkSection<T>, super::join::FrameError>;
 
 /// **The table's one reader**: it reads pairs into a table at the band
 /// it was made with, so one table holds one band
@@ -143,7 +149,7 @@ impl<T: Real> Default for SectionTable<T> {
             lane: None,
             region: None,
             feet: RefCell::new(BTreeMap::new()),
-            apex: RefCell::new(BTreeMap::new()),
+            plane_cone: BTreeMap::new(),
         }
     }
 }
@@ -188,6 +194,20 @@ impl<T: geom_core::Decide> SectionReader<T> {
                 )
             }
         }
+    }
+
+    /// **Holds surface `ka` of A against `kb` of B, a plane×cone pair**,
+    /// read by `read` on the pair's first offer and kept for the
+    /// operation ([`SectionTable::plane_cone`]).
+    pub(super) fn read_plane_cone(
+        &mut self,
+        (ka, kb): (SurfaceKey, SurfaceKey),
+        read: impl FnOnce() -> PlaneCone<T>,
+    ) {
+        self.table
+            .plane_cone
+            .entry(PairKey { a: ka, b: kb })
+            .or_insert_with(read);
     }
 
     /// The table read.
@@ -364,40 +384,33 @@ impl<T: geom_core::Decide> SectionTable<T> {
         answer
     }
 
-    /// **A plane×cone pair's apex line pair, read once per operation**:
-    /// `Some` where the pair's section is the two lines through the
-    /// cone's apex, `None` where it is not, read by `read` on the first
-    /// ask for the pair (A's face `a`'s surface against B's `b`'s) and
-    /// held for every later one. Every germ the operation mints on the
-    /// pair and the join's reading of it take the one answer, read at
-    /// the reach the first mint saw, so no two readers of the pair can
-    /// disagree on the section's shape or its lines' order. A refusal is
-    /// not held: it is the operation's.
-    pub(crate) fn apex_lines<E>(
+    /// **A plane×cone pair's one reading** (module docs): A's face
+    /// `a`'s surface against B's `b`'s, as the glue door read it, its
+    /// frame, its apex line pair or its refusal. `None` where the door
+    /// held no reading of the pair: a face whose surface does not
+    /// resolve, a pair whose boxes do not meet (no germ lies on it), or
+    /// a table no glue door built (a sweep-only door's, a row's).
+    pub(super) fn plane_cone(
         &self,
         a: (&Body<T>, FaceKey),
         b: (&Body<T>, FaceKey),
-        read: impl FnOnce() -> Result<Option<ApexLines<T>>, E>,
-    ) -> Result<Option<ApexLines<T>>, E> {
-        let key = Self::key(a, b);
-        if let Some(held) = key.and_then(|k| self.apex.borrow().get(&k).copied()) {
-            return Ok(held);
-        }
-        let answer = read()?;
-        if let Some(key) = key {
-            self.apex.borrow_mut().insert(key, answer);
-        }
-        Ok(answer)
+    ) -> Option<&PlaneCone<T>> {
+        self.plane_cone.get(&Self::key(a, b)?)
     }
 
-    /// The pair's apex line pair as a mint read it
-    /// ([`Self::apex_lines`]), or `None` where no mint read the pair.
-    pub(crate) fn apex_lines_read(
-        &self,
+    /// A table holding the one plane×cone reading `reading` for A's face
+    /// `a` against B's `b`, for rows.
+    #[cfg(test)]
+    #[allow(clippy::expect_used)]
+    pub(super) fn holding_plane_cone(
         a: (&Body<T>, FaceKey),
         b: (&Body<T>, FaceKey),
-    ) -> Option<Option<ApexLines<T>>> {
-        self.apex.borrow().get(&Self::key(a, b)?).copied()
+        reading: PlaneCone<T>,
+    ) -> Self {
+        let mut table = Self::default();
+        let key = Self::key(a, b).expect("the faces resolve");
+        table.plane_cone.insert(key, reading);
+        table
     }
 
     fn entry(&self, a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> Option<&Held<T>> {

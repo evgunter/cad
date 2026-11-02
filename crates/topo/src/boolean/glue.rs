@@ -352,6 +352,46 @@ pub(crate) fn section_door<T: Decide + Bounds>(
             }
         }
     }
+    // Each plane×cone pair whose faces' boxes meet, read once for the
+    // operation at the cone surface's reach: the ball about the boxes of
+    // every face of the cone's operand on that surface, so no one face's
+    // extent sets the lever its pieces and siblings read at.
+    let plane_or_cone = |s: &geom::Surface<T>| {
+        matches!(s, geom::Surface::Plane { .. } | geom::Surface::Cone { .. })
+    };
+    let kept = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)]| -> Vec<(FaceKey, bvh::Aabb)> {
+        boxed
+            .iter()
+            .filter(|&&(k, _)| surface(body, k).is_some_and(|(_, s)| plane_or_cone(&s)))
+            .copied()
+            .collect()
+    };
+    let surface_ball = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)], key| {
+        boxed
+            .iter()
+            .filter(|&&(k, _)| body.get_face(k).is_some_and(|f| f.surface == key))
+            .map(|&(_, bx)| bx)
+            .reduce(|h, bx| h.hull(&bx))
+            .map(|h| overlap_ball::<T>(&h, &h))
+    };
+    for (fa, fb) in pairs_among(&kept(a, &a_boxes), &kept(b, &b_boxes))? {
+        let (Some((ka, sa)), Some((kb, sb))) = (surface(a, fa), surface(b, fb)) else {
+            continue;
+        };
+        let Some((plane, cone)) = super::join::plane_and_cone(&sa, &sb) else {
+            continue;
+        };
+        let ball = match sa {
+            geom::Surface::Cone { .. } => surface_ball(a, &a_boxes, ka),
+            _ => surface_ball(b, &b_boxes, kb),
+        };
+        let Some(ball) = ball else {
+            continue;
+        };
+        table.read_plane_cone((ka, kb), || {
+            super::join::pk_section(plane, cone, &geom_brep::Reach::Ball(ball), band)
+        });
+    }
     Ok((table.finish(), rows))
 }
 

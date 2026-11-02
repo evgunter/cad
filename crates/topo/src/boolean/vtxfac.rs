@@ -934,6 +934,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     (p, dir.dir),
                     band,
                 )?;
+                if tangent_reads[t].is_none() && s.apex().is_some() {
+                    apex_germ_on_a_line(cells.1, branch)?;
+                }
                 (dir, branch)
             }
         };
@@ -2772,6 +2775,30 @@ fn pierce_apex_germ<T: Decide>(
             reading,
         },
     })
+}
+
+/// **A pierce germ at a cone's apex rides a line of its pair's one
+/// reading.** Its direction is a section ruling read off the sector's
+/// own plane and reach ([`pierce_apex_germ`],
+/// `chord_join::apex_section_ruling`), a reading of the pair beside the
+/// glue door's one ([`super::join::germ_branch`]). A germ inside a face
+/// of each operand whose branch names no line is a ruling the pair's
+/// reading reads as no line pair: the two readings disagree, refused as
+/// a desync rather than matched on either. A germ along an edge rides
+/// the edge's curve, and names no line.
+pub(super) fn apex_germ_on_a_line(
+    loci: (super::Locus, super::Locus),
+    branch: super::Branch,
+) -> Result<(), BooleanError> {
+    match (loci, branch) {
+        ((super::Locus::InFace(_), super::Locus::InFace(_)), super::Branch::Only) => {
+            Err(BooleanError::JoinDesync {
+                what: "a pierce germ at a cone's apex runs along a section ruling where its \
+                       pair's one reading reads no line pair",
+            })
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Which bound of a pierce transition sector the Out run holds: the

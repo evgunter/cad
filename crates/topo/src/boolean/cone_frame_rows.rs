@@ -11,7 +11,7 @@
 //! `+y` and `tan α = 1/2`. The full cone's radius runs `1 → 0` over the
 //! same span: apex `(0, 1, 0)`, axis `−y`, `α = π/4`.
 
-#![allow(clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::BooleanError;
 use super::join::{
@@ -747,60 +747,32 @@ fn a_germ_on_the_apex_line_pair_rides_its_own_line() {
 }
 
 /// **A plane×cone section that is no line pair is one loop**: the
-/// axis-normal plane's circle.
+/// axis-normal plane's circle and the tilted plane's ellipse.
 #[test]
 fn a_plane_off_the_apex_reads_one_loop() {
     use super::join::{PkSection, pk_section};
     let reach = measured(on_wall(), wall_reach());
-    let p = plane([0.0, 0.5, 0.0], Vec3::new(0.0, 1.0, 0.0));
-    assert!(
-        matches!(
-            pk_section(&p, &widening(), &reach, band()),
-            Ok(PkSection::Loop(..))
-        ),
-        "the axis-normal plane cuts one circle"
-    );
+    for (what, normal) in [
+        ("the axis-normal circle", Vec3::new(0.0, 1.0, 0.0)),
+        ("the tilted ellipse", Vec3::new(0.2, 1.0, 0.0)),
+    ] {
+        let p = plane([0.0, 0.5, 0.0], normal);
+        assert!(
+            matches!(
+                pk_section(&p, &widening(), &reach, band()),
+                Ok(PkSection::Loop(..))
+            ),
+            "{what} is one loop"
+        );
+    }
 }
 
-/// **Every germ of a plane×cone pair through the apex names its line by
-/// the pair's one reading** ([`super::join::germ_branch`]): a cone wall
-/// about `z` with its apex at the origin against a brick whose face
-/// `x = 0` holds the apex, its section the lines along `(0, ±1, 1)`.
-/// Sites on one line, on either nappe, and germs at the apex running
-/// along it name one index, the other line the other; the first mint
-/// fills the table's reading and every later one takes it. So it reads
-/// with the operands swapped, with the cone's axis reversed, and with
-/// both bodies turned.
-#[test]
-fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
-    use super::section_table::SectionTable;
-    use super::{Branch, Locus};
-    use crate::body::Body;
-    use geom_core::{Affine3, RigidMotion};
+/// The cone wall about `z` with its apex at the origin (its lamina twin,
+/// which the fixture leaves on the seed's placeholder, put on the cone
+/// too, so the body moves) and the brick whose face `x = 0` holds the
+/// apex: its section the lines along `(0, ±1, 1)`.
+fn apex_pair() -> (crate::body::Body<f64>, crate::body::Body<f64>) {
     let tol = Tol::witness();
-    let turned =
-        |body: &Body<f64>, m: &RigidMotion<f64>| crate::transform_rigid(body, m, tol).unwrap();
-    let face_of = |body: &Body<f64>, keep: &dyn Fn(&geom::Surface<f64>) -> bool| {
-        body.faces()
-            .map(|(k, _)| k)
-            .find(|&k| keep(body.get_surface(body.get_face(k).unwrap().surface).unwrap()))
-            .unwrap()
-    };
-    let identity = geom_core::test_support::rigid(&Affine3::identity(), tol);
-    let flip = geom_core::test_support::rigid(
-        &Affine3::rotation_about_axis(
-            Point3::origin(),
-            Vec3::new(1.0, 0.0, 0.0),
-            core::f64::consts::PI,
-        ),
-        tol,
-    );
-    let turn = geom_core::test_support::rigid(
-        &Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.3, -0.5, 0.8).normalize(), 0.9),
-        tol,
-    );
-    // The wall's lamina twin, which the fixture leaves on the seed's
-    // placeholder, goes on the cone too, so the body moves.
     let (mut wall, face) =
         super::boxes::tests::cone_wall(core::f64::consts::FRAC_PI_4, 0.3, 2.8, 0.1, 2.0);
     let carrier = wall
@@ -816,8 +788,63 @@ fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
         )
     })
     .unwrap();
-    let brick: Body<f64> =
+    let brick: crate::body::Body<f64> =
         crate::test_support_fixtures::brick((0.0, 1.0), (-3.0, 3.0), (-3.0, 3.0), tol);
+    (wall, brick)
+}
+
+/// The cone face of `cone_body` and the face of `plane_body` on the
+/// plane through the origin square to `x`.
+fn apex_pair_faces(
+    cone_body: &crate::body::Body<f64>,
+    plane_body: &crate::body::Body<f64>,
+    x: Vec3<f64>,
+) -> (FaceKey, FaceKey) {
+    let face_of = |body: &crate::body::Body<f64>, keep: &dyn Fn(&geom::Surface<f64>) -> bool| {
+        body.faces()
+            .map(|(k, _)| k)
+            .find(|&k| keep(body.get_surface(body.get_face(k).unwrap().surface).unwrap()))
+            .unwrap()
+    };
+    let cone = face_of(cone_body, &|s| matches!(s, geom::Surface::Cone { .. }));
+    let plane = face_of(plane_body, &|s| {
+        matches!(s, geom::Surface::Plane { origin, normal, .. }
+            if normal.cross(x).norm() < 1e-9 && (*origin - Point3::origin()).dot(x).abs() < 1e-9)
+    });
+    (cone, plane)
+}
+
+/// **Every germ of a plane×cone pair through the apex names its line by
+/// the pair's one reading** ([`super::join::germ_branch`]): a cone wall
+/// about `z` with its apex at the origin against a brick whose face
+/// `x = 0` holds the apex, its section the lines along `(0, ±1, 1)`.
+/// The glue door holds the pair's line pair; sites on one line, on
+/// either nappe, and germs at the apex running along it name one index,
+/// the other line the other. So it reads with the operands swapped,
+/// with the cone's axis reversed, and with both bodies turned.
+#[test]
+fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
+    use super::join::PkSection;
+    use super::{Branch, Locus};
+    use crate::body::Body;
+    use geom_core::{Affine3, RigidMotion};
+    let tol = Tol::witness();
+    let turned =
+        |body: &Body<f64>, m: &RigidMotion<f64>| crate::transform_rigid(body, m, tol).unwrap();
+    let identity = geom_core::test_support::rigid(&Affine3::identity(), tol);
+    let flip = geom_core::test_support::rigid(
+        &Affine3::rotation_about_axis(
+            Point3::origin(),
+            Vec3::new(1.0, 0.0, 0.0),
+            core::f64::consts::PI,
+        ),
+        tol,
+    );
+    let turn = geom_core::test_support::rigid(
+        &Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.3, -0.5, 0.8).normalize(), 0.9),
+        tol,
+    );
+    let (wall, brick) = apex_pair();
     for (pose, axis_flip, frame) in [
         ("as built", &identity, &identity),
         ("axis reversed", &flip, &identity),
@@ -827,25 +854,25 @@ fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
         let cone_body = turned(&turned(&wall, axis_flip), frame);
         let plane_body = turned(&brick, frame);
         let x = frame.transform_vec(Vec3::new(1.0, 0.0, 0.0));
-        let cone = face_of(&cone_body, &|s| matches!(s, geom::Surface::Cone { .. }));
-        let plane = face_of(&plane_body, &|s| {
-            matches!(s, geom::Surface::Plane { origin, normal, .. }
-                if normal.cross(x).norm() < 1e-9 && (*origin - Point3::origin()).dot(x).abs() < 1e-9)
-        });
+        let (cone, plane) = apex_pair_faces(&cone_body, &plane_body, x);
         let at = |p: Point3<f64>| frame.transform_point(p);
         let along = |v: Vec3<f64>| frame.transform_vec(v);
         let (l0, l1) = (Vec3::new(0.0, 1.0, 1.0), Vec3::new(0.0, -1.0, 1.0));
         for swapped in [false, true] {
             let what = format!("{pose}, swapped {swapped}");
-            let table = SectionTable::<f64>::default();
             let ((a, fa), (b, fb)) = if swapped {
                 ((&plane_body, plane), (&cone_body, cone))
             } else {
                 ((&cone_body, cone), (&plane_body, plane))
             };
+            let (table, _) = super::glue::section_door(a, b, &super::Glue::none(), None, band())
+                .expect("the glue door reads the pair");
             assert!(
-                table.apex_lines_read((a, fa), (b, fb)).is_none(),
-                "{what}: no mint has read the pair"
+                matches!(
+                    table.plane_cone((a, fa), (b, fb)),
+                    Some(Ok(PkSection::Lines(_)))
+                ),
+                "{what}: the glue door holds the pair's line pair"
             );
             let read = |site: Point3<f64>, dir: Vec3<f64>| {
                 super::join::germ_branch(
@@ -862,10 +889,6 @@ fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
             let Branch::Line(k) = first else {
                 panic!("{what}: a germ on the line pair rides a line, not {first:?}");
             };
-            assert!(
-                matches!(table.apex_lines_read((a, fa), (b, fb)), Some(Some(_))),
-                "{what}: the first mint holds the pair's reading"
-            );
             for (germ, site, dir, want) in [
                 ("up its line, outward", l0 * 1.5, l0, k),
                 ("on its far nappe", l0 * -0.4, l0, k),
@@ -882,4 +905,77 @@ fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
             }
         }
     }
+}
+
+/// **The mint takes the pair's held reading, not a reading of its own**
+/// ([`super::join::germ_branch`]): on the cone apex pair, a table holding
+/// the line pair with its lines swapped names each germ the other
+/// index; one holding a loop mints no line, and a pierce germ at the apex
+/// whose branch names no line is refused as the disagreement it is
+/// (`vtxfac::apex_germ_on_a_line`). Each reading here differs from what
+/// the faces would read for themselves, so a mint that read the pair
+/// again would fail the row.
+#[test]
+fn the_mint_takes_the_pairs_held_reading() {
+    use super::join::PkSection;
+    use super::section_table::{ApexLines, SectionTable};
+    use super::{Branch, Locus};
+    let (wall, brick) = apex_pair();
+    let (cone, plane) = apex_pair_faces(&wall, &brick, Vec3::new(1.0, 0.0, 0.0));
+    let (a, b) = ((&wall, cone), (&brick, plane));
+    let loci = (Locus::InFace(cone), Locus::InFace(plane));
+    let (door, _) = super::glue::section_door(a.0, b.0, &super::Glue::none(), None, band())
+        .expect("the glue door reads the pair");
+    let Some(Ok(PkSection::Lines(lines))) = door.plane_cone(a, b).cloned() else {
+        panic!("the glue door holds the line pair");
+    };
+    let mint = |table: &SectionTable<f64>, d: Vec3<f64>| {
+        super::join::germ_branch(table, a, b, loci, (Point3::origin() + d * 0.6, -d), band())
+    };
+    let swapped = SectionTable::holding_plane_cone(
+        a,
+        b,
+        Ok(PkSection::Lines(ApexLines {
+            dirs: [lines.dirs[1], lines.dirs[0]],
+            ..lines
+        })),
+    );
+    for k in 0..2 {
+        let d = lines.dirs[k];
+        assert_eq!(
+            mint(&door, d).unwrap(),
+            Branch::Line(k),
+            "line {k}: the door's reading"
+        );
+        assert_eq!(
+            mint(&swapped, d).unwrap(),
+            Branch::Line(1 - k),
+            "line {k}: a held reading with its lines swapped"
+        );
+    }
+    let looped = SectionTable::holding_plane_cone(
+        a,
+        b,
+        Ok(PkSection::Loop(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        )),
+    );
+    let at_apex = super::join::germ_branch(
+        &looped,
+        a,
+        b,
+        loci,
+        (Point3::origin(), lines.dirs[0]),
+        band(),
+    )
+    .unwrap();
+    assert_eq!(at_apex, Branch::Only, "a held loop mints no line");
+    assert!(
+        matches!(
+            super::vtxfac::apex_germ_on_a_line(loci, at_apex),
+            Err(BooleanError::JoinDesync { .. })
+        ),
+        "a pierce germ along a ruling the held reading reads as a loop is a desync"
+    );
 }

@@ -2770,31 +2770,30 @@ fn along_edge_conic<T: Decide>(
     Ok(Some(AlongEdge { on, root, carrier }))
 }
 
-/// **A germ's section loops at the join** ([`germ_section_loops`]): on
-/// a plane×cone pair, the pair's one reading of its apex line pair, the
-/// one its germs' mints took ([`pair_apex_lines`]). A pair read as the
-/// line pair is straight; one read as no line pair is read by its frame,
-/// and a frame that reads the line pair there is a desync.
+/// **A germ's section loops at the join** ([`germ_section_loops`]): a
+/// germ inside a face of each operand on a plane×cone pair the glue
+/// door read takes that one reading, the one its mint took
+/// ([`pair_reading`]): the line pair is straight, a loop its frame, and
+/// a section with no frame refuses as the frame does. Nothing re-reads
+/// the pair here, so the join and the mint cannot disagree.
 fn germ_loops<T: Decide>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     band: Band,
 ) -> Result<Option<SectionLoops<T>>, BooleanError> {
-    let in_face = germ.a_locus.edge().is_none() && germ.b_locus.edge().is_none();
-    let read = in_face
-        .then(|| {
-            red.sections
-                .apex_lines_read((&red.a, germ.a_face), (&red.b, germ.b_face))
-        })
+    let (a, b) = ((&red.a, germ.a_face), (&red.b, germ.b_face));
+    let held = (germ.a_locus.edge().is_none() && germ.b_locus.edge().is_none())
+        .then(|| red.sections.plane_cone(a, b))
         .flatten();
-    match read {
-        Some(Some(_)) => Ok(None),
-        Some(None) => germ_section_loops((&red.a, &red.b), germ, band)?
-            .map(Some)
-            .ok_or(BooleanError::JoinDesync {
-                what: "the join reads a plane×cone apex line pair its germs' mint read as none",
-            }),
-        None => germ_section_loops((&red.a, &red.b), germ, band),
+    let Some(held) = held else {
+        return germ_section_loops((&red.a, &red.b), germ, band);
+    };
+    let ((_, sa), (_, sb)) = (face_surface(a.0, a.1)?, face_surface(b.0, b.1)?);
+    let refused = |e| frame_refusal(e, (a.1, sa), (b.1, sb));
+    match held.clone().map_err(refused)? {
+        PkSection::Lines(_) => Ok(None),
+        PkSection::Loop(center, axis) => Ok(Some(SectionLoops::conic((center, axis)))),
+        PkSection::Unframed(e) => Err(refused(e)),
     }
 }
 
@@ -3277,6 +3276,7 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
 /// bodies live at the call site, so this carries none of them: the
 /// dispatch is a statement about the two surfaces, never about the
 /// arenas.
+#[derive(Clone, Debug)]
 pub(super) enum FrameError {
     /// A reading landed in the sliver band, refused as `decision`: a
     /// section predicate as the faces' section undecided
@@ -3572,16 +3572,12 @@ pub(super) fn germ_branch<T: Decide>(
 /// [`super::Branch::Only`].
 ///
 /// The section is the pair's one reading for the operation
-/// ([`pair_apex_lines`]): the first germ minted on the pair reads it,
-/// and every later mint and the join take that answer. The faces' reach
-/// moves while the reduction mints germs, and a reading near the band's
-/// edge of the apex decisions (`pn_apex_*`) could flip with it; one
-/// reading cannot disagree with itself, so no two germs of the pair, and
-/// no germ and the join, see different shapes or orders.
-///
-/// The lines' order is the one [`geom_brep::plane_cone_section`]
-/// returns, `φ ± δ` about the cone's axis from the azimuth of the
-/// plane's normal: a function of the two surfaces, and read once.
+/// ([`pair_reading`]), which the join's frame read takes too
+/// ([`germ_loops`]), so no germ of the pair and no reading of it at the
+/// join see another shape or order. The lines' order is the one
+/// [`geom_brep::plane_cone_section`] returns, `φ ± δ` about the cone's
+/// axis from the azimuth of the plane's normal: a function of the two
+/// surfaces and the reading's reach, and read once.
 ///
 /// A germ off the apex rides the line its site lies on: its distance
 /// off each line is decided (`bool_germ_apex_line`), and it is on
@@ -3592,10 +3588,11 @@ pub(super) fn germ_branch<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`pair_apex_lines`]'s. An undecided distance or sine escalates. A
-/// site on neither line, or a germ at the apex running along both or
-/// neither, is a desync: the pair was decided the line pair, its lines
-/// a definite angle apart, and the germ was minted on it, along a line.
+/// [`pair_reading`]'s refusal. An undecided distance or sine
+/// escalates. A site on neither line, or a germ at the apex running
+/// along both or neither, is a desync: the pair was decided the line
+/// pair, its lines a definite angle apart, and the germ was minted on
+/// it, along a line.
 fn apex_line<T: Decide>(
     sections: &super::section_table::SectionTable<T>,
     a: (&Body<T>, FaceKey),
@@ -3603,47 +3600,67 @@ fn apex_line<T: Decide>(
     (site, dir): (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<super::Branch, BooleanError> {
-    match pair_apex_lines(sections, a, b, band)? {
-        Some(lines) => line_of(&lines, (site, dir), band),
-        None => Ok(super::Branch::Only),
+    match pair_reading(sections, a, b, band)? {
+        PkSection::Lines(lines) => line_of(&lines, (site, dir), band),
+        PkSection::Loop(..) | PkSection::Unframed(_) => Ok(super::Branch::Only),
     }
 }
 
-/// **A plane×cone pair's apex line pair, read once for the operation**
-/// ([`super::section_table::SectionTable::apex_lines`]): the pair's
-/// section read as the join reads its frame, at the cone face's reach
-/// ([`frame_lever`], [`pk_section`]), on the first ask. A section with
-/// no frame (an open conic, the apex touchings) is no line pair here;
-/// the join refuses it where it reads a germ's frame.
+/// **A plane×cone face pair's section, as the operation reads it**: the
+/// one reading the glue door held for the surface pair
+/// ([`super::section_table::SectionTable::plane_cone`]); where it held
+/// none (a table no door built), the pair read here at the cone face's
+/// reach, as its frame is ([`frame_lever`], [`pk_section`]).
 ///
 /// # Errors
 ///
-/// A face that does not resolve, [`frame_lever`]'s desync, and the
-/// section's refusals ([`frame_refusal`]), each the operation's.
-fn pair_apex_lines<T: Decide>(
+/// The reading's refusal ([`frame_refusal`]); a face that does not
+/// resolve, and [`frame_lever`]'s desync.
+fn pair_reading<T: Decide>(
     sections: &super::section_table::SectionTable<T>,
     (body_a, face_a): (&Body<T>, FaceKey),
     (body_b, face_b): (&Body<T>, FaceKey),
     band: Band,
-) -> Result<Option<super::section_table::ApexLines<T>>, BooleanError> {
-    sections.apex_lines((body_a, face_a), (body_b, face_b), || {
-        let ((_, sa), (_, sb)) = (face_surface(body_a, face_a)?, face_surface(body_b, face_b)?);
-        let (_, extent) = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
-        let FrameExtent::Cone(reach) = extent else {
-            return Err(BooleanError::JoinDesync {
-                what: "a plane×cone pair was levered at no cone face's reach",
-            });
-        };
-        let (plane, cone) = match sa {
-            geom::Surface::Plane { .. } => (sa, sb),
-            _ => (sb, sa),
-        };
-        match pk_section(plane, cone, &reach, band) {
-            Ok(PkSection::Lines(lines)) => Ok(Some(lines)),
-            Ok(PkSection::Loop(..) | PkSection::Unframed(_)) => Ok(None),
-            Err(e) => Err(frame_refusal(e, (face_a, sa), (face_b, sb))),
-        }
-    })
+) -> Result<PkSection<T>, BooleanError> {
+    let ((_, sa), (_, sb)) = (face_surface(body_a, face_a)?, face_surface(body_b, face_b)?);
+    let refused = |e| frame_refusal(e, (face_a, sa), (face_b, sb));
+    if let Some(held) = sections.plane_cone((body_a, face_a), (body_b, face_b)) {
+        return held.clone().map_err(refused);
+    }
+    let (_, extent) = frame_lever((sa, body_a, face_a), (sb, body_b, face_b), band)?;
+    let (plane, cone) = plane_and_cone(sa, sb).ok_or(BooleanError::JoinDesync {
+        what: "a plane×cone germ's faces carry no plane and cone",
+    })?;
+    cone_face_reach(extent)
+        .and_then(|reach| pk_section(plane, cone, &reach, band))
+        .map_err(refused)
+}
+
+/// **The plane and the cone of a plane×cone pair**, either way round;
+/// `None` for any other pair.
+pub(super) fn plane_and_cone<'s, T: geom_core::Real>(
+    sa: &'s geom::Surface<T>,
+    sb: &'s geom::Surface<T>,
+) -> Option<(&'s geom::Surface<T>, &'s geom::Surface<T>)> {
+    match (sa, sb) {
+        (geom::Surface::Plane { .. }, geom::Surface::Cone { .. }) => Some((sa, sb)),
+        (geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => Some((sb, sa)),
+        _ => None,
+    }
+}
+
+/// The cone face's reach a plane×cone pair is levered at
+/// ([`FrameExtent::Cone`], the only extent [`frame_extent`] hands the
+/// pair); any other extent is a desync.
+fn cone_face_reach<T: geom_core::Real>(
+    extent: FrameExtent<T>,
+) -> Result<geom_brep::Reach<T>, FrameError> {
+    match extent {
+        FrameExtent::Cone(reach) => Ok(reach),
+        _ => Err(FrameError::Desync(
+            "a plane×cone frame was levered at no cone face's reach",
+        )),
+    }
 }
 
 /// [`apex_line`]'s reading of the germ's line on the pair's `lines`.
@@ -3997,6 +4014,9 @@ fn conic_section_frame_at<T: Decide>(
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
     use geom::Surface as Sf;
+    if let Some((plane, cone)) = plane_and_cone(sa, sb) {
+        return pk_germ_frame(plane, cone, extent, band);
+    }
     let (plane_s, cyl_s, radius) = match (sa, sb) {
         (Sf::Plane { .. }, Sf::Cylinder { radius, .. }) => (sa, sb, *radius),
         (Sf::Cylinder { radius, .. }, Sf::Plane { .. }) => (sb, sa, *radius),
@@ -4068,8 +4088,6 @@ fn conic_section_frame_at<T: Decide>(
                 )),
             };
         }
-        (Sf::Plane { .. }, Sf::Cone { .. }) => return pk_germ_frame(sa, sb, extent, band),
-        (Sf::Cone { .. }, Sf::Plane { .. }) => return pk_germ_frame(sb, sa, extent, band),
         // **Cylinder×sphere** has no frame: the operation's section
         // table holds the pair, and its germs match by foot parameter on
         // the section's components ([`along_facing`]).
@@ -4231,12 +4249,7 @@ fn pk_germ_frame<T: Decide>(
     extent: FrameExtent<T>,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
-    let FrameExtent::Cone(reach) = extent else {
-        return Err(FrameError::Desync(
-            "a plane×cone frame was levered at no cone face's reach",
-        ));
-    };
-    match pk_section(plane, cone, &reach, band)? {
+    match pk_section(plane, cone, &cone_face_reach(extent)?, band)? {
         PkSection::Loop(center, axis) => Ok(Some((center, axis))),
         PkSection::Lines(_) => Ok(None),
         PkSection::Unframed(e) => Err(e),
@@ -4245,6 +4258,7 @@ fn pk_germ_frame<T: Decide>(
 
 /// **What a plane×cone pair's section is to the join**: one loop, by
 /// its frame, or the two lines through the apex.
+#[derive(Clone, Debug)]
 pub(super) enum PkSection<T: geom_core::Real> {
     /// The ellipse's or the axis-normal circle's centre and axis.
     Loop(geom_core::Point3<T>, geom_core::Vec3<T>),
@@ -4256,10 +4270,13 @@ pub(super) enum PkSection<T: geom_core::Real> {
     Unframed(FrameError),
 }
 
-/// **The plane×cone section, read once for both of its consumers**
-/// through THE table's own [`geom_brep::plane_cone_section`] at the cone
-/// face's reach `reach`: the germ frame ([`pk_germ_frame`]) and the
-/// apex line pair a germ's line is read on ([`pair_apex_lines`]).
+/// **The plane×cone section as the join takes it**, through THE
+/// table's own [`geom_brep::plane_cone_section`] at `reach`: one
+/// classification for the glue door's reading of a pair
+/// (`glue::section_door`), the germ frame ([`pk_germ_frame`]) and the
+/// line a germ rides ([`pair_reading`]). It is a function of its
+/// inputs; what makes a pair's readers agree is that they take the one
+/// reading the door held.
 ///
 /// # Errors
 ///
