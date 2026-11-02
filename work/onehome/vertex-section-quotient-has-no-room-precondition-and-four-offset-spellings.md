@@ -2,10 +2,11 @@
 id: vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings
 kind: issue
 title: The vertex section reading divides by a sine its bound can exceed, charges the wall normal by assertion, and spells offset and side three ways
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: M
+branch: onehome/vertex-section-room
 ---
 
 Found by the third review of PR 4858 (`cleave/vertex-against-section`,
