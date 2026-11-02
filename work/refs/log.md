@@ -41,3 +41,4 @@
     - the filed chain-end row states the wrong first measurement;
     - the BANDRULE rows cite a scratch path; committed pinning rows replace it.
   - **Main reds:** 8 slow-set reds in suites with no blend node. The lane is checking which are red on main.
+- 2026-11-02 — **PR 6341 merged (loft section ids), dual concurrent, tally 0** (row `PR-6341.md`). The fix pass came off the union of both reviews; the orchestrator read it. It moved each id onto its section, gave steps and sections one fill and one admit rule, re-pinned the slow-set goldens for `loft_prism` alone, and corrected the revalue story. `loft-slab-and-section-names-are-positional` closed.

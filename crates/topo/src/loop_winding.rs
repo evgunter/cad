@@ -274,7 +274,7 @@ impl<T: Real> ConicFrame<T> {
                 semi_v,
                 geom::Curve3::semi_axes_by_size(semi_u, semi_v).0,
             ),
-            geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+            geom::Curve3::Line(_) | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                 return None;
             }
         };
@@ -493,7 +493,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         let mut any_spiric = false;
         let mut kind = |carrier: &Curve3<T>| {
             match carrier {
-                geom::Curve3::Line { .. }
+                geom::Curve3::Line(_)
                 | geom::Curve3::Circle { .. }
                 | geom::Curve3::Ellipse { .. } => {}
                 geom::Curve3::Spiric { .. } => any_spiric = true,

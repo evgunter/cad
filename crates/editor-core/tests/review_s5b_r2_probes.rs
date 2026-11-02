@@ -225,11 +225,11 @@ mod interference {
         let value: Formula = crate::fixture::value_of(&doc, measure);
         insert(
             doc,
-            Node::Assertion {
+            Node::Assertion(editor_core::Claim::Value {
                 value,
                 bound: len(bound),
                 relation,
-            },
+            }),
         )
     }
 

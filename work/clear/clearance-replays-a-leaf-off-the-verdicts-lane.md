@@ -1,7 +1,7 @@
 ---
 id: clearance-replays-a-leaf-off-the-verdicts-lane
 kind: issue
-title: clearance_with replays a certified leaf at plain Interval whatever lane the drive certified it on
+title: clearance_at_dials replays a certified leaf at plain Interval whatever lane the drive certified it on
 status: closed
 opened: 2026-10-27
 priority: P1
@@ -16,9 +16,9 @@ pr: 5928
 Both symbolic-tier designers found this independently, by reading the
 code (not run; CLEAR orchestrator, 2026-10-27).
 
-`clearance_with` (`crates/editor-core/src/clearance.rs`) answers a
+`clearance_at_dials` (`crates/editor-core/src/clearance.rs`) answers a
 bound question over a drive's certified leaves through
-`clearance_over`. It rebuilds each leaf as
+`clearance_over_at_dials`. It rebuilds each leaf as
 `let ev: Evaluation<Interval> = evaluate(…)`, at plain `Interval`,
 whatever lane the drive certified that leaf on
 (`ParamBoxVerdict::lane()`). `report.rs`'s `replay_leaf` replays on

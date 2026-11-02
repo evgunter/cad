@@ -245,7 +245,7 @@ impl ClosedLoop {
     }
 
     /// The handle of the loop's last step — the closing verb's, or the
-    /// one step of a `circle` or `circle_split`.
+    /// one step of a `circle`, `circle_split` or `rectangle`.
     #[getter]
     fn step(&self) -> AuthoredStep {
         last_step(&self.0.program)
@@ -1567,6 +1567,23 @@ fn circle_split(
         .map_err(|err| path_err(py, &err))
 }
 
+/// The axis-aligned rectangle as written: a one-step COMPLETE-LOOP
+/// program form that keeps its centre, width and height, lowering to
+/// four legs counterclockwise from the lower-left corner, its seam at
+/// that corner. Its sides are pieces 0..3: bottom, right, top, left.
+#[pyfunction]
+fn rectangle(
+    py: Python<'_>,
+    centre: (Length, Length),
+    width: Length,
+    height: Length,
+) -> PyResult<ClosedLoop> {
+    let tol = Tol::witness();
+    pf::rectangle(pt(centre), width.0.meters(), height.0.meters(), tol)
+        .map(ClosedLoop)
+        .map_err(|err| path_err(py, &err))
+}
+
 // ------------------------------------------------------------------
 // The recorded program, lifted to the document vocabulary
 // ------------------------------------------------------------------
@@ -1623,6 +1640,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ArcLen>()?;
     m.add_function(wrap_pyfunction!(circle, m)?)?;
     m.add_function(wrap_pyfunction!(circle_split, m)?)?;
+    m.add_function(wrap_pyfunction!(rectangle, m)?)?;
     // `Start` is a VALUE in the Rust prelude, so it is a value here:
     // `line_to(Start)` reads the same in both languages.
     m.add("Start", Py::new(m.py(), StartToken)?)?;

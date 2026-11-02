@@ -367,9 +367,7 @@ fn definition<T: crate::mate::SolveScalar>(
                 unreachable!("the door admits an axis and a point at a frame through them")
             };
             let (foot, dir) = (axis.foot(), axis.dir());
-            let a = dir.get();
-            let along = (position - foot).dot(a);
-            let at = foot + a * along;
+            let at = axis.foot_of(position);
             in_frame(
                 first.frame,
                 RigidMotion::from_aim_and_reference(at, dir, position - foot, POSE_UNIT_NORM, b)

@@ -41,3 +41,7 @@ already covers the point, and put that statement at the site.
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to CLEAVETAIL (`work/cleavetail/`) by `git mv`, id and body unchanged: the track opened for CLEAVE's P3 and P4 tail: refusal stories, guards that cannot go red, latent soundness and hygiene. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Evidence (ONEHOME, PR 6327, 2026-11-02)
+
+The circle's on-carrier check is now one foot (`Curve3::foot`): `Foot::on_carrier` decides it (rows `curve_carrier_*`, not `bool_contact_arc`, which is retired), and the foot's azimuth on the branch about the span's middle (`Span::branch`) is the split parameter. `point_on_circle` is gone. Extending the check to an ellipse is now a widening of that `if let` to the ellipse arm, with its foot's parameter in place of `param_near`'s unit-image anomaly; the period guard the row asks for is still owed.

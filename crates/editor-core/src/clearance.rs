@@ -1,6 +1,24 @@
-//! **The E7 clearance engine's document half**: the trichotomy over one
-//! certified leaf of the E6 driver, and the same engine run at `c = 0⁺`
-//! as the global parametric self-intersection check.
+//! **The E7 clearance engine's document half**: the verdict over one
+//! certified leaf of the E6 driver, the dials door the engine's own rows
+//! turn, and the same engine run at `c = 0⁺` as the global parametric
+//! self-intersection check.
+//!
+//! # Two routes, one sweep
+//!
+//! **A document asks a clearance as an assertion**
+//! ([`crate::Claim::Clearance`]): `eval/wire.rs`'s `wire_clearance`
+//! runs the sweep inside the evaluation at a certifying lane, and
+//! [`crate::drive::assertion_at`] reads it over a leaf. That is the
+//! product's route, and the only one `pncad` exposes.
+//!
+//! **This module's doors are the ENGINE's**: [`clearance_at_dials`] and
+//! [`clearance_over_at_dials`] ask a [`ClearanceQuery`] between two
+//! [`Selection`]s at dials a document assertion has no spelling for —
+//! budgets, the facet accelerator, a monotonicity oracle — and
+//! [`self_intersection`] asks the strict question. They exist for the
+//! engine's rows and for the strict question; a document question that
+//! reaches for them is asking the wrong door
+//! (`work/cleartail/the-metric-clearance-dials-door-outlives-the-assertion.md`).
 //!
 //! Two nested subdivisions. The OUTER one is [`mod@crate::drive`]'s: it
 //! hands this module a leaf whose topology is provably the witness
@@ -10,64 +28,74 @@
 //! domains with interval exclusion. This module evaluates the document
 //! with the leaf's parameters bound as intervals, resolves the two
 //! selections, reads both bodies into the frame the question is asked
-//! in, hands the engine their faces, and verifies at `f64` each witness
+//! in, hands the engine their faces, and verifies at `f64` each pair
 //! the engine offers. The windows, the cells, the sweep, its one-way
 //! looseness and its two funnelled compares are the engine's, and its
 //! module header states them.
 //!
 //! # What each verdict claims, exactly
 //!
-//! [`ClearanceVerdict::Holds`] is a certificate over the leaf's whole
-//! parameter box AND the whole of both selections: at every parameter
-//! point in the box and every pair of points on the two carrier
-//! windows **minus the cells decided outside their faces**
+//! Over a parameter box a lower bound's two verdicts and an upper
+//! bound's two do not have the same quantifiers, and each verdict says
+//! which it carries.
+//!
+//! [`ClearanceVerdict::Holds`] (`≥ c`) is a certificate over the leaf's
+//! whole parameter box AND the whole of both selections: at every
+//! parameter point in the box and every pair of points on the two
+//! carrier windows **minus the cells decided outside their faces**
 //! ([`topo::cell_region`]), the separation satisfies the bound. That
 //! set still CONTAINS both trimmed faces — a cell is dropped only when
 //! no boundary of its face meets it, decided in metres at `K · ε`, and
 //! the face's point door places a station of it outside — so the
 //! certificate is about the faces, and the places neither face
-//! occupies that it also covers are fewer. Nothing
-//! samples, nothing averages, and no probability enters — mass
-//! accounting applies to LEAVES (E6), never inside one.
+//! occupies that it also covers are fewer. Nothing samples, nothing
+//! averages, and no probability enters — mass accounting applies to
+//! LEAVES (E6), never inside one. [`ClearanceVerdict::Exceeded`] (`≤ c`)
+//! is the same certificate read the other way: at every point of the
+//! box every pair is past the bound.
 //!
-//! [`ClearanceVerdict::Violated`] carries a concrete parameter point
-//! and a concrete pair of surface points, and their distance is
-//! **re-verified at `f64`** by an independent rebuild before the
-//! verdict is minted (`verify_witness`, the verifier this module hands
-//! the engine). A witness the `f64` recomputation does not confirm is
-//! never reported as one: the engine refuses
-//! [`EngineRefusal::WitnessUnverified`] instead.
+//! [`ClearanceVerdict::Violated`] (`≥ c`) is EXISTENTIAL: it carries a
+//! concrete parameter point and a concrete pair of face points closer
+//! than the bound, **re-verified at `f64`** by an independent rebuild
+//! at that point before the verdict is minted. One point of the box
+//! breaks the bound.
 //!
-//! What a witness IS, precisely: a pair of points, one on each FACE —
-//! stations the faces' point doors place `In`, `OnEdge` or `OnVertex`
-//! ([`topo::cell_region::station_region`]) — whose `f64` separation the
-//! same funnel site calls a violation. It is the closest pair the rebuild's station lattice
+//! [`ClearanceVerdict::Within`] (`≤ c`) is UNIVERSAL: at every point of
+//! the box some pair is within the bound. It carries one pair of face
+//! stations whose separation, enclosed over every realization the lane
+//! covers ([`topo::clearance::Enclosure::separation`]), is within the
+//! bound — so the same two stations prove it at every point — and the
+//! `f64` rebuild's reading of them at one point as its report. A pair
+//! within the bound at one point only proves it there: the box decides
+//! it in part only, and the engine refuses
+//! [`EngineRefusal::BoxDependent`], which the drive bisects on.
+//!
+//! A pair the `f64` recomputation does not confirm is never reported:
+//! the engine refuses [`EngineRefusal::WitnessUnverified`] instead.
+//!
+//! What a pair IS, precisely: two points, one on each FACE — stations
+//! the faces' point doors place `In`, `OnEdge` or `OnVertex`
+//! ([`topo::cell_region::station_region`]) — whose separation the same
+//! funnel site reads against the bound ([`topo::clearance::Ask::confirms`]).
+//! A violation's pair is the closest the rebuild's station lattice
 //! FOUND, not the infimum over the two cells — on a flat pair the
 //! lattice attains the true closest approach, on a curved one it
-//! returns a near pair. For the strictly-positive question the witness
-//! reports a COINCIDENCE and never a signed penetration depth; that
-//! gap is scoped in `work/curved/signed-penetration-depth.md`.
+//! returns a near pair; an upper bound's is the pair whose enclosure
+//! reaches least far. For the strictly-positive question the pair
+//! reports a COINCIDENCE and never a signed penetration depth; that gap
+//! is scoped in `work/curved/signed-penetration-depth.md`.
 //!
-//! [`ClearanceVerdict::Refused`] is typed, in fourteen classes rather
-//! than the spec's two. Nine are the engine's ([`EngineRefusal`],
-//! carried as [`ClearanceRefusal::Engine`]): a terminal sliver (the
-//! driver's rule shape — the deciding enclosure sits wholly inside the
-//! funnel's band, so refinement provably cannot move it), a named
-//! budget, a carrier with no admitted window, an enclosure that did not
-//! evaluate, a scope that names nothing, a witness the `f64` rebuild
-//! would not confirm, and the injectivity question's three — a touching
-//! pair no local certificate discharged, a collapsed spline chart, a
-//! torus not decided a ring. Five are this module's: a selection that
-//! does not resolve, a fold over a drive that certified nothing, a bound
-//! that is not a distance, a tolerance the funnel cannot band, and a
-//! pair with a recorded contact. Each type carries the argument for
-//! each of its arms; the suite's own module door says which have no
-//! row and why.
-//!
-//! The minimum-separation question ([`topo::clearance::min_separation`])
-//! is asked by the `min_clearance` measure from inside an evaluation,
-//! where the body is already in hand, and this module does not stand
-//! between them.
+//! [`ClearanceVerdict::Refused`] is typed, never a poisoned node: the
+//! engine's own refusals ([`EngineRefusal`], carried as
+//! [`ClearanceRefusal::Engine`]) — a terminal sliver, a named budget, a
+//! carrier with no admitted window, an enclosure that did not evaluate,
+//! a scope that names nothing, a pair the `f64` rebuild would not
+//! confirm, an upper bound the box decides in part only, and the
+//! injectivity question's three — and this crate's: a selection that
+//! does not resolve, a fold over a drive that certified nothing, a
+//! bound that is not a distance, a lane that cannot certify, a
+//! tolerance the funnel cannot band, and a pair with a recorded
+//! contact. Each type carries the argument for each of its arms.
 //!
 //! # Read-only (E8)
 //!
@@ -79,10 +107,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom::Surface;
-use geom_core::k_stats::decide;
-use geom_core::{Band, BandError, Margin, Point3, Sign, Tol};
+use geom_core::{Band, BandError, Point3, Sign, Tol};
 use topo::Body;
-use topo::clearance::{BoundVerdict, Side, Stations, Sweep};
+use topo::clearance::{Ask, BoundVerdict, Side, Stations, Sweep};
 use topo::entity::FaceKey;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
@@ -124,7 +151,11 @@ pub enum Pruning {
     #[default]
     Off,
     /// A parameter the oracle proves the separation monotone in is
-    /// collapsed to the box facet where the separation is smallest.
+    /// collapsed to the box facet where the separation is smallest,
+    /// for a bound with no upper end (`≥ c`, the strict question): both
+    /// its verdicts are read at that facet, `Holds` universally and a
+    /// violation existentially. A bound with an upper end is examined
+    /// whole, since no one facet carries both its universal verdicts.
     /// An ACCELERATOR: the verdict is the same, the work is less.
     Facets,
 }
@@ -222,7 +253,10 @@ impl MonotoneOracle for NoTangents {
 /// them out of step between two calls would be comparing two different
 /// questions' answers.
 pub struct ClearanceQuery<'a> {
-    /// Which question ([`ClearanceBound`]).
+    /// Which question ([`ClearanceBound`]). A document asks a bounded
+    /// clearance as an assertion ([`crate::Claim::Clearance`]) through
+    /// [`crate::drive::assertion_at`]; this door is the engine's, at its
+    /// dials.
     pub bound: ClearanceBound,
     /// The run's tolerance — the linear band every compare classifies
     /// against.
@@ -242,17 +276,19 @@ pub struct ClearanceQuery<'a> {
     /// **The tier the leaf was certified at**, which is the lane it is
     /// replayed on ([`crate::drive::ParamBoxVerdict::symbolic`]): a leaf
     /// the symbolic tier certified can carry a node a numeric replay
-    /// refuses. [`clearance_over`] reads it off the verdict instead.
+    /// refuses. [`clearance_over_at_dials`] reads it off the verdict instead.
     pub symbolic: crate::drive::SymbolicDials,
 }
 
 impl ClearanceQuery<'_> {
-    /// The plain `separation ≥ c` question at the shipped dials, with
-    /// no accelerator, over a leaf a default drive certified
-    /// ([`crate::drive::DriveConfig::default`]'s tier).
-    pub fn at_least(c: f64, tol: Tol) -> Self {
+    /// **The engine's question `bound`, at the shipped dials** — the one
+    /// constructor of this door. A document asks a bounded clearance as
+    /// an assertion ([`crate::Claim::Clearance`]); this door is for the
+    /// engine's own rows, which turn the dials an assertion has no
+    /// spelling for ([`ClearanceConfig`], [`MonotoneOracle`]).
+    pub fn at_dials(bound: ClearanceBound, tol: Tol) -> Self {
         Self {
-            bound: ClearanceBound::AtLeast(c),
+            bound,
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
@@ -263,14 +299,7 @@ impl ClearanceQuery<'_> {
 
     /// The self-intersection question at the shipped dials.
     pub fn strictly_positive(tol: Tol) -> Self {
-        Self {
-            bound: ClearanceBound::StrictlyPositive,
-            tol,
-            config: ClearanceConfig::default(),
-            oracle: &NoTangents,
-            resolver: None,
-            symbolic: crate::drive::SymbolicDials::default(),
-        }
+        Self::at_dials(ClearanceBound::StrictlyPositive, tol)
     }
 }
 
@@ -342,13 +371,23 @@ pub enum FaceScope {
     Named(Vec<StableName>),
 }
 
-/// The E7 trichotomy.
+/// The E7 trichotomy: two holding arms, two violated arms, and the
+/// typed third state.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClearanceVerdict {
-    /// The bound holds over the whole leaf and both carrier windows.
+    /// A bound with no upper end holds over the whole box and both
+    /// carrier windows.
     Holds,
-    /// A definite violation, witnessed and re-verified at `f64`.
-    Violated(Box<Violation>),
+    /// A bound with an upper end holds: any lower end as [`Self::Holds`]
+    /// says, and this pair, verified at `f64`, lies within the upper
+    /// end, which proves it.
+    Within(Box<Witness>),
+    /// The lower bound is violated: this pair, verified at `f64`, is
+    /// closer than it.
+    Violated(Box<Witness>),
+    /// The upper bound is violated: every pair of the two scopes is
+    /// certified clear of it.
+    Exceeded,
     /// Typed, never silence.
     Refused(ClearanceRefusal),
 }
@@ -357,8 +396,8 @@ impl ClearanceVerdict {
     /// The verdict's state as a word, for reports.
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Holds => "Holds",
-            Self::Violated(_) => "Violated",
+            Self::Holds | Self::Within(_) => "Holds",
+            Self::Violated(_) | Self::Exceeded => "Violated",
             Self::Refused(_) => "Refused",
         }
     }
@@ -369,21 +408,71 @@ impl ClearanceVerdict {
     /// convention).
     pub fn holds(&self) -> Option<bool> {
         match self {
-            Self::Holds => Some(true),
-            Self::Violated(_) => Some(false),
+            Self::Holds | Self::Within(_) => Some(true),
+            Self::Violated(_) | Self::Exceeded => Some(false),
             Self::Refused(_) => None,
         }
     }
 }
 
-/// A definite violation: where in the parameter box, and where on the
-/// two carriers.
+/// A verified pair: where in the parameter box, and where on the two
+/// faces.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Violation {
+pub struct Witness {
     /// The parameter point, re-evaluated at `f64` to verify.
     pub param: ParamWitness,
     /// The closest-point pair the `f64` rebuild found.
     pub geometry: GeometryWitness,
+    /// **The body each face of the pair is of**: the node each side was
+    /// read at and which of its output bodies — the first side's, then
+    /// the second's. The member a face seat names on a pattern is the
+    /// body it resolved to, so a reader drawing the pair reads it here
+    /// rather than resolving the seat a second time.
+    pub sides: [(RecipeNodeId, u32); 2],
+}
+
+impl Witness {
+    /// The goldening lines of this pair, under `verdict`'s word.
+    fn serialize(&self, verdict: &str, s: &mut String) {
+        use core::fmt::Write as _;
+        let g = &self.geometry;
+        let _ = writeln!(
+            s,
+            "verdict {verdict} distance={:016x} faces=first:{:?}/second:{:?}",
+            g.distance.to_bits(),
+            g.a,
+            g.b
+        );
+        let uv = |(u, v): (f64, f64)| format!("{:016x},{:016x}", u.to_bits(), v.to_bits());
+        let pt = |p: Point3<f64>| {
+            format!(
+                "{:016x},{:016x},{:016x}",
+                p.x.to_bits(),
+                p.y.to_bits(),
+                p.z.to_bits()
+            )
+        };
+        let _ = writeln!(s, "witness a uv={} at={}", uv(g.a_uv), pt(g.a_point));
+        let _ = writeln!(s, "witness b uv={} at={}", uv(g.b_uv), pt(g.b_point));
+        for (name, offset) in &self.param.offsets {
+            let _ = writeln!(s, "witness param {} {:016x}", name.full(), offset.to_bits());
+        }
+    }
+
+    /// The pair in words, each face named by its side.
+    fn render(&self, s: &mut String) {
+        use core::fmt::Write as _;
+        let g = &self.geometry;
+        let _ = writeln!(
+            s,
+            "    {} m between face {:?} of the first scope and face {:?} of the second, \
+             verified at f64",
+            g.distance, g.a, g.b
+        );
+        for (name, offset) in &self.param.offsets {
+            let _ = writeln!(s, "    at variable {name} = nominal {offset:+}");
+        }
+    }
 }
 
 /// A concrete parameter point inside the leaf.
@@ -398,6 +487,15 @@ pub struct ParamWitness {
     /// analysis lane's own currency — [`crate::analysis::AnalyzedParam`]),
     /// in the document's declaration order.
     pub offsets: Vec<(VarId, f64)>,
+}
+
+impl ParamWitness {
+    /// The document's nominal: no offset on any variable.
+    pub fn nominal() -> Self {
+        Self {
+            offsets: Vec::new(),
+        }
+    }
 }
 
 /// A concrete pair of surface points, at `f64`, with the distance the
@@ -491,8 +589,30 @@ pub enum ClearanceRefusal {
     /// Refused at the door rather than subdivided against — a budget
     /// refusal after a full sweep would be the wrong name for it.
     NotADistance {
-        /// The bound, as given.
+        /// The bound's offending end, as evaluated.
         c: f64,
+    },
+    /// **A band no separation can satisfy**: its lower end is
+    /// definitely above its upper end, as evaluated. An authoring fault
+    /// rather than a fact about the geometry, so it is refused before any
+    /// cell pair is read — swept, it would answer `Violated` or
+    /// `Exceeded`, which names the geometry for a mistake in the bound.
+    /// Its ends are formulas, so, like [`Self::NotADistance`], it is a
+    /// fact of the evaluation and refused there.
+    EmptyBand {
+        /// The lower end's least value, as evaluated.
+        lo: f64,
+        /// The upper end's greatest value, as evaluated.
+        hi: f64,
+    },
+    /// **This build's scalar cannot certify.** A clearance is decided by
+    /// the certified sweep, which reads enclosures; a point scalar has
+    /// none, and a pair it found closest is an upper bound on the
+    /// minimum, not a verdict. The requirement stays recorded and is
+    /// answered at the certifying lane.
+    NeedsCertifyingLane {
+        /// The scalar this build ran at ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
     /// The run's tolerance admits no linear band, so nothing here can be
     /// classified at all.
@@ -514,6 +634,31 @@ pub enum ClearanceRefusal {
 }
 
 impl ClearanceRefusal {
+    /// **What is wrong with `bound` as a question**, before any cell pair
+    /// is read: an end that is not a distance ([`Self::NotADistance`]),
+    /// or a band whose lower end is definitely above its upper
+    /// ([`Self::EmptyBand`]). The one check both routes ask — the
+    /// assertion's evaluation and the dials door.
+    pub fn of_bound(bound: ClearanceBound) -> Option<Self> {
+        use geom_core::Bounds;
+        let (lower, upper) = (bound.lower(), bound.upper());
+        if let Some(c) = [lower, upper]
+            .into_iter()
+            .flatten()
+            .flat_map(|e| [e.lo(), e.hi()])
+            .find(|c| !c.is_finite() || *c < 0.0)
+        {
+            return Some(Self::NotADistance { c });
+        }
+        match (lower, upper) {
+            (Some(lo), Some(hi)) if lo.lo() > hi.hi() => Some(Self::EmptyBand {
+                lo: lo.lo(),
+                hi: hi.hi(),
+            }),
+            _ => None,
+        }
+    }
+
     /// The refusal's own payload, rendered for the goldening form — the
     /// half `name` drops, so two runs that refuse for the same CLASS on
     /// different evidence do not serialize alike. A machine channel: a
@@ -524,6 +669,8 @@ impl ClearanceRefusal {
             Self::Selection(r) => r.payload(),
             Self::NothingCertified { refused_leaves } => format!("refused_leaves={refused_leaves}"),
             Self::NotADistance { c } => format!("{:016x}", c.to_bits()),
+            Self::EmptyBand { lo, hi } => format!("{:016x}/{:016x}", lo.to_bits(), hi.to_bits()),
+            Self::NeedsCertifyingLane { scalar } => (*scalar).to_owned(),
             Self::ToleranceHasNoBand(error) => format!("{error:?}"),
             Self::RecordedContact { a, b } => format!("{a:?}/{b:?}"),
         }
@@ -537,6 +684,8 @@ impl ClearanceRefusal {
             Self::Selection(_) => "selection",
             Self::NothingCertified { .. } => "nothing_certified",
             Self::NotADistance { .. } => "not_a_distance",
+            Self::EmptyBand { .. } => "empty_band",
+            Self::NeedsCertifyingLane { .. } => "needs_certifying_lane",
             Self::ToleranceHasNoBand(_) => "tolerance_has_no_band",
             Self::RecordedContact { .. } => "recorded_contact",
         }
@@ -570,7 +719,20 @@ impl crate::spoken::Say for ClearanceRefusal {
             ),
             Self::NotADistance { c } => write!(
                 f,
-                "the bound {c} is not a distance: a clearance bound is finite and non-negative"
+                "the bound {c} is not a distance: a clearance bound is finite and non-negative. \
+                 Recourse: write the bound as a non-negative length"
+            ),
+            Self::EmptyBand { lo, hi } => write!(
+                f,
+                "the band's lower end {lo} is above its upper end {hi}, so no separation lies \
+                 in it. Recourse: write the lower end at or below the upper"
+            ),
+            Self::NeedsCertifyingLane { scalar } => write!(
+                f,
+                "a clearance is decided by the certified sweep, which the {scalar} scalar cannot \
+                 run: a point search finds a near pair, not a verdict. Recourse: certify it at \
+                 the {interval} lane",
+                interval = <geom_core::Interval as geom_core::Real>::NAME,
             ),
             Self::ToleranceHasNoBand(error) => {
                 write!(f, "the run's tolerance admits no linear band: {error}")
@@ -886,11 +1048,12 @@ impl ClearanceReport {
         let r = self.receipt;
         let _ = writeln!(
             s,
-            "receipt candidates={} discharged={} violated={} refused={} splits={} \
+            "receipt candidates={} discharged={} violated={} within={} refused={} splits={} \
              abandoned={} outside={} certified={} by_kind={} holds={}",
             r.candidates,
             r.discharged,
             r.violated,
+            r.within,
             r.refused,
             r.splits,
             r.abandoned,
@@ -903,29 +1066,10 @@ impl ClearanceReport {
             ClearanceVerdict::Holds => {
                 let _ = writeln!(s, "verdict holds");
             }
-            ClearanceVerdict::Violated(v) => {
-                let g = &v.geometry;
-                let _ = writeln!(
-                    s,
-                    "verdict violated distance={:016x} faces={:?}/{:?}",
-                    g.distance.to_bits(),
-                    g.a,
-                    g.b
-                );
-                let uv = |(u, v): (f64, f64)| format!("{:016x},{:016x}", u.to_bits(), v.to_bits());
-                let pt = |p: Point3<f64>| {
-                    format!(
-                        "{:016x},{:016x},{:016x}",
-                        p.x.to_bits(),
-                        p.y.to_bits(),
-                        p.z.to_bits()
-                    )
-                };
-                let _ = writeln!(s, "witness a uv={} at={}", uv(g.a_uv), pt(g.a_point));
-                let _ = writeln!(s, "witness b uv={} at={}", uv(g.b_uv), pt(g.b_point));
-                for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(s, "witness param {} {:016x}", name.full(), offset.to_bits());
-                }
+            ClearanceVerdict::Within(w) => w.serialize("within", &mut s),
+            ClearanceVerdict::Violated(w) => w.serialize("violated", &mut s),
+            ClearanceVerdict::Exceeded => {
+                let _ = writeln!(s, "verdict exceeded");
             }
             ClearanceVerdict::Refused(r) => {
                 let _ = writeln!(s, "verdict refused {} {}", r.name(), r.payload());
@@ -965,18 +1109,21 @@ impl ClearanceReport {
         let mut s = String::new();
         match &self.verdict {
             ClearanceVerdict::Holds => {
-                let _ = writeln!(s, "HOLDS over the whole leaf box and both carrier windows");
+                let _ = writeln!(s, "HOLDS over the whole box and both carrier windows");
             }
-            ClearanceVerdict::Violated(v) => {
-                let g = &v.geometry;
+            ClearanceVerdict::Within(w) => {
+                let _ = writeln!(s, "HOLDS: a pair lies within the upper bound");
+                w.render(&mut s);
+            }
+            ClearanceVerdict::Violated(w) => {
+                let _ = writeln!(s, "VIOLATED: a pair is closer than the lower bound");
+                w.render(&mut s);
+            }
+            ClearanceVerdict::Exceeded => {
                 let _ = writeln!(
                     s,
-                    "VIOLATED: {} m between faces {:?} and {:?}, verified at f64",
-                    g.distance, g.a, g.b
+                    "VIOLATED: every pair is certified clear of the upper bound"
                 );
-                for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(s, "    at variable {name} = nominal {offset:+}");
-                }
             }
             ClearanceVerdict::Refused(r) => {
                 let _ = writeln!(s, "REFUSED ({}): {r}", r.name());
@@ -986,13 +1133,15 @@ impl ClearanceReport {
         let _ = writeln!(
             s,
             "  {} candidate pair(s); {} discharged ({} of them vacuously, off the face, {} by \
-             a local certificate, {} by kind), {} violated, {} refused, {} split, {} abandoned",
+             a local certificate, {} by kind), {} violated, {} within, {} refused, {} split, \
+             {} abandoned",
             r.candidates,
             r.discharged,
             r.outside,
             r.certified,
             r.by_kind,
             r.violated,
+            r.within,
             r.refused,
             r.splits,
             r.abandoned
@@ -1015,8 +1164,21 @@ impl ClearanceReport {
         s
     }
 
+    /// `verdict`, with the sweep's receipt, widths and region count.
+    pub(crate) fn of<W>(
+        verdict: ClearanceVerdict,
+        report: &topo::clearance::BoundReport<W>,
+    ) -> Self {
+        Self {
+            verdict,
+            receipt: report.receipt,
+            widths: report.widths,
+            decided: report.decided,
+        }
+    }
+
     /// A report that never got as far as a subdivision.
-    fn refused(refusal: ClearanceRefusal) -> Self {
+    pub(crate) fn refused(refusal: ClearanceRefusal) -> Self {
         Self {
             verdict: ClearanceVerdict::Refused(refusal),
             receipt: CellReceipt::default(),
@@ -1027,25 +1189,6 @@ impl ClearanceReport {
 }
 
 // ------------------------------------------------------------- doors
-
-/// **The clearance question over one certified leaf** (E7): is the
-/// separation between the two selections at least `c` metres,
-/// everywhere in the leaf's parameter box?
-///
-/// The caller iterates leaves; [`clearance_over`] is the convenience
-/// that folds a whole [`ParamBoxVerdict`]. The leaf is replayed at the
-/// default drive's tier; a leaf certified at another is asked through
-/// [`clearance_with`] with [`ClearanceQuery::certified_at`].
-pub fn clearance(
-    doc: &Doc<ProfileProgram>,
-    leaf: &ParamBox,
-    a: &Selection,
-    b: &Selection,
-    c: f64,
-    tol: Tol,
-) -> ClearanceReport {
-    clearance_with(doc, leaf, a, b, &ClearanceQuery::at_least(c, tol))
-}
 
 /// **Global self-intersection freedom over one certified leaf** (E7's
 /// census made global and parametric): the selection's boundary is
@@ -1063,24 +1206,22 @@ pub fn self_intersection(
     of: &Selection,
     tol: Tol,
 ) -> ClearanceReport {
-    clearance_with(doc, leaf, of, of, &ClearanceQuery::strictly_positive(tol))
+    clearance_at_dials(doc, leaf, of, of, &ClearanceQuery::strictly_positive(tol))
 }
 
-/// The full door: both questions, both budgets, and the accelerator
-/// seam.
+/// The full door: the strict question between two selections, both
+/// budgets, and the accelerator seam.
 ///
-/// `a` and `b` may name the same selection, which is what makes this
-/// one engine rather than two: a query against itself pairs each face
-/// with itself and each later face of the same body. The strict bound
-/// over one body is the injectivity question; every other question is
-/// metric, and two scopes of one body that meet are at distance 0 on
-/// the cell they share.
+/// `a` and `b` may name the same selection: a query against itself
+/// pairs each face with itself and each later face of the same body,
+/// and the strict bound over one body is the injectivity question.
+/// Between two bodies it is metric.
 ///
 /// The verdict combines the pairs' outcomes in one fixed order: a
 /// definite violation outranks a refusal, which outranks `Holds`. A
 /// finding is a stronger statement than an unknown, and an unknown is
 /// never presented as a pass.
-pub fn clearance_with(
+pub fn clearance_at_dials(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
     a: &Selection,
@@ -1090,7 +1231,7 @@ pub fn clearance_with(
     clearance_on(doc, leaf, a, b, query, query.symbolic.lane())
 }
 
-/// [`clearance_with`] with the leaf replayed on `lane`.
+/// [`clearance_at_dials`] with the leaf replayed on `lane`.
 fn clearance_on(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
@@ -1099,12 +1240,11 @@ fn clearance_on(
     query: &ClearanceQuery<'_>,
     lane: crate::eval::LeafLane,
 ) -> ClearanceReport {
-    let c = query.bound.c();
-    if !c.is_finite() || c < 0.0 {
-        // Not a distance. Refused at the door: subdividing against a
-        // NaN bound classifies nothing, burns the whole budget and
-        // comes back `Budget`, which is the wrong name for it.
-        return ClearanceReport::refused(ClearanceRefusal::NotADistance { c });
+    // Refused at the door: subdividing against a NaN bound classifies
+    // nothing, burns the whole budget and comes back `Budget`, which is
+    // the wrong name for it.
+    if let Some(refusal) = ClearanceRefusal::of_bound(query.bound) {
+        return ClearanceReport::refused(refusal);
     }
     for (sel, side) in [(a, Which::First), (b, Which::Second)] {
         if sel.is_empty_scope() {
@@ -1122,8 +1262,13 @@ fn clearance_on(
     // sub-box of the leaf, so restricting to one restricts the geometry
     // the whole query is about. `Pruning::Off` is the identity.
     let queried = match query.config.pruning {
-        Pruning::Off => leaf.clone(),
-        Pruning::Facets => facet_restrict(leaf, query.oracle),
+        Pruning::Facets if query.bound.upper().is_none() => facet_restrict(leaf, query.oracle),
+        // An upper bound is not served by any one facet: its `Within`
+        // is universal and is proved on the facet of LARGEST separation,
+        // but its `Exceeded` is universal too and needs the smallest, so
+        // either facet alone would answer one verdict for the whole box
+        // on the other's evidence. The box is examined whole.
+        Pruning::Off | Pruning::Facets => leaf.clone(),
     };
     let opts = EvalOptions {
         param_box: Some(Arc::new(queried.clone())),
@@ -1229,7 +1374,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         // distance from itself.
         let same_body = a.at == b.at && a.body == b.body;
         if same_body
-            && query.bound == ClearanceBound::StrictlyPositive
+            && matches!(query.bound, ClearanceBound::StrictlyPositive)
             && let Some((x, y)) = recorded_contact(ev, a, &body_a, &faces_a, &faces_b)
         {
             return ClearanceReport::refused(ClearanceRefusal::RecordedContact { a: x, b: y });
@@ -1256,24 +1401,24 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         };
         let report = engine.sweep(&sweep, &windows_a, &windows_b, same_body, |candidate| {
             let faces = candidate.faces();
+            let ask = candidate.ask();
+            let over = candidate.enclosure();
             verify_witness(
                 doc,
                 queried,
                 (a, b),
                 (faces, || engine.on_face_stations(candidate)),
-                (query.bound, band),
+                (ask, band, &over),
                 query.resolver,
                 query.tol,
             )
         });
-        let verdict = match report.verdict {
-            BoundVerdict::Holds => ClearanceVerdict::Holds,
-            BoundVerdict::Violated(geometry) => ClearanceVerdict::Violated(Box::new(Violation {
-                param: witness_point(queried),
-                geometry,
-            })),
-            BoundVerdict::Refused(r) => ClearanceVerdict::Refused(refused(r)),
-        };
+        let verdict = verdict_of(
+            report.verdict,
+            || witness_point(queried),
+            [(a.at, a.body), (b.at, b.body)],
+            refused,
+        );
         ClearanceReport {
             verdict,
             receipt: report.receipt,
@@ -1312,7 +1457,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
 /// Nothing: the refusals are verdicts, not errors. The mass columns
 /// carry [`MeasureUnavailable`] where a parameter's law cannot price a
 /// leaf, exactly as the drive's own accounting does.
-pub fn clearance_over(
+pub fn clearance_over_at_dials(
     doc: &Doc<ProfileProgram>,
     analyzed: &AnalyzedBox,
     verdict: &ParamBoxVerdict,
@@ -1402,8 +1547,8 @@ impl ClearanceMass {
     /// Folds one leaf's mass into the column its verdict names.
     fn price(&mut self, verdict: &ClearanceVerdict, mass: Result<f64, MeasureUnavailable>) {
         let column = match verdict {
-            ClearanceVerdict::Holds => &mut self.holds,
-            ClearanceVerdict::Violated(_) => &mut self.violated,
+            ClearanceVerdict::Holds | ClearanceVerdict::Within(_) => &mut self.holds,
+            ClearanceVerdict::Violated(_) | ClearanceVerdict::Exceeded => &mut self.violated,
             ClearanceVerdict::Refused(r) => self.refused.entry(r.name()).or_insert(Ok(0.0)),
         };
         // The FIRST refusal wins the column, exactly as the drive's own
@@ -1433,7 +1578,7 @@ impl ClearanceMass {
     }
 }
 
-/// What [`clearance_over`] answers.
+/// What [`clearance_over_at_dials`] answers.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LeafFold {
     /// The combined verdict over every certified leaf.
@@ -1532,16 +1677,20 @@ impl LeafFold {
     }
 }
 
-/// The fixed combination order: a definite violation outranks a
-/// refusal, which outranks `Holds`. Within a rank the FIRST is kept, so
-/// the answer is a function of the deterministic pair order.
+/// The fixed combination order: a definite violation (or exceedance)
+/// outranks a refusal, which outranks a holding answer. Within a rank
+/// the FIRST is kept, so the answer is a function of the deterministic
+/// leaf order — and a `Within` keeps its proving pair: every leaf proved
+/// the upper bound, and the first leaf's pair is one proof of it.
 fn combine(acc: ClearanceVerdict, next: ClearanceVerdict) -> ClearanceVerdict {
     match (&acc, &next) {
-        (ClearanceVerdict::Violated(_), _) => acc,
-        (_, ClearanceVerdict::Violated(_)) => next,
+        (ClearanceVerdict::Violated(_) | ClearanceVerdict::Exceeded, _) => acc,
+        (_, ClearanceVerdict::Violated(_) | ClearanceVerdict::Exceeded) => next,
         (ClearanceVerdict::Refused(_), _) => acc,
         (_, ClearanceVerdict::Refused(_)) => next,
-        _ => ClearanceVerdict::Holds,
+        (ClearanceVerdict::Within(_), _) => acc,
+        (_, ClearanceVerdict::Within(_)) => next,
+        (ClearanceVerdict::Holds, ClearanceVerdict::Holds) => ClearanceVerdict::Holds,
     }
 }
 
@@ -1726,7 +1875,7 @@ fn recorded_contact<T: geom_core::Decide>(
 /// driver's split rule cuts at and its K-telemetry replay samples: a
 /// witness is a point the analysis actually stood on, not a new one
 /// minted here.
-fn witness_point(leaf: &ParamBox) -> ParamWitness {
+pub(crate) fn witness_point(leaf: &ParamBox) -> ParamWitness {
     ParamWitness {
         offsets: leaf
             .order()
@@ -1734,6 +1883,20 @@ fn witness_point(leaf: &ParamBox) -> ParamWitness {
             .filter_map(|&name| Some((name, leaf.get(name)?.midpoint())))
             .collect(),
     }
+}
+
+/// **The box collapsed to its midpoint** ([`witness_point`]'s point), as
+/// a box an `f64` rebuild evaluates over.
+pub(crate) fn midpoint_of(leaf: &ParamBox) -> ParamBox {
+    let mid: BTreeMap<VarId, BoxAxis> = leaf
+        .axes()
+        .iter()
+        .map(|(&n, a)| {
+            let m = a.midpoint();
+            (n, BoxAxis::Varying { lo: m, hi: m })
+        })
+        .collect();
+    ParamBox::from_axes_in(mid, leaf.order())
 }
 
 /// **The witness verification** (E7's witness clause), the verifier the
@@ -1764,20 +1927,12 @@ fn verify_witness(
     leaf: &ParamBox,
     (sel_a, sel_b): (&Selection, &Selection),
     ((face_a, face_b), stations): ((FaceKey, FaceKey), impl FnOnce() -> (Stations, Stations)),
-    (bound, band): (ClearanceBound, Band),
+    (ask, band, over): (Ask, Band, &topo::clearance::Enclosure<'_>),
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
-    let mid: BTreeMap<VarId, BoxAxis> = leaf
-        .axes()
-        .iter()
-        .map(|(&n, a)| {
-            let m = a.midpoint();
-            (n, BoxAxis::Varying { lo: m, hi: m })
-        })
-        .collect();
     let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::from_axes_in(mid, leaf.order()))),
+        param_box: Some(Arc::new(midpoint_of(leaf))),
         resolver: resolver.cloned(),
         ..lane_opts()
     };
@@ -1812,82 +1967,147 @@ fn verify_witness(
             ));
         }
     };
+    closest_pair((&bx, &by), (face_a, face_b), stations(), (ask, band), over)
+}
+
+/// **The verifier's core**: the closest pair of the two faces' admitted
+/// stations on the `f64` rebuild's own charts, confirmed against `ask`
+/// ([`Ask::confirms`]).
+///
+/// **The closest pair on the cells' own lattice**, not their midpoints:
+/// both are inside the cells the interval pass classified, so either
+/// confirms; the midpoint pair is just a much worse REPORT. Chosen by
+/// the smallest `f64` distance under `total_cmp`. **Only a station the
+/// face's point door places on the face is a candidate**
+/// ([`topo::clearance::Candidate::on_face_stations`]), so a witness is a
+/// pair of points of the two FACES, not of their carrier windows.
+///
+/// # Errors
+///
+/// The prose of what the rebuild could not confirm.
+pub(crate) fn closest_pair(
+    (bx, by): (&Body<f64>, &Body<f64>),
+    (face_a, face_b): (FaceKey, FaceKey),
+    (lattice_a, lattice_b): (Stations, Stations),
+    (ask, band): (Ask, Band),
+    over: &topo::clearance::Enclosure<'_>,
+) -> Result<GeometryWitness, String> {
     let surface_at = |body: &Body<f64>, face: FaceKey| -> Option<Surface<f64>> {
         let f = body.get_face(face)?;
         Some(body.get_surface(f.surface)?.clone())
     };
-    let (Some(sa), Some(sb)) = (surface_at(&bx, face_a), surface_at(&by, face_b)) else {
+    let (Some(sa), Some(sb)) = (surface_at(bx, face_a), surface_at(by, face_b)) else {
         return Err(
-            "the f64 rebuild does not carry both faces of the violating pair — the leaf's \
-             key identity did not survive the replay"
+            "the f64 rebuild does not carry both faces of the pair — the key identity did not \
+             survive the rebuild"
                 .to_owned(),
         );
     };
-    // **The closest pair on the cells' own lattice**, not their
-    // midpoints. Both are inside the cell the interval pass proved
-    // violating, so either verifies; the midpoint pair is just a much
-    // worse REPORT — measured 0.70 m on a pair whose closest approach is
-    // 0.50 m. Chosen by the smallest `f64` distance under `total_cmp`.
-    //
-    // **Only a station the face's point door places on the face is a
-    // candidate**, so a witness is a pair of points of the two FACES,
-    // not of their carrier windows. A cell pair with no admitted station
-    // on either side leaves `best` empty and the engine reports
-    // `WitnessUnverified`, which is the honest answer for a cell the
-    // interval pass proved violating whose face material, if any, sits
-    // between stations, or whose stations the door does not place.
-    let (lattice_a, lattice_b) = stations();
-    let mut best: Option<Station> = None;
-    for &(au, av) in &lattice_a {
-        let pa = sa.eval(au, av);
-        for &(bu, bv) in &lattice_b {
-            let pb = sb.eval(bu, bv);
-            let d = separation_f64(&pa, &pb);
-            if best
-                .as_ref()
-                .is_none_or(|b| d.total_cmp(&b.d) == core::cmp::Ordering::Less)
-            {
-                best = Some(Station {
-                    d,
-                    a_uv: (au, av),
-                    b_uv: (bu, bv),
-                    a_point: pa,
-                    b_point: pb,
-                });
-            }
+    let station = |a_uv: (f64, f64), b_uv: (f64, f64)| {
+        let (a_point, b_point) = (sa.eval(a_uv.0, a_uv.1), sb.eval(b_uv.0, b_uv.1));
+        Station {
+            d: separation_f64(&a_point, &b_point),
+            a_uv,
+            b_uv,
+            a_point,
+            b_point,
         }
-    }
-    let Some(Station {
+    };
+    let pairs = || {
+        lattice_a
+            .iter()
+            .flat_map(|&a| lattice_b.iter().map(move |&b| (a, b)))
+    };
+    let Some(best) = pairs()
+        .map(|(a, b)| station(a, b))
+        .min_by(|p, q| p.d.total_cmp(&q.d))
+    else {
+        return Err("the cells carry no station on their faces to verify at".to_owned());
+    };
+    let at_point = ask.confirms(geom_core::Interval::from_bounds(best.d, best.d), band);
+    let Station {
         d,
         a_uv,
         b_uv,
-        a_point: pa,
-        b_point: pb,
-    }) = best
-    else {
-        return Err("the violating cells carry no lattice point to verify at".to_owned());
+        a_point,
+        b_point,
+    } = match ask {
+        Ask::Below { .. } => {
+            at_point.map_err(|why| {
+                format!(
+                    "the f64 rebuild measures {} between the closest stations: {why}",
+                    best.d
+                )
+            })?;
+            best
+        }
+        // **An upper bound is universal**: at every realization the lane
+        // covers, some pair is within it. The rebuild's point proves it
+        // at one; the stations whose separation, enclosed over every
+        // realization, reaches least far prove it at all of them, or no
+        // pair of this lattice does.
+        Ask::Within { .. } => {
+            let (reach, a, b) = pairs()
+                .map(|(a, b)| (over.separation(a, b), a, b))
+                .min_by(|p, q| geom_core::Bounds::hi(p.0).total_cmp(&geom_core::Bounds::hi(q.0)))
+                .unwrap_or_else(|| unreachable!("the lattice held a pair above"));
+            match ask.confirms(reach, band) {
+                Ok(()) => station(a, b),
+                Err(why) => {
+                    // Within the bound at some realization the
+                    // enclosure covers: the box decides it in part
+                    // only, and a narrower box can.
+                    if geom_core::Bounds::lo(reach) <= geom_core::Bounds::hi(ask.bound()) {
+                        over.box_dependent(reach);
+                    }
+                    return Err(format!(
+                        "the f64 rebuild measures {} between the closest stations ({}), and \
+                         over every realization the closest stations reach {reach:?}: {why}",
+                        best.d,
+                        if at_point.is_ok() {
+                            "within the bound at its own point"
+                        } else {
+                            "past the bound at its own point"
+                        }
+                    ));
+                }
+            }
+        }
     };
-    let definite = match decide(bound.predicate(), Margin::of(d - bound.c()), band) {
-        Ok(Sign::Negative) => true,
-        Ok(Sign::Zero) => !bound.zero_discharges(),
-        _ => false,
-    };
-    if !definite {
-        return Err(format!(
-            "the f64 rebuild measures {d} between the witness points, which does not classify \
-             as a violation of the bound {} at this run's tolerance",
-            bound.c()
-        ));
-    }
     Ok(GeometryWitness {
         a: face_a,
         a_uv,
-        a_point: pa,
+        a_point,
         b: face_b,
         b_uv,
-        b_point: pb,
+        b_point,
         distance: d,
     })
+}
+
+/// **The sweep's verdict as the document reads it**, each verified pair
+/// stood at the parameter point `param` names and each engine refusal
+/// carried by `refused` with its sides.
+pub(crate) fn verdict_of(
+    verdict: BoundVerdict<GeometryWitness>,
+    param: impl Fn() -> ParamWitness,
+    sides: [(RecipeNodeId, u32); 2],
+    refused: impl FnOnce(EngineRefusal) -> ClearanceRefusal,
+) -> ClearanceVerdict {
+    let at = |geometry| {
+        Box::new(Witness {
+            param: param(),
+            geometry,
+            sides,
+        })
+    };
+    match verdict {
+        BoundVerdict::Holds => ClearanceVerdict::Holds,
+        BoundVerdict::Within(geometry) => ClearanceVerdict::Within(at(geometry)),
+        BoundVerdict::Violated(geometry) => ClearanceVerdict::Violated(at(geometry)),
+        BoundVerdict::Exceeded => ClearanceVerdict::Exceeded,
+        BoundVerdict::Refused(r) => ClearanceVerdict::Refused(refused(r)),
+    }
 }
 
 /// One candidate of [`verify_witness`]'s lattice search: a pair of

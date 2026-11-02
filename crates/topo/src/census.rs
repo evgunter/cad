@@ -2222,7 +2222,7 @@ fn pair_contact<T: Decide>(
     }
     match crate::boolean::tangent_pair_at_rest(body, fx, fy, band) {
         Ok(crate::boolean::RestTangent::Line {
-            carrier: geom::Curve3::Line { dir, .. },
+            carrier: geom::Curve3::Line(geom::Line { dir, .. }),
             ..
         }) => Some(PairContact::Line(dir.normalize())),
         _ => None,
@@ -2251,7 +2251,7 @@ pub(crate) fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) 
         .and_then(|e| body.curves.get(e.curve))
         .and_then(CurveGeom::certified)
         .map(geom_brep::EdgeCurve::carrier)
-        .is_some_and(|c| matches!(c, geom::Curve3::Line { .. }))
+        .is_some_and(|c| !c.is_curved())
 }
 
 /// Every loop of `face` — the outer, then the rings.
@@ -3152,10 +3152,7 @@ fn on_edge_interior_reading<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<(T, MarginDiag)>> {
     let e = e.span();
-    let line = geom::Curve3::Line {
-        origin: e.p0,
-        dir: e.dir,
-    };
+    let line = geom::Curve3::line(e.p0, e.dir);
     match CarrierSpan::new(&line, e.at).contact(q, T::zero(), band) {
         Ok(Some(Hit::On { t, margin })) => Some(Some((t, margin))),
         Ok(Some(Hit::End(_)) | None) => Some(None),
@@ -4384,7 +4381,7 @@ fn curved_overlap_cells<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Vec<Point3<T>> {
-    let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
+    let Some(surface) = body.face_surface(f) else {
         return Vec::new();
     };
     match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
@@ -4743,7 +4740,7 @@ fn edge_crossings<T: Decide>(
         .and_then(CurveGeom::certified);
     // Two straight segments from one point meet nowhere else unless they
     // run together, and a shared run is no cut either.
-    let straight = stored.is_none_or(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+    let straight = stored.is_none_or(|c| !c.carrier().is_curved());
     if matches!(edge, LoopEdge::Chord) && straight && shares_an_end(body, e, side.key) {
         return Some(Vec::new());
     }
@@ -4789,17 +4786,11 @@ fn meetings<T: Decide>(
     band: Band,
 ) -> Result<Vec<(T, CutAt)>, CrossRefusal> {
     use crate::splitting::containment::LoopEdge;
-    let along = geom::Curve3::Line {
-        origin: e.p0,
-        dir: e.dir,
-    };
+    let along = geom::Curve3::line(e.p0, e.dir);
     let (a, b) = side.ends;
     // A straight edge with no certified curve of its own is the segment
     // between its loop ends.
-    let chord = geom::Curve3::Line {
-        origin: a,
-        dir: (b - a).normalize(),
-    };
+    let chord = geom::Curve3::line(a, (b - a).normalize());
     let (boundary, at) = match (edge, stored) {
         (LoopEdge::Chord, Some(curve)) => (
             CarrierSpan::new(curve.carrier(), curve.params()),
@@ -6880,7 +6871,7 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
             face,
             solid: body.solid_of_face(face)?,
             surface: f.surface,
-            kind: body.get_surface(f.surface)?.kind(),
+            kind: body.face_surface_linked(face, f).kind(),
             edges: face_cycles(body, f)
                 .filter_map(Result::ok)
                 .flatten()
@@ -7115,7 +7106,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             minor_radius,
             u_ref,
         } => {
-            use crate::boolean::boxes::{Span, SpanBox, meet, torus_extent, torus_window_extent};
+            use crate::boolean::boxes::{Span, SpanBox, meet, ring_window_extent, torus_extent};
             let (c, ax) = (
                 SpanBox::point(frame.point(center)),
                 SpanBox::vector(frame.vector(axis)),
@@ -7124,24 +7115,29 @@ pub(crate) fn face_reach_in<T: Decide>(
             // The chart window from the boundary's own stored
             // certified pcurves: the same walk, the same guards and
             // the same extent as the boolean lane, at this lane's
-            // scalar ([`torus_chart_window`]).
-            Some(span_pts(
-                match torus_chart_window(body, f, major_radius, minor_radius) {
-                    None => whole,
-                    Some((u, v)) => meet(
-                        torus_window_extent(
-                            &c,
-                            &ax,
+            // scalar ([`torus_chart_window`]), once the ring
+            // convention the extent reads is decided.
+            let window = if geom::is_ring_torus(major_radius, minor_radius, band) {
+                torus_chart_window(body, f, major_radius, minor_radius)
+            } else {
+                None
+            };
+            Some(span_pts(match window {
+                None => whole,
+                Some(window) => meet(
+                    ring_window_extent(
+                        &c,
+                        (
                             &SpanBox::vector(frame.vector(u_ref)),
                             &SpanBox::vector(frame.vector(axis.cross(u_ref))),
-                            Span::exact(major_radius),
-                            Span::exact(minor_radius),
-                            (u, v),
+                            &ax,
                         ),
-                        whole,
+                        (Span::exact(major_radius), Span::exact(minor_radius)),
+                        window,
                     ),
-                },
-            ))
+                    whole,
+                ),
+            }))
         }
         crate::boolean::boxes::FaceBoxRule::CylinderSlab {
             origin,
@@ -8545,14 +8541,11 @@ impl<T: Decide> FaceSector<T> {
         holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
-        // A face or surface that does not resolve, or a loop that does
-        // not walk, is a defect (tier 1 admits none); a face that
-        // resolves off a plane is curved.
+        // A face that does not resolve, or a loop that does not walk, is
+        // a defect (tier 1 admits none); a face that resolves off a plane
+        // is curved.
         let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = body
-            .get_surface(face.surface)
-            .cloned()
-            .ok_or(TouchUnread::Corrupt)?;
+        let surface = body.face_surface_linked(f, face).clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Unreadable)?;
         if !fg.walked {
             return Err(TouchUnread::Corrupt);
@@ -8747,7 +8740,7 @@ fn round_face<T: Decide>(
     p: Point3<T>,
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
     let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-    let surface = body.get_surface(face.surface).ok_or(TouchUnread::Corrupt)?;
+    let surface = body.face_surface_linked(f, face);
     let Some(round) = crate::link::Round::of(surface, face.sense) else {
         return Ok(None);
     };
@@ -10909,9 +10902,12 @@ fn flush_pairs<T: Decide>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> FlushAtRest {
-    let kind = |f: FaceKey| Some(body.get_surface(body.get_face(f)?.surface)?.kind());
+    let kind = |f: FaceKey| Some(body.face_surface(f)?.kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
-    let edges: Vec<Option<BTreeSet<EdgeKey>>> = faces.iter().map(|&f| edge_set(body, f)).collect();
+    let edges: Vec<BTreeSet<EdgeKey>> = faces
+        .iter()
+        .map(|&f| body.proven_face_edge_set(f))
+        .collect();
     let mut out = FlushAtRest::default();
     for (i, &fa) in faces.iter().enumerate() {
         for j in boxes.later(i) {
@@ -10940,11 +10936,7 @@ fn flush_pairs<T: Decide>(
                 what,
                 reason,
             };
-            let (Some(ea), Some(eb)) = (&edges[i], &edges[j]) else {
-                out.findings
-                    .push(unread(FLUSH_UNREAD, Undecidable::MayOverlap));
-                continue;
-            };
+            let (ea, eb) = (&edges[i], &edges[j]);
             match shared_run(body, ea, eb, band) {
                 Ok(true) => {}
                 Ok(false) => continue,
@@ -11014,17 +11006,8 @@ fn flush_pairs<T: Decide>(
 /// Whether `f` lies on a cylinder or a sphere, the curved kinds Door 1
 /// decides exactly ([`crate::boolean::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
-    body.get_face(f)
-        .and_then(|face| body.get_surface(face.surface))
+    body.face_surface(f)
         .is_some_and(crate::boolean::carrier_eq::exact_curved)
-}
-
-/// Each edge bounding `f`, once (a seam once), `None` where a loop does
-/// not walk.
-fn edge_set<T: Real>(body: &Body<T>, f: FaceKey) -> Option<BTreeSet<EdgeKey>> {
-    crate::boolean::solid_contain::face_edges(body, f)
-        .ok()
-        .map(|edges| edges.into_iter().map(|e| e.edge).collect())
 }
 
 /// **Whether two faces' boundaries share a run**: an edge of each whose
@@ -11203,7 +11186,7 @@ fn shared_interior_witness<T: Decide>(
             false
         }
     };
-    let edges = |f| edge_set(body, f).unwrap_or_default();
+    let edges = |f| body.proven_face_edge_set(f);
     let (edges_a, edges_b) = (edges(fa), edges(fb));
     for (x, y, edges) in [(fa, fb, &edges_a), (fb, fa, &edges_b)] {
         let corners = face_vertices(body, x)
@@ -11307,7 +11290,7 @@ fn arc_interiors_meet<T: Decide>(
         }
     };
     let spans = |f| -> Result<Vec<_>, InteriorsUnread> {
-        let edges = edge_set(body, f).ok_or(InteriorsUnread::Unbuilt)?;
+        let edges = body.proven_face_edge_set(f);
         if edges.is_empty() {
             return Err(InteriorsUnread::Unbuilt);
         }
@@ -19270,7 +19253,7 @@ mod two_carrier_records {
                 let b = Band::linear(Tol::witness()).unwrap();
                 let origin = geom_core::Point3::new(0.0, y, z);
                 let dir = geom_core::Vec3::unit_x();
-                let carrier = geom::Curve3::Line { origin, dir };
+                let carrier = geom::Curve3::Line(geom::Line { origin, dir });
                 let read = crate::boolean::line_through_both_faces(
                     [(body, face), (body, face)],
                     &carrier,

@@ -82,7 +82,7 @@
 
 use geom::Surface;
 use geom_core::rounding_charge;
-use geom_core::{Point3, Real, Rounded, Vec3};
+use geom_core::{Mat3, Point3, Real, Rounded, Vec3};
 
 use crate::enters::OutwardNormal;
 use crate::harmonic::harmonic_sup_scalar;
@@ -491,7 +491,39 @@ pub fn implicit_graph_acceleration<T: Real>(
     d: Vec3<T>,
     across: Vec3<T>,
 ) -> T {
-    T::zero() - implicit_hessian_form(s, p, d) / implicit_gradient(s, p).dot(across)
+    graph_acceleration(
+        implicit_hessian_form(s, p, d),
+        implicit_gradient(s, p),
+        across,
+    )
+}
+
+/// [`implicit_graph_acceleration`] from the surface's jet at the point:
+/// `form` the Hessian form `dᵀ(∇²F)d` along the unit tangent `d`, and
+/// `gradient` `∇F`. `−form / (∇F·across)`.
+pub fn graph_acceleration<T: Real>(form: T, gradient: Vec3<T>, across: Vec3<T>) -> T {
+    T::zero() - form / gradient.dot(across)
+}
+
+/// The Hessian `∇²F` of `s`'s implicit form at `p`, assembled from six
+/// [`implicit_hessian_form`] evaluations by polarization (no basis
+/// choice beyond the axes). Poison in, poison out.
+pub fn implicit_hessian<T: Real>(s: &Surface<T>, p: Point3<T>) -> Mat3<T> {
+    let ex = Vec3::new(T::one(), T::zero(), T::zero());
+    let ey = Vec3::new(T::zero(), T::one(), T::zero());
+    let ez = Vec3::new(T::zero(), T::zero(), T::one());
+    let hxx = implicit_hessian_form(s, p, ex);
+    let hyy = implicit_hessian_form(s, p, ey);
+    let hzz = implicit_hessian_form(s, p, ez);
+    let two = T::from_f64(2.0);
+    let hxy = (implicit_hessian_form(s, p, ex + ey) - hxx - hyy) / two;
+    let hyz = (implicit_hessian_form(s, p, ey + ez) - hyy - hzz) / two;
+    let hxz = (implicit_hessian_form(s, p, ex + ez) - hxx - hzz) / two;
+    Mat3::from_cols(
+        Vec3::new(hxx, hxy, hxz),
+        Vec3::new(hxy, hyy, hyz),
+        Vec3::new(hxz, hyz, hzz),
+    )
 }
 
 /// How fast the section `reference ∩ other` leaves the line through
@@ -541,8 +573,7 @@ pub(crate) fn implicit_restricted_trace<T: Real>(
 /// it bends off it in SOME direction.
 ///
 /// Branch-free (no basis choice — D9/equivariance): the Hessian is
-/// assembled from six [`implicit_hessian_form`] evaluations by
-/// polarization; the tangent-plane restriction's eigen extremum comes
+/// [`implicit_hessian`]; the tangent-plane restriction's eigen extremum comes
 /// from the two invariants `tr_r = tr H − n̂ᵀHn̂` and
 /// `det_r = n̂ᵀ adj(H) n̂` (the adjugate identity), giving
 /// `|λ|max = |tr_r/2| + √((tr_r/2)² − det_r)`, divided by `|∇F|`.
@@ -550,16 +581,16 @@ pub(crate) fn implicit_restricted_trace<T: Real>(
 pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let g = implicit_gradient(s, p);
     let n_hat = g / g.norm();
-    let ex = Vec3::new(T::one(), T::zero(), T::zero());
-    let ey = Vec3::new(T::zero(), T::one(), T::zero());
-    let ez = Vec3::new(T::zero(), T::zero(), T::one());
-    let hxx = implicit_hessian_form(s, p, ex);
-    let hyy = implicit_hessian_form(s, p, ey);
-    let hzz = implicit_hessian_form(s, p, ez);
+    let [
+        Vec3 {
+            x: hxx,
+            y: hxy,
+            z: hxz,
+        },
+        Vec3 { y: hyy, z: hyz, .. },
+        Vec3 { z: hzz, .. },
+    ] = implicit_hessian(s, p).cols();
     let two = T::from_f64(2.0);
-    let hxy = (implicit_hessian_form(s, p, ex + ey) - hxx - hyy) / two;
-    let hyz = (implicit_hessian_form(s, p, ey + ez) - hyy - hzz) / two;
-    let hxz = (implicit_hessian_form(s, p, ex + ez) - hxx - hzz) / two;
     let tr_r = implicit_restricted_trace(s, p, n_hat);
     // Restricted determinant: n̂ᵀ adj(H) n̂ (cofactors, fixed order).
     let adj_xx = hyy * hzz - hyz.powi(2);
@@ -676,14 +707,9 @@ fn sample_rounding<T: Real>(s: &Surface<T>, conic: &Conic<T>) -> Option<T> {
     })
 }
 
-/// **The chord-dip charge, spelled once for this crate**: how far a
-/// C² function of second-derivative bound `f2` can leave the chord of
-/// a sub-interval of width `step` — `f2·step²/8`.
-///
-/// `topo`'s `boolean::boxes::subdivision_charge` is the same quantity
-/// in the crate above, and cannot be depended on from here; the two
-/// spellings are one class, filed as
-/// `work/curved/the-chord-dip-charge-has-two-homes.md`.
+/// **The chord-dip charge, spelled once**: how far a C² function of
+/// second-derivative bound `f2` can leave the chord of a sub-interval
+/// of width `step` — `f2·step²/8`.
 pub(crate) fn chord_dip_charge<T: Real>(f2: T, step: T) -> T {
     f2 * step.powi(2) * T::from_f64(0.125)
 }
@@ -786,9 +812,7 @@ impl<T: Real> Conic<T> {
                 semi_u,
                 semi_v,
             }),
-            geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                None
-            }
+            geom::Curve3::Line(_) | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
         }
     }
 

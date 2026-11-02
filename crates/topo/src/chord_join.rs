@@ -2434,7 +2434,8 @@ fn chord_spec<T: Decide>(
         // gate by the mef/mekr caller. No arc-side rule applies: a line
         // has no complementary candidate.
         SectionCase::Tangent(line) => {
-            let (geom::Curve3::Line { origin, dir }, Some(back)) = (line.clone(), line.reversed())
+            let (geom::Curve3::Line(geom::Line { origin, dir }), Some(back)) =
+                (line.clone(), line.reversed())
             else {
                 return Err(SplitJoinError::SectionInvariant {
                     face,
@@ -2596,8 +2597,7 @@ pub(crate) fn wall_section<T: Decide>(
     at: VertexKey,
 ) -> Result<Option<WallSection<T>>, SplitJoinError> {
     let wall = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+        .face_surface(face)
         .cloned()
         .ok_or_else(|| corrupt_face(face))?;
     match wall {
@@ -2686,7 +2686,7 @@ pub(crate) fn apex_section_ruling<T: Decide>(
     };
     let mut inside = None;
     for line in lines {
-        let geom::Curve3::Line { dir, .. } = line else {
+        let Some(geom::Line { dir, .. }) = line.as_line() else {
             unreachable!("{face:?}: a cone's section ruling through its apex is a line")
         };
         let z = apex.onto_nappe_of(dir, to);
@@ -3246,7 +3246,7 @@ fn run_back<T: Decide>(
     let (t0, t1) = (T::zero() - spec.param_end, T::zero() - spec.param_start);
     match &spec.description {
         geom_brep::EdgeDescriptionSpec::Scaffold(_) => match carrier {
-            geom::Curve3::Line { .. } => EdgeCurveSpec::segment_of_line(carrier, t0, t1),
+            geom::Curve3::Line(_) => EdgeCurveSpec::segment_of_line(carrier, t0, t1),
             back => EdgeCurveSpec::arc_of_circle(back, t0, t1),
         }
         .ok_or(invariant(
@@ -3391,7 +3391,7 @@ fn between_edge_is_section<T: Decide>(
         return Ok(Some(true)); // null scaffolding: zero-length, ON
     };
     match curve.carrier() {
-        geom::Curve3::Line { .. } => Ok(Some(true)),
+        geom::Curve3::Line(_) => Ok(Some(true)),
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
             Err(SplitJoinError::RunEdgeCarrierUnsupported {
                 face: body
@@ -4092,10 +4092,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
 ) -> Result<Result<Sign, Indeterminate>, SplitJoinError> {
     let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     let sense = face_data.sense;
-    let surface = body
-        .get_surface(face_data.surface)
-        .cloned()
-        .ok_or_else(|| corrupt_face(face))?;
+    let surface = body.face_surface_linked(face, face_data).clone();
     let WallChart {
         origin: centre,
         axis,
@@ -4188,7 +4185,7 @@ fn quadric_loop_arc<T: Decide>(
         (Quadric::Sphere { .. }, geom::Curve3::Circle { .. })
         | (
             Quadric::Cylinder { .. } | Quadric::Cone { .. },
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } | geom::Curve3::Line { .. },
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } | geom::Curve3::Line(_),
         ) => LoopArc::of(carrier, params),
         (Quadric::Torus { .. }, geom::Curve3::Spiric { .. }) => {
             quadric.torus_spiric_arc(carrier, params)
@@ -4378,9 +4375,7 @@ impl<T: Decide> IslandReading<T> {
     ) -> Result<Result<Self, Indeterminate>, SplitJoinError> {
         let invariant = |what| SplitJoinError::SectionInvariant { face, what };
         let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-        let surface = body
-            .get_surface(face_data.surface)
-            .ok_or_else(|| corrupt_face(face))?;
+        let surface = body.face_surface_linked(face, face_data);
         let quadric = Quadric::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
         let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
         let end = cycle
@@ -4634,7 +4629,7 @@ fn along_edge_spec<T: Decide>(
             what: "the segment's edge carries no certified curve",
         });
     };
-    if let geom::Curve3::Line { .. } = curve.carrier() {
+    if !curve.carrier().is_curved() {
         return Ok(Some(EdgeCurveSpec::line_between(p1, p2)));
     }
     // The chord starts at the copy of whichever end of the edge null
@@ -5563,9 +5558,7 @@ impl ChordJoiner {
         let invariant = |what| SplitJoinError::SectionInvariant { face: oldf, what };
         let old = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
         let outer = old.outer;
-        let surface = body
-            .get_surface(old.surface)
-            .ok_or_else(|| corrupt_face(oldf))?;
+        let surface = body.face_surface_linked(oldf, old);
         if RimSide::of(surface) != Some(RimSide::Plane) {
             return Err(invariant(
                 "a null strut's chords divide a face that is not a plane",
@@ -5659,10 +5652,7 @@ impl ChordJoiner {
         let side = match kind {
             LoneRing::Closed => None,
             LoneRing::Pierce => {
-                let surface = body
-                    .get_face(oldf)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .ok_or_else(|| corrupt_face(oldf))?;
+                let surface = body.face_surface(oldf).ok_or_else(|| corrupt_face(oldf))?;
                 Some(RimSide::of(surface).ok_or(invariant(
                     "a one-site loop's pierce ring on a face no whole conic is sided on",
                 ))?)
@@ -5756,8 +5746,7 @@ impl ChordJoiner {
         }
         let run = body.get_face(newf).ok_or_else(|| corrupt_face(newf))?.outer;
         let surface = body
-            .get_face(oldf)
-            .and_then(|f| body.get_surface(f.surface))
+            .face_surface(oldf)
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
         // How a ring's side is read: off the plane, or by a path on a
@@ -5875,12 +5864,10 @@ fn face_plane_normal<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
-    let f = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    match body.get_surface(f.surface) {
-        Some(geom::Surface::Plane { normal, .. }) => Ok(*normal),
-        // Corruption and an unwired arm are different refusals.
-        None => Err(corrupt_face(face)),
-        Some(_) => Err(SplitJoinError::SectionInvariant {
+    // Corruption and an unwired arm are different refusals.
+    match body.face_surface(face).ok_or_else(|| corrupt_face(face))? {
+        geom::Surface::Plane { normal, .. } => Ok(*normal),
+        _ => Err(SplitJoinError::SectionInvariant {
             face,
             what: "ring re-homing read a plane off a face whose carrier is not a plane (re-homing \
                    sends every other kind to its own reading)",
@@ -7635,10 +7622,7 @@ mod torn_hop_rows {
     #[test]
     fn the_azimuth_walk_panics_on_a_torn_loop_and_a_torn_curve() {
         let (body, face) = cyl_sheet();
-        let surface = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap()
-            .clone();
+        let surface = body.face_surface(face).unwrap().clone();
         let images = |b: &Body<f64>| {
             super::face_azimuth_images(b, &surface, face, band()).map(|i| i.map(|i| i.len()))
         };
@@ -8008,10 +7992,7 @@ mod segment_curve_tests {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = FaceKey::from(KeyData::from_ffi(3));
         let surface = SurfaceKey::default();
-        let line = geom::Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let spec = |description| EdgeCurveSpec {
             description,
             carrier: line.clone(),
