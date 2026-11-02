@@ -63,8 +63,13 @@ use crate::m10_9_pins_interval::measured_studies;
 ///
 /// A cylinder rim's axial `cos t` and `sin t` terms are decided at
 /// `pcurve_cylinder_chart_axial` (`geom_brep::pcurve_cache`'s
-/// `cylinder_rim_axial`, PR 6105), a decision the tier proves `Zero`:
-/// the annulus 654 -> 666 and the bracket 1542 -> 1556 symbolic, the
+/// `cylinder_rim_axial`, PR 6105), which the tier proves `Zero` on
+/// these documents' nominal rims (not on a leaf whose radius varies,
+/// `work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive`):
+/// the annulus decides it on 12 rims and the bracket on 14; every rim of
+/// the plate, the link and the pad has exactly-zero axial terms and
+/// returns before the decision, so they do not move.
+/// So the annulus 654 -> 666 and the bracket 1542 -> 1556 symbolic, the
 /// other columns unmoved.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1149, 824, 229]),

@@ -679,8 +679,15 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // never-loses (`work/intent/g-moves-four-main-reds-messages.md`).
     // A cylinder rim's axial `cos t` and `sin t` terms are decided at
     // `pcurve_cylinder_chart_axial` (`geom_brep::pcurve_cache`'s
-    // `cylinder_rim_axial`, PR 6105), a decision the tier proves `Zero`:
-    // the annulus [654, 555] -> [666, 555] both ways.
+    // `cylinder_rim_axial`, PR 6105), which the tier proves `Zero` on
+    // these documents' nominal rims (not on a leaf whose radius varies,
+    // `work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive`):
+    // the annulus decides it on 12 rims. The 14 the bracket decides in
+    // `sym11`'s replay leave this row's bracket unmoved, and why is not
+    // read here. Every rim of the plate and the link has exactly-zero
+    // axial terms and returns before the decision; the boss is not
+    // measured.
+    // So the annulus [654, 555] -> [666, 555] both ways.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
         ("two_hole_plate", [1149, 824], [1149, 824], 0),
         ("r1_annulus", [666, 555], [666, 555], 0),

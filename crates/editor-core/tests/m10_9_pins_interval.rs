@@ -208,8 +208,13 @@ pub(crate) struct Study {
 ///
 /// A cylinder rim's axial `cos t` and `sin t` terms are decided at
 /// `pcurve_cylinder_chart_axial` (`geom_brep::pcurve_cache`'s
-/// `cylinder_rim_axial`, PR 6105), a decision the tier proves `Zero`:
-/// the annulus 654 -> 666, the bracket 1537 -> 1551 shipped and
+/// `cylinder_rim_axial`, PR 6105), which the tier proves `Zero` on
+/// these documents' nominal rims (not on a leaf whose radius varies,
+/// `work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive`):
+/// the annulus decides it on 12 rims and the bracket on 14; every rim of
+/// the plate, the link and the pad has exactly-zero axial terms and
+/// returns before the decision, so they do not move.
+/// So the annulus 654 -> 666, the bracket 1537 -> 1551 shipped and
 /// (1474, 1218) -> (1488, 1218) with the door shut.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
@@ -283,7 +288,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // unbisected between PR 5728 and PR 5811 (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
             // Then (1474, 1228) -> (1474, 1218) when the simplicity pass
             // stopped reading a gap on a line pair that shares a vertex
-            // (PR 5952).
+            // (PR 5952), and (1474, 1218) -> (1488, 1218) with the
+            // cylinder rim's axial decision (PR 6105, the fn doc).
             without_the_registry: Some(((1488, 1218), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.

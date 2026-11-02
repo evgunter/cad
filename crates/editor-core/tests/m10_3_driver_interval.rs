@@ -1169,7 +1169,10 @@ fn a_band_parameter_certifies_normally_and_prices_nothing() {
         eps(),
         &test_utils::pinned_red::EVERY_ROW,
         "the banded two-parameter drive",
-        &["a band must not stop certification"],
+        &[
+            "a band must not stop certification",
+            "Receipt { certified: 0, refused: 4, splits: 3 }",
+        ],
         a_band_parameter_rows,
     );
 }
@@ -1183,7 +1186,8 @@ fn a_band_parameter_rows() {
     assert!(v.receipt().holds());
     assert!(
         !v.certified().is_empty(),
-        "a band must not stop certification"
+        "a band must not stop certification: {:?}",
+        v.receipt()
     );
     // Certification is UNCHANGED by the band: the same document with a
     // uniform in place of the band produces the same leaf structure.

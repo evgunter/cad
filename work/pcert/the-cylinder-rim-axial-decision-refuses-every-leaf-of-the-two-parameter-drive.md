@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-02
 priority: P2
 cost: M
+refs: [a-cylinder-rims-axial-channel-holds-zero-only-to-an-enclosure-at-interval]
 ---
 
 
