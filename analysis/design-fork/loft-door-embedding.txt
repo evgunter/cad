@@ -1,0 +1,5 @@
+fork: loft-door-embedding (work/carve/self-overlapping-spines-build-and-validate.md — whether and how the loft/sweep doors run the injectivity certificate, at NETCACHE's price)
+protocol: 2126b860b6
+byte1 (arm): 75 -> <86 -> three designers
+byte2 (labels): 43 -> 43 mod 3 = 1 -> Fable = B; Opus = A, Opus = C
+dispatched: 2026-11-02 ~03:00Z, concurrently, same problem statement (scratchpad LOFT-DOOR-PROBLEM)
