@@ -149,3 +149,4 @@ and bodies unchanged. No orchestrator yet.
   - **(F4)** C3 states the 1×2 trace in the present tense with no code yet. That stays untrue until stage 3 or 4. Accepted as drift with a schedule.
   - **(F5)** Fixed: the torus row's stop.
   - **Load:** the slate is now well over budget (the NURBS arm is about 4 H, the cylinder unit's remaining 2 stages, the cone, the conic pairs). A split along the semantic seam (the NURBS arm vs the unbounded analytic pairs) is owed at the next natural seam.
+- 2026-11-02 — **PR 6151 merged** (cylinder stage 2), after a local main merge to clear the log conflict and a fresh green run. **The P0 NURBS arm's stage 1 is dispatched** (`sectarms/nurbs-implicit-arm-build`, dual review): classification for every implicit `f`, in C5's order. The cylinder ruling-sweep stage waits until stage 1's PR is up: the two share `exhaust.rs` and `pair_section.rs`, and disk holds about two lanes. The cylinder lane's target was freed (34% disk).
