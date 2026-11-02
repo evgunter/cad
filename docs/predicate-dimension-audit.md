@@ -617,12 +617,12 @@ which is what actually moves the number.
 | boolean/fan.rs (`meeting`, `nappe_classes`, `fan_within_signs`) | bool_fan_nappe | `a₁ · a₂` of the nappes' unit axes, or the direction's along the nappe's, levered by the arm (dimensionless × m) | m | OK |
 | boolean/fan.rs (`meeting`, `nappe_classes`) | bool_fans_one_cone | `α₁ − α₂`, the half-angles' difference (rad), levered by the arm | m | OK |
 | boolean/fan.rs (`meeting`, through `geom_brep::cone_cone_apex_meeting`) | bool_fans_meet | `disc = 1 − ‖base‖²`, where the fans' planes' line meets the unit sphere (dimensionless), levered by the arm | m | OK |
+| boolean/fan.rs (`conditioned`: `meeting`, the join's `cone_apex_plane`) | bool_fans_meet_conditioning | `arm·8u/‖a₁ × a₂‖`: how far a common ruling can sit at `arm` from where the axes' rounding lets it be read (m, `Margin::of`) | m | OK |
 | boolean/fan.rs (`plane_fan`) | bool_fan_plane_normal | the partner plane's normal, normalised levered by the fan's arm (`UnitVec3::levered`) | m | OK |
 | boolean/fan.rs (`fans_overlap`) | bool_fan_bounds_along | the fan's turn `u × v · â` between two bound directions (dimensionless), levered by the bound's reach | m | OK |
 | boolean/sectors.rs (`extreme_directions`) | bool_sector_partner_tilt | `‖v‖`, the part of the partner face's normal or axis square to the fan's axis or in the sector's plane (dimensionless), levered by the sector's arm | m | OK |
-| boolean/join.rs (`pair_section_frame_at`, `segment_arm`) | bool_join_cone_common_apex | `‖p₁ − p₂‖`, the two cones' apexes' gap (m, `Margin::of`) | m | OK |
+| boolean/fan.rs (`cones_share_apex`: the section certificate's cone pair, the join's `pair_section_frame_at` and `segment_arm`) | bool_cones_share_apex | `‖p₁ − p₂‖`, the two cones' apexes' gap (m, `Margin::of`) | m | OK |
 | boolean/join.rs (`cone_apex_plane`) | bool_join_cone_apex_plane | `base × across` of `geom_brep::cone_cone_apex_meeting`, normalised levered by the germ's reach from the apex (`UnitVec3::levered`) | m | OK |
-| boolean/section_cert.rs (`cone_cone`) | section_cone_pair_common_apex | `‖p₁ − p₂‖`, the two cones' apexes' gap (m, `Margin::of`) | m | OK |
 | boolean/section_cert.rs (`cone_cone`) | section_cone_pair_common_rulings | `disc` of `geom_brep::cone_cone_apex_meeting` per nappe pairing (dimensionless), levered by the reach | m | OK |
 | boolean/reduce.rs (`wall_crossing`, a cone face's roots) | bool_cone_root_nappe | the root's elevation off the face's own nappe (`geom_brep::cone_elevation` with that nappe), a length | m | OK |
 | boolean/arcs.rs (`arcs_along`) | bool_arc_along / bool_arc_ahead | `\|t̂ × d̂\|` and `t̂ · d̂` of two unit tangents, each levered at the arc's radius (`Margin::levered`): sin and cos of the angle between them × radius, the offset the arc's far side swings by | m | OK |

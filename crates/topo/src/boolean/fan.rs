@@ -49,7 +49,7 @@ pub(super) fn nappe_offset<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>, q: Poin
     let z = r.dot(a);
     let rho = (r - a * z).norm();
     let (sin, cos) = apex.half_angle.sin_cos();
-    rho * cos - z * sin
+    geom_brep::implicit::cone_offset(rho, z, sin, cos)
 }
 
 /// The cone's unit axis turned toward the nappe `like` (a ruling the face
@@ -183,9 +183,6 @@ pub(super) fn meeting<T: Decide>(
 ) -> Result<Meeting<T>, BooleanError> {
     let arm = a.arm.min(b.arm);
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    let zero = |what, m: Margin<T>| -> Result<bool, BooleanError> {
-        Ok(decide(what, m, band).map_err(escalate)? == Sign::Zero)
-    };
     match (&a.at_vertex, &b.at_vertex) {
         (BoolFace::Tangent(na), BoolFace::Tangent(nb)) => {
             let int = na.vec().cross(nb.vec());
@@ -213,23 +210,10 @@ pub(super) fn meeting<T: Decide>(
                 face: a.face,
                 kind: geom::SurfaceKind::Cone,
             };
-            if zero(
-                "bool_fans_coaxial",
-                Margin::levered(axa.cross(axb).norm(), arm),
-            )? {
-                // Coaxial axes are along or against each other.
-                let one_nappe = decide("bool_fan_nappe", Margin::levered(axa.dot(axb), arm), band)
-                    .map_err(escalate)?
-                    == Sign::Positive;
-                let one_angle = zero(
-                    "bool_fans_one_cone",
-                    Margin::levered(pa.half_angle - pb.half_angle, arm),
-                )?;
-                return Ok(if one_nappe && one_angle {
-                    Meeting::Coincident
-                } else {
-                    Meeting::Rays(Vec::new())
-                });
+            match one_cone((pa, a.start), (pb, b.start), arm, band)? {
+                Coaxial::OneCone => return Ok(Meeting::Coincident),
+                Coaxial::Other => return Ok(Meeting::Rays(Vec::new())),
+                Coaxial::Apart(s) => conditioned(s, arm, band).map_err(|()| tangency())?,
             }
             let m = geom_brep::cone_cone_apex_meeting(
                 (axa, pa.half_angle.cos()),
@@ -241,6 +225,90 @@ pub(super) fn meeting<T: Decide>(
                 Sign::Positive => Ok(Meeting::Rays(m.rulings().to_vec())),
             }
         }
+    }
+}
+
+/// The row [`cones_share_apex`] decides under.
+pub(super) const CONES_SHARE_APEX: &str = "bool_cones_share_apex";
+
+/// **Whether two cones share their apex**: the apexes' gap
+/// (`bool_cones_share_apex`, a length) decided in the band. The one home
+/// of the question, which the section certificate's cone pair and both
+/// of the join's cone-pair readings ask.
+///
+/// # Errors
+///
+/// The decision's diagnostic where it escalates.
+pub(super) fn cones_share_apex<T: Decide>(
+    one: Point3<T>,
+    two: Point3<T>,
+    band: Band,
+) -> Result<bool, geom_core::Indeterminate> {
+    Ok(decide(CONES_SHARE_APEX, Margin::of((one - two).norm()), band)? == Sign::Zero)
+}
+
+/// What [`one_cone`] reads of two fans at one apex.
+pub(super) enum Coaxial<T> {
+    /// Their axes are definitely apart, `‖a₁ × a₂‖` the given.
+    Apart(T),
+    /// One cone, one nappe: the same fan of rulings.
+    OneCone,
+    /// Coaxial, but on opposite nappes or of other apertures.
+    Other,
+}
+
+/// **The one-cone ladder** for two fans at one apex, each read by its
+/// nappe's axis (a ruling `like` it leaves along): coaxial
+/// (`bool_fans_coaxial`, `‖a₁ × a₂‖` levered by `arm`), then on one nappe
+/// (`bool_fan_nappe`, `a₁·a₂`), then of one aperture (`bool_fans_one_cone`).
+/// The one home of the reading, which [`meeting`] and [`nappe_classes`]
+/// both ask.
+///
+/// # Errors
+///
+/// [`BooleanError::coincidence`] on an escalation.
+pub(super) fn one_cone<T: Decide>(
+    (pa, like_a): (&ConeApex<T>, Vec3<T>),
+    (pb, like_b): (&ConeApex<T>, Vec3<T>),
+    arm: T,
+    band: Band,
+) -> Result<Coaxial<T>, BooleanError> {
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+    let (a, b) = (nappe_axis(pa, like_a), nappe_axis(pb, like_b));
+    let apart = a.cross(b).norm();
+    if decide("bool_fans_coaxial", Margin::levered(apart, arm), band).map_err(escalate)?
+        != Sign::Zero
+    {
+        return Ok(Coaxial::Apart(apart));
+    }
+    let one_nappe = decide("bool_fan_nappe", Margin::levered(a.dot(b), arm), band)
+        .map_err(escalate)?
+        == Sign::Positive;
+    let one_angle = decide(
+        "bool_fans_one_cone",
+        Margin::levered(pa.half_angle - pb.half_angle, arm),
+        band,
+    )
+    .map_err(escalate)?
+        == Sign::Zero;
+    Ok(if one_nappe && one_angle {
+        Coaxial::OneCone
+    } else {
+        Coaxial::Other
+    })
+}
+
+/// **Whether two fans' common rulings are read to the band**
+/// (`bool_fans_meet_conditioning`): the axes fix the plane the rulings
+/// turn in only to `~u/s`, `s = ‖a₁ × a₂‖` and `u` the unit roundoff
+/// (`geom_brep::cone_cone_apex_meeting`'s floor), so at `arm` a ruling is
+/// placed to `arm·8u/s`. Not in the band, the fans are nearly coaxial
+/// past what their axes can say, and the caller refuses.
+pub(super) fn conditioned<T: Decide>(s: T, arm: T, band: Band) -> Result<(), ()> {
+    let spread = arm * T::from_f64(8.0 * geom_core::UNIT_ROUNDOFF) / s;
+    match decide("bool_fans_meet_conditioning", Margin::of(spread), band) {
+        Ok(Sign::Zero) => Ok(()),
+        _ => Err(()),
     }
 }
 
@@ -406,18 +474,10 @@ pub(super) fn nappe_classes<T: Decide>(
             return Err(unbuilt(first.face));
         };
         let arm = first.arm.min(s.arm);
-        let (a, b) = (nappe_axis(apex, first.start), nappe_axis(other, s.start));
-        let zero = |what, m| -> Result<bool, BooleanError> {
-            Ok(decide(what, m, band).map_err(escalate)? == Sign::Zero)
-        };
-        let one = zero("bool_fans_coaxial", Margin::levered(a.cross(b).norm(), arm))?
-            && decide("bool_fan_nappe", Margin::levered(a.dot(b), arm), band).map_err(escalate)?
-                == Sign::Positive
-            && zero(
-                "bool_fans_one_cone",
-                Margin::levered(apex.half_angle - other.half_angle, arm),
-            )?
-            && other.material_inside() == apex.material_inside();
+        let one = matches!(
+            one_cone((apex, first.start), (other, s.start), arm, band)?,
+            Coaxial::OneCone
+        ) && other.material_inside() == apex.material_inside();
         if !one {
             return Err(unbuilt(s.face));
         }

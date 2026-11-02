@@ -446,13 +446,9 @@ fn segment_arm<T: Decide>(
     // Two cones through one apex meet in rulings through it, the plane
     // they span their straight lane's.
     if let (geom::Surface::Cone { apex: p1, .. }, geom::Surface::Cone { apex: p2, .. }) = (sa, sb)
-        && decide(
-            "bool_join_cone_common_apex",
-            Margin::of((*p1 - *p2).norm()),
-            band,
-        )
-        .map_err(|diag| BooleanError::coincidence(Coincide::Section, DeclarationRead::Moot, diag))?
-            == Sign::Zero
+        && super::fan::cones_share_apex(*p1, *p2, band).map_err(|diag| {
+            BooleanError::coincidence(Coincide::Section, DeclarationRead::Moot, diag)
+        })?
     {
         return Ok(KindArm::Apex);
     }
@@ -1603,8 +1599,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     ))
                 }
                 KindArm::Apex => GermLane::Rulings(cone_apex_plane(
-                    &ga,
-                    &gb,
+                    (germ.a_face, &ga),
+                    (germ.b_face, &gb),
                     germ.dir,
                     germ_reach(&red.a)?,
                     band,
@@ -3147,8 +3143,8 @@ fn rulings_are_straight<T: geom_core::Real>(
 /// normal with no decided length, levered at the germ's reach (the
 /// germ's ruling then meets the other cone along a touching).
 fn cone_apex_plane<T: Decide>(
-    one: &geom::Surface<T>,
-    two: &geom::Surface<T>,
+    (one_face, one): (FaceKey, &geom::Surface<T>),
+    (two_face, two): (FaceKey, &geom::Surface<T>),
     g: Vec3<T>,
     reach: geom_brep::ExtentBall<T>,
     band: Band,
@@ -3173,7 +3169,12 @@ fn cone_apex_plane<T: Decide>(
         ));
     };
     let onto = |a: Vec3<T>| a * T::one().copysign(g.dot(a));
-    let m = geom_brep::cone_cone_apex_meeting((onto(a1), h1.cos()), (onto(a2), h2.cos()));
+    let (b1, b2) = (onto(a1), onto(a2));
+    // Nearly coaxial past what the axes can place the rulings to
+    // (`fan::conditioned`): no frame is read.
+    super::fan::conditioned(b1.cross(b2).norm(), reach.lever_from(apex), band)
+        .map_err(|()| frame_refusal(FrameError::NoArm, (one_face, one), (two_face, two)))?;
+    let m = geom_brep::cone_cone_apex_meeting((b1, h1.cos()), (b2, h2.cos()));
     UnitVec3::levered(
         m.base.cross(m.across),
         "bool_join_cone_apex_plane",
@@ -3824,15 +3825,9 @@ pub(super) fn pair_section_frame_at<T: Decide>(
     match (sa, sb) {
         // Two cones through one apex: both forms are homogeneous about it,
         // so they meet in rulings through it, straight
-        // (`bool_join_cone_common_apex`, the apexes' gap).
+        // (`fan::cones_share_apex`).
         (Sf::Cone { apex: p1, .. }, Sf::Cone { apex: p2, .. })
-            if decide(
-                "bool_join_cone_common_apex",
-                Margin::of((*p1 - *p2).norm()),
-                band,
-            )
-            .map_err(FrameError::section)?
-                == Sign::Zero =>
+            if super::fan::cones_share_apex(*p1, *p2, band).map_err(FrameError::section)? =>
         {
             Ok(None)
         }

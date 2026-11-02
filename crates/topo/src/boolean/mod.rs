@@ -293,6 +293,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_fans_coaxial"
         | "bool_fans_one_cone"
         | "bool_fans_meet"
+        | "bool_fans_meet_conditioning"
         | "bool_fan_bounds_along"
         | "bool_rider_wall_side"
         | slit::RIDER_WALL_BEND_ACROSS

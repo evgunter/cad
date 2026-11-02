@@ -1744,11 +1744,27 @@ fn walks_after<T: Decide>(
     // normal does: `y` after `x` is the face's turn from `x`'s ruling to
     // `y`'s ([`crate::sector_face::ConeApex::turn`]).
     let m = match s.apex() {
-        Some(apex) => Margin::levered(apex.turn(x.dir, y.dir), lever),
+        Some(apex) => fan_turn(s, apex, x, y),
         None => Margin::levered(x.dir.cross(y.dir).dot(s.tangent().vec()), lever),
     };
     crate::validate::decide("bool_shared_cut_order", m, band)
         .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))
+}
+
+/// **A fan's turn from `x`'s ruling to `y`'s**, levered as the sector's
+/// sides are ([`leaned_lever`]): the one margin [`walks_after`] and
+/// [`walk_faces_first`] read a fan's order by
+/// ([`crate::sector_face::ConeApex::turn`]).
+fn fan_turn<T: Decide>(
+    s: &BoolSector<T>,
+    apex: &crate::sector_face::ConeApex<T>,
+    x: Leaned<T>,
+    y: Leaned<T>,
+) -> Margin<T> {
+    Margin::levered(
+        apex.turn(x.dir, y.dir),
+        leaned_lever(s.arm, (x.lean, y.lean)),
+    )
 }
 
 /// A germ in one solid.
@@ -2328,11 +2344,13 @@ fn walk_faces_first<T: Decide>(
     // within an entry (`the_strut_order_agrees_with_the_walk_within_an_entry`),
     // the first germ met first where the walk reads the second before
     // it, and a tie refuses as the coincidence it is.
+    // The margin is [`walks_after`]'s ([`fan_turn`]); the decision is not:
+    // there a tie is a shared cut its callers read, here two distinct
+    // germs of one entry, where a tie is a coincidence and refuses.
     if let Some(apex) = s.apex() {
-        let lever = leaned_lever(s.arm, (first.line.lean, second.line.lean));
         return crate::validate::decide_nonzero(
             "bool_shared_cut_order",
-            Margin::levered(apex.turn(first.line.dir, second.line.dir), lever),
+            fan_turn(s, apex, first.line, second.line),
             band,
         )
         .map(|sign| sign == geom_core::k_stats::NonzeroSign::Negative)

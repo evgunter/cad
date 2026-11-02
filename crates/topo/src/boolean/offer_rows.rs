@@ -2571,6 +2571,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("fan.rs", "fans_overlap", "Coincide::Sectors", 1),
     ("fan.rs", "meeting", "Coincide::Sectors", 1),
     ("fan.rs", "nappe_classes", "Coincide::Sectors", 1),
+    ("fan.rs", "one_cone", "Coincide::Sectors", 1),
     ("fan.rs", "plane_fan", "Coincide::Sectors", 1),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
     ("fate.rs", "corner_refused", "Coincide::Sectors", 1),

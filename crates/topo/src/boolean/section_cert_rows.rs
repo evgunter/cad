@@ -1252,8 +1252,9 @@ fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
 
 /// **A touch clears out of a face on a pair with no event, or at a
 /// vertex of both faces.** `Out` of either face clears on that side; a
-/// touch at a vertex each face holds is that vertex pair's, its event
-/// the pair's own, so it clears evented or not; a touch inside both
+/// touch of two cones at their common apex, a vertex each face holds, is
+/// that vertex pair's, its event the pair's own, so it clears evented or
+/// not, and no other touch at a vertex does; a touch inside both
 /// faces, or at a vertex of one alone, or one no face places, refuses
 /// R-tan; and any other event on the
 /// pair refuses whatever the placement — the clearance argument needs
@@ -1276,16 +1277,29 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     let vertex = Some(FaceContainment::OnVertex(
         crate::entity::VertexKey::default(),
     ));
-    assert_eq!(
-        rule(false, [vertex, vertex]),
-        Ok(vec![Cleared::TouchAtVertex])
-    );
+    // A touch at a vertex both faces hold is not cleared as a vertex
+    // pair's unless it is two cones' at their common apex.
+    assert_eq!(rule(false, [vertex, vertex]), tan);
+    assert_eq!(rule(true, [vertex, vertex]), tan);
     assert_eq!(rule(false, [vertex, IN]), tan);
-    assert_eq!(
-        rule(true, [vertex, vertex]),
-        Ok(vec![Cleared::TouchAtVertex])
-    );
     assert_eq!(rule(true, [vertex, OUT]), tan);
+    for name in APEX_TOUCHES {
+        let apex = Section::Touch(Touch {
+            name,
+            at: p(0.0, 0.0, 1.0),
+        });
+        let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
+            certify(&apex, evented, band(), |_| Sheet::Not, |_, _| place)
+        };
+        for evented in [false, true] {
+            assert_eq!(
+                rule(evented, [vertex, vertex]),
+                Ok(vec![Cleared::TouchAtVertex]),
+                "{name}, evented {evented}"
+            );
+        }
+        assert_eq!(rule(true, [vertex, IN]), Err(Refusal::Tangent(name)));
+    }
     assert_eq!(rule(true, [OUT, OUT]), tan);
     assert_eq!(rule(true, [OUT, IN]), tan);
 }
