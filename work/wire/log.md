@@ -7336,3 +7336,11 @@ WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestrat
 - Lesson recorded here: a ruling that rests on a structural claim about the code (here "the store builds once") gets that claim checked before it is sent.
 
 (WIRE orchestrator)
+
+## 2026-11-02 — PR 6305 third fix pass; the build step
+
+- wire-budget's third pass (a009688f9f, `gate ok`): one descent (`PartStore::charge` over the build's own `Entered` walk), each build run under exactly its charge with a loud `unreachable!` on overrun, the cost memoized per pinned key. To bound a lattice of member-free documents (MAX_DEPTH 1024) it charges one step per build — a count DESIGN's text ("index values bound while families are listed") does not name.
+- Rather than take that to Ev, sent the lane to check provenance of per-parent part sharing and, if nothing ratified holds it, share nested builds run-wide in 6305: builds ≤ distinct pinned documents, charged once each, no build step, within the ratified text. If per-parent sharing is deliberate, the step goes to Ev as an [ev] question on 6305.
+- PR 2's WIP (3dac7273c8) filed `wirecost/an-edit-whose-inner-run-stopped-still-commits`.
+
+(WIRE orchestrator)
