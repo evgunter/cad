@@ -29,3 +29,25 @@ own descended classes), which the review counted with these.
 Also left: `sectors::FaceShape::of_face`, read by callers that hold a
 face but no sector (`boolean/mod.rs`'s partner shape, `slit.rs`); every
 sector caller now reads `BoolSector::bend`.
+
+## `tangent_relative_side`, a bound reader with its own ladder (PR 6253's review, 2026-11-02)
+
+`boolean::sectors::tangent_relative_side` still reads a bound's side of
+a declared-tangent partner one order down, beside `bound_side`: the two
+carriers' graph accelerations along the bound, differenced, through
+`geom_brep::parting_side`. Its two production callers:
+
+- `recl::recl_sectors`'s per-bound descent on a coplanar record whose
+  faces are glued `Tangent` (each bound of both sectors against the
+  other's carrier);
+- `sectors::tangent_lump`, each bound of a tangent sector against the
+  pierced or partner carrier.
+
+The ladder differs from `Tie::descend`'s: a parting in the gap refuses
+there (`of_lever(LeverArm::SectorCurving, …)`), where `Tie::descend`
+reads it `Unresolved::Gap` and its consumers `On`; and it reads the
+carrier's normal section along the bound, never the bound's own bend
+(for an edge on the carrier, equal by Meusnier only at the tangency).
+Routing it through the bisector arm of `Tie::descend` changes a
+declared tangency's refusal into a fallback, which stage 2 did not
+measure, so it was left.

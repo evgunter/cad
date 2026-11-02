@@ -2,15 +2,12 @@
 id: conic-ties-outside-the-vertex-on-face-pass-still-read-first-order
 kind: issue
 title: Outside the vertex-on-face pass a conic tangent to a face still reads On at first order: the sector passes, recl's flank readings, curved faces and fitted edges
-status: closed
+status: open
 opened: 2026-10-10
 priority: P2
 cost: H
 refs: [boolean-conic-side-code-zero-is-first-order, vtxfac-tangent-sector-should-descend-per-bound]
 parent: the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading
-closed: 2026-11-01
-pr: 6253
-branch: tangrim/sector-passes-descend
 ---
 
 
@@ -131,7 +128,35 @@ one order down.
 
 **2026-11-01 (ONEREAD, PR 6247):** `wedge_classes`, `cone_side` and `arc_side` (`bool_cone_arc`) are deleted. The vertex-vertex rows read each own edge through one gathered `link::Cone` (`boolean::vtxfac::cone_classes`), its signs a point's distance from a plane (`link_plane`, `link_wedge`, `link_ahead`, `link_arc`). Item 1's list keeps `pair_codes` and recl's flank readings; the direction-only arc reading is gone.
 
-## Closed
+## Reopened (2026-11-02, PR 6253's review)
+
+PR 6253 (`tangrim/sector-passes-descend`, stage 2 of the bound-side
+reading) closed this row too early. What it did: every sector pass
+reads a tied bound one order down through `bound_side::Tie::descend`
+(item 1's sector passes and recl's flank readings, with the on-edge
+gateways keyed on the tie); a curved face reads its own normal section
+(item 2); the vertex-on-face pass's tangent sectors read their bounds'
+own descended sides (item 5). Items 3 (a fitted edge, now
+`Unresolved::Uncertified`, read `On` as before) and 4 (`flank_rep`) are
+not done, and the row's own reproduction still refuses.
+
+`review_tilted_dip_off_the_vertex_on_face_pass` (`--ignored
+--nocapture`), measured on the PR's head after the fix pass:
+
+| posture | α 0.3 | α 0.6 |
+|---|---|---|
+| edge, every op | `Escalated { Coincidence(Sectors, Moot), "bool_strut_order" }`, margin −4.4e-17 | the same, margin −3.2e-17 |
+| corner, every op | `CurvedPierceUnsupported { face: 6v1, edge: 2v1 }` | the same |
+| beside | builds at the closed form | builds at the closed form |
+| beside-corner, every op | `CurvedPierceUnsupported { face: 6v1, edge: 13v1 }` | the same |
+
+So the edge posture moved from `Join(UnpairedLooseEnds { count: 2 })`
+(on main before stage 2) to a strut-order escalation: the descended
+arc no longer makes the wrong germ, and the join's strut order now
+reads two struts tied at a margin of a few `1e-17`. The corner postures
+refuse at the pierce, as before.
+
+## Closed (withdrawn 2026-11-02)
 
 2026-11-01, PR 6253 (`tangrim/sector-passes-descend`). Every sector
 pass reads a tied bound one order down through `bound_side::Tie::descend`

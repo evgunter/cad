@@ -94,7 +94,7 @@ use crate::sector_shape::{
 };
 use crate::validate::decide;
 
-pub(super) use crate::bound_side::BoundSide;
+pub(super) use crate::bound_side::Descent;
 use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, ReadFault, Side};
 pub(super) use crate::bound_side::{FaceBend, FaceShape, Reach, sagitta_charge};
 
@@ -145,7 +145,8 @@ impl FaceShape {
 
 impl<T: Decide> BoolSector<T> {
     /// The sector's face as a bound's side is read against it: its
-    /// outward normal and its bend at the vertex.
+    /// outward normal and its bend at the vertex, its first order not
+    /// charged ([`NO_CURVATURE`]).
     pub(super) fn datum(&self) -> FaceDatum<T> {
         FaceDatum::of_face(self.tangent(), self.bend, NO_CURVATURE())
     }
@@ -154,12 +155,12 @@ impl<T: Decide> BoolSector<T> {
 impl<T: geom_core::Real> BoolSector<T> {
     /// Whether `start` is a real edge (false: a subdivision bisector).
     pub(super) fn start_edge(&self) -> bool {
-        !matches!(self.start_reach, Reach::Bisector(..))
+        !matches!(self.start_reach, Reach::Bisector { .. })
     }
 
     /// Whether `end` is a real edge.
     pub(super) fn end_edge(&self) -> bool {
-        !matches!(self.end_reach, Reach::Bisector(..))
+        !matches!(self.end_reach, Reach::Bisector { .. })
     }
 
     /// The two bounds, each with the length it reaches from the base
@@ -488,7 +489,7 @@ fn push_apex_corner<T: Decide>(
     let ApexShape { arm, rulings } = apex_corner_shape((end, start), apex, bounds, across, band)?;
     let (unit_end, unit_start) = (end.normalize(), start.normalize());
     // A ruling is a straight line on the cone.
-    let inner = Reach::Bisector(arm, Some(Vec3::zero()));
+    let inner = Reach::straight_bisector(arm);
     let mut from = (unit_end, end_reach);
     for to in rulings
         .into_iter()
@@ -757,13 +758,17 @@ pub(super) fn bisector_zero_refusal(on: OnReading, band: Band) -> BooleanError {
     }
 }
 
-/// The lever a [`side_code`] call passes when its reference is a FLAT
-/// datum — a sector's own face plane in the vertex-vertex lane, or the
-/// reclassification's reference normal. Those verdicts are about a
-/// plane, so there is no sagitta to charge and saying so at the call
-/// site is the point of the name: an infinite radius of curvature makes
-/// the charge vacuous, exactly as [`geom_brep::curvature_lever_arm`]
-/// reports for a [`geom::Surface::Plane`].
+/// **The charge lever of a reading that takes no curvature charge**: an
+/// infinite radius of curvature, which makes the first-order charge
+/// vacuous ([`crate::bound_side::read`]), as
+/// [`geom_brep::curvature_lever_arm`] reports for a
+/// [`geom::Surface::Plane`]. A plane's datum passes it; so does a sector
+/// datum ([`BoolSector::datum`]), whose face may be curved: the
+/// vertex-pair pass's first order is not charged
+/// (`vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces`),
+/// while its descent reads no further than the face's own smallest
+/// radius of curvature, which its bend carries
+/// ([`crate::bound_side::FaceBend`]).
 #[allow(non_snake_case)]
 pub(super) fn NO_CURVATURE<T: Decide>() -> T {
     T::from_f64(f64::MAX)
@@ -776,13 +781,13 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 /// rides it [`SideCode::On`]. A consumer that keys on the tie itself reads
 /// [`bound_read`].
 ///
-/// A bisector's tie is not read as a verdict where it could decide
-/// anything: a bisector's code only relays its sector's side between two
-/// twins of ONE physical sector (the fan moves no edge across it), so
-/// with mixed neighbours its code changes no topology, and with both
-/// neighbours definitely on one side its reading is definite by the
-/// argument at `vtxfac`'s on-edge resolution and
-/// `recl::resolve_bisector_graze`, which refuse where it is not.
+/// A bisector descends by its own sector face's bend, as any bound
+/// does. Its code only relays its sector's side between two twins of
+/// ONE physical sector (the fan moves no edge across it), so with mixed
+/// neighbours it changes no topology; with both neighbours decided on
+/// one side at first order, a bisector reading `On` is the band's, and
+/// `vtxfac`'s on-edge resolution and `recl::resolve_bisector_graze`
+/// refuse it.
 ///
 /// A charge that does not clear the band is a typed refusal, never a
 /// first-order guess.
@@ -874,7 +879,7 @@ pub(super) struct BoundTie {
     pub on: OnReading,
     /// What the descent read: the side the bound leaves to, tangent,
     /// or that it rides the face.
-    pub descent: BoundSide,
+    pub descent: Descent,
 }
 
 /// The one reading of a bound's side behind [`datum_code`] and
@@ -896,8 +901,8 @@ pub(super) fn bound_read<T: Decide>(
                 .descend(band)
                 .map_err(|fault| read_refusal(fault, band))?;
             let code = match descent {
-                BoundSide::Off(side) | BoundSide::Leaves(side) => code_of(side),
-                BoundSide::Rides | BoundSide::Unresolved => SideCode::On,
+                Descent::Leaves(side) => code_of(side),
+                Descent::Rides | Descent::Unresolved(_) => SideCode::On,
             };
             Ok(BoundRead {
                 code,
@@ -949,7 +954,7 @@ fn read_refusal<T: Decide>(fault: ReadFault<T>, band: Band) -> BooleanError {
             DeclarationRead::Moot,
             at_departure(escalation, arm, departure, band),
         ),
-        ReadFault::Bend(diag) | ReadFault::Unbent(diag) => BooleanError::Escalated {
+        ReadFault::Bend(diag) => BooleanError::Escalated {
             decision: BooleanDecision::ConicBend,
             diag,
         },
@@ -978,7 +983,7 @@ pub(super) struct PierceSide {
     pub tied: bool,
 }
 
-/// **The lever a pierced face's side verdicts charge** ([`side_code`]'s
+/// **The lever a pierced face's side verdicts charge** (`side_code`'s
 /// `lever`): the smallest radius of curvature the face has where the
 /// charge reads it, within a bound's reach of the pierce point.
 ///
@@ -2393,7 +2398,7 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
     match reach {
         Reach::Conic { extent, bend } => Some((bend.curvature, extent)),
         Reach::Chord { .. } => Some((Vec3::new(T::zero(), T::zero(), T::zero()), reach.length())),
-        Reach::Extent(_) | Reach::Bisector(..) => None,
+        Reach::Extent(_) | Reach::Bisector { .. } => None,
     }
 }
 

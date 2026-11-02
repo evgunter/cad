@@ -558,12 +558,12 @@ fn twins<T: geom_core::Real>(secs: &[BoolSector<T>], idx: usize) -> Vec<usize> {
     out
 }
 
-/// A flanking sector's Table II key: the GEOMETRIC side code of its
-/// noncoplanar bound (per TOG: a wide flanker keys by its bisector,
-/// which is exactly the twin-shared bound) against the reference face.
+/// A flanking sector's noncoplanar bound (per TOG: a wide flanker keys
+/// by its bisector, which is exactly the twin-shared bound) read
+/// against the reference face through the one bound-side reading.
 /// Always computed fresh — post-15.10 record codes are resolutions,
 /// and reading them would hide the ON (coplanar test sector) case.
-fn flank_key<T: Decide>(
+fn flank_read<T: Decide>(
     own: &[BoolSector<T>],
     idx: usize,
     key_from_start: bool, // true: the noncoplanar bound is the START
@@ -577,6 +577,49 @@ fn flank_key<T: Decide>(
         (s.end, s.end_reach)
     };
     super::sectors::bound_read(bound, reach, reference.datum(), band)
+}
+
+/// A flanker's Table II key, and whether its bound tied with the
+/// reference at first order.
+#[derive(Clone, Copy, Debug)]
+struct FlankKey {
+    code: SideCode,
+    tied: bool,
+}
+
+/// **The two flankers' Table II keys against a reference sector**
+/// (flankers `f_s` and `f_e`, the noncoplanar bound of each: `f_s`'s
+/// end, `f_e`'s start), the one rule both on-edge gateways read
+/// ([`resolve_edge_sector`], [`resolve_bisector_graze`]). A flanker
+/// decided off the reference at first order keys its side. A flanker
+/// tied with the reference keys the side it leaves to one order down
+/// only where its twin ties too: the pair then turns about the
+/// reference together, and the transition is where they part. A lone
+/// tied flanker keys `On`, so Table III reads it as lying in the
+/// reference and lumps it whole: beside a flanker decided off the
+/// reference, its second-order side would put the crossing on the tied
+/// flanker, which meets the reference only along its bound
+/// (`the_stadium_answers_every_op`). The rule reads geometry alone: a
+/// declared tangency does not enable it.
+fn flank_keys<T: Decide>(
+    own: &[BoolSector<T>],
+    (f_s, f_e): (usize, usize),
+    reference: &BoolSector<T>,
+    band: Band,
+) -> Result<[FlankKey; 2], BooleanError> {
+    let reads = [
+        flank_read(own, f_s, false, reference, band)?,
+        flank_read(own, f_e, true, reference, band)?,
+    ];
+    let both = reads.iter().all(|r| r.tie.is_some());
+    Ok(reads.map(|r| FlankKey {
+        code: if r.tie.is_none() || both {
+            r.code
+        } else {
+            SideCode::On
+        },
+        tied: r.tie.is_some(),
+    }))
 }
 
 /// Rewrites EVERY On code of a surviving germ record to the transition
@@ -1309,7 +1352,7 @@ struct Part<T: geom_core::Real> {
 /// perpendicular to the unit common line `axis`, normalized only once its
 /// length decides positive at the bound's own reach
 /// (`bool_flank_offset`) — the bound's offset off the line where
-/// [`side_code`] reads it: a line edge's far vertex, a curved edge's
+/// [`super::sectors::sector_code`] reads it: a line edge's far vertex, a curved edge's
 /// extent, a bisector's arm ([`Reach::length`]), in metres. A bound
 /// within the band of the line, or on it, has no side of the line to
 /// name: it refuses with the decided margin, as the wedge's extent
@@ -1363,8 +1406,10 @@ fn wedge_is_reflex<T: Decide>(
 enum Half {
     /// Off the plane: whether on its material side.
     Off(bool),
-    /// On the plane, along the flank's own representative: whether the
-    /// coplanar verdict puts it in the material.
+    /// On the plane at first order, along the flank's own
+    /// representative: whether it lies in the material, by the coplanar
+    /// verdict where it rides the plane, or by the side it leaves to one
+    /// order down where it is tangent to it.
     Along(bool),
     /// On the plane, pointing away from the flank: touching it.
     Away,
@@ -1686,14 +1731,9 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                         band,
                     )
                     .map_err(|diag| {
-                        let planar = [(own_body, own_sec.face), (other_body, other_sec.face)]
+                        let planar = [own_sec, other_sec]
                             .iter()
-                            .all(|&(body, face)| {
-                                body.get_face(face)
-                                    .and_then(|f| body.get_surface(f.surface))
-                                    .map(geom::Surface::kind)
-                                    == Some(geom::SurfaceKind::Plane)
-                            });
+                            .all(|s| s.bend.shape() == super::sectors::FaceShape::Plane);
                         let which = if planar {
                             Coincide::FlankSense
                         } else {
@@ -1708,7 +1748,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                     })? == NonzeroSign::Positive;
                     if !same {
                         *inside = Half::Away;
-                    } else if let super::sectors::BoundSide::Leaves(_) = tie.descent {
+                    } else if let super::sectors::Descent::Leaves(_) = tie.descent {
                         // Tangent to the flank and leaving it one order
                         // down: along the flank, on the side it leaves
                         // to, which no coincidence settles.
@@ -2041,24 +2081,7 @@ fn resolve_edge_sector<T: Decide>(
                 what: "edge-sector site lost its point",
             })
     };
-    // One flanker tied with the reference stays `On`: Table III lumps it
-    // whole and the germ stays on the other (`the_stadium_answers_every_op`).
-    // Both tied, each keys by the side it leaves the reference to, one
-    // order down ([`flank_key`]): a flanker tangent to the reference
-    // holds the transition beside a coplanar one that lumps the other
-    // way.
-    let (r1, r2) = (
-        flank_key(own_secs, f_s, false, ref_sector, band)?,
-        flank_key(own_secs, f_e, true, ref_sector, band)?,
-    );
-    let first = |r: super::sectors::BoundRead| match r.tie {
-        Some(_) => SideCode::On,
-        None => r.code,
-    };
-    let (k1, k2) = match (r1.tie, r2.tie) {
-        (Some(_), Some(_)) => (r1.code, r2.code),
-        _ => (first(r1), first(r2)),
-    };
+    let [k1, k2] = flank_keys(own_secs, (f_s, f_e), ref_sector, band)?.map(|k| k.code);
     let (v1, v2) = table_ii(k1, k2);
     let comparison = if a_side { Operand::A } else { Operand::B };
     // Table III's rule: whether the on-flanker lumps Out. A glued
@@ -2192,8 +2215,7 @@ fn resolve_bisector_graze<T: Decide>(
     } else {
         &a_sectors[ref_idx]
     };
-    let k1 = flank_key(own_secs, f_s, false, ref_sector, band)?;
-    let k2 = flank_key(own_secs, f_e, true, ref_sector, band)?;
+    let [k1, k2] = flank_keys(own_secs, (f_s, f_e), ref_sector, band)?;
     // Both outer keys definitely on one side: the grazing bisector
     // cannot read Zero when K > 2 (the argument at `vtxfac`'s on-edge
     // resolution — the keys are the physical sector's own bounds, read
@@ -2207,7 +2229,7 @@ fn resolve_bisector_graze<T: Decide>(
     // `±zero`. A key tied at first order leaves the bisector's Zero
     // its sector's tangency, not the band's: the keys' sides are their
     // second order, which the argument does not bound.
-    if k1.code == k2.code && k1.code != SideCode::On && k1.tie.is_none() && k2.tie.is_none() {
+    if k1.code == k2.code && k1.code != SideCode::On && !k1.tied && !k2.tied {
         let on = super::sectors::OnReading {
             predicate: "bool_sector_bisector_side",
             decided: geom_core::Decided {

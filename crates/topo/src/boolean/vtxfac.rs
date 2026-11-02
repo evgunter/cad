@@ -769,8 +769,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     }
     // A bound two tangent sectors share is neither lump's: it keeps its
     // own side, one order down, so a ruling between walls curving to
-    // opposite sides stays `On` and folds the same way at each of its
-    // ends.
+    // opposite sides keeps the side it reads, `On` where it rides both.
     for e in (0..n).filter(|&e| n > 1 && !by_carrier[e]) {
         if tangent[e] && tangent[(e + n - 1) % n] {
             entries[e].class = read[e];

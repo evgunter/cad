@@ -57,3 +57,23 @@ without the arm (band: zero `1e-9`, escalation `1e-8`):
 
 `bound_side`'s `a_ties_parting_reads_zero_gap_and_decided_as_first_order_does`
 pins the arm's rung; it changes with the arm.
+
+**The uncertified arm (TANGRIM's third ruling, 2026-11-02).** A bend no
+reading certifies (a spline face, a bisector of one, a spiric or spline
+edge against a curved face) takes the same fallback,
+`Unresolved::Uncertified`, read `On`: stage 2 does not move an outcome
+on a reading it cannot certify, a refusal moving earlier included. Its
+witness:
+`a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`,
+a rim arc lying in the other lens's spline wall, which refused
+`Escalated { ConicBend, "enters_material" }` without the arm and reads
+as on main with it (the rim's `EdgeUndescribed`). That arm goes when a
+spline face's and a spline edge's bend are certified.
+
+**The lever.** The sector passes' datum takes no first-order charge
+(`sectors::NO_CURVATURE`; the vertex-pair charge is
+`vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces`'s);
+its descent reads no further than the face's own smallest radius of
+curvature at the vertex (`FaceBend::Implicit::radius`). A cone's bend
+tightens toward its axis within a long reach, which that radius does
+not bound; the witness, read at points of the bound, would.

@@ -1454,7 +1454,7 @@ fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, Reach<f64>) {
 fn fixed(dir: Vec3<f64>, reach: Reach<f64>) -> [f64; 3] {
     let x = match reach {
         Reach::Chord { far, .. } => far,
-        Reach::Conic { extent: l, .. } | Reach::Bisector(l, _) | Reach::Extent(l) => {
+        Reach::Conic { extent: l, .. } | Reach::Bisector { arm: l, .. } | Reach::Extent(l) => {
             Point3::new(0.0, 0.0, 0.0) + dir.normalize() * l
         }
     };
