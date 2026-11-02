@@ -1480,6 +1480,7 @@ mod tests {
         let assertion = fixture.row(fixture.holds);
         let driven = SlotRow {
             slot: SlotId::Distance,
+            label: SlotId::Distance.label(),
             dimension: Dimension::Length,
             structural: false,
             driver: SlotDriver::Expression {

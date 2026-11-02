@@ -613,6 +613,12 @@ impl Coord {
             Self::Spin(Some(TargetAxis::Z)) => "spin about z",
         }
     }
+
+    /// The name of the number that sets it: `slide along z value`.
+    #[must_use]
+    pub fn value_label(self) -> String {
+        format!("{} value", self.name())
+    }
 }
 
 /// **Why a value's freedom has no chart** ([`MateFault::NoChart`]).

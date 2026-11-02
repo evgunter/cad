@@ -224,7 +224,7 @@ naming its blocker. These are the project conventions of [failure] and
 
 ### The code is as simple as it can be `[simple]`
 
-The code is as simple as the problem allows. Two instantiations carry
+The code is as simple as the problem allows. Three instantiations carry
 most of the weight:
 
 - **One uniform rule, not special cases.** `[simple.uniform]` Where one
@@ -241,6 +241,16 @@ most of the weight:
   nothing is added to the code for a check's sake, and no
   representation, stage or decision exists only so a check can read
   it. Where a check needs one, the check changes or goes.
+- **Well-conditioned, then exact.** `[simple.conditioned]` Every
+  computation is posed so that it is well-conditioned where its result
+  is decided, and at `f64` its values are then treated as real
+  numbers: nothing charges, pads or estimates float rounding, because
+  handling rounding everywhere is complicated and the `Interval` lane
+  exists for what must account for it. A quantity that can vanish is a
+  pose decided before anything divides by it, and a formula or stored
+  form that loses digits is re-posed or re-minted. The one statement
+  about rounding is the run's admission check
+  (`crates/geom-core/README.md`, "Float rounding").
 
 ## Canonical places `[one-way.places]`
 
@@ -252,6 +262,7 @@ of them is a defect.
 | The tolerance | one ε per run (`geom_core::Tolerance`); angles derived from it at a named lever arm | [tolerance.epsilon] |
 | A topology-determining decision | a named predicate returning a trilean and a margin | [verdicts] |
 | A question about carriers | one reading per question | [one-way.readings] |
+| f64 rounding, a verdict's lever arm, and the extent it is consumed over | `crates/geom-core/README.md`, "Float rounding" | [simple.conditioned] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
@@ -391,10 +402,10 @@ curve pairs.
   — not a correctness parameter: soundness rests on
   escalate-never-guess, [tolerance.residuals] certification and interval replay, for
   any K > 1. K = 10, per-run configuration like ε (`Tolerance.k`).
-  K's noise headroom presumes every margin's f64 error is a few ulp at
-  the model's extent: a formula whose error is amplified by a vanishing
+  K's headroom absorbs f64 rounding by the run's admission rule
+  ([simple.conditioned]): a formula whose error is amplified by a vanishing
   quantity (a division by sin θ, |n|², a near-zero determinant) is a
-  defect, re-posed or certified, never covered by K. Interval replay
+  defect, re-posed, never covered by K. Interval replay
   does not rescue it: its enclosure lands in the band, which is
   terminal.
 - **Closeness is not identity.** `[verdicts.closeness]` Margined
@@ -485,7 +496,7 @@ angle only means anything through the displacement it induces at a
 lever arm (d = r·θ), so a fixed εₐ would privilege a hidden length
 scale. **An angle is metered in whatever way is required to make all
 geometry correct to within ε**: every angular predicate uses θ = ε/r
-with its lever arm named at the call site, the reach at which the
+with its lever arm a `Lever` from one of its sources (`crates/geom-core/README.md`, "Float rounding"), the reach at which the
 angle displaces the geometry it governs — 1/κ_rel for tangency, the
 distance of each face's own points from the other's carrier for
 parallelism, the session-box extent as the conservative universal arm
@@ -670,10 +681,9 @@ take it down a path that decides the question itself.
 size range.** `[tolerance.units]`
 the session box is 1 km, no coordinate larger
 in magnitude; geometry outside the range is rejected at
-construction. The box fixes the smallest admissible ε, ε_min =
-1 km · 2⁻⁵² ≈ 2.2e-13 m, the length f64 resolves at the box's
-edge: a run's ε below ε_min is refused, and no refusal offers to
-tighten the tolerance below it. User-facing units are typed
+construction. The box and K fix the smallest admissible ε
+([simple.conditioned]): a run's ε below it is refused, and no refusal offers
+to tighten the tolerance below it. User-facing units are typed
 newtypes at the API boundary only ([units]).
 
 **Strictness is enforced at the boundary, not relaxed inside.**
@@ -2414,6 +2424,7 @@ is the board and `work/README.md` its contract.
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & glued contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/mesh/README.md` | Ratified (#5708) | The mesher's sizing rule, `[mesh.sizing]`: each lane meshes as coarse as its own pinned worst-triangle theorem allows, with no safety factor; what kind each other mesh constant is |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a span-restricted door takes one structure (a `Span` borrows its `KnotVector`, a window its curve or surface, `SplineCoeffs` its knot vector), so a mismatch is unrepresentable |
+| `crates/geom-core/README.md`, "Float rounding" section only | Ratified (Ev, PR 6329) | Float rounding: the run's admission rule on (ε, K), re-posing never charging, the `Lever` and its sources, the consumed extent, the session-box predicate ([simple.conditioned]) |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |
 | `crates/viewer/GUI-DESIGN.md` | Ratified; GUI v1 shipped | GUI architecture G1–G5, GQ1–GQ7: the three-layer split, egui as toolkit, what v1 ships. `crates/viewer/README.md` beside it is the implementation record, which the program maintains itself |
