@@ -7,6 +7,7 @@ opened: 2026-10-09
 priority: P1
 closed: 2026-11-02
 branch: reads/python-profile-keyword-frame
+pr: 6317
 ---
 
 
