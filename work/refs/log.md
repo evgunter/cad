@@ -28,3 +28,8 @@
   - **Accepted structural change:** the id rides on each section, not in a parallel vector.
   - **Class:** a PR that shifts mint ordinals or name bytes turns slow-set goldens red, and per-PR CI cannot see them. The implementer brief now asks for a slow-set sweep of corpus, golden and digest rows whenever ids or names move.
   - **Main red:** `revalue_loft_prism` (pinned red by this PR with the corrected story) reappeared after the main-reds row closed on 2026-10-30.
+- 2026-11-02 — **PR 6342 fix pass and delta re-check: APPROVE-WITH-FIXES.**
+  - **The panic's root cause:** a fold step that merges faces after the step that made their seams spells the edge `Merged([Seam…])`, and seam rows were picked by spelling. The fix reads a merged edge lying off every member edge as a seam. Six-order rows pin it, and a mutation check confirms them.
+  - **The re-check's one new finding:** the same-member link moves two caps meeting face to face, plus the bar, from a uniform typed refusal into BORDERS' order-dependent `Emission` class. Filed as a witness on `work/borders/a-union-over-a-stepped-plate-refuses-in-the-orders-that-fold-the-plate-early.md`, in the PR.
+  - **Open, unsure:** `off_members` would read as a seam a `Merged` edge that partly lies along a member edge. It is argued impossible for planar members, but curved members are unchecked. It rides the P1 row's audit.
+  - **Waits on Ev's N2 answer.**
