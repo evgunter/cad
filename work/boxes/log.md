@@ -222,3 +222,46 @@ Orchestrator's read of the delta: accepted. Closed
 `the-chord-dip-charge-has-two-homes`.
 
 Accepted near-duplicate, recorded so it is not mistaken for an oversight: `geom::is_ring_torus` (a reading that answers a bool) beside `require_ring_torus` (the declining form that mints the escalation). Both are built on the same two halves. Under the cover design (PR 6334) the box lanes' use becomes a stage of the torus arm, and the pair is re-examined there.
+
+## 2026-11-02 — sitting ends; the track goes back `ready`
+
+(BOXES orchestrator) PR 6336 (U1) merged at `f1867c8b`. Its last push
+added `m10_6_r1_probes_interval::a_planted_violated_reads_violated_over_a_certified_leaf`
+to the slow set. That test is not this unit's: it measured 1.002 s
+against the 1.0 s bar after main was merged in, the integration cannot
+re-run a job (403), and the slow-set rule (≥ 0.5 s) already covered it.
+
+Every remaining P1 row now waits on Ev's ruling on PR 6334, and is
+`parked` on its ruling item `the-region-an-entity-occupies-is-one-cover`:
+`D280` (its `design` flag cleared, since the question is on the ruling),
+`an-edges-extent-has-four-dispatchers`, `sphere-operand-box-is-the-whole-ball`,
+and U1's sweep filing `a-sphere-or-torus-pair-extent-skips-the-face-box-rule`
+(banded P1, E: two readings of one fact). The ruling item is filed
+here in the same bytes as on the `[ev]` branch, so the two land as one.
+
+No dispatchable P0/P1 remains, so the track is handed back `ready` (work/README.md, Priority).
+The P3/P4 tail is left alone, though several rows are cheap. Each is
+an arm the cover design restates, so fixing one now is work the build
+undoes. That is the reason they are not this sitting's easy tail.
+
+**What the next orchestrator does on Ev's answer to PR 6334:**
+- On approval: fill fork row 239's second half (the decision, the
+  match, tokens, and the label→model mapping from
+  `analysis/design-fork/boxes-extent-home`), close the ruling item,
+  merge the PR, and cut the build into units. The designers' suggested
+  order (log entry "the extent-home fork goes to Ev"; the For the
+  orchestrator sections are archived at
+  `~/.local/share/cad-work/boxes-fork-*.md` on this session's box
+  only) is:
+  1. `geom::cover` with the whole-carrier and arc readings, and the edge doors onto it;
+  2. `topo` face and edge covers replacing both box lanes and `Span`;
+  3. the levers (`rules.rs`, `join.rs`, `carrier_pair`, `witness_span`, `gate_maximal_faces`, `solid_contain`/`beyond`) onto `reach`/`range`/`ball`;
+  4. sweep and editor-core;
+  5. a gate on kind matches outside the cover modules.
+  
+  Then un-park the four rows onto those units.
+- On a change: rework the DESIGN text on the PR and re-ask.
+
+The token counts for row 239 come from the harness's per-agent usage. The
+first report and the total are A 141727 / 174465, B 187149 / 239850,
+C 137607 / 178525 (first report / last reply).

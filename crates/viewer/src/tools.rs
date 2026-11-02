@@ -65,7 +65,8 @@ vocabulary! {
         Boolean,
         /// The split tool: a body and its cutting plane's numbers.
         Split,
-        /// The transform tool: one body.
+        /// The transform tool: one body or copy picked, which opens the
+        /// placement editor on it ([`MateTool::moving`]).
         Transform,
         /// The pattern tool: a body and its rule's numbers.
         Pattern,
@@ -134,9 +135,13 @@ impl ToolKind {
         format!("{} tool…", capitalised(self.label()))
     }
 
-    /// The words on the button that commits this tool's edit.
+    /// The words on the button that commits this tool's edit: the
+    /// placement editor's is its Apply, as the profile editor's is.
     pub fn commit(self) -> String {
-        format!("Commit {}", self.label())
+        match self {
+            Self::Mate => "Apply".to_owned(),
+            other => format!("Commit {}", other.label()),
+        }
     }
 
     /// **What the cursor may pick while this tool is open** — an open
@@ -182,10 +187,8 @@ impl ToolKind {
     /// this match's.
     pub fn commits(self, op: &SessionOp) -> bool {
         match self {
-            // The mate tool closes at its own click, before the op is
-            // performed: the mate panel's rule, not this one's.
-            Self::Mate => false,
-            Self::Revolve
+            Self::Mate
+            | Self::Revolve
             | Self::Boolean
             | Self::Split
             | Self::Transform
@@ -199,15 +202,16 @@ impl ToolKind {
 }
 
 /// **Which tool an operation is the committed edit of**, or `None` for
-/// an operation no tool closes on. `AddMate` is nobody's: the mate
-/// tool does not close on it ([`ToolKind::commits`]).
+/// an operation no tool closes on. `AddMate` is nobody's: it is the API
+/// spelling of a mate added to a bundle, and the placement editor
+/// commits a [`SessionOp::Place`] or a [`SessionOp::SetBundle`].
 fn committed_by(op: &SessionOp) -> Option<ToolKind> {
     match op {
         SessionOp::AddRevolve { .. } => Some(ToolKind::Revolve),
         SessionOp::AddBoolean { .. } => Some(ToolKind::Boolean),
         SessionOp::AddSplit { .. } => Some(ToolKind::Split),
         SessionOp::AddMirror { .. } => Some(ToolKind::Mirror),
-        SessionOp::AddTransform { .. } => Some(ToolKind::Transform),
+        SessionOp::Place { .. } | SessionOp::SetBundle { .. } => Some(ToolKind::Mate),
         // Two ops, one tool: the output choice picks the door, and
         // either one landing is this tool's edit committed. The blend
         // tool's kind choice does the same.
@@ -470,7 +474,8 @@ pub enum OpenTool {
     Boolean(BooleanTool),
     /// The split tool.
     Split(SplitTool),
-    /// The transform tool.
+    /// The transform tool, before its pick: the pick opens the
+    /// placement editor in its place ([`MateTool::moving`]).
     Transform(TransformTool),
     /// The pattern tool.
     Pattern(PatternTool),
@@ -591,6 +596,21 @@ impl Tools {
         }
     }
 
+    /// The open placement editor, to change its draft.
+    pub fn mate_mut(&mut self) -> Option<&mut MateTool> {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// **Open the placement editor holding `tool`** — a door opened on a
+    /// placement or a body rather than by a first pick (the tree's
+    /// `edit` and `remove`), closing whatever was open.
+    pub fn open_mate(&mut self, tool: MateTool) {
+        self.open = Some(OpenTool::Mate(tool));
+    }
+
     /// The open revolve tool.
     pub fn revolve(&self) -> Option<RevolveTool> {
         match &self.open {
@@ -625,11 +645,35 @@ impl Tools {
         }
     }
 
-    /// The open transform tool.
-    pub fn transform(&self) -> Option<TransformTool> {
+    /// The open Transform tool, before its pick opened the editor.
+    pub fn transform(&self) -> Option<&TransformTool> {
         match &self.open {
-            Some(OpenTool::Transform(tool)) => Some(tool.clone()),
+            Some(OpenTool::Transform(tool)) => Some(tool),
             _ => None,
+        }
+    }
+
+    /// **The half the Transform tool's waiting split is moved as**: the
+    /// placement editor opened on that half
+    /// ([`MateTool::moving`]), or what it says instead.
+    #[must_use = "a refused half is only reported if its notice is shown"]
+    pub fn transform_half(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        half: SplitHalf,
+    ) -> Vec<ToolNotice> {
+        let Some(OpenTool::Transform(tool)) = &self.open else {
+            return Vec::new();
+        };
+        let Some(split) = tool.awaiting_half() else {
+            return Vec::new();
+        };
+        match MateTool::moving(doc, split.id(), Some(u32::from(half.port()))) {
+            Ok(editor) => {
+                self.open = Some(OpenTool::Mate(editor));
+                Vec::new()
+            }
+            Err(event) => vec![ToolNotice::Mate(*event)],
         }
     }
 
@@ -688,8 +732,12 @@ impl Tools {
     /// **What the cursor may pick right now** ([`ToolKind::pick_kinds`]
     /// carries the rule); the bare cursor's rule with nothing open.
     pub fn pick_kinds(&self) -> PickKinds {
-        self.open_kind()
-            .map_or(PickKinds::Any, ToolKind::pick_kinds)
+        match &self.open {
+            Some(OpenTool::Mate(tool)) => crate::matetool::pick_kinds(tool.active_kind()),
+            _ => self
+                .open_kind()
+                .map_or(PickKinds::Any, ToolKind::pick_kinds),
+        }
     }
 
     /// [`Tools::pick_kinds`] with the mate panel's chosen kind `mate`
@@ -770,12 +818,15 @@ impl Tools {
             };
             match &mut self.open {
                 None => {}
-                Some(OpenTool::Mate(tool)) => match selection {
-                    Selection::Face(face) => tool.pick(doc, face.clone()),
-                    Selection::Edge(edge) => tool.pick(doc, edge.clone()),
-                    Selection::Vertex(vertex) => tool.pick(doc, vertex.clone()),
-                    Selection::None | Selection::Node(_) | Selection::Variable(_) => {}
-                },
+                Some(OpenTool::Mate(tool)) => {
+                    let event = match selection {
+                        Selection::Face(face) => tool.pick(doc, face.clone()),
+                        Selection::Edge(edge) => tool.pick(doc, edge.clone()),
+                        Selection::Vertex(vertex) => tool.pick(doc, vertex.clone()),
+                        Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
+                    };
+                    notices.extend(event.map(ToolNotice::Mate));
+                }
                 Some(OpenTool::Blend(tool)) => {
                     if let Some(edge) = selection.edge() {
                         notices.extend(tool.pick(doc, edge, index).map(ToolNotice::Blend));
@@ -791,7 +842,23 @@ impl Tools {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
                 Some(OpenTool::Transform(tool)) => {
-                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
+                    let opened = match selection {
+                        Selection::Face(face) => Some(MateTool::moving_picked(doc, face.clone())),
+                        Selection::Edge(edge) => Some(MateTool::moving_picked(doc, edge.clone())),
+                        Selection::Vertex(vertex) => {
+                            Some(MateTool::moving_picked(doc, vertex.clone()))
+                        }
+                        Selection::Node(node) => Some(MateTool::moving(doc, *node, None)),
+                        Selection::None | Selection::Variable(_) => None,
+                    };
+                    match opened {
+                        Some(Ok(editor)) => self.open = Some(OpenTool::Mate(editor)),
+                        Some(Err(event)) => match *event {
+                            MateToolEvent::HalfUnchosen { split } => tool.await_half(split),
+                            event => notices.push(ToolNotice::Mate(event)),
+                        },
+                        None => {}
+                    }
                 }
                 Some(OpenTool::Pattern(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
@@ -819,12 +886,12 @@ impl Tools {
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         match &mut self.open {
             None => {}
+            Some(OpenTool::Transform(tool)) => tool.respeak(doc),
             Some(OpenTool::Mate(tool)) => tool.respeak(doc),
             Some(OpenTool::Blend(tool)) => tool.respeak(doc),
             Some(OpenTool::Revolve(tool)) => tool.respeak(doc),
             Some(OpenTool::Boolean(tool)) => tool.respeak(doc),
             Some(OpenTool::Split(tool)) => tool.respeak(doc),
-            Some(OpenTool::Transform(tool)) => tool.respeak(doc),
             Some(OpenTool::Pattern(tool)) => tool.respeak(doc),
             Some(OpenTool::Part(tool)) => tool.respeak(doc),
             Some(OpenTool::Duplicate(tool)) => tool.respeak(doc),
@@ -860,11 +927,14 @@ impl Tools {
         match &mut self.open {
             None
             | Some(
-                OpenTool::Mate(_) | OpenTool::Blend(_) | OpenTool::Revolve(_) | OpenTool::Part(_),
+                OpenTool::Mate(_)
+                | OpenTool::Blend(_)
+                | OpenTool::Revolve(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Part(_),
             ) => {}
             Some(OpenTool::Boolean(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Split(tool)) => tool.choose_half(seat, half),
-            Some(OpenTool::Transform(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Pattern(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Duplicate(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Mirror(tool)) => tool.choose_half(seat, half),
@@ -910,7 +980,10 @@ impl Tools {
             OpenTool::Revolve(tool) => tool.reconcile(doc),
             OpenTool::Boolean(tool) => tool.reconcile(doc),
             OpenTool::Split(tool) => tool.reconcile(doc),
-            OpenTool::Transform(tool) => tool.reconcile(doc),
+            OpenTool::Transform(tool) => {
+                tool.reconcile(doc);
+                Vec::new()
+            }
             OpenTool::Pattern(tool) => tool.reconcile(doc),
             OpenTool::Part(tool) => tool.reconcile(doc),
             OpenTool::Duplicate(tool) => tool.reconcile(doc),

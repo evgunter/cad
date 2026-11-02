@@ -1667,7 +1667,7 @@ impl<P> Doc<P> {
     where
         P: crate::ProfilePayload,
     {
-        if observed.is_empty() || matches!(node, Node::Assertion { .. }) {
+        if observed.is_empty() || matches!(node, Node::Assertion(_)) {
             return None;
         }
         node.rows()
@@ -3342,18 +3342,19 @@ mod tests {
 pub(crate) enum Reader {
     /// A construction seat.
     Constructs,
-    /// A measure's reference seat, or a selection's own body read: a
+    /// A measure's reference seat, a clearance's seat, or a
+    /// selection's own body read: a
     /// selection names faces and builds nothing, so what reads it
     /// decides.
     Observes,
 }
 
 impl Reader {
-    /// How a seat of `kind` reads: a measure's observes, every other
-    /// constructs.
+    /// How a seat of `kind` reads: a measure's and a clearance's
+    /// observe, every other constructs.
     pub(crate) fn of(kind: crate::SlotKind) -> Self {
         match kind {
-            crate::SlotKind::Measured(_) => Self::Observes,
+            crate::SlotKind::Measured(_) | crate::SlotKind::Cleared => Self::Observes,
             _ => Self::Constructs,
         }
     }

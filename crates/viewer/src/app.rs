@@ -193,6 +193,16 @@ const FEATURES_SLACK: f32 = 8.0;
 /// on screen (`frame::Progress::Canceled`).
 const CANCELED_LINE: &str = "canceled — showing an older result";
 
+/// What the toolbar says while a run that ran out of its member budget
+/// leaves an older picture on screen (`frame::Progress::Exhausted`),
+/// spoken from `doc`.
+fn exhausted_line(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    out: crate::session::OutOfBudget,
+) -> String {
+    format!("showing an older result: the run {}", out.said(doc))
+}
+
 /// `color` as the toolkit's own colour type.
 ///
 /// The one place a [`Rgba8`] becomes an `egui::Color32`, matching
@@ -1955,6 +1965,16 @@ impl ViewerApp {
                         ui.ctx().request_repaint();
                     }
                 }
+                // No Re-evaluate beside it: the same document runs out
+                // at the same family again.
+                Some(frame::Progress::Exhausted { index, out }) => {
+                    ui.separator();
+                    if index == IndexSeam::Building {
+                        ui.spinner();
+                        ui.ctx().request_repaint();
+                    }
+                    crate::widgets::message(ui, exhausted_line(self.session.doc(), out));
+                }
                 // No Cancel button beside it, and that is the
                 // seam's promise showing through the chrome: the
                 // build cannot be stopped, only outrun by a newer
@@ -2205,8 +2225,17 @@ impl eframe::App for ViewerApp {
             profile_constructions.create = None;
         }
         // The committed node the edit door is previewing in its place,
-        // which the committed-profile pass leaves out.
-        let profile_edited = self.drafts.edited_in_place(profile_previews.edit.as_ref());
+        // with what that preview draws: the committed-profile lane
+        // leaves the node out, and the pick and the marks read it by
+        // the preview's outline.
+        let display = display.previewing(
+            self.drafts
+                .edited_in_place(profile_previews.edit.as_ref())
+                .map(|node| {
+                    let drawn = profile_previews.edit.as_ref().and_then(|p| p.as_ref().ok());
+                    crate::display::PreviewedProfile::of(node, drawn)
+                }),
+        );
         let mut profile_drawn = ProfileDoors::<bool>::default();
         // **Zeroed here, every frame: after the toolbar has read last
         // frame's value and before the panes draw.** A frame the
@@ -2267,7 +2296,6 @@ impl eframe::App for ViewerApp {
                     profile_constructions: &profile_constructions,
                     profile_drawn: &mut profile_drawn,
                     profile_was_drawn: self.profile_drawn,
-                    profile_edited,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
                     viewport_reads: &mut self.viewport_reads,
@@ -2462,10 +2490,6 @@ pub(crate) struct ViewerBehavior<'a> {
     /// are on screen, the one read every preview and mark of a door
     /// follows.
     pub(crate) profile_was_drawn: ProfileDoors<bool>,
-    /// The committed profile the edit door is previewing this frame,
-    /// which the committed-profile pass leaves out
-    /// (`sketch::committed`'s `except`).
-    pub(crate) profile_edited: Option<pncad::document::RecipeNodeId>,
     pub(crate) pending_fit: &'a mut bool,
     /// Where the viewport leaves a view matrix it could not form, for
     /// [`frame::projection_badge`] to read: a read of the camera, so
@@ -3205,16 +3229,36 @@ mod tests {
         use crate::pickcache::IndexSeam;
         use crate::session::{DocSession, Outstanding};
 
-        const WORDS: [&str; 5] = [
+        let tol = pncad::tolerance::witness();
+        // The plate, and the plate with a row of `u32::MAX` copies of it,
+        // which runs out of the default member budget at the row.
+        let (plate, body) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let (huge, row) = crate::test_support::row_of_copies(
+            &plate,
+            body,
+            i64::from(u32::MAX),
+            (pncad::document::TargetAxis::X, 0.05),
+            tol,
+        );
+        let out = crate::session::OutOfBudget {
+            at: row,
+            held: 0,
+            budget: pncad::document::DEFAULT_MEMBER_BUDGET,
+        };
+        let out_line = crate::app::exhausted_line(&huge, out);
+        let words = [
             "evaluating…",
             "Cancel",
             CANCELED_LINE,
             "Re-evaluate",
             "indexing…",
+            &out_line,
         ];
-        let tol = pncad::tolerance::witness();
         let session = |outstanding: Outstanding| {
-            let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+            let document = match outstanding {
+                Outstanding::Exhausted(_) => huge.clone(),
+                _ => plate.clone(),
+            };
             let mut session = DocSession::inline(document, tol);
             session.pump();
             match outstanding {
@@ -3227,6 +3271,7 @@ mod tests {
                     session.perform(SessionOp::CancelEvaluation);
                     session.pump();
                 }
+                Outstanding::Exhausted(_) => {}
             }
             assert_eq!(
                 session.outstanding(),
@@ -3259,7 +3304,7 @@ mod tests {
             );
             row.painted
                 .into_iter()
-                .filter(|text| WORDS.contains(&text.as_str()))
+                .filter(|text| words.contains(&text.as_str()))
                 .collect::<Vec<_>>()
         };
         for (outstanding, index, expected) in [
@@ -3284,6 +3329,13 @@ mod tests {
                 Outstanding::Canceled,
                 IndexSeam::Building,
                 vec![CANCELED_LINE, "Re-evaluate", "indexing…"],
+            ),
+            // No picture lands for the row, so no index is built behind
+            // it: the one pair is the idle one.
+            (
+                Outstanding::Exhausted(out),
+                IndexSeam::Idle,
+                vec![out_line.as_str()],
             ),
         ] {
             assert_eq!(
@@ -4186,11 +4238,10 @@ mod properties_pane_tests {
         use crate::pane::create::{ADD_FEATURE, ASSEMBLE_PARTS, BLEND_EDGES, COMBINE_BODIES};
         use crate::tools::ToolKind;
         match kind {
-            ToolKind::Mate => ASSEMBLE_PARTS,
+            ToolKind::Mate | ToolKind::Transform => ASSEMBLE_PARTS,
             ToolKind::Revolve => ADD_FEATURE,
             ToolKind::Boolean
             | ToolKind::Split
-            | ToolKind::Transform
             | ToolKind::Pattern
             | ToolKind::Part
             | ToolKind::Duplicate
@@ -4297,6 +4348,83 @@ mod properties_pane_tests {
             test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
+    }
+
+    /// **The placement editor's value rows are fields**: the Edit door on
+    /// the startup copy, its identity bundle loaded. Each row is drawn as
+    /// its freedom's word and, next after it, a field showing the number
+    /// the bundle holds — never a variable's raw id — and typing into one
+    /// replaces that value in the draft.
+    #[test]
+    fn the_placement_editors_value_rows_are_editable_number_fields() {
+        let key = |key| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: if key == egui::Key::A {
+                egui::Modifiers::COMMAND
+            } else {
+                egui::Modifiers::default()
+            },
+        };
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let tool = crate::matetool::MateTool::edit(driven.app.session.committed_doc(), placement())
+            .expect("the startup copy is a placement");
+        driven.app.tools.open_mate(tool);
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
+        let painted = driven.quiet();
+        let words: Vec<&str> = pncad::document::TargetAxis::ALL
+            .into_iter()
+            .flat_map(|axis| {
+                [
+                    pncad::document::Coord::Slide(axis),
+                    pncad::document::Coord::Spin(Some(axis)),
+                ]
+            })
+            .map(pncad::document::Coord::name)
+            .collect();
+        let fields: Vec<(String, egui::Pos2)> = painted
+            .windows(2)
+            .filter(|pair| words.contains(&pair[0].0.as_str()))
+            .map(|pair| (pair[1].0.clone(), pair[1].1.center()))
+            .collect();
+        assert_eq!(
+            fields.len(),
+            6,
+            "a field per freedom of the identity: {painted:?}"
+        );
+        for (text, _) in &fields {
+            assert!(!text.contains('#'), "no field spells a raw id: {text:?}");
+            assert_eq!(
+                text.trim(),
+                "0",
+                "the identity's number reads as the number: {text:?}"
+            );
+        }
+        let slide_x = painted
+            .windows(2)
+            .find(|pair| {
+                pair[0].0 == pncad::document::Coord::Slide(pncad::document::TargetAxis::X).name()
+            })
+            .map(|pair| pair[1].1.center())
+            .expect("the slide along x is drawn");
+        driven.click_at(slide_x);
+        driven.frame(vec![key(egui::Key::A)]);
+        driven.frame(vec![egui::Event::Text("5 mm".to_owned())]);
+        driven.frame(vec![key(egui::Key::Enter)]);
+        driven.quiet();
+        let typed = driven.app.tools.mate().map(|tool| tool.typed().to_vec());
+        assert!(
+            typed
+                .as_ref()
+                .is_some_and(|typed| typed.iter().any(|(coord, by)| {
+                    *coord == pncad::document::Coord::Slide(pncad::document::TargetAxis::X)
+                        && by.literal_value() == Some(0.005)
+                })),
+            "typing replaces the slide along x in the draft: {typed:?}"
+        );
     }
 
     /// **A deleted node is called deleted, and nothing claims it
@@ -5456,21 +5584,26 @@ mod properties_pane_tests {
     }
 
     /// Which of three withholding reasons the app paints — the face prompt,
-    /// the empty chain's, the bore's refusal — drawing `on_face` with no
-    /// face held, `shape` chosen, a bore planted as wide as the radius and
-    /// the chain planted empty.
-    fn withheld_reason_said(on_face: bool, shape: crate::forms::ShapeKind) -> Vec<&'static str> {
+    /// the empty chain's, the traced chain's refusal of an added loop —
+    /// drawing `on_face` with no face held, a path chosen with its chain
+    /// planted empty, and, where `traced`, the chain traced along a face
+    /// with a loop added under it.
+    fn withheld_reason_said(on_face: bool, traced: bool) -> Vec<&'static str> {
         const SAID: [&str; 3] = [
             crate::pane::create::PICK_A_FACE,
             "add a step to the chain",
-            "the bore must be smaller than the radius",
+            "a chain traced along a face is the profile's one loop",
         ];
         let painted = painted_adding_a_profile(|drafts| {
             drafts.sketch_on_face = on_face;
-            drafts.profile_shape = Some(shape);
-            drafts.profile_bored = true;
-            drafts.profile_bore = drafts.profile_radius;
+            drafts.profile_shape = Some(crate::forms::ShapeKind::Path);
             drafts.profile_path.clear();
+            if traced {
+                drafts.trace_on = true;
+                drafts
+                    .profile_more
+                    .push(crate::drafts::fresh_loop(crate::forms::ShapeKind::Circle));
+            }
         });
         assert!(
             painted
@@ -5485,28 +5618,24 @@ mod properties_pane_tests {
 
     /// **The add-profile form says one withholding reason, and which one is
     /// decided once**: drawing on a face with none held and an empty
-    /// chain, the face prompt, which comes first in the form; with an
-    /// over-wide bore, the refusal, on a face or not.
+    /// chain, the face prompt, which comes first in the form; off the
+    /// face, the empty chain's; and with a traced chain refusing its
+    /// added loop, the refusal over the empty chain.
     #[test]
     fn the_add_profile_form_says_a_refusal_before_a_missing_input_and_the_face_first() {
-        use crate::forms::ShapeKind;
         assert_eq!(
-            withheld_reason_said(true, ShapeKind::Path),
+            withheld_reason_said(true, false),
             [crate::pane::create::PICK_A_FACE]
-        );
-        assert_eq!(
-            withheld_reason_said(true, ShapeKind::Circle),
-            ["the bore must be smaller than the radius"]
-        );
-        assert_eq!(
-            withheld_reason_said(false, ShapeKind::Circle),
-            ["the bore must be smaller than the radius"]
         );
         // The empty chain is said off the face, so the first case above
         // held it back rather than never drawing it.
         assert_eq!(
-            withheld_reason_said(false, ShapeKind::Path),
+            withheld_reason_said(false, false),
             ["add a step to the chain"]
+        );
+        assert_eq!(
+            withheld_reason_said(false, true),
+            ["a chain traced along a face is the profile's one loop"]
         );
     }
 
@@ -5627,6 +5756,7 @@ mod properties_pane_tests {
         driven.click(&circ);
         driven.app.drafts.profile_more = vec![
             ProfileShape::Rectangle {
+                centre: [0.0, 0.0],
                 width: 0.01,
                 height: 0.003,
             },
@@ -7019,21 +7149,23 @@ mod properties_pane_tests {
     /// pick by the older landed run.
     #[test]
     fn an_open_tools_pick_on_a_taken_over_copy_follows() {
-        use crate::matetool::MateToolState;
         use pncad::select::Resolution;
         let (mut driven, top) = Driven::holding_the_top_cap();
         driven.app.tools.open(crate::tools::ToolKind::Mate);
         driven.click_through(vec![Selection::Face(top.clone()), Selection::None]);
-        assert_eq!(
+        let on = |driven: &Driven| {
             driven
                 .app
                 .tools
                 .mate()
-                .map(crate::matetool::MateTool::state),
-            Some(&MateToolState::One(crate::tree::HeldPick::new(
+                .and_then(|tool| tool.active_picks()[0].cloned())
+        };
+        assert_eq!(
+            on(&driven),
+            Some(crate::tree::HeldPick::new(
                 driven.app.session.doc(),
                 crate::matetool::MatePick::Face(top.clone())
-            ))),
+            )),
             "the tool holds the cap"
         );
         // Committed, and the survival step run before its run lands:
@@ -7051,19 +7183,15 @@ mod properties_pane_tests {
         }]);
         assert!(driven.app.session.busy(), "the commit's run has not landed");
         driven.app.survive_tools();
-        let followed = driven.app.tools.mate().map(|tool| tool.state().clone());
+        let followed = on(&driven);
         assert!(
-            matches!(&followed, Some(MateToolState::One(held))
-                if held.pick().face().is_some_and(|face| face.name != top.name)),
+            followed
+                .as_ref()
+                .is_some_and(|held| held.pick().face().is_some_and(|face| face.name != top.name)),
             "the tool keeps the pick it followed through the window: {followed:?}"
         );
         driven.quiet();
-        let Some(MateToolState::One(held)) = driven
-            .app
-            .tools
-            .mate()
-            .map(crate::matetool::MateTool::state)
-        else {
+        let Some(held) = on(&driven) else {
             panic!("the tool still holds one pick")
         };
         let held = held.pick().face().expect("a face pick");
@@ -7080,38 +7208,47 @@ mod properties_pane_tests {
     }
 
     /// **A held face on a copy a feature re-points stays held, drawn
-    /// and committable.** The pick is on the placement's copy; the
-    /// transform re-points that placement (A10) to a placement of the
-    /// extrude moved within its own space, so the copy still draws the
-    /// face — moved — and the form commits a sketch on the face of the
-    /// moved body. (A held face the picture does not draw — a hidden
+    /// and committable.** The pick is on the placement's copy; a fillet
+    /// of the hole's bottom rim re-points that placement (A10) to the
+    /// filleted body, which carries the top cap whole, so the copy still
+    /// draws the face and the form commits a sketch on the face of the
+    /// filleted body. (A held face the picture does not draw — a hidden
     /// instance's — is `tests/assembly_display.rs`'s row.)
     #[test]
     fn a_held_face_on_a_copy_a_feature_re_points_stays_held() {
-        use crate::test_support::{len, scl};
-        use pncad::document::{Dimension, Formula};
         let (mut driven, top) = Driven::holding_the_top_cap();
         driven.select(Selection::Face(top));
-        driven.perform(SessionOp::AddTransform {
-            input: extrude().into(),
-            translation: [
-                len(0.05),
-                Formula::zero(Dimension::Length),
-                Formula::zero(Dimension::Length),
-            ],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Formula::zero(Dimension::Angle),
+        let rim = {
+            let session = &driven.app.session;
+            let Some(Node::Profile(program)) = session.doc().node(startup_node(0)) else {
+                panic!("the startup document opens on its profile")
+            };
+            let hole = format!("{:?}", program.ids[1][0]);
+            let eval = session.evaluation().expect("landed");
+            pncad::select::all_edges(eval, extrude())
+                .into_iter()
+                .filter(|name| {
+                    let said = format!("{name:?}");
+                    said.contains("RimEdge(Start") && said.contains(&hole)
+                })
+                .collect::<Vec<_>>()
+        };
+        assert!(!rim.is_empty(), "the hole's bottom rim");
+        driven.perform(SessionOp::AddFillet {
+            target: extrude(),
+            radius: crate::test_support::len(0.0005),
+            selection: rim,
         });
         let [held, ..] = driven.held();
         assert_ne!(
             held,
             crate::pickindex::IdMap::NOTHING,
-            "the moved copy still draws the held face"
+            "the re-pointed copy still draws the held face"
         );
         assert_eq!(
             driven.marks().highlight().selected,
             held,
-            "the selection follows the face onto the moved copy"
+            "the selection follows the face onto the re-pointed copy"
         );
         let moved = *driven
             .app
@@ -7119,11 +7256,8 @@ mod properties_pane_tests {
             .doc()
             .ids()
             .iter()
-            .find(|&&id| {
-                matches!(driven.app.session.doc().node(id), Some(Node::Place { .. }))
-                    && id != placement()
-            })
-            .expect("the transform's placement landed");
+            .find(|&&id| matches!(driven.app.session.doc().node(id), Some(Node::Fillet { .. })))
+            .expect("the fillet landed");
         driven.click(crate::pane::create::ADD_PROFILE);
         driven.quiet();
         let doc = driven.app.session.doc();
@@ -7134,7 +7268,7 @@ mod properties_pane_tests {
         let union = union.expect("the button committed a sketch on the face");
         assert!(
             doc.upstream(union).contains(&moved),
-            "on the moved body, which the copy places"
+            "on the filleted body, which the copy places"
         );
     }
 
@@ -7190,7 +7324,7 @@ mod properties_pane_tests {
             label: label("base"),
         }]);
         driven.settle();
-        driven.app.tools.open(crate::tools::ToolKind::Transform);
+        driven.app.tools.open(crate::tools::ToolKind::Pattern);
         driven.select(Selection::Node(extrude()));
         rename_and_delete(&mut driven);
         let drawn = driven.quiet();
@@ -7230,10 +7364,10 @@ mod properties_pane_tests {
         let picked = || {
             let mut driven = Driven::with(Vec::new());
             driven.settle();
-            driven.app.tools.open(crate::tools::ToolKind::Transform);
+            driven.app.tools.open(crate::tools::ToolKind::Pattern);
             driven.select(Selection::Node(extrude()));
             assert_eq!(
-                driven.app.tools.transform().and_then(|tool| tool.input()),
+                driven.app.tools.pattern().and_then(|tool| tool.input()),
                 Some(extrude()),
                 "the pick is held"
             );
@@ -7242,7 +7376,7 @@ mod properties_pane_tests {
         let held = |driven: &Driven| {
             (
                 driven.app.tools.open_kind(),
-                driven.app.tools.transform().and_then(|tool| tool.input()),
+                driven.app.tools.pattern().and_then(|tool| tool.input()),
             )
         };
         let mut driven = picked();
@@ -7251,7 +7385,7 @@ mod properties_pane_tests {
         }]);
         assert_eq!(
             held(&driven),
-            (Some(crate::tools::ToolKind::Transform), None),
+            (Some(crate::tools::ToolKind::Pattern), None),
             "new document"
         );
 
@@ -7268,7 +7402,7 @@ mod properties_pane_tests {
         let removed = std::fs::remove_dir_all(&dir);
         assert_eq!(
             held(&driven),
-            (Some(crate::tools::ToolKind::Transform), None),
+            (Some(crate::tools::ToolKind::Pattern), None),
             "open"
         );
         removed.expect("the row removes the document it saved");
@@ -7582,17 +7716,19 @@ mod properties_pane_tests {
         driven.settle();
         let a = cap_of(CapEnd::End);
         let b = cap_of(CapEnd::Start);
-        let (a_id, b_id) = (driven.patch_of(&a), driven.patch_of(&b));
+        let b_id = driven.patch_of(&b);
         driven.app.tools.open(crate::tools::ToolKind::Mate);
         driven.click_through(vec![
             Selection::Face(a),
             Selection::Face(b),
             Selection::None,
         ]);
+        // Both caps are on the one copy, so each is its on pick, the
+        // second in place of the first.
         let marked = driven.marks();
         assert_eq!(
             (marked.highlight().selected, marked.highlight().held),
-            (NONE, [NONE, a_id, b_id])
+            (NONE, [NONE, b_id, NONE])
         );
         driven.app.tools.close();
         driven.quiet();
@@ -7923,13 +8059,12 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The mate tool's same-copy refusal says the landed label while
-    /// the landed document is behind**: the run that would land the
-    /// rename and the delete is held, so the landed document still says
-    /// the picked copy's placement by its old label and the survival
-    /// step keeps the picks. The chrome speaks the landed document, so
-    /// the commit's refusal says that label, as the panel line does —
-    /// not the rename the shown document made since.
+    /// **The placement editor says the landed label while the landed
+    /// document is behind**: the run that would land the rename and the
+    /// delete is held, so the landed document still says the picked
+    /// copy's placement by its old label and the survival step keeps the
+    /// picks. The chrome speaks the landed document, so the panel says
+    /// that label — not the rename the shown document made since.
     #[test]
     fn the_mate_refusal_says_the_landed_label_while_a_delete_has_not_landed() {
         let (mut driven, open) = gated();
@@ -7970,22 +8105,34 @@ mod properties_pane_tests {
                 .app
                 .tools
                 .mate()
-                .is_some_and(|tool| tool.state().picks()[0].is_some()),
+                .is_some_and(|tool| tool.active_picks()[0].is_some()),
             "the survival step kept the pick"
         );
         driven.click(crate::pane::create::ASSEMBLE_PARTS);
-        driven.click(&crate::tools::ToolKind::Mate.commit());
+        // The run that would land the rename is held, so the frames are
+        // drawn without settling.
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
-        let said = status(&driven).expect("the commit refused");
+        let shown: Vec<String> = driven
+            .frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)])
+            .into_iter()
+            .map(|(text, _)| text)
+            .collect();
         let base = format!(
             "Place \"base\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
-        // Both picks are caps of the one copy, so the commit refuses
-        // the pair, naming the copy's placement.
+        // Both picks are caps of the one copy, so the panel names the
+        // copy's placement by the landed label, and says the empty `to`
+        // seat.
         assert!(
-            said.contains(&format!("both picks are on {base},")),
-            "the refusal says the landed label: {said}"
+            shown.iter().any(|t| t.contains(&base)) && !shown.iter().any(|t| t.contains("plinth")),
+            "the panel says the landed label: {shown:?}"
+        );
+        assert!(
+            shown
+                .iter()
+                .any(|t| t.contains("mate 1's to seat is empty")),
+            "the panel says what the draft lacks: {shown:?}"
         );
     }
 
@@ -7993,8 +8140,8 @@ mod properties_pane_tests {
     /// default sense does not turn its copy over**: the plate duplicated
     /// beside itself, one vertical corner edge of each picked, the panel
     /// switched to `direction` and committed untouched. The default is
-    /// the kind's own (`matetool::sense_offer`), not a plane's rest
-    /// carried across, and the panel says what turning it round does.
+    /// the kind's own (`matetool::senses`), not a plane's rest carried
+    /// across, and the panel names the two senses.
     #[test]
     fn an_edge_direction_mate_at_the_panels_default_keeps_its_copy_upright() {
         let mut driven = Driven::with(Vec::new());
@@ -8038,11 +8185,10 @@ mod properties_pane_tests {
         driven.click("direction");
         let shown: Vec<String> = driven.quiet().into_iter().map(|(text, _)| text).collect();
         assert!(
-            shown
-                .iter()
-                .any(|t| t == "turned round: the two run opposite ways")
-                && !shown.iter().any(|t| t == "faces rest against each other"),
-            "the direction's sense control says what it does: {shown:?}"
+            shown.iter().any(|t| t == "same")
+                && shown.iter().any(|t| t == "reversed")
+                && !shown.iter().any(|t| t == "opposed"),
+            "the direction's sense is named by its two values: {shown:?}"
         );
         driven.click(&crate::tools::ToolKind::Mate.commit());
         driven.quiet();
@@ -10246,6 +10392,116 @@ mod properties_pane_tests {
         );
     }
 
+    /// **A profile the edit door previews in place is picked by what
+    /// is drawn: its preview, as that profile.** A lone rectangle is
+    /// selected, which opens its edit door, and the draft moves its
+    /// right side 10 mm left: the committed lane leaves the old outline
+    /// out and the preview draws the moved one.
+    ///
+    /// - The pointer resting on the old right side hovers nothing, and
+    ///   a click there selects nothing. Red if the pick still offers
+    ///   the outline the lane does not draw.
+    /// - The pointer on the preview's right side hovers the profile,
+    ///   and a click there keeps it selected with its draft still
+    ///   previewed in place. Red if the preview is not offered as its
+    ///   node, where the click would deselect and drop the draft.
+    #[test]
+    fn a_profile_edited_in_place_is_picked_by_its_preview_not_its_old_outline() {
+        use crate::session::Hovered;
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+
+        let (mut driven, profile) = with_profile_added(vec![
+            SessionOp::DeleteNode { node: placement() },
+            SessionOp::DeleteNode { node: extrude() },
+            SessionOp::DeleteNode {
+                node: startup_node(0),
+            },
+            SessionOp::AddProfile {
+                loops: vec![crate::test_support::rectangle_loop(
+                    [0.010, 0.010],
+                    0.040,
+                    0.020,
+                )],
+            },
+        ]);
+        let old_side = window_pos_of(&driven, [0.050, 0.020, 0.0]);
+        let preview_side = window_pos_of(&driven, [0.040, 0.020, 0.0]);
+        driven.hovered(old_side);
+        assert_eq!(
+            driven.app.session.hover(),
+            Some(&Hovered::Profile(profile)),
+            "the control: the old right side is the profile before any edit"
+        );
+        // Select the profile and move its right side in the draft.
+        let edit_in_place = |driven: &mut Driven| {
+            driven
+                .app
+                .perform_batch(vec![SessionOp::Select(Selection::Node(profile))]);
+            driven.quiet();
+            let session = &driven.app.session;
+            let edit = driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("selecting the profile opens its edit door");
+            for (row, y) in [(1, 0.010), (2, 0.030)] {
+                edit.set_step(
+                    session.doc(),
+                    (0, row),
+                    Step::LineTo(Target::Point(Point2::new(0.040, y))),
+                );
+            }
+            driven.quiet();
+        };
+        // What the edit door holds: its node and the moved right side.
+        let held = |driven: &Driven| {
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .map(|edit| (edit.node, edit.programs().expect("the draft lowers")))
+        };
+
+        edit_in_place(&mut driven);
+        let moved = held(&driven);
+        assert!(moved.is_some(), "the moved draft is held");
+        driven.hovered(old_side);
+        assert_eq!(
+            driven.app.session.hover(),
+            None,
+            "the old right side, not drawn while the edit door previews, hovers nothing"
+        );
+        driven.hovered(preview_side);
+        assert_eq!(
+            driven.app.session.hover(),
+            Some(&Hovered::Profile(profile)),
+            "the preview's right side hovers the profile it previews"
+        );
+        driven.click_at(preview_side);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(profile),
+            "a click on the preview's right side keeps the profile selected"
+        );
+        assert_eq!(
+            held(&driven),
+            moved,
+            "and keeps its draft, moved side and all"
+        );
+
+        driven.click_at(old_side);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::None,
+            "a click on the old right side selects nothing"
+        );
+    }
+
     /// Reviewer probes for PR 6299 (profile picking). Each row prints
     /// what it saw and asserts only what the PR's rule promises.
     mod review_6299 {
@@ -10559,7 +10815,12 @@ mod properties_pane_tests {
                 let (mut driven, profile) = lone([0.010, 0.010]);
                 let on = window_pos_of(&driven, [0.030, 0.010, 0.0]);
                 driven.app.tools.open(crate::tools::ToolKind::Mate);
-                driven.app.drafts.mate_kind = kind;
+                driven
+                    .app
+                    .tools
+                    .mate_mut()
+                    .expect("the editor is open")
+                    .add_mate(crate::matetool::MATE_KINDS[kind].0);
                 driven.quiet();
                 driven.hovered(on);
                 let hover = driven.app.session.hover().cloned();
@@ -10592,7 +10853,12 @@ mod properties_pane_tests {
                     .expect("an orbit applies");
                 }
                 driven.app.tools.open(crate::tools::ToolKind::Mate);
-                driven.app.drafts.mate_kind = kind;
+                driven
+                    .app
+                    .tools
+                    .mate_mut()
+                    .expect("the editor is open")
+                    .add_mate(crate::matetool::MATE_KINDS[kind].0);
                 driven.quiet();
                 let on = window_pos_of(&driven, [0.008, 0.003, 0.0]);
                 let s = click(&mut driven, on);

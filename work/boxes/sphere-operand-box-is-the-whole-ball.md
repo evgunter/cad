@@ -2,11 +2,12 @@
 id: sphere-operand-box-is-the-whole-ball
 kind: issue
 title: A sphere face's operand box is the whole ball - the same per-kind box class the cone, cylinder and torus arms have left
-status: open
+status: parked
 opened: 2026-09-06
 refs: [1907]
 priority: P1
 cost: H
+blocked_on: [the-region-an-entity-occupies-is-one-cover]
 ---
 
 

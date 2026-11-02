@@ -84,15 +84,9 @@ fn read(
     toward: bool,
 ) -> Result<Vec<ChartMeeting<f64>>, SplineFaceRefusal> {
     let line = if toward {
-        Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0) + dir * 0.4,
-            dir: -dir,
-        }
+        Curve3::line(Point3::new(0.0, 0.0, 0.0) + dir * 0.4, -dir)
     } else {
-        Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir,
-        }
+        Curve3::line(Point3::new(0.0, 0.0, 0.0), dir)
     };
     crate::NurbsLane::<f64>::certified().chart_meetings(&line, (0.0, 0.4), chart, band())
 }

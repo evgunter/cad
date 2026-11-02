@@ -416,7 +416,8 @@ fn every_authoring_verb_lowers_to_its_recorded_step() {
         // verb one step of a chain.
         match (verb, &program) {
             (Verb::Circle, LoopProgram::Circle { .. })
-            | (Verb::CircleSplit, LoopProgram::CircleSplit { .. }) => {}
+            | (Verb::CircleSplit, LoopProgram::CircleSplit { .. })
+            | (Verb::Rectangle, LoopProgram::Rectangle { .. }) => {}
             (_, LoopProgram::Chain(lowered)) => assert_eq!(lowered.len(), 1, "{verb}"),
             (verb, program) => panic!("{verb} lowered to {program:?}"),
         }

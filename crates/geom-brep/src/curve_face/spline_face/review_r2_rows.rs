@@ -114,10 +114,7 @@ fn review_r2_an_end_on_a_crease_of_the_span_on_the_chart_is_the_ends() {
     );
     // The same legs, each its own carrier: the end at the domain's end.
     let leg = bezier(&[[0.3, 0.5, -0.5], [0.5, 0.5, 0.0]]);
-    let line = Curve3::Line {
-        origin: Point3::new(0.3, 0.5, -0.5),
-        dir: Vec3::new(0.2, 0.0, 0.5),
-    };
+    let line = Curve3::line(Point3::new(0.3, 0.5, -0.5), Vec3::new(0.2, 0.0, 0.5));
     let by_leg = read(&leg, (0.0, 1.0), &flat());
     let by_line = read(&line, (0.0, 1.0), &flat());
     let first = read(&bent, (0.0, 0.5), &flat());
@@ -391,10 +388,7 @@ fn review_r2_a_sharp_second_crossing_beside_an_end_is_not_absorbed() {
 /// here, through the end's box. No row of the PR pins the analytic case.
 #[test]
 fn review_r2_a_line_ending_on_the_charts_edge_is_the_ends() {
-    let edge = Curve3::Line {
-        origin: Point3::new(0.3, 0.5, -0.3),
-        dir: Vec3::new(-0.3, 0.0, 0.3),
-    };
+    let edge = Curve3::line(Point3::new(0.3, 0.5, -0.3), Vec3::new(-0.3, 0.0, 0.3));
     let got = read(&edge, (0.0, 1.0), &flat());
     assert!(matches!(got.as_deref(), Ok([])), "the end's: {got:?}");
 }

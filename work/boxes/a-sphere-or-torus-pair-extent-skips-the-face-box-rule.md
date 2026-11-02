@@ -2,8 +2,11 @@
 id: a-sphere-or-torus-pair-extent-skips-the-face-box-rule
 kind: issue
 title: carrier_pair's face ball takes a sphere or torus face's whole carrier, bypassing the face box rule its other kinds read
-status: open
+status: parked
 opened: 2026-11-02
+priority: P1
+cost: E
+blocked_on: [the-region-an-entity-occupies-is-one-cover]
 ---
 
 

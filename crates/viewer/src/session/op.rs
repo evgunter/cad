@@ -61,15 +61,16 @@ pub enum SessionOp {
         /// The node to delete, with its dependents.
         node: RecipeNodeId,
     },
-    /// Remove one constraint from its placement's bundle
-    /// (`DocEdit::RemoveConstraint`): the bundle written whole without
-    /// it, by the rule a mate's addition writes it — a mate taken away
-    /// frees what it fixed, and each freedom no value then sets is
-    /// written the constant `0`, so the copy stays pinned (D10
-    /// `[placement.values]`). A constraint is no node, so it has no cone
-    /// to delete: the copy it pinned is recomputed from what remains. A
-    /// constraint the bundle does not hold is refused as
-    /// `DocEdit::RemoveConstraint` refuses it.
+    /// **Take one mate out of its placement's bundle**, as the
+    /// placement editor does: the mate struck out of the placement's
+    /// draft (`MateTool::edit_striking`) and the draft applied
+    /// (`SessionOp::SetBundle`) — each freedom it frees measured where
+    /// the copy stands, a loaded turn carried where the kernel states it
+    /// the same rotation about the same line, so the copy stays where it
+    /// stood. A value is
+    /// refused (`Refusal::ValueNotRemoved`): a freedom is always set, and
+    /// its only edit is its number. A constraint the bundle does not hold
+    /// is refused as no mate of it.
     RemoveConstraint {
         /// The constraint: its placement and minted id.
         mate: MateRef,
@@ -504,21 +505,16 @@ pub enum SessionOp {
     /// reason: it is the other cancel door, and the other thing an
     /// Escape on the field emits.
     CancelFreeMove,
-    /// Add the mate to `placement`'s bundle (`DocEdit::AddConstraint`,
-    /// which writes the bundle whole: the values whose freedoms the
-    /// mate fixes go, each freedom it leaves keeps its value or is the
-    /// constant `0`, and a mate beside mates that already fix its
-    /// equations is refused overconstrained), then the values written
-    /// over the freedoms they set (`DocEdit::SetConstraints`). A mate
-    /// whose `to` reads
-    /// outside the placement's target space is refused by the door,
-    /// naming both spaces, unless the author asked to move the copy
-    /// there (`into_target_space`): the gesture never moves a copy into
-    /// another space as a side effect. The mate
-    /// tool's one committed action, so one history state and one undo.
-    /// A bundle the door refuses ends the action and nothing of it is
-    /// recorded.
-    /// Everything before it (the two picks, the choice) is tool state.
+    /// **Add one mate to `placement`'s bundle**, as the placement
+    /// editor does: the placement's draft loaded, `mate` a row as
+    /// written, `values` typed, and the draft applied
+    /// (`SessionOp::SetBundle`) — the values derived as the editor
+    /// derives them. A mate whose `to` reads outside the placement's
+    /// target space is refused by the door, naming both spaces, unless
+    /// the author asked to move the copy there (`into_target_space`):
+    /// the gesture never moves a copy into another space as a side
+    /// effect. One history state and one undo; a bundle the door refuses
+    /// records nothing.
     AddMate {
         /// The placement whose copy the mate places.
         placement: RecipeNodeId,
@@ -531,6 +527,42 @@ pub enum SessionOp {
         /// the placement is first stood by the identity bundle, then
         /// re-targeted there, in the same action. `false` refuses such a
         /// mate at the door, naming both spaces.
+        into_target_space: bool,
+    },
+    /// **The placement editor's Create** ([`crate::matetool::MateTool`]),
+    /// the Transform tool's on a body nothing places
+    /// ([`crate::matetool::MateTool::moving`]): one placement of `body` into `target` holding the whole bundle
+    /// `constraints` (`DocEdit::place`), and what read the body along a
+    /// path the picture is seen through — a `⊔` operand, the product —
+    /// re-pointed to it, in one action. One history state, one undo. A
+    /// `body` that is itself a copy refuses [`Refusal::CreateOnACopy`],
+    /// and one a placement copies [`Refusal::BodyPlaced`], naming that
+    /// copy: each moves by its copy's Edit door.
+    Place {
+        /// The body, as a seat reads it.
+        body: Operand,
+        /// The space the copy is placed into.
+        target: VarId,
+        /// The bundle, as authored, in order.
+        constraints: Vec<pncad::document::Constraint<Formula>>,
+    },
+    /// **The placement editor's Edit**, the Transform tool's on a copy:
+    /// `placement`'s bundle written
+    /// whole (`DocEdit::SetConstraints`), each constraint the draft
+    /// loaded under its own id. Refused [`Refusal::BundleStale`] where
+    /// the placement no longer holds `base`, the bundle the draft was
+    /// loaded from, and refused by the door as the bundle's own. With
+    /// `into_target_space`, the copy is first moved into the space its
+    /// first mate's `to` reads, by name, in the same action. One history
+    /// state, one undo; a bundle equal to `base` records nothing.
+    SetBundle {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// The bundle the draft was loaded from, as authored.
+        base: Vec<pncad::document::Constraint<Formula>>,
+        /// The bundle, as authored, in order.
+        constraints: Vec<pncad::document::Constraint<Formula>>,
+        /// Whether the copy moves into its first mate's `to` space.
         into_target_space: bool,
     },
     /// Replace the session's document with a fresh empty one (GAUTH-1's
@@ -729,10 +761,10 @@ pub enum SessionOp {
     /// operand after the first whose value lives in another space than
     /// the first's is placed into the first's, in the same action. A
     /// construction is placed at the identity and the boolean reads the
-    /// new placement; a copy placed into its own body's space
-    /// ([`Self::AddTransform`]'s) is re-targeted in place, its bundle
-    /// the values on the first's space's axes that stand it at the pose
-    /// it held relative to its body. An operand whose pose does not
+    /// new placement; a copy placed into its own body's space by values
+    /// alone ([`Self::Place`] with no mate) is re-targeted in place, its
+    /// values as written, so it stands on the first's axes as it stood
+    /// on its body's. An operand whose pose does not
     /// solve is read as it is, and the boolean refuses `SpaceMismatch`
     /// at evaluation, on its own badge.
     AddBoolean {
@@ -796,33 +828,6 @@ pub enum SessionOp {
         body: Operand,
         /// The face whose plane it is reflected across.
         plane: FaceSelection,
-    },
-    /// **Move an existing body rigidly** — the transform tool's one
-    /// committed action: a placement of the body into the space it is
-    /// in (`Node::Place`, no mate), its values on that space's axes —
-    /// rotated by `rotation_angle` about `rotation_axis` through the
-    /// body's own origin, then translated — and the body's world
-    /// placements taken over by it (A10, Ev's residue 1;
-    /// `Recording::take_over`), as one action.
-    ///
-    /// The translation is written as the three slides, each formula as
-    /// given; a rotation about one of the space's axes is the spin about
-    /// it by `rotation_angle` as given, and one about any other axis is
-    /// the chain of turns its frame makes at the numbers' NOMINAL
-    /// values. What the placement holds afterwards is its values,
-    /// editable through their slots. A number of the wrong dimension,
-    /// one that does not evaluate, and an axis that names no direction
-    /// refuse [`Refusal::Frame`]; an input that is no placeable body
-    /// refuses as a body seat does.
-    AddTransform {
-        /// The body placed.
-        input: Operand,
-        /// Translation components (`Length`).
-        translation: [Formula; 3],
-        /// Rotation-axis components (`Scalar`).
-        rotation_axis: [Formula; 3],
-        /// Rotation angle (`Angle`).
-        rotation_angle: Formula,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit: an index `k = index(count)` and one placement of
@@ -970,7 +975,7 @@ pub enum SessionOp {
     /// CURRENT document, so this door refuses ([`Refusal::Duplicate`])
     /// before anything has landed, while an edit has not landed yet,
     /// and for an input whose value is several bodies — which the body
-    /// seat's node-kind gate admits for a transform of a pattern, and
+    /// seat's node-kind gate admits for a placement of a pattern, and
     /// which a pattern of two would index in place, adding nothing.
     /// Both numbers land in the pattern's ordinary slots and are edited
     /// in the property panel afterwards.
@@ -1264,7 +1269,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddTransform { .. }
+            | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
@@ -1274,6 +1279,7 @@ impl SessionOp {
             | Self::AddInstance { .. } => true,
             // A mate is a constraint in a placement's bundle, no node.
             Self::AddMate { .. }
+            | Self::SetBundle { .. }
             | Self::Select(_)
             | Self::Hover(_)
             | Self::DeleteNode { .. }
@@ -1381,6 +1387,7 @@ impl SessionOp {
             | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::AddMate { .. }
+            | Self::SetBundle { .. }
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
@@ -1391,7 +1398,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddTransform { .. }
+            | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
@@ -1611,6 +1618,7 @@ impl SessionOp {
             | Self::SaveAsNewDocument(_)
             | Self::NewDocument { .. }
             | Self::AddMate { .. }
+            | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
             | Self::AddDrawnProfile { .. }
@@ -1620,7 +1628,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddTransform { .. }
+            | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
@@ -1744,6 +1752,7 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::AddMate { .. }
+            | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
             | Self::AddDrawnProfile { .. }
@@ -1753,7 +1762,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddTransform { .. }
+            | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
@@ -1820,6 +1829,7 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::AddMate { .. }
+            | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
             | Self::AddDrawnProfile { .. }
@@ -1829,7 +1839,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddTransform { .. }
+            | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }

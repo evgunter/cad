@@ -36,6 +36,7 @@ from pncad import (
     Node,
     Open,
     Radius,
+    Role,
     Start,
     Via,
     circle,
@@ -45,6 +46,7 @@ from pncad import (
     load,
     m,
     rad,
+    rectangle,
 )
 
 from placing import against
@@ -237,6 +239,12 @@ class TestTheLatticeWalks(unittest.TestCase):
         split = circle_split(ORIGIN, 1 * m, 3, 0 * rad)
         self.assertEqual(split.step_count, 1)
         self.assertEqual(split.vertex_count, 3)
+        box = rectangle((1 * m, 2 * m), 3 * m, 1 * m)
+        self.assertEqual((box.step_count, box.vertex_count), (1, 4))
+        # Its four sides are the one step's pieces 0..3, and no more.
+        self.assertEqual(box.step.piece(3).role, Role.piece(3))
+        with self.assertRaises(pncad.StepHandleError):
+            box.step.piece(4)
 
     def test_a_tip_forks_for_motif_exploration(self):
         tip = Open.at(ORIGIN).line_to((2 * m, 0 * m))
@@ -372,6 +380,8 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
     def test_the_sign_gates(self):
         self.refuses("nonpositive_circle_radius", lambda: circle(ORIGIN, 0 * m))
         self.refuses("circle_split_count", lambda: circle_split(ORIGIN, 1 * m, 1, 0 * rad))
+        self.refuses("nonpositive_rectangle_side", lambda: rectangle(ORIGIN, 0 * m, 1 * m))
+        self.refuses("nonpositive_rectangle_side", lambda: rectangle(ORIGIN, 1 * m, -1 * m))
         self.refuses("zero_direction", lambda: Open.toward(0.0, 0.0))
         # A director past the ~1e154 overflow band is NOT a zero
         # direction and does not get that word: the norm overflows to

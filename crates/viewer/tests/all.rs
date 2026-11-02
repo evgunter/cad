@@ -68,6 +68,8 @@ mod assembly_display;
 mod assembly_walk;
 #[path = "blend_authoring.rs"]
 mod blend_authoring;
+#[path = "bundle_editor.rs"]
+mod bundle_editor;
 #[path = "camera_ops.rs"]
 mod camera_ops;
 #[path = "cascade_delete.rs"]
@@ -126,6 +128,8 @@ mod mate_kinds;
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]
 mod mirror_authoring;
+#[path = "review_bundle_editor_r2.rs"]
+mod review_bundle_editor_r2;
 #[path = "review_intent_e_r1.rs"]
 mod review_intent_e_r1;
 
@@ -151,6 +155,8 @@ mod pick_windows;
 mod picture_draws_bodies;
 #[path = "prefs.rs"]
 mod prefs;
+#[path = "probe_6356.rs"]
+mod probe_6356;
 #[path = "product_door.rs"]
 mod product_door;
 #[path = "profile_draw.rs"]
@@ -161,6 +167,8 @@ mod profile_edit;
 mod refusal_concision_edits;
 #[path = "review_6302.rs"]
 mod review_6302;
+#[path = "review_bundle_r1.rs"]
+mod review_bundle_r1;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
@@ -181,6 +189,8 @@ mod review_gui4_r2;
 mod review_m10_1_r1;
 #[path = "review_pick_r2.rs"]
 mod review_pick_r2;
+#[path = "review_recheck_6300.rs"]
+mod review_recheck_6300;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 #[path = "save_and_fork_doors.rs"]

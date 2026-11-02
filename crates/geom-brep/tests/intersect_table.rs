@@ -254,7 +254,7 @@ fn plane_cylinder_parallel_trio() {
         panic!("expected two rulings, got {s:?}");
     };
     for l in [&l1, &l2] {
-        let Curve3::Line { origin, dir } = l else {
+        let Curve3::Line(geom::Line { origin, dir }) = l else {
             panic!("ruling is a line");
         };
         assert_eq!(dir.z, 1.0);
@@ -475,7 +475,7 @@ fn parallel_equal_cylinders_trio() {
         panic!("expected two rulings, got {s:?}");
     };
     for l in [&l1, &l2] {
-        let Curve3::Line { origin, .. } = l else {
+        let Curve3::Line(geom::Line { origin, .. }) = l else {
             panic!("ruling is a line");
         };
         assert!(implicit_residual(&c1, *origin).abs() < 1e-12);
@@ -533,7 +533,7 @@ fn plane_cone_apex_trio() {
         panic!("expected the apex line pair, got {s:?}");
     };
     for l in [&l1, &l2] {
-        let Curve3::Line { origin, dir } = l else {
+        let Curve3::Line(geom::Line { origin, dir }) = l else {
             panic!("generator is a line");
         };
         assert_eq!((origin.x, origin.y, origin.z), (0.0, 0.0, 1.0));
@@ -562,7 +562,7 @@ fn plane_cone_apex_trio() {
     let PlaneConeSection::ApexTangentLine(l) = s else {
         panic!("expected the tangent generator, got {s:?}");
     };
-    let Curve3::Line { dir, .. } = l else {
+    let Curve3::Line(geom::Line { dir, .. }) = l else {
         panic!("generator is a line");
     };
     // The tangent generator lies in the plane.

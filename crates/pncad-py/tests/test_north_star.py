@@ -3981,11 +3981,16 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `drawn_profile` JOINED it at INTENT stage 6 C: a profile drawn
         # on a frame of a body's space, tracing its faces. The positive
         # form is `tests/test_traced_profile.py`.
+        #
+        # `clearance` is the clearance requirement, an assertion whose
+        # claim is a clearance between two seats rather than a value
+        # against a bound. The positive form is `tests/test_measures.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "assemble", "assertion", "bolt_circle", "chamfer",
-                "circular_pattern", "drawn_profile", "extrude", "fillet", "grid",
+                "circular_pattern", "clearance", "drawn_profile", "extrude",
+                "fillet", "grid",
                 "hollow_tube", "instantiate_part", "intersect",
                 "linear_pattern", "loft", "measure", "mirror", "place",
                 "polygon", "profile", "revolve", "shell", "space",
@@ -4126,10 +4131,12 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # unnoticed is the drift the assertion exists to catch, and the
         # right response is a reading recorded at the line, which is
         # what this comment is. `tests/test_cancellation.py` is its
-        # positive form.
+        # positive form. `member_budget` joined with the run's member
+        # budget, the one `EvalOptions` field besides the seam that a
+        # caller states: running out is `Evaluation.exhausted`.
         self.assertEqual(
             list(inspect.signature(evaluate).parameters),
-            ["doc", "resolver", "prior", "cancel"],
+            ["doc", "resolver", "prior", "cancel", "member_budget"],
         )
         with self.assertRaises(TypeError):
             evaluate(Doc(), None)
