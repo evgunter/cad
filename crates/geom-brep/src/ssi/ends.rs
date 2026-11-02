@@ -1,4 +1,4 @@
-//! **The ℝ⁴ lanes' open branches, between known ends.**
+//! **A chart lane's open branches, between known ends.**
 //!
 //! The boundary pass (`super::boundary` on the plane × NURBS lane,
 //! `super::pair` on the NURBS × NURBS lane) hands over every crossing of
@@ -47,17 +47,18 @@ use super::march::{
 };
 use super::refine::refine_by_certificate;
 use super::section::{BandVerdict, band_verdict};
-use super::system::{LocalSystem, ParametricPairR4};
+use super::system::{LocalSystem, ParametricPairR4, SectionSystem};
 use super::{
     BranchBound, FittedBranch, SsiBranch, SsiError, SsiOperand, certify, fit_branch, seam_tol,
 };
 
-/// What the branches between known ends read, minted once per call.
-pub(crate) struct Ends<'a> {
-    /// The ℝ⁴ system.
-    pub sys: &'a ParametricPairR4<'a>,
+/// What the branches between known ends read, minted once per call,
+/// over the lane's system `S` of `M` equations in `N` unknowns.
+pub(crate) struct Ends<'a, S, const M: usize, const N: usize> {
+    /// The lane's system.
+    pub sys: &'a S,
     /// The march's context, the caller's feature extent among it.
-    pub ctx: MarchContext<4>,
+    pub ctx: MarchContext<N>,
     /// The rectangles the march is bounded by.
     pub exit: RectExit,
     /// The operands the certificate reads.
@@ -130,13 +131,13 @@ impl<'a> Operands<'a> {
 /// # Errors
 ///
 /// As [`fit_branch`].
-pub(crate) fn fit_states(
-    sys: &ParametricPairR4<'_>,
-    states: &[[f64; 4]],
+pub(crate) fn fit_states<const M: usize, const N: usize, S: SectionSystem<M, N>>(
+    sys: &S,
+    states: &[[f64; N]],
 ) -> Result<FittedBranch, SsiError> {
     let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
-    let chart_a: Vec<Point2<f64>> = states.iter().map(|s| Point2::new(s[0], s[1])).collect();
-    let chart_b: Vec<Point2<f64>> = states.iter().map(|s| Point2::new(s[2], s[3])).collect();
+    let chart_a: Vec<Point2<f64>> = states.iter().map(|s| sys.feet(s)[0]).collect();
+    let chart_b: Vec<Point2<f64>> = states.iter().map(|s| sys.feet(s)[1]).collect();
     fit_branch(&points, Some((&chart_a, &chart_b)))
 }
 
@@ -248,8 +249,13 @@ fn distance<const M: usize, const N: usize, S: LocalSystem<M, N>>(
 /// How far the tangent `d` at state `x` points into the bounded
 /// rectangles: the sum of its chart components across every side `x`
 /// sits on.
-fn inwardness(x: &[f64; 4], d: &[f64; 4], ctx: &MarchContext<4>, exit: RectExit) -> f64 {
-    (exit.first..4)
+fn inwardness<const N: usize>(
+    x: &[f64; N],
+    d: &[f64; N],
+    ctx: &MarchContext<N>,
+    exit: RectExit,
+) -> f64 {
+    (exit.first..N)
         .map(|i| {
             if x[i] == ctx.domain[i][0] {
                 d[i]
@@ -262,15 +268,15 @@ fn inwardness(x: &[f64; 4], d: &[f64; 4], ctx: &MarchContext<4>, exit: RectExit)
         .sum()
 }
 
-/// The unit tangent of the locus at a crossing, pointing into the wall
-/// when `into`, out of it otherwise.
-fn tangent(
-    sys: &ParametricPairR4<'_>,
-    x: &[f64; 4],
-    (ctx, exit): (&MarchContext<4>, RectExit),
+/// The unit tangent of the locus at a crossing, pointing into the
+/// rectangles when `into`, out of them otherwise.
+fn tangent<const M: usize, const N: usize, S: LocalSystem<M, N>>(
+    sys: &S,
+    x: &[f64; N],
+    (ctx, exit): (&MarchContext<N>, RectExit),
     into: bool,
-) -> [f64; 4] {
-    let d = Svd::<3, 4>::new(sys.jacobian(x)).null_direction();
+) -> [f64; N] {
+    let d = Svd::<M, N>::new(sys.jacobian(x)).null_direction();
     if (inwardness(x, &d, ctx, exit) >= 0.0) == into {
         d
     } else {
@@ -278,7 +284,7 @@ fn tangent(
     }
 }
 
-impl<'a> Ends<'a> {
+impl<'a> Ends<'a, ParametricPairR4<'a>, 3, 4> {
     /// The ends' reader for one plane × NURBS call.
     pub(crate) fn of(
         sys: &'a ParametricPairR4<'a>,
@@ -311,7 +317,9 @@ impl<'a> Ends<'a> {
             band,
         }
     }
+}
 
+impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
     /// **Every open branch**, each from a crossing to its partner, in the
     /// crossings' order (D9).
     ///
@@ -323,7 +331,10 @@ impl<'a> Ends<'a> {
     /// was refused too; and [`SsiError::ShortBranchUncertified`] where
     /// neither candidate certifies a branch too short to march or to
     /// halve to the fit's samples ([`neither`]).
-    pub(crate) fn branches(&self, crossings: &[Crossing]) -> Result<Vec<SsiBranch>, SsiError> {
+    pub(crate) fn branches(
+        &self,
+        crossings: &[Crossing<[f64; N]>],
+    ) -> Result<Vec<SsiBranch>, SsiError> {
         let n = crossings.len();
         let mut used = vec![false; n];
         let mut out = Vec::new();
@@ -362,8 +373,8 @@ impl<'a> Ends<'a> {
     /// index, and the branch fitted and certified.
     fn marched(
         &self,
-        a: Crossing,
-        crossings: &[Crossing],
+        a: Crossing<[f64; N]>,
+        crossings: &[Crossing<[f64; N]>],
         used: &[bool],
     ) -> Result<(usize, SsiBranch), SsiError> {
         let (b, states) = self.march_from(a, crossings, used)?;
@@ -378,11 +389,11 @@ impl<'a> Ends<'a> {
     /// it leaves: that crossing's index, and the states.
     fn march_from(
         &self,
-        a: Crossing,
-        crossings: &[Crossing],
+        a: Crossing<[f64; N]>,
+        crossings: &[Crossing<[f64; N]>],
         used: &[bool],
-    ) -> Result<(usize, Vec<[f64; 4]>), SsiError> {
-        let d = Svd::<3, 4>::new(self.sys.jacobian(&a.state)).null_direction();
+    ) -> Result<(usize, Vec<[f64; N]>), SsiError> {
+        let d = Svd::<M, N>::new(self.sys.jacobian(&a.state)).null_direction();
         let direction = if inwardness(&a.state, &d, &self.ctx, self.exit) >= 0.0 {
             1.0
         } else {
@@ -413,16 +424,16 @@ impl<'a> Ends<'a> {
     /// one nearest where the step's chord meets that side.
     pub(crate) fn match_exit(
         &self,
-        a: Option<Crossing>,
-        inside: [f64; 4],
-        outside: [f64; 4],
-        crossings: &[Crossing],
+        a: Option<Crossing<[f64; N]>>,
+        inside: [f64; N],
+        outside: [f64; N],
+        crossings: &[Crossing<[f64; N]>],
         used: &[bool],
     ) -> Result<usize, SsiError> {
         let dom = &self.ctx.domain;
         // The sides the step crossed, as (coordinate, end value).
         let mut crossed: Vec<(usize, f64)> = Vec::new();
-        for i in self.exit.first..4 {
+        for i in self.exit.first..N {
             if outside[i] < dom[i][0] {
                 crossed.push((i, dom[i][0]));
             } else if outside[i] > dom[i][1] {
@@ -440,7 +451,7 @@ impl<'a> Ends<'a> {
         // for nothing, and the certificate decides it.
         let exit = |i: usize, end: f64| {
             let t = (end - inside[i]) / (outside[i] - inside[i]);
-            core::array::from_fn::<f64, 4, _>(|k| inside[k] + (outside[k] - inside[k]) * t)
+            core::array::from_fn::<f64, N, _>(|k| inside[k] + (outside[k] - inside[k]) * t)
         };
         let found = crossings
             .iter()
@@ -473,9 +484,9 @@ impl<'a> Ends<'a> {
     /// As [`Ends::branches`].
     pub(crate) fn through_seed(
         &self,
-        seed: [f64; 4],
-        crossings: &[Crossing],
-    ) -> Result<(Vec<[f64; 4]>, BranchEnd), SsiError> {
+        seed: [f64; N],
+        crossings: &[Crossing<[f64; N]>],
+    ) -> Result<(Vec<[f64; N]>, BranchEnd), SsiError> {
         let run = |direction, ctx| {
             march(
                 self.sys,
@@ -525,7 +536,7 @@ impl<'a> Ends<'a> {
     /// certificate refuses it ([`refine_by_certificate`]).
     pub(crate) fn finish(
         &self,
-        states: &[[f64; 4]],
+        states: &[[f64; N]],
         end: BranchEnd,
     ) -> Result<SsiBranch, SsiError> {
         let march_tol = seam_tol(self.ctx.tol, self.band)?;
@@ -606,17 +617,22 @@ impl<'a> Ends<'a> {
     /// decision's at either end, as the march's at a state
     /// ([`decide_transversality`]), and the certificate's refusal of the
     /// candidate, after any of which the caller marches.
-    fn hermite(&self, a: Crossing, b: Crossing, length: f64) -> Result<SsiBranch, SsiError> {
+    fn hermite(
+        &self,
+        a: Crossing<[f64; N]>,
+        b: Crossing<[f64; N]>,
+        length: f64,
+    ) -> Result<SsiBranch, SsiError> {
         let march_tol = seam_tol(self.ctx.tol, self.band)?;
         for x in [&a.state, &b.state] {
-            let sigma = Svd::<3, 4>::new(self.sys.jacobian(x)).sigma_min();
+            let sigma = Svd::<M, N>::new(self.sys.jacobian(x)).sigma_min();
             decide_transversality(self.sys, x, sigma, self.ctx.extent, self.band)?;
         }
         let ta = tangent(self.sys, &a.state, (&self.ctx, self.exit), true);
         let tb = tangent(self.sys, &b.state, (&self.ctx, self.exit), false);
         let va = ta.map(|v| v * length / self.sys.tangent_speed(&a.state, &ta));
         let vb = tb.map(|v| v * length / self.sys.tangent_speed(&b.state, &tb));
-        let ctrl: [[f64; 4]; 4] = [
+        let ctrl: [[f64; N]; 4] = [
             a.state,
             core::array::from_fn(|i| a.state[i] + va[i] / 3.0),
             core::array::from_fn(|i| b.state[i] - vb[i] / 3.0),
@@ -631,12 +647,12 @@ impl<'a> Ends<'a> {
             )?;
             let pa = NurbsCurve2::new(
                 bezier()?,
-                ctrl.iter().map(|s| Point2::new(s[0], s[1])).collect(),
+                ctrl.iter().map(|s| self.sys.feet(s)[0]).collect(),
                 vec![1.0; 4],
             )?;
             let pb = NurbsCurve2::new(
                 bezier()?,
-                ctrl.iter().map(|s| Point2::new(s[2], s[3])).collect(),
+                ctrl.iter().map(|s| self.sys.feet(s)[1]).collect(),
                 vec![1.0; 4],
             )?;
             Ok::<_, geom_core::spline::SplineError>((carrier, pa, pb))

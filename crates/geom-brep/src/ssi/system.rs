@@ -34,9 +34,11 @@
 //! `f64`-only and untrusted throughout — C6's selection lane.
 
 use geom::{NurbsSurface, Surface, SurfaceJet3};
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Point2, Point3, Real, Vec3};
 
+use super::SsiError;
 use super::jet::implicit_path_jet;
+use super::march::TransversalityData;
 
 /// The underdetermined local system of a trace: `M` equations in `N`
 /// unknowns with `N = M + 1`.
@@ -86,6 +88,21 @@ pub(crate) trait LocalSystem<const M: usize, const N: usize> {
         d2: &[f64; N],
         d3: &[f64; N],
     ) -> [Vec3<f64>; 3];
+}
+
+/// A system a section handle traces between known ends (`super::ends`,
+/// `super::handle`): what that machinery reads off a state beyond the
+/// local equations and the transversality data.
+pub(crate) trait SectionSystem<const M: usize, const N: usize>:
+    LocalSystem<M, N> + TransversalityData<N>
+{
+    /// The state's feet on the two charts the fitted triple's pcurves
+    /// interpolate, `[a, b]`.
+    fn feet(&self, x: &[f64; N]) -> [Point2<f64>; 2];
+
+    /// The refusal of a branch whose certified tube does not hold the
+    /// settled seed `x` it was traced through.
+    fn seed_outside_tube(&self, x: [f64; N]) -> SsiError;
 }
 
 // ---------------------------------------------------------------------
@@ -372,7 +389,7 @@ impl LocalSystem<3, 4> for ParametricPairR4<'_> {
     }
 }
 
-impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
+impl TransversalityData<3> for ImplicitPairR3<'_> {
     fn normals(&self, x: &[f64; 3]) -> super::march::NormalPair {
         let p = Point3::from_array(*x);
         (
@@ -390,7 +407,19 @@ impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
     }
 }
 
-impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
+/// The pcurves are the state's coordinate projections, `(u₁, v₁)` and
+/// `(u₂, v₂)`.
+impl SectionSystem<3, 4> for ParametricPairR4<'_> {
+    fn feet(&self, x: &[f64; 4]) -> [Point2<f64>; 2] {
+        [Point2::new(x[0], x[1]), Point2::new(x[2], x[3])]
+    }
+
+    fn seed_outside_tube(&self, x: [f64; 4]) -> SsiError {
+        SsiError::SeedOutsideTube { state: x }
+    }
+}
+
+impl TransversalityData<4> for ParametricPairR4<'_> {
     fn normals(&self, x: &[f64; 4]) -> super::march::NormalPair {
         let ja = self.a.jet3(x[0], x[1]);
         let jb = self.b.jet3(x[2], x[3]);
