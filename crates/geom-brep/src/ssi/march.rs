@@ -134,10 +134,9 @@
 //!   settled seed is decided the same way before it is marched: a seed
 //!   `Negative`, or `Zero` outside the box, is no branch
 //!   ([`super::SsiError::SeedOffDomain`]), and one in the escalation
-//!   zone escalates. The plane × NURBS lane's seed is no branch where it
-//!   settles outside the rectangle, and never escalates: a seed there
-//!   lies on a branch the boundary pass already traced from its
-//!   crossings.
+//!   zone escalates. A chart lane's seed is no branch where it settles
+//!   outside its rectangles, and never escalates: a seed there lies on a
+//!   branch the boundary pass already traced from its crossings.
 //!   The slab is the caller's box, not geometry
 //!   (`work/ssiedge/ssi-r3-slab-is-not-geometry.md`).
 
@@ -149,7 +148,7 @@ use crate::dihedral::{decide, decide_positive};
 use super::enclose::Box3;
 use super::exhaust::{self, ExhaustLane, UvRect};
 use super::section::{BandVerdict, band_verdict};
-use super::system::LocalSystem;
+use super::system::{LocalSystem, SectionSystem};
 use super::{SSI_FIT_DEGREE, SsiError, TraceDecision};
 
 /// The **candidate generator's** step tolerance, in meters.
@@ -693,13 +692,20 @@ impl RectExit {
     pub(crate) const PAIR: Self = Self { first: 0 };
 
     /// Whether a state's bounded coordinates lie in their rectangles
-    /// (a structure test on the raw coordinates, C6's lane).
+    /// (a structure test on the raw coordinates, C6's lane). An exit
+    /// that bounds no coordinate of the state is a lane wired to the
+    /// wrong system.
     pub(crate) fn inside<const N: usize>(self, x: &[f64; N], ctx: &MarchContext<N>) -> bool {
+        debug_assert!(
+            self.first < N,
+            "a rectangle exit from coordinate {} bounds nothing of an {N}-coordinate state",
+            self.first
+        );
         (self.first..N).all(|i| x[i] >= ctx.domain[i][0] && x[i] <= ctx.domain[i][1])
     }
 }
 
-impl<const M: usize, const N: usize, S: LocalSystem<M, N>> Exit<M, N, S> for RectExit {
+impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Exit<M, N, S> for RectExit {
     type End = RectEnd<N>;
     const CLOSED: RectEnd<N> = RectEnd::Closed;
 

@@ -97,7 +97,10 @@ pub(crate) trait SectionSystem<const M: usize, const N: usize>:
     LocalSystem<M, N> + TransversalityData<N>
 {
     /// The state's feet on the two charts the fitted triple's pcurves
-    /// interpolate, `[a, b]`.
+    /// interpolate, `[a, b]`: `a` is `pcurve_a`'s chart and `b` is
+    /// `pcurve_b`'s, the order `super::ends::Operands` reads them in. On
+    /// the plane lane `a` is the plane's chart and `b` the NURBS wall's;
+    /// on the pair lane they are the first and second operands' charts.
     fn feet(&self, x: &[f64; N]) -> [Point2<f64>; 2];
 
     /// The refusal of a branch whose certified tube does not hold the
