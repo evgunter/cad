@@ -2,11 +2,12 @@
 id: the-transform-gesture-moves-a-placed-body-through-a-transform
 kind: issue
 title: The viewer's Transform gesture moves a placed body through a Transform; under D10 moving a placed body edits its placement
-status: dispatched
+status: parked
 opened: 2026-10-09
 priority: P1
 cost: M
 branch: placing/gesture-placements
+blocked_on: [6281]
 ---
 
 
