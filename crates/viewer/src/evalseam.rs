@@ -170,6 +170,11 @@ pub struct EvalRequest {
 pub struct Seed {
     /// The evaluation.
     pub evaluation: Arc<Evaluation<f64>>,
+    /// The document it is an evaluation of, taken where it was made: a
+    /// run may start from an evaluation of an earlier document (only
+    /// what changed is evaluated again), but it answers names only of
+    /// this one (`DocSession::name_run`).
+    pub answers: Arc<Doc<ProfileProgram>>,
     /// The resolver it resolved `InstantiatePart` nodes through.
     pub resolver: Option<Arc<dyn PartResolver>>,
 }

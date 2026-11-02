@@ -506,7 +506,7 @@ fn the_door_evaluates_again_only_for_a_link_it_could_not_answer() {
         .expect("a reader: the door evaluated")
     };
     assert!(
-        seed(&shell_doc).node_error(shell).is_some(),
+        seed(&shell_doc).evaluation.node_error(shell).is_some(),
         "one round: the run predates the shell's rebind"
     );
     let plane = crate::fixture::plane_on(&doc, copy, [0.0, 1.0, 0.5], [1.0, 0.0, 0.0]);
@@ -526,7 +526,7 @@ fn the_door_evaluates_again_only_for_a_link_it_could_not_answer() {
         },
     );
     assert!(
-        seed(&mirror_doc).table(mirror_out).is_some(),
+        seed(&mirror_doc).evaluation.table(mirror_out).is_some(),
         "a second round answers the mirror once its plane is rebound"
     );
 }
@@ -609,4 +609,115 @@ fn a_deep_chain_ends_and_rebinds_each_site_once() {
             "{node} answered moved"
         );
     }
+}
+
+/// **A reader downstream of a body that reads the copy is rebound**: a
+/// fillet of the copy (its edge selection on the copy) and a shell on
+/// the fillet's body holding the top as the fillet carries it. The
+/// fillet does not evaluate until its selection is rebound, so the
+/// shell's new name cannot be checked in the first round's run: the
+/// door runs a second round, and rebinds the shell too. Goes red if the
+/// door's rounds wait only for links of the copy's chain.
+#[test]
+fn a_reader_downstream_of_a_feature_of_the_copy_is_rebound() {
+    let doc = ProfileDoc::empty_derived("takeover-downstream", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
+    let (doc, f) = block_on(doc, b, (3.0, 6.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, u) = union(doc, vec![b, f]);
+    let (doc, copy) = insert(doc, stood(b));
+    let copy_out = out(&doc, copy);
+    let o = EvalOptions::default();
+    let ev = crate::fixture::run(&doc, &o);
+    let edge = editor_core::names::all_edges(&ev, copy)
+        .into_iter()
+        .find(|n| matches!(n.path.as_slice(), [RoleSeg::LateralEdge(_)]))
+        .expect("a lateral edge");
+    let (doc, fillet) = insert(
+        doc,
+        Node::Fillet {
+            radius: len(0.1),
+            selection: Operand::select(Operand::Var(copy_out), vec![edge]),
+        },
+    );
+    let fillet_out = out(&doc, fillet);
+    let ev = crate::fixture::run(&doc, &o);
+    let top_in_fillet = editor_core::names::all_faces(&ev, fillet)
+        .into_iter()
+        .find(|n| {
+            matches!(n.path.as_slice(), [RoleSeg::From { of, .. }] if *of.name() == cap(b, CapEnd::End))
+        })
+        .expect("the top as the fillet carries it");
+    let (doc, _) = insert(
+        doc,
+        Node::Shell {
+            thickness: len(0.01),
+            open: Operand::select(Operand::Var(fillet_out), vec![top_in_fillet]),
+        },
+    );
+    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    assert_eq!(
+        rebinds_in(&done.edits),
+        2,
+        "the fillet's edge and the shell's top"
+    );
+    let ev = crate::fixture::run(&done.doc, &o);
+    let held = done
+        .doc
+        .vars()
+        .values()
+        .filter_map(|v| v.def().select())
+        .find(|s| s.body == fillet_out)
+        .expect("the shell's selection");
+    assert!(
+        held.names
+            .iter()
+            .all(|n| ev.table(fillet_out).is_some_and(|t| t.lookup(n).is_some())),
+        "the reader downstream of the copy's fillet resolves"
+    );
+}
+
+/// **The door's evaluation is labelled with the document it answers**:
+/// a shell reads the copy's top, so the door rebinds it after its one
+/// evaluation, and that run answers the document before the rebind, not
+/// the one the action made. The value says which (`Answered::doc`): the
+/// shell fails in the door's run as it does in a run of the labelled
+/// document, and evaluates in a run of the made one. Goes red if the
+/// label is the made document while the run predates its rebinds.
+#[test]
+fn the_doors_evaluation_answers_the_document_it_names() {
+    let doc = ProfileDoc::empty_derived("takeover-answers", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
+    let (doc, f) = block_on(doc, b, (3.0, 6.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, u) = union(doc, vec![b, f]);
+    let (doc, copy) = insert(doc, stood(b));
+    let copy_out = out(&doc, copy);
+    let (doc, shell) = insert(
+        doc,
+        Node::Shell {
+            thickness: len(0.01),
+            open: Operand::select(Operand::Var(copy_out), vec![cap(b, CapEnd::End)]),
+        },
+    );
+    let o = EvalOptions::default();
+    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    let answered = done.taken.evaluation.expect("the door evaluated");
+    assert!(
+        *answered.doc != done.doc,
+        "the rebind came after the door's run"
+    );
+    let of_labelled = crate::fixture::run(&answered.doc, &o);
+    let of_made = crate::fixture::run(&done.doc, &o);
+    assert_eq!(
+        answered.evaluation.value(shell).is_some(),
+        of_labelled.value(shell).is_some(),
+        "the door's run answers as a run of the document it is labelled with"
+    );
+    assert!(
+        of_made.value(shell).is_some(),
+        "the made document's shell evaluates"
+    );
+    assert!(
+        answered.evaluation.value(shell).is_none(),
+        "the door's run predates it"
+    );
 }

@@ -713,3 +713,63 @@ fn a_selection_keeps_its_verdict_while_no_run_answers_the_shown_document() {
     assert!(session.standing().live(), "the last verdict stands");
     assert_eq!(session.slot_rows().len(), rows, "and the rows with it");
 }
+
+/// **A pick downstream of a rebound reader survives the window**: the
+/// small block mated on the copy's top, a mate tool holding the small
+/// block's top, and the selection on it. A fillet takes the copy over;
+/// its door evaluated once and then rebound the mate, so its run is of
+/// the document before the rebind, in which the small block's placement
+/// fails. That run answers no name of the shown document (`Seed::answers`),
+/// so before the landing names abstain: the tool keeps its pick and the
+/// selection's verdict stands, and after the landing both stand on the
+/// run that answers. Goes red if the door's run is asked of a document
+/// it is not a run of.
+#[test]
+fn rv4_a_pick_downstream_of_a_rebound_reader_while_seeded() {
+    let Seated {
+        mut session,
+        block,
+        small_copy,
+        ..
+    } = seated(top);
+    let index = plate_index(&session);
+    let small_top = displayed_face_at(&session, &index, &common::down_at(AT[0] + BESIDE, AT[1]));
+    assert_eq!(small_top.node, small_copy, "the small block's top");
+    session.perform(SessionOp::Select(Selection::Face(small_top.clone())));
+    assert!(session.standing().live(), "the small top stands before");
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Mate);
+    let _ = tools.feed(
+        session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &[SessionOp::Select(Selection::Face(small_top.clone()))],
+    );
+    let outcome = session.perform(SessionOp::AddFillet {
+        target: block,
+        radius: len(0.002),
+        selection: vec![a_lateral_edge(&session, block)],
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(session.busy());
+    let dropped = tools.reconcile(session.doc(), session.name_run());
+    let standing = session.standing();
+    assert!(
+        dropped.is_empty(),
+        "a live pick is dropped in the window: {dropped:?}"
+    );
+    assert!(
+        standing.live(),
+        "a live pick stands stale in the window: {standing:?}"
+    );
+    session.pump();
+    assert!(
+        session.standing().live(),
+        "and stands on the run that answers"
+    );
+    assert!(
+        tools
+            .reconcile(session.doc(), session.name_run())
+            .is_empty(),
+        "the tool keeps it then too"
+    );
+}

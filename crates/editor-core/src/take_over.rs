@@ -73,10 +73,11 @@ pub struct TakenOver {
     /// copy, and each copy of a copy down its placement chain. Empty
     /// where the door did not evaluate (nothing read a copy).
     pub moved: Moved,
-    /// The staged document's evaluation, before the rebinds, where the
-    /// door evaluated: a run of the finished document can start from
-    /// it, since only what reads the rebound selections differs.
-    pub evaluation: Option<Arc<Evaluation<f64>>>,
+    /// The door's last evaluation, where it made one, with the document
+    /// it answers ([`Answered`]): a run of the finished document can
+    /// start from it, and it answers that document's names only where
+    /// the two are one.
+    pub evaluation: Option<Answered>,
 }
 
 impl TakenOver {
@@ -84,6 +85,19 @@ impl TakenOver {
     pub fn is_empty(&self) -> bool {
         self.copies.is_empty()
     }
+}
+
+/// **An evaluation with the document it answers**, kept together as
+/// one value from where the evaluation is made: what a reader asks
+/// names of is the pair, never the evaluation alone. A takeover's last
+/// round may write rebinds after its last evaluation, so the document
+/// the action finishes with need not be the one this answers.
+#[derive(Clone, Debug)]
+pub struct Answered {
+    /// The evaluation.
+    pub evaluation: Arc<Evaluation<f64>>,
+    /// The document it is an evaluation of.
+    pub doc: Arc<Doc<ProfileProgram>>,
 }
 
 /// **Where a takeover moved the names a copy holds**: per copy, each
@@ -186,36 +200,43 @@ impl Recording<'_, ProfileProgram> {
         if !read_inside && !chains.keys().any(|&node| held(node)) {
             return Ok(taken);
         }
-        // A link down a chain may itself read the copy (a mirror's plane
-        // on one of its faces): it does not evaluate until that read is
-        // rebound, so its body has no table in the round's run. Only
-        // then does the door evaluate again, from that run, and rebind
-        // what the link's table now answers; a round in which every link
-        // evaluated is the last, so where no link reads the copy the
-        // door evaluates once. Each round takes the names it moved out
-        // of the document, so the rounds end within the chain's depth.
+        // A body that reads a selection the takeover moves (a fillet of
+        // the copy, a mirror whose plane is on it) does not evaluate
+        // until that selection is rebound, so a name read in it cannot be
+        // checked in that round's run. Only then does the door evaluate
+        // again, from that run, and rebind what the body's table now
+        // answers; a round that left no such name unchecked is the last,
+        // so where nothing reads such a body the door evaluates once.
+        // Each round takes the names it moved out of the document, so the
+        // rounds end within the depth of the reads.
         let mut ev: Evaluation<f64> =
             crate::evaluate(doc, prior, &crate::CancelToken::new(), opts, self.tol());
+        let mut answers = Arc::new(doc.clone());
         loop {
             let doc = self.doc();
-            let (edits, moved) = rebinds_of(doc, &ev, &taken, &chains, &bodies);
-            let unanswered = bodies.keys().any(|&var| ev.table(var).is_none());
-            for edit in &edits {
+            let round = rebinds_of(doc, &ev, &taken, &chains, &bodies);
+            for edit in &round.edits {
                 self.apply(edit.clone())?;
             }
-            if edits.is_empty() || !unanswered {
-                taken.moved = moved;
+            if round.edits.is_empty() || !round.unchecked {
+                taken.moved = round.moved;
                 break;
             }
+            answers = Arc::new(self.doc().clone());
             ev = crate::evaluate(
-                self.doc(),
+                &answers,
                 Some(&ev),
                 &crate::CancelToken::new(),
                 opts,
                 self.tol(),
             );
         }
-        taken.evaluation = Some(Arc::new(ev));
+        // The last run answers the document it ran on, which the last
+        // round's rebinds, where it wrote any, have moved on from.
+        taken.evaluation = Some(Answered {
+            evaluation: Arc::new(ev),
+            doc: answers,
+        });
         Ok(taken)
     }
 }
@@ -237,7 +258,7 @@ fn rebinds_of(
     taken: &TakenOver,
     chains: &BTreeMap<RecipeNodeId, RecipeNodeId>,
     bodies: &BTreeMap<VarId, RecipeNodeId>,
-) -> (Vec<DocEdit<ProfileProgram>>, Moved) {
+) -> Round {
     let one = |var: VarId, to: &StableName| {
         ev.table(var)
             .and_then(|table| table.lookup(to))
@@ -267,12 +288,24 @@ fn rebinds_of(
             ))
         })
         .collect();
+    // A name with somewhere to move that its body's table could not be
+    // asked about: the body did not evaluate in this run.
+    let mut unchecked = false;
     let edits = crate::refactor::rebinds_at_sites(doc, |site, name| {
         let body = site?;
-        match in_body.get(&body) {
-            Some(map) => map.get(name).cloned(),
-            None => crate::names::recarried(name, &in_body).filter(|to| one(body, to)),
-        }
+        let (candidate, to) = match (bodies.get(&body), in_body.get(&body)) {
+            (Some(root), Some(map)) => (
+                by_copy.get(root).and_then(|all| all.get(name)).cloned(),
+                map.get(name).cloned(),
+            ),
+            _ => {
+                let candidate = crate::names::recarried(name, &in_body);
+                let to = candidate.clone().filter(|to| one(body, to));
+                (candidate, to)
+            }
+        };
+        unchecked |= candidate.is_some() && ev.table(body).is_none();
+        to
     });
     let moved = Moved(
         chains
@@ -289,7 +322,23 @@ fn rebinds_of(
             })
             .collect(),
     );
-    (edits, moved)
+    Round {
+        edits,
+        moved,
+        unchecked,
+    }
+}
+
+/// **One round of a takeover's rebinds** ([`rebinds_of`]).
+struct Round {
+    /// The rebinds to write.
+    edits: Vec<DocEdit<ProfileProgram>>,
+    /// Where the chain nodes' names moved, as far as this round knows.
+    moved: Moved,
+    /// Whether a name read in a body that did not evaluate had
+    /// somewhere to move: the body reads a selection this round rebinds,
+    /// and the next round's run can ask its table.
+    unchecked: bool,
 }
 
 /// **Every node that carries a re-pointed copy's names as they are**,

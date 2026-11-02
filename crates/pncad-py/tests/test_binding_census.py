@@ -1132,6 +1132,7 @@ BOUND_AS = {
     "TakeOverOutcome": "Doc.take_over",
     "TakenOver": "Doc.take_over",
     "Moved": "Doc.take_over",
+    "Answered": "Doc.take_over",
     "Taken": "Doc.take_over",
     # A loft's later section: `Node.loft`'s `then` entries, a profile
     # and its `StationMove`s.

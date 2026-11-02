@@ -4338,8 +4338,18 @@ impl DocSession {
             return;
         }
         let doc = self.history.doc();
+        let was = self.derived.selection.clone();
         select::follow(&mut self.derived.selection, moved, doc);
         select::follow(outside, moved, doc);
+        // A followed pick is the same pick: its last verdict follows it,
+        // and stands until a run of the shown document answers it
+        // (`name_run` abstains where the door's run predates its own
+        // rebinds).
+        if let Some((selection, _)) = self.derived.verdict.as_mut()
+            && *selection == was
+        {
+            *selection = self.derived.selection.clone();
+        }
     }
 
     /// **One constraint removed** ([`SessionOp::RemoveConstraint`]):
@@ -4456,7 +4466,12 @@ impl DocSession {
         // followed its takeover until this run lands
         // ([`Self::name_run`]).
         self.derived.names = match &seed {
-            Some(seed) => {
+            // The door's run answers names of the shown document only
+            // where it is a run of that document: a door whose last
+            // round wrote rebinds, or a run the action went on past (a
+            // label, a combine's deletes), ran on an earlier one, which
+            // the run of this one only starts from.
+            Some(seed) if *seed.answers == *self.requested_doc => {
                 self.derived.seeded = Some(SeededRun {
                     generation: self.generation,
                     doc: Arc::clone(&self.requested_doc),
@@ -4464,7 +4479,7 @@ impl DocSession {
                 });
                 Names::Seeded
             }
-            None if self
+            _ if self
                 .derived
                 .landed
                 .as_ref()
@@ -4472,7 +4487,7 @@ impl DocSession {
             {
                 Names::Landed
             }
-            None => Names::Abstain,
+            _ => Names::Abstain,
         };
         self.requested_resolver = self.run_resolver();
         // The landing this request will replace no longer wants its door.
@@ -4899,13 +4914,15 @@ impl Takeover {
         for placement in self.dropped {
             run.apply(DocEdit::DeleteNode { id: placement })?;
         }
-        // The door's run, under the resolver it ran under: the seed the
-        // run of the recorded document starts from.
+        // The door's run, with the document it ran on and the resolver
+        // it ran under: the seed the run of the recorded document starts
+        // from.
         let seed = taken
             .evaluation
             .take()
-            .map(|evaluation| crate::evalseam::Seed {
-                evaluation,
+            .map(|answered| crate::evalseam::Seed {
+                evaluation: answered.evaluation,
+                answers: answered.doc,
                 resolver: self.reads.resolver,
             });
         Ok(Made {
