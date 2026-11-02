@@ -406,8 +406,7 @@ where
     // before its op was reached (`eval::read_at`).
     let at = |slot, var| super::read_at(doc, slot, var);
     match node {
-        Node::Profile(_)
-        | Node::Assertion(crate::measure::Claim::Value { .. }) => {
+        Node::Profile(_) | Node::Assertion(crate::measure::Claim::Value { .. }) => {
             unreachable!("`eval_node` gives a profile and an assertion their own `OpInput` arm")
         }
         Node::Assertion(crate::measure::Claim::Clearance { bounds, .. }) => {
@@ -2495,7 +2494,7 @@ where
     let report = geom_core::k_stats::unlogged("F30", || {
         lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
             let (faces, ask) = (candidate.faces(), candidate.ask());
-            let (bx, by) = rebuilt.as_ref().map_err(Clone::clone)?;
+            let [bx, by] = rebuilt.as_ref().map_err(Clone::clone)?;
             crate::clearance::closest_pair(
                 (bx.as_ref(), by.as_ref()),
                 faces,
@@ -2540,7 +2539,7 @@ impl Witnessing<'_> {
         &self,
         sides: [(RecipeNodeId, u32); 2],
         tol: Tol,
-    ) -> Result<(Arc<topo::Body<f64>>, Arc<topo::Body<f64>>), String> {
+    ) -> Result<[Arc<topo::Body<f64>>; 2], String> {
         let framed = |(at, index): (RecipeNodeId, u32)| {
             let value = value_of(self.results, at)
                 .map_err(|kind| format!("the f64 rebuild has no value for a seat: {kind}"))?;
@@ -2558,7 +2557,7 @@ impl Witnessing<'_> {
                 )
             })
         };
-        Ok((read(fa)?, read(fb)?))
+        Ok([read(fa)?, read(fb)?])
     }
 }
 

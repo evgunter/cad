@@ -537,25 +537,6 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
-    MeasureUnavailableAt,
-    PncadError,
-    "A measure whose answer is an ENCLOSURE, read at a build whose \
-     scalar is a point. Carries `variant`, `verb`, `scalar` and \
-     `door` — the primitive, the scalar this build ran at, and the \
-     door that CAN answer.\n\n\
-     Not `MeasureUnavailable`, which is the analysis lane refusing to \
-     price a mass over a band. This is the measurement lane, and it \
-     is a typed ABSENCE rather than a failure: the measure node \
-     evaluated fine and has no value, which is why an assertion over \
-     it reports `Unevaluated` carrying this same reason instead of \
-     being poisoned. A `min_clearance` at `f64` is the whole of it \
-     today — a station pair found by a point-scalar search is an \
-     upper bound on the minimum rather than the minimum, and \
-     reporting one would be a degradation ERROR-DESIGN E7 forbids by \
-     name."
-);
-pyo3::create_exception!(
-    pncad,
     McRefusal,
     PncadError,
     "A Monte-Carlo run produced nothing (ERROR-DESIGN E11.1). Carries \
@@ -738,7 +719,6 @@ fn raise_typed(
         ErrorClass::Enforce => CheckRefusal::new_err(message),
         ErrorClass::Distribution => DistributionFault::new_err(message),
         ErrorClass::Measure => MeasureUnavailable::new_err(message),
-        ErrorClass::MeasureUnavailableAt => MeasureUnavailableAt::new_err(message),
         ErrorClass::AnalysisPolicy => AnalysisPolicyError::new_err(message),
         ErrorClass::Mc => McRefusal::new_err(message),
         ErrorClass::StepHandle => StepHandleError::new_err(message),
@@ -845,7 +825,6 @@ fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
         | ErrorClass::Enforce
         | ErrorClass::Distribution
         | ErrorClass::Measure
-        | ErrorClass::MeasureUnavailableAt
         | ErrorClass::AnalysisPolicy
         | ErrorClass::Mc
         | ErrorClass::StepHandle => None,
@@ -911,10 +890,6 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("CheckRefusal", py.get_type::<CheckRefusal>())?;
     m.add("DistributionFault", py.get_type::<DistributionFault>())?;
     m.add("MeasureUnavailable", py.get_type::<MeasureUnavailable>())?;
-    m.add(
-        "MeasureUnavailableAt",
-        py.get_type::<MeasureUnavailableAt>(),
-    )?;
     m.add("AnalysisPolicyError", py.get_type::<AnalysisPolicyError>())?;
     m.add("McRefusal", py.get_type::<McRefusal>())?;
     m.add("StepHandleError", py.get_type::<StepHandleError>())?;

@@ -199,7 +199,8 @@ fn var_kind_tags_are_stable() {
 }
 
 /// What an operand slot admits is a kind's own word, or the one word
-/// of its own: the placers' `placeable`, a measure's `measured`.
+/// of its own: the placers' `placeable`, a measure's `measured`, a
+/// clearance seat's `cleared`.
 #[test]
 fn slot_kind_tags_are_stable() {
     use pncad::document::{SlotKind, VarKind};
@@ -215,6 +216,7 @@ fn slot_kind_tags_are_stable() {
         crate::errors::slot_kind_tag(SlotKind::Measured(pncad::document::MeasureVerb::Distance)),
         "measured"
     );
+    assert_eq!(crate::errors::slot_kind_tag(SlotKind::Cleared), "cleared");
 }
 
 /// What a pose definition's read admits, as Python spells it: the
@@ -343,7 +345,6 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Enforce => "CheckRefusal",
             ErrorClass::Distribution => "DistributionFault",
             ErrorClass::Measure => "MeasureUnavailable",
-            ErrorClass::MeasureUnavailableAt => "MeasureUnavailableAt",
             ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
             ErrorClass::Mc => "McRefusal",
             ErrorClass::StepHandle => "StepHandleError",
@@ -384,7 +385,6 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Enforce,
         ErrorClass::Distribution,
         ErrorClass::Measure,
-        ErrorClass::MeasureUnavailableAt,
         ErrorClass::AnalysisPolicy,
         ErrorClass::Mc,
         ErrorClass::StepHandle,
@@ -500,30 +500,24 @@ fn analysis_refusal_tags_are_stable() {
 /// LIB-B-MEASURES: the measurement AUTHORING vocabulary, minted from
 /// real kernel values on the default no-interpreter build path.
 ///
-/// The four verbs, their fixed dimensions and their ARGUMENT-ordered
+/// The three verbs, their fixed dimensions and their ARGUMENT-ordered
 /// reference pairs, taken from the kernel's own `verb`, `dim` and
-/// `refs` rather than restated — so a fifth primitive breaks the
-/// exhaustive matches behind those three and this row goes red on the
-/// vocabulary rather than on a list.
+/// `refs` rather than restated.
 #[test]
 fn the_measure_verb_vocabulary_is_stable() {
     use pncad::document::{Dimension, MeasurePrimitive};
 
     let distance = MeasurePrimitive::Distance { a: 0, b: 1 };
     let angle = MeasurePrimitive::Angle { a: 2, b: 3 };
-    let clearance = MeasurePrimitive::MinClearance { a: 4, b: 5 };
     let gap = MeasurePrimitive::Gap { outer: 6, inner: 7 };
 
     assert_eq!(distance.verb(), "distance");
     assert_eq!(angle.verb(), "angle");
-    assert_eq!(clearance.verb(), "min_clearance");
     assert_eq!(gap.verb(), "gap");
 
-    // Three of the four are lengths and exactly one is an angle: the
-    // kind rides the verb, which is what makes an assertion's bound
-    // type-checkable against the measure it constrains.
+    // The kind rides the verb, which is what makes an assertion's
+    // bound type-checkable against the measure it constrains.
     assert_eq!(distance.dim(), Dimension::Length);
-    assert_eq!(clearance.dim(), Dimension::Length);
     assert_eq!(gap.dim(), Dimension::Length);
     assert_eq!(angle.dim(), Dimension::Angle);
 
@@ -533,73 +527,26 @@ fn the_measure_verb_vocabulary_is_stable() {
     assert_eq!(distance.refs(), [&0, &1]);
 }
 
-/// LIB-B-MEASURES: the two refusals the FOURTH verb adds, and the
-/// asymmetry between them.
+/// LIB-B-MEASURES: a clearance assertion's seat words, and the third
+/// state the `f64` scalar answers it with.
 ///
-/// `MeasureUnavailableAt` is what the `f64` lane answers a
-/// `min_clearance` with, and the binding evaluates at `f64` — so it is
-/// reachable from Python and `tests/test_measures.py` reaches it
-/// through a real document. `MinSeparationRefusal` is the clearance engine's
-/// own, and its ONLY producer on the measure path is the
-/// `topo::ClearanceLane` door, which `f64` does not hold; no Python
-/// evaluation reaches it, because the binding evaluates at `f64`. So
-/// this row is where the second one's tag and prose are pinned at all.
+/// `tests/test_measures.py` reaches the refusal through a real
+/// document; this row pins its class name and prose on the kernel
+/// value, and the word the seat's slot is published as.
 #[test]
-fn the_fourth_verbs_two_refusals_are_stable() {
-    use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{MeasureUnavailableAt, MinSeparationRefusal, NodeErrorKind, Which};
+fn a_clearance_seat_and_its_third_state_are_stable() {
+    use crate::tags::operand_slot_tag;
+    use pncad::analysis::ClearanceRefusal;
+    use pncad::document::OperandSlot;
 
-    let absent = MeasureUnavailableAt::NeedsEnclosure {
-        verb: "min_clearance",
-        scalar: "f64",
-        door: "topo::ClearanceLane",
-    };
-    assert_eq!(measure_unavailable_at_tag(&absent), "needs_enclosure");
-    assert_eq!(absent.verb(), "min_clearance");
-    assert!(crate::errors::reads_as_prose(&absent.to_string()));
-    // The recourse is IN the refusal: it names the door that answers
-    // rather than handing back a worse number.
-    assert!(absent.to_string().contains("topo::ClearanceLane"));
-    let unbracketed = MeasureUnavailableAt::NoUpperBound {
-        verb: "min_clearance",
-        scalar: "Interval",
-        door: "topo::clearance::min_separation",
-    };
-    assert_eq!(measure_unavailable_at_tag(&unbracketed), "no_upper_bound");
-    assert!(crate::errors::reads_as_prose(&unbracketed.to_string()));
-    assert!(
-        unbracketed
-            .to_string()
-            .contains("topo::clearance::min_separation")
-    );
+    assert_eq!(operand_slot_tag(&OperandSlot::Cleared(1)), "cleared");
 
-    // The three arms `topo::clearance::min_separation` refuses with
-    // all cross as one tag.
-    let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
-    let empty = refused(MinSeparationRefusal::EmptyScope { side: Which::First });
-    let unsupported = refused(MinSeparationRefusal::Unsupported {
-        carrier: "an approximated face",
-        face: FaceKey::default(),
-        side: Which::First,
-    });
-    let poison = refused(MinSeparationRefusal::PoisonEnclosure {
-        a: FaceKey::default(),
-        b: FaceKey::default(),
-    });
-    for e in [&empty, &unsupported, &poison] {
-        assert_eq!(
-            node_error_tag(e.class()),
-            "measure_clearance_refused",
-            "{e}"
-        );
-    }
-    // The prose is pinned on the arm whose rendering is a sentence.
-    // `Unsupported` and `PoisonEnclosure` print their faces as `FaceKey`
-    // `Debug` — the defect
-    // work/props/props-refusal-prose-outgrows-the-viewer.md owns — and
-    // `reads_as_prose` does not look for an arena key, so a pin there
-    // would pass and prove nothing.
-    assert!(crate::errors::reads_as_prose(&empty.to_string()), "{empty}");
+    let refusal = ClearanceRefusal::NeedsCertifyingLane { scalar: "f64" };
+    assert_eq!(refusal.name(), "needs_certifying_lane");
+    let said = refusal.to_string();
+    assert!(crate::errors::reads_as_prose(&said), "{said}");
+    // The recourse is IN the refusal: it names the lane that answers.
+    assert!(said.contains("interval lane"), "{said}");
 }
 
 /// LIB-B-MEASURES: an assertion's three relations, and the symbols a
@@ -2137,7 +2084,6 @@ fn node_error_tags_are_the_published_words() {
         MeasureNotParallel => "measure_not_parallel",
         MeasureUnsupported => "measure_unsupported",
         PayloadExpr => "payload_expr",
-        MeasureClearanceRefused => "measure_clearance_refused",
         AssertionDimension => "assertion_dimension",
     }
     for &(class, word) in PUBLISHED {
@@ -2694,10 +2640,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::SelectionShape {
             node: sp(1),
-            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Measured(
-                pncad::document::MeasureVerb::MinClearance,
-                0,
-            )),
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Cleared(0)),
             fault: pncad::document::SelectionFault::Seat {
                 entity: pncad::select::EntityKind::Edge,
             },
@@ -4076,6 +4019,7 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "member"
                         | "index"
                         | "measured"
+                        | "cleared"
                         | "side"
                         | "traced"
                 ),
@@ -5099,11 +5043,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["measure_unavailable_tag"],
     },
     TagEntry {
-        function: "measure_unavailable_at_tag",
-        values: &["needs_enclosure", "no_upper_bound"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "measure_unavailable_tag",
         values: &["band_has_no_measure"],
         delegates: &[],
@@ -5200,7 +5139,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_unleverable",
             "mate_unoriented",
             "mate_unpinned",
-            "measure_clearance_refused",
             "measure_non_finite",
             "measure_not_parallel",
             "measure_ref_unreadable",
@@ -5317,6 +5255,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "axis",
             "body",
+            "cleared",
             "cut",
             "face",
             "frame",
@@ -8020,10 +7959,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "ErrorClass::class_name",
-        literals: 35,
+        literals: 34,
         held_by: &[Holder::Test {
             name: "error_classes_name_the_python_hierarchy",
-            holds: "the 36 class names, against a SECOND exhaustive match, so a new \
+            holds: "the 35 class names, against a SECOND exhaustive match, so a new \
                     class stops the build",
         }],
     },
@@ -8153,10 +8092,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "slot_kind_tag",
-        literals: 2,
+        literals: 3,
         held_by: &[Holder::Test {
             name: "slot_kind_tags_are_stable",
-            holds: "its own two words, and a kind's word as `var_kind_tag`'s",
+            holds: "its own three words, and a kind's word as `var_kind_tag`'s",
         }],
     },
     MintingItem {

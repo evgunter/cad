@@ -1,9 +1,9 @@
 """Authoring a measurement, and reading the web back (LIB-B-MEASURES).
 
 The census family B-MEASURES chartered the AUTHORING half of
-ERROR-DESIGN E3/E10: `MeasurePrimitive`'s four verbs and `AssertionRelation`
-onto `Node.measure` / `Doc.measure` / `Node.assertion`, with
-`MeasureUnavailableAt` as the refusal the fourth verb adds. Arithmetic
+ERROR-DESIGN E3/E10: `MeasurePrimitive`'s three verbs and `AssertionRelation`
+onto `Node.measure` / `Doc.measure` / `Node.assertion`, and the clearance
+requirement `Node.clearance`. Arithmetic
 over measured values is an ordinary formula over the measures' outputs:
 there is no second arithmetic language. The READING
 half — `Value.measure` answering a `Measurement`, `Value.assertion` a
@@ -19,15 +19,12 @@ between them a straight one; a coaxial bore and pin make the signed gap
 exactly `r_bore - r_pin`. A row that read a previous run of the code
 under test could not have gone red for any bug in the closed form.
 
-THE LANE, MEASURED, because it decides which of the fourth verb's two
-refusals a Python caller can ever see. `min_clearance` is answered by
-an engine whose value is an ENCLOSURE, and the binding evaluates at
-`f64` alone — a point scalar, with nowhere to put one. So
-`MeasureUnavailableAt` is reachable here and is exercised below, while
-the engine's own `MinSeparationRefusal` is not reachable: its one producer
-on the measure path is the `topo::ClearanceLane` door, which only a
-certifying scalar holds, and the binding does not evaluate at one. That refusal's tag and prose are
-pinned in Rust instead (`src/tests.rs`).
+THE LANE, MEASURED, because it decides which clearance verdicts a Python
+caller can ever see. A clearance is decided by the certified sweep, which
+reads enclosures, and the binding evaluates at `f64` alone — a point
+scalar. So every clearance here answers the third state naming the
+certifying lane (`needs_certifying_lane`); a decided verdict and its
+pair are not reachable from Python.
 
 NOTHING HERE READS INSIDE A NAME. Every reference is a `(node, name)`
 pair whose name is a materializer's opaque text handed straight back,
@@ -159,7 +156,7 @@ def two_faces():
 
 
 class TestTheVerbVocabulary(unittest.TestCase):
-    """The four primitives as VALUES: what each one says about itself
+    """The three primitives as VALUES: what each one says about itself
     before it is a node."""
 
     def test_each_verb_names_itself_and_its_dimension(self):
@@ -167,7 +164,6 @@ class TestTheVerbVocabulary(unittest.TestCase):
         rows = [
             (MeasurePrimitive.distance(a, b), "distance", "length"),
             (MeasurePrimitive.angle(a, b), "angle", "angle"),
-            (MeasurePrimitive.min_clearance(a, b), "min_clearance", "length"),
             (MeasurePrimitive.gap(a, b), "gap", "length"),
         ]
         for prim, verb, dimension in rows:
@@ -412,78 +408,79 @@ class TestTheClosedForms(unittest.TestCase):
         self.assertAlmostEqual(measured(doc, authored).value, 0.0, places=12)
 
 
-class TestTheFourthVerb(unittest.TestCase):
-    """`min_clearance`, and the typed absence a point scalar answers
-    it with."""
+class TestTheClearanceRequirement(unittest.TestCase):
+    """`Node.clearance`: a requirement with no value, and the third
+    state the `f64` scalar answers it with."""
 
-    def clearance_document(self):
+    def seats(self):
         doc = Doc()
         left = cylinder(doc, -0.30, 0.2)
         right = cylinder(doc, 0.30, 0.2)
         ev = evaluate(doc)
-        node = doc.insert(
-            Node.measure(MeasurePrimitive.min_clearance((left, wall(ev, left)), (right, wall(ev, right))))
-        )
-        return doc, node
+        return doc, (left, wall(ev, left)), (right, wall(ev, right))
 
-    def test_the_measure_node_evaluates_and_has_no_value(self):
-        """The absence is a VALUE and not a failure — the node built,
-        and said what it could not say."""
-        doc, node = self.clearance_document()
-        self.assertEqual(doc.node_kind(node), "measure")
-        value = evaluate(doc).value(node)
-        self.assertEqual(value.kind, "measure")
-        with self.assertRaises(pncad.MeasureUnavailableAt) as caught:
-            value.measure()
-        refusal = caught.exception
-        self.assertEqual(refusal.variant, "needs_enclosure")
-        self.assertEqual(refusal.verb, "min_clearance")
-        self.assertEqual(refusal.scalar, "f64")
-        # The recourse is IN the refusal: it names the door that can
-        # answer rather than handing back a worse number.
-        self.assertEqual(refusal.door, "topo::ClearanceLane")
-        self.assertIn(refusal.door, str(refusal))
-
-    def test_it_is_not_the_analysis_lanes_refusal_of_the_same_name(self):
-        """Two classes one word apart, and a caller catching one must
-        not catch the other: `MeasureUnavailable` is the analysis lane
-        refusing to price a mass over a band."""
-        self.assertFalse(
-            issubclass(pncad.MeasureUnavailableAt, pncad.MeasureUnavailable)
-        )
-        self.assertFalse(
-            issubclass(pncad.MeasureUnavailable, pncad.MeasureUnavailableAt)
-        )
-        for cls in (pncad.MeasureUnavailableAt, pncad.MeasureUnavailable):
-            self.assertTrue(issubclass(cls, pncad.PncadError))
-
-    def test_an_assertion_over_it_reports_the_third_state(self):
+    def test_at_f64_every_bound_shape_answers_the_third_state(self):
         """E10's third state used for what it is for: the requirement
-        is recorded, the run cannot answer it, and neither half is
-        hidden. NOT a poisoning — the measure did not fail."""
-        doc, node = self.clearance_document()
-        assertion = doc.insert(
-            Node.assertion(doc.output(node), AssertionRelation.AtLeast, doc.parse_formula("1 mm"))
-        )
-        answer = verdict(doc, assertion)
-        self.assertEqual(answer.status, "Unevaluated")
-        self.assertIsNone(answer.holds)
-        self.assertIsNone(answer.measured)
-        self.assertIsNone(answer.bound)
-        self.assertIn("min_clearance", answer.reason)
-        self.assertIn("topo::ClearanceLane", answer.reason)
+        is recorded, the run cannot answer it, and the refusal names
+        the lane that can. NOT a poisoning — the node evaluates."""
+        doc, a, b = self.seats()
+        f = doc.parse_formula
+        shapes = {
+            "at_least": dict(at_least=f("1 mm")),
+            "at_most": dict(at_most=f("1 m")),
+            "band": dict(at_least=f("1 mm"), at_most=f("1 m")),
+            "equal": dict(equal=f("0.2 m")),
+        }
+        for shape, bounds in shapes.items():
+            with self.subTest(shape=shape):
+                node = doc.insert(Node.clearance(a, b, **bounds))
+                self.assertEqual(doc.node_kind(node), "assertion")
+                answer = verdict(doc, node)
+                self.assertEqual(answer.status, "Refused")
+                self.assertIsNone(answer.holds)
+                self.assertEqual(answer.refusal, "needs_certifying_lane")
+                self.assertIn("interval lane", answer.reason)
+                # No clearance value exists, and no pair decided it.
+                self.assertIsNone(answer.measured)
+                self.assertIsNone(answer.bound)
+                self.assertIsNone(answer.pair)
 
-    def test_it_refuses_typed_on_an_edge_reference(self):
-        """A reference's entity kind is the selection's face scope, and
-        an edge names no faces at all: a `min_clearance` reference reads
-        a body or a face, so the insert refuses by the seat's kind."""
+    def test_a_bound_that_is_not_a_length_refuses_at_the_door(self):
+        """The bounds are lengths: an angle refuses at insert, never a
+        comparison of radians with metres."""
+        doc, a, b = self.seats()
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.clearance(a, b, at_least=doc.parse_formula("1 deg")))
+        self.assertEqual(caught.exception.variant, "payload_var_kind")
+
+    def test_a_bounds_combination_outside_the_four_shapes_refuses(self):
+        doc, a, b = self.seats()
+        c = doc.parse_formula("1 mm")
+        for bounds in (
+            dict(),
+            dict(equal=c, at_least=c),
+            dict(equal=c, at_most=c),
+            dict(equal=c, at_least=c, at_most=c),
+        ):
+            with self.subTest(bounds=sorted(bounds)):
+                with self.assertRaises(ValueError):
+                    Node.clearance(a, b, **bounds)
+
+    def test_it_refuses_typed_on_an_edge_seat(self):
+        """A seat's entity kind is the selection's face scope, and an
+        edge names no faces at all: a seat reads a body or a face, so
+        the insert refuses by the seat's kind."""
         doc = Doc()
         left = slab(doc, 0.0)
         right = slab(doc, 4.0)
         ev = evaluate(doc)
         with self.assertRaises(EditError) as caught:
             doc.insert(
-                Node.measure(MeasurePrimitive.min_clearance((left, ev.all_edges(left)[0]), (right, ev.all_edges(right)[0])))
+                Node.clearance(
+                    (left, ev.all_edges(left)[0]),
+                    (right, ev.all_edges(right)[0]),
+                    at_least=doc.parse_formula("1 mm"),
+                )
             )
         self.assertEqual(caught.exception.variant, "slot_var_kind")
 

@@ -158,8 +158,8 @@ pub struct McMeasure {
     pub max: f64,
     /// How many samples produced a value.
     pub measured: usize,
-    /// How many produced none — a refusing node, or a measure with no
-    /// value at `f64` (`min_clearance`). Counted, never averaged over.
+    /// How many produced none — a refusing node. Counted, never
+    /// averaged over.
     pub unmeasured: usize,
 }
 
@@ -483,10 +483,8 @@ pub fn monte_carlo(
     // first assertion reading it.
     let mut values: Vec<VarId> = Vec::new();
     for &(id, is_measure) in &sinks {
-        if let (
-            false,
-            Some(Node::Assertion(crate::measure::Claim::Value { value, .. })),
-        ) = (is_measure, doc.node(id))
+        if let (false, Some(Node::Assertion(crate::measure::Claim::Value { value, .. }))) =
+            (is_measure, doc.node(id))
             && !values.contains(value)
         {
             values.push(*value);

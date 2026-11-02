@@ -1294,9 +1294,9 @@ impl Stackup {
         let mut s = String::new();
         let _ = writeln!(
             s,
-            "stackup measure={} nominal={} chamber={}",
+            "stackup measure={} nominal={:016x} chamber={}",
             self.measurement.full(),
-            format!("{:016x}", self.nominal.to_bits()),
+            self.nominal.to_bits(),
             match &self.chamber {
                 Chamber::ChamberCertified {
                     verdict_vector_key, ..
