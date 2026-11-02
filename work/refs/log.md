@@ -16,3 +16,15 @@
     - preferred: one table in every order;
     - fallback: an order-free typed refusal plus a filed row, never a panic and never an outcome that depends on order.
   - Minors accepted: a missing cross-member witness, stale premise comments, an unreproducible citation in the filed P1 row, and a vacuous cross-order assert.
+- 2026-11-02 — **PR 6341 dual review: both reviewers NOT-MERGEABLE-AS-IS, highly concordant; fix pass dispatched off the union.**
+  - **Bilateral findings:**
+    - slow-set goldens left red (name, persist, placement and corpus fences; geometry unmoved under masked ids);
+    - `revalue_loft_prism` was already red on main at the merge base, so the PR's "the ids exposed it" story is false;
+    - a pre-PR loft save refuses with no regenerate recourse;
+    - the content key, the split section map and cross-loft uniqueness are untested;
+    - the step-id machinery is copied;
+    - the section rules are written twice.
+  - **Correspondence pre-note:** no unilateral MAJOR naming a distinct defect, so no tally candidate. Unilateral MINORs and notes: R1 the words survivor; R2 the mint-chain survivor. The `m10_p_fence` interval twin is the same defect as R1's f64 row.
+  - **Accepted structural change:** the id rides on each section, not in a parallel vector.
+  - **Class:** a PR that shifts mint ordinals or name bytes turns slow-set goldens red, and per-PR CI cannot see them. The implementer brief now asks for a slow-set sweep of corpus, golden and digest rows whenever ids or names move.
+  - **Main red:** `revalue_loft_prism` (pinned red by this PR with the corrected story) reappeared after the main-reds row closed on 2026-10-30.
