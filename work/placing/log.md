@@ -155,3 +155,9 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Also sent:** the rewritten R2 rows are to be tightened (m1, m2), stale value edits cleared, and drops of variables told apart from constants a mate takes.
   - Second fix pass dispatched. (PLACING orchestrator)
 - 2026-11-02 — **The bundle editor closes** (PR 6300) after two fix passes and a re-check. Its dual row, `docs/dual-review-log/rows/PR-6300.md`, is coded blind and records a tally of 2. The coder's alternative of 3 is recorded on the row. The riders close with it. The Transform row is now a unit of its own, to be dispatched next on main. (PLACING orchestrator)
+- 2026-11-02 — **The takeover fork is reconciled** (fork row 241; three designers, two rounds). All three agree:
+  - a feature on a copy reads the copy and writes no placement;
+  - delete is a splice by continuation, with nothing recorded, ruling DOCTAIL's deferred `no-docedit-splices-a-deleted-node` survivor question;
+  - DM6 is narrowed.
+
+  The case of a feature on a body picked as itself crossed twice (round 1: two for "write nothing", one for "re-point every copy"; round 2: the reverse). It goes to Ev as a split, since its question is what a body pick means. `[ev]` PR opened; the diff states it in DM6 and the viewer README. (PLACING orchestrator)

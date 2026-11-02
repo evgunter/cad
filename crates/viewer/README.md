@@ -2225,8 +2225,10 @@ inserted part is a fresh `new_space()` and the instance into it by the
 identity bundle (`editor_core::stand`: no mate, and the constant `0` on
 each slide and spin), in one action. A pattern, fused or not, lands
 where the pick was seen and takes the seen body over along the path it
-was seen through (a placement's source, a `⊔` operand, the product
-slot), member 0 standing where that body stood. A split takes the seen
+was seen through: picked on a copy, it reads that copy in the copy's
+space and takes over the `⊔` operands and the product slot that read
+it, writing no placement's source; picked as the body itself, it also
+takes over each copy's source, member 0 standing where that body stood. A split takes the seen
 body over the same way, by `above ⊔ below`, its two halves standing
 where that body stood; where nothing reads the body along such a
 path, the split's halves are drawn in its place. A duplicate of a copy

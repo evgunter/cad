@@ -57,3 +57,19 @@ M1 and m1 share one cause, and it is a class, not an instance. `taken_body` is a
 The PR's own words ("the inverse of the takeover that re-pointed it") describe a fact the document does not hold. The review also found the takeover's reader list ("a copy's source, a `⊔` operand, the product slot") restated in four places.
 
 **Why parked, not a fix pass.** DOORS' `doors/take-over-rebinds` moves the forward re-point into the kernel (`Recording::take_over`), which also writes `DocEdit::Rebind` for the readers' references (m3). A hand-back that inverts only the re-point would leave those references rebound to the deleted feature's names, so the inverse owes a rebind as well. Where the inverse lives, and what it reads to know what was taken over, are questions about that door: recorded at the takeover, derived, or the kernel's own inverse beside `take_over`. They have several viable answers. They go to designers once the door has landed and its shape is fixed. Until then the PR goes back to draft, with its branch and the review's rows kept. The class (a takeover inferred from shape) is logged on `work/placing/log.md`.
+
+## Weighed by three designers (2026-11-02, fork row 241) and put to Ev
+
+The two rows are one question, answered together.
+- **A feature on a copy** reads the copy: `fillet(C)`, in the copy's space. It writes no placement's source, and re-points only the `⊔` operands and the product slot that read the copy.
+- **Delete is a splice by continuation,** derived from the recipe and never recorded:
+  - a fillet, chamfer or shell continues its input;
+  - an operator left with one operand continues that operand;
+  - a cut whose tool is deleted continues its target;
+  - nothing else continues anything.
+
+  The delete gesture hands every reader of a deleted node to what that node continues, through the takeover door run in reverse.
+- **DM6 is narrowed** to match.
+- **Split, put to Ev:** a feature on a body picked as itself (in the tree) that has copies. Either re-point every copy (two designers), or write nothing and offer an explicit replace door (one designer).
+
+The `[ev]` PR carries the three designers' texts. PR 6280's attempt is superseded; its review's probe rows are kept for the build.

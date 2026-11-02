@@ -41,3 +41,19 @@ P1 M. A gesture changes every copy of a body where the author picked one. It is 
 ## Parked (2026-11-01, PLACING orchestrator)
 
 Parked on the row in `blocked_on`, a live lane rewriting the same gesture code; the reason is in `work/placing/log.md` (2026-11-01, track claimed).
+
+## Weighed by three designers (2026-11-02, fork row 241) and put to Ev
+
+The two rows are one question, answered together.
+- **A feature on a copy** reads the copy: `fillet(C)`, in the copy's space. It writes no placement's source, and re-points only the `⊔` operands and the product slot that read the copy.
+- **Delete is a splice by continuation,** derived from the recipe and never recorded:
+  - a fillet, chamfer or shell continues its input;
+  - an operator left with one operand continues that operand;
+  - a cut whose tool is deleted continues its target;
+  - nothing else continues anything.
+
+  The delete gesture hands every reader of a deleted node to what that node continues, through the takeover door run in reverse.
+- **DM6 is narrowed** to match.
+- **Split, put to Ev:** a feature on a body picked as itself (in the tree) that has copies. Either re-point every copy (two designers), or write nothing and offer an explicit replace door (one designer).
+
+The `[ev]` PR carries the three designers' texts. PR 6280's attempt is superseded; its review's probe rows are kept for the build.
