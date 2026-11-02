@@ -366,3 +366,18 @@ Adjudication:
   - D6: two sphere spellings.
   
   A second fix pass has been dispatched. The unit file's stale charge and sign text is corrected here. (BOXES orchestrator)
+
+## 2026-11-02 — `cover-geom-readings` lands (PR 6383)
+
+(BOXES orchestrator) The second fix pass (`55d664af95`, with main merged as `bbca6476`, gate green) passed my read:
+- `Arc::point_near` bounds the arc as a circle of radius ρ in an orthonormalized frame plus a Gram-bounded deviation; off-crest monotonicity takes the nearer end, so `|w − circle| − dev` is a sound lower bound in a well-conditioned distance form;
+- the tube near reads through the spine circle;
+- `Ring::ball`'s `unreachable!` is backed by `Ring::of`'s new finite screen.
+
+Declined with reason: `beyond` carrying the `Uncovered` reason (a new `PointInSolidError` variant is not cheap); the refusal is pinned as `CorruptFace`.
+
+The dual row is `docs/dual-review-log/rows/PR-6383.md` (tally 0: the one MAJOR was bilateral).
+
+**Class finding, logged.** Deleting the f64 charges per `[simple.conditioned]` exposed a formula the charge had been hiding (a squared residual near zero). Under that rule, a charge removed is a conditioning question asked: every later cover unit that deletes a charge re-poses what it covered rather than dropping it.
+
+Unparked: `cover-edge-doors`, `cover-topo-faces`. `torus-extent-overreaches-…` re-parked on `cover-topo-faces`, which deletes `torus_extent`. Filed `a-covers-nearest-distance-from-a-line-is-a-squared-residual` (P3, M).

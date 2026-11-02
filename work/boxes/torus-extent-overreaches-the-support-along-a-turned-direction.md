@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-10
 priority: P3
 cost: M
-blocked_on: [cover-geom-readings]
+blocked_on: [cover-topo-faces]
 ---
 
 

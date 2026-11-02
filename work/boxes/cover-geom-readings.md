@@ -2,10 +2,13 @@
 id: cover-geom-readings
 kind: unit
 title: geom::cover: the Cover value, Uncovered, meet and hull on the Result, its methods, and geom's readings of a bounded carrier whole and over a span; the whole-carrier doors read it
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: H
+closed: 2026-11-02
+pr: 6383
+branch: boxes/cover-geom-readings
 ---
 
 
@@ -74,3 +77,15 @@ here". Both are superseded:
 - Sign handling is read once per piece, in that piece's own methods.
 
 A formula that loses digits where its result is decided is re-posed, not charged. The cover's nearest distance is the instance the delta review found. (BOXES orchestrator)
+
+## Closed (PR 6383, 2026-11-02)
+
+Landed through a concurrent dual review, two fix passes and a delta
+review (`docs/dual-review-log/rows/PR-6383.md`), with Ev's ruling that
+the cover follows `[simple.conditioned]`. Retirements scheduled on later
+units:
+- `BoxFrame` → `cover-topo-faces`;
+- `spiric_period_box` and its charge → `cover-edge-doors`;
+- `carrier_extent`'s kind match → `cover-app-readers`.
+
+The line-site near is filed as `a-covers-nearest-distance-from-a-line-is-a-squared-residual`.
