@@ -370,6 +370,10 @@ fn roots_of<T: Real>(found: Result<CircleRoots<T>, Unsettled>) -> Result<Vec<T>,
     }
 }
 
+/// The funnel row a crossing's distance from a cone's apex is decided
+/// on ([`crossing`]).
+const TRACE_CROSSING_APEX: &str = "trace_crossing_apex";
+
 /// One crossing at `point`, `along` the piece, its sense read off the
 /// piece's unit `velocity` against the outward normal: the cosine
 /// between them, the outward gradient's component along the velocity
@@ -383,6 +387,15 @@ fn crossing<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<Crossing<T>, TraceFault> {
+    // A root at a cone's apex, which the root doors now answer as the
+    // carrier's double root there (`reduce::line_cone_roots`,
+    // `conic_quadric`'s "Through the apex"), has no outward normal and
+    // no sense to read: the piece crosses at the apex.
+    if let Surface::Cone { apex, .. } = *surface
+        && sign(TRACE_CROSSING_APEX, Margin::norm3(point - apex), band)? != Sign::Positive
+    {
+        return Err(TraceFault::Apex);
+    }
     let outward = crate::face_normal::surface_outward_normal(surface, point, sense).vec();
     let passage = match sign(
         TRACE_CROSSING_SENSE,
