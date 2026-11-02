@@ -1474,6 +1474,7 @@ fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, Reach<f64>) {
         Some(Bounds::Conic) => Reach::Conic {
             extent: v.norm(),
             bend: flat_bend(),
+            arc: None,
         },
         None => Reach::straight_bisector(v.norm()),
     };

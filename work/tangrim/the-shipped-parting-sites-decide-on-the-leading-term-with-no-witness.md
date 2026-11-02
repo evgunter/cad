@@ -4,6 +4,8 @@ kind: issue
 title: The shipped parting sites decide a tie's side on the leading term at a length, with no witness point
 status: open
 opened: 2026-11-02
+priority: P2
+cost: M
 ---
 
 
@@ -37,11 +39,11 @@ a carrier), so the curve-pair distance the crossing layer reads, not a
 surface residual. `Reach::witness` gives the bound's point; the
 partner's offset is what is owed.
 
-**`crescent` decides topology once PR 6375 lands** (`tangrim/tangent-crescent`,
-TANGRIM orchestrator's note, 2026-11-02): its overlap verdict then mints
-a coplanar `(On, On)` record in every op (`sectors::crescent_records`)
-instead of gating a refusal, so its leading term, not a point of either
-rim, decides which records survive. Of the sites above it is the first
-whose witness is owed; its pin is a crescent pose whose two rims' parting
-at the shorter reach is decided while a point of one rim stands within
-the band of the other.
+**`crescent` decides topology since PR 6375** (`sectors::sector_overlap`,
+recorded by `pair_search` as a coplanar overlap in every op). The
+witness row's `## crescent now mints topology` holds the locality
+argument for why its decided sign is safe without a witness (the
+claim is local to the vertex, and a sign decided off zero dominates the
+remainder near it); what a witness would add there is the crescent's
+extent at a finite reach. Of the sites above it is the one whose
+verdict reaches topology most directly.

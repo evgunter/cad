@@ -608,9 +608,11 @@ pub(super) fn orbit_corners<T: Decide>(
             | geom::Curve3::Ellipse(..)
             | geom::Curve3::Spiric { .. }
             | geom::Curve3::Nurbs(_) => {
+                let he_plus = he == edge.he_plus;
                 let ConicDeparture { dir, extent, bend } =
-                    ConicDeparture::of(curve, he == edge.he_plus, p_end.distance(p_base));
-                (dir, Reach::Conic { extent, bend })
+                    ConicDeparture::of(curve, he_plus, p_end.distance(p_base));
+                let arc = crate::bound_side::ConicArc::of(curve, he_plus);
+                (dir, Reach::Conic { extent, bend, arc })
             }
         }
     };
@@ -623,6 +625,7 @@ pub(super) fn orbit_corners<T: Decide>(
         let face_data = proven(&body.faces, face, EntityId::Face);
         let bend = FaceBend::at(
             body.face_surface_linked(face, face_data),
+            face_data.sense,
             body.resolve_vertex_point(vertex, Proven),
         );
         Ok(OrbitCorner {
@@ -955,9 +958,13 @@ fn bound_refusal<T: Decide>(fault: BoundSideFault<T>, band: Band) -> BooleanErro
 /// [`bound_refusal`] before any charge.
 fn read_refusal<T: Decide>(fault: ReadFault<T>, band: Band) -> BooleanError {
     match fault {
-        ReadFault::Chord(diag) => {
+        ReadFault::Chord(diag) | ReadFault::Witness(diag) => {
             BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
         }
+        ReadFault::Unwitnessed(_) => BooleanError::ClassificationInvariant {
+            what: "a tied edge bound against a sphere or a cylinder has no point to witness its \
+                   side",
+        },
         ReadFault::Departure {
             escalation,
             arm,
@@ -2400,7 +2407,7 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
         Reach::Conic { bend, .. } if matches!(bend.bounds, geom_brep::BendBounds::Unbounded) => {
             None
         }
-        Reach::Conic { extent, bend } => Some((bend.curvature, extent)),
+        Reach::Conic { extent, bend, .. } => Some((bend.curvature, extent)),
         Reach::Chord { .. } => Some((Vec3::new(T::zero(), T::zero(), T::zero()), reach.length())),
         Reach::Extent(_) | Reach::Bisector { .. } => None,
     }
@@ -3508,7 +3515,14 @@ mod tests {
         let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
-        (tangent.normalize() * extent, Reach::Conic { extent, bend })
+        (
+            tangent.normalize() * extent,
+            Reach::Conic {
+                extent,
+                bend,
+                arc: crate::bound_side::ConicArc::on(&carrier, 0.0, span),
+            },
+        )
     }
 
     /// **The split walk and the boolean read one edge's side of a plane
@@ -3754,7 +3768,11 @@ mod tests {
                         let tangent = carrier.deriv(0.0);
                         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
                         let dir = tangent.normalize() * extent;
-                        let reach = Reach::Conic { extent, bend };
+                        let reach = Reach::Conic {
+                            extent,
+                            bend,
+                            arc: crate::bound_side::ConicArc::on(&carrier, 0.0, span),
+                        };
                         if enters_material(dir, n, extent, b) != Ok(EntersMaterial::Tangent) {
                             continue;
                         }
@@ -3837,7 +3855,11 @@ mod tests {
         assert_eq!(
             pierce_side(
                 dir,
-                Reach::Conic { extent, bend },
+                Reach::Conic {
+                    extent,
+                    bend,
+                    arc: crate::bound_side::ConicArc::on(&carrier, 0.0, span)
+                },
                 n,
                 FaceBend::Plane,
                 NO_CURVATURE(),
@@ -3883,7 +3905,7 @@ mod tests {
             SideCode::On,
             "a great arc of a hollow sphere rides it"
         );
-        let Reach::Conic { extent, bend } = reach else {
+        let Reach::Conic { extent, bend, .. } = reach else {
             unreachable!("`quarter_arc` mints a conic reach")
         };
         // The arc's length and extent bounded loosely, but soundly, by
@@ -3915,6 +3937,7 @@ mod tests {
             Reach::Conic {
                 extent: short,
                 bend: loose,
+                arc: None,
             },
             n,
             FaceBend::Plane,
@@ -3928,6 +3951,7 @@ mod tests {
                 bounds: geom_brep::BendBounds::Unbounded,
                 ..bend
             },
+            arc: None,
         };
         let got = pierce_side(dir, spiric, n, FaceBend::Plane, NO_CURVATURE(), b);
         assert!(conic_bend(&got), "a spiric tie: {got:?}");

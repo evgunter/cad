@@ -551,7 +551,11 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
     };
     pierce_side(
         Vec3::new(1.0, 0.0, 0.0),
-        Reach::Conic { extent, bend },
+        Reach::Conic {
+            extent,
+            bend,
+            arc: None,
+        },
         n,
         crate::bound_side::FaceBend::Plane,
         NO_CURVATURE(),
