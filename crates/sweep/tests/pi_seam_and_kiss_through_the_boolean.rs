@@ -961,9 +961,9 @@ fn the_stadium_answers_every_op() {
 #[ignore = "disabled red: work/tangrim/a-slab-on-a-bores-rulings-from-inside-refuses-at-the-join-in-every-op.md"]
 fn a_slab_on_a_bores_rulings_from_inside_answers_every_op() {
     let tol = Tol::witness();
-    let block = finished(
+    let block: AtRestBody<f64> = finished(
         "the block",
-        brick((-3.0, 3.0), (-3.0, 3.0), (0.1, 0.9), tol),
+        brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (0.1, 0.9), tol),
         tol,
     );
     let rod = turned(&rod_z(0.5, 0.0, 1.0), 45.0);
@@ -973,7 +973,7 @@ fn a_slab_on_a_bores_rulings_from_inside_answers_every_op() {
     let bored = bored.body;
     let slab: AtRestBody<f64> = finished(
         "the slab",
-        brick((-0.5, 0.0), (0.0, 0.5), (0.1, 0.9), tol),
+        brick::<f64>((-0.5, 0.0), (0.0, 0.5), (0.1, 0.9), tol),
         tol,
     );
     let bore = 0.25 * PI * 0.8;
