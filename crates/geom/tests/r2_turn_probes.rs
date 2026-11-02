@@ -53,8 +53,7 @@ fn arc(a: f64, b: f64, mid: f64, width: f64) -> f64 {
 /// Claim 2, bits: the old `ConicArc` sup expression, verbatim.
 fn old_sup<T: geom_core::Real>(a: T, b: T, t0: T, gap: T) -> T {
     let (sm, cm) = (t0 - gap * T::from_f64(0.5)).sin_cos();
-    ((a * sm).powi(2) + (b * cm).powi(2)).sqrt()
-        + a.max(b) * gap.abs() * T::from_f64(0.5)
+    ((a * sm).powi(2) + (b * cm).powi(2)).sqrt() + a.max(b) * gap.abs() * T::from_f64(0.5)
 }
 
 /// Claim 2, bits: the old sup moved by no more than the reach's rounding
@@ -131,11 +130,7 @@ fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
                 4.0,
             ] {
                 let local = speed(a, b, centre);
-                for (rate_name, rate) in [
-                    ("inf", inf),
-                    ("local", local),
-                    ("max", a.max(b)),
-                ] {
+                for (rate_name, rate) in [("inf", inf), ("local", local), ("max", a.max(b))] {
                     for k in [
                         0.0, 0.3, 0.5, 0.9, 0.99, 1.0, 1.01, 1.1, 2.0, 3.0, 9.0, 9.9, 10.0, 10.1,
                         11.0, 20.0, 100.0, 1e3,
