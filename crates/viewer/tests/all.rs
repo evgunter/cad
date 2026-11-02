@@ -128,10 +128,10 @@ mod mate_kinds;
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]
 mod mirror_authoring;
-#[path = "review_intent_e_r1.rs"]
-mod review_intent_e_r1;
 #[path = "review_bundle_editor_r2.rs"]
 mod review_bundle_editor_r2;
+#[path = "review_intent_e_r1.rs"]
+mod review_intent_e_r1;
 
 #[path = "msolve3_placer_refused.rs"]
 mod msolve3_placer_refused;

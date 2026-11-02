@@ -430,6 +430,13 @@ pub enum Refusal {
     },
     /// The placement editor could not derive a bundle from its draft.
     Draft(Box<crate::matetool::MateToolError>),
+    /// The placement editor's Apply would place a copy that does not
+    /// stand: its placement's fault, or `None` where what it reads does
+    /// not evaluate. It is withheld, and the draft stays open.
+    PlacementFails {
+        /// The fault the placement would evaluate to.
+        fault: Option<Box<pncad::document::MateFault>>,
+    },
     /// A takeover would re-point a copy a pick reads onto a body that
     /// holds no pieces — a feature's result, a mirror's or a sketch's
     /// union, a combine. A pick is never re-pointed (D10
@@ -474,6 +481,7 @@ impl Refusal {
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
             Self::ValueNotRemoved { node } => Self::ValueNotRemoved { node: again(node) },
             Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
+            Self::PlacementFails { fault } => Self::PlacementFails { fault },
             Self::InTheProduct { copy } => Self::InTheProduct { copy: again(copy) },
             Self::StrandedPick { copy, pick } => Self::StrandedPick {
                 copy: again(copy),
@@ -556,6 +564,7 @@ impl Refusal {
             | Self::BundleStale { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
+            | Self::PlacementFails { .. }
             | Self::StrandedPick { .. }
             | Self::InTheProduct { .. } => None,
         }
@@ -601,6 +610,7 @@ impl Refusal {
             | Self::BundleStale { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
+            | Self::PlacementFails { .. }
             | Self::StrandedPick { .. }
             | Self::InTheProduct { .. }
             | Self::Io(_) => 1,
@@ -927,6 +937,14 @@ impl core::fmt::Display for Refusal {
                  edit its number instead"
             ),
             Self::Draft(error) => write!(f, "{error}"),
+            Self::PlacementFails { fault: Some(fault) } => write!(
+                f,
+                "the copy would not stand: {fault}; the editor's draft was not written"
+            ),
+            Self::PlacementFails { fault: None } => write!(
+                f,
+                "what the placement reads does not evaluate; the editor's draft was not written"
+            ),
             Self::ProfileEditStale { node } => write!(
                 f,
                 "{node} changed since the editor loaded it; the editor's program was not \

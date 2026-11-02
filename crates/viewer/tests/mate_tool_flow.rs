@@ -192,9 +192,9 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
 /// the editor reads off no pick and a sense on a kind that has none are
 /// facts about the CHOICE alone, refused here with the picks' instance
 /// deleted out from under the tool, which the pick door would refuse
-/// were it reached. A number on a freedom the mates do not leave is
-/// refused once the mates are read: the freedoms are the kernel's
-/// (`Placed::freedoms`).
+/// were it reached. A number typed on a freedom the mates do not leave
+/// is said dropped once the mates are read: the freedoms are the
+/// kernel's (`Placed::freedoms`).
 #[test]
 fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
     use pncad::document::{Coord, TargetAxis, VarKind};
@@ -242,16 +242,21 @@ fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
         })
     ));
     // A spin about the target's x is a link of a chain, which a plane
-    // mate does not leave.
+    // mate does not leave: the draft says it dropped, and still applies.
     let mut choice = asm::seat_choice();
     choice
         .values
         .push((Coord::Spin(Some(TargetAxis::X)), ang(0.1)));
-    let Err(MateToolError::NotAFreedom { coord }) = common::proposed(&session, &tool, choice)
-    else {
-        panic!("a plane mate leaves no chain of spins");
-    };
-    assert_eq!(coord, Coord::Spin(Some(TargetAxis::X)));
+    let proposal = common::proposed(&session, &tool, choice).expect("the draft still applies");
+    assert!(
+        proposal
+            .dropped
+            .iter()
+            .any(|row| row.coord == Coord::Spin(Some(TargetAxis::X))
+                && row.from == viewer::matetool::ValueFrom::Typed),
+        "the typed spin is said dropped: {:?}",
+        proposal.dropped
+    );
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 

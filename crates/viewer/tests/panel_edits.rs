@@ -719,6 +719,7 @@ test_utils::f6_variants! {
         BundleStale,
         ValueNotRemoved,
         Draft,
+        PlacementFails,
         StrandedPick,
         InTheProduct,
     ];

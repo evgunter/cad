@@ -134,9 +134,13 @@ impl ToolKind {
         format!("{} tool…", capitalised(self.label()))
     }
 
-    /// The words on the button that commits this tool's edit.
+    /// The words on the button that commits this tool's edit: the
+    /// placement editor's is its Apply, as the profile editor's is.
     pub fn commit(self) -> String {
-        format!("Commit {}", self.label())
+        match self {
+            Self::Mate => "Apply".to_owned(),
+            other => format!("Commit {}", other.label()),
+        }
     }
 
     /// **What the cursor may pick while this tool is open** — an open

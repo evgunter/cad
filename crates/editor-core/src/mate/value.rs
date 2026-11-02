@@ -128,6 +128,29 @@ pub fn flipped<P>(doc: &crate::doc::Doc<P>, pose: crate::VarId) -> bool {
     odd
 }
 
+/// **Whether a mate's side, as authored, reads the opposite sense of its
+/// own direction**: [`flipped`] over an operand — a pose variable read
+/// as [`flipped`] reads it, a pose definition walked the same way.
+#[must_use]
+pub fn side_flipped<P>(doc: &crate::doc::Doc<P>, side: &crate::Operand) -> bool {
+    use crate::pose::{PoseDef, PoseRole, RoleRead};
+    match side {
+        crate::Operand::Var(var) => flipped(doc, *var),
+        crate::Operand::Pose(def) => {
+            let here = matches!(**def, PoseDef::Flip { .. });
+            let kept = match def.kept() {
+                Some(RoleRead {
+                    read,
+                    role: None | Some(PoseRole::Normal | PoseRole::Direction),
+                }) => side_flipped(doc, read),
+                _ => false,
+            };
+            here != kept
+        }
+        _ => false,
+    }
+}
+
 /// `v` turned by the angle whose sine and cosine are given about the
 /// unit direction `d`.
 fn rotate<T: geom_core::Real>(d: Vec3<T>, v: Vec3<T>, sin: T, cos: T) -> Vec3<T> {
@@ -183,34 +206,19 @@ impl<T: SolveScalar> Chart<T> {
         Self::charted(d, copy_d, seat, to_flipped, orient, arm, band).map(Some)
     }
 
-    /// **What a mate fixing a direction reads of its two poses**: the
-    /// mated direction (the target's), the copy's, and what it seats of
-    /// the copy's translation. `None` for a point or a frame mate.
+    /// What a mate fixing a direction reads of its two poses
+    /// ([`mated_direction`]), as the chart holds it.
     fn sides(on: &PoseValue<T>, to: &PoseValue<T>) -> Option<(UnitVec3<T>, UnitVec3<T>, Seat<T>)> {
-        Some(match (on, to) {
-            (
-                PoseValue::Plane {
-                    normal: o,
-                    offset: c_on,
-                },
-                PoseValue::Plane {
-                    normal: t,
-                    offset: c_to,
-                },
-            ) => (*t, *o, Seat::Depth(*c_to - *c_on)),
-            (PoseValue::Direction { dir: o }, PoseValue::Direction { dir: t }) => {
-                (*t, *o, Seat::Free)
-            }
-            (PoseValue::Axis(copy), PoseValue::Axis(target)) => (
-                target.dir(),
-                copy.dir(),
-                Seat::Line {
-                    foot: target.foot(),
-                    copy_foot: copy.foot(),
-                },
-            ),
-            _ => return None,
-        })
+        let mated = mated_direction(on, to)?;
+        let seat = match mated.hold {
+            MatedHold::Plane {
+                copy_offset,
+                offset,
+            } => Seat::Depth(offset - copy_offset),
+            MatedHold::Line { copy_foot, foot } => Seat::Line { foot, copy_foot },
+            MatedHold::Free => Seat::Free,
+        };
+        Some((mated.dir, mated.copy_dir, seat))
     }
 
     /// **The chart of the two directions**, once the pole's verdict is
@@ -386,6 +394,90 @@ impl<T: SolveScalar> Chart<T> {
     }
 }
 
+/// **What a mate fixing one direction reads of its two poses**
+/// ([`mated_direction`]): the mated direction (the target's, its flip
+/// the contact's sense), the copy's in its own coordinates, and what
+/// the target holds of the copy's mated point.
+#[derive(Debug, Clone, Copy)]
+pub struct MatedDirection<T: geom_core::Real> {
+    /// The target's direction.
+    pub dir: UnitVec3<T>,
+    /// The copy's direction, in its own coordinates.
+    pub copy_dir: UnitVec3<T>,
+    /// What the target holds of the copy's mated point.
+    pub hold: MatedHold<T>,
+}
+
+/// **What a mate fixing one direction holds of the copy's mated point**.
+#[derive(Debug, Clone, Copy)]
+pub enum MatedHold<T: geom_core::Real> {
+    /// Two planes: the copy's plane at `copy_offset` along its normal,
+    /// held on the target's at `offset` along its own.
+    Plane {
+        /// The copy's plane's offset, in its own coordinates.
+        copy_offset: T,
+        /// The target's plane's offset.
+        offset: T,
+    },
+    /// Two axes: the copy's line through `copy_foot`, held on the
+    /// target's through `foot`, each its point nearest its origin.
+    Line {
+        /// The copy's line's foot, in its own coordinates.
+        copy_foot: Point3<T>,
+        /// The target's line's foot.
+        foot: Point3<T>,
+    },
+    /// Two directions: no point is held.
+    Free,
+}
+
+/// **What a mate equating `on` with `to` fixes**, where it fixes one
+/// direction (two planes, two axes, two directions): the one reading
+/// of a mate's poses the value chart ([`read_back`]) and a gesture's
+/// snap both take. `None` for a point or a frame mate.
+#[must_use]
+pub fn mated_direction<T: geom_core::Real>(
+    on: &PoseValue<T>,
+    to: &PoseValue<T>,
+) -> Option<MatedDirection<T>> {
+    let (dir, copy_dir, hold) = match (on, to) {
+        (
+            PoseValue::Plane {
+                normal: o,
+                offset: c_on,
+            },
+            PoseValue::Plane {
+                normal: t,
+                offset: c_to,
+            },
+        ) => (
+            *t,
+            *o,
+            MatedHold::Plane {
+                copy_offset: *c_on,
+                offset: *c_to,
+            },
+        ),
+        (PoseValue::Direction { dir: o }, PoseValue::Direction { dir: t }) => {
+            (*t, *o, MatedHold::Free)
+        }
+        (PoseValue::Axis(copy), PoseValue::Axis(target)) => (
+            target.dir(),
+            copy.dir(),
+            MatedHold::Line {
+                copy_foot: copy.foot(),
+                foot: target.foot(),
+            },
+        ),
+        _ => return None,
+    };
+    Some(MatedDirection {
+        dir,
+        copy_dir,
+        hold,
+    })
+}
+
 /// **A mate fixing a direction, as the chart reads it** ([`read_back`]):
 /// the mate, its two poses read in the target space, whether its `to`
 /// reads the opposite sense ([`flipped`]) and its orientation.
@@ -439,7 +531,7 @@ pub fn read_back(
     // the placement's evaluation decides the band about it.
     let read = Chart::<f64>::sides(charted.on, charted.to).and_then(|(d, copy_d, seat)| {
         let n = charted.orient.apply(copy_d.get());
-        if super::turn::LeastTurn::between(n, d.get()).one_plus_c() <= 0.0 {
+        if super::turn::LeastTurn::between(n, d.get()).at_pole() {
             return None;
         }
         let arm = Arm::of(0.0, 0.0).ok()?;
@@ -481,11 +573,27 @@ fn chain_read(r: &Mat3<f64>, coords: &[Coord]) -> Option<[f64; 3]> {
     if spun != TargetAxis::ALL {
         return None;
     }
+    Some(chain_turns(r))
+}
+
+/// **The chain `x`, `y`, `z` that turns as `r` does** (D10
+/// `[placement.values]`): `r = Rz(γ)·Ry(β)·Rx(α)`, each turn about the
+/// target space's own axis, the first written the first made
+/// ([`chain`]), answered `[α, β, γ]`. At the chain's pole (`x` carried
+/// onto `±z`, `cos β = 0`) only `α ± γ` is fixed, and the whole turn is
+/// read as `α` with `γ = 0`. The one reading of a turn as a chain: every
+/// gesture that writes a frame's turns as values reads them here.
+#[must_use]
+pub fn chain_turns(r: &Mat3<f64>) -> [f64; 3] {
     // Column k is `r·e_k`, so the entry at row i, column k is `r.ck[i]`.
-    let x = r.c1.z.atan2(r.c2.z);
-    let y = (-r.c0.z).atan2(r.c1.z.hypot(r.c2.z));
-    let z = r.c0.y.atan2(r.c0.x);
-    Some([x, y, z])
+    let cos_beta = r.c0.x.hypot(r.c0.y);
+    let beta = (-r.c0.z).atan2(cos_beta);
+    let (alpha, gamma) = if cos_beta > f64::EPSILON.sqrt() {
+        (r.c1.z.atan2(r.c2.z), r.c0.y.atan2(r.c0.x))
+    } else {
+        ((-r.c2.y).atan2(r.c1.y), 0.0)
+    };
+    [alpha, beta, gamma]
 }
 
 /// **One value, read**: its address, its freedom and its number at

@@ -1904,7 +1904,29 @@ impl DocSession {
                 base,
                 constraints,
                 into_target_space,
-            } => self.set_bundle(placement, &base, constraints, into_target_space),
+            } => {
+                let op = SessionOp::SetBundle {
+                    placement,
+                    base,
+                    constraints,
+                    into_target_space,
+                };
+                match self.withheld(&op) {
+                    Some(refusal) => OpOutcome::refused(refusal),
+                    None => {
+                        let SessionOp::SetBundle {
+                            placement,
+                            base,
+                            constraints,
+                            into_target_space,
+                        } = op
+                        else {
+                            unreachable!("built just above")
+                        };
+                        self.set_bundle(placement, &base, constraints, into_target_space)
+                    }
+                }
+            }
             SessionOp::RemoveConstraint { mate } => self.remove_constraint(mate),
             SessionOp::IntoOwnSpace { placement } => self.commit_run(|run| {
                 let node = run.insert(Node::Space)?;
@@ -4080,21 +4102,9 @@ impl DocSession {
             &self.eval_options(),
             self.tol,
         );
-        let proposal = match tool.proposal(doc, &ev, self.tol) {
-            Ok(proposal) => proposal,
-            // A number on a freedom the mates do not leave is the draft's
-            // fault only where the mates themselves write: a mate the door
-            // refuses is said as the door says it.
-            Err(error @ crate::matetool::MateToolError::NotAFreedom { .. }) => {
-                if let Ok(mates) = tool.clone().untyped().proposal(doc, &ev, self.tol)
-                    && let BundleVerdict::Refused(refusal) = self.bundle_verdict(&mates.op())
-                {
-                    return Err(refusal);
-                }
-                return Err(Refusal::Draft(Box::new(error)));
-            }
-            Err(error) => return Err(Refusal::Draft(Box::new(error))),
-        };
+        let proposal = tool
+            .proposal(doc, &ev, self.tol)
+            .map_err(|error| Refusal::Draft(Box::new(error)))?;
         Ok(if into_target_space {
             proposal.op_into_target_space()
         } else {
@@ -4150,10 +4160,42 @@ impl DocSession {
         }
     }
 
+    /// **The placement editor's Apply withheld where its verdict is no
+    /// standing copy** ([`Self::bundle_verdict`]): a placement that would
+    /// evaluate to a fault, or read what does not evaluate, is not
+    /// committed from the editor — the panel says why, and the draft
+    /// stays open. A door's refusal is the door's to give.
+    fn withheld(&self, op: &SessionOp) -> Option<Refusal> {
+        match self.bundle_verdict(op) {
+            BundleVerdict::Faults(fault) => Some(Refusal::PlacementFails { fault: Some(fault) }),
+            BundleVerdict::Unsolved => Some(Refusal::PlacementFails { fault: None }),
+            BundleVerdict::Stands(_) | BundleVerdict::Refused(_) => None,
+        }
+    }
+
     /// **One placement of `body` holding the bundle** ([`SessionOp::Place`]),
-    /// taking over what read the body along a seen path — a `⊔` operand,
-    /// the product — never a copy's source.
+    /// withheld where it would not stand ([`Self::withheld`]).
     fn place(
+        &self,
+        body: Operand,
+        target: VarId,
+        constraints: Vec<pncad::document::Constraint<Formula>>,
+    ) -> Result<Creating, Refusal> {
+        let op = SessionOp::Place {
+            body: body.clone(),
+            target,
+            constraints: constraints.clone(),
+        };
+        if let Some(refusal) = self.withheld(&op) {
+            return Err(refusal);
+        }
+        self.placing(body, target, constraints)
+    }
+
+    /// **The Create door's run**: one placement of `body` holding the
+    /// bundle, taking over what read the body along a seen path — a `⊔`
+    /// operand, the product — never a copy's source.
+    fn placing(
         &self,
         body: Operand,
         target: VarId,
@@ -4207,7 +4249,7 @@ impl DocSession {
                 target,
                 constraints,
             } => self
-                .place(body.clone(), *target, constraints.clone())
+                .placing(body.clone(), *target, constraints.clone())
                 .and_then(|creating| {
                     creating(&mut run).map_err(|error| Refusal::Edit(Box::new(error)))
                 }),
@@ -5056,13 +5098,11 @@ fn gesture_moves(
 /// **The values standing a copy at `at`** on its target space's axes:
 /// the chain of turns about `x`, `y` and `z` its axes make — each a
 /// quarter turn written exactly (`turn/4`) where they are a signed
-/// permutation of the space's, else the angles `atan2` takes off them
-/// (`linear = Rz(γ)·Ry(β)·Rx(α)`) — and the slides its origin makes,
+/// permutation of the space's, else the kernel's chain read of them
+/// (`editor_core::mate::chain_turns`) — and the slides its origin makes,
 /// each turn and slide that is not zero.
 fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
     use pncad::document::{Coord, TargetAxis};
-    // Entry `r(i, j)`: row `i` of column `j`.
-    let r = |i: usize, j: usize| at.columns[j][i];
     let exact = (0..3).all(|j| {
         let column = at.columns[j];
         column.iter().filter(|&&c| c != 0.0).count() == 1
@@ -5078,13 +5118,13 @@ fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
             _ => Formula::neg(turn(4)).unwrap_or_else(|_| unreachable!("an angle negates")),
         }
     };
-    let cos_beta = r(0, 0).hypot(r(1, 0));
-    let beta = (-r(2, 0)).atan2(cos_beta);
-    let (alpha, gamma) = if cos_beta > f64::EPSILON.sqrt() {
-        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
-    } else {
-        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
+    let col = |j: usize| {
+        let [x, y, z] = at.columns[j];
+        pncad::geom_core::linalg::Vec3::new(x, y, z)
     };
+    let [alpha, beta, gamma] = editor_core::mate::chain_turns(
+        &pncad::geom_core::linalg::Mat3::from_cols(col(0), col(1), col(2)),
+    );
     let spins = [
         (TargetAxis::X, alpha),
         (TargetAxis::Y, beta),

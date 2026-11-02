@@ -4,7 +4,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Coord, DocumentId, Said, Speaker, TracePassage, TraceSense};
+use pncad::document::{DocumentId, Said, Speaker, TracePassage, TraceSense};
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
@@ -724,34 +724,55 @@ impl ViewerBehavior<'_> {
             tool.proposal(doc, ev, self.session.tol())
                 .map_err(|error| error.respoken(doc))
         });
+        let doc = self.session.committed_doc();
         let op = match &proposal {
             Some(Ok(proposal)) => {
+                // Every value row is a field showing its formula as the
+                // person reads it ([`crate::matetool::value_text`]);
+                // typing replaces it.
                 for row in &proposal.values {
                     ui.horizontal(|ui| {
                         ui.label(row.coord.name());
-                        match row.by.literal_value() {
-                            Some(mut value) => {
-                                let (unit, speed) = match row.coord {
-                                    Coord::Slide(_) => {
-                                        (self.notation.length.def(), FIELD_DRAG_SPEED)
-                                    }
-                                    Coord::Spin(_) => (self.notation.angle.def(), ANGLE_DRAG_SPEED),
-                                };
-                                if unit_field(ui, unit, speed, &mut value) {
-                                    let typed = match row.coord {
-                                        Coord::Slide(_) => self.notation.length_literal(value),
-                                        Coord::Spin(_) => self.notation.angle_literal(value),
-                                    };
-                                    if let Ok(by) = typed {
-                                        edited.type_value(row.coord, by);
-                                    }
+                        let held = self
+                            .drafts
+                            .mate_value_edits
+                            .iter()
+                            .position(|(coord, _)| *coord == row.coord);
+                        let mut text = held.map_or_else(
+                            || crate::matetool::value_text(doc, &row.by),
+                            |at| self.drafts.mate_value_edits[at].1.clone(),
+                        );
+                        let field = ui.text_edit_singleline(&mut text);
+                        if field.changed() {
+                            match held {
+                                Some(at) => self.drafts.mate_value_edits[at].1 = text.clone(),
+                                None => {
+                                    self.drafts.mate_value_edits.push((row.coord, text.clone()))
                                 }
                             }
-                            None => {
-                                ui.label(row.by.to_string());
+                        }
+                        if field.lost_focus()
+                            && let Some(at) = held
+                        {
+                            let (coord, typed) = self.drafts.mate_value_edits.remove(at);
+                            match crate::matetool::typed_value(doc, coord, &typed) {
+                                Ok(by) => edited.type_value(coord, by),
+                                Err(error) => self
+                                    .notices
+                                    .push(frame::tool_news(&ToolKind::Mate.refuses(&error))),
                             }
                         }
                     });
+                }
+                for row in &proposal.dropped {
+                    crate::widgets::message(
+                        ui,
+                        ToolKind::Mate.says(&format_args!(
+                            "drops the {} value {}: the mates leave no such freedom",
+                            row.coord.name(),
+                            crate::matetool::value_text(doc, &row.by)
+                        )),
+                    );
                 }
                 Some(if tool.into_target_space() {
                     proposal.op_into_target_space()
@@ -765,6 +786,7 @@ impl ViewerBehavior<'_> {
             }
             None => None,
         };
+        let mut withheld = None;
         if let Some(op) = &op {
             let at = self.session.history().current();
             let fresh = self
@@ -773,7 +795,9 @@ impl ViewerBehavior<'_> {
                 .as_ref()
                 .is_some_and(|held| held.at == at && held.op == *op);
             if !fresh {
-                let said = match self.session.bundle_verdict(op) {
+                let verdict = self.session.bundle_verdict(op);
+                let blocks = matches!(verdict, BundleVerdict::Faults(_) | BundleVerdict::Unsolved);
+                let said = match verdict {
                     BundleVerdict::Stands(_) => Ok("the copy stands as the draft says".to_owned()),
                     BundleVerdict::Faults(fault) => Err(fault.to_string()),
                     BundleVerdict::Refused(refusal) => Err(refusal.to_string()),
@@ -785,6 +809,7 @@ impl ViewerBehavior<'_> {
                     at,
                     op: op.clone(),
                     said,
+                    blocks,
                 });
             }
             if let Some(held) = &self.drafts.mate_verdict {
@@ -794,9 +819,15 @@ impl ViewerBehavior<'_> {
                         crate::widgets::message(ui, ToolKind::Mate.refuses(said).to_string())
                     }
                 };
+                if held.blocks {
+                    withheld = Some(
+                        "the copy would not stand: Apply is withheld until the draft stands it"
+                            .to_owned(),
+                    );
+                }
             }
         }
-        let closing = commit_row(ui, ToolKind::Mate.commit(), None, |_| {});
+        let closing = commit_row(ui, ToolKind::Mate.commit(), withheld.as_deref(), |_| {});
         if closing.commit {
             match op {
                 Some(op) => self.push_tool_op(self.tool_noun(ToolKind::Mate), op),

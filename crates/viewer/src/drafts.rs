@@ -87,6 +87,9 @@ pub(crate) struct Drafts {
     /// ([`crate::session::DocSession::bundle_verdict`]) — asked once per
     /// draft, not once per frame.
     pub(crate) mate_verdict: Option<MateVerdict>,
+    /// The placement editor's value fields being typed in, by freedom:
+    /// the text, until the field loses focus and the draft takes it.
+    pub(crate) mate_value_edits: Vec<(pncad::document::Coord, String)>,
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
     /// its commit — a name in flight is a draft, not a document.
@@ -379,6 +382,8 @@ pub(crate) struct MateVerdict {
     pub(crate) at: HistoryId,
     pub(crate) op: crate::session::SessionOp,
     pub(crate) said: Result<String, String>,
+    /// Whether the verdict withholds Apply: a copy that would not stand.
+    pub(crate) blocks: bool,
 }
 
 /// What the edit door would report for one held state, and the state:
@@ -924,6 +929,7 @@ impl Default for Drafts {
             new_variable_value: 0.0,
             new_variable_offer: None,
             mate_verdict: None,
+            mate_value_edits: Vec::new(),
             new_doc_name: None,
             profile_open: false,
             sketch_on_face: false,

@@ -79,7 +79,7 @@
 use pncad::document::{
     Constraint, ConstraintId, ConstraintKind, Coord, Dimension, Doc, Evaluation, Formula, Mate,
     MateRef, MateSide, Node, Operand, Orientation, Placed, ProfileProgram, RecipeNodeId, Said, Say,
-    SitedRef, SlotKind, Speaker, SpokenNode, Value, VarId, VarKind, member_of, pose,
+    SitedRef, SlideAxes, SlotKind, Speaker, SpokenNode, Value, VarId, VarKind, member_of, pose,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -491,6 +491,7 @@ impl MateSideDraft {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MateRow {
     kind: VarKind,
+    unread: bool,
     flip: bool,
     on: MateSideDraft,
     to: MateSideDraft,
@@ -512,6 +513,7 @@ impl MateRow {
     fn fresh(kind: VarKind) -> Self {
         Self {
             kind,
+            unread: false,
             flip: opens_turned(kind),
             on: MateSideDraft::default(),
             to: MateSideDraft::default(),
@@ -528,14 +530,19 @@ impl MateRow {
         loaded: Option<ConstraintId>,
         mate: &Mate<Formula>,
     ) -> Self {
-        let kind = editor_core::mate::pin::operand_kind(doc, &mate.on).unwrap_or(VarKind::Plane);
-        let flip = side_flipped(doc, &mate.to) != side_flipped(doc, &mate.on);
+        let read = editor_core::mate::pin::operand_kind(doc, &mate.on);
+        let flip = editor_core::mate::side_flipped(doc, &mate.to)
+            != editor_core::mate::side_flipped(doc, &mate.on);
         let written = |side: &Operand| MateSideDraft {
             written: Some(side.clone()),
             ..MateSideDraft::default()
         };
         Self {
-            kind,
+            // A kind that does not resolve is said, never guessed: the
+            // row keeps its sides as written and its Apply refuses
+            // (`MateToolError::KindUnread`) until it is struck out.
+            kind: read.unwrap_or(VarKind::Plane),
+            unread: read.is_none(),
             flip,
             on: written(&mate.on),
             to: written(&mate.to),
@@ -594,29 +601,6 @@ impl MateRow {
         self.loaded.is_some_and(|loaded| loaded.flip == self.flip)
             && self.on.is_written()
             && self.to.is_written()
-    }
-}
-
-/// **Whether `side` reads the opposite sense of its own direction**: an
-/// odd count of flips along the poses it keeps, read plainly or through
-/// a role that keeps a sense — the kernel's [`editor_core::mate::flipped`]
-/// over a side as authored.
-fn side_flipped(doc: &Doc<ProfileProgram>, side: &Operand) -> bool {
-    use pose::{PoseDef, PoseRole, RoleRead};
-    match side {
-        Operand::Var(var) => editor_core::mate::flipped(doc, *var),
-        Operand::Pose(def) => {
-            let here = matches!(**def, PoseDef::Flip { .. });
-            let kept = match def.kept() {
-                Some(RoleRead {
-                    read,
-                    role: None | Some(PoseRole::Normal | PoseRole::Direction),
-                }) => side_flipped(doc, read),
-                _ => false,
-            };
-            here != kept
-        }
-        _ => false,
     }
 }
 
@@ -758,10 +742,24 @@ pub enum MateToolError {
         /// The kind chosen.
         kind: VarKind,
     },
-    /// A number is typed on a freedom the live mates do not leave.
-    NotAFreedom {
+    /// A freedom the live mates leave reads no number where the copy
+    /// stands — a spin about the target's direction whose mate's poses
+    /// do not evaluate — and nobody typed one.
+    Unmeasured {
         /// The freedom.
         coord: Coord,
+    },
+    /// A freedom's measured number is no literal a value can hold.
+    Unwritable {
+        /// The freedom.
+        coord: Coord,
+        /// The number.
+        by: f64,
+    },
+    /// A loaded mate row's kind does not resolve.
+    KindUnread {
+        /// The row, 0-based.
+        row: usize,
     },
 }
 
@@ -818,9 +816,23 @@ impl core::fmt::Display for MateToolError {
                     .join(", ")
             ),
             Self::NoSense { kind } => write!(f, "a {kind} has no sense to turn round"),
-            Self::NotAFreedom { coord } => {
-                write!(f, "the mates leave no {} to set", coord.name())
+            Self::Unmeasured { coord } => write!(
+                f,
+                "the {} reads no number where the copy stands; type one",
+                coord.name()
+            ),
+            Self::Unwritable { coord, by } => {
+                write!(
+                    f,
+                    "the {} measures {by}, which no value holds",
+                    coord.name()
+                )
             }
+            Self::KindUnread { row } => write!(
+                f,
+                "mate {}'s kind does not resolve; strike it out or pick it again",
+                row + 1
+            ),
         }
     }
 }
@@ -846,7 +858,9 @@ impl MateToolError {
             | Self::NotAMate { .. }
             | Self::KindNotOffered { .. }
             | Self::NoSense { .. }
-            | Self::NotAFreedom { .. }) => unspoken,
+            | Self::Unmeasured { .. }
+            | Self::Unwritable { .. }
+            | Self::KindUnread { .. }) => unspoken,
         }
     }
 }
@@ -978,6 +992,11 @@ pub struct MateProposal {
     pub mates: Vec<ProposedMate>,
     /// The value rows.
     pub values: Vec<ValueRow>,
+    /// **The values Apply drops**: each loaded or typed value on a
+    /// freedom the live mates do not leave, and carried onto none, with
+    /// its formula — said in the draft before Apply, never dropped
+    /// silently.
+    pub dropped: Vec<ValueRow>,
     /// The bundle Apply writes: the mates, then the values.
     pub bundle: Vec<Constraint<Formula>>,
 }
@@ -1103,27 +1122,114 @@ fn written_constant(
         .find(|c| c.id == id)
         .and_then(|c| c.value())
         .is_some_and(|v| {
-            doc.is_typed_value(v.by)
-                || doc
-                    .written(&pncad::document::Expr::var(v.by, v.coord.dimension()))
-                    .literal_value()
-                    .is_some()
+            let written = doc.written(&pncad::document::Expr::var(v.by, v.coord.dimension()));
+            doc.is_typed_value(v.by) || written.is_zero() || written.literal_value().is_some()
         })
 }
 
-/// Whether a mate of `kind` fixes one direction — a chart's mate.
-fn fixes_a_direction(kind: VarKind) -> bool {
-    matches!(kind, VarKind::Plane | VarKind::Axis | VarKind::Direction)
+/// A length or an angle as the value that writes it: the constant `0`
+/// where it is zero; `None` for a number no literal holds.
+pub(crate) fn number(by: f64, dim: Dimension) -> Option<Formula> {
+    if by == 0.0 {
+        Some(Formula::zero(dim))
+    } else {
+        Formula::literal(by, dim).ok()
+    }
 }
 
-/// A length or an angle as the value that writes it: the constant `0`
-/// where it is zero.
-pub(crate) fn number(by: f64, dim: Dimension) -> Formula {
-    if by == 0.0 {
-        Formula::zero(dim)
+/// **`by`, a loaded turn, as the turn a freedom measures `measured`**:
+/// itself where it evaluates to `measured`, its negation where it
+/// evaluates to `-measured` (the freedom turns the other way about the
+/// same line), `None` otherwise — read off the document's own values,
+/// so a turn is carried only where writing it moves nothing.
+fn carried_turn(doc: &Doc<ProfileProgram>, by: &Formula, measured: f64) -> Option<Formula> {
+    let held = doc.resolve(by).ok()?;
+    let at = pncad::document::eval::<f64>(&held, &doc.var_env()).ok()?;
+    let near = |a: f64, b: f64| (a - b).abs() <= CARRIED_TURN;
+    if near(at, measured) {
+        Some(by.clone())
+    } else if near(at, -measured) {
+        Formula::neg(by.clone()).ok()
     } else {
-        Formula::literal(by, dim).unwrap_or_else(|_| Formula::zero(dim))
+        None
     }
+}
+
+/// **A value row's formula as the person reads it**: a named variable
+/// by its name, a typed number as the number and unit it was typed in,
+/// an expression as written ([`Doc::unparse`]) — never a variable's raw
+/// id. What the panel's field shows and a typed edit starts from.
+#[must_use]
+pub fn value_text(doc: &Doc<ProfileProgram>, by: &Formula) -> String {
+    doc.unparse(by)
+}
+
+/// **What a person typed in `coord`'s field, as its value**: the text
+/// read by the one parser over the document's variables, at the
+/// freedom's dimension.
+///
+/// # Errors
+///
+/// [`TypedValueError`]: text that does not parse, or a quantity of
+/// another dimension.
+pub fn typed_value(
+    doc: &Doc<ProfileProgram>,
+    coord: Coord,
+    text: &str,
+) -> Result<Formula, TypedValueError> {
+    let by = pncad::document::parse_formula(text, &doc.var_scope())
+        .map_err(|error| TypedValueError::Parse(Box::new(error)))?;
+    let wanted = coord.dimension();
+    if by.dim() == wanted {
+        Ok(by)
+    } else {
+        Err(TypedValueError::Dimension {
+            coord,
+            found: by.dim(),
+        })
+    }
+}
+
+/// Why a typed value field's text is no value (closed enum, D4 ¶3).
+#[derive(Debug)]
+pub enum TypedValueError {
+    /// The text does not parse.
+    Parse(Box<pncad::document::ParseError>),
+    /// The text is a quantity of another dimension than the freedom's.
+    Dimension {
+        /// The freedom.
+        coord: Coord,
+        /// The dimension typed.
+        found: Dimension,
+    },
+}
+
+impl core::fmt::Display for TypedValueError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Parse(error) => write!(f, "{error}"),
+            Self::Dimension { coord, found } => write!(
+                f,
+                "the {} is a {}, and the text is a {found}",
+                coord.name(),
+                coord.dimension()
+            ),
+        }
+    }
+}
+
+impl core::error::Error for TypedValueError {}
+
+/// How near a loaded turn's number and a freedom's measure are taken
+/// as one turn (radians): far below any turn a person writes, far
+/// above the chain read's rounding.
+const CARRIED_TURN: f64 = 1.0e-9;
+
+/// Whether a mate of `kind` fixes one direction — the chart's mate, by
+/// the kernel's family rule ([`pncad::document::SubgroupFamily::fixes_one_direction`]).
+fn fixes_one_direction(kind: VarKind) -> bool {
+    kind.symmetry()
+        .is_some_and(pncad::document::SubgroupFamily::fixes_one_direction)
 }
 
 impl MateTool {
@@ -1683,6 +1789,9 @@ impl MateTool {
             .enumerate()
             .filter(|(_, row)| !row.struck)
             .collect();
+        if let Some(&(row, _)) = live.iter().find(|(_, row)| row.unread) {
+            return Err(MateToolError::KindUnread { row });
+        }
         let mut mates = live
             .iter()
             .map(|&(at, row)| Self::row_mate(doc, at, row))
@@ -1692,14 +1801,16 @@ impl MateTool {
             PlaceDoor::Create { .. } => &[],
         };
         // The chart: the first live mate fixing a direction. While it is
-        // the bundle's own, as loaded, its orientation and its values
-        // keep their meaning; otherwise its orientation is the snap's,
-        // and its constants are measured again.
-        let chart = live.iter().position(|(_, row)| fixes_a_direction(row.kind));
+        // the bundle's own, as loaded, its orientation, its slides and its
+        // values keep their meaning; otherwise its orientation is the
+        // snap's, and its constants are measured again.
+        let chart = live
+            .iter()
+            .position(|(_, row)| fixes_one_direction(row.kind));
         let base_chart = base.iter().find_map(|c| {
             let mate = c.mate()?;
             editor_core::mate::pin::operand_kind(doc, &mate.on)
-                .filter(|&kind| fixes_a_direction(kind))
+                .filter(|&kind| fixes_one_direction(kind))
                 .map(|_| c.id)
         });
         let chart_kept = match chart {
@@ -1724,50 +1835,111 @@ impl MateTool {
             mates[k].mate.orient = orient;
         }
         let written: Vec<Mate<Formula>> = mates.iter().map(|m| m.mate.clone()).collect();
-        let coords = Placed::freedoms(doc, &written, snap.as_ref().and_then(|s| s.along));
-        if let Some((coord, _)) = draft.typed.iter().find(|(c, _)| !coords.contains(c)) {
-            return Err(MateToolError::NotAFreedom { coord: *coord });
-        }
+        let loaded_slides = || {
+            SlideAxes::of(base.iter().filter_map(|c| match c.value()?.coord {
+                Coord::Slide(axis) => Some(axis),
+                Coord::Spin(_) => None,
+            }))
+        };
+        let along = if chart.is_some() && chart_kept {
+            Some(loaded_slides())
+        } else {
+            snap.as_ref().and_then(|s| s.along)
+        };
+        let coords = Placed::freedoms(doc, &written, along);
         let measured = snap.as_ref().map_or_else(
             || vec![None; coords.len()],
             |snap| snap.read(chart.map(|k| written[k].orient), &coords, tol),
         );
-        let values: Vec<ValueRow> = coords
+        // Every value the draft held, typed or loaded: each lands on a
+        // freedom the mates leave, or is said dropped.
+        let loaded: Vec<(ConstraintId, &Value<Formula>)> = base
             .iter()
-            .zip(measured)
-            .map(|(&coord, measured)| {
-                if let Some((_, by)) = draft.typed.iter().find(|(c, _)| *c == coord) {
-                    return ValueRow {
-                        coord,
+            .filter_map(|c| c.value().map(|v| (c.id, v)))
+            .collect();
+        let mut values = Vec::new();
+        let mut landed: Vec<ConstraintId> = Vec::new();
+        for (&coord, measured) in coords.iter().zip(&measured) {
+            if let Some((_, by)) = draft.typed.iter().find(|(c, _)| *c == coord) {
+                values.push(ValueRow {
+                    coord,
+                    by: by.clone(),
+                    from: ValueFrom::Typed,
+                });
+                continue;
+            }
+            let same = loaded
+                .iter()
+                .find(|(id, v)| v.coord == coord && !landed.contains(id));
+            if let Some(&(id, v)) = same
+                && (chart_kept || measured.is_none() || !written_constant(doc, placement, id))
+            {
+                landed.push(id);
+                values.push(ValueRow {
+                    coord,
+                    by: v.by.clone(),
+                    from: ValueFrom::Loaded(id),
+                });
+                continue;
+            }
+            if let Some(same) = same {
+                // A constant whose chart changed is measured again in its
+                // own place.
+                landed.push(same.0);
+            }
+            let Some(by) = *measured else {
+                return Err(MateToolError::Unmeasured { coord });
+            };
+            // A loaded turn about another freedom that reads what this
+            // one measures, a variable or an expression: carried, read
+            // with its sign, so the link survives the change of freedom.
+            if let Coord::Spin(_) = coord
+                && let Some((id, carried)) = loaded.iter().find_map(|&(id, v)| {
+                    let other = matches!(v.coord, Coord::Spin(_)) && v.coord != coord;
+                    (other
+                        && !landed.contains(&id)
+                        && !coords.contains(&v.coord)
+                        && !written_constant(doc, placement, id))
+                    .then(|| carried_turn(doc, &v.by, by))
+                    .flatten()
+                    .map(|carried| (id, carried))
+                })
+            {
+                landed.push(id);
+                values.push(ValueRow {
+                    coord,
+                    by: carried,
+                    from: ValueFrom::Loaded(id),
+                });
+                continue;
+            }
+            values.push(ValueRow {
+                coord,
+                by: number(by, coord.dimension()).ok_or(MateToolError::Unwritable { coord, by })?,
+                from: ValueFrom::Measured,
+            });
+        }
+        let dropped: Vec<ValueRow> =
+            loaded
+                .iter()
+                .filter(|(id, _)| !landed.contains(id))
+                .filter(|(_, v)| !coords.contains(&v.coord))
+                .map(|&(id, v)| ValueRow {
+                    coord: v.coord,
+                    by: v.by.clone(),
+                    from: ValueFrom::Loaded(id),
+                })
+                .chain(draft.typed.iter().filter(|(c, _)| !coords.contains(c)).map(
+                    |(coord, by)| ValueRow {
+                        coord: *coord,
                         by: by.clone(),
                         from: ValueFrom::Typed,
-                    };
-                }
-                let loaded = base
-                    .iter()
-                    .find_map(|c| c.value().filter(|v| v.coord == coord).map(|v| (c.id, v)));
-                match loaded {
-                    Some((id, v))
-                        if chart_kept
-                            || measured.is_none()
-                            || !written_constant(doc, placement, id) =>
-                    {
-                        ValueRow {
-                            coord,
-                            by: v.by.clone(),
-                            from: ValueFrom::Loaded(id),
-                        }
-                    }
-                    _ => ValueRow {
-                        coord,
-                        by: number(measured.unwrap_or(0.0), coord.dimension()),
-                        from: ValueFrom::Measured,
                     },
-                }
-            })
-            .collect();
-        // A loaded row keeps its id, a value on a freedom the bundle held
-        // keeps that value's; every other constraint is minted at Apply.
+                ))
+                .collect();
+        // A loaded row keeps its id, a value carried or measured on a
+        // freedom keeps the id of the value it replaces; every other
+        // constraint is minted at Apply.
         let mut minted = 0;
         let mut fresh = || {
             minted += 1;
@@ -1781,11 +1953,18 @@ impl MateTool {
                 kind: ConstraintKind::Mate(proposed.mate.clone()),
             })
             .collect();
+        let mut used: Vec<ConstraintId> = Vec::new();
         for row in &values {
-            let id = base
-                .iter()
-                .find(|c| c.value().is_some_and(|v| v.coord == row.coord))
-                .map_or_else(&mut fresh, |c| c.id);
+            let id = match row.from {
+                ValueFrom::Loaded(id) => Some(id),
+                ValueFrom::Typed | ValueFrom::Measured => loaded
+                    .iter()
+                    .find(|(id, v)| v.coord == row.coord && !used.contains(id))
+                    .map(|(id, _)| *id),
+            }
+            .filter(|id| !used.contains(id))
+            .unwrap_or_else(&mut fresh);
+            used.push(id);
             bundle.push(Constraint::of_value(
                 id,
                 Value {
@@ -1800,6 +1979,7 @@ impl MateTool {
             target,
             mates,
             values,
+            dropped,
             bundle,
         })
     }

@@ -49,9 +49,12 @@ pub use solve::{
     Atan2Branch, Composing, PoseRefusal, SolveScalar, SolvedPoses, in_space, mate_coset,
     relative_freedom_components, solve_document, solve_document_at,
 };
-pub use turn::{LeastTurn, slides_left_along};
+pub use turn::{LeastTurn, slides_left_along, turn_onto};
 pub use unobservable::{Unobservable, unobservable};
-pub use value::{Charted, flipped, read_back};
+pub use value::{
+    Charted, MatedDirection, MatedHold, chain_turns, flipped, mated_direction, read_back,
+    side_flipped,
+};
 
 /// Which side of a mate a diagnostic is about.
 #[derive(

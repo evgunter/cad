@@ -91,7 +91,6 @@ fn declare(session: &mut DocSession, name: &str, dim: Dimension, at: f64) {
 /// freedom of the unmated bundle (`Spin(Some(Z))`), so the value is
 /// looked up by coord, not found, and the turn about `z` is measured.
 #[test]
-#[ignore = "red at a945aa17be: removing the rest unlinks `pa` (finding MAJOR-1)"]
 fn r2_removing_a_mate_keeps_a_spin_reading_a_variable() {
     let tol = Tol::witness();
     let bench = asm::bench("r2-remove-var", tol);
@@ -114,10 +113,20 @@ fn r2_removing_a_mate_keeps_a_spin_reading_a_variable() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     let after = said(&session, bench.post_b);
+    let read: Vec<String> = authored(&session, bench.post_b)
+        .iter()
+        .filter_map(|c| {
+            c.value()
+                .map(|v| viewer::matetool::value_text(session.committed_doc(), &v.by))
+        })
+        .collect();
     std::fs::remove_dir_all(&bench.dir).expect("removable");
+    // The rest's spin turns about the shelf's own normal, `-z`, so the
+    // chain's turn about `z` reads it with its sign: `-pa`, still `pa`.
     assert!(
-        after.iter().any(|s| s.ends_with(&format!("= {pa}"))),
-        "the spin still reads pa ({pa}) after the rest is removed: {after:?} (was {before:?})"
+        read.iter().any(|text| text.replace(' ', "") == "-pa"),
+        "the turn about z still reads pa ({pa}) after the rest is removed: {read:?} \
+         ({after:?}, was {before:?})"
     );
 }
 
@@ -125,7 +134,6 @@ fn r2_removing_a_mate_keeps_a_spin_reading_a_variable() {
 /// `pa`. A rest on the shelf (normal along `z`) leaves the spin about
 /// `z`; does the draft keep `pa` on it?
 #[test]
-#[ignore = "red at a945aa17be: adding the rest unlinks `pa` (finding MAJOR-1)"]
 fn r2_adding_a_rest_keeps_a_turn_about_its_normal_reading_a_variable() {
     let tol = Tol::witness();
     let bench = asm::bench("r2-add-var", tol);
@@ -395,14 +403,13 @@ fn r2_a_created_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
     );
 }
 
-/// The panel's value rows (`pane/create.rs`, `mate_tool_ui`) draw a
-/// number field only where `row.by.literal_value()` is `Some`, and
-/// otherwise a label of `row.by.to_string()`. This row runs that
-/// predicate on the two drafts a person meets first: the Create door's
-/// (a body where it stands) and the Edit door's over a just-committed
-/// rest. Every value row should be a field showing a number.
+/// The panel's value rows (`pane/create.rs`, `mate_tool_ui`) are each a
+/// field showing its formula as the person reads it
+/// (`matetool::value_text`). This row reads that text on the two drafts
+/// a person meets first: the Create door's (a body where it stands) and
+/// the Edit door's over a just-committed rest. No row spells a variable
+/// as its raw id.
 #[test]
-#[ignore = "red at a945aa17be: zero and loaded value rows are labels, not fields (finding MAJOR-2)"]
 fn r2_the_panels_value_rows_are_editable_numbers() {
     let tol = Tol::witness();
     let bench = asm::bench("r2-panel-fields", tol);
@@ -415,15 +422,21 @@ fn r2_the_panels_value_rows_are_editable_numbers() {
     let loaded = edit
         .proposal(doc, ev, tol)
         .expect("the loaded bundle proposes");
-    let labels: Vec<String> = loaded
+    let texts: Vec<String> = loaded
         .values
         .iter()
-        .filter(|row| row.by.literal_value().is_none())
-        .map(|row| format!("{}: {}", row.coord.name(), row.by))
+        .map(|row| viewer::matetool::value_text(doc, &row.by))
         .collect();
     std::fs::remove_dir_all(&bench.dir).expect("removable");
+    assert_eq!(texts.len(), 3, "a rest leaves two slides and its spin");
     assert!(
-        labels.is_empty(),
-        "value rows the panel draws as a label, not a number field: {labels:?}"
+        texts.iter().all(|text| !text.contains('#')),
+        "a value row spells a variable as its raw id: {texts:?}"
+    );
+    assert!(
+        texts
+            .iter()
+            .all(|text| text.chars().any(|c| c.is_ascii_digit())),
+        "each loaded number reads as a number: {texts:?}"
     );
 }
