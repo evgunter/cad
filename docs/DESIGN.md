@@ -799,14 +799,16 @@ tiers".
   clearance engine's body-level injectivity question at every scalar
   with certification rights (`f64`, `Probe`, `Interval` and `Sym`;
   a scalar without them, such as a dual, cannot reach the gate). At a point scalar (`f64`,
-  `Probe`) the question carries a margin of 2ε. Pieces of the boundary
-  that do not meet in the body (no shared edge, vertex or recorded
-  contact) are more than 2ε apart. Where faces do meet, or a face is
-  read against itself, the local reading (how the faces leave their
-  shared edge or vertex, or a face's own turning) passes by more than
-  that band. What is built lies within ε of what its values
-  describe (ε_precision, [tolerance.recourse]), so a body embedded with that margin
-  is one whose written values describe an embedded body too. At
+  `Probe`) the question decides with the band every verdict decides
+  with, K·ε ([tolerance.recourse]). Pieces of the boundary that do not
+  meet in the body (no shared edge, vertex or recorded contact) are
+  more than K·ε apart. Where faces do meet, or a face is read against
+  itself, the local reading (how the faces leave their shared edge or
+  vertex, or a face's own turning) passes by more than the band. A
+  reading inside the band refuses as ambiguous, never as Holds or
+  Violated. What is built lies within ε of what its values describe
+  (ε_precision), and the band exceeds 2ε, so a body that passes is one
+  whose written values describe an embedded body too. At
   `Interval` and `Sym` the stored brackets carry the family instead.
   It passes both once, at the door that
   built it; construction state becomes a finished body only through

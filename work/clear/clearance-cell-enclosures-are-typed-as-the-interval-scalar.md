@@ -31,7 +31,7 @@ reads as treating the float as the value.
 (that unit is where f64 first enters the engine):
 - Whether the engine gets its own enclosure type, built from `Body<T>`
   per scalar, and how each scalar enters it: f64 and Probe as points,
-  with the 2ε margin `[topology.tiers]` now states; Interval as the
+  with the K·ε band `[topology.tiers]` now states; Interval as the
   family's brackets.
 - What `Sym` gives. Ev's question is whether it is incompatible, or
   only difficult or impractical. Today it reaches the engine only
