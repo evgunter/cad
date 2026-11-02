@@ -330,7 +330,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
     /// on the first ask and held for the operation: a germ's site and
     /// direction do not move while the join matches, so every candidate
     /// pairing reads the one answer. Held by operand, half-edge and pair
-    /// ([`FootKey`]). A desync where a face has no surface.
+    /// ([`FootKey`]). A desync where a face does not resolve.
     pub(crate) fn germ_foot(
         &self,
         (side, he): (Operand, HalfEdgeKey),
@@ -339,7 +339,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
         read: impl FnOnce() -> Result<GermFoot<T>, FootRefusal>,
     ) -> Result<GermFoot<T>, FootRefusal> {
         let Some(pair) = Self::key(a, b) else {
-            return Err(FootRefusal::Desync("a germ's face has no surface"));
+            return Err(FootRefusal::Desync("a germ's face does not resolve"));
         };
         let key = FootKey { side, he, pair };
         if let Some(held) = self.feet.borrow().get(&key) {
