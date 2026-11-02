@@ -216,6 +216,13 @@ pub(crate) struct Study {
 /// returns before the decision, so they do not move.
 /// So the annulus 654 -> 666, the bracket 1537 -> 1551 shipped and
 /// (1474, 1218) -> (1488, 1218) with the door shut.
+///
+/// PCERT E1c (every mint reads incidence first, PR 5889), identical at
+/// all three ε rows: the incidence read every mint now makes before it
+/// stores adds the plate 1149 -> 1203, the annulus 666 -> 720, the link
+/// 962 -> 998, the bracket 1551 -> 1613 and the pad 1592 -> 1660 symbolic decisions; door shut,
+/// the link (709, 585) -> (727, 585), the bracket (1488, 1218) ->
+/// (1544, 1224) and the pad (1592, 1250) -> (1660, 1250).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -229,7 +236,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1149, 1149, 1149],
+            symbolic: [1203, 1203, 1203],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -240,7 +247,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [666, 666, 666],
+            symbolic: [720, 720, 720],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -269,8 +276,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // and PR 5811, `work/offset/main-red-three-m10-interval-pins-moved-at-5728`): shut, the door now refuses earlier,
             // at limb 2's stall against the cylinder rather than at
             // `pcurve_envelope`, after (709, 585), where it read (722, 702).
-            without_the_registry: Some(((709, 585), Some("Stalled { operand: Cylinder"))),
-            symbolic: [962, 962, 962],
+            without_the_registry: Some(((727, 585), Some("Stalled { operand: Cylinder"))),
+            symbolic: [998, 998, 998],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -290,13 +297,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // stopped reading a gap on a line pair that shares a vertex
             // (PR 5952), and (1474, 1218) -> (1488, 1218) with the
             // cylinder rim's axial decision (PR 6105, the fn doc).
-            without_the_registry: Some(((1488, 1218), None)),
+            without_the_registry: Some(((1544, 1224), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1551, 1551, 1551],
+            symbolic: [1613, 1613, 1613],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -317,11 +324,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Pinned at what main measures: (1546, 1260) -> (1592, 1250),
             // the same receipt as shipped, unbisected between PR 5728 and
             // PR 5811 (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
-            without_the_registry: Some(((1592, 1250), None)),
+            without_the_registry: Some(((1660, 1250), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1592, 1592, 1592],
+            symbolic: [1660, 1660, 1660],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -837,7 +844,10 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // Pinned at what main measures, (1546, 1260, 3026) -> (1592, 1250,
     // 2465) at every ε row, unbisected between PR 5728 and PR 5811
     // (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
-    assert_eq!(got[0], (1592, 1250, 2465), "rule F shut: the pad's receipt");
+    // Then PCERT E1c (every mint reads incidence first, PR 5889):
+    // (1592, 1250, 2465) -> (1660, 1250, 3257), the read's decisions and
+    // the forms it freezes.
+    assert_eq!(got[0], (1660, 1250, 3257), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

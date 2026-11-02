@@ -275,10 +275,13 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_chart_orientation", [0, 20]),
     ("pcurve_chart_placement", [0, 84]),
     ("pcurve_chart_radial_moving", [22, 20]),
-    ("pcurve_cylinder_chart_incident", [24, 6]),
+    // PCERT E1c (every mint reads incidence first, PR 5889):
+    // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
+    // and [28, 6] -> [20, 4].
+    ("pcurve_cylinder_chart_incident", [16, 4]),
     ("pcurve_envelope", [16, 4]),
     ("pcurve_interval_forward", [0, 20]),
-    ("pcurve_line_chart_incident", [28, 6]),
+    ("pcurve_line_chart_incident", [20, 4]),
     ("pcurve_loop_branch", [0, 42]),
     ("pcurve_map_residual", [36, 0]),
     ("segment_gap", [0, 2]),
@@ -477,10 +480,13 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_orientation", [0, 20]),
             ("pcurve_chart_placement", [0, 84]),
             ("pcurve_chart_radial_moving", [22, 20]),
-            ("pcurve_cylinder_chart_incident", [24, 6]),
+            // PCERT E1c (every mint reads incidence first, PR 5889):
+            // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
+            // and [28, 6] -> [20, 4].
+            ("pcurve_cylinder_chart_incident", [16, 4]),
             ("pcurve_envelope", [20, 0]),
             ("pcurve_interval_forward", [0, 20]),
-            ("pcurve_line_chart_incident", [28, 6]),
+            ("pcurve_line_chart_incident", [20, 4]),
             ("pcurve_loop_branch", [0, 42]),
             ("pcurve_map_residual", [36, 0]),
             ("segment_straightness", [2, 6]),

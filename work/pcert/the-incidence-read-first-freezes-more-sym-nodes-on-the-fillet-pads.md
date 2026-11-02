@@ -78,3 +78,42 @@ What remains is the one read's own forms: about 40 000 on the plate,
 65 sampled distances per carrier carried through the symbolic tier.
 Owed, as before: whether the sampled distance can enter the symbolic
 tier as fewer atoms.
+
+## 2026-11-02: against main `1fcdbde7de`, after the merge
+
+Re-measured at E1c's head after it merged main `1fcdbde7de`, on the same
+footing (CI's opt-level 1, `--test-threads 1`, two alternating rounds):
+
+| row | main `1fcdbde7de` | E1c head | ratio |
+|---|---|---|---|
+| `m10_9` pad | 2.12 / 2.20 s | 3.66 / 3.29 s | 1.61× |
+| `sym11` | 4.41 / 4.77 s | 7.13 / 7.31 s | 1.57× |
+| `sym_9` drive | 72.4 / 71.7 s | 76.7 / 74.0 s | 1.05× |
+
+The head's own times did not move across the merge (pad 3.30–3.77 s,
+`sym11` 7.18–7.75 s). Main got about 10% faster on these rows, which
+moved the ratios past the 1.5× line. The merge's port had put one
+`divisor()` decision in the anchor's slide. A probe built without it
+(unsound, for measurement only) times the same: pad 3.61 / 3.90 s,
+`sym11` 7.45 / 7.88 s. So that decision is not the cost, and the slide
+now decides nothing anyway. The orchestrator accepted these ratios.
+
+The cost is the one read per carrier: about 40 000 forms on the plate,
+from 65 sampled distances (`INCIDENCE_SAMPLES` + 1) per carrier carried
+through the symbolic tier.
+
+The sweep digest's two `Sym` `validate_geometric` rows
+(`crates/sweep/tests/thread-count-digest/`) are the same forms. Their
+decisions hold, and the nodes their plain walks freeze rise: at 1e-9,
+`sym_arc_loft` 4 → 462 and `sym_thin_strip` 60 → 348. The same rows
+built with the plane's foot in place of its slide freeze 398 and 1104,
+so the count follows the read's forms, not how the anchor is written.
+
+Levers:
+- **(i) Fewer samples.** Ruled out by the orchestrator.
+- **(ii) Owed:** enter a sampled distance into the symbolic tier as
+  fewer atoms. This is work in the sym tier, outside E1c. It is also
+  what would take the digest rows' frozen nodes back down.
+- **(iii) Considered, not taken:** skip the read where the walk has
+  already derived the image, carrying the witness from topo's walk to
+  certify. The calls are already memoized, so it would save little.
