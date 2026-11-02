@@ -239,3 +239,15 @@ Newest entries at the bottom; the tail is the program's live status.
     2. the 6353 build: a feature on a copy reads the copy, a body feature offers the re-point, and delete splices by continuation.
 
     Both touch `matetool.rs` and `session.rs`. They run one after the other, editor first, because the 6353 build's re-point offer is an editor action. (PLACING orchestrator)
+- 2026-11-02 — **PR 6394's dual pair is in** (concurrent, frozen head `a18ea48ed0`). Both verdicts are APPROVE-WITH-FIXES.
+  - **Correspondence pre-note:**
+    - **Bilateral MAJOR, both demonstrated:** the item-6 rule moves existing oblique-face placements. R1 measured four fixtures, up to 5.87 units; R2 measured the two drafted-wall rows by sin 1°. That contradicts PR 6369's summary ("perpendicular axes unchanged"), so it goes to Ev. It is a contract change, demonstrated, but bilateral, so it does not count toward the tally.
+    - **Unilateral MINOR:**
+      - R1: `read_back` beside an off-origin `SpinAbout` (red row); `Slide(None)` off the frame-lane closed form; the mate tool dropping new forms on re-edit.
+      - R2: no editor-core row for a mated read slide or for drift (rows written, green); weak positional checks.
+    - **Bilateral MINOR:** the `story_authoring` step deleted rather than replaced. Style findings are bilateral as well: five matches for one "pose reads", the fake read in `leaves`, the two admission routes.
+    - **Both:** impeller bit-identical (sure, executed); two digest rows already red on main.
+  - **Action:**
+    - `[ev]` added to 6394's title, with the question at the top of its body. The options are accept the rule (recommended), keep the old projection, or refuse carried axes there.
+    - The fix pass on the union runs meanwhile, with the item-6 rule untouched.
+  - **Class:** "unchanged" claims in an `[ev]` summary must be measured, not argued. 6369's "perpendicular axes unchanged" was true by argument for the designers' cases and false for one they marked unsure. (PLACING orchestrator)
