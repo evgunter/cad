@@ -2,11 +2,12 @@
 id: the-cones-parity-arc-refuses-where-the-flanks-side-is-decided
 kind: unit
 title: Cone::reads_given's parity arc requires each end to clear the q-w bisector, costing cos(θ/2) over the side reading: a fin t in (Kε, √2·Kε) refuses where its side is decided
-status: dispatched
+status: review
 opened: 2026-11-02
 priority: P1
 cost: M
 branch: oneread/link-arc-half-turn
+pr: 6337
 ---
 
 
