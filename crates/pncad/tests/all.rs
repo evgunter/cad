@@ -3707,7 +3707,10 @@ fn asm2a_constrain(
     doc: pncad::document::ProfileDoc,
     placement: pncad::document::RecipeNodeId,
     mate: pncad::document::Mate<pncad::document::Formula>,
-    values: Vec<(pncad::document::Coord, pncad::document::Formula)>,
+    values: Vec<(
+        pncad::document::Coord<pncad::document::Operand>,
+        pncad::document::Formula,
+    )>,
 ) -> (pncad::document::ProfileDoc, pncad::document::MateRef) {
     let placed = pncad::document::Placed {
         mates: vec![mate],
