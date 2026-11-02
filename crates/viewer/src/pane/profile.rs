@@ -1,12 +1,7 @@
-//! **The profile editor**: the one step-list editor both of a
-//! profile's doors draw — the add-profile form over its own draft
-//! (`pane::create`), and the same editor opened on a committed profile
-//! from the Properties pane ([`ViewerBehavior::edit_profile_ui`]).
-//!
-//! The step list ([`path_steps_ui`]), the notation row
-//! ([`notation_row`]) and the preview's verdict ([`preview_verdict`])
-//! are written once here, which is what makes "the same interface" a
-//! fact about the code rather than an agreement between two copies.
+//! **The profile editor**: the one surface a profile's loops are
+//! authored on, opened on a profile node from the Properties pane
+//! ([`ViewerBehavior::edit_profile_ui`]). A new profile is inserted
+//! with no loops (`pane::create`'s New profile) and filled in here.
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
@@ -32,17 +27,14 @@ use crate::widgets::{
 };
 
 impl ViewerBehavior<'_> {
-    /// **The add-profile form's editor, opened on a committed
-    /// profile** — the edit door. The step list, its fields, its
-    /// pickers and the preview under it are the create door's own
-    /// ([`path_steps_ui`], [`notation_row`], [`preview_verdict`]),
-    /// drawn over each held step's view at plain numbers
-    /// ([`crate::drafts::ProfileEdit`]), so the two doors are one
-    /// editor by construction rather than two that agree. What differs
-    /// is what the editor is opened ON and what it commits as: the
-    /// node's program as written, loaded by
-    /// [`crate::sketch::held_loops`], committed whole by
-    /// [`SessionOp::EditProfile`] ([`edit_door_ui`]).
+    /// **The profile editor, opened on the profile `node`**: the
+    /// step list ([`step_rows_ui`]), the notation row
+    /// ([`notation_row`]) and the preview's verdict
+    /// ([`preview_verdict`]), drawn over each held step's view at plain
+    /// numbers ([`crate::drafts::ProfileEdit`]): the node's program as
+    /// written, loaded by [`crate::sketch::held_loops`], each change
+    /// committed whole by [`SessionOp::EditProfile`] as it is made
+    /// ([`edit_door_ui`]).
     ///
     /// **Each argument's field is its slot's field** ([`HeldArgs`]):
     /// the slot row's field over the argument as the draft holds it,
@@ -350,8 +342,8 @@ impl ArgDoors for HeldArgs<'_, '_> {
     }
 }
 
-/// **What the edit door's fields hand the pane**, beside the op Apply
-/// forms. The refused text standing in a field lives with the slot
+/// **What the edit door's fields hand the pane**, beside the op a
+/// change forms. The refused text standing in a field lives with the slot
 /// door's (`Drafts::expr_target` and `Drafts::expr_text`): the pane
 /// hands it in and takes back what this frame leaves.
 #[derive(Debug, Default)]
@@ -369,20 +361,23 @@ pub(crate) struct FieldNews {
 }
 
 /// **The edit door's body, once its draft is held**: one step list
-/// per loop, the preview's verdict, and Apply and Revert — a free
+/// per loop, the preview's verdict, and the discard control — a free
 /// function over the `Ui`, so a row can drive the door a person uses
 /// rather than a copy of it.
 ///
-/// Every control of the create door is live here: a committed
-/// profile's loops are added and removed, its steps inserted, removed,
-/// reordered and re-verbed, and its arcs, targets and split counts
-/// changed, exactly as a new one's are, and Apply commits the whole program as ONE
-/// [`SessionOp::EditProfile`] saying which committed step each held
-/// step is ([`ProfileEdit::ids`]). A name on a step the program drops,
-/// or on a kept step's piece it stops drawing, is stranded; Apply says
-/// how many before it is clicked
-/// ([`apply_and_revert`], from [`DocSession::edit_profile_report`]),
-/// and the op's outcome reports each after.
+/// A profile's loops are added and removed, its steps inserted,
+/// removed, reordered and re-verbed, and its arcs, targets and split
+/// counts changed. **Each change lands as it is made**: a field once
+/// it is committed (Enter, focus leaving it, a drag released), a row
+/// or a loop at its click. The whole held program is offered to the
+/// document's edit door ([`DocSession::edit_profile_report`]) and,
+/// taken, answered as ONE [`SessionOp::EditProfile`] saying which
+/// committed step each held step is ([`ProfileEdit::ids`]) — one undo
+/// step. A program the door refuses is held, its refusal said under
+/// the list ([`ProfileEdit::refused`]), until a later change makes the
+/// whole of it pass or [`DISCARD`] drops it. A name on a step the
+/// program drops, or on a kept step's piece it stops drawing, is
+/// stranded, and the op's outcome reports each.
 ///
 /// Each row is the held step's view at plain numbers, its fields
 /// written back over the step ([`ProfileEdit::write_step`]); a step
@@ -395,9 +390,9 @@ pub(crate) struct FieldNews {
 /// slot is written in, so the number a slot field shows is the number
 /// that lands; what did not move is committed as it is written.
 ///
-/// Answers the op Apply formed, or the notice for what could not form
-/// one (a field that does not lower, a program that is not a loop's
-/// shape).
+/// Answers the op a change formed, or the notice for what could not
+/// form one (a field that does not lower, a program that is not a
+/// loop's shape).
 pub(crate) fn edit_door_ui(
     ui: &mut egui::Ui,
     session: &DocSession,
@@ -520,9 +515,11 @@ pub(crate) fn edit_door_ui(
     let committed = props::slot_rows(session.committed_doc(), node);
     let noted = |slot: SlotId| committed.iter().find(|row| row.slot == slot)?.unit;
     let mut refusals = Vec::new();
+    let mut changed =
+        !written.is_empty() || !rows.is_empty() || removed.is_some() || added.is_some();
     // Any change to the draft releases a refused text standing in a
     // field: the rows it was typed among may move.
-    if !written.is_empty() || !rows.is_empty() || removed.is_some() || added.is_some() {
+    if changed {
         news.standing = None;
     }
     for (at, step) in written {
@@ -530,7 +527,10 @@ pub(crate) fn edit_door_ui(
     }
     for (at, arg, text) in typed {
         match edit.write_text(at, arg, &text, landed) {
-            Ok(()) => news.standing = None,
+            Ok(()) => {
+                news.standing = None;
+                changed = true;
+            }
             Err(refusal @ crate::session::Refusal::NoSuchSlot { .. }) => {
                 news.notices.push(frame::refusal_message(&refusal));
             }
@@ -548,71 +548,77 @@ pub(crate) fn edit_door_ui(
         edit.remove_loop(index);
     }
     if let Some(kind) = added {
-        let steps = sketch::shape_steps(&crate::drafts::fresh_loop(kind));
-        refusals.extend(edit.add_loop(steps, notation).err());
+        refusals.extend(edit.add_loop(crate::drafts::template_steps(kind), notation).err());
     }
     if let Some(error) = refusals.first() {
         return Err(frame::tool_news(&FormKind::EditProfile.refuses(error)));
     }
+    edit.unsettled |= changed;
     if edit.runs_from_the_pen() {
         crate::widgets::message_toned(ui, PEN_UNDRAWN, &theme, frame::Tone::Advisory);
     }
-    let refused = preview_verdict(ui, theme, preview);
+    preview_verdict(ui, theme, preview);
     let out_of_order = edit.pen_order(landed, tol);
     if let Some(refusal) = &out_of_order {
-        let sentence = format!("Apply waits on the step order: {refusal}");
+        let sentence = format!("{HELD_BACK} the step order — {refusal}");
         crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
     }
-    let refused = refused || out_of_order.is_some();
     let held_up = drivers_hold(edit, session.doc());
     if let Some(sentence) = &held_up {
         crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
     }
-    let refused = refused || held_up.is_some();
-    let differs = edit.differs_from_base();
-    let stranded = if differs {
-        let base = edit.base().clone();
-        let report = edit.report(session.history().current(), |loops, ids| {
-            // A program the door refuses strands nothing yet; its
-            // refusal is the preview's to show, or Apply's to get.
-            session
-                .edit_profile_report(node, &base, loops, ids)
-                .unwrap_or_default()
-        });
-        frame::maintenance_notices(report)
-            .map(|notice| notice.text().to_owned())
-            .collect()
-    } else {
-        Vec::new()
-    };
-    let (apply, revert) = ui
-        .horizontal(|ui| apply_and_revert(ui, differs, refused, &stranded))
-        .inner;
-    if apply {
-        return match edit.programs() {
-            Ok(loops) => Ok(Some(SessionOp::EditProfile {
-                node,
-                base: edit.base().clone(),
-                loops,
-                ids: edit.ids(),
-            })),
-            Err(error) => Err(frame::tool_news(&FormKind::EditProfile.refuses(&error))),
-        };
+    // **A change lands as it is made**: once it has settled — no drag
+    // still moving a number — the draft is offered to the document's
+    // edit door whole. What the door takes is one `SetProgram`; what
+    // it refuses stays held here with its refusal, and the next change
+    // offers the whole draft again.
+    let settled = edit.unsettled && ui.ctx().dragged_id().is_none();
+    let mut formed = None;
+    if settled {
+        edit.unsettled = false;
+        edit.refused = None;
+        if out_of_order.is_none() && held_up.is_none() && edit.differs_from_base() {
+            match edit.programs() {
+                Ok(loops) => {
+                    let (base, ids) = (edit.base().clone(), edit.ids());
+                    match session.edit_profile_report(node, &base, loops.clone(), ids.clone()) {
+                        Ok(_) => {
+                            formed = Some(SessionOp::EditProfile {
+                                node,
+                                base,
+                                loops,
+                                ids,
+                            });
+                        }
+                        Err(refusal) => edit.refused = Some(refusal.to_string()),
+                    }
+                }
+                Err(error) => edit.refused = Some(error.to_string()),
+            }
+        }
     }
-    if revert {
+    let differs = edit.differs_from_base();
+    if let Some(refusal) = edit.refused.as_ref().filter(|_| differs) {
+        let sentence = format!("{HELD_BACK} {refusal}");
+        crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
+    }
+    if discard_control(ui, differs && formed.is_none()) {
         edit.revert();
         news.standing = None;
     }
-    Ok(None)
+    Ok(formed)
 }
+
+/// What the editor says ahead of why the draft it holds is not in the
+/// document.
+pub(crate) const HELD_BACK: &str = "held here, not in the document:";
 
 /// What the edit door says while a held step lowers against the pen.
 pub(crate) const PEN_UNDRAWN: &str = "a step reads a trace or runs to a coordinate along its \
-    heading, which only an evaluation lowers: the viewport shows the profile as committed until \
-    Apply";
+    heading, which only an evaluation lowers: the viewport shows the profile as the document has \
+    it";
 
-/// The button that drops a loop, on its loop's header row in either
-/// door.
+/// The button that drops a loop, on its loop's header row.
 pub(crate) const REMOVE_LOOP: &str = "Remove loop";
 
 /// The button that appends a loop starting as `kind`'s template.
@@ -624,9 +630,8 @@ pub(crate) fn add_loop_label(kind: ShapeKind) -> String {
     format!("Add {label} loop")
 }
 
-/// **The editor's add-loop row**, one button per shape the form offers
-/// a first loop: the shape clicked, if one was. Both doors draw it
-/// under their loops, so a profile gains a loop the same way in each.
+/// **The editor's add-loop row**, one button per template
+/// ([`ShapeKind`]): the template clicked, if one was.
 pub(crate) fn add_loop_row(ui: &mut egui::Ui) -> Option<ShapeKind> {
     ui.horizontal(|ui| {
         let mut added = None;
@@ -640,8 +645,9 @@ pub(crate) fn add_loop_row(ui: &mut egui::Ui) -> Option<ShapeKind> {
     .inner
 }
 
-/// **Why a driven argument holds Apply**, if one does — said under the
-/// step list, and Apply waits on it.
+/// **Why a driven argument holds the draft back**, if one does — said
+/// under the step list, and the draft is not offered to the document
+/// while it stands.
 ///
 /// - A kept step that no longer has the role an expression drives (an
 ///   arc re-moded) would write over the expression, and the field is
@@ -663,8 +669,8 @@ fn drivers_hold(
     let dropped = edit.dropped_drivers();
     if !dropped.is_empty() {
         return Some(format!(
-            "{} is driven by an expression, and the step no longer has that argument — revert, \
-             write a number over the expression, then change the step",
+            "{HELD_BACK} {} is driven by an expression, and the step no longer has that argument \
+             — discard the changes, write a number over the expression, then change the step",
             labels(&dropped)
         ));
     }
@@ -677,39 +683,29 @@ fn drivers_hold(
         .map(|(slot, fault)| format!("{}: {fault}", slot.label()))
         .collect();
     Some(format!(
-        "an expression driving this profile does not evaluate, so Apply waits for it — {}",
+        "{HELD_BACK} an expression driving this profile does not evaluate — {}",
         said.join("; ")
     ))
 }
 
 /// **What the editor's preview says about its loops**, said under the
-/// step list — and whether it holds the commit.
-///
-/// One reading for both of the editor's doors: the add-profile form
-/// and the same editor opened on a committed profile show the same
-/// sentences for the same loops, because the preview ran the commit
-/// door's own ladder and a refusal here is the refusal the button
-/// would get. `None` is "no preview was taken" (the first frame a
-/// form is on screen, or a form at rest), and holds nothing.
+/// step list. `None` is "no preview was taken" (the first frame the
+/// editor is on screen), and says nothing.
 ///
 /// Every verdict is a sentence the VALUE says and a tone the value
 /// states, both read off one partition of it ([`ProfilePreview::hold`]
 /// for a drawn preview, [`PreviewError`] for a refusal) and drawn
-/// through [`crate::widgets::message_toned`] — so what the editor says
-/// and how loud it says it are decided once, on the value, for both
-/// doors. A drawn, valid preview holds nothing and has no verdict; the
-/// loop count under it is state, and stays a weak label.
+/// through [`crate::widgets::message_toned`], so what the editor says
+/// and how loud it says it are decided once, on the value. A drawn,
+/// valid preview has no verdict; the loop count under it is state, and
+/// stays a weak label.
 pub(crate) fn preview_verdict(
     ui: &mut egui::Ui,
     theme: Theme,
     preview: Option<&Result<ProfilePreview, PreviewError>>,
-) -> bool {
-    // The first frame this form is on screen: the latch has not asked
-    // for a preview yet, so there is nothing honest to say about one.
-    // The commit door is still the judge, so the button is not withheld
-    // for a frame either.
+) {
     let Some(preview) = preview else {
-        return false;
+        return;
     };
     let (sentence, tone) = match preview {
         Ok(drawn) => match drawn.hold() {
@@ -719,13 +715,12 @@ pub(crate) fn preview_verdict(
                     0 => ui.weak(NO_LOOPS),
                     n => ui.weak(format!("{n} loop(s), drawn in the viewport")),
                 };
-                return false;
+                return;
             }
         },
         Err(error) => (error.to_string(), error.tone()),
     };
     crate::widgets::message_toned(ui, sentence, &theme, tone);
-    true
 }
 
 /// What the preview of a profile with no loops says: it draws nothing.
@@ -746,10 +741,21 @@ pub(crate) fn notation_row(
     });
 }
 
+/// **One row of a step list, as [`step_rows_ui`] draws it**: a step at
+/// plain numbers, whose verb and fields it draws, or a step it has no
+/// such view of, shown in words as written — the edit door's step
+/// that lowers against the pen, which keeps its row's controls.
+#[derive(Clone, Debug)]
+pub(crate) enum StepRow {
+    /// A step at plain numbers.
+    Step(Step<f64>),
+    /// A step shown as written.
+    Written(String),
+}
+
 /// **The path editor's step list**: one row per verb, plus the
-/// control that appends another — the ONE list both doors of the
-/// profile editor draw: the add-profile form over its own draft, and
-/// the same form opened on a committed profile, one list per loop.
+/// control that appends another — the list the profile editor draws
+/// for each loop.
 ///
 /// **The list's shape is the caller's to change.** Fields write their
 /// numbers in place; a row inserted, removed, moved or re-verbed, or
@@ -786,39 +792,10 @@ pub(crate) fn notation_row(
 /// the declarations the replay runs, so the form keeps no copy of
 /// the lattice. A verb picked lands in the first arc form its row
 /// takes ([`sketch::fresh_step_at`]).
-#[must_use = "a row edit the caller drops is a click that did nothing"]
-pub(crate) fn path_steps_ui(
-    ui: &mut egui::Ui,
-    salt: &str,
-    tol: Tol,
-    args: &mut dyn ArgDoors,
-    steps: &mut [Step<f64>],
-) -> Option<RowEdit> {
-    let mut rows: Vec<StepRow> = steps.iter().copied().map(StepRow::Step).collect();
-    let edit = step_rows_ui(ui, salt, tol, args, &mut rows);
-    for (step, row) in steps.iter_mut().zip(rows) {
-        if let StepRow::Step(drawn) = row {
-            *step = drawn;
-        }
-    }
-    edit
-}
-
-/// **One row of a step list, as [`step_rows_ui`] draws it**: a step at
-/// plain numbers, whose verb and fields it draws, or a step it has no
-/// such view of, shown in words as written — the edit door's step
-/// that lowers against the pen, which keeps its row's controls.
-#[derive(Clone, Debug)]
-pub(crate) enum StepRow {
-    /// A step at plain numbers.
-    Step(Step<f64>),
-    /// A step shown as written.
-    Written(String),
-}
-
-/// [`path_steps_ui`] over rows some of which are shown as written. The
-/// tip after a row shown as written is the evaluation's, so a row past
-/// one has no tip state and admits every verb ([`sketch::admits_at`]).
+///
+/// Rows shown as written ([`StepRow::Written`]) keep their row's
+/// controls. The tip after one is the evaluation's, so a row past one
+/// has no tip state and admits every verb ([`sketch::admits_at`]).
 #[must_use = "a row edit the caller drops is a click that did nothing"]
 pub(crate) fn step_rows_ui(
     ui: &mut egui::Ui,
@@ -983,57 +960,24 @@ fn step_control(ui: &mut egui::Ui, glyph: &str, action: &str, blocked: Option<&s
     }
 }
 
-/// Why the edit door's Apply and Revert are not live on an untouched
-/// draft.
-const UNTOUCHED: &str = "the steps and numbers are the committed profile's";
+/// The control that drops a held draft.
+pub(crate) const DISCARD: &str = "Discard changes";
 
-/// **The edit door's Apply and Revert**, both live only while the held
-/// program `differs` from the committed profile (it edits it, or cannot
-/// be read as it); Apply also waits on the preview not having `refused`.
-///
-/// **Apply only what moved.** Untouched, there is nothing to write,
-/// and the door itself also writes nothing for an untouched program,
-/// so the button and the door agree rather than one trusting the
-/// other. That is a draft gate on both buttons — no operation is
-/// formed to be refused — so each says [`UNTOUCHED`] on its disabled
-/// hover. A refused preview has its sentence already, drawn under the
-/// step list by [`preview_verdict`], so Apply adds none for it.
-///
-/// **Apply says what it strands before it is clicked** — a fillet on a
-/// dropped step's edge is the fillet the person is about to lose — so
-/// the count is on the button, as a delete's cascade is, and each
-/// `stranded` row's own sentence ([`frame::maintenance_notices`]) is on
-/// its hover.
-///
-/// Answers whether each was clicked — Apply, then Revert — which a
-/// disabled button never is.
-fn apply_and_revert(
-    ui: &mut egui::Ui,
-    differs: bool,
-    refused: bool,
-    stranded: &[String],
-) -> (bool, bool) {
-    let label = match stranded.len() {
-        0 => "Apply".to_owned(),
-        1 => "Apply, stranding 1 name".to_owned(),
-        n => format!("Apply, stranding {n} names"),
-    };
-    let apply = ui.add_enabled(differs && !refused, egui::Button::new(label));
-    let apply = if !differs {
-        apply.on_disabled_hover_text(format!("nothing to apply: {UNTOUCHED}"))
-    } else if stranded.is_empty() {
-        apply
+/// **The editor's one way out of a held draft**: live only while the
+/// editor holds changes the document does not (`held`), which undo
+/// cannot reach because they never landed. Answers whether it was
+/// clicked, which a disabled control never is.
+fn discard_control(ui: &mut egui::Ui, held: bool) -> bool {
+    let button = ui.add_enabled(held, egui::Button::new(DISCARD));
+    if held {
+        button
+            .on_hover_text("drop the changes held here and show the profile as the document has it")
+            .clicked()
     } else {
-        let said = stranded.join("\n");
-        apply.on_hover_text(&said).on_disabled_hover_text(said)
-    };
-    let revert = ui.add_enabled(differs, egui::Button::new("Revert"));
-    let revert = if differs {
-        revert.on_hover_text("put the steps and numbers back to the committed profile's")
-    } else {
-        revert.on_disabled_hover_text(format!("nothing to revert: {UNTOUCHED}"))
-    };
-    (apply.clicked(), revert.clicked())
+        button
+            .on_disabled_hover_text("nothing is held: every change is in the document")
+            .clicked()
+    }
 }
 
 #[cfg(test)]
@@ -1041,6 +985,26 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
+    /// [`super::step_rows_ui`] over steps at plain numbers, its fields
+    /// written back in place.
+    fn path_steps_ui(
+        ui: &mut eframe::egui::Ui,
+        salt: &str,
+        tol: pncad::geom_core::Tol,
+        args: &mut dyn crate::widgets::ArgDoors,
+        steps: &mut [pncad::profile::Step<f64>],
+    ) -> Option<crate::drafts::RowEdit> {
+        let mut rows: Vec<super::StepRow> =
+            steps.iter().copied().map(super::StepRow::Step).collect();
+        let edit = super::step_rows_ui(ui, salt, tol, args, &mut rows);
+        for (step, row) in steps.iter_mut().zip(rows) {
+            if let super::StepRow::Step(drawn) = row {
+                *step = drawn;
+            }
+        }
+        edit
+    }
+
 
     use eframe::egui;
     use pncad::document::{Doc, Node, ProfileProgram};
@@ -1187,7 +1151,7 @@ mod tests {
         let mut steps = vec![edit.step_at(&doc, (0, 0))];
         let ctx = egui::Context::default();
         let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            let row = super::path_steps_ui(
+            let row = path_steps_ui(
                 ui,
                 "probe",
                 Tol::witness(),
@@ -1211,7 +1175,7 @@ mod tests {
     fn hovering_step_control(rows: usize, glyph: &str, nth: usize) -> String {
         let mut steps: Vec<Step<f64>> = (0..rows).map(crate::widgets::new_row_step).collect();
         painted_while_hovering(glyph, nth, |ui| {
-            let _hovered_only = super::path_steps_ui(
+            let _hovered_only = path_steps_ui(
                 ui,
                 "probe",
                 Tol::witness(),
@@ -1225,7 +1189,7 @@ mod tests {
     /// combo showing `opener` is open, over a list of `steps`.
     fn hovering_a_choice(mut steps: Vec<Step<f64>>, opener: &str, target: &str) -> String {
         painted_while_hovering_opened(opener, target, 0, |ui| {
-            let _hovered_only = super::path_steps_ui(
+            let _hovered_only = path_steps_ui(
                 ui,
                 "probe",
                 Tol::witness(),

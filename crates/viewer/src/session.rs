@@ -96,7 +96,7 @@ pub mod refuse;
 pub mod select;
 pub(crate) mod snap;
 
-pub use author::{BooleanSpec, PartSelectSpec, PatternRuleSpec, ProfileShape};
+pub use author::{BooleanSpec, PartSelectSpec, PatternRuleSpec};
 pub use delete::DeleteAffordance;
 pub use op::{
     CancelDoor, ClearedSeat, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp,
@@ -6309,12 +6309,13 @@ mod tests {
         let before = session.history().len();
         let outcome = session.commit_run(|run| {
             run.insert(square())?;
-            let degenerate = crate::sketch::loop_program(
-                &crate::session::ProfileShape::Circle {
-                    centre: [0.0, 0.0],
+            let degenerate = crate::sketch::path_program(
+                &[pncad::profile::Step::Circle {
+                    centre: pncad::geom_core::Point2::origin(),
                     radius: 0.0,
-                },
+                }],
                 crate::props::Notation::CANONICAL,
+                &|_, _| None,
             )
             .expect("a zero radius lowers");
             let _ = run.insert(Node::Profile(ProfileProgram {

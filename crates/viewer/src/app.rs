@@ -1396,6 +1396,7 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let answers = answers_a_save_choice(&op);
+            let selects = op.selects_what_it_makes();
             // The forms' and the open tool's picks are held outside the
             // document: a takeover reads where they go, and they follow
             // it at the commit, with the session's selection.
@@ -1421,6 +1422,7 @@ impl ViewerApp {
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.
             let made = outcome.made;
+            let committed = outcome.refusal.is_none();
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),
@@ -1444,6 +1446,13 @@ impl ViewerApp {
                     self.drafts
                         .creation_landed(self.session.committed_doc(), made);
                 }
+            }
+            // A creation under the create rule selects what it made,
+            // which opens that node's edit surface.
+            if let Some(node) = made.filter(|_| selects && committed) {
+                let _selected = self
+                    .session
+                    .perform(SessionOp::Select(crate::session::Selection::Node(node)));
             }
             // After the match, so a replaced document's held picks are
             // dropped before anything is spoken from it.
@@ -2210,28 +2219,16 @@ impl eframe::App for ViewerApp {
         let held = self
             .drafts
             .door_loops(self.session.doc(), self.session.tol());
-        // Both doors draw on the profile's own plane
+        // The editor draws on the profile's own plane
         // ([`sketch::profile_plane`]).
         let (tol, delta) = (self.session.tol(), self.delta.get());
-        let ProfileDoors { create, edit } =
-            held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
-                held.as_ref()
-                    .filter(|_| drawn)
-                    .map(|held| sketch::drawn(sketch::profile_plane(), &held.loops, tol, delta))
-                    .map_or((None, None), |(preview, built)| {
-                        (Some(preview), Some(built))
-                    })
-            });
-        let mut profile_previews = ProfileDoors {
-            create: create.0,
-            edit: edit.0,
-        };
-        let mut profile_constructions = ProfileDoors {
-            create: create.1,
-            edit: edit.1,
-        };
+        let (edit_preview, edit_built) = held
+            .as_ref()
+            .filter(|_| self.profile_drawn.edit)
+            .map(|held| sketch::drawn(sketch::profile_plane(), &held.loops, tol, delta))
+            .map_or((None, None), |(preview, built)| (Some(preview), Some(built)));
         // A traced path runs onto the trace at evaluation, which no
-        // replay here can draw: the create door shows the trace instead.
+        // replay here can draw: the traced-profile form shows the trace.
         let landed = self.session.evaluation_arc().cloned();
         if let Some(latches) = self
             .drafts
@@ -2240,15 +2237,21 @@ impl eframe::App for ViewerApp {
             let read = self.session.sketch_trace(&latches.0, &latches.1);
             self.drafts.show_trace(latches, landed.as_ref(), read);
         }
-        if self.profile_drawn.create && self.drafts.traces() {
-            profile_previews.create = self
-                .drafts
-                .trace_shown
-                .as_ref()
-                .and_then(|shown| shown.read.as_ref().ok())
-                .map(|marks| Ok(sketch::trace_preview(marks)));
-            profile_constructions.create = None;
-        }
+        let traced = self
+            .drafts
+            .trace_shown
+            .as_ref()
+            .filter(|_| self.profile_drawn.create && self.drafts.traces())
+            .and_then(|shown| shown.read.as_ref().ok())
+            .map(|marks| Ok(sketch::trace_preview(marks)));
+        let profile_previews = ProfileDoors {
+            create: traced,
+            edit: edit_preview,
+        };
+        let profile_constructions = ProfileDoors {
+            create: None,
+            edit: edit_built,
+        };
         // The committed node the edit door is previewing in its place,
         // with what that preview draws: the committed-profile lane
         // leaves the node out, and the pick and the marks read it by
@@ -2348,22 +2351,16 @@ impl eframe::App for ViewerApp {
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
-        let moved = profile_drawn
-            .zip(
-                held.zip(
-                    self.drafts
-                        .door_loops(self.session.doc(), self.session.tol()),
-                ),
-            )
-            .map(|(drawn, (before, now))| {
-                drawn
-                    && match (before, now) {
-                        (Some(before), Some(now)) => !before.previews_as(&now),
-                        (None, None) => false,
-                        _ => true,
-                    }
-            });
-        if moved.into_array().contains(&true) {
+        let now = self
+            .drafts
+            .door_loops(self.session.doc(), self.session.tol());
+        let moved = profile_drawn.edit
+            && match (held, now) {
+                (Some(before), Some(now)) => !before.previews_as(&now),
+                (None, None) => false,
+                _ => true,
+            };
+        if moved {
             ui.ctx().request_repaint();
         }
         // Read AFTER the frame drew, and before anything writes a

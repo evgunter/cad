@@ -1,23 +1,19 @@
-//! **The profile-authoring vocabulary**: what a form hands the
-//! session when it asks for a profile node, and what that would draw.
+//! **The profile-authoring vocabulary**: what the profile editor
+//! holds of a profile's loops, and what that would draw.
 //!
 //! # Why this is not in `session`
 //!
 //! The PATHS algebra's whole verb set is not a handful of fields — it is a vocabulary, with a
 //! lowering, a replay and a flattener behind it — and `session.rs` is
 //! already the crate's accretion case (issue #1386). So the
-//! vocabulary lives here, and `session` re-exports the one type its
-//! op vocabulary names ([`ProfileShape`]) rather than owning it.
+//! vocabulary lives here.
 //!
 //! # Plain numbers in, `Expr` slots out
 //!
-//! Everything here is `f64` in canonical units (metres, radians), for
-//! the reason every creation spec in this crate is: the SESSION mints
-//! the expression slots, so a form hands it numbers and never an
-//! `Expr` it would have had to build a second way. A path's steps are
-//! the kernel's own [`Step`], lowered by the document layer's own lift
-//! ([`loop_program`]), so there is no viewer spelling of the verb
-//! vocabulary to fall behind it.
+//! A step at plain numbers is `f64` in canonical units (metres,
+//! radians): the kernel's own [`Step`], lowered by the document
+//! layer's own lift ([`path_program`]), so there is no viewer spelling
+//! of the verb vocabulary to fall behind it.
 //!
 //! # What is judged here, and what is not
 //!
@@ -65,63 +61,6 @@ use pncad::quantity::UnitDef;
 use crate::frame::Tone;
 use crate::props::Notation;
 use crate::session::refuse::{NodeKindWanted, admits};
-
-/// One loop of the add-profile door: a template shape, or a PATH
-/// authored verb by verb.
-///
-/// **The templates are not the vocabulary; they are shortcuts into
-/// it.** A circle is the one-step path `circle(centre, r)` and a
-/// rectangle the one-step path `rectangle(centre, w, h)`, and each
-/// lowers as exactly that. Everything else a profile can be is
-/// [`ProfileShape::Path`], which carries the algebra's whole verb set.
-///
-/// [`loop_program`] lowers each arm to its [`LoopProgram`] form and
-/// refuses typed what does not lower (a non-finite field, a
-/// complete-loop verb inside a chain); a degenerate loop (zero radius,
-/// zero width) and an ill-typed lattice walk both refuse through the
-/// edit door's own authoring-time check, exactly as a hand-written
-/// program would.
-#[derive(Clone, Debug)]
-pub enum ProfileShape {
-    /// A circle (`LoopProgram::Circle`).
-    Circle {
-        /// The centre, in sketch coordinates (metres).
-        centre: [f64; 2],
-        /// The radius, metres.
-        radius: f64,
-    },
-    /// An axis-aligned rectangle (`LoopProgram::Rectangle`).
-    Rectangle {
-        /// The centre, in sketch coordinates (metres).
-        centre: [f64; 2],
-        /// The width (x extent), metres.
-        width: f64,
-        /// The height (y extent), metres.
-        height: f64,
-    },
-    /// A recorded PATHS program, verb by verb — the algebra's own
-    /// [`Step`] at plain numbers, which is what makes it a form's
-    /// currency: the chrome hands the session numbers in canonical
-    /// units and the session mints the `Expr` slots, exactly as it
-    /// does for every other creation door.
-    ///
-    /// **The kernel's type, not a mirror of it.** The whole verb set
-    /// is here because it is the whole set: a form offering half a
-    /// vocabulary is a form whose user has to leave it to say the
-    /// other half. Which verbs are well-typed at a given tip is not
-    /// this value's business — the lattice decides that at replay, and
-    /// an ill-typed walk refuses typed at the edit door naming the
-    /// state and the verb (`ProgramRefusal::Transition`). [`preview`],
-    /// [`tip_state_at`] and [`admits_at`] are how a form asks that
-    /// before committing.
-    Path {
-        /// The verbs, in authoring order. A chain must END in a
-        /// `Start`-targeting verb, or be one complete-loop verb
-        /// (`circle`, `circle_split`) alone; both are checked by the
-        /// lowering and the replay, not by this representation.
-        steps: Vec<Step<f64>>,
-    },
-}
 
 /// **A step of `verb` with the path form's starting numbers** — what
 /// a row becomes when its verb is picked.
@@ -262,40 +201,22 @@ fn recorded_notation(
     Ok(recorded)
 }
 
-/// Lower one template shape to its loop program, minting every literal
-/// in `notation`.
+/// **A path lowered, its arguments written in units**: `noted` names
+/// the unit the argument at `(step, arg)` is written in, and every
+/// argument it names none for is written in `notation`. The edit door
+/// writes a kept argument in the unit its slot is written in.
 ///
-/// A path lowers through the document layer's own lift,
-/// [`LoopProgram::from_recorded_with_notation`] — the door that takes
-/// a PATHS recording to its document form for every other authoring
-/// surface — so there is no second verb-by-verb lowering here to fall
-/// behind the vocabulary. Each template IS a path — one `circle` or
-/// one `rectangle` step — and lowers as one.
+/// Through the document layer's own lift,
+/// [`LoopProgram::from_recorded_with_notation`]; a template (`circle`,
+/// `rectangle`) is one step and lowers as one.
 ///
 /// # Errors
 ///
 /// A non-finite field (the literal door's refusal), or a path that is
 /// not a program's shape — a complete-loop verb (`circle`,
-/// `circle_split`, `rectangle`) inside a chain. Degeneracy — a zero radius, a zero
-/// width — is NOT judged here: the edit door's authoring-time check
-/// replays the program and refuses it typed, which is one rule for
-/// authored and hand-written programs alike.
-pub fn loop_program(
-    shape: &ProfileShape,
-    notation: Notation,
-) -> Result<LoopProgram<Formula>, RecordedProgramError> {
-    path_program(&shape_steps(shape), notation, &|_, _| None)
-}
-
-/// **A path lowered with some arguments written in units of their
-/// own** — [`loop_program`] of `steps`, where `noted` names the unit
-/// the argument at `(step, arg)` is written in and every argument it
-/// names none for is written in `notation`. The edit door writes a
-/// kept argument in the unit its slot is written in.
-///
-/// # Errors
-///
-/// [`loop_program`]'s.
+/// `circle_split`, `rectangle`) inside a chain. Degeneracy is NOT
+/// judged here: the edit door's authoring-time check replays the
+/// program and refuses it typed.
 pub fn path_program(
     steps: &[Step<f64>],
     notation: Notation,
@@ -308,70 +229,27 @@ pub fn path_program(
     LoopProgram::from_recorded_with_notation(steps, &written)
 }
 
-/// **Whether two shape lists author the same loops** — what a frame
-/// asks to learn whether an edit drawn during it moved the preview.
+/// **Whether two lists of loops author the same loops** — what a
+/// frame asks to learn whether an edit drawn during it moved the
+/// preview.
 ///
-/// Asked of the canonical LOWERINGS rather than of the shapes, because
+/// Asked of the canonical LOWERINGS rather than of the steps, because
 /// the kernel's step types carry no `PartialEq` (comparing points is
 /// the predicate layer's job, `geom_core::Point2` says), and the
 /// lowering is what [`preview`] draws from anyway: two lists that
 /// lower alike preview alike. A list that does not lower compares by
 /// its refusal, which is also what the preview shows for it.
-pub fn authors_same_loops(a: &[ProfileShape], b: &[ProfileShape]) -> bool {
-    loop_programs(a, Notation::CANONICAL) == loop_programs(b, Notation::CANONICAL)
+pub fn authors_same_loops(a: &[Vec<Step<f64>>], b: &[Vec<Step<f64>>]) -> bool {
+    let lowered = |loops: &[Vec<Step<f64>>]| -> Result<Vec<_>, RecordedProgramError> {
+        loops.iter().map(|steps| canonical(steps)).collect()
+    };
+    lowered(a) == lowered(b)
 }
 
-/// **A list of shapes lowered loop by loop** — [`loop_program`] over
-/// each, in description order, the whole list refusing with the first
-/// loop that does. The one lowering every door of the profile editor
-/// hands the session, and the one the preview's change test compares.
-///
-/// # Errors
-///
-/// [`loop_program`]'s.
-pub fn loop_programs(
-    shapes: &[ProfileShape],
-    notation: Notation,
-) -> Result<Vec<LoopProgram<Formula>>, RecordedProgramError> {
-    shapes
-        .iter()
-        .map(|shape| loop_program(shape, notation))
-        .collect()
-}
-
-/// **Loops of steps at plain numbers as the shapes the preview and the
-/// lowering take** — one [`ProfileShape::Path`] per loop, in authoring
-/// order.
-pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
-    loops
-        .iter()
-        .map(|steps| ProfileShape::Path {
-            steps: steps.clone(),
-        })
-        .collect()
-}
-
-/// **A shape as the path steps it is a shortcut for** — what the edit
-/// door, which holds every loop as a path, adds when a template loop
-/// is added to it: a circle is its one `circle` step and a rectangle
-/// its one `rectangle` step.
-pub fn shape_steps(shape: &ProfileShape) -> Vec<Step<f64>> {
-    match shape {
-        ProfileShape::Circle { centre, radius } => vec![Step::Circle {
-            centre: Point2::from_array(*centre),
-            radius: *radius,
-        }],
-        ProfileShape::Rectangle {
-            centre,
-            width,
-            height,
-        } => vec![Step::Rectangle {
-            centre: Point2::from_array(*centre),
-            width: *width,
-            height: *height,
-        }],
-        ProfileShape::Path { steps } => steps.clone(),
-    }
+/// One loop lowered in the canonical notation: the lowering a preview
+/// replays and a comparison compares, never one that is committed.
+fn canonical(steps: &[Step<f64>]) -> Result<LoopProgram<Formula>, RecordedProgramError> {
+    path_program(steps, Notation::CANONICAL, &|_, _| None)
 }
 
 // ------------------------------------------------------------------
@@ -750,8 +628,7 @@ impl HeldStep {
 /// the same loop ([`authors_same_loops`]).
 #[must_use]
 pub fn same_step(a: &Step<f64>, b: &Step<f64>) -> bool {
-    let path = |step: &Step<f64>| ProfileShape::Path { steps: vec![*step] };
-    authors_same_loops(&[path(a)], &[path(b)])
+    authors_same_loops(&[vec![*a]], &[vec![*b]])
 }
 
 /// **Whether `held` is written as `was`**: the same formula at the
@@ -1001,10 +878,10 @@ pub fn is_committed(
 }
 
 /// **The gesture that continues a chain tangent to a face's trace**
-/// (D10, "Constructing a coincidence"): after row `after` of the chain,
-/// the piece runs on along its heading to the `crossing` of the traced
-/// face, and the chain heads on along the trace there, `sense` it. It
-/// writes the document's own two steps ([`TraceGesture::steps`]), so
+/// (D10, "Constructing a coincidence"): after a row of the chain
+/// ([`traced_loop`]), the piece runs on along its heading to the
+/// `crossing` of the traced face, and the chain heads on along the
+/// trace there, `sense` it. It writes the document's own two steps, so
 /// the heading is the evaluation's reading of the trace at every
 /// evaluation, never a number this crate read off a drawing.
 ///
@@ -1013,8 +890,6 @@ pub fn is_committed(
 /// make refuses typed at evaluation, naming it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TraceGesture {
-    /// The row the gesture's steps follow.
-    pub after: usize,
     /// Which crossing of the traced face the piece runs to.
     pub crossing: TraceCrossing,
     /// The heading along the trace there.
@@ -1022,11 +897,10 @@ pub struct TraceGesture {
 }
 
 impl Default for TraceGesture {
-    /// After the first row, out of the face's material at the first
-    /// crossing, and on with the trace.
+    /// Out of the face's material at the first crossing, and on with
+    /// the trace.
     fn default() -> Self {
         Self {
-            after: 0,
             crossing: TraceCrossing::first(TracePassage::Leave),
             sense: TraceSense::With,
         }
@@ -1067,37 +941,32 @@ impl core::fmt::Display for TracedLoopError {
 
 impl core::error::Error for TracedLoopError {}
 
-/// **A chain of `steps` with `gesture` written after its row**, reading
-/// the traced face `face`: the chain lowered as [`loop_program`] lowers
-/// a path, row for step, and the gesture's two steps
-/// ([`pncad::trace::Chain::onto_trace`]) after row `gesture.after`.
+/// **A chain of `steps` with `gesture` written after row `after`**,
+/// reading the traced face `face`: the chain lowered as
+/// [`path_program`] lowers a path, row for step, and the gesture's two
+/// steps ([`pncad::trace::Chain::onto_trace`]) after row `after`.
 ///
 /// # Errors
 ///
 /// [`TracedLoopError`].
 pub fn traced_loop(
     steps: &[Step<f64>],
+    after: usize,
     gesture: &TraceGesture,
     face: u32,
     notation: Notation,
 ) -> Result<pncad::trace::Chain, TracedLoopError> {
-    let lowered = loop_program(
-        &ProfileShape::Path {
-            steps: steps.to_vec(),
-        },
-        notation,
-    )
-    .map_err(TracedLoopError::Program)?;
+    let lowered = path_program(steps, notation, &|_, _| None).map_err(TracedLoopError::Program)?;
     let LoopProgram::Chain(mut head) = lowered else {
         return Err(TracedLoopError::NotAChain);
     };
-    if gesture.after >= head.len() {
+    if after >= head.len() {
         return Err(TracedLoopError::NoSuchRow {
-            after: gesture.after,
+            after,
             rows: head.len(),
         });
     }
-    let tail = head.split_off(gesture.after + 1);
+    let tail = head.split_off(after + 1);
     Ok(pncad::trace::Chain::of_steps(head)
         .onto_trace(face, gesture.crossing, gesture.sense)
         .then_steps(tail))
@@ -1501,7 +1370,7 @@ impl core::fmt::Display for PreviewHold<'_> {
 /// surface inside that loop ([`Cut`]); the rest are `preview`'s `Err`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PreviewError {
-    /// The shape did not lower ([`loop_program`]'s refusals): a field
+    /// A loop did not lower ([`path_program`]'s refusals): a field
     /// is not a finite number, or a complete-loop verb sits inside a
     /// chain.
     Lowering(RecordedProgramError),
@@ -1716,11 +1585,11 @@ impl PreviewError {
 /// a success, carrying its refusal in [`ProfilePreview::invalid`].
 pub fn preview(
     plane: SketchPlane<f64>,
-    shapes: &[ProfileShape],
+    loops: &[Vec<Step<f64>>],
     tol: Tol,
     chord: f64,
 ) -> Result<ProfilePreview, PreviewError> {
-    drawn(plane, shapes, tol, chord).0
+    drawn(plane, loops, tol, chord).0
 }
 
 /// **[`preview`], and what the loops' fused fillet steps construct**,
@@ -1734,11 +1603,11 @@ pub fn preview(
 /// A resolution that refuses constructs nothing.
 pub fn drawn(
     plane: SketchPlane<f64>,
-    shapes: &[ProfileShape],
+    loops: &[Vec<Step<f64>>],
     tol: Tol,
     chord: f64,
 ) -> (Result<ProfilePreview, PreviewError>, Construction) {
-    let resolved = match written_steps(shapes, tol) {
+    let resolved = match written_steps(loops, tol) {
         Ok(resolved) => resolved,
         Err(refused) => return (Err(refused), Construction::none(plane)),
     };
@@ -1777,30 +1646,28 @@ impl Construction {
     }
 }
 
-/// The loops `shapes` write, lowered and resolved — the first half of
+/// The loops written, lowered and resolved — the first half of
 /// [`preview`]'s ladder.
-fn written_steps(shapes: &[ProfileShape], tol: Tol) -> Result<Vec<Vec<Step<f64>>>, PreviewError> {
-    let mut programs = Vec::with_capacity(shapes.len());
-    for shape in shapes {
-        // CANONICAL, and it makes no difference which: a display unit
-        // is presentation metadata that no evaluation reads, and this
-        // program is built to be replayed and drawn, never committed.
-        let program = loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Lowering)?;
-        programs.push(program);
+fn written_steps(
+    loops: &[Vec<Step<f64>>],
+    tol: Tol,
+) -> Result<Vec<Vec<Step<f64>>>, PreviewError> {
+    let mut programs = Vec::with_capacity(loops.len());
+    for steps in loops {
+        programs.push(canonical(steps).map_err(PreviewError::Lowering)?);
     }
     // The LOOPS resolve, not a program: the plane a preview draws on
     // arrives as a placement ([`profile_plane`]). Nor a document: each
-    // number the form wrote is the variable the insert door would mint
-    // for it, in a scratch document of the resolver's own.
+    // number is a variable minted for it in a scratch document of the
+    // resolver's own.
     resolve_written_loops(&programs, tol).map_err(|fault| match fault {
         WrittenLoopFault::Resolve { slot, source } => PreviewError::Resolve { slot, source },
-        // A form writes numbers, never a name, and no step reading a
-        // trace.
+        // Steps at plain numbers read no name, and no trace.
         WrittenLoopFault::Refused(refusal) => {
-            unreachable!("a form's program reads no name, yet {refusal}")
+            unreachable!("steps at plain numbers read no name, yet {refusal}")
         }
         WrittenLoopFault::Trace(refusal) => {
-            unreachable!("a form's program reads no trace, yet {refusal}")
+            unreachable!("steps at plain numbers read no trace, yet {refusal}")
         }
     })
 }
@@ -2171,8 +2038,7 @@ pub struct CommittedProfiles {
 /// `except` is the profile a form is EDITING, if any: that form draws
 /// its own replay of the node in the preview lane, and a loop drawn
 /// both as it was committed and as it is being changed would show two
-/// shapes where there is one. The create form edits no committed node,
-/// so it passes `None`.
+/// shapes where there is one.
 pub fn committed(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
@@ -2646,7 +2512,7 @@ mod tests {
     };
 
     use super::{
-        LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview, ProfileShape, arc_points,
+        LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview, arc_points,
     };
     use crate::frame::Tone;
     use crate::test_support::{self, line_to, two_legs};
@@ -2658,13 +2524,14 @@ mod tests {
     fn a_profile_drawn_on_a_frame_held_unmoved_is_committed() {
         use pncad::document::{DrawnOn, Operand, ProfileProgram, RecipeNodeId};
         let square = |side| {
-            super::loop_program(
-                &ProfileShape::Rectangle {
-                    centre: [0.0, 0.0],
+            super::path_program(
+                &[Step::Rectangle {
+                    centre: Point2::origin(),
                     width: side,
                     height: side,
-                },
+                }],
                 crate::props::Notation::CANONICAL,
+                &|_, _| None,
             )
             .expect("a finite square")
         };
@@ -2856,11 +2723,7 @@ mod tests {
 
     /// The preview of one path loop per entry, on the xy plane.
     fn previewed(loops: Vec<Vec<Step<f64>>>) -> Result<ProfilePreview, PreviewError> {
-        let shapes: Vec<ProfileShape> = loops
-            .into_iter()
-            .map(|steps| ProfileShape::Path { steps })
-            .collect();
-        super::preview(SketchPlane::xy(), &shapes, Tol::witness(), 1.0e-4)
+        super::preview(SketchPlane::xy(), &loops, Tol::witness(), 1.0e-4)
     }
 
     /// A drawn loop's own vertices, as points.
