@@ -102,6 +102,14 @@ impl<M: core::borrow::Borrow<BTreeMap<StableName, StableName>>> super::SegRewrit
 {
     type Error = core::convert::Infallible;
 
+    /// A successor stays in its document: a section id is kept.
+    fn section(
+        &mut self,
+        s: crate::node::SectionId,
+    ) -> Result<crate::node::SectionId, Self::Error> {
+        Ok(s)
+    }
+
     fn carried(&mut self, read: VarId, of: &StableName) -> Result<super::Carry, Self::Error> {
         Ok(
             match self.0.get(&read).and_then(|map| map.borrow().get(of)) {

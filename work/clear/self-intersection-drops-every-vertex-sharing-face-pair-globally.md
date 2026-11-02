@@ -15,7 +15,7 @@ closed: 2026-10-29
 ## Finding
 
 `editor_core::clearance`'s self-intersection candidate filter
-(`crates/editor-core/src/clearance.rs`, `clearance_with`, the "wedge
+(`crates/editor-core/src/clearance.rs`, `clearance_at_dials`, the "wedge
 rule" block) keeps a pair only when
 `x.face != y.face && x.vertices.is_disjoint(&y.vertices)`. So it never
 examines:

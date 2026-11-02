@@ -60,8 +60,7 @@ enum Locus<T: Real> {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
-    let face = body.get_face(f)?;
-    match *body.get_surface(face.surface)? {
+    match *body.face_surface(f)? {
         geom::Surface::Plane { origin, normal, .. } => Some(Surface::Plane { origin, normal }),
         geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere { center, radius }),
         _ => None,
@@ -304,7 +303,10 @@ pub(super) fn edge_face<T: Decide>(
                 return Read::Pushed;
             }
         },
-        (geom::Curve3::Line { origin, dir }, Some(Surface::Sphere { center, radius })) => {
+        (
+            geom::Curve3::Line(geom::Line { origin, dir }),
+            Some(Surface::Sphere { center, radius }),
+        ) => {
             let foot = origin + dir * dir.dot(center - origin);
             on_sphere((center, radius), foot, band, errors)
         }

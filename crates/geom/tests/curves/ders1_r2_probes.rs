@@ -283,10 +283,10 @@ fn tilted_ellipse<T: Real>() -> Curve3<T> {
 
 fn line<T: Real>() -> Curve3<T> {
     let f = T::from_f64;
-    Curve3::Line {
-        origin: Point3::new(f(1.0), f(-2.0), f(0.5)),
-        dir: Vec3::new(f(0.3), f(-0.4), f(1.2)),
-    }
+    Curve3::line(
+        Point3::new(f(1.0), f(-2.0), f(0.5)),
+        Vec3::new(f(0.3), f(-0.4), f(1.2)),
+    )
 }
 
 const ANGLES: [f64; 12] = [

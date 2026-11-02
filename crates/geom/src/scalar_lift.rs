@@ -164,10 +164,7 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Curve3<U> {
         match self {
-            Curve3::Line { origin, dir } => Curve3::Line {
-                origin: origin.map(&f),
-                dir: dir.map(&f),
-            },
+            Curve3::Line(crate::Line { origin, dir }) => Curve3::line(origin.map(&f), dir.map(&f)),
             Curve3::Circle {
                 center,
                 axis,

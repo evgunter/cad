@@ -285,3 +285,36 @@ first report and the total are A 141727 / 174465, B 187149 / 239850,
 C 137607 / 178525 (first report / last reply).
 
 - 2026-11-02 — The extent-home fork row is **241**, not 239: main took 239 for another fork before PR 6334 landed. The entries above that say 239 mean 241. (BOXES orchestrator)
+
+## 2026-11-02 — Ev ratifies the cover (PR 6334); the build is cut
+
+(BOXES orchestrator) Ev, on PR 6334: *"the idea is good! we'll have to
+see how the implementation pans out, i guess. we can accept this for
+now and if it needs to be revised because of issues encountered when
+implementing then that's ok"*. Fork row 241's second half is filled
+in (all three first reports matched), and the ruling item is closed.
+
+Merging main brought in a `[one-way.places]` row ratified the same day
+on PR 6329: *f64 rounding, a verdict's lever arm, and the extent it is
+consumed over* lives in `crates/geom-core/README.md`, "Float rounding".
+That section names `geom_brep::Reach` as the one consumed-extent type.
+Both rows stand. They ask different questions: where a region lies,
+and what extent a verdict's margin levers over. `cover-levers` builds
+`Reach` from cover queries, and carries the seam explicitly.
+
+The build, cut into six units (bodies carry the spec):
+1. `cover-geom-readings` (H, dual review): `Cover`, `Uncovered`, meet and hull, the methods, and geom's carrier readings.
+2. `cover-edge-doors` (H).
+3. `cover-topo-faces` (H).
+4. `cover-levers` (H).
+5. `cover-app-readers` (M).
+6. `cover-kind-match-gate` (M).
+
+Each later unit is parked on its predecessors. Re-parked onto them:
+- `an-edges-extent-has-four-dispatchers` → `cover-edge-doors`;
+- `D280`, `sphere-operand-box-is-the-whole-ball` and nine P3/P4 arm rows → `cover-topo-faces`;
+- `a-sphere-or-torus-pair-extent-skips-the-face-box-rule` → `cover-levers`;
+- `torus-extent-overreaches-…` → `cover-geom-readings`;
+- `box-door-census-misses-a-point-free-read` → `cover-kind-match-gate`.
+
+`sphere-window-falls-back-to-the-ball-leaving-its-escalations-on-the-log` banded P3/E. The track is `active` again, at 8/30.

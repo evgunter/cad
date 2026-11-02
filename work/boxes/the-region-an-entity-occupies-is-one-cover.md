@@ -2,12 +2,13 @@
 id: the-region-an-entity-occupies-is-one-cover
 kind: ruling
 title: The region a face or an edge can occupy is one reading whose answer is a cover; every box, support, reach and ball is a method on it
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 branch: boxes/ev-extent-home
 refs: [D280, an-edges-extent-has-four-dispatchers, sphere-operand-box-is-the-whole-ball, split-gate-sphere-zone-folds-into-face-box-rule, extent-ball-and-reach-are-two-statements-of-one-extent]
 pr: 6334
+closed: 2026-11-02
 ---
 
 
@@ -26,3 +27,12 @@ occupy a reading whose answer is a cover. Three designers converged on
 it (fork row 241). Once Ev rules, the implementation is cut into units
 on this slate, and `D280`, `an-edges-extent-has-four-dispatchers` and
 the sphere and torus rows close into them.
+
+## Ruled (2026-11-02, PR 6334)
+
+Ev: *"the idea is good! we'll have to see how the implementation pans
+out, i guess. we can accept this for now and if it needs to be revised
+because of issues encountered when implementing then that's ok"*. The
+DESIGN text lands as written. A unit that hits a problem with it
+reports that as a finding and proposes a revision, rather than working
+around the text.

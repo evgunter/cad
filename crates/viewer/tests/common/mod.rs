@@ -443,8 +443,10 @@ pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::
 
 /// [`commit_mate`] without the pump.
 pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
-    let SessionOp::AddMate { placement, .. } = &op else {
-        panic!("a mate is added by `AddMate`: {op:?}")
+    // A placement's editor writes its bundle whole; a mate is added to it.
+    let (SessionOp::AddMate { placement, .. } | SessionOp::SetBundle { placement, .. }) = &op
+    else {
+        panic!("a mate is added to a bundle by `AddMate` or the editor's `SetBundle`: {op:?}")
     };
     let placement = *placement;
     let mates = |doc: &Doc<ProfileProgram>| -> Vec<_> {
@@ -485,7 +487,11 @@ pub fn rectangle_in(session: &mut DocSession, width: f64, height: f64) -> Recipe
     session_insert(
         session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Rectangle { width, height })],
+            loops: vec![shape(&ProfileShape::Rectangle {
+                centre: [0.0, 0.0],
+                width,
+                height,
+            })],
         },
     )
 }
@@ -886,39 +892,6 @@ pub fn inline_without_door(
     viewer::session::DocSession::inline(doc, tol).with_door(Box::new(NoDoor))
 }
 
-/// **A row of `count` copies of `body`** (D10 `[repetition]`): a fresh
-/// index `k = index(count)` and one placement of `body` in its own space
-/// slid `scalar(k)·pitch` along `axis` ([`pncad::pattern::linear_pattern`]).
-/// Answers the document and the family's placement.
-pub fn row_of_copies(
-    doc: &Doc<ProfileProgram>,
-    body: impl Into<pncad::document::Operand>,
-    count: i64,
-    (axis, pitch): (pncad::document::TargetAxis, f64),
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let index = viewer::combine::fresh_index(doc);
-    let declared = pncad::document::apply(
-        doc,
-        &pncad::pattern::index_decl(index.clone(), Formula::count(count), None),
-        tol,
-    )
-    .expect("an index declares")
-    .doc;
-    let body = body.into();
-    let space = declared
-        .operand_space(&body)
-        .unwrap_or(pncad::document::VarId::WORLD);
-    let row = pncad::pattern::linear_pattern(
-        &index,
-        pncad::document::BodyRead::plain(body),
-        pncad::document::Operand::Var(space),
-        &[(axis, len(pitch))],
-    )
-    .expect("a length pitch");
-    inserted(&declared, row, tol)
-}
-
 /// **One member of the family `family`, read alone** — the part door's
 /// node ([`viewer::combine::part_node`]).
 pub fn member_read(
@@ -960,4 +933,84 @@ pub fn recount_op(session: &DocSession, family: RecipeNodeId, count: i64) -> Ses
         var: family_index(session.committed_doc(), family),
         value: viewer::props::SlotValue::Count(count),
     }
+}
+
+/// **The placement editor's Apply for `tool`**, its active row chosen as
+/// `choice` says, derived against `session`'s landed pair.
+///
+/// # Panics
+///
+/// With nothing landed.
+pub fn proposed(
+    session: &DocSession,
+    tool: &viewer::matetool::MateTool,
+    choice: viewer::matetool::MateChoice,
+) -> Result<viewer::matetool::MateProposal, viewer::matetool::MateToolError> {
+    let (doc, ev) = session.landed_pair().expect("landed");
+    tool.clone()
+        .chosen(choice)?
+        .proposal(doc, ev, session.tol())
+}
+
+/// **The Transform tool, as a person drives it**: the placement editor
+/// opened on `node` by the tool's door
+/// ([`viewer::matetool::MateTool::moving`]), each of `values` typed on
+/// its value row, and its Apply — the Create door's `Place` on a body
+/// nothing places, the Edit door's `SetBundle` on a copy. Pumps first:
+/// the editor derives its Apply against the landed pair.
+///
+/// # Panics
+///
+/// Where the door does not open or the draft proposes no Apply.
+pub fn transformed(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    values: &[(pncad::document::Coord, Formula)],
+) -> SessionOp {
+    transformed_at(session, node, None, values)
+}
+
+/// [`transformed`] of the output `body` of `node` a viewport pick hit —
+/// a split's half.
+pub fn transformed_at(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    body: Option<u32>,
+    values: &[(pncad::document::Coord, Formula)],
+) -> SessionOp {
+    session.pump();
+    let tol = session.tol();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let mut tool = viewer::matetool::MateTool::moving(doc, node, body)
+        .unwrap_or_else(|event| panic!("the Transform tool opens on {node:?}: {event}"));
+    for (coord, by) in values {
+        tool.type_value(*coord, by.clone());
+    }
+    tool.proposal(doc, ev, tol)
+        .unwrap_or_else(|error| panic!("the draft proposes an Apply: {error}"))
+        .op()
+}
+
+/// **The three slides the Transform tool types**, each zero the constant
+/// `0` ([`translation`]).
+pub fn slides(by: [f64; 3]) -> Vec<(pncad::document::Coord, Formula)> {
+    pncad::document::TargetAxis::ALL
+        .into_iter()
+        .zip(translation(by))
+        .map(|(axis, by)| (pncad::document::Coord::Slide(axis), by))
+        .collect()
+}
+
+/// **`node` moved by the Transform tool to the slides `by`**, its other values
+/// as the door loads them, and the placement it wrote: the new copy a
+/// Create inserts, or the copy an Edit rewrote.
+pub fn moved_to(session: &mut DocSession, node: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
+    let op = transformed(session, node, &slides(by));
+    let edited = match &op {
+        SessionOp::SetBundle { placement, .. } => Some(*placement),
+        _ => None,
+    };
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    edited.unwrap_or_else(|| outcome.made.expect("the Create door made a copy"))
 }

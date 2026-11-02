@@ -11,71 +11,32 @@ and #3587.
 
 ## The slate
 
-**29 budget points** of dispatchable work against 30. Four rows are
-parked on SPACES' `[ev]` PR 6209.
+The 2026-11-01/02 sitting closed every P0 and P1 row (log, that date):
+the takeover rebind (PR 6264), the split takeover (6331), the
+clearance assertion's kernel (6292) and viewer (6357) halves, face
+words (6262), and the meeting-scope fix (6354); the extrude side was
+superseded by D10 and the fillet-on-a-union row by SPACES' 6265. What
+remains is P2 and below; the board's computed place says how urgent.
 
-| pri | item | cost | status |
+| pri | item | cost | note |
 |---|---|---|---|
-| P0 | `a-mate-on-a-taken-over-copys-face-goes-stale` | M | open; designed |
-| P0 | `a-split-of-a-drawn-body-is-drawn-unsplit` | M | parked on PR 6209 |
-| P1 | `the-create-pane-has-no-extrude-side` | M | open |
-| P1 | `face-pick-cannot-name-which-face` | M | open; ruled #3571 |
-| P1 | `the-gui-has-no-clearance-consumer` | H | open; design fork |
-| P1 | `a-takeover-re-points-along-the-seen-path-and-a-creation-joins-the-product` | M | parked on PR 6209 (to SPACES) |
-| P1 | `a-fillet-on-a-drawn-unions-operand-is-drawn-nowhere` | M | parked on PR 6209 |
-| P1 | `the-mirror-keeps-two-pieces-and-mirrors-across-another-spaces-face-after-dprime3` | M | parked on PR 6209 |
-| P2 | `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added` | M | open; design |
-| P2 | `the-boolean-door-evaluates-its-boolean-twice` | M | open |
-| P3 | `a-takeover-could-re-seat-a-pick-its-result-keeps` | M | open; design |
-| P3 | `a-takeovers-rebind-cannot-reach-part-spelled-names` | M | open; design |
-
-Two closed rows are kept here:
-- `the-viewer-cannot-author-a-mirror`: its `## Closed` records the
-  mirror arrival fork;
-- `a-combine-deletes-the-placement-it-just-repointed`: absorbed by
-  D′3.
+| P2 | `the-name-gate-is-tested-as-a-table` | M | the property table re-verify 5 specced; stops the cell-by-cell pattern of 6264 |
+| P2 | `a-fresh-pick-off-the-older-picture-commits-a-stale-reference` | M | pickcache / viewport picking |
+| P2 | `a-clearance-over-a-patterns-members-is-not-certified` | M | per-member certification |
+| P2 | `the-mirror-keeps-two-pieces-and-mirrors-across-another-spaces-face-after-dprime3` | M | design: a `⊔` output changes 6209's README sentence |
+| P2 | `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added` | M | design |
+| P2 | `the-boolean-door-evaluates-its-boolean-twice` | M | |
+| P3 | the takeover residue (fused pattern, union-operand mates, payload names, undo, re-seat a kept pick, chain walks by hand) | — | each its own row |
+| P3 | the clearance-consumer residue (third seam copy, seat machinery, undrawn seat, narrower seats, two spellings of `≥`) | — | each its own row |
+| P3 | `a-split-half-cannot-be-split`, `a-selections-kept-labels-miss-the-nodes-its-face-words-name` | E / — | |
 
 ## Order
 
-The sitting runs P0 and P1. Three lanes and one designer weighing run
-concurrently, because their ground barely overlaps.
+For the next sitting: `the-name-gate-is-tested-as-a-table` first — it
+is the one row that makes the name gate's correctness checkable as a
+whole rather than probe by probe — then the two P2 design rows to their
+designers (mirror two pieces; flush union), then the rest by the board.
 
-1. **P0, the takeover's rebind**:
-   `a-mate-on-a-taken-over-copys-face-goes-stale`. Its `## Decided`
-   is the spec. An editor-core door, `refactor::take_over`, re-points
-   the copy and writes a `Rebind` for each carried name in one undo
-   step. Its carrier query lives in `names/`. The viewer's
-   `feature_over`, `add_mirror`, `sketch_on_face` and `add_transform`
-   call it. It replaces `Renamed::through` for held picks. CHROME's P1
-   `a-findings-face-reference-reads-as-stale` is parked on this row.
-   **Coupled with SPACES**: its "gestures stop placing" unit rewrites
-   the same gestures. The door is independent of which readers a
-   re-point reaches, so it lands first and SPACES calls it. Both logs
-   say so.
-   Tier: style review plus a correctness reviewer. A stale or
-   wrongly-rebound reference is exactly "a node quietly not what the
-   author drew".
-2. **P1, `the-create-pane-has-no-extrude-side`**: a side control, an
-   op that carries it, the property row, and the negative-depth
-   refusal's recourse made one click through an existing offer home
-   (lessons, below). Tier: a style review.
-3. **P1, `face-pick-cannot-name-which-face`**: one face-in-a-sentence
-   composer beside `tree::node_number`, spoken through
-   `Speaker::of(landed).within(evaluation)`, across five sites, with
-   `BlendTarget::of_face` removed and a hover mark on each line of the
-   declare offer. Tier: a style review.
-4. **P1, `the-gui-has-no-clearance-consumer`**: the designer pair
-   first (`docs/DESIGN-FORK-PROTOCOL.md`), then an `[ev]` PR only if
-   the fork is Ev's.
-
-The tail is the boolean pair (P2) and the two INTENT follow-ups (P3).
-It is handed back with the track unless the P0 lane's context makes
-`a-takeover-could-re-seat-a-pick-its-result-keeps` cheap; that row
-re-seats exactly on what the rebind map already computes.
-
-Once Ev answers PR 6209, re-read the four parked rows against the
-answer. Each one dissolves (close it with the reason), moves to SPACES
-(`git mv`), or opens here.
 ## Lessons carried from AUTHOR and AUTHTAIL
 
 - **AUTHOR's units always minted a duplicate**: a hand copy of a kernel
@@ -92,6 +53,16 @@ answer. Each one dissolves (close it with the reason), moves to SPACES
   non-identity placement**, by reading the drawn copy. Every early
   mirror fixture sat at the identity, so none could see the arrival
   defect.
+- **A gate rebuilt cell by cell keeps leaking** (DOORS 2026-11-02,
+  PR 6264): five fix passes each closed the probe its review named and
+  opened the next cell of the same gate. State a gate's invariant as a
+  type (provenance carried by value, private constructors) and test it
+  as a table, not as instances.
+- **Widening a shared kernel query for one caller changes every
+  caller** (PR 6331): pass the new caller's extra reads in, never
+  rediscover them by walking the document.
+- **A door that `unreachable!`s on a document's value waits for its
+  first reachable caller** (PRs 6292/6357, D9): answer a typed refusal.
 - **Viewer-only diffs never select the ε rows in the per-PR gate**: run
   ε-sensitive sketch rows at `CAD_TOLERANCE_EPS=1e-6` and `1e-12`.
 

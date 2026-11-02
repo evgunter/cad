@@ -325,7 +325,7 @@ fn every_curved_arm_solves_the_rolling_ball_equations_in_both_configurations() {
             ] {
                 let q = match trim.0 {
                     Curve3::Circle { center, radius, .. } => center + radial * radius,
-                    Curve3::Line { origin, .. } => origin,
+                    Curve3::Line(geom::Line { origin, .. }) => origin,
                     _ => panic!("a blend trimline is a circle or a line"),
                 };
                 assert!(

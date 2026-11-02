@@ -238,7 +238,7 @@ impl<'a, T: Decide> Span<'a, T> {
                     mid + (d + T::pi()).reduce_periodic_centred(T::tau()) - T::pi()
                 }
             }
-            Curve3::Line { .. } | Curve3::Nurbs(_) => t,
+            Curve3::Line(_) | Curve3::Nurbs(_) => t,
         }
     }
 

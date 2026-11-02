@@ -137,6 +137,7 @@ use crate::names::role::{
 use crate::names::seam_pair;
 use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
 use crate::node::RecipeNodeId;
+use crate::node::SectionId;
 use crate::var::VarId;
 
 /// One member's table as the UNION sees it: every row's name wrapped
@@ -1992,6 +1993,11 @@ struct WholeMemberEdges<'f, 'a, T: geom_core::Decide> {
 impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
     type Error = NamingError;
 
+    /// A union's names stay in its document: a section id is kept.
+    fn section(&mut self, s: SectionId) -> Result<SectionId, NamingError> {
+        Ok(s)
+    }
+
     fn name(&mut self, n: &StableName) -> Result<Carry, NamingError> {
         if n.node != self.union {
             return Ok(Carry::Keep);
@@ -2707,6 +2713,11 @@ struct CiteParents<'p> {
 
 impl SegRewrite for CiteParents<'_> {
     type Error = NamingError;
+
+    /// A union's names stay in its document: a section id is kept.
+    fn section(&mut self, s: SectionId) -> Result<SectionId, NamingError> {
+        Ok(s)
+    }
 
     fn name(&mut self, n: &StableName) -> Result<Carry, NamingError> {
         if n.node != self.union {

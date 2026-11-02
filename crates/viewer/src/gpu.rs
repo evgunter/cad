@@ -155,8 +155,10 @@ struct Uniforms {
     light_direction: [f32; 4],
     /// Base colour in `xyz`, the ambient term in `w`.
     base_color: [f32; 4],
-    /// `[selected id, hovered id, 0, 0]` — `IdMap::NOTHING` for
-    /// "nothing is marked", so the shader needs no absence case.
+    /// `[selected id, hovered id, second selected id, second hovered
+    /// id]` — `IdMap::NOTHING` for "nothing is marked", so the shader
+    /// needs no absence case. The second ids are a clearance row's
+    /// other witness face ([`crate::marks::witness`]).
     ///
     /// A lane here and one in [`Uniforms::held_ids`] may hold the SAME
     /// id ([`crate::marks::Highlight`]); `fs_main` below rules between
@@ -1495,7 +1497,12 @@ impl ViewportCallback {
             view_projection: self.view_projection,
             light_direction: [lx, ly, lz, 0.0],
             base_color: [r, g, b, self.theme.ambient.get()],
-            highlight: [highlight.selected, highlight.hovered, 0, 0],
+            highlight: [
+                highlight.selected,
+                highlight.hovered,
+                highlight.selected_second,
+                highlight.hovered_second,
+            ],
             held_ids: {
                 let mut lanes = [IdMap::NOTHING; 4];
                 for (lane, id) in lanes.iter_mut().zip(highlight.held) {
@@ -1789,9 +1796,9 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     if ((in.flag & {{FLAG_FOCUS}}u) != 0u) {
         base = tint(base, uniforms.focus);
     }
-    if (in.id != 0u && in.id == uniforms.highlight.x) {
+    if (in.id != 0u && (in.id == uniforms.highlight.x || in.id == uniforms.highlight.z)) {
         base = tint(base, uniforms.selected);
-    } else if (in.id != 0u && in.id == uniforms.highlight.y) {
+    } else if (in.id != 0u && (in.id == uniforms.highlight.y || in.id == uniforms.highlight.w)) {
         base = tint(base, uniforms.hovered);
     } else if (in.id != 0u && any(uniforms.held_ids == vec4<u32>(in.id))
         && held_stripe(in.clip_position.xy)) {
