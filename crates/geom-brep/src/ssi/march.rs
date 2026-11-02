@@ -662,7 +662,8 @@ pub(crate) trait Exit<const M: usize, const N: usize, S: LocalSystem<M, N>> {
 /// A chart lane's exit: the knot rectangles of the state's chart
 /// coordinates from `first` on, left by a structure test (module docs).
 /// The plane × NURBS lane bounds the wall's two ([`RectExit::WALL`]),
-/// the NURBS × NURBS lane all four ([`RectExit::PAIR`]).
+/// the NURBS × NURBS lane all four ([`RectExit::PAIR`]), the 1×2 lane
+/// the wall's two that are its whole state ([`RectExit::CHART`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RectExit {
     /// The first bounded coordinate.
@@ -690,6 +691,9 @@ impl RectExit {
     pub(crate) const WALL: Self = Self { first: 2 };
     /// The NURBS × NURBS lane's: both rectangles.
     pub(crate) const PAIR: Self = Self { first: 0 };
+    /// The 1×2 residual × chart lane's: the wall's rectangle, the
+    /// state's only two coordinates.
+    pub(crate) const CHART: Self = Self { first: 0 };
 
     /// Whether a state's bounded coordinates lie in their rectangles
     /// (a structure test on the raw coordinates, C6's lane). An exit

@@ -1,15 +1,15 @@
-//! The two **trace shapes** of M5 PR 7 (spec §2, C3), behind one
-//! interface: the underdetermined local system the Hoffmann stepper
-//! marches on.
+//! The three **trace shapes** (C3), behind one interface: the
+//! underdetermined local system the Hoffmann stepper marches on.
 //!
 //! An arm's trace shape is a **compile-time decision** (C5: no runtime
-//! fallback), so this module offers exactly two concrete systems and no
-//! way to pick between them at runtime:
+//! fallback), so this module offers exactly three concrete systems and
+//! no way to pick between them at runtime:
 //!
 //! | shape | state | equations | SVD | used by |
 //! |---|---|---|---|---|
-//! | [`ImplicitPairR3`] | `(x, y, z) ∈ ℝ³` | `f₁ = f₂ = 0` | 2×3 | analytic × analytic (cylinder×sphere) |
-//! | [`ParametricPairR4`] | `(u₁,v₁,u₂,v₂) ∈ ℝ⁴` | `G₁ − G₂ = 0` | 3×4 | anything with a NURBS operand (plane×NURBS) |
+//! | [`ImplicitPairR3`] | `(x, y, z) ∈ ℝ³` | `f₁ = f₂ = 0` | 2×3 | two residual sides (cylinder×sphere) |
+//! | [`ImplicitChartR2`] | `(u, v) ∈ ℝ²` | `f∘S = 0` | 1×2 | a residual and a chart (cylinder, sphere or torus × NURBS) |
+//! | [`ParametricPairR4`] | `(u₁,v₁,u₂,v₂) ∈ ℝ⁴` | `G₁ − G₂ = 0` | 3×4 | two charts (plane×NURBS, NURBS×NURBS) |
 //!
 //! # The ℝ⁴ trace and OQ4
 //!
@@ -96,12 +96,15 @@ pub(crate) trait LocalSystem<const M: usize, const N: usize> {
 pub(crate) trait SectionSystem<const M: usize, const N: usize>:
     LocalSystem<M, N> + TransversalityData<N>
 {
-    /// The state's feet on the two charts the fitted triple's pcurves
-    /// interpolate, `[a, b]`: `a` is `pcurve_a`'s chart and `b` is
-    /// `pcurve_b`'s, the order `super::ends::Operands` reads them in. On
-    /// the plane lane `a` is the plane's chart and `b` the NURBS wall's;
-    /// on the pair lane they are the first and second operands' charts.
-    fn feet(&self, x: &[f64; N]) -> [Point2<f64>; 2];
+    /// The state's feet on the two operands' charts, `[a, b]`, each the
+    /// sample its fitted pcurve interpolates: `a` is `pcurve_a`'s chart
+    /// and `b` is `pcurve_b`'s, the order `super::ends::Operands` reads
+    /// them in. On the plane lane `a` is the plane's chart and `b` the
+    /// NURBS wall's; on the pair lane they are the first and second
+    /// operands' charts. A residual side has no chart and no foot
+    /// (`None`), and its branch no pcurve on it, as on the ℝ³ lane: on
+    /// the 1×2 lane `a` is the partner's, `None`, and `b` the wall's.
+    fn feet(&self, x: &[f64; N]) -> [Option<Point2<f64>>; 2];
 
     /// The refusal of a branch whose certified tube does not hold the
     /// settled seed `x` it was traced through.
@@ -177,6 +180,126 @@ impl LocalSystem<2, 3> for ImplicitPairR3<'_> {
         d3: &[f64; 3],
     ) -> [Vec3<f64>; 3] {
         [*d1, *d2, *d3].map(Vec3::from_array)
+    }
+}
+
+// ---------------------------------------------------------------------
+// ℝ²: a residual against a chart
+// ---------------------------------------------------------------------
+
+/// The 1×2 residual × chart trace (C3): the state is the wall's
+/// `(u, v)` and the one equation is `f(S(u, v)) = 0`, `f` the partner's
+/// linearized implicit residual in metres
+/// ([`crate::implicit::implicit_residual`], the value the boundary pass
+/// settles a crossing to). The point is eliminated: the carrier is the
+/// wall's image of the traced chart curve, and the pcurve on the wall is
+/// the state itself.
+pub(crate) struct ImplicitChartR2<'a> {
+    /// The residual side.
+    pub partner: &'a Surface<f64>,
+    /// The chart side.
+    pub wall: &'a NurbsSurface<f64>,
+}
+
+impl ImplicitChartR2<'_> {
+    /// The wall's tangent along the chart direction `d` at its jet.
+    fn along(j: &SurfaceJet3<f64>, d: &[f64; 2]) -> Vec3<f64> {
+        j.jet.du * d[0] + j.jet.dv * d[1]
+    }
+}
+
+impl LocalSystem<1, 2> for ImplicitChartR2<'_> {
+    fn residual(&self, x: &[f64; 2]) -> [f64; 1] {
+        [crate::implicit::implicit_residual(
+            self.partner,
+            self.wall.eval(x[0], x[1]),
+        )]
+    }
+
+    fn jacobian(&self, x: &[f64; 2]) -> [[f64; 2]; 1] {
+        let j = self.wall.ders3(x[0], x[1]);
+        let g = crate::implicit::implicit_gradient(self.partner, j.jet.point);
+        [[g.dot(j.jet.du), g.dot(j.jet.dv)]]
+    }
+
+    /// `−d²/ds² f(S(x + s·d₁))`: the wall's image of the chart line is
+    /// the space path `p + s·S′ + s²/2·S″` to second order.
+    fn rhs2(&self, x: &[f64; 2], d1: &[f64; 2]) -> [f64; 1] {
+        let j = self.wall.ders3(x[0], x[1]);
+        let (v1, v2) = (Self::along(&j, d1), chart_d2(&j, d1[0], d1[1]));
+        [-implicit_path_jet(self.partner, j.jet.point, v1, v2).d2()]
+    }
+
+    /// `−d³/ds³ f(S(x + s·d₁ + s²/2·d₂))`: the space path's third
+    /// derivative is the wall's chain term alone (the chart path has
+    /// none), which the series along the quadratic path leaves out and
+    /// `∇f` reads.
+    fn rhs3(&self, x: &[f64; 2], d1: &[f64; 2], d2: &[f64; 2]) -> [f64; 1] {
+        let j = self.wall.ders3(x[0], x[1]);
+        let v1 = Self::along(&j, d1);
+        let v2 = Self::along(&j, d2) + chart_d2(&j, d1[0], d1[1]);
+        let v3 = chart_d3(&j, d1[0], d1[1], d2[0], d2[1]);
+        let g = crate::implicit::implicit_gradient(self.partner, j.jet.point);
+        [-(implicit_path_jet(self.partner, j.jet.point, v1, v2).d3() + g.dot(v3))]
+    }
+
+    fn point(&self, x: &[f64; 2]) -> Point3<f64> {
+        self.wall.eval(x[0], x[1])
+    }
+
+    fn coordinate_scale(&self, x: &[f64; 2]) -> [f64; 2] {
+        let j = self.wall.ders3(x[0], x[1]);
+        [j.jet.du.norm(), j.jet.dv.norm()]
+    }
+
+    fn tangent_speed(&self, x: &[f64; 2], d: &[f64; 2]) -> f64 {
+        let j = self.wall.ders3(x[0], x[1]);
+        Self::along(&j, d).norm()
+    }
+
+    fn carrier_jet(
+        &self,
+        x: &[f64; 2],
+        d1: &[f64; 2],
+        d2: &[f64; 2],
+        d3: &[f64; 2],
+    ) -> [Vec3<f64>; 3] {
+        let j = self.wall.ders3(x[0], x[1]);
+        [
+            Self::along(&j, d1),
+            Self::along(&j, d2) + chart_d2(&j, d1[0], d1[1]),
+            Self::along(&j, d3) + chart_d3(&j, d1[0], d1[1], d2[0], d2[1]),
+        ]
+    }
+}
+
+/// The partner has no chart, so no foot and no pcurve; the wall's foot
+/// is the state.
+impl SectionSystem<1, 2> for ImplicitChartR2<'_> {
+    fn feet(&self, x: &[f64; 2]) -> [Option<Point2<f64>>; 2] {
+        [None, Some(Point2::new(x[0], x[1]))]
+    }
+
+    fn seed_outside_tube(&self, x: [f64; 2]) -> SsiError {
+        SsiError::SeedOutsideChartTube { state: x }
+    }
+}
+
+impl TransversalityData<2> for ImplicitChartR2<'_> {
+    fn normals(&self, x: &[f64; 2]) -> super::march::NormalPair {
+        let j = self.wall.ders3(x[0], x[1]);
+        (
+            crate::implicit::implicit_gradient(self.partner, j.jet.point),
+            j.jet.du.cross(j.jet.dv),
+        )
+    }
+
+    fn max_curvature(&self, x: &[f64; 2]) -> f64 {
+        let j = self.wall.ders3(x[0], x[1]);
+        Real::max(
+            crate::implicit::implicit_max_normal_curvature(self.partner, j.jet.point),
+            crate::shape_operator::max_principal_curvature(&j.jet),
+        )
     }
 }
 
@@ -413,8 +536,8 @@ impl TransversalityData<3> for ImplicitPairR3<'_> {
 /// The pcurves are the state's coordinate projections, `(u₁, v₁)` and
 /// `(u₂, v₂)`.
 impl SectionSystem<3, 4> for ParametricPairR4<'_> {
-    fn feet(&self, x: &[f64; 4]) -> [Point2<f64>; 2] {
-        [Point2::new(x[0], x[1]), Point2::new(x[2], x[3])]
+    fn feet(&self, x: &[f64; 4]) -> [Option<Point2<f64>>; 2] {
+        [Some(Point2::new(x[0], x[1])), Some(Point2::new(x[2], x[3]))]
     }
 
     fn seed_outside_tube(&self, x: [f64; 4]) -> SsiError {

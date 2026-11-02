@@ -128,8 +128,9 @@ use crate::descent::{Descent, Work};
 use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
-    Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, in_meters, mag_in_meters,
-    torus_a_shift, torus_meters_floor, torus_meters_sup, tube_margin, zero_free_lower_bound,
+    Box3, ChartPhi, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, in_meters,
+    mag_in_meters, torus_a_shift, torus_meters_floor, torus_meters_sup, tube_margin,
+    zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
@@ -1570,25 +1571,20 @@ pub(crate) fn chart_tube_windows<T: geom_core::CertifiedBounds>(
 /// [`SsiError::TubeDegenerate`] when a window's transverse stretch is
 /// zero, or the pcurve's tangent at a span midpoint is zero or not
 /// finite: neither depends on the pad, so no smaller rung cures it.
-fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
+fn probe_tube_chart<'p, T: Decide + Bounds + CertifiedEnclosure>(
     pcurve: &NurbsCurve2<T>,
     boxes: &NurbsBoxes<'_, T>,
-    (origin, normal): (Point3<T>, Vec3<T>),
+    phi: impl Into<ChartPhi<'p>>,
     (rung, pad): (f64, (f64, f64)),
     (ends, band): ([Box3; 2], Band),
 ) -> Result<Option<Rung>, SsiError> {
     #[cfg(test)]
     tests::CHART_PROBES.with(|n| n.set(n.get() + 1));
+    let phi = phi.into();
     let surface = boxes.surface();
     let Some(windows) = chart_tube_windows(pcurve, pad) else {
         return Ok(None);
     };
-    // The plane equation is what the whole limb certifies, so the
-    // plane crosses through the CERTIFIED door: a component whose
-    // computation left its domain is refused, and so is every window's
-    // margin, rather than a zero-free enclosure of an equation nobody
-    // evaluated.
-    let n = [normal.x, normal.y, normal.z].map(Interval::from_certified);
     let mut worst = f64::INFINITY;
     let mut probed = Vec::with_capacity(windows.len());
     for w in windows {
@@ -1614,7 +1610,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         let Some(rect) = UvWindow::new(u0, u1, v0, v1) else {
             return Ok(None);
         };
-        let Some(margin) = chart_transverse_margin(boxes, n, rect, (tx, ty, tn))? else {
+        let Some(margin) = chart_transverse_margin(boxes, phi, rect, (tx, ty, tn))? else {
             return Ok(None);
         };
         if margin.is_nan() {
@@ -1633,14 +1629,13 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         return Ok(None);
     }
     let one = (worst > 0.0).then(|| {
-        let p0 = [origin.x, origin.y, origin.z].map(Interval::from_certified);
         let domain = UvRect {
             u: surface.knots_u_f64_interim().domain(),
             v: surface.knots_v_f64_interim().domain(),
         };
         // An `Undecided` here stays unnamed: past the side arm it may come
         // from that arm's own in-band readings, which are indeterminate.
-        one_arc(boxes, (n, p0), (domain, band), pcurve, &probed, ends)
+        one_arc(boxes, phi, (domain, band), pcurve, &probed, ends)
     });
     #[allow(clippy::cast_possible_truncation)]
     Ok(Some(Rung {
@@ -1814,9 +1809,11 @@ pub(crate) const BOX_CHAIN_NEEDS_SPLINE: &str = "the ℝ³ uniqueness tube of tw
      does not have";
 
 /// [`certify_branch`]'s routing boundary for a NURBS operand whose
-/// analytic partner is not a plane.
-pub(crate) const CHART_TUBE_NEEDS_PLANE: &str = "the chart uniqueness tube is written for a PLANE \
-     against a NURBS surface; another analytic kind needs its own chart form";
+/// analytic partner has no form the chart tube reads: not a plane, a
+/// cylinder, a sphere or a ring torus at exact `f64`.
+pub(crate) const CHART_TUBE_NEEDS_FORM: &str = "the chart uniqueness tube reads a plane, a \
+     cylinder, a sphere or a ring torus against a NURBS surface; this partner has no form it \
+     reads";
 
 /// The uniqueness tube of a certified carrier, as boxes — what the
 /// exhaustiveness accounting pass consumes to prove cells "accounted"
@@ -2144,11 +2141,12 @@ pub(crate) enum Lane<'a, T: geom_core::CertifiedBounds> {
         /// The second operand's pcurve, where it is a NURBS wall.
         pcurve_b: Option<&'a NurbsCurve2<T>>,
     },
-    /// A plane × NURBS search's branch, its chain cut to the wall's knot
+    /// A chart search's branch against a residual side, a plane × NURBS
+    /// or a residual × NURBS search's, its chain cut to the wall's knot
     /// rectangle, which the search banks.
     Chart {
-        /// The plane.
-        plane: &'a Surface<T>,
+        /// The partner: a plane, cylinder, sphere or torus.
+        partner: &'a Surface<T>,
         /// The wall, its chart speeds minted.
         wall: super::ChartedNurbs<'a, T>,
         /// The wall's pcurve.
@@ -2336,11 +2334,11 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             pcurve_b,
         } => (a, b, pcurve_a, pcurve_b),
         Lane::Chart {
-            plane,
+            partner,
             wall,
             pcurve,
         } => {
-            (first, second) = (SsiOperand::Analytic(plane), SsiOperand::Nurbs(wall));
+            (first, second) = (SsiOperand::Analytic(partner), SsiOperand::Nurbs(wall));
             (&first, &second, None, Some(pcurve))
         }
         Lane::Pair {
@@ -2407,17 +2405,35 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 ))
             })?
         }
-        (SsiOperand::Analytic(plane), SsiOperand::Nurbs(n))
-        | (SsiOperand::Nurbs(n), SsiOperand::Analytic(plane)) => {
-            let Surface::Plane { origin, normal, .. } = **plane else {
-                return Err(SsiError::UnsupportedCertificate {
-                    what: CHART_TUBE_NEEDS_PLANE,
-                });
-            };
+        (SsiOperand::Analytic(partner), SsiOperand::Nurbs(n))
+        | (SsiOperand::Nurbs(n), SsiOperand::Analytic(partner)) => {
             let Some(p) = pcurve_b else {
                 return Err(SsiError::UnsupportedCertificate {
                     what: "the chart uniqueness tube needs the traced pcurve",
                 });
+            };
+            // A curved partner is read through its canonical form at
+            // `f64`, so only where every scalar of it is an exact `f64`.
+            let curved = match **partner {
+                Surface::Plane { .. } => None,
+                _ => Some(
+                    super::residual::Curved::of(&partner.map_scalar(|x| {
+                        let (lo, hi) = (Bounds::lo(x), Bounds::hi(x));
+                        if lo == hi { lo } else { f64::NAN }
+                    }))
+                    .map_err(|_| SsiError::UnsupportedCertificate {
+                        what: CHART_TUBE_NEEDS_FORM,
+                    })?,
+                ),
+            };
+            let phi = match (*partner, &curved) {
+                (Surface::Plane { origin, normal, .. }, _) => ChartPhi::from((*origin, *normal)),
+                (_, Some(c)) => ChartPhi::Curved(c),
+                (_, None) => {
+                    return Err(SsiError::UnsupportedCertificate {
+                        what: CHART_TUBE_NEEDS_FORM,
+                    });
+                }
             };
             limb_three((widest, extent), band, |radius| {
                 // The pad per axis: the rung ÷ the operand's minted chart
@@ -2427,7 +2443,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 // region (a window's corner can sit farther than the rung
                 // from the carrier).
                 let pad = n.speeds().pad(radius);
-                probe_tube_chart(p, n.boxes(), (origin, normal), (radius, pad), (ends, band))
+                probe_tube_chart(p, n.boxes(), phi, (radius, pad), (ends, band))
             })?
         }
         (SsiOperand::Nurbs(na), SsiOperand::Nurbs(nb)) => {
@@ -3727,7 +3743,7 @@ mod tests {
 
         let (wall, carrier, pcurve, plane) = fold_across_its_gap();
         let lane = Lane::Chart {
-            plane: &plane,
+            partner: &plane,
             wall: ChartedNurbs::mint(&wall).unwrap(),
             pcurve: &pcurve,
         };
@@ -3761,7 +3777,7 @@ mod tests {
         CHART_PROBES.with(|n| n.set(0));
         let wall_op = ChartedNurbs::mint(&wall).unwrap();
         let lane = Lane::Chart {
-            plane: &plane,
+            partner: &plane,
             wall: wall_op,
             pcurve: &pcurve,
         };

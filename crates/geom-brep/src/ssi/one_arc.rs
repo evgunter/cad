@@ -69,10 +69,15 @@ use geom::{NurbsCurve2, Surface};
 use geom_core::{Band, Bounds, CertifiedBounds, Interval, Point2};
 
 use super::ChartAxis;
-use super::boundary::{ChartEnd, ChartSide, Reading, SIDES, cut_along, read_stretch, side_stretch};
+#[cfg(test)]
+use super::boundary::read_stretch;
+use super::boundary::{
+    ChartEnd, ChartSide, Reading, SIDES, cut_along, read_stretch_by, side_stretch,
+};
 use super::certify::ChartWindow;
 use super::enclose::{
-    Box3, NurbsBoxes, UvWindow, implicit_enclosure, implicit_gradient_enclosure, refused_box,
+    Box3, ChartPhi, NurbsBoxes, UvWindow, implicit_enclosure, implicit_gradient_enclosure,
+    refused_box,
 };
 use super::exhaust::UvRect;
 use super::section::{SectionReader, sign};
@@ -130,14 +135,13 @@ fn pt(x: f64) -> Interval {
     Interval::from_bounds(x, x)
 }
 
-/// The plane distance `φ = n·(S − p₀)` over a parameter rectangle.
+/// The partner's `φ` over a parameter rectangle ([`ChartPhi::over`]).
 fn phi_over<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    (n, p0): ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     (u0, u1, v0, v1): (f64, f64, f64, f64),
 ) -> Interval {
-    let b = UvWindow::new(u0, u1, v0, v1).map_or_else(refused_box, |w| boxes.rect_box(w));
-    n[0] * (b.x - p0[0]) + n[1] * (b.y - p0[1]) + n[2] * (b.z - p0[2])
+    plane.over(boxes, UvWindow::new(u0, u1, v0, v1))
 }
 
 /// The intersection of two rectangles, `None` when it has no interior.
@@ -188,11 +192,10 @@ impl Run {
 /// or `pieces` passes [`EXIT_PIECES`].
 fn edge_runs<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     (along_u, c, (a, b)): (bool, f64, (f64, f64)),
     pieces: &mut u32,
 ) -> Option<Vec<Run>> {
-    let n = plane.0;
     let piece = |s: f64, t: f64| if along_u { (s, t, c, c) } else { (c, c, s, t) };
     let sign_at = |s: f64| sign(phi_over(boxes, plane, piece(s, s)));
     let mut out = Vec::new();
@@ -214,9 +217,7 @@ fn edge_runs<T: CertifiedBounds>(
         } else {
             (across.0, across.1, s, t)
         };
-        let d =
-            UvWindow::new(r0, r1, r2, r3).map_or_else(refused_box, |w| boxes.deriv_box(w, along_u));
-        let slope = n[0] * d.x + n[1] * d.y + n[2] * d.z;
+        let slope = plane.partial(boxes, UvWindow::new(r0, r1, r2, r3), along_u);
         // `[m − h, m + h]` holds `[s, t]`: `h` is the larger half,
         // rounded up.
         let m = 0.5 * (s + t);
@@ -253,11 +254,12 @@ fn edge_runs<T: CertifiedBounds>(
 ///   a touch at a corner, which is no crossing. That is `None`, as are
 ///   two such points in a row, and an edge [`edge_runs`] does not
 ///   resolve.
-pub(crate) fn boundary_zeros<T: CertifiedBounds>(
+pub(crate) fn boundary_zeros<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: impl Into<ChartPhi<'p>>,
     rect: UvRect,
 ) -> Option<u32> {
+    let plane = plane.into();
     let ((u0, u1), (v0, v1)) = (rect.u, rect.v);
     let mut pieces = 0u32;
     // Counter-clockwise: the top and left edges are walked backwards.
@@ -334,7 +336,7 @@ fn slice(p: (f64, f64), e: (f64, f64), rect: UvRect) -> Option<[(f64, f64); 2]> 
 /// The certified sign of `φ` at a chart point.
 fn sign_at<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     (u, v): (f64, f64),
 ) -> Option<bool> {
     sign(phi_over(boxes, plane, (u, u, v, v)))
@@ -347,7 +349,7 @@ fn sign_at<T: CertifiedBounds>(
 /// sign, or the line misses the interior of `rect`.
 pub(crate) fn holds_zero<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     p: (f64, f64),
     e: (f64, f64),
     rect: UvRect,
@@ -395,19 +397,34 @@ fn on_side(r: UvRect, domain: UvRect, side: ChartSide) -> bool {
 /// The reader of `φ` along each side of the wall's domain, in [`SIDES`]
 /// order: the boundary pass's row of the net for that side
 /// ([`super::boundary::side_row`]), its control points enclosed
-/// ([`SectionReader`]); `None` where the row or its
-/// Bernstein form is refused, and that side holds no piece.
-fn side_readers<T: CertifiedBounds>(
+/// ([`SectionReader`]); against a curved partner the row's composite with
+/// its form, read only where every control point is an exact `f64`.
+/// `None` where the row or its Bernstein form is refused, and that side
+/// holds no piece.
+fn side_readers<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    (n, p0): ([Interval; 3], [Interval; 3]),
+    plane: impl Into<ChartPhi<'p>>,
 ) -> [Option<SectionReader>; 4] {
+    let plane = plane.into();
     SIDES.map(|side| {
         let (knots, row, weights) = super::boundary::side_row_parts(boxes.surface(), side);
         let control: Vec<[Interval; 3]> = row
             .iter()
             .map(|c| [c.x, c.y, c.z].map(Interval::from_certified))
             .collect();
-        SectionReader::of(&knots, &control, &weights, (p0, n))
+        match plane {
+            ChartPhi::Plane(n, p0) => SectionReader::of(&knots, &control, &weights, (p0, n)),
+            ChartPhi::Curved(curved) => {
+                let exact = |c: &[Interval; 3]| {
+                    c.iter()
+                        .all(|i| i.is_certified() && i.lo() == i.hi())
+                        .then(|| geom_core::Point3::new(c[0].lo(), c[1].lo(), c[2].lo()))
+                };
+                let points = control.iter().map(exact).collect::<Option<Vec<_>>>()?;
+                let curve = geom::NurbsCurve3::new(knots, points, weights).ok()?;
+                SectionReader::implicit(&curve, curved)
+            }
+        }
     })
 }
 
@@ -426,15 +443,23 @@ fn reader_of(readers: &[Option<SectionReader>; 4], side: ChartSide) -> Option<&S
 /// does.
 fn side_piece<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     (domain, readers): (UvRect, &[Option<SectionReader>; 4]),
     r: UvRect,
     band: Band,
 ) -> Option<ChartSide> {
     SIDES.into_iter().find(|&side| {
         on_side(r, domain, side)
-            && reader_of(readers, side)
-                .is_some_and(|reader| side_stretch(boxes, plane.0, reader, (side, domain), r, band))
+            && reader_of(readers, side).is_some_and(|reader| {
+                side_stretch(
+                    boxes,
+                    &|w, along_u| plane.partial(boxes, w, along_u),
+                    reader,
+                    (side, domain),
+                    r,
+                    band,
+                )
+            })
     })
 }
 
@@ -449,7 +474,7 @@ fn side_piece<T: CertifiedBounds>(
 /// [`Shortfall::Undecided`] for a walk that resolved none.
 fn piece<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     sides: (UvRect, &[Option<SectionReader>; 4]),
     r: UvRect,
     band: Band,
@@ -530,7 +555,7 @@ enum Near {
 /// are [`Near::Unknown`].
 fn crossing_near<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     r: UvRect,
     (p, e): ((f64, f64), (f64, f64)),
     (end, eps): (Box3, f64),
@@ -588,7 +613,7 @@ fn crossing_near<T: CertifiedBounds>(
 /// where every slice read is.
 fn near_end<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     (q, e, tau): ((f64, f64), (f64, f64), (f64, f64)),
     r: UvRect,
     end: (Box3, f64),
@@ -654,7 +679,7 @@ struct CarrierEnd {
 /// beyond).
 fn reaches_end<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     (readers, eps): (&[Option<SectionReader>; 4], f64),
     (piece, r): (Piece, UvRect),
     q: (f64, f64),
@@ -668,9 +693,8 @@ fn reaches_end<T: CertifiedBounds>(
                 return Err(Shortfall::Short);
             }
             let reader = reader_of(readers, side).ok_or(Shortfall::Undecided)?;
-            match read_stretch(
-                boxes,
-                plane.0,
+            match read_stretch_by(
+                &|w, along_u| plane.partial(boxes, w, along_u),
                 reader,
                 (side, cut_along(side, r, (t, t))),
                 eps,
@@ -695,7 +719,7 @@ fn reaches_end<T: CertifiedBounds>(
 /// near reading is certified far; else [`Near::Unknown`].
 fn end_reading<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     r: UvRect,
     q: (f64, f64),
     end: CarrierEnd,
@@ -718,7 +742,7 @@ fn end_reading<T: CertifiedBounds>(
 /// carrier's end `q` ([`end_reading`]).
 fn end_far<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     r: UvRect,
     q: (f64, f64),
     end: CarrierEnd,
@@ -736,7 +760,7 @@ fn end_far<T: CertifiedBounds>(
 ///   pass reads no piece of the overlap clear ([`read_stretch`]).
 fn link<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: ChartPhi<'_>,
     (domain, readers, eps): (UvRect, &[Option<SectionReader>; 4], f64),
     (a, b): (Piece, Piece),
     overlap: UvRect,
@@ -748,7 +772,8 @@ fn link<T: CertifiedBounds>(
                 return Err(Shortfall::Unlinked);
             }
             let reader = reader_of(readers, s).ok_or(Shortfall::Undecided)?;
-            match read_stretch(boxes, plane.0, reader, (s, overlap), eps) {
+            let across = |w, along_u| plane.partial(boxes, w, along_u);
+            match read_stretch_by(&across, reader, (s, overlap), eps) {
                 Reading::Within(_) => Ok(()),
                 Reading::Clear => Err(Shortfall::Unlinked),
                 Reading::Refused | Reading::Beyond => Err(Shortfall::Undecided),
@@ -779,14 +804,15 @@ fn pcurve_at<T: CertifiedBounds>(pcurve: &NurbsCurve2<T>, t: f64) -> Option<Poin
 ///
 /// The first [`Shortfall`] met: windows in order, then links in order,
 /// then the start and the end.
-pub(crate) fn one_arc<T: CertifiedBounds>(
+pub(crate) fn one_arc<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ([Interval; 3], [Interval; 3]),
+    plane: impl Into<ChartPhi<'p>>,
     (domain, band): (UvRect, Band),
     pcurve: &NurbsCurve2<T>,
     windows: &[(ChartWindow, (f64, f64))],
     ends: [Box3; 2],
 ) -> Result<(), Shortfall> {
+    let plane = plane.into();
     let at = |t: f64| {
         let Some(p) = pcurve_at(pcurve, t) else {
             return (f64::NAN, f64::NAN);

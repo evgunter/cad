@@ -452,6 +452,26 @@ impl SectionReader {
         Pieces::enclosed(knots, control, weights, (origin, normal)).map(|pieces| Self { pieces })
     }
 
+    /// The reader of `curve` against a curved partner: `φ = f∘C`, its
+    /// canonical form along the curve ([`Pieces::implicit`], the
+    /// arithmetic the boundary pass reads a side against it by); `None`
+    /// where the composite does not certify.
+    pub(crate) fn implicit(curve: &NurbsCurve3<f64>, curved: &Curved) -> Option<Self> {
+        Pieces::implicit(curve, curved).map(|pieces| Self { pieces })
+    }
+
+    /// An upper bound in metres on the curve's distance from the
+    /// partner where `|φ| ≤ sup` along it: `sup` itself on a plane.
+    pub(crate) fn metres(&self, sup: f64) -> f64 {
+        self.pieces.metres(sup)
+    }
+
+    /// Whether `φ` is the plane's distance, whose slope per metre is a
+    /// sine, never above 1.
+    pub(crate) fn is_distance(&self) -> bool {
+        self.pieces.scale.is_none()
+    }
+
     /// The stretch `[a, b]` of the curve: its pieces cut to it.
     pub(crate) fn stretch(&self, (a, b): (f64, f64)) -> Stretch {
         Stretch {

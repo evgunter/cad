@@ -402,6 +402,26 @@ impl<'a> ImplicitWall<'a> {
         self.floor
     }
 
+    /// The wall's chart, its speeds minted.
+    pub(crate) fn charted(&self) -> &super::ChartedNurbs<'a, f64> {
+        &self.charted
+    }
+
+    /// The march's tolerance, the boundary pass's settling tolerance.
+    pub(crate) fn tol(&self) -> super::march::MarchTol {
+        self.tol
+    }
+
+    /// The domain the wall is read over.
+    pub(crate) fn domain(&self) -> super::SsiDomain {
+        self.domain
+    }
+
+    /// The run band.
+    pub(crate) fn band(&self) -> geom_core::Band {
+        self.band
+    }
+
     /// **The boundary pass against `curved`** (C3; [`super::boundary`]),
     /// at the domain's floor and extent.
     ///

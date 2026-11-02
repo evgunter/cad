@@ -172,10 +172,10 @@ use exhaust::{RateClause, SweepFloor, UvRect};
 use march::{MarchContext, MarchTol, Readout, SlabEnd, Trace, march_both, trace_points};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
-/// The two chart-parameter sample sequences of an ℝ⁴ trace — the
-/// coordinate projections that become the two pcurves, on the carrier's
-/// own parameter (the OQ4 identity).
-type ChartSamples<'a> = (&'a [geom_core::Point2<f64>], &'a [geom_core::Point2<f64>]);
+/// The chart-parameter sample sequences of a trace, one per operand
+/// with a chart — the feet that become the pcurves, on the carrier's own
+/// parameter (the OQ4 identity).
+type ChartSamples<'a> = [Option<&'a [geom_core::Point2<f64>]>; 2];
 
 /// A fitted rung-3 branch's curves: the 3-D carrier, and the two
 /// pcurves when the trace shape produced them (the ℝ⁴ shape does; the
@@ -772,6 +772,13 @@ pub enum SsiError {
         /// The settled seed, `(u₁, v₁, u₂, v₂)`.
         state: [f64; 4],
     },
+    /// [`SsiError::SeedOutsideTube`] on the 1×2 residual × chart lane
+    /// ([`ImplicitSection::branch_at`]), whose state is the wall's chart
+    /// point alone.
+    SeedOutsideChartTube {
+        /// The settled seed, the wall's `(u, v)`.
+        state: [f64; 2],
+    },
     /// A NURBS operand's chart cannot carry a length in metres into its
     /// parameters: a chart speed along one axis is zero or has no finite
     /// bound, or the chart is constant across the traced locus. Refused
@@ -1308,6 +1315,11 @@ impl core::fmt::Display for SsiError {
                 "ssi: the branch certified from the seed settled at {state:?} does not hold it \
                  in its uniqueness tube"
             ),
+            Self::SeedOutsideChartTube { state } => write!(
+                f,
+                "ssi: the branch certified from the seed settled at {state:?} on the wall does \
+                 not hold it in its uniqueness tube"
+            ),
             Self::ChartSpeed(r) => write!(f, "ssi: {}", r.what()),
             Self::TubeDegenerate(d) => write!(f, "ssi: {}", d.what()),
             Self::WrongLane { expected } => write!(
@@ -1658,7 +1670,9 @@ impl SsiError {
             Self::PairBoundaryUnresolved { .. } | Self::PairRowTangent => {
                 PAIR_BOUNDARY_RECOURSE.to_owned()
             }
-            Self::SeedOutsideTube { .. } => SEED_RECOURSE.to_owned(),
+            Self::SeedOutsideTube { .. } | Self::SeedOutsideChartTube { .. } => {
+                SEED_RECOURSE.to_owned()
+            }
             // Limb 1 with no residual to state: its own decision.
             Self::FootPointInconclusive { .. } => crate::certify::recourse(
                 SsiLimb::OnLocus.check(),
@@ -2335,10 +2349,7 @@ const WALL_COLLAPSED_RECOURSE: &str = "Recourse: move the geometry so the spline
 /// exactly what PR 6's cache door checks
 /// (`|S(P(t)) − C(t)| ≤ ε`), and it is why the ℝ⁴ trace discharges OQ4
 /// without any re-plumbing.
-fn fit_branch(
-    points: &[Point3<f64>],
-    charts: Option<ChartSamples<'_>>,
-) -> Result<FittedBranch, SsiError> {
+fn fit_branch(points: &[Point3<f64>], charts: ChartSamples<'_>) -> Result<FittedBranch, SsiError> {
     let params = NurbsCurve3::<f64>::chord_parameters(points)?;
     // **Interpolation, not approximation, and the reason is
     // refinement.** The march aims its spacing at a cubic within ε of
@@ -2359,15 +2370,17 @@ fn fit_branch(
     // parameters, so they share the matrix, factored once.
     let collocation = Collocation::new(&params, SSI_FIT_DEGREE)?;
     let carrier = NurbsCurve3::<f64>::interpolate_on(points, &collocation)?;
-    let (mut pa, mut pb) = (None, None);
-    if let Some((a, b)) = charts {
-        // Pcurves interpolate the traced parameter samples ON THE
-        // CARRIER'S PARAMETERS. Interpolation (not approximation) so
-        // the map is exact at every sample; compaction of a pcurve is
-        // an optimization, and the certificate is what governs.
-        pa = Some(NurbsCurve2::<f64>::interpolate_on(a, &collocation)?);
-        pb = Some(NurbsCurve2::<f64>::interpolate_on(b, &collocation)?);
-    }
+    // Pcurves interpolate the traced parameter samples ON THE CARRIER'S
+    // PARAMETERS, one per side that has a chart. Interpolation (not
+    // approximation) so the map is exact at every sample; compaction of
+    // a pcurve is an optimization, and the certificate is what governs.
+    let [a, b] = charts;
+    let pa = a
+        .map(|a| NurbsCurve2::<f64>::interpolate_on(a, &collocation))
+        .transpose()?;
+    let pb = b
+        .map(|b| NurbsCurve2::<f64>::interpolate_on(b, &collocation))
+        .transpose()?;
     Ok((carrier, pa, pb))
 }
 
@@ -3431,7 +3444,7 @@ fn finish_r3(
         band,
         |states, limbs| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
-            let (carrier, _, _) = fit_branch(&points, None)?;
+            let (carrier, _, _) = fit_branch(&points, [None, None])?;
             let cert = certify::certify_located(
                 &carrier,
                 certify::Lane::Spatial {
@@ -4622,7 +4635,7 @@ mod ending_tests {
             Point3::new(2.0, 0.0, 0.0),
             Point3::new(3.0, 0.0, 0.0),
         ];
-        let error = super::fit_branch(&points, None).err();
+        let error = super::fit_branch(&points, [None, None]).err();
         assert!(
             matches!(
                 error,
@@ -4637,7 +4650,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 49;
+    const ARMS: usize = 50;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -4693,6 +4706,7 @@ mod ending_tests {
             SsiError::DegenerateTorus(_) => 46,
             SsiError::CoincidentTori => 47,
             SsiError::PairRowTangent => 48,
+            SsiError::SeedOutsideChartTube { .. } => 49,
         }
     }
 
@@ -5012,7 +5026,7 @@ mod ending_tests {
             (
                 "unsupported, routing",
                 SsiError::UnsupportedCertificate {
-                    what: super::certify::CHART_TUBE_NEEDS_PLANE,
+                    what: super::certify::CHART_TUBE_NEEDS_FORM,
                 },
             ),
             (
@@ -5200,6 +5214,10 @@ mod ending_tests {
                 SsiError::SeedOutsideTube {
                     state: [0.25, 0.5, 0.75, 0.5],
                 },
+            ),
+            (
+                "seed outside chart tube",
+                SsiError::SeedOutsideChartTube { state: [0.75, 0.5] },
             ),
             (
                 "escalated",
