@@ -504,7 +504,8 @@ pub enum EngineRefusal {
         side: Which,
     },
     /// A cell pair the interval pass classified as a definite violation
-    /// whose witness the caller's verifier did not confirm. The engine
+    /// of a lower bound, or as within an upper one, whose witness the
+    /// caller's verifier did not confirm. The engine
     /// reports what the verifier returned, verbatim, and goes on with
     /// the sweep; whether the arm can fire is the verifier's property,
     /// stated at the verifier.
@@ -604,7 +605,8 @@ impl EngineRefusal {
             ),
             Self::WitnessUnverified { what } => write!(
                 f,
-                "a violation the interval pass found was not confirmed by the verifier: {what}"
+                "a pair the interval pass found below the lower bound or within the upper one \
+                 was not confirmed by the verifier: {what}"
             ),
             Self::PoisonEnclosure { a, b } => write!(
                 f,
