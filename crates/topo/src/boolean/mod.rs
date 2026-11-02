@@ -205,8 +205,6 @@ pub use edge_join::{
 };
 pub use holdings::{Held, HeldRefusal, Holdings};
 pub use join::CompletedPolygonPair;
-#[doc(hidden)]
-pub use nary::MemberLineage;
 pub use nary::{
     Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
     NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,

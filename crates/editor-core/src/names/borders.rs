@@ -47,6 +47,10 @@
 //! ([`Obstacles::split`]). Both readings are one rule
 //! ([`Obstacles::walls`]), and both refuse a piece or copy, among
 //! several, that meets no divider.
+//!
+//! Each discard is keyed by the member faces whose area the region it
+//! lost held, as the boolean's holdings read it (`topo::Holdings::lost`),
+//! so an obstacle of a face is part of that face's own lost region.
 
 use core::convert::Infallible;
 use core::ops::ControlFlow;
@@ -101,8 +105,8 @@ struct Read<'a> {
 /// The discards of one boolean, or of each step of a union's fold.
 pub(crate) struct Obstacles<K> {
     discards: Vec<Discard>,
-    /// Parent key → the discards descending from it (what the caller's
-    /// `parents_of` named each a fragment of).
+    /// Member face → the discards whose lost region held its area
+    /// (what the caller's `parents_of` read off the holdings).
     by_parent: BTreeMap<K, Vec<usize>>,
     /// Edge → the edge it was split from, as each recorded result's
     /// provenance, each step's joined lineage and each discard's chains
@@ -142,13 +146,14 @@ impl<K: Ord + Clone> Obstacles<K> {
     }
 
     /// Records one boolean's discards against its result `body`.
-    /// `parents_of(operand, face)` names what a discarded face — in its
-    /// operand's clone keys — is a fragment of.
+    /// `parents_of(row)` names the member faces whose area the region
+    /// discard row `row` (its place in `naming.discards`) lost held:
+    /// the boolean's holdings (`topo::Holdings::lost`).
     pub(crate) fn record<T: geom_core::Real>(
         &mut self,
         naming: &topo::BooleanNaming,
         body: &Body<T>,
-        mut parents_of: impl FnMut(topo::Operand, FaceKey) -> Result<BTreeSet<K>, NamingError>,
+        mut parents_of: impl FnMut(usize) -> Result<BTreeSet<K>, NamingError>,
     ) -> Result<(), NamingError> {
         // What was recorded before is operand A's, in A's keys, and every
         // record reads it as the result's: A held directly. A result
@@ -323,7 +328,7 @@ impl<K: Ord + Clone> Obstacles<K> {
             .chain(read.iter().flat_map(|r| &r.whole))
             .copied()
             .collect();
-        for r in read {
+        for (place, r) in read.into_iter().enumerate() {
             // A chain edge an earlier seam was split into since that
             // seam's step still touches it: its lineage reaches the seam.
             let touches = self.lineage_hits(body, r.chains.concat(), &earlier);
@@ -341,7 +346,7 @@ impl<K: Ord + Clone> Obstacles<K> {
             }
             let meets = self.lineage_hits(body, at_ends, &whole_so_far);
             let row = r.row;
-            let parents = parents_of(row.operand, row.face)?;
+            let parents = parents_of(place)?;
             for k in &parents {
                 self.by_parent
                     .entry(k.clone())

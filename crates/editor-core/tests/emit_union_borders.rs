@@ -1813,7 +1813,7 @@ fn face_names_modulo(ev: &Evaluation<f64>, node: RecipeNodeId) -> BTreeSet<Strin
 /// Every row `node`'s table holds, said by tag with `node`'s own tag
 /// replaced by `NODE`, so the tables of two nodes, or of one node over
 /// two member orders, compare whole.
-fn names_modulo(ev: &Evaluation<f64>, node: RecipeNodeId) -> BTreeSet<String> {
+pub(crate) fn names_modulo(ev: &Evaluation<f64>, node: RecipeNodeId) -> BTreeSet<String> {
     let tag = node.to_string();
     table(ev, node)
         .iter()
@@ -1823,7 +1823,11 @@ fn names_modulo(ev: &Evaluation<f64>, node: RecipeNodeId) -> BTreeSet<String> {
 
 /// Every one of `tables`, one per member order in `orders`, is the
 /// first: the names do not depend on member order.
-fn one_table<O: std::fmt::Debug>(label: &str, orders: &[O], tables: &[BTreeSet<String>]) {
+pub(crate) fn one_table<O: std::fmt::Debug>(
+    label: &str,
+    orders: &[O],
+    tables: &[BTreeSet<String>],
+) {
     assert_eq!(tables.len(), orders.len(), "{label}: every order named");
     let Some(first) = tables.first() else {
         panic!("{label}: no member order named");

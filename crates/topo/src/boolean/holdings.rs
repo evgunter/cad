@@ -201,6 +201,14 @@ impl Holdings {
         Self::default()
     }
 
+    /// Holdings stated outright: a test's fixture for a record it built
+    /// by hand, which no door read.
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn fixture(faces: BTreeMap<FaceKey, Held>, lost: Vec<Held>, uncut: Vec<Held>) -> Self {
+        Self::from_parts(faces, lost, uncut)
+    }
+
     pub(crate) fn from_parts(
         faces: BTreeMap<FaceKey, Held>,
         lost: Vec<Held>,

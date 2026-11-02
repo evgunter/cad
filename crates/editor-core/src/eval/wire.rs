@@ -3320,12 +3320,14 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 kind,
                 contacts,
                 naming,
+                holdings,
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
             let emitted = (verb.emitter)(
                 id,
                 BooleanOp::Subtract,
                 &out.body,
                 &naming,
+                &holdings,
                 &names::OperandCtx {
                     node: from.node,
                     read: from.read,
@@ -3553,12 +3555,13 @@ fn in_member_space(
 /// rule), by the kernel: each member pair whose boxes meet runs as its
 /// own two-member union or intersect, its operand A the lesser read
 /// ([`member_ranks`]), so its verdicts and refusals are the same in
-/// every member order, and the face pairs each judgement consumed are
-/// the node's face links (N2, [`names::UnionLinks`]). **One verdict per
-/// carrier pair**: the kernel gives each step the verdicts on the member
-/// it joins, read through the lineage it advances
-/// ([`topo::MemberLineage`], which [`names::UnionFold`] reads), and the
-/// step decides no carrier pair of its own. A refusal only a step raises
+/// every member order, and the edge pieces each judgement classified are
+/// the senses the node's vertices read (N2, [`names::UnionLinks`]).
+/// **One verdict per carrier pair**: the kernel gives each step the
+/// verdicts on the member it joins, and the step decides no carrier pair
+/// of its own; the member faces each face holds are the last step's
+/// holdings ([`topo::NaryStep::holdings`], which [`names::UnionFold`]
+/// reads). A refusal only a step raises
 /// names the member that step folds in
 /// ([`NodeErrorKind::UnionFoldStep`]). Two members are one pair: their
 /// one step is the judgement, run and logged once, its refusals the
@@ -3878,8 +3881,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // step folds in.
     // The judgements' rows, whole, each named in its two members' own
     // tables: the node's coincidences are its member pairs' (DM4), each
-    // pair's in the order the kernel judged it. The faces each judgement
-    // consumed are the node's face links (N2, [`names::UnionLinks`]).
+    // pair's in the order the kernel judged it. The edge pieces each
+    // judgement classified are the node's senses ([`names::UnionLinks`]).
     let mut links = names::UnionLinks::default();
     let mut judged: Vec<Vec<crate::coincide::NamedCoincidence>> =
         Vec::with_capacity(judgements.len());
@@ -3936,9 +3939,9 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
     let judged_rows = coincidences.len();
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
-    // What the end pass reads of every step: each face's member faces
-    // and each step's discards.
-    let mut fold = names::UnionFold::new(0, &first.body);
+    // What the end pass reads of every step: each step's discards, and
+    // the member faces each face of the last holds.
+    let mut fold = names::UnionFold::new();
     // The accumulation's own records in the node's terms: each cites a
     // fold row (`fold_rows`) or a member's record, by its place in the
     // member list. Row for row, they are the records the kernel carried
@@ -4093,6 +4096,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             op,
             &out.body,
             naming,
+            &out.holdings,
             &names::OperandCtx {
                 node: id,
                 read: names::FOLD_A,
@@ -4108,7 +4112,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             tol,
         )
         .map_err(NodeErrorKind::Naming)?;
-        fold.step(joined, naming, &out.body, &stepped.lineage)
+        fold.step(naming, &out.body, &stepped.holdings)
             .map_err(NodeErrorKind::Naming)?;
         acc_table = emitted.table;
         step_groups.push(emitted.groups);
