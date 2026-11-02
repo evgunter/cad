@@ -19,9 +19,10 @@
 # comments and string literals stripped. A site is `f64::EPSILON` (any
 # path ending in it) or `UNIT_ROUNDOFF` as a word, or a use of the charge
 # geom-core offers: a `rounding_charge(` call or a `Rounded::…` path or
-# `Rounded { … }` literal (`geom_core::running`). A charge read through
-# geom-core is the same decision as a bare one, so it is counted under
-# the same ratchet. Each file's sites are
+# `Rounded { … }` literal (`geom_core::running`); and a call of
+# `carrier_resolution::resolution(`, geom-brep's charge for a carrier's
+# stored terms. A charge read through a helper is the same decision as a
+# bare one, so it is counted under the same ratchet. Each file's sites are
 # counted in two scopes: `test`, for a file under a `tests/`, `benches/`
 # or `examples/` directory, under `demos/`, `tools/` or `benches/`, a
 # file a `#[cfg(test)] mod` mounts (`lib.sh`'s `gate_test_only_mounts`),
@@ -29,12 +30,13 @@
 # otherwise.
 #
 # THE LIST is `bare-rounding-sites.tsv` beside this file, one row per
-# (file, scope): file, scope, count, reason. The reason is one word, the
-# row's own: a file whose sites are of two kinds carries the one that
-# schedules its production sites. Every `prod` row other than
+# (file, scope): file, scope, count, reason. The reason is one word, or
+# for a file whose sites are of more than one kind, its words joined by
+# commas (`re-pose,far-centre`). Every `prod` row other than
 # `exact-arith` and `fixture` is scheduled by
 # `work/onehome/site-rounding-charges-owed-a-re-posing.md`, which lists
-# its file; `oracle` rows are a test's own reading of the unit roundoff,
+# its file (a `far-centre` site there points on to the far-centre conic
+# row); `oracle` rows are a test's own reading of the unit roundoff,
 # not a charge, and are not expected to shrink.
 #
 #   oracle      a test's expectation, a fixture's pose or a probe's
@@ -60,15 +62,18 @@
 #   STALE     a row whose (file, scope) holds fewer sites than it says
 #             (a site went: lower or drop the row in the same change, so
 #             the ratchet holds);
-#   REASON    a row whose reason is not one of the six, `oracle` on a
-#             `prod` row, or `fixture` on a `test` row.
+#   REASON    a row whose reason (or one of its words) is not one of
+#             the six, `oracle` on a `prod` row, or `fixture` on a `test`
+#             row.
 #
 # KNOWN GAPS. A token scan sees spellings, not values: a literal
 # `2.220446049250313e-16`, `2f64.powi(-52)`, `f64::EPSILON` re-exported
 # under another name, a crate-local constant or function derived from
-# one (its definition is a site; its uses are not), or a `Rounded` value
+# one (its definition is a site; its uses are not), a `Rounded` value
 # carried through arithmetic without a fresh path (its operators charge;
-# only the paths that make one are counted) are not counted.
+# only the paths that make one are counted), and `geom_core::running`'s
+# free functions that charge without naming `Rounded` (`unit_defect(`,
+# `exact_vec(`) are not counted.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -90,7 +95,7 @@ gate() {
 import glob, os, re, sys
 
 list_path, mounts_path = sys.argv[1], sys.argv[2]
-SITE = re.compile(r"\bf64::EPSILON\b|\bUNIT_ROUNDOFF\b|\brounding_charge\s*\(|\bRounded\s*(?:::|\{)")
+SITE = re.compile(r"\bf64::EPSILON\b|\bUNIT_ROUNDOFF\b|\brounding_charge\s*\(|\bRounded\s*(?:::|\{)|\bcarrier_resolution::resolution\s*\(")
 REASONS = {"oracle", "re-pose", "pose", "far-centre", "exact-arith", "fixture"}
 
 
@@ -205,7 +210,8 @@ for k, line in enumerate(open(list_path, encoding="utf-8"), 1):
         bad.append(f"REASON {list_path}:{k}: not `file<TAB>scope<TAB>count<TAB>reason`: {line.strip()}")
         continue
     path, scope, n, reason = cols
-    if reason not in REASONS or scope not in ("prod", "test") or (reason == "oracle" and scope == "prod") or (reason == "fixture" and scope == "test"):
+    words = reason.split(",")
+    if any(w not in REASONS for w in words) or scope not in ("prod", "test") or ("oracle" in words and scope == "prod") or ("fixture" in words and scope == "test"):
         bad.append(f"REASON {path} ({scope}): `{reason}` is not a reason this scope may carry")
     rows[(path, scope)] = int(n)
 
@@ -283,6 +289,21 @@ plant_new_running() {
   printf 'pub fn pad(x: f64) -> f64 { geom_core::running::Rounded::exact(x).value }\n' >> "$1/crates/clean/src/lib.rs"
 }
 
+plant_new_carrier_charge() {
+  printf 'pub fn pad(c: &C) -> f64 { geom_brep::carrier_resolution::resolution(c, 0.0, 1.0) }\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+plant_compound_reason() {
+  printf 'crates/clean/src/lib.rs\tprod\t2\tre-pose,far-centre\n' >> "$1/$LIST"
+  plant_new_site "$1"
+  plant_new_charge "$1"
+}
+
+plant_bad_compound_reason() {
+  printf 'crates/clean/src/lib.rs\tprod\t1\tre-pose,oracle\n' >> "$1/$LIST"
+  plant_new_site "$1"
+}
+
 plant_not_sites() {
   printf '// f64::EPSILON in a comment\npub const S: &str = "UNIT_ROUNDOFF";\n' >> "$1/crates/clean/src/lib.rs"
   mkdir -p "$1/crates/geom-core/src"
@@ -295,12 +316,15 @@ gate_selftest() {
   gate_selftest_case "UNLISTED" plant_new_roundoff
   gate_selftest_case "UNLISTED" plant_new_charge
   gate_selftest_case "UNLISTED" plant_new_running
+  gate_selftest_case "UNLISTED" plant_new_carrier_charge
+  gate_selftest_case "REASON" plant_bad_compound_reason
+  gate_selftest_passes "a compound reason" plant_compound_reason
   gate_selftest_case "STALE" plant_stale
   gate_selftest_case "REASON" plant_oracle_in_prod
   gate_selftest_case "UNLISTED crates/clean/src/lib.rs (test)" plant_test_module_as_prod
   gate_selftest_passes "a listed site" plant_listed
   gate_selftest_passes "a comment, a string and geom-core's own" plant_not_sites
-  printf '%s selftest OK: passes a clean fixture, a listed site, and comments, strings and geom-core; fires on an unlisted site of each spelling (bare, a rounding_charge call, a Rounded path), a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, a listed site, and comments, strings and geom-core; fires on an unlisted site of each spelling (bare, a rounding_charge call, a Rounded path, a carrier_resolution call), an oracle inside a compound reason, a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

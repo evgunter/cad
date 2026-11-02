@@ -1,4 +1,4 @@
-# The rounding sites (bare f64::EPSILON / UNIT_ROUNDOFF, rounding_charge calls, Rounded paths) of scripts/gates/bare-rounding-allowlist.sh: one row per
+# The rounding sites (bare f64::EPSILON / UNIT_ROUNDOFF, rounding_charge and carrier_resolution::resolution calls, Rounded paths) of scripts/gates/bare-rounding-allowlist.sh: one row per
 # (file, scope), tab-separated: file, scope, count, reason. The reasons are in the gate's header.
 crates/bvh/tests/proximity.rs	test	1	oracle
 crates/bvh/tests/proximity_r2.rs	test	1	oracle
@@ -23,7 +23,7 @@ crates/geom-brep/src/carrier_resolution.rs	prod	2	far-centre
 crates/geom-brep/src/carrier_resolution.rs	test	1	oracle
 crates/geom-brep/src/chart_singularity.rs	prod	1	re-pose
 crates/geom-brep/src/curve_pair/one_curve_rows.rs	test	2	oracle
-crates/geom-brep/src/curve_pair/pose.rs	prod	7	far-centre
+crates/geom-brep/src/curve_pair/pose.rs	prod	7	re-pose,far-centre
 crates/geom-brep/src/curve_pair/pose/window.rs	prod	3	re-pose
 crates/geom-brep/src/curve_pair/pose/window.rs	test	2	oracle
 crates/geom-brep/src/curve_pair/pose/window/oracle.rs	test	1	oracle
@@ -31,7 +31,7 @@ crates/geom-brep/src/edge_nurbs.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	test	4	oracle
 crates/geom-brep/src/half_angle.rs	test	1	oracle
-crates/geom-brep/src/implicit.rs	prod	31	re-pose
+crates/geom-brep/src/implicit.rs	prod	32	re-pose,far-centre
 crates/geom-brep/src/implicit.rs	test	4	oracle
 crates/geom-brep/src/intersect.rs	prod	6	re-pose
 crates/geom-brep/src/pair_section/gap.rs	prod	9	re-pose
@@ -184,13 +184,16 @@ crates/topo/src/boolean/vtxfac.rs	test	1	oracle
 crates/topo/src/census.rs	prod	8	re-pose
 crates/topo/src/census/pierce_fuzz.rs	test	2	oracle
 crates/topo/src/census/segment_fuzz.rs	test	2	oracle
+crates/topo/src/chord_join.rs	prod	1	far-centre
+crates/topo/src/chord_join/section_end_rows.rs	test	2	oracle
 crates/topo/src/injective.rs	prod	1	re-pose
 crates/topo/src/offset_axial.rs	test	1	oracle
 crates/topo/src/props.rs	prod	2	re-pose
 crates/topo/src/props.rs	test	2	oracle
 crates/topo/src/props/quad_lane.rs	prod	1	re-pose
 crates/topo/src/props/quad_lane.rs	test	2	oracle
-crates/topo/src/ring_path.rs	prod	1	far-centre
+crates/topo/src/ring_path.rs	prod	2	far-centre
+crates/topo/src/ring_path.rs	test	3	oracle
 crates/topo/src/ring_path/graze_rows.rs	test	4	oracle
 crates/topo/src/sector_shape.rs	prod	2	re-pose
 crates/topo/src/separation.rs	prod	1	re-pose

@@ -662,34 +662,45 @@ fn harmonic_curvature_bound<T: Real>(h: &ResidualHarmonics<T>) -> T {
     h.a1 + four * h.a2 + four * h.noise
 }
 
-/// The rounding of one SAMPLED residual's squares, [`implicit_residual`]
-/// at a point of the conic, bounded over the whole carrier (metres);
-/// `None` for the kinds the arc enclosure does not read.
+/// The rounding of one SAMPLED residual, [`implicit_residual`] at a
+/// point of the conic, bounded over the whole carrier (metres); `None`
+/// for the kinds the arc enclosure does not read.
 ///
-/// The point's own coordinates are in-box terms, whose rounding the
-/// run's admission rule covers (`geom_core::tolerance::admissible`), so
-/// nothing here charges them, and the plane's residual `(p − o)·n`, a
-/// short chain on them, charges nothing. With `D = |C₀ − o| + speed_hi`
-/// bounding the point's offset from the surface's anchor `o`, the
-/// quadrics' `|⊥(p − o)|² − r²` rounds its squares relative to `D² + r²`,
-/// over `2r`; the torus's `(ρ − R)² + h² − r²` relative to `6D² + r²`
-/// with its offsets bounded by `D + R`. That share is the squared form's
-/// own amplification over a small `2r`, which a distance form would not
-/// have; the harmonic curvature bound reads the squared form, so it stays
-/// until the arc enclosure is re-posed.
+/// The point `C₀ + a·û cos θ + b·v̂ sin θ` is rounded at the scale of
+/// its own coordinates, `|C₀| + speed_hi`; every later step at the
+/// scale of its result. With `D = |C₀ − o| + speed_hi` bounding the
+/// point's offset from the surface's anchor `o`, the plane's residual
+/// `(p − o)·n` is linear in the point's error; the quadrics' `|⊥(p −
+/// o)|² − r²` takes it times `2D`, plus their own squares, over `2r`;
+/// the torus's `(ρ − R)² + h² − r²` the same with its offsets bounded
+/// by `D + R`. What is charged is the scale the rounding is relative
+/// to, never `(|C₀| + D)²`: a point a kilometre out against a
+/// micrometre ball rounds its coordinates at a kilometre's ulp, but
+/// squares only the micrometre offset.
+///
+/// **The point is summed from the conic's stored terms**, its centre and
+/// semi-axes, so it rounds at their scale, not the point's: a section
+/// ellipse centred megametres out sums an in-box point from megametre
+/// terms. That is a carrier's stored terms amplifying, which the run's
+/// admission rule (`geom_core::tolerance::admissible`) does not cover,
+/// and is charged here until
+/// `work/onehome/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`
+/// evaluates the point from its vertex. The share over in-box
+/// coordinates is not separated out of it.
 fn sample_rounding<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<T> {
     let two = T::from_f64(2.0);
     let a = conic.speed_hi();
+    let at = (conic.frame().center - Point3::origin()).norm() + a;
     let offset = |o: Point3<T>| (conic.frame().center - o).norm() + a;
     Some(match *s {
-        Surface::Plane { .. } => T::zero(),
+        Surface::Plane { origin, .. } => rounding_charge(at + offset(origin)),
         Surface::Sphere { center, radius, .. } => {
             let d = offset(center);
-            rounding_charge(d.powi(2) + radius.powi(2)) / (two * radius)
+            rounding_charge(two * d * at + d.powi(2) + radius.powi(2)) / (two * radius)
         }
         Surface::Cylinder { origin, radius, .. } => {
             let d = offset(origin);
-            rounding_charge(d.powi(2) + radius.powi(2)) / (two * radius)
+            rounding_charge(two * d * at + d.powi(2) + radius.powi(2)) / (two * radius)
         }
         Surface::Torus {
             center,
@@ -698,7 +709,8 @@ fn sample_rounding<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<T> {
             ..
         } => {
             let d = offset(center) + major_radius;
-            rounding_charge(T::from_f64(6.0) * d.powi(2) + minor_radius.powi(2))
+            let four = T::from_f64(4.0);
+            rounding_charge(four * d * (at + d) + two * d.powi(2) + minor_radius.powi(2))
                 / (two * minor_radius)
         }
         Surface::Cone { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,

@@ -1209,16 +1209,19 @@ impl<T: Decide> Quadric<T> {
 ///   the arc's length).
 /// - On a torus, a meeting point counts only on the arc's own loop of
 ///   its plane ([`ArcLoop`], **`split_ring_path_torus_loop`**).
-/// - Every reading above is charged the [`resolution`] of the path's
-///   points and the arcs' centres ([`charge`]), but the cosine across,
+/// - Every reading above is charged the path's resolution
+///   ([`path_resolution`], [`charge`]): the spread of its pieces' stored
+///   terms and the arcs' stored centres, origins or ends, and a conic
+///   arc's own carrier resolution — but the cosine across,
 ///   read between two directions, and two readings whose zero only hands
 ///   the case to charged readings, so that a charge would only widen it:
 ///   the lead's length, and [`misses_in_plane`]'s
 ///   **`split_ring_path_same_circle`**, whose zero hands the arcs' ends
-///   to the in-span readings. In a frame far from the
-///   origin, points that should lie on one plane or one circle are
-///   stored further apart than the band, and a margin inside their
-///   rounding stands down rather than decide.
+///   to the in-span readings. Where a stored term lies far from the
+///   arc it serves (a section's centre far along its plane), points
+///   that should lie on one plane or one circle are stored further apart
+///   than the band, and a margin inside their rounding stands down
+///   rather than decide.
 /// - Each meeting point counts when it lies strictly inside the piece's
 ///   span and the arc's (**`split_ring_path_in_span`**: the distance
 ///   along the piece or the arc to a span end — a parameter levered at a
@@ -1684,7 +1687,9 @@ fn resolution<T: Real>(points: &[Point3<T>]) -> T {
 
 /// **The [`resolution`] of a reading between `path` and `arcs`**: of
 /// every piece's ends and centre and every arc's stored centre, origin
-/// or ends, about the path's first point; and a conic arc's own
+/// or ends, read about the first of them (the first piece's first
+/// stored term: an arc piece's centre, a segment's start); and a conic
+/// arc's own
 /// resolution over its span ([`geom_brep::carrier_resolution`]), the
 /// rounding its stored semi-axes and far centre amplify.
 fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
@@ -1859,10 +1864,11 @@ fn plane_roots<T: Decide>(
     // roots lie `2rω` apart along the arc, so the root error against
     // their separation is `δ/(2rρ·sin ω·ω) ≈ δ/(4g)` for the gap
     // `g = rρ − |D| ≈ rρω²/2`. The pick holds while that is under a half.
-    // The gap is charged the coordinates' resolution `s`, so a decided
-    // gap is `g > Kε + s`, and the rounding is `δ ≤ ε + s`: the ratio is
-    // under a quarter wherever the frame lies, and at most `1/(4K)` where
-    // the coordinates resolve the band (`s ≪ ε`). The bound is the guard.
+    // The gap is charged its stored terms' resolution `s`, so a decided
+    // gap is `g > Kε + s`; the rounding is the coordinates' own, within
+    // the headroom the run's admission rule leaves (`(K − 1)ε`), plus
+    // `s`: `δ ≤ (K − 1)ε + s`, so the ratio is under a quarter however
+    // far the stored terms lie. The bound is the guard.
     let roots = if arrival {
         let nearer = (r0 - p.span.1).abs() - (r1 - p.span.1).abs();
         vec![nearer.select_le_zero(r1, r0)]
@@ -2874,6 +2880,22 @@ mod tests {
             geom_brep::carrier_resolution::resolution(carrier, -0.01, 0.01).unwrap()
         };
         for far in [1e4, 1e5, 1e6] {
+            // The charge is the conic's resolution, not a stand-down at
+            // any price: a few dozen roundings of its far terms.
+            let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::origin(),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
+                far,
+                far / 100.0,
+            ));
+            let slack = charge(&carrier);
+            assert!(
+                slack.is_finite() && slack <= 128.0 * f64::EPSILON * far,
+                "far {far:e}: the charge {slack:e} is the conic's resolution"
+            );
             let charged = far_centre_grazes(far, charge);
             assert_eq!(
                 charged.1, 0,
@@ -2881,7 +2903,59 @@ mod tests {
             );
             let bare = far_centre_grazes(far, |_| 0.0);
             println!("far {far:e}: charged {charged:?}, bare {bare:?}");
+            if far >= 1e6 {
+                // The row can go red: read bare, the pose is read wrong.
+                assert!(
+                    bare.1 > 0,
+                    "far {far:e}: bare reads nothing wrong: {bare:?}"
+                );
+            }
         }
+    }
+
+    /// **A loop conic stored far from its arc charges the path its own
+    /// resolution** ([`path_resolution`]'s conic fold): a unit circle
+    /// piece in the box against a section ellipse whose centre is a
+    /// megametre out reads at least the conic's
+    /// [`geom_brep::carrier_resolution`], far past what the path's points
+    /// alone resolve (red against the mutant "the fold reads no conic").
+    #[test]
+    fn a_far_centred_loop_conic_charges_the_path_its_resolution() {
+        let far = 1e6;
+        let piece = CircleArc {
+            centre: Point3::new(100.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            span: (0.0, 1.0),
+        };
+        let path = Path {
+            pieces: vec![Piece::Arc(piece)],
+            arrival: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let span = (-0.01, 0.01);
+        let conic = ConicArc::of_frame(
+            geom::Frame::new(
+                Point3::new(100.0 - far, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            (far, far / 100.0),
+            span,
+            None,
+        );
+        let own = geom_brep::carrier_resolution::resolution(&conic.carrier, span.0, span.1)
+            .expect("an ellipse has a resolution");
+        let points = [piece.centre, piece.at(span.0), piece.at(span.1)];
+        assert!(
+            resolution(&points) * 1e3 < own,
+            "the points alone resolve far finer"
+        );
+        let read = path_resolution(&path, &[LoopArc::Conic(conic)]);
+        assert!(
+            read >= own,
+            "the path reads {read:e}, the conic's own {own:e}"
+        );
     }
 
     /// A refused meeting of a piece and a spline arc says nothing where

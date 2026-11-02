@@ -16,10 +16,11 @@ use sweep::test_support::{brick, finished, revolved_about_y};
 /// terms reach `|c| + R + r ≈ 1050` m, past the box: read so, the cut
 /// was refused.
 ///
-/// A pinned red at ε = 1e-12, `work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`:
-/// there the cut's spiric section near 1 km stops on limb 2's kernel
-/// limit (a certified bound ~9e-11 m over 113 m), past the box's own
-/// reading, which the default-ε run shows passes.
+/// A pinned red at ε = 1e-12, `work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`:
+/// there `intersect` refuses the cut first, limb 2's kernel limit on a
+/// spiric section (a bound of 8.6e-11 m over 113 m of it, 22 times the
+/// carrier's enclosure width), so this row shows the box's reading only
+/// at the other ε.
 #[test]
 fn a_bar_cutting_a_large_torus_inside_the_box_builds() {
     let tol = Tol::witness();

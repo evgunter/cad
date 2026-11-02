@@ -9,14 +9,14 @@ opened: 2026-11-02
 
 Filed by PR 6380 (`onehome/run-owns-rounding`), which builds the run's
 admission rule (`geom_core::tolerance::admissible`) and deletes the
-charges of the coordinates' floor (`implicit::sample_rounding`'s `|C₀|`
-term, the short-chain charge in `solid_contain`'s vertex gap, the
-coordinates' share of `ring_path::resolution`, which now reads only a
-reading's own spread about its first point). Under
+charges of the coordinates' floor (the short-chain charge in
+`solid_contain`'s vertex gap, the coordinates' share of
+`ring_path::resolution`, which now reads only a reading's own spread
+about its first point). Under
 `crates/geom-core/README.md`, "Float rounding", a charge that exists
 because its formula is ill-conditioned is re-posed, not deleted. These
 were not re-posed there; each stays, and each production file holding
-one is a `re-pose` or `pose` row of `scripts/gates/bare-rounding-sites.tsv`
+one is a `re-pose` or `pose` row (or holds those words) of `scripts/gates/bare-rounding-sites.tsv`
 (which counts bare `f64::EPSILON` / `UNIT_ROUNDOFF`, `rounding_charge(`
 calls and `Rounded` paths). Every such row's file is named below; a
 re-posing that empties a file lowers or drops its row in the same change.
@@ -55,14 +55,16 @@ re-posing that empties a file lowers or drops its row in the same change.
 
 ## Squared forms and cancelling sums (a distance form, or the Interval lane)
 
-- `geom_brep::implicit`: `sample_rounding`'s squares over `2r`, and the
+- `geom_brep::implicit`: `sample_rounding`'s squares over `2r` (its
+  point's far-centre share is below, under "Not this row"), and the
   harmonic machinery's `noise` (`conic_residual_harmonics`,
   `conic_torus_harmonics`, `CEILING_PAD`), which the arc enclosure's
   Bernstein bound reads; the residual is the squared form, so a distance
   form changes the enclosure's function.
 - `topo::boolean::section_cert::ruling` (`Rounded` throughout, its own
   `CEILING_PAD`), `geom_brep::curve_pair::pose` and `pose::window`
-  (window polynomials' `noise`), `geom_brep::half_angle`,
+  (the window polynomials' `noise`, six of `pose`'s seven sites and all
+  of `window`'s), `geom_brep::half_angle`,
   `geom_brep::chart_singularity`, `topo::sector_shape`.
 - `geom_brep::props::curved::require_turn_read`: a sign of an exact norm
   of two cancelling tangents, which a charge holds off zero; owed a
@@ -107,10 +109,13 @@ re-posing that empties a file lowers or drops its row in the same change.
 - The gate's `far-centre` rows, which wait on the same row:
   `topo::ring_path` (`resolution`'s spread about the reading's own point,
   and `path_resolution`'s conic arcs through `carrier_resolution`),
-  `geom_brep::curve_pair::pose` (`one_curve_gap`'s charge on its conics'
-  stored semi-axes, and the window polynomials' `noise` above), and
-  `geom::curves::conic`'s `running_point` (a conic point evaluated from
-  its stored centre and semi-axes, `Rounded`).
+  `topo::chord_join` (`carrier_resolution` on a section pin),
+  `geom_brep::curve_pair::pose`'s `one_curve_gap` (its conics' stored
+  semi-axes; `pose`'s row is `re-pose,far-centre`),
+  `geom_brep::implicit::sample_rounding`'s point term `|C₀| + speed_hi`
+  (a conic point summed from its stored centre and semi-axes; the row is
+  `re-pose,far-centre`), and `geom::curves::conic`'s `running_point`
+  (the same evaluation, `Rounded`).
 - `geom_brep::ssi::compensated` (`exact-arith`) and
   `editor-core::test_support` (`fixture`): not charges.
 - `geom_core::one_line`'s charge (inside geom-core): its precision arm is
