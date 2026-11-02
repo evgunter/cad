@@ -353,7 +353,25 @@ jobs:
           echo "$(wc -w < "$RUNNER_TEMP/new-tests.txt") identifiers on the diff's added Rust lines"
       - name: build
         id: build
-        run: cargo nextest run --no-run --profile ci ${{ matrix.scope }}
+        run: cargo nextest run --no-run --timings --profile ci ${{ matrix.scope }}
+      - name: "MEASUREMENT ONLY, removed before merge: unit timings"
+        if: '!cancelled()'
+        run: |
+          python3 - <<'PY'
+          import glob, json, re, collections
+          f = sorted(glob.glob("target/cargo-timings/cargo-timing-*.html"))[-1]
+          u = json.loads(re.search(r"const UNIT_DATA = (\[.*?\n\]);", open(f).read(), re.S).group(1))
+          kind = lambda x: ("example" if "example" in x["target"] else "test" if "test" in x["target"] else "lib")
+          ws = lambda x: x["version"] == "0.0.0"
+          agg = collections.Counter()
+          for x in u:
+              agg[(("ws " if ws(x) else "dep ") + kind(x))] += x["duration"]
+          print("units", len(u), "end", max(x["start"] + x["duration"] for x in u))
+          for k, v in sorted(agg.items()):
+              print(f"unit-s {k}: {v:.0f}")
+          for x in sorted(u, key=lambda x: -x["duration"])[:25]:
+              print(f"{x['start']:7.1f} {x['duration']:7.1f} {x['name']}{x['target']}")
+          PY
       - name: test (default eps; a fast-set test at 0.5 s if new, 1 s otherwise, fails it)
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
