@@ -738,17 +738,18 @@ fn near_gap_family(ratio: Option<f64>) -> Vec<geom::Curve3<f64>> {
 }
 
 /// How many of `family` the door certifies at ε = 1e-9, each certified
-/// root checked within the zero band of the exact oracle's.
+/// root checked within the zero band of the exact oracle's; every other
+/// pose must refuse the typed `Unsettled::Meter`, or this panics.
 fn certified_near_gap(family: &[geom::Curve3<f64>]) -> usize {
     let eps = 1e-9;
     let band = Band::new(eps, 10.0 * eps).unwrap();
     family
         .iter()
         .filter(|c| {
-            let Ok(Ok(CircleRoots::Certified(found))) =
-                conic_quadric_roots(c, -1.0, 1.0, &wall(1.0), band)
-            else {
-                return false;
+            let found = match conic_quadric_roots(c, -1.0, 1.0, &wall(1.0), band) {
+                Ok(Ok(CircleRoots::Certified(found))) => found,
+                Ok(Err(Unsettled::Meter)) => return false,
+                other => panic!("{c:?}: answered neither certified nor `Meter`: {other:?}"),
             };
             let truth = exact::truth(c, &wall(1.0));
             for &t in found.roots() {

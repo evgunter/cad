@@ -287,8 +287,15 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// over the semi-axes, `((p − c)·u_ref/a, (p − c)·v_ref/b)`, in which
     /// the conic is the unit circle and its parameter the polar angle.
     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
-        let ((x, y), (a, b)) = (self.frame().in_plane(p), self.semi_axes());
-        (x / a, y / b)
+        self.unit_of(p - self.frame().center)
+    }
+
+    /// **The vector `w` in the conic's unit coordinates**:
+    /// `(w·u_ref/a, w·v_ref/b)`, [`Self::unit_in_plane`] for an offset
+    /// rather than a point.
+    fn unit_of(&self, w: Vec3<T>) -> (T, T) {
+        let (f, (a, b)) = (self.frame(), self.semi_axes());
+        (w.dot(f.u_ref) / a, w.dot(f.v_ref()) / b)
     }
 
     /// **The conic's harmonic along `n`**: `(a·(u_ref·n), b·(v_ref·n))`,
@@ -383,6 +390,9 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     }
     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
         (**self).unit_in_plane(p)
+    }
+    fn unit_of(&self, w: Vec3<T>) -> (T, T) {
+        (**self).unit_of(w)
     }
     fn param_in(&self, p: Point3<T>, span: (T, T)) -> T {
         (**self).param_in(p, span)
