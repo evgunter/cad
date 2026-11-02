@@ -115,8 +115,15 @@ fn child_band_row() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let Some(NodeResult::Failed(failed)) = ev.nodes.get(&node) else {
-        panic!("the node must FAIL here: {:?}", ev.nodes.get(&node));
+    // The placement's operand is a `⊔`, which finishes what it gathers
+    // and so meets the band door first: the placement is poisoned
+    // through it, and the refusal is the `⊔`'s.
+    let root = match ev.nodes.get(&node) {
+        Some(NodeResult::Poisoned { through }) => *through,
+        _ => node,
+    };
+    let Some(NodeResult::Failed(failed)) = ev.nodes.get(&root) else {
+        panic!("the node must FAIL here: {:?}", ev.nodes.get(&root));
     };
     assert!(
         matches!(&failed.kind, NodeErrorKind::Band(e) if e.to_string() == inner),

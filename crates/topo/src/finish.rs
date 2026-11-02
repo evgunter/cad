@@ -199,8 +199,12 @@ impl<'a> IntoIterator for &'a NotFinished {
 
 impl fmt::Display for NotFinished {
     /// Each family once, its text, then each of its findings, which ends
-    /// in the family's recourse.
+    /// in the family's recourse. A lone finding is written alone: its
+    /// own sentence already says what its family's text would.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let [only] = self.as_slice() {
+            return write!(f, "{only}");
+        }
         for (i, (family, members)) in self.by_family().into_iter().enumerate() {
             if i > 0 {
                 f.write_str("; ")?;

@@ -44,15 +44,22 @@ fn validated<T: Decide>(r: T, b: T, z: T) -> ValidatedProfile<T> {
 
 /// Every wall pole and weight of a loft, in face order, as bits of
 /// their value channel.
-fn wall_bits<T: topo::AtRestPolicy + geom_core::spline::SpanLocate>(
-    lofted: &Lofted<T>,
+fn wall_bits<
+    T: topo::AtRestPolicy + geom_core::spline::SpanLocate,
+    B: crate::common::enclosure::LoftedBody<T>,
+>(
+    lofted: &Lofted<T, B>,
 ) -> Vec<u64> {
     wall_values(lofted, |x| x.value_channel().to_bits())
 }
 
 /// Every wall pole and weight of a loft, in face order, through `f`.
-fn wall_values<T: topo::AtRestPolicy + geom_core::spline::SpanLocate, R>(
-    lofted: &Lofted<T>,
+fn wall_values<
+    T: topo::AtRestPolicy + geom_core::spline::SpanLocate,
+    R,
+    B: crate::common::enclosure::LoftedBody<T>,
+>(
+    lofted: &Lofted<T, B>,
     f: impl Fn(T) -> R,
 ) -> Vec<R> {
     lofted
@@ -61,9 +68,10 @@ fn wall_values<T: topo::AtRestPolicy + geom_core::spline::SpanLocate, R>(
         .flatten()
         .flatten()
         .flat_map(|face| {
-            let face = lofted.body.get_face(*face).expect("a built face");
+            let face = lofted.body.body_of().get_face(*face).expect("a built face");
             match lofted
                 .body
+                .body_of()
                 .get_surface(face.surface)
                 .expect("a described face")
             {
@@ -137,7 +145,7 @@ fn at_dual_a_seeded_section_value_rides_into_the_walls() {
 #[test]
 fn at_interval_a_point_polygon_lofts_on_its_value_channel() {
     let i = Interval::from_f64;
-    let lofted = loft_profiles::<Interval>(
+    let lofted = sweep::test_support::loft_profiles_construction::<Interval>(
         &[
             validated(i(1.0), i(0.0), i(0.0)),
             validated(i(1.2), i(0.0), i(1.0)),
@@ -174,7 +182,7 @@ fn at_interval_a_point_polygon_lofts_on_its_value_channel() {
 fn at_interval_a_wide_section_encloses_its_family() {
     let i = Interval::from_f64;
     let (lo, hi) = box_about(1.2);
-    let enclosing = loft_profiles::<Interval>(
+    let enclosing = sweep::test_support::loft_profiles_construction::<Interval>(
         &[
             validated(i(1.0), i(0.0), i(0.0)),
             validated(Interval::from_bounds(lo, hi), i(0.0), i(1.0)),
@@ -200,7 +208,7 @@ fn at_interval_a_wide_section_encloses_its_family() {
 fn at_interval_a_wide_plane_encloses_its_family() {
     let i = Interval::from_f64;
     let (lo, hi) = box_about(1.0);
-    let enclosing = loft_profiles::<Interval>(
+    let enclosing = sweep::test_support::loft_profiles_construction::<Interval>(
         &[
             validated(i(1.0), i(0.0), i(0.0)),
             validated(i(1.2), i(0.0), Interval::from_bounds(lo, hi)),

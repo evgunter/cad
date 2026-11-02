@@ -760,7 +760,7 @@ fn at_interval_the_prism_moves_by_the_shortcut_and_a_slanted_rim_refuses_by_name
         .map(|z| profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, *z)))
         .collect::<Vec<_>>();
     let loft = |turn: f64| {
-        sweep::loft_body::<Interval>(
+        sweep::test_support::loft_body_construction::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&[square(0.0), square(turn)]),
             &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             1,
@@ -771,11 +771,11 @@ fn at_interval_the_prism_moves_by_the_shortcut_and_a_slanted_rim_refuses_by_name
     };
     let d = <Interval as Real>::from_f64(-THICKNESS);
     let prism = loft(0.0);
-    let mut moved = prism.clone().into_body();
+    let mut moved = prism.clone();
     topo::replace_face_offset(&mut moved, top_cap(&prism), d, Tol::witness())
         .expect("the prism's cap moves through the shortcut at interval");
     let twisted = loft(0.3);
-    let mut moved = twisted.clone().into_body();
+    let mut moved = twisted.clone();
     let Err(ReplaceFaceError::NurbsLaneUnsupported { scalar, .. }) =
         topo::replace_face_offset(&mut moved, top_cap(&twisted), d, Tol::witness())
     else {

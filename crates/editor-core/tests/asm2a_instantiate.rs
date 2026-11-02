@@ -429,13 +429,16 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // two validations no longer reads a gap on the box's four corner
     // pairs, which share a vertex (`profile::seg`'s `line_line`):
     // 850 → 834. The copy is validated by no one, so main's matching +24
-    // on the placing op does not arise.
+    // on the placing op does not arise. The extrude finishes its own
+    // result now (the scalar's `finish`, tiers 1–3, at the sweep door's
+    // end), and that finish's decisions land on the extrude node's log:
+    // 834 → 1711.
     assert_eq!(
         first.len(),
         0,
         "the instantiate op decides nothing; the part's {direct_total} decisions are its own"
     );
-    assert_eq!(direct_total, 834, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 1711, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----

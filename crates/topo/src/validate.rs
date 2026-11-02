@@ -244,8 +244,9 @@
 //! callers are this crate's tests and probes.
 //!
 //! **Two doors sit beside the table rather than in it**, the pair
-//! [`AtRestBody`] carries: [`AtRestBody::validate`], which is
-//! [`validate_geometric`] keeping its verdict with the body, and
+//! [`AtRestBody`] carries: its construction at the certifying scalars'
+//! finish ([`crate::finish`]), which is [`validate_geometric`] keeping
+//! its verdict with the body, and
 //! [`AtRestBody::validate_pseudomanifold`], the tier-3′ pass over that
 //! body, which runs the census and reads the battery's half off the
 //! kept verdict. They are methods of the verdict and not forms of a

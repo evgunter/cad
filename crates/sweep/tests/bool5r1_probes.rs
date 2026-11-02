@@ -17,7 +17,7 @@ use crate::revolve_common;
 use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
-use sweep::{Revolution, revolve};
+use sweep::Revolution;
 
 /// The trapezoid `(0, ∓r) – (w, ∓(r + 1))` less the half-disc of radius
 /// `r` on the axis (the arc bulges into it; the slanted sides keep the
@@ -38,7 +38,14 @@ fn dimple(r: f64, w: f64) -> ProfileLoop<f64> {
 /// itself refuses the angle, with its refusal printed.
 fn report(label: &str, r: f64, w: f64, angle: f64) -> Option<Result<f64, topo::MassPropsError>> {
     let vp = validated(vec![dimple(r, w)]);
-    let t = match revolve(&vp, axis_y(), Revolution::Partial(angle), Tol::witness()) {
+    // The construction: the door's own finish refuses the lune its
+    // tiers below measure, so the probe reads the body before it.
+    let t = match sweep::test_support::revolve_construction(
+        &vp,
+        axis_y(),
+        Revolution::Partial(angle),
+        Tol::witness(),
+    ) {
         Ok(t) => t,
         Err(e) => {
             println!(

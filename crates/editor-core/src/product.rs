@@ -290,12 +290,9 @@ impl ProductError {
                 piece(*node)
             ),
             Self::ProductInvalid { findings } => {
-                write!(
-                    f,
-                    "the gathered product is not a finished body though every copy is one — \
-                     a graft defect ({} finding(s)):",
-                    findings.len()
-                )?;
+                // Every copy is finished, so a refusal here is a graft
+                // defect; the findings say which.
+                f.write_str("the product does not finish:")?;
                 list(f, findings)
             }
             Self::ContactLineage { node, what } => write!(

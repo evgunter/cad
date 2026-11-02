@@ -519,6 +519,9 @@ where
             wire_place(id, (of, source.read, values), placed.as_ref()).map(|out| out.moved(placed))
         }
         Node::Assemble { members } => {
+            // The graft finishes what it gathers, which reads geometry:
+            // the band door first, as at every op that does.
+            band(tol)?;
             let rows: Vec<(O, crate::VarId)> = members
                 .rows()
                 .into_iter()

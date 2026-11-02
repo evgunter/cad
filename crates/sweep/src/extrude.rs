@@ -742,17 +742,15 @@ struct LoopBase {
 /// The sketch placement is the profile's own
 /// ([`profile::SketchPlane`]); the extrusion vector or depth
 /// is classified against the plane normal per the crate docs' direction
-/// conventions. On success the returned body is closed and passes
-/// tiers 1–2 (`topo::validate`, `validate_closed`) by construction —
-/// the door runs its operators under one surgery scope
-/// (`topo::surgery`), so tier 1 is not re-derived per operator and the
-/// tier-2 debug assertion on the finished body, which subsumes it, is
-/// what this door pays — and passes tier 3
-/// (`topo::validate_geometric`) except at the smooth cap rim
-/// [`Extruded::body`] names. It closes with the whole-body pcurve mint
-/// (`topo::mint_pcurves`), so every curved wall stores its certified
-/// rows at rest. The caller re-validates at rest per the workspace
-/// convention.
+/// conventions. The door runs its operators under one surgery scope
+/// (`topo::surgery`), so tier 1 is not re-derived per operator, closes
+/// with the whole-body pcurve mint (`topo::mint_pcurves`), so every
+/// curved wall stores its certified rows at rest, and finishes its
+/// result at its own end ([`topo::AtRestPolicy::finish`]): on success
+/// the body is the scalar's finished body, and a body the finish
+/// refuses (a measured case: a near-flat arc side on a tilted plane,
+/// where check 7 cannot integrate the cap) is
+/// [`ExtrudeError::NotFinished`].
 ///
 /// # Errors
 ///

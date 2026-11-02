@@ -128,12 +128,13 @@ use crate::swept::{
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
 /// [`crate::Extruded`] bundle one operation over.
 #[derive(Debug)]
-pub struct Lofted<T: topo::AtRestPolicy> {
-    /// The closed body: tiers 1–3 valid at rest, the builder's
-    /// acceptance (callers re-validate per the workspace convention).
-    /// Tier 3 does not test embedding, and neither does this door, so
-    /// a body whose walls cross each other or a cap is not refused here.
-    pub body: T::Finished,
+pub struct Lofted<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Finished> {
+    /// The closed body, finished at the door
+    /// ([`topo::AtRestPolicy::finish`], tiers 1–3 at a certifying
+    /// scalar); construction state (`Body<T>`) inside the builder. Tier 3
+    /// does not test embedding, and neither does this door, so a body
+    /// whose walls cross each other or a cap is not refused here.
+    pub body: B,
     /// The solid.
     pub solid: SolidKey,
     /// Its one shell.
@@ -180,6 +181,37 @@ pub struct Lofted<T: topo::AtRestPolicy> {
     /// `T`, so at an enclosure scalar an interior parameter over a box
     /// reads as its bracket.
     pub section_params: Vec<T>,
+}
+
+impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
+    /// The built body finished at its scalar, every key kept: the one
+    /// finish every loft door ends in.
+    ///
+    /// # Errors
+    ///
+    /// [`LoftError::NotFinished`], every finding whole.
+    pub(crate) fn finished(self, tol: Tol) -> Result<Lofted<T>, LoftError> {
+        let Self {
+            body,
+            solid,
+            shell,
+            top,
+            bottom,
+            side_faces,
+            seam_edges,
+            section_params,
+        } = self;
+        Ok(Lofted {
+            body: T::finish(body, tol).map_err(|findings| LoftError::NotFinished { findings })?,
+            solid,
+            shell,
+            top,
+            bottom,
+            side_faces,
+            seam_edges,
+            section_params,
+        })
+    }
 }
 
 /// Typed refusal of the loft/sweep body assembly (closed enum, D4 ¶3).
@@ -780,7 +812,7 @@ fn build<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>>(
     params: Option<&[f64]>,
     v_degree: usize,
     tol: Tol,
-) -> Result<Lofted<T>, LoftError> {
+) -> Result<Lofted<T, Body<T>>, LoftError> {
     check_counts(sections.len(), places.len(), v_degree).map_err(LoftError::Skin)?;
     if let Some(section) = places
         .iter()
@@ -909,7 +941,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
     /// function of the variables gives walls and caps that are
     /// functions of them, and one wider than a point gives walls and
     /// caps that enclose its family.
-    fn in_t(&self, canonical: Vec<ValidatedProfile<T>>) -> Result<Lofted<T>, LoftError> {
+    fn in_t(&self, canonical: Vec<ValidatedProfile<T>>) -> Result<Lofted<T, Body<T>>, LoftError> {
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
         let strips = compatible_strips(&canonical, self.places)
             .map_err(LoftError::Skin)?
@@ -937,7 +969,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
 }
 
 impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for LoftBuild<'_, T, L> {
-    type Out = Result<Lofted<T>, LoftError>;
+    type Out = Result<Lofted<T, Body<T>>, LoftError>;
 
     /// **At a projective scalar** every finite value is a point, so the
     /// structure is selected on the sections' value channel at `f64`
@@ -1174,7 +1206,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     canonical: &[ValidatedProfile<T>],
     section_params: Vec<T>,
     tol: Tol,
-) -> Result<Lofted<T>, LoftError> {
+) -> Result<Lofted<T, Body<T>>, LoftError> {
     let band = Band::linear(tol).map_err(LoftError::Band)?;
     let (Some(place_bottom), Some(place_top)) = (places.first(), places.last()) else {
         return Err(LoftError::SectionStructure);
@@ -1617,7 +1649,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     body.close_already_checked();
 
     Ok(Lofted {
-        body: T::finish(built, tol).map_err(|findings| LoftError::NotFinished { findings })?,
+        body: built,
         solid: seed.solid,
         shell: seed.shell,
         top: top_face,
@@ -1678,6 +1710,19 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
+    loft_body_construction(sections, places, v_degree, tol)?.finished(tol)
+}
+
+/// **[`loft_body`] before its finish**: the built body in construction
+/// state, every key kept. The one door this crate's suites reach the
+/// walls through where the body is not finished at its scalar (an
+/// enclosure scalar whose certificate does not run on these walls).
+pub(crate) fn loft_body_construction<T: Decide + topo::AtRestPolicy>(
+    sections: &[Section<impl SectionLoop<T>>],
+    places: &[SketchPlane<T>],
+    v_degree: usize,
+    tol: Tol,
+) -> Result<Lofted<T, Body<T>>, LoftError> {
     let channel: Option<Vec<SketchPlane<f64>>> = places.iter().map(|p| p.point_value()).collect();
     build(
         SectionsAtT::Loops(sections),
@@ -1714,6 +1759,18 @@ pub fn loft_profiles<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
+    loft_profiles_construction(sections, v_degree, tol)?.finished(tol)
+}
+
+/// **[`loft_profiles`] before its finish**: the built body in construction
+/// state, every key kept. The one door this crate's suites reach the
+/// walls through where the body is not finished at its scalar (an
+/// enclosure scalar whose certificate does not run on these walls).
+pub(crate) fn loft_profiles_construction<T: Decide + topo::AtRestPolicy>(
+    sections: &[ValidatedProfile<T>],
+    v_degree: usize,
+    tol: Tol,
+) -> Result<Lofted<T, Body<T>>, LoftError> {
     let places: Vec<SketchPlane<T>> = sections.iter().map(|s| *s.plane()).collect();
     let channel_places: Option<Vec<SketchPlane<f64>>> =
         places.iter().map(|p| p.point_value()).collect();
@@ -1807,6 +1864,21 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
+    sweep_body_construction(profile, plane, path, stations, v_degree, tol)?.finished(tol)
+}
+
+/// **[`sweep_body`] before its finish**: the built body in construction
+/// state, every key kept. The one door this crate's suites reach the
+/// walls through where the body is not finished at its scalar (an
+/// enclosure scalar whose certificate does not run on these walls).
+pub(crate) fn sweep_body_construction<T: Decide + topo::AtRestPolicy>(
+    profile: &[impl SectionLoop<T>],
+    plane: SketchPlane<T>,
+    path: &geom::NurbsCurve3<f64>,
+    stations: usize,
+    v_degree: usize,
+    tol: Tol,
+) -> Result<Lofted<T, Body<T>>, LoftError> {
     // One carry, composed onto the start frame in `T` and onto its
     // point value in `f64`, where the stations' structure is selected.
     let carry = PathCarry::of(path, stations, tol).map_err(LoftError::Skin)?;

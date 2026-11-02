@@ -96,6 +96,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/WayInZeroBand",
     "Naming/JoinedPieceOffRoot",
     "Naming/BandVerdictsDisagree",
+    "Shell/NotValid",
     "Shell/Partition",
     "Shell/Insert",
     "Shell/Rim",

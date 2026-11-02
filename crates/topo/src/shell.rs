@@ -1452,7 +1452,7 @@ pub struct ShellRetired {
 ///
 /// The operand is a finished body (module docs, "The operand is at
 /// rest"): an inside-out or stale-row body refuses where it is gated,
-/// at [`AtRestBody::validate`], and never reaches the verb.
+/// at the scalar's finish ([`crate::finish`]), and never reaches the verb.
 ///
 /// # Errors
 ///

@@ -53,7 +53,7 @@ use geom_core::{
 use profile::{Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start, ValidatedProfile};
 use std::collections::BTreeSet;
 use sweep::test_support::revolved_about_y_at;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve, sweep_body};
+use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve, sweep_body};
 use topo::clearance::{
     BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CellReceipt, CertificateArm,
     ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep, Which,
@@ -387,7 +387,7 @@ fn helix(turns: f64, pitch: f64) -> NurbsCurve3<f64> {
 }
 
 /// The wall of a sweep whose centre point is highest.
-fn top_wall<T: Scalar>(lofted: &sweep::Lofted<T>) -> FaceKey {
+fn top_wall<T: Scalar>(lofted: &sweep::Lofted<T, Body<T>>) -> FaceKey {
     let centre = |f: FaceKey| {
         let s = surface(&lofted.body, f);
         let Surface::Nurbs(net) = &s else {
@@ -426,7 +426,8 @@ fn a_370_degree_flat_ribbon_reads_violated() {
             (-0.1, 0.02),
         ]));
         let swept =
-            sweep_body::<T>(&profile, place, &path, 48, 3, tol()).expect("the ribbon sweeps");
+            sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 48, 3, tol())
+                .expect("the ribbon sweeps");
         let wall = top_wall(&swept);
         (injective(&swept.body, Some(vec![wall]), BUDGET), wall)
     }
@@ -454,7 +455,7 @@ fn a_370_degree_flat_ribbon_reads_violated() {
 /// **The carvetail loft**: two pentagons at `z = 0` and `z = 1`,
 /// lofted at `v_degree = 1`; joint 1 turns +170° in one section and
 /// −170° in the other.
-fn carvetail<T: Scalar>() -> sweep::Lofted<T> {
+fn carvetail<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
     let pent = |pts: [(f64, f64); 5]| {
         lifted(&[ProfileLoop::polygon(
             pts.iter().map(|&(x, y)| Point2::new(x, y)),
@@ -477,7 +478,8 @@ fn carvetail<T: Scalar>() -> sweep::Lofted<T> {
         ]),
     ];
     let places = [0.0, 1.0].map(|z| plane_at(&SketchPlane::xy_at(Point3::new(0.0, 0.0, z))));
-    loft_body::<T>(&sections, &places, 1, tol()).expect("the carvetail lofts")
+    sweep::test_support::loft_body_construction::<T>(&sections, &places, 1, tol())
+        .expect("the carvetail lofts")
 }
 
 /// **The carvetail fold reads `Violated`, its witness at `v ≈ ½`.** In
@@ -487,7 +489,7 @@ fn carvetail<T: Scalar>() -> sweep::Lofted<T> {
 /// one the global drop never examined.
 #[test]
 fn the_carvetail_fold_reads_violated_at_its_middle_station() {
-    fn fold<T: Scalar>() -> (sweep::Lofted<T>, Vec<FaceKey>) {
+    fn fold<T: Scalar>() -> (sweep::Lofted<T, Body<T>>, Vec<FaceKey>) {
         let lofted = carvetail::<T>();
         // Walls 0 and 1: the two whose boundary holds the seam over (2, 0).
         let on_seam = |f: FaceKey| {
@@ -584,10 +586,9 @@ fn an_embedded_triangle_loft_holds() {
         };
         let sections = [tri(1.0, 0.0), tri(0.6, 0.3)];
         let places = [0.0, 1.0].map(|z| plane_at(&SketchPlane::xy_at(Point3::new(0.0, 0.0, z))));
-        loft_body::<T>(&sections, &places, 1, tol())
+        sweep::test_support::loft_body_construction::<T>(&sections, &places, 1, tol())
             .expect("the triangles loft")
             .body
-            .into_body()
     }
     holds_at_both("the triangle loft", loft::<f64>(), loft::<Interval>());
 }
@@ -766,10 +767,9 @@ fn a_long_helical_sweep_certifies_within_the_default_budget() {
             (0.08, 0.08),
             (-0.08, 0.08),
         ]));
-        sweep_body::<T>(&profile, place, &path, 65, 3, tol())
+        sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 65, 3, tol())
             .expect("the helix sweeps")
             .body
-            .into_body()
     }
     holds_at_both("the helical sweep", helical::<f64>(), helical::<Interval>());
 }
@@ -778,7 +778,7 @@ fn a_long_helical_sweep_certifies_within_the_default_budget() {
 
 /// A loft face's role: `top`, `bottom`, or `wall j` of the outer loop.
 fn role<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Real>(
-    lofted: &sweep::Lofted<T>,
+    lofted: &sweep::Lofted<T, Body<T>>,
     f: FaceKey,
 ) -> String {
     if f == lofted.top {
@@ -798,8 +798,8 @@ fn role<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Real>(
 /// the `f64` report, for the row's pins.
 fn decided_at_both(
     what: &str,
-    float: &sweep::Lofted<f64>,
-    interval: &sweep::Lofted<Interval>,
+    float: &sweep::Lofted<f64, Body<f64>>,
+    interval: &sweep::Lofted<Interval, Body<Interval>>,
     budget: usize,
 ) -> BoundReport<Witness> {
     let report = injective(&float.body, None, budget);
@@ -819,11 +819,12 @@ fn decided_at_both(
 
 /// A 0.1 square lofted along [`arc_spine_places`] at 17 stations,
 /// `v`-degree 3.
-fn arc_spine<T: Scalar>(curl: f64) -> sweep::Lofted<T> {
+fn arc_spine<T: Scalar>(curl: f64) -> sweep::Lofted<T, Body<T>> {
     let square = quad([(-0.05, -0.05), (0.05, -0.05), (0.05, 0.05), (-0.05, 0.05)]);
     let sections: Vec<_> = (0..17).map(|_| lifted(&square)).collect();
     let places: Vec<_> = arc_spine_places(curl, 17).iter().map(plane_at).collect();
-    loft_body::<T>(&sections, &places, 3, tol()).expect("the arc spine lofts")
+    sweep::test_support::loft_body_construction::<T>(&sections, &places, 3, tol())
+        .expect("the arc spine lofts")
 }
 
 /// The station-angle of a point on the arc spine, folded into one turn.
@@ -886,7 +887,7 @@ fn an_arc_spine_short_of_a_full_turn_holds() {
 /// two caps lie on one plane at `(3, 0, 0)`.
 #[test]
 fn a_closed_spine_reads_violated_top_against_bottom() {
-    fn closed<T: Scalar>() -> sweep::Lofted<T> {
+    fn closed<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let pts: Vec<Point3<f64>> = (0..=32)
             .map(|k| {
                 let a = TAU * f64::from(k % 32) / 32.0;
@@ -901,7 +902,8 @@ fn a_closed_spine_reads_violated_top_against_bottom() {
             (0.25, 0.25),
             (-0.25, 0.25),
         ]));
-        sweep_body::<T>(&profile, place, &path, 9, 3, tol()).expect("the closed spine sweeps")
+        sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 9, 3, tol())
+            .expect("the closed spine sweeps")
     }
     let lofted = closed::<f64>();
     let report = decided_at_both("the closed spine", &lofted, &closed::<Interval>(), BUDGET);
@@ -1031,7 +1033,7 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
 /// exact, so none sits ulps off a split point.
 #[test]
 fn the_s_duct_walls_hold_against_themselves() {
-    fn duct<T: Scalar>() -> sweep::Lofted<T> {
+    fn duct<T: Scalar>() -> sweep::Lofted<T, Body<T>> {
         let (r, h) = (2.0, 0.25);
         let quarter = core::f64::consts::FRAC_PI_2;
         let points: Vec<Point3<f64>> = (0..=8)
@@ -1047,7 +1049,8 @@ fn the_s_duct_walls_hold_against_themselves() {
         let path = NurbsCurve3::interpolate(&points, 3).expect("the S path interpolates");
         let place = plane_at(&normal_start_place(&path));
         let profile = lifted(&quad([(-h, -h), (h, -h), (h, h), (-h, h)]));
-        sweep_body::<T>(&profile, place, &path, 13, 3, tol()).expect("the S path sweeps")
+        sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 13, 3, tol())
+            .expect("the S path sweeps")
     }
     let float = duct::<f64>();
     let walls: Vec<FaceKey> = float
@@ -2142,10 +2145,9 @@ fn lens_loft<T: Scalar>() -> Body<T> {
         &sweep::test_support::stacked_at(&[0.0, 1.0, 2.0]),
         tol(),
     );
-    loft_body::<T>(&sections, &places, 2, tol())
+    sweep::test_support::loft_body_construction::<T>(&sections, &places, 2, tol())
         .expect("the lens loft lofts")
         .body
-        .into_body()
 }
 
 /// **A lens loft's rational walls hold against themselves, at both
@@ -2264,10 +2266,9 @@ fn a_twisted_loft_holds_along_its_seams_at_both_scalars() {
         top.rotate_left(1);
         let sections = lift_sections::<T>(&[quad(PRISM_SQUARE), quad(PRISM_TRAPEZOID), quad(top)]);
         let places = lift_places::<T>(&stacked_at(&[0.0, 1.0, 2.0]), tol());
-        loft_body::<T>(&sections, &places, 2, tol())
+        sweep::test_support::loft_body_construction::<T>(&sections, &places, 2, tol())
             .expect("the twisted sections loft")
             .body
-            .into_body()
     }
     /// Each seam's receipt and depth, every one holding, nothing
     /// refused, well under the depth budget.
@@ -2331,10 +2332,9 @@ fn the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars() {
             (0.08, 0.08),
             (-0.08, 0.08),
         ]));
-        sweep_body::<T>(&profile, place, &path, 33, 3, tol())
+        sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 33, 3, tol())
             .expect("the helix sweeps")
             .body
-            .into_body()
     }
     fn holds<T: Scalar>(what: &str, body: &Body<T>) -> usize {
         let pairs = adjacent(body, true);
@@ -2370,7 +2370,11 @@ fn the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars() {
 /// the `xz` plane, the whole turned `phi` about the world `y` axis.
 /// Its two wide walls are near-parallel sheets `g` apart with a radius
 /// of about 1, sharing no vertex; they are returned with the body.
-fn slab_wall_pair<T: Scalar>(g: f64, curl: f64, phi: f64) -> (sweep::Lofted<T>, [FaceKey; 2]) {
+fn slab_wall_pair<T: Scalar>(
+    g: f64,
+    curl: f64,
+    phi: f64,
+) -> (sweep::Lofted<T, Body<T>>, [FaceKey; 2]) {
     use geom_core::{Affine3, Mat3, Vec3};
     let section = quad([
         (-0.4, -g / 2.0),
@@ -2393,7 +2397,8 @@ fn slab_wall_pair<T: Scalar>(g: f64, curl: f64, phi: f64) -> (sweep::Lofted<T>, 
         })
         .collect();
     let sections: Vec<_> = (0..5).map(|_| lifted(&section)).collect();
-    let lofted = loft_body::<T>(&sections, &places, 3, tol()).expect("the slab lofts");
+    let lofted = sweep::test_support::loft_body_construction::<T>(&sections, &places, 3, tol())
+        .expect("the slab lofts");
     let walls = [lofted.side_faces[0][0][0], lofted.side_faces[0][2][0]];
     (lofted, walls)
 }

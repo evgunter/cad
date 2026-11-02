@@ -1315,7 +1315,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     ];
     let expected: [&[&str]; 3] = [
         &[
-            "product: the gathered product is not a finished body",
+            "product: the product does not finish:",
             "a solid encloses negative volume, so it is inside-out",
         ],
         &["the product reads", "a body that is gone"],

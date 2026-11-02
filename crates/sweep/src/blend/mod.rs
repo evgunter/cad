@@ -2219,10 +2219,8 @@ mod recourse_tests {
     /// execute both requests. `NotFinished` routes here too: each of its
     /// findings ends in its family's recourse, as `BodyNotIntact`'s
     /// scaffolding breach ends in its recourse, whose advice
-    /// `pole_slit_window::a_slit_operand_refuses_at_both_blend_doors_at_a_dual`
-    /// and
     /// `blend_operand_gate::the_counterclockwise_wedge_blends_outward_at_both_doors`
-    /// follow. Reading this row as "no advice" is what made an
+    /// follows. Reading this row as "no advice" is what made an
     /// inventory keyed on the constants miss them.
     ///
     /// **What the match enforces, and what it does not.** The match is

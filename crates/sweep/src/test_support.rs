@@ -2372,3 +2372,69 @@ fn turn_readings_of<T: Decide>(
         .unwrap_or_else(|err| panic!("the turn reads, got {err}"));
     (reading.gap, reading.chords)
 }
+
+/// **The loft doors before their finish**: [`crate::loft_body`],
+/// [`crate::loft_profiles`] and [`crate::sweep_body`] with the built
+/// body in construction state, every key kept. For the suites that read
+/// a loft's walls at an enclosure scalar whose finish does not run on
+/// them: at `Interval`, check 7's quadrature refuses a NURBS wall whose
+/// pcurve endpoints are not exact structure, so the door refuses the
+/// body, and the walls those suites measure are read here instead.
+///
+/// # Errors
+///
+/// The door's own, short of its finish.
+pub fn loft_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
+    sections: &[crate::skin::Section<impl crate::skin::SectionLoop<T>>],
+    places: &[profile::SketchPlane<T>],
+    v_degree: usize,
+    tol: geom_core::Tol,
+) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
+    crate::loft::loft_body_construction(sections, places, v_degree, tol)
+}
+
+/// [`loft_body_construction`]'s twin for [`crate::loft_profiles`].
+///
+/// # Errors
+///
+/// The door's own, short of its finish.
+pub fn loft_profiles_construction<T: geom_core::Decide + topo::AtRestPolicy>(
+    sections: &[profile::ValidatedProfile<T>],
+    v_degree: usize,
+    tol: geom_core::Tol,
+) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
+    crate::loft::loft_profiles_construction(sections, v_degree, tol)
+}
+
+/// [`loft_body_construction`]'s twin for [`crate::sweep_body`].
+///
+/// # Errors
+///
+/// The door's own, short of its finish.
+pub fn sweep_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
+    profile: &[impl crate::skin::SectionLoop<T>],
+    plane: profile::SketchPlane<T>,
+    path: &geom::NurbsCurve3<f64>,
+    stations: usize,
+    v_degree: usize,
+    tol: geom_core::Tol,
+) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
+    crate::loft::sweep_body_construction(profile, plane, path, stations, v_degree, tol)
+}
+
+/// **[`crate::revolve`] before its finish**: the built body in
+/// construction state, every key kept. For the suites that read what
+/// the revolve's CONSTRUCTION decides (a `k_stats` bracket over the
+/// door), apart from the decisions its finish makes.
+///
+/// # Errors
+///
+/// The door's own, short of its finish.
+pub fn revolve_construction<T: geom_core::Decide + topo::AtRestPolicy>(
+    profile: &profile::ValidatedProfile<T>,
+    axis: crate::RevolveAxis<T>,
+    revolution: crate::Revolution<T>,
+    tol: geom_core::Tol,
+) -> Result<crate::Revolved<T, topo::Body<T>>, crate::RevolveError> {
+    crate::revolve::revolve_construction(profile, axis, revolution, tol)
+}

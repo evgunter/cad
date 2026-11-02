@@ -1096,8 +1096,10 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
 ///
 /// The sketch placement is the profile's own; the axis and angle
 /// classify per the module docs' conventions (named trilean predicates
-/// throughout). On success the returned body passes tiers 1–3 — the
-/// caller re-validates at rest per the workspace convention.
+/// throughout). The door finishes its result at its own end
+/// ([`topo::AtRestPolicy::finish`]): on success the body is the
+/// scalar's finished body, and a body the finish refuses is
+/// [`RevolveError::NotFinished`].
 ///
 /// # Errors
 ///
@@ -1118,6 +1120,20 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     revolution: Revolution<T>,
     tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
+    revolve_construction(profile, axis, revolution, tol)?
+        .finished(tol)
+        .map_err(|findings| RevolveError::NotFinished { findings })
+}
+
+/// **[`revolve`] before its finish**: the built body in construction
+/// state, every key kept — what the door's construction decides,
+/// without the decisions its finish makes.
+pub(crate) fn revolve_construction<T: Decide + topo::AtRestPolicy>(
+    profile: &ValidatedProfile<T>,
+    axis: RevolveAxis<T>,
+    revolution: Revolution<T>,
+    tol: Tol,
+) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let band = Band::linear(tol).map_err(RevolveError::Band)?;
     let frame = axis::AxisFrame::build(*profile.plane(), &axis, band)?;
 
@@ -1160,8 +1176,7 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     // revolve output carries its stored certified pcurves at rest,
     // the same posture as boolean/split/loft outputs.
     topo::mint_pcurves(&mut out.body, tol).map_err(RevolveError::Pcurve)?;
-    out.finished(tol)
-        .map_err(|findings| RevolveError::NotFinished { findings })
+    Ok(out)
 }
 
 #[cfg(test)]
