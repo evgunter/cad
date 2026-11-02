@@ -1230,26 +1230,25 @@ pub(crate) fn account_chart_plane(
 }
 
 /// **The regularity sweep**, chart lane, over the one shared [`sweep`]:
-/// a cell is excluded where `excluded` reads the plane's height over it
-/// ([`chart_plane_height`], the accounting's own enclosure) as past it,
-/// and stops where `regular` holds. The answer is the centre of the
-/// first cell neither holds at the floor, which declines the sweep, or
-/// none; and how many cells read regular.
+/// a cell is excluded where `excluded` reads the partner's `φ` over it,
+/// `value`'s enclosure (the plane's height on the accounting's own
+/// enclosure, [`chart_plane_height`]), as past it, and stops where
+/// `regular` holds. The answer is the centre of the first cell neither
+/// holds at the floor, which declines the sweep, or none; and how many
+/// cells read regular.
 ///
 /// # Errors
 ///
-/// [`SsiError::CellBudget`], and the height's refusal
-/// ([`chart_plane_height`]).
+/// [`SsiError::CellBudget`], and `value`'s refusal.
 pub(crate) fn sweep_chart_regular(
-    boxes: &NurbsBoxes<'_, f64>,
-    (plane_origin, plane_normal): (Point3<f64>, Vec3<f64>),
+    value: impl Fn(UvRect) -> Result<Interval, SsiError>,
     floor: SweepFloor<UvRect>,
     excluded: impl Fn(UvRect, Interval) -> bool,
     regular: &dyn Fn(UvRect) -> bool,
 ) -> Result<(Option<(f64, f64)>, u32), SsiError> {
     let (tally, declined) = sweep(floor, SweepDuty::Regular(regular), |cell| {
-        let height = chart_plane_height(boxes, plane_origin, plane_normal, cell)?;
-        Ok(excluded(cell, height))
+        let phi = value(cell)?;
+        Ok(excluded(cell, phi))
     })?;
     Ok((declined.first().copied(), tally.regular))
 }

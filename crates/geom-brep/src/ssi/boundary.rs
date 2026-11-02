@@ -1,5 +1,12 @@
-//! **The plane × NURBS lane's boundary pass**: the wall's knot
-//! rectangle decided against the plane before any march (C3).
+//! **The boundary pass of a spline wall against an implicit partner**:
+//! the wall's knot rectangle decided against the partner before any
+//! march (C3), a plane on the plane × NURBS lane and a cylinder, sphere
+//! or torus in the NURBS × implicit pair's classification (C5). `φ` is
+//! the partner's distance on the plane and its canonical form `f` on a
+//! curved partner ([`super::residual`]); the pass reads `φ` along each
+//! side, its partials over cells, and its value at a corner through a
+//! [`Partner`], and is otherwise the one pass. Below, "the plane" is
+//! the partner.
 //!
 //! The march meets the wall's domain boundary only as a box test on
 //! marched states, so on its own it cannot tell a plane through a
@@ -45,14 +52,16 @@ use geom::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{div_down, div_up, max_bound};
 use geom_core::k_stats::decide;
-use geom_core::{Band, CertifiedBounds, Interval, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Bounds, CertifiedBounds, Interval, Margin, Point3, Sign, Vec3};
 
-use super::enclose::{ChartSpeeds, NurbsBoxes};
+use super::enclose::{ChartSpeeds, NurbsBoxes, UvWindow};
 use super::exhaust::UvRect;
 use super::march::MarchTol;
+use super::residual::Curved;
 use super::section::{
     BoundarySection, SIDE_SIGN_HALVINGS, SectionRoot, band_verdict, boundary_roots,
-    boundary_section, magnitude, one_signed, settle_root, sign,
+    boundary_section, implicit_roots, implicit_section, magnitude, one_signed,
+    settle_implicit_root, settle_root, sign,
 };
 use super::system::{LocalSystem, ParametricPairR4};
 use super::{ChartAxis, SsiError, TraceDecision};
@@ -184,18 +193,20 @@ impl core::fmt::Display for SsiBoundaryContact {
 }
 
 /// A branch end the boundary pass certified: where on the boundary, and
-/// the state settled onto both surfaces there.
+/// the state settled onto both surfaces there: on the plane the ℝ⁴
+/// state `(plane u, plane v, wall u, wall v)`, on a curved partner the
+/// wall's `(u, v)`.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Crossing {
+pub(crate) struct Crossing<S = [f64; 4]> {
     /// The boundary point.
     pub at: BoundaryPoint,
-    /// The ℝ⁴ state `(plane u, plane v, wall u, wall v)`, settled.
-    pub state: [f64; 4],
+    /// The state, settled.
+    pub state: S,
 }
 
 /// What the boundary pass decided.
 #[derive(Clone, Debug)]
-pub(crate) struct BoundaryPass {
+pub(crate) struct BoundaryPass<S = [f64; 4]> {
     /// The regions it reports.
     pub contacts: Vec<SsiBoundaryContact>,
     /// The regions' certified cells, which the accounting banks.
@@ -204,7 +215,7 @@ pub(crate) struct BoundaryPass {
     /// the plane is certified to miss, which the accounting excludes.
     pub clear: Vec<UvRect>,
     /// The branch ends, in side order and ascending along each side.
-    pub crossings: Vec<Crossing>,
+    pub crossings: Vec<Crossing<S>>,
 }
 
 /// The plane, as the pass reads it.
@@ -222,6 +233,254 @@ impl PassPlane {
     /// Its normal, as point intervals.
     fn normal_interval(&self) -> [Interval; 3] {
         [self.normal.x, self.normal.y, self.normal.z].map(Interval::point)
+    }
+}
+
+/// **The partner as the pass reads it**: `φ` along a side, its partial
+/// over a window, its value at a corner, and a crossing settled.
+pub(crate) trait Partner {
+    /// The state a crossing is settled to.
+    type State: Copy;
+
+    /// `φ` along `curve` ([`crate::boundary_section`] on the plane); with
+    /// `roots`, its roots whatever its sup ([`boundary_roots`]).
+    ///
+    /// # Errors
+    ///
+    /// The section's refusals.
+    #[allow(clippy::too_many_arguments)]
+    fn side(
+        &self,
+        curve: &geom::NurbsCurve3<f64>,
+        speed: geom_core::SupSpeed<f64>,
+        floor: f64,
+        arm: f64,
+        band: Band,
+        roots: bool,
+    ) -> Result<BoundarySection, SsiError>;
+
+    /// `φ`'s partial along `u` (`along_u`) or `v` over the window `w` of
+    /// the wall, on the wall's derivative box there.
+    fn partial(&self, boxes: &NurbsBoxes<'_, f64>, w: UvWindow, along_u: bool) -> Interval;
+
+    /// `φ` at the wall's point `p`, and an upper bound in metres on its
+    /// distance from the partner, which the corner's band decision reads.
+    fn at_point(&self, p: Point3<f64>) -> (Interval, f64);
+
+    /// The least sine of the angle between the wall and the partner
+    /// across a strip `r`, from `inf`, the least `|φ⊥|` over it, and
+    /// `speed`, the wall's speed across it.
+    fn sine(&self, boxes: &NurbsBoxes<'_, f64>, r: UvRect, inf: f64, speed: f64) -> f64;
+
+    /// The state at the root of `φ` in `bracket` along `side`'s `curve`
+    /// of `wall`, settled to `tol` and held there, `uv` the wall's point
+    /// at a parameter along the side; `Ok(None)` where it does not settle.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::UnsupportedCertificate`] where the curve does not
+    /// evaluate finitely at the bracket's ends.
+    fn settle(
+        &self,
+        on: (&NurbsSurface<f64>, &geom::NurbsCurve3<f64>),
+        bracket: (f64, f64),
+        uv: impl Fn(f64) -> (f64, f64),
+        tol: f64,
+    ) -> Result<Option<(f64, Self::State)>, SsiError>;
+
+    /// The wall's `(u, v)` of a settled state.
+    fn uv(state: &Self::State) -> (f64, f64);
+}
+
+/// **The plane, as the plane × NURBS lane's pass reads it**: its
+/// distance, and the ℝ⁴ system its crossings are settled on.
+pub(crate) struct PlanePartner<'a> {
+    /// The plane.
+    pub plane: PassPlane,
+    /// The ℝ⁴ system the crossings are settled on.
+    pub sys: &'a ParametricPairR4<'a>,
+}
+
+impl Partner for PlanePartner<'_> {
+    type State = [f64; 4];
+
+    fn side(
+        &self,
+        curve: &geom::NurbsCurve3<f64>,
+        speed: geom_core::SupSpeed<f64>,
+        floor: f64,
+        arm: f64,
+        band: Band,
+        roots: bool,
+    ) -> Result<BoundarySection, SsiError> {
+        let door = if roots {
+            boundary_roots
+        } else {
+            boundary_section
+        };
+        door(
+            curve,
+            self.plane.origin,
+            self.plane.normal,
+            speed,
+            floor,
+            arm,
+            band,
+        )
+    }
+
+    fn partial(&self, boxes: &NurbsBoxes<'_, f64>, w: UvWindow, along_u: bool) -> Interval {
+        let n = self.plane.normal_interval();
+        let b = boxes.deriv_box(w, along_u);
+        n[0] * b.x + n[1] * b.y + n[2] * b.z
+    }
+
+    fn at_point(&self, p: Point3<f64>) -> (Interval, f64) {
+        let n = self.plane.normal;
+        let o = self.plane.origin;
+        let phi = Interval::point(n.x) * (Interval::point(p.x) - Interval::point(o.x))
+            + Interval::point(n.y) * (Interval::point(p.y) - Interval::point(o.y))
+            + Interval::point(n.z) * (Interval::point(p.z) - Interval::point(o.z));
+        (phi, magnitude(phi))
+    }
+
+    fn sine(&self, _: &NurbsBoxes<'_, f64>, _: UvRect, inf: f64, speed: f64) -> f64 {
+        div_down(inf, speed)
+    }
+
+    fn settle(
+        &self,
+        (wall, curve): (&NurbsSurface<f64>, &geom::NurbsCurve3<f64>),
+        bracket: (f64, f64),
+        uv: impl Fn(f64) -> (f64, f64),
+        tol: f64,
+    ) -> Result<Option<(f64, [f64; 4])>, SsiError> {
+        let Some(t) = settle_root(curve, self.plane.origin, self.plane.normal, bracket, tol) else {
+            return Ok(None);
+        };
+        if t.is_nan() {
+            return Err(SsiError::UnsupportedCertificate {
+                what: super::exhaust::SIDE_ENCLOSURE_REFUSED,
+            });
+        }
+        let (u, v) = uv(t);
+        let q = wall.eval(u, v) - self.plane.origin;
+        let v_ref = self.plane.normal.cross(self.plane.u_ref);
+        let state = [q.dot(self.plane.u_ref), q.dot(v_ref), u, v];
+        Ok(self
+            .sys
+            .residual(&state)
+            .iter()
+            .all(|r| r.abs() <= tol)
+            .then_some((t, state)))
+    }
+
+    fn uv(state: &[f64; 4]) -> (f64, f64) {
+        (state[2], state[3])
+    }
+}
+
+/// How many pieces a side of a window is cut into where a curved
+/// partner's partial is read over it ([`Partner::partial`]): a fixed
+/// rule (D9).
+const CURVED_PARTIAL_PIECES: u32 = 8;
+
+/// **A curved partner, as the classification's pass reads it**: its
+/// canonical form `f` along a side ([`implicit_section`]), its partials
+/// `∇f(S)·S_d` over the wall's boxes, its value at a corner with a
+/// ceiling in metres, and a crossing settled on the wall alone.
+impl Partner for &Curved {
+    type State = [f64; 2];
+
+    fn side(
+        &self,
+        curve: &geom::NurbsCurve3<f64>,
+        speed: geom_core::SupSpeed<f64>,
+        floor: f64,
+        arm: f64,
+        band: Band,
+        roots: bool,
+    ) -> Result<BoundarySection, SsiError> {
+        let door = if roots {
+            implicit_roots
+        } else {
+            implicit_section
+        };
+        door(curve, self, speed, floor, arm, band)
+    }
+
+    /// Read piecewise, the hull over a grid of
+    /// [`CURVED_PARTIAL_PIECES`]² sub-windows: `∇f` turns with the wall's
+    /// point where the plane's normal stands still, and its box and the
+    /// derivative's box read over a whole side's strip part nothing of
+    /// their correlation, so a side lying on the partner would read no
+    /// slope across it one-signed.
+    fn partial(&self, boxes: &NurbsBoxes<'_, f64>, w: UvWindow, along_u: bool) -> Interval {
+        let n = CURVED_PARTIAL_PIECES;
+        let cut = |(a, b): (f64, f64), k: u32| {
+            let at = |i: u32| {
+                if i == n {
+                    b
+                } else {
+                    a + (b - a) * f64::from(i) / f64::from(n)
+                }
+            };
+            (at(k), at(k + 1))
+        };
+        let (u, v) = ((w.u.start(), w.u.end()), (w.v.start(), w.v.end()));
+        let mut out: Option<Interval> = None;
+        for i in 0..n {
+            for j in 0..n {
+                let ((u0, u1), (v0, v1)) = (cut(u, i), cut(v, j));
+                let Some(piece) = UvWindow::new(u0, u1, v0, v1) else {
+                    return Interval::refused();
+                };
+                let g = self.gradient(self.framed(boxes.rect_box(piece)));
+                let d = boxes.deriv_box(piece, along_u);
+                let p = g.x * d.x + g.y * d.y + g.z * d.z;
+                out = Some(out.map_or(p, |o| Interval::hull(o, p)));
+            }
+        }
+        out.unwrap_or_else(Interval::refused)
+    }
+
+    fn at_point(&self, p: Point3<f64>) -> (Interval, f64) {
+        let q = self.framed_point(p);
+        let phi = self.value(q);
+        (phi, self.ceiling_metres(magnitude(phi), q))
+    }
+
+    fn sine(&self, boxes: &NurbsBoxes<'_, f64>, r: UvRect, inf: f64, speed: f64) -> f64 {
+        let g = r.window().map_or(f64::NAN, |w| {
+            self.gradient_sup(self.framed(boxes.rect_box(w)))
+        });
+        if !(g.is_finite() && g > 0.0) {
+            return 0.0;
+        }
+        div_down(inf, (Interval::point(speed) * Interval::point(g)).hi())
+    }
+
+    fn settle(
+        &self,
+        (wall, curve): (&NurbsSurface<f64>, &geom::NurbsCurve3<f64>),
+        bracket: (f64, f64),
+        uv: impl Fn(f64) -> (f64, f64),
+        tol: f64,
+    ) -> Result<Option<(f64, [f64; 2])>, SsiError> {
+        let Some(t) = settle_implicit_root(curve, self, bracket, tol) else {
+            return Ok(None);
+        };
+        if t.is_nan() {
+            return Err(SsiError::UnsupportedCertificate {
+                what: super::exhaust::SIDE_ENCLOSURE_REFUSED,
+            });
+        }
+        let (u, v) = uv(t);
+        Ok((self.residual(wall.eval(u, v)).abs() <= tol).then_some((t, [u, v])))
+    }
+
+    fn uv(state: &[f64; 2]) -> (f64, f64) {
+        (state[0], state[1])
     }
 }
 
@@ -298,17 +557,15 @@ fn inward(end: ChartEnd) -> f64 {
 }
 
 /// Everything the pass reads, minted once.
-pub(crate) struct Pass<'a> {
+pub(crate) struct Pass<'a, P> {
     /// The wall.
     pub wall: &'a NurbsSurface<f64>,
     /// Its chart enclosures over its own cells, read for the whole pass.
     pub boxes: &'a NurbsBoxes<'a, f64>,
     /// Its chart speeds.
     pub speeds: ChartSpeeds,
-    /// The plane.
-    pub plane: PassPlane,
-    /// The ℝ⁴ system the crossings are settled on.
-    pub sys: &'a ParametricPairR4<'a>,
+    /// The partner.
+    pub partner: P,
     /// The march tolerance a settled state meets.
     pub tol: MarchTol,
     /// The section floor, in metres.
@@ -356,7 +613,7 @@ enum CornerClass {
     Through,
 }
 
-impl Pass<'_> {
+impl<P: Partner> Pass<'_, P> {
     /// The wall's `(u, v)` domain.
     fn domain(&self) -> ((f64, f64), (f64, f64)) {
         (
@@ -379,28 +636,21 @@ impl Pass<'_> {
         }
     }
 
-    /// The plane distance's partials over a chart rectangle.
+    /// `φ`'s partials over a chart rectangle.
     fn partials(&self, r: UvRect) -> (Interval, Interval) {
-        let boxes = self.boxes;
-        let n = [
-            self.plane.normal.x,
-            self.plane.normal.y,
-            self.plane.normal.z,
-        ]
-        .map(Interval::point);
-        let dot = |b: super::enclose::Box3| n[0] * b.x + n[1] * b.y + n[2] * b.z;
         let Some(w) = r.window() else {
             return (Interval::refused(), Interval::refused());
         };
         (
-            dot(boxes.deriv_box(w, true)),
-            dot(boxes.deriv_box(w, false)),
+            self.partner.partial(self.boxes, w, true),
+            self.partner.partial(self.boxes, w, false),
         )
     }
 
-    /// The plane distance of a corner: a clamped wall's corner is its
-    /// net's corner control point, so this encloses it exactly.
-    fn corner_distance(&self, c: ChartCorner) -> Interval {
+    /// `φ` at a corner, and the ceiling in metres its band decision
+    /// reads: a clamped wall's corner is its net's corner control point,
+    /// so this encloses it exactly.
+    fn corner_distance(&self, c: ChartCorner) -> (Interval, f64) {
         let (nu, nv) = (
             self.wall.knots_u_f64_interim().control_count(),
             self.wall.knots_v_f64_interim().control_count(),
@@ -414,13 +664,9 @@ impl Pass<'_> {
             ChartEnd::High => nv - 1,
         };
         let Some(&p) = self.wall.control().get(iu * nv + iv) else {
-            return Interval::refused();
+            return (Interval::refused(), f64::NAN);
         };
-        let n = self.plane.normal;
-        let o = self.plane.origin;
-        Interval::point(n.x) * (Interval::point(p.x) - Interval::point(o.x))
-            + Interval::point(n.y) * (Interval::point(p.y) - Interval::point(o.y))
-            + Interval::point(n.z) * (Interval::point(p.z) - Interval::point(o.z))
+        self.partner.at_point(p)
     }
 
     /// The ladder's rungs: the tube ladder's radii, widest first, each
@@ -519,7 +765,7 @@ impl Pass<'_> {
                 // The least sine of the angle between the wall and the
                 // plane across the side over the strip, levered by the
                 // extent alone, as every region decision is.
-                let sine = div_down(inf, speed.get());
+                let sine = self.partner.sine(self.boxes, strip, inf, speed.get());
                 let margin = Margin::levered(sine, self.extent);
                 if let Some(verdict) = band_verdict("ssi_boundary_strip", margin, self.band) {
                     return Err(SsiError::BoundaryTangent { side, verdict });
@@ -527,7 +773,7 @@ impl Pass<'_> {
             }
             match side_cover(
                 self.boxes,
-                self.plane.normal_interval(),
+                &|w, along_u| self.partner.partial(self.boxes, w, along_u),
                 (side, domain),
                 strip,
                 sup,
@@ -651,37 +897,21 @@ impl Pass<'_> {
 
     /// The state at a boundary point settled onto both surfaces, or
     /// [`SsiError::EndNotOnLocus`].
-    fn settle(&self, side: ChartSide, root: SectionRoot) -> Result<Crossing, SsiError> {
+    fn settle(&self, side: ChartSide, root: SectionRoot) -> Result<Crossing<P::State>, SsiError> {
         let ((u0, u1), (v0, v1)) = self.domain();
         let curve = self.curve(side)?;
         let tol = self.tol.settling();
-        let refuse = || SsiError::EndNotOnLocus {
-            side,
-            bracket: root.bracket,
-        };
-        let t = settle_root(
-            &curve,
-            self.plane.origin,
-            self.plane.normal,
-            root.bracket,
-            tol,
-        )
-        .ok_or_else(refuse)?;
-        if t.is_nan() {
-            return Err(SsiError::UnsupportedCertificate {
-                what: super::exhaust::SIDE_ENCLOSURE_REFUSED,
-            });
-        }
-        let (u, v) = match side.fixed {
+        let uv = |t: f64| match side.fixed {
             ChartAxis::U => (at((u0, u1), side.end), t),
             ChartAxis::V => (t, at((v0, v1), side.end)),
         };
-        let q = self.wall.eval(u, v) - self.plane.origin;
-        let v_ref = self.plane.normal.cross(self.plane.u_ref);
-        let state = [q.dot(self.plane.u_ref), q.dot(v_ref), u, v];
-        if !self.sys.residual(&state).iter().all(|r| r.abs() <= tol) {
-            return Err(refuse());
-        }
+        let (t, state) = self
+            .partner
+            .settle((self.wall, &curve), root.bracket, uv, tol)?
+            .ok_or(SsiError::EndNotOnLocus {
+                side,
+                bracket: root.bracket,
+            })?;
         Ok(Crossing {
             at: BoundaryPoint {
                 chart: BoundaryChart::Second,
@@ -698,7 +928,7 @@ impl Pass<'_> {
     ///
     /// [`SsiError::BoundaryGraze`], [`SsiError::BoundaryTangent`],
     /// [`SsiError::EndNotOnLocus`], and the section's refusals.
-    pub(crate) fn run(&self) -> Result<BoundaryPass, SsiError> {
+    pub(crate) fn run(&self) -> Result<BoundaryPass<P::State>, SsiError> {
         let ((u0, u1), (v0, v1)) = self.domain();
         let mut contacts = Vec::new();
         let mut regions: Vec<UvRect> = Vec::new();
@@ -709,29 +939,20 @@ impl Pass<'_> {
         let mut apart: Vec<SideSection> = Vec::new();
         for side in SIDES {
             let curve = self.curve(side)?;
-            // The section door and the roots door read one argument list.
-            type Door = fn(
-                &geom::NurbsCurve3<f64>,
-                Point3<f64>,
-                Vec3<f64>,
-                geom_core::SupSpeed<f64>,
-                f64,
-                f64,
-                Band,
-            ) -> Result<BoundarySection, SsiError>;
-            let call = |door: Door| {
-                door(
-                    &curve,
-                    self.plane.origin,
-                    self.plane.normal,
-                    self.along_speed(side),
-                    self.floor,
-                    self.extent,
-                    self.band,
-                )
-                .map_err(|e| e.on_side(side))
+            // The section door, or with `roots` the roots door.
+            let call = |roots: bool| {
+                self.partner
+                    .side(
+                        &curve,
+                        self.along_speed(side),
+                        self.floor,
+                        self.extent,
+                        self.band,
+                        roots,
+                    )
+                    .map_err(|e| e.on_side(side))
             };
-            let section = call(boundary_section)?;
+            let section = call(false)?;
             let section = match section {
                 BoundarySection::On { sup, side_of_plane } => {
                     match self.side_region(side, sup, side_of_plane)? {
@@ -753,7 +974,7 @@ impl Pass<'_> {
                         Some(SideClass::Apart) => {
                             apart.push(SideSection {
                                 side,
-                                section: call(boundary_roots)?,
+                                section: call(true)?,
                             });
                             section
                         }
@@ -765,7 +986,7 @@ impl Pass<'_> {
                         // the strip. The side's own roots decide it; a
                         // plane tangent to the wall along it refuses as
                         // their graze.
-                        None => call(boundary_roots)?,
+                        None => call(true)?,
                     }
                 }
                 roots => roots,
@@ -809,8 +1030,8 @@ impl Pass<'_> {
                 // classified as a corner on no decided side.
                 continue;
             }
-            let phi = self.corner_distance(corner);
-            let margin = Margin::of(magnitude(phi));
+            let (phi, metres) = self.corner_distance(corner);
+            let margin = Margin::of(metres);
             match decide("ssi_boundary_corner", margin, self.band) {
                 Ok(Sign::Positive) => continue,
                 Ok(Sign::Zero | Sign::Negative) => {}
@@ -832,7 +1053,7 @@ impl Pass<'_> {
         // The crossings: every root not inside a region; an end root at
         // a corner within the band only where a branch starts there, and
         // once per corner.
-        let mut crossings: Vec<Crossing> = Vec::new();
+        let mut crossings: Vec<Crossing<P::State>> = Vec::new();
         let mut started: Vec<ChartCorner> = Vec::new();
         for (SideSection { side, section }, of_apart) in sections
             .iter()
@@ -884,7 +1105,7 @@ impl Pass<'_> {
             // The start corners a crossing already ends a branch at.
             for (root, start) in roots {
                 let c = self.settle(*side, root)?;
-                let point = (c.state[2], c.state[3]);
+                let point = P::uv(&c.state);
                 // A region's cell holds its zero set only within the
                 // cover, so a root in the cell is the region's, wherever
                 // its settling put it.
@@ -1143,7 +1364,17 @@ pub(crate) fn side_stretch<T: CertifiedBounds>(
     }
     match read_stretch(boxes, normal, reader, (side, r), band.zero()) {
         Reading::Within(sup) => matches!(
-            side_cover(boxes, normal, (side, domain), r, sup, band),
+            side_cover(
+                boxes,
+                &|w, along_u| {
+                    let d = boxes.deriv_box(w, along_u);
+                    normal[0] * d.x + normal[1] * d.y + normal[2] * d.z
+                },
+                (side, domain),
+                r,
+                sup,
+                band
+            ),
             SideCover::Within { .. }
         ),
         Reading::Clear | Reading::Refused | Reading::Beyond => false,
@@ -1178,13 +1409,13 @@ pub(crate) enum SideCover {
 /// `distance` of the side, and they end on the domain's sides.
 pub(crate) fn side_cover<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    normal: [Interval; 3],
+    across: &dyn Fn(UvWindow, bool) -> Interval,
     (side, domain): (ChartSide, UvRect),
     strip: UvRect,
     sup: f64,
     band: Band,
 ) -> SideCover {
-    let (depth, distance) = strip_reach(boxes, normal, side, strip, sup, band);
+    let (depth, distance) = strip_reach(boxes, across, side, strip, sup, band);
     let (across, whole) = match side.fixed {
         ChartAxis::U => (strip.u, domain.u),
         ChartAxis::V => (strip.v, domain.v),
@@ -1216,7 +1447,7 @@ pub(crate) fn side_cover<T: CertifiedBounds>(
 /// piece's slope is not one-signed.
 fn strip_reach<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    n: [Interval; 3],
+    across_of: &dyn Fn(UvWindow, bool) -> Interval,
     side: ChartSide,
     strip: UvRect,
     sup: f64,
@@ -1245,8 +1476,7 @@ fn strip_reach<T: CertifiedBounds>(
                 bound = (f64::INFINITY, f64::INFINITY);
                 break;
             };
-            let d = boxes.deriv_box(w, along_u);
-            let across = n[0] * d.x + n[1] * d.y + n[2] * d.z;
+            let across = across_of(w, along_u);
             let inf = if one_signed(across) {
                 super::enclose::zero_free_lower_bound(across)
             } else {

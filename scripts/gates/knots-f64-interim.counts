@@ -10,7 +10,10 @@ crates/geom 212
 # geom-brep 220 -> 219: the span hulls read their net's knots and weights
 # once, before their memo, for its key and the composite alike
 # (SECT, PR 6062).
-crates/geom-brep 219
+# geom-brep 219 -> 222: a curved partner's composites read the wall's
+# knots for the tensor hull (two) and a side's for CurveCertData (one),
+# as composite_rows does (SECTARMS, the NURBS × implicit arm's stage 1).
+crates/geom-brep 222
 crates/geom-core 18
 crates/mesh 37
 crates/step-export 9

@@ -206,7 +206,7 @@
 //!   A spline section's witness is the wall's point at the middle of
 //!   the branch's pcurve, with a point of the section bracketed within a
 //!   certified metre bound of it inside the branch's own tube window
-//!   (`geom_brep::pair_section::plane_spline`), so the bracketed point
+//!   (`geom_brep::pair_section::spline_implicit`), so the bracketed point
 //!   is `γ`'s; that bound is its pad ([`Component::pad`]).
 //! - **Lone-vertex loops.** The sweep is edge-driven, so a vertex of a
 //!   `LoopBoundary::Empty` loop is never examined. That does not break
@@ -811,8 +811,14 @@ pub(crate) fn classify_known<T: Decide>(
                 ..
             },
         ) => sphere_sphere(c1, r1, c2, r2, band),
-        (S::Nurbs(_) | S::Approx(_), S::Plane { .. })
-        | (S::Plane { .. }, S::Nurbs(_) | S::Approx(_)) => spline_plane(f, g, lane, band),
+        (
+            S::Nurbs(_) | S::Approx(_),
+            S::Plane { .. } | S::Cylinder { .. } | S::Sphere { .. } | S::Torus { .. },
+        )
+        | (
+            S::Plane { .. } | S::Cylinder { .. } | S::Sphere { .. } | S::Torus { .. },
+            S::Nurbs(_) | S::Approx(_),
+        ) => spline_implicit(f, g, lane, band),
         (S::Nurbs(_) | S::Approx(_), S::Nurbs(_) | S::Approx(_)) => {
             spline_pair(f, g, known, lane, band)
         }
@@ -838,15 +844,17 @@ fn spline_pair<T: Decide>(
     of_pair_section(&read, band, |_| Section::Unmarched)
 }
 
-/// **A spline face against a plane, read off the pair's
-/// classification** ([`geom_brep::pair_section()`] through `lane`, module
-/// docs): the hull's apart is W0 and its coincidence R-tan; the
-/// door's and the boundary pass's refusals map by name; the regularity
-/// sweep's loop-free verdict ([`geom_brep::Components::Reaching`])
-/// clears by W1′ where every side it names bounds the wall, and is
-/// otherwise read whole; any other pose is C3's whole reading. With no
-/// lane a pose the hull does not decide is R-lane.
-fn spline_plane<T: Decide>(
+/// **A spline face against an implicit one (a plane, cylinder, sphere
+/// or torus), read off the pair's classification**
+/// ([`geom_brep::pair_section()`] through `lane`, module docs): the
+/// hull's apart is W0 and its coincidence R-tan; the door's and the
+/// boundary pass's refusals map by name; the regularity sweep's
+/// loop-free verdict ([`geom_brep::Components::Reaching`]) clears by W1′
+/// where every side it names bounds the wall, and is otherwise read
+/// whole; any other pose is C3's whole reading, which a curved partner
+/// does not have (intractable). With no lane a plane's pose the hull
+/// does not decide, and every curved partner's, is R-lane.
+fn spline_implicit<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     lane: Option<geom_brep::SsiLane<T>>,

@@ -32,3 +32,56 @@ mod wall_probes_run_here {
         wall_probes(&ev, &r);
     }
 }
+
+mod spout_belly_section_probe {
+    //! **The NURBS × implicit arm on the pair wall 3 meets on**: the
+    //! belly's sphere against each of the spout's NURBS walls, classified
+    //! through the value's door with the march door. A measurement, not
+    //! a gate: wall 3 stops upstream of the section (the spline seam
+    //! split), so nothing reads this pair yet. Run with
+    //! `cd demos/tour && cargo test --release --test all -- --ignored
+    //! spout_belly_section_probe --nocapture`.
+
+    use demo_tour::teapot::*;
+    use pncad::geom::Surface;
+    use pncad::geom_brep::{SsiLane, pair_section};
+    use pncad::geom_core::{Band, Tol};
+
+    #[test]
+    #[ignore = "a measurement: prints the classification of the teapot's wall-3 pair and its cost"]
+    fn spout_belly_section_probe() {
+        let tol = Tol::witness();
+        let (r, ev) = evaluated(tol);
+        let (spheres, walls) = spout_belly_carriers(&ev, &r, tol);
+        let band = Band::linear(tol).expect("the run's tolerance forms a band");
+        println!(
+            "{} sphere carrier(s), {} spout wall(s)",
+            spheres.len(),
+            walls.len()
+        );
+        for s in &spheres {
+            for w in &walls {
+                let Surface::Nurbs(n) = w else { continue };
+                let spans = |k: &pncad::geom_core::spline::Knots<f64>| k.runs().count() - 1;
+                let (ku, kv) = (n.knot_values_u(), n.knot_values_v());
+                let (p, q) = (ku.degree(), kv.degree());
+                let start = std::time::Instant::now();
+                let read = pair_section(s, w, None, Some(SsiLane::marched()), band);
+                println!(
+                    "wall of degree ({p}, {q}) over {}×{} knot spans: composite cells {}, \
+                     composite degree ({}, {}); read in {:?}: {:?}",
+                    spans(ku),
+                    spans(kv),
+                    spans(ku) * spans(kv),
+                    2 * p,
+                    2 * q,
+                    start.elapsed(),
+                    read.map(|r| match r {
+                        pncad::geom_brep::SectionRead::Built(s) => format!("{:?}", s.components()),
+                        pncad::geom_brep::SectionRead::Elsewhere(e) => format!("elsewhere {e:?}"),
+                    })
+                );
+            }
+        }
+    }
+}

@@ -61,7 +61,7 @@ PR 5990.
 
 2026-10-29 (SPLICE). The section value builds plane × NURBS (and
 plane × `Approx` as its fit) from C3's whole reading
-(`geom_brep::pair_section_with`, `pair_section/plane_spline.rs`), and
+(`geom_brep::pair_section_with`, `pair_section/spline_implicit.rs`), and
 the guard reads it after W0 (`section_cert.rs` `spline_plane`): a
 closed branch is a loop read by W3, W4 or the no-event decision; an
 open branch, a `Side` region and a `Corner` region reach the wall's
