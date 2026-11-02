@@ -3701,11 +3701,13 @@ where
     // built once here, its decisions its own and not this run's. A
     // certifying lane over no box whose document asserts a clearance
     // reads it too: it is the rebuild that verifies the sweep's pairs.
-    // It is a run of its own under the same member budget, a second
-    // pot: such a document at a lane other than the nominal one lists up
-    // to twice the budget. Its admission is this run's (families are
-    // listed over the nominal environment either way), so it runs out at
-    // the node this run runs out at.
+    // It is a run of its own under the same member budget: at the top a
+    // second pot, so such a document at a lane other than the nominal
+    // one lists up to twice the budget; inside a part, under exactly
+    // what the part's build was charged, which its own admission (the
+    // same charge, less the build's step) fits. Its admission is this
+    // run's (families are listed over the nominal environment either
+    // way), so it runs out at the node this run runs out at.
     let asserts_clearance = T::clearance_lane().is_some() && doc_asserts_a_clearance(doc);
     let nominal_ev = ((doc_reads_a_trace(doc) || (asserts_clearance && opts.param_box.is_none()))
         && T::nominal_results(&BTreeMap::new(), &env, &nominal_env).is_none())
@@ -3777,53 +3779,45 @@ where
     // module docs).
     // Which indices each node reaches, read once off the recipe: a node
     // reaching any is evaluated once per member of them ([`members`]).
-    let chains: BTreeMap<RecipeNodeId, crate::repetition::Reached> = if doc.declares_index() {
-        let mut reach = crate::repetition::Reach::new(doc);
-        sched.order.iter().map(|&id| (id, reach.node(id))).collect()
-    } else {
-        BTreeMap::new()
-    };
+    let chains = chains_of(doc, &sched.order);
     // **Admission**, before anything is built: every node charged, in
-    // `sched.order`, its listing steps ([`charge_node`]): a family its
-    // own, and an instance the listing steps of the part it reaches,
-    // listed through every part below it, each part document charged
-    // once per run, at the first instance that reaches it. Only then
-    // is any part built, and only those the admission admitted. A
-    // family is listed over the NOMINAL environment, whatever the
-    // lane: the charge is the document's, and a lane whose own count of
-    // a family disagrees refuses that family when it evaluates, which
-    // no budget decides. A part's own run (`reached`) was admitted at
-    // its instancing run, so it charges nothing again.
+    // `sched.order`, its listing steps: a family its own, listed over the
+    // NOMINAL environment whatever the lane (so the charge is the
+    // document's; a lane whose own count disagrees refuses that family
+    // when it evaluates, which no budget decides), and an instance the
+    // charge of building its part, wherever the build builds one
+    // ([`parts::PartStore::admit`]). Only then is any part built, and
+    // only those the admission admitted. A part's own run (`reached`)
+    // charges its own families alone, under exactly what its instancing
+    // run charged it: its parts were charged with it.
     let mut admission = Admission::new(&sched.order, opts.member_budget);
-    let mut charges = PartCharges::new(opts.resolver.as_ref());
-    let admitted = if reached.is_some() {
-        Ok(())
-    } else {
-        admission.admit(|id, remaining| {
-            let chain = chains.get(&id).and_then(crate::repetition::Reached::chain);
-            charge_node(
-                doc,
-                id,
-                chain,
-                &nominal_env,
-                &mut charges,
-                remaining,
-                cancel,
-                tol,
-            )
-        })
-    };
-    let entry = match reached {
-        Some((reached, _)) => parts::Entry {
-            reached,
-            carried: parts::Carried::none(),
-            evaluations: 0,
-        },
-        None => {
-            let mut store =
-                parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
-                    .with_symbols(opts.symbols)
-                    .with_twist(opts.computing_twist);
+    let mut store = reached.is_none().then(|| {
+        parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
+            .with_symbols(opts.symbols)
+            .with_twist(opts.computing_twist)
+            .with_costs(prior.map(|p| &p.parts))
+    });
+    let admitted = admission.admit(|id, remaining| {
+        let parted = match (parts::instantiated(doc, id), &mut store) {
+            (Some(part), Some(store)) => {
+                let mut own = |part: &Doc<ProfileProgram>, room| own_steps(part, room, cancel);
+                match store.admit(part, remaining, cancel, tol, &mut own)? {
+                    Some(steps) => steps,
+                    None => return Ok(None),
+                }
+            }
+            _ => 0,
+        };
+        let listed = match chains.get(&id).and_then(crate::repetition::Reached::chain) {
+            Some(chain) if !chain.is_empty() => {
+                members::listing_steps(doc, &nominal_env, chain, remaining - parted, cancel)?
+            }
+            _ => Some(0),
+        };
+        Ok(listed.map(|listed| listed + parted))
+    });
+    let entry = match (store, reached) {
+        (Some(mut store), _) => {
             for &id in &sched.order {
                 if !admission.admits(id) {
                     break;
@@ -3834,6 +3828,12 @@ where
             }
             store.finish()
         }
+        (None, Some((reached, _))) => parts::Entry {
+            reached,
+            carried: parts::Carried::none(),
+            evaluations: 0,
+        },
+        (None, None) => unreachable!("a run enters its parts or is handed them"),
     };
     // A placement's bundle is folded where the placement evaluates
     // (INTENT stage 3 C): every pose a mate reads is then a value of
@@ -3986,175 +3986,45 @@ where
     }
 }
 
-/// **One node's listing steps** against `remaining` ([`Admission`]):
-/// the part an instance reaches ([`PartCharges::part`]), then the
-/// family's own members listed over `nominal`. `None` as soon as they
-/// pass `remaining`.
-#[allow(clippy::too_many_arguments)] // the node, its document's reads, and the run's
-fn charge_node(
+/// **Which indices each node of `order` reaches**, read off `doc`'s
+/// recipe: what a node is evaluated once per member of ([`members`]).
+fn chains_of(
     doc: &Doc<ProfileProgram>,
-    id: RecipeNodeId,
-    chain: Option<&[crate::VarId]>,
-    nominal: &crate::expr::VarEnv<f64>,
-    charges: &mut PartCharges<'_>,
+    order: &[RecipeNodeId],
+) -> BTreeMap<RecipeNodeId, crate::repetition::Reached> {
+    if !doc.declares_index() {
+        return BTreeMap::new();
+    }
+    let mut reach = crate::repetition::Reach::new(doc);
+    order.iter().map(|&id| (id, reach.node(id))).collect()
+}
+
+/// **A part document's own listing steps**: its families', in its
+/// schedule's order, over its nominal environment, as its run's
+/// admission charges them ([`parts::PartStore::charge`]); `None` as soon
+/// as they pass `remaining`.
+fn own_steps(
+    doc: &Doc<ProfileProgram>,
     remaining: u64,
     cancel: &CancelToken,
-    tol: Tol,
 ) -> Result<Option<u64>, Canceled> {
-    let parted = match parts::instantiated(doc, id) {
-        Some(part) => match charges.part(part, remaining, cancel, tol)? {
-            Some(steps) => steps,
-            None => return Ok(None),
-        },
-        None => 0,
-    };
-    let listed = match chain {
-        Some(chain) if !chain.is_empty() => {
-            members::listing_steps(doc, nominal, chain, remaining - parted, cancel)?
-        }
-        _ => Some(0),
-    };
-    Ok(listed.map(|listed| listed + parted))
-}
-
-/// **The parts a run's admission has charged**: a part's listing steps
-/// are its document's families' and its own parts', listed with no
-/// geometry built; each part document is charged once per run, as the
-/// store builds it once.
-struct PartCharges<'a> {
-    resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
-    charged: std::collections::BTreeSet<crate::ident::DocRef>,
-}
-
-/// One part document on the listing's stack: its nodes in its
-/// schedule's order, each with the part it instances and the indices it
-/// reaches, and how far the listing has read them.
-struct Listing {
-    part: crate::ident::DocRef,
-    doc: Doc<ProfileProgram>,
-    nominal: crate::expr::VarEnv<f64>,
-    nodes: Vec<(Option<crate::ident::DocRef>, Option<Vec<crate::VarId>>)>,
-    next: usize,
-    /// Whether the part the next node instances is listed already.
-    entered: bool,
-}
-
-impl<'a> PartCharges<'a> {
-    fn new(resolver: Option<&'a Arc<dyn crate::part::PartResolver>>) -> Self {
-        Self {
-            resolver,
-            charged: std::collections::BTreeSet::new(),
-        }
-    }
-
-    /// The listing steps of `part`'s document, in its schedule's order,
-    /// through every part it reaches, on an explicit stack as the build's
-    /// descent is (`parts` module docs); `None` as soon as they pass
-    /// `remaining`. A count that faults charges what was listed before
-    /// it, as a family of the run does.
-    fn part(
-        &mut self,
-        part: crate::ident::DocRef,
-        remaining: u64,
-        cancel: &CancelToken,
-        tol: Tol,
-    ) -> Result<Option<u64>, Canceled> {
-        let mut stack: Vec<Listing> = Vec::new();
-        if let Some(listing) = self.open(part, &stack, cancel, tol)? {
-            stack.push(listing);
-        }
-        let mut held = 0u64;
-        loop {
-            let Some(top) = stack.last_mut() else {
-                return Ok(Some(held));
-            };
-            let Some((instanced, chain)) = top.nodes.get(top.next).cloned() else {
-                stack.pop();
-                continue;
-            };
-            if !top.entered {
-                top.entered = true;
-                if let Some(child) = instanced
-                    && let Some(listing) = self.open(child, &stack, cancel, tol)?
-                {
-                    stack.push(listing);
-                    continue;
-                }
-            }
-            let Some(top) = stack.last_mut() else {
-                unreachable!("the node read is the top's")
-            };
-            if let Some(chain) = chain.filter(|chain| !chain.is_empty()) {
-                match members::listing_steps(
-                    &top.doc,
-                    &top.nominal,
-                    &chain,
-                    remaining - held,
-                    cancel,
-                )? {
-                    Some(steps) => held += steps,
-                    None => return Ok(None),
-                }
-            }
-            top.next += 1;
-            top.entered = false;
-        }
-    }
-
-    /// `part` resolved for listing, or `None` where it charges nothing:
-    /// charged already this run, or one the build refuses before
-    /// listing anything (no resolver, a reference that does not resolve,
-    /// a cycle through `stack`, a depth past [`parts::MAX_DEPTH`], a
-    /// document recorded at another ε).
-    fn open(
-        &mut self,
-        part: crate::ident::DocRef,
-        stack: &[Listing],
-        cancel: &CancelToken,
-        tol: Tol,
-    ) -> Result<Option<Listing>, Canceled> {
-        if cancel.is_canceled() {
-            return Err(Canceled);
-        }
-        if stack.iter().any(|listing| listing.part == part)
-            || stack.len() >= parts::MAX_DEPTH
-            || !self.charged.insert(part)
+    let order = schedule::schedule(doc).order;
+    let chains = chains_of(doc, &order);
+    let nominal = doc.var_env::<f64>();
+    let mut held = 0u64;
+    for id in &order {
+        if let Some(chain) = chains
+            .get(id)
+            .and_then(crate::repetition::Reached::chain)
+            .filter(|chain| !chain.is_empty())
         {
-            return Ok(None);
+            match members::listing_steps(doc, &nominal, chain, remaining - held, cancel)? {
+                Some(steps) => held += steps,
+                None => return Ok(None),
+            }
         }
-        // Under a shielding bracket, as the build's own resolution is
-        // ([`parts::PartStore`]): resolving decides nothing of this run.
-        let resolved = {
-            let _shield = geom_core::k_stats::Bracket::open();
-            self.resolver.and_then(|r| r.resolve(&part, tol).ok())
-        };
-        let Some(doc) = resolved.filter(|doc| recorded_at_process_eps(doc, tol)) else {
-            return Ok(None);
-        };
-        let sched = schedule::schedule(&doc);
-        let nodes = {
-            let mut reach = crate::repetition::Reach::new(&doc);
-            sched
-                .order
-                .iter()
-                .map(|&id| {
-                    let chain = doc
-                        .declares_index()
-                        .then(|| reach.node(id))
-                        .and_then(|reached| reached.chain().map(<[crate::VarId]>::to_vec));
-                    (parts::instantiated(&doc, id), chain)
-                })
-                .collect()
-        };
-        Ok(Some(Listing {
-            part,
-            nominal: doc.var_env::<f64>(),
-            doc,
-            nodes,
-            next: 0,
-            entered: false,
-        }))
     }
+    Ok(Some(held))
 }
 
 /// **A run's member budget, charged at admission** in `order`, the
@@ -4503,7 +4373,7 @@ fn own_bodies<T: Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
 /// never reached holds none. Not `coincide::Canceled`, whose `Display`
 /// says the coincidence door was canceled.
 #[derive(Debug)]
-struct Canceled;
+pub(crate) struct Canceled;
 
 struct NodeStep<T: Decide> {
     result: NodeResult<T>,
