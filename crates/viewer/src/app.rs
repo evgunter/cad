@@ -11289,6 +11289,264 @@ mod properties_pane_tests {
             }
         }
     }
+
+    /// Review 6403 probes (reviewer lane; not for merge).
+    mod review_6403_probes {
+        use super::*;
+        use crate::pane::profile::HELD_BACK;
+
+        fn startup_profile_open() -> (Driven, RecipeNodeId) {
+            let mut driven = Driven::with(Vec::new());
+            let profile = startup_node(0);
+            driven.select(Selection::Node(profile));
+            driven.settle();
+            (driven, profile)
+        }
+
+        fn fields(painted: &[(String, egui::Rect)], prefix: &str) -> Vec<egui::Pos2> {
+            painted
+                .iter()
+                .filter(|(run, _)| run.starts_with(prefix))
+                .map(|(_, rect)| rect.center())
+                .collect()
+        }
+
+        fn status_text(driven: &Driven) -> String {
+            format!("{:?}", driven.app.status)
+        }
+
+        /// P1: a drag over a field lands once, at release, and the extrude
+        /// reading the profile re-evaluates and is kept.
+        #[test]
+        fn p1_a_drag_lands_once_and_the_extrude_is_kept() {
+            let (mut driven, profile) = startup_profile_open();
+            let painted = driven.quiet();
+            eprintln!(
+                "P1 runs: {:?}",
+                painted.iter().map(|(r, _)| r.as_str()).collect::<Vec<_>>()
+            );
+            let at = fields(&painted, "0.0120");
+            let at = *at
+                .first()
+                .unwrap_or_else(|| panic!("a radius field: {painted:?}"));
+            let steps = driven.app.session.history().len();
+            let was = driven.app.session.committed_doc().node(profile).cloned();
+            let button = |pos, pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            driven.frame(vec![egui::Event::PointerMoved(at)]);
+            driven.frame(vec![button(at, true)]);
+            let mut to = at;
+            let mut mid = Vec::new();
+            for _ in 0..6 {
+                to += egui::vec2(4.0, 0.0);
+                driven.frame(vec![egui::Event::PointerMoved(to)]);
+                mid.push(driven.app.session.history().len());
+                eprintln!(
+                    "P1 mid: dragged {:?} unsettled {:?} differs {:?}",
+                    driven.ctx.dragged_id(),
+                    driven.app.drafts.profile_edit.as_ref().map(|e| e.unsettled),
+                    driven
+                        .app
+                        .drafts
+                        .profile_edit
+                        .as_ref()
+                        .map(crate::drafts::ProfileEdit::differs_from_base)
+                );
+            }
+            driven.frame(vec![button(to, false)]);
+            driven.frame(Vec::new());
+            driven.settle();
+            let after = driven.app.session.history().len();
+            eprintln!(
+                "P1 steps before {steps}, mid-drag {mid:?}, after {after}; status {}",
+                status_text(&driven)
+            );
+            assert!(
+                mid.iter().all(|n| *n == steps),
+                "nothing lands mid-drag: {mid:?}"
+            );
+            assert_eq!(after, steps + 1, "the drag lands once");
+            assert_ne!(
+                driven.app.session.committed_doc().node(profile).cloned(),
+                was,
+                "moved"
+            );
+            let doc = driven.app.session.committed_doc();
+            assert!(doc.node(extrude()).is_some(), "the extrude is kept");
+            let (_, ev) = driven.app.session.landed_pair().expect("landed");
+            assert!(
+                ev.node_error(extrude()).is_none(),
+                "extrude evaluates: {:?}",
+                ev.node_error(extrude()).map(|e| e.kind.to_string())
+            );
+        }
+
+        /// P2: a field typed, then a click on an add-loop button: the focus
+        /// loss and the click are one frame. How many undo steps?
+        #[test]
+        fn p2_a_typed_field_then_a_click_on_add_loop() {
+            use crate::forms::ShapeKind;
+            use crate::pane::profile::add_loop_label;
+            let (mut driven, profile) = startup_profile_open();
+            let painted = driven.quiet();
+            let at = fields(&painted, "radius ")[0];
+            let steps = driven.app.session.history().len();
+            let key = |key, modifiers| egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            };
+            driven.click_at(at);
+            driven.frame(vec![key(egui::Key::A, egui::Modifiers::COMMAND)]);
+            driven.frame(vec![egui::Event::Text("0.001".to_owned())]);
+            assert_eq!(
+                driven.app.session.history().len(),
+                steps,
+                "typing lands nothing"
+            );
+            driven.click(&add_loop_label(ShapeKind::Path));
+            driven.settle();
+            let after = driven.app.session.history().len();
+            let loops = match driven.app.session.committed_doc().node(profile) {
+                Some(Node::Profile(p)) => p.loops.len(),
+                _ => 0,
+            };
+            eprintln!(
+                "P2 steps {steps} -> {after}, loops now {loops}, status {}",
+                status_text(&driven)
+            );
+            let painted = driven.quiet();
+            eprintln!(
+                "P2 held? {}",
+                painted.iter().any(|(r, _)| r.contains(HELD_BACK))
+            );
+            let edit = driven.app.drafts.profile_edit.as_ref().expect("open");
+            eprintln!(
+                "P2 draft hole: {:?}; draft loops {}",
+                edit.step_at(driven.app.session.doc(), (1, 0)),
+                edit.loops().len()
+            );
+            driven.click(crate::pane::profile::DISCARD);
+            driven.settle();
+            let edit = driven.app.drafts.profile_edit.as_ref().expect("open");
+            eprintln!(
+                "P2 after discard hole: {:?}; history {}",
+                edit.step_at(driven.app.session.doc(), (1, 0)),
+                driven.app.session.history().len()
+            );
+        }
+
+        fn held_state(d: &Driven) -> (bool, Option<String>) {
+            let e = d.app.drafts.profile_edit.as_ref();
+            (
+                e.is_some_and(crate::drafts::ProfileEdit::differs_from_base),
+                e.and_then(|e| e.refused.clone()),
+            )
+        }
+
+        /// A committed change (the hole removed), then a refused one (a
+        /// path loop at the origin over the plate's corner), held.
+        fn committed_then_held() -> (Driven, RecipeNodeId, usize) {
+            use crate::forms::ShapeKind;
+            use crate::pane::profile::add_loop_label;
+            let (mut driven, profile) = startup_profile_open();
+            let steps = driven.app.session.history().len();
+            let hole = driven.each("Remove loop")[1];
+            driven.click_at(hole);
+            driven.settle();
+            assert_eq!(
+                driven.app.session.history().len(),
+                steps + 1,
+                "the hole's removal lands"
+            );
+            driven.click(&add_loop_label(ShapeKind::Path));
+            driven.settle();
+            let (held, refused) = held_state(&driven);
+            assert!(
+                held && refused.is_some(),
+                "the path loop is held: {refused:?}"
+            );
+            assert_eq!(
+                driven.app.session.history().len(),
+                steps + 1,
+                "nothing more landed"
+            );
+            (driven, profile, steps)
+        }
+
+        /// P3: a held draft, then undo: is the person told the draft went?
+        #[test]
+        fn p3_undo_over_a_held_draft_says_so() {
+            let (mut driven, _profile, steps) = committed_then_held();
+            driven.app.perform_batch(vec![SessionOp::Undo]);
+            driven.settle();
+            let painted = driven.quiet();
+            let (held, _) = held_state(&driven);
+            let status = status_text(&driven);
+            eprintln!(
+                "P3 after undo: history len {} (was {steps}+1), draft still held {held}, status {status}",
+                driven.app.session.history().len()
+            );
+            eprintln!(
+                "P3 runs: {:?}",
+                painted
+                    .iter()
+                    .map(|(r, _)| r.as_str())
+                    .filter(|r| r.len() > 12)
+                    .collect::<Vec<_>>()
+            );
+            driven.app.perform_batch(vec![SessionOp::Redo]);
+            driven.settle();
+            let (held_after_redo, _) = held_state(&driven);
+            eprintln!("P3 after redo: held {held_after_redo}");
+            assert!(
+                held || status.contains("draft") || status.contains("discard"),
+                "the held draft went unsaid: status {status}"
+            );
+        }
+
+        /// P4: a held draft, select another node and come back.
+        #[test]
+        fn p4_a_held_draft_across_a_selection_away_and_back() {
+            let (mut driven, profile, _) = committed_then_held();
+            driven.select(Selection::Node(extrude()));
+            driven.settle();
+            let status = status_text(&driven);
+            driven.select(Selection::Node(profile));
+            driven.settle();
+            let (back, _) = held_state(&driven);
+            eprintln!("P4 held after away-and-back {back}; status while away {status}");
+            assert!(
+                back || status.contains("draft") || status.contains("discard"),
+                "held draft dropped unsaid; status {status}"
+            );
+        }
+
+        /// P6: a held draft, then a profile slot edited from elsewhere
+        /// (the document moves underneath): what happens to the draft?
+        #[test]
+        fn p6_a_held_draft_when_the_document_moves_underneath() {
+            let (mut driven, profile, _) = committed_then_held();
+            // Another edit to the same profile node: its label.
+            driven.app.perform_batch(vec![SessionOp::NewDocument {
+                name: "other".to_owned(),
+            }]);
+            driven.settle();
+            let (held, _) = held_state(&driven);
+            eprintln!(
+                "P6 after New document: held {held}, open on {:?}, status {}",
+                driven.app.drafts.profile_edit.as_ref().map(|e| e.node),
+                status_text(&driven)
+            );
+            let _ = profile;
+        }
+    }
 }
 
 /// **A click in the viewport while the index seam is busy**, driven
