@@ -131,9 +131,7 @@ impl ToolKind {
     /// capitalised, as a tool, with the ellipsis of a button that opens
     /// a panel rather than acting.
     pub fn button(self) -> String {
-        let name = self.label();
-        let (first, rest) = name.split_at(name.chars().next().map_or(0, char::len_utf8));
-        format!("{}{rest} tool…", first.to_uppercase())
+        format!("{} tool…", capitalised(self.label()))
     }
 
     /// The words on the button that commits this tool's edit.
@@ -252,7 +250,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Open(_)
         | SessionOp::Save(_)
         | SessionOp::SaveAsNewDocument(_)
-        | SessionOp::SetBodyHidden { .. }
+        | SessionOp::SetBodyOn { .. }
         | SessionOp::SetSpaceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
@@ -330,6 +328,13 @@ impl Say for ToolNotice {
 }
 
 /// The sentence a panel speaks: its name, then what it has to say.
+/// **`text` with its first letter capitalised**, as a label that opens
+/// a line reads.
+pub(crate) fn capitalised(text: &str) -> String {
+    let (first, rest) = text.split_at(text.chars().next().map_or(0, char::len_utf8));
+    format!("{}{rest}", first.to_uppercase())
+}
+
 fn compose(name: &str, what: &impl core::fmt::Display) -> String {
     format!("{name}: {what}")
 }

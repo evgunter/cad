@@ -2093,6 +2093,7 @@ impl eframe::App for ViewerApp {
         }
 
         let display = self.session.display_view();
+        let toggles = self.session.toggles();
         // **The preview is taken once, before the panes draw**, from
         // the drafts as they stand — so the panel's refusal line and
         // the viewport's wireframe are two views of one replay rather
@@ -2188,7 +2189,7 @@ impl eframe::App for ViewerApp {
                     budget_delta: self.derived.budget_delta,
                     scene: &self.scene,
                     index: self.picks.index(),
-                    scene_key: self.scene_key,
+                    scene_key: self.scene_key.clone(),
                     indexing: self.picks.index_seam(self.fit.as_ref()),
                     revision: self.revision,
                     camera: &mut self.camera,
@@ -2197,6 +2198,7 @@ impl eframe::App for ViewerApp {
                     notation: &mut notation,
                     drafts: &mut self.drafts,
                     display: &display,
+                    toggles: &toggles,
                     tools: &mut self.tools,
                     part_chooser: &mut self.part_chooser,
                     profile_previews: &profile_previews,
@@ -2365,6 +2367,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) drafts: &'a mut Drafts,
     /// The display snapshot this frame draws and picks under.
     pub(crate) display: &'a DisplayView,
+    /// Every show/hide toggle, read once over the committed document:
+    /// what the View pane lists and the tree's and the Properties
+    /// pane's checkboxes read.
+    pub(crate) toggles: &'a crate::display::Toggles,
     /// The modal tools, at most one open.
     pub(crate) tools: &'a mut Tools,
     /// The `Add part…` chooser, if open.
@@ -5135,8 +5141,68 @@ mod properties_pane_tests {
         pane.click_at(at[0]);
         pane.quiet();
         assert_eq!(
-            pane.app.session.display().hidden_bodies(),
-            &std::collections::BTreeSet::from([a])
+            pane.app.session.display().toggled(),
+            &std::collections::BTreeMap::from([(a, false)])
+        );
+    }
+
+    /// [`two_instances`] with a copy of the first placed into the world,
+    /// which reads it as a body: the first instance is one the default
+    /// picture leaves out.
+    fn an_undrawn_instance() -> (crate::session::DocSession, RecipeNodeId) {
+        use pncad::document::{BodyRead, Node, Operand, VarId};
+        let (session, [a, _]) = two_instances();
+        let tol = session.tol();
+        let mut doc = session.committed_doc().clone();
+        crate::test_support::insert_into(
+            &mut doc,
+            Node::place(
+                BodyRead::plain(Operand::from(a)),
+                Operand::Var(VarId::WORLD),
+                pncad::document::stand().bundle(),
+            ),
+            tol,
+        );
+        let mut session = crate::session::DocSession::inline(doc, tol);
+        session.pump();
+        assert!(!session.toggles().body_on(a), "the premise: a reads off");
+        (session, a)
+    }
+
+    /// **The tree's checkbox on an instance the default leaves out reads
+    /// off, so its click shows it.** A checkbox that read the hides
+    /// alone would show it on, and its click would ask for it off,
+    /// which holds nothing.
+    #[test]
+    fn the_tree_checkbox_of_an_undrawn_instance_shows_it() {
+        let (session, a) = an_undrawn_instance();
+        let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
+        let at = pane.each("shown");
+        pane.click_at(at[0]);
+        pane.quiet();
+        assert_eq!(
+            pane.app.session.display().toggled(),
+            &std::collections::BTreeMap::from([(a, true)]),
+            "the click showed the instance"
+        );
+    }
+
+    /// **The Properties pane's checkbox reads the same toggle**: over the
+    /// selected undrawn instance, a click shows it.
+    #[test]
+    fn the_properties_checkbox_of_an_undrawn_instance_shows_it() {
+        let (session, a) = an_undrawn_instance();
+        let mut pane = Driven::with_seams(vec![SessionOp::Select(Selection::Node(a))], |app| {
+            app.session = session
+        });
+        let at = pane.each("shown in viewport");
+        assert_eq!(at.len(), 1, "one display toggle: {at:?}");
+        pane.click_at(at[0]);
+        pane.quiet();
+        assert_eq!(
+            pane.app.session.display().toggled(),
+            &std::collections::BTreeMap::from([(a, true)]),
+            "the click showed the instance"
         );
     }
 
@@ -6136,7 +6202,7 @@ mod properties_pane_tests {
         /// The index the picture on screen was drawn from — the one
         /// the viewport marks against (`pane::viewport::drawn_index`).
         fn on_screen(&self) -> &crate::pickindex::PickIndex {
-            crate::pane::viewport::drawn_index(self.app.picks.index(), self.app.scene_key)
+            crate::pane::viewport::drawn_index(self.app.picks.index(), self.app.scene_key.clone())
                 .expect("the settled app draws from an index")
         }
 

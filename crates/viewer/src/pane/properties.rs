@@ -545,12 +545,12 @@ impl ViewerBehavior<'_> {
     /// again here would be one fact spelled twice in one pane, which
     /// this panel does nowhere.
     ///
-    /// The hide toggle pushes [`SessionOp::SetBodyHidden`], whose door
+    /// The body's toggle pushes [`SessionOp::SetBodyOn`], whose door
     /// runs [`crate::display::body_check`] — the test that gates this
     /// section — so the toggle is offered exactly where the op accepts.
     pub(crate) fn display_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
         // **The COMMITTED document, because that is the one the doors
-        // read.** `set_body_hidden` and `begin_free_move` are handed
+        // read.** `set_body_on` and `begin_free_move` are handed
         // `history.doc()`, and both ops are permitted during a value
         // gesture, so a panel reading the previewed document would be
         // answering a different question from the click it is standing
@@ -569,12 +569,9 @@ impl ViewerBehavior<'_> {
             node,
             self.session.part_files(),
         ));
-        let mut shown = !self.display.hidden_bodies.contains(&node);
-        if hide_toggle(ui, &mut shown) {
-            self.ops.push(SessionOp::SetBodyHidden {
-                node,
-                hidden: !shown,
-            });
+        let mut on = self.toggles.body_on(node);
+        if body_toggle(ui, &mut on) {
+            self.ops.push(SessionOp::SetBodyOn { node, on });
         }
         // The evaluation the op reads (DI5: free-move moves a shown
         // space, and a body with no value has no picture to move).
@@ -1880,9 +1877,9 @@ fn bounds_notes(ui: &mut egui::Ui, theme: &Theme, reading: Option<&str>) -> bool
         .clicked()
 }
 
-/// **The hide toggle**: answers whether it was changed.
-fn hide_toggle(ui: &mut egui::Ui, shown: &mut bool) -> bool {
-    ui.checkbox(shown, "shown in viewport").changed()
+/// **The body's toggle**: answers whether it was changed.
+fn body_toggle(ui: &mut egui::Ui, on: &mut bool) -> bool {
+    ui.checkbox(on, "shown in viewport").changed()
 }
 
 /// What an offered variable's button says on hover.
@@ -2175,7 +2172,7 @@ mod tests {
 
     use std::cell::Cell;
 
-    use super::{free_move_probe, hide_toggle};
+    use super::{body_toggle, free_move_probe};
     use crate::app::ViewerBehavior;
     use crate::pane::headless::{painted_after_clicking, painted_text};
     use crate::props::{Notation, SlotDriver, SlotFault, SlotRow, SlotValue};
@@ -2305,13 +2302,13 @@ mod tests {
         );
     }
 
-    /// **A click on the hide toggle flips it.**
+    /// **A click on the body's toggle flips it.**
     #[test]
-    fn a_hide_toggle_flips() {
+    fn a_body_toggle_flips() {
         let changed = Cell::new(false);
         painted_after_clicking("shown in viewport", |ui| {
-            let mut shown = true;
-            if hide_toggle(ui, &mut shown) {
+            let mut on = true;
+            if body_toggle(ui, &mut on) {
                 changed.set(true);
             }
         });

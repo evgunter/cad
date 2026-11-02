@@ -2802,7 +2802,11 @@ mod tools_respeak {
             crate::pickindex::PickIndex::build(
                 doc,
                 eval,
-                crate::pickindex::PictureKey::of(generation, crate::test_support::plate_delta()),
+                crate::pickindex::PictureKey::of(
+                    generation,
+                    crate::test_support::plate_delta(),
+                    crate::world::Shown::none(),
+                ),
                 session.tol(),
             )
             .expect("the block indexes")

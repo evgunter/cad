@@ -374,13 +374,13 @@ fn the_windmill_story() {
         .stats()
         .triangles;
     let history_len = session.history().len();
-    let hidden = session.perform(SessionOp::SetBodyHidden {
+    let hidden = session.perform(SessionOp::SetBodyOn {
         node: hub_i,
-        hidden: true,
+        on: false,
     });
     assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
     assert!(hidden.committed.is_empty(), "hide commits no edit");
-    assert!(session.display().hidden_bodies().contains(&hub_i));
+    assert!(!session.toggles().body_on(hub_i));
     assert!(
         index
             .scene_for(&session.display_view())
@@ -396,12 +396,12 @@ fn the_windmill_story() {
         session.tree_rows().iter().any(|row| row.id == hub_i),
         "so does the tree"
     );
-    let shown = session.perform(SessionOp::SetBodyHidden {
+    let shown = session.perform(SessionOp::SetBodyOn {
         node: hub_i,
-        hidden: false,
+        on: true,
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
-    assert!(session.display().hidden_bodies().is_empty());
+    assert!(session.display().toggled().is_empty());
 
     // ── 6. THE CAMERA AND A REAL PICK. Frame the scene off its own
     // drawn bounds, orbit, re-frame (a fit is not a reset), then aim
@@ -904,7 +904,7 @@ fn the_windmill_story() {
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
-    assert!(reopened.display().hidden_bodies().is_empty());
+    assert!(reopened.display().toggled().is_empty());
     assert!(crate::common::asm::frame_of(&reopened, hub_i).is_none());
     assert_eq!(
         reopened.at_rest(),
