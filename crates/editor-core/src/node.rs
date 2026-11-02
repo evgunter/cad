@@ -2243,7 +2243,7 @@ impl<P> Node<P> {
             } => core::iter::once(*first)
                 .chain(then.iter().map(|section| section.profile))
                 .enumerate()
-                .map(|(i, r)| (O::Section(u32::try_from(i).unwrap_or(u32::MAX)), r))
+                .map(|(i, r)| (O::Section(i), r))
                 .collect(),
             Node::Sweep {
                 profile,
@@ -2341,7 +2341,7 @@ impl<P> Node<P> {
             } => core::iter::once(first)
                 .chain(then.iter_mut().map(|section| &mut section.profile))
                 .enumerate()
-                .map(|(i, r)| (O::Section(u32::try_from(i).unwrap_or(u32::MAX)), r))
+                .map(|(i, r)| (O::Section(i), r))
                 .collect(),
             Node::Sweep {
                 profile,
@@ -2739,12 +2739,7 @@ impl<P, S: Slot> Node<P, S> {
                 then: then
                     .iter()
                     .enumerate()
-                    .map(|(k, section)| {
-                        section.try_map(
-                            |r| read(O::Section(u32::try_from(k + 1).unwrap_or(u32::MAX)), r),
-                            f,
-                        )
-                    })
+                    .map(|(k, section)| section.try_map(|r| read(O::Section(k + 1), r), f))
                     .collect::<Result<_, E>>()?,
                 v_degree: f(v_degree)?,
             },

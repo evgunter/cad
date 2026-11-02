@@ -407,7 +407,7 @@ where
             let sections = core::iter::once(*first)
                 .chain(then.iter().map(|section| section.profile))
                 .enumerate()
-                .map(|(i, var)| at(O::Section(u32::try_from(i).unwrap_or(u32::MAX)), var))
+                .map(|(i, var)| at(O::Section(i), var))
                 .collect::<Result<Vec<_>, _>>()?;
             let stations: Vec<&[crate::node::StationMove]> = then
                 .iter()
@@ -3471,7 +3471,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .iter()
             .enumerate()
             .map(|(i, body)| {
-                let index = u32::try_from(i).unwrap_or(u32::MAX);
+                let index = names::output_body(i).map_err(NodeErrorKind::Naming)?;
                 let table = read_table(value)
                     .project(index)
                     .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
@@ -3493,7 +3493,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             let mut members = Vec::with_capacity(reads.len());
             for (i, member) in reads.iter().enumerate() {
                 let read = member.read;
-                let slot = O::Member(u32::try_from(i).unwrap_or(u32::MAX));
+                let slot = O::Member(i);
                 let at = super::read_at(doc, slot, read)?;
                 let projected = reads_projected(node, &[(slot, read)], doc, (results, vals))?;
                 let results = projected.as_ref().unwrap_or(results);
@@ -3702,7 +3702,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let reads: Vec<crate::VarId> = members.iter().map(|m| m.read).collect();
     let inputs = members
         .iter()
-        .zip(member_ranks(&reads))
+        .zip(member_ranks(&reads)?)
         .map(|(m, rank)| topo::MemberInputs {
             records: m.carry.contacts.carried(),
             rank,
@@ -3778,8 +3778,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let mut coincidences = Vec::new();
     let mut published: Vec<Vec<usize>> = Vec::with_capacity(judged.len());
     for (j, rows) in judgements.iter().zip(&judged) {
-        let place = |m: usize| u32::try_from(m).unwrap_or(u32::MAX);
-        let pair = [place(j.a.min(j.b)), place(j.a.max(j.b))];
+        let place = |m: usize| names::input_position(m).map_err(NodeErrorKind::Naming);
+        let pair = [place(j.a.min(j.b))?, place(j.a.max(j.b))?];
         published.push(
             rows.iter()
                 .map(|row| {
@@ -3816,7 +3816,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         let member_table = Arc::clone(&views[joined]);
         let out = &stepped.body;
         let (kind, naming) = (out.kind, &out.naming);
-        let member = u32::try_from(joined).unwrap_or(u32::MAX);
+        let member = names::input_position(joined).map_err(NodeErrorKind::Naming)?;
         if !pairwise {
             // The pair's rows and links are its one step's, in the two
             // members' own tables and the order its records cite them,
@@ -3905,9 +3905,10 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .recited(|b| match b {
                 topo::Backing::Decided(k) if pairwise => {
                     if (k as usize) < decided {
-                        vec![topo::Backing::Decided(
-                            u32::try_from(base + k as usize).unwrap_or(u32::MAX),
-                        )]
+                        vec![topo::Backing::Decided(names::to_u32(
+                            base + k as usize,
+                            ROWS_OF_ONE_BODY,
+                        ))]
                     } else {
                         unreachable!(
                             "union {id:?}'s fold step {step} cites its row {k}, though it \
@@ -3975,7 +3976,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         topo::NaryEnd::Empty => return empty(),
         topo::NaryEnd::Refused(topo::NaryRefusal::Step { member, error }) => {
             return Err(NodeErrorKind::UnionFoldStep {
-                member: u32::try_from(member).unwrap_or(u32::MAX),
+                member: names::input_position(member).map_err(NodeErrorKind::Naming)?,
                 read: members[member].read,
                 refusal: Box::new(NodeErrorKind::Boolean(*error)),
             });
@@ -4037,7 +4038,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         .map(|rows| {
                             rows.iter()
                                 .map(|&i| {
-                                    topo::Backing::Decided(u32::try_from(i).unwrap_or(u32::MAX))
+                                    topo::Backing::Decided(names::to_u32(i, ROWS_OF_ONE_BODY))
                                 })
                                 .collect()
                         })
@@ -4108,7 +4109,7 @@ fn lone_member<T: Decide>(id: RecipeNodeId, one: &Member<T>) -> OpResult<T> {
 /// whose read is the lesser (the earlier minted), and a read spelled
 /// twice ties, the listed-first then A. One pair is one run of the pair
 /// verb in every member order, and publishes one margin.
-fn member_ranks(reads: &[crate::VarId]) -> Vec<u32> {
+fn member_ranks(reads: &[crate::VarId]) -> Result<Vec<u32>, NodeErrorKind> {
     let mut distinct = reads.to_vec();
     distinct.sort_unstable();
     distinct.dedup();
@@ -4118,7 +4119,7 @@ fn member_ranks(reads: &[crate::VarId]) -> Vec<u32> {
             let at = distinct
                 .binary_search(r)
                 .unwrap_or_else(|_| unreachable!("every read is among the distinct reads"));
-            u32::try_from(at).unwrap_or(u32::MAX)
+            names::input_position(at).map_err(NodeErrorKind::Naming)
         })
         .collect()
 }
@@ -4146,6 +4147,12 @@ fn nary_refused(refusal: topo::NaryRefusal) -> NodeErrorKind {
 /// Two of a union's pairwise verdicts glue one accumulation face to one
 /// member face under two relations
 /// ([`topo::NaryRefusal::VerdictsDisagree`]).
+/// Why a coincidence row's index fits the `u32` a [`topo::Backing`]
+/// cites it by ([`names::to_u32`]): the rows are one body's, and a
+/// body's rows number fewer than `u32`, as `topo` mints them.
+pub(super) const ROWS_OF_ONE_BODY: &str = "a coincidence row of one body's table: a body's rows number fewer than u32, as topo mints \
+     them";
+
 const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face to one member face under two relations";
 
 /// The role word a frame's authored +x direction is normalized under
@@ -4268,7 +4275,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         // A member's own records ride the piece it is, re-keyed through
         // its graft (each member's of a family), citing the member by its
         // read.
-        let input = u32::try_from(citing.len()).unwrap_or(u32::MAX);
+        let input = names::input_position(citing.len()).map_err(NodeErrorKind::Naming)?;
         for (i, keys) in bridges.iter().enumerate() {
             crate::product::carry_contacts(
                 &fused,
@@ -4799,6 +4806,6 @@ mod union_row_tests {
             VarId::new(5, 5),
             VarId::new(3, 3),
         ];
-        assert_eq!(member_ranks(&reads), [2, 0, 1, 0]);
+        assert_eq!(member_ranks(&reads).ok(), Some(vec![2, 0, 1, 0]));
     }
 }

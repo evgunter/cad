@@ -1392,7 +1392,11 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // Each source's records cite the source by its position among
         // the product's inputs, which names the read it entered through:
         // the copy's records are its body's, in their order.
-        let input = u32::try_from(cited_inputs.len()).unwrap_or(u32::MAX);
+        let input = crate::names::to_u32(
+            cited_inputs.len(),
+            "a product's input: each grafts at least one solid into the product's body, whose \
+             arena numbers its solids within u32",
+        );
         cited_inputs.push(match doc.node(*node) {
             Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => {
                 crate::coincide::CitedInput::Part(*doc_ref)

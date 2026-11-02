@@ -1055,9 +1055,7 @@ impl Lowering {
                 .iter()
                 .position(|(var, _)| readers.get(var).copied().unwrap_or(0) == 0)
             {
-                return Err(EditError::FreshUnread {
-                    index: u16::try_from(index).unwrap_or(u16::MAX),
-                });
+                return Err(EditError::FreshUnread { index });
             }
         }
         // Nothing reads a variable minted here but this edit's own
@@ -2726,7 +2724,7 @@ pub enum EditError {
     /// reads: the variable it would mint has no reader (VR7).
     FreshUnread {
         /// The entry's index.
-        index: u16,
+        index: usize,
     },
     /// A [`DocEdit::DefineVar`] offered a definition of another kind
     /// than the variable's. A kind is fixed at minting (VR3): a new
@@ -7940,8 +7938,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         .iter()
                         .enumerate()
                         .map(|(i, section)| {
-                            let slot =
-                                crate::OperandSlot::Section(u32::try_from(i).unwrap_or(u32::MAX));
+                            let slot = crate::OperandSlot::Section(i);
                             if section.is_member() {
                                 return Err(EditError::UnknownSlot {
                                     id: spoken(),

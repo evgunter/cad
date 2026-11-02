@@ -541,8 +541,9 @@ impl<R> DrawnOn<R> {
     fn rows(&self) -> Vec<(crate::OperandSlot, &R)> {
         let mut out = vec![(crate::OperandSlot::Frame, &self.frame)];
         out.extend(
-            (0u32..)
-                .zip(&self.faces)
+            self.faces
+                .iter()
+                .enumerate()
                 .map(|(i, face)| (crate::OperandSlot::Traced(i), face)),
         );
         out
@@ -552,8 +553,9 @@ impl<R> DrawnOn<R> {
     fn rows_mut(&mut self) -> Vec<(crate::OperandSlot, &mut R)> {
         let mut out = vec![(crate::OperandSlot::Frame, &mut self.frame)];
         out.extend(
-            (0u32..)
-                .zip(&mut self.faces)
+            self.faces
+                .iter_mut()
+                .enumerate()
                 .map(|(i, face)| (crate::OperandSlot::Traced(i), face)),
         );
         out
@@ -571,8 +573,10 @@ impl<R> DrawnOn<R> {
     ) -> Result<DrawnOn<R2>, E> {
         Ok(DrawnOn {
             frame: read(crate::OperandSlot::Frame, &self.frame)?,
-            faces: (0u32..)
-                .zip(&self.faces)
+            faces: self
+                .faces
+                .iter()
+                .enumerate()
                 .map(|(i, face)| read(crate::OperandSlot::Traced(i), face))
                 .collect::<Result<_, E>>()?,
         })

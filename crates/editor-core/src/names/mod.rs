@@ -59,7 +59,7 @@ pub use emit::{
     SeamVertexShape, UnionNameShape, WayShape,
 };
 pub(crate) use emit::{GRAFT_TOTAL, name_assemble, name_copy};
-pub(crate) use emit::{check_total, empty, name_family, output_body, to_u32};
+pub(crate) use emit::{check_total, empty, input_position, name_family, output_body, to_u32};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;

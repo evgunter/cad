@@ -1116,6 +1116,18 @@ pub(crate) fn output_body(index: usize) -> Result<u32, NamingError> {
     })
 }
 
+/// **A position among an operation's inputs, as the `u32` a record
+/// cites it by** ([`topo::Backing::Carried`]'s `input`, a judged
+/// pair's members, a fold step's member): an n-ary operation's member
+/// list is as long as it is written, or as a family is, so a position
+/// past the width is refused, as [`output_body`] refuses a body index,
+/// rather than narrowed onto another input's.
+pub(crate) fn input_position(index: usize) -> Result<u32, NamingError> {
+    u32::try_from(index).map_err(|_| NamingError::Emission {
+        what: "an input's position exceeds the u32 a record cites it by",
+    })
+}
+
 /// **A count or index of what one body holds, narrowed to the `u32`
 /// the name vocabulary and the table store.** A saturating or
 /// truncating cast would hand two different values one stored number,
@@ -2767,5 +2779,26 @@ mod to_u32_tests {
     fn panics_one_past_the_bound() {
         let past = usize::try_from(u64::from(u32::MAX) + 1).expect("a 64-bit usize");
         to_u32(past, "the caller's sentence");
+    }
+
+    /// An input's position narrows exactly up to the bound and is
+    /// refused typed one past it, never saturated onto the last
+    /// position, which another input holds.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn an_input_position_past_the_bound_is_refused() {
+        use super::{NamingError, input_position};
+        let max = usize::try_from(u32::MAX).expect("a 32-bit or wider usize");
+        assert_eq!(
+            input_position(max).ok(),
+            Some(u32::MAX),
+            "the last position"
+        );
+        let past = usize::try_from(u64::from(u32::MAX) + 1).expect("a 64-bit usize");
+        assert!(
+            matches!(input_position(past), Err(NamingError::Emission { .. })),
+            "one past the bound: {:?}",
+            input_position(past)
+        );
     }
 }

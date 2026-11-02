@@ -105,7 +105,7 @@ pub enum TraceStepFault {
     /// The step reads a face the profile does not trace.
     NoSuchFace {
         /// How many faces it traces.
-        traced: u32,
+        traced: usize,
     },
     /// The pen has no position here: the entry, or a direction bound
     /// first.
@@ -127,7 +127,7 @@ pub enum TraceStepFault {
         /// The crossing written.
         crossing: TraceCrossing,
         /// How many crossings of that passage the piece makes.
-        found: u32,
+        found: usize,
     },
     /// The piece runs onto the trace where it has no tangent: a cone's
     /// apex. (A node of the trace, or the plane tangent to the carrier
@@ -335,7 +335,7 @@ pub(crate) fn resolve_chain<T: profile::ArcCarrierScalar>(
                 refuse(
                     Some(at),
                     TraceStepFault::NoSuchFace {
-                        traced: u32::try_from(faces.len()).unwrap_or(u32::MAX),
+                        traced: faces.len(),
                     },
                 )
             })
@@ -502,7 +502,7 @@ fn pick<T: geom_core::Real>(
         .into_iter()
         .filter(|c| c.passage == passage)
         .collect();
-    let found = u32::try_from(of.len()).unwrap_or(u32::MAX);
+    let found = of.len();
     crossing
         .nth
         .checked_sub(1)
