@@ -2,11 +2,13 @@
 id: an-expression-typed-over-held-profile-edits-is-refused
 kind: issue
 title: An expression typed into a profile editor field while the draft holds edits is refused, not carried into the draft
-status: open
+status: dispatched
 opened: 2026-10-31
-priority: P3
+priority: P1
 cost: M
 refs: [the-profile-editors-fields-carry-no-per-argument-affordances, 6144]
+parent: the-profile-create-form-is-a-second-profile-editor
+branch: forms/held-expression
 ---
 
 

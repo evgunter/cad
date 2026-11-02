@@ -86,3 +86,9 @@ itself. (AUTH-6 implementer)
   - `a-profile-step-cannot-refer-to-its-own-earlier-points` is closed as a duplicate of VSEAM's ruled self-reference build (`a-profile-cannot-refer-to-its-own-earlier-parts`, ruled on `[ev]` 6346: U3 reads a vertex, and Q10's `Slide` is "vertex plus an offset").
   - `the-add-profile-form-takes-numbers-and-no-formula` now rides with the profile unit, which subsumes it (priced E).
   - Review posture answered in the plan: full single review per unit, no duals.
+- 2026-11-02 — **Designers weighed the create/edit rule** (fork row 246). Two designers, labels only. They agreed on every load-bearing point, so no reconciliation round ran.
+  - The agreed rule went to Ev as `[ev]` PR 6388, with three confirmations: undo at Apply grain in the two draft editors; an empty profile as the empty region whose sweep refuses; and DESIGN.md's "Kind N" sentence.
+  - Acted on from their orchestrator sections:
+    - VSEAM's `an-expression-typed-over-held-profile-edits-is-refused` is a prerequisite of the profile unit. Without it, "variables can't be entered in the profile" survives the form's deletion, because every step of a new profile is unapplied. It is claimed here by `git mv`, re-banded P3 → P1 (a blocker inherits its parked row's band), and dispatched on `forms/held-expression`. Review tier: a single full review, because the parse and its refusal at the field carry correctness risk. VSEAM has no orchestrator; noted on its log.
+    - The split plane's and the pattern's values may live in variables the insert mints rather than in node slots. Both designers flagged this as unverified. It is checked when those units are cut, not now.
+    - Sequencing: the profile unit's "New profile on a face" waits on VSEAM's sketch-on-face units (doctail and lib), or takes the drawn-on-frame op as it stands at dispatch.
