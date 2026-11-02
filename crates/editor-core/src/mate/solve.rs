@@ -742,11 +742,12 @@ pub(crate) fn leaves(left: SubgroupFamily, coord: super::Coord) -> bool {
     use super::Coord;
     use SubgroupFamily as F;
     match coord {
-        Coord::Spin(Some(_)) => chained(left),
+        Coord::Spin(Some(_)) | Coord::SpinAbout(_) => chained(left),
         Coord::Spin(None) => {
             !chained(left) && matches!(left, F::Planar | F::Cylindrical | F::Parallel | F::Revolute)
         }
-        Coord::Slide(_) => slides_left(left) > 0,
+        Coord::Slide(None) => !chained(left) && matches!(left, F::Cylindrical | F::Parallel),
+        Coord::Slide(Some(_)) | Coord::SlideAlong(_) => slides_left(left) > 0,
     }
 }
 
@@ -760,9 +761,10 @@ pub(crate) fn slides_left(left: SubgroupFamily) -> usize {
 /// the mates [`already_fixed`] names beside a value that is not the
 /// residual's.
 fn frees(family: SubgroupFamily, coord: super::Coord) -> bool {
-    match coord {
-        super::Coord::Slide(_) => family.frees_every_translation(),
-        super::Coord::Spin(_) => family.frees_every_rotation(),
+    if coord.is_slide() {
+        family.frees_every_translation()
+    } else {
+        family.frees_every_rotation()
     }
 }
 
@@ -787,14 +789,15 @@ fn written(
         }
     };
     let mut set: Vec<(Coord, crate::node::ConstraintId)> = Vec::new();
-    let mut spins: Vec<(super::TargetAxis, crate::node::ConstraintId)> = Vec::new();
+    let mut spins: Vec<(Coord, crate::node::ConstraintId)> = Vec::new();
     for &(id, coord) in values {
         if !leaves(left, coord) {
             name(id);
             continue;
         }
         match coord {
-            Coord::Spin(Some(axis)) if chained(left) => {
+            Coord::Spin(Some(_)) | Coord::SpinAbout(_) if chained(left) => {
+                let axis = coord;
                 if let Some(&(last, before)) = spins.last()
                     && last == axis
                 {
@@ -822,7 +825,7 @@ fn written(
     // equation the rest already fix.
     let slides: Vec<_> = set
         .iter()
-        .filter(|&&(c, _)| matches!(c, Coord::Slide(_)))
+        .filter(|&&(c, _)| c.is_slide())
         .map(|&(_, id)| id)
         .collect();
     let excess = slides.len().saturating_sub(slides_left(left));
@@ -908,16 +911,16 @@ fn already_fixed(
     let (_, twice) = written(left, &values);
     // More slides than the mates leave translations: the mates that fix
     // a translation fix the one too many.
-    let slides = super::TargetAxis::ALL
-        .into_iter()
-        .filter(|&a| {
-            let c = super::Coord::Slide(a);
-            leaves(left, c) && values.iter().any(|&(_, v)| v == c)
-        })
-        .count();
-    let excess = slides > slides_left(left);
+    let mut slides: Vec<super::Coord> = values
+        .iter()
+        .map(|&(_, c)| c)
+        .filter(|&c| c.is_slide() && leaves(left, c))
+        .collect();
+    slides.sort();
+    slides.dedup();
+    let excess = slides.len() > slides_left(left);
     for &(id, coord) in &values {
-        if excess && matches!(coord, super::Coord::Slide(_)) {
+        if excess && coord.is_slide() {
             for &(other, family) in &mates {
                 if !frees(family, coord) {
                     named(other, &mut out);
@@ -964,7 +967,7 @@ fn slide_beside_a_ball(
     }
     values_of(bundle)
         .into_iter()
-        .find(|&(_, coord)| matches!(coord, super::Coord::Slide(_)))
+        .find(|&(_, coord)| coord.is_slide())
         .map(|(id, _)| id)
 }
 
@@ -1157,7 +1160,8 @@ pub(crate) fn admits<P>(
         && unpinned(placement, &equations).is_ok()
 }
 
-/// **One placement's bundle, solved.** `equations` are the bundle's,
+/// **One placement's bundle, solved.** `lever` is the arm and the band
+/// a bundle with no mate decides its read directions over. `equations` are the bundle's,
 /// read once off its definitions ([`equations_of`]) — the reading the
 /// edit doors ask the rule of, so the door and the solve decide over
 /// one value. The bundle rule ([`overconstrained`]) refuses a
@@ -1180,12 +1184,17 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
     mates: &[ReadMate<T>],
     values: &[super::value::ReadValue<T>],
     chart: Option<super::value::Chart<T>>,
+    lever: Option<(super::coset::Arm, geom_core::predicate::Band)>,
 ) -> Result<Folded<T>, crate::NodeErrorKind> {
     let fault = |f: MateFault| crate::NodeErrorKind::Mate(Box::new(f));
     overconstrained(placement, equations).map_err(|f| fault(*f))?;
     unpinned(placement, equations).map_err(|f| fault(*f))?;
     match mates {
-        [] => return Ok(Folded::Chained(super::value::unmated_motion(values)?)),
+        [] => {
+            return Ok(Folded::Chained(super::value::unmated_motion(
+                values, lever,
+            )?));
+        }
         [
             ReadMate {
                 on: PoseValue::Point { position: on },

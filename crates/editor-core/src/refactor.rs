@@ -2175,18 +2175,9 @@ fn remap_node(
         constraints
             .iter()
             .map(|c| {
-                c.try_map(
-                    |side, &var| {
-                        rd(
-                            crate::OperandSlot::Side {
-                                constraint: c.id,
-                                side,
-                            },
-                            var,
-                        )
-                    },
-                    &mut |&slot| Ok::<_, RemapMiss>(slot),
-                )
+                c.try_map(|seat, &var| rd(seat, var), &mut |&slot| {
+                    Ok::<_, RemapMiss>(slot)
+                })
             })
             .collect::<Result<Vec<_>, _>>()
     };

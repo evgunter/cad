@@ -163,12 +163,13 @@ pub struct ChainTurn {
 /// for every other chart and chain — no number decides it, and a caller
 /// carries no value across a change of freedom the kernel does not state.
 #[must_use]
-pub fn spin_as_chain_turn(charted: Charted<'_>, chain: &[Coord]) -> Option<ChainTurn> {
+pub fn spin_as_chain_turn<R>(charted: Charted<'_>, chain: &[Coord<R>]) -> Option<ChainTurn> {
     let spins: Vec<TargetAxis> = chain
         .iter()
         .filter_map(|coord| match coord {
             Coord::Spin(axis) => Some(*axis),
-            Coord::Slide(_) => None,
+            Coord::SpinAbout(_) => Some(None),
+            Coord::Slide(_) | Coord::SlideAlong(_) => None,
         })
         .collect::<Option<_>>()?;
     if spins != TargetAxis::ALL {
@@ -508,6 +509,214 @@ impl<T: SolveScalar> Chart<T> {
     }
 }
 
+impl<T: SolveScalar> Chart<T> {
+    /// **`v` within what the mate leaves of the copy's translation**: its
+    /// part across `d` beside a plane mate, along `d` beside an axis
+    /// mate, all of it beside a direction mate.
+    fn into_left(&self, v: Vec3<T>) -> Vec3<T> {
+        let d = self.d.get();
+        match self.seat {
+            Seat::Depth(_) => v - d * d.dot(v),
+            Seat::Line { .. } => d * d.dot(v),
+            Seat::Free => v,
+        }
+    }
+
+    /// **The unit direction a slide `coord` runs along, in what the mate
+    /// leaves** (D10 `[placement.values]`), `line` the line it reads:
+    ///
+    /// - the mated direction, the target's own (`about`);
+    /// - a target axis as the least turn carries it, which lies in what
+    ///   the mate leaves where the source's mated direction is one of its
+    ///   axes (or the mate leaves every translation), and otherwise runs
+    ///   along its part there, a direction decided once from the source's
+    ///   geometry ([`Self::spans`]);
+    /// - a direction read off a body, admitted where it lies in what the
+    ///   mate leaves, decided at evaluation, since it moves with its body.
+    ///
+    /// # Errors
+    ///
+    /// [`NoChartWhy::ReadSlidesDoNotSpan`] for a read direction across
+    /// what the mate leaves, or one the band cannot mint.
+    pub(crate) fn slide_direction<R>(
+        &self,
+        coord: &Coord<R>,
+        line: Option<crate::pose::AxisLine<T>>,
+    ) -> Result<Heading<T>, NoChartWhy> {
+        let unit = |v: Vec3<T>, why: NoChartWhy| {
+            UnitVec3::new(v, topo::query::POSE_UNIT_NORM, self.band)
+                .map(|u| Heading {
+                    dir: u.get(),
+                    frame: false,
+                })
+                .map_err(|_| why)
+        };
+        match coord {
+            Coord::Slide(None) => Ok(Heading {
+                dir: self.about.get(),
+                frame: false,
+            }),
+            Coord::Slide(Some(axis)) => {
+                let carried = self.carried[axis.index()];
+                if self.aligned.is_some() || matches!(self.seat, Seat::Free) {
+                    Ok(Heading {
+                        dir: carried,
+                        frame: true,
+                    })
+                } else {
+                    unit(
+                        self.into_left(carried),
+                        NoChartWhy::SlidesDoNotSpan {
+                            along: None,
+                            write: super::turn::slides_left_along(self.left(), self.n),
+                        },
+                    )
+                }
+            }
+            Coord::SlideAlong(_) => {
+                let Some(line) = line else {
+                    unreachable!("a slide along a read direction is evaluated with its line")
+                };
+                let u = line.dir().get();
+                let d = self.d.get();
+                let across = match self.seat {
+                    Seat::Depth(_) => Some(d.dot(u)),
+                    Seat::Line { .. } => {
+                        let c = d.cross(u);
+                        Some(c.dot(c).sqrt())
+                    }
+                    Seat::Free => None,
+                };
+                if let Some(across) = across {
+                    let within = geom_core::k_stats::decide(
+                        super::MATE_READ_SLIDE_WITHIN,
+                        Margin::levered(across, T::from_computed(self.arm.get())),
+                        self.band,
+                    );
+                    if within != Ok(Sign::Zero) {
+                        return Err(NoChartWhy::ReadSlidesDoNotSpan);
+                    }
+                }
+                unit(self.into_left(u), NoChartWhy::ReadSlidesDoNotSpan)
+            }
+            Coord::Spin(_) | Coord::SpinAbout(_) => unreachable!("a spin runs along no direction"),
+        }
+    }
+
+    /// How many translations the mate leaves.
+    fn left(&self) -> usize {
+        match self.seat {
+            Seat::Depth(_) => 2,
+            Seat::Line { .. } => 1,
+            Seat::Free => 3,
+        }
+    }
+
+    /// **Whether `heads` are independent within what the mate leaves**:
+    /// their determinant there decided nonzero, levered over the arm.
+    fn independent(&self, heads: &[Heading<T>]) -> bool {
+        independent(heads, self.d.get(), self.arm, self.band)
+    }
+}
+
+/// **A slide's direction, as the settle runs it**: a unit direction in
+/// what the mates leave, and whether it is one of the chart's own
+/// orthonormal axes there, where the slides' coordinates are their
+/// directions' dot products and no system is solved.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Heading<T: geom_core::Real> {
+    /// The direction.
+    dir: Vec3<T>,
+    /// Whether it is an axis of the chart's own frame.
+    frame: bool,
+}
+
+/// **Whether `heads` are independent**: as many as the space they span
+/// (a line, a plane across `d`, or every direction), their determinant
+/// there decided nonzero, levered over `arm`.
+fn independent<T: SolveScalar>(heads: &[Heading<T>], d: Vec3<T>, arm: Arm, band: Band) -> bool {
+    let det = match heads {
+        [] | [_] => return true,
+        [a, b] => a.dir.cross(b.dir).dot(d),
+        [a, b, c] => a.dir.dot(b.dir.cross(c.dir)),
+        _ => return false,
+    };
+    matches!(
+        geom_core::k_stats::decide(
+            super::MATE_SLIDES_INDEPENDENT,
+            Margin::levered(det, T::from_computed(arm.get())),
+            band,
+        ),
+        Ok(Sign::Positive | Sign::Negative)
+    )
+}
+
+/// **The coordinates of `t` along `heads`**, its part in the space they
+/// span: their dot products where each is an axis of one orthonormal
+/// frame, else the solution of their Gram system. `None` where that
+/// system is singular.
+fn coordinates<T: SolveScalar>(heads: &[Heading<T>], t: Vec3<T>) -> Option<Vec<T>> {
+    let dots: Vec<T> = heads.iter().map(|h| h.dir.dot(t)).collect();
+    if heads.iter().all(|h| h.frame) || heads.len() < 2 {
+        return Some(dots);
+    }
+    let g = |i: usize, j: usize| heads[i].dir.dot(heads[j].dir);
+    let zero = |x: T| x.exactly_zero();
+    match heads.len() {
+        2 => {
+            let (a, b, c) = (g(0, 0), g(0, 1), g(1, 1));
+            let det = a * c - b * b;
+            if zero(det) {
+                return None;
+            }
+            Some(vec![
+                (c * dots[0] - b * dots[1]) / det,
+                (a * dots[1] - b * dots[0]) / det,
+            ])
+        }
+        3 => {
+            let m = [
+                [g(0, 0), g(0, 1), g(0, 2)],
+                [g(1, 0), g(1, 1), g(1, 2)],
+                [g(2, 0), g(2, 1), g(2, 2)],
+            ];
+            let det3 = |m: [[T; 3]; 3]| {
+                m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+                    - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+                    + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+            };
+            let det = det3(m);
+            if zero(det) {
+                return None;
+            }
+            Some(
+                (0..3)
+                    .map(|k| {
+                        let mut mk = m;
+                        for (row, dot) in mk.iter_mut().zip(&dots) {
+                            row[k] = *dot;
+                        }
+                        det3(mk) / det
+                    })
+                    .collect(),
+            )
+        }
+        _ => None,
+    }
+}
+
+/// **The line a value reads**, read in the target space: an axis's
+/// line, or a direction's through the origin.
+pub(crate) fn heading_of<T: geom_core::Real>(pose: &PoseValue<T>) -> crate::pose::AxisLine<T> {
+    match pose {
+        PoseValue::Axis(line) => *line,
+        PoseValue::Direction { dir } => crate::pose::AxisLine::through(Point3::origin(), *dir),
+        PoseValue::Point { .. } | PoseValue::Plane { .. } | PoseValue::Frame(_) => {
+            unreachable!("a value's seat admits a direction or an axis, which the doors check")
+        }
+    }
+}
+
 /// **What a mate fixing one direction reads of its two poses**
 /// ([`mated_direction`]): the mated direction (the target's, its flip
 /// the contact's sense), the copy's in its own coordinates, and what
@@ -611,32 +820,38 @@ pub struct Charted<'a> {
 /// at relative pose `at`** (D10 `[placement.values]`), by the one chart
 /// a placement is placed by: where `chart` names the mate fixing a
 /// direction, the spin about the target's own direction and the slides
-/// along the target axes its least turn carries; with none, the slides
-/// along the target space's axes and the chain of spins about them,
-/// read where the chain is the three turns about `x`, `y` and `z` in
-/// that order. A freedom the chart does not read at `at` — a link of a
-/// chain in another order, a spin about the target's direction with no
-/// mate fixing one, any freedom of a chart refused at its pole — reads
-/// `None`. So a gesture that stands a copy somewhere writes the values
-/// that place it there through the chart that will place it, never a
-/// second spelling of it.
+/// its chart runs along; with none, the slides along the target space's
+/// axes and the chain of spins about them, read where the chain is the
+/// three turns about `x`, `y` and `z` in that order. The slides are read
+/// together, as the coordinates of where the copy stands, from where
+/// the mates seat it, along their directions ([`settle`]). A freedom the
+/// chart does not read at `at` reads `None`: a link of a chain in
+/// another order, a spin about the target's direction with no mate
+/// fixing one, any freedom of a chart refused at its pole, and every
+/// slide beside one that reads a direction off a body, whose direction
+/// the caller does not hold. So a gesture that stands a copy somewhere
+/// writes the values that place it there through the chart that will
+/// place it, never a second spelling of it.
 #[must_use]
-pub fn read_back(
+pub fn read_back<R>(
     chart: Option<Charted<'_>>,
     at: &Affine3<f64>,
-    coords: &[Coord],
+    coords: &[Coord<R>],
     band: Band,
 ) -> Vec<Option<f64>> {
+    let reads_a_direction = coords.iter().any(|c| matches!(c, Coord::SlideAlong(_)));
     let Some(charted) = chart else {
         let chain = chain_read(&at.linear, coords);
         return coords
             .iter()
-            .map(|coord| match *coord {
-                Coord::Slide(axis) => {
+            .map(|coord| match coord {
+                Coord::Slide(Some(axis)) if !reads_a_direction => {
                     Some([at.translation.x, at.translation.y, at.translation.z][axis.index()])
                 }
                 Coord::Spin(Some(axis)) => chain.map(|turns| turns[axis.index()]),
-                Coord::Spin(None) => None,
+                Coord::Slide(_) | Coord::SlideAlong(_) | Coord::Spin(None) | Coord::SpinAbout(_) => {
+                    None
+                }
             })
             .collect();
     };
@@ -660,14 +875,28 @@ pub fn read_back(
         )
         .ok()
     });
+    // The slides, read together along the directions the chart runs
+    // them.
+    let slid: Option<Vec<f64>> = read.and_then(|chart| {
+        if reads_a_direction {
+            return None;
+        }
+        let dirs = coords
+            .iter()
+            .filter(|c| c.is_slide())
+            .map(|c| chart.slide_direction(c, None).ok())
+            .collect::<Option<Vec<_>>>()?;
+        coordinates(&dirs, at.translation)
+    });
+    let mut slides = slid.into_iter().flatten();
     coords
         .iter()
         .map(|coord| {
             let chart = read?;
-            match *coord {
+            match coord {
                 Coord::Spin(None) => Some(chart.spin(at)),
-                Coord::Slide(axis) => Some(Chart::slide(at, chart.carried[axis.index()])),
-                Coord::Spin(Some(_)) => None,
+                Coord::Slide(_) | Coord::SlideAlong(_) => slides.next(),
+                Coord::Spin(Some(_)) | Coord::SpinAbout(_) => None,
             }
         })
         .collect()
@@ -676,12 +905,13 @@ pub fn read_back(
 /// **The chain `x`, `y`, `z` that turns as `r` does**, each about the
 /// target space's own axis, the first written the first made ([`chain`]):
 /// `r = Rz·Ry·Rx`. `None` where `coords` spells another chain.
-fn chain_read(r: &Mat3<f64>, coords: &[Coord]) -> Option<[f64; 3]> {
+fn chain_read<R>(r: &Mat3<f64>, coords: &[Coord<R>]) -> Option<[f64; 3]> {
     let spun: Vec<TargetAxis> = coords
         .iter()
         .filter_map(|coord| match coord {
             Coord::Spin(axis) => Some(*axis),
-            Coord::Slide(_) => None,
+            Coord::SpinAbout(_) => Some(None),
+            Coord::Slide(_) | Coord::SlideAlong(_) => None,
         })
         .collect::<Option<_>>()?;
     if spun != TargetAxis::ALL {
@@ -713,7 +943,7 @@ pub fn chain_turns(r: &Mat3<f64>) -> [f64; 3] {
 /// **One value, read**: its address, its freedom and its number at
 /// the evaluation's scalar.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ReadValue<T> {
+pub(crate) struct ReadValue<T: geom_core::Real> {
     /// The value's address.
     pub(crate) value: MateRef,
     /// Its freedom.
@@ -723,6 +953,9 @@ pub(crate) struct ReadValue<T> {
     /// The fraction of a turn a spin's number is written as, where it
     /// is one ([`crate::expr::VarEnv::turns`]).
     pub(crate) turns: Option<crate::expr::Ratio>,
+    /// The line the direction or axis it reads stands on, in the target
+    /// space, where it reads one ([`heading_of`]).
+    pub(crate) line: Option<crate::pose::AxisLine<T>>,
 }
 
 impl<T: geom_core::Real> ReadValue<T> {
@@ -767,54 +1000,118 @@ impl<T: SolveScalar> Composed<T> {
     }
 }
 
-/// **A chain of spins about the target space's own axes** (D10
-/// `[placement.values]`), each turning about the origin, in the order
-/// the bundle lists them: the first written is the first made. Composed
-/// as motions, so nothing is decided; `None` for a chain of no link.
+/// **A chain of spins** (D10 `[placement.values]`), in the order the
+/// bundle lists them, the first written the first made: each about one
+/// of the target space's own axes through the origin, or about an
+/// `Axis` read in the target space — about its line where `on_lines`,
+/// about its direction through the origin beside a lone point mate,
+/// whose chain turns about the mated point. Composed as motions, so
+/// nothing is decided; `None` for a chain of no link.
 ///
 /// # Errors
 ///
 /// [`NodeErrorKind::Motion`]: an angle that is no bounded number.
-fn chain<T: SolveScalar>(values: &[ReadValue<T>]) -> Result<Option<RigidMotion<T>>, NodeErrorKind> {
+fn chain<T: SolveScalar>(
+    values: &[ReadValue<T>],
+    on_lines: bool,
+) -> Result<Option<RigidMotion<T>>, NodeErrorKind> {
+    let motion = NodeErrorKind::Motion;
     let mut turned: Option<RigidMotion<T>> = None;
     for v in values {
-        if let Coord::Spin(Some(axis)) = v.coord {
-            let spin =
-                RigidMotion::rotation_by(axis.unit(), v.angle()).map_err(NodeErrorKind::Motion)?;
-            turned = Some(match turned {
-                Some(inner) => spin.compose(inner).map_err(NodeErrorKind::Motion)?,
-                None => spin,
-            });
-        }
+        let spin = match v.coord {
+            Coord::Spin(Some(axis)) => {
+                RigidMotion::rotation_by(axis.unit(), v.angle()).map_err(motion)?
+            }
+            Coord::SpinAbout(_) => {
+                let Some(line) = v.line else {
+                    unreachable!("a spin about a read axis is evaluated with its line")
+                };
+                let turn = RigidMotion::rotation_by(line.dir(), v.angle()).map_err(motion)?;
+                if on_lines {
+                    let foot = line.foot() - Point3::origin();
+                    RigidMotion::translation(foot)
+                        .and_then(|into| into.compose(turn))
+                        .and_then(|turned| {
+                            turned.compose(RigidMotion::translation(Vec3::zero() - foot)?)
+                        })
+                        .map_err(motion)?
+                } else {
+                    turn
+                }
+            }
+            Coord::Spin(None) | Coord::Slide(_) | Coord::SlideAlong(_) => continue,
+        };
+        turned = Some(match turned {
+            Some(inner) => spin.compose(inner).map_err(motion)?,
+            None => spin,
+        });
     }
     Ok(turned)
 }
 
 /// **A bundle with no mate placed by its values** (D10
-/// `[placement.values]`): the chain of spins about the target space's
-/// own axes ([`chain`]), each turning the copy about its own origin,
-/// then the slides along those axes, which set the copy's origin.
-/// Composed as motions, so nothing is decided. The bundle rule has
-/// admitted the values as the six freedoms, each once.
+/// `[placement.values]`): the chain of spins ([`chain`]), each turning
+/// the copy about its own origin or about the line it reads, then the
+/// sum of the slides, each its value along its direction: a target
+/// space's axis or a direction read off a body, so on the target's own
+/// axes the copy's origin is its slides. Composed as motions. The bundle
+/// rule has admitted the values as the six freedoms, each once; where a
+/// slide reads a direction, the three are admitted where they are
+/// independent, decided here over `lever`.
 ///
 /// # Errors
 ///
+/// [`MateFault::NoChart`] ([`NoChartWhy::ReadSlidesDoNotSpan`]) for
+/// slides along read directions that are not independent;
 /// [`NodeErrorKind::Motion`]: an angle or a translation that is no
 /// bounded number.
 pub(crate) fn unmated_motion<T: SolveScalar>(
     values: &[ReadValue<T>],
+    lever: Option<(Arm, Band)>,
 ) -> Result<RigidMotion<T>, NodeErrorKind> {
     let mut shift = Vec3::zero();
+    let mut heads = Vec::new();
     for v in values {
         match v.coord {
-            Coord::Slide(TargetAxis::X) => shift.x = v.by,
-            Coord::Slide(TargetAxis::Y) => shift.y = v.by,
-            Coord::Slide(TargetAxis::Z) => shift.z = v.by,
-            Coord::Spin(_) => {}
+            Coord::Slide(Some(TargetAxis::X)) => shift.x = v.by,
+            Coord::Slide(Some(TargetAxis::Y)) => shift.y = v.by,
+            Coord::Slide(Some(TargetAxis::Z)) => shift.z = v.by,
+            Coord::Slide(None) => unreachable!("the bundle rule admits no mated slide with no mate"),
+            Coord::SlideAlong(_) | Coord::Spin(_) | Coord::SpinAbout(_) => {}
+        }
+        if v.coord.is_slide() {
+            heads.push(Heading {
+                dir: match (v.coord, v.line) {
+                    (Coord::SlideAlong(_), Some(line)) => line.dir().get(),
+                    (Coord::Slide(Some(axis)), _) => axis.unit().get(),
+                    _ => unreachable!("a slide along a read direction is evaluated with its line"),
+                },
+                frame: true,
+            });
+        }
+    }
+    let reads: Vec<&ReadValue<T>> = values
+        .iter()
+        .filter(|v| matches!(v.coord, Coord::SlideAlong(_)))
+        .collect();
+    if let Some(first) = reads.first() {
+        let Some((arm, band)) = lever else {
+            unreachable!("a bundle reading a direction is folded with its lever")
+        };
+        if !independent(&heads, Vec3::unit_z(), arm, band) {
+            return Err(NodeErrorKind::Mate(Box::new(MateFault::NoChart {
+                value: first.value,
+                why: NoChartWhy::ReadSlidesDoNotSpan,
+            })));
+        }
+        for v in reads {
+            if let Some(line) = v.line {
+                shift = shift + line.dir().get() * v.by;
+            }
         }
     }
     let slid = RigidMotion::translation(shift).map_err(NodeErrorKind::Motion)?;
-    match chain(values)? {
+    match chain(values, true)? {
         Some(turned) => slid.compose(turned).map_err(NodeErrorKind::Motion),
         None => Ok(slid),
     }
@@ -822,9 +1119,10 @@ pub(crate) fn unmated_motion<T: SolveScalar>(
 
 /// **A lone point mate's copy placed by its chain** (D10
 /// `[placement.values]`): the copy's mated point `on` carried onto the
-/// target's `to`, turned about it by the chain of spins about the target
-/// space's axes in the order written ([`chain`]), so a chain of zeros
-/// leaves the copy's own axes the target space's. Composed as motions.
+/// target's `to`, turned about it by the chain of spins in the order
+/// written ([`chain`]), a read axis's turn about its direction through
+/// the mated point, so a chain of zeros leaves the copy's own axes the
+/// target space's. Composed as motions.
 ///
 /// # Errors
 ///
@@ -838,7 +1136,7 @@ pub(crate) fn point_motion<T: SolveScalar>(
     let motion = |e| NodeErrorKind::Motion(e);
     let into = RigidMotion::translation(to - Point3::origin()).map_err(motion)?;
     let out = RigidMotion::translation(Point3::origin() - on).map_err(motion)?;
-    let turned = match chain(values)? {
+    let turned = match chain(values, false)? {
         Some(turned) => into.compose(turned).map_err(motion)?,
         None => into,
     };
@@ -882,44 +1180,50 @@ pub(crate) fn settle<T: SolveScalar>(
         unreachable!("the bundle rule admits a value beside a mate fixing a direction alone")
     };
     // One order whatever order the values are listed in: the spin, then
-    // slides along x, y and z, then by id.
+    // slides along x, y and z, along the mated direction, along read
+    // directions, then by id.
     let mut ordered: Vec<&ReadValue<T>> = values.iter().collect();
     ordered.sort_by_key(|v| {
         let rank = match v.coord {
-            Coord::Spin(_) => 0,
-            Coord::Slide(a) => 1 + a.index(),
+            Coord::Spin(_) | Coord::SpinAbout(_) => 0,
+            Coord::Slide(Some(a)) => 1 + a.index(),
+            Coord::Slide(None) => 4,
+            Coord::SlideAlong(_) => 5,
         };
         (rank, v.value.id)
     });
-    let (spins, slides): (Vec<_>, Vec<_>) = ordered
-        .into_iter()
-        .partition(|v| matches!(v.coord, Coord::Spin(_)));
+    let (spins, slides): (Vec<_>, Vec<_>) = ordered.into_iter().partition(|v| !v.coord.is_slide());
     // The rule admits the axisless spin alone here, held loud: the chart
     // turns about the target's own direction.
     assert!(
         spins.iter().all(|v: &&ReadValue<T>| v.coord == Coord::SPIN),
         "a mate's chart is spun about the target's own direction alone"
     );
-    let along = |v: &ReadValue<T>| match v.coord {
-        Coord::Slide(a) => a.index(),
-        Coord::Spin(_) => unreachable!("the spins were taken above"),
-    };
-    // The span, decided once from the source's geometry.
-    let written: Vec<usize> = slides.iter().map(|v| along(v)).collect();
-    let spanned = match written.as_slice() {
-        [] | [_, _, _] => true,
-        [a] => chart.spans(*a),
-        [a, b] => chart.spans(3 - a - b),
-        _ => unreachable!("the bundle rule admits as many slides as the mates leave"),
-    };
-    if !spanned {
-        return Err(NodeErrorKind::Mate(Box::new(MateFault::NoChart {
-            value: slides[0].value,
-            why: NoChartWhy::SlidesDoNotSpan {
-                along: chart.aligned.map(TargetAxis::of_index),
-                write: super::turn::slides_left_along(written.len(), chart.n),
-            },
-        })));
+    // Slides along carried target axes alone are admitted where they span
+    // what the mate leaves, decided once from the source's geometry.
+    let carried: Option<Vec<usize>> = slides
+        .iter()
+        .map(|v| match v.coord {
+            Coord::Slide(Some(a)) => Some(a.index()),
+            _ => None,
+        })
+        .collect();
+    if let Some(written) = &carried {
+        let spanned = match written.as_slice() {
+            [] | [_, _, _] => true,
+            [a] => chart.spans(*a),
+            [a, b] => chart.spans(3 - a - b),
+            _ => unreachable!("the bundle rule admits as many slides as the mates leave"),
+        };
+        if !spanned {
+            return Err(NodeErrorKind::Mate(Box::new(MateFault::NoChart {
+                value: slides[0].value,
+                why: NoChartWhy::SlidesDoNotSpan {
+                    along: chart.aligned.map(TargetAxis::of_index),
+                    write: super::turn::slides_left_along(written.len(), chart.n),
+                },
+            })));
+        }
     }
     let spun = spins.clone();
     // The spin first: the slides after it re-measure the copy's origin.
@@ -943,77 +1247,85 @@ pub(crate) fn settle<T: SolveScalar>(
         };
         left = after_turn(left).unwrap_or(left);
     }
-    // On a frame lane, where `n` is a target axis, the translation is set
-    // from the chart, as the turn is: its component along each slide's
-    // axis is the value, along the axis the mate fixes it is the mate's
-    // closed form ([`Chart::seated`]), and along any other it is the
-    // copy's measure there, so no difference of the translation with
-    // itself widens it. A measure is re-read only on a chart whose mated
-    // direction is an axis exactly: re-reading a component along a
-    // direction the box widens would spread the translation's width
-    // across the others, which the differences below leave in place.
-    let set = |a: usize| {
-        slides
-            .iter()
-            .rev()
-            .find(|v| along(v) == a)
-            .map(|v| v.by)
-            .or_else(|| chart.seated(&m.linear, a))
-    };
-    if T::spins_by_frames()
-        && !slides.is_empty()
-        && chart.aligned.is_some()
-        && (chart.on_axes() || (0..3).all(|a| set(a).is_some()))
-    {
-        let at = |a: usize| set(a).unwrap_or_else(|| Chart::slide(&m, chart.carried[a]));
-        let shift = (0..3).fold(Vec3::zero(), |t, a| t + chart.carried[a] * at(a));
-        // A copy turned by the spin is composed as the motion it is: the
-        // shift, then the spin, then the constant turn.
-        if let [spin] = spun.as_slice()
-            && let Some(head) = chart.head_at(spin.angle(), shift)
+    // On a frame lane, where `n` is a target axis and the slides run
+    // along carried axes, the translation is set from the chart, as the
+    // turn is: its component along each slide's axis is the value, along
+    // the axis the mate fixes it is the mate's closed form
+    // ([`Chart::seated`]), and along any other it is the copy's measure
+    // there, so no difference of the translation with itself widens it.
+    // A measure is re-read only on a chart whose mated direction is an
+    // axis exactly: re-reading a component along a direction the box
+    // widens would spread the translation's width across the others,
+    // which the differences below leave in place.
+    if let Some(written) = &carried {
+        let set = |a: usize| {
+            slides
+                .iter()
+                .zip(written)
+                .rev()
+                .find(|&(_, &w)| w == a)
+                .map(|(v, _)| v.by)
+                .or_else(|| chart.seated(&m.linear, a))
+        };
+        if T::spins_by_frames()
+            && !slides.is_empty()
+            && chart.aligned.is_some()
+            && (chart.on_axes() || (0..3).all(|a| set(a).is_some()))
         {
-            let composed = Composed {
-                head,
-                onto: chart.onto(),
-            };
-            return Ok((composed.map(), Some(composed)));
+            let at = |a: usize| set(a).unwrap_or_else(|| Chart::slide(&m, chart.carried[a]));
+            let shift = (0..3).fold(Vec3::zero(), |t, a| t + chart.carried[a] * at(a));
+            // A copy turned by the spin is composed as the motion it is:
+            // the shift, then the spin, then the constant turn.
+            if let [spin] = spun.as_slice()
+                && let Some(head) = chart.head_at(spin.angle(), shift)
+            {
+                let composed = Composed {
+                    head,
+                    onto: chart.onto(),
+                };
+                return Ok((composed.map(), Some(composed)));
+            }
+            return Ok((Affine3::from_parts(m.linear, shift), None));
         }
-        return Ok((Affine3::from_parts(m.linear, shift), None));
     }
-    // The written coordinates' gaps, in the least turn's coordinates.
-    let gap = |v: &ReadValue<T>| v.by - Chart::slide(&m, chart.carried[along(v)]);
-    let mut moved = [None::<T>; 3];
-    for v in &slides {
-        moved[along(v)] = Some(gap(v));
+    if slides.is_empty() {
+        return Ok((m, None));
     }
-    let n = [chart.n.x, chart.n.y, chart.n.z];
-    match (written.as_slice(), chart.aligned) {
-        // Across `n` where it is an axis: the mate's slide stays put.
-        ([_, _], Some(_)) | ([_, _, _], _) | ([], _) => {}
-        ([a, b], None) => {
-            let c = 3 - a - b;
-            let (ga, gb) = (
-                moved[*a].unwrap_or(T::zero()),
-                moved[*b].unwrap_or(T::zero()),
-            );
-            moved[c] = Some(T::zero() - (n[*a] * ga + n[*b] * gb) / n[c]);
-        }
-        ([a], _) => {
-            let along_n = moved[*a].unwrap_or(T::zero()) / n[*a];
-            moved = [0, 1, 2].map(|k| match chart.aligned {
-                Some(j) if k != j => None,
-                _ => Some(n[k] * along_n),
-            });
-        }
-        _ => unreachable!("the bundle rule admits as many slides as the mates leave"),
+    // The slides' directions in what the mate leaves, and where the
+    // copy's origin stands along them: the copy stands where the mate
+    // seats it plus the sum of its slides, each its value along its
+    // direction ([`Chart::slide_direction`]).
+    let refuse = |value: MateRef, why: NoChartWhy| {
+        NodeErrorKind::Mate(Box::new(MateFault::NoChart { value, why }))
+    };
+    let heads = slides
+        .iter()
+        .map(|v| {
+            chart
+                .slide_direction(&v.coord, v.line)
+                .map_err(|why| refuse(v.value, why))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if carried.is_none() && !chart.independent(&heads) {
+        let why = if slides.iter().any(|v| matches!(v.coord, Coord::SlideAlong(_))) {
+            NoChartWhy::ReadSlidesDoNotSpan
+        } else {
+            NoChartWhy::SlidesDoNotSpan {
+                along: chart.aligned.map(TargetAxis::of_index),
+                write: super::turn::slides_left_along(slides.len(), chart.n),
+            }
+        };
+        return Err(refuse(slides[0].value, why));
     }
-    let shift = (0..3).fold(Vec3::zero(), |t, a| match moved[a] {
-        Some(by) => t + chart.carried[a] * by,
-        None => t,
-    });
-    if !slides.is_empty() {
-        m = Affine3::from_parts(Mat3::identity(), shift) * m;
-    }
+    let Some(measured) = coordinates(&heads, m.translation) else {
+        return Err(refuse(slides[0].value, NoChartWhy::ReadSlidesDoNotSpan));
+    };
+    let shift = heads
+        .iter()
+        .zip(&slides)
+        .zip(measured)
+        .fold(Vec3::zero(), |t, ((h, v), at)| t + h.dir * (v.by - at));
+    m = Affine3::from_parts(Mat3::identity(), shift) * m;
     Ok((m, None))
 }
 
