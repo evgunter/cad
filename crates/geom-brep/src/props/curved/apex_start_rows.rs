@@ -18,10 +18,7 @@ fn band() -> Band {
 fn line(from: Point3<f64>, to: Point3<f64>, ids: (u32, u32)) -> LoopEdge<f64> {
     let dir = to - from;
     LoopEdge::hand_built(
-        Curve3::Line {
-            origin: from,
-            dir: dir.normalize(),
-        },
+        Curve3::line(from, dir.normalize()),
         0.0,
         dir.norm(),
         true,
@@ -38,12 +35,14 @@ fn circle(
     ids: (u32, u32),
 ) -> LoopEdge<f64> {
     LoopEdge::hand_built(
-        Curve3::Circle {
-            center: Point3::new(0.0, 0.0, -depth),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center: Point3::new(0.0, 0.0, -depth),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        },
+        }),
         span.0,
         span.1,
         forward,
