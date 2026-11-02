@@ -176,7 +176,7 @@ fn a_d_hole_fillets_both_creases_at_the_rod_closed_form() {
                 .map(|&k| {
                     let e = out.body.get_edge(k).unwrap();
                     match *out.body.get_curve_geom(e.curve)?.certified()?.carrier() {
-                        geom::Curve3::Circle { radius, .. } => Some(radius),
+                        geom::Curve3::Circle(geom::Circle { radius, .. }) => Some(radius),
                         _ => None,
                     }
                 })

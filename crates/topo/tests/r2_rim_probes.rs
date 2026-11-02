@@ -31,12 +31,12 @@ fn at(theta: f64) -> Point3<f64> {
 }
 
 fn rim_circle() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, RIM_Z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: rim_r(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, RIM_Z),
+        Vec3::new(0.0, 0.0, 1.0),
+        rim_r(),
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// **A spherical cap whose rim is split into THREE arcs**, at

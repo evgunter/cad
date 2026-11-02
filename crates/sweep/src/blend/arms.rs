@@ -507,12 +507,7 @@ pub fn plane_sphere_blend<T: Real>(
         },
         spine_curvature: T::one() / s,
         trim_a: (
-            Curve3::Circle {
-                center: spine_center + n * signed,
-                axis: n,
-                radius: s,
-                u_ref,
-            },
+            Curve3::circle(spine_center + n * signed, n, s, u_ref),
             // The plane's setback: the POSITIVE displacement of the
             // trimline from the rim in every quadrant (`s < rim` on the
             // inner offset, `s > rim` on the outer — function docs),
@@ -521,12 +516,7 @@ pub fn plane_sphere_blend<T: Real>(
             sided(side, rim - s),
         ),
         trim_b: (
-            Curve3::Circle {
-                center: sphere_trim_c,
-                axis: n,
-                radius: sphere_trim_r,
-                u_ref,
-            },
+            Curve3::circle(sphere_trim_c, n, sphere_trim_r, u_ref),
             (con_pt - rim_pt).norm(),
         ),
     }
@@ -864,12 +854,7 @@ impl<T: Real> Meridian<T> {
         let trim = |t: SupportTrace<T>| {
             let q = t.contact(center, radius);
             (
-                Curve3::Circle {
-                    center: level(q),
-                    axis: self.axis,
-                    radius: (q - self.origin).dot(radial),
-                    u_ref: radial,
-                },
+                Curve3::circle(level(q), self.axis, (q - self.origin).dot(radial), radial),
                 (q - self.rim).norm(),
             )
         };

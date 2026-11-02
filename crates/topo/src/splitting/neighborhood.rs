@@ -90,6 +90,23 @@ use crate::sector_shape::{
 };
 use crate::validate::decide;
 
+impl SectorFaceError {
+    /// The split's refusal of `vertex`, whose sector the walk could not
+    /// resolve: a kind the split does not cut, or a cone's apex undecided.
+    pub(crate) fn split_refusal(self, vertex: VertexKey) -> SplitReduceError {
+        match self {
+            Self::Unsupported { face, kind }
+            | Self::Crease { face, kind }
+            | Self::Unplaced { face, kind } => {
+                SplitReduceError::CurvedBooleanUnsupported { face, kind }
+            }
+            Self::ApexUndecided { face, diag } => {
+                SplitReduceError::ApexUndecided { vertex, face, diag }
+            }
+        }
+    }
+}
+
 /// Resolves the sector face for the sector CW-after `he` (module docs:
 /// `face(loop(mate(he)))`) together with its outward normal **at the
 /// base vertex** and whether the surface is a plane.
@@ -133,16 +150,8 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<(FaceKey, VertexFace<T>, bool), SplitReduceError> {
-    let resolved = crate::sector_face::resolve(body, vertex, he, band).map_err(|e| match e {
-        SectorFaceError::Unsupported { face, kind }
-        | SectorFaceError::Crease { face, kind }
-        | SectorFaceError::Unplaced { face, kind } => {
-            SplitReduceError::CurvedBooleanUnsupported { face, kind }
-        }
-        SectorFaceError::ApexUndecided { face, diag } => {
-            SplitReduceError::ApexUndecided { vertex, face, diag }
-        }
-    })?;
+    let resolved =
+        crate::sector_face::resolve(body, vertex, he, band).map_err(|e| e.split_refusal(vertex))?;
     match resolved.carrier {
         SectorCarrier::Plane => Ok((resolved.face, resolved.at_vertex, true)),
         SectorCarrier::Cylinder | SectorCarrier::Cone => {
@@ -200,8 +209,8 @@ pub(super) fn chord<T: Decide>(
     )?;
     match curve.carrier() {
         geom::Curve3::Line(_) => Ok((final_vertex, p_final - p_base, None)),
-        geom::Curve3::Circle { .. }
-        | geom::Curve3::Ellipse { .. }
+        geom::Curve3::Circle(..)
+        | geom::Curve3::Ellipse(..)
         | geom::Curve3::Spiric { .. }
         | geom::Curve3::Nurbs(_) => {
             let departure =

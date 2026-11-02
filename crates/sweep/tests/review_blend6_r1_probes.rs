@@ -65,7 +65,7 @@ fn seeds() -> Vec<BlendError> {
             gap: MarginDiag::value(0.2),
             cross_chain: true,
         },
-        BlendError::TangentialEdge {
+        BlendError::KnifeEdge {
             edge: EdgeKey::default(),
             margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
         },

@@ -92,13 +92,11 @@ pub(super) fn distance(s: &geom::Surface<f64>, p: Point3<f64>) -> f64 {
 pub(super) fn ellipse(c: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64) -> geom::Curve3<f64> {
     let n = Vec3::from_array(n).normalize();
     let u = Vec3::from_array(u);
-    geom::Curve3::Ellipse {
-        center: Point3::from_array(c),
-        axis: n,
-        semi_u: a,
-        semi_v: b,
-        u_ref: (u - n * u.dot(n)).normalize(),
-    }
+    geom::Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::from_array(c), n, (u - n * u.dot(n)).normalize()),
+        a,
+        b,
+    ))
 }
 
 /// The samples [`crossings`] and [`extremes`] take per call.
