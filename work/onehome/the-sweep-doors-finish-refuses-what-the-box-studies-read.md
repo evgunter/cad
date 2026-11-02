@@ -47,7 +47,15 @@ body ran it (a Boolean's operand, the product). Three measured effects:
    a slow-set row), where the authored twin still certifies. The rows
    pin the refusal.
 
-4. **Cost.** The finish at every door is paid in every replay. Rows
+4. **The tour's tolerance stop certifies nothing.** `demos/tour`'s
+   `demo-tour certified` (`src/tolerance.rs`, the real study) now
+   reports certified 0.0000%, refused (budget) 99.4607%, and panics by
+   design ("the real study certified nothing"), which reds
+   `eps_regression::certified_cells_run_green_at_default_eps`. This
+   branch leaves that red standing: making it green means either
+   weakening the stop's own assertion or deciding the fork below.
+
+5. **Cost.** The finish at every door is paid in every replay. Rows
    that ran in about a second now take minutes:
    `editor-core` `docm9_range::a_certified_side_stops_at_the_seeds_edge`
    189 s, `a_parameter_field_boxes_directly` 186 s,
