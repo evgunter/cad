@@ -6341,6 +6341,197 @@ mod properties_pane_tests {
         );
     }
 
+    // ---- review-6401 probes ----
+
+    /// Revolve `profile` (selected, settled first unless `settle_first`
+    /// is false) through the button, settle, and answer the revolve and
+    /// its landed volume (or the node error it refused with).
+    fn r6401_revolve(driven: &mut Driven, profile: RecipeNodeId, settle_first: bool) -> (RecipeNodeId, Result<f64, String>) {
+        use crate::pane::create::REVOLVE;
+        driven.select(Selection::Node(profile));
+        if settle_first {
+            driven.settle();
+        }
+        let before = driven.app.session.doc().ids();
+        driven.click(&sweep_button(driven, REVOLVE, profile));
+        let made = the_new_node(driven, &before);
+        driven.settle();
+        let evaluation = driven.app.session.evaluation().expect("a landed run");
+        let got = match evaluation.value(made) {
+            Some(_) => Ok(volume(driven, made)),
+            None => Err(format!("{:?}", evaluation.result(made))),
+        };
+        (made, got)
+    }
+
+    fn r6401_profile(driven: &Driven) -> RecipeNodeId {
+        let doc = driven.app.session.doc();
+        *doc.ids()
+            .iter()
+            .rfind(|&&id| matches!(doc.node(id), Some(Node::Profile(_))))
+            .expect("a profile")
+    }
+
+    fn r6401_ring(r: f64, centre: f64) -> f64 {
+        core::f64::consts::PI * r * r * core::f64::consts::TAU * centre
+    }
+
+    /// The startup plate (a rectangle with a bored hole: two loops).
+    #[test]
+    fn r6401_the_bored_plate_revolves_into_a_ring() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let (_, got) = r6401_revolve(&mut driven, startup_node(0), true);
+        let v = got.expect("the bored plate revolves");
+        eprintln!("plate ring volume {v}");
+        assert!(v > 0.0);
+    }
+
+    /// A circle about the origin: its x extent straddles 0.
+    #[test]
+    fn r6401_a_circle_straddling_zero_revolves() {
+        let mut driven = Driven::with(vec![SessionOp::AddProfile {
+            loops: vec![pncad::document::LoopProgram::circle(0.0, 0.003, 0.004).expect("circle")],
+        }]);
+        let profile = r6401_profile(&driven);
+        let (_, got) = r6401_revolve(&mut driven, profile, true);
+        let v = got.expect("revolves");
+        let want = r6401_ring(0.004, 0.012);
+        assert!((v - want).abs() < 1e-3 * want, "{v} vs {want}");
+    }
+
+    /// A rectangle wholly at negative x.
+    #[test]
+    fn r6401_a_rectangle_at_negative_x_revolves() {
+        let mut driven = Driven::with(vec![SessionOp::AddProfile {
+            loops: vec![crate::test_support::rectangle_loop([-0.05, 0.01], 0.01, 0.02)],
+        }]);
+        let profile = r6401_profile(&driven);
+        let (_, got) = r6401_revolve(&mut driven, profile, true);
+        // axis x = -0.05 - 0.01 = -0.06; centroid 0.015 from it.
+        let want = 0.01 * 0.02 * core::f64::consts::TAU * 0.015;
+        let v = got.expect("revolves");
+        assert!((v - want).abs() < 1e-6 * want, "{v} vs {want}");
+    }
+
+    /// Inches as the working unit.
+    #[test]
+    fn r6401_in_inches_the_default_axis_is_the_same_place() {
+        let mut driven = Driven::with(vec![SessionOp::AddProfile {
+            loops: vec![pncad::document::LoopProgram::circle(0.02, 0.0, 0.005).expect("circle")],
+        }]);
+        driven.app.session.set_notation(crate::props::Notation {
+            length: pncad::prelude::IN,
+            ..crate::props::Notation::DEFAULT
+        });
+        let profile = r6401_profile(&driven);
+        let (made, got) = r6401_revolve(&mut driven, profile, true);
+        let v = got.expect("revolves");
+        let want = r6401_ring(0.005, 0.015);
+        eprintln!("inch field: {:?}", crate::props::field_text(&driven.row(made, SlotId::Origin(Axis3::X)), driven.app.session.notation()));
+        assert!((v - want).abs() < 1e-6 * want, "{v} vs {want}");
+    }
+
+    /// The button clicked before the profile's evaluation has landed.
+    #[test]
+    fn r6401_a_revolve_clicked_before_the_profile_landed() {
+        let mut driven = Driven::with(vec![SessionOp::AddProfile {
+            loops: vec![pncad::document::LoopProgram::circle(0.0, 0.0, 0.005).expect("circle")],
+        }]);
+        let profile = r6401_profile(&driven);
+        let landed = driven
+            .app
+            .session
+            .landed_pair()
+            .and_then(|(_, e)| e.value(profile).map(|_| ()))
+            .is_some();
+        eprintln!("profile landed before the click: {landed}");
+        let (made, got) = r6401_revolve(&mut driven, profile, false);
+        eprintln!("x = {:?}", driven.row(made, SlotId::Origin(Axis3::X)).value);
+        got.expect("the default revolves whether or not the profile had landed");
+    }
+
+    /// The axis Y and the heading, each over a variable.
+    #[test]
+    fn r6401_axis_y_and_heading_follow_their_variables() {
+        let mut driven = Driven::with(vec![SessionOp::AddProfile {
+            loops: vec![pncad::document::LoopProgram::circle(0.02, 0.0, 0.005).expect("circle")],
+        }]);
+        let profile = r6401_profile(&driven);
+        let (made, got) = r6401_revolve(&mut driven, profile, true);
+        let full = got.expect("revolves");
+        // Heading over a variable at a quarter turn (unchanged), Y over one.
+        let mut ops = written_over("hd", pncad::document::Dimension::Angle, core::f64::consts::FRAC_PI_2, made, SlotId::AxisHeading, "hd");
+        ops.extend(written_over("ay", pncad::document::Dimension::Length, 0.0, made, SlotId::Origin(Axis3::Y), "ay"));
+        driven.app.perform_batch(ops);
+        driven.settle();
+        let same = volume(&driven, made);
+        assert!((same - full).abs() < 1e-6 * full, "{same} vs {full}");
+        // A y-axis shift along a +y axis moves nothing.
+        driven.app.perform_batch(vec![variable_set(&driven, "ay", 0.3)]);
+        driven.settle();
+        let shifted = volume(&driven, made);
+        assert!((shifted - full).abs() < 1e-6 * full, "along the axis: {shifted} vs {full}");
+        // Heading a half turn: axis points -y, sweep side is -x: the profile is on the wrong side.
+        driven.app.perform_batch(vec![variable_set(&driven, "hd", 3.0 * core::f64::consts::FRAC_PI_2)]);
+        driven.settle();
+        let e = driven.app.session.evaluation().expect("landed");
+        eprintln!("heading -y: {:?}", e.value(made).map(|_| volume(&driven, made)).ok_or(format!("{:?}", e.result(made))));
+        // heading 0: axis along x through (x0, 0.3): circle centred on y=0 is wholly below, ring about it
+        driven.app.perform_batch(vec![variable_set(&driven, "hd", 0.0)]);
+        driven.settle();
+        let e = driven.app.session.evaluation().expect("landed");
+        let about_x = e.value(made).map(|_| volume(&driven, made));
+        eprintln!("heading 0, y 0.3: {about_x:?}");
+        let want = r6401_ring(0.005, 0.3);
+        let v = about_x.expect("heading 0 revolves");
+        assert!((v - want).abs() < 1e-3 * want, "the body follows the heading and y: {v} vs {want}");
+    }
+
+    /// The selection hook: a refused op and ops that did not opt in.
+    #[test]
+    fn r6401_the_hook_leaves_refusals_and_other_ops_alone() {
+        let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
+        driven.settle();
+        // A revolve of an extrude (not a profile) refuses; selection stays.
+        driven.app.perform_batch(vec![SessionOp::AddRevolve {
+            profile: extrude(),
+            axis_through: [crate::test_support::len(0.0), crate::test_support::len(0.0)],
+            axis_heading: crate::test_support::ang(core::f64::consts::FRAC_PI_2),
+            angle: crate::test_support::ang(core::f64::consts::TAU),
+        }]);
+        assert_eq!(driven.app.session.selection(), &Selection::Node(extrude()), "a refused op selects nothing");
+        // An AddProfile (not opted in) leaves the selection.
+        let before = driven.app.session.doc().ids();
+        driven.app.perform_batch(vec![SessionOp::AddProfile {
+            loops: vec![crate::test_support::rectangle_loop([0.1, 0.0], 0.01, 0.01)],
+        }]);
+        let _ = the_new_node(&driven, &before);
+        assert_eq!(driven.app.session.selection(), &Selection::Node(extrude()), "AddProfile does not select");
+        // A raw AddExtrude (opted in) selects the extrude, not its placement.
+        let profile = r6401_profile(&driven);
+        let before = driven.app.session.doc().ids();
+        driven.app.perform_batch(vec![SessionOp::AddExtrude { profile, distance: crate::test_support::len(0.01) }]);
+        let made: Vec<_> = driven.app.session.doc().ids().into_iter().filter(|id| !before.contains(id)).collect();
+        eprintln!("raw extrude minted {made:?}; selection {:?}", driven.app.session.selection());
+        assert!(matches!(driven.app.session.selection(), Selection::Node(n) if matches!(driven.app.session.doc().node(*n), Some(Node::Extrude { .. }))));
+    }
+
+    /// A face pick on the startup extrude's cap offers no sweep.
+    #[test]
+    fn r6401_a_face_pick_offers_no_sweep() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.select(Selection::Face(cap_of(pncad::prelude::CapEnd::End)));
+        let painted = driven.frame(Vec::new());
+        let buttons = [sweep_button(&driven, crate::pane::create::EXTRUDE, startup_node(0)), sweep_button(&driven, crate::pane::create::REVOLVE, startup_node(0))];
+        let offered: Vec<_> = painted.iter().filter(|(run, _)| buttons.contains(run)).map(|(r, _)| r.clone()).collect();
+        driven.select(Selection::Node(startup_node(0)));
+        let painted = driven.frame(Vec::new());
+        assert_eq!(painted.iter().filter(|(run, _)| buttons.contains(run)).count(), 2, "the control: a profile selected offers both");
+        assert!(offered.is_empty(), "{offered:?}");
+    }
+
     /// **The creation doors that are not tools are reachable too**: the
     /// sweep buttons are drawn while a profile is selected and not while
     /// anything else is (their door's own kind test) — with every
