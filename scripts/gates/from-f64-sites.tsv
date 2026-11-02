@@ -116,7 +116,7 @@ crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's
 crates/sweep/src/blend/reach.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	3	constant	band.escalate()	the band's escalation width, a tolerance
-crates/sweep/src/loft.rs	1	constant	next.len() as f64	a count
+crates/sweep/src/loft/stacking.rs	1	constant	count as f64	a count
 crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k + 1, m)	a sub-arc end k/m as a fraction of the sweep, structure
 crates/sweep/src/skin.rs	1	constant	counted as f64	a row count
 crates/sweep/src/skin.rs	1	constant	k as f64	a sub-arc index

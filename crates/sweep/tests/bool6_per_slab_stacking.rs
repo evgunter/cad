@@ -238,15 +238,15 @@ fn an_ambiguous_middle_slab_escalates_carrying_its_pair() {
     let tol = Tol::witness();
     let places = stacked_at(&[0.0, 1.0, 1.0 + band_midpoint(tol), 2.0]);
     match loft_body::<f64>(&four_sections(), &places, 2, tol) {
-        Err(LoftError::StackingEscalated { slab, source }) => {
+        Err(LoftError::CornerEscalated { slab, source, .. }) => {
             assert_eq!(slab, 1, "the escalation must carry the ambiguous pair");
             assert_eq!(
                 source.predicate,
-                Some("loft_stacking"),
+                Some("loft_corner_pinned"),
                 "and name the predicate that could not decide"
             );
         }
-        other => panic!("expected StackingEscalated carrying slab 1, got {other:?}"),
+        other => panic!("expected CornerEscalated carrying slab 1, got {other:?}"),
     }
 }
 
@@ -383,11 +383,12 @@ fn an_interior_section_facing_back_refuses_at_slab_0s_far_check() {
 }
 
 /// **A far section edge-on to its slab refuses, and one inside the band
-/// escalates as the far half.** Section 1 is the square turned about `x` until its
-/// normal's component along the slab's unit `+z` step is the margin
-/// itself: half of ε is `Zero`, which refuses through the far arm (the
-/// sections are a unit apart, so this is no sliver), and the band's
-/// midpoint escalates carrying the slab and the predicate.
+/// escalates as the far half.** Section 1 is the square turned about `x`
+/// and lifted to `z = 2`, clear of section 0, until its normal's
+/// component along the slab's `+2z` step is the margin itself: half of
+/// ε is `Zero`, which refuses through the far arm (the sections are two
+/// units apart, so this is no sliver), and the band's midpoint
+/// escalates carrying the slab and the predicate.
 #[test]
 fn a_far_section_edge_on_refuses_and_one_in_band_escalates() {
     let tol = Tol::witness();
@@ -395,7 +396,7 @@ fn a_far_section_edge_on_refuses_and_one_in_band_escalates() {
     let places = |margin: f64| {
         [
             stacked_at(&[0.0])[0],
-            turned_about_x(Vec3::new(0.0, 0.0, 1.0), margin),
+            turned_about_x(Vec3::new(0.0, 0.0, 2.0), margin / 2.0),
         ]
     };
     match loft_body::<f64>(&sections, &places(0.5 * tol.eps()), 1, tol) {
