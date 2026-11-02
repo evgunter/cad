@@ -2,10 +2,12 @@
 id: tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face
 kind: issue
 title: Tier 3′ reads no side where a solid touches itself at a point a curved face of it passes
-status: open
+status: closed
 priority: P1
 cost: H
 opened: 2026-10-21
+pr: 6350
+closed: 2026-11-02
 ---
 
 Found by `tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid`'s
@@ -65,3 +67,42 @@ tangency (the sheets agreeing to first order) needs the second-order
 reading the cross-solid curved lanes take. The cross-solid analysis
 has the same gap (`TouchUnreadable`). The fix lands with these 19
 families read and the skip removed.
+
+## Measured (head `edff118e41`, merge base `c3626bf54a`, topo + sweep, slow set, default ε)
+
+The skip is not the row's 19 families. It reaches 124 distinct
+(test, point, verdict) triples: 80 exact points in 37 tests over 17
+test files. Five families run and no longer reach it:
+`a_ruling_lying_on_a_wall`, `a_ruling_through_a_box_corner_edge`,
+`a_tube_ending_on_a_ball`, `pi_seam_and_kiss_through_the_boolean` and
+`verbs_ga_r2_probes`.
+
+## What landed
+
+`sweep_self_touch_points` reads such a point over its faces' tangent
+cones (`self_touch_verdict`, `Link::tangent_of`, `FaceSector::tangent`).
+`rest::one_material` first holds the cone to the coincidences the faces
+keep (`rest::first_order`), then reads it.
+
+Of the 124 triples:
+
+- 33 read `Rest`; none reads `Crossing`.
+- 1 refuses in band.
+- 90 are left to second order by the cones. They keep the skip, named
+  `SelfTouch::SecondOrder`, and are filed, with their classes and the
+  13 rows that refusing them turns red, as
+  `a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread`.
+
+## Closed
+
+2026-11-02, PR 6350 (`restread/self-touch-curved-sector`). A self-touch
+point on a curved face reads over its faces' tangent cones, held to the
+coincidences the faces keep to all orders (`rest::first_order`). The
+points first order cannot decide are not refused: they keep the skip as
+`SelfTouch::SecondOrder`, named in the census module doc and
+`crates/topo/README.md`, and carry on as
+`a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread`
+(P1), with their classes and the 13 rows refusing them turns red. That
+is the fallback this row's lane was briefed with; whether to refuse
+instead is Ev's call, on that row. This row's own question, whether the
+cone can be read where the sheets part to first order, is answered.
