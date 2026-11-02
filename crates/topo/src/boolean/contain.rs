@@ -625,7 +625,7 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// places off an edge is off it for the walk. This is [`contfp`]'s ONE
 /// boundary pass: the walk after it trusts it and runs none of its own.
 /// Rows, one home: `bool_contact_vertex`, `bool_contact_edge{,_length}`,
-/// — for the conic disposition — `bool_contact_arc{,_span,_end,_trim}`,
+/// — for the conic disposition — `bool_contact_arc_{span,straddle,end_vertex}`,
 /// for the spiric `bool_contact_spiric{,_end,_clear,_leaf}`, and for the
 /// spline `bool_contact_spline{,_end,_clear,_leaf}`.
 fn boundary_pre_pass<T: Decide>(
@@ -1167,44 +1167,6 @@ pub(super) fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainEr
             }
         }
         e => ContainError::Curved(e),
-    }
-}
-
-/// Is `q` ON the circle `(center, axis, radius)`? `Some((radial,
-/// |radial|))` on it — the radial offset from the axis, which the
-/// angular half of an arc question is measured from — and `None`
-/// definitely off it.
-///
-/// **`bool_contact_arc` has one body, and this is it.** The row's
-/// quantity is the exact distance from the point to the circle: the
-/// radial miss and the axial miss are orthogonal, so their hypotenuse
-/// is exact and one row covers both ways off the carrier. A distance
-/// has no negative sign, so the row is a magnitude
-/// ([`geom_core::k_stats::decide_magnitude`]).
-///
-/// Its caller, the boolean reduction's point split, turns a definite
-/// miss into a broken-invariant refusal, because a split point was
-/// placed on that carrier by an exact row upstream. The boundary
-/// pre-pass reads a circle edge through the point-on-span reading
-/// instead ([`crate::splitting::containment::LoopEdge::contact`]), whose
-/// gap row reads this distance at the point's exact foot
-/// (`work/cleave/point-on-circle-is-a-second-point-on-carrier-reading.md`).
-pub(super) fn point_on_circle<T: Decide>(
-    q: Point3<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    band: Band,
-) -> Result<Option<(Vec3<T>, T)>, Indeterminate> {
-    let d = crate::splitting::containment::circle_miss(q, center, axis, radius);
-    // A `sqrt`: the magnitude door's precondition.
-    match geom_core::k_stats::decide_magnitude("bool_contact_arc", Margin::of(d), band)? {
-        Magnitude::Zero => {
-            let w = q - center;
-            let radial = w - axis * w.dot(axis);
-            Ok(Some((radial, radial.norm())))
-        }
-        Magnitude::Positive => Ok(None),
     }
 }
 
