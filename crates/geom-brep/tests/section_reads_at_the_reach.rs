@@ -195,7 +195,7 @@ fn the_tilt_is_levered_from_the_nearer_foot() {
 /// Zero and the walls' two rulings were served.
 #[test]
 fn a_measured_lever_reaches_the_pivots_distance() {
-    let reach = Reach::of_frame(Point3::new(0.0, -10.0, 0.0), None, (1.0, 1.0));
+    let reach = Reach::of_frame(Point3::new(0.0, -10.0, 0.0), (1.0, 1.0));
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 0.0);
     let c2 = cylinder(Point3::new(0.0, 0.5, 0.0), tilted(Vec3::unit_y()), 0.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {

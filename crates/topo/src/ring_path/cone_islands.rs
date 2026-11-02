@@ -141,7 +141,7 @@ pub(crate) fn section(
     };
     let reach = {
         let lever = 4.0 * s;
-        geom_brep::Reach::of_frame(apex, None, (lever, lever))
+        geom_brep::Reach::of_frame(apex, (lever, lever))
     };
     match geom_brep::plane_cone_section(&plane(o, n), cone, &reach, band()).unwrap() {
         geom_brep::PlaneConeSection::TiltedEllipse(c)

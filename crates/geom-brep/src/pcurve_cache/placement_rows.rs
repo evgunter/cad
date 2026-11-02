@@ -68,7 +68,7 @@ fn cone_ellipse() -> (Surface<f64>, Curve3<f64>) {
         normal: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
         u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
     };
-    let reach = crate::Reach::of_frame(Point3::new(0.0, 0.0, 0.0), None, (4.0, 4.0));
+    let reach = crate::Reach::of_frame(Point3::new(0.0, 0.0, 0.0), (4.0, 4.0));
     match crate::intersect::plane_cone_section(&plane, &cone, &reach, band()) {
         Ok(crate::intersect::PlaneConeSection::TiltedEllipse(e)) => (cone, e),
         other => panic!("a tilted section of a cone is an ellipse: {other:?}"),

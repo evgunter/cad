@@ -946,10 +946,21 @@ impl<T: Real> Reach<T> {
     /// diameter of `walls`, the ball holding both walls' boundary
     /// points, where the walls are in hand.
     #[must_use]
-    pub fn of_frame(at: Point3<T>, walls: Option<ExtentBall<T>>, (r1, r2): (T, T)) -> Self {
-        let radius = r1.max(r2);
-        let lever = walls.map_or(radius, |b| (b.radius + b.radius).max(radius));
-        Self::Measured { at, lever }
+    pub fn of_frame(at: Point3<T>, (r1, r2): (T, T)) -> Self {
+        Self::Measured {
+            at,
+            lever: r1.max(r2),
+        }
+    }
+
+    /// **A fixture's measured reach**: `length` from `at`, a test's
+    /// stated scale with no frame behind it. Counted by
+    /// `scripts/gates/lever-sources.sh`; production builds a measured
+    /// reach only through [`Self::of_frame`].
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn fixture(at: Point3<T>, length: T) -> Self {
+        Self::Measured { at, lever: length }
     }
 
     /// The lever a tilt pinned at `pivot` is metered at. For a reach the
@@ -1783,7 +1794,7 @@ mod tests {
             lever >= want * (1.0 - 1e-12),
             "a normal on the axis to rounding: lever {lever}, the point's turn {want}"
         );
-        let measured = Reach::of_frame(at, None, (1.0, 1.0));
+        let measured = Reach::of_frame(at, (1.0, 1.0));
         let n = Vec3::new(0.0, 0.0, 1.0);
         assert_eq!(
             measured

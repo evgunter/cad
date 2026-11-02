@@ -69,7 +69,7 @@ fn wall_reach() -> f64 {
 
 /// A cone face's reach as a length measured from `at`.
 fn measured(at: Point3<f64>, lever: f64) -> geom_brep::Reach<f64> {
-    geom_brep::Reach::of_frame(at, None, (lever, lever))
+    geom_brep::Reach::of_frame(at, (lever, lever))
 }
 
 /// The frame both ways round, levered at the frustum face's reach

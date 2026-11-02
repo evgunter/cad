@@ -231,7 +231,7 @@ fn a_pose_in_the_band_escalates() {
 /// C5 table's pose question.
 #[test]
 fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
-    let reach = geom_brep::Reach::of_frame(Point3::new(0.0, 0.0, 0.0), None, (1.0, 1.0));
+    let reach = geom_brep::Reach::of_frame(Point3::new(0.0, 0.0, 0.0), (1.0, 1.0));
     for (label, cyl, sph) in [
         (
             "negative cylinder, coaxial",

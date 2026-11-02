@@ -362,7 +362,7 @@ fn steep_section(
             .max(1e-300);
     let reach = {
         let lever = reach.min(1e12);
-        geom_brep::Reach::of_frame(apex, None, (lever, lever))
+        geom_brep::Reach::of_frame(apex, (lever, lever))
     };
     match geom_brep::plane_cone_section(&super::cone_islands::plane(o, n), &cone, &reach, band) {
         Ok(geom_brep::PlaneConeSection::TiltedEllipse(c)) => Some(c),

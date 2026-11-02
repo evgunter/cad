@@ -31,7 +31,7 @@ fn metre_on<T: Real>(s: &Surface<T>) -> Reach<T> {
     };
     {
         let lever = T::one();
-        Reach::of_frame(at, None, (lever, lever))
+        Reach::of_frame(at, (lever, lever))
     }
 }
 
@@ -1232,7 +1232,7 @@ fn the_cylinder_sphere_route_note_names_the_coaxial_arm() {
 /// the pair's pose, so a radius not definitely positive is not served.
 #[test]
 fn route_pose_reads_the_cylinder_sphere_pose() {
-    let reach = Reach::of_frame(Point3::origin(), None, (1.0, 1.0));
+    let reach = Reach::of_frame(Point3::origin(), (1.0, 1.0));
     let (cyl, bad) = coaxial_pair(-1.0, 1.5, 0.0);
     let got = geom_brep::route_pose(&cyl, &bad, &reach, band()).unwrap();
     assert!(
@@ -2476,7 +2476,7 @@ fn the_ring_guard_ends_each_half_in_its_lever() {
         normal: Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
-    let reach = Reach::of_frame(Point3::new(1.0, 2.0, 3.0), None, (1.0, 1.0));
+    let reach = Reach::of_frame(Point3::new(1.0, 2.0, 3.0), (1.0, 1.0));
     for (what, tor, half, lever) in [
         (
             "tube in band",

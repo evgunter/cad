@@ -430,7 +430,7 @@ fn a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse() {
             let q = map.transform_point(Point3::new(0.0, 0.0, 0.5 * r));
             let reach = {
                 let lever = 5.0_f64.sqrt() * r;
-                Reach::of_frame(q, None, (lever, lever))
+                Reach::of_frame(q, (lever, lever))
             };
             let section = |s: f64| {
                 let plane = moved(
@@ -633,7 +633,6 @@ fn a_near_square_plane_cuts_a_frustum_in_its_exact_ellipse() {
             let lever = (2.0 * f.r0).max((scale * scale + (f.r0 + f.r1).powi(2)).sqrt());
             let reach = Reach::of_frame(
                 map.transform_point(Point3::new(0.0, f.apex, 0.0)),
-                None,
                 (lever, lever),
             );
             let section = |s: f64| {
@@ -759,7 +758,7 @@ fn sliver_walls(map: &Affine3<f64>, r: f64, phi: f64) -> (Surface<f64>, Surface<
 }
 
 fn bisector_rows(frame: &str, map: &Affine3<f64>, r: f64) {
-    let reach = Reach::of_frame(map.transform_point(Point3::origin()), None, (r, r));
+    let reach = Reach::of_frame(map.transform_point(Point3::origin()), (r, r));
     let walls = |phi: f64| sliver_walls(map, r, phi);
     // a − b = r·(sec(φ/2) − 1) ≈ r·sin²φ/8.
     for s in gap_sines(r, r / 8.0) {
@@ -814,7 +813,7 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
         {
             let what = format!("{frame}, r {r:e}, φ {phi:e}");
             let (a, b) = sliver_walls(&map, r, phi);
-            let reach = Reach::of_frame(map.transform_point(Point3::origin()), None, (r, r));
+            let reach = Reach::of_frame(map.transform_point(Point3::origin()), (r, r));
             let got = cylinder_cylinder_section(&a, &b, &reach.ball(), band());
             let (Surface::Cylinder { axis: aa, .. }, Surface::Cylinder { axis: ab, .. }) = (&a, &b)
             else {

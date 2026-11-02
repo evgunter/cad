@@ -114,7 +114,7 @@ pub(crate) fn at_apex<T: Real>(cone: &Surface<T>, lever: T) -> geom_brep::Reach<
     let Surface::Cone { apex, .. } = *cone else {
         unreachable!("the plane×cone arm's reach is read at a cone's apex")
     };
-    geom_brep::Reach::of_frame(apex, None, (lever, lever))
+    geom_brep::Reach::of_frame(apex, (lever, lever))
 }
 
 /// The worst distance of `carrier`'s points from the double cone

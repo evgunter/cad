@@ -437,7 +437,7 @@ fn focal_cone_a_drifted_slant_pair_reads_once() {
         normal,
         u_ref: side.cross(normal),
     };
-    let reach = crate::Reach::of_frame(Point3::origin(), None, (3.0, 3.0));
+    let reach = crate::Reach::of_frame(Point3::origin(), (3.0, 3.0));
     let Ok(crate::intersect::PlaneConeSection::TiltedEllipse(carrier)) =
         crate::intersect::plane_cone_section(&plane, &cone, &reach, band())
     else {

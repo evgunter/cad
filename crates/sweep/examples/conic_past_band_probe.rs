@@ -398,7 +398,7 @@ fn cone_family(no_split: bool) {
             );
             // the face's own reach: its farthest chord
             let across = (2.0 * r0).max((h * h + (r0 + r1).powi(2)).sqrt());
-            let reach = Reach::of_frame(apex, None, (across, across));
+            let reach = Reach::of_frame(apex, (across, across));
             let phi_p = core::f64::consts::FRAC_PI_2 - alpha;
             for f in fracs() {
                 let phi = f * phi_p;
@@ -478,7 +478,6 @@ fn cyl_family(no_split: bool) {
         let across = (4.0 * scale * scale + scale * scale).sqrt();
         let reach = Reach::of_frame(
             m.transform_point(Point3::new(0.0, 0.0, 0.5 * scale)),
-            None,
             (across, across),
         );
         for f in fracs() {

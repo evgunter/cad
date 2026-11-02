@@ -640,7 +640,7 @@ fn through_the_apex_reads_its_gaps_rounding(label: &str, pose: Pose) -> Option<S
         "{label}: the fixture reads its gap {kernel:e}, against the oracle's {:e}",
         cut.gap()
     );
-    let reach = Reach::of_frame(apex + axis * 2.0, None, (2.0, 2.0));
+    let reach = Reach::of_frame(apex + axis * 2.0, (2.0, 2.0));
     if let Ok(PlaneConeSection::ApexLinePair { l1, l2 }) = plane_cone_section(&p, &c, &reach, band)
     {
         let worst = cut.miss(&lines(&l1, &l2), (0.0, 4.0 / alpha.cos()));

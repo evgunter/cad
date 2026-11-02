@@ -39,7 +39,7 @@ fn section_ellipse(phi: f64) -> Curve3<f64> {
     match plane_cylinder_section(
         &plane(phi),
         &cyl(),
-        &Reach::of_frame(Point3::new(1.0, 2.0, 3.0), None, (1.0, 1.0)),
+        &Reach::of_frame(Point3::new(1.0, 2.0, 3.0), (1.0, 1.0)),
         band(),
     )
     .unwrap()

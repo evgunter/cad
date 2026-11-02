@@ -4085,7 +4085,7 @@ fn conic_section_frame_at<T: Decide>(
         FrameExtent::Radii => geom_brep::plane_cylinder_section(
             plane_s,
             cyl_s,
-            &geom_brep::Reach::of_frame(at, None, (radius, radius)),
+            &geom_brep::Reach::of_frame(at, (radius, radius)),
             band,
         ),
         FrameExtent::Reach(_) | FrameExtent::Cone(_) => {
@@ -7110,7 +7110,7 @@ mod frame_dispatch_tests {
             let t = deg.to_radians();
             let a2 = Vec3::new(t.sin(), 0.0, t.cos());
             let (sa, sb) = (cylinder_at(p, a1, 1.0), cylinder_at(p, a2, 1.0));
-            let reach = geom_brep::Reach::of_frame(at(), None, (1.0, 1.0));
+            let reach = geom_brep::Reach::of_frame(at(), (1.0, 1.0));
             let region = geom_brep::Reach::Ball(reach.ball());
             let pose = geom_brep::CylinderCylinderPose::decide(&sa, &sb, &region, band())
                 .expect("two cylinders")
