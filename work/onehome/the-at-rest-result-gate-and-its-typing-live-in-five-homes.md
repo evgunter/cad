@@ -2,10 +2,11 @@
 id: the-at-rest-result-gate-and-its-typing-live-in-five-homes
 kind: issue
 title: Five doors gate a result at rest and type the refusal, each in its own words: only the Boolean and the split share the typing
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: M
+branch: onehome/finished-body
 ---
 
 
