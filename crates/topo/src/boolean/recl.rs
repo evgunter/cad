@@ -58,7 +58,6 @@ use crate::body::Body;
 use crate::entity::EntityId;
 use crate::live::{Proven, proven};
 use crate::validate::decide;
-use geom_core::k_stats::NonzeroSign;
 
 /// The sector face's ORIENTED carrier description
 /// ([`super::carrier_pair::face_carrier`] —
@@ -635,8 +634,8 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   its own holding the line into that edge's wedge ([`Folded`]), and
 ///   meets a curved one on its own. Two crossings on the ray refuse
 ///   typed ([`BooleanError::CrossingsAlongAContactLine`]), whether two
-///   wedge pairs cross or one composed material's boundary crosses
-///   twice, except on a solid's own slit or ring line
+///   wedge pairs cross or one solid's material's boundary about the
+///   line crosses twice, except on a solid's own slit or ring line
 ///   ([`crate::sector_shape::SlitTips`]). There the slit's two edges are two
 ///   wedges lying apart, so the material sectors decide each germ: one
 ///   per wedge pair that crosses, a wedge crossing two of the other's
@@ -1302,91 +1301,6 @@ type Flanks<T> = [(usize, Rep<T>); 2];
 /// material: its two flankers, and which of them lie in it.
 type Crossing<T> = (Flanks<T>, [bool; 2]);
 
-/// A solid's own face holding the line beside its edge's wedge
-/// ([`Folded`]), as [`resolve_edge_edge`] reads it: its half-turn's
-/// flanks, the side of it the wedge lies on, and whether its rays bound
-/// the composed material.
-struct Part<T: geom_core::Real> {
-    fl: Flanks<T>,
-    link: SideCode,
-    bounding: bool,
-}
-
-/// **A flanker's representative**: its noncoplanar bound `v` projected
-/// perpendicular to the unit common line `axis`, normalized only once its
-/// length decides positive at the bound's own reach
-/// (`bool_flank_offset`) — the bound's offset off the line where
-/// [`side_code`] reads it: a line edge's far vertex, a curved edge's
-/// extent, a bisector's arm ([`Reach::length`]), in metres. A bound
-/// within the band of the line, or on it, has no side of the line to
-/// name: it refuses with the decided margin, as the wedge's extent
-/// does.
-fn flank_rep<T: Decide>(
-    axis: Vec3<T>,
-    v: Vec3<T>,
-    reach: Reach<T>,
-    band: Band,
-) -> Result<Rep<T>, BooleanError> {
-    let off = v - axis * v.dot(axis);
-    crate::validate::decide_positive(
-        "bool_flank_offset",
-        Margin::levered(off.norm(), reach.length()),
-        band,
-    )
-    .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?;
-    Ok((off.normalize(), reach))
-}
-
-/// **Whether a solid's dihedral wedge about the common line is
-/// reflex**: whether its second flanker's representative lies on the
-/// outer side of its first flanker's plane (`bool_wedge_reflex`), the
-/// sine of the dihedral angle levered at `arm` — its second face's
-/// distance at that arm from the first face's plane. A convex wedge's
-/// material is the intersection of its flanking half-spaces, a reflex
-/// one's their union. A decided zero (a wedge of a half-turn, or of
-/// none) refuses: a representative that splits the two planes' verdicts
-/// there has nothing to read it by. [`resolve_edge_edge`]'s membership
-/// answers a representative lying in a half-turn's plane by the flank
-/// it lies along, before asking here.
-fn wedge_is_reflex<T: Decide>(
-    secs: &[BoolSector<T>],
-    fl: &[(usize, Rep<T>); 2],
-    arm: T,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let ((first, _), (_, (second, _))) = (fl[0], fl[1]);
-    Ok(crate::validate::decide_nonzero(
-        "bool_wedge_reflex",
-        Margin::levered(second.dot(secs[first].tangent().vec()), arm),
-        band,
-    )
-    .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?
-        == NonzeroSign::Positive)
-}
-
-/// One flanking plane's reading of a representative
-/// ([`resolve_edge_edge`]).
-#[derive(Clone, Copy)]
-enum Half {
-    /// Off the plane: whether on its material side.
-    Off(bool),
-    /// On the plane, along the flank's own representative: whether the
-    /// coplanar verdict puts it in the material.
-    Along(bool),
-    /// On the plane, pointing away from the flank: touching it.
-    Away,
-}
-
-impl Half {
-    /// The half-space verdict: a touch is not inside.
-    const fn inside(self) -> bool {
-        match self {
-            Self::Off(inside) | Self::Along(inside) => inside,
-            Self::Away => false,
-        }
-    }
-}
-
 /// **A face of one solid's through a vertex pair's point**: the face
 /// the other solid's vertex there touches (`vtxfac`'s pierce read
 /// again). It carries the datum that touch was read against, and the
@@ -1395,9 +1309,9 @@ impl Half {
 ///
 /// The face is the solid's but no sector of its vertex's, since the
 /// vertex lies on its own face. Where the face holds a common line
-/// through the point, the solid's material about the line is its wedge
-/// composed with the half-turn under the face, as with a face of its
-/// own it folds ([`Folded`], [`resolve_edge_edge`]).
+/// through the point, it is one face of the solid's material about the
+/// line, its whole plane, beside its wedge, as with a face of its own it
+/// folds ([`Folded`], [`resolve_edge_edge`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct HeldFace<T: geom_core::Real> {
     /// The face's datum at the point.
@@ -1425,18 +1339,6 @@ impl<T: Decide> HeldFace<T> {
         match self.datum.curved_along(on) {
             Some(how) => Err(self.along(how)),
             None => Ok(on),
-        }
-    }
-
-    /// Whether a flank lies under the face, read as [`Self::holds`]
-    /// reads the line, on the plane it holds. A flank on the face is a
-    /// face of the touching vertex's lying on it, which the touch does
-    /// not read.
-    fn under(&self, w: Vec3<T>, reach: Reach<T>, band: Band) -> Result<bool, BooleanError> {
-        match self.datum.side(w, reach, band)? {
-            SideCode::In => Ok(true),
-            SideCode::Out => Ok(false),
-            SideCode::On => Err(self.along(super::AlongFace::Flush)),
         }
     }
 
@@ -1502,6 +1404,16 @@ impl<T: Decide> Folded<T> {
     }
 }
 
+/// **What a sector of a solid's line cone is read from**
+/// ([`resolve_edge_edge`]): one of its sectors at the vertex (a flank, or
+/// a half of a face holding the line), or a face its vertex lies on that
+/// the other solid's vertex touches, whose whole plane it is.
+#[derive(Clone, Copy)]
+enum Sheet<T: geom_core::Real> {
+    Sector(usize),
+    Held(HeldFace<T>),
+}
+
 /// **A wedge of one solid's material about a common line**
 /// ([`resolve_edge_edge`]): its two flankers `[before, after]`, the first's
 /// end bound and the second's start bound its flanks.
@@ -1564,45 +1476,39 @@ fn common_line<T: geom_core::Real>(
 
 /// Edge-edge coincidence — the DERIVED membership rule (subsumes TOG's
 /// angular sort and its Table I ties): around the common line, each
-/// solid's material occupies the dihedral wedge between its two
-/// flanking faces. A germ exists iff EXACTLY ONE of A's two flanking
-/// representatives (the noncoplanar bound / bisector of each flanking
-/// sector, projected ⊥ the line) lies inside B's wedge — with a
-/// representative lying ON a B-plane resolved by the coincidence
-/// ladder: overlapping-coplanar (same projected direction as that
-/// face's own representative) ⇒ the Eq. 15.3 lump decides (In ⇒
-/// inside), touching-anti-parallel ⇒ outside. The symmetric B-vs-A
-/// evaluation must agree (checked; disagreement is a typed invariant
-/// failure). For all-pairwise-coplanar configurations every membership
-/// resolves by lump and the rule reproduces Table I's verdicts; for
-/// generic (tie-free) configurations "exactly one inside" IS the mixed
-/// angular order.
+/// solid's material is the region its faces holding the line bound. A
+/// germ exists iff EXACTLY ONE of A's two flanking representatives (the
+/// noncoplanar bound of each flanking sector) lies in B's material —
+/// with a representative lying ON a B face resolved by the coincidence
+/// ladder: overlapping-coplanar (inside that face's half-plane) ⇒ the
+/// Eq. 15.3 lump decides (In ⇒ inside), touching (on its plane outside
+/// it) ⇒ outside. The symmetric B-vs-A evaluation must agree (checked;
+/// disagreement is a typed invariant failure). For all-pairwise-coplanar
+/// configurations every membership resolves by lump and the rule
+/// reproduces Table I's verdicts; for generic (tie-free) configurations
+/// "exactly one inside" IS the mixed angular order.
 ///
-/// "Inside" is read by the wedge's actual extent. A representative
-/// reads one half-space verdict per flanking plane (In, or an On
-/// resolved as above); two alike settle it at any wedge angle. Split
-/// verdicts put it in the material iff the wedge is reflex, the union
-/// of its two half-spaces rather than their intersection — which is
-/// [`wedge_is_reflex`]'s question, asked only then — except where the
-/// representative lies on both planes, along one flank and away from
-/// the other: the wedge is a half-turn, and the flank it lies along
-/// decides.
-///
-/// Each solid's wedge is a [`Wedge`]. One that is a face holding the
-/// line, a half-turn, has both flanks on that face's plane with one
-/// normal: a representative's two half-space readings agree, and one
-/// lying on the plane reads `[Along, Away]`.
-///
-/// A solid's material about the line is its wedge composed with each
-/// plane face of its own holding the line beside it: a face its vertex
-/// lies on, which the other solid's vertex touches ([`HeldFace`]), or a
-/// face among its vertex's own sectors beside its edge (`faces`, which
-/// [`recl_edges`] folds in). Each composes by the side of it the wedge
-/// lies on: out of it (a pyramid lying on a plate), a representative is
-/// in the material when it is in the wedge or under the face; in it (a
-/// void below the top, the wedge the void's complement), when it is in
-/// both. A face is read only where it holds the line to a decided zero;
-/// a line within the band of it refuses typed.
+/// Each solid's material about the line is read through one cone of it,
+/// its line cone ([`super::sectors::line_fans`],
+/// [`crate::link::Cone::reads_tied`]): its wedge's flanks, each the
+/// half-plane its sector spans about the line, and each plane face of
+/// its own holding the line beside the wedge — a face among its vertex's
+/// own sectors (`faces`, [`Folded`]), its plane's two halves; or a face
+/// its vertex lies on, which the other solid's vertex touches
+/// ([`HeldFace`]), its whole plane, a representative's side of it the
+/// touch's own reading (`vtxfac::PierceDatum::side`). A face is read only
+/// where it holds the line to a decided zero; a line within the band of
+/// it refuses typed. A representative the cone reads on one face is the
+/// ladder's; on two, or on a bound, it runs along the line or the other
+/// solid touches itself there ([`super::LineUnread::Along`]). A reading
+/// that refuses refuses by its cause ([`crate::link::Unread`]): the
+/// representative on a flank's plane, where in it in band, the
+/// membership tie between the two flanks ([`Coincide::FlankSense`]); its
+/// side of a face's plane in band, that side ([`Coincide::SectorSide`]);
+/// the parity arc in band, the sectors' coincidence; and where no gate's
+/// margin refused (no reference to read by, an arc's crossing left
+/// unplaced), the faces about the line too close to place it
+/// ([`super::LineUnread::Unplaced`]).
 ///
 /// With no germ, the event is a touch where the op keeps every
 /// flanking face, which leaves both edges on the result's boundary
@@ -1625,6 +1531,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     bw: Wedge,
     fallback: Option<Rep<T>>,
 ) -> Result<(EdgeEdge, FlankRead), BooleanError> {
+    use super::sectors::LineSheet;
+    use crate::link::Material;
     let (axis, axis_reach) = common_line(a_sectors, b_sectors, aw, bw, fallback)?;
     // Each solid's face holding the line, A's then B's.
     let mut holding = [None; 2];
@@ -1643,216 +1551,39 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     }
     let ([fa_s, _], [fb_s, _]) = (aw.flankers, bw.flankers);
     let arm = a_sectors[fa_s].arm.min(b_sectors[fb_s].arm);
-    // A line bound's side of the other solid's flanking plane is its
-    // far vertex's, in metres (`side_code`); that plane holds the
-    // common line, so the far vertex's side is the projected
-    // direction's.
-    let rep = |s: &BoolSector<T>, other_is_end: bool| {
-        let (v, reach) = if other_is_end {
-            (s.end, s.end_reach)
-        } else {
-            (s.start, s.start_reach)
-        };
-        flank_rep(axis, v, reach, band)
-    };
-
-    // Membership of one flanker's rep inside one wedge of the other
-    // solid's.
-    let in_wedge_of = |own_is_a: bool,
-                       own_idx: usize,
-                       (w, reach): Rep<T>,
-                       other: &[(usize, Rep<T>); 2]|
-     -> Result<bool, BooleanError> {
-        let (own_secs, other_secs): (&[BoolSector<T>], &[BoolSector<T>]) = if own_is_a {
-            (a_sectors, b_sectors)
-        } else {
-            (b_sectors, a_sectors)
-        };
-        let (own_body, other_body): (&Body<T>, &Body<T>) = if own_is_a {
-            (a_body, b_body)
-        } else {
-            (b_body, a_body)
-        };
-        let mut halves = [Half::Off(true); 2];
-        for (inside, &(oi, (ow, _))) in halves.iter_mut().zip(other) {
-            match side_code(
-                w,
-                reach,
-                other_secs[oi].tangent(),
-                super::sectors::NO_CURVATURE(),
-                band,
-            )? {
-                SideCode::In => {}
-                SideCode::Out => *inside = Half::Off(false),
-                SideCode::On => {
-                    // On the flanking plane: overlap-tie or touch. No
-                    // declaration the door verifies settles it: two
-                    // planar flanks are conformal, and its screen refuses
-                    // `Tangent` there, while `Rest` changes nothing here;
-                    // a curved flank goes on, on either sense, to a face
-                    // pair the Boolean cannot yet meet. A decided zero
-                    // refuses as the in-band arm does.
-                    let (own_op, other_op) = if own_is_a {
-                        (super::Operand::A, super::Operand::B)
-                    } else {
-                        (super::Operand::B, super::Operand::A)
-                    };
-                    let own_sec = &own_secs[own_idx];
-                    let other_sec = &other_secs[oi];
-                    let same = crate::validate::decide_nonzero(
-                        "bool_dir_same",
-                        Margin::levered(w.dot(ow), arm),
-                        band,
-                    )
-                    .map_err(|diag| {
-                        let planar = [(own_body, own_sec.face), (other_body, other_sec.face)]
-                            .iter()
-                            .all(|&(body, face)| {
-                                body.get_face(face)
-                                    .and_then(|f| body.get_surface(f.surface))
-                                    .map(geom::Surface::kind)
-                                    == Some(geom::SurfaceKind::Plane)
-                            });
-                        let which = if planar {
-                            Coincide::FlankSense
-                        } else {
-                            Coincide::CurvedFlankSense
-                        };
-                        let read = declared.read(
-                            &[(own_op, own_sec.face, other_op, other_sec.face)],
-                            which,
-                            &[],
-                        );
-                        BooleanError::coincidence(which, read, diag)
-                    })? == NonzeroSign::Positive;
-                    if !same {
-                        *inside = Half::Away;
-                    } else {
-                        let comparison = if own_is_a { Operand::A } else { Operand::B };
-                        // Declared-`Tangent` flanking pairs (distinct
-                        // carriers touching along the on-edge): the
-                        // membership verdict is the second-order
-                        // descent — which side the OWN sector's
-                        // carrier curves to relative to the other
-                        // face's material — not the carrier identity
-                        // ladder (whose Same± question is ill-posed
-                        // across distinct carriers).
-                        let read = declared.read(
-                            &[(own_op, own_sec.face, other_op, other_sec.face)],
-                            Coincide::TangentSide,
-                            &[],
-                        );
-                        let lump = if read
-                            == DeclarationRead::Spent(crate::contact::GlueClass::Tangent)
-                        {
-                            let s_own = super::sectors::tangent_carrier(own_body, own_sec.face)?;
-                            let s_other =
-                                super::sectors::tangent_carrier(other_body, other_sec.face)?;
-                            let p = own_body.half_edge_start_point(own_sec.he).ok_or(
-                                BooleanError::ClassificationInvariant {
-                                    what: "edge-edge site lost its point",
-                                },
-                            )?;
-                            let reach = declared.reach_of(
-                                own_op,
-                                own_sec.face,
-                                other_op,
-                                other_sec.face,
-                            )?;
-                            super::sectors::tangent_lump(
-                                &s_own,
-                                &s_other,
-                                reach,
-                                other_sec.tangent(),
-                                own_sec.tangent(),
-                                p,
-                                op,
-                                comparison,
-                                own_sec.face,
-                                own_sec.reached_bounds(),
-                                arm,
-                                read,
-                                band,
-                            )?
-                        } else {
-                            let rel = require_same(
-                                own_body,
-                                own_op,
-                                own_sec,
-                                other_body,
-                                other_op,
-                                other_sec,
-                                declared,
-                                ReadOn::FirstBounds,
-                                arm,
-                                band,
-                            )?;
-                            eq15_3_lump(op, comparison, rel)
-                        };
-                        *inside = Half::Along(lump == SideCode::In);
-                    }
-                }
-            }
-        }
-        Ok(match halves {
-            // On both planes the rep lies in a half-turn wedge's one
-            // plane, on the face it lies along: that face's coplanar
-            // verdict is its membership, and the flank it points away
-            // from says nothing about it.
-            [Half::Along(inside), Half::Away] | [Half::Away, Half::Along(inside)] => inside,
-            [h0, h1] if h0.inside() == h1.inside() => h0.inside(),
-            _ => wedge_is_reflex(other_secs, other, arm, band)?,
-        })
-    };
-    let flanks = |secs: &[BoolSector<T>], w: Wedge| -> Result<Flanks<T>, BooleanError> {
+    let secs_of = |slot: usize| if slot == 0 { a_sectors } else { b_sectors };
+    let body_of = |slot: usize| if slot == 0 { a_body } else { b_body };
+    let operand_of = |slot: usize| if slot == 0 { Operand::A } else { Operand::B };
+    let wedges = [aw, bw];
+    // A wedge's two flanks: each flanker's bound off the line.
+    let flanks = |secs: &[BoolSector<T>], w: Wedge| -> Flanks<T> {
         let [f_s, f_e] = w.flankers;
-        Ok([
-            (f_s, rep(&secs[f_s], true)?),
-            (f_e, rep(&secs[f_e], false)?),
-        ])
+        [
+            (f_s, (secs[f_s].end, secs[f_s].end_reach)),
+            (f_e, (secs[f_e].start, secs[f_e].start_reach)),
+        ]
     };
-    let a_fl = flanks(a_sectors, aw)?;
-    let b_fl = flanks(b_sectors, bw)?;
-    // Each solid's faces holding the line beside its wedge, held or
-    // folded: the side of each the wedge lies on, read off the wedge's
-    // own bounds as the touch reads its partners'
-    // (`vtxfac::PierceDatum::side`); for a folded face, its flanks, and
-    // whether its rays bound the composed material — out of the face
-    // always, in it only where the wedge is reflex, the face then
-    // splitting the wedge's material.
-    let mut beside: [Vec<Part<T>>; 2] = [Vec::new(), Vec::new()];
-    let mut held_link = [None; 2];
-    for (slot, (secs, w, fl, fs)) in [
-        (a_sectors, aw, a_fl, faces[0]),
-        (b_sectors, bw, b_fl, faces[1]),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let [f_s, f_e] = w.flankers;
-        let bounds = [
-            (secs[f_s].end, secs[f_s].end_reach),
-            (secs[f_e].start, secs[f_e].start_reach),
-        ];
-        let link_of = |datum: super::vtxfac::PierceDatum<T>| match bounds
+    let a_fl = flanks(a_sectors, aw);
+    let b_fl = flanks(b_sectors, bw);
+    for slot in 0..2 {
+        let bounds = flanks(secs_of(slot), wedges[slot]).map(|(_, rep)| rep);
+        // A face of a solid's holding the line beside its wedge lies to
+        // one side of it, read off the wedge's own bounds as the touch
+        // reads its partners' (`vtxfac::PierceDatum::side`).
+        let to_one_side = |datum: super::vtxfac::PierceDatum<T>| match bounds
             .map(|(dir, reach)| datum.side(dir, reach, band))
         {
-            [Ok(SideCode::In), Ok(SideCode::In)] => Ok(SideCode::In),
-            [Ok(SideCode::Out), Ok(SideCode::Out)] => Ok(SideCode::Out),
+            [Ok(SideCode::In), Ok(SideCode::In)] | [Ok(SideCode::Out), Ok(SideCode::Out)] => Ok(()),
             [Err(e), _] | [_, Err(e)] => Err(e),
             _ => Err(BooleanError::ClassificationInvariant {
                 what: "a solid's wedge about a line lies across or on its own face holding the line",
             }),
         };
-        held_link[slot] = holding[slot].map(|face| link_of(face.datum)).transpose()?;
-        for face in fs {
-            let link = link_of(face.datum)?;
-            let bounding = link == SideCode::Out || wedge_is_reflex(secs, &fl, arm, band)?;
-            beside[slot].push(Part {
-                fl: flanks(secs, face.wedge)?,
-                link,
-                bounding,
-            });
+        if let Some(face) = holding[slot] {
+            to_one_side(face.datum)?;
+        }
+        for face in faces[slot] {
+            to_one_side(face.datum)?;
         }
         // Two faces of one solid holding one line through its vertex lie
         // in one plane (the line and the vertex's wedge fix it): with
@@ -1860,90 +1591,231 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         // the line, and with one normal they are one face left unmerged.
         // Neither is a solid the door admits, and a held face's partner
         // with a face on it refuses first (`AlongFace::FaceOnFace`).
-        if beside[slot].len() + usize::from(holding[slot].is_some()) > 1 {
+        if faces[slot].len() + usize::from(holding[slot].is_some()) > 1 {
             return Err(BooleanError::ClassificationInvariant {
                 what: "two faces of one solid hold one line through its vertex",
             });
         }
     }
-    // Membership of one flanker's rep in the other solid's material:
-    // its wedge composed with each of its faces holding the line beside
-    // it, by the side of the face the wedge lies on — out of it, the
-    // wedge or under the face; in it, the wedge and under the face.
-    let membership = |own_is_a: bool,
-                      own_idx: usize,
-                      (w, reach): Rep<T>,
-                      other: &[(usize, Rep<T>); 2]|
-     -> Result<bool, BooleanError> {
-        let slot = usize::from(own_is_a);
-        let (mut any, mut all) = (in_wedge_of(own_is_a, own_idx, (w, reach), other)?, true);
-        let mut compose = |under: bool, link| match link {
-            SideCode::Out => {
-                any |= under;
-                Ok(())
-            }
-            SideCode::In => {
-                all &= under;
-                Ok(())
-            }
-            SideCode::On => Err(BooleanError::ClassificationInvariant {
-                what: "a face holding the line reads its solid's link on it",
-            }),
-        };
-        for part in &beside[slot] {
-            compose(
-                in_wedge_of(own_is_a, own_idx, (w, reach), &part.fl)?,
-                part.link,
-            )?;
-        }
-        if let (Some(face), Some(link)) = (holding[slot], held_link[slot]) {
-            compose(face.under(w, reach, band)?, link)?;
-        }
-        Ok(any && all)
+    let vertex_of = |slot: usize| {
+        let secs = secs_of(slot);
+        proven(&body_of(slot).half_edges, secs[0].he, EntityId::HalfEdge).start
     };
+    let unread = |why| BooleanError::LineMaterialUnread {
+        a_vertex: vertex_of(0),
+        b_vertex: vertex_of(1),
+        why,
+    };
+    let point_of = |slot: usize| corner_of(body_of(slot), &secs_of(slot)[wedges[slot].flankers[0]]);
+    let points = [point_of(0), point_of(1)];
+    // Each solid's line cone, read about the other's point, and what
+    // each of its sectors is read from: a flank's or a face's sector, or
+    // the held face's whole plane, last.
+    let sheets_of = |w: Wedge| match w.flankers {
+        [i, j] if i == j => vec![LineSheet::Across(i)],
+        [i, j] => vec![LineSheet::Start(i), LineSheet::End(j)],
+    };
+    let mut cones = Vec::with_capacity(2);
+    for slot in 0..2 {
+        let mut sheets = sheets_of(wedges[slot]);
+        for face in faces[slot] {
+            sheets.extend(sheets_of(face.wedge));
+        }
+        let at = points[slot];
+        let line = axis_reach.point(at, axis);
+        let (mut from, fans): (Vec<Sheet<T>>, Vec<_>) =
+            super::sectors::line_fans(secs_of(slot), &sheets, at, line)
+                .into_iter()
+                .map(|(i, fan)| (Sheet::Sector(i), fan))
+                .unzip();
+        from.extend(holding[slot].map(Sheet::Held));
+        let cone = crate::link::Cone::gathered(
+            points[1 - slot],
+            fans,
+            holding[slot].map(|face| face.datum.normal.vec()),
+        )
+        .map_err(|_| BooleanError::ClassificationInvariant {
+            what: "a solid's line cone holds no face",
+        })?;
+        cones.push((cone, from));
+    }
+    // A representative on the other solid's face `oi`, inside it:
+    // overlapping coplanar flanks, the coincidence ladder's.
+    let coplanar = |own: usize, own_idx: usize, oi: usize| -> Result<bool, BooleanError> {
+        let other = 1 - own;
+        let (own_sec, other_sec) = (&secs_of(own)[own_idx], &secs_of(other)[oi]);
+        let (own_body, other_body) = (body_of(own), body_of(other));
+        let (own_op, other_op) = (operand_of(own), operand_of(other));
+        // Declared-`Tangent` flanking pairs (distinct carriers touching
+        // along the on-edge): the membership verdict is the second-order
+        // descent — which side the OWN sector's carrier curves to
+        // relative to the other face's material — not the carrier
+        // identity ladder (whose Same± question is ill-posed across
+        // distinct carriers).
+        let read = declared.read(
+            &[(own_op, own_sec.face, other_op, other_sec.face)],
+            Coincide::TangentSide,
+            &[],
+        );
+        let lump = if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
+            let s_own = super::sectors::tangent_carrier(own_body, own_sec.face)?;
+            let s_other = super::sectors::tangent_carrier(other_body, other_sec.face)?;
+            let p = own_body.half_edge_start_point(own_sec.he).ok_or(
+                BooleanError::ClassificationInvariant {
+                    what: "edge-edge site lost its point",
+                },
+            )?;
+            let reach = declared.reach_of(own_op, own_sec.face, other_op, other_sec.face)?;
+            super::sectors::tangent_lump(
+                &s_own,
+                &s_other,
+                reach,
+                other_sec.tangent(),
+                own_sec.tangent(),
+                p,
+                op,
+                own_op,
+                own_sec.face,
+                own_sec.reached_bounds(),
+                arm,
+                read,
+                band,
+            )?
+        } else {
+            let rel = require_same(
+                own_body,
+                own_op,
+                own_sec,
+                other_body,
+                other_op,
+                other_sec,
+                declared,
+                ReadOn::FirstBounds,
+                arm,
+                band,
+            )?;
+            eq15_3_lump(op, own_op, rel)
+        };
+        Ok(lump == SideCode::In)
+    };
+    // A representative on the other solid's face `oi`'s plane, where in
+    // it in band: whether the two flanks overlap or only touch. No
+    // declaration the door verifies settles it: two planar flanks are
+    // conformal, and its screen refuses `Tangent` there, while `Rest`
+    // changes nothing here; a curved flank goes on, on either sense, to a
+    // face pair the Boolean cannot yet meet.
+    let flank_sense = |own: usize, own_idx: usize, oi: usize, diag| {
+        let other = 1 - own;
+        let (own_face, other_face) = (secs_of(own)[own_idx].face, secs_of(other)[oi].face);
+        let planar = [(body_of(own), own_face), (body_of(other), other_face)]
+            .iter()
+            .all(|&(body, face)| {
+                body.get_face(face)
+                    .and_then(|f| body.get_surface(f.surface))
+                    .map(geom::Surface::kind)
+                    == Some(geom::SurfaceKind::Plane)
+            });
+        let which = if planar {
+            Coincide::FlankSense
+        } else {
+            Coincide::CurvedFlankSense
+        };
+        let read = declared.read(
+            &[(operand_of(own), own_face, operand_of(other), other_face)],
+            which,
+            &[],
+        );
+        BooleanError::coincidence(which, read, diag)
+    };
+    // Membership of one flanker's representative in the other solid's
+    // material, read through its line cone.
+    let membership =
+        |own_is_a: bool, own_idx: usize, (dir, reach): Rep<T>| -> Result<bool, BooleanError> {
+            let (own, other) = if own_is_a { (0, 1) } else { (1, 0) };
+            let (cone, from) = &cones[other];
+            let given: Vec<_> = match (cone.whole_planes().first(), holding[other]) {
+                (Some(&plane), Some(face)) => {
+                    let side = match face.datum.side(dir, reach, band)? {
+                        SideCode::In => Sign::Negative,
+                        SideCode::On => Sign::Zero,
+                        SideCode::Out => Sign::Positive,
+                    };
+                    vec![(plane, side)]
+                }
+                _ => Vec::new(),
+            };
+            // The refusal a cone's unread reading carries: the representative
+            // on a flank's plane, where in it in band, the two flanks' sense;
+            // its side of a face's plane, that side; the parity arc, the
+            // sectors' coincidence; and where no gate's margin refused (no
+            // reference, an unplaced crossing), the line's faces too close to
+            // place it.
+            let unread_of = |cause: crate::link::Unread<T>| {
+                use crate::link::Unread;
+                let sheet = cause.sector().map(|k| from[k]);
+                match (cause, sheet, cause.escalation(band)) {
+                    (Unread::Place { .. }, Some(Sheet::Sector(oi)), Some(diag)) => {
+                        flank_sense(own, own_idx, oi, diag)
+                    }
+                    (Unread::Place { .. } | Unread::Side { .. }, _, Some(diag)) => {
+                        BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
+                    }
+                    (Unread::Arc { .. } | Unread::NoReference, _, Some(diag)) => {
+                        BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+                    }
+                    (_, _, None) => unread(super::LineUnread::Unplaced),
+                }
+            };
+            match cone.reads_tied(reach.point(points[own], dir), &given, band) {
+                Ok(Material::In) => Ok(true),
+                Ok(Material::Out) => Ok(false),
+                Ok(Material::Boundary) => Err(unread(super::LineUnread::Along)),
+                Ok(Material::On(k)) => match from[k] {
+                    Sheet::Sector(oi) => coplanar(own, own_idx, oi),
+                    Sheet::Held(face) => Err(face.along(super::AlongFace::Flush)),
+                },
+                Err(cause) => Err(unread_of(cause)),
+            }
+        };
     let a_in = [
-        membership(true, a_fl[0].0, a_fl[0].1, &b_fl)?,
-        membership(true, a_fl[1].0, a_fl[1].1, &b_fl)?,
+        membership(true, a_fl[0].0, a_fl[0].1)?,
+        membership(true, a_fl[1].0, a_fl[1].1)?,
     ];
     let b_in = [
-        membership(false, b_fl[0].0, b_fl[0].1, &a_fl)?,
-        membership(false, b_fl[1].0, b_fl[1].1, &a_fl)?,
+        membership(false, b_fl[0].0, b_fl[0].1)?,
+        membership(false, b_fl[1].0, b_fl[1].1)?,
     ];
     // Each solid's boundary about the line that crosses the other's
-    // material: its wedge's flanks, and each face of its own folded in
-    // whose rays bound the composed material. A held face bounds none of
-    // it that the other crosses: the other's vertex only touches it, so
-    // its flanks lie on one side of the face.
+    // material: its wedge's flanks, and each face of its own folded in.
+    // A held face bounds none of it that the other crosses: the other's
+    // vertex only touches it, so its flanks lie on one side of the face.
     let crossings = |own_is_a: bool,
                      fl: Flanks<T>,
-                     inside: [bool; 2],
-                     other: &Flanks<T>|
+                     inside: [bool; 2]|
      -> Result<Vec<Crossing<T>>, BooleanError> {
         let mut crossing = Vec::new();
         if inside[0] != inside[1] {
             crossing.push((fl, inside));
         }
-        for part in beside[usize::from(!own_is_a)].iter().filter(|p| p.bounding) {
+        for face in faces[usize::from(!own_is_a)] {
+            let fl = flanks(secs_of(usize::from(!own_is_a)), face.wedge);
             let rays = [
-                membership(own_is_a, part.fl[0].0, part.fl[0].1, other)?,
-                membership(own_is_a, part.fl[1].0, part.fl[1].1, other)?,
+                membership(own_is_a, fl[0].0, fl[0].1)?,
+                membership(own_is_a, fl[1].0, fl[1].1)?,
             ];
             if rays[0] != rays[1] {
-                crossing.push((part.fl, rays));
+                crossing.push((fl, rays));
             }
         }
         Ok(crossing)
     };
-    let flanks: FlankRead = [a_in, b_in];
-    let cross_a = crossings(true, a_fl, a_in, &b_fl)?;
-    let cross_b = crossings(false, b_fl, b_in, &a_fl)?;
+    let flank_read: FlankRead = [a_in, b_in];
+    let cross_a = crossings(true, a_fl, a_in)?;
+    let cross_b = crossings(false, b_fl, b_in)?;
     if cross_a.len() > 1 || cross_b.len() > 1 {
-        let vertex = |body: &Body<T>, secs: &[BoolSector<T>]| {
-            proven(&body.half_edges, secs[0].he, EntityId::HalfEdge).start
-        };
         return Err(BooleanError::CrossingsAlongAContactLine {
-            a_vertex: vertex(a_body, a_sectors),
-            b_vertex: vertex(b_body, b_sectors),
+            a_vertex: vertex_of(0),
+            b_vertex: vertex_of(1),
         });
     }
     if cross_a.is_empty() != cross_b.is_empty() {
@@ -1960,7 +1832,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         } else {
             EdgeEdge::Dropped
         };
-        return Ok((read, flanks));
+        return Ok((read, flank_read));
     }
     // The one fold rule per solid, on that solid's own membership keys:
     // the common edge joins the run `fold_on_bound` names, so the
@@ -1988,7 +1860,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         sb,
         intersect: true,
     };
-    Ok((EdgeEdge::Germ(germ), flanks))
+    Ok((EdgeEdge::Germ(germ), flank_read))
 }
 
 /// Edge-sector coincidence (module docs): Table II on the on-side
@@ -2267,64 +2139,361 @@ mod tests {
     use crate::contact::GlueClass;
     use SideCode::{In, On, Out};
 
-    /// The wedge's extent is its second face's side of its first face's
-    /// plane: a quarter-turn is convex, three quarters reflex, and a
-    /// half-turn (the second face in the first face's plane) refuses.
-    /// Each wedge is two sectors with their own planes, flanking the
-    /// common line +z the way a site's flankers do: the first holds it
-    /// as its start, the second as its end.
-    #[test]
-    fn a_wedge_reads_reflex_by_its_second_faces_side_and_refuses_flat() {
-        use super::super::sectors::Reach;
+    /// A wedge about the common line +z as two sectors flanking it the
+    /// way a site's flankers do: the first holds the line as its start
+    /// and runs to `first`, the second runs from `second` to the line,
+    /// each counterclockwise about its outward normal, every bound a
+    /// chord of length `len`. The material turns clockwise about +z from
+    /// `first` to `second`.
+    fn wedge_about_z(first: [f64; 3], second: [f64; 3], len: f64) -> [BoolSector<f64>; 2] {
         use geom_brep::OutwardNormal;
-        use geom_core::Tol;
-        let band = Band::linear(Tol::witness()).unwrap();
-        let v = |c: [f64; 3]| Vec3::new(c[0], c[1], c[2]);
-        let axis = v([0.0, 0.0, 1.0]);
-        let sector = |start: Vec3<f64>, end: Vec3<f64>, normal: [f64; 3]| BoolSector {
+        use geom_core::Point3;
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let v = |c: [f64; 3]| Vec3::from_array(c).normalize();
+        let chord = |d: Vec3<f64>| Reach::Chord {
+            base: o,
+            far: o + d * len,
+        };
+        let sector = |start: Vec3<f64>, end: Vec3<f64>| BoolSector {
             he: crate::entity::HalfEdgeKey::default(),
             start,
             end,
-            start_reach: Reach::Bisector(1.0),
-            end_reach: Reach::Bisector(1.0),
+            start_reach: chord(start),
+            end_reach: chord(end),
             face: crate::entity::FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
-                v(normal),
+                start.cross(end).normalize(),
+                true,
+            )),
+            arm: len,
+        };
+        let axis = v([0.0, 0.0, 1.0]);
+        [sector(axis, v(first)), sector(v(second), axis)]
+    }
+
+    /// The line cone of `wedge` about +z at the origin
+    /// ([`super::super::sectors::line_fans`]).
+    fn line_cone_of(wedge: &[BoolSector<f64>]) -> crate::link::Cone<f64> {
+        use super::super::sectors::{LineSheet, line_fans};
+        let o = geom_core::Point3::new(0.0, 0.0, 0.0);
+        let fans = line_fans(
+            wedge,
+            &[LineSheet::Start(0), LineSheet::End(1)],
+            o,
+            o + Vec3::new(0.0, 0.0, 1.0),
+        );
+        crate::link::Cone::gathered(o, fans.into_iter().map(|(_, f)| f), []).expect("a line cone")
+    }
+
+    /// **A wedge about a line reads by parity at any turn.** Material
+    /// under the plane y = 0 from +x round to the second face: a
+    /// quarter-turn, three quarters, and a half-turn (the second face in
+    /// the first's plane), which no convexity reading decides and the
+    /// line cone reads like any other. Each probe stands off the line
+    /// along +z too: the cone reads directions about the line, not from
+    /// the point.
+    #[test]
+    fn a_line_cone_reads_a_wedge_of_any_turn_by_parity() {
+        use crate::link::Material::{In as MIn, On as MOn, Out as MOut};
+        use geom_core::{Point3, Tol};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let probe = |x: f64, y: f64| Point3::new(x, y, 0.7);
+        for (label, second, probes) in [
+            (
+                "a quarter-turn",
+                [0.0, -1.0, 0.0],
+                vec![
+                    (probe(1.0, -1.0), MIn),
+                    (probe(1.0, 1.0), MOut),
+                    (probe(-1.0, 1.0), MOut),
+                    (probe(-1.0, -1.0), MOut),
+                    (probe(1.0, 0.0), MOn(0)),
+                    (probe(-1.0, 0.0), MOut),
+                ],
+            ),
+            (
+                "three quarters",
+                [0.0, 1.0, 0.0],
+                vec![
+                    (probe(1.0, -1.0), MIn),
+                    (probe(-1.0, -1.0), MIn),
+                    (probe(-1.0, 1.0), MIn),
+                    (probe(1.0, 1.0), MOut),
+                ],
+            ),
+            (
+                "a half-turn",
+                [-1.0, 0.0, 0.0],
+                vec![
+                    (probe(1.0, -1.0), MIn),
+                    (probe(-1.0, -1.0), MIn),
+                    (probe(1.0, 1.0), MOut),
+                    (probe(-1.0, 1.0), MOut),
+                    (probe(-1.0, 0.0), MOn(1)),
+                ],
+            ),
+        ] {
+            let wedge = wedge_about_z([1.0, 0.0, 0.0], second, 1.0);
+            let cone = line_cone_of(&wedge);
+            for (q, want) in probes {
+                assert_eq!(
+                    cone.reads_tied(q, &[], band).ok(),
+                    Some(want),
+                    "{label}: {q:?}"
+                );
+            }
+        }
+    }
+
+    /// **A flanker reads its side of the other's faces at its own
+    /// reach.** One tilt off a face's plane clears the band on a
+    /// metre-long edge and lands in it on a short one: the line cone then
+    /// names the face it was in band of and the plane reading's
+    /// escalation. A bound along the line lies on every face's bound, the
+    /// material's boundary.
+    #[test]
+    fn a_flanker_reads_its_side_of_the_other_faces_at_its_reach() {
+        use crate::link::Material;
+        use geom_core::{Point3, Tol};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let cone = line_cone_of(&wedge_about_z([1.0, 0.0, 0.0], [0.0, -1.0, 0.0], 1.0));
+        let tilt = 1e3 * band.escalate();
+        let bound = Vec3::new(1.0, -tilt, 1.0).normalize();
+        assert_eq!(
+            cone.reads_tied(Point3::origin() + bound, &[], band).ok(),
+            Some(Material::In),
+            "a metre-long edge stands a thousand bands inside the first face"
+        );
+        let mid = (band.zero() + band.escalate()) / 2.0;
+        let short = Point3::origin() + bound * (mid / (tilt * bound.x));
+        let unread = cone
+            .reads_tied(short, &[], band)
+            .expect_err("the same tilt on an edge whose far end stands in band");
+        assert!(
+            matches!(unread, crate::link::Unread::Side { sector: 0, .. }),
+            "the first face's side, named: {unread:?}"
+        );
+        let diag = unread.escalation(band).expect("an escalation");
+        assert_eq!(diag.predicate, Some(crate::link::LINK_PLANE));
+        let margin = diag
+            .margin
+            .diagnostic_f64_for_error_text()
+            .value()
+            .expect("the margin rides the payload");
+        assert!(
+            band.zero() < margin.abs() && margin.abs() < band.escalate(),
+            "the margin {margin:e} lies in the band"
+        );
+        assert_eq!(
+            cone.reads_tied(Point3::new(0.0, 0.0, 1.0), &[], band).ok(),
+            Some(Material::Boundary),
+            "a bound along the line"
+        );
+    }
+
+    /// **A sliver wedge at an edge-edge site refuses typed** (review
+    /// probe, PR 6282): B's wedge between `+x` and a direction `1e-12`
+    /// turned from it, so its two flanks lie on one plane within the
+    /// band. A direction across the line lies on both planes, outside
+    /// both sectors, so no sector gives a reference to read it by: the
+    /// cone says so, and the site refuses as the line's faces too close
+    /// to place it, with that recourse, not as a kernel invariant.
+    #[test]
+    fn review_probe_a_sliver_at_an_edge_edge_site_refuses_typed() {
+        use crate::boolean::{Glue, GluedPairs};
+        use crate::test_support_fixtures::prism_z;
+        use geom_core::{Point3, Tol};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let d = 1e-12_f64;
+        let sliver = [1.0, 0.0, 0.0];
+        let turned = [d.cos(), -d.sin(), 0.0];
+        let cone = line_cone_of(&wedge_about_z(sliver, turned, 1.0));
+        let unread = cone
+            .reads_tied(Point3::new(-1.0, 0.0, 0.7), &[], band)
+            .expect_err("the sliver reads nothing across the line");
+        assert!(
+            matches!(unread, crate::link::Unread::NoReference),
+            "no reference to read by: {unread:?}"
+        );
+        let p = prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        // Each sector on a live half-edge of the prism, which the refusal
+        // names the vertices by.
+        let he = p.body.half_edges.keys().next().expect("a half-edge");
+        let live = |w: [BoolSector<f64>; 2]| w.map(|s| BoolSector { he, ..s });
+        let a = live(wedge_about_z([-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0));
+        let b = live(wedge_about_z(sliver, turned, 1.0));
+        let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
+        let got = resolve_edge_edge(
+            &a,
+            &b,
+            &p.body,
+            &p.body,
+            BooleanOp::Union,
+            &declared,
+            band,
+            [None, None],
+            [&[], &[]],
+            Wedge::at_bound(&a, 0),
+            Wedge::at_bound(&b, 0),
+            None,
+        )
+        .map(|(read, _)| read);
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::LineMaterialUnread {
+                    why: super::super::LineUnread::Unplaced,
+                    ..
+                })
+            ),
+            "a typed refusal with its recourse: {got:?}"
+        );
+    }
+
+    /// **A milliradian wedge's unread reading carries a cause** (review
+    /// probe, PR 6282; `link_line_cone_fuzz` seed `0x66dbd7a298d67d55`
+    /// found 16 of 2730 such): a flank pair a milliradian apart about a
+    /// tilted line, read by a direction along the line's opposite ray,
+    /// on both planes and outside both sectors: it reads `Out`, or
+    /// refuses for want of a reference, the cause it carries.
+    #[test]
+    fn review_a_thin_wedges_unread_carries_a_cause() {
+        use super::super::sectors::{LineSheet, line_fans};
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let band = Band::linear_at(Tol::witness(), 1e-9).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let v = |x: f64, y: f64, z: f64| Vec3::new(x, y, z);
+        let chord = |far: Vec3<f64>| Reach::Chord {
+            base: o,
+            far: o + far,
+        };
+        let sector = |start: Vec3<f64>, end: Vec3<f64>, sr, er| BoolSector {
+            he: Default::default(),
+            start,
+            end,
+            start_reach: chord(sr),
+            end_reach: chord(er),
+            face: Default::default(),
+            arm: 1.0,
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                start.cross(end).normalize(),
+                true,
+            )),
+        };
+        let l = v(1.1386830835597155, 1.1083678797405883, -0.8879257898085735);
+        let ld = v(0.6255470621715182, 0.6088930985165015, -0.4877910081044508);
+        let secs = [
+            sector(
+                ld,
+                v(
+                    -0.8756407265252273,
+                    0.47674041926522437,
+                    0.07727800909178531,
+                ),
+                l,
+                v(
+                    -0.09833444089017884,
+                    0.05353794216976118,
+                    0.008678319300316298,
+                ),
+            ),
+            sector(
+                v(-0.8758871143819221, 0.4763624985364093, 0.07681492594450243),
+                ld,
+                v(-1.0864961131208093, 0.5909049175378623, 0.09528524520794943),
+                l,
+            ),
+        ];
+        let fans = line_fans(&secs, &[LineSheet::Start(0), LineSheet::End(1)], o, o + l);
+        let cone = crate::link::Cone::gathered(o, fans.into_iter().map(|(_, f)| f), []).unwrap();
+        let q = Point3::new(-0.5008053050815183, -0.4874724522590562, 0.3905195472673006);
+        match cone.reads_tied(q, &[], band) {
+            Ok(m) => assert_eq!(m, crate::link::Material::Out),
+            Err(unread) => assert!(
+                matches!(unread, crate::link::Unread::NoReference),
+                "an unread reading's cause: {unread:?}"
+            ),
+        }
+    }
+
+    /// **Material about a line is not material from its point.** A thin
+    /// pyramid about +x with its apex at the point, its edges along
+    /// e1 = (1,0,0), e2 = (1,.2,0), e3 = (1,0,.2): about the common line
+    /// e1 its cross-section is the quarter-turn between its two faces
+    /// holding the line, which holds the representative
+    /// w = (0,1,1)/√2; read from the apex, w leaves the pyramid at once.
+    /// The line cone (the edge's two flanks as half-planes) reads it In;
+    /// the vertex cone (the pyramid's three faces at the apex,
+    /// [`super::super::sectors::fans`]) reads it Out, both correctly.
+    #[test]
+    fn a_thin_pyramids_line_cone_holds_what_its_vertex_cone_does_not() {
+        use super::super::sectors::{LineSheet, fans, line_fans};
+        use crate::link::{Cone, Material};
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::origin();
+        let (e1, e2, e3) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.2, 0.0).normalize(),
+            Vec3::new(1.0, 0.0, 0.2).normalize(),
+        );
+        let chord = |d: Vec3<f64>| Reach::Chord {
+            base: o,
+            far: o + d,
+        };
+        let face = |n: u64| crate::entity::FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | n));
+        let he =
+            |n: u64| crate::entity::HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | n));
+        // Each face's corner at the apex, its bounds counterclockwise
+        // about its outward normal, and the orbit's order: each sector's
+        // start the next one's end.
+        let sector = |k: u64, start: Vec3<f64>, end: Vec3<f64>| BoolSector {
+            he: he(k),
+            start,
+            end,
+            start_reach: chord(start),
+            end_reach: chord(end),
+            face: face(k),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                start.cross(end).normalize(),
                 true,
             )),
             arm: 1.0,
         };
-        // Material lies off the first plane's +y side; `second` and its
-        // outward normal bound the wedge's other side.
-        let first_ray = v([1.0, 0.0, 0.0]);
-        let wedge = |second: [f64; 3], second_normal: [f64; 3]| {
-            let secs = [
-                sector(axis, first_ray, [0.0, -1.0, 0.0]),
-                sector(v(second), axis, second_normal),
-            ];
-            let fl = [
-                (0, (secs[0].end, Reach::Bisector(1.0))),
-                (1, (secs[1].start, Reach::Bisector(1.0))),
-            ];
-            wedge_is_reflex(&secs, &fl, 1.0, band)
-        };
-        assert!(
-            !wedge([0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]).unwrap(),
-            "a quarter-turn is convex"
+        let secs = [sector(1, e1, e3), sector(2, e2, e1), sector(3, e3, e2)];
+        for s in &secs {
+            assert!(
+                s.tangent().vec().dot(e1 + e2 + e3) < 0.0,
+                "each face faces away from the pyramid's axis"
+            );
+        }
+        let w = o + Vec3::new(0.0, 1.0, 1.0).normalize();
+        let line = Cone::gathered(
+            o,
+            line_fans(&secs, &[LineSheet::Start(0), LineSheet::End(1)], o, o + e1)
+                .into_iter()
+                .map(|(_, f)| f),
+            [],
+        )
+        .expect("a line cone");
+        assert_eq!(
+            line.reads_tied(w, &[], band).ok(),
+            Some(Material::In),
+            "about the line, w lies between the two faces holding it"
         );
-        assert!(
-            wedge([0.0, -1.0, 0.0], [1.0, 0.0, 0.0]).unwrap(),
-            "three quarters are reflex"
-        );
-        assert!(
-            matches!(
-                wedge([-1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
-                Err(BooleanError::Escalated {
-                    decision: crate::boolean::BooleanDecision::Coincidence(Coincide::Sectors, _),
-                    diag,
-                }) if diag.predicate == Some("bool_wedge_reflex")
-            ),
-            "a half-turn refuses"
+        let vertex = Cone::gathered(o, fans(&secs, o), []).expect("a vertex cone");
+        assert_eq!(
+            vertex.reads_tied(w, &[], band).ok(),
+            Some(Material::Out),
+            "from the apex, w leaves the pyramid"
         );
     }
 
@@ -2421,70 +2590,6 @@ mod tests {
         );
     }
 
-    /// **A flanker decides its offset off the common line at its own
-    /// reach.** One tilt off the line clears the band on a metre-long
-    /// edge and lands in it on a short one; a bound along the line
-    /// refuses with its decided margin; a clear one comes back unit and
-    /// perpendicular to the line, its reach carried through.
-    #[test]
-    fn a_flanker_decides_its_offset_off_the_common_line_at_its_reach() {
-        use crate::boolean::BooleanDecision;
-        use geom_core::{Point3, Tol};
-        let band = Band::linear(Tol::witness()).unwrap();
-        let o = Point3::new(0.0, 0.0, 0.0);
-        let axis = Vec3::new(0.0, 0.0, 1.0);
-        let tilt = 1e3 * band.escalate();
-        let bound = Vec3::new(tilt, 0.0, 1.0).normalize();
-        let chord = |v: Vec3<f64>, len: f64| Reach::Chord {
-            base: o,
-            far: o + v * len,
-        };
-        let (w, reach) = flank_rep(axis, bound, chord(bound, 1.0), band)
-            .expect("a metre-long edge stands a thousand bands off the line");
-        assert!(
-            (w - Vec3::new(1.0, 0.0, 0.0)).norm() < 1e-9,
-            "unit, perpendicular, on the bound's side: {w:?}"
-        );
-        assert!(
-            (reach.length() - 1.0).abs() < 1e-15,
-            "the reach rides through"
-        );
-        let mid = (band.zero() + band.escalate()) / 2.0;
-        for (v, len, in_band, label) in [
-            (
-                bound,
-                mid / tilt,
-                true,
-                "the same tilt on an edge whose far end stands in band",
-            ),
-            (axis, 1.0, false, "a bound along the line"),
-        ] {
-            let err = flank_rep(axis, v, chord(v, len), band).expect_err(label);
-            let BooleanError::Escalated { decision, diag } = &err else {
-                panic!("{label}: an escalation: {err:?}");
-            };
-            assert_eq!(
-                *decision,
-                BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Moot),
-                "{label}"
-            );
-            assert_eq!(diag.predicate, Some("bool_flank_offset"), "{label}");
-            let margin = diag
-                .margin
-                .diagnostic_f64_for_error_text()
-                .value()
-                .expect("the margin rides the payload");
-            if in_band {
-                assert!(
-                    band.zero() < margin && margin < band.escalate(),
-                    "{label}: the margin {margin:e} lies in the band"
-                );
-            } else {
-                assert_eq!(margin, 0.0, "{label}: the decided zero rides the payload");
-            }
-        }
-    }
-
     /// **A bisector on the common line reads its face as a half-turn
     /// wedge.** A's face is the plane y = 0, its material y < 0, parted
     /// along +z by a subdivision bisector; B is a convex wedge about +z
@@ -2533,11 +2638,12 @@ mod tests {
             tol,
         );
         let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
-        // B's convex wedge from `b1` to `b2` (degrees), each face's
-        // outward normal turned away from it.
+        // B's convex wedge counterclockwise about +z from `b1` to `b2`
+        // (degrees), each face's corner counterclockwise about its
+        // outward normal, which turns away from the wedge.
         let resolve = |b1: f64, b2: f64| {
             let (b1, b2) = (ray(b1), ray(b2));
-            let b = [sector(z, b1, b1.cross(z)), sector(b2, z, z.cross(b2))];
+            let b = [sector(z, b2, z.cross(b2)), sector(b1, z, b1.cross(z))];
             resolve_edge_edge(
                 &half_turn,
                 &b,
@@ -2566,7 +2672,7 @@ mod tests {
         );
         let across = resolve(150.0, 250.0);
         assert!(
-            matches!(across, Ok(EdgeEdge::Germ(PairRecord { a: 0, b: 0, .. }))),
+            matches!(across, Ok(EdgeEdge::Germ(PairRecord { a: 0, b: 1, .. }))),
             "B across A's face crosses it, on A's 0° half and B's 150° face: {across:?}"
         );
         // Two half-turns, given no line to meet along, have none.
@@ -2608,11 +2714,12 @@ mod tests {
 
     /// **An edge-edge membership tie offers a declaration only where one
     /// the door admits would settle it** (the second review's probe P2,
-    /// adopted). Two corners along a common line `z`, each flanker's
-    /// representative `x` lying exactly on the other corner's flanking
-    /// plane `y = 0`, at an arm whose reading of their sense lies in the
-    /// band, and at a zero-band arm (a decided zero refuses as the same
-    /// question, with its margin, on the frame's escalation log):
+    /// adopted). Two quarter-turn corners along a common line `z`, A's
+    /// under the plane `y = 0` and B's over it, each with a flank along
+    /// `x` in that plane, B's bounds at an arm short enough that where
+    /// A's flank lies in B's is in band, and at a zero-band arm (a
+    /// decided zero refuses as the same question, with its margin, on the
+    /// frame's escalation log):
     ///
     /// - **planar flanks** (two prisms' shared side plane): the door
     ///   verifies `Rest` there, and the tie refuses the declared pair
@@ -2647,29 +2754,34 @@ mod tests {
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
         );
-        let sector = |start: Vec3<f64>, end: Vec3<f64>, arm: f64, face: FaceKey| BoolSector {
-            he: crate::entity::HalfEdgeKey::default(),
-            start,
-            end,
-            start_reach: Reach::Chord {
-                base: o,
-                far: o + start,
-            },
-            end_reach: Reach::Chord {
-                base: o,
-                far: o + end,
-            },
-            face,
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
-                y, true,
-            )),
-            arm,
-        };
+        // Each corner's face counterclockwise about its outward normal,
+        // its bounds at `reach`.
+        let sector =
+            |start: Vec3<f64>, end: Vec3<f64>, reach: f64, arm: f64, face: FaceKey| BoolSector {
+                he: crate::entity::HalfEdgeKey::default(),
+                start,
+                end,
+                start_reach: Reach::Chord {
+                    base: o,
+                    far: o + start * reach,
+                },
+                end_reach: Reach::Chord {
+                    base: o,
+                    far: o + end * reach,
+                },
+                face,
+                at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                    start.cross(end),
+                    true,
+                )),
+                arm,
+            };
         let run = |a: (&crate::body::Body<f64>, FaceKey),
                    b: (&crate::body::Body<f64>, FaceKey),
                    arm: f64,
                    class: Option<GlueClass>| {
-            let corner = |face| [sector(z, x, arm, face), sector(x, z, arm, face)];
+            let sa = [sector(z, x, 1.0, arm, a.1), sector(-y, z, 1.0, arm, a.1)];
+            let sb = [sector(z, y, arm, arm, b.1), sector(x, z, arm, arm, b.1)];
             let decls = Glue {
                 pairs: class
                     .map(|class| vec![GluedPair::read(a, b, class, band)])
@@ -2680,7 +2792,6 @@ mod tests {
                 .expect("the door verifies the declaration");
             let declared = GluedPairs::build(&decls, one, a.0, b.0, Default::default(), band)
                 .expect("the declared faces' extents read");
-            let (sa, sb) = (corner(a.1), corner(b.1));
             resolve_edge_edge(
                 &sa,
                 &sb,
@@ -2745,7 +2856,7 @@ mod tests {
                     BooleanDecision::Coincidence(Coincide::FlankSense, read),
                     "{label}, {class:?}"
                 );
-                assert_eq!(diag.predicate, Some("bool_dir_same"), "{label}");
+                assert_eq!(diag.predicate, Some("link_wedge"), "{label}");
                 assert_eq!(
                     diag.margin.diagnostic_f64_for_error_text().value(),
                     Some(arm),
@@ -2754,7 +2865,7 @@ mod tests {
                 assert!(
                     log.escalations
                         .iter()
-                        .any(|e| e.source.predicate == Some("bool_dir_same")),
+                        .any(|e| e.source.predicate == Some("link_wedge")),
                     "{label}: the refusal is on the frame's escalation log"
                 );
                 let text = err.to_string();
@@ -2902,8 +3013,9 @@ mod tests {
     ///
     /// Where A's link lies under the face instead (a void below the top
     /// whose ray lies on it), A's wedge is the void's complement, and its
-    /// material is the wedge and under the face: B's corner in the void
-    /// lies outside A, as the wedges alone read it.
+    /// material about the line is what the face and the wedge's flanks
+    /// bound together: B's corner in the void lies outside A, as the
+    /// wedges alone read it.
     ///
     /// A flank of B's on the face is a face of the touching vertex's
     /// lying on it, and refuses `PartnerAlongFace { Flush }`: a guard
@@ -2948,16 +3060,17 @@ mod tests {
             )),
             arm: 1.0,
         };
-        // Each corner's two faces through the line, the wedge between
-        // `p` and `q` its material.
+        // Each corner's two faces through the line, each counterclockwise
+        // about its outward normal: the wedge clockwise about +z from `p`
+        // to `q` its material.
         let corner = |p: Vec3<f64>, q: Vec3<f64>, np: Vec3<f64>, nq: Vec3<f64>| {
             [sector(z, p, np), sector(q, z, nq)]
         };
         let above = corner(
-            Vec3::new(u, v, 0.0),
             Vec3::new(-u, v, 0.0),
-            Vec3::new(v, -u, 0.0),
+            Vec3::new(u, v, 0.0),
             Vec3::new(-v, -u, 0.0),
+            Vec3::new(v, -u, 0.0),
         );
         let below = corner(
             Vec3::new(h, -h, 0.0),
@@ -3136,7 +3249,7 @@ mod tests {
             );
         }
         // B's corner straddling the face's plane about the line, over
-        // 330°..30°: A's composed material's boundary crosses B's along
+        // 330°..30°: A's material's boundary crosses B's along
         // the face's half-turn, not along A's edge's wedge, and the germ
         // goes on the face's flanker, as the face's half-turn read alone
         // places it.
@@ -3229,7 +3342,7 @@ mod tests {
     /// crossings of A's material's boundary along one line, which the
     /// insertion does not place apart (`CrossingsAlongAContactLine`).
     #[test]
-    fn two_crossings_of_a_composed_material_along_a_contact_line_refuse_typed() {
+    fn two_crossings_of_one_solids_boundary_along_a_contact_line_refuse_typed() {
         use super::super::sectors::Reach;
         use crate::boolean::{Glue, GluedPairs};
         use crate::test_support_fixtures::prism_z;
