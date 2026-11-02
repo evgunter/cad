@@ -136,10 +136,12 @@ fn a_rod_inside_the_tubes_shadow_stops_at_the_volume() {
 
 /// **The same rod off the axis line**: ∩ stops at the result gate's
 /// volume on the torus face its chords trim.
-// a_rod_off_the_axis_line_stops_at_the_join is pinned red at every ε row:
+// Pinned red at every ε row, on the torus face's conic trim:
 // work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md.
+// When it lands, `stop` meets a body (or the rod wall's `Projected`)
+// and the row is re-pinned there.
 #[test]
-fn a_rod_off_the_axis_line_stops_at_the_join() {
+fn a_rod_off_the_axis_line_stops_at_the_conic_trim() {
     let got = topo::intersect(&donut(), &rod_z(1.9, 0.5, 0.2), Tol::witness());
     assert_eq!(stop(got), Stop::ConicTrim);
 }
@@ -154,22 +156,24 @@ fn a_rod_across_the_tube_stops_at_the_conic_trim() {
 
 /// **A rod across the inner bound**: its one null loop carries; ∩ stops
 /// at the result gate's volume on the rod's wall.
-// a_rod_across_the_inner_bound_stops_at_the_join is pinned red at every
-// ε row:
+// Pinned red at every ε row, on the rod wall's projected chord:
 // work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
+// When it lands, `stop` meets the next door or a body, and the row is
+// re-pinned there.
 #[test]
-fn a_rod_across_the_inner_bound_stops_at_the_join() {
+fn a_rod_across_the_inner_bound_stops_at_the_volume() {
     let got = topo::intersect(&donut(), &rod_z(1.5, 0.0, 0.2), Tol::witness());
     assert_eq!(stop(got), Stop::Projected);
 }
 
 /// **A square rod straddling the outer equator**: its one loop carries;
 /// ∖ stops at the result gate's volume on the rod's wall.
-// a_square_rod_on_the_outer_equator_stops_at_the_join is pinned red at
-// every ε row:
+// Pinned red at every ε row, on the rod wall's projected chord:
 // work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
+// When it lands, `stop` meets the next door or a body, and the row is
+// re-pinned there.
 #[test]
-fn a_square_rod_on_the_outer_equator_stops_at_the_join() {
+fn a_square_rod_on_the_outer_equator_stops_at_the_volume() {
     let got = topo::subtract(&donut(), &rod_y(2.45, 0.1), Tol::witness());
     assert_eq!(stop(got), Stop::Projected);
 }

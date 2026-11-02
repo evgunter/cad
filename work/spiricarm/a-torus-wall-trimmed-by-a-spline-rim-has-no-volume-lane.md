@@ -40,11 +40,17 @@ re-pin the round-trip row on whatever the import does next.
 
 ## A boolean reaches it too (GREEN lane, 2026-11-02)
 
-`torus_doors_join::a_rod_off_the_axis_line_stops_at_the_join`, the donut
+`torus_doors_join::a_rod_off_the_axis_line_stops_at_the_conic_trim`, the donut
 `∩` a radius-0.2 rod at `(1.9, 0.5)`, passes the spline join since
 PR 6013. On main `a285cdbf`, at every ε row, it refuses at the result
 gate's volume with `QuadratureUnsupported { "conic trim on a
 cone/sphere/torus chart …" }` on a torus face its chords trim (`Stop::ConicTrim`).
-It is pinned there, citing this row. `germ_tilted_rod`'s other-spins
-pin cites this row beside the projected-boundary one, since its
-`quadrature volume` stops do not say which chart refused.
+It is pinned there, citing this row.
+
+This row also owns two kinds of `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs`
+cell at β 0.5. One is `"conic trim volume"` (∩ at spins 0, 0.5 and 1), the same
+conic-trim refusal on a torus face the chords trim. The other is
+`"ring volume"` (∪ and the rod-first difference), the ring gate
+(`MassPropsError::RingOnCurvedFace`, `topo::props`) refusing a trimmed torus
+wall with no spiric that holds a ring. A lane for a spline-trimmed torus
+wall has to read that wall's rings too.

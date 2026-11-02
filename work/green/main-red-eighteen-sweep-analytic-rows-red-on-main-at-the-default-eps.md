@@ -59,7 +59,7 @@ The 18th row, `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_ge
 Measured on main `b719d39ad1` at opt-level 2. Two of these rows also
 read the same at 1e-6 and 1e-12 as at the default ε:
 
-- `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_join`
+- `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_volume`
   stops `Projected`, where the row wants `Join { closed: false }`.
   `a_rod_across_the_inner_bound_…` stops `Projected` and
   `a_rod_off_the_axis_line_…` stops `ConicTrim`, at every ε.
@@ -126,10 +126,14 @@ door moved. No run builds a body, and the stops are the same at every ε.
 |---|---|---|---|
 | `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_*` ×6 | each `Join` door is now `Projected` (cylinder arm) or `Sphere` (conic trim on the sphere chart) | the doors as main stops | `spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane` |
 | `conic_edge_curved_face::a_rim_crossing_reaches_the_join` | both balls `[Sphere, Sphere, Projected]` | the same | the same |
-| `torus_doors_join::a_rod_across_the_inner_bound_stops_at_the_join` | `Projected` | `Stop::Projected` | the same |
-| `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_join` | `Projected` | `Stop::Projected` | the same |
-| `torus_doors_join::a_rod_off_the_axis_line_stops_at_the_join` | `ConicTrim` | `Stop::ConicTrim` | `spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane` |
-| `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs` | each `"spline join"` is now `"ring volume"` (β 0.5, first op) or `"quadrature volume"` | `OTHER_SPINS_STOPS` as main stops | both SPIRICARM rows |
+| `torus_doors_join::a_rod_across_the_inner_bound_stops_at_the_volume` | `Projected` | `Stop::Projected` | the same |
+| `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_volume` | `Projected` | `Stop::Projected` | the same |
+| `torus_doors_join::a_rod_off_the_axis_line_stops_at_the_conic_trim` | `ConicTrim` | `Stop::ConicTrim` | `spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane` |
+| `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs` | each `"spline join"` is now at the volume; the stop word now names its cause | `OTHER_SPINS_STOPS`, per cell | `"projected volume"`: the projected-boundary row; `"conic trim volume"` and `"ring volume"`: the torus-wall row; `"spiric wall volume"`: `spiricarm/a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane` (filed by this PR) |
+
+The three torus rows were renamed from `…_stops_at_the_join` to the stop
+they assert (`…_stops_at_the_conic_trim`, `…_stops_at_the_volume`).
+Their citations were updated across `work/` and `.config/nextest.toml`.
 
 The two topo fuzzer seeds went to SECT, which wrote the search and the
 path re-homing it exercises:

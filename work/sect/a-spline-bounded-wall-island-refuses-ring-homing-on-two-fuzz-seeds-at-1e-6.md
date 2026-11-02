@@ -39,6 +39,10 @@ only on runs that draw a seed like these. The evidence was first recorded on GRE
 `main-red-eighteen-sweep-analytic-rows-red-on-main-at-the-default-eps`
 (closed by the PR that filed this row).
 
+It is on SECT by authorship of the search. `scripts/work.py territory`
+names no owner for `crates/topo/src/chord_join/wall_ring_rows.rs`, and
+SECT wrote the test and the path re-homing it exercises.
+
 ## What closing it takes
 
 Find why the re-homing cannot place the ring at these two poses, where

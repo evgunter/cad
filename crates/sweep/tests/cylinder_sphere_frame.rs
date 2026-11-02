@@ -377,16 +377,12 @@ macro_rules! pose_rows {
     )*};
 }
 
-// Pinned red at the result gate's volume, every door here:
+// Pinned red at the result gate's volume, every door here (`Projected`
+// the cylinder's arm, `Sphere` the sphere's conic trim, `Ring` the
+// sphere's ring gate):
 // work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
-// Six of these poses stopped at the spline join before it left the
-// chords' vertex standing:
-// a_ball_across_a_cylinder_wall_centre_on_the_wall,
-// a_ball_across_a_cylinder_wall_centre_inside,
-// a_ball_across_a_cylinder_wall_centre_outside,
-// a_ball_across_a_cylinder_wall_wider_than_the_wall,
-// a_ball_across_a_cylinder_wall_r_0_2_across_the_rim,
-// a_ball_across_a_cylinder_wall_r_0_1_across_the_rim.
+// When it lands, each run builds and is held SOUND against [`oracle`],
+// and these door arrays go with the pin.
 pose_rows! {
     a_ball_across_a_cylinder_wall_centre_on_the_wall:
         0 => [Projected, Sphere, Projected, Sphere, Projected, Sphere];

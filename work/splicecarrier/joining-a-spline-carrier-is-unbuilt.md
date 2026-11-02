@@ -43,11 +43,11 @@ The cylinder × sphere chord lane (`sect/cylinder-sphere-chord`) is a
 producer of spline edges between two faces: each chord is an arc cut
 from the section's fitted loop. Where the op drops the edge a germ site
 sat on, the two chords either side of it meet at a valence-2 vertex on
-one surface pair, and the join refuses there,
+one surface pair. The join refused there,
 `JoinCarrierUnsupported { carrier: Nurbs, closed: false }`, raised in
-`topo::boolean::edge_join::joined_spec` (the `param_near` arm).
-`crates/sweep/tests/cylinder_sphere_frame.rs` pins 26 of its 54 runs at
-this door (the `Door::Join` rows). The two chords are cut from one
+`topo::boolean::edge_join::joined_spec` (the `param_near` arm), on 26 of
+`crates/sweep/tests/cylinder_sphere_frame.rs`'s 54 runs, until PR 6013
+left that vertex standing (below). The two chords are cut from one
 carrier over abutting intervals (`chord_join::cut_arc`), so their nets
 meet on a shared knot value: the run-on is their concatenation, the
 joint knot at multiplicity the degree, and its parameter foot is the

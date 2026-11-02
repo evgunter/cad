@@ -39,12 +39,18 @@ section loop as a ring refuses one step earlier still, in
 the sphere reads rings only where circles bound it
 (`MassPropsError::RingOnCurvedFace`).
 
-`crates/sweep/tests/cylinder_sphere_frame.rs` pins where each of its
-54 runs ends: 14 at the cylinder's arm (`Door::Projected`), 10 at the
-sphere's (`Door::Sphere`), 4 at the ring gate (`Door::Ring`, the
-two-loop poses' `B ∪ A` and `B ∖ A`), and the other 26 earlier, at the
-spline edge join (`splice/joining-a-spline-carrier-is-unbuilt`), which
-reach this door next.
+This row owns all three stops on cylinder and sphere faces: the
+cylinder's arm, the sphere's conic trim, and the sphere's ring gate. A
+conic trim on a torus face is
+`a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane`'s.
+
+`crates/sweep/tests/cylinder_sphere_frame.rs` pins where each of its 54
+runs ends: 23 at the cylinder's arm (`Door::Projected`), 27 at the
+sphere's (`Door::Sphere`), and 4 at the ring gate (`Door::Ring`, the
+two-loop poses' `B ∪ A` and `B ∖ A`). None builds. Until PR 6013, 26 of
+them stopped earlier, at the spline edge join
+(`splicecarrier/joining-a-spline-carrier-is-unbuilt`); see the
+2026-11-02 section below.
 
 ## What it needs
 
@@ -54,7 +60,7 @@ own, with its rings): the image is `ψ(C(t))`, the chart map of a
 spline carrier, so the integrand has no closed form in the image's own
 channels and the lane needs a certified quadrature of it over the
 carrier's knot spans, as the fitted lanes on a spline chart have. The rows go SOUND against the fixture's volume oracle once it
-lands and the join does.
+lands.
 
 ## Four door rows wait on it too (SECT `sect-seamslow`, 2026-10-30)
 
@@ -78,16 +84,14 @@ The conic-trim, ring and catch-all stops wait on other lanes.
 Since PR 6013 the spline edge join leaves standing the vertex where two
 chords meet end to end (both crease there; see
 `splicecarrier/joining-a-spline-carrier-is-unbuilt`). So the 26 runs
-that stopped at the join now reach this door. On main `a285cdbf`, at
-every ε row, `cylinder_sphere_frame`'s 54 runs stop 23 at
-`Door::Projected`, 27 at `Door::Sphere` and 4 at `Door::Ring`, and
-none builds. Beside them are
+that stopped at the join now reach this door, at every ε row on main
+`a285cdbf` (the counts above). Beside them are
 `conic_edge_curved_face::a_rim_crossing_reaches_the_join` (both balls
 `[Sphere, Sphere, Projected]`) and
-`torus_doors_join::a_rod_across_the_inner_bound_…` and
-`a_square_rod_on_the_outer_equator_…` (`Projected`). The β 0.5 rows of
-`germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs`
-stop at `ring volume` or `quadrature volume` on every op, and the
-β 0.6 and 0.7 rows at `quadrature volume` on every op. All of these are
-pinned there, citing this row. Reproduce:
+`torus_doors_join::a_rod_across_the_inner_bound_stops_at_the_volume` and
+`a_square_rod_on_the_outer_equator_stops_at_the_volume` (`Projected`), and
+the `"projected volume"` cells of
+`germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs`.
+That table's other cells are owned by the two torus-wall rows. All of
+these are pinned there, citing this row. Reproduce:
 `cargo nextest run -p sweep --profile ci --ignore-default-filter -E 'test(/^cylinder_sphere_frame::a_ball_across/)'`.

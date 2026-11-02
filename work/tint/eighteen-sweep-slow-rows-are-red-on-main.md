@@ -59,9 +59,9 @@ of them calls a sweep or a loft.
 | `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall` | `A ∩ B`: the same |
 | `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_r_0_1_across_the_rim` | `A ∪ B`: `QuadratureUnsupported { "conic trim on a cone/sphere/torus chart …" }` |
 | `cylinder_sphere_frame::a_ball_across_a_cylinder_wall_r_0_2_across_the_rim` | `A ∩ B`: the same |
-| `torus_doors_join::a_rod_across_the_inner_bound_stops_at_the_join` (`:152`) | an `assert_eq` on where the rod stops |
-| `torus_doors_join::a_rod_off_the_axis_line_stops_at_the_join` | the same |
-| `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_join` | the same |
+| `torus_doors_join::a_rod_across_the_inner_bound_stops_at_the_volume` (`:152`) | an `assert_eq` on where the rod stops |
+| `torus_doors_join::a_rod_off_the_axis_line_stops_at_the_conic_trim` | the same |
+| `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_volume` | the same |
 | `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs` (`:415`) | at ε 1e-9, β 0.5, spin 0: the refusal list reads `"ring volume"` / `"quadrature volume"` where the row expects germs |
 
 Seven of these ten fail on volume quadrature (`QuadratureUnsupported`
