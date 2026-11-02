@@ -56,3 +56,13 @@ bands, placed by the law of cosines); `topo/src/boolean/join.rs`
 `geom-brep/src/curve_pair/pose.rs` `coplanar_circles` (a first-harmonic
 distance, not these margins). A spelling through other names, or
 assembled across functions, is outside what the patterns match.
+
+## 2026-11-02: a cited site retired (SECTARMS stage 3)
+
+Branch `sectarms/cylinder-join-reads-value` retires `topo::boolean::join`'s
+`cylinder_pair_axes`, `cylinder_pair_frame`, `crossing_cylinder_reading`
+and `parallel_radical_plane`. The join now reads two cylinders on the
+section value (`join::cylinder_read`), and the parallel lane takes its
+plane from `geom_brep::CylinderCylinderPose::rulings_plane`. The hit
+above that cites one of those sites no longer exists. The rest of the
+row stands as filed.

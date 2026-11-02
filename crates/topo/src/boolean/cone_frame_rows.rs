@@ -111,17 +111,6 @@ fn shape(frame: &Frame) -> String {
     }
 }
 
-/// [`shape`] of a reading that may carry two loops.
-fn loops_shape(got: &Result<Option<super::join::SectionLoops<f64>>, FrameError>) -> String {
-    match got {
-        Ok(Some(super::join::SectionLoops::Two { .. })) => "two loops".into(),
-        Ok(Some(super::join::SectionLoops::One(lp))) => shape(&Ok(Some(lp.turn()))),
-        Ok(None) => shape(&Ok(None)),
-        Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
-        Err(_) => "another refusal".into(),
-    }
-}
-
 /// The Dandelin construction for a plane `(q, n)` cutting the cone
 /// `(A, â, α)` off its apex, as `PlaneConeSection::TiltedEllipse`'s docs
 /// state it: centre `A − δ·n + (c·δ·s/K)·û`, with `c = â·n`,
@@ -409,8 +398,8 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
         } else {
             (on.clone(), Vec::new())
         };
-        let (at, span) = frame_reading(a, c, on_a, on_b).unwrap();
-        let extent = frame_extent((a, &body, face), (c, &body, face), at, span, b).unwrap();
+        let at = frame_reading(a, on_a, on_b).unwrap();
+        let extent = frame_extent((a, &body, face), (c, &body, face), at, b).unwrap();
         (at, extent)
     };
     let probe = plane([0.5, 0.5, 0.0], Vec3::new(1.0, 0.0, 0.0));
@@ -501,13 +490,13 @@ fn a_near_circular_tilt_is_the_ellipses_frame_and_only_the_pose_escalates() {
         plane([q.x, q.y, q.z], tilted(in_band, 1.0)),
     );
     for (label, x, y) in [("plane, wall", &p, &wall), ("wall, plane", &wall, &p)] {
-        assert_conic_frame(&pair_section_frame(x, y, at, None, b), q, n, label);
+        assert_conic_frame(&pair_section_frame(x, y, at, b), q, n, label);
     }
     for (label, x, y) in [
         ("plane, wall", &banded, &wall),
         ("wall, plane", &wall, &banded),
     ] {
-        let got = pair_section_frame(x, y, at, None, b);
+        let got = pair_section_frame(x, y, at, b);
         assert_eq!(
             escalated(&got),
             "pc_rim_alignment",
@@ -528,7 +517,6 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
     let p = plane([0.0, 0.3, 0.0], Vec3::new(0.0, 1.0, 0.0));
     for extent in [
         FrameExtent::Radii,
-        FrameExtent::Span(1.0),
         FrameExtent::Wall {
             below: 1.0,
             above: 1.0,
@@ -585,8 +573,11 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
 /// both axes with semi-axes `1/cos(φ/2)` and `1`, an `O(φ²)` difference
 /// far inside the band. Both loops turn about the axes' meeting point,
 /// each about its own bisector plane's normal. At a `φ` in the band the
-/// pose's own row escalates (`cc_axes_parallel`).
+/// pose's own row escalates (`cc_axes_parallel`). Read on the section
+/// value's pose across a region of the walls' radius
+/// ([`super::join::bisector_loops`]), as the join reads it.
 #[test]
+#[allow(clippy::expect_used)]
 fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
     let b = band();
     let wall = |phi: f64| geom::Surface::Cylinder {
@@ -601,10 +592,23 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
     // `1 − cos φ`, to `u/φ²`.
     let (sh, ch) = (phi / 2.0).sin_cos();
     let (across, along) = (Vec3::new(-sh, ch, 0.0), Vec3::new(ch, sh, 0.0));
+    // The operation's region for two such walls two long about the
+    // origin: the ball about their boxes' overlap, `[−1, 1]³`, radius
+    // `√3`, which levers the tilt by `√3` (four band-widths at the radius
+    // read about seven across it, still definite; the in-band tilt below
+    // reads `0.95·escalate`, still in band).
+    let region = geom_brep::Reach::Ball(geom_brep::ExtentBall::new(Point3::origin(), 3f64.sqrt()));
+    let pose = |x: &geom::Surface<f64>, y: &geom::Surface<f64>| {
+        geom_brep::CylinderCylinderPose::decide(x, y, &region, b).expect("two cylinders")
+    };
     for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
-        let got = pair_section_frame_at(x, y, Point3::origin(), FrameExtent::Radii, b);
-        let Ok(Some(super::join::SectionLoops::Two { loops, .. })) = got else {
-            panic!("{label}: the two bisector loops, got {}", loops_shape(&got));
+        let planes = pose(x, y)
+            .unwrap_or_else(|e| panic!("{label}: a decided pose, got {e:?}"))
+            .bisector_planes()
+            .unwrap_or_else(|| panic!("{label}: the bisector pose"));
+        let super::join::SectionLoops::Two { loops, .. } = super::join::bisector_loops(planes)
+        else {
+            panic!("{label}: the two bisector loops");
         };
         let normals: Vec<Vec3<f64>> = loops.iter().map(|lp| lp.axis.normalize()).collect();
         for lp in &loops {
@@ -622,11 +626,11 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
     }
     let c = wall(((b.zero() + b.escalate()) / 2.0).asin());
     for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
-        let got = pair_section_frame_at(x, y, Point3::origin(), FrameExtent::Radii, b);
+        let got = pose(x, y);
         assert!(
-            matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("cc_axes_parallel")),
-            "{label} in band: got {}",
-            loops_shape(&got)
+            matches!(&got, Err(geom_brep::SectionError::Escalated(d)) if d.predicate == Some("cc_axes_parallel")),
+            "{label} in band: got {:?}",
+            got.map(|p| p.stance())
         );
     }
 }
@@ -653,7 +657,7 @@ fn the_frames_cone_window_holds_its_face() {
         let at = body.vertex_points().next().map(|(_, q)| q).unwrap();
         for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
             let label = format!("u ∈ [0, {u1}], z ∈ [{z0}, {z1}], {label}");
-            let extent = frame_extent((a, &body, face), (c, &body, face), at, None, b).unwrap();
+            let extent = frame_extent((a, &body, face), (c, &body, face), at, b).unwrap();
             let FrameExtent::Cone(reach) = extent else {
                 panic!("{label}: a plane×cone pair reads the cone face, got {extent:?}");
             };
