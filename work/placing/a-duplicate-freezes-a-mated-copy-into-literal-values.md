@@ -29,18 +29,18 @@ superseded by making more than one placement of a body, in the
 placement editor (PR #6300). It does not retire automatically with
 Transform, so this row tracks it.
 
+**A second placement is made the way the first one is**: pick the
+body, and the placement editor (PR #6300) opens its Create door on it.
+Picking a copy opens that copy's placement for editing instead
+(`MateTool::pick`, `crates/viewer/src/matetool.rs` on
+`placing/bundle-editor`). A body that is already placed is
+intermediate, so it is not shown by default, but the View pane can
+show it and then it is picked like any other body (`crates/viewer/README.md`,
+*What the picture shows*). Nothing new is needed to make a second
+placement. The retirement's done-when includes a row that does exactly
+this: place a body, show it again, pick it, and get a second placement.
+
 **What the retirement still needs to decide (goes to designers):**
-- **Where the second placement is made.** The editor's Create door
-  opens only on a pick that is no copy (`MateTool::pick`,
-  `crates/viewer/src/matetool.rs` on `placing/bundle-editor`). A body
-  that is already placed is not drawn (README, "the picture draws
-  bodies, not placements"), so its one route to a second placement in
-  the GUI is Duplicate today. The editor needs a door that opens
-  Create on a placed body: from its tree row, or as "place again"
-  beside the Edit door on a pick of its copy.
-- **Its starting draft.** Whether a second placement starts with no
-  mates where the body stands, or loaded from the picked copy's bundle
-  as written (which avoids this row's literal snapshot).
 - **The coupling** with the parked
   `a-feature-gesture-re-points-every-copy-of-its-target`. Two
   placements of one body share it, so a feature on either takes over
