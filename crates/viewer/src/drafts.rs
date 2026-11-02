@@ -361,6 +361,20 @@ pub(crate) enum DropWhy {
     DocumentMoved,
 }
 
+impl Dropped {
+    /// **As the line carries it**: the changes it held are gone from
+    /// the editor, and the person is told which and why.
+    /// [`crate::frame::Retold::Never`]: the draft is gone, and nothing
+    /// will drop it again.
+    pub(crate) fn notice(&self) -> crate::frame::Message {
+        crate::frame::Message::new(
+            crate::frame::Subject::Document,
+            self.to_string(),
+            crate::frame::Retold::Never,
+        )
+    }
+}
+
 impl std::fmt::Display for Dropped {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let why = match self.why {

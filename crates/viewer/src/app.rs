@@ -1370,7 +1370,12 @@ impl ViewerApp {
         let mut notices = core::mem::take(&mut self.notices);
         // A pending profile draft let go of since the last batch (the
         // selection left it, the document moved under it) is said.
-        notices.extend(self.drafts.take_dropped().iter().map(frame::dropped_draft));
+        notices.extend(
+            self.drafts
+                .take_dropped()
+                .iter()
+                .map(crate::drafts::Dropped::notice),
+        );
         // A tool opened, closed or swapped since the last batch — a
         // Cancel in its panel, the previous batch's commit — retires
         // what the line says about the tool that was open. Before the
@@ -1395,7 +1400,12 @@ impl ViewerApp {
             // Undo takes back a pending profile draft first, and says
             // so; the next undo steps the history.
             if matches!(op, SessionOp::Undo) && self.drafts.undo_pending() {
-                notices.extend(self.drafts.take_dropped().iter().map(frame::dropped_draft));
+                notices.extend(
+                    self.drafts
+                        .take_dropped()
+                        .iter()
+                        .map(crate::drafts::Dropped::notice),
+                );
                 continue;
             }
             performed.push(op.clone());
@@ -1472,7 +1482,12 @@ impl ViewerApp {
             self.respeak_held();
         }
         // A replaced document let go of a pending draft in the loop.
-        notices.extend(self.drafts.take_dropped().iter().map(frame::dropped_draft));
+        notices.extend(
+            self.drafts
+                .take_dropped()
+                .iter()
+                .map(crate::drafts::Dropped::notice),
+        );
         let refusal = frame::batch_refusal(refusal, &performed, self.session.committed_doc());
         // A refusal that offers a choice stands it up; a save, fork or
         // replacement that LANDED answers it; any other refusal leaves
