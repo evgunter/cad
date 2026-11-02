@@ -75,3 +75,14 @@ Blind spot: a door fact that evaluation reads other than through a length,
 for example an operand kind. The second pass over the `Err(NodeErrorKind::…)`
 list covers `eval/` only, not the kernel crates' own count refusals behind
 evaluation (`sweep::skin`'s `TooFewSections` stays: a kernel door).
+
+Review fix pass (2026-11-02): the witness now drops the dropped
+station's anonymous variable with it, so the doctored files break in
+the loft alone (with the load check disabled they load, as on base);
+`SnapshotError::LoftShape` ends with `Recourse(REGENERATE_RECOURSE)`.
+`loft_structure_fault` stays beside `check_loft_shape` rather than in
+`Node::input_fault`: an `InputFault` renders at the edit door as
+`EditError::IndexedRead` ("cannot read that member") with that
+recourse, while a loft's shape has its own variant, sentence and
+per-arm recourse in one `LoftFault` whose value arms cannot live in
+`input_fault`; folding would split one enum across two homes.

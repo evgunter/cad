@@ -1869,7 +1869,14 @@ impl core::fmt::Display for SnapshotError {
                 referenced.article()
             ),
             Self::InputList { node, fault } => write!(f, "{node}: {fault}"),
-            Self::LoftShape { node, fault } => fault.problem(f, node),
+            Self::LoftShape { node, fault } => {
+                fault.problem(f, node)?;
+                write!(
+                    f,
+                    ". {}",
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                )
+            }
             Self::AssertionBound {
                 node,
                 measured,

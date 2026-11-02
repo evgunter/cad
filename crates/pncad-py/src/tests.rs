@@ -6375,7 +6375,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // body (`product_read_fault_tag`).
     ("kind", 2),
     // One fact at the edit and load doors: a loft written as no loft
-    // can be, its fault carried whole.
+    // can be. The edit door publishes its fault on `inner_variant`;
+    // the load door says it in the message alone.
     ("loft_shape", 2),
     // One fact at the edit and load doors: a constraint the per-mate
     // admission refuses, its fault carried whole.
