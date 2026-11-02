@@ -4,25 +4,32 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Coord, DocumentId, Said, Speaker, TracePassage, TraceSense};
+use pncad::document::{DocumentId, Said, Speaker, TracePassage, TraceSense};
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendKindChoice, FREEZE_NOTE};
-use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
+use crate::combine::{
+    BooleanTool, ClearanceBoundChoice, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION,
+};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternLayoutChoice, ShapeKind,
     UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
-use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateTool};
-use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
+use crate::matetool::{MATE_KINDS, MateTool, PlaceDoor};
+use crate::pane::profile::{
+    REMOVE_LOOP, add_loop_row, notation_row, path_steps_ui, preview_verdict,
+};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seat, Seats, seat_line};
-use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, Staged, admits};
+use crate::session::BundleVerdict;
+use crate::session::{
+    Creation, NodeKindWanted, ProfileShape, Selection, SessionOp, Staged, admits,
+};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
@@ -69,6 +76,43 @@ pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mu
         Tone::Advisory,
     );
     crate::widgets::message_toned(ui, PROJECTION_IS_PLACED, theme, Tone::Advisory);
+}
+
+/// **The clearance form's bound rows**: which side it bounds, then its
+/// one length — or a band's two, low then high — in the working
+/// notation. A free function over the `Ui`, so a headless row can drive
+/// it.
+pub(crate) fn clearance_bound_rows(
+    ui: &mut egui::Ui,
+    drafts: &mut Drafts,
+    notation: &mut Notation,
+) {
+    ui.horizontal(|ui| {
+        ui.label("clearance");
+        for (choice, label) in ClearanceBoundChoice::ALL {
+            ui.radio_value(&mut drafts.clearance_bound, choice, label);
+        }
+    });
+    ui.horizontal(|ui| {
+        let band = drafts.clearance_bound == ClearanceBoundChoice::Between;
+        ui.label(if band { "from" } else { "bound" });
+        unit_field(
+            ui,
+            notation.length.def(),
+            FIELD_DRAG_SPEED,
+            &mut drafts.clearance_lo,
+        );
+        if band {
+            ui.label("to");
+            unit_field(
+                ui,
+                notation.length.def(),
+                FIELD_DRAG_SPEED,
+                &mut drafts.clearance_hi,
+            );
+        }
+        length_picker(ui, "clearance_bound", &mut notation.length);
+    });
 }
 
 /// **What the duplicate tool tells a user before they click it** —
@@ -186,11 +230,17 @@ pub(crate) fn boolean_prompt(op: BooleanOp) -> &'static str {
     }
 }
 
-/// **The mate tool's held picks, drawn** — [`MateTool::line`], the
-/// seated tools' line over the mate's two sides, in the same voice as
+/// **A mate row's held picks, drawn** — [`MateTool::line`], the seated
+/// tools' line over the row's seats, in the same voice as
 /// [`seats_row`].
-pub(crate) fn mate_picks_row(ui: &mut egui::Ui, tool: &MateTool, by: Speaker<'_>, theme: &Theme) {
-    crate::widgets::message_toned(ui, tool.line(by), theme, Tone::Advisory);
+pub(crate) fn mate_picks_row(
+    ui: &mut egui::Ui,
+    tool: &MateTool,
+    row: usize,
+    by: Speaker<'_>,
+    theme: &Theme,
+) {
+    crate::widgets::message_toned(ui, tool.line(row, by), theme, Tone::Advisory);
 }
 
 /// **The smallest pattern count the form offers.**
@@ -351,11 +401,6 @@ const SPLIT_MISSES: &str = "the plane misses the body or lies on one of its face
 const PROFILE_NOUN: &str = "Profile";
 const EXTRUDE_NOUN: &str = "Extrude";
 
-/// What the mate tool writes for a freedom left unticked: every bundle
-/// pins its copy, so an unset freedom is written where the copy stands,
-/// snapped onto the mate, never left free.
-pub(crate) const MATE_UNSET_SNAPS: &str = "Every bundle pins its copy: a freedom left unticked is written where the copy stands, \
-     snapped onto the mate.";
 pub(crate) const INSTANCE_NOUN: &str = "InstantiatePart";
 
 /// The heading of the section that makes a body out of nothing.
@@ -368,9 +413,13 @@ pub(crate) const COMBINE_BODIES: &str = "Combine bodies";
 /// The heading of the section whose tools reshape a body's edges.
 pub(crate) const BLEND_EDGES: &str = "Blend edges";
 
-/// The heading of the section whose tools bring in another document
-/// and place it.
+/// The heading of the section whose tools place a body: an instance of
+/// another document, the Transform tool, and the placement editor.
 pub(crate) const ASSEMBLE_PARTS: &str = "Assemble parts";
+
+/// The heading of the section whose tools record a requirement the
+/// geometry is checked against.
+pub(crate) const REQUIREMENTS: &str = "Requirements";
 
 /// **The chooser's answer, drawn**: the directory it read, then the
 /// parts on offer or what it has to say instead — and the entry that
@@ -470,14 +519,127 @@ fn withheld_for(holds: impl IntoIterator<Item = Withheld>) -> Option<Withheld> {
     })
 }
 
-/// **What a bored circle withholds the button for**: a bore at least as
-/// wide as the radius, which is an input the reader gave and the form
-/// refuses — [`Withheld::Refused`], not a request for the next input.
-fn bore_withholds(bored: bool, bore: f64, radius: f64) -> Option<Withheld> {
-    (bored && bore >= radius).then_some(Withheld::Refused(
-        "the bore must be smaller than the radius — which loop is the hole is decided by \
-         containment, so a larger bore would swap the roles rather than refuse",
-    ))
+/// One loop's fields as the per-loop editor takes them: the numbers a
+/// template is authored by, or a path's steps.
+enum LoopFields<'a> {
+    Circle {
+        centre: &'a mut [f64; 2],
+        radius: &'a mut f64,
+    },
+    Rectangle {
+        centre: &'a mut [f64; 2],
+        width: &'a mut f64,
+        height: &'a mut f64,
+    },
+    Path {
+        steps: &'a mut Vec<pncad::profile::Step<f64>>,
+    },
+}
+
+impl<'a> LoopFields<'a> {
+    /// The fields of an added loop's shape.
+    fn of(shape: &'a mut ProfileShape) -> Self {
+        match shape {
+            ProfileShape::Circle { centre, radius } => Self::Circle { centre, radius },
+            ProfileShape::Rectangle {
+                centre,
+                width,
+                height,
+            } => Self::Rectangle {
+                centre,
+                width,
+                height,
+            },
+            ProfileShape::Path { steps } => Self::Path { steps },
+        }
+    }
+}
+
+/// **One loop's header in the add-profile form**: its label, its shape
+/// choice, and — on a loop that can go — [`REMOVE_LOOP`]. Answers the
+/// shape picked, when it is not `kind`, and whether Remove was clicked.
+fn loop_header(
+    ui: &mut egui::Ui,
+    label: &str,
+    kind: Option<ShapeKind>,
+    removable: bool,
+) -> (Option<ShapeKind>, bool) {
+    ui.horizontal(|ui| {
+        ui.label(label);
+        let mut picked = None;
+        for (option, word) in ShapeKind::ALL {
+            if ui.radio(kind == Some(option), word).clicked() && kind != Some(option) {
+                picked = Some(option);
+            }
+        }
+        let removed = removable && ui.button(REMOVE_LOOP).clicked();
+        (picked, removed)
+    })
+    .inner
+}
+
+/// **One loop's fields** — the first loop's and every added loop's,
+/// drawn by this one editor; `pickers` draws the form's unit pickers
+/// beside them, which the first loop carries for the whole form.
+/// Answers the wait of a chain with no step: a form waiting for its
+/// first one, not a chain that fails to close, whose lattice refusal
+/// would be about a program nobody had started writing.
+fn loop_fields_ui(
+    ui: &mut egui::Ui,
+    salt: &str,
+    tol: pncad::geom_core::Tol,
+    notation: &mut Notation,
+    pickers: bool,
+    fields: LoopFields<'_>,
+) -> Option<Withheld> {
+    let unit = notation.length.def();
+    match fields {
+        LoopFields::Circle { centre, radius } => {
+            ui.horizontal(|ui| {
+                ui.label("centre");
+                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[0]);
+                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[1]);
+                ui.label("radius");
+                unit_field(ui, unit, FIELD_DRAG_SPEED, radius);
+                if pickers {
+                    length_picker(ui, &format!("{salt}_circle"), &mut notation.length);
+                }
+            });
+            None
+        }
+        LoopFields::Rectangle {
+            centre,
+            width,
+            height,
+        } => {
+            ui.horizontal(|ui| {
+                ui.label("centre");
+                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[0]);
+                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[1]);
+                ui.label("width");
+                unit_field(ui, unit, FIELD_DRAG_SPEED, width);
+                ui.label("height");
+                unit_field(ui, unit, FIELD_DRAG_SPEED, height);
+                if pickers {
+                    length_picker(ui, &format!("{salt}_rectangle"), &mut notation.length);
+                }
+            });
+            None
+        }
+        LoopFields::Path { steps } => {
+            let salt = format!("{salt}_path");
+            if pickers {
+                notation_row(ui, &salt, &mut notation.length, &mut notation.angle);
+            }
+            let mut written = crate::widgets::WrittenIn::of(*notation);
+            if let Some(row) = path_steps_ui(ui, &salt, tol, &mut written, steps) {
+                row.apply(steps);
+            }
+            steps
+                .is_empty()
+                .then_some(Withheld::Waiting("add a step to the chain"))
+        }
+    }
 }
 
 /// The withheld button's reason, drawn in its own voice. A free function
@@ -512,8 +674,6 @@ impl ViewerBehavior<'_> {
             ui.separator();
             self.mirror_tool_ui(ui);
             ui.separator();
-            self.transform_tool_ui(ui);
-            ui.separator();
             self.pattern_tool_ui(ui);
             ui.separator();
             // Beside the pattern they read and author: a projection
@@ -530,135 +690,259 @@ impl ViewerBehavior<'_> {
         ui.collapsing(BLEND_EDGES, |ui| {
             self.blend_tool_ui(ui);
         });
-        // The tools whose subject is another document: an instance of
-        // a part, and the mate that places one.
+        // The tools that place a body: an instance of a part, the
+        // Transform tool's door, and the placement editor it opens.
         ui.collapsing(ASSEMBLE_PARTS, |ui| {
             self.add_part_ui(ui);
+            self.transform_tool_ui(ui);
             self.mate_tool_ui(ui);
+        });
+        // The requirements: a recorded claim the geometry is checked
+        // against, which makes no body.
+        ui.collapsing(REQUIREMENTS, |ui| {
+            self.clearance_tool_ui(ui);
         });
         ui.separator();
     }
 
-    /// The mate tool's panel: activation, the held picks, the class
-    /// choice with the kernel's admission verdicts, and the one
-    /// committed edit.
-    pub(crate) fn mate_tool_ui(&mut self, ui: &mut egui::Ui) {
-        // A CLONE of the small tool value, so the panel can read it
-        // while pushing ops and closing the tool — the authoritative
-        // copy stays in the application and is only ever REPLACED
-        // whole (activation, deactivation), never edited here.
-        let Some(tool) = self.tools.mate().cloned() else {
-            return self.tool_door(ui, ToolKind::Mate);
+    /// **The clearance tool's panel** — "add a clearance requirement":
+    /// its two seats, a body or a face each, held as picks
+    /// ([`crate::combine::ClearanceTool`]); which side the requirement
+    /// bounds; its one or two lengths; and the one committed edit, which
+    /// writes the assertion through the document's own door.
+    pub(crate) fn clearance_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.clearance().cloned() else {
+            return self.tool_door(ui, ToolKind::Clearance);
         };
-        let kind = self.drafts.mate_kind();
         crate::widgets::message(
             ui,
-            ToolKind::Mate.says(&format_args!(
-                "pick two in the viewport, each {}",
-                crate::matetool::said_entities(&crate::matetool::reads(kind))
-            )),
+            ToolKind::Clearance.says(
+                &"add a clearance requirement: pick a face in the picture, or a body in the tree, for each of its two seats",
+            ),
         );
-        mate_picks_row(
+        crate::widgets::message_toned(
             ui,
-            &tool,
-            frame::landed_speaker(self.session.landed_pair()),
+            tool.line(frame::landed_speaker(self.session.landed_pair())),
             &self.theme,
+            Tone::Advisory,
         );
-        ui.horizontal(|ui| {
-            for (ix, (_, label)) in MATE_KINDS.iter().enumerate() {
-                ui.radio_value(&mut self.drafts.mate_kind, ix, *label);
-            }
+        clearance_bound_rows(ui, self.drafts, self.notation);
+        self.tool_commit_row(ui, ToolKind::Clearance, |drafts, notation| {
+            let lo = notation.length_literal(drafts.clearance_lo)?;
+            let bounds = drafts
+                .clearance_bound
+                .bounds(lo, || notation.length_literal(drafts.clearance_hi))?;
+            Ok(tool.op(bounds)?)
         });
-        let kind = self.drafts.mate_kind();
-        // Each kind's own sense toggle; a point has no sense to turn
-        // round, so it is offered none.
-        if let (Some((label, _)), Some(turned)) = (
-            crate::matetool::sense_offer(kind),
-            self.drafts.mate_flip.get_mut(self.drafts.mate_kind),
-        ) {
-            ui.checkbox(turned, label);
-        }
-        ui.checkbox(
-            &mut self.drafts.mate_into_target_space,
-            "move the copy into the target's space",
+    }
+
+    /// **The placement editor's panel**: its door, one line per mate
+    /// row (its kind, its sense, its seats, its stroke), the value rows
+    /// the live mates leave, the verdict on Apply judged before it, and
+    /// Apply. A refused Apply leaves the editor open: it closes when its
+    /// op lands ([`ToolKind::commits`]).
+    pub(crate) fn mate_tool_ui(&mut self, ui: &mut egui::Ui) {
+        // A CLONE of the tool value, edited here and written back whole
+        // when it changed.
+        let Some(tool) = self.tools.mate().cloned() else {
+            self.drafts.sync_mate_edits(None, &[]);
+            return self.tool_door(ui, ToolKind::Mate);
+        };
+        let by = frame::landed_speaker(self.session.landed_pair());
+        let mut edited = tool.clone();
+        crate::widgets::message(
+            ui,
+            ToolKind::Mate.says(&match tool.door() {
+                None => "pick the body or the copy to place".to_owned(),
+                Some(PlaceDoor::Create { .. }) => format!(
+                    "placing a new copy: pick on it, then on what it meets, each {}",
+                    crate::matetool::said_entities(&crate::matetool::reads(tool.active_kind()))
+                ),
+                Some(PlaceDoor::Edit { placement, .. }) => format!(
+                    "editing the placement {}",
+                    self.session.committed_doc().spoken(*placement)
+                ),
+            }),
         );
-        // The freedoms this kind leaves, each set to its number when
-        // ticked. Every bundle pins its copy, so a freedom left unticked
-        // is written as the constant 0 (the bundle door's rule), and the
-        // panel says so rather than leaving it to be found out.
-        ui.label(MATE_UNSET_SNAPS);
-        for (freedom, (set, value)) in MateFreedom::ALL.iter().zip(&mut self.drafts.mate_values) {
-            let coord = freedom.coord();
-            if !freedom.left_by(kind) {
-                continue;
-            }
+        for (at, row) in tool.rows().iter().enumerate() {
             ui.horizontal(|ui| {
-                ui.checkbox(set, coord.name());
-                let (unit, speed) = match coord {
-                    Coord::Slide(_) => (self.notation.length.def(), FIELD_DRAG_SPEED),
-                    Coord::Spin(_) => (self.notation.angle.def(), ANGLE_DRAG_SPEED),
-                };
-                unit_field(ui, unit, speed, value);
+                if ui
+                    .radio(at == tool.active(), format!("mate {}", at + 1))
+                    .clicked()
+                {
+                    edited.focus(at);
+                }
+                for (kind, label) in MATE_KINDS {
+                    if ui.selectable_label(row.kind() == kind, label).clicked() {
+                        edited.choose_kind(at, kind);
+                    }
+                }
             });
+            ui.horizontal(|ui| {
+                if let Some(senses) = crate::matetool::senses(row.kind()) {
+                    for (label, flip) in senses {
+                        if ui.radio(row.flip() == flip, label).clicked() {
+                            edited.set_sense(at, flip);
+                        }
+                    }
+                }
+                let mut struck = row.struck();
+                if ui.checkbox(&mut struck, "struck out").changed() {
+                    edited.strike(at, struck);
+                }
+            });
+            mate_picks_row(ui, &tool, at, by, &self.theme);
         }
-        let closing = commit_row(ui, ToolKind::Mate.commit(), None, |_| {});
-        let mut close = closing.cancel;
-        if closing.commit {
-            let values: Result<Vec<_>, _> = MateFreedom::ALL
-                .iter()
-                .zip(self.drafts.mate_values)
-                .filter(|(freedom, (set, _))| *set && freedom.left_by(kind))
-                .map(|(freedom, (_, value))| {
-                    let coord = freedom.coord();
-                    match coord {
-                        Coord::Slide(_) => self.notation.length_literal(value),
-                        Coord::Spin(_) => self.notation.angle_literal(value),
-                    }
-                    .map(|by| (coord, by))
-                })
-                .collect();
-            match (values, self.session.landed_pair()) {
-                (Err(error), _) => {
-                    self.notices
-                        .push(frame::tool_news(&ToolKind::Mate.refuses(&error)));
-                }
-                (Ok(values), Some((doc, _))) => {
-                    let choice = MateChoice {
-                        kind,
-                        flip: self.drafts.mate_turned(),
-                        values,
-                    };
-                    match tool.proposal(doc, choice) {
-                        Ok(proposal) => {
-                            // One committed action; the tool
-                            // closes with it.
-                            let op = if self.drafts.mate_into_target_space {
-                                proposal.op_into_target_space()
-                            } else {
-                                proposal.op()
-                            };
-                            self.push_tool_op(self.tool_noun(ToolKind::Mate), op);
-                            close = true;
+        if tool.door().is_some() && ui.button("add a mate").clicked() {
+            edited.add_mate(tool.active_kind());
+        }
+        if let Some(PlaceDoor::Edit { .. }) = tool.door() {
+            let mut into = tool.into_target_space();
+            if ui
+                .checkbox(&mut into, "move the copy into the target's space")
+                .changed()
+            {
+                edited.set_into_target_space(into);
+            }
+        }
+        let proposal = self.session.landed_pair().map(|(doc, ev)| {
+            tool.proposal(doc, ev, self.session.tol())
+                .map_err(|error| error.respoken(doc))
+        });
+        let doc = self.session.committed_doc();
+        let coords: Vec<_> = match &proposal {
+            Some(Ok(proposal)) => proposal.values.iter().map(|row| row.coord).collect(),
+            _ => Vec::new(),
+        };
+        self.drafts.sync_mate_edits(tool.door(), &coords);
+        let op = match &proposal {
+            Some(Ok(proposal)) => {
+                // Every value row is a field showing its formula as the
+                // person reads it ([`crate::matetool::value_text`]);
+                // typing replaces it.
+                for row in &proposal.values {
+                    ui.horizontal(|ui| {
+                        ui.label(row.coord.name());
+                        let held = self
+                            .drafts
+                            .mate_value_edits
+                            .iter()
+                            .position(|(coord, _)| *coord == row.coord);
+                        let mut text = held.map_or_else(
+                            || crate::matetool::value_text(doc, &row.by),
+                            |at| self.drafts.mate_value_edits[at].1.clone(),
+                        );
+                        let field = ui.text_edit_singleline(&mut text);
+                        if row.from == crate::matetool::ValueFrom::Unmeasured {
+                            ui.label("not measured: the mate's poses do not evaluate here");
                         }
-                        // Said from the document the panel's
-                        // line speaks, the landed one, so one
-                        // node reads alike in both.
-                        Err(error) => {
-                            self.notices.push(frame::tool_news(
-                                &ToolKind::Mate.refuses(&error.respoken(doc)),
-                            ));
+                        if field.changed() {
+                            match held {
+                                Some(at) => self.drafts.mate_value_edits[at].1 = text.clone(),
+                                None => {
+                                    self.drafts.mate_value_edits.push((row.coord, text.clone()))
+                                }
+                            }
                         }
-                    }
+                        if field.lost_focus()
+                            && let Some(at) = held
+                        {
+                            let (coord, typed) = self.drafts.mate_value_edits.remove(at);
+                            match crate::matetool::typed_value(doc, coord, &typed) {
+                                Ok(by) => edited.type_value(coord, by),
+                                Err(error) => self
+                                    .notices
+                                    .push(frame::tool_news(&ToolKind::Mate.refuses(&error))),
+                            }
+                        }
+                    });
                 }
-                _ => {
-                    self.notices.push(frame::tool_news(
-                        &ToolKind::Mate.refuses(&"no landed document to read the picks on"),
+                for row in &proposal.dropped {
+                    crate::widgets::message_toned(
+                        ui,
+                        ToolKind::Mate.says(&format_args!(
+                            "drops the {} value {}: the mates leave no such freedom",
+                            row.coord.name(),
+                            crate::matetool::value_text(doc, &row.by)
+                        )),
+                        &self.theme,
+                        Tone::Advisory,
+                    );
+                }
+                if !proposal.retired.is_empty() {
+                    ui.weak(format!(
+                        "{} number(s) on freedoms the mates now fix go",
+                        proposal.retired.len()
                     ));
                 }
+                Some(if tool.into_target_space() {
+                    proposal.op_into_target_space()
+                } else {
+                    proposal.op()
+                })
+            }
+            Some(Err(error)) => {
+                crate::widgets::message(ui, ToolKind::Mate.refuses(error).to_string());
+                None
+            }
+            None => None,
+        };
+        let mut withheld = None;
+        if let Some(op) = &op {
+            let at = self.session.history().current();
+            let fresh = self
+                .drafts
+                .mate_verdict
+                .as_ref()
+                .is_some_and(|held| held.at == at && held.op == *op);
+            if !fresh {
+                let verdict = self.session.bundle_verdict(op);
+                let blocks = matches!(verdict, BundleVerdict::Faults(_) | BundleVerdict::Unsolved);
+                let said = match verdict {
+                    BundleVerdict::Stands(_) => Ok("the copy stands as the draft says".to_owned()),
+                    BundleVerdict::Faults(fault) => Err(fault.to_string()),
+                    BundleVerdict::Refused(refusal) => Err(refusal.to_string()),
+                    BundleVerdict::Unsolved => {
+                        Err("what the placement reads does not evaluate".to_owned())
+                    }
+                };
+                self.drafts.mate_verdict = Some(crate::drafts::MateVerdict {
+                    at,
+                    op: op.clone(),
+                    said,
+                    blocks,
+                });
+            }
+            if let Some(held) = &self.drafts.mate_verdict {
+                match &held.said {
+                    Ok(said) => crate::widgets::message(ui, ToolKind::Mate.says(said)),
+                    Err(said) => {
+                        crate::widgets::message(ui, ToolKind::Mate.refuses(said).to_string())
+                    }
+                };
+                if held.blocks {
+                    withheld = Some(
+                        "the copy would not stand: Apply is withheld until the draft stands it"
+                            .to_owned(),
+                    );
+                }
             }
         }
-        if close {
+        let closing = commit_row(ui, ToolKind::Mate.commit(), withheld.as_deref(), |_| {});
+        if closing.commit {
+            match op {
+                Some(op) => self.push_tool_op(self.tool_noun(ToolKind::Mate), op),
+                None => self.notices.push(frame::tool_news(
+                    &ToolKind::Mate.refuses(&"the draft has no Apply yet"),
+                )),
+            }
+        }
+        if closing.cancel {
             self.tools.close();
+        } else if edited != tool
+            && let Some(open) = self.tools.mate_mut()
+        {
+            *open = edited;
         }
         ui.separator();
     }
@@ -746,28 +1030,17 @@ impl ViewerBehavior<'_> {
     /// the form is one control, and it closes with its commit
     /// ([`crate::drafts::Drafts::accepted`]) or its Cancel.
     ///
-    /// The circle's optional bore is what lets this template author
-    /// the hollow ring's annulus (one profile node, two loops).
-    ///
-    /// The bore field is guarded IN THE FORM: loop roles come from
-    /// the profile layer's containment forest, not from list order,
-    /// so a bore at or beyond the outer radius would not refuse — it
-    /// would silently swap which circle is the hole. The form says
-    /// "bore", so it disables its commit until the bore is smaller, with
-    /// the reason shown. This is a chrome affordance guarding the
-    /// template's stated intent; the op stays unjudged and the
-    /// kernel's containment rule stays the one home.
+    /// The first loop is the chosen shape; loops added under it
+    /// ([`Self::added_loops_ui`]) are each their own shape, and
+    /// containment decides which are holes.
     pub(crate) fn add_profile_ui(&mut self, ui: &mut egui::Ui) {
         if !form_door(ui, ADD_PROFILE_DOOR, &mut self.drafts.profile_open) {
             return;
         }
         self.profile_drawn.create = true;
-        ui.horizontal(|ui| {
-            ui.label("profile");
-            for (shape, label) in ShapeKind::ALL {
-                ui.radio_value(&mut self.drafts.profile_shape, Some(shape), label);
-            }
-        });
+        if let (Some(picked), _) = loop_header(ui, "profile", self.drafts.profile_shape, false) {
+            self.drafts.profile_shape = Some(picked);
+        }
         ui.checkbox(&mut self.drafts.sketch_on_face, "on the picked face");
         if self.drafts.sketch_on_face {
             self.sketch_face_rows(ui);
@@ -779,87 +1052,41 @@ impl ViewerBehavior<'_> {
         if self.drafts.sketch_on_face && self.drafts.held_face().is_none() {
             withholds.push(Withheld::Waiting(PICK_A_FACE));
         }
+        let tol = self.session.tol();
+        let mut waits_on_a_step = false;
         match shape {
             // No shape chosen: the form is at rest. It says what it is
             // waiting for and draws nothing — no fields to fill in for
             // a shape nobody picked, and no preview in the viewport.
             None => withholds.push(Withheld::Waiting("choose a shape to add")),
-            Some(ShapeKind::Circle) => {
-                let unit = self.notation.length.def();
-                ui.horizontal(|ui| {
-                    ui.label("centre");
-                    unit_field(
-                        ui,
-                        unit,
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.profile_centre[0],
-                    );
-                    unit_field(
-                        ui,
-                        unit,
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.profile_centre[1],
-                    );
-                    ui.label("radius");
-                    unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_radius);
-                    length_picker(ui, "profile_circle", &mut self.notation.length);
-                });
-                ui.horizontal(|ui| {
-                    ui.checkbox(&mut self.drafts.profile_bored, "with bore");
-                    if self.drafts.profile_bored {
-                        ui.label("bore radius");
-                        unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_bore);
+            Some(kind) => {
+                let drafts = &mut *self.drafts;
+                let fields = match kind {
+                    ShapeKind::Circle => LoopFields::Circle {
+                        centre: &mut drafts.profile_centre,
+                        radius: &mut drafts.profile_radius,
+                    },
+                    ShapeKind::Rectangle => {
+                        let [width, height] = &mut drafts.profile_extent;
+                        LoopFields::Rectangle {
+                            centre: &mut drafts.profile_centre,
+                            width,
+                            height,
+                        }
                     }
-                });
-                withholds.extend(bore_withholds(
-                    self.drafts.profile_bored,
-                    self.drafts.profile_bore,
-                    self.drafts.profile_radius,
-                ));
+                    ShapeKind::Path => LoopFields::Path {
+                        steps: &mut drafts.profile_path,
+                    },
+                };
+                if let Some(wait) = loop_fields_ui(ui, "profile", tol, self.notation, true, fields)
+                {
+                    waits_on_a_step = true;
+                    withholds.push(wait);
+                }
             }
-            Some(ShapeKind::Rectangle) => {
-                let unit = self.notation.length.def();
-                ui.horizontal(|ui| {
-                    ui.label("width");
-                    unit_field(
-                        ui,
-                        unit,
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.profile_extent[0],
-                    );
-                    ui.label("height");
-                    unit_field(
-                        ui,
-                        unit,
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.profile_extent[1],
-                    );
-                    length_picker(ui, "profile_rectangle", &mut self.notation.length);
-                });
-            }
+        }
+        match shape {
             Some(ShapeKind::Path) => {
-                notation_row(
-                    ui,
-                    "path",
-                    &mut self.notation.length,
-                    &mut self.notation.angle,
-                );
-                if let Some(row) = path_steps_ui(
-                    ui,
-                    "path",
-                    self.session.tol(),
-                    &mut crate::widgets::WrittenIn::of(*self.notation),
-                    &mut self.drafts.profile_path,
-                ) {
-                    row.apply(&mut self.drafts.profile_path);
-                }
-                // A chain with no steps is a form waiting for its
-                // first one, not a chain that fails to close. Without
-                // this the empty list drew the lattice's own refusal
-                // about a program nobody had started writing.
-                if self.drafts.profile_path.is_empty() {
-                    withholds.push(Withheld::Waiting("add a step to the chain"));
-                }
                 if !self.drafts.sketch_on_face {
                     ui.checkbox(
                         &mut self.drafts.trace_on,
@@ -870,6 +1097,12 @@ impl ViewerBehavior<'_> {
                     withholds.extend(self.trace_rows(ui));
                 }
             }
+            Some(ShapeKind::Circle | ShapeKind::Rectangle) | None => {}
+        }
+        if shape.is_some() {
+            let (added, waits) = self.added_loops_ui(ui);
+            waits_on_a_step |= waits;
+            withholds.extend(added);
         }
         let blocked = withheld_for(withholds);
         if let Some(withheld) = blocked {
@@ -889,9 +1122,8 @@ impl ViewerBehavior<'_> {
         // contradicting it.
         // A traced chain is drawn by the evaluation, which the preview
         // does not run: the trace rows say what it shows instead.
-        let at_rest = shape.is_none()
-            || self.drafts.profile_path.is_empty() && blocked.is_some()
-            || self.drafts.traces();
+        let at_rest =
+            shape.is_none() || waits_on_a_step && blocked.is_some() || self.drafts.traces();
         let refused = preview_verdict(
             ui,
             self.theme,
@@ -927,6 +1159,69 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+    }
+
+    /// **The loops the form authors after its first**
+    /// ([`crate::drafts::Drafts::profile_more`]), each drawn by the
+    /// first loop's own editor ([`loop_header`], [`loop_fields_ui`])
+    /// with a [`REMOVE_LOOP`] on its header; and under them the
+    /// editor's add-loop row. A shape chosen on an added loop starts it
+    /// again as that shape's template ([`crate::drafts::fresh_loop`]).
+    ///
+    /// **The form does not say which loop is the outer.** Containment
+    /// decides it, and the preview draws what it decided: an added loop
+    /// larger than the first becomes the outer and the first a hole,
+    /// which is a profile the person can see and keep: "add loop"
+    /// promises nothing about the role.
+    ///
+    /// Answers what the commit waits for — a traced chain is the
+    /// profile's one loop — and whether an added path has no step yet.
+    fn added_loops_ui(&mut self, ui: &mut egui::Ui) -> (Vec<Withheld>, bool) {
+        let tol = self.session.tol();
+        let mut removed = None;
+        let mut reshaped = None;
+        let mut waits = Vec::new();
+        for (index, shape) in self.drafts.profile_more.iter_mut().enumerate() {
+            // The first loop is loop 0, as the edit door counts.
+            let number = index + 1;
+            let kind = match shape {
+                ProfileShape::Circle { .. } => ShapeKind::Circle,
+                ProfileShape::Rectangle { .. } => ShapeKind::Rectangle,
+                ProfileShape::Path { .. } => ShapeKind::Path,
+            };
+            let (picked, remove) = loop_header(ui, &format!("loop {number}"), Some(kind), true);
+            if let Some(picked) = picked {
+                reshaped = Some((index, picked));
+            }
+            if remove {
+                removed = Some(index);
+            }
+            let salt = format!("profile_loop_{number}");
+            let fields = LoopFields::of(shape);
+            waits.extend(loop_fields_ui(ui, &salt, tol, self.notation, false, fields));
+        }
+        if let Some(index) = removed {
+            self.drafts.profile_more.remove(index);
+        }
+        if let Some((index, kind)) = reshaped {
+            self.drafts.profile_more[index] = crate::drafts::fresh_loop(kind);
+        }
+        let waiting = !waits.is_empty();
+        if self.drafts.traces() {
+            if !self.drafts.profile_more.is_empty() {
+                waits.push(Withheld::Refused(
+                    "a chain traced along a face is the profile's one loop — remove the added \
+                     loops, or untick the trace",
+                ));
+            }
+            return (waits, waiting);
+        }
+        if let Some(kind) = add_loop_row(ui) {
+            self.drafts
+                .profile_more
+                .push(crate::drafts::fresh_loop(kind));
+        }
+        (waits, waiting)
     }
 
     /// **The traced path's rows** ([`SessionOp::AddDrawnProfile`]): the
@@ -1374,6 +1669,9 @@ impl ViewerBehavior<'_> {
         let said = match staged {
             None | Some(Staged::Checking) => None,
             Some(Staged::Refused(refusal)) => Some(refusal.to_string()),
+            Some(Staged::Exhausted { doc, out }) => {
+                Some(format!("the staged run {}", out.said(doc)))
+            }
             Some(Staged::Evaluated {
                 node, evaluation, ..
             }) => match tree::split_reading(evaluation, node) {
@@ -1432,54 +1730,35 @@ impl ViewerBehavior<'_> {
         self.tool_commit_row(ui, ToolKind::Mirror, |_, _| Ok(tool.op()?));
     }
 
-    /// The transform tool's panel: one body pick plus the placement
-    /// fields, and the one committed edit.
+    /// **The Transform tool's panel**: its one pick, which opens the
+    /// placement editor on the body or the copy picked
+    /// ([`crate::matetool::MateTool::moving`]); a split picked whole
+    /// asks which half is the body. Cancel closes it.
     pub(crate) fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(tool) = self.tools.transform() else {
+        let Some(split) = self
+            .tools
+            .transform()
+            .map(|tool| tool.awaiting_half().cloned())
+        else {
             return self.tool_door(ui, ToolKind::Transform);
         };
-        crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
-        if let Some((seat, half)) = seats_row(
+        crate::widgets::message(
             ui,
-            tool.seats(),
-            frame::landed_speaker(self.session.landed_pair()),
-            &self.theme,
-        ) {
-            self.tools.choose_half(seat, half);
-        }
-        ui.horizontal(|ui| {
-            unit_vec3_row(
-                ui,
-                "translation",
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.transform_translation,
-            );
-            length_picker(ui, "transform_translation", &mut self.notation.length);
-        });
-        vec3_row(
-            ui,
-            "rotation axis",
-            UNIT_DRAG_SPEED,
-            &mut self.drafts.transform_axis,
+            ToolKind::Transform.says(&"pick the body or the copy to move"),
         );
-        ui.horizontal(|ui| {
-            ui.label("rotation angle");
-            unit_field(
-                ui,
-                self.notation.angle.def(),
-                ANGLE_DRAG_SPEED,
-                &mut self.drafts.transform_angle,
-            );
-            angle_picker(ui, "transform_angle", &mut self.notation.angle);
-        });
-        self.tool_commit_row(ui, ToolKind::Transform, |drafts, notation| {
-            Ok(tool.op(
-                notation.length_literals(drafts.transform_translation)?,
-                scalars(drafts.transform_axis)?,
-                notation.angle_literal(drafts.transform_angle)?,
-            )?)
-        });
+        let waiting = split.map(|split| (0, split.to_string()));
+        if let Some((_, half)) = half_rows(ui, waiting, &self.theme) {
+            for notice in self
+                .tools
+                .transform_half(self.session.committed_doc(), half)
+            {
+                self.notices
+                    .push(frame::tool_notice(&notice, self.session.landed_pair()));
+            }
+        }
+        if ui.button("Cancel").clicked() {
+            self.tools.close();
+        }
     }
 
     /// The pattern tool's panel: a body pick, a rule choice with its
@@ -1817,9 +2096,9 @@ impl ViewerBehavior<'_> {
 
     /// **The kind noun of the node a tool's commit creates** —
     /// `node_kind_noun`'s word, which its proposed label counts by —
-    /// or `None` for the mate tool, whose commit is a constraint in a
-    /// placement's bundle and creates no node, so its form offers no
-    /// label ([`Self::tool_commit_row`]). It is read off the tool, not
+    /// or `None` for the mate tool, whose commit writes a bundle, and
+    /// the Transform tool, which commits nothing but opens it: neither
+    /// form offers a label ([`Self::tool_commit_row`]). It is read off the tool, not
     /// the op ([`SessionOp::creates_a_node`]), because the label is
     /// offered before the picks make an op; a noun beside an op that
     /// creates no node is said at the commit ([`Self::push_labelled`]).
@@ -1831,7 +2110,7 @@ impl ViewerBehavior<'_> {
     /// of its symmetric part; the label lands there.
     fn tool_noun(&self, kind: ToolKind) -> Option<&'static str> {
         Some(match kind {
-            ToolKind::Mate => return None,
+            ToolKind::Mate | ToolKind::Transform => return None,
             ToolKind::Revolve => "Revolve",
             ToolKind::Boolean => match self.tools.boolean().map(|tool| tool.operation()) {
                 Some(BooleanOp::Union) | None => "Union",
@@ -1850,7 +2129,6 @@ impl ViewerBehavior<'_> {
                 }
                 _ => "Mirror",
             },
-            ToolKind::Transform => "Transform",
             ToolKind::Pattern => match self.drafts.pattern_output {
                 PatternOutputChoice::Instances => "Place",
                 PatternOutputChoice::Fused => "Union",
@@ -1860,6 +2138,7 @@ impl ViewerBehavior<'_> {
                 BlendKindChoice::Chamfer => "Chamfer",
             },
             ToolKind::Part | ToolKind::Duplicate => "Part",
+            ToolKind::Clearance => "Assertion",
         })
     }
 
@@ -2141,8 +2420,12 @@ mod tests {
         // The speaker the panel is drawn with.
         let by = crate::frame::landed_speaker(Some((&doc, &evaluation)));
         let painted =
-            |tool: &MateTool| painted_text(|ui| mate_picks_row(ui, tool, by, &Theme::DEFAULT));
-        let mut tool = MateTool::new();
+            |tool: &MateTool| painted_text(|ui| mate_picks_row(ui, tool, 0, by, &Theme::DEFAULT));
+        assert_eq!(painted(&MateTool::new()), "none picked");
+        // The Create door on node 3's body: a pick on it is `on`, a pick
+        // on any other body `to`.
+        let mut tool = MateTool::create(crate::session::picked_body(&doc, &cap_on(3, 3)).0);
+        tool.add_mate(pncad::document::VarKind::Plane);
         assert_eq!(painted(&tool), "none picked");
         tool.pick(&doc, cap_on(3, 3));
         assert_eq!(
@@ -2221,7 +2504,7 @@ mod tests {
             },
             tol,
         );
-        let mut tool = crate::combine::TransformTool::new();
+        let mut tool = crate::combine::SplitTool::new();
         tool.pick(&doc, split);
         let mut chosen = None;
         let drawn = painted_after_clicking(crate::tree::split_half_label(SplitHalf::Below), |ui| {
@@ -2489,7 +2772,7 @@ mod tone_tests {
 
     use pncad::document::DocumentId;
 
-    use super::{Withheld, bore_withholds, part_listing, withheld_for, withheld_line};
+    use super::{Withheld, part_listing, withheld_for, withheld_line};
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
     use crate::parts::{PartCensus, PartChooser, PartEntry};
     use crate::session::Refusal;
@@ -2551,18 +2834,6 @@ mod tone_tests {
         assert_eq!(find(&painted, &id.to_string()).ink, Some(voices.weak));
     }
 
-    /// **A bore at least as wide as the radius is a refused input**, and
-    /// loud — not the form asking for its next one.
-    #[test]
-    fn a_bore_as_wide_as_the_radius_is_refused() {
-        assert!(matches!(
-            bore_withholds(true, 0.01, 0.01),
-            Some(Withheld::Refused(_))
-        ));
-        assert_eq!(bore_withholds(true, 0.005, 0.01), None);
-        assert_eq!(bore_withholds(false, 0.02, 0.01), None);
-    }
-
     /// **Which withholding reason is said**: a refused input over the form
     /// waiting for one, wherever it came in the form; between two of
     /// one kind, the earlier.
@@ -2570,13 +2841,13 @@ mod tone_tests {
     fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
         let frame = Withheld::Waiting("pick a face to draw on");
         let chain = Withheld::Waiting("add a step to the chain");
-        let bore = Withheld::Refused("the bore is too wide");
-        let wider = Withheld::Refused("the bore is wider still");
+        let refused = Withheld::Refused("the traced chain is the profile's one loop");
+        let later = Withheld::Refused("the traced frame does not read");
         assert_eq!(withheld_for([frame, chain]), Some(frame));
-        assert_eq!(withheld_for([frame, bore]), Some(bore));
-        assert_eq!(withheld_for([bore, frame]), Some(bore));
-        assert_eq!(withheld_for([frame, bore, chain]), Some(bore));
-        assert_eq!(withheld_for([bore, wider]), Some(bore));
+        assert_eq!(withheld_for([frame, refused]), Some(refused));
+        assert_eq!(withheld_for([refused, frame]), Some(refused));
+        assert_eq!(withheld_for([frame, refused, chain]), Some(refused));
+        assert_eq!(withheld_for([refused, later]), Some(refused));
         assert_eq!(withheld_for([]), None);
     }
 
@@ -2585,11 +2856,15 @@ mod tone_tests {
     #[test]
     fn a_withheld_profile_button_says_why_in_the_reasons_own_voice() {
         let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            withheld_line(ui, theme, Withheld::Refused("the bore is too wide"));
+            withheld_line(
+                ui,
+                theme,
+                Withheld::Refused("the traced frame does not read"),
+            );
             withheld_line(ui, theme, Withheld::Waiting("choose a shape to add"));
         });
         assert_eq!(
-            find(&painted, "the bore is too wide").ink,
+            find(&painted, "the traced frame does not read").ink,
             Some(voices.actionable)
         );
         assert_eq!(
@@ -2859,7 +3134,6 @@ mod tools_respeak {
             ToolKind::Revolve,
             ToolKind::Boolean,
             ToolKind::Split,
-            ToolKind::Transform,
             ToolKind::Pattern,
             ToolKind::Part,
             ToolKind::Duplicate,
@@ -2944,8 +3218,8 @@ mod tools_respeak {
             said.first().map(String::as_str),
             Some(
                 format!(
-                    "mate tool: the on pick (the end cap of {last}) no longer resolves; the tool \
-                     dropped it"
+                    "mate tool: the mate 1 on pick (the end cap of {last}) no longer resolves; \
+                     the tool dropped it"
                 )
                 .as_str()
             ),

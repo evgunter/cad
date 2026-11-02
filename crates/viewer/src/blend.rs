@@ -563,9 +563,11 @@ impl BlendTool {
     /// # Loading a set is not a promise that it builds
     ///
     /// The kernel's blend assembly refuses what it does not build by
-    /// name — mixed convexity, a turn of two edges at a corner,
-    /// tangential runs, and a blend of a blend are all typed refusals
-    /// on the node's own badge. This door hands over the edges that EXIST,
+    /// name — mixed convexity, a turn of two edges at a corner, a cusp
+    /// or slit, and a blend of a blend are all typed refusals on the
+    /// node's own badge — and leaves a smooth edge (a bore's strut, a
+    /// chart seam) as it is, silently: the blend's limit there is the
+    /// edge itself. This door hands over the edges that EXIST,
     /// which is a different claim, and the panel says so beside the
     /// button rather than implying every loaded set is buildable.
     pub fn load_all_edges(
@@ -634,6 +636,19 @@ impl BlendTool {
         if let Some(held) = &mut self.target {
             held.node = held.node.respoken(doc);
         }
+    }
+
+    /// **The edges the tool holds** ([`crate::session::Holds`]): its
+    /// edges and rims, on its target.
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        let Some(node) = self.target().map(|target| target.node()) else {
+            return Vec::new();
+        };
+        vec![crate::session::select::Held::Edges {
+            node,
+            edges: &mut self.edges,
+            rims: &mut self.rims,
+        }]
     }
 
     /// Drop every pick — the panel's `Clear picks` button, and what

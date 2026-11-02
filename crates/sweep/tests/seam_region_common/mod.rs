@@ -180,12 +180,7 @@ pub(crate) fn split_at_meridian(body: &mut Body<f64>, key: FaceKey, dir: Vec3<f6
         vertex(center + pole * radius),
         vertex(center - pole * radius),
     );
-    let circle = Curve3::Circle {
-        center,
-        axis: pole.cross(dir),
-        radius,
-        u_ref: pole,
-    };
+    let circle = Curve3::circle(center, pole.cross(dir), radius, pole);
     body.mef(
         MefSite::Chords { he1, he2 },
         EdgeCurveSpec::arc_of_circle(circle, 0.0, PI)
@@ -273,7 +268,7 @@ pub(crate) fn split_meridians_at_equator(body: &mut Body<f64>, tol: Tol) {
             continue;
         };
         let carrier = c.carrier().clone();
-        if !matches!(carrier, Curve3::Circle { .. }) {
+        if !matches!(carrier, Curve3::Circle(..)) {
             continue;
         }
         let (t0, t1) = c.params();
@@ -346,12 +341,7 @@ pub(crate) fn split_faces_at_equator(body: &mut Body<f64>, tol: Tol) {
             ang += std::f64::consts::TAU;
         }
         let axis = if face.sense { p } else { -p };
-        let circle = Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref: a,
-        };
+        let circle = Curve3::circle(center, axis, radius, a);
         let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, ang)
             .unwrap()
             .at_rest_in_chart(face.surface, false);

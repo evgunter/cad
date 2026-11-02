@@ -103,12 +103,7 @@ fn arc<T: Decide>(start: Point3<T>, end: Point3<T>, bow: Vec3<T>) -> Curve3<T> {
     let half = chord.norm() / two;
     let u_ref = -(chord / (half * two));
     let axis = u_ref.cross(bow).normalize();
-    Curve3::Circle {
-        center: start + chord / two,
-        axis,
-        radius: half,
-        u_ref,
-    }
+    Curve3::circle(start + chord / two, axis, half, u_ref)
 }
 
 type Row<T> = (

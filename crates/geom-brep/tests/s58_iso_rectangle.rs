@@ -65,12 +65,7 @@ fn cylinder_kit(r: f64) -> (Surface<f64>, EdgeFn, EdgeFn) {
     };
     let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, v),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: r,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(p3(0.0, 0.0, v), v3(0.0, 0.0, 1.0), r, v3(1.0, 0.0, 0.0)),
             u0,
             u1,
             a,
@@ -79,10 +74,7 @@ fn cylinder_kit(r: f64) -> (Surface<f64>, EdgeFn, EdgeFn) {
     };
     let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Line {
-                origin: p3(r * u.cos(), r * u.sin(), 0.0),
-                dir: v3(0.0, 0.0, 1.0),
-            },
+            Curve3::line(p3(r * u.cos(), r * u.sin(), 0.0), v3(0.0, 0.0, 1.0)),
             v0,
             v1,
             a,
@@ -208,12 +200,12 @@ fn cone_plus_domain_and_the_rectangle_both_measure() {
     };
     let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, v * ca),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: v * sa,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p3(0.0, 0.0, v * ca),
+                v3(0.0, 0.0, 1.0),
+                v * sa,
+                v3(1.0, 0.0, 0.0),
+            ),
             u0,
             u1,
             a,
@@ -222,10 +214,7 @@ fn cone_plus_domain_and_the_rectangle_both_measure() {
     };
     let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Line {
-                origin: p3(0.0, 0.0, 0.0),
-                dir: v3(sa * u.cos(), sa * u.sin(), ca),
-            },
+            Curve3::line(p3(0.0, 0.0, 0.0), v3(sa * u.cos(), sa * u.sin(), ca)),
             v0,
             v1,
             a,
@@ -268,12 +257,12 @@ fn sphere_plus_domain_and_the_rectangle_both_measure() {
     };
     let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, rs * v.sin()),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: rs * v.cos(),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p3(0.0, 0.0, rs * v.sin()),
+                v3(0.0, 0.0, 1.0),
+                rs * v.cos(),
+                v3(1.0, 0.0, 0.0),
+            ),
             u0,
             u1,
             a,
@@ -282,12 +271,12 @@ fn sphere_plus_domain_and_the_rectangle_both_measure() {
     };
     let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, 0.0),
-                axis: v3(u.sin(), -u.cos(), 0.0),
-                radius: rs,
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
+            Curve3::circle(
+                p3(0.0, 0.0, 0.0),
+                v3(u.sin(), -u.cos(), 0.0),
+                rs,
+                v3(u.cos(), u.sin(), 0.0),
+            ),
             v0,
             v1,
             a,
@@ -330,12 +319,12 @@ fn torus_plus_domain_and_the_rectangle_both_measure() {
     };
     let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, r0 * v.sin()),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: rr + r0 * v.cos(),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p3(0.0, 0.0, r0 * v.sin()),
+                v3(0.0, 0.0, 1.0),
+                rr + r0 * v.cos(),
+                v3(1.0, 0.0, 0.0),
+            ),
             u0,
             u1,
             a,
@@ -344,12 +333,12 @@ fn torus_plus_domain_and_the_rectangle_both_measure() {
     };
     let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(rr * u.cos(), rr * u.sin(), 0.0),
-                axis: v3(u.sin(), -u.cos(), 0.0),
-                radius: r0,
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
+            Curve3::circle(
+                p3(rr * u.cos(), rr * u.sin(), 0.0),
+                v3(u.sin(), -u.cos(), 0.0),
+                r0,
+                v3(u.cos(), u.sin(), 0.0),
+            ),
             v0,
             v1,
             a,
@@ -574,10 +563,7 @@ fn a_rim_free_cone_refuses_at_both_doors() {
     };
     let mer = |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Line {
-                origin: p3(0.0, 0.0, 0.0),
-                dir: v3(sa * u.cos(), sa * u.sin(), ca),
-            },
+            Curve3::line(p3(0.0, 0.0, 0.0), v3(sa * u.cos(), sa * u.sin(), ca)),
             v0,
             v1,
             a,
@@ -630,12 +616,12 @@ fn the_rimless_band_measures_the_hemisphere_it_is_written_for() {
     // azimuth `u` and `[π/2, 3π/2]` the half at `u + π`.
     let great = |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, 0.0),
-                axis: v3(u.sin(), -u.cos(), 0.0),
-                radius: rs,
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
+            Curve3::circle(
+                p3(0.0, 0.0, 0.0),
+                v3(u.sin(), -u.cos(), 0.0),
+                rs,
+                v3(u.cos(), u.sin(), 0.0),
+            ),
             v0,
             v1,
             a,
@@ -695,12 +681,12 @@ fn a_lune_on_two_great_circles_is_not_a_rimless_band() {
     };
     let great = |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, 0.0),
-                axis: v3(u.sin(), -u.cos(), 0.0),
-                radius: rs,
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
+            Curve3::circle(
+                p3(0.0, 0.0, 0.0),
+                v3(u.sin(), -u.cos(), 0.0),
+                rs,
+                v3(u.cos(), u.sin(), 0.0),
+            ),
             v0,
             v1,
             a,
@@ -752,12 +738,12 @@ fn the_material_side_gate_reads_a_torus_l_domain_at_every_rotation() {
     };
     let rim = move |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, r0 * v.sin()),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: rr + r0 * v.cos(),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p3(0.0, 0.0, r0 * v.sin()),
+                v3(0.0, 0.0, 1.0),
+                rr + r0 * v.cos(),
+                v3(1.0, 0.0, 0.0),
+            ),
             u0,
             u1,
             a,
@@ -766,12 +752,12 @@ fn the_material_side_gate_reads_a_torus_l_domain_at_every_rotation() {
     };
     let mer = move |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(rr * u.cos(), rr * u.sin(), 0.0),
-                axis: v3(u.sin(), -u.cos(), 0.0),
-                radius: r0,
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
+            Curve3::circle(
+                p3(rr * u.cos(), rr * u.sin(), 0.0),
+                v3(u.sin(), -u.cos(), 0.0),
+                r0,
+                v3(u.cos(), u.sin(), 0.0),
+            ),
             v0,
             v1,
             a,
@@ -836,12 +822,12 @@ fn a_sphere_window_with_a_rim_near_a_pole_is_an_iso_rectangle() {
     fn window<T: geom_core::Decide>(rc: f64) -> Vec<LoopEdge<T>> {
         let rim = |r: f64, u0: f64, u1: f64| {
             edge::<T>(
-                Curve3::Circle {
-                    center: p3(0.0, 0.0, (1.0 - r * r).sqrt()),
-                    axis: v3(0.0, 0.0, 1.0),
-                    radius: T::from_f64(r),
-                    u_ref: v3(1.0, 0.0, 0.0),
-                },
+                Curve3::circle(
+                    p3(0.0, 0.0, (1.0 - r * r).sqrt()),
+                    v3(0.0, 0.0, 1.0),
+                    T::from_f64(r),
+                    v3(1.0, 0.0, 0.0),
+                ),
                 u0,
                 u1,
                 0,
@@ -850,12 +836,12 @@ fn a_sphere_window_with_a_rim_near_a_pole_is_an_iso_rectangle() {
         };
         let meridian = |u: f64, a: f64, b: f64| {
             edge::<T>(
-                Curve3::Circle {
-                    center: p3(0.0, 0.0, 0.0),
-                    axis: v3(u.sin(), -u.cos(), 0.0),
-                    radius: T::from_f64(1.0),
-                    u_ref: v3(u.cos(), u.sin(), 0.0),
-                },
+                Curve3::circle(
+                    p3(0.0, 0.0, 0.0),
+                    v3(u.sin(), -u.cos(), 0.0),
+                    T::from_f64(1.0),
+                    v3(u.cos(), u.sin(), 0.0),
+                ),
                 a,
                 b,
                 0,

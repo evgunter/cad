@@ -52,7 +52,7 @@ read"*).
 
 ## Neighbours
 
-`work/forms/a-creation-forms-held-pick-survives-a-document-swap` is the
+`work/formwords/a-creation-forms-held-pick-survives-a-document-swap` is the
 aliasing half of the same held pick, where the door ADMITS a different
 node of the same id. This row is the refusing half.
 `a-panels-gate-reads-the-previewed-document-while-its-door-reads-the-committed-one`

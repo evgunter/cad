@@ -90,6 +90,23 @@ use crate::sector_shape::{
 };
 use crate::validate::decide;
 
+impl SectorFaceError {
+    /// The split's refusal of `vertex`, whose sector the walk could not
+    /// resolve: a kind the split does not cut, or a cone's apex undecided.
+    pub(crate) fn split_refusal(self, vertex: VertexKey) -> SplitReduceError {
+        match self {
+            Self::Unsupported { face, kind }
+            | Self::Crease { face, kind }
+            | Self::Unplaced { face, kind } => {
+                SplitReduceError::CurvedBooleanUnsupported { face, kind }
+            }
+            Self::ApexUndecided { face, diag } => {
+                SplitReduceError::ApexUndecided { vertex, face, diag }
+            }
+        }
+    }
+}
+
 /// Resolves the sector face for the sector CW-after `he` (module docs:
 /// `face(loop(mate(he)))`) together with its outward normal **at the
 /// base vertex** and whether the surface is a plane.
@@ -133,16 +150,8 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<(FaceKey, VertexFace<T>, bool), SplitReduceError> {
-    let resolved = crate::sector_face::resolve(body, vertex, he, band).map_err(|e| match e {
-        SectorFaceError::Unsupported { face, kind }
-        | SectorFaceError::Crease { face, kind }
-        | SectorFaceError::Unplaced { face, kind } => {
-            SplitReduceError::CurvedBooleanUnsupported { face, kind }
-        }
-        SectorFaceError::ApexUndecided { face, diag } => {
-            SplitReduceError::ApexUndecided { vertex, face, diag }
-        }
-    })?;
+    let resolved =
+        crate::sector_face::resolve(body, vertex, he, band).map_err(|e| e.split_refusal(vertex))?;
     match resolved.carrier {
         SectorCarrier::Plane => Ok((resolved.face, resolved.at_vertex, true)),
         SectorCarrier::Cylinder | SectorCarrier::Cone => {
@@ -199,9 +208,9 @@ pub(super) fn chord<T: Decide>(
         },
     )?;
     match curve.carrier() {
-        geom::Curve3::Line { .. } => Ok((final_vertex, p_final - p_base, None)),
-        geom::Curve3::Circle { .. }
-        | geom::Curve3::Ellipse { .. }
+        geom::Curve3::Line(_) => Ok((final_vertex, p_final - p_base, None)),
+        geom::Curve3::Circle(..)
+        | geom::Curve3::Ellipse(..)
         | geom::Curve3::Spiric { .. }
         | geom::Curve3::Nurbs(_) => {
             let departure =
@@ -253,7 +262,7 @@ pub(crate) fn entry_side<T: Decide, E>(
     far: impl FnOnce(VertexKey) -> Result<PlaneSide, E>,
     band: Band,
 ) -> Result<(Vec3<T>, PlaneSide), EntryFault<E>> {
-    use crate::bound_side::{BoundSide, Reach, Side};
+    use crate::bound_side::{BoundSide, Descent, Reach, Side};
     let (final_vertex, dir, conic_bend) = chord(body, vertex, he).map_err(EntryFault::Walk)?;
     let Some(bend) = conic_bend else {
         return far(final_vertex)
@@ -265,14 +274,14 @@ pub(crate) fn entry_side<T: Decide, E>(
         bend,
     };
     let side = match crate::bound_side::read_plane_side(dir, reach, reference, band) {
-        Ok(BoundSide::Off(Side::Below) | BoundSide::Tangent(Side::Below)) => PlaneSide::Below,
-        Ok(BoundSide::Off(Side::Above) | BoundSide::Tangent(Side::Above)) => PlaneSide::Above,
-        Ok(BoundSide::Rides | BoundSide::Unread) => PlaneSide::On,
-        Err(fault) => {
-            return Err(EntryFault::Undecided(fault.diag().unwrap_or_else(|| {
-                unreachable!("a plane's datum carries no curvature charge to refuse")
-            })));
+        Ok(BoundSide::Off(Side::Below) | BoundSide::Tied(Descent::Leaves(Side::Below))) => {
+            PlaneSide::Below
         }
+        Ok(BoundSide::Off(Side::Above) | BoundSide::Tied(Descent::Leaves(Side::Above))) => {
+            PlaneSide::Above
+        }
+        Ok(BoundSide::Tied(Descent::Rides | Descent::Unresolved(_))) => PlaneSide::On,
+        Err(fault) => return Err(EntryFault::Undecided(fault.diag())),
     };
     Ok((dir, side))
 }

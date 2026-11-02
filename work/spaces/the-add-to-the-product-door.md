@@ -2,13 +2,14 @@
 id: the-add-to-the-product-door
 kind: unit
 title: one Add-to-the-product door, from a viewport pick, a tree row and every product recourse
-status: review
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: M
 branch: spaces/product-door
 refs: [6209]
 pr: 6279
+closed: 2026-11-02
 ---
 
 
@@ -41,3 +42,18 @@ rows place bodies into the world by hand — `story_assembly`'s
 mid-story to place the tower), `instance_authoring::into_world`,
 `tests/common`'s `world_copy` / `world_copy_in`, `asm::store_world_copy`.
 Rewrite the rows that stand for a person's path through the door.
+
+## Closed
+
+PR 6279. `SessionOp::AddToProduct`: a body already in the world (a world
+copy, a world `⊔`) is added as itself; a placement's copy nothing in its
+space reads is moved into the world, and a space deleted only if the
+same history step minted it with that placement; anything else placed by
+the identity bundle and added; a body whose world copy the slot already
+reads refuses `InTheProduct`. Offered on a viewport pick (the copy under
+the pick), a selected tree row, the `EmptyProduct` / `StrandedProduct`
+recourses, `ProductOutsideWorld` (move the stray copy back), and the
+`unused` finding (the viewer's button; editor-core's recourse text
+unchanged). The hand-placement fixtures are retired through the door,
+three kept for rows about a document. Review: single FULL, six MINORs,
+all fixed.

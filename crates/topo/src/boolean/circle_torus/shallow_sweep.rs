@@ -58,12 +58,12 @@ fn p3<T: Real>(a: [f64; 3]) -> Point3<T> {
 
 impl Pose {
     fn carrier<T: Real>(&self) -> geom::Curve3<T> {
-        geom::Curve3::Circle {
-            center: p3(self.center),
-            axis: v3(self.axis),
-            radius: T::from_f64(self.radius),
-            u_ref: v3(self.u_ref),
-        }
+        geom::Curve3::circle(
+            p3(self.center),
+            v3(self.axis),
+            T::from_f64(self.radius),
+            v3(self.u_ref),
+        )
     }
 
     fn torus<T: Real>(&self) -> geom::Surface<T> {

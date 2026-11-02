@@ -358,10 +358,7 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
     if !(residual <= eps_in) {
         return None;
     }
-    let line = Curve3::Line {
-        origin: plus_zero_point(*first),
-        dir: plus_zero(dir),
-    };
+    let line = Curve3::line(plus_zero_point(*first), plus_zero(dir));
     Some((line, residual))
 }
 
@@ -470,12 +467,12 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     if !covers_one_full_turn(curve, center, axis, u_ref) {
         return Ok(None);
     }
-    let circle = Curve3::Circle {
-        center: plus_zero_point(center),
-        axis: plus_zero(axis),
+    let circle = Curve3::circle(
+        plus_zero_point(center),
+        plus_zero(axis),
         radius,
-        u_ref: plus_zero(u_ref),
-    };
+        plus_zero(u_ref),
+    );
     Ok(Some((circle, residual)))
 }
 
@@ -744,12 +741,15 @@ mod tests {
         let curve = rational_circle(0.005, false);
         let CurveRecognition::Promoted {
             curve:
-                Curve3::Circle {
-                    center,
-                    axis,
+                Curve3::Circle(geom::Circle {
+                    frame:
+                        geom::Frame {
+                            center,
+                            axis,
+                            u_ref,
+                        },
                     radius,
-                    u_ref,
-                },
+                }),
             residual,
             kind,
         } = recognize(&curve, EPS_IN)
@@ -773,7 +773,11 @@ mod tests {
     #[test]
     fn c2_winding_survives_the_promotion() {
         let CurveRecognition::Promoted {
-            curve: Curve3::Circle { axis, .. },
+            curve:
+                Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { axis, .. },
+                    ..
+                }),
             ..
         } = recognize(&rational_circle(0.005, true), EPS_IN)
         else {
@@ -979,12 +983,10 @@ mod tests {
             .unwrap();
             let CurveRecognition::Promoted {
                 curve:
-                    Curve3::Circle {
-                        center,
-                        axis,
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, axis, .. },
                         radius: r,
-                        ..
-                    },
+                    }),
                 residual,
                 ..
             } = recognize(&curve, EPS_IN)
@@ -1042,7 +1044,7 @@ mod tests {
         let (a, b) = (Point3::new(0.01, 0.02, 0.03), Point3::new(0.05, 0.02, 0.03));
         let chord = NurbsCurve3::new(knots.clone(), vec![a, b], vec![1.0, 1.0]).unwrap();
         let CurveRecognition::Promoted {
-            curve: Curve3::Line { origin, dir },
+            curve: Curve3::Line(geom::Line { origin, dir }),
             residual,
             kind,
         } = recognize(&chord, EPS_LINE)
@@ -1058,7 +1060,7 @@ mod tests {
         assert!((dir.x - 1.0).abs() < 1e-15, "dir {dir:?}");
         let reversed = NurbsCurve3::new(knots, vec![b, a], vec![1.0, 1.0]).unwrap();
         let CurveRecognition::Promoted {
-            curve: Curve3::Line { dir: rdir, .. },
+            curve: Curve3::Line(geom::Line { dir: rdir, .. }),
             ..
         } = recognize(&reversed, EPS_LINE)
         else {
@@ -1155,7 +1157,7 @@ mod tests {
             }
             let line = |w: f64| match recognize(&carrier(w, w), eps) {
                 CurveRecognition::Promoted {
-                    curve: Curve3::Line { origin, dir },
+                    curve: Curve3::Line(geom::Line { origin, dir }),
                     residual,
                     ..
                 } => (
@@ -1219,7 +1221,7 @@ mod tests {
             "a re-timed interior must not certify at the module band"
         );
         let CurveRecognition::Promoted {
-            curve: Curve3::Line { dir, .. },
+            curve: Curve3::Line(geom::Line { dir, .. }),
             residual,
             ..
         } = recognize(&curve, 0.02)
@@ -1279,7 +1281,7 @@ mod tests {
             )
             .unwrap();
             let CurveRecognition::Promoted {
-                curve: Curve3::Line { origin, dir },
+                curve: Curve3::Line(geom::Line { origin, dir }),
                 residual,
                 ..
             } = recognize(&curve, EPS_LINE)
@@ -1536,12 +1538,10 @@ mod r2_probes {
             let outcome = recognize(&curve, EPS_IN);
             let CurveRecognition::Promoted {
                 curve:
-                    Curve3::Circle {
-                        center,
-                        axis,
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, axis, .. },
                         radius: r,
-                        ..
-                    },
+                    }),
                 residual,
                 ..
             } = outcome

@@ -23,7 +23,7 @@ pub(crate) fn rigid_map() {
 /// members.
 pub(crate) fn judgements(n: usize) {
     #[cfg(debug_assertions)]
-    JUDGEMENTS.with(|c| c.set(c.get().saturating_add(u64::try_from(n).unwrap_or(u64::MAX))));
+    JUDGEMENTS.with(|c| c.set(c.get().saturating_add(n as u64)));
     #[cfg(not(debug_assertions))]
     let _ = n;
 }

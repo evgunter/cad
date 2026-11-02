@@ -131,17 +131,14 @@ fn pole_crossing_three_faces() -> (Body<f64>, [FaceKey; 3]) {
     let r = (1.0 - z * z).sqrt();
     let a = Point3::new(r, 0.0, z);
     let b = Point3::new(-r, 0.0, z);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let great = |axis: Vec3<f64>| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis,
-        radius: 1.0,
-        u_ref: Vec3::new(-r, 0.0, z),
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let great = |axis: Vec3<f64>| {
+        Curve3::circle(Point3::new(0.0, 0.0, 0.0), axis, 1.0, Vec3::new(-r, 0.0, z))
     };
     let mut g = great(Vec3::new(0.0, 1.0, 0.0));
     if g.eval(core::f64::consts::FRAC_PI_2).z < z {
@@ -253,17 +250,14 @@ fn pole_crossing_three_faces_with_seam() -> (Body<f64>, [FaceKey; 3]) {
     let a = Point3::new(r, 0.0, z);
     let b = Point3::new(-r, 0.0, z);
     let s_pole = Point3::new(0.0, 0.0, -1.0);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let great = |axis: Vec3<f64>, u_ref: Vec3<f64>| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis,
-        radius: 1.0,
-        u_ref,
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let great = |axis: Vec3<f64>, u_ref: Vec3<f64>| {
+        Curve3::circle(Point3::new(0.0, 0.0, 0.0), axis, 1.0, u_ref)
     };
     // b -> a over the north pole.
     let mut g = great(Vec3::new(0.0, 1.0, 0.0), Vec3::new(-r, 0.0, z));
@@ -386,7 +380,7 @@ fn a_split_rim_donut_meshes_and_measures() {
         .edges()
         .find(|(_, e)| {
             let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            matches!(c.carrier(), Curve3::Circle { radius, .. } if (*radius - 0.5).abs() > 1e-9)
+            matches!(c.carrier(), Curve3::Circle(geom::Circle { radius, .. }) if (*radius - 0.5).abs() > 1e-9)
         })
         .map(|(k, _)| k)
         .expect("a major-circle rim");

@@ -52,7 +52,7 @@ fn plane_plane_blend_on_a_right_dihedral_is_the_quarter_cylinder() {
     assert_eq!(b.spine_curvature, 0.0, "a straight spine");
     assert!((b.trim_a.1 - r).abs() < 1e-15, "the 90° setback is r");
     assert!((b.trim_b.1 - r).abs() < 1e-15);
-    let Curve3::Line { origin: oa, .. } = b.trim_a.0 else {
+    let Curve3::Line(geom::Line { origin: oa, .. }) = b.trim_a.0 else {
         panic!("a straight trimline");
     };
     assert!(
@@ -242,11 +242,10 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
     assert!((major_radius - s).abs() < 1e-12);
     assert!((minor_radius - r).abs() < 1e-15);
     assert!((b.spine_curvature - 1.0 / s).abs() < 1e-12);
-    let Curve3::Circle {
-        center: ca,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame { center: ca, .. },
         radius: ra,
-        ..
-    } = b.trim_a.0
+    }) = b.trim_a.0
     else {
         panic!("a circular trimline on the plane");
     };
@@ -255,11 +254,10 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
         (b.trim_a.1 - (s - a)).abs() < 1e-12,
         "the plane-side setback is s − a"
     );
-    let Curve3::Circle {
-        center: cb,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame { center: cb, .. },
         radius: rb,
-        ..
-    } = b.trim_b.0
+    }) = b.trim_b.0
     else {
         panic!("a circular trimline on the sphere");
     };
@@ -313,11 +311,10 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         major_radius > minor_radius,
         "the spine is a ring torus, which is what #889's net also checks at rest"
     );
-    let Curve3::Circle {
-        center: ca,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame { center: ca, .. },
         radius: ra,
-        ..
-    } = b.trim_a.0
+    }) = b.trim_a.0
     else {
         panic!("a circular trimline on the plane");
     };
@@ -326,11 +323,10 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         (b.trim_a.1 - (big_r - s)).abs() < 1e-12,
         "the plane-side setback is a − s: the flat face SHRINKS"
     );
-    let Curve3::Circle {
-        center: cb,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame { center: cb, .. },
         radius: rb,
-        ..
-    } = b.trim_b.0
+    }) = b.trim_b.0
     else {
         panic!("a circular trimline on the sphere");
     };

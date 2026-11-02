@@ -884,3 +884,4 @@ E1c waits on the answer.
   - The sphere parallel reads the radius its image turns at near the pole (`polar_read_radius`).
   - Filed closed: `a-lifted-copy-of-a-circle-whose-turn-is-within-the-band-certifies` (check 2 refuses it).
   - Three rows at the 1 s line move to the slow set; base and head measure alike.
+- 2026-11-02 — Filed `the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive` (P2). Since PR 6105's `cylinder_rim_axial` decision (CLEAR's CAVITYDIAG, on this program's ground), m10_3's two-parameter drive refuses every leaf at every ε. Its two rows are pinned, and the decision's symbolic count is re-blessed in sym11, sym_9 and m10_9. (GREEN lane)

@@ -54,10 +54,7 @@ fn r2_a_secant_of_a_cylinder_is_refused_as_a_chart_image_of_it() {
     let err = EdgeCurve::certify(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(keys[0]),
-            carrier: Curve3::Line {
-                origin: q0,
-                dir: (q1 - q0) / len,
-            },
+            carrier: Curve3::line(q0, (q1 - q0) / len),
             param_start: 0.0,
             param_end: len,
         },
@@ -100,10 +97,7 @@ fn r2_the_same_chord_certifies_in_a_plane_that_contains_it() {
     let edge = EdgeCurve::certify(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(keys[0]),
-            carrier: Curve3::Line {
-                origin: q0,
-                dir: (q1 - q0) / len,
-            },
+            carrier: Curve3::line(q0, (q1 - q0) / len),
             param_start: 0.0,
             param_end: len,
         },
@@ -141,10 +135,7 @@ fn r2_the_secant_refusal_is_metric_not_categorical() {
     let outcome = EdgeCurve::certify(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(keys[0]),
-            carrier: Curve3::Line {
-                origin: q0,
-                dir: (q1 - q0) / len,
-            },
+            carrier: Curve3::line(q0, (q1 - q0) / len),
             param_start: 0.0,
             param_end: len,
         },
@@ -199,14 +190,14 @@ fn r2_the_rest_conversion_moves_only_the_description() {
     );
     match (&carrier_before, &at_rest.carrier) {
         (
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: o0,
                 dir: d0,
-            },
-            Curve3::Line {
+            }),
+            Curve3::Line(geom::Line {
                 origin: o1,
                 dir: d1,
-            },
+            }),
         ) => {
             assert!(
                 o0.x == o1.x && o0.y == o1.y && o0.z == o1.z,
@@ -266,10 +257,7 @@ fn r2_the_rest_door_silently_ignores_its_arguments_on_an_at_rest_spec() {
     let (keys, _lookup) = table(vec![unit_cylinder(), unit_cylinder()]);
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::chart(keys[0]),
-        carrier: Curve3::Line {
-            origin: p(1.0, 0.0, 0.0),
-            dir: Vec3::unit_z(),
-        },
+        carrier: Curve3::line(p(1.0, 0.0, 0.0), Vec3::unit_z()),
         param_start: 0.0,
         param_end: 1.0,
     };
@@ -334,10 +322,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
     let derived = EdgeCurve::certify(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(keys[0]),
-            carrier: Curve3::Line {
-                origin: q0,
-                dir: Vec3::unit_x(),
-            },
+            carrier: Curve3::line(q0, Vec3::unit_x()),
             param_start: 0.0,
             param_end: 1.0,
         },
@@ -425,10 +410,7 @@ fn r2_a_param_span_refusal_says_it_is_not_a_sampled_check() {
     let err = EdgeCurve::certify(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(keys[0]),
-            carrier: Curve3::Line {
-                origin: q,
-                dir: Vec3::unit_x(),
-            },
+            carrier: Curve3::line(q, Vec3::unit_x()),
             // A decreasing interval: refused by the ParamSpan gate.
             param_start: 1.0,
             param_end: 0.0,

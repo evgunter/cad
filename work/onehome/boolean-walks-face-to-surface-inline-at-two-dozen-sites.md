@@ -2,11 +2,14 @@
 id: boolean-walks-face-to-surface-inline-at-two-dozen-sites
 kind: issue
 title: The Boolean walks from a face to its surface inline at about two dozen sites, each with its own refusal
-status: open
+status: closed
 opened: 2026-10-14
 priority: P1
 cost: M
 refs: [boolean-join-resolves-germ-face-surfaces-in-three-closures]
+branch: onehome/face-walks
+closed: 2026-11-02
+pr: 6362
 ---
 
 Found by PR 5061's review (Q1), on the sweep of
@@ -77,3 +80,15 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P3 → P1: two dozen inline copies of one walk: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Closed (ONEHOME, 2026-11-02, PR 6362)
+
+The walks have one home each, and the easy call is the right one:
+- `Body::face_surface(face) -> Option<&Surface>`: `None` is a stale key only; a dangling surface link panics.
+- `Body::proven_face_surface(face)`: a kernel-enumerated or recorded key; a miss panics through `proven`, naming the key.
+- `Body::proven_face_edges` / `proven_face_edge_set`: the face → edges walk, moved out of `solid_contain`; it replaces slit's and census's own walks.
+
+One rule: a key the kernel enumerated or recorded panics; only input stays typed (declarations, the public containment, region and readback doors). About 60 sites in topo are routed through these homes, and the private twins are deleted (`chart_region`, `splitting/rules.rs`, slit's `face_halves`, both `edge_set`s, `sectors::tangent_carrier`). FULL review FIX-THEN-MERGE: the first version minted 22 inline panic copies beside `proven`, and a test fixture shaped a production answer. Delta MERGE: no input-reachable panic. Follow-ups:
+- `the-face-walk-units-follow-ups-from-its-review`;
+- `a-faces-loops-are-walked-inline-beside-face-loops-linked` (P1);
+- `face-to-surface-walks-outside-topo-predate-body-face-surface` (P2).

@@ -2,10 +2,11 @@
 id: cone-and-torus-box-extents-read-the-carrier-axis-as-unit-by-prose
 kind: issue
 title: The cone and torus box extents read the carrier's axis (and the torus's u_ref) as unit by prose; the cylinder slab decides it at the read
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: E
+blocked_on: [cover-topo-faces]
 ---
 
 ## Finding
@@ -38,3 +39,7 @@ orthonormal pair, not two independent decisions — an
 `RigidMotion`-shaped witness, which is the larger step. The cone lane
 is fenced in `FaceBoxRule::ConeSlab`'s own docs as another unit's
 jurisdiction; take it with that lane.
+
+## Since PR 6336 (BOXES, 2026-11-02)
+
+The torus half of this row's window bullet is resolved: `torus_window_extent` is gone, and the torus window is the closed form `boxes::torus_rect_extent` over spans, which is exact whatever the lengths of `u_ref` and `axis × u_ref` (its doc). What stands is the cone's axis and the torus tube extent `torus_extent` reading the axis as unit. (BOXES orchestrator)

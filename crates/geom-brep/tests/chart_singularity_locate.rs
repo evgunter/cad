@@ -35,12 +35,12 @@ fn section(n: Vec3<f64>, d: f64) -> Curve3<f64> {
         Vec3::new(1.0, 0.0, 0.0)
     };
     let u_ref = side.cross(n);
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0) + n * d,
-        axis: n,
-        radius: (1.0 - d * d).sqrt(),
-        u_ref: u_ref / u_ref.norm(),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0) + n * d,
+        n,
+        (1.0 - d * d).sqrt(),
+        u_ref / u_ref.norm(),
+    )
 }
 
 /// One closed edge, the whole of `carrier`'s turn.
@@ -178,24 +178,24 @@ fn a_hole_takes_the_pole_out_only_where_it_rings_it() {
 
 /// The meridian circle through `+x` and the poles, `θ = π/2` the north.
 fn meridian_xz() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, -1.0, 0.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// **A lune's poles are its vertices; a great circle's are inside its
 /// edge**, at the parameter of each pole.
 #[test]
 fn poles_at_a_vertex_and_inside_an_edge() {
-    let yz = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(1.0, 0.0, 0.0),
-        radius: 1.0,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let yz = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        1.0,
+        Vec3::new(0.0, 1.0, 0.0),
+    );
     let lune = vec![
         LoopEdge::hand_built(meridian_xz(), -FRAC_PI_2, FRAC_PI_2, true, 0, 1),
         LoopEdge::hand_built(yz, -FRAC_PI_2, FRAC_PI_2, false, 1, 0),
@@ -228,12 +228,12 @@ fn poles_at_a_vertex_and_inside_an_edge() {
 fn a_distance_in_band_is_undecided() {
     let d = 5e-9_f64;
     // Its height off the pole, `d²/2`, is below the unit's rounding.
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: d,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        d,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let located = lies(&unit_sphere(), &[closed(rim, true)], true);
     let Err(Unread::Boundary { distance, .. }) = &located[0].lies else {
         panic!("{:?}", located[0].lies)
@@ -250,12 +250,12 @@ fn a_distance_in_band_is_undecided() {
 /// off it and goes on to the side.
 #[test]
 fn a_sampled_carrier_through_the_pole_places_it_on_the_edge() {
-    let ellipse = |center: Point3<f64>, semi: f64| Curve3::Ellipse {
-        center,
-        axis: Vec3::new(-1.0, 0.0, 0.0),
-        semi_u: semi,
-        semi_v: semi,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
+    let ellipse = |center: Point3<f64>, semi: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(center, Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)),
+            semi,
+            semi,
+        ))
     };
     let through = lies(
         &unit_sphere(),
@@ -298,12 +298,12 @@ fn a_cone_rim_holds_its_apex_on_one_side() {
         half_angle: FRAC_PI_4,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let read = |forward| placed(&lies(&cone, &[closed(rim.clone(), forward)], true));
     assert_eq!(read(true), [(Singularity::Apex, Lies::Outside)], "run east");
     assert_eq!(
@@ -312,18 +312,12 @@ fn a_cone_rim_holds_its_apex_on_one_side() {
         "run west"
     );
     // A generator from the apex: the apex is that loop's vertex.
-    let generator = Curve3::Line {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(1.0, 0.0, 1.0),
-    };
+    let generator = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 1.0));
     let sector = vec![
         LoopEdge::hand_built(generator.clone(), 0.0, 1.0, true, 0, 1),
         LoopEdge::hand_built(rim.clone(), 0.0, PI, true, 1, 2),
         LoopEdge::hand_built(
-            Curve3::Line {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(-1.0, 0.0, 1.0),
-            },
+            Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 1.0)),
             0.0,
             1.0,
             false,
@@ -352,12 +346,12 @@ fn the_cap_reads_alike_at_interval() {
         u_ref: vlift(Vec3::new(1.0, 0.0, 0.0)),
     };
     let z = 0.5_f64;
-    let rim = Curve3::Circle {
-        center: lift(Point3::new(0.0, 0.0, z)),
-        axis: vlift(Vec3::new(0.0, 0.0, 1.0)),
-        radius: i((1.0 - z * z).sqrt()),
-        u_ref: vlift(Vec3::new(1.0, 0.0, 0.0)),
-    };
+    let rim = Curve3::circle(
+        lift(Point3::new(0.0, 0.0, z)),
+        vlift(Vec3::new(0.0, 0.0, 1.0)),
+        i((1.0 - z * z).sqrt()),
+        vlift(Vec3::new(1.0, 0.0, 0.0)),
+    );
     let edges = [LoopEdge::hand_built(rim, i(0.0), i(TAU), true, 0, 0)];
     let corners = traversal_corners(&edges);
     let located = locate(
@@ -419,12 +413,12 @@ fn cone() -> Surface<f64> {
 
 /// The parallel of the cone at height `z`.
 fn parallel(z: f64) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: z.abs(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        z.abs(),
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// **A sliver beside the apex reads it by the sliver's orientation**:
@@ -435,10 +429,8 @@ fn parallel(z: f64) -> Curve3<f64> {
 /// inside its complement.
 #[test]
 fn a_sliver_beside_the_apex_reads_it_by_its_orientation() {
-    let generator = |u: f64| Curve3::Line {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(u.cos(), u.sin(), 1.0),
-    };
+    let generator =
+        |u: f64| Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(u.cos(), u.sin(), 1.0));
     let (u0, u1) = (0.2, 0.2 + FRAC_PI_2);
     for z in [1e-3_f64, 1e-6] {
         for w in [1e-3_f64, 1e-6, 1e-9] {
@@ -471,12 +463,16 @@ fn a_sliver_beside_the_apex_reads_it_by_its_orientation() {
 fn a_sampled_sliver_beside_a_pole_reads_outside_or_undecided() {
     use geom_brep::chart_singularity::SideUnread;
     let delta = 1e-3_f64;
-    let ellipse = |dist: f64| Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(dist.cos(), 0.0, dist.sin()),
-        semi_u: 1.0,
-        semi_v: 1.0,
-        u_ref: Vec3::new(-dist.sin(), 0.0, dist.cos()),
+    let ellipse = |dist: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(dist.cos(), 0.0, dist.sin()),
+                Vec3::new(-dist.sin(), 0.0, dist.cos()),
+            ),
+            1.0,
+            1.0,
+        ))
     };
     let half = 0.05_f64;
     for w in [1e-2_f64, 1e-4, 1e-6] {
@@ -488,12 +484,7 @@ fn a_sampled_sliver_beside_a_pole_reads_outside_or_undecided() {
                 q - Point3::new(0.0, 0.0, 0.0),
             );
             let n = u.cross(v);
-            Curve3::Circle {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis: n / n.norm(),
-                radius: 1.0,
-                u_ref: u,
-            }
+            Curve3::circle(Point3::new(0.0, 0.0, 0.0), n / n.norm(), 1.0, u)
         };
         let ang = |p: Point3<f64>, q: Point3<f64>| {
             let (u, v) = (
@@ -576,13 +567,15 @@ fn a_loop_winding_twice_and_an_unsettled_carrier_are_exempt() {
     // pole outruns the budget.
     let delta = 3e-9;
     let (major, minor) = (1e7, 1.0);
-    let grazing = Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 1.0 + delta - major),
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        semi_u: major,
-        semi_v: minor,
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let grazing = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.0, 0.0, 1.0 + delta - major),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
+        major,
+        minor,
+    ));
     let edge = vec![LoopEdge::hand_built(grazing, -0.5, 0.5, true, 0, 1)];
     let read = lies(&unit_sphere(), &[edge], true);
     assert!(
@@ -606,18 +599,22 @@ fn a_loop_winding_twice_and_an_unsettled_carrier_are_exempt() {
 fn spurs_through_both_poles_leave_their_sides_to_the_rim() {
     use geom_brep::chart_singularity::holds;
     let rim = section(Vec3::new(1.0, 0.0, 0.0), 0.6);
-    let Curve3::Circle { center, u_ref, .. } = rim.clone() else {
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame { center, u_ref, .. },
+        ..
+    }) = rim.clone()
+    else {
         unreachable!()
     };
     let p0 = center + u_ref * 0.8;
     let w = p0 - Point3::new(0.0, 0.0, 0.0);
     let axis = w.cross(Vec3::new(0.0, 0.0, 1.0));
-    let meridian = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: axis / axis.norm(),
-        radius: 1.0,
-        u_ref: w / w.norm(),
-    };
+    let meridian = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        axis / axis.norm(),
+        1.0,
+        w / w.norm(),
+    );
     let face = vec![
         LoopEdge::hand_built(rim, 0.0, TAU, true, 0, 0),
         LoopEdge::hand_built(meridian.clone(), 0.0, FRAC_PI_2, true, 0, 1),

@@ -63,7 +63,10 @@ fn plane_cylinder_reads_one_verdict_at_every_stored_origin() {
     for along in STORED {
         let cyl = cylinder(Point3::new(0.0, 0.0, 1.0), axis, along);
         match plane_cylinder_section(&plane(), &cyl, &Reach::Ball(reach), band()) {
-            Ok(PlaneCylinderSection::TangentLine(geom::Curve3::Line { origin, .. })) => assert!(
+            Ok(PlaneCylinderSection::TangentLine(geom::Curve3::Line(geom::Line {
+                origin,
+                ..
+            }))) => assert!(
                 origin.x.abs() < 1.0 && origin.z.abs() < band().zero(),
                 "stored {along} m along: the ruling is stated beside the reach, on the plane: \
                  {origin:?}"
@@ -103,9 +106,10 @@ fn equal_cylinders_read_one_verdict_in_either_order_at_every_stored_origin() {
             for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
                 let at = format!("stored {along1} m, {along2} m along, ({label})");
                 match cylinder_cylinder_section(a, b, &reach, band()) {
-                    Ok(EqualCylinderSection::TangentLine(geom::Curve3::Line {
-                        origin, ..
-                    })) => {
+                    Ok(EqualCylinderSection::TangentLine(geom::Curve3::Line(geom::Line {
+                        origin,
+                        ..
+                    }))) => {
                         assert!(
                             (origin - Point3::new(0.0, 1.0, 0.0)).norm() < 1e-6,
                             "{at}: the ruling is stated beside the reach: {origin:?}"
@@ -239,7 +243,11 @@ fn cone_cylinder_reads_one_verdict_at_every_stored_origin() {
         match cone_cylinder_section(&cone, &cyl, 1.0, band()) {
             Ok(ConeCylinderSection::CoaxialCircles { c1, c2 }) => {
                 for (c, want) in [(c1, station), (c2, -station)] {
-                    let geom::Curve3::Circle { center, .. } = c else {
+                    let geom::Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, .. },
+                        ..
+                    }) = c
+                    else {
                         panic!("stored {along} m along: a circle");
                     };
                     assert!(

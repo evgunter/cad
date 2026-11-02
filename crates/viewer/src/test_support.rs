@@ -346,12 +346,7 @@ pub fn mated(
         applied.doc
     } else {
         let held = crate::session::held_bundle(&applied.doc, placement);
-        written(
-            &applied.doc,
-            placement,
-            crate::session::valued(held, values),
-            tol,
-        )
+        written(&applied.doc, placement, valued(held, values), tol)
     };
     (doc, pncad::document::MateRef::new(placement, id))
 }
@@ -466,6 +461,56 @@ pub fn square_profile(
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     inserted(doc, square(side), tol)
+}
+
+/// The clearance scene's blocks' side, in x and y ([`two_blocks_apart`]).
+pub const CLEARANCE_SIDE: f64 = 0.02;
+/// Their height.
+pub const CLEARANCE_HEIGHT: f64 = 0.01;
+/// The gap between their facing walls, along x.
+pub const CLEARANCE_GAP: f64 = 0.01;
+
+/// **Two blocks side by side, [`CLEARANCE_GAP`] apart along x**, each a
+/// [`CLEARANCE_SIDE`] square extruded [`CLEARANCE_HEIGHT`], labelled
+/// `left` and `right`, and each placed into the world at the identity
+/// ([`placed`]) — two parts as they stand, the scene a clearance row
+/// is about. Answers the document, each block's extrude, and each
+/// block's world placement.
+pub fn two_blocks_apart(tol: Tol) -> (Doc<ProfileProgram>, [RecipeNodeId; 2], [RecipeNodeId; 2]) {
+    let mut doc = Doc::empty_derived("two-blocks-apart", tol);
+    let mut blocks = [RecipeNodeId::WORLD; 2];
+    let mut copies = [RecipeNodeId::WORLD; 2];
+    for (i, (x, label)) in [(0.0, "left"), (CLEARANCE_SIDE + CLEARANCE_GAP, "right")]
+        .into_iter()
+        .enumerate()
+    {
+        let (with, profile) = inserted(
+            &doc,
+            rectangle([x, 0.0], CLEARANCE_SIDE, CLEARANCE_SIDE),
+            tol,
+        );
+        let (with, block) = inserted(
+            &with,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(CLEARANCE_HEIGHT),
+            },
+            tol,
+        );
+        let (with, _) = edited(
+            &with,
+            DocEdit::SetLabel {
+                node: block,
+                label: Some(pncad::document::Label::new(label).expect("a label")),
+            },
+            tol,
+        );
+        let (with, copy) = placed(&with, block, tol);
+        doc = with;
+        blocks[i] = block;
+        copies[i] = copy;
+    }
+    (doc, blocks, copies)
 }
 
 /// The boss-on-a-face scene's block: 40 × 20 × 10 mm, centred on the
@@ -936,4 +981,69 @@ pub fn unclosable_tips() -> Vec<TipState> {
                 && crate::sketch::admits_at(Some(state), Verb::LineTo).is_err()
         })
         .collect()
+}
+
+/// **A row of `count` copies of `body`** (D10 `[repetition]`): a fresh
+/// index `k = index(count)` and one placement of `body` in its own space
+/// slid `scalar(k)·pitch` along `axis` ([`pncad::pattern::linear_pattern`]).
+/// Answers the document and the family's placement.
+pub fn row_of_copies(
+    doc: &Doc<ProfileProgram>,
+    body: impl Into<pncad::document::Operand>,
+    count: i64,
+    (axis, pitch): (pncad::document::TargetAxis, f64),
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let index = crate::combine::fresh_index(doc);
+    let declared = pncad::document::apply(
+        doc,
+        &pncad::pattern::index_decl(index.clone(), Formula::count(count), None),
+        tol,
+    )
+    .expect("an index declares")
+    .doc;
+    let body = body.into();
+    let space = declared
+        .operand_space(&body)
+        .unwrap_or(pncad::document::VarId::WORLD);
+    let row = pncad::pattern::linear_pattern(
+        &index,
+        pncad::document::BodyRead::plain(body),
+        pncad::document::Operand::Var(space),
+        &[(axis, len(pitch))],
+    )
+    .expect("a length pitch");
+    inserted(&declared, row, tol)
+}
+
+/// **`held` with `values` written over it**: each
+/// value of `held` on a freedom `values` sets takes that number, keeping
+/// its id; a freedom `values` sets that `held` holds no value on is
+/// appended, for the door to refuse as the bundle's own
+/// ([`pncad::document::MateFault::Overconstrained`]).
+fn valued(
+    held: Vec<pncad::document::Constraint<Formula>>,
+    values: Vec<(pncad::document::Coord, Formula)>,
+) -> Vec<pncad::document::Constraint<Formula>> {
+    use pncad::document::{Constraint, ConstraintId, Value};
+    let mut values = values;
+    let mut bundle: Vec<Constraint<Formula>> = held
+        .into_iter()
+        .map(|c| {
+            let set = c
+                .value()
+                .and_then(|v| values.iter().position(|(coord, _)| *coord == v.coord));
+            match set {
+                Some(at) => {
+                    let (coord, by) = values.remove(at);
+                    Constraint::of_value(c.id, Value { coord, by })
+                }
+                None => c,
+            }
+        })
+        .collect();
+    bundle.extend((1..).zip(values).map(|(i, (coord, by))| {
+        Constraint::of_value(ConstraintId::placeholder(i), Value { coord, by })
+    }));
+    bundle
 }

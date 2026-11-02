@@ -198,7 +198,7 @@ pub(super) fn walk<P: crate::ProfilePayload>(
             Some(node)
                 if !matches!(
                     node,
-                    Node::World | Node::Measure { .. } | Node::Assertion { .. }
+                    Node::World | Node::Measure { .. } | Node::Assertion(_)
                 ) =>
             {
                 return Ok(Walk {

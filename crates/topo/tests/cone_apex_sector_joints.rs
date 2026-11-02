@@ -52,12 +52,7 @@ fn sector<T: Real + AtRestPolicy>(alpha: f64) -> Result<Body<T>, String> {
             tol,
         )
         .map_err(|e| format!("mev ruling {e:?}"))?;
-    let rim = Curve3::Circle {
-        center: p(0.0, 0.0, h),
-        axis: v(0.0, 0.0, 1.0),
-        radius: f(r),
-        u_ref: v(1.0, 0.0, 0.0),
-    };
+    let rim = Curve3::circle(p(0.0, 0.0, h), v(0.0, 0.0, 1.0), f(r), v(1.0, 0.0, 0.0));
     let arc = body
         .mev(
             MevSite::Fan {
@@ -92,7 +87,7 @@ fn ruling_at<T: Real + AtRestPolicy + Bounds>(body: &Body<T>, slant: f64) -> (to
             let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
                 return None;
             };
-            let Curve3::Line { .. } = curve.carrier() else {
+            let Curve3::Line(_) = curve.carrier() else {
                 return None;
             };
             let end = curve.carrier().eval(curve.params().1);
@@ -167,12 +162,8 @@ fn truncated<T: Real + AtRestPolicy>(alpha: f64, inner: f64) -> Result<Body<T>, 
     let (r_in, h_in, r_out, h_out) = (inner * s, inner * c, SL * s, SL * c);
     let (a1, a2) = (p(r_in, 0.0, h_in), p(r_out, 0.0, h_out));
     let (b1, b2) = (p(-r_in, 0.0, h_in), p(-r_out, 0.0, h_out));
-    let rim = |h: f64, r: f64| Curve3::Circle {
-        center: p(0.0, 0.0, h),
-        axis: v(0.0, 0.0, 1.0),
-        radius: f(r),
-        u_ref: v(1.0, 0.0, 0.0),
-    };
+    let rim =
+        |h: f64, r: f64| Curve3::circle(p(0.0, 0.0, h), v(0.0, 0.0, 1.0), f(r), v(1.0, 0.0, 0.0));
     let mut body = Body::<T>::new();
     let seed = body.mvfs(a1, true).map_err(|e| format!("mvfs {e:?}"))?;
     body.set_face_surface(

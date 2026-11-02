@@ -305,12 +305,11 @@ fn kind_arm(a: geom::SurfaceKind, b: geom::SurfaceKind) -> KindArm {
     }
 }
 
-/// **A face's surface, with its key in `body`**: the join's walk from a
-/// face to its surface, whether the face is one a germ was recorded
-/// against or one a segment's halves lie on now. It is the crate's one
-/// walk ([`crate::readback::carrier_surface`]), its refusal a desync: a
-/// live face's surface key resolves (tier 1), so the one refusal is a
-/// face key that no longer resolves.
+/// **A face's surface, with its key in `body`, as the join refuses it**:
+/// [`Body::face_surface`] (through [`crate::readback::carrier_surface`],
+/// which reads the key beside it), whether the face is one a germ was
+/// recorded against or one a segment's halves lie on now. Its one
+/// refusal, a face key that no longer resolves, is a desync.
 ///
 /// That no other walk reads a surface in this file is held by
 /// `face_surface_tests::the_join_walks_to_a_faces_surface_in_one_place`,
@@ -1494,8 +1493,14 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => &gb,
                 Operand::B => &ga,
             };
-            let (geom::Curve3::Circle { center, axis, .. }
-            | geom::Curve3::Ellipse { center, axis, .. }) = along.carrier
+            let (geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, axis, .. },
+                ..
+            })
+            | geom::Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { center, axis, .. },
+                ..
+            })) = along.carrier
             else {
                 return Err(no_arm());
             };
@@ -1532,11 +1537,12 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 // depends on ([`AuxDatum::Radical`]).
                 KindArm::Spheres => {
                     let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
-                        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
-                            center,
-                            axis,
-                            ..
-                        })) => (center, germ_normal(germ_reach(&red.a)?, center, axis)?),
+                        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
+                            geom::Circle {
+                                frame: geom::Frame { center, axis, .. },
+                                ..
+                            },
+                        ))) => (center, germ_normal(germ_reach(&red.a)?, center, axis)?),
                         Ok(_) => {
                             return Err(desync(
                                 "germ pair's sphere×sphere section is not a circle",
@@ -1665,9 +1671,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             sa.plan(&red.a, a_halves, seg_a)?,
             sb.plan(&red.b, b_halves, seg_b)?,
         );
-        let line_on = along_edge_conic((&red.a, &red.b), &germ)?.and_then(|along| {
-            matches!(along.carrier, geom::Curve3::Line { .. }).then_some(along.on)
-        });
+        let line_on = along_edge_conic((&red.a, &red.b), &germ)?
+            .and_then(|along| (!along.carrier.is_curved()).then_some(along.on));
         let along_line = |on: Operand| line_on == Some(on);
         let (curve_a, curve_b) = match lane {
             None => (
@@ -2805,11 +2810,15 @@ fn germ_section_loops<T: Decide>(
     // test a curved edge.
     if let Some(along) = along_edge_conic((a, b), germ)? {
         return match along.carrier {
-            geom::Curve3::Line { .. } => Ok(None),
-            geom::Curve3::Circle { center, axis, .. }
-            | geom::Curve3::Ellipse { center, axis, .. } => {
-                Ok(Some(SectionLoops::conic((center, axis))))
-            }
+            geom::Curve3::Line(_) => Ok(None),
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, axis, .. },
+                ..
+            })
+            | geom::Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { center, axis, .. },
+                ..
+            }) => Ok(Some(SectionLoops::conic((center, axis)))),
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                 Err(BooleanError::EdgeCarrierUnsupported {
                     operand: along.on,
@@ -3091,7 +3100,7 @@ fn rulings_are_straight<T: geom_core::Real>(
     for (curve, operand, face) in sides {
         match curve.spec().map(|spec| &spec.carrier) {
             None => {}
-            Some(geom::Curve3::Line { .. }) => {
+            Some(carrier) if !carrier.is_curved() => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
@@ -3844,11 +3853,10 @@ fn conic_section_frame_at<T: Decide>(
                 (sb, sa)
             };
             return match geom_brep::plane_sphere_section(plane_s, sph_s, band) {
-                Ok(geom_brep::PlaneSphereSection::Circle(geom::Curve3::Circle {
-                    center,
-                    axis,
+                Ok(geom_brep::PlaneSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { center, axis, .. },
                     ..
-                })) => Ok(Some((center, axis))),
+                }))) => Ok(Some((center, axis))),
                 Ok(geom_brep::PlaneSphereSection::Circle(_)) => Err(FrameError::Desync(
                     "plane×sphere classification carried a non-circle",
                 )),
@@ -3880,11 +3888,12 @@ fn conic_section_frame_at<T: Decide>(
         // pair's radical plane.
         (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
             return match geom_brep::sphere_sphere_section(sa, sb, band) {
-                Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
-                    center,
-                    axis,
-                    ..
-                })) => Ok(Some((center, axis))),
+                Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
+                    geom::Circle {
+                        frame: geom::Frame { center, axis, .. },
+                        ..
+                    },
+                ))) => Ok(Some((center, axis))),
                 Ok(geom_brep::SphereSphereSection::Circle(_)) => Err(FrameError::Desync(
                     "sphere×sphere classification carried a non-circle",
                 )),
@@ -3945,12 +3954,16 @@ fn conic_section_frame_at<T: Decide>(
         }
     };
     match section {
-        Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
-        | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse {
-            center,
-            axis,
+        Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
             ..
-        })) => Ok(Some((center, axis))),
+        })))
+        | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse(
+            geom::Ellipse {
+                frame: geom::Frame { center, axis, .. },
+                ..
+            },
+        ))) => Ok(Some((center, axis))),
         Ok(
             geom_brep::PlaneCylinderSection::ParallelLines { .. }
             | geom_brep::PlaneCylinderSection::TangentLine(_),
@@ -4073,14 +4086,14 @@ fn pk_germ_frame<T: Decide>(
     };
     match geom_brep::plane_cone_section(plane, cone, &reach, band) {
         Ok(
-            geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse {
-                center, axis, ..
-            })
-            | geom_brep::PlaneConeSection::AxisNormalCircle(geom::Curve3::Circle {
-                center,
-                axis,
+            geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { center, axis, .. },
                 ..
-            }),
+            }))
+            | geom_brep::PlaneConeSection::AxisNormalCircle(geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, axis, .. },
+                ..
+            })),
         ) => Ok(Some((center, axis))),
         Ok(geom_brep::PlaneConeSection::ApexLinePair { .. }) => Ok(None),
         Ok(
@@ -4169,7 +4182,10 @@ fn pt_germ_frame<T: Decide>(
     };
     let carried = || FrameError::Desync("plane×torus classification carried another carrier");
     let circle = |curve: geom::Curve3<T>| match curve {
-        geom::Curve3::Circle { center, axis, .. } => Ok(SectionLoop {
+        geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
+            ..
+        }) => Ok(SectionLoop {
             center,
             axis,
             ball: None,
@@ -4309,7 +4325,10 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
     match geom_brep::cylinder_cylinder_section(sa, sb, &reach.ball(), band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { e1, e2, nodes, .. }) => {
             let plane = |e: &geom::Curve3<T>| match *e {
-                geom::Curve3::Ellipse { center, axis, .. } => Ok((center, axis)),
+                geom::Curve3::Ellipse(geom::Ellipse {
+                    frame: geom::Frame { center, axis, .. },
+                    ..
+                }) => Ok((center, axis)),
                 _ => Err(BooleanError::JoinDesync {
                     what: "an equal cylinder pair's section ellipse is no ellipse",
                 }),
@@ -4397,10 +4416,17 @@ fn intersecting_cylinder_axes<T: Decide>(
     let e = match geom_brep::cylinder_cylinder_section(sa, sb, &reach.ball(), band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { e1, e2, .. }) => {
             let (
-                geom::Curve3::Ellipse {
-                    center, axis: n1, ..
-                },
-                geom::Curve3::Ellipse { axis: n2, .. },
+                geom::Curve3::Ellipse(geom::Ellipse {
+                    frame:
+                        geom::Frame {
+                            center, axis: n1, ..
+                        },
+                    ..
+                }),
+                geom::Curve3::Ellipse(geom::Ellipse {
+                    frame: geom::Frame { axis: n2, .. },
+                    ..
+                }),
             ) = (e1, e2)
             else {
                 return Err(FrameError::Desync(
@@ -5856,12 +5882,12 @@ fn loop_roles(
         }
         (Reading::Side(o), _) => Ok(in_first(o, outer, ring)),
         (Reading::Undecided(_), Reading::Side(r)) => Ok(in_first(r, ring, outer)),
-        // One ranking over both loops' witnesses ([`crate::ray_walk::Evidence`]):
+        // One ranking over both loops' witnesses ([`geom_brep::ladder::Evidence`]):
         // a limit is named, an in-band reading is not (it is about one
         // point), so both of those and an empty one read undecided.
         (Reading::Undecided(o), Reading::Undecided(r)) => Err(match o.kept.then(r.kept).ranked() {
-            crate::ray_walk::Ranked::Blocked(e) => BooleanError::Containment(e),
-            crate::ray_walk::Ranked::InBand(_) | crate::ray_walk::Ranked::Neither => {
+            geom_brep::ladder::Ranked::Blocked(e) => BooleanError::Containment(e),
+            geom_brep::ladder::Ranked::InBand(_) | geom_brep::ladder::Ranked::Neither => {
                 BooleanError::from(SplitJoinError::SectionLoopUndecided { face })
             }
         }),
@@ -6727,13 +6753,15 @@ mod frame_dispatch_tests {
     ) -> (crate::Body<f64>, crate::entity::FaceKey, Vec<Point3<f64>>) {
         let tol = Tol::witness();
         let (s, c) = phi.sin_cos();
-        let carrier = geom::Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(-s, 0.0, c),
-            semi_u: 1.0 / c,
-            semi_v: 1.0,
-            u_ref: Vec3::new(c, 0.0, s),
-        };
+        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(-s, 0.0, c),
+                Vec3::new(c, 0.0, s),
+            ),
+            1.0 / c,
+            1.0,
+        ));
         let (t0, t1) = (
             core::f64::consts::FRAC_PI_2 - delta,
             core::f64::consts::FRAC_PI_2 + delta,
@@ -7044,12 +7072,12 @@ mod frame_dispatch_tests {
     #[test]
     fn a_face_at_one_station_is_cut_across_the_axis_in_the_rims_frame() {
         let mut body = crate::Body::<f64>::new();
-        let carrier = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let carrier = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
         body.set_face_surface(
             seed.face,
@@ -7356,7 +7384,11 @@ mod frame_dispatch_tests {
                 panic!("{deg}°: the table constructs the ellipses");
             };
             for (ellipse, want) in [(&e1, Branch::Positive), (&e2, Branch::Negative)] {
-                let geom::Curve3::Ellipse { axis, .. } = *ellipse else {
+                let geom::Curve3::Ellipse(geom::Ellipse {
+                    frame: geom::Frame { axis, .. },
+                    ..
+                }) = *ellipse
+                else {
                     panic!("{deg}°: an ellipse carrier");
                 };
                 for k in 0..12 {
@@ -7523,13 +7555,16 @@ mod frame_dispatch_tests {
             for sign in [1.0_f64, -1.0] {
                 let pinch = p + n * (sign * r);
                 for (name, e) in [("e1", &e1), ("e2", &e2)] {
-                    let geom::Curve3::Ellipse {
-                        center,
-                        axis,
+                    let geom::Curve3::Ellipse(geom::Ellipse {
+                        frame:
+                            geom::Frame {
+                                center,
+                                axis,
+                                u_ref,
+                            },
                         semi_u,
                         semi_v,
-                        u_ref,
-                    } = *e
+                    }) = *e
                     else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");
                     };
@@ -7963,16 +7998,13 @@ mod radical_plane_rows {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = |n: u64| FaceKey::from(KeyData::from_ffi(n));
         let (fa, fb) = (face(3), face(7));
-        let line = geom::Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        };
-        let circle = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let (s1, s2) = Default::default();
         let witness = Point3::new(0.0, 0.0, 0.5);
         let spec = |description, carrier: &geom::Curve3<f64>| geom_brep::EdgeCurveSpec {
@@ -8536,10 +8568,16 @@ mod face_surface_tests {
     #[test]
     fn the_join_walks_to_a_faces_surface_in_one_place() {
         let code = test_utils::source::code_only(include_str!("join.rs"));
-        let reads: Vec<usize> = ["get_surface(", "face_surface_linked(", "carrier_surface("]
-            .iter()
-            .flat_map(|needle| code.match_indices(needle).map(|(at, _)| at))
-            .collect();
+        let reads: Vec<usize> = [
+            "get_surface(",
+            ".face_surface(",
+            "proven_face_surface(",
+            "face_surface_linked(",
+            "carrier_surface(",
+        ]
+        .iter()
+        .flat_map(|needle| code.match_indices(needle).map(|(at, _)| at))
+        .collect();
         let homes: Vec<usize> = code
             .match_indices("fn face_surface<")
             .map(|(at, _)| at)

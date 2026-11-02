@@ -1217,10 +1217,16 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
         asm::where_b_stood(Frame::translation([0.05, 0.0, 0.0])).translation
     );
 
-    // Never persisted: save over the file, reopen, probe gone.
+    // Kept beside the document (IDENTITY DI5, `viewer::layout`): save
+    // over the file, reopen, the committed probe is drawn where it was.
+    let committed = *crate::common::asm::frame_of(&session, bench.post_b).expect("committed");
     session.perform(SessionOp::Save(bench.asm_path.clone()));
     let reopened = asm::open_bench(&bench, tol);
-    assert!(crate::common::asm::frame_of(&reopened, bench.post_b).is_none());
+    assert_eq!(
+        crate::common::asm::frame_of(&reopened, bench.post_b).copied(),
+        Some(committed),
+        "the committed probe reopens"
+    );
 }
 
 #[test]
@@ -1301,8 +1307,8 @@ fn a_mate_that_moves_the_copy_discards_the_probe_value() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        3,
-        "the re-target, the mate and its values: {:?}",
+        2,
+        "the re-target, and the bundle written whole with the mate and its values: {:?}",
         outcome.committed
     );
     let [superseded] = &outcome.withdrawn.superseded[..] else {

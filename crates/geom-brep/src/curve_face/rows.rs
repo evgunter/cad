@@ -21,20 +21,15 @@ fn band() -> Band {
 
 fn line(origin: [f64; 3], dir: [f64; 3]) -> Curve3<f64> {
     let [x, y, z] = dir;
-    Curve3::Line {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        dir: Vec3::new(x, y, z).normalize(),
-    }
+    Curve3::line(
+        Point3::new(origin[0], origin[1], origin[2]),
+        Vec3::new(x, y, z).normalize(),
+    )
 }
 
 /// The unit circle about the origin in `z = 0`, wound about `axis`.
 fn unit_circle(axis: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::origin(),
-        axis,
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    }
+    Curve3::circle(Point3::origin(), axis, 1.0, Vec3::unit_x())
 }
 
 /// The quarter disc's boundary carriers, in walk order: the `x` axis
@@ -192,22 +187,20 @@ fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
     let band = Band::linear(geom_core::Tol::witness()).unwrap();
     let z = band.zero();
     for ratio in [100.0, 1e3] {
-        let thin = Curve3::Ellipse {
-            center: Point3::new(0.2, -0.1, 0.4),
-            axis: Vec3::unit_z(),
-            semi_u: ratio,
-            semi_v: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let thin = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(0.2, -0.1, 0.4), Vec3::unit_z(), Vec3::unit_x()),
+            ratio,
+            1.0,
+        ));
         let swept = Span::new(&thin, (0.5, 2.5));
         for t in [0.9, 1.3, 2.1] {
             let (p, d) = thin.ders1(t);
             let normal = Vec3::unit_z().cross(d).normalize();
             let vertex = p + normal * (0.5 * z);
-            let leaving = Curve3::Line {
+            let leaving = Curve3::Line(geom::Line {
                 origin: vertex,
                 dir: normal,
-            };
+            });
             let edges = [(vertex, Span::new(&leaving, (0.0, 1.0)))];
             match boundary(&swept, &edges, band) {
                 Ok(Boundary::Meets { t: at, edge: 0, .. }) => {
@@ -224,13 +217,11 @@ mod review_r2 {
     use super::*;
 
     fn ellipse(axis: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Ellipse {
-            center: Point3::origin(),
-            axis,
-            semi_u: 3.0,
-            semi_v: 1.0,
-            u_ref: Vec3::unit_x(),
-        }
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), axis, Vec3::unit_x()),
+            3.0,
+            1.0,
+        ))
     }
 
     /// An elliptic arc's boundary: the arc, then its chord back.
@@ -333,13 +324,11 @@ mod review_r2 {
     /// A circle-as-ellipse (equal semi-axes) arc on the rim's arc.
     #[test]
     fn a_round_ellipse_on_the_rim_arc() {
-        let round = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            semi_u: 1.0,
-            semi_v: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let round = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            1.0,
+            1.0,
+        ));
         let along = read(&round, (0.2, 1.2));
         let rest = read(&round, (FRAC_PI_2, 2.0 * PI));
         eprintln!("round along {along:?}; rest {rest:?}");

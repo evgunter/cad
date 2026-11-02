@@ -1143,13 +1143,10 @@ fn world_carrier<T: Decide + Bounds>(
     }
 }
 
-/// A face's own surface description.
+/// **A face's surface, as this module refuses it**: [`Body::face_surface`],
+/// a stale face key (the caller's argument) [`ChartRegionError::Corrupt`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
-    let key = body
-        .get_face(face)
-        .ok_or(ChartRegionError::Corrupt)?
-        .surface;
-    body.get_surface(key).ok_or(ChartRegionError::Corrupt)
+    body.face_surface(face).ok_or(ChartRegionError::Corrupt)
 }
 
 /// A face's plane description as `(origin, unit normal)`; the CHART
@@ -2422,19 +2419,13 @@ fn declared_chart<T: Decide + Bounds>(
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
-    let key_a = body_a
-        .get_face(face_a)
-        .ok_or(ChartRegionError::Corrupt)?
-        .surface;
-    let key_b = body_b
-        .get_face(face_b)
-        .ok_or(ChartRegionError::Corrupt)?
-        .surface;
-    let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
-    if std::ptr::eq(body_a, body_b) && key_a == key_b {
+    let fa = body_a.get_face(face_a).ok_or(ChartRegionError::Corrupt)?;
+    let fb = body_b.get_face(face_b).ok_or(ChartRegionError::Corrupt)?;
+    let s_a = body_a.face_surface_linked(face_a, fa);
+    if std::ptr::eq(body_a, body_b) && fa.surface == fb.surface {
         return Ok(s_a.clone());
     }
-    let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
+    let s_b = body_b.face_surface_linked(face_b, fb);
     if surface_bits_equal(s_a, s_b) {
         Ok(s_a.clone())
     } else {
@@ -4850,13 +4841,15 @@ mod tests {
         // sinusoid Harmonic (pa's v channel = 0.4·cos t).
         let k: f64 = 0.4;
         let major_len = (1.0 + k.powi(2)).sqrt();
-        let ellipse = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: Vec3::new(-k, 0.0, 1.0).normalize(),
-            semi_u: major_len,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, k).normalize(),
-        };
+        let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(-k, 0.0, 1.0).normalize(),
+                Vec3::new(1.0, 0.0, k).normalize(),
+            ),
+            major_len,
+            1.0,
+        ));
         let surface = cyl_surface(1.0);
         let pcurve = geom_brep::chart_pcurve(&ellipse, &surface, band()).unwrap();
         let Some((_, pa, _, _)) = pcurve.harmonic_form() else {

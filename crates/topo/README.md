@@ -25,7 +25,7 @@ feeds a decision, every walk is bounded.
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `glued_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
 | Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves.rs` (`loop_windings`) |
-| The clearance engine's body-level half | `src/clearance.rs` (`Side`, `Sweep`, `min_separation`, `Candidate`, `EngineRefusal`): carrier windows and the cell subdivision between two sets of faces, the `separation ≥ c` trichotomy with a caller's witness verifier, and the certified minimum-separation bracket |
+| The clearance engine's body-level half | `src/clearance.rs` (`Side`, `Sweep`, `Candidate`, `Enclosure`, `EngineRefusal`, `min_separation`): carrier windows and the cell subdivision between two sets of faces, one fused sweep reading a pair against a lower bound, an upper bound or both (a band) with a caller's pair verifier, and the certified minimum-separation bracket the sweep suites read beside it |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
 | Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, a glued slit's two edges merged across the sliver between them, and a face closed across the strut a slit's two edges leave where the result drops both walls), `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
@@ -133,6 +133,18 @@ side clears only
   other's greatest, each bounded through rings and segments that cover
   the face or its convex hull (`census::depth_gap`): the nested walls,
   bores and plugs no direction separates, or
+- for two planar faces, where each meets the other's plane, read in
+  that plane to the band's Zero (`census::in_plane`): on one carrier
+  the Door 1 reading decides Zero, every edge of one apart from every
+  edge of the other along a direction and a vertex of every loop of
+  each placed definitely `Out` of the other; or, one face standing on
+  the other's plane, none of it decided below, its arcs definitely
+  above and its slope there decided past sin θ = ½, each of its line
+  edges with an end on that plane apart from every edge of the other
+  face and each such end placed `Out` of it, which puts its section
+  within twice the zero threshold of those edges, inside the pads: a
+  block in a plate's reflex notch, its base in the plate top's plane
+  and its walls standing on it, which no direction or depth parts, or
 - where the pair meets, by the touch analysis, which reads planar faces,
   and a sphere or cylinder face holding the touch point strictly inside
   it, with nothing else of its solid there, as its carrier's side
@@ -665,12 +677,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    whether it is joinable is undecided, refuses too, with the
    tighten-the-tolerance recourse: a size the run's ε cannot tell from
    a pole or apex), **chart singularities as vertices** (every sphere
-   pole and cone apex in a face's closure is a vertex of it, read off
-   the face's region by `geom_brep::chart_singularity::locate`, the
-   reading STEP import normalizes by; one in the interior or inside an
-   edge is `ChartSingularityNotAVertex`, and one whose distance to the
-   boundary is in band, or whose side of a loop its reading cannot clear
-   of its own error bound, is `ChartSingularityUndecided`; and every wrap
+   pole and cone apex in a face's closure is a vertex of it, placed on
+   the boundary by `geom_brep::chart_singularity::place_on_boundary`,
+   the reading STEP import normalizes by, and in the interior by the
+   face's point-in-face door; one in the interior or inside an edge is
+   `ChartSingularityNotAVertex`, and one whose distance to the boundary
+   is in band, or whose side the door reads in band, is
+   `ChartSingularityUndecided`; and every wrap
    edge's tip lies on its face's chart singularity, read at the joint
    between the edge's two halves by the incidence the loop walk resets
    that joint by, `WrapTipOffChartSingularity`,

@@ -17,13 +17,15 @@ use geom_core::{Band, Bounds, Interval, Point3, Real, SpanLocate, Vec3};
 const TAU: f64 = core::f64::consts::TAU;
 
 fn ellipse(a: f64, b: f64) -> Curve3<f64> {
-    Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: a,
-        semi_v: b,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        a,
+        b,
+    ))
 }
 
 fn spiric(major: f64, minor: f64, offset: f64) -> Curve3<f64> {

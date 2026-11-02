@@ -676,7 +676,7 @@ fn segment_reach(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
 /// within `e + bent` of the line. `false` for any other edge.
 fn on_the_line(spec: &EdgeSpec, ends: (Point3<f64>, Point3<f64>), bent: f64, eps_in: f64) -> bool {
     let hull: Vec<Point3<f64>> = match spec.carrier {
-        Curve3::Line { .. } => vec![spec.carrier.eval(spec.t0), spec.carrier.eval(spec.t1)],
+        Curve3::Line(_) => vec![spec.carrier.eval(spec.t0), spec.carrier.eval(spec.t1)],
         Curve3::Nurbs(ref c) if c.knot_values().domain() == (spec.t0, spec.t1) => {
             c.control().to_vec()
         }
@@ -759,7 +759,7 @@ fn piece_box(
             let p = lifted?.span_enclosure(a, b)?;
             proper([p.x, p.y, p.z])
         }
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             let i = |x: f64| Interval::from_bounds(x, x);
             let t = Interval::from_bounds(a, b);
             proper([
@@ -768,7 +768,7 @@ fn piece_box(
                 i(origin.z) + i(dir.z) * t,
             ])
         }
-        Curve3::Circle { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
+        Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => {
             let bx = geom::curves::boxes::conic_arc_aabb(
                 carrier,
                 a,
@@ -1037,12 +1037,12 @@ mod tests {
             vec![1.0; 6],
         )
         .unwrap();
-        let circle = Curve3::Circle {
-            center: Point3::new(cx, 0.5, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.2,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let circle = Curve3::circle(
+            Point3::new(cx, 0.5, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            0.2,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let t0 = core::f64::consts::FRAC_PI_8;
         let p = circle.eval(t0);
         SolidSpec {
@@ -1092,10 +1092,7 @@ mod tests {
                 let spec = EdgeSpec {
                     start: 30 + i,
                     end: 30 + (i + 1) % 4,
-                    carrier: Curve3::Line {
-                        origin: a,
-                        dir: b - a,
-                    },
+                    carrier: Curve3::line(a, b - a),
                     t0: 0.0,
                     t1: 1.0,
                     reversed: false,
@@ -1150,10 +1147,7 @@ mod tests {
                 .unwrap(),
             ))
         };
-        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::Line {
-            origin: a,
-            dir: b - a,
-        };
+        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, b - a);
         let corners =
             [(0.0, 0.0), (0.5, 0.0), (0.5, 1.0), (0.0, 1.0)].map(|(x, y)| Point3::new(x, y, 0.0));
         let carriers = [
@@ -1338,12 +1332,12 @@ mod tests {
         }
 
         fn circle(cx: f64, cy: f64, r: f64) -> Curve3<f64> {
-            Curve3::Circle {
-                center: Point3::new(cx, cy, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: r,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }
+            Curve3::circle(
+                Point3::new(cx, cy, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                r,
+                Vec3::new(1.0, 0.0, 0.0),
+            )
         }
 
         /// Circles whose rightmost point passes the line `x = xk` by
@@ -1467,10 +1461,7 @@ mod tests {
                     }
                     let spl = build(hi);
                     let max_x = max_x(&spl);
-                    let back = Curve3::Line {
-                        origin: Point3::new(0.3, 0.8, 0.0),
-                        dir: Vec3::new(0.0, -0.6, 0.0),
-                    };
+                    let back = Curve3::line(Point3::new(0.3, 0.8, 0.0), Vec3::new(0.0, -0.6, 0.0));
                     let s = face(
                         chart([0.0, 0.5, 1.0]),
                         vec![(Curve3::Nurbs(Arc::new(spl)), 0.0, 1.0), (back, 0.0, 1.0)],

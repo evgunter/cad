@@ -55,13 +55,11 @@ fn ellipse_in(
     } else {
         (a, b, along)
     };
-    Curve3::Ellipse {
-        center,
-        axis,
-        semi_u: major,
-        semi_v: minor,
-        u_ref,
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(center, axis, u_ref),
+        major,
+        minor,
+    ))
 }
 
 /// [`ellipse_in`] in the plane `z = 0` about the origin, `a` along x.
@@ -132,10 +130,7 @@ fn a_span_whose_middle_is_on_the_torus_axis_localizes_both_touches() {
         minor_radius: 0.5,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let c = Curve3::Line {
-        origin: Point3::new(0.0, 0.0, 0.5),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let c = Curve3::line(Point3::new(0.0, 0.0, 0.5), Vec3::new(1.0, 0.0, 0.0));
     let found = clusters(&s, &c, rates(&c), reach(&s).unwrap(), (-3.0, 3.0), band())
         .expect("localizes within the budgets");
     for touch in [-2.0, 2.0] {
@@ -167,7 +162,11 @@ fn elliptic_edge(b_in_major: bool) -> (Body<f64>, EdgeKey) {
     let carrier = section(b_in_major);
     let (t0, t1) = (param(0.3, b_in_major), param(1.2, b_in_major));
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
-    let Curve3::Ellipse { axis, u_ref, .. } = carrier else {
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame { axis, u_ref, .. },
+        ..
+    }) = carrier
+    else {
         unreachable!("a section is an ellipse")
     };
     let mut body = Body::<f64>::new();
@@ -223,7 +222,11 @@ fn an_elliptic_edge_is_not_cleared_of_a_ball_on_it_in_either_storage() {
                 !edge_clear_of_ball(&body, edge, at, 1e-3, band()).unwrap(),
                 "b_in_major = {b_in_major}: the ball about {at:?} on the arc is cleared of it"
             );
-            let Curve3::Ellipse { axis, .. } = reference else {
+            let Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { axis, .. },
+                ..
+            }) = reference
+            else {
                 unreachable!("a section is an ellipse")
             };
             let above = at + axis * 0.05;

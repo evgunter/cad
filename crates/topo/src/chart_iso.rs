@@ -90,15 +90,13 @@ pub fn unwrap_near(raw: f64, prev: f64) -> f64 {
 /// Neither disposition belongs here.
 pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option<TravKind> {
     match *curve.carrier() {
-        Curve3::Line { .. } => Some(TravKind::Meridian {
+        Curve3::Line(_) => Some(TravKind::Meridian {
             u_raw: mid_azimuth(chart, curve),
         }),
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
             radius,
-            ..
-        } => {
+        }) => {
             if axis.dot(chart.axis()).abs() > 0.5 {
                 Some(TravKind::Rim {
                     v_raw: chart.rim_v(center, radius),
@@ -115,7 +113,7 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
         // spiric (its chord arm sizes the carrier itself), so the
         // `None` here is read by the coherence walk alone
         // (`NonIsoCarrier`).
-        Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }
 

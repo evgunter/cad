@@ -181,7 +181,7 @@ fn an_extruded_pentagon_cap_rim_turns_at_every_vertex() {
                         .and_then(|g| g.certified())
                         .expect("a certified mitre");
                     match *c.carrier() {
-                        geom::Curve3::Ellipse { semi_u, semi_v, .. } => {
+                        geom::Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => {
                             assert!((semi_v - D).abs() < 1e-12, "the minor semi-axis is r");
                             semi_u
                         }
@@ -1125,7 +1125,7 @@ fn the_turn_foot_lies_on_both_trimlines_within_the_band() {
                     } else {
                         &link.blend.trim_b
                     };
-                    let geom::Curve3::Line { origin, dir } = line else {
+                    let geom::Curve3::Line(geom::Line { origin, dir }) = line else {
                         panic!("{what} ({kind:?}): a plane band's trimline is a line");
                     };
                     let miss = (turn.foot - *origin).cross(*dir).norm() / dir.norm();

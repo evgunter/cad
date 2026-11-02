@@ -108,6 +108,8 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("revolve_angle_headroom", REVOLVE),
     ("extrusion_normal_component", EXTRUDE),
     ("extrusion_obliquity", EXTRUDE),
+    ("loft_corner_pinned", LOFT),
+    ("loft_rim_pinned", LOFT),
     ("loft_stacking", LOFT),
     ("sweep_path_tangent", PATH),
     ("sweep_path_chord", PATH),
@@ -156,7 +158,11 @@ const PAIRING: &[(BlendDecision, &str)] = &[
     ),
     (
         BlendDecision::ConvexitySign,
-        sweep::blend::FILLET3_TANGENTIAL_RECOURSE,
+        sweep::blend::FILLET3_WEDGE_RECOURSE,
+    ),
+    (
+        BlendDecision::MaterialSide,
+        sweep::blend::FILLET3_CHAIN_RECOURSE,
     ),
     (
         BlendDecision::RingClearance,
@@ -386,10 +392,11 @@ const NO_TOLERANCE: &[BlendDecision] = &[
 ];
 
 /// The decisions that pass on a negative sign as well as a positive one:
-/// the convexity sign on either side, and the contact edge's
-/// second-order separation on any definite sign.
+/// the convexity sign on either side, the material side either way, and
+/// the contact edge's second-order separation on any definite sign.
 const TWO_SIDED: &[BlendDecision] = &[
     BlendDecision::ConvexitySign,
+    BlendDecision::MaterialSide,
     BlendDecision::ContactSecondOrder,
 ];
 
@@ -517,11 +524,37 @@ fn the_convexity_sign_offer_names_the_wedge_opening() {
         text.ends_with(&format!(
             "Recourse: {}, or, if this wedge opening is intended, tighten the tolerance below \
              {:e} m",
-            sweep::blend::FILLET3_TANGENTIAL_RECOURSE,
+            sweep::blend::FILLET3_WEDGE_RECOURSE,
             mid / (b.escalate() / b.zero())
         )),
         "{text}"
     );
+}
+
+/// **The material side's offer names the margin it carries**: the
+/// pairing's own, over the folded arm, is a length; the wedge the
+/// pairing re-quotes where its offer would leave the smooth verdict in
+/// band (`material_pairing_wedge`) is a wedge opening, which a smaller
+/// tolerance decides positive.
+#[test]
+fn the_material_side_offer_names_the_margin_it_carries() {
+    let b = Band::linear(Tol::witness()).expect("the run's band forms");
+    let mid = (b.zero() + b.escalate()) / 2.0;
+    let below = mid / (b.escalate() / b.zero());
+    for (name, size) in [
+        (BlendDecision::MaterialSide.predicate(), "length"),
+        ("material_pairing_wedge", "wedge opening"),
+    ] {
+        let text = rendered(BlendDecision::MaterialSide, Some(name));
+        assert!(
+            text.ends_with(&format!(
+                "Recourse: {}, or, if this {size} is intended, tighten the tolerance below \
+                 {below:e} m",
+                BlendDecision::MaterialSide.lever(),
+            )),
+            "{name}: {text}"
+        );
+    }
 }
 
 /// **Nothing in the crate's `src` is invisible to the reader.**
