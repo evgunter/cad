@@ -1858,14 +1858,10 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
         .collect()
 }
 
-/// The section certificate's [`Reach`](super::section_cert::Reach) of
+/// The section certificate's [`Reach`](geom_brep::Reach) of
 /// two overlapping face boxes ([`super::glue::overlap_ball`]).
-fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> super::section_cert::Reach<T> {
-    let ball = super::glue::overlap_ball(box_a, box_b);
-    super::section_cert::Reach {
-        centre: ball.center(),
-        radius: ball.radius(),
-    }
+fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> geom_brep::Reach<T> {
+    geom_brep::Reach::Ball(super::glue::overlap_ball(box_a, box_b))
 }
 
 /// **The section certificate's per-pair rule** for A's face `fa` (the
@@ -1916,7 +1912,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         None => classify_known(
             &fa.surface,
             &fb.surface,
-            overlap_reach(&fa.bbox, &fb.bbox),
+            &overlap_reach(&fa.bbox, &fb.bbox),
             sections.region_for(&fa.surface, &fb.surface),
             T::ssi_lane(),
             band,
@@ -3150,8 +3146,9 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// **A seam edge of the result, as its re-description reads it**: the
-/// dihedral of its two surfaces at `witness` over `reach`, its faces' extent, whose arm
-/// rung is the seam's own lever and whose reading is the seam's wedge.
+/// dihedral of its two surfaces at `witness` over the ball of radius
+/// `reach` about it, its faces' extent, whose arm rung is the seam's own
+/// lever and whose reading is the seam's wedge.
 #[cfg(test)]
 pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     surf1: &geom::Surface<T>,
@@ -3161,6 +3158,7 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
     let faces = [surf1, surf2].map(geom_brep::SeamFace::Analytic);
+    let reach = geom_core::test_support::fixture_lever(reach);
     seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
         geom_brep::SeamEscalation::Lever(e) => {
             let (reading, diag) = DihedralReading::of_lever(e);
@@ -3177,7 +3175,7 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
 fn seam_reading<T: Decide + crate::props::AtRestPolicy>(
     faces: [geom_brep::SeamFace<'_, T>; 2],
     witness: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
     geom_brep::classify_seam(
@@ -3291,6 +3289,7 @@ pub(super) fn seam_must_carry<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<SeamReading, SeamRefusal> {
+    let reach = geom_core::test_support::fixture_lever(reach);
     must_carry_reading(surf1, surf2, carrier, t0, t1, reach, band)
 }
 
@@ -3319,7 +3318,7 @@ fn must_carry_reading<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<SeamReading, SeamRefusal> {
     use geom_brep::MustCarryVerdict;
@@ -6470,7 +6469,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 for &n in rest {
                     match decide(
                         "bool_sphere_escape_parallel",
-                        Margin::levered(align.cross(n).norm(), radius),
+                        Margin::levered(
+                            align.cross(n).norm(),
+                            geom_core::Lever::curvature_radius(radius),
+                        ),
                         band,
                     )
                     .map_err(esc(SphereQuestion::EscapeParallel))?
@@ -6724,7 +6726,10 @@ pub(super) fn recut_lean<T: Decide>(
 ) -> Result<(), BooleanError> {
     crate::validate::decide_nonzero(
         "bool_sphere_recut_align",
-        Margin::levered(axis.cross(align).norm(), radius),
+        Margin::levered(
+            axis.cross(align).norm(),
+            geom_core::Lever::curvature_radius(radius),
+        ),
         band,
     )
     .map(|_| ())
@@ -7195,14 +7200,19 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         ));
                     }
                 };
-                let rising =
-                    sign("bool_sphere_cut_span", Margin::levered(t1 - t0, cr))? == Sign::Positive;
+                let rising = sign(
+                    "bool_sphere_cut_span",
+                    Margin::metered(t1 - t0, geom_core::InfSpeed::new(cr)),
+                )? == Sign::Positive;
                 let (lo_t, hi_t) = if rising { (t0, t1) } else { (t1, t0) };
                 for theta in thetas {
-                    let into = |end: T| Margin::levered(theta - end, cr);
+                    let into = |end: T| Margin::metered(theta - end, geom_core::InfSpeed::new(cr));
                     let (from_lo, to_hi) = (
                         sign("bool_sphere_cut_span", into(lo_t))?,
-                        sign("bool_sphere_cut_span", Margin::levered(hi_t - theta, cr))?,
+                        sign(
+                            "bool_sphere_cut_span",
+                            Margin::metered(hi_t - theta, geom_core::InfSpeed::new(cr)),
+                        )?,
                     );
                     if from_lo == Sign::Negative || to_hi == Sign::Negative {
                         continue;
@@ -7303,7 +7313,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let below_first = match (below_split, over_split) {
             (Some((e1, lo, rising, arm)), Some((e2, hi, _, _))) if e1 == e2 => {
                 let along = if rising { lo - hi } else { hi - lo };
-                sign("bool_sphere_cut_span", Margin::levered(along, arm))? == Sign::Positive
+                sign(
+                    "bool_sphere_cut_span",
+                    Margin::metered(along, geom_core::InfSpeed::new(arm)),
+                )? == Sign::Positive
             }
             _ => true,
         };
@@ -9962,7 +9975,15 @@ mod tests {
         );
         for (a, b) in [(&torus, &bitangent), (&bitangent, &torus)] {
             assert_eq!(
-                geom_brep::must_carry_over_edge(a, b, &arc, span.0, span.1, 1.0, band()),
+                geom_brep::must_carry_over_edge(
+                    a,
+                    b,
+                    &arc,
+                    span.0,
+                    span.1,
+                    geom_core::test_support::fixture_lever(1.0),
+                    band()
+                ),
                 geom_brep::MustCarryVerdict::Mixed(geom_brep::MixedStations {
                     transverse: 3,
                     smooth: 4
@@ -9999,14 +10020,14 @@ mod tests {
     #[test]
     fn an_in_band_wedge_behind_a_corner_refuses_as_the_seam_wedge() {
         let (torus, bitangent, arc) = villarceau();
-        let extent = 1.0;
+        let extent = geom_core::test_support::fixture_lever(1.0);
         // The wedge's margin, `sin θ` levered over the folded arm, at
         // the arc's `t`: linear in `t` beside the tangency.
         let wedge = |t: f64| {
             let p = arc.eval(t);
             let n = |s: &geom::Surface<f64>| geom_brep::implicit_gradient(s, p).normalize();
             n(&torus).cross(n(&bitangent)).norm()
-                * geom_brep::folded_lever_arm(&torus, &bitangent, p, extent)
+                * geom_brep::folded_lever_arm(&torus, &bitangent, p, extent).length()
         };
         let slope = wedge(1e-4) / 1e-4;
         // The stations sit a quarter of the half-span apart: the inner
@@ -10041,7 +10062,7 @@ mod tests {
                 "an in-band wedge anywhere escalates, got {verdict:?}"
             );
         }
-        for (order, got) in both_orders(&torus, &bitangent, &arc, span, extent)
+        for (order, got) in both_orders(&torus, &bitangent, &arc, span, extent.length())
             .into_iter()
             .enumerate()
         {
@@ -10667,7 +10688,8 @@ mod from_computed_rows {
                 max_z: hi,
             };
             let reach = overlap_reach::<S>(&cube(0.0, p), &cube(0.5 * p, 2.0 * p));
-            vec![reach.centre.x, reach.radius]
+            let ball = reach.ball();
+            vec![ball.center().x, ball.radius()]
         });
         assert_eq!(found.laundered, 0, "{found:?}");
         assert_eq!(found.opaque, 2, "{found:?}");
@@ -11058,7 +11080,7 @@ mod spline_seam_rows {
         seam_reading(
             [face(sides.plus), face(sides.minus)],
             curve.mid_point(),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
         )
     }
@@ -11081,7 +11103,7 @@ mod spline_seam_rows {
             surface(sides.plus),
             surface(sides.minus),
             body.stored_curve(edge).unwrap().mid_point(),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
         );
         assert!(

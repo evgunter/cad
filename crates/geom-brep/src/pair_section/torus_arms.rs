@@ -1176,5 +1176,10 @@ fn across_strip<T: Decide>(
 /// pair decided apart (as arc length): two in one place within the band
 /// pinch.
 fn along_k<T: Decide, X: Copy>(xs: &mut [(T, X)], rc: T, band: Band) -> Result<(), Pinch> {
-    apart_in_order(xs, SQUARE_ORDER, |m| Margin::levered(m, rc), band)
+    apart_in_order(
+        xs,
+        SQUARE_ORDER,
+        |m| Margin::metered(m, geom_core::InfSpeed::new(rc)),
+        band,
+    )
 }

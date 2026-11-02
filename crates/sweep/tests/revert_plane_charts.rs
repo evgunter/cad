@@ -375,7 +375,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
             start,
             end,
             surfaces,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
         );
@@ -395,7 +395,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
                 start,
                 end,
                 surfaces,
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),
             )
