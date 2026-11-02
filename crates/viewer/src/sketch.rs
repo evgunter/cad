@@ -54,6 +54,7 @@ use pncad::document::{
     WrittenLoopFault, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Point3, Tol};
+use pncad::profile::path::program::{FusedConstruction, replay_drawn};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, ConstructedLoop, ConstructedProfile, PathErrorKind,
     PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms,
@@ -1734,6 +1735,66 @@ pub fn preview(
     tol: Tol,
     chord: f64,
 ) -> Result<ProfilePreview, PreviewError> {
+    drawn(plane, shapes, tol, chord).0
+}
+
+/// **[`preview`], and what the loops' fused fillet steps construct**,
+/// both out of the one replay of each loop
+/// ([`pncad::profile::path::program::replay_drawn`]) whose refusal the
+/// preview carries.
+///
+/// The construction is drawn whether or not the preview is: a fused
+/// step whose fit refuses leaves the sides it was handed, and a chain
+/// refused at its first leg has no prefix to draw but still has them.
+/// A resolution that refuses constructs nothing.
+pub fn drawn(
+    plane: SketchPlane<f64>,
+    shapes: &[ProfileShape],
+    tol: Tol,
+    chord: f64,
+) -> (Result<ProfilePreview, PreviewError>, Construction) {
+    let resolved = match written_steps(shapes, tol) {
+        Ok(resolved) => resolved,
+        Err(refused) => return (Err(refused), Construction::none(plane)),
+    };
+    let (replays, built): (Vec<_>, Vec<_>) = resolved
+        .iter()
+        .map(|steps| replay_drawn(steps, tol))
+        .unzip();
+    (
+        preview_replayed(plane, &resolved, replays, tol, chord),
+        Construction {
+            plane,
+            steps: built.concat(),
+        },
+    )
+}
+
+/// **What a door's fused fillet steps construct**, on the plane its
+/// preview is placed on: the sides each step's fit was handed and the
+/// fillet circle it found, as far as the replay reached them.
+#[derive(Clone, Debug)]
+pub struct Construction {
+    /// The plane the preview the steps belong to is placed on.
+    pub plane: SketchPlane<f64>,
+    /// Every loop's fused steps, in loop order and then program order.
+    pub steps: Vec<FusedConstruction<f64>>,
+}
+
+impl Construction {
+    /// Nothing constructed, on `plane`.
+    #[must_use]
+    pub fn none(plane: SketchPlane<f64>) -> Self {
+        Self {
+            plane,
+            steps: Vec::new(),
+        }
+    }
+}
+
+/// The loops `shapes` write, lowered and resolved — the first half of
+/// [`preview`]'s ladder.
+fn written_steps(shapes: &[ProfileShape], tol: Tol) -> Result<Vec<Vec<Step<f64>>>, PreviewError> {
     let mut programs = Vec::with_capacity(shapes.len());
     for shape in shapes {
         // CANONICAL, and it makes no difference which: a display unit
@@ -1746,7 +1807,7 @@ pub fn preview(
     // arrives as a placement ([`profile_plane`]). Nor a document: each
     // number the form wrote is the variable the insert door would mint
     // for it, in a scratch document of the resolver's own.
-    let resolved = resolve_written_loops(&programs, tol).map_err(|fault| match fault {
+    resolve_written_loops(&programs, tol).map_err(|fault| match fault {
         WrittenLoopFault::Resolve { slot, source } => PreviewError::Resolve { slot, source },
         // A form writes numbers, never a name, and no step reading a
         // trace.
@@ -1756,15 +1817,26 @@ pub fn preview(
         WrittenLoopFault::Trace(refusal) => {
             unreachable!("a form's program reads no trace, yet {refusal}")
         }
-    })?;
+    })
+}
+
+/// [`preview`]'s drawing of loops already resolved, each beside its
+/// replay.
+fn preview_replayed(
+    plane: SketchPlane<f64>,
+    resolved: &[Vec<Step<f64>>],
+    replays: Vec<Result<ConstructedLoop<f64>, ReplayError<f64>>>,
+    tol: Tol,
+    chord: f64,
+) -> Result<ProfilePreview, PreviewError> {
     let mut loops: Vec<ConstructedLoop<f64>> = Vec::with_capacity(resolved.len());
     let mut ends: Vec<LoopEnd> = Vec::with_capacity(resolved.len());
     // Every refusal met, in loop order: the refused loops' and the
     // undrawable loops' alike, so the one said is chosen over all.
     let mut refusals: Vec<PreviewError> = Vec::new();
     let mut undrawn: Option<PreviewError> = None;
-    for (index, steps) in resolved.iter().enumerate() {
-        let error = match replay(steps, tol) {
+    for (index, (steps, replayed)) in resolved.iter().zip(replays).enumerate() {
+        let error = match replayed {
             Ok(replayed) => {
                 loops.push(replayed);
                 ends.push(LoopEnd::Closed);

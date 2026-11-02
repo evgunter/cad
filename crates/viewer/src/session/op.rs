@@ -717,8 +717,9 @@ pub enum SessionOp {
     ///
     /// **The result takes the operands' place in the world** (A10, Ev's
     /// residue 1): the placements of the first operand the world
-    /// places, in the spec's order, are re-pointed to the boolean
-    /// through the slot door, and every other operand's placements are
+    /// places, in the spec's order, are taken over by the boolean
+    /// (`Recording::take_over`: re-pointed, and what read them
+    /// rebound where it carries it), and every other operand's placements are
     /// deleted, in the same action — so a combine of placed bodies
     /// leaves the world `[result]`, and one undo restores them. A
     /// repeated operand counts once; operands nothing places place
@@ -739,10 +740,19 @@ pub enum SessionOp {
         spec: super::BooleanSpec,
     },
     /// Insert one split of an existing body by a plane — the split
-    /// tool's one committed edit. A split defines two bodies, its
-    /// `above` and `below` outputs, and it changes nothing in the
-    /// world: the target's placements keep reading the target, and a
-    /// half is read by its port wherever a body seat takes one.
+    /// tool's one committed action. A split defines two bodies, its
+    /// `above` and `below` outputs, and a half is read by its port
+    /// wherever a body seat takes one. What reads the target along a
+    /// seen path (a placement's source, a `⊔` operand, the product
+    /// slot) reads `above ⊔ below` instead, in the same action, so each
+    /// copy shows the two halves where it showed the body. A copy is
+    /// re-pointed through the kernel's takeover (`Recording::take_over`,
+    /// asked about the two halves beside the body), which re-seats a
+    /// mate on a face of the copy the split leaves intact; a mate on a
+    /// face it cuts stays stale, the mated placement failing `Vanished`
+    /// on the face's name. A `⊔` operand and the product slot are
+    /// re-pointed alone, and nothing read through them is re-seated
+    /// (`work/doors/a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it.md`).
     ///
     /// The plane is the one through `origin` with normal `normal` in
     /// the target's own coordinates, read off the target's geometry
@@ -767,14 +777,14 @@ pub enum SessionOp {
     /// body the copy places (`crate::world::body_of`), so the plane reads
     /// the geometry of the body's space, as a mirror's plane must.
     ///
-    /// A body the world draws becomes the symmetric part: the image
-    /// (`Node::Mirror`) and the union of the body and its image, in the
-    /// body's space, the body's drawn copies re-pointed to the union —
-    /// the feature takeover a fillet makes — so the part is drawn where
-    /// each copy stands and moves with the copy's placement. A mate that
-    /// another placement seats on a face of the body's copy goes stale
-    /// at the takeover, as it does at a fillet's. A body nothing places
-    /// gets its image alone, reached in the tree.
+    /// The body becomes the symmetric part: the image (`Node::Mirror`)
+    /// and the union of the body and its image, in the body's space,
+    /// what reads the body along a seen path taken over by the union —
+    /// the feature takeover a fillet makes (`Recording::take_over`) — so
+    /// the part is drawn where each copy stands and moves with the
+    /// copy's placement. A mate that another placement seats on a face
+    /// of the body's copy is re-seated where the union carries the face
+    /// whole, and goes stale where it does not, as at a fillet.
     ///
     /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
     /// a face read in another space — another construction's, or its
@@ -792,7 +802,8 @@ pub enum SessionOp {
     /// in (`Node::Place`, no mate), its values on that space's axes —
     /// rotated by `rotation_angle` about `rotation_axis` through the
     /// body's own origin, then translated — and the body's world
-    /// placements re-pointed to it (A10, Ev's residue 1), as one action.
+    /// placements taken over by it (A10, Ev's residue 1;
+    /// `Recording::take_over`), as one action.
     ///
     /// The translation is written as the three slides, each formula as
     /// given; a rotation about one of the space's axes is the spin about
@@ -851,8 +862,8 @@ pub enum SessionOp {
     /// unfused pattern fuses it with a boolean over the family instead.
     ///
     /// **The fused body takes the prototype's place in the world** (A10,
-    /// Ev's residue 1): the prototype's placements are re-pointed to it
-    /// in the same action.
+    /// Ev's residue 1): the prototype's placements are taken over by it
+    /// (`Recording::take_over`) in the same action.
     ///
     /// **Whether the copies meet is the union's question, not this
     /// door's**: the door authors what the user asked for and the union

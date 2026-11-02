@@ -3902,7 +3902,7 @@ fn residual_charge<T: Real>(f: &FaceGeo<T>, p: Point3<T>) -> T {
 ///   - `L/2` at most ε ([`enclosure_reading`] of `[0, L/2]` through the
 ///     magnitude door, `pm_census_ef_pierce_span`): every point of `S`
 ///     lies within ε of an end, so no boundary point does;
-///   - else, on a polygon face, [`span_clear`].
+///   - else [`span_clear`].
 ///
 ///   Otherwise the crossing may lie within `L` of the boundary, refused
 ///   below.
@@ -3945,7 +3945,9 @@ fn pierce_inside<T: Decide>(
     let half = match (at_lo, at_hi) {
         (In, In) | (Out, Out) => {
             let half = short();
-            if matches!(half, Ok(true)) || span_clear(geo, e, f, [lo, hi], lever, band, errors)? {
+            if matches!(half, Ok(true))
+                || span_clear(body, geo, e, f, [lo, hi], lever, band, errors)?
+            {
                 return (at_lo == In).then(|| e.p0 + chord * geom::mid_param(lo, hi));
             }
             half
@@ -3977,9 +3979,9 @@ fn pierce_inside<T: Decide>(
 /// stretch `[lo, hi]` of `e`'s chord (longer than `2ε`, its ends read
 /// past `Kε` on one side of the boundary, `lever` an upper bound on
 /// the residual's change along the chord, [`pierce_span`]):
-/// `Some(false)` where it may, where `f` is not a polygon, or where the
-/// band has no band `[(K − 1)ε, Kε]` under it; `None` where a reading
-/// refused (pushed).
+/// `Some(false)` where it may, where a boundary edge's curve has no
+/// closed-form clearance, or where the band has no band `[(K − 1)ε, Kε]`
+/// under it; `None` where a reading refused (pushed).
 ///
 /// `S` is read on the edge's own line, at arc lengths `lo·len` to
 /// `hi·len` from its start ([`Stretch`]), so its direction is the
@@ -3999,8 +4001,10 @@ fn pierce_inside<T: Decide>(
 /// most `(K − 1)ε` or refused. Past `Kε`, a boundary point over `S`
 /// could read apart from it.
 ///
-/// Then no boundary edge's interior meets `S`'s ([`interiors_meet`]) and
-/// no boundary vertex lies on `S`'s interior ([`on_edge_interior_reading`]).
+/// Then no boundary vertex lies on `S`'s interior
+/// ([`on_edge_interior_reading`]), no line boundary edge's interior meets
+/// `S`'s ([`interiors_meet`]), and every other boundary edge stands
+/// clear of `S` (below).
 /// These are 3D readings, each calling a boundary apart from `S` only
 /// past `Kε`, or near an end of `S` or of the side:
 /// - the lines' gap is at most `g`;
@@ -4015,7 +4019,23 @@ fn pierce_inside<T: Decide>(
 /// stands within `Kε` of the boundary (the end's `c` is in `h`), against
 /// its own reading. That holds for every `K > 1`; at `K ≤ 2`, `g > ε`
 /// already passes `(K − 1)ε` and the clearance always refuses.
+///
+/// A boundary edge that is not a line is read on its carrier's lower
+/// bound on the distance from `S`'s middle `m` ([`crate::link::clearance`]).
+/// Every point of `S` stands within `L/2 + c` of the computed `m`, so a
+/// bound past `L/2 + reach` by more than `Kε`
+/// (`pm_census_ef_pierce_curve_clear`) leaves every point of the curve
+/// more than `Kε + reach − c` from every point of `S`. The height gate
+/// holds `h`, and so `2c`, under `(K − 1)ε`, so that is past `g`: no
+/// point of the curve lies over `S`. At `f64` the bound's own rounding is
+/// not charged, as at `curve_carrier_clear` and the cleared disc: the
+/// chain also needs that rounding under `Kε − c`, which it is to
+/// kilometres and can pass at far coordinates. A clear it falsely
+/// licenses there needs the curve to approach `S` near head-on, where
+/// the end's own containment reading refuses.
+#[allow(clippy::too_many_arguments)] // the clearance's whole state
 fn span_clear<T: Decide>(
+    body: &Body<T>,
     geo: &Geo<T>,
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
@@ -4031,9 +4051,6 @@ fn span_clear<T: Decide>(
     let Ok(within) = Band::new(band.escalate() - band.zero(), band.escalate()) else {
         return Some(false);
     };
-    if !f.polygon {
-        return Some(false);
-    }
     let reach = span_reach(e, [lo, hi], lever, band);
     let decide = magnitude_door("pm_census_ef_pierce_height", within);
     let straddle = "pm_census_ef_pierce_height_straddle";
@@ -4049,25 +4066,46 @@ fn span_clear<T: Decide>(
         edge: e,
         at: (lo * e.len, hi * e.len),
     };
-    for ring in &f.loops {
-        let at: Vec<Point3<T>> = ring
-            .iter()
-            .filter_map(|v| geo.vmap.get(v).copied())
-            .collect();
-        if at.len() != ring.len() {
+    let middle = e.p0 + e.dir * (geom::mid_param(lo, hi) * e.len);
+    let half = (hi - lo) * e.len * T::from_f64(0.5);
+    let Some(face) = body.get_face(f.key) else {
+        return Some(false);
+    };
+    for cycle in face_cycles(body, face) {
+        let Ok(cycle) = cycle else {
             return Some(false);
-        }
-        for (i, &p) in at.iter().enumerate() {
+        };
+        for he in cycle {
+            let ends = body
+                .half_edges
+                .get(he)
+                .and_then(|h| Some((h.edge, [h.start, body.half_edge_end(he)?])));
+            let Some((edge, [a, b])) = ends else {
+                return Some(false);
+            };
+            let (Some(&p), Some(&q)) = (geo.vmap.get(&a), geo.vmap.get(&b)) else {
+                return Some(false);
+            };
             if on_edge_interior_reading(p, &s, band, errors)?.is_some() {
                 return Some(false);
             }
-            let j = (i + 1) % at.len();
-            let mut side = segment((p, at[j]));
-            // The side's ends are the ring's stored vertices: their point
-            // keys go with them, as an edge's do.
-            side.points = [ring[i], ring[j]].map(|v| geo.vpoint.get(&v).copied());
-            if interiors_meet(&s, &side, band, errors)? {
-                return Some(false);
+            if edge_is_line(body, edge) {
+                let mut side = segment((p, q));
+                // The side's ends are the face's stored vertices: their
+                // point keys go with them, as an edge's do.
+                side.points = [a, b].map(|v| geo.vpoint.get(&v).copied());
+                if interiors_meet(&s, &side, band, errors)? {
+                    return Some(false);
+                }
+            } else {
+                let Ok(bound) = crate::link::clearance(body, he, middle) else {
+                    return Some(false);
+                };
+                let gap = Margin::of(bound - half - reach);
+                let name = "pm_census_ef_pierce_curve_clear";
+                if geom_core::k_stats::decide(name, gap, band) != Ok(Sign::Positive) {
+                    return Some(false);
+                }
             }
         }
     }
@@ -4153,29 +4191,29 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
 }
 
 /// **Whether every one of `points` lies on `surface`**, each one's
-/// implicit residual decided on the band under `name`: `Ok(false)` where
-/// one reads definitely off, whatever the others read (every point is
-/// read first, so a point in band ahead of it does not pre-empt it);
-/// `Ok(true)` where all read `Zero`; and the first in-band reading where
-/// none is off.
+/// implicit residual decided on the band under `name`, read as an
+/// identity ladder ([`geom_brep::ladder::read_identity`]): `Ok(false)`
+/// where one reads definitely off, whatever the others read (a point in
+/// band ahead of it does not pre-empt it); `Ok(true)` where all read
+/// `Zero`; and the ladder's undecided reading where none is off.
 pub(crate) fn points_on_surface<T: Decide>(
     surface: &geom::Surface<T>,
     points: &[Point3<T>],
     name: &'static str,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let mut in_band = None;
-    for &q in points {
-        let r = geom_brep::implicit::implicit_residual(surface, q);
-        match decide(name, Margin::of(r), band) {
-            Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => return Ok(false),
-            Err(cause) => {
-                in_band.get_or_insert(cause);
-            }
-        }
+    use geom_brep::ladder::{IdentityLadder, read_identity};
+    let residuals = points.iter().map(|&q| {
+        (
+            name,
+            Margin::of(geom_brep::implicit::implicit_residual(surface, q)),
+        )
+    });
+    match read_identity(residuals, band) {
+        IdentityLadder::Apart { .. } => Ok(false),
+        IdentityLadder::Zero(_) => Ok(true),
+        IdentityLadder::Undecided(cause) => Err(cause),
     }
-    in_band.map_or(Ok(true), Err)
 }
 
 /// **One point definitely off a quadric decides that a line or a conic
@@ -7878,6 +7916,18 @@ mod in_plane;
 mod link_fuzz;
 #[cfg(test)]
 mod pierce_fuzz;
+
+/// The predicates `errors` escalated, for the census's test rows.
+#[cfg(test)]
+fn escalated(errors: &[ValidationError]) -> Vec<&'static str> {
+    errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::CensusEscalated { cause } => cause.predicate,
+            _ => None,
+        })
+        .collect()
+}
 mod point;
 #[cfg(test)]
 mod segment_fuzz;
@@ -14725,17 +14775,6 @@ mod tests {
         );
     }
 
-    /// The predicates `errors` escalated.
-    fn escalated(errors: &[ValidationError]) -> Vec<&'static str> {
-        errors
-            .iter()
-            .filter_map(|e| match e {
-                ValidationError::CensusEscalated { cause } => cause.predicate,
-                _ => None,
-            })
-            .collect()
-    }
-
     /// **A face's corner in the band's edge of an edge's line cuts the
     /// edge where it is on the interior, and nothing past an end.** A
     /// cube turned a quarter-right-angle stands on the unit cube's top,
@@ -17225,17 +17264,6 @@ mod tests {
 
         fn close(a: f64, b: f64) -> bool {
             (a - b).abs() < 1e-12
-        }
-
-        /// The escalations `errors` carries, by predicate name.
-        fn escalated(errors: &[ValidationError]) -> Vec<&'static str> {
-            errors
-                .iter()
-                .filter_map(|e| match e {
-                    ValidationError::CensusEscalated { cause } => cause.predicate,
-                    _ => None,
-                })
-                .collect()
         }
 
         /// **A face whose boundary crosses the edge away from any

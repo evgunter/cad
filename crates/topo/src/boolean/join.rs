@@ -5856,12 +5856,12 @@ fn loop_roles(
         }
         (Reading::Side(o), _) => Ok(in_first(o, outer, ring)),
         (Reading::Undecided(_), Reading::Side(r)) => Ok(in_first(r, ring, outer)),
-        // One ranking over both loops' witnesses ([`crate::ray_walk::Evidence`]):
+        // One ranking over both loops' witnesses ([`geom_brep::ladder::Evidence`]):
         // a limit is named, an in-band reading is not (it is about one
         // point), so both of those and an empty one read undecided.
         (Reading::Undecided(o), Reading::Undecided(r)) => Err(match o.kept.then(r.kept).ranked() {
-            crate::ray_walk::Ranked::Blocked(e) => BooleanError::Containment(e),
-            crate::ray_walk::Ranked::InBand(_) | crate::ray_walk::Ranked::Neither => {
+            geom_brep::ladder::Ranked::Blocked(e) => BooleanError::Containment(e),
+            geom_brep::ladder::Ranked::InBand(_) | geom_brep::ladder::Ranked::Neither => {
                 BooleanError::from(SplitJoinError::SectionLoopUndecided { face })
             }
         }),

@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-14
 priority: P1
 cost: M
-design: true
 ---
 
 
@@ -51,3 +50,12 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P3 → P1: one gate's typing in five homes: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Decided (Ev, PR 6326, 2026-11-02)
+
+The design is in DESIGN `[topology.tiers]`, `[scalars]` and the at-rest places row. In short:
+- The scalar's `finish` is the one constructor of a finished body. Its refusal is the non-empty **list** of findings, none folded into another, each read through its **family's** one text and recourse. `at_rest_refusal`, `finding_arm` and the two-arm `AtRestRefusal` go, as does the "binding reading, counting the others" fold. Grouping `ValidationError`'s variants into families is the real work.
+- Every door that returns a body returns the scalar's finished type, and `editor-core`'s `Framed` stores it. Every consumer re-gate goes: `finished_operand`/`UnfinishedOperand`, the `wire.rs` member read, `distribute::gated`, the `checks.rs` placement gate, `product.rs` `attribute_at_rest`, export's re-gate, and `gate_unverdicted`. The sweep doors finish at their own end (closes `work/carve/the-sweep-doors-return-bodies-tier-3-refuses.md`). Import goes through the same gate, naming the file.
+- A dual's finished type is a `Replay` that has passed tier 2 alone (`validate_closed`), carries no verdict, and is read by nothing that reads a verdict. `AtRestOutcome`, `NotRunAtThisScalar`, `not_run`, `structural_gate`, the at-rest check's `NotRun` and door_meter's "not-run" go. Dual-only test rows expecting an orientation or join refusal move to the base scalar.
+- The editor offers each finding's own lever, never one picked on the user's behalf.
+- Separately sequenced after this: `certified-body-is-a-second-finished-body-type`.

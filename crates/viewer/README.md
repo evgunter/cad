@@ -1538,7 +1538,14 @@ box of the `f32` corners that crossed the display seam, widened back.
 A preview that failed to replay draws nothing and frames nothing; a
 loop of one vertex frames its point. The previews' step marks are not
 in it, nor is anything else sized by the view: a fit that framed them
-would depend on the camera it is choosing. So a frame builds the
+would depend on the camera it is choosing. Nor is a preview's
+construction — the two sides each fused fillet step's fit was handed,
+whole, each with a heading mark at its anchor, and the fillet circle
+the fit found (`sketch::drawn`, out of the preview's own replay),
+drawn in their own lane under the kept pieces, and drawn when the
+step's fit refuses too: a carrier is a whole circle, and one large
+enough to fillet against would frame the profile as a speck. So a
+frame builds the
 geometry lanes, derives the extent, fits, folds the pointer's events,
 and only then sizes the marks against the camera that settled — one
 pure function, `pane::viewport::frame_camera`, whose order a row
@@ -2051,21 +2058,26 @@ the tool lists it twice and the session door commits it like any other
 document; the door's only per-operand check is the node kind
 (`Refusal::WrongNodeKind`), at every operand.
 
-### The picture draws bodies
+### What the picture shows
 
-A new body lands unplaced, in a space of its own (Ev, 2026-10-31), and
-the picture draws bodies, not placements. **A body is drawn unless an
-operation reads it as a body**: as an operator's operand (`∪ − ∩ ⊔`),
-as a one-input operation's input (a fillet, a split, a mirror), or as a
-placement's source, wherever the copy lands. A read of one member of a
-family takes over that member alone. A mate reads a pose, a selection
-or a measure observes, an assertion states: none of them hides a body.
-So an extrude is drawn at once; a fillet of it is drawn in its place;
-a pattern of it draws the family, member 0 standing where the body
-stood; and once the body is placed into the world its own picture goes,
-while a body beside it that nothing reads stays drawn. The product
-stays the slot the document writes: only the picture is derived, and
-nothing it derives re-enters the model.
+**Every body is shown by default except intermediate ones, and the
+View pane can show or hide any body.** A body is intermediate when
+another body is built from it:
+- an operand of `∪ − ∩ ⊔`;
+- the input of a fillet, split or mirror;
+- the source of a placement, whose copy is shown in its place.
+
+A read of one member of a family makes that member alone intermediate.
+Mates, selections, measurements and assertions build no body, so they
+make nothing intermediate. So an extrude is shown as soon as it exists
+(it lands unplaced, in a space of its own: Ev, 2026-10-31), a fillet of
+it is shown in its place, a pattern of it shows the family with member
+0 standing where the body stood, and once the body is placed into the
+world its copy is shown and the body is not. A body beside it that
+nothing builds from stays shown. The default is derived from the recipe
+alone. Show and hide in the View pane are display state on top of it,
+and never enter the model. The product stays the slot the document
+writes.
 
 Each drawn body is drawn in its own space through the one composing
 door (`editor_core::mate::solve::in_space`), a `⊔` as its pieces. The
@@ -2181,7 +2193,10 @@ identity bundle (`editor_core::stand`: no mate, and the constant `0` on
 each slide and spin), in one action. A pattern, fused or not, lands
 where the pick was seen and takes the seen body over along the path it
 was seen through (a placement's source, a `⊔` operand, the product
-slot), member 0 standing where that body stood. A duplicate of a copy
+slot), member 0 standing where that body stood. A split takes the seen
+body over the same way, by `above ⊔ below`, its two halves standing
+where that body stood; where nothing reads the body along such a
+path, the split's halves are drawn in its place. A duplicate of a copy
 is one more copy in that copy's space, by values on every freedom at
 the copy's evaluated motion and no mate, one step along the original's
 own `x`; a duplicate of an unplaced body is two copies in its own

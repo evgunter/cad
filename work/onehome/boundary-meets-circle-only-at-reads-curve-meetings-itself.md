@@ -2,11 +2,12 @@
 id: boundary-meets-circle-only-at-reads-curve-meetings-itself
 kind: issue
 title: reduce::boundary_meets_circle_only_at decides where a face's boundary meets a circle by plane sides and off-circle rows, a second reading of the curve-pair meeting question
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: M
 refs: [5227]
+branch: onehome/curve-pair-readings
 ---
 
 Found by the sweep of stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227), which made `carrier_cross::boundary_crossing` a caller of `geom_brep::curve_pair::meet`.
