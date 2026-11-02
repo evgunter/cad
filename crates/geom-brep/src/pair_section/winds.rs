@@ -52,7 +52,7 @@
 //! puts both end pieces within ε of the start, but does not link the
 //! last box to the first (`ssi::one_arc::one_arc_r3`); the homotopy,
 //! [`once_round`]'s wrap and [`gated`]'s neighbour rest on it
-//! (`work/ssimarch/limb-three-does-not-link-a-closed-chains-last-box-to-its-first.md`).
+//! (`work/ssiarith/limb-three-does-not-link-a-closed-chains-last-box-to-its-first.md`).
 //!
 //! **The walk winds as many times round the component as it goes
 //! round it**, a number `m` limb 3 does not fix: it puts a piece in

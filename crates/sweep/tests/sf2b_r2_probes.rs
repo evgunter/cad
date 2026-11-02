@@ -300,7 +300,7 @@ fn r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges() {
     // between the cone and both moved caps, is read as the axis's pole
     // and kept on the axis, `T/sin 45°` off the caps' crossing line where
     // it belongs, and the edges meeting it disagree
-    // (`work/offset/a-cone-wedges-apex-corner-beside-two-moved-caps-is-read-as-a-pole.md`).
+    // (`work/shell/a-cone-wedges-apex-corner-beside-two-moved-caps-is-read-as-a-pole.md`).
     let got = refusal(0.0, PI / 2.0);
     assert!(
         matches!(got, topo::ReplaceFaceError::TogetherEdgeDisagreement { gap, .. }

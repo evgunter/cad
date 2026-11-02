@@ -130,7 +130,9 @@ use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LoopBoundary};
 
 use crate::blend::BlendKind;
-use crate::blend::battery::{BlendRequest, Chain, Link, resolve_link, run_battery, walk_chains};
+use crate::blend::battery::{
+    BlendRequest, Chain, Link, Resolved, resolve_link, run_battery, walk_chains,
+};
 use crate::blend::build::Blended;
 pub use crate::blend::reach::band_reach_for_tests as band_reach;
 pub use crate::blend::surgery::ring_clearance_for_tests as ring_clearance;
@@ -250,6 +252,185 @@ pub fn at_rest<T: topo::AtRestPolicy>(body: &Body<T>, tol: Tol) -> topo::AtRestB
     finished(&format!("the blend operand at {caller}"), body.clone(), tol)
 }
 
+/// **A declared cusp**: the lune between the internally tangent circles
+/// `(0,1) r 1` and `(0,2) r 2`, closed by a straight run up the y axis
+/// from the kiss's far side, `.cusp()` at the kiss. Extruded, its kiss
+/// is a strut whose two walls meet at wedge 0 (a knife edge), and its
+/// line's two ends are struts at a definite angle.
+///
+/// # Panics
+///
+/// If the profile door refuses the construction, a fixture bug.
+#[must_use]
+pub fn lune(tol: Tol) -> ProfileLoop<f64> {
+    use profile::{Open, Start};
+    Open.at(Point2::new(0.0, 4.0))
+        .angle(-core::f64::consts::FRAC_PI_2, tol)
+        .unwrap()
+        .line(2.0, tol)
+        .unwrap()
+        .turn(core::f64::consts::FRAC_PI_2, tol)
+        .unwrap()
+        .tangent_arc_to(Point2::new(0.0, 0.0), tol)
+        .unwrap()
+        .cusp()
+        .tangent_arc_to(Start, tol)
+        .unwrap()
+        .into()
+}
+
+/// **Whether a blend read a requested edge as tangent**: the request
+/// `edges` of `body` at `size` refused as a knife edge (`outcome`), or
+/// read by the battery as holding a smooth seam, which the verbs leave
+/// silently. Either is a dihedral that decided Zero, so a row that
+/// guards a transverse corner against a false zero asks this rather
+/// than for one of the two.
+#[must_use]
+pub fn read_as_tangent(
+    body: &Body<f64>,
+    edges: &[EdgeKey],
+    size: f64,
+    outcome: &Result<Blended<f64>, crate::blend::BlendError>,
+    tol: Tol,
+) -> bool {
+    if matches!(outcome, Err(crate::blend::BlendError::KnifeEdge { .. })) {
+        return true;
+    }
+    let band = Band::linear(tol).expect("the run's band");
+    let req = BlendRequest {
+        body,
+        edges: edges.to_vec(),
+        size,
+    };
+    run_battery(&req, band).is_ok_and(|v| !v.smooth.is_empty())
+}
+
+/// What a blend result is, entity for entity: its face, edge and vertex
+/// keys and the faces it minted. Two results with one shape are one
+/// result (the surgery is deterministic in its request).
+#[must_use]
+pub fn blend_shape(out: &Blended<f64>) -> impl PartialEq + core::fmt::Debug {
+    (
+        body_keys(&out.body),
+        out.blend_faces.clone(),
+        out.corner_faces.clone(),
+        out.band_faces.clone(),
+    )
+}
+
+/// `body`'s face, edge and vertex keys, in arena order.
+#[must_use]
+pub fn body_keys(body: &Body<f64>) -> (Vec<topo::FaceKey>, Vec<EdgeKey>, Vec<topo::VertexKey>) {
+    (
+        body.faces().map(|(k, _)| k).collect(),
+        body.edges().map(|(k, _)| k).collect(),
+        body.vertices().map(|(k, _)| k).collect(),
+    )
+}
+
+/// **A requested smooth edge is a silent no-op**: `verb` on `edges` of
+/// `body` at `size` gives what it gives with the edges in `smooth` left
+/// out of the request: the same refusal, or the same result entity for
+/// entity. Where nothing is left, the result is `body` itself, key for
+/// key.
+///
+/// # Panics
+///
+/// Where the two disagree.
+#[track_caller]
+pub fn assert_blends_as_without(
+    verb: crate::blend::BlendKind,
+    body: &Body<f64>,
+    edges: &[EdgeKey],
+    smooth: &[EdgeKey],
+    size: f64,
+    tol: Tol,
+) {
+    let run = |edges: &[EdgeKey]| {
+        let operand = at_rest(body, tol);
+        match verb {
+            crate::blend::BlendKind::Fillet => {
+                crate::blend::build::fillet_edges(&operand, edges, size, tol)
+            }
+            crate::blend::BlendKind::Chamfer => {
+                crate::blend::build::chamfer_edges(&operand, edges, size, tol)
+            }
+        }
+        .map_err(|r| r.error)
+    };
+    let without: Vec<EdgeKey> = edges
+        .iter()
+        .copied()
+        .filter(|e| !smooth.contains(e))
+        .collect();
+    let with = run(edges);
+    if without.is_empty() {
+        let out = with.unwrap_or_else(|e| panic!("a request of smooth edges alone refused: {e}"));
+        assert_eq!(
+            body_keys(&out.body),
+            body_keys(body),
+            "the body comes back as it is"
+        );
+        assert!(
+            out.blend_faces.is_empty() && out.corner_faces.is_empty() && out.band_faces.is_empty(),
+            "a request of smooth edges alone minted a face"
+        );
+        return;
+    }
+    match (with, run(&without)) {
+        (Ok(a), Ok(b)) => assert_eq!(
+            blend_shape(&a),
+            blend_shape(&b),
+            "the smooth edges changed the result"
+        ),
+        (a, b) => assert_eq!(
+            format!("{:?}", a.map(|o| body_keys(&o.body))),
+            format!("{:?}", b.map(|o| body_keys(&o.body))),
+            "the smooth edges changed the outcome"
+        ),
+    }
+}
+
+/// **The margin a smooth seam was read at**: `edge` requested alone of
+/// the battery at `size`, which must leave it as a smooth seam, and of
+/// the fillet door, which must return `body` as it is, key for key (a
+/// silent no-op). The decided-Zero margin `fillet3_convexity_sign` read
+/// is handed back for the row to pin.
+///
+/// # Panics
+///
+/// If either refuses, or `edge` is not the one smooth seam.
+#[must_use]
+#[track_caller]
+pub fn smooth_reading(
+    body: &Body<f64>,
+    edge: EdgeKey,
+    size: f64,
+    tol: Tol,
+) -> crate::blend::ClassifiedMargin {
+    let band = Band::linear(tol).expect("the run's band");
+    let req = BlendRequest {
+        body,
+        edges: vec![edge],
+        size,
+    };
+    let verdict =
+        run_battery(&req, band).unwrap_or_else(|e| panic!("a smooth seam is no refusal, got {e}"));
+    let [(seam, margin)] = verdict.smooth[..] else {
+        panic!("{edge:?} is the one smooth seam, got {:?}", verdict.smooth)
+    };
+    assert_eq!(seam, edge, "the battery names the requested seam");
+    assert_blends_as_without(
+        crate::blend::BlendKind::Fillet,
+        body,
+        &[edge],
+        &[edge],
+        size,
+        tol,
+    );
+    margin
+}
+
 /// The square of side `l` with a corner at the origin, counter-clockwise
 /// from that corner, as profile vertices — the one spelling of the block
 /// outline the fixtures here build on when they need the loop rather
@@ -364,8 +545,8 @@ pub fn dome_profile(r: f64) -> Vec<(Point2<f64>, f64)> {
 /// and the kernel door that hands back the rest.
 ///
 /// A rim a chart seam has SPLIT is several edges, and the fillet verbs
-/// take exactly its set: adding one edge more refuses `TangentialEdge`
-/// at margin zero, one edge fewer stops at a seam vertex. Producing
+/// take exactly its set: one edge fewer stops at a seam vertex, and a
+/// seam meridian added is a smooth seam the verb leaves as it is. Producing
 /// that set is [`topo::query::rim_of`]'s job and not a fixture's, so
 /// this scan does the half only a fixture can do — find the arc the
 /// suite means, by the radius and station it stated analytically — and
@@ -458,7 +639,11 @@ pub fn arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey
     body.edges()
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
-            let geom::Curve3::Circle { radius, center, .. } = *c.carrier() else {
+            let geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                radius,
+            }) = *c.carrier()
+            else {
                 return None;
             };
             if !near(radius, rim_r) || !near(center.y, rim_y) {
@@ -1789,7 +1974,7 @@ fn circle_arcs_where(
                 body.get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(geom::Curve3::Circle { center, radius, axis, .. })
+                Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { center, axis, .. }, radius }))
                     if pick(*center, *radius, *axis)
             )
         })
@@ -2275,9 +2460,16 @@ pub fn resolved_links(
 ) -> Vec<Link<f64>> {
     edges
         .iter()
-        .map(|&e| resolve_link(body, e, size, band, BlendKind::Fillet))
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap_or_else(|e| panic!("every requested edge resolves to a link, got {e}"))
+        .map(
+            |&e| match resolve_link(body, e, size, band, BlendKind::Fillet) {
+                Ok(Resolved::Link(link)) => link,
+                Ok(Resolved::Smooth(e, _)) => {
+                    panic!("every requested edge resolves to a link, {e:?} is smooth")
+                }
+                Err(e) => panic!("every requested edge resolves to a link, got {e}"),
+            },
+        )
+        .collect()
 }
 
 /// **The battery's walk over `links` as given** — the incidence a
@@ -2341,7 +2533,7 @@ pub fn turn_readings_interval(
 fn turn_readings_of<T: Decide>(
     body: &Body<T>,
     edges: [EdgeKey; 2],
-    links: [Result<Link<T>, crate::blend::BlendError>; 2],
+    links: [Result<Resolved<T>, crate::blend::BlendError>; 2],
 ) -> (T, [T; 2]) {
     let ends = |e: EdgeKey| {
         let he = body.get_edge(e).expect("an edge").he_plus;
@@ -2364,7 +2556,11 @@ fn turn_readings_of<T: Decide>(
             thirds.len()
         )
     };
-    let links = links.map(|l| l.unwrap_or_else(|err| panic!("a turning edge resolves, got {err}")));
+    let links = links.map(|l| match l {
+        Ok(Resolved::Link(link)) => link,
+        Ok(Resolved::Smooth(e, _)) => panic!("a turning edge resolves, {e:?} is smooth"),
+        Err(err) => panic!("a turning edge resolves, got {err}"),
+    });
     let reading = crate::blend::battery::turn_reading(body, vertex, [&links[0], &links[1]], third)
         .unwrap_or_else(|err| panic!("the turn reads, got {err}"));
     (reading.gap, reading.chords)

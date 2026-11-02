@@ -207,15 +207,18 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         what: "the conic × quadric root door was handed a carrier that is not a circle or an \
                ellipse or a surface that is not a sphere, a cylinder or a cone",
     };
-    let conic = geom_brep::Conic::of(carrier).ok_or_else(desync)?;
+    let conic = carrier.conic().ok_or_else(desync)?;
     match (carrier, surface) {
         (
-            &geom::Curve3::Circle {
-                center,
-                axis,
+            &geom::Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            },
+            }),
             &geom::Surface::Sphere {
                 center: s_center,
                 radius: s_radius,
@@ -275,7 +278,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
     }
     door_half_angle_roots(
         &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
-        |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
+        |theta| geom_brep::implicit_residual(surface, conic.point_at(theta)),
         frame,
         &LADDER_ROWS,
         &RootSlack {
@@ -302,7 +305,7 @@ struct QuadricLadder<'a, T: Decide> {
 /// [`QuadricLadder`] for `conic` against `surface` over `[t0, t1]`, or
 /// `None` when `surface` is neither a sphere nor a cylinder.
 fn quadric_ladder<T: Decide>(
-    conic: &geom_brep::Conic<T>,
+    conic: &dyn geom::Conic<T>,
     surface: &geom::Surface<T>,
     (t0, t1): (T, T),
 ) -> Option<QuadricLadder<'static, T>> {
@@ -370,7 +373,7 @@ fn first_harmonic_arm<T: Decide>(
 /// residual is `1` on every kind ([`geom_brep::ConicHarmonics::floor`]),
 /// its floor the door's `floor`.
 fn ladder_frame<T: Decide>(
-    conic: &geom_brep::Conic<T>,
+    conic: &dyn geom::Conic<T>,
     (t0, t1): (T, T),
     noise: T,
     floor: T,
@@ -402,7 +405,7 @@ const CONE_ON_SURFACE: &str = "bool_conic_cone_on_surface";
 /// and its distance from the apex decided, and an on-surface answer read
 /// again through the floor.
 fn cone_roots<T: Decide>(
-    conic: &geom_brep::Conic<T>,
+    conic: &dyn geom::Conic<T>,
     (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::Vec3<T>, T),
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
@@ -441,7 +444,7 @@ fn cone_roots<T: Decide>(
         };
         door_half_angle_roots(
             &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
-            |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
+            |theta| geom_brep::implicit_residual(surface, conic.point_at(theta)),
             ladder_frame(conic, (t0, t1), noise, h.floor),
             &LADDER_ROWS,
             &meter,
@@ -462,7 +465,7 @@ fn cone_roots<T: Decide>(
 /// speed over `R` — so the rung decides only a root that meter let
 /// through, and its row hands it one directly.
 fn off_the_apex<T: Decide>(
-    conic: &geom_brep::Conic<T>,
+    conic: &dyn geom::Conic<T>,
     apex: geom_core::Point3<T>,
     roots: CircleRoots<T>,
     band: Band,
@@ -471,7 +474,7 @@ fn off_the_apex<T: Decide>(
         return Ok(roots);
     };
     for &theta in found.roots() {
-        match decide(CONE_APEX, Margin::norm3(conic.point(theta) - apex), band) {
+        match decide(CONE_APEX, Margin::norm3(conic.point_at(theta) - apex), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) | Err(_) => return Err(Unsettled::AtApex),
         }
@@ -501,19 +504,9 @@ mod tests {
             Vec3::new(1.0, 0.0, 0.0),
         );
         let line = geom::Curve3::Line(geom::Line { origin: o, dir: x });
-        let circle = geom::Curve3::Circle {
-            center: o,
-            axis: z,
-            radius: 1.0,
-            u_ref: x,
-        };
-        let ellipse = geom::Curve3::Ellipse {
-            center: o,
-            axis: z,
-            semi_u: 1.0,
-            semi_v: 0.5,
-            u_ref: x,
-        };
+        let circle = geom::Curve3::circle(o, z, 1.0, x);
+        let ellipse =
+            geom::Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), 1.0, 0.5));
         let sphere = geom::Surface::Sphere {
             center: o,
             radius: 1.0,

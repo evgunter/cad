@@ -184,7 +184,7 @@ pub const DEFAULT_MAX_CELL_DEPTH: u32 = 40;
 /// (the kiss row's 213) rather than by budget exhaustion. A deeper dial
 /// reaches smaller violations beside a cusp at an exponential cost in
 /// pairs; the second-order arm
-/// (`work/cleartail/the-second-order-arm-certifies-a-declared-wedge-0-edge.md`)
+/// (`work/clear/the-second-order-arm-certifies-a-declared-wedge-0-edge.md`)
 /// retires the dial. A recorded run dial.
 pub const CUSP_DEPTH: u32 = 10;
 
@@ -5046,12 +5046,7 @@ mod cone_window {
                 pair: SurfacePair::new(carrier, plane),
                 selector: CurveSelector::Witness(on(u0 + FRAC_PI_2)),
             },
-            carrier: Curve3::Circle {
-                center: Point3::new(0.0, 0.0, z),
-                axis: Vec3::unit_z(),
-                radius: r,
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: Curve3::circle(Point3::new(0.0, 0.0, z), Vec3::unit_z(), r, Vec3::unit_x()),
             param_start: u0,
             param_end: u0 + PI,
         };

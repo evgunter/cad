@@ -109,12 +109,12 @@ fn a_line_crosses_a_bicubic_patch_once() {
 #[test]
 fn a_circle_crosses_a_bicubic_patch_twice() {
     let chart = waved();
-    let ring = Curve3::Circle {
-        center: Point3::new(0.5, 0.5, 0.0),
-        axis: Vec3::unit_y(),
-        radius: 0.3,
-        u_ref: Vec3::unit_x(),
-    };
+    let ring = Curve3::circle(
+        Point3::new(0.5, 0.5, 0.0),
+        Vec3::unit_y(),
+        0.3,
+        Vec3::unit_x(),
+    );
     let found = read(&ring, (0.0, 2.0 * core::f64::consts::PI - 0.1), &chart).unwrap();
     assert_eq!(found.len(), 2, "two meetings: {found:?}");
     on_chart(&chart, &found);
@@ -245,12 +245,12 @@ fn flat() -> NurbsSurface<f64> {
 /// flat patch at `(δ, ½, 0)` at `θ = π/2`, read from `θ = 0` to `rβ`
 /// metres past the touch.
 fn touching(delta: f64, r: f64, past: f64) -> (Curve3<f64>, (f64, f64)) {
-    let ring = Curve3::Circle {
-        center: Point3::new(delta, 0.5, r),
-        axis: Vec3::unit_x(),
-        radius: r,
-        u_ref: -Vec3::unit_y(),
-    };
+    let ring = Curve3::circle(
+        Point3::new(delta, 0.5, r),
+        Vec3::unit_x(),
+        r,
+        -Vec3::unit_y(),
+    );
     (ring, (0.0, core::f64::consts::FRAC_PI_2 + past / r))
 }
 
@@ -278,12 +278,12 @@ fn review_r1_a_tangency_near_the_chart_edge_and_an_end_is_not_dropped() {
 #[test]
 fn review_r1_a_small_circle_crosses_a_flat_patch_twice() {
     let r = 1000.0 * band().escalate();
-    let ring = Curve3::Circle {
-        center: Point3::new(0.5, 0.5, 0.5 * r),
-        axis: Vec3::unit_y(),
-        radius: r,
-        u_ref: Vec3::unit_x(),
-    };
+    let ring = Curve3::circle(
+        Point3::new(0.5, 0.5, 0.5 * r),
+        Vec3::unit_y(),
+        r,
+        Vec3::unit_x(),
+    );
     let found = read(&ring, (0.0, 2.0 * core::f64::consts::PI - 0.1), &flat()).unwrap();
     assert_eq!(found.len(), 2, "two meetings: {found:?}");
 }

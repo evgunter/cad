@@ -138,12 +138,12 @@ fn notched_cone() -> Body<f64> {
     let cap_p = t2;
     // The rim, a circle at P.
     let h = out_of(&b, vp, f0);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::new(0.0, 0.0, -1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        1.0,
+        Vec3::new(0.0, 1.0, 0.0),
+    );
     let base = b
         .mef(
             MefSite::Chords { he1: h, he2: h },
@@ -197,12 +197,12 @@ fn notched_cone() -> Body<f64> {
         .0;
     {
         let (s1, s2) = topo::readback::edge_sides(&b, rim_edge).unwrap().surfaces();
-        let carrier = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 1.0),
-            axis: Vec3::new(0.0, 0.0, -1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
-        };
+        let carrier = Curve3::circle(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            1.0,
+            Vec3::new(0.0, 1.0, 0.0),
+        );
         let mut spec = EdgeCurveSpec::arc_of_circle(carrier, 0.0, core::f64::consts::TAU).unwrap();
         spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(s1, s2),

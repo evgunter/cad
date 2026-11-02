@@ -520,13 +520,14 @@ pub(super) fn plan_null_pairs<T: Decide>(
     let branches = survivors
         .iter()
         .zip(&loci)
-        .map(|(r, &l)| {
+        .zip(&dirs)
+        .map(|((r, &l), dir)| {
             super::join::germ_branch(
                 &declared.sections,
                 (a_body, a_sectors[r.a].face),
                 (b_body, b_sectors[r.b].face),
                 l,
-                site,
+                (site, dir.dir),
                 band,
             )
         })

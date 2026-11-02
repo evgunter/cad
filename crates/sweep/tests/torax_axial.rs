@@ -751,7 +751,10 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle { center, radius, .. } => {
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                radius,
+            }) => {
                 rims += 1;
                 let (rho_c, h_c) = axial(*center);
                 assert!(
@@ -890,7 +893,7 @@ fn torax_the_sphere_lune_hollows_to_its_closed_form() {
 /// across the axis, so a counterpart's boundary meets its designated
 /// face's, which a box opened at two adjacent faces meets the same way
 /// (`ShellError::OpenFaceRimNotExpressible`'s own scope; scheduled as
-/// `work/shelf/shell-open-at-two-adjacent-mouths-refuses-at-the-rim-glue.md`).
+/// `work/shell/shell-open-at-two-adjacent-mouths-refuses-at-the-rim-glue.md`).
 #[test]
 fn torax_the_sphere_lune_lifts_its_rims_onto_the_caps() {
     let (r, t) = (0.3, 0.05);
@@ -1165,7 +1168,10 @@ fn torax_the_outward_lune_offsets_through_the_same_arms() {
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle { center, radius, .. } => {
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                radius,
+            }) => {
                 rims += 1;
                 let (rho_c, h_c) = axial(*center);
                 assert!(

@@ -178,7 +178,7 @@ fn a_trimmed_curved_face_is_unexamined_data_not_a_skipped_check() {
 /// splits that arc at the pole and the body ships quiet
 /// (`chart_singularity_vertex.rs`). No file this door ships carries a
 /// finding, so the channel's handling of one is read through no shipped
-/// body (`work/foreign/the-coherence-channel-has-no-shipped-finding.md`).
+/// body (`work/importgate/the-coherence-channel-has-no-shipped-finding.md`).
 /// The second row below still states the DOOR's order on the half-cap's
 /// stated form, built by hand.
 #[test]
@@ -250,7 +250,7 @@ fn split_half_cap(tol: Tol) -> Body<f64> {
         .edges()
         .find_map(|(e, d)| {
             let c = body.get_curve_geom(d.curve)?.certified()?;
-            let geom::Curve3::Circle { radius, .. } = c.carrier() else {
+            let geom::Curve3::Circle(geom::Circle { radius, .. }) = c.carrier() else {
                 return None;
             };
             let (t0, t1) = c.params();

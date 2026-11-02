@@ -109,6 +109,6 @@ empty chain or a refused box refuses `TubeUnread`.
   stop is the march's sample spacing and not the reading.
 
 Also filed from the sweep: evidence on
-`sectrung/the-torus-gaps-rounding-charge-is-first-order-and-reads-the-world-origin`
+`sect/the-torus-gaps-rounding-charge-is-first-order-and-reads-the-world-origin`
 (a wrong `Tangent` verdict at 1e-6, seed `0xb8c56b2ac7806cae`).
 

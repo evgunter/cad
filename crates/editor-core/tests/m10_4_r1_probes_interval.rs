@@ -913,7 +913,7 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
 /// splits: 3 }`, and the study's chamber is the leaf `[-0.1, 0]` on both
 /// axes rather than the whole box. Why the whole box stopped certifying
 /// in one leaf is unread
-/// (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+/// (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
 #[test]
 fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(0.1)), Some(uniform(0.1)));
