@@ -321,14 +321,9 @@ fn r4_straight_cap_corner_single_wedge_single_null_edge() {
 /// (a), (b) and (d) run in the default build.
 #[test]
 fn r5_crossing_vertex_on_is_declared_not_measured() {
-    // Pinned to limb 2's kernel limit at ε = 1e-12: its kilometre edges
-    // measure their ends against their planes in certification arithmetic
-    // at the data's own rounding at that length — an enclosure reaching
-    // zero, so only an upper bound, and the composite's stall stands. It
-    // claims no miss.
     test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
-        &[1e-12],
+        &[],
         "r5_crossing_vertex_on_is_declared_not_measured",
         || {
             // Plane x + 3y = 0, normal (1,3,0)/√10; crossing edges hit it
