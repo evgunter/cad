@@ -68,3 +68,26 @@ why it cannot fail. The two zips state their bound, as
 member read no longer clamp. Its label widens before the `+ 1`
 (`operand::ordinal`). What stays open here: the dead widening clamps
 and the two kernel-bounded zips.
+
+## The rest fixed (2026-11-02, wire-refuse1, branch `wirerefuse/dead-index-clamps`)
+
+Every clamp left by the second pass is resolved. Most now take the
+conversion that cannot fail; the rest state their bound:
+
+- `u32` → `usize` (`product.rs` split half, `eval/wire.rs` split
+  projection, `emit_topo.rs` `Side::slot`): `as usize`, which is lossless
+  on every target the workspace builds.
+- `counters.rs`: `n as u64`, the same.
+- `check_loft_shape`: compares the degree in `usize` (`(1..sections)`),
+  so no conversion is left to clamp.
+- The two `zip(0u32..)` (`checks/at_rest.rs` `copy_groups` and
+  `product.rs`'s censused `decided`): `names::to_u32` with
+  `product::GRAFTED_WITHIN_U32`. That is the argument `gather_sources`
+  already states for its input position, now one constant read by all
+  three sites.
+- **Kept as written:** `need_count`'s `wide`. Its `usize::MAX` is the
+  documented "no upper end", and saturating it onto `i64::MAX` is how
+  `CountOutOfRange.admits` says an unbounded domain. That is a stated
+  convention, not an alias.
+
+No witness can be red on base: no input reaches any of these clamps.
