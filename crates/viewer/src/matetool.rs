@@ -48,12 +48,14 @@
 //! one slide and the spin, a direction three slides and the spin, and a
 //! point the chain of spins about the target space's axes. A value the
 //! kind does not leave is refused here
-//! ([`MateToolError::NotAFreedom`], [`MateFreedom::offered_beside`]), before
+//! ([`MateToolError::NotAFreedom`], [`MateFreedom::left_by`]), before
 //! any edit exists. The mate goes in through the bundle door, which
 //! rewrites the placement's bundle whole; the gesture then writes the
 //! orientation nearest where the copy stands and the values that stand
 //! it where the snap puts it, so a freshly mated copy moves only by the
-//! snap, and the values the person named over them.
+//! snap, and the values the person named over them. A point mate fixes
+//! no direction and has no snap: the values the door keeps of the
+//! bundle stand the copy (`session/snap.rs`).
 //!
 //! # Survival
 //!
@@ -81,7 +83,7 @@
 
 use pncad::document::{
     Coord, Doc, Evaluation, Formula, Mate, MateSide, Node, Operand, ProfileProgram, RecipeNodeId,
-    Said, Say, SitedRef, SlotKind, Speaker, SpokenNode, TargetAxis, VarKind, member_of_ref, pose,
+    Said, Say, SitedRef, SlotKind, Speaker, SpokenNode, TargetAxis, VarKind, member_of, pose,
 };
 use pncad::prelude::StableName;
 use pncad::select::{EntityKind, Resolution};
@@ -111,19 +113,19 @@ pub const MATE_KINDS: [(VarKind, &str); 4] = [
 ];
 
 /// **What the cursor may pick while the mate tool reads `kind`**: the
-/// faces alone for a plane, which reads nothing else (so a narrow
-/// shelf or a small hole's wall stays pickable however near its own
-/// boundary the cursor is), vertices beating edges beating faces for a
-/// point, and the bare cursor's rule for the rest. A pick already held
-/// that the kind chosen since does not read is refused at the commit,
-/// typed ([`MateToolError::KindDoesNotRead`]).
+/// narrowest rule ([`PickKinds::NARROWEST_FIRST`]) admitting every
+/// entity the kind reads ([`reads`]) — so a kind that reads faces alone
+/// picks faces alone, and a narrow shelf or a small hole's wall stays
+/// pickable however near its own boundary the cursor is. A pick already
+/// held that the kind chosen since does not read is refused at the
+/// commit, typed ([`MateToolError::KindDoesNotRead`]).
 #[must_use]
 pub fn pick_kinds(kind: VarKind) -> PickKinds {
-    match kind {
-        VarKind::Plane => PickKinds::FacesOnly,
-        VarKind::Point => PickKinds::WithVertices,
-        _ => PickKinds::Any,
-    }
+    let read = reads(kind);
+    PickKinds::NARROWEST_FIRST
+        .into_iter()
+        .find(|rule| read.iter().all(|&entity| rule.admits(entity)))
+        .unwrap_or_default()
 }
 
 /// **A mate tool pick**: the face, edge or vertex picked in the
@@ -208,12 +210,24 @@ impl From<VertexSelection> for MatePick {
 /// own spelling of a direction mate's side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MateReading {
-    /// The pose kind the pick is read as: [`VarKind::Plane`],
-    /// [`VarKind::Axis`] or [`VarKind::Point`].
-    pub pose: VarKind,
+    /// The pose the pick is read as.
+    pub pose: ReadPose,
     /// The role a direction is read through, `None` for the pose
     /// itself.
     pub role: Option<pose::PoseRole>,
+}
+
+/// **A pose read off one entity**: the three pose definitions whose
+/// one read is a pick.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadPose {
+    /// A face's plane ([`pose::PoseDef::Plane`]).
+    Plane,
+    /// A carrier's or an edge's axis ([`pose::PoseDef::Axis`]).
+    Axis,
+    /// A vertex, or a carrier's or a circle's centre
+    /// ([`pose::PoseDef::Point`]).
+    Point,
 }
 
 impl MateReading {
@@ -225,10 +239,12 @@ impl MateReading {
     pub fn of(kind: VarKind, entity: EntityKind) -> Option<Self> {
         let reading = |pose, role| Self { pose, role };
         let candidates: &[Self] = match kind {
-            VarKind::Plane | VarKind::Axis | VarKind::Point => &[reading(kind, None)],
+            VarKind::Plane => &[reading(ReadPose::Plane, None)],
+            VarKind::Axis => &[reading(ReadPose::Axis, None)],
+            VarKind::Point => &[reading(ReadPose::Point, None)],
             VarKind::Direction => &[
-                reading(VarKind::Plane, Some(pose::PoseRole::Normal)),
-                reading(VarKind::Axis, Some(pose::PoseRole::Direction)),
+                reading(ReadPose::Plane, Some(pose::PoseRole::Normal)),
+                reading(ReadPose::Axis, Some(pose::PoseRole::Direction)),
             ],
             _ => &[],
         };
@@ -241,9 +257,9 @@ impl MateReading {
     /// The pose definition this reading puts `read` in.
     fn def(self, read: Operand) -> pose::PoseDef<Operand, Formula> {
         match self.pose {
-            VarKind::Plane => pose::PoseDef::Plane { face: read },
-            VarKind::Axis => pose::PoseDef::Axis { of: read },
-            _ => pose::PoseDef::Point { of: read },
+            ReadPose::Plane => pose::PoseDef::Plane { face: read },
+            ReadPose::Axis => pose::PoseDef::Axis { of: read },
+            ReadPose::Point => pose::PoseDef::Point { of: read },
         }
     }
 
@@ -297,6 +313,25 @@ pub fn reads(kind: VarKind) -> Vec<EntityKind> {
 #[must_use]
 pub fn sensed(kind: VarKind) -> bool {
     pose::PoseAdmits::Sensed.kinds().contains(&kind)
+}
+
+/// **The sense control the panel offers beside a mate of `kind`**:
+/// what turning `to` round does for the kind, and whether the panel
+/// opens with it on. `None` for a kind with no sense ([`sensed`]).
+///
+/// A plane opens turned: a plain plane mate equates outward normals,
+/// so two faces resting against each other carry the flip. An axis and
+/// a direction open plain, the two running the same way: turned, an
+/// edge mated to an edge would stand its copy upside down.
+#[must_use]
+pub fn sense_offer(kind: VarKind) -> Option<(&'static str, bool)> {
+    if !sensed(kind) {
+        return None;
+    }
+    Some(match kind {
+        VarKind::Plane => ("faces rest against each other", true),
+        _ => ("turned round: the two run opposite ways", false),
+    })
 }
 
 /// The entity kinds `kinds`, said as a list: `a face, an edge or a
@@ -432,10 +467,8 @@ pub enum MateToolError {
     /// The tool does not hold two picks yet.
     NotTwoPicks,
     /// The pick names an entity no pose of the chosen kind is read
-    /// off ([`MateReading::of`]): an edge or a vertex held for a plane,
-    /// a vertex for an axis or a direction — a pick taken under one
-    /// kind and committed under another — or a name of no picked
-    /// entity at all.
+    /// off ([`MateReading::of`]) — a pick taken under one kind and
+    /// committed under another, or a name of no picked entity at all.
     KindDoesNotRead {
         /// Which pick.
         side: MateSide,
@@ -606,7 +639,7 @@ impl MateToolState {
 /// **The sentence a dropped pick is said in**: its role, and the
 /// pick as its panel line said it ([`HeldPick`]) — the mate tool's drop
 /// and the mirror tool's (`crate::combine::MirrorEvent`).
-pub(crate) fn face_lost<P: PickedEntity>(
+pub(crate) fn pick_lost<P: PickedEntity>(
     f: &mut core::fmt::Formatter<'_>,
     role: impl core::fmt::Display,
     pick: &HeldPick<P>,
@@ -644,7 +677,7 @@ pub enum MateToolEvent {
 impl Say for MateToolEvent {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { side, pick, .. } => face_lost(f, side.name(), pick, by),
+            Self::PickLost { side, pick, .. } => pick_lost(f, side.name(), pick, by),
         }
     }
 }
@@ -734,7 +767,7 @@ fn placement_of(
 ) -> Option<RecipeNodeId> {
     match doc.node(at) {
         Some(Node::Place { .. } | Node::InstantiatePart { .. }) => Some(at),
-        _ => member_of_ref(doc, read).map(|member| member.instance),
+        _ => member_of(doc, read).map(|member| member.instance),
     }
 }
 
@@ -966,10 +999,10 @@ impl MateTool {
             _ => (picked_on.clone(), picked_on.into()),
         };
         // `to` is read where it was picked: on a copy, the copy itself;
-        // on a drawn operation, the output picked ([`crate::session::face_read`]).
+        // on a drawn operation, the output picked ([`crate::session::pick_read`]).
         let to_operand = match doc.node(to.node()) {
             Some(Node::Place { .. } | Node::InstantiatePart { .. }) => picked_to.clone().into(),
-            _ => crate::session::face_read(doc, to),
+            _ => crate::session::pick_read(doc, to),
         };
         Ok(MateProposal {
             placement,

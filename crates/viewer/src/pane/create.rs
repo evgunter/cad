@@ -568,10 +568,13 @@ impl ViewerBehavior<'_> {
             }
         });
         let kind = self.drafts.mate_kind();
-        // A point has no sense to turn round, so it is offered no flip.
-        let sensed = crate::matetool::sensed(kind);
-        if sensed {
-            ui.checkbox(&mut self.drafts.mate_flip, "faces rest against each other");
+        // Each kind's own sense toggle; a point has no sense to turn
+        // round, so it is offered none.
+        if let (Some((label, _)), Some(turned)) = (
+            crate::matetool::sense_offer(kind),
+            self.drafts.mate_flip.get_mut(self.drafts.mate_kind),
+        ) {
+            ui.checkbox(turned, label);
         }
         ui.checkbox(
             &mut self.drafts.mate_into_target_space,
@@ -620,7 +623,7 @@ impl ViewerBehavior<'_> {
                 (Ok(values), Some((doc, _))) => {
                     let choice = MateChoice {
                         kind,
-                        flip: sensed && self.drafts.mate_flip,
+                        flip: self.drafts.mate_turned(),
                         values,
                     };
                     match tool.proposal(doc, choice) {

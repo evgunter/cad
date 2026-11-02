@@ -7006,6 +7006,79 @@ mod properties_pane_tests {
         );
     }
 
+    /// **An edge-on-edge direction mate committed at the panel's own
+    /// default sense does not turn its copy over**: the plate duplicated
+    /// beside itself, one vertical corner edge of each picked, the panel
+    /// switched to `direction` and committed untouched. The default is
+    /// the kind's own (`matetool::sense_offer`), not a plane's rest
+    /// carried across, and the panel says what turning it round does.
+    #[test]
+    fn an_edge_direction_mate_at_the_panels_default_keeps_its_copy_upright() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.perform(SessionOp::Duplicate {
+            input: pncad::document::Operand::Node(extrude()),
+            beside: Some(placement()),
+        });
+        let doc = driven.app.session.committed_doc().clone();
+        let [copy] = crate::world::placements_of(&doc, extrude())
+            .into_iter()
+            .filter(|&at| at != placement())
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("the duplicate is one more copy")
+        };
+        let index = driven.on_screen();
+        let vertical = |node| {
+            index
+                .edges_in(node, 0)
+                .iter()
+                .find(|&&id| {
+                    let points = index.edge_polyline_for(id, &crate::display::DisplayView::none());
+                    let (a, b) = (points[0], points[points.len() - 1]);
+                    points.len() == 2 && (a.x - b.x).abs() < 1e-9 && (a.y - b.y).abs() < 1e-9
+                })
+                .map(|&id| index.edge_name_of(id).expect("named").clone())
+                .expect("the plate draws a vertical edge")
+        };
+        let name = vertical(copy);
+        let edge = |node| {
+            Selection::Edge(crate::session::EdgeSelection {
+                name: name.clone(),
+                node,
+                body: 0,
+            })
+        };
+        driven.app.tools.open(crate::tools::ToolKind::Mate);
+        driven.click_through(vec![edge(copy), edge(placement()), Selection::None]);
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
+        driven.click("direction");
+        let shown: Vec<String> = driven.quiet().into_iter().map(|(text, _)| text).collect();
+        assert!(
+            shown
+                .iter()
+                .any(|t| t == "turned round: the two run opposite ways")
+                && !shown.iter().any(|t| t == "faces rest against each other"),
+            "the direction's sense control says what it does: {shown:?}"
+        );
+        driven.click(&crate::tools::ToolKind::Mate.commit());
+        driven.quiet();
+        let (doc, ev) = driven.app.session.landed_pair().expect("landed");
+        assert!(
+            matches!(doc.node(copy), Some(Node::Place { constraints, .. })
+                if constraints.iter().any(|c| c.mate().is_some())),
+            "the mate commits: {:?}",
+            status(&driven)
+        );
+        let at = pncad::document::SolvedPoses::of(doc, ev)
+            .relative(copy)
+            .expect("the copy is solved");
+        assert!(
+            at.columns[2][2] > 0.999,
+            "the copy stands upright, not turned over: {at:?}"
+        );
+    }
+
     /// **The selection's verdict speaks from the landed document, not
     /// the shown one**: the standing is asked of the landed run, so a
     /// picked face that no longer resolves names its minting node by

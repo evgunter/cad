@@ -131,23 +131,39 @@ fn choice(kind: VarKind, flip: bool) -> MateChoice {
     }
 }
 
-/// **The cursor's rule follows the chosen kind**: a plane picks faces
-/// alone, a point vertices before edges before faces, an axis and a
-/// direction the bare cursor's rule; with no mate tool open the kind
-/// chosen changes nothing.
+/// **The cursor's rule admits exactly what the chosen kind reads**:
+/// for every offered kind, the entities the rule may answer are the
+/// entities the kind's poses read (`matetool::reads`, the kernel's
+/// seats), so a plane's cursor can never land on an edge and a point's
+/// can always land on a vertex; with no mate tool open the kind chosen
+/// changes nothing.
 #[test]
-fn the_cursors_rule_follows_the_chosen_kind() {
+fn the_cursors_rule_admits_what_the_chosen_kind_reads() {
     let mut tools = Tools::new();
     assert_eq!(tools.pick_kinds_choosing(VarKind::Point), PickKinds::Any);
     tools.open(ToolKind::Mate);
-    for (kind, want) in [
-        (VarKind::Plane, PickKinds::FacesOnly),
-        (VarKind::Axis, PickKinds::Any),
-        (VarKind::Point, PickKinds::WithVertices),
-        (VarKind::Direction, PickKinds::Any),
-    ] {
-        assert_eq!(tools.pick_kinds_choosing(kind), want, "{kind:?}");
+    let entities = [EntityKind::Face, EntityKind::Edge, EntityKind::Vertex];
+    for (kind, _) in viewer::matetool::MATE_KINDS {
+        let rule = tools.pick_kinds_choosing(kind);
+        let admitted: Vec<EntityKind> = entities
+            .into_iter()
+            .filter(|&entity| rule.admits(entity))
+            .collect();
+        assert_eq!(
+            admitted,
+            viewer::matetool::reads(kind),
+            "{kind:?}: the rule {rule:?} admits what the kind reads"
+        );
     }
+    assert_eq!(
+        viewer::matetool::reads(VarKind::Plane),
+        [EntityKind::Face],
+        "a plane reads a face alone"
+    );
+    assert!(
+        viewer::matetool::reads(VarKind::Point).contains(&EntityKind::Vertex),
+        "a point reads a vertex"
+    );
 }
 
 /// **Two posts' vertical edges, made collinear** (`Axis` on straight

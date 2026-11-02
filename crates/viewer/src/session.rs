@@ -3079,7 +3079,7 @@ impl DocSession {
                 ))));
             }
         };
-        let faces = traced.iter().map(|face| face_read(doc, face)).collect();
+        let faces = traced.iter().map(|face| pick_read(doc, face)).collect();
         match pncad::trace::drawn_profile(frame, faces, chains) {
             Ok(node) => Ok(creating(move |run| run.insert(node))),
             Err(error) => Err(Refusal::Edit(Box::new(error))),
@@ -3109,7 +3109,7 @@ impl DocSession {
             doc,
             ev,
             frame,
-            face_read(doc, face),
+            pick_read(doc, face),
             (pncad::geom_core::Point2::origin(), half),
             SKETCH_TRACE_RAYS,
             self.tol,
@@ -4828,7 +4828,7 @@ fn picked_body(
 /// **The entity a pick selects, as an operand** — a face, or for the
 /// mate tool an edge or a vertex: its name on the body the pick is read
 /// on ([`picked_body`]).
-pub(crate) fn face_read(
+pub(crate) fn pick_read(
     doc: &Doc<ProfileProgram>,
     pick: &impl crate::tree::PickedEntity,
 ) -> Operand {
@@ -4852,8 +4852,8 @@ fn drawn_frame(
     pncad::trace::traced_frame(
         doc,
         ev,
-        &face_read(doc, plane),
-        &face_read(doc, traced),
+        &pick_read(doc, plane),
+        &pick_read(doc, traced),
         tol,
     )
 }

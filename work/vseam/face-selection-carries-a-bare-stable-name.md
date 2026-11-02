@@ -63,3 +63,13 @@ not read is `MateToolError::KindDoesNotRead`
 (`crates/viewer/tests/rv_matehead_probes.rs`). What is left of this row
 is the type itself: `FaceSelection::name` is still a bare `StableName`
 for every other consumer of a face pick.
+
+**A third instance of the shape** (same unit, its review's S2):
+`VertexSelection` (`crates/viewer/src/session/select.rs`) is a third
+`{ name: StableName, node, body }` struct beside `FaceSelection` and
+`EdgeSelection`, each with an identical `tree::PickedEntity` impl
+(`crates/viewer/src/tree.rs`), and `matetool::MatePick` is a sub-enum of
+`Selection`'s three pick arms. The entity kind is held twice — by the
+type and by `name.kind` — and the mate tool reads the second
+(`MatePick::entity`). A fix that makes the name's kind a type would
+also say whether the three structs are one generic pick.

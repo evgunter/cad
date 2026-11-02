@@ -244,21 +244,39 @@ pub(super) fn walk<P: crate::ProfilePayload>(
 /// does not admit would mint a record for a mate that never solved,
 /// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
 /// clause).
-pub fn member_of<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
-    head: &crate::node::SitedFace,
-) -> Option<Member> {
-    walk(doc, head.at, &head.name).ok().map(|w| w.member)
+///
+/// The walk reads the name alone, so a head of any entity kind — a
+/// face, an edge or a vertex read at its node ([`Headed`]) — takes the
+/// one vocabulary.
+pub fn member_of<P: crate::ProfilePayload>(doc: &Doc<P>, head: &impl Headed) -> Option<Member> {
+    let (at, name) = head.head();
+    walk(doc, at, name).ok().map(|w| w.member)
 }
 
-/// [`member_of`] for a reference of any entity kind — a face, an edge
-/// or a vertex read at `at`: the walk reads the name alone, so one
-/// vocabulary admits every pose a mate side reads off geometry.
-pub fn member_of_ref<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
-    head: &crate::node::SitedRef,
-) -> Option<Member> {
-    walk(doc, head.at, &head.name).ok().map(|w| w.member)
+/// **A reference the member walk starts from**: the node it is read at
+/// and its name — a mate head ([`crate::node::SitedFace`]) or a
+/// reference of any entity kind ([`crate::node::SitedRef`]).
+pub trait Headed {
+    /// The node the name is read at, and the name.
+    fn head(&self) -> (RecipeNodeId, &crate::names::StableName);
+}
+
+impl Headed for crate::node::SitedFace {
+    fn head(&self) -> (RecipeNodeId, &crate::names::StableName) {
+        (self.at, &self.name)
+    }
+}
+
+impl Headed for crate::node::SitedRef {
+    fn head(&self) -> (RecipeNodeId, &crate::names::StableName) {
+        (self.at, &self.name)
+    }
+}
+
+impl<H: Headed> Headed for &H {
+    fn head(&self) -> (RecipeNodeId, &crate::names::StableName) {
+        (**self).head()
+    }
 }
 
 /// **The member a side resolves to, and the side's name as that

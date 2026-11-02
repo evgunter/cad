@@ -2137,7 +2137,9 @@ orientation nearest where the copy stands, the spin the least turn
 leaves, and each slide it keeps at the copy's snapped coordinate, so a
 freshly mated copy moves only by the snap: its mated direction turned
 the least way onto the target's, its mated point moved the shortest
-way onto the target's plane or line (`session/snap.rs`). So a freshly
+way onto the target's plane or line (`session/snap.rs`). A point mate
+fixes no direction and has no snap: the values the door keeps stand
+its copy. So a freshly
 inserted copy, standing by the identity bundle, is mated as it is. Where `to` is read
 in another space than the one the copy is placed into, the door
 refuses the mate, `EditError::SpaceMismatch` naming both spaces: the

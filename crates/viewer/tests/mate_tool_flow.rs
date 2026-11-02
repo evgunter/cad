@@ -162,7 +162,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
 /// a class outside the vocabulary — here with the picks' instance
 /// deleted out from under the tool, which the pick door would refuse
 /// were it reached. Which freedoms a kind leaves is the panel's
-/// reading (`MateFreedom::offered_beside`).
+/// reading (`MateFreedom::left_by`).
 #[test]
 fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
     use pncad::document::{Coord, TargetAxis, VarKind};

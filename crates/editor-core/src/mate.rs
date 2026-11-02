@@ -41,7 +41,7 @@ pub(crate) mod value;
 
 pub use corner::{PinRefusal, corner_frame, corner_frame_in};
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
-pub use member::{Member, Placing, head_face, head_of, member_of, member_of_ref, member_reading};
+pub use member::{Headed, Member, Placing, head_face, head_of, member_of, member_reading};
 pub use orient::{Orientation, SignedAxis};
 pub use pin::{FrameMove, Placed, moved_frame, stand};
 pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach, part_reach_from};

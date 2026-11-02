@@ -188,6 +188,27 @@ pub enum PickKinds {
 }
 
 impl PickKinds {
+    /// Every rule, each admitting no fewer entity kinds than the one
+    /// before it.
+    pub const NARROWEST_FIRST: [Self; 4] = [
+        Self::FacesOnly,
+        Self::EdgesOnly,
+        Self::Any,
+        Self::WithVertices,
+    ];
+
+    /// **Whether a cursor under this rule may answer `entity`**.
+    #[must_use]
+    pub fn admits(self, entity: pncad::select::EntityKind) -> bool {
+        use pncad::select::EntityKind as E;
+        match entity {
+            E::Face => self.faces(),
+            E::Edge => self.edges(),
+            E::Vertex => self.vertices(),
+            E::Body => false,
+        }
+    }
+
     /// **What a cursor that met none of these kinds met**, in the words
     /// a miss is said in: under an edges-only rule a face's material is
     /// no edge, not nothing.
