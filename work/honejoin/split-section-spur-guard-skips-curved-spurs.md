@@ -2,7 +2,9 @@
 id: split-section-spur-guard-skips-curved-spurs
 kind: issue
 title: The split join's spur guard decides straight tips only; a curved out-and-back spur passes
-status: open
+status: closed
+closed: 2026-11-02
+branch: onehome/small-bundle
 opened: 2026-09-24
 priority: P3
 cost: M
@@ -67,3 +69,18 @@ arcs that agree at the ends and at a quarter, a half and three quarters
 of the way along) for the section query, which takes it out of the
 outline (`sweep/tests/a_curved_keel_in_the_plane.rs`). What this row
 still owes is counting the curved ones in the pairing.
+
+## Closed (ONEHOME, `onehome/small-bundle`, 2026-11-02)
+
+The pairing no longer reads geometry, so it has no straight-only limit.
+`Sweep::strip_spurs` reads each loop's tree (`join::Tree`: the edges it
+walks out along and back, pruned strut by strut from the tips) and takes
+the other loop's slit as the two distinct halves over each tree edge,
+matched by their ends' point keys (`Tree::slit`). The tree's curvature
+does not enter. A tree with no slit, curved or straight, refuses
+`SplitJoinError::SectionInvariant` rather than passing. `spur_tips` and its
+`split_section_spur` predicate are gone. The same reading serves
+`plane_section`'s `drop_slits` (`SectionKind::Area { slit }`) and the
+slit-trace case (`Sweep::section_kind`). From
+`work/onehome/the-split-reads-a-slit-twice-by-geometry-and-by-topology.md`.
+

@@ -764,7 +764,7 @@ which is what actually moves the number.
 | chord_join.rs (`run_azimuth_images`' ring re-homing) | split_chart_azimuth_frame (retired: the read goes through `geom_brep::Azimuth::principal`, decided as `pcurve_chart_cut_side`) | — | — | retired |
 | chord_join.rs:1623/1639 | split_sphere_window_pole(_side) | radius − axial distance | m | OK |
 | splitting/join.rs:377 | split_section_area | 2·\|A\|/P mean width | m | FIXED (factor-2 doc/code mismatch; dimension was already m) |
-| splitting/join.rs:463 | split_section_spur | distance between a spur tip's two neighbours, through the `Margin::norm3` door | m | OK (new) |
+| splitting/join.rs (`spur_tips`, retired) | split_section_spur (retired: a slit is read from topology, by its halves' point keys, `Tree::slit`) | — | — | retired |
 | splitting/finish.rs:414 | classify_dihedral arm | edge extents (m) | m | OK |
 
 > **Anchors moved (2026-08-20).** The nine rows above that read
