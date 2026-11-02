@@ -6095,6 +6095,15 @@ mod properties_pane_tests {
         [[lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]]
     }
 
+    /// `node`'s landed body's volume.
+    fn volume(driven: &Driven, node: RecipeNodeId) -> f64 {
+        crate::test_support::evaluated_volume(
+            driven.app.session.evaluation().expect("a landed run"),
+            node,
+            pncad::tolerance::witness(),
+        )
+    }
+
     /// `name` declared a free `dimension` variable holding `value`,
     /// then `slot` of `node` written as `text` over it — the op the
     /// slot row's expression field sends.
@@ -6266,11 +6275,15 @@ mod properties_pane_tests {
         };
         assert!((read(&driven, SlotId::Origin(Axis3::X)) - 0.005).abs() < 1e-12);
         assert!((read(&driven, SlotId::AxisHeading) - core::f64::consts::FRAC_PI_2).abs() < 1e-12);
+        // Pappus: the disc's area swept along its centre's path.
+        let ring =
+            |angle: f64, radius: f64| core::f64::consts::PI * 0.005_f64.powi(2) * angle * radius;
+        let near = |got: f64, want: f64| (got - want).abs() < 1e-3 * want;
         driven.settle();
-        let [lo, hi] = body_extent(&driven, made);
+        let full = volume(&driven, made);
         assert!(
-            (hi[0] - lo[0] - 0.04).abs() < 1e-6,
-            "a full ring 40 mm across, about the axis 20 mm from its far side: {lo:?}..{hi:?}"
+            near(full, ring(core::f64::consts::TAU, 0.015)),
+            "a whole ring about the axis 15 mm from the circle's centre: {full}"
         );
 
         let mut ops = written_over(
@@ -6291,23 +6304,30 @@ mod properties_pane_tests {
         ));
         driven.app.perform_batch(ops);
         driven.settle();
-        let half = body_extent(&driven, made);
+        let half = volume(&driven, made);
+        assert!(
+            near(half, ring(core::f64::consts::PI, 0.015)),
+            "half a ring: {half}"
+        );
         driven.app.perform_batch(vec![variable_set(
             &driven,
             "sweep",
             core::f64::consts::FRAC_PI_2,
         )]);
         driven.settle();
-        let quarter = body_extent(&driven, made);
-        assert_ne!(half, quarter, "the sweep follows the angle's variable");
+        let quarter = volume(&driven, made);
+        assert!(
+            near(quarter, ring(core::f64::consts::FRAC_PI_2, 0.015)),
+            "the sweep follows the angle's variable: {quarter}"
+        );
         driven
             .app
             .perform_batch(vec![variable_set(&driven, "offset", 0.0)]);
         driven.settle();
-        let farther = body_extent(&driven, made);
+        let farther = volume(&driven, made);
         assert!(
-            farther[1][0] - farther[0][0] > quarter[1][0] - quarter[0][0],
-            "the axis follows its variable, and the ring widens: {quarter:?} -> {farther:?}"
+            near(farther, ring(core::f64::consts::FRAC_PI_2, 0.02)),
+            "the axis follows its variable, 20 mm from the centre now: {farther}"
         );
         driven
             .app
