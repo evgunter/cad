@@ -287,6 +287,7 @@ pub(super) fn eval_family<T: Decide>(
                 // this member: a member reading a trace off them resolves
                 // at the nominal lane alone.
                 nominal_results: None,
+                witness: None,
                 pass_two: op_env.lane.pass_two,
             },
         };
@@ -491,6 +492,7 @@ mod tests {
                 params: &env,
                 nominal: &nominal,
                 nominal_results: None,
+                witness: None,
                 pass_two: crate::eval::PassTwo::SkippedAtF64,
             },
         };

@@ -1125,23 +1125,6 @@ const ARC_LOOP_TRIM: ArcTrimRows = ArcTrimRows {
     trim: "point_in_arc_loop_conic_window",
 };
 
-/// The distance from `p` to the circle (`center`, unit `axis`,
-/// `radius`): `√(h² + (ρ − r)²)`, `h` its height over the circle's plane
-/// and `ρ` its distance from the axis. The one spelling of a point's
-/// miss from a circle, for the loop walk here and the boolean's contact
-/// and on-carrier rows.
-pub(crate) fn circle_miss<T: Decide>(
-    p: Point3<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-) -> T {
-    let off = p - center;
-    let h = off.dot(axis);
-    let rho = (off - axis * h).norm();
-    (h.powi(2) + (rho - radius).powi(2)).sqrt()
-}
-
 /// **Whether `p`, a point on a circle, lies inside the arc of it whose
 /// ends are `ends` and whose apex is `apex`** (`anti` the apex's
 /// antipode) — decided as DISTANCES, never as an angle, and the one

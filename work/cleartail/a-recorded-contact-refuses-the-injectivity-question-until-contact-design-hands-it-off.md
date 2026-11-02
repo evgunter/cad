@@ -33,7 +33,9 @@ CONTACT-DESIGN's to say. The candidates:
 - the record is lifted into M: the glued surface identifies the two
   cells, and the walk then treats them as one cell of M (touching).
 
-Until one is chosen the refusal stands, typed. The analysis drive
-(`box_independent_measure_class`, `crates/editor-core/src/drive.rs:2245`)
-classes it with the refusals that bisect, because the records are read
-at one leaf's replay and can differ over a smaller box.
+Until one is chosen the refusal stands, typed. It is the strict
+question's alone, asked through the engine's dials door
+(`clearance_at_dials`, `self_intersection`). There a refusal is the
+report's third state. The analysis drive no longer classes it: its
+`box_independent_measure_class` went with the `min_clearance` measure
+in PR 6292.

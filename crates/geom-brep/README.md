@@ -484,8 +484,10 @@ or in a boundary contact's certified region), or refined to the named
 floor, where the op refuses
 `SsiError::ExhaustivenessInconclusive`. Where the pose counts the
 section's components (C5), exhaustiveness closes by that count: the
-march, seeded from the counted cut ends and witnesses, returns
-certified branches matched one to one to them, else a desync; the cell
+march, seeded at the counted witnesses (an open arc's lies between its
+two cut ends), returns certified branches matched one to one to the
+count, each counted cut end the end of exactly one branch and each
+witness on exactly one branch, else a desync; the cell
 sweep runs where no pose counts. For a pair with a ruled side (a
 cylinder or cone against a plane, cylinder, cone or sphere) the count
 is the ruling sweep's, and a `debug_assert` re-derives it: each cell of
@@ -919,9 +921,10 @@ carried: the classification decides the pair's pose once and, where a
 closed form counts them, its components (`Components::Counted`); it
 costs no march and needs no lane. Carrying marches and fits the loops
 at `f64`, and lists the components: a counted section's, the count the
-proof and the march matched to it one to one (each boundary crossing
+proof and the march matched to it one to one (each counted cut end
 the end of exactly one branch, each listed witness on exactly one
-branch, each claimed winding held, else a desync), and
+branch, a loop's on a closed one, each claimed winding held, else a
+desync), and
 otherwise the march's own closed branches (`Components::Marched`), each
 winding about an operand as the fitted loop's turns about the
 operand's axis and core circle, read over the loop's uniqueness tube
