@@ -4026,7 +4026,12 @@ fn pierce_inside<T: Decide>(
 /// (`pm_census_ef_pierce_curve_clear`) leaves every point of the curve
 /// more than `Kε + reach − c` from every point of `S`. The height gate
 /// holds `h`, and so `2c`, under `(K − 1)ε`, so that is past `g`: no
-/// point of the curve lies over `S`.
+/// point of the curve lies over `S`. At `f64` the bound's own rounding is
+/// not charged, as at `curve_carrier_clear` and the cleared disc: the
+/// chain also needs that rounding under `Kε − c`, which it is to
+/// kilometres and can pass at far coordinates. A clear it falsely
+/// licenses there needs the curve to approach `S` near head-on, where
+/// the end's own containment reading refuses.
 #[allow(clippy::too_many_arguments)] // the clearance's whole state
 fn span_clear<T: Decide>(
     body: &Body<T>,
@@ -7909,6 +7914,18 @@ mod depth_gap_fuzz;
 mod link_fuzz;
 #[cfg(test)]
 mod pierce_fuzz;
+
+/// The predicates `errors` escalated, for the census's test rows.
+#[cfg(test)]
+fn escalated(errors: &[ValidationError]) -> Vec<&'static str> {
+    errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::CensusEscalated { cause } => cause.predicate,
+            _ => None,
+        })
+        .collect()
+}
 mod point;
 #[cfg(test)]
 mod segment_fuzz;
@@ -14384,17 +14401,6 @@ mod tests {
         );
     }
 
-    /// The predicates `errors` escalated.
-    fn escalated(errors: &[ValidationError]) -> Vec<&'static str> {
-        errors
-            .iter()
-            .filter_map(|e| match e {
-                ValidationError::CensusEscalated { cause } => cause.predicate,
-                _ => None,
-            })
-            .collect()
-    }
-
     /// **A face's corner in the band's edge of an edge's line cuts the
     /// edge where it is on the interior, and nothing past an end.** A
     /// cube turned a quarter-right-angle stands on the unit cube's top,
@@ -16884,17 +16890,6 @@ mod tests {
 
         fn close(a: f64, b: f64) -> bool {
             (a - b).abs() < 1e-12
-        }
-
-        /// The escalations `errors` carries, by predicate name.
-        fn escalated(errors: &[ValidationError]) -> Vec<&'static str> {
-            errors
-                .iter()
-                .filter_map(|e| match e {
-                    ValidationError::CensusEscalated { cause } => cause.predicate,
-                    _ => None,
-                })
-                .collect()
         }
 
         /// **A face whose boundary crosses the edge away from any

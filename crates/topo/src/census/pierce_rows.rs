@@ -232,17 +232,6 @@ fn top_at(body: &Body<f64>, z: f64) -> FaceKey {
         .expect("a level face at z")
 }
 
-/// The predicates `errors`' escalations name.
-fn escalations(errors: &[ValidationError]) -> Vec<&'static str> {
-    errors
-        .iter()
-        .filter_map(|e| match e {
-            ValidationError::CensusEscalated { cause } => cause.predicate,
-            _ => None,
-        })
-        .collect()
-}
-
 /// The half-disc cap of `radius` about `(cx, cy, 1)` in the plane
 /// `z = 1`, on the `+y` side of its chord: the circle's arc there, an
 /// intersection of a cylinder with the plane, closed by its chord
@@ -283,7 +272,7 @@ fn half_disc_read<T: Decide + crate::props::AtRestPolicy>(
     let pair = Pair::new(&body, cap, level_ends(x, y).map(|p| p.map(T::from_f64)));
     assert!(!pair.f().polygon, "the cap is no polygon");
     let errors = pair.read(band);
-    (found(&errors), escalations(&errors))
+    (found(&errors), escalated(&errors))
 }
 
 /// Whether a pair refused through the half-span's reading alone, which
@@ -404,9 +393,10 @@ fn a_curved_edge_meeting_one_half_of_the_span_is_not_read_clear() {
 /// **A curved edge clears the span only past its reach**: a half-disc
 /// of radius 0.5 about `(1000, 0)`, its plane's stored origin 42 m off,
 /// crossed by a millimetre span whose middle stands `L/2 + Kε + reach/2`
-/// under the arc's top, at ε = 1e-12 (K = 10). A metre from the origin
-/// the span's rounding charge `c` passes ε, so the reach is a few ε, and
-/// the arc's bound from the middle passes `L/2` by more than `Kε` but
+/// under the arc's top, at ε = 1e-12 (K = 10). A kilometre from the
+/// origin the span's rounding charge `c` passes ε, so the reach is a few
+/// ε (near the origin it is about 1.2ε), and the arc's bound from the
+/// middle passes `L/2` by more than `Kε` but
 /// `L/2 + reach` by less: the span is not read clear. Every point of the
 /// arc stands past `L/2 − 2e-6` from the span, so the crossing pierces
 /// the cap; the refusal is the price of a bound read from one point.
@@ -693,7 +683,7 @@ fn a_span_standing_past_its_reach_off_the_plane_is_refused_by_its_height() {
         let PierceSpan { t, lever } = pair.span(band).expect("a placed crossing");
         let reach = span_reach(&pair.e, t, lever, band);
         let errors = pair.read(band);
-        let rows = escalations(&errors);
+        let rows = escalated(&errors);
         (reach / band.zero(), found(&errors), rows)
     };
     let (reach, got, rows) = read(1500.0);
@@ -743,7 +733,7 @@ fn a_spans_reach_counts_the_band_and_the_slope() {
             band,
             &mut errors,
         );
-        let rows = escalations(&errors);
+        let rows = escalated(&errors);
         (read, rows)
     };
     assert_eq!(clear(5.0, 0.01), (Some(true), vec![]), "h = 5ε, σ = 0.01");
