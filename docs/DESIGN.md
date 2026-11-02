@@ -2279,8 +2279,8 @@ these. All are shipped in `editor-core` except where noted:
   the sentence is made; a part's labels are in its pin, and the pin is
   in the instance's key, so a fault from inside a part carries the
   part's nodes as the pinned part says them.
-  The kernel mints no label; the viewer's create forms propose an
-  editable "Kind N", stored only when the person commits it. Faces and
+  The kernel mints no label; the viewer's create gestures store
+  "Kind N", which the node's label row renames. Faces and
   bodies carry the same `Label` text as an appearance attribute.
 
 ### Band 2 — the interactive application (a second, kernel-sized project)
