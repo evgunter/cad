@@ -30,3 +30,7 @@ that member (`world::copy_source`, PR 6265's change (a)).
 Row: `combine_ops::a_pattern_takes_its_body_over_and_a_member_read_places_nothing`
 holds that the member read is one insert and no world placement; it
 becomes a row that the op is gone.
+
+## Evidence added by PLACING's INTENT sweep (2026-11-02)
+
+`AddPart` / `PartTool` / `combine::part_node` rebuild the retired `Node::Part` / `PartSelect::Instance` (Stage 3 G) as an identity `Place` of `xs[k]`, where `[repetition]` says `xs[k]` is a read. That is one of the INTENT retirements surviving under another name (Ev, PR 6281, asked for these). The sweep suggests P1 for this row, which is unbanded today. The band is SPACES' call. (PLACING orchestrator)

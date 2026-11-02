@@ -807,8 +807,8 @@ impl NameTable {
     /// [`SeatingRefusal`], the insert doors' own. Not reachable by
     /// construction — the source rows are distinct names over
     /// distinct entities within one body, and re-keying one body's
-    /// rows keeps both distinct — but carried as the typed result
-    /// rather than unwrapped: this crate has no panic paths.
+    /// rows keeps both distinct — but carried as the typed result,
+    /// since the insert doors return it.
     pub fn project(&self, body: u32) -> Result<NameTable, SeatingRefusal> {
         self.reindex(|b| (b == body).then_some(0))
     }

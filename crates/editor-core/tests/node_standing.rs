@@ -477,7 +477,8 @@ const READERS: [(&str, usize, &str); 15] = [
          raw values on the family's (a member's result where it has one, carrying the \
          family it stands for, a failure poisoning its readers), and reads each \
          member's own result to write the family's: its values, or the refusal the family \
-         refuses with naming the member (`MemberRefused`)",
+         refuses with naming the member (`MemberRefused`); its unit tests hand-build each \
+         member's result and read the family's",
     ),
     (
         "crates/editor-core/src/eval/mod.rs",
