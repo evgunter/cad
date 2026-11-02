@@ -3809,6 +3809,163 @@ mod tests {
         );
     }
 
+    /// Reviewer row (PR 6306): Zoom to fit frames the same camera with
+    /// the construction as without it, on the vesica, whose carriers
+    /// reach past its kept pieces. Red if the construction lane
+    /// feeds `drawn_extent`.
+    #[test]
+    fn review_6306_the_fit_is_blind_to_the_construction() {
+        let (previews, constructions) = door(&vesica(0.5));
+        let map = crate::input::InputMap::default();
+        let camera = framed();
+        let frame = |constructions: &super::Constructions| {
+            frame_camera(super::CameraFrame {
+                camera: &camera,
+                scene: &[],
+                profiles: marks::LegLane::default(),
+                previews: &previews,
+                constructions,
+                axis: None,
+                split_plane: None,
+                fit: true,
+                input: &map,
+                viewport: ViewportSize {
+                    width_px: 800.0,
+                    height_px: 600.0,
+                },
+                events: &[],
+            })
+        };
+        let with = frame(&constructions);
+        let without = frame(&super::Constructions::default());
+        assert!(with.fit.is_some());
+        assert_eq!(
+            format!("{:?}", with.fit.as_ref().map(|f| f.camera)),
+            format!("{:?}", without.fit.as_ref().map(|f| f.camera)),
+        );
+        // And the construction does reach past what was framed: the
+        // row is not vacuous.
+        let mut lane = marks::LegLane::default();
+        super::push_constructions(&mut lane, &constructions);
+        let built = lane.extent().expect("constructed");
+        let mut kept = marks::LegLane::default();
+        super::push_previews(&mut kept, &previews);
+        let kept = kept.extent().expect("kept");
+        assert!(
+            built.max_x > kept.max_x + 0.5 && built.min_y < kept.min_y - 0.5,
+            "{built:?} vs {kept:?}"
+        );
+    }
+
+    fn vesica_steps(r: f64) -> Vec<pncad::profile::Step<f64>> {
+        match vesica(r).remove(0) {
+            ProfileShape::Path { steps } => steps,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Reviewer E2E (PR 6306): what each authored fused step draws.
+    #[test]
+    fn review_6306_e2e_what_is_drawn() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{ArcData, ArcSide, ArcSweep, Step, Target};
+        let c = |x: f64, y: f64, w, to: Target<f64>| ArcData::Center {
+            c: Point2::new(x, y),
+            winding: w,
+            target: to,
+        };
+        let pt = |x: f64, y: f64| Target::Point(Point2::new(x, y));
+        let cases: Vec<(&str, Vec<Step<f64>>)> = vec![
+            ("vesica r=0.5 resolves", vesica_steps(0.5)),
+            ("vesica r=5 too large", vesica_steps(5.0)),
+            (
+                "vesica wrong side (incoming Cw)",
+                vec![
+                    Step::ArcFilletArc {
+                        spec: c(-1.0, 0.0, ArcSweep::Cw, pt(1.0, 0.0)),
+                        radius: 0.5,
+                        spec2: c(1.0, 0.0, ArcSweep::Ccw, pt(-1.0, 0.0)),
+                    },
+                    Step::LineTo(Target::Start),
+                ],
+            ),
+            (
+                "from a point, Via incoming, Center arrival, r too large",
+                vec![
+                    Step::At(Point2::new(0.0, 0.0)),
+                    Step::ArcFilletArc {
+                        spec: ArcData::Via {
+                            q: Point2::new(2.0, 1.0),
+                            target: pt(4.0, 0.0),
+                        },
+                        radius: 30.0,
+                        spec2: c(4.0, 4.0, ArcSweep::Ccw, pt(0.0, 4.0)),
+                    },
+                    Step::LineTo(Target::Start),
+                ],
+            ),
+            (
+                "Radius arrival a later step completes, too large",
+                vec![
+                    Step::ArcFilletArc {
+                        spec: c(0.0, 0.0, ArcSweep::Ccw, pt(5.0, 0.0)),
+                        radius: 40.0,
+                        spec2: ArcData::Radius {
+                            r: 3.0,
+                            side: ArcSide::Left,
+                        },
+                    },
+                    Step::At(Point2::new(0.0, 6.0)),
+                    Step::Angle(3.1),
+                    Step::LineTo(Target::Start),
+                ],
+            ),
+            (
+                "arc_fillet resolved by a later leg",
+                vec![
+                    Step::ArcFillet {
+                        spec: c(0.0, 0.0, ArcSweep::Ccw, pt(5.0, 0.0)),
+                        radius: 0.5,
+                    },
+                    Step::At(Point2::new(0.0, 3.0)),
+                    Step::Toward { dx: -1.0, dy: 0.0 },
+                    Step::Line(3.0),
+                    Step::LineTo(Target::Start),
+                ],
+            ),
+            (
+                "an earlier step refuses, fused after",
+                vec![
+                    Step::At(Point2::new(0.0, 0.0)),
+                    Step::LineTo(pt(0.0, 0.0)),
+                    Step::ArcFillet {
+                        spec: c(0.0, 0.0, ArcSweep::Ccw, pt(5.0, 0.0)),
+                        radius: 0.5,
+                    },
+                    Step::LineTo(Target::Start),
+                ],
+            ),
+        ];
+        for (name, steps) in cases {
+            let (previews, constructions) = door(&[ProfileShape::Path { steps }]);
+            let legs = construction_legs(&constructions);
+            let preview = match &previews.create {
+                Some(Ok(p)) => format!(
+                    "Ok({} loops, invalid {:?})",
+                    p.loops.len(),
+                    p.invalid.is_some()
+                ),
+                Some(Err(e)) => format!("Err({e:?})"),
+                None => "none".into(),
+            };
+            eprintln!(
+                "E2E {name}: preview={preview}\n    legs={} built={:?}",
+                legs.len(),
+                constructions.create.as_ref().map(|c| &c.steps)
+            );
+        }
+    }
+
     /// **A chain with an unclosable tip is painted as the legs before
     /// it, going on** — at every state no `line_to` leaves, as the
     /// lattice table lists them. The steps that put the tip there are

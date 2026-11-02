@@ -71,6 +71,8 @@ mod bool11_probes;
 mod fillet_decided_tangency;
 #[path = "fillet_refusal_envelope.rs"]
 mod fillet_refusal_envelope;
+#[path = "review_6306_fused_constructions.rs"]
+mod review_6306_fused_constructions;
 #[path = "review_fillet_attr_r1_probes.rs"]
 mod review_fillet_attr_r1_probes;
 #[path = "review_fillet_attr_r2_probes.rs"]
