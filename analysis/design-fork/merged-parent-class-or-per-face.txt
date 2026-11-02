@@ -1,0 +1,6 @@
+fork: merged-parent-class-or-per-face (REFS, PR 6342, raised by Ev on the PR)
+drawn: 2026-11-02T14:57:10Z, od -tu1 /dev/urandom
+bytes: 86 117
+arm: two designers (86 >= 86)
+mapping: A = Fable designer, B = Opus designer (117 odd)
+protocol: 2126b860b6
