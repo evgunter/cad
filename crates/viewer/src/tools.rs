@@ -56,7 +56,7 @@ vocabulary! {
     /// notice are addressed in.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ToolKind {
-        /// The mate tool: two face picks.
+        /// The mate tool: two picks, a face, an edge or a vertex each.
         Mate,
         /// The revolve tool: a profile and an axis.
         Revolve,

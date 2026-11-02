@@ -52,3 +52,14 @@ Cited: `crates/viewer/src/matetool.rs`'s `picked_member` and
 ## 2026-10-21 — re-banded
 
 P1 → P3. Making an unconstructible state a type; nothing is wrong today, since `picked_member` refuses it in every build. Latent unsoundness, P3's band.
+
+## 2026-11-02 — the mate tool's half is gone
+
+Found by PLACING's `placing/mate-kinds` unit: the mate tool now takes a
+face, an edge or a vertex (`matetool::MatePick`) and reads each as its
+NAME's entity kind, so it makes no `FaceName` and
+`MateToolError::PickIsNotAFace` is gone; a name the chosen kind does
+not read is `MateToolError::KindDoesNotRead`
+(`crates/viewer/tests/rv_matehead_probes.rs`). What is left of this row
+is the type itself: `FaceSelection::name` is still a bare `StableName`
+for every other consumer of a face pick.

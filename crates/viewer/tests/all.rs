@@ -118,6 +118,8 @@ mod instance_authoring;
 mod landing_gathers;
 #[path = "mate_door_and_badge.rs"]
 mod mate_door_and_badge;
+#[path = "mate_kinds.rs"]
+mod mate_kinds;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]

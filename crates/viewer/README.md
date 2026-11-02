@@ -21,7 +21,7 @@ it rather than using it. The ratified plan that record answers to is
 
 | Gesture | Action |
 | --- | --- |
-| LEFT click | select (face pick; also feeds the mate tool's picks) |
+| LEFT click | select (a face, edge or vertex pick; also feeds the mate tool's picks) |
 | MIDDLE drag | orbit (shift+middle: pan) |
 | ALT + LEFT drag | orbit — the trackpad binding (plain left never moves the camera) |
 | RIGHT drag | pan |
@@ -2103,16 +2103,27 @@ and a placement's constraints are its mates and the values that set
 their freedoms. Every bundle pins its copy. A mate is two poses
 of one kind: the first pick is `on`, read off the copy the mate
 places, and the second is `to`, read where it was picked; each is the
-picked face read as its plane or its carrier's axis
-(`matetool::MATE_KINDS`), and `to` is flipped where the faces rest
-against each other (a plain plane mate equates outward normals). So
+picked entity read as a pose of the chosen kind, one pick a side
+(`matetool::MATE_KINDS`, `matetool::MateReading`): a face as its plane,
+a face's carrier or an edge's line as an axis, a vertex or a carrier's
+or a circle's centre as a point, a face's normal or an edge's line as
+a direction. Whether the pose's read admits the entity is the kernel's
+seat, and a held pick the chosen kind does not read is refused at the
+commit (`MateToolError::KindDoesNotRead`); the cursor's rule follows
+the chosen kind (`matetool::pick_kinds`: faces alone for a plane,
+vertices before edges before faces for a point). `to` is flipped where
+the faces rest against each other (a plain plane mate equates outward
+normals; a point has no sense to flip). So
 the mate tool's one committed action adds the mate to the `on` pick's
 placement's bundle (`DocEdit::AddConstraint`), which writes the bundle
 whole: the values whose freedoms the mate fixes go, each freedom the
 bundle's mates leave keeps its value or is written the constant `0`,
 and the door refuses what overconstrains. The person's numbers on the
 freedoms the kind leaves (`matetool::MateFreedom`) are then written
-over those values, in the same action (`DocEdit::SetConstraints`); the
+over those values, in the same action (`DocEdit::SetConstraints`) —
+which freedoms a lone mate of the kind leaves is the kernel's answer
+(`SubgroupFamily::leaves`): slides and the spin beside a plane, an
+axis or a direction, the chain of spins beside a point; the
 panel states that a freedom left unset is written where the copy
 stands, snapped onto the mate (every bundle pins its copy). A value is measured on the axes of the space the copy is placed
 into, carried onto the mated direction by the least turn from where

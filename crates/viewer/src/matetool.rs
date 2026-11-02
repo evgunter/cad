@@ -1,11 +1,12 @@
-//! **The mate tool**: a modal layer-3 tool that turns two face picks
-//! into one committed mate and the values it names (GUI-4; the plan's
-//! ruled addition to G3).
+//! **The mate tool**: a modal layer-3 tool that turns two picks into
+//! one committed mate and the values it names (GUI-4; the plan's ruled
+//! addition to G3).
 //!
 //! # Shape
 //!
-//! The tool holds **two sequential face picks in tool state** — the
-//! GUI-2 single-select vocabulary ([`FaceSelection`]) consumed twice —
+//! The tool holds **two sequential picks in tool state** — a face, an
+//! edge or a vertex in the GUI-2 single-select vocabulary
+//! ([`MatePick`]) consumed twice —
 //! then a choice of kind, flip and values ([`MateChoice`]), then
 //! ONE committed action: the bundle of the copy it places written whole
 //! with the mate and its values, the copy re-targeted into the space the
@@ -17,13 +18,14 @@
 //! # What the picks become
 //!
 //! A mate is two poses of one kind (D10, FORK-S3M), and the kind is
-//! the primitive: two planes rest, two axes are coaxial. The first pick
-//! is `on`, read off the copy the mate places; the second is `to`, read
-//! where the person picked it, in the space the copy joins. Each is the
-//! picked face read as a pose of the chosen kind — its plane with its
-//! outward normal, or its carrier's axis ([`MATE_KINDS`]) — and the
-//! choice's flip turns `to` round: a plain plane mate equates outward
-//! normals, so two faces resting against each other carry the flip.
+//! the primitive: two planes rest, two axes are coaxial, two points are
+//! a ball, two directions are parallel. The first pick is `on`, read off
+//! the copy the mate places; the second is `to`, read where the person
+//! picked it, in the space the copy joins. Each is the picked entity
+//! read as a pose of the chosen kind ([`MATE_KINDS`], [`MateReading`]),
+//! and the choice's flip turns `to` round: a plain plane mate equates
+//! outward normals, so two faces resting against each other carry the
+//! flip.
 //!
 //! A pick on a `Place`'s copy authors `on` as the face of the shape the
 //! placement copies ([`crate::world::body_of`]); a pick on an instance
@@ -31,17 +33,21 @@
 //! anywhere else is read through A11's member walk
 //! ([`pncad::document::member_of`]) to the instance it places. The
 //! kernel's edit door decides what is left: an `on` that does not read
-//! the copy (`MateFault::NotOnTheCopy`), two kinds that differ. Whether
-//! a face has the plane or the axis the kind reads is the placement's
-//! own refusal where it evaluates, never a pre-check here.
+//! the copy (`MateFault::NotOnTheCopy`), two kinds that differ. Which
+//! entity kinds a pose reads is the kernel's seat, asked here; whether
+//! a picked face has the plane or the axis, or an edge the line or the
+//! centre, the kind reads is the placement's own refusal where it
+//! evaluates, never a pre-check here.
 //!
 //! # What the mate leaves
 //!
 //! Values set the freedoms the mate's kind leaves, on the target
 //! space's axes carried onto the mated direction by the least turn from
 //! where the mate's orientation puts the copy's: a plane mate leaves two
-//! slides and the spin about the target's own direction, an axis mate one slide
-//! and the spin. A value the kind does not leave is refused here
+//! slides and the spin about the target's own direction, an axis mate
+//! one slide and the spin, a direction three slides and the spin, and a
+//! point the chain of spins about the target space's axes. A value the
+//! kind does not leave is refused here
 //! ([`MateToolError::NotAFreedom`], [`MateFreedom::offered_beside`]), before
 //! any edit exists. The mate goes in through the bundle door, which
 //! rewrites the placement's bundle whole; the gesture then writes the
@@ -61,7 +67,7 @@
 //! the chrome renders.
 //!
 //! This tool is the one modal tool NOT built on [`crate::seats`]: its
-//! picks are faces, and its survivor is promoted to the first pick,
+//! picks are entities, and its survivor is promoted to the first pick,
 //! where a seated tool's seats are roles a node is never moved between.
 //!
 //! **`reconcile` is the consumer's obligation.** The tool is a value
