@@ -951,9 +951,9 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::UnsupportedUnjudgedGlue { faces, .. } => write!(
                 f,
-                "{UNRULED_FRAMING}: a face of the union holds member faces that no two \
-                 members glued into one ({}); the members together glued them, and which \
-                 member faces such a face holds area of is not read exactly yet",
+                "{UNRULED_FRAMING}: the union's members together glued faces ({}) that no \
+                 two of them glued, and which faces such a glue holds area of is not read \
+                 exactly yet",
                 faces
                     .iter()
                     .map(|(read, name)| format!(
@@ -2177,8 +2177,8 @@ mod display_tests {
                     ],
                 },
                 vec![
-                    "a face of the union",
-                    "no two members glued",
+                    "members together glued faces",
+                    "no two of them glued",
                     "the start cap",
                     "the end cap",
                     "not read exactly yet",
