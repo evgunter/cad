@@ -344,7 +344,7 @@ vocabulary! {
     /// **A panel or field that commits and is not one of the modal
     /// tools** ([`ToolKind`]), named by what it does: the creation
     /// pane's add-profile and extrude forms, the profile
-    /// editor's apply and revert, and the label field a create form and
+    /// editor's apply, and the label field a create form and
     /// the properties pane each carry.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum FormKind {
@@ -354,8 +354,6 @@ vocabulary! {
         Extrude,
         /// The profile editor's apply.
         EditProfile,
-        /// The profile editor's revert.
-        RevertProfile,
         /// A node's label field, on a create form or in the properties
         /// pane.
         Label,
@@ -372,7 +370,6 @@ impl FormKind {
             Self::AddProfile => "add profile",
             Self::Extrude => "extrude",
             Self::EditProfile => "edit profile",
-            Self::RevertProfile => "revert profile",
             Self::Label => "label",
         }
     }

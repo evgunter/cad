@@ -2127,11 +2127,11 @@ impl eframe::App for ViewerApp {
         // is of the draft the pane is about to show, not last frame's.
         self.drafts.sync_profile_edit(
             self.session.committed_doc(),
-            self.session.doc(),
-            self.session.tol(),
             self.session.selection().node(),
         );
-        let held = self.drafts.door_loops();
+        let held = self
+            .drafts
+            .door_loops(self.session.doc(), self.session.tol());
         // Both doors draw on the profile's own plane
         // ([`sketch::profile_plane`]).
         let (tol, delta) = (self.session.tol(), self.delta.get());
@@ -2244,17 +2244,21 @@ impl eframe::App for ViewerApp {
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
-        let moved =
-            profile_drawn
-                .zip(held.zip(self.drafts.door_loops()))
-                .map(|(drawn, (before, now))| {
-                    drawn
-                        && match (before, now) {
-                            (Some(before), Some(now)) => !before.previews_as(&now),
-                            (None, None) => false,
-                            _ => true,
-                        }
-                });
+        let moved = profile_drawn
+            .zip(
+                held.zip(
+                    self.drafts
+                        .door_loops(self.session.doc(), self.session.tol()),
+                ),
+            )
+            .map(|(drawn, (before, now))| {
+                drawn
+                    && match (before, now) {
+                        (Some(before), Some(now)) => !before.previews_as(&now),
+                        (None, None) => false,
+                        _ => true,
+                    }
+            });
         if moved.into_array().contains(&true) {
             ui.ctx().request_repaint();
         }
@@ -5649,17 +5653,12 @@ mod properties_pane_tests {
         // Apply sits below this window's fold on a four-loop profile, so
         // its own formation is performed (`edit_door_ui`'s Apply arm).
         let op = {
-            let session = &driven.app.session;
-            let rows = crate::props::slot_rows(session.committed_doc(), profile);
-            let noted = |slot: SlotId| rows.iter().find(|row| row.slot == slot)?.unit;
             let edit = driven.app.drafts.profile_edit.as_ref().expect("held");
             assert_eq!(edit.loops().len(), 3, "the click removed the first hole");
             SessionOp::EditProfile {
                 node: profile,
                 base: edit.base().clone(),
-                loops: edit
-                    .programs_noted(crate::props::Notation::CANONICAL, &noted)
-                    .expect("lowers"),
+                loops: edit.programs().expect("lowers"),
                 ids: edit.ids(),
             }
         };
@@ -8237,6 +8236,93 @@ mod properties_pane_tests {
             );
         }
 
+        /// **A traced profile opens in the profile editor, and a number
+        /// edited beside its trace steps commits keeping them.** Selected,
+        /// the boss footprint's program is held as written: the editor
+        /// shows the run onto the wall and the heading along it in words,
+        /// says the viewport keeps the committed profile, and holds the
+        /// other steps as views. Its far corner moved and applied, the
+        /// edit is one `SetProgram` keeping every step, the two trace
+        /// steps among them as written, and the profile still evaluates.
+        #[test]
+        fn a_traced_profile_opens_in_the_editor_and_an_edit_keeps_its_trace_steps() {
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = drive(session, bottom, wall);
+            pane.click(ADD_PROFILE);
+            pane.quiet();
+            let (profile, before) = added(&pane);
+            pane.app
+                .perform_batch(vec![SessionOp::Select(Selection::Node(profile))]);
+            let painted: Vec<String> = pane.quiet().into_iter().map(|(run, _)| run).collect();
+            assert!(
+                !painted.iter().any(|run| run.contains("cannot hold")),
+                "the editor holds the traced profile: {painted:?}"
+            );
+            assert!(
+                painted
+                    .iter()
+                    .any(|run| run.contains("until it leaves traced face 0")),
+                "the run onto the trace is shown as written: {painted:?}"
+            );
+            assert!(
+                painted
+                    .iter()
+                    .any(|run| run.contains("along the trace, against it")),
+                "the heading along the trace is shown as written: {painted:?}"
+            );
+            let corner = Step::LineTo(Target::Point(Point2::new(REACH, BACK - 0.05)));
+            let session = &pane.app.session;
+            let edit = pane.app.drafts.profile_edit.as_mut().expect("held");
+            assert!(
+                matches!(edit.step_at(session.doc(), (0, 5)), Step::LineTo(Target::Point(p)) if p.x == REACH && p.y == BACK),
+                "the far corner is a view at plain numbers"
+            );
+            edit.set_step(session.doc(), (0, 5), corner);
+            let op = SessionOp::EditProfile {
+                node: profile,
+                base: edit.base().clone(),
+                loops: edit.programs().expect("a program's shape"),
+                ids: edit.ids(),
+            };
+            let out = pane.app.session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+            assert!(
+                matches!(
+                    out.committed.as_slice(),
+                    [pncad::document::DocEdit::SetProgram { ids, .. }] if *ids == before.kept_in_place()
+                ),
+                "one whole-program edit keeping every step: {:?}",
+                out.committed
+            );
+            pane.quiet();
+            let (_, after) = added(&pane);
+            let ([LoopProgram::Chain(was)], [LoopProgram::Chain(now)]) =
+                (before.loops.as_slice(), after.loops.as_slice())
+            else {
+                panic!("one chain each")
+            };
+            assert_eq!(now[2..4], was[2..4], "the trace steps are kept as written");
+            let far_y = crate::props::slot_rows(pane.app.session.committed_doc(), profile)
+                .into_iter()
+                .find(|row| {
+                    row.slot
+                        == SlotId::Profile {
+                            loop_: 0,
+                            step: 5,
+                            arg: StepArg::TargetY,
+                        }
+                })
+                .and_then(|row| row.value.ok()?.one().map(|value| value.as_f64()));
+            assert_eq!(far_y, Some(BACK - 0.05), "the moved corner landed");
+            let (_, ev) = pane.app.session.landed_pair().expect("landed");
+            assert!(
+                ev.node_error(profile).is_none(),
+                "the edited profile evaluates: {:?}",
+                ev.node_error(profile).map(|e| e.kind.to_string())
+            );
+        }
+
         /// **A traced face with no axis is refused in the pane, Add is
         /// held, and nothing is written; a traced wall is then shown,
         /// and its profile undoes, redoes and persists.** The top cap
@@ -8452,7 +8538,7 @@ mod properties_pane_tests {
                 .profile_edit
                 .as_ref()
                 .expect("held")
-                .loops()[0][step]
+                .step_at(driven.app.session.doc(), (0, step))
             {
                 Step::At(p) | Step::LineTo(Target::Point(p)) => p,
                 other => panic!("{other:?}"),
@@ -8483,7 +8569,11 @@ mod properties_pane_tests {
                 .profile_edit
                 .as_mut()
                 .expect("held")
-                .steps_mut(0)[3] = Step::LineTo(Target::Point(Point2::new(0.0, y)));
+                .set_step(
+                    driven.app.session.doc(),
+                    (0, 3),
+                    Step::LineTo(Target::Point(Point2::new(0.0, y))),
+                );
             driven.quiet();
         }
 
@@ -8524,25 +8614,24 @@ mod properties_pane_tests {
                 .profile_edit
                 .as_mut()
                 .expect("held")
-                .steps_mut(1)[0] = Step::Circle {
-                centre: Point2::new(0.04, 0.01),
-                radius: 0.002,
-            };
+                .set_step(
+                    driven.app.session.doc(),
+                    (1, 0),
+                    Step::Circle {
+                        centre: Point2::new(0.04, 0.01),
+                        radius: 0.002,
+                    },
+                );
         }
 
         /// Apply's own formation (`edit_door_ui`), performed, for a pane
         /// too tall for the harness window.
         fn apply_direct(driven: &mut Driven) -> Option<String> {
-            let session = &driven.app.session;
-            let rows = crate::props::slot_rows(session.committed_doc(), profile());
-            let noted = |slot: SlotId| rows.iter().find(|row| row.slot == slot)?.unit;
             let edit = driven.app.drafts.profile_edit.as_ref().expect("held");
             let op = SessionOp::EditProfile {
                 node: profile(),
                 base: edit.base().clone(),
-                loops: edit
-                    .programs_noted(crate::props::Notation::CANONICAL, &noted)
-                    .expect("lowers"),
+                loops: edit.programs().expect("lowers"),
                 ids: edit.ids(),
             };
             let out = driven.app.session.perform(op);
@@ -8583,7 +8672,12 @@ mod properties_pane_tests {
                 .profile_edit
                 .as_mut()
                 .expect("held")
-                .edit_row(0, crate::drafts::RowEdit::Remove(2));
+                .edit_row(
+                    0,
+                    crate::drafts::RowEdit::Remove(2),
+                    crate::props::Notation::CANONICAL,
+                )
+                .expect("a removal makes no row");
             shrink_hole(&mut driven);
             driven.quiet();
             let said = apply_direct(&mut driven);
@@ -8680,7 +8774,11 @@ mod properties_pane_tests {
                 .profile_edit
                 .as_mut()
                 .expect("held")
-                .steps_mut(0)[1] = Step::ArcTo(arc(ArcMode::Bulge));
+                .set_step(
+                    driven.app.session.doc(),
+                    (0, 1),
+                    Step::ArcTo(arc(ArcMode::Bulge)),
+                );
             driven.quiet();
             let said = apply(&mut driven);
             eprintln!("arc applied: {said:?}");
@@ -8699,7 +8797,11 @@ mod properties_pane_tests {
                 .profile_edit
                 .as_mut()
                 .expect("held")
-                .steps_mut(0)[1] = Step::ArcTo(arc(mode_after));
+                .set_step(
+                    driven.app.session.doc(),
+                    (0, 1),
+                    Step::ArcTo(arc(mode_after)),
+                );
             driven.quiet();
             eprintln!(
                 "remode ids {:?}",
@@ -8758,7 +8860,11 @@ mod properties_pane_tests {
                     .profile_edit
                     .as_mut()
                     .expect("held")
-                    .steps_mut(0)[1] = Step::LineTo(Target::Point(Point2::new(x, y)));
+                    .set_step(
+                        driven.app.session.doc(),
+                        (0, 1),
+                        Step::LineTo(Target::Point(Point2::new(x, y))),
+                    );
                 driven.quiet();
                 let said = apply(&mut driven);
                 let rx = driven.row(profile(), outline(1, StepArg::TargetX));
@@ -8806,7 +8912,12 @@ mod properties_pane_tests {
                 .profile_edit
                 .as_mut()
                 .expect("held")
-                .edit_row(0, crate::drafts::RowEdit::Remove(2));
+                .edit_row(
+                    0,
+                    crate::drafts::RowEdit::Remove(2),
+                    crate::props::Notation::CANONICAL,
+                )
+                .expect("a removal makes no row");
             shrink_hole(&mut driven);
             driven.quiet();
             let said = apply_direct(&mut driven);
@@ -8834,7 +8945,12 @@ mod properties_pane_tests {
                 .profile_edit
                 .as_mut()
                 .expect("held")
-                .edit_row(0, crate::drafts::RowEdit::Remove(3));
+                .edit_row(
+                    0,
+                    crate::drafts::RowEdit::Remove(3),
+                    crate::props::Notation::CANONICAL,
+                )
+                .expect("a removal makes no row");
             shrink_hole(&mut driven);
             driven.quiet();
             let said = apply_direct(&mut driven);
@@ -8854,7 +8970,12 @@ mod properties_pane_tests {
                 .profile_edit
                 .as_mut()
                 .expect("held")
-                .edit_row(0, crate::drafts::RowEdit::Remove(2));
+                .edit_row(
+                    0,
+                    crate::drafts::RowEdit::Remove(2),
+                    crate::props::Notation::CANONICAL,
+                )
+                .expect("a removal makes no row");
             let painted: Vec<String> = driven.quiet().into_iter().map(|(r, _)| r).collect();
             eprintln!(
                 "control differs {} runs tail {:?}",
@@ -9208,7 +9329,7 @@ mod properties_pane_tests {
                 .profile_edit
                 .as_ref()
                 .expect("the editor holds the profile")
-                .loops()[0][step]
+                .step_at(driven.app.session.doc(), (0, step))
         }
 
         /// **A driven argument opens in the editor, shows its
@@ -9296,7 +9417,7 @@ mod properties_pane_tests {
                 let held = driven
                     .app
                     .drafts
-                    .door_loops()
+                    .door_loops(driven.app.session.doc(), driven.app.session.tol())
                     .edit
                     .expect("the edit door's loops");
                 let crate::session::ProfileShape::Path { steps } = &held.loops[0] else {
@@ -9340,8 +9461,11 @@ mod properties_pane_tests {
                 .profile_edit
                 .as_mut()
                 .expect("held")
-                .steps_mut(0)[3] =
-                Step::LineTo(Target::Point(pncad::geom_core::Point2::new(0.0, 0.05)));
+                .set_step(
+                    driven.app.session.doc(),
+                    (0, 3),
+                    Step::LineTo(Target::Point(pncad::geom_core::Point2::new(0.0, 0.05))),
+                );
             assert_eq!(
                 named(&driven.quiet()),
                 0,
