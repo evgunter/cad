@@ -6355,9 +6355,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("non_finite", 5),
     ("non_finite_direction", 2),
     ("not_a_body", 2),
-    // One fact: an id the mint log does not hold, a profile step's and
-    // a loft section's alike.
-    ("not_minted", 2),
     ("null_scaffold_edge", 3),
     // A coincidence: a coincidence record's relation of a point lying
     // on a carrier, and a sketch piece lying on the carrier it would
