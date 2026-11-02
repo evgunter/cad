@@ -7,7 +7,6 @@ opened: 2026-11-02
 priority: P1
 cost: H
 blocked_on: [a-union-whose-fold-glues-a-run-no-judgement-opened]
-design: true
 pr: 6381
 branch: reads/per-face-parent
 ---
