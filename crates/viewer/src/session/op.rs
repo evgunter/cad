@@ -23,6 +23,7 @@ use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
 
 use crate::display::PruneReport;
+use crate::layout::LayoutReport;
 use crate::props::SlotValue;
 use crate::session::author::{PartSelectSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
@@ -388,11 +389,17 @@ pub enum SessionOp {
     /// the document to get it re-drawn. The memo makes the re-run of an
     /// unchanged document nearly free.
     Reevaluate,
-    /// Replace the session's document with a file's.
+    /// Replace the session's document with a file's, and restore the
+    /// display frames its saved layout holds ([`crate::layout`]); what
+    /// of the layout does not restore is the outcome's
+    /// [`OpOutcome::layout`], and refuses nothing.
     Open(PathBuf),
     /// Write the committed document at a path, identity kept (DI4):
     /// through the store of the folder the file lands in, with no
-    /// edit log (GQ3). Save and Save As… both push this.
+    /// edit log (GQ3). Save and Save As… both push this. The committed
+    /// display frames are kept beside the file, in its layout
+    /// ([`crate::layout`]), never in it; a layout not written is the
+    /// outcome's [`OpOutcome::layout`], and the save stands.
     ///
     /// That folder's scan decides the act before anything is written:
     /// a resave, a create at the chosen name, or a refusal. A folder
@@ -415,7 +422,8 @@ pub enum SessionOp {
     /// new id as one operation, so no undo returns to the original's
     /// identity. The original's file is untouched, and inbound
     /// `DocRef`s keep naming it. Like [`SessionOp::Save`], the session
-    /// is then backed by the path and its resolver follows the folder.
+    /// is then backed by the path and its resolver follows the folder,
+    /// and its layout is written beside the path under the new id.
     SaveAsNewDocument(PathBuf),
     /// Turn the toggle of the body `node` builds on or off (G3): a
     /// DISPLAY operation over what the toggle reads now — off drops
@@ -1906,6 +1914,16 @@ pub struct OpOutcome {
     /// gesture's previews: a preview enters no history, so nothing it
     /// did has happened yet.
     pub maintenance: Vec<Maintenance>,
+    /// **What the document's saved layout came to** — the frames an
+    /// open could not restore and why, or a layout an open could not
+    /// read or a save could not write ([`crate::layout`]). Neither
+    /// refuses the open or the save: the document file never depends on
+    /// its layout, so the document is opened or saved all the same and
+    /// this says what of its layout was not.
+    ///
+    /// Empty on every operation but [`SessionOp::Open`],
+    /// [`SessionOp::Save`] and [`SessionOp::SaveAsNewDocument`].
+    pub layout: LayoutReport,
 }
 
 impl OpOutcome {

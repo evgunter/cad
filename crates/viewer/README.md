@@ -2086,10 +2086,17 @@ where it was written; where a space is drawn otherwise is held in one
 way only, as a display frame. The "Add part…" gesture writes the new
 space's display frame clear of what is drawn, the same kind of value a
 free-move writes (IDENTITY DI5), so two inserted parts never land on
-each other within a session (Ev, PR 6209: one way to store where
-something is displayed, not a derived layout beside it). Display frames
-are not saved with the document yet, so a reopened document draws them
-at the identity (`work/spaces/display-frames-are-not-saved-with-the-document.md`).
+each other (Ev, PR 6209: one way to store where something is displayed,
+not a derived layout beside it). A save keeps every committed display
+frame in a layout file beside the document (`crate::layout`:
+`part.pncad.layout`), outside the document's bytes, its content pin and
+its evaluation, and an open restores them, so a reopened document draws
+its parts where they were drawn. A saved frame whose space the opened
+document does not show, or whose node is no longer in that space, is
+dropped and said (`DisplayState::restore`); a layout of another
+document or one the viewer cannot read restores nothing and is said;
+and a document with no layout, such as one written through the API,
+draws every space at the identity. Hides and shows are not saved.
 
 A free-move frame is display state keyed by a shown space's `Space`
 variable and moves every body drawn in it; it is dropped when the space

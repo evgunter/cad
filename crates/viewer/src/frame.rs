@@ -240,6 +240,7 @@ use crate::camera::CameraError;
 use crate::camera::Folded;
 use crate::display::{PruneReport, Withdrawn};
 use crate::idpass::IdStep;
+use crate::layout::LayoutReport;
 use crate::matetool::MateToolEvent;
 use crate::parts::PartFiles;
 use crate::pickcache::{IndexSeam, NotIndexed};
@@ -1398,12 +1399,13 @@ impl<'a> Withdrawal<'a> {
 /// [`frame_status`]'s rank 2 — the ONE door from an [`OpOutcome`] to
 /// the frame's notices, and the call `app` makes per operation.
 ///
-/// Two kinds of news, both provoked by the act the user just took and
-/// both true of the document it left: what the transition WITHDREW
+/// Three kinds of news, each provoked by the act the user just took and
+/// true of the document it left: what the transition WITHDREW
 /// from the display state ([`Withdrawal::all`]), then what the
 /// committed edits did that the user did not ask for by name
-/// ([`maintenance_notices`]). They are notices rather than a verdict for [`Withdrawal`]'s
-/// reason: the edit that produced them was accepted, so the same
+/// ([`maintenance_notices`]), then what of the document's saved layout
+/// an open or a save did not carry ([`layout_notices`]). They are notices rather than a verdict for [`Withdrawal`]'s
+/// reason: the act that produced them was accepted, so the same
 /// frame's batch verdict is [`RankedVerdict::Clear`], which they
 /// outrank. What takes them off the line is the next frame whose batch
 /// holds any operation [`acts`] counts — [`batch_status`] answers it
@@ -1425,10 +1427,42 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         refusal: _,
         withdrawn,
         maintenance,
+        layout,
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
         .chain(maintenance_notices(maintenance))
+        .chain(layout_notices(layout))
+}
+
+/// **What of a document's saved layout an open or a save did not
+/// carry, as notices** ([`OpOutcome::layout`]): one for the frames an
+/// open dropped, counting them and each cause rendered by its own
+/// `Display` and joined with [`LIST_SEPARATOR`] as [`Withdrawal`]
+/// joins its own, and one for a layout not read or not written, in
+/// [`crate::layout::LayoutFault`]'s own sentence.
+///
+/// [`Retold::Never`]: the picture shows a space at the identity and
+/// says nothing of a frame that was saved for it.
+pub fn layout_notices(report: &LayoutReport) -> impl Iterator<Item = Message> + '_ {
+    let LayoutReport { dropped, fault } = report;
+    let dropped = (!dropped.is_empty()).then(|| {
+        let mut text = match dropped.len() {
+            1 => "layout: a saved placement was not restored — ".to_string(),
+            count => format!("layout: {count} saved placements were not restored — "),
+        };
+        for (position, entry) in dropped.iter().enumerate() {
+            if position > 0 {
+                text.push_str(LIST_SEPARATOR);
+            }
+            text.push_str(&entry.cause.to_string());
+        }
+        Message::new(Subject::Document, text, Retold::Never)
+    });
+    let fault = fault
+        .as_ref()
+        .map(|fault| Message::new(Subject::Document, format!("layout: {fault}"), Retold::Never));
+    dropped.into_iter().chain(fault)
 }
 
 /// **One edit's maintenance rows as notices**: each row

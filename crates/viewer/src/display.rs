@@ -11,8 +11,11 @@
 //! transform is the G3 fit probe — a display frame composed over a shown
 //! space's drawn bodies so a user can hold a part against another
 //! BEFORE authoring the mate — and it involves no solver, enters no
-//! history, and is never persisted: `save` writes the document, and a
-//! reopened session starts with this state empty. DI5
+//! history, and never enters the document: `save` writes the document
+//! as it is, and keeps the committed frames beside it as viewer data
+//! ([`crate::layout`]; DI5's display metadata), which an open restores
+//! ([`DisplayState::restore`]). Hides and shows are not kept, and a
+//! reopened session starts with them empty. DI5
 //! (`crates/editor-core/IDENTITY.md`) states the rule over shown spaces:
 //! a free-move moves the picture of one shown space, its release writes
 //! nothing to the document, and the frame is keyed by the space — its
@@ -94,6 +97,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::layout::SavedFrame;
 use pncad::document::{
     Doc, Evaluation, Frame, OperandSlot, ProfileProgram, RecipeNodeId, SpokenNode, SpokenSpace,
     VarId, VarKind,
@@ -232,7 +236,9 @@ pub enum AdmissionFault {
     /// The body a gesture was opened on is now in another space than the
     /// one the gesture moves: an edit re-targeted it. The gesture goes
     /// (DI5); the probe still admits the body, to the space it is in
-    /// now. Raised by the prune's tests alone.
+    /// now. Raised by the prune's tests, and by a restore's of a saved
+    /// frame whose node is now in another space
+    /// ([`DisplayState::restore`]).
     MovedSpace {
         /// The node the gesture was opened on, as the document held it.
         node: SpokenNode,
@@ -241,7 +247,8 @@ pub enum AdmissionFault {
     },
     /// The space a frame was drawn for is gone from the document — the
     /// `new_space()` or the construction minting it was deleted, or an
-    /// undo stepped back past it. Raised by the prune's tests alone.
+    /// undo stepped back past it. Raised by the prune's and a restore's
+    /// tests alone ([`DisplayState::restore`]).
     /// Nothing cascades from a deleted space to the placements into it
     /// (D10): they strand.
     NoSuchSpace {
@@ -698,6 +705,33 @@ fn gesture_check(
         }),
         Err(Unplaced::Refused) if answers == Answers::Structural => Ok(()),
         Err(Unplaced::Refused) => Err(AdmissionFault::NoSpace {
+            node: doc.spoken(node),
+        }),
+    }
+}
+
+/// **Whether a saved frame of `space`, written by `node`'s gesture,
+/// holds over `doc`** ([`DisplayState::restore`]): the space shown, and
+/// `node` in the document with its body in that space.
+fn restore_check(
+    doc: &Doc<ProfileProgram>,
+    shown: &BTreeSet<VarId>,
+    space: VarId,
+    node: RecipeNodeId,
+) -> Result<(), AdmissionFault> {
+    shown_check(doc, shown, space, node)?;
+    if doc.node(node).is_none() {
+        return Err(AdmissionFault::NoSuchNode {
+            node: doc.spoken(node),
+        });
+    }
+    match doc.node_space(node) {
+        Some(found) if found == space => Ok(()),
+        Some(found) => Err(AdmissionFault::MovedSpace {
+            node: doc.spoken(node),
+            into: Box::new(doc.spoken_space(found)),
+        }),
+        None => Err(AdmissionFault::NoSpace {
             node: doc.spoken(node),
         }),
     }
@@ -1222,6 +1256,57 @@ impl DisplayState {
         }
     }
 
+    /// **The committed frames, as a save keeps them** beside the
+    /// document ([`crate::layout`]): each space's frame and the node
+    /// whose gesture wrote it, in space order. A gesture in flight is
+    /// not committed and is not among them.
+    pub fn saved_frames(&self) -> Vec<SavedFrame> {
+        self.moves
+            .iter()
+            .map(|(&space, held)| SavedFrame {
+                space,
+                node: held.node,
+                frame: held.frame,
+            })
+            .collect()
+    }
+
+    /// **Restore the frames a layout saved** over the document just
+    /// opened, and answer the ones it cannot hold, each with the fault
+    /// that drops it.
+    ///
+    /// A frame is restored when its space is shown in `doc` and the
+    /// node that wrote it is still in `doc` with its body in that space:
+    /// a space id names the space one chain of edits minted, and the
+    /// node is what says the opened document reached it by the same
+    /// edits, so a frame is never drawn on another space under a reused
+    /// id. The tests are a prune's ([`space_check`], then the node's
+    /// own), asked of the recipe alone, so no evaluation is needed.
+    /// Every other frame is dropped: its space gone
+    /// ([`AdmissionFault::NoSuchSpace`]) or not shown
+    /// ([`AdmissionFault::NotShown`]), its node gone
+    /// ([`AdmissionFault::NoSuchNode`]), in another space
+    /// ([`AdmissionFault::MovedSpace`]) or in none
+    /// ([`AdmissionFault::NoSpace`]).
+    pub fn restore(&mut self, doc: &Doc<ProfileProgram>, frames: &[SavedFrame]) -> Vec<Withdrawn> {
+        let shown = crate::world::shown_spaces(doc);
+        let mut dropped = Vec::new();
+        for saved in frames {
+            let SavedFrame { space, node, frame } = *saved;
+            match restore_check(doc, &shown, space, node) {
+                Ok(()) => {
+                    self.moves.insert(space, Moved { frame, node });
+                    self.revision += 1;
+                }
+                Err(cause) => dropped.push(Withdrawn {
+                    held: Held::Node(node),
+                    cause,
+                }),
+            }
+        }
+        dropped
+    }
+
     /// **Turn the toggle of the body `node` builds `on` or off**, over
     /// what it reads now (module docs): a toggle that would read `on`
     /// without the author's own setting of it holds nothing, and one
@@ -1555,9 +1640,11 @@ impl DisplayState {
     /// the loss is news and its cause is the whole content of the
     /// sentence. **A replacement is the act itself.** `Open` and
     /// `NewDocument` change what the session is about; display state
-    /// is state of a session over ONE document (G3 — it is never
-    /// persisted, and "save, reopen, layer-3 state gone" is a property
-    /// of the structure), so a user who replaces the document has
+    /// is state of a session over ONE document (G3 — it never enters
+    /// the document; the frames an open restores from the document's
+    /// saved layout are put back AFTER this, by
+    /// [`DisplayState::restore`], over the incoming document), so a
+    /// user who replaces the document has
     /// asked for exactly this. A per-body notice would report the
     /// act back to the person who performed it.
     ///
