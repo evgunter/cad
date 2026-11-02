@@ -128,9 +128,7 @@ fn read(a: &Surface<f64>, b: &Surface<f64>) -> Result<Components<f64>, SectionEr
 /// **An exact sphere patch on its sphere lies on it.** The hull's
 /// ceiling reads the composite `|S|² − r²` within the zero band over
 /// every cell: [`SectionError::CoincidentSurfaces`] (D10), in either
-/// order. Red against the hull skipped, and against the coincidence read
-/// on a floor rather than a ceiling where the ceiling's divisor bound is
-/// dropped.
+/// order. Red against the hull skipped.
 #[test]
 fn an_exact_sphere_patch_lies_on_its_sphere() {
     let s = sphere(pt(0.0, 0.0, 0.0), 1.0);
@@ -146,11 +144,9 @@ fn an_exact_sphere_patch_lies_on_its_sphere() {
 
 /// **The same patch off its sphere past the band is apart**: the hull's
 /// floor reads every cell definitely inside, no component and no march.
-/// Red against the floor's divisor read at its lower end (the floor then
-/// overstates the distance, which is no failure here) — and against the
-/// apart verdict dropped, where the pass and the sweep run and the side
-/// arithmetic decides it instead (the row checks only the answer; the
-/// mutant that skips the hull reds the coincidence row).
+/// Red against the hull skipped: the pass and the sweep then read a wall
+/// with no slope off its partner, cell by cell, and spend the cell
+/// budget.
 #[test]
 fn a_sphere_patch_past_the_band_is_apart() {
     let off = 4.0 * band().escalate();
@@ -259,8 +255,8 @@ fn a_collapsed_side_on_the_partner_refuses_at_the_door() {
 /// wall, whose gradient never vanishes, so the section is the arc at
 /// `z = √0.96` from the `u = 0` side to the `u = 1` side.
 /// [`Components::Reaching`] names those two sides on the wall and none
-/// on the sphere, in the order the pair was asked. Red against the reach
-/// read off the wrong operand, and against the pass's crossings dropped.
+/// on the sphere, in the order the pair was asked. Red against the pass's
+/// crossings dropped.
 #[test]
 fn a_spout_through_a_belly_reaches_the_sides_it_crosses() {
     let w = std::f64::consts::FRAC_1_SQRT_2;
@@ -334,7 +330,7 @@ fn a_leaf_through_a_stem_is_loop_free() {
 /// **With no march door a curved partner is R-lane**: its hull is
 /// formed in certification arithmetic through the door, so the value
 /// asked with none refuses [`SectionError::NoMarch`], whatever the
-/// pose. Red against a curved partner read at the scalar with no lane.
+/// pose.
 #[test]
 fn a_curved_partner_with_no_march_door_is_r_lane() {
     let got = pair_section(
@@ -345,4 +341,40 @@ fn a_curved_partner_with_no_march_door_is_r_lane() {
         band(),
     );
     assert!(matches!(got, Err(SectionError::NoMarch { .. })), "{got:?}");
+}
+
+/// The wall standing on the unit sphere's equator along its `v = 0`
+/// side, a quarter arc in `u`, rising to `z = 1` in `v` while it leaves
+/// the sphere radially by `slope·v + 0.1·v²`: its slope off the sphere
+/// across that side is `slope` per metre risen.
+fn standing(slope: f64) -> Surface<f64> {
+    let w = std::f64::consts::FRAC_1_SQRT_2;
+    let arc = [(1.0, 0.0, 1.0), (1.0, 1.0, w), (0.0, 1.0, 1.0)];
+    let g = [1.0, 1.0 + slope / 2.0, 1.0 + slope + 0.1];
+    let z = [0.0, 0.5, 1.0];
+    patch(2, 2, &|i, j| {
+        let (x, y, wt) = arc[i];
+        (pt(x * g[j], y * g[j], z[j]), wt)
+    })
+}
+
+/// **A side lying on the sphere, the wall leaving it steeply, is a
+/// `Side` region**: the pass reads the slope across the side one-signed
+/// over a strip beside it, and the sweep the rest regular, so the
+/// section reaches the wall's `v = 0` side and no other. Red against the
+/// curved partial read over a whole strip at once, where `∇f`'s box and
+/// the derivative's part nothing of their correlation, no slope across
+/// reads one-signed, and the side falls to its roots, every cell of
+/// which holds a zero (the cell budget).
+#[test]
+fn a_side_lying_on_the_sphere_is_a_side_region() {
+    let got = read(&sphere(pt(0.0, 0.0, 0.0), 1.0), &standing(0.1));
+    let Ok(Components::Reaching(reached)) = &got else {
+        panic!("the wall standing on the equator reads {got:?}");
+    };
+    assert_eq!(
+        reached.rims()[1],
+        side(ChartAxis::V, ChartEnd::Low),
+        "the wall's ends"
+    );
 }

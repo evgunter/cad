@@ -380,6 +380,11 @@ impl Partner for PlanePartner<'_> {
     }
 }
 
+/// How many pieces a side of a window is cut into where a curved
+/// partner's partial is read over it ([`Partner::partial`]): a fixed
+/// rule (D9).
+const CURVED_PARTIAL_PIECES: u32 = 8;
+
 /// **A curved partner, as the classification's pass reads it**: its
 /// canonical form `f` along a side ([`implicit_section`]), its partials
 /// `∇f(S)·S_d` over the wall's boxes, its value at a corner with a
@@ -404,10 +409,39 @@ impl Partner for &Curved {
         door(curve, self, speed, floor, arm, band)
     }
 
+    /// Read piecewise, the hull over a grid of
+    /// [`CURVED_PARTIAL_PIECES`]² sub-windows: `∇f` turns with the wall's
+    /// point where the plane's normal stands still, and its box and the
+    /// derivative's box read over a whole side's strip part nothing of
+    /// their correlation, so a side lying on the partner would read no
+    /// slope across it one-signed.
     fn partial(&self, boxes: &NurbsBoxes<'_, f64>, w: UvWindow, along_u: bool) -> Interval {
-        let g = self.gradient(self.framed(boxes.rect_box(w)));
-        let d = boxes.deriv_box(w, along_u);
-        g.x * d.x + g.y * d.y + g.z * d.z
+        let n = CURVED_PARTIAL_PIECES;
+        let cut = |(a, b): (f64, f64), k: u32| {
+            let at = |i: u32| {
+                if i == n {
+                    b
+                } else {
+                    a + (b - a) * f64::from(i) / f64::from(n)
+                }
+            };
+            (at(k), at(k + 1))
+        };
+        let (u, v) = ((w.u.start(), w.u.end()), (w.v.start(), w.v.end()));
+        let mut out: Option<Interval> = None;
+        for i in 0..n {
+            for j in 0..n {
+                let ((u0, u1), (v0, v1)) = (cut(u, i), cut(v, j));
+                let Some(piece) = UvWindow::new(u0, u1, v0, v1) else {
+                    return Interval::refused();
+                };
+                let g = self.gradient(self.framed(boxes.rect_box(piece)));
+                let d = boxes.deriv_box(piece, along_u);
+                let p = g.x * d.x + g.y * d.y + g.z * d.z;
+                out = Some(out.map_or(p, |o| Interval::hull(o, p)));
+            }
+        }
+        out.unwrap_or_else(Interval::refused)
     }
 
     fn at_point(&self, p: Point3<f64>) -> (Interval, f64) {
