@@ -117,3 +117,7 @@ positional arguments, which are this row's.
 ## 2026-10-21 — re-banded
 
 P1 → P3. A class of silent transpositions, none known to have happened: tooling and types that prevent silent bugs, P3's band.
+
+## Update (2026-11-02, PLACING, branch `placing/bundle-editor-transform`)
+
+The worst hit is gone: `TransformTool`, `SessionOp::AddTransform` and `Session::add_transform` retired, and the Transform tool opens the placement editor, whose values are typed per freedom (`Coord`).

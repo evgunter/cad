@@ -812,7 +812,7 @@ impl Tools {
                     if let Some(node) = selection.seat_node() {
                         match MateTool::moving(doc, node, selection.seat_body()) {
                             Ok(tool) => self.open = Some(OpenTool::Mate(tool)),
-                            Err(event) => notices.push(ToolNotice::Mate(event)),
+                            Err(event) => notices.push(ToolNotice::Mate(*event)),
                         }
                     }
                 }

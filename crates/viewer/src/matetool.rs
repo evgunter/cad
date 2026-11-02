@@ -1439,9 +1439,11 @@ impl MateTool {
         doc: &Doc<ProfileProgram>,
         node: RecipeNodeId,
         body: Option<u32>,
-    ) -> Result<Self, MateToolEvent> {
-        let not_placeable = || MateToolEvent::NotPlaceable {
-            node: doc.spoken(node),
+    ) -> Result<Self, Box<MateToolEvent>> {
+        let not_placeable = || {
+            Box::new(MateToolEvent::NotPlaceable {
+                node: doc.spoken(node),
+            })
         };
         match doc.node(node) {
             None => return Err(not_placeable()),
@@ -1468,10 +1470,10 @@ impl MateTool {
         match copies[..] {
             [] => Ok(Self::create(read)),
             [copy] => Self::edit(doc, copy).map_err(|_| not_placeable()),
-            _ => Err(MateToolEvent::SeenThroughSeveral {
+            _ => Err(Box::new(MateToolEvent::SeenThroughSeveral {
                 node: doc.spoken(node),
                 copies: copies.len(),
-            }),
+            })),
         }
     }
 
