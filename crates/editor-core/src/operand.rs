@@ -160,6 +160,15 @@ impl core::fmt::Display for Operand {
     }
 }
 
+/// **A position as a reader counts it**, from one: widened before the
+/// `+ 1`, so the last position a `usize` holds is said, not wrapped.
+pub(crate) fn ordinal(position: usize) -> u128 {
+    let Ok(wide) = u128::try_from(position) else {
+        unreachable!("a usize of at most 64 bits fits a u128")
+    };
+    wide + 1
+}
+
 /// **An operand field's address** (spec Q7: named by field, never by
 /// position): the operand half of a node's slot vocabulary, addressed
 /// as [`crate::SlotId::Operand`].
@@ -170,7 +179,7 @@ pub enum OperandSlot {
     /// The profile an extrude, revolve or sweep reads.
     Profile,
     /// Section `i` of a loft.
-    Section(u32),
+    Section(usize),
     /// A sweep's path profile.
     Path,
     /// The axis a circular rule turns about.
@@ -188,7 +197,7 @@ pub enum OperandSlot {
     Face,
     /// Traced face `i` of a profile drawn on a frame
     /// ([`crate::program::DrawnOn::faces`]).
-    Traced(u32),
+    Traced(usize),
     /// One side of a placement's constraint: the face it is read off.
     Side {
         /// The constraint.
@@ -208,7 +217,7 @@ pub enum OperandSlot {
     /// The body a subtract cuts away.
     Cut,
     /// Member `i` of a union's or an intersect's spelled list.
-    Member(u32),
+    Member(usize),
     /// The family a union or an intersect reads whole.
     Members,
     /// What an assertion's value reads: a slot variable or an operand.
@@ -245,7 +254,7 @@ impl OperandSlot {
     pub fn label(self) -> String {
         match self {
             Self::Profile => "profile".to_owned(),
-            Self::Section(i) => format!("section {}", u64::from(i) + 1),
+            Self::Section(i) => format!("section {}", ordinal(i)),
             Self::Path => "path".to_owned(),
             Self::Axis => "axis".to_owned(),
             Self::Frame => "frame".to_owned(),
@@ -253,7 +262,7 @@ impl OperandSlot {
             Self::Selection => "selection".to_owned(),
             Self::Open => "open faces".to_owned(),
             Self::Face => "face".to_owned(),
-            Self::Traced(i) => format!("traced face {}", u64::from(i) + 1),
+            Self::Traced(i) => format!("traced face {}", ordinal(i)),
             Self::Side { constraint, side } => {
                 format!("constraint {constraint} side {}", side.name())
             }
@@ -262,7 +271,7 @@ impl OperandSlot {
             Self::Tool => "tool".to_owned(),
             Self::From => "from".to_owned(),
             Self::Cut => "tool".to_owned(),
-            Self::Member(i) => format!("member {}", u64::from(i) + 1),
+            Self::Member(i) => format!("member {}", ordinal(i)),
             Self::Members => "members".to_owned(),
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
@@ -434,12 +443,7 @@ impl<R> Bodies<R> {
             Self::Spelled(reads) => reads
                 .iter()
                 .enumerate()
-                .map(|(i, read)| {
-                    (
-                        OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)),
-                        read,
-                    )
-                })
+                .map(|(i, read)| (OperandSlot::Member(i), read))
                 .collect(),
         }
     }
@@ -451,12 +455,7 @@ impl<R> Bodies<R> {
             Self::Spelled(reads) => reads
                 .iter_mut()
                 .enumerate()
-                .map(|(i, read)| {
-                    (
-                        OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)),
-                        read,
-                    )
-                })
+                .map(|(i, read)| (OperandSlot::Member(i), read))
                 .collect(),
         }
     }
@@ -486,12 +485,7 @@ impl<R> Bodies<R> {
                 reads
                     .iter()
                     .enumerate()
-                    .map(|(i, read)| {
-                        f(
-                            OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)),
-                            read,
-                        )
-                    })
+                    .map(|(i, read)| f(OperandSlot::Member(i), read))
                     .collect::<Result<_, _>>()?,
             ),
         })
@@ -566,21 +560,13 @@ impl<S: crate::expr::Slot> BodyRead<S> {
     }
 
     /// The indices, each with its position, shared.
-    pub fn rows(&self) -> Vec<(u8, &S)> {
-        self.at
-            .iter()
-            .enumerate()
-            .map(|(k, e)| (u8::try_from(k).unwrap_or(u8::MAX), e))
-            .collect()
+    pub fn rows(&self) -> Vec<(usize, &S)> {
+        self.at.iter().enumerate().collect()
     }
 
     /// The indices, each with its position, exclusive.
-    pub fn rows_mut(&mut self) -> Vec<(u8, &mut S)> {
-        self.at
-            .iter_mut()
-            .enumerate()
-            .map(|(k, e)| (u8::try_from(k).unwrap_or(u8::MAX), e))
-            .collect()
+    pub fn rows_mut(&mut self) -> Vec<(usize, &mut S)> {
+        self.at.iter_mut().enumerate().collect()
     }
 
     /// This read in another slot form: the read by `read` (handed its

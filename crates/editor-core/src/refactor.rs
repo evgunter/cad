@@ -2126,7 +2126,7 @@ fn remap_node(
             v_degree,
         } => Node::Loft {
             first: rd(crate::OperandSlot::Section(0), *first)?,
-            then: (1u32..)
+            then: (1..)
                 .zip(then)
                 .map(|(i, section)| {
                     section.try_map(|&p| rd(crate::OperandSlot::Section(i), p), &mut |&v| Ok(v))

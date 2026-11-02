@@ -4699,6 +4699,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "PastWidth",
+            NamingError::PastWidth {
+                what: editor_core::names::Numbered::InputPosition,
+                index: 7,
+            },
+        ),
+        (
             "SplitLineage",
             NamingError::SplitLineage(topo::SplitLineageCycle {
                 edge: topo::EdgeKey::default(),

@@ -2258,6 +2258,7 @@ test_utils::f6_variants! {
         BandVerdictsDisagree,
         Band,
         Escalated,
+        PastWidth,
     ];
 }
 
@@ -2632,6 +2633,13 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 },
             },
             vec!["a point's place along an edge, which a name rests on, is undecided"],
+        ),
+        (
+            NamingError::PastWidth {
+                what: editor_core::names::Numbered::InputPosition,
+                index: 7,
+            },
+            vec!["input 7 does not fit the u32", "Recourse: join the inputs"],
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
