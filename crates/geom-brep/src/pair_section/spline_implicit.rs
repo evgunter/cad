@@ -33,10 +33,9 @@
 //!    all the section has, and a pinch ([`SectionError::Pinched`]) where a
 //!    node, or a touch beside components with ends, meets arcs the march
 //!    would list; the interior-loop guard's loop-free stage is it. Where
-//!    the sweep declines, a plane's pose is read whole on
-//!    the same pass, the pass carried on the pose; a curved partner's
-//!    whole reading over the rectangle is not built, and its pose refuses
-//!    as the general rung's ([`SectionError::RoutesToGeneralRung`]).
+//!    the sweep declines, the pose is read whole on the same pass: a
+//!    plane's by [`crate::PlaneSection`], the pass carried on the pose,
+//!    and a curved partner's on the 1×2 trace ([`crate::ImplicitSection`]).
 //!
 //! The order is the proof's: the sweep's loop-free verdict says nothing
 //! of a wall within the band of the partner everywhere, which the hull
@@ -46,7 +45,9 @@
 //! Read whole, the section of a plane and a NURBS wall (an approximating
 //! surface read as its fit) is [`crate::PlaneSection::all`] over the
 //! wall's whole knot rectangle: every branch with its three-limb certificate, every
-//! boundary region, and the accounting that they are all of them. The
+//! boundary region, and the accounting that they are all of them; against
+//! a cylinder, sphere or ring torus it is [`crate::ImplicitSection::all`],
+//! listed the same way. The
 //! plane is read at its pivot, its origin moved to its foot nearest the
 //! wall (`SplineImplicitPose::anchored`), so where its origin is stored
 //! changes nothing. The foot is found in `f64`, so the plane read may
@@ -65,10 +66,11 @@
 //! **A branch's witness** is the wall's point `q = S(P(mid))` at the
 //! middle of the branch's pcurve on the wall (an enclosure's centre),
 //! and its pad a metre bound on how far `q` stands from a point of that
-//! branch's own arc: a segment of the chart through `P(mid)` along the
-//! plane height's gradient, inside the window of the branch's certified
-//! chart tube that holds `P(mid)`, whose ends the stored plane's height
-//! is certified to straddle, halved about the sign change while the
+//! branch's own arc: a segment of the chart through `P(mid)` along `φ`'s
+//! chart gradient (the plane height's, or the curved partner's residual
+//! along the wall), inside the window of the branch's certified chart
+//! tube that holds `P(mid)`, whose ends `φ` (the stored plane's height,
+//! or the partner's form) is certified to straddle, halved about the sign change while the
 //! sign stays certified ([`bracket`]). The segment holds a point of the
 //! section, and inside the window limb 3 proves the section one arc,
 //! the branch's; the image's length from `P(mid)` to it is bounded by

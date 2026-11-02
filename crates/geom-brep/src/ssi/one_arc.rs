@@ -28,7 +28,7 @@
 //! side, finds `|φ| ≤ ε` along it and no piece of it clear of the plane
 //! (Ev's #3862 rule: `φ` one-signed along it and the wall moving further
 //! that way inward, the exact empty answer), and the side's cover puts
-//! every solution in the box within ε of the side ([`read_stretch`],
+//! every solution in the box within ε of the side ([`read_stretch_by`],
 //! [`side_stretch`]). The piece is that stretch of the side, as a region
 //! of the locus, not a curve. Two stretches of one side link where their
 //! overlap reads within ε and no piece of it clear.
@@ -665,7 +665,7 @@ struct CarrierEnd {
 /// **The window's piece reaches the carrier's end.**
 /// - A side's piece reaches it where the end's chart point, moved
 ///   straight across onto the side, lands on the window's stretch, at a
-///   point the boundary pass reads not clear ([`read_stretch`]). The
+///   point the boundary pass reads not clear ([`read_stretch_by`]). The
 ///   slice through the end is not read: at a corner of the domain it
 ///   leaves the window at once.
 /// - An arc reaches it where the slice holds a solution in the window
@@ -761,7 +761,7 @@ fn end_far<T: CertifiedBounds>(
 ///   other's piece (an arc's, or within ε of a side's stretch, as every
 ///   solution of the side's window is).
 /// - Two stretches of one side: they overlap along it, and the boundary
-///   pass reads no piece of the overlap clear ([`read_stretch`]).
+///   pass reads no piece of the overlap clear ([`read_stretch_by`]).
 fn link<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     plane: impl Into<ChartPhi<'p>>,

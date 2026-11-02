@@ -40,6 +40,7 @@
 //! | [`sphere_torus_ssi`], [`cylinder_torus_ssi`], [`torus_torus_ssi`] | **ℝ³** implicit pair, 2×3 SVD | the torus pairs, each past its pose's critical gap, the torus read through its quartic and converted to metres per span (`certify`'s torus arm) |
 //! | [`PlaneSection`] | **ℝ⁴** parametric×parametric, 3×4 SVD | shape (iii)'s substrate — **retired 2026-07-31**, all three limbs (M5 PR 7b); one complete operation read at a seed or whole (`plane`), [`plane_nurbs_ssi`] its whole reading |
 //! | [`Section`] | **ℝ⁴** on two NURBS charts, 3×4 SVD | the shelled loft's wall–wall seams — all three limbs, the third the two-chart tube; one complete operation read at a seed or whole (`pair`) |
+//! | [`ImplicitSection`] | **ℝ²** residual × chart, 1×2 SVD | a cylinder, sphere or ring torus against a NURBS wall where the classification's sweep declines — all three limbs, the third the chart tube read against the partner's form; one complete operation read at a seed or whole (`implicit_chart`) |
 //!
 //! # The plane×NURBS arm's retirement (M5 PR 7b)
 //!

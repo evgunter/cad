@@ -597,6 +597,17 @@ reported, or the branch whose certified chart tube holds it.
 branch already ends at and every closed loop from the chart lane's
 seeds, and accounts every cell of the wall's knot rectangle, excluded,
 in a tube, or in a region.
+The residual × NURBS lane, a cylinder, sphere or ring torus against a
+wall, is read through a handle of the same shape and contract on the
+1×2 trace (`ssi::ImplicitSection::of`, `branch_at`, `all`): its state is
+the wall's `(u, v)` and its one equation the partner's residual in
+metres along the wall. Its branches carry the wall's pcurve and none on
+the partner, which has no chart, as an ℝ³ branch carries none. Its
+boundary pass is the curved partner's (`ImplicitWall::pass`, the
+classification's own), its limb 3 the plane lane's chart tube read
+against the partner's form, `∇f·S⊥` over an upper bound on `‖∇f‖`
+(`ChartPhi`), and its seeding and accounting exclude a cell where the
+form's floor in metres over the wall's box there is clear of zero.
 Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.
@@ -887,7 +898,8 @@ sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3);
 NURBS (and `Approx` as its fit) against a cylinder, sphere or torus is
 classified, its tangency and coincidence decided and its loop-free
-verdict read, and its whole reading over the knot rectangle is unbuilt. The offset door reads
+verdict read, and where the sweep declines it is read whole over the knot
+rectangle on the 1×2 trace (`ImplicitSection::all`, rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle. The boolean reads
 plane × NURBS and NURBS × NURBS (and `Approx` as its fit) through the
@@ -921,8 +933,10 @@ apart on a floor in metres and its coincidence on a ceiling, each
 through the form's divisor, the torus read only as a ring torus
 (`R > r`), where the divisor's lower bound is positive; the pass reads
 `f∘C` along each side as the curve × face table's ring composite and
-`∇f(S)·S_d` across it; and where the sweep declines, the pose refuses as
-the general rung's, its whole reading unbuilt. The sweep decides a cell
+`∇f(S)·S_d` across it; and where the sweep declines, the value is the
+1×2 reading's `all()` (`ssi::ImplicitSection`) on the same pass, each
+component listed as against a plane, a branch's witness bracketed in the
+wall's chart along `∇φ` until the form's certified sign changes. The sweep decides a cell
 it cannot read at the floor as a critical point: each cluster of such
 cells is isolated as `∇φ`'s one zero by the Krawczyk operator on the
 wall's jet, its Hessian's determinant read for a touch or a node, and

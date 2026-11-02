@@ -1240,7 +1240,7 @@ fn nth_piece(along: (f64, f64), count: u32, k: u32) -> (f64, f64) {
     (t(k), t(k + 1))
 }
 
-/// A stretch of a side as the boundary pass reads it ([`read_stretch`]).
+/// A stretch of a side as the boundary pass reads it ([`read_stretch_by`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Reading {
     /// A piece of it [`clears`]: no zero lies along it or beside it.
@@ -1255,17 +1255,7 @@ pub(crate) enum Reading {
     Within(f64),
 }
 
-/// **A stretch of a side, read as the boundary pass reads a side.** `r`
-/// is a window with an edge on `side`, and `reader` reads `φ` along that
-/// side ([`super::section::SectionReader`], the boundary section's own
-/// arithmetic). The stretch is cut into `2^`[`STRIP_PIECES_LOG2`]
-/// pieces, each read for `φ` along it; where `|φ|` over them is within
-/// `eps`, each piece where `φ` is one-signed (on the refined hull the
-/// boundary section reads a whole side's sign by) is read for the slope
-/// across `r` beside it too, and a piece that [`clears`] (the side's own
-/// test) makes the stretch [`Reading::Clear`]. The pieces' signs share
-/// one side's halvings ([`SIDE_SIGN_HALVINGS`]), as the boundary
-/// section's whole side does.
+/// [`read_stretch_by`] against the plane of unit normal `normal`.
 #[cfg(test)]
 pub(crate) fn read_stretch<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
@@ -1295,7 +1285,18 @@ fn plane_across<'b, T: CertifiedBounds>(
     }
 }
 
-/// [`read_stretch`] against any partner, its partial `across`.
+/// **A stretch of a side, read as the boundary pass reads a side.** `r`
+/// is a window with an edge on `side`, and `reader` reads `φ` along that
+/// side ([`super::section::SectionReader`], the boundary section's own
+/// arithmetic). The stretch is cut into `2^`[`STRIP_PIECES_LOG2`]
+/// pieces, each read for `φ` along it; where `|φ|` over them is within
+/// `eps`, each piece where `φ` is one-signed (on the refined hull the
+/// boundary section reads a whole side's sign by) is read for the slope
+/// across `r` beside it too, and a piece that [`clears`] (the side's own
+/// test) makes the stretch [`Reading::Clear`]. The pieces' signs share
+/// one side's halvings ([`SIDE_SIGN_HALVINGS`]), as the boundary
+/// section's whole side does. `across` reads the partner's slope across
+/// the side ([`Across`]).
 pub(crate) fn read_stretch_by(
     across: Across<'_>,
     reader: &super::section::SectionReader,
@@ -1305,7 +1306,8 @@ pub(crate) fn read_stretch_by(
     stretch_by(across, reader, (side, r), (eps, SIDE_SIGN_HALVINGS))
 }
 
-/// [`read_stretch`], its pieces' signs read within `halvings`.
+/// [`read_stretch`], its pieces' signs read within `halvings`, against
+/// the plane of unit normal `normal`.
 #[cfg(test)]
 pub(super) fn stretch_within<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
@@ -1322,7 +1324,8 @@ pub(super) fn stretch_within<T: CertifiedBounds>(
     )
 }
 
-/// [`stretch_within`] against any partner, its partial `across`. `|φ|`
+/// A stretch read against any partner, its partial `across`, its pieces' signs
+/// read within `halvings`. `|φ|`
 /// along the stretch is read against `eps` in metres
 /// ([`super::section::SectionReader::metres`]); the bound it answers
 /// ([`Reading::Within`]) is in `φ`'s own units, the units `across` reads
