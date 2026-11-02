@@ -103,7 +103,7 @@ pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     GestureFrameFault, NodeKindWanted, Refusal, SaveChoice, Step, VersionOffer, admits, admits_read,
 };
-pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
+pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing, VertexSelection};
 
 /// What a gesture is dragging.
 #[derive(Clone, Debug)]
@@ -1078,6 +1078,10 @@ impl DocSession {
                 edge: edge.clone(),
                 resolution: self.entity_resolution(edge.node, edge.body, &edge.name),
             },
+            Selection::Vertex(vertex) => Standing::Vertex {
+                vertex: vertex.clone(),
+                resolution: self.entity_resolution(vertex.node, vertex.body, &vertex.name),
+            },
         }
     }
 
@@ -1262,6 +1266,14 @@ impl DocSession {
     /// The display snapshot the scene and pick paths consume.
     pub fn display_view(&self) -> DisplayView {
         self.display.view(self.doc())
+    }
+
+    /// **Every show/hide toggle** ([`crate::display::Toggles`]), read
+    /// over the committed document — the one the toggle's own door
+    /// decides against ([`SessionOp::SetBodyOn`]), so what a checkbox
+    /// shows and what its click does read one document.
+    pub fn toggles(&self) -> crate::display::Toggles {
+        self.display.toggles(self.committed_doc())
     }
 
     /// The directory this session resolves part references against —
@@ -1838,11 +1850,8 @@ impl DocSession {
             SessionOp::Open(path) => self.open(&path),
             SessionOp::Save(path) => self.save(&path),
             SessionOp::SaveAsNewDocument(path) => self.save_as_new_document(&path),
-            SessionOp::SetBodyHidden { node, hidden } => {
-                match self
-                    .display
-                    .set_body_hidden(self.history.doc(), node, hidden)
-                {
+            SessionOp::SetBodyOn { node, on } => {
+                match self.display.set_body_on(self.history.doc(), node, on) {
                     Ok(()) => OpOutcome::default(),
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
                 }
@@ -1986,6 +1995,7 @@ impl DocSession {
                 self.commit_written(DocEdit::SetLabel { node, label })
             }
             SessionOp::SetProduct { bodies } => self.set_product(bodies),
+            SessionOp::AddToProduct { node, body } => self.add_to_product(node, body),
             SessionOp::CreateLabelled { creation, label } => {
                 self.perform_op(creation.into_op(), Some(label))
             }
@@ -2101,6 +2111,9 @@ impl DocSession {
     /// pick up a generation without the run it answers. The fourth,
     /// `tol`, is this session's ε — construction-time, never rewritten
     /// by a landing — and rides along because the build needs it.
+    /// The author's shows ride too ([`DisplayState::shown`]): a show
+    /// draws a body the default leaves out, so the picture the index
+    /// describes is the landing's drawing them.
     ///
     /// `pickcache` is a vocabulary and may not name this driver, so
     /// the read is hoisted rather than the rule widened
@@ -2114,6 +2127,7 @@ impl DocSession {
             run.doc.as_ref(),
             &run.evaluation,
             self.tol,
+            self.display.shown(),
         ))
     }
 
@@ -2387,7 +2401,7 @@ impl DocSession {
             .map(Refusal::SlotUnit)
     }
 
-    /// **What `SessionOp::SetBodyHidden` would answer for `node`, or
+    /// **What `SessionOp::SetBodyOn` would answer for `node`, or
     /// `None` where it would accept** — asked ahead of the click by the
     /// control that pushes the op.
     ///
@@ -2396,7 +2410,7 @@ impl DocSession {
     /// and neither drag's table in `perform` refuses it. So a row drawn
     /// from the LANDED document (the feature tree's) reads the refusal
     /// for a node deleted since the last landing.
-    pub fn body_hidden_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
+    pub fn body_toggle_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
         crate::display::body_check(self.committed_doc(), node)
             .err()
             .map(|fault| Refusal::Display(fault.into()))
@@ -3075,7 +3089,7 @@ impl DocSession {
                 ))));
             }
         };
-        let faces = traced.iter().map(|face| face_read(doc, face)).collect();
+        let faces = traced.iter().map(|face| pick_read(doc, face)).collect();
         match pncad::trace::drawn_profile(frame, faces, chains) {
             Ok(node) => Ok(creating(move |run| run.insert(node))),
             Err(error) => Err(Refusal::Edit(Box::new(error))),
@@ -3105,7 +3119,7 @@ impl DocSession {
             doc,
             ev,
             frame,
-            face_read(doc, face),
+            pick_read(doc, face),
             (pncad::geom_core::Point2::origin(), half),
             SKETCH_TRACE_RAYS,
             self.tol,
@@ -3829,49 +3843,86 @@ impl DocSession {
         self.commit_action(vec![edit])
     }
 
-    /// **The product set to `bodies`** ([`SessionOp::SetProduct`]): the
-    /// one body, a `⊔` of several inserted first, or nothing; the `⊔` the
-    /// slot read before, where nothing else reads it, deleted in the same
-    /// action.
+    /// **The product set to `bodies`** ([`SessionOp::SetProduct`]), as
+    /// one action ([`write_product`]).
     fn set_product(&mut self, bodies: Vec<Operand>) -> OpOutcome {
-        // The `⊔` the slot read before goes with the old answer, where
-        // nothing else reads it: the action says what the document makes,
-        // not one more thing beside it.
+        self.commit_run(|run| write_product(run, &bodies))
+    }
+
+    /// **Add to the product** ([`SessionOp::AddToProduct`]): the body
+    /// `node` draws — the port `body` names where it has several — joins
+    /// the product by the branch [`ProductDoor::of`] reads off the
+    /// committed document, as one action.
+    fn add_to_product(&mut self, node: RecipeNodeId, body: Option<u32>) -> OpOutcome {
         let doc = self.committed_doc();
-        let held = doc
-            .product()
-            .and_then(|var| doc.operation_of(var))
-            .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
-            .filter(|&at| {
-                let read = doc.output(at, 0);
-                !doc.ids().into_iter().any(|id| {
-                    doc.node(id).is_some_and(|node| {
-                        node.operand_rows()
-                            .into_iter()
-                            .any(|(_, r)| Some(r) == read)
-                    })
-                })
-            });
+        let door = match ProductDoor::of(doc, node, body) {
+            Ok(door) => door,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
+        if let ProductDoor::Place(read) = &door
+            && let Err(refusal) = self.require_placeable(read)
+        {
+            return OpOutcome::refused(refusal);
+        }
+        // The space the moved placement leaves, where the same history
+        // step minted it with the placement: an "Add part…" insert's.
+        let minted = match &door {
+            ProductDoor::IntoWorld { placement, .. } => doc
+                .node_space(*placement)
+                .and_then(|space| doc.defined_by(space))
+                .map(|(space, _)| space)
+                .filter(|&space| matches!(doc.node(space), Some(Node::Space)))
+                .filter(|&space| self.minted_together(space, *placement)),
+            ProductDoor::Add(_) | ProductDoor::Place(_) => None,
+        };
         self.commit_run(|run| {
-            if let Some(id) = held {
-                run.apply(DocEdit::SetProduct { product: None })?;
-                run.apply(DocEdit::DeleteNode { id })?;
-            }
-            let product = match bodies.as_slice() {
-                [] => None,
-                [one] => Some(one.clone()),
-                several => {
-                    let members = pncad::document::Bodies::Spelled(
-                        several
-                            .iter()
-                            .cloned()
-                            .map(pncad::document::BodyRead::plain)
-                            .collect(),
-                    );
-                    Some(Operand::Node(run.insert(Node::Assemble { members })?))
+            let copy = match door {
+                ProductDoor::Add(copy) => copy,
+                ProductDoor::IntoWorld { placement, copy } => {
+                    into_space(run, placement, VarId::WORLD)?;
+                    if let Some(id) = minted.filter(|&id| {
+                        run.doc()
+                            .output(id, 0)
+                            .is_some_and(|space| !run.doc().reader_counts().contains_key(&space))
+                    }) {
+                        run.apply(DocEdit::DeleteNode { id })?;
+                    }
+                    copy
+                }
+                ProductDoor::Place(read) => {
+                    let placement = run.insert(Node::place(
+                        pncad::document::BodyRead::plain(read),
+                        Operand::Var(VarId::WORLD),
+                        editor_core::stand().bundle(),
+                    ))?;
+                    let Some(copy) = run.doc().output(placement, 0) else {
+                        unreachable!("a placement defines its copy")
+                    };
+                    copy
                 }
             };
-            run.apply(DocEdit::SetProduct { product }).map(drop)
+            // A stray the product read already keeps its place in the slot.
+            if crate::world::product_reads(run.doc()).contains(&copy) {
+                return Ok(());
+            }
+            let bodies = crate::world::product_with(run.doc(), copy);
+            write_product(run, &bodies)
+        })
+    }
+
+    /// **Whether one history step on the path to the cursor inserted
+    /// both `a` and `b`** — a gesture's own provenance, so the product
+    /// door deletes only a space minted with the copy it moves, never
+    /// one a person or a script made. A document opened with both
+    /// already in it has no such step.
+    fn minted_together(&self, a: RecipeNodeId, b: RecipeNodeId) -> bool {
+        let path = self.history.path();
+        path.windows(2).any(|step| {
+            let before = self.history.entry(step[0]).doc();
+            let after = self.history.entry(step[1]).doc();
+            [a, b]
+                .iter()
+                .all(|&id| before.node(id).is_none() && after.node(id).is_some())
         })
     }
 
@@ -4165,6 +4216,130 @@ fn creating(
     action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<RecipeNodeId, EditError> + 'static,
 ) -> Creating {
     Box::new(action)
+}
+
+/// **The product slot written as `bodies`**: the one body, a `⊔` of
+/// several inserted first, or nothing; the `⊔` the slot read before,
+/// where nothing else reads it, deleted in the same run — the action
+/// says what the document makes, not one more thing beside it.
+fn write_product(
+    run: &mut Recording<'_, ProfileProgram>,
+    bodies: &[Operand],
+) -> Result<(), EditError> {
+    let doc = run.doc();
+    let held = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
+        .filter(|&at| {
+            doc.output(at, 0)
+                .is_some_and(|read| !doc.reader_counts().contains_key(&read))
+        });
+    if let Some(id) = held {
+        run.apply(DocEdit::SetProduct { product: None })?;
+        run.apply(DocEdit::DeleteNode { id })?;
+    }
+    let product = match bodies {
+        [] => None,
+        [one] => Some(one.clone()),
+        several => {
+            let members = pncad::document::Bodies::Spelled(
+                several
+                    .iter()
+                    .cloned()
+                    .map(pncad::document::BodyRead::plain)
+                    .collect(),
+            );
+            Some(Operand::Node(run.insert(Node::Assemble { members })?))
+        }
+    };
+    run.apply(DocEdit::SetProduct { product }).map(drop)
+}
+
+/// **Which branch of the product door a body takes**
+/// ([`SessionOp::AddToProduct`]; `crates/viewer/README.md`, *A body
+/// reaches the product through one door*).
+#[derive(Debug)]
+enum ProductDoor {
+    /// A body in the world — a world copy, an instance there, a `⊔`
+    /// there — or an existing world copy of the body: added to the slot
+    /// as it is.
+    Add(VarId),
+    /// A placement's copy in another space that nothing reads
+    /// ([`crate::world::movable_into_world`]): its placement re-targeted
+    /// into the world, and the copy added. A placement defines one copy,
+    /// so a pick's `body` names nothing more here.
+    IntoWorld {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// Its copy.
+        copy: VarId,
+    },
+    /// Any other body: placed into the world by the identity bundle,
+    /// and that copy added.
+    Place(Operand),
+}
+
+impl ProductDoor {
+    /// The branch the body `node` draws takes in `doc` — the port
+    /// `body` names, for a node with several outputs.
+    ///
+    /// **A body joins the product once.** Where the slot reads it, or a
+    /// world copy of it, the door refuses [`Refusal::InTheProduct`]
+    /// naming that copy — except a copy the slot reads from outside the
+    /// world (`ProductOutsideWorld`) that the door can move back, which
+    /// it moves. Where the world holds a copy of it the slot does not
+    /// read, that copy is added rather than another placed beside it,
+    /// which would stack coincident material. A node that names no one
+    /// body refuses [`Refusal::NotABodyRead`].
+    fn of(
+        doc: &Doc<ProfileProgram>,
+        node: RecipeNodeId,
+        body: Option<u32>,
+    ) -> Result<Self, Refusal> {
+        let not_a_body = || Refusal::NotABodyRead {
+            read: Box::new(Operand::Node(node)),
+        };
+        let read = crate::world::body_read(doc, node, body).ok_or_else(not_a_body)?;
+        let var = crate::world::read_var(doc, &read).ok_or_else(not_a_body)?;
+        let product = crate::world::product_reads(doc);
+        let movable = crate::world::movable_into_world(doc, node);
+        let in_world = doc.space_of(var) == Some(VarId::WORLD);
+        if product.contains(&var) {
+            return match movable {
+                Some(copy) if !in_world => Ok(Self::IntoWorld {
+                    placement: node,
+                    copy,
+                }),
+                _ => Err(Refusal::InTheProduct {
+                    copy: doc.spoken(node),
+                }),
+            };
+        }
+        let world_copies: Vec<(RecipeNodeId, VarId)> = crate::world::placements_of_var(doc, var)
+            .into_iter()
+            .filter(|&copy| doc.node_space(copy) == Some(VarId::WORLD))
+            .filter_map(|copy| Some((copy, doc.output(copy, 0)?)))
+            .collect();
+        if let Some(&(copy, _)) = world_copies.iter().find(|(_, out)| product.contains(out)) {
+            return Err(Refusal::InTheProduct {
+                copy: doc.spoken(copy),
+            });
+        }
+        if in_world {
+            return Ok(Self::Add(var));
+        }
+        if let Some(&(_, copy)) = world_copies.first() {
+            return Ok(Self::Add(copy));
+        }
+        if let Some(copy) = movable {
+            return Ok(Self::IntoWorld {
+                placement: node,
+                copy,
+            });
+        }
+        Ok(Self::Place(read))
+    }
 }
 
 /// **What a takeover re-points** (spec §5′.3 (a)): every read of the
@@ -4803,13 +4978,17 @@ impl core::fmt::Display for SketchTraceFault {
 
 impl core::error::Error for SketchTraceFault {}
 
-/// **The body a face pick is read on, and the face's name there**
+/// **The body a pick is read on, and the entity's name there**
 /// (`crate::world::body_of`; a copy carries its body's names, so the
 /// name is the pick's): the node's output by its port where it holds
 /// several, its body output otherwise.
-fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, StableName) {
-    let (at, port) = crate::world::body_of(doc, face.node, face.body);
-    let name = face.name.clone();
+fn picked_body(
+    doc: &Doc<ProfileProgram>,
+    pick: &impl crate::tree::PickedEntity,
+) -> (Operand, StableName) {
+    let on = pick.on();
+    let (at, port) = crate::world::body_of(doc, on.node(), on.body());
+    let name = pick.name().clone();
     let body = match crate::world::seat_read(doc, at, Some(port)) {
         (at, Some(port)) => Operand::output(at, port),
         (at, None) => body_of(doc, at),
@@ -4817,10 +4996,14 @@ fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, Sta
     (body, name)
 }
 
-/// **The face `face` selects, as an operand**: its name on the body the
-/// pick is read on ([`picked_body`]).
-pub(crate) fn face_read(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> Operand {
-    let (body, name) = picked_body(doc, face);
+/// **The entity a pick selects, as an operand** — a face, or for the
+/// mate tool an edge or a vertex: its name on the body the pick is read
+/// on ([`picked_body`]).
+pub(crate) fn pick_read(
+    doc: &Doc<ProfileProgram>,
+    pick: &impl crate::tree::PickedEntity,
+) -> Operand {
+    let (body, name) = picked_body(doc, pick);
     Operand::select(body, vec![name])
 }
 
@@ -4840,8 +5023,8 @@ fn drawn_frame(
     pncad::trace::traced_frame(
         doc,
         ev,
-        &face_read(doc, plane),
-        &face_read(doc, traced),
+        &pick_read(doc, plane),
+        &pick_read(doc, traced),
         tol,
     )
 }
@@ -5189,7 +5372,7 @@ mod tests {
     /// **The hide admission is asked of the document the op reads, not
     /// of the one the tree is drawn from**: an instance deleted since
     /// the last landing still has a tree row, and the answer for it is
-    /// the refusal `SetBodyHidden` gives.
+    /// the refusal `SetBodyOn` gives.
     #[test]
     fn a_deleted_instance_not_yet_landed_is_refused_its_hide() {
         use pncad::document::{ContentPin, DocRef, DocumentId, ProfileDoc};
@@ -5211,7 +5394,7 @@ mod tests {
         );
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        assert!(session.body_hidden_refusal(instance).is_none());
+        assert!(session.body_toggle_refusal(instance).is_none());
         let deleted = session.perform(SessionOp::DeleteNode { node: instance });
         assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
         assert!(
@@ -5219,13 +5402,13 @@ mod tests {
             "the tree still draws the landed document's row"
         );
         let said = session
-            .body_hidden_refusal(instance)
+            .body_toggle_refusal(instance)
             .expect("the committed document holds no such node")
             .to_string();
         let got = session
-            .perform(SessionOp::SetBodyHidden {
+            .perform(SessionOp::SetBodyOn {
                 node: instance,
-                hidden: true,
+                on: false,
             })
             .refusal
             .expect("the op refuses a deleted instance")

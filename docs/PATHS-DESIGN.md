@@ -271,8 +271,7 @@ authoring act.
 
 `Start` is a first-class **directed point** value — the bound
 entry (always both bits by the time the loop returns). It is legal
-wherever a directed-point/position argument goes, and **using it
-is closing — structurally**: the endpoint IS the start point by
+wherever a target goes, and **targeting it closes — structurally**: the endpoint IS the start point by
 reference, authored once; closure never depends on re-typed
 coordinates value-matching.
 
@@ -463,6 +462,51 @@ through the same funnel as the other sign gates.
 **Composition**: a circle is one loop among others — profiles mix
 circle loops and chain loops freely. §6's mixed-authoring rule is read
 at LOOP granularity, as it always was: no loop is half raw.
+
+### 1a. `rectangle(centre, width, height)` — a complete-loop program form
+
+**Consumes** a centre, a width and a height: the three numbers the
+author wrote, stored as written (`[recipe.forms]`). **Determines** the
+whole loop, as `circle` does: an axis-aligned rectangle centred on
+`centre`, not a chain step. It lowers at replay to four legs,
+counter-clockwise from the lower-left corner, and its seam sits at that
+corner, a junction, so PQ4 is untouched. Its four sides are the step's
+indexed pieces `0..3` in that order, as `circle_split`'s arcs are.
+A rotated or rounded rectangle is a chain.
+
+**Refusals**: `width` or `height` not definitely positive, through the
+same funnel as the other sign gates.
+
+### 1b. A profile's points and directions are variables
+
+Every point argument of a step (`at`, a target point, `Center` c, `Via`
+q, a circle's or rectangle's centre) holds one `Point2` variable, and
+every director (`toward`) one `Direction2`, in the profile's own
+coordinates (`[variables.poses]`). A written `(x, y)` mints an
+anonymous `Point2` whose `x` and `y` are anonymous `Length`s it owns;
+naming it lets two steps share it. Other 2-D poses are DEFINED by a
+read off a piece an earlier step drew, addressed by its N1 locator
+(step id and role):
+
+- `Centre { piece }` — the centre of that piece's arc carrier, written
+  or derived;
+- `Vertex { piece }` — where that piece starts, as the replay emitted
+  it;
+- `Heading { piece, sense }` — a straight piece's ray, with or against
+  it; `AlongTrace` is the same read off a traced face's tangent.
+
+A read is a definition, not an output: the profile keeps its one
+`profile` output, and a definition reading piece `s` may be read only by
+a step after `s` in program order (loop order, then step order), so no
+cycle is representable. It resolves from the prefix replay, as the
+trace steps do. A bore is one named `Point2` read by two circles,
+concentric by construction.
+
+**Refusals**, typed at the edit door and at load: a read of a piece not
+drawn before the reader; a fillet's piece before its arrival resolves
+(`NotYetEmitted`); a role the verb does not draw (the centre of a line);
+a reader outside the variable's coordinates. A read whose step the
+program dropped is left unresolved, never re-pointed.
 
 ### 2. The arc through a point — the `Via { q, p }` mode of
 ### `arc_to(spec)` (§2c's unified family; the standalone `arc_via`
@@ -1001,7 +1045,8 @@ typestate, and it retires:
 | `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
 | `circle_split(c, r, n, phase)` | — → complete loop | the declared-split closed carrier: `n` equal arcs from `phase`, its vertices declared tangent joints on one carrier (the carrier fact is emission-layer bookkeeping) — the same no-seam story as `circle`, with the count and phase authored |
-| **TIER 1 — SUGAR** (one call each; expands to core; adds no semantics) | | |
+| `rectangle(c, w, h)` | — → complete loop | **G1** — the axis-aligned rectangle as written: four legs from the lower-left corner, its seam at that corner (a junction, so PQ4 holds); its sides are pieces `0..3` |
+| **TIER 1 — SUGAR** (one call each; stored as written, lowers to core at replay; adds no semantics) | | |
 | `line_to(p)` | Point → Point (also from line arrivals) | `.angle(toward p).line(dist)` |
 | `tangent_arc_to(p)` | Directed → Point | the unique tangent arc |
 | `nurbs_reversed(curve)` / `nurbs_mirrored(curve)` | Directed → Point | structural variants of rigid placement; VQ7-banked with the legs |

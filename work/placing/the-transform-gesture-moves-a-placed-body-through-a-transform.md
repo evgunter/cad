@@ -2,12 +2,11 @@
 id: the-transform-gesture-moves-a-placed-body-through-a-transform
 kind: issue
 title: The viewer's Transform gesture moves a placed body through a Transform; under D10 moving a placed body edits its placement
-status: parked
+status: open
 opened: 2026-10-09
 priority: P1
 cost: M
 branch: placing/gesture-placements
-blocked_on: [the-mate-tool-offers-two-of-the-five-mate-kinds]
 rides_with: mate-tool-commits-one-mate
 ---
 
@@ -72,3 +71,5 @@ Parked on the row in `blocked_on`, a live lane rewriting the same gesture code; 
 ## Ev's answer (2026-11-02, `[ev]` PR 6281)
 
 "i don't think the change to DESIGN.md is necessary. the current state seems pretty clearly in violation of what's already written there." The final state is taken: Transform retires into the placement editor. There is no DESIGN.md change. The row rides with `mate-tool-commits-one-mate` and, like it, waits on the P0 whose tool state the editor rewrites. Ev also asked whether anything similar was missed by the INTENT refactor; that sweep is logged on `work/placing/log.md`.
+
+**Downstream consumer to retire with it** (PLACING's INTENT sweep, 2026-11-02, likely). In `in_one_space` (`crates/viewer/src/session.rs`), the `self_placed` branch re-targets "the transform gesture's" copy into the first operand's space, values included. It exists for the stacked-placement shape and goes when that shape goes.

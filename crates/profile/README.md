@@ -222,8 +222,14 @@ independent closed-form oracles.
   sub-path mechanism (`Expr::descend`) is reused unchanged.
 - **VQ4 — Exact directors.** `toward(dx, dy)` stores the normalized ray
   verbatim; `angle(θ)` stays for genuinely angular authoring.
-- **VQ5 — Steps are core verbs only.** Anything built above the table
-  expands to table steps at authoring; no sugar step exists on the wire.
+- **VQ5 — A step keeps what was written.** A step's arguments are the
+  variables its author wrote, numbers or 2-D poses (PATHS-DESIGN §1b);
+  the document's program stores them as such,
+  each step lowering to the table's core verbs at replay, and no stored
+  number is computed from them (`[recipe.forms]`). A builder whose
+  numbers already are some table step's arguments (`polygon`: its
+  corners) expands to those steps at authoring and stores nothing of its
+  own.
 - **VQ6 — One tolerance.** Replay-time junction checks and both
   validations run under the run's `Tolerance::get()`, reached through
   the `Tol` witness; there is no per-call tolerance value.

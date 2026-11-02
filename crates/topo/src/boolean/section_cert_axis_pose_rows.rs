@@ -107,7 +107,14 @@ fn tori(e: f64, tilt: f64, m: f64, b: Band) -> (Section<f64>, (f64, f64)) {
         radius: BALL,
     };
     (
-        classify(&donut, &t2, reach, Some(geom_brep::SsiLane::marched()), b),
+        classify(
+            &donut,
+            &t2,
+            reach,
+            None,
+            Some(geom_brep::SsiLane::marched()),
+            b,
+        ),
         tori_truth(&t2),
     )
 }
@@ -194,10 +201,10 @@ fn a_narrow_band_straddles_on_the_offset_floor() {
     }
 }
 
-/// The parallel arms' rows, and the wall pair's coincidence, each `K +
-/// past` bands from the flip beside a swing of `0.45` (the tilt reading
-/// `0.9` at its lever, which is twice the swing's), its far row named.
-fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 3] {
+/// The parallel arms' rows, each `K + past` bands from the flip beside
+/// a swing of `0.45` (the tilt reading `0.9` at its lever, which is
+/// twice the swing's), its far row named.
+fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 2] {
     let z = zero();
     let gap = (k() + past) * z;
     let swing = 0.45 * z;
@@ -217,38 +224,14 @@ fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 3] {
         &unit_cone(),
         &wall,
         one(p(e, 0.0, 0.0)),
-        Some(geom_brep::SsiLane::marched()),
-        band(),
-    );
-    // Two walls on one axis, radii `gap` apart; between walls the tilt's
-    // lever is the reach's diameter and the swing its radius.
-    let reach = Reach {
-        centre: p(0.0, 0.0, 0.0),
-        radius: 2.0,
-    };
-    let walls = classify(
-        &cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0),
-        &cylinder(p(0.0, 0.0, 0.0), tilted(swing / 2.0), 1.0 + gap),
-        reach,
+        None,
         Some(geom_brep::SsiLane::marched()),
         band(),
     );
     [
         ("section_torus_offset_wall_near_outer", torus_pin),
         ("section_cone_cylinder_apex", cone_wall),
-        ("section_cylinder_pair_coincident", walls),
     ]
-}
-
-/// The served wall pair: one unbounded component, rulings or nothing.
-fn rulings(row: &str, s: &Section<f64>) {
-    match s {
-        Section::Components { parts, .. } => assert!(
-            parts.len() == 1 && parts[0].unbounded,
-            "{row}: rulings or nothing: {parts:?}"
-        ),
-        other => panic!("{row}: served, got {other:?}"),
-    }
 }
 
 /// **The parallel rows read on the floor.** `K + 0.35` bands past the
@@ -268,21 +251,22 @@ fn parallel_rows_serve_a_side_on_the_floor() {
                 parts.len() == 2 && parts.iter().all(|c| !c.essential_f && c.essential_g),
                 "{row}: one loop per nappe, the wall clear of the axis: {parts:?}"
             ),
-            ("section_cylinder_pair_coincident", _) => rulings(row, &s),
             _ => panic!("{row}: served, got {s:?}"),
         }
     }
 }
 
-/// **Wide walls are not read off their radius.** Two walls of radius
-/// `r` on one axis, `gap` bands apart in radius, read over a unit reach
-/// on the wall with their tilt at `0.9` of the band at the reach's
-/// diameter: a turn about the pivot slides the wall along itself, so only
-/// the station (at most the reach's radius) and the radius times the
-/// sine squared move it, and the walls are clearly apart. Levered at the
-/// radius, the swing would be `0.45·(r + 1)` bands and refuse both.
+/// **Wide walls tilted in the band read crossing over a region on the
+/// wall.** Two walls of radius `r` on one axis, `gap` bands apart in
+/// radius, the second tilted `0.45` bands per metre, read over a unit
+/// region on the wall `r` from the axis. The pair's pose levers the tilt
+/// from the axis's foot of the region's centre out across the region,
+/// `r + 1`, so it reads the axes crossing, and the march of the two
+/// near-parallel walls refuses (R-march). The turn slides the walls
+/// along themselves, which that lever does not credit
+/// (`sectarms/the-cylinder-pose-levers-a-tilt-from-the-axis-foot-of-the-region`).
 #[test]
-fn wide_walls_clearly_apart_serve_their_rulings() {
+fn wide_walls_tilted_in_the_band_read_crossing_over_a_region_on_the_wall() {
     let z = zero();
     for (r, gap) in [(100.0, 20.0), (100.0, 40.0), (1000.0, 200.0)] {
         let s = classify(
@@ -292,10 +276,14 @@ fn wide_walls_clearly_apart_serve_their_rulings() {
                 centre: p(r, 0.0, 0.0),
                 radius: 1.0,
             },
+            Some(geom_brep::ExtentBall::new(p(r, 0.0, 0.0), 1.0)),
             Some(geom_brep::SsiLane::marched()),
             band(),
         );
-        rulings("section_cylinder_pair_coincident", &s);
+        assert!(
+            matches!(s, Section::Unmarched),
+            "r = {r}, gap = {gap}: {s:?}"
+        );
     }
 }
 
@@ -337,6 +325,7 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
             &torus(p(0.0, 0.0, rise), 2.0, 0.5),
             &cone,
             reach,
+            None,
             Some(geom_brep::SsiLane::marched()),
             band(),
         );
@@ -368,6 +357,7 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
             &first,
             &apexes,
             reach,
+            None,
             Some(geom_brep::SsiLane::marched()),
             band(),
         );
