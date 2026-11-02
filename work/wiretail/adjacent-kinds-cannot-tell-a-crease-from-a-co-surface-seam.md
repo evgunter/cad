@@ -87,7 +87,8 @@ the filter's work, and this row records the gap.
 scene as a recipe (two `Node.revolve` balls, `Node.boolean`) and the
 census is the kernel's: `select_where(adjacent_kinds(Sphere, Sphere))`
 answers all six of the union's edges, and `Node.fillet` on those six
-refuses `tangential_edge`. Python has no `rim_of`, so the audit row
+leaves the four meridians as smooth seams and rolls the waist (REFS, PR
+6344; it refused before). Python has no `rim_of`, so the audit row
 (`docs/guide/north-star-audit.md`, `snowman`) is graded YES\* on this
 gap: the waist is picked by a `datum_distance` bracket between the two
 balls' centre planes, which the scene never states.

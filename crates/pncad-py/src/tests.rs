@@ -2156,6 +2156,7 @@ fn inner_arm_tags_are_stable() {
         pair(&NodeErrorKind::Blend {
             verb: BlendKind::Chamfer,
             error: BlendError::NonpositiveSize { size: -1.0 },
+            edge: None,
         }),
         ("chamfer", Some("nonpositive_size"))
     );
@@ -3101,6 +3102,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ChainG1,
         BlendDecision::ChainArm,
         BlendDecision::ConvexitySign,
+        BlendDecision::MaterialSide,
         BlendDecision::RingClearance,
         BlendDecision::SupportCoaxiality,
         BlendDecision::ContactArm,
@@ -4356,6 +4358,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "face_clearance",
             "face_clearance_uncertified",
             "inside_out_operand",
+            "knife_edge",
             "nonpositive_size",
             "op",
             "radius_headroom",
@@ -4365,7 +4368,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_irregular",
             "spine_unsupported",
             "surgery_invariant",
-            "tangential_edge",
             "unjoined_operand",
             "unsupported_chain",
             "unsupported_corner",
