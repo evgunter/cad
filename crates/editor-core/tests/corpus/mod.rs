@@ -106,7 +106,10 @@ impl PlacePart for Recorder {
 /// world's `+y`**, its origin at the world's: `−turn/4` about `x`, so
 /// its own `y` lies along the world's `−z` — the values of a bundle with
 /// no mate ([`Recorder::in_world_by`]).
-pub fn spun_about_y() -> Vec<(editor_core::Coord<editor_core::Operand>, editor_core::Formula)> {
+pub fn spun_about_y() -> Vec<(
+    editor_core::Coord<editor_core::Operand>,
+    editor_core::Formula,
+)> {
     use editor_core::{Coord, Dimension, Formula, TargetAxis};
     let quarter = Formula::turn_over(4).expect("a quarter turn");
     let back = Formula::neg(quarter).expect("an angle negates");

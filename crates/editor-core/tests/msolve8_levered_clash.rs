@@ -96,7 +96,12 @@ impl Rig {
     }
 
     /// Writes `on ≡ to` and `values` naming it as the copy's bundle.
-    fn place(&mut self, on: Operand, to: Operand, values: Vec<(Coord<editor_core::Operand>, Formula)>) {
+    fn place(
+        &mut self,
+        on: Operand,
+        to: Operand,
+        values: Vec<(Coord<editor_core::Operand>, Formula)>,
+    ) {
         self.doc = fixture::with_values(self.doc.clone(), self.copy, fixture::mate(on, to), values);
     }
 }

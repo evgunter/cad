@@ -111,7 +111,12 @@ fn wedge(doc: ProfileDoc, n: u64, far: Far) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// Member `k`'s moves.
-fn moves(doc: &mut ProfileDoc, n: u64, k: u64, spin: Spin) -> Vec<(Coord<editor_core::Operand>, Formula)> {
+fn moves(
+    doc: &mut ProfileDoc,
+    n: u64,
+    k: u64,
+    spin: Spin,
+) -> Vec<(Coord<editor_core::Operand>, Formula)> {
     let about = |axis| Coord::Spin(Some(axis));
     let turns = |num: u64, den: u64| {
         Formula::mul(

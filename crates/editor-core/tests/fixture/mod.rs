@@ -1142,7 +1142,11 @@ pub fn fresh_index_name(doc: &ProfileDoc) -> String {
 
 /// **The slides that move a copy `scalar(k)·spacing` along `dir`**,
 /// one per nonzero component on its space's axes.
-pub fn slides_along(k: VarId, dir: [f64; 3], spacing: f64) -> Vec<(editor_core::Coord<editor_core::Operand>, Formula)> {
+pub fn slides_along(
+    k: VarId,
+    dir: [f64; 3],
+    spacing: f64,
+) -> Vec<(editor_core::Coord<editor_core::Operand>, Formula)> {
     use editor_core::TargetAxis as A;
     [A::X, A::Y, A::Z]
         .into_iter()
@@ -1413,7 +1417,10 @@ pub fn mated_instance(doc_ref: editor_core::DocRef) -> AuthoredNode {
 /// in bundle order: its whole motion on its target space's axes.
 /// `None` for a bundle holding a mate. Panics on a node that is no
 /// placement.
-pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<Vec<(editor_core::Coord<editor_core::Operand>, Formula)>> {
+pub fn offset_of(
+    doc: &ProfileDoc,
+    id: RecipeNodeId,
+) -> Option<Vec<(editor_core::Coord<editor_core::Operand>, Formula)>> {
     let constraints = match doc.node(id) {
         Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
             constraints

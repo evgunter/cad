@@ -172,7 +172,11 @@ fn a_rest_written_with_one_slide_refuses_at_the_door() {
 
 /// The boss hung under a plate tilted by a chain (as in the PR's row),
 /// generalised: any chain, any orientation.
-fn hung(chain: Vec<(Coord<editor_core::Operand>, Formula)>, orient: Orientation, values: Vec<(Coord<editor_core::Operand>, Formula)>) -> Out {
+fn hung(
+    chain: Vec<(Coord<editor_core::Operand>, Formula)>,
+    orient: Orientation,
+    values: Vec<(Coord<editor_core::Operand>, Formula)>,
+) -> Out {
     let doc = ProfileDoc::empty(DocumentId::derive("value-chart-sweep-hung"), Tol::witness());
     let (doc, plate) = block(doc, 20.0, 10.0, 2.0);
     let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
@@ -386,30 +390,31 @@ fn a_wedge_resting_at_a_few_stations_stays_on_a_tilting_floor() {
 /// times the step.
 fn wedge_sweep(orients: &[Orientation], pairs: &[&str], steps: u32) {
     let mut bad = Vec::new();
-    let run = |t: f64, values: Vec<(Coord<editor_core::Operand>, Formula)>, o: Orientation| -> Out {
-        let doc = ProfileDoc::empty(
-            DocumentId::derive("value-chart-sweep-wedge"),
-            Tol::witness(),
-        );
-        let (doc, wedge) = prism(doc, vec![(0.0, 0.0), (4.0, 0.0), (0.0, 3.0)], 1.0);
-        let slope = face(&doc, wedge, [2.0, 1.5, 0.5], [0.6, 0.8, 0.0]);
-        let (doc, floor, _) = fixture::floor(doc, rx(t));
-        let (doc, placement) = insert(
-            doc,
-            fixture::stood(editor_core::BodyRead::plain(Operand::from(wedge))),
-        );
-        let mut mate = fixture::mate(fixture::plane(head(slope)), fixture::flip(floor));
-        mate.orient = o;
-        place(
-            doc,
-            placement,
-            Placed {
-                mates: vec![mate],
-                values,
-            },
-        )
-        .0
-    };
+    let run =
+        |t: f64, values: Vec<(Coord<editor_core::Operand>, Formula)>, o: Orientation| -> Out {
+            let doc = ProfileDoc::empty(
+                DocumentId::derive("value-chart-sweep-wedge"),
+                Tol::witness(),
+            );
+            let (doc, wedge) = prism(doc, vec![(0.0, 0.0), (4.0, 0.0), (0.0, 3.0)], 1.0);
+            let slope = face(&doc, wedge, [2.0, 1.5, 0.5], [0.6, 0.8, 0.0]);
+            let (doc, floor, _) = fixture::floor(doc, rx(t));
+            let (doc, placement) = insert(
+                doc,
+                fixture::stood(editor_core::BodyRead::plain(Operand::from(wedge))),
+            );
+            let mut mate = fixture::mate(fixture::plane(head(slope)), fixture::flip(floor));
+            mate.orient = o;
+            place(
+                doc,
+                placement,
+                Placed {
+                    mates: vec![mate],
+                    values,
+                },
+            )
+            .0
+        };
     let x = |v| (Coord::slide(TargetAxis::X), len(v));
     let y = |v| (Coord::slide(TargetAxis::Y), len(v));
     let z = |v| (Coord::slide(TargetAxis::Z), len(v));

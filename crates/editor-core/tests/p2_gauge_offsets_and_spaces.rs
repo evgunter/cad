@@ -318,10 +318,11 @@ fn pin_lifted(
     let (c, s) = (angle.cos(), angle.sin());
     let [x, y, z] = then.translation;
     let origin = [c * x - s * y, s * x + c * y, z];
-    let mut spins: Vec<(Coord<editor_core::Operand>, Formula)> = editor_core::test_support::moves_at(then)
-        .into_iter()
-        .filter(|(coord, _)| matches!(coord, Coord::Spin(_)))
-        .collect();
+    let mut spins: Vec<(Coord<editor_core::Operand>, Formula)> =
+        editor_core::test_support::moves_at(then)
+            .into_iter()
+            .filter(|(coord, _)| matches!(coord, Coord::Spin(_)))
+            .collect();
     if angle != 0.0 {
         match spins.last_mut() {
             Some((Coord::Spin(Some(TargetAxis::Z)), by)) => {

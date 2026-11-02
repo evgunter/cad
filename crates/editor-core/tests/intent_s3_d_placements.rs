@@ -188,8 +188,11 @@ fn every_copy_stands_by_the_identity_bundle() {
             stood.mates.is_empty(),
             "{body}: the identity bundle has no mate"
         );
-        let coords: Vec<Coord<editor_core::Operand>> =
-            stood.values.iter().map(|(coord, _)| coord.clone()).collect();
+        let coords: Vec<Coord<editor_core::Operand>> = stood
+            .values
+            .iter()
+            .map(|(coord, _)| coord.clone())
+            .collect();
         assert_eq!(
             coords,
             [
@@ -235,7 +238,9 @@ fn unmated_whole(
 }
 
 /// The unit box's copy placed by `values` and no mate, in the world.
-fn unmated(values: Vec<(Coord<editor_core::Operand>, Formula)>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn unmated(
+    values: Vec<(Coord<editor_core::Operand>, Formula)>,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("d", Tol::witness());
     let (doc, b) = unit_box(doc);
     let (doc, placement) = insert(

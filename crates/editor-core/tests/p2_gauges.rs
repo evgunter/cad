@@ -1194,7 +1194,10 @@ fn pair_beside_a_base(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
 }
 
 /// One instance's world mate beside its image's.
-type PinPair = (Option<Vec<(Coord<editor_core::Operand>, Formula)>>, Option<Vec<(Coord<editor_core::Operand>, Formula)>>);
+type PinPair = (
+    Option<Vec<(Coord<editor_core::Operand>, Formula)>>,
+    Option<Vec<(Coord<editor_core::Operand>, Formula)>>,
+);
 
 /// Every instance's world mate in `doc` beside the one `onto` holds at
 /// its image under `map`.
