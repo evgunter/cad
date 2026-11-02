@@ -1294,7 +1294,7 @@ pub(crate) struct CarriedCtx<T: Real> {
     /// The copy of `partner` in this body, once minted.
     pub(crate) partner_key: Option<SurfaceKey>,
     /// The section's own scale ([`geom_brep::CarriedSection::lever`]).
-    pub(crate) lever: T,
+    pub(crate) lever: geom_core::Lever<T>,
 }
 
 /// The section conic — the curve both chord lanes take an arc
@@ -1315,8 +1315,13 @@ pub(crate) struct SectionConic<T: Real> {
 impl<T: Real> SectionConic<T> {
     /// The carrier read as a conic.
     pub(crate) fn conic(&self) -> &dyn Conic<T> {
-        self.carrier
-            .conic()
+        self.as_conic(geom::Curve3::conic)
+    }
+
+    /// The carrier read by `read`, a reading every circle and ellipse
+    /// answers.
+    fn as_conic<'a, R>(&'a self, read: impl FnOnce(&'a geom::Curve3<T>) -> Option<R>) -> R {
+        read(&self.carrier)
             .unwrap_or_else(|| unreachable!("a section conic is a circle or an ellipse"))
     }
 
@@ -1358,7 +1363,7 @@ pub(crate) struct SectionOval<T: Real> {
     /// plane, `r` along the axis and `(f_max − f_min)/2` along the trace
     /// (`geom::spiric_f_range`). At `offset = 0` it is the meridian
     /// circle's radius, as a conic's is its semi-major axis.
-    extent: T,
+    extent: geom_core::Lever<T>,
 }
 
 /// The closed curve of a section a chord takes an arc of: a conic, or a
@@ -1401,9 +1406,9 @@ impl<T: Decide> SectionCurve<T> {
 impl<T: Real> SectionCurve<T> {
     /// The length a departure's cosine is levered by: a conic's larger
     /// semi-axis, whichever its seam lies along, an oval's own extent.
-    fn lever(&self) -> T {
+    fn lever(&self) -> geom_core::Lever<T> {
         match self {
-            Self::Conic(c) => c.conic().speed_hi(),
+            Self::Conic(c) => c.as_conic(geom_brep::ExtentBall::of_conic).lever(),
             Self::Oval(o) => o.extent,
         }
     }
@@ -1528,7 +1533,7 @@ pub(crate) enum SectionReach<T: Real> {
     /// A torus wall's face, or a plane face against a torus: the
     /// divided face's farthest distance from the chord's site, which the
     /// plane×torus arm levers its axis tilt by.
-    Torus(T),
+    Torus(geom_core::Lever<T>),
     /// Any other wall: the sphere lane reads no reach.
     Unmeasured,
 }
@@ -1547,9 +1552,9 @@ pub(crate) struct WallReach<T: geom_core::Real> {
     /// How far the face reaches from `at` along the axis.
     pub(crate) above: T,
     /// The farthest distance, each edge over its span.
-    pub(crate) span: T,
+    pub(crate) span: geom_core::Lever<T>,
     /// The farthest distance, each edge round its whole carrier.
-    pub(crate) round: T,
+    pub(crate) round: geom_core::Lever<T>,
 }
 
 /// **A plane×cylinder section, served only where a wall face's two
@@ -1573,12 +1578,7 @@ pub(crate) fn agreed_section<T: Decide>(
 ) -> Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError> {
     use geom_brep::PlaneCylinderSection as S;
     let read = |across| {
-        let face = geom_brep::Reach::Face {
-            at: reach.at,
-            below: reach.below,
-            above: reach.above,
-            across,
-        };
+        let face = geom_brep::Reach::of_face(reach.at, (reach.below, reach.above), across);
         geom_brep::plane_cylinder_section_read(plane, wall, &face, band)
     };
     let conic = |s: &S<T>| matches!(s, S::Rim(_) | S::TiltedEllipse(_));
@@ -1786,7 +1786,12 @@ fn plane_wall_case<T: Decide>(
                             geom::spiric_f_range(major_radius, minor_radius, offset);
                         Ok(SectionCurve::Oval(SectionOval {
                             carrier: s.clone(),
-                            extent: minor_radius.max((f_max - f_min) * T::from_f64(0.5)),
+                            // Unsourced lever: the oval's larger half-width, short of the ball
+                            // that encloses it (its half-widths' hypotenuse), which would move
+                            // verdicts.
+                            extent: geom_core::Lever::unsourced(
+                                minor_radius.max((f_max - f_min) * T::from_f64(0.5)),
+                            ),
                         }))
                     }
                     _ => Err(carried()),
@@ -2617,7 +2622,7 @@ pub(crate) fn apex_section_ruling<T: Decide>(
     (face, at): (FaceKey, VertexKey),
     apex: &crate::sector_face::ConeApex<T>,
     (from, to): (Vec3<T>, Vec3<T>),
-    arm: T,
+    arm: geom_core::Lever<T>,
 ) -> Result<Vec3<T>, ApexRulingFault> {
     let lines = match wall_section(body, band, origin, normal, face, at) {
         Ok(Some(WallSection {
@@ -4104,7 +4109,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     let n_a = n.dot(axis);
     match decide(
         "split_ring_closure_ruling",
-        Margin::levered(n_a, radius),
+        Margin::levered(n_a, geom_core::Lever::curvature_radius(radius)),
         band,
     )
     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -5256,7 +5261,10 @@ impl RimSide {
                 let left = normal.vec().cross(tangent).dot(axis);
                 let region = decide(
                     "bool_lone_ring_region_side",
-                    Margin::levered(left, radius),
+                    Margin::levered(
+                        left,
+                        geom_brep::ExtentBall::of_circle(center, radius).lever(),
+                    ),
                     band,
                 )
                 .map_err(escalated)?;
@@ -6540,12 +6548,7 @@ mod tests {
         let (below, above) =
             crate::splitting::rules::face_axial_range(&body, face, base, Vec3::unit_z()).unwrap();
         let read = |across| {
-            let reach = geom_brep::Reach::Face {
-                at: base,
-                below,
-                above,
-                across,
-            };
+            let reach = geom_brep::Reach::of_face(base, (below, above), across);
             geom_brep::plane_cylinder_section(&plane, &wall, &reach, band)
         };
         let span = crate::splitting::rules::face_reach_from(&body, face, base).unwrap();
@@ -7021,8 +7024,8 @@ mod section_case_pair_tests {
             at: Point3::origin(),
             below: 4.0,
             above: 4.0,
-            span: 4.0,
-            round: 4.0,
+            span: geom_core::test_support::fixture_lever(4.0),
+            round: geom_core::test_support::fixture_lever(4.0),
         };
         SectionReach::Cylinder(reach)
     }

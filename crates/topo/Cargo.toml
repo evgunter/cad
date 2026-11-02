@@ -80,8 +80,9 @@ slotmap = { workspace = true }
 [dev-dependencies]
 # The symbolic tier's re-valuation instrument (`geom_core::sym::revalue`,
 # test-only), for the rows that pin a value kept in `T` rather than
-# re-entered as a constant (`chart_region`'s wrap band).
-geom-core = { path = "../geom-core", features = ["sym-revalue-testing"] }
+# re-entered as a constant (`chart_region`'s wrap band). `test-support`
+# for `geom_core::test_support::fixture_lever`, a row's stated arm.
+geom-core = { path = "../geom-core", features = ["sym-revalue-testing", "test-support"] }
 # Exact rationals for the gathered cone's oracle
 # (`link/cone_fuzz.rs`) and the fin crown's exact crossing
 # test (`tests/the_fin_crown_winds_as_a_solid.rs`).

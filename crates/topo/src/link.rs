@@ -171,15 +171,16 @@ pub(crate) mod metric {
         /// past the face's normal section along it
         /// ([`geom_brep::parting`]). Both together (`Jet`), for a bound a
         /// slack tied: the point's distance to second order.
-        pub(crate) fn departure(d: Departure<T>, n: Vec3<T>, arm: T) -> Self {
+        pub(crate) fn departure(d: Departure<T>, n: Vec3<T>, arm: geom_core::Lever<T>) -> Self {
             Self(match d {
                 Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),
-                Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),
+                Departure::Parted(bend) => geom_brep::parting(bend, n, arm.length()).value(),
                 Departure::Jet(dir, bend) => {
-                    geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()
+                    geom_brep::rise(dir, n, arm).value()
+                        + geom_brep::parting(bend, n, arm.length()).value()
                 }
                 Departure::Charge { slope, lever } => {
-                    crate::bound_side::sagitta_charge(slope, lever, arm)
+                    crate::bound_side::sagitta_charge(slope, lever, arm.length())
                 }
             })
         }
@@ -649,7 +650,7 @@ pub struct Link<T: Real> {
     /// Each sector's face, by the sector's index in the cone.
     faces: Vec<LinkFace<T>>,
     /// The farthest wedge point from `p`.
-    reach: T,
+    reach: geom_core::Lever<T>,
     /// The radius of the ball about `p` the link's wedges fill: the
     /// least distance from `p` to a wedge's far side, or to a cleared
     /// sector's edge of the face ([`LinkFace::clear`]). Inside it each
@@ -799,7 +800,7 @@ fn pairing<T: Decide>(
     s: (&geom::Surface<T>, bool),
     t: (&geom::Surface<T>, bool),
     p: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Option<geom_brep::MaterialPairing> {
     let arm = geom_brep::folded_lever_arm(s.0, t.0, p, reach);
@@ -2018,12 +2019,15 @@ impl<T: Decide> Link<T> {
         let wedges = || sectors.iter().flat_map(|s| &s.sector.wedges);
         let reach = wedges()
             .flat_map(|&(a, b)| [a, b])
-            .map(|q| (q - p).norm())
-            .fold(T::zero(), |r, l| r.max(l));
+            .map(|q| geom_brep::ExtentBall::point(q).lever_from(p))
+            .fold(
+                geom_brep::ExtentBall::point(p).lever(),
+                geom_core::Lever::max,
+            );
         let ball = wedges()
             .map(|&(a, b)| to_segment(p, (a, b)))
             .chain(sectors.iter().filter_map(|s| s.face.clear))
-            .fold(reach, |r, l| r.min(l));
+            .fold(reach.length(), |r, l| r.min(l));
         let (sectors, faces) = sectors.into_iter().map(|s| (s.sector, s.face)).unzip();
         Ok(Self {
             cone: Cone::of(p, sectors)?,
@@ -2261,7 +2265,8 @@ impl<T: Decide> FaceSector<T> {
         }
         let radius = radius.ok_or(TouchUnread::Corrupt)?;
         let far = crate::splitting::rules::face_reach_from(body, f, p)
-            .map_err(|_| TouchUnread::Corrupt)?;
+            .map_err(|_| TouchUnread::Corrupt)?
+            .length();
         for length in [radius, far] {
             if !geom_core::is_finite_length(length) || geom_core::is_zero_length(length, length) {
                 return Err(TouchUnread::ChordScale);
@@ -4903,7 +4908,7 @@ mod tests {
     /// touch analysis (`census.rs`, from its banner to the backstop's
     /// header), and the boolean's side of the gathered cone, which
     /// builds a cone's rays and reads an own edge through it
-    /// (`boolean::sectors::fans`, the line cone's `boolean::sectors::line_fans`, `bound_side::Reach::point`,
+    /// (`boolean::sectors::fans`, the line cone's `boolean::sectors::line_fans`, `bound_side::BoundSupport::point`,
     /// `boolean::vtxfac::cone_classes`), and holds:
     /// - every `Margin` door and every `decide` call lies inside `mod
     ///   metric` (one `Margin::of`);
@@ -5202,7 +5207,7 @@ mod tests {
         assert!(
             door[departure.start - metric.start..departure.end - metric.start].contains(
                 "Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),\n                \
-                 Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),"
+                 Departure::Parted(bend) => geom_brep::parting(bend, n, arm.length()).value(),"
             ),
             "`Distance::departure` is a first-order rise or a second-order parting, and \
              nothing else"
@@ -5210,7 +5215,8 @@ mod tests {
         assert!(
             door[departure.start - metric.start..departure.end - metric.start].contains(
                 "Departure::Jet(dir, bend) => {\n                    \
-                 geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()"
+                 geom_brep::rise(dir, n, arm).value()\n                        \
+                 + geom_brep::parting(bend, n, arm.length()).value()"
             ),
             "`Distance::departure`'s jet is the rise and the parting together, and nothing else"
         );

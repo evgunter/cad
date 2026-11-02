@@ -325,8 +325,7 @@ fn tangent_table<T: Decide>(
     // parallel reading's Zero is what verifies the contact. (The edge
     // certifier levers the same pair at its faces' extent; this table
     // has no faces.)
-    let chord = carrier.eval(t0).distance(carrier.eval(t1));
-    let extent = geom_brep::edge_extent_sup(carrier, t0, t1, chord);
+    let extent = geom_brep::edge_extent_sup(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)));
     let mut halvings = 0;
     loop {
         let samples = (CERT_SAMPLES - 1) * (1 << halvings) + 1;
@@ -413,7 +412,7 @@ fn tangent_pass<T: Decide>(
     (s2, sense2): (&geom::Surface<T>, bool),
     (carrier, t0, t1, samples): (&Curve3<T>, T, T, u32),
     bounds: &geom_brep::TangentSpanBounds<T>,
-    extent: T,
+    extent: geom_core::Lever<T>,
     claim: Claim,
     band: Band,
     sag_logs: &mut Vec<geom_core::k_stats::Detached>,
@@ -527,7 +526,7 @@ fn tangent_pass<T: Decide>(
         // second-order margin is therefore computed first and ACTED ON
         // last — computing it early must not let it refuse before the
         // first-order test (which can contradict) has spoken.
-        let so = Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm);
+        let so = Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm.length());
         // Both readings run detached so the second-order one's
         // escalation reaches the frame's log only where the outcome
         // rests on it (`k_stats::splice_superseded`, below).
@@ -565,7 +564,7 @@ fn tangent_pass<T: Decide>(
                 let (at, log) = geom_core::k_stats::detached(|| {
                     crate::validate::decide(
                         "contact_tangent_second_order_at",
-                        Margin::sagitta(jet.kappa_rel.abs(), arm),
+                        Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
                         band,
                     )
                 });
@@ -604,8 +603,10 @@ fn tangent_pass<T: Decide>(
             // locus one above the other, and a contact's materials must
             // be on the outer sides of that pair, not between it.
             Ok(Sign::Positive) if claim == Claim::Contact => {
-                let crescent =
-                    Margin::sagitta(geom_brep::material_kappa_rel(jet.kappa_rel, sense1), arm);
+                let crescent = Margin::sagitta(
+                    geom_brep::material_kappa_rel(jet.kappa_rel, sense1),
+                    arm.length(),
+                );
                 match crate::validate::decide("contact_tangent_overlap", crescent, band) {
                     Ok(Sign::Negative) => {}
                     Ok(Sign::Positive | Sign::Zero) => {
