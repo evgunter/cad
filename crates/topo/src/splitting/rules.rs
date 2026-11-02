@@ -70,7 +70,7 @@
 //! an ordinary edge of `S`'s piece: the vertex's runs do not split, no
 //! null edge is minted, and the edge adds nothing to the section. That
 //! is the answer the face contact (rule (a)) and the vertex contact (no
-//! runs, `insert::above_runs`) already give.
+//! runs, `star::runs`) already give.
 //!
 //! **Reflex** — the plane passes through the edge, with material on
 //! both sides. Tangent-edge fixture: a V-notch cut into a block's top,
