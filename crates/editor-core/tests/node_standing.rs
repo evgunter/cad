@@ -474,7 +474,7 @@ fn reads(code: &str) -> usize {
 /// `#[cfg(test)]` items are not counted); a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
-const READERS: [(&str, usize, &str); 17] = [
+const READERS: [(&str, usize, &str); 16] = [
     (
         "crates/editor-core/src/eval/members.rs",
         18,
@@ -524,11 +524,6 @@ const READERS: [(&str, usize, &str); 17] = [
         5,
         "the nominal clearance door reads each assertion's report off its value and, for one \
          that has none, its own error's words",
-    ),
-    (
-        "crates/viewer/src/pane/create.rs",
-        4,
-        "a pattern-floor row asserts the family's typed refusal below its floor",
     ),
     (
         "crates/editor-core/src/drive.rs",
