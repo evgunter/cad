@@ -1868,7 +1868,7 @@ fn zero_of(
 /// injectivity by kind is [`by_kind`]'s, decided for the face's own
 /// pairs. Its premise — the face's domain covers its carrier at most
 /// once — is the face validation's, and is not yet checked
-/// (`work/cleartail/an-analytic-face-may-cover-its-carrier-more-than-once.md`).
+/// (`work/clear/an-analytic-face-may-cover-its-carrier-more-than-once.md`).
 fn partial_zero(
     b: &Boundary,
     clips: &[Clip],
