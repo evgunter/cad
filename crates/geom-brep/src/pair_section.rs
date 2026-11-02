@@ -1070,7 +1070,7 @@ pub fn spline_pair_section<T: Decide>(
 /// kind pair `kind` is a side of** — the filter a reader scanning many
 /// pairs applies before it asks [`pair_section`]. Exhaustive, as
 /// `pair_section`'s match is, and a second spelling of it
-/// (`work/sectrung/the-c5-kind-dispatch-is-spelled-twice.md`). A spline
+/// (`work/sect/the-c5-kind-dispatch-is-spelled-twice.md`). A spline
 /// is not among them, whether against a plane or another spline: its
 /// section is a whole reading, read per pair through [`pair_section`]'s
 /// march door ([`spline_pair_section`] where rows are handed in) by the

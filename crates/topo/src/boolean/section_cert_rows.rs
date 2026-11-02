@@ -384,7 +384,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
     ] {
         let s = classify(&donut(), &partner);
         // At ε 1e-6 the tilted torus's march straddles its tube
-        // (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
+        // (`work/sect/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
         if matches!(s, Section::Unmarched) && Tol::witness().eps() == 1e-6 {
             continue;
         }

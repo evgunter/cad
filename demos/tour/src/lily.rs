@@ -2465,7 +2465,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    crosses in two chords. That plane is tilted against the torus's axis, so it
     //    cuts a general spiric quartic whose loops wind round the tube,
     //    and C5 routes that section to its unbuilt general rung
-    //    (`work/sectsite/c5-plane-torus-cone-cylinder-arms`). It refuses
+    //    (`work/sect/c5-plane-torus-cone-cylinder-arms`). It refuses
     //    the same way at 1e-9 and 1e-6, at `boolean::join::frame_refusal`.
     //    Behind it is the section of the leaf's NURBS walls against the
     //    torus, C5's rung 3, which is SECT's. At 1e-12 the lower stem's

@@ -467,7 +467,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             // pierce at (`chart`); one it placed at none refuses C5's
             // typed refusal, naming the kind. That `p` has no second foot
             // on another in-trim sheet within the band is the placement's
-            // claim (`work/spliceface/the-spline-placement-read-certifies-no-second-in-trim-foot`).
+            // claim (`work/splice/the-spline-placement-read-certifies-no-second-in-trim-foot`).
             Ok(None) => {
                 use crate::face_normal::SplineNormalError;
                 let uv = chart.ok_or_else(unbuilt)?;
