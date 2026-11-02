@@ -5,8 +5,7 @@ title: The add-profile form's "on the picked face" checkbox makes a profile and 
 status: open
 opened: 2026-11-02
 priority: P1
-cost: M
-design: true
+cost: H
 ---
 
 **Reported against an older build** (Ev, in chat, 2026-11-02: "i had
@@ -46,3 +45,29 @@ exists fused. Read `pncad::trace::traced_frame` and `drawn_profile` for
 the frame-drawing precedent, and `SketchOnFace`'s door in `session.rs`
 for what the fused op does with `spin`. A design question the
 designers weigh before any lane builds.
+
+## 2026-11-02 — ruled (Ev, `[ev]` PR 6298): a sketch on a face is drawn there
+
+This is the build. Spec: `[placement]` and REFERENCES DM1 as merged.
+- **The sketch.** A sketch on a face is a profile drawn on a frame read
+  off the face (`ProfileProgram.on`, `DrawnOn` with no traced faces), in
+  the face's body's space. The frame is `Spin { Through { axis, point },
+  about z, by spin }`:
+  - z is the face's outward normal;
+  - x points toward a cell of the body off the face's normal, as the
+    gesture names one;
+  - on a face with none (a bare disc), x is the space's x carried by
+    the least turn, as a placement's spin is measured;
+  - `spin` is a field, the constant 0 unless named.
+- **New pose construction.** A `Flag` builder in
+  `crates/editor-core/src/pose.rs`.
+- **Signed depth.** An extrude's depth is a signed `Length`: + is a
+  boss, − is a pocket's tool, 0 refuses.
+- **Retire the fused act.** `SessionOp::SketchOnFace`,
+  `Drafts::sketch_on_face`, `Recording::sketch_on_face` and pncad-py's
+  `Doc.sketch_on_face` / `SketchedOnFace` all go. The checkbox now just
+  draws the profile on the face.
+- **A body on a face stays a placement** (DM1).
+
+It crosses editor-core, pncad, pncad-py and the viewer. Cut it into
+units on those owners before dispatch. Re-priced D → H.
