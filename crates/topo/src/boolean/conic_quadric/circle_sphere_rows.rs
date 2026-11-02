@@ -27,12 +27,12 @@ fn sphere<T: Real>(c: [f64; 3], r: f64) -> geom::Surface<T> {
 /// The circle of radius `rho` in the `xy` plane about the origin,
 /// `û = x̂`.
 fn circle<T: Real>(rho: f64) -> geom::Curve3<T> {
-    geom::Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(T::zero(), T::zero(), T::one()),
-        radius: T::from_f64(rho),
-        u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
-    }
+    geom::Curve3::circle(
+        Point3::origin(),
+        Vec3::new(T::zero(), T::zero(), T::one()),
+        T::from_f64(rho),
+        Vec3::new(T::one(), T::zero(), T::zero()),
+    )
 }
 
 fn roots(c: [f64; 3], r: f64, t0: f64, t1: f64) -> Result<CircleRoots<f64>, Unsettled> {
@@ -356,12 +356,12 @@ fn a_frame_that_is_not_orthonormal_is_charged_for_it() {
 /// A circle of radius `rho` about `c` in the frame `(n, u)`, as
 /// stored — orthonormal or not.
 fn framed(c: [f64; 3], n: [f64; 3], u: [f64; 3], rho: f64) -> geom::Curve3<f64> {
-    geom::Curve3::Circle {
-        center: Point3::from_array(c),
-        axis: Vec3::new(n[0], n[1], n[2]),
-        radius: rho,
-        u_ref: Vec3::new(u[0], u[1], u[2]),
-    }
+    geom::Curve3::circle(
+        Point3::from_array(c),
+        Vec3::new(n[0], n[1], n[2]),
+        rho,
+        Vec3::new(u[0], u[1], u[2]),
+    )
 }
 
 /// The root slack's terms as the door charges them (module docs of

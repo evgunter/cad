@@ -47,12 +47,12 @@ fn none_missing(label: &str, got: &Result<Meetings<f64>, MeetRefusal<f64>>, want
 /// line's one crossing of the plane and `P` is lost.
 #[test]
 fn a_line_through_a_circles_plane_meets_it_at_both_ends_of_a_chord() {
-    let c = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let c = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(0.0, 1.0, 0.0),
+    );
     let h = 0.9e-9;
     let (q, p) = (Point3::new(1.0, 0.0, h), Point3::new(-1.0, 0.0, -h));
     let l = line(q.to_array(), (p - q).to_array());
@@ -156,21 +156,23 @@ fn two_circles_at_a_shallow_tilt_meet_twice_near_one_plane_root() {
 fn two_meetings_found_near_one_plane_root_leave_the_other_roots_meetings() {
     let al = 2e-8_f64;
     let (s, c) = al.sin_cos();
-    let a = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, -s, c),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let a = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, -s, c),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let th = 0.03_f64;
     let big = th.cos() / (1.0 - (c * th.sin()).powi(2) / 0.81).sqrt();
-    let b = Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: 0.9,
-        semi_v: big,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let b = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        0.9,
+        big,
+    ));
     let sa = Span::new(&a, (th, TAU - th));
     let far = [a.eval(PI - th), a.eval(PI + th)];
     for (label, sb, want) in [

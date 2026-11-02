@@ -5122,19 +5122,25 @@ fn moved_walls<T: Decide>(
                             };
                         match *curve.carrier() {
                             geom::Curve3::Line(_) => EdgeArc::Line,
-                            geom::Curve3::Circle {
-                                center,
-                                ref axis,
+                            geom::Curve3::Circle(geom::Circle {
+                                frame:
+                                    geom::Frame {
+                                        center,
+                                        ref axis,
+                                        u_ref,
+                                    },
                                 radius,
-                                u_ref,
-                            } => conic(center, axis, u_ref, radius, radius),
-                            geom::Curve3::Ellipse {
-                                center,
-                                ref axis,
+                            }) => conic(center, axis, u_ref, radius, radius),
+                            geom::Curve3::Ellipse(geom::Ellipse {
+                                frame:
+                                    geom::Frame {
+                                        center,
+                                        ref axis,
+                                        u_ref,
+                                    },
                                 semi_u,
                                 semi_v,
-                                u_ref,
-                            } => conic(center, axis, u_ref, semi_u, semi_v),
+                            }) => conic(center, axis, u_ref, semi_u, semi_v),
                             geom::Curve3::Spiric { .. } => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
                                 geom::carrier_speed::speed_range(curve.carrier()).1,

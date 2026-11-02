@@ -44,12 +44,7 @@ fn torus() -> Surface<f64> {
 /// The unit cylinder's rim at height `z`, walked in `u` from `u0` to `u1`.
 fn crim(z: f64, u0: f64, u1: f64) -> LoopEdge<f64> {
     edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, z),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(p3(0.0, 0.0, z), v3(0.0, 0.0, 1.0), 1.0, v3(1.0, 0.0, 0.0)),
         u0,
         u1,
         0,
@@ -71,12 +66,12 @@ fn ruling(u: f64, z0: f64, z1: f64) -> LoopEdge<f64> {
 /// The torus's parallel at tube angle `v`, walked in `u` from `u0` to `u1`.
 fn trim(v: f64, u0: f64, u1: f64) -> LoopEdge<f64> {
     edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, R0 * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: RR + R0 * v.cos(),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            p3(0.0, 0.0, R0 * v.sin()),
+            v3(0.0, 0.0, 1.0),
+            RR + R0 * v.cos(),
+            v3(1.0, 0.0, 0.0),
+        ),
         u0,
         u1,
         0,
@@ -87,12 +82,12 @@ fn trim(v: f64, u0: f64, u1: f64) -> LoopEdge<f64> {
 /// The torus's meridian at azimuth `u`, walked in `v` from `v0` to `v1`.
 fn tmer(u: f64, v0: f64, v1: f64) -> LoopEdge<f64> {
     edge(
-        Curve3::Circle {
-            center: p3(RR * u.cos(), RR * u.sin(), 0.0),
-            axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: R0,
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
+        Curve3::circle(
+            p3(RR * u.cos(), RR * u.sin(), 0.0),
+            v3(u.sin(), -u.cos(), 0.0),
+            R0,
+            v3(u.cos(), u.sin(), 0.0),
+        ),
         v0,
         v1,
         0,
@@ -206,12 +201,12 @@ fn four_winding_rims_bound_no_single_face() {
             .map(|(i, &up)| {
                 let (a, b) = if up { (0.0, TAU) } else { (TAU, 0.0) };
                 vec![edge(
-                    Curve3::Circle {
-                        center: p3(0.0, 0.0, i as f64),
-                        axis: v3(0.0, 0.0, 1.0),
-                        radius: T::one(),
-                        u_ref: v3(1.0, 0.0, 0.0),
-                    },
+                    Curve3::circle(
+                        p3(0.0, 0.0, i as f64),
+                        v3(0.0, 0.0, 1.0),
+                        T::one(),
+                        v3(1.0, 0.0, 0.0),
+                    ),
                     a,
                     b,
                     0,
@@ -285,12 +280,12 @@ fn a_loop_of_many_rulings_turns_by_their_own_turns() {
     }
     fn rim<T: geom_core::Decide>(radius: f64, z: f64, u0: f64, u1: f64) -> LoopEdge<T> {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, z),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: T::from_f64(radius),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p3(0.0, 0.0, z),
+                v3(0.0, 0.0, 1.0),
+                T::from_f64(radius),
+                v3(1.0, 0.0, 0.0),
+            ),
             u0,
             u1,
             0,
@@ -352,12 +347,12 @@ fn off_arc<T: geom_core::Decide>(
 ) -> LoopEdge<T> {
     let (s, c) = tilt.sin_cos();
     edge(
-        Curve3::Circle {
-            center: p3(off[0], off[1], z),
-            axis: v3(s, 0.0, c),
-            radius: T::from_f64(radius),
-            u_ref: v3(c, 0.0, -s),
-        },
+        Curve3::circle(
+            p3(off[0], off[1], z),
+            v3(s, 0.0, c),
+            T::from_f64(radius),
+            v3(c, 0.0, -s),
+        ),
         u0,
         u1,
         0,
@@ -560,12 +555,12 @@ fn a_torus_loop_of_many_meridians_turns_by_their_own_turns() {
         (u0, u1): (f64, f64),
     ) -> LoopEdge<T> {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, r0 * v.sin()),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: T::from_f64(rr + r0 * v.cos()),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p3(0.0, 0.0, r0 * v.sin()),
+                v3(0.0, 0.0, 1.0),
+                T::from_f64(rr + r0 * v.cos()),
+                v3(1.0, 0.0, 0.0),
+            ),
             u0,
             u1,
             0,
@@ -584,12 +579,12 @@ fn a_torus_loop_of_many_meridians_turns_by_their_own_turns() {
         let (s, c) = phi.sin_cos();
         let (sa, ca) = alpha.sin_cos();
         edge(
-            Curve3::Circle {
-                center: p3(rr * c, rr * s, 0.0),
-                axis: v3(-s * ca, c * ca, sa),
-                radius: T::from_f64(r0),
-                u_ref: v3(c, s, 0.0),
-            },
+            Curve3::circle(
+                p3(rr * c, rr * s, 0.0),
+                v3(-s * ca, c * ca, sa),
+                T::from_f64(r0),
+                v3(c, s, 0.0),
+            ),
             t0,
             t1,
             0,
@@ -687,12 +682,12 @@ fn torus_chains_of_arcs_off_centre_measure() {
         let (v0, v1) = (vc - v_half, vc + v_half);
         let parallel = |v: f64, c: [f64; 2], u0: f64, u1: f64| {
             edge::<T>(
-                Curve3::Circle {
-                    center: p3(c[0], c[1], r * v.sin()),
-                    axis: v3(0.0, 0.0, 1.0),
-                    radius: T::from_f64(big + r * v.cos()),
-                    u_ref: v3(1.0, 0.0, 0.0),
-                },
+                Curve3::circle(
+                    p3(c[0], c[1], r * v.sin()),
+                    v3(0.0, 0.0, 1.0),
+                    T::from_f64(big + r * v.cos()),
+                    v3(1.0, 0.0, 0.0),
+                ),
                 u0,
                 u1,
                 0,
@@ -703,12 +698,12 @@ fn torus_chains_of_arcs_off_centre_measure() {
             let m = 0.5 * (a + b);
             let (gx, gz) = (grow * m.cos(), grow * m.sin());
             edge::<T>(
-                Curve3::Circle {
-                    center: p3((big + gx) * u.cos(), (big + gx) * u.sin(), gz),
-                    axis: v3(u.sin(), -u.cos(), 0.0),
-                    radius: T::from_f64(r),
-                    u_ref: v3(u.cos(), u.sin(), 0.0),
-                },
+                Curve3::circle(
+                    p3((big + gx) * u.cos(), (big + gx) * u.sin(), gz),
+                    v3(u.sin(), -u.cos(), 0.0),
+                    T::from_f64(r),
+                    v3(u.cos(), u.sin(), 0.0),
+                ),
                 a,
                 b,
                 0,
@@ -824,12 +819,12 @@ fn circles_just_past_the_axis_class_threshold_measure() {
     ) -> Result<(), PropsError> {
         let parallel = |v: f64, u0: f64, u1: f64| {
             edge::<T>(
-                Curve3::Circle {
-                    center: p3(0.0, 0.0, r * v.sin()),
-                    axis: v3(0.0, 0.0, 1.0),
-                    radius: T::from_f64(big + r * v.cos()),
-                    u_ref: v3(1.0, 0.0, 0.0),
-                },
+                Curve3::circle(
+                    p3(0.0, 0.0, r * v.sin()),
+                    v3(0.0, 0.0, 1.0),
+                    T::from_f64(big + r * v.cos()),
+                    v3(1.0, 0.0, 0.0),
+                ),
                 u0,
                 u1,
                 0,
@@ -838,12 +833,12 @@ fn circles_just_past_the_axis_class_threshold_measure() {
         };
         let meridian = |u: f64, a: f64, b: f64| {
             edge::<T>(
-                Curve3::Circle {
-                    center: p3(big * u.cos(), big * u.sin(), 0.0),
-                    axis: v3(u.sin(), -u.cos(), 0.0),
-                    radius: T::from_f64(r),
-                    u_ref: v3(u.cos(), u.sin(), 0.0),
-                },
+                Curve3::circle(
+                    p3(big * u.cos(), big * u.sin(), 0.0),
+                    v3(u.sin(), -u.cos(), 0.0),
+                    T::from_f64(r),
+                    v3(u.cos(), u.sin(), 0.0),
+                ),
                 a,
                 b,
                 0,
@@ -917,12 +912,12 @@ fn cone<T: geom_core::Real>() -> Surface<T> {
 fn kim<T: geom_core::Real>(v: f64, u0: f64, u1: f64) -> LoopEdge<T> {
     let (s, c) = 0.5_f64.sin_cos();
     edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, v * c),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: T::from_f64(v * s),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            p3(0.0, 0.0, v * c),
+            v3(0.0, 0.0, 1.0),
+            T::from_f64(v * s),
+            v3(1.0, 0.0, 0.0),
+        ),
         u0,
         u1,
         0,
@@ -1097,12 +1092,12 @@ impl SkewCone {
         let (s, c) = self.alpha.sin_cos();
         let o = self.at([0.0, 0.0, v * c]);
         edge(
-            Curve3::Circle {
-                center: p3(o[0], o[1], o[2]),
-                axis: v3(self.a[0], self.a[1], self.a[2]),
-                radius: T::from_f64(v * s),
-                u_ref: v3(self.e1[0], self.e1[1], self.e1[2]),
-            },
+            Curve3::circle(
+                p3(o[0], o[1], o[2]),
+                v3(self.a[0], self.a[1], self.a[2]),
+                T::from_f64(v * s),
+                v3(self.e1[0], self.e1[1], self.e1[2]),
+            ),
             u0,
             u1,
             0,
@@ -1457,12 +1452,12 @@ fn a_metre_spindle_torus_near_its_axis_measures_its_closed_form() {
     ) -> Result<f64, PropsError> {
         let parallel = |v: f64, u0: f64, u1: f64| {
             edge::<T>(
-                Curve3::Circle {
-                    center: p3(o[0], o[1], o[2] + r * v.sin()),
-                    axis: v3(0.0, 0.0, 1.0),
-                    radius: T::from_f64(big + r * v.cos()),
-                    u_ref: v3(1.0, 0.0, 0.0),
-                },
+                Curve3::circle(
+                    p3(o[0], o[1], o[2] + r * v.sin()),
+                    v3(0.0, 0.0, 1.0),
+                    T::from_f64(big + r * v.cos()),
+                    v3(1.0, 0.0, 0.0),
+                ),
                 u0,
                 u1,
                 0,
@@ -1471,12 +1466,12 @@ fn a_metre_spindle_torus_near_its_axis_measures_its_closed_form() {
         };
         let meridian = |u: f64, a: f64, b: f64| {
             edge::<T>(
-                Curve3::Circle {
-                    center: p3(o[0] + big * u.cos(), o[1] + big * u.sin(), o[2]),
-                    axis: v3(u.sin(), -u.cos(), 0.0),
-                    radius: T::from_f64(r),
-                    u_ref: v3(u.cos(), u.sin(), 0.0),
-                },
+                Curve3::circle(
+                    p3(o[0] + big * u.cos(), o[1] + big * u.sin(), o[2]),
+                    v3(u.sin(), -u.cos(), 0.0),
+                    T::from_f64(r),
+                    v3(u.cos(), u.sin(), 0.0),
+                ),
                 a,
                 b,
                 0,

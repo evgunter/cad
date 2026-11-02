@@ -3465,12 +3465,7 @@ mod tests {
                 pair: SurfacePair::new(s1, s2),
                 selector: geom_brep::CurveSelector::Witness(Point3::new(-1.0, 0.0, 0.0)),
             },
-            carrier: geom::Curve3::Circle {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
             param_start: 0.0,
             param_end: core::f64::consts::TAU,
         }

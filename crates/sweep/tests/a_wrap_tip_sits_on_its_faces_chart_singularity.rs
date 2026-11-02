@@ -64,12 +64,12 @@ fn spur(
         .into_iter()
         .find(|&he| body.face_of_half_edge(he) == Some(face))
         .expect("the face's loop leaves that vertex");
-    let carrier = geom::Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, x),
-        radius: 1.0,
-        u_ref: Vec3::new(x, 0.0, 0.0),
-    };
+    let carrier = geom::Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, x),
+        1.0,
+        Vec3::new(x, 0.0, 0.0),
+    );
     let tip = carrier.eval(top);
     let mut spec = EdgeCurveSpec::arc_of_circle(carrier, 0.0, top).unwrap();
     spec.description = description;

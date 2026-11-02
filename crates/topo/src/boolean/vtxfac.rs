@@ -871,11 +871,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         };
         let (dir, branch) = match (on_wall[t], branch) {
             (Some(plane), Some(branch)) => (pierce_germ_dir(s, plane.vec(), out, band)?, branch),
-            _ => (
+            _ => {
                 // A tangent sector's germ runs along its bound on the
                 // tangency locus, where its plane and the pierced face's
                 // tangent plane are one.
-                match (tangent[t], codes, s.apex()) {
+                let dir = match (tangent[t], codes, s.apex()) {
                     (true, (SideCode::On, _), _) => Leaned::upright(s.start.normalize()),
                     (true, (_, SideCode::On), _) => Leaned::upright(s.end.normalize()),
                     // At a cone's apex a bound the plane holds is a section
@@ -889,16 +889,20 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                         band,
                     )?),
                     _ => pierce_germ_dir(s, n_pierced.vec(), out, band)?,
-                },
-                germ_branch(
+                };
+                let branch = germ_branch(
                     &declared.sections,
                     (&*piercing_body, pierced_body),
                     piercing,
                     cells,
-                    p,
+                    (p, dir.dir),
                     band,
-                )?,
-            ),
+                )?;
+                if !tangent[t] && s.apex().is_some() {
+                    apex_germ_on_a_line(cells.1, branch)?;
+                }
+                (dir, branch)
+            }
         };
         Ok((cells, dir, branch))
     };
@@ -2064,7 +2068,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 (piercing_body, pierced_body),
                 piercing,
                 cells,
-                p,
+                (p, Leaned::of_line(int).dir),
                 band,
             )?,
             on,
@@ -2726,6 +2730,30 @@ fn pierce_apex_germ<T: Decide>(
     })
 }
 
+/// **A pierce germ at a cone's apex rides a line of its pair's one
+/// reading.** Its direction is a section ruling read off the sector's
+/// own plane and reach ([`pierce_apex_germ`],
+/// `chord_join::apex_section_ruling`), a reading of the pair beside the
+/// glue door's one ([`super::join::germ_branch`]). A germ inside a face
+/// of each operand whose branch names no line is a ruling the pair's
+/// reading reads as no line pair: the two readings disagree, refused as
+/// a desync rather than matched on either. A germ along an edge rides
+/// the edge's curve, and names no line.
+pub(super) fn apex_germ_on_a_line(
+    loci: (super::Locus, super::Locus),
+    branch: super::Branch,
+) -> Result<(), BooleanError> {
+    match (loci, branch) {
+        ((super::Locus::InFace(_), super::Locus::InFace(_)), super::Branch::Only) => {
+            Err(BooleanError::JoinDesync {
+                what: "a pierce germ at a cone's apex runs along a section ruling where its \
+                       pair's one reading reads no line pair",
+            })
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Which bound of a pierce transition sector the Out run holds: the
 /// other reads In.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2748,7 +2776,8 @@ type Germ<T> = (
 );
 
 /// A pierce germ's branch ([`super::join::germ_branch`]), read at the
-/// pierce point `p` with the piercing and pierced bodies in that order.
+/// pierce point `p` along the germ's direction `dir`, with the piercing
+/// and pierced bodies in that order.
 fn germ_branch<T: Decide>(
     sections: &super::section_table::SectionTable<T>,
     (piercing_body, pierced_body): (&Body<T>, &Body<T>),
@@ -2757,14 +2786,14 @@ fn germ_branch<T: Decide>(
         (crate::entity::FaceKey, crate::entity::FaceKey),
         (super::Locus, super::Locus),
     ),
-    p: geom_core::Point3<T>,
+    (p, dir): (geom_core::Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<super::Branch, BooleanError> {
     let (a, b) = match piercing {
         Operand::A => (piercing_body, pierced_body),
         Operand::B => (pierced_body, piercing_body),
     };
-    super::join::germ_branch(sections, (a, faces.0), (b, faces.1), loci, p, band)
+    super::join::germ_branch(sections, (a, faces.0), (b, faces.1), loci, (p, dir), band)
 }
 
 /// A germ as the join reads it: its unit direction alone. Its lean
@@ -3115,12 +3144,7 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let o = Point3::new(0.0, 0.0, 0.0);
         let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        let arc = geom::Curve3::Circle {
-            center: o + z,
-            axis: x.cross(z),
-            radius: 1.0,
-            u_ref: -z,
-        };
+        let arc = geom::Curve3::circle(o + z, x.cross(z), 1.0, -z);
         let span = core::f64::consts::FRAC_PI_2;
         let extent = geom_brep::edge_extent_inf(&arc, 0.0, span, 2f64.sqrt());
         let bend = ConicBend::of(&arc, arc.deriv(0.0), arc.deriv2(0.0), span);

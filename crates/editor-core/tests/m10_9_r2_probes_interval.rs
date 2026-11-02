@@ -402,13 +402,7 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
             "f64 at t = {t}"
         );
         // And through the enum, which is what the certifier calls.
-        let c = Curve3::Circle {
-            center,
-            axis,
-            radius: 0.8e-3,
-            u_ref,
-        }
-        .eval(t);
+        let c = Curve3::circle(center, axis, 0.8e-3, u_ref).eval(t);
         assert_eq!(
             [c.x.to_bits(), c.y.to_bits(), c.z.to_bits()],
             [b.x.to_bits(), b.y.to_bits(), b.z.to_bits()]

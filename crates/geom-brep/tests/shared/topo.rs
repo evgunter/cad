@@ -53,12 +53,12 @@ pub(crate) fn sphere_rim<T: Real>(
     b: u32,
 ) -> LoopEdge<T> {
     edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, radius * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: T::from_f64(radius * v.cos()),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            p3(0.0, 0.0, radius * v.sin()),
+            v3(0.0, 0.0, 1.0),
+            T::from_f64(radius * v.cos()),
+            v3(1.0, 0.0, 0.0),
+        ),
         u0,
         u1,
         a,
@@ -78,12 +78,12 @@ pub(crate) fn sphere_great<T: Real>(
     b: u32,
 ) -> LoopEdge<T> {
     edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: T::from_f64(radius),
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
+        Curve3::circle(
+            p3(0.0, 0.0, 0.0),
+            v3(u.sin(), -u.cos(), 0.0),
+            T::from_f64(radius),
+            v3(u.cos(), u.sin(), 0.0),
+        ),
         t0,
         t1,
         a,
@@ -99,12 +99,12 @@ pub(crate) fn sphere_great<T: Real>(
 /// `mesh10r2_probes.rs`'s stamps a carrier id and the other two do not
 /// — so the shared part stops at the circle.
 pub(crate) fn torus_rim_circle<T: Real>(major: f64, minor: f64, v: f64) -> Curve3<T> {
-    Curve3::Circle {
-        center: p3(0.0, 0.0, minor * v.sin()),
-        axis: v3(0.0, 0.0, 1.0),
-        radius: T::from_f64(major + minor * v.cos()),
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        p3(0.0, 0.0, minor * v.sin()),
+        v3(0.0, 0.0, 1.0),
+        T::from_f64(major + minor * v.cos()),
+        v3(1.0, 0.0, 0.0),
+    )
 }
 
 /// The meridian of a torus at azimuth `u`: the minor circle centred on
@@ -112,10 +112,10 @@ pub(crate) fn torus_rim_circle<T: Real>(major: f64, minor: f64, v: f64) -> Curve
 /// axis at that azimuth. See [`torus_rim_circle`] on why this is a
 /// curve and not an edge.
 pub(crate) fn torus_meridian_circle<T: Real>(major: f64, minor: f64, u: f64) -> Curve3<T> {
-    Curve3::Circle {
-        center: p3(major * u.cos(), major * u.sin(), 0.0),
-        axis: v3(u.sin(), -u.cos(), 0.0),
-        radius: T::from_f64(minor),
-        u_ref: v3(u.cos(), u.sin(), 0.0),
-    }
+    Curve3::circle(
+        p3(major * u.cos(), major * u.sin(), 0.0),
+        v3(u.sin(), -u.cos(), 0.0),
+        T::from_f64(minor),
+        v3(u.cos(), u.sin(), 0.0),
+    )
 }

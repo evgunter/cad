@@ -29,8 +29,8 @@ use geom_core::{Band, Point3, Vec3};
 use test_utils::fuzz;
 
 use super::{Joint, Read, Window};
-use crate::Conic;
 use crate::curve_pair::pose::{height, level_on};
+use geom::Conic;
 
 /// Eberly's bisection for the root `s` of `(r₀z₀/(s + r₀))² + (z₁/(s + 1))² = 1`.
 fn root(r0: f64, z0: f64, z1: f64, mut g: f64) -> f64 {
@@ -118,13 +118,15 @@ fn pair(rng: &mut fuzz::Rng, z: f64, touch: bool) -> (Curve3<f64>, Curve3<f64>, 
         rng.log_uniform(10f64.powf(-1.5), 1.0)
     };
     let big_b = big_a * ratio;
-    let b = Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: big_a,
-        semi_v: big_b,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let b = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        big_a,
+        big_b,
+    ));
     let phi = rng.range(0.0, core::f64::consts::TAU);
     let j = Point3::new(big_a * phi.cos(), big_b * phi.sin(), 0.0);
     let tb = Vec3::new(-big_a * phi.sin(), big_b * phi.cos(), 0.0).normalize();
@@ -153,22 +155,15 @@ fn pair(rng: &mut fuzz::Rng, z: f64, touch: bool) -> (Curve3<f64>, Curve3<f64>, 
     let u = rot((j - centre).normalize(), k, alpha);
     let ax = rot(zhat * side, k, alpha);
     let a = if rng.unit() < 0.5 {
-        Curve3::Circle {
-            center: a_centre,
-            axis: ax,
-            radius: r,
-            u_ref: u,
-        }
+        Curve3::circle(a_centre, ax, r, u)
     } else {
         // Through `J` with the circle's tangent there: semi-axis `r`
         // along `u`, the other `r·q`.
-        Curve3::Ellipse {
-            center: a_centre,
-            axis: ax,
-            semi_u: r,
-            semi_v: r * rng.log_uniform(0.1, 10.0),
-            u_ref: u,
-        }
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(a_centre, ax, u),
+            r,
+            r * rng.log_uniform(0.1, 10.0),
+        ))
     };
     (a, b, (big_a, big_b), scale)
 }
@@ -176,8 +171,8 @@ fn pair(rng: &mut fuzz::Rng, z: f64, touch: bool) -> (Curve3<f64>, Curve3<f64>, 
 /// The window reader of `a` against `b`, its height and rounding read as
 /// the pose reads them.
 fn window<'w, T: geom_core::Decide>(
-    ka: &'w Conic<T>,
-    kb: &'w Conic<T>,
+    ka: &'w dyn Conic<T>,
+    kb: &'w dyn Conic<T>,
     b: &'w Curve3<T>,
 ) -> Window<'w, T> {
     let lever = ka.speed_hi().max(kb.speed_hi());
@@ -187,9 +182,9 @@ fn window<'w, T: geom_core::Decide>(
         span_a: (T::from_f64(-1.0), T::from_f64(1.0)),
         b: kb,
         carrier_b: b,
-        height: height(ka, kb.center, kb.axis),
+        height: height(ka, kb.frame().center, kb.frame().axis),
         noise: geom_core::rounding_charge(
-            (ka.center - o).norm() + (kb.center - o).norm() + lever + lever,
+            (ka.frame().center - o).norm() + (kb.frame().center - o).norm() + lever + lever,
         ),
     }
 }
@@ -206,10 +201,10 @@ fn check(
     band: Band,
 ) -> Result<Vec<Read>, String> {
     let z = band.zero();
-    let (ka, kb) = (Conic::of(a).unwrap(), Conic::of(b).unwrap());
+    let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
     let iv = |x: f64| geom_core::Interval::from_bounds(x, x);
     let (ia, ib) = (a.map_scalar(iv), b.map_scalar(iv));
-    let (ika, ikb) = (Conic::of(&ia).unwrap(), Conic::of(&ib).unwrap());
+    let (ika, ikb) = (ia.conic().unwrap(), ib.conic().unwrap());
     let reads = [
         (
             "f64",
@@ -388,32 +383,34 @@ fn each_window_reading_holds_on_a_dense_distance_at_a_touch() {
 /// receding where the distance falls.
 #[test]
 fn a_level_receding_by_its_bound_holds_on_the_dense_distance() {
-    let a = Curve3::Circle {
-        center: Point3::new(
+    let a = Curve3::circle(
+        Point3::new(
             -2.364_536_184_938_877_7,
             2.125_171_205_994_365_5,
             -0.003_528_875_282_044_97,
         ),
-        axis: Vec3::new(
+        Vec3::new(
             9.765_800_060_723_604e-5,
             0.001_279_168_856_718_636_6,
             0.999_999_177_094_636_9,
         ),
-        radius: 4.499_928_186_621_72,
-        u_ref: Vec3::new(
+        4.499_928_186_621_72,
+        Vec3::new(
             0.742_584_695_326_387_2,
             -0.669_751_711_671_309_4,
             0.000_784_206_840_004_844_4,
         ),
-    };
+    );
     let r = 1.320_731_978_041_859_4;
-    let b = Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: r,
-        semi_v: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let b = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        r,
+        r,
+    ));
     let band = Band::new(1e-9, 1e-8).unwrap();
     let piece = (-7.095_993_946_033_714e-9, -6.208_204_980_977_168e-9);
     let got = check(&a, &b, ((r, r), 1.0), piece, false, band);
@@ -428,29 +425,33 @@ fn a_level_receding_by_its_bound_holds_on_the_dense_distance() {
 /// test drops its ratio `|F′| > 2L·|F|·|Q′|/s²`.
 #[test]
 fn a_level_growing_while_its_distance_falls_is_not_receding() {
-    let a = Curve3::Ellipse {
-        center: Point3::new(
-            0.103_221_581_871_904,
-            -8.271_264_660_191_37,
-            8.004_970_918_259_853e-10,
+    let a = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(
+                0.103_221_581_871_904,
+                -8.271_264_660_191_37,
+                8.004_970_918_259_853e-10,
+            ),
+            Vec3::new(-7.266_929_889_989_323e-12, -9.054_215_099_943_521e-12, -1.0),
+            Vec3::new(
+                0.336_303_519_382_267_8,
+                0.941_753_652_953_414_7,
+                -1.097_073_424_210_538_4e-11,
+            ),
         ),
-        axis: Vec3::new(-7.266_929_889_989_323e-12, -9.054_215_099_943_521e-12, -1.0),
-        semi_u: 8.765_881_987_149_3,
-        semi_v: 18.580_532_134_014_49,
-        u_ref: Vec3::new(
-            0.336_303_519_382_267_8,
-            0.941_753_652_953_414_7,
-            -1.097_073_424_210_538_4e-11,
-        ),
-    };
+        8.765_881_987_149_3,
+        18.580_532_134_014_49,
+    ));
     let axes = (3.090_776_032_011_832, 0.100_096_878_420_258_31);
-    let b = Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: axes.0,
-        semi_v: axes.1,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let b = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        axes.0,
+        axes.1,
+    ));
     let band = Band::new(1e-9, 1e-8).unwrap();
     let piece = (-0.003_251_514_695_164_516, -0.000_699_372_809_647_522);
     let got = check(&a, &b, (axes, 10.0), piece, false, band);
@@ -472,12 +473,12 @@ fn seam_pose(
     band: Band,
 ) -> (bool, bool) {
     let (s, c) = t.sin_cos();
-    let a = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, -s, c),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let a = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, -s, c),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let j = Point3::new(1.0, 0.0, 0.0);
     let pp = Point3::new(delta.cos(), c * delta.sin(), 0.0);
     let m = Point3::new(0.5 * (j.x + pp.x), 0.5 * (j.y + pp.y), 0.0);
@@ -487,12 +488,12 @@ fn seam_pose(
     let inside = n.dot(Point3::origin() - m) > 0.0;
     let n = if inside == (rb < 1.0) { n } else { n * -1.0 };
     let centre = m + n * (rb * rb - half * half).sqrt();
-    let b = Curve3::Circle {
-        center: centre,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: rb,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let b = Curve3::circle(
+        centre,
+        Vec3::new(0.0, 0.0, 1.0),
+        rb,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let in_span = |th: f64| {
         (-16..=16).any(|q| {
             let v = th + f64::from(q) * TAU;
@@ -506,7 +507,7 @@ fn seam_pose(
     };
     let parted = (1..400).any(|i| dist(delta * f64::from(i) / 400.0) > 1.2 * band.zero());
     let p_on = in_span(delta) && parted && dist(delta) < 0.9 * band.zero();
-    let (ka, kb) = (Conic::of(&a).unwrap(), Conic::of(&b).unwrap());
+    let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
     let mut w = window(&ka, &kb, &b);
     w.span_a = span;
     let js: Vec<_> = joints

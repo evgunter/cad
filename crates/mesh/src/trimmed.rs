@@ -381,7 +381,7 @@ pub(crate) fn has_trim_carrier(body: &Body<f64>, fk: FaceKey) -> Result<bool, Te
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
         if matches!(
             curve.carrier(),
-            Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. }
+            Curve3::Ellipse(..) | Curve3::Nurbs(_) | Curve3::Spiric { .. }
         ) {
             return Ok(true);
         }
@@ -1792,7 +1792,7 @@ fn trim_frontier(
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
         if matches!(
             curve.carrier(),
-            Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. }
+            Curve3::Ellipse(..) | Curve3::Nurbs(_) | Curve3::Spiric { .. }
         ) {
             return Ok(TessellateError::UnsupportedCurve {
                 edge: ek,
@@ -2755,7 +2755,7 @@ mod tests {
                 .unwrap()
                 .certified()
                 .unwrap();
-            if !matches!(curve.carrier(), geom::Curve3::Circle { .. }) {
+            if !matches!(curve.carrier(), geom::Curve3::Circle(..)) {
                 continue;
             }
             rims += 1;

@@ -41,12 +41,12 @@ fn torus() -> Surface<f64> {
 /// The parallel at tube angle `v`, walked in `u` from `u0` to `u1`.
 fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, R0 * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: RR + R0 * v.cos(),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            p3(0.0, 0.0, R0 * v.sin()),
+            v3(0.0, 0.0, 1.0),
+            RR + R0 * v.cos(),
+            v3(1.0, 0.0, 0.0),
+        ),
         u0,
         u1,
         a,
@@ -57,12 +57,12 @@ fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 /// The meridian at azimuth `u`, walked in `v` from `v0` to `v1`.
 fn mer(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     edge(
-        Curve3::Circle {
-            center: p3(RR * u.cos(), RR * u.sin(), 0.0),
-            axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: R0,
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
+        Curve3::circle(
+            p3(RR * u.cos(), RR * u.sin(), 0.0),
+            v3(u.sin(), -u.cos(), 0.0),
+            R0,
+            v3(u.cos(), u.sin(), 0.0),
+        ),
         v0,
         v1,
         a,

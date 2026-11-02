@@ -66,7 +66,7 @@ fn a_corner_on_an_ellipse_rim_is_confirmed_on_its_arc() {
                     y.body
                         .get_curve_geom(e.curve)
                         .and_then(topo::CurveGeom::certified)
-                        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse { .. }))
+                        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse(..)))
                 })
                 .map(|(k, _)| k)
                 .collect();
