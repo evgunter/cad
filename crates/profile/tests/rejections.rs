@@ -27,10 +27,25 @@ fn sref(loop_index: usize, segment_index: usize) -> SegmentRef {
     }
 }
 
+/// A profile with no loops is the empty region: it validates, at every
+/// validation door, to no loops. The refusal is each sweep's.
 #[test]
-fn empty_profile_is_rejected() {
+fn a_profile_with_no_loops_validates_to_the_empty_region() {
     let p = profile::Profile::<f64>::new(SketchPlane::xy(), vec![]);
-    assert_eq!(err(&p), ProfileError::EmptyProfile);
+    let validated = p.validate(tol()).expect("validate admits no loops");
+    assert!(validated.loops().is_empty(), "validate: {validated:?}");
+    let (recorded, structure) = p
+        .validate_recording(tol())
+        .expect("validate_recording admits no loops");
+    assert!(
+        recorded.loops().is_empty(),
+        "validate_recording: {recorded:?}"
+    );
+    assert!(structure.loops.is_empty(), "the record: {structure:?}");
+    let guided = p
+        .validate_guided(tol(), &structure)
+        .expect("validate_guided admits no loops");
+    assert!(guided.loops().is_empty(), "validate_guided: {guided:?}");
 }
 
 /// A plane that is not finite refuses at every validation door, and at

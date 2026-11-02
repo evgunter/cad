@@ -2146,8 +2146,8 @@ fn inner_arm_tags_are_stable() {
         ("shell", Some("thickness"))
     );
     assert_eq!(
-        pair(&NodeErrorKind::Profile(ProfileError::EmptyProfile)),
-        ("profile", Some("empty_profile"))
+        pair(&NodeErrorKind::Profile(ProfileError::PlaneNotFinite)),
+        ("profile", Some("plane_not_finite"))
     );
     // The blend's carrier word is the VERB, so the two words here are
     // "which blend" and "what it refused about" — the clearest case
@@ -2783,7 +2783,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::ProfileProgramRefused {
             node: sp(1),
             refusal: Box::new(pncad::document::ProgramRefusal::Validate(
-                pncad::profile::ProfileError::EmptyProfile,
+                pncad::profile::ProfileError::PlaneNotFinite,
             )),
         },
         &["node"],
@@ -4837,6 +4837,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cap_plane",
             "cosurface_escalated",
             "degenerate_extrusion",
+            "empty_profile",
             "extrusion_escalated",
             "negative_depth",
             "oblique_extrusion",
@@ -5449,7 +5450,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_segment",
             "empty_loop",
-            "empty_profile",
             "escalated",
             "inconsistent_arc",
             "multiple_outer_loops",
@@ -5563,6 +5563,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cosurface_escalated",
             "degenerate_angle",
             "degenerate_axis",
+            "empty_profile",
             "full_range_angle",
             "hole_touches_axis",
             "non_finite_axis",
@@ -5736,6 +5737,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_section",
             "domain_not_unit",
+            "empty_section",
             "fit",
             "knot_algebra",
             "no_parameter_step",

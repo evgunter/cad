@@ -221,6 +221,12 @@ pub enum SkinError {
         /// The profile door's typed refusal.
         source: ProfileError,
     },
+    /// A section is a profile with no loops: the empty region, which
+    /// sweeps nothing.
+    EmptySection {
+        /// The first section with no loops.
+        section: usize,
+    },
     /// A section curve does not live on the unit parameter domain the
     /// compatibility pass requires (`[0, 1]`, clamped).
     DomainNotUnit {
@@ -387,6 +393,9 @@ impl core::fmt::Display for SkinError {
             ),
             Self::SectionProfile { section, source } => {
                 write!(f, "section {section} is not a valid profile: {source}")
+            }
+            Self::EmptySection { section } => {
+                write!(f, "section {section}: {}", crate::EMPTY_PROFILE)
             }
             Self::DomainNotUnit { section, domain } => write!(
                 f,
@@ -1374,7 +1383,8 @@ pub(crate) fn validate_guided<T: Decide, L: SectionLoop<T>>(
 /// [`SkinError::TooFewSections`], [`SkinError::SectionShapeMismatch`]
 /// naming the disagreeing section and count,
 /// [`SkinError::SectionProfile`] for a section the profile door
-/// refuses, [`SkinError::BadDegree`], and every refusal
+/// refuses, [`SkinError::EmptySection`] for one with no loops,
+/// [`SkinError::BadDegree`], and every refusal
 /// [`segment_curve`], [`make_compatible`] and [`skin_on`] carry.
 pub fn loft_geometry<L: SectionLoop>(
     sections: &[Section<L>],
@@ -1439,14 +1449,18 @@ pub(crate) fn check_counts(k: usize, places: usize, v_degree: usize) -> Result<(
     Ok(())
 }
 
-/// Every canonical section has section 0's loop count and, loop by
-/// loop, its vertex count: the shape a by-index pairing needs.
+/// Every canonical section has a loop, section 0's loop count and,
+/// loop by loop, its vertex count: the shape a by-index pairing needs.
 ///
 /// # Errors
 ///
-/// [`SkinError::SectionShapeMismatch`] naming the disagreeing section
-/// and count.
+/// [`SkinError::EmptySection`] naming the first section with no loops,
+/// then [`SkinError::SectionShapeMismatch`] naming the disagreeing
+/// section and count.
 pub(crate) fn check_shapes<T: Real>(validated: &[ValidatedProfile<T>]) -> Result<(), SkinError> {
+    if let Some(section) = validated.iter().position(|s| s.loops().is_empty()) {
+        return Err(SkinError::EmptySection { section });
+    }
     let loops = validated[0].loops().len();
     for (i, s) in validated.iter().enumerate().skip(1) {
         if s.loops().len() != loops {

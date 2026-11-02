@@ -3453,11 +3453,11 @@ impl DocSession {
     /// Insert one profile node ([`SessionOp::AddProfile`]), drawn on its
     /// own plane.
     ///
-    /// No loop-count or nesting judgment here: an empty list, a
-    /// degenerate loop and a non-nested pair all go to `commit`, where
-    /// the edit door's authoring-time check refuses them typed in the
-    /// profile layer's own words — the one rule authored and
-    /// hand-written programs share.
+    /// No loop-count or nesting judgment here: every list goes to
+    /// `commit`, where the edit door's authoring-time check refuses a
+    /// degenerate loop or a non-nested pair typed in the profile
+    /// layer's own words — the one rule authored and hand-written
+    /// programs share. An empty list is the empty region, and inserts.
     fn add_profile(&self, loops: Vec<LoopProgram<Formula>>) -> Result<Creating, Refusal> {
         Ok(creating(move |run| {
             run.insert(Node::Profile(ProfileProgram {

@@ -888,3 +888,64 @@ fn an_extruded_box_and_an_euler_box_describe_every_edge_alike() {
     }
     assert_eq!(intrinsic, 12, "every edge of the box was compared");
 }
+
+/// **A profile with no loops validates, and every sweep refuses it at
+/// its own door**: the empty region sweeps nothing. The extrude and the
+/// revolve refuse `EmptyProfile` in its words; a loft names the first
+/// empty section, by either door.
+#[test]
+fn a_profile_with_no_loops_refuses_at_every_sweep() {
+    use sweep::{LoftError, Revolution, RevolveAxis, RevolveError, SkinError};
+    let tol = Tol::witness();
+    let at = |z: f64| SketchPlane::xy_at(Point3::new(0.0, 0.0, z));
+    let empty = Profile::<f64>::new(at(0.0), vec![])
+        .validate(tol)
+        .expect("no loops validates");
+    let extruded = extrude(
+        &empty,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .map(|_| ());
+    assert_eq!(extruded, Err(ExtrudeError::EmptyProfile), "extrude");
+    assert_eq!(
+        ExtrudeError::EmptyProfile.to_string(),
+        "profile has no loops — nothing to sweep"
+    );
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: geom_core::Vec2::new(0.0, 1.0),
+    };
+    let revolved = sweep::revolve(&empty, axis, Revolution::Full, tol).map(|_| ());
+    assert_eq!(revolved, Err(RevolveError::EmptyProfile), "revolve");
+    assert_eq!(
+        RevolveError::EmptyProfile.to_string(),
+        "profile has no loops — nothing to sweep"
+    );
+
+    let square = Profile::new(at(1.0), vec![l_loop()])
+        .validate(tol)
+        .expect("the L validates");
+    let lofted = sweep::loft_profiles(&[square, empty.clone().on_plane(at(2.0))], 1, tol);
+    assert!(
+        matches!(
+            lofted,
+            Err(LoftError::Skin(SkinError::EmptySection { section: 1 }))
+        ),
+        "loft_profiles names the empty section: {:?}",
+        lofted.map(|_| ())
+    );
+    let sections: Vec<sweep::Section> = vec![vec![l_loop()], vec![]];
+    let lofted = sweep::loft_body(&sections, &[at(0.0), at(1.0)], 1, tol);
+    assert!(
+        matches!(
+            lofted,
+            Err(LoftError::Skin(SkinError::EmptySection { section: 1 }))
+        ),
+        "loft_body names the empty section: {:?}",
+        lofted.map(|_| ())
+    );
+}

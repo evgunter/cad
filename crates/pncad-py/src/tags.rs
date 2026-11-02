@@ -1253,7 +1253,6 @@ pub fn meta_version_error_tag(err: &MetaVersionError) -> &'static str {
 pub fn profile_error_tag(err: &ProfileError) -> &'static str {
     match err {
         ProfileError::Band(_) => "band",
-        ProfileError::EmptyProfile => "empty_profile",
         ProfileError::PlaneNotFinite => "plane_not_finite",
         ProfileError::EmptyLoop { .. } => "empty_loop",
         ProfileError::DegenerateSegment(_) => "degenerate_segment",
@@ -1308,6 +1307,7 @@ pub fn structure_refusal_tag(kind: &StructureRefusalKind) -> &'static str {
 pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
     match err {
         ExtrudeError::Band(_) => "band",
+        ExtrudeError::EmptyProfile => "empty_profile",
         ExtrudeError::DegenerateExtrusion => "degenerate_extrusion",
         ExtrudeError::NegativeDepth { .. } => "negative_depth",
         ExtrudeError::ObliqueExtrusion => "oblique_extrusion",
@@ -1329,6 +1329,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
 pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
     match err {
         RevolveError::Band(_) => "band",
+        RevolveError::EmptyProfile => "empty_profile",
         RevolveError::NonFiniteAxis => "non_finite_axis",
         RevolveError::UnderflowedAxis => "underflowed_axis",
         RevolveError::DegenerateAxis => "degenerate_axis",
@@ -1591,6 +1592,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::TooFewSections { .. } => "too_few_sections",
         SkinError::SectionShapeMismatch { .. } => "section_shape_mismatch",
         SkinError::SectionProfile { .. } => "section_profile",
+        SkinError::EmptySection { .. } => "empty_section",
         SkinError::DomainNotUnit { .. } => "domain_not_unit",
         SkinError::DegenerateSection { .. } => "degenerate_section",
         SkinError::BadDegree { .. } => "bad_degree",

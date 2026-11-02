@@ -296,17 +296,18 @@ pub(crate) fn edit_door_ui(
     let mut written = Vec::new();
     let mut removed = None;
     for (index, view) in views.into_iter().enumerate() {
-        // A loop header only where there is more than one: "loop 0"
-        // over the only loop is a number with nothing to tell apart,
-        // and a profile has at least one loop to remove.
-        if loops > 1 {
-            ui.horizontal(|ui| {
+        // Every loop can be removed, the last one too: a profile with
+        // no loops is the empty region. The loop's number only where
+        // there is more than one: "loop 0" over the only loop is a
+        // number with nothing to tell apart.
+        ui.horizontal(|ui| {
+            if loops > 1 {
                 ui.label(format!("loop {index}"));
-                if ui.button(REMOVE_LOOP).clicked() {
-                    removed = Some(index);
-                }
-            });
-        }
+            }
+            if ui.button(REMOVE_LOOP).clicked() {
+                removed = Some(index);
+            }
+        });
         let salt = format!("edit_{}_{index}", node.full());
         let mut args = HeldArgs {
             slots: slots.as_deref_mut(),
@@ -1463,7 +1464,7 @@ mod tests {
                 vertices: vec![0, 1, 2],
                 end: LoopEnd::Unfinished(None),
             }],
-            invalid: Some(ProfileError::EmptyProfile),
+            invalid: Some(ProfileError::PlaneNotFinite),
         });
         let (painted, voices, held) = drawn(&planted);
         assert_eq!(

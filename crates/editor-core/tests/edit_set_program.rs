@@ -2728,3 +2728,144 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
         crate::fixture::without_anonymous(&applied.maintenance)
     );
 }
+
+/// The extrude's refusal and the profile's value under `doc`: the
+/// profile evaluates to no loops, and the extrude of it refuses
+/// `EmptyProfile` at its own door.
+fn the_empty_region_and_its_extrude(
+    doc: &ProfileDoc,
+    profile: RecipeNodeId,
+    extrude: RecipeNodeId,
+    what: &str,
+) {
+    let ev = fixture::run(doc, &EvalOptions::default());
+    assert!(
+        matches!(
+            ev.value(profile).map(|v| &v.payload),
+            Some(editor_core::ValuePayload::Profile(p)) if p.validated.loops().is_empty()
+        ),
+        "{what}: the profile evaluates to no loops: {:?}",
+        ev.node_error(profile)
+    );
+    let refused = ev.node_error(extrude).map(|e| &e.kind);
+    assert!(
+        matches!(
+            refused,
+            Some(NodeErrorKind::Extrude(sweep::ExtrudeError::EmptyProfile))
+        ),
+        "{what}: the extrude refuses at its own door: {refused:?}"
+    );
+    assert_eq!(
+        ev.node_error(extrude).map(|e| e.kind.to_string()),
+        Some("profile has no loops — nothing to sweep".to_owned()),
+        "{what}: in EmptyProfile's words"
+    );
+}
+
+/// **A profile with no loops is a document state**: inserted, and
+/// reached by a `SetProgram` that drops every loop, it is admitted and
+/// evaluates to the empty region; what sweeps it refuses at its own
+/// door; and a log holding both saves, loads and replays identically.
+#[test]
+fn a_profile_with_no_loops_is_admitted_evaluates_and_round_trips() {
+    let empty = ProfileDoc::empty_derived("no-loops", tol());
+    let inserted = DocEdit::InsertNode {
+        node: Box::new(Node::Profile(ProfileProgram {
+            loops: Vec::new(),
+            ids: Vec::new(),
+            on: None,
+        })),
+        fresh: Vec::new(),
+    };
+    let (doc, bare) = insert(
+        empty.clone(),
+        Node::Profile(ProfileProgram {
+            loops: Vec::new(),
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, bare_extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: bare.into(),
+            distance: len(ROD_L),
+        },
+    );
+    the_empty_region_and_its_extrude(&doc, bare, bare_extrude, "inserted");
+
+    // The rod, emptied by `SetProgram`.
+    let (doc, rod_profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![rod_loop(false)],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, rod_extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: rod_profile.into(),
+            distance: len(ROD_L),
+        },
+    );
+    let emptied = DocEdit::SetProgram {
+        node: rod_profile,
+        loops: Vec::new(),
+        ids: Vec::new(),
+        fresh: Vec::new(),
+    };
+    let doc = apply(&doc, &emptied, tol())
+        .expect("a SetProgram that drops every loop is admitted")
+        .doc;
+    assert!(ids_of(&doc, rod_profile).is_empty(), "no loop, no ids");
+    the_empty_region_and_its_extrude(&doc, rod_profile, rod_extrude, "emptied");
+
+    // The same document as a log: it saves, loads and replays.
+    let log = vec![
+        inserted,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Extrude {
+                profile: bare.into(),
+                distance: len(ROD_L),
+            }),
+            fresh: Vec::new(),
+        },
+        DocEdit::InsertNode {
+            node: Box::new(Node::Profile(ProfileProgram {
+                loops: vec![rod_loop(false)],
+                ids: Vec::new(),
+                on: None,
+            })),
+            fresh: Vec::new(),
+        },
+        DocEdit::InsertNode {
+            node: Box::new(Node::Extrude {
+                profile: rod_profile.into(),
+                distance: len(ROD_L),
+            }),
+            fresh: Vec::new(),
+        },
+        emptied,
+    ];
+    let text = save(&empty, &log, tol()).expect("saves");
+    let loaded = load(&text, tol()).expect("loads");
+    assert_eq!(loaded.edits, log, "the log round-trips");
+    let replayed = ProfileDoc::replay(empty.id(), &log, tol()).expect("replays");
+    assert!(
+        replayed.bit_eq(&doc),
+        "the log replays to the applied document"
+    );
+    assert!(
+        loaded.doc.bit_eq(&replayed),
+        "the loaded document is the replayed one"
+    );
+    the_empty_region_and_its_extrude(&loaded.doc, bare, bare_extrude, "loaded, inserted");
+    the_empty_region_and_its_extrude(&loaded.doc, rod_profile, rod_extrude, "loaded, emptied");
+
+    // And as a snapshot with no log.
+    let text = save(&loaded.doc, &[], tol()).expect("the snapshot saves");
+    let reloaded = load(&text, tol()).expect("the snapshot loads");
+    assert!(reloaded.doc.bit_eq(&loaded.doc), "the snapshot round-trips");
+}

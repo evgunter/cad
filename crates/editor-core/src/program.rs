@@ -2360,7 +2360,8 @@ impl ProfileProgram {
     /// # Errors
     ///
     /// [`ProfileProgram::check`]'s; [`ProgramRefusal::Unminted`] for a
-    /// program no document minted step ids for; and
+    /// program of loops no document minted step ids for (a program of
+    /// no loops has no step to mint one for, and names no piece); and
     /// [`ProgramRefusal::StepIds`] for ids not shaped one list per
     /// loop and one id per authored step.
     pub fn pieces(
@@ -2368,7 +2369,7 @@ impl ProfileProgram {
         env: &VarEnv<f64>,
         tol: Tol,
     ) -> Result<crate::eval::ProfilePieces, ProgramRefusal> {
-        if !self.carries_step_ids() {
+        if !self.carries_step_ids() && !self.loops.is_empty() {
             return Err(ProgramRefusal::Unminted);
         }
         self.check_id_shape().map_err(ProgramRefusal::StepIds)?;

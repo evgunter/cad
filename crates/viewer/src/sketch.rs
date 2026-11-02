@@ -2754,7 +2754,7 @@ mod tests {
     /// nothing.
     #[test]
     fn a_drawn_previews_hold_is_read_off_one_partition() {
-        let open_and_invalid = planted(false, Some(ProfileError::EmptyProfile));
+        let open_and_invalid = planted(false, Some(ProfileError::PlaneNotFinite));
         let hold = open_and_invalid.hold();
         assert!(matches!(hold, Some(PreviewHold::OpenChain)), "{hold:?}");
         assert_eq!(hold.map(|hold| hold.tone()), Some(Tone::Advisory));
@@ -2763,7 +2763,7 @@ mod tests {
         assert!(matches!(open.hold(), Some(PreviewHold::OpenChain)));
         assert_eq!(open.hold().map(|hold| hold.tone()), Some(Tone::Advisory));
 
-        let invalid = planted(true, Some(ProfileError::EmptyProfile));
+        let invalid = planted(true, Some(ProfileError::PlaneNotFinite));
         assert!(matches!(invalid.hold(), Some(PreviewHold::Invalid(_))));
         assert_eq!(
             invalid.hold().map(|hold| hold.tone()),
