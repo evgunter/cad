@@ -2,10 +2,12 @@
 id: a-union-across-a-tangent-crescent-refuses-unbuilt
 kind: issue
 title: A union of two plane faces overlapping in a crescent tangent at a vertex refuses TangentCrescentUnsupported: no germ runs along a region of zero angle
-status: open
+status: closed
 opened: 2026-10-25
 priority: P1
 cost: H
+closed: 2026-11-02
+pr: 6375
 ---
 
 
@@ -212,3 +214,7 @@ the heldrecords row) and
 `a_crescents_bodies_read_right_and_pinch_at_one_vertex_pair`. The
 crescents the plane-only gate leaves unread:
 `a-crescent-on-a-curved-carrier-or-a-spline-bound-is-read-as-a-touch`.
+
+## Closed
+
+2026-11-02, PR 6375. On the one bound-side reading every crescent bound decides (`Rides` on the coplanar face, `Leaves(Below)` against the curved partner wall), so `sectors::sector_overlap` reads a first-order touch one order down (`crescent`, through `geom_brep::parting`) for opposed plane faces and records the crescent as a coplanar overlap (`PairRecord::coincident`); the four crossing records survive and the existing join closes steps 3–4. The unions build in every pose and form at three ε, one shell through and two pocketed, pinched at one vertex–vertex record; ∩ empty and the differences SOUND. `crescent_refusal` and `TangentCrescentUnsupported` are gone. Full review: 144 cells point-in-solid 0 wrong; no built → refused move. Residue: `a-crescent-between-aligned-faces-is-read-as-a-touch`, `a-crescent-on-a-curved-carrier-or-a-spline-bound-is-read-as-a-touch` (both P2); the shared-arc pose's tier-3′ on HELDRECORDS' coincident-rim row; a tilt-0.7 ellipse-inside pad over the ceiling, unpinned.
