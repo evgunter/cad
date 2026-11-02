@@ -5,6 +5,7 @@ title: arc_fillet_arc (and the fused fillet family) draws none of its component 
 status: closed
 opened: 2026-11-02
 closed: 2026-11-02
+pr: 6306
 priority: P1
 cost: M
 ---
