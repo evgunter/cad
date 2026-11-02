@@ -59,6 +59,31 @@
 //! closest one on every ray whose forward half meets nothing else; the
 //! reverse ray reaches the arcs behind `p` first.
 //!
+//! # Two-leg paths
+//!
+//! Where no ray settles, a path of two legs is read ([`region::Paths`],
+//! `Path::Aimed`), at every target and each way round: from `p` along the
+//! great circle square to the plane of `p` and the target, to the corner
+//! at the target's angle from `p`; then round the parallel about `p`'s
+//! axis through the corner, which passes the target. Every great circle
+//! through `p` is a ray, and a parallel about `p`'s axis crosses each of
+//! them at a right angle, so an arc whose great circle runs near `p` —
+//! the sides of a slim lune whose end is `p`'s antipode, which every ray
+//! runs within the band of or meets only at that vertex — is crossed
+//! head-on by the second leg. The first leg leaves `p` square to the
+//! target's direction and stops short of the antipode, so it meets
+//! neither those arcs nor the vertex there.
+//!
+//! The reading is the region skeleton's ([`region::read_path`]), and it
+//! is sound for every face as a ray's is: the path is a curve on the
+//! sphere from `p`, so `p` lies on the face's side of the boundary that
+//! the path's closest crossing shows, crossings past the corner ordered
+//! along the second leg from the corner. A crossing at the corner, a
+//! vertex, a tangency or an edge along either leg grazes, and a target at
+//! `p`'s antipode or at `p` leaves the parallel no radius and reads
+//! nothing. A path is read only where no ray settled, so no ray's answer
+//! is replaced.
+//!
 //! # The boundary first
 //!
 //! Before any ray, `p` is read against every arc on the arc's own
@@ -94,6 +119,10 @@
 //! - `bool_sphere_region_at`: a crossing's place along the ray, from
 //!   `p`, at the sphere's radius.
 //! - `bool_sphere_region_order`: two crossings' places along the ray.
+//! - `bool_sphere_region_parallel`: a two-leg path's parallel's radius,
+//!   the sine of the target's angle from `p` at the sphere's radius.
+//! - `bool_sphere_region_corner`: a crossing's place along a path's first
+//!   leg against its corner.
 //! - `bool_sphere_region_cross`: the sine between the ray and the arc's
 //!   face side at the closest crossing, at the sphere's radius.
 //! - `bool_sphere_region_roots_*`: the first-harmonic door's own meters.
