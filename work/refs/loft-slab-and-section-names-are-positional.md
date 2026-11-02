@@ -5,7 +5,7 @@ title: A degree-1 loft's slab and section names count from the start section: ke
 status: open
 opened: 2026-10-28
 priority: P1
-cost: M
+cost: H
 ---
 
 
@@ -56,3 +56,41 @@ sentence is gone.
 This was parked on `d10-one-way-to-say-intent-is-unbuilt` because keying a name on a read is D10's vocabulary. That vocabulary is REFS's own charter ("a name scoped by its read"). The refactor hold binds programs building on D10's ground, not the programs building D10. So this row is REFS's, open now, P1. Ev's bound applies: the positional placeholder (PR 5923) may stand for no more than a couple of PRs.
 
 The open part is the key for two sections of one profile, which a read alone does not separate. That design question is REFS's to settle; the station's reads are one candidate.
+
+## Decided (2026-11-02, REFS orchestrator): a minted section id
+
+Two designers (fork `loft-section-key`) independently recommended the
+same final state, so no `[ev]` PR. It is a faithful elaboration of Ev's
+Decision 1a and of names README N1's "authored things are named by
+minted ids":
+
+- **A section is an authored placement, not a read.** Every loft
+  section, the first included, carries a `SectionId` (a `MintId`
+  newtype beside `StepId` and `ConstraintId`), minted when it is
+  authored and never reused. `InsertNode` mints one per section.
+  `DocEdit::SetLoftSections` states, for each new entry, the id of the
+  old section it keeps or `None` for a new one, as `SetProgram`'s `ids`
+  does: the door is told and never guesses. A foreign or doubled id
+  refuses. The load door checks section ids as it checks step ids.
+- **Names.** A wall is `LoftWall` over the (section id, edge locator)
+  pairs it spans, and a seam is `LoftSeam` over (section id, vertex
+  locator) pairs. An interior ring edge or vertex is (section id,
+  locator). `LoftSlabWall` and `LoftSlabSeam` are deleted: a degree-1
+  slab's wall spans two sections, and a higher-degree wall spans all
+  of them. Caps, rims and cap vertices stay end roles.
+- **Why not key on the station's reads.** A value typed at a slot
+  mints a new variable (VR6/VR7), so a read-keyed section would rename
+  on a retype. The `From { read }` precedent keys output reads, which
+  no value door re-mints.
+- **Done when**: everything above, plus:
+  - a retype of a station's value renames nothing;
+  - appending a section at degree 1 keeps the existing walls' names;
+  - names README N1's "Loft walls" paragraph is re-worded and the
+    placeholder sentence is gone; the "authored things" list gains the
+    loft section;
+  - REFERENCES DM4's stale "`Loft`'s `profiles`" sentence matches
+    `first`/`then`.
+
+Review tier: **dual** (naming architecture that every later loft name
+builds on, so hard to change later). Class H, so the protocol runs a
+concurrent pair.
