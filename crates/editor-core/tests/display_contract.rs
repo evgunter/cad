@@ -1023,6 +1023,7 @@ test_utils::f6_variants! {
         ConstraintNotMinted,
         MateRefused,
         InputList,
+        LoftShape,
         AssertionBound,
         ObservedRead,
         MetadataUnversioned,
@@ -1450,6 +1451,15 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 fault: ListFault::IndexedFamily,
             },
             vec!["Union 000000000005: the family argument carries an index"],
+        ),
+        (
+            SnapshotError::LoftShape {
+                node: held(5, "Loft"),
+                fault: editor_core::LoftFault::TooFewSections { have: 1 },
+            },
+            vec![
+                "Loft 000000000005 is a loft through 1 section, and a loft passes through two or more",
+            ],
         ),
         (
             SnapshotError::AssertionBound {

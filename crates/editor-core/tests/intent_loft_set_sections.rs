@@ -537,3 +537,62 @@ fn a_value_edit_to_a_zero_slide_is_refused_at_evaluation() {
         "SetStructuralParam after the value edit",
     );
 }
+
+/// **A saved loft no door would write refuses at load**: one section,
+/// and a section after the first with no station, each doctored into a
+/// saved two-section loft. Broken by a load door that admits either and
+/// leaves the count to evaluation, which holds no refusal for it.
+#[test]
+fn a_saved_loft_of_one_section_or_an_empty_station_refuses_at_load() {
+    let (doc, _, loft) = two_section_loft();
+    let text = editor_core::save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    editor_core::load(&text, Tol::witness()).expect("the fixture loads");
+    let key = loft.0.to_string();
+    // Each station's slides and spins read an anonymous variable that
+    // nothing else reads; dropping the station drops its variable
+    // too, as `DeleteNode` would, so the file breaks in the loft alone.
+    let dropped = |wire: &mut serde_json::Value, section_too: bool| {
+        let snapshot = &mut wire["snapshot"];
+        let then = snapshot["nodes"][&key]["Loft"]["then"]
+            .as_array_mut()
+            .expect("a loft's sections after the first");
+        let gone: Vec<serde_json::Value> = then[0]["station"]
+            .as_array()
+            .expect("a station is a list of moves")
+            .iter()
+            .flat_map(|step| step.as_object().expect("a move").values())
+            .map(|step| step["by"].clone())
+            .collect();
+        if section_too {
+            then.clear();
+        } else {
+            then[0]["station"] = serde_json::json!([]);
+        }
+        let vars = snapshot["vars"].as_object_mut().expect("the variables");
+        for var in &gone {
+            let var = var.as_str().expect("a variable's key");
+            assert!(vars.remove(var).is_some(), "the station's variable {var}");
+        }
+    };
+    let rows: [(String, LoftFault, &str); 2] = [
+        (
+            crate::wire::doctored(&text, |wire| dropped(wire, true)),
+            LoftFault::TooFewSections { have: 1 },
+            "one section",
+        ),
+        (
+            crate::wire::doctored(&text, |wire| dropped(wire, false)),
+            LoftFault::EmptyStation { section: 1 },
+            "an empty station",
+        ),
+    ];
+    for (corrupt, fault, what) in rows {
+        match editor_core::load(&corrupt, Tol::witness()) {
+            Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::LoftShape {
+                fault: got,
+                ..
+            })) => assert_eq!(got, fault, "{what}"),
+            other => panic!("{what}: a saved loft no door writes refuses at load, got {other:?}"),
+        }
+    }
+}
