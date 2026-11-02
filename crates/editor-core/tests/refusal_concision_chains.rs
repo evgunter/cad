@@ -1740,6 +1740,16 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "UnfinishedLeaf/NegativeVolume",
+            NodeErrorKind::UnfinishedLeaf {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::SolidKey::default(),
+                    },
+                ]),
+            },
+        ),
+        row(
             "EmptyHalf",
             NodeErrorKind::EmptyHalf {
                 input: RecipeNodeId::new(0, tagged(3)),
