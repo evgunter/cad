@@ -2,11 +2,13 @@
 id: a-planar-face-through-a-cones-apex-refuses-the-boolean-where-the-split-builds
 kind: issue
 title: A Boolean whose planar face passes through a cone's apex refuses NormalAtConeApex where the split through the same plane builds
-status: dispatched
+status: closed
 branch: splitdoor/cone-apex-boolean
 opened: 2026-10-29
 priority: P1
 cost: H
+closed: 2026-11-02
+pr: 6266
 ---
 
 Found while measuring the cone witness of
