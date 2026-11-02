@@ -2,8 +2,9 @@
 id: the-full-suite-jobs-three-eps-rows-outgrow-its-180-minutes
 kind: issue
 title: The nightly's full-suite job runs its three ε rows in one 180-minute job, and since PR 6011 they no longer fit
-status: open
+status: closed
 opened: 2026-10-30
+closed: 2026-11-02
 priority: P1
 cost: E
 ---
@@ -72,3 +73,19 @@ about build + the slowest row + the steps after, near two hours on
 these nights, and the build is paid once. A matrix over ε that builds
 in each leg is the smaller edit at three times the build minutes.
 Raising the limit only moves the date this row is filed again.
+
+## Closed
+
+`green/full-suite-split` (2026-11-02). `nightly.yml`'s `full-suite-build`
+builds once at opt-level 2 (the same env and `nightly-opt2` cache key),
+writes a `cargo nextest archive`, uploads it as `full-suite-archive` (one
+day), then runs the steps that were after the rows: doc-tests, the slow-set
+name check, the topo scalpel, wasm32. `full-suite` is a matrix over default,
+1e-6 and 1e-12: each leg checks out the tree, downloads the archive and runs
+`cargo nextest run --archive-file … --workspace-remap "$GITHUB_WORKSPACE"
+--profile ci --ignore-default-filter --no-fail-fast`, with
+`scripts/nextest-failures.py` and the failing-tests step per leg and a
+120-minute limit each. Each leg uploads its junit report as
+`full-suite-junit-<eps>`, so per-test times outlive the log. The steps after
+the rows sit in the build job rather than the default row's: they need the
+warm target directory, and the default leg has none.
