@@ -48,3 +48,15 @@
   - The fix pass is sent to lane 1.
 
 - 2026-11-02 — PR 6363 merged (`c627fdd4`); the edge-sector row is closed. TANGRIM has its filed join row (P2) for the bore's In side, whose disabled red pin is in `pi_seam_and_kiss_through_the_boolean.rs`.
+
+- 2026-11-02 — Lane 1's fix pass on PR 6378 (`77e0488f`, green):
+  - F1: the slack tie's descent is now decided on rise + parting (`Departure::Jet`) over band + slack.
+  - F2: the curvature charge must also clear the slack.
+  - F3: mutants M4/M5 are killed.
+  - F4–F6 are met.
+  - P3 row `conic-bend-side-reads-no-slack` is filed.
+  - CI's first red, the margin door gate at `sectors.rs:772`, was the PR's own; it is fixed.
+
+  Open tension: the hidden-slope row's plain descent changed, so the Jet may move plain-band decisions. I asked the lane to answer by reading.
+
+  Second Opus review (sequential arm, rule 1) dispatched on `77e0488f`, the whole unit (`session_013QoYWU8Nn4sytEyakcRdig`). It is briefed to measure first whether any plain-band decision moves.
