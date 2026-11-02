@@ -1769,11 +1769,13 @@ impl VerbatimEdge<'_> {
 /// a split's intact entities, a mirror's image (N1's pass-through ops). Every other node
 /// is classified as re-minting what it carries.
 ///
-/// Three walks read the set here: split's test of which cut placement's
-/// copy carries a name (`refactor::split`'s `in_world`), the mate
-/// member walk (`mate::member::walk`) and the coincidence door's walk
-/// to a cell's construction (`coincide::construction`); they differ
-/// only in where each stops. The compiler holds the four together:
+/// The walks that read the set here: split's test of which cut
+/// placement's copy carries a name (`refactor::split`'s `in_world`), the
+/// mate member walk (`mate::member::walk`) and the coincidence door's
+/// walk to a cell's construction (`coincide::construction`), which
+/// differ only in where each stops, and the takeover door's choice of
+/// the reads that hold a body's entities as themselves
+/// (`take_over`'s `held_as_itself`). The compiler holds them together:
 /// this match is exhaustive, so a new node kind does not compile until
 /// it is classified here, and each walk matches [`VerbatimEdge`]
 /// without a wildcard, so a new kind of edge does not compile until

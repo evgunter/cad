@@ -315,7 +315,7 @@ fn rebinds_of(
         .map(|(&copy, taken)| {
             let moved = ev
                 .table(taken.now)
-                .map(|table| crate::names::successors(table, taken.was))
+                .map(|table| crate::names::successors(table, &held_as_itself(doc, taken.was)))
                 .unwrap_or_default();
             (copy, moved)
         })
@@ -417,6 +417,26 @@ fn chains(doc: &Doc<ProfileProgram>, taken: &TakenOver) -> BTreeMap<RecipeNodeId
         }
     }
     chains
+}
+
+/// **The reads that hold the entities of `was` as themselves**, under
+/// its own names and where they stood: `was`, and each half of every
+/// split of it, which holds the entities the split leaves intact. A
+/// mirror's image holds their images, and a copy holds them elsewhere,
+/// so neither is the entity a reader of `was` held.
+fn held_as_itself(doc: &Doc<ProfileProgram>, was: VarId) -> Vec<VarId> {
+    use crate::names::VerbatimEdge;
+    let mut reads = vec![was];
+    for node in doc.ids() {
+        let intact = match doc.node(node).and_then(crate::names::verbatim_edge) {
+            Some(VerbatimEdge::Intact { target }) => target == was,
+            Some(VerbatimEdge::Reflected { .. } | VerbatimEdge::Copied { .. }) | None => false,
+        };
+        if intact {
+            reads.extend(doc.outputs(node));
+        }
+    }
+    reads
 }
 
 /// [`fn@take_over`]'s outcome: the action applied, and what it

@@ -740,10 +740,15 @@ pub enum SessionOp {
         spec: super::BooleanSpec,
     },
     /// Insert one split of an existing body by a plane — the split
-    /// tool's one committed edit. A split defines two bodies, its
-    /// `above` and `below` outputs, and it changes nothing in the
-    /// world: the target's placements keep reading the target, and a
-    /// half is read by its port wherever a body seat takes one.
+    /// tool's one committed action. A split defines two bodies, its
+    /// `above` and `below` outputs, and a half is read by its port
+    /// wherever a body seat takes one. What reads the target along a
+    /// seen path (a placement's source, a `⊔` operand, the product
+    /// slot) reads `above ⊔ below` instead, in the same action — the
+    /// takeover a fillet makes (`Recording::take_over`) — so each copy
+    /// shows the two halves where it showed the body. A mate on a face
+    /// the split leaves intact is re-seated on it; one on a face the
+    /// split cuts goes stale, in the split's own words.
     ///
     /// The plane is the one through `origin` with normal `normal` in
     /// the target's own coordinates, read off the target's geometry
@@ -768,14 +773,14 @@ pub enum SessionOp {
     /// body the copy places (`crate::world::body_of`), so the plane reads
     /// the geometry of the body's space, as a mirror's plane must.
     ///
-    /// A body the world draws becomes the symmetric part: the image
-    /// (`Node::Mirror`) and the union of the body and its image, in the
-    /// body's space, the body's drawn copies taken over by the union —
-    /// the feature takeover a fillet makes (`Recording::take_over`) — so the part is drawn where
-    /// each copy stands and moves with the copy's placement. A mate that
-    /// another placement seats on a face of the body's copy goes stale
-    /// at the takeover, as it does at a fillet's. A body nothing places
-    /// gets its image alone, reached in the tree.
+    /// The body becomes the symmetric part: the image (`Node::Mirror`)
+    /// and the union of the body and its image, in the body's space,
+    /// what reads the body along a seen path taken over by the union —
+    /// the feature takeover a fillet makes (`Recording::take_over`) — so
+    /// the part is drawn where each copy stands and moves with the
+    /// copy's placement. A mate that another placement seats on a face
+    /// of the body's copy is re-seated where the union carries the face
+    /// whole, and goes stale where it does not, as at a fillet.
     ///
     /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
     /// a face read in another space — another construction's, or its

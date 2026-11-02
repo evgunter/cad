@@ -24,9 +24,14 @@
 //! deeper. What the two share is only the one-level shape of a carry
 //! and of a set.
 //!
-//! So a result answers here only for what it carries of the taken read
-//! directly. Most takeovers' results read the taken body directly (a
-//! feature of it, a union or a combine over it). A fused pattern's
+//! So a result answers here only for what it carries of the reads it
+//! is asked about directly. Most takeovers' results read the taken body
+//! directly (a feature of it, a union or a combine over it); a split's
+//! `⊔` reads its two halves, which hold the faces the split leaves
+//! intact under the body's own names, so the takeover door asks about
+//! the halves beside the body (`crate::take_over`). A face the split
+//! cuts is a `SplitFragment` in each half, no carry of the face itself,
+//! and has no successor. A fused pattern's
 //! union reads it through its family, carrying each face once per
 //! member, so its takeover has no successor for any face (issue
 //! `work/doors/a-fused-patterns-takeover-rebinds-nothing.md`). A copy
@@ -40,24 +45,27 @@ use super::role::{RoleSeg, StableName};
 use super::table::{Entry, NameTable};
 use crate::VarId;
 
-/// **The successor in `table` of each name of `read` it carries in**,
-/// keyed by that name.
+/// **The successor in `table` of each name it carries in through
+/// `reads`**, keyed by that name: `reads` are the reads that hold one
+/// body's entities as themselves under its own names (the body's read,
+/// and a split half of it, which holds the entities the split leaves
+/// intact).
 ///
-/// A row counts when its whole path is `[From { read, of }]`, or
-/// `[Merged(set)]` with that carry among the set; a row with more
-/// segments (a fragment, a borders qualifier) carries a piece of `of`
-/// and does not count. A name two rows count for, or whose one row
-/// is tied, has no successor and is left out.
-pub fn successors(table: &NameTable, read: VarId) -> BTreeMap<StableName, StableName> {
+/// A row counts when its whole path is `[From { read, of }]` with
+/// `read` among `reads`, or `[Merged(set)]` with such a carry among the
+/// set; a row with more segments (a fragment, a borders qualifier)
+/// carries a piece of `of` and does not count. A name two rows count
+/// for, or whose one row is tied, has no successor and is left out.
+pub fn successors(table: &NameTable, reads: &[VarId]) -> BTreeMap<StableName, StableName> {
     let mut found: BTreeMap<&StableName, Vec<(&StableName, bool)>> = BTreeMap::new();
     for (row, entry) in table.iter() {
         let unique = matches!(entry, Entry::Unique(_));
         let carried: Vec<&StableName> = match row.path.as_slice() {
-            [RoleSeg::From { read: r, of }] if *r == read => vec![of.name()],
+            [RoleSeg::From { read: r, of }] if reads.contains(r) => vec![of.name()],
             [RoleSeg::Merged(set)] => set
                 .iter()
                 .filter_map(|member| match member.path.as_slice() {
-                    [RoleSeg::From { read: r, of }] if *r == read => Some(of.name()),
+                    [RoleSeg::From { read: r, of }] if reads.contains(r) => Some(of.name()),
                     _ => None,
                 })
                 .collect(),
@@ -220,7 +228,7 @@ mod a_successor_is_one_whole_unique_row {
         table
             .insert_tied(from(READ, own(3)), vec![ent(10), ent(11)])
             .expect("a tie");
-        let found = successors(&table, READ);
+        let found = successors(&table, &[READ]);
         assert_eq!(
             found,
             BTreeMap::from([(own(0), whole.clone()), (own(1), set.clone())]),
