@@ -1257,14 +1257,7 @@ pub fn spiric_period_box<T: Real>(
     minor: T,
     offset: T,
 ) -> (Point3<T>, Point3<T>) {
-    let charge_at = |rho: T| (rho.powi(2) + offset.powi(2)) * T::from_f64(4.0 * f64::EPSILON);
-    let (slack_in, slack_out) = (charge_at(major - minor), charge_at(major + minor));
-    let (inner, outer) = spiric_radicands(major, minor, offset);
-    let f_lo = (inner - slack_in)
-        .max(T::zero())
-        .min(inner + slack_in)
-        .sqrt();
-    let f_hi = (outer + slack_out).sqrt();
+    let (f_lo, f_hi) = spiric_f_enclosed(major, minor, offset);
     let norm1 = |v: Vec3<T>| v.x.abs() + v.y.abs() + v.z.abs();
     let (na, nn) = (norm1(axis), norm1(u_ref));
     let scale = norm1(Vec3::new(center.x, center.y, center.z))
@@ -1283,6 +1276,21 @@ pub fn spiric_period_box<T: Real>(
     let (yl, yh) = per(base.y, m.y, axis.y);
     let (zl, zh) = per(base.z, m.z, axis.z);
     (Point3::new(xl, yl, zl), Point3::new(xh, yh, zh))
+}
+
+/// [`spiric_period_box`]'s `[f_min, f_max]`, each radicand widened by
+/// its own charge before its root (that function's docs carry the
+/// derivation), so it holds the oval's `f` over a period at every
+/// scalar. The cover's spiric rectangle reads the same two numbers.
+pub(crate) fn spiric_f_enclosed<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
+    let charge_at = |rho: T| (rho.powi(2) + offset.powi(2)) * T::from_f64(4.0 * f64::EPSILON);
+    let (slack_in, slack_out) = (charge_at(major - minor), charge_at(major + minor));
+    let (inner, outer) = spiric_radicands(major, minor, offset);
+    let f_lo = (inner - slack_in)
+        .max(T::zero())
+        .min(inner + slack_in)
+        .sqrt();
+    (f_lo, (outer + slack_out).sqrt())
 }
 
 /// **Bounds on a spiric's speed and acceleration over a stretch of the
