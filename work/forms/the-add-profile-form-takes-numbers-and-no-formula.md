@@ -5,6 +5,8 @@ title: The add-profile form takes only numbers: a step's argument cannot be writ
 status: open
 opened: 2026-10-31
 priority: P1
+cost: E
+rides_with: the-profile-create-form-is-a-second-profile-editor
 ---
 
 
