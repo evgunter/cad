@@ -60,3 +60,10 @@
   Open tension: the hidden-slope row's plain descent changed, so the Jet may move plain-band decisions. I asked the lane to answer by reading.
 
   Second Opus review (sequential arm, rule 1) dispatched on `77e0488f`, the whole unit (`session_013QoYWU8Nn4sytEyakcRdig`). It is briefed to measure first whether any plain-band decision moves.
+
+- 2026-11-02 — PR 6378 second review (sequential arm, `77e0488f`): APPROVE-WITH-FIXES, no MAJOR.
+  - Confirmed F1–F3 and s3 with mutants; full topo lib suite green.
+  - The plain-band tension is resolved: `Departure::Jet` runs only on a slack tie, which no plain reading makes. Lane 1 found the same independently.
+  - Raised beyond R1: MINOR G1, the first order over a slack refuses in the band's gap instead of tying (not monotone in the rise, executed). The fuzz's apex mode never judges its disagreeing draws. `Tie` doesn't carry its `Reading`. The charge re-spells settle's slack move by hand.
+  - Adjudicated: G1 must fix, with probe and texts. G2–G4 wanted: Jet docs, a typed tie origin or a P3 row, a judged apex mode. The pierce spellings go to lane 2.
+  - Last fix pass sent to lane 1; no third review.
