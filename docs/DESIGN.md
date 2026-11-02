@@ -797,8 +797,8 @@ tiers".
   boundary is **embedded** off those records (it meets itself only
   along its own edges and its recorded contacts), certified by the
   clearance engine's body-level injectivity question at every scalar
-  with certification rights: `f64`, `Probe`, `Interval` and `Sym`; a
-  dual answers `NotRunAtThisScalar`. At a point scalar (`f64`,
+  with certification rights (`f64`, `Probe`, `Interval` and `Sym`;
+  a scalar without them, such as a dual, cannot reach the gate). At a point scalar (`f64`,
   `Probe`) the question carries a margin of 2ε. Pieces of the boundary
   that do not meet in the body (no shared edge, vertex or recorded
   contact) are more than 2ε apart. Where faces do meet, or a face is
