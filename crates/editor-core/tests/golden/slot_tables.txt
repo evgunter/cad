@@ -30,7 +30,7 @@ HollowTube { major_radius: #0, window: Arc { t0: #2, t1: #3 }, minor_radius: #1,
   #2 TubeWindowStart
   #3 TubeWindowEnd
   #4 TubeWall
-Loft { first: @0, then: [LoftSection { profile: @1, station: [Slide { along: Z, by: #0 }] }], v_degree: #1 }
+Loft { first: @0, then: [LoftSection { profile: @1, station: [Slide { along: Z, by: #0 }] }], v_degree: #1, ids: [] }
   #0 StationSlide { section: 1, step: 0 }
   #1 VDegree
   @0 Operand(Section(0))
