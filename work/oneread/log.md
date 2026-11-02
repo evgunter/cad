@@ -105,3 +105,12 @@
   - Fuzz: 0 wrong at three ε.
   - Taken: A′ alone. Item 3 of the line-cone side's `## Decided` is amended with the A′ clause; lane 1's "no parity base" rule stands.
   - Lane 2 carries on: the slow-set three-ε diff, the `pick` germ, K-REPORT, item 4's re-wording, the sweep, then the PR.
+
+- 2026-11-02 — Lane 2 handed back PR 6407 (head `0bada6b2`, main `da054a46` merged in).
+  - **CI is red, but not ours.** `gate ok` fails only because main does not compile: `census.rs`:8942–8962, a semantic collision between #6391 (onehome's typed `Lever`) and #6350 (restread's tangent fan). Main's push CI on `e4beb85` is red the same way. The fix is another program's open PR 6408; not ours to touch.
+  - **Outcome diff against main:** 0 ops moved over the 9,339-test ci set and the 317-test tangent/vertex-pair suite, at three ε. 0 germ, membership or `partner_side` changes.
+  - **Decision diff:** the moved `cone_classes` readings (59 in ci, 160 per ε in the slow sets) agree with `point_in_solid`. At 1e-6 the oracle's sample is in its own band, so it gives no definite opposite.
+  - The P2 partner-side row is closed with the PR. New P3: `the-vertex-pair-sector-pass-reads-a-bounds-side-on-the-band-beside-its-tie`.
+  - The pick germ is covered by four existing body rows with closed-form volumes. No new body row was written.
+  - **Coupling:** TANGRIM 6385 adds `BoundSupport::Conic { arc }`.
+  - **Next:** once 6408 merges, the lane re-merges main and polls CI to green. Rule 1's draw (letter M) happens on that frozen head.
