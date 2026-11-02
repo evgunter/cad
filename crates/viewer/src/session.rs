@@ -1374,46 +1374,32 @@ impl DocSession {
         }
         // Not ahead of the picture, so the run names are judged by is
         // the landed one.
-        let (doc, eval) = self.name_run()?;
+        let (_, eval) = self.name_run()?;
         let run = self.derived.landed.as_ref()?;
         let Clearances::Settled(answers) = &run.clearances else {
             return None;
         };
         let pair = tree::witness_pair(&answers.iter().find(|a| a.assertion == assertion)?.answer)?;
-        let Some(Node::Assertion(pncad::document::Claim::Clearance { a, b, .. })) =
-            doc.node(assertion)
-        else {
-            return None;
-        };
-        // Each seat's face as the picture names it: a face seat's own
-        // name, and a body seat's face by the key the pair carries, in
-        // the table of the body the seat reads. The certifying run and
-        // this one are runs of one document, so the key is the same
-        // face in both.
-        let seat = |var: VarId, key: pncad::topo::FaceKey| {
-            let (read, name) = match doc.selection(var) {
-                Some(select) => (select.body, select.names.first()?.clone()),
-                None => (
-                    var,
-                    eval.table(var)?
-                        .name_of(&EntityRef {
-                            body: 0,
-                            key: EntityKey::Face(key),
-                        })?
-                        .clone(),
-                ),
-            };
-            let (node, port) = eval.read_port(read)?;
-            let framed = eval.read_body(read, 0).ok()?.ok()?;
-            // The drawn body the read is: a split's half at its port,
-            // any other node's body 0.
-            let body = [u32::from(port), 0]
-                .into_iter()
-                .find(|&body| eval.body_read_of(node, body) == Some((read, 0)))?;
+        // Each face where the kernel read it: the node and the output
+        // body — a pattern's member, for a face seat on one — that the
+        // seat resolved to and the pair carries, named by its key in
+        // that body's table. The certifying run and this one are runs of
+        // one document, so the key is the same face in both.
+        let seat = |(node, body): (RecipeNodeId, u32), key: pncad::topo::FaceKey| {
+            let framed = eval.value(node)?.payload.output_body(body).ok()?;
+            let (read, entity) = eval.entity_read(
+                node,
+                EntityRef {
+                    body,
+                    key: EntityKey::Face(key),
+                },
+            )?;
+            let name = eval.table(read)?.name_of(&entity)?.clone();
             Some((FaceSelection { name, node, body }, framed))
         };
-        let (face_a, framed_a) = seat(*a, pair.face_a)?;
-        let (face_b, framed_b) = seat(*b, pair.face_b)?;
+        let [side_a, side_b] = pair.bodies;
+        let (face_a, framed_a) = seat(side_a, pair.face_a)?;
+        let (face_b, framed_b) = seat(side_b, pair.face_b)?;
         let computing = pncad::document::Framed::computing_among([framed_a, framed_b])?;
         let point = |[x, y, z]: [f64; 3]| pncad::geom_core::Point3::new(x, y, z);
         Some(Witnessed {

@@ -1380,6 +1380,7 @@ mod tests {
             distance: 0.01,
             face_a: pncad::topo::FaceKey::default(),
             face_b: pncad::topo::FaceKey::default(),
+            bodies: [(id, 0); 2],
         }));
         let equation = "clearance(Extrude \"left\" (0009), Extrude \"right\" (000a)) ≥ 0.02 m";
         for (answer, state, detail, loud) in [

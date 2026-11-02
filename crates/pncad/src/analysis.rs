@@ -281,6 +281,11 @@ pub struct PairOfPoints {
     pub face_a: topo::FaceKey,
     /// The second seat's face.
     pub face_b: topo::FaceKey,
+    /// **Which body each face is of**, as the kernel resolved each seat:
+    /// the node it was read at and which of its output bodies — the
+    /// member, for a face seat on a pattern's member. The first seat's,
+    /// then the second's.
+    pub bodies: [(crate::document::RecipeNodeId, u32); 2],
 }
 
 impl PairOfPoints {
@@ -293,6 +298,7 @@ impl PairOfPoints {
             distance: g.distance,
             face_a: g.a,
             face_b: g.b,
+            bodies: w.sides,
         }
     }
 }

@@ -2540,7 +2540,7 @@ where
             b,
         );
     }
-    let verdict = crate::clearance::verdict_of(report.verdict.clone(), param, refused);
+    let verdict = crate::clearance::verdict_of(report.verdict.clone(), param, sides, refused);
     answer(ClearanceReport::of(verdict, &report))
 }
 

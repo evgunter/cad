@@ -745,3 +745,201 @@ fn a_requirement_over_a_patterns_members_refuses_in_words() {
         "a face of a drawn member reads that member"
     );
 }
+
+/// **A pattern of the left block along `+y`, members 50 mm apart**,
+/// with the right block standing beside the third member, 10 mm from
+/// it: answering the session, the index of the picture, the node that
+/// draws the pattern, and the right block.
+fn member_scene(
+    tol: Tol,
+) -> (
+    DocSession,
+    viewer::pickindex::PickIndex,
+    RecipeNodeId,
+    RecipeNodeId,
+) {
+    use viewer::test_support::{inserted, rectangle};
+    let block = |doc: &pncad::document::Doc<pncad::document::ProfileProgram>, x: f64, y: f64| {
+        let (doc, profile) = inserted(doc, rectangle([x, y], SIDE, SIDE), tol);
+        inserted(
+            &doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(0.01),
+            },
+            tol,
+        )
+    };
+    let doc = pncad::document::Doc::empty_derived("member-witness", tol);
+    let (doc, left) = block(&doc, 0.0, 0.0);
+    let (doc, right) = block(&doc, SIDE + GAP, 0.10);
+    let mut session = DocSession::inline(doc, tol);
+    let pattern = add(
+        &mut session,
+        SessionOp::AddPattern {
+            input: left.into(),
+            count: 3,
+            rule: viewer::session::PatternRuleSpec::Linear {
+                direction: viewer::test_support::scl3([0.0, 1.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+    );
+    session.pump();
+    for node in [pattern, right] {
+        let placed = session.perform(SessionOp::AddToProduct { node, body: None });
+        assert!(placed.refusal.is_none(), "{:?}", placed.refusal);
+        session.pump();
+    }
+    // A pattern moved into the world is drawn by its own node; a copy
+    // of one, by the copy.
+    let drawn = viewer::world::placements_of(session.committed_doc(), pattern)
+        .first()
+        .copied()
+        .unwrap_or(pattern);
+    let index = picture_index(&session, tol);
+    (session, index, drawn, right)
+}
+
+/// The index of the picture the session's landing draws.
+fn picture_index(session: &DocSession, tol: Tol) -> viewer::pickindex::PickIndex {
+    let (landed, eval) = session.landed_pair().expect("landed");
+    viewer::pickindex::PickIndex::build(
+        landed,
+        eval,
+        viewer::pickindex::PictureKey::of(
+            session.generation(),
+            viewer::test_support::plate_delta(),
+            viewer::world::Shown::none(),
+        ),
+        tol,
+    )
+    .expect("the scene indexes")
+}
+
+/// A face of `member` of the drawn pattern, as a pick in the picture
+/// takes it.
+fn member_face(
+    index: &viewer::pickindex::PickIndex,
+    drawn: RecipeNodeId,
+    member: u32,
+) -> viewer::session::FaceSelection {
+    let id = *index
+        .ids_in(drawn, member)
+        .first()
+        .expect("the member is drawn");
+    index.face_of(id).expect("a drawn patch is a named face")
+}
+
+/// What a selected clearance row marks: the lit patches and the leg.
+fn marked(
+    session: &DocSession,
+    index: &viewer::pickindex::PickIndex,
+    requirement: RecipeNodeId,
+) -> ([u32; 2], Vec<[f32; 3]>) {
+    let witnessed = session
+        .witness(requirement)
+        .expect("a violation has its pair");
+    let (mut lit, mut legs) = (
+        viewer::marks::Highlight::default(),
+        viewer::marks::EdgeOverlay::default(),
+    );
+    viewer::marks::witness(
+        index,
+        &session.display_view(),
+        &witnessed,
+        viewer::marks::WitnessLit::Selected,
+        (&mut lit, &mut legs),
+    );
+    ([lit.selected, lit.selected_second], legs.selected)
+}
+
+/// **A face seat on a pattern member is witnessed on that member**: a
+/// face of the third member against the right block, 10 mm away, is
+/// violated at 50 mm, and its witness lights the very patch picked and
+/// draws its leg from that member — not from the first, which the seat
+/// does not read.
+///
+/// Red if the witness reads a seat's body as body 0 rather than as the
+/// member the kernel resolved it to.
+#[test]
+fn a_pattern_member_face_seat_is_witnessed_on_that_member() {
+    let tol = Tol::witness();
+    let (mut session, index, drawn, right) = member_scene(tol);
+    let face = member_face(&index, drawn, 2);
+    let requirement = add(
+        &mut session,
+        SessionOp::AddClearance {
+            a: ClearedSeat::Face(face.clone()),
+            b: ClearedSeat::Body(right.into()),
+            bounds: ClearanceBounds::AtLeast(len(0.05)),
+        },
+    );
+    session.pump();
+    assert!(
+        matches!(
+            cleared(&session, requirement).answer,
+            Certified::Answered(ClearanceOutcome::Violated(_))
+        ),
+        "the premise: the third member is 10 mm away"
+    );
+    let index = picture_index(&session, tol);
+    let ([lit, _], leg) = marked(&session, &index, requirement);
+    let picked = index.ids_of_target(&face);
+    assert_eq!(picked.len(), 1, "the picked face is drawn once");
+    assert_eq!(
+        lit, picked[0],
+        "the lit face is the picked one, on the third member"
+    );
+    assert!(
+        (0.10 - 1e-6..=0.12 + 1e-6).contains(&f64::from(leg[0][1])),
+        "the leg starts on the third member (y in [100, 120] mm): {leg:?}"
+    );
+}
+
+/// **Two members' faces are witnessed where each member stands**: a
+/// face of the second member against one of the third, neither in its
+/// space's own frame, so the pair is decided in a member's frame. The
+/// leg is drawn from the second member to the third — not 50 mm off,
+/// beside the first.
+///
+/// Red if the witness composes the pair through the first member's
+/// frame.
+#[test]
+fn two_pattern_members_faces_are_witnessed_where_each_stands() {
+    let tol = Tol::witness();
+    let (mut session, index, drawn, _) = member_scene(tol);
+    let (second, third) = (member_face(&index, drawn, 1), member_face(&index, drawn, 2));
+    let requirement = add(
+        &mut session,
+        SessionOp::AddClearance {
+            a: ClearedSeat::Face(second.clone()),
+            b: ClearedSeat::Face(third.clone()),
+            bounds: ClearanceBounds::AtLeast(len(0.2)),
+        },
+    );
+    session.pump();
+    assert!(
+        matches!(
+            cleared(&session, requirement).answer,
+            Certified::Answered(ClearanceOutcome::Violated(_))
+        ),
+        "the premise: two members are nearer than 200 mm"
+    );
+    let index = picture_index(&session, tol);
+    let (lit, leg) = marked(&session, &index, requirement);
+    assert_eq!(
+        lit,
+        [
+            index.ids_of_target(&second)[0],
+            index.ids_of_target(&third)[0]
+        ],
+        "both picked faces are lit"
+    );
+    let y = |end: [f32; 3]| f64::from(end[1]);
+    assert!(
+        (0.05 - 1e-6..=0.07 + 1e-6).contains(&y(leg[0]))
+            && (0.10 - 1e-6..=0.12 + 1e-6).contains(&y(leg[1])),
+        "the leg runs from the second member to the third: {leg:?}"
+    );
+}
