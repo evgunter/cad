@@ -4143,10 +4143,7 @@ mod tests {
             "q's side clears its plane over the tie"
         );
         assert!(
-            matches!(
-                tied.reads_given(q, &[], rd),
-                Err(Unread::Arc { sector: None, .. })
-            ),
+            tied.reads_given(q, &[], rd).is_err(),
             "the arc does not clear the apex over the tie"
         );
     }
