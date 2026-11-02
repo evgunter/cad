@@ -207,10 +207,19 @@ fn a_same_surface_smooth_split_is_a_smooth_seam_left_as_it_is() {
         size: 0.05,
     };
     let verdict = run_battery(&req, band()).expect("a smooth seam is no refusal");
+    let [(seam, margin)] = verdict.smooth[..] else {
+        panic!(
+            "the battery names the seam smooth, got {:?}",
+            verdict.smooth
+        )
+    };
+    assert_eq!(seam, wall_edge, "the battery names the seam smooth");
+    assert_eq!(margin.predicate, "fillet3_convexity_sign");
+    assert_eq!(margin.sign, Sign::Zero);
     assert_eq!(
-        verdict.smooth,
-        vec![wall_edge],
-        "the battery names the seam smooth"
+        margin.reading.diagnostic_f64_for_error_text().value(),
+        Some(0.0),
+        "a smooth split has an exactly-zero wedge"
     );
     assert!(verdict.chains.is_empty(), "and builds no chain on it");
     let operand = sweep::test_support::at_rest(&body, tol());

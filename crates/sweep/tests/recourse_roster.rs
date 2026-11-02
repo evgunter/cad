@@ -161,6 +161,10 @@ const PAIRING: &[(BlendDecision, &str)] = &[
         sweep::blend::FILLET3_TANGENTIAL_RECOURSE,
     ),
     (
+        BlendDecision::MaterialSide,
+        sweep::blend::FILLET3_CHAIN_RECOURSE,
+    ),
+    (
         BlendDecision::RingClearance,
         sweep::blend::FILLET3_RING_RECOURSE,
     ),
@@ -388,10 +392,11 @@ const NO_TOLERANCE: &[BlendDecision] = &[
 ];
 
 /// The decisions that pass on a negative sign as well as a positive one:
-/// the convexity sign on either side, and the contact edge's
-/// second-order separation on any definite sign.
+/// the convexity sign on either side, the material side either way, and
+/// the contact edge's second-order separation on any definite sign.
 const TWO_SIDED: &[BlendDecision] = &[
     BlendDecision::ConvexitySign,
+    BlendDecision::MaterialSide,
     BlendDecision::ContactSecondOrder,
 ];
 

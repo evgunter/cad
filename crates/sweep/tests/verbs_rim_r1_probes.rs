@@ -13,17 +13,17 @@
 //!   over-reports.
 //! - **The #554 pair at randomized geometry**: full and partial
 //!   revolves of one profile DECIDE the same dihedral — red if the
-//!   closed form regresses to `KnifeEdge`. Past that decision the
+//!   closed form regresses to a zero wedge. Past that decision the
 //!   closed rim's band is built and the open arc reaches its
 //!   unimplemented seam-meridian corner.
 //! - **The detector differential**: a co-surface seam meridian still
-//!   refuses `KnifeEdge` at margin exactly 0.0 — red if the fix
-//!   removed the detector rather than the false positive.
+//!   reads Zero at margin exactly 0.0 — red if the fix removed the
+//!   detector rather than the false positive.
 //! - **A closed one-edge chain has no junctions**: the structural fact
 //!   the explicit wrap-around G1 site rests on — red if the walk
 //!   starts minting junctions for self-closed links.
 //! - **The newly reachable frontier builds**: a convex plane–sphere
-//!   closed rim PASSES the battery (it used to refuse `KnifeEdge`
+//!   closed rim PASSES the battery (it used to decide a zero wedge
 //!   before any construction) and `fillet_edges` mints its annulus
 //!   band — red if a one-edge rim stops reaching, or stops building
 //!   at, the surgery's closed-chain door.
@@ -293,7 +293,7 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
             )
             .map_err(|r| r.error);
             assert!(
-                !matches!(v, Err(BlendError::KnifeEdge { .. })),
+                !sweep::test_support::read_as_tangent(&v),
                 "neck {a}, closed = {closed}: a transverse corner is not a tangency, \
                  got {v:?}; {}",
                 fuzz::replay()
@@ -315,8 +315,9 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
 
 /// **The detector differential**: a full ball's seam meridian is a
 /// co-surface edge (one sphere on both sides, dihedral sine exactly
-/// zero) and still refuses `KnifeEdge` at margin exactly 0.0 —
-/// the fix removed the collapsed lever, not the tangency detector.
+/// zero) and still reads Zero at margin exactly 0.0, a smooth seam the
+/// blend leaves as it is — the fix removed the collapsed lever, not the
+/// tangency detector.
 #[test]
 fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
     let mut rng = fuzz::start("rim-r1 seam differential");
@@ -333,28 +334,14 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
             just(SurfaceKind::Sphere),
         );
         assert!(!seams.is_empty(), "a full ball carries a seam meridian");
-        match fillet_edges(
-            &sweep::test_support::at_rest(&ball, tol()),
-            &seams[..1],
-            0.05 * r,
-            tol(),
-        )
-        .map_err(|r| r.error)
-        {
-            Err(BlendError::KnifeEdge { margin, .. }) => {
-                assert_eq!(margin.predicate, "fillet3_convexity_sign");
-                assert_eq!(
-                    margin.reading.diagnostic_f64_for_error_text().value(),
-                    Some(0.0),
-                    "a co-surface seam's sine is structurally zero; {}",
-                    fuzz::replay()
-                );
-            }
-            other => panic!(
-                "expected KnifeEdge at 0.0, got {other:?}; {}",
-                fuzz::replay()
-            ),
-        }
+        let margin = sweep::test_support::smooth_reading(&ball, seams[0], 0.05 * r, tol());
+        assert_eq!(margin.predicate, "fillet3_convexity_sign");
+        assert_eq!(
+            margin.reading.diagnostic_f64_for_error_text().value(),
+            Some(0.0),
+            "a co-surface seam's sine is structurally zero; {}",
+            fuzz::replay()
+        );
     }
 }
 
@@ -464,7 +451,7 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
     )
     .map_err(|r| r.error);
     assert!(
-        !matches!(v, Err(BlendError::KnifeEdge { .. })),
+        !sweep::test_support::read_as_tangent(&v),
         "the dihedral must decide at the honest lever, not starve: {v:?}"
     );
     assert!(

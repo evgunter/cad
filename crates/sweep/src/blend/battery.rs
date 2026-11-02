@@ -475,9 +475,9 @@ pub struct BatteryVerdict<T: Real> {
     /// each turn off this list rather than re-reading the trihedron.
     pub turns: Vec<Turn<T>>,
     /// The requested edges predicate 5 read as smooth seams
-    /// ([`LinkWedge::Smooth`]), in request order: in no chain, and left
-    /// as they are.
-    pub smooth: Vec<EdgeKey>,
+    /// ([`LinkWedge::Smooth`]), each with the decided-Zero margin it
+    /// read, in request order: in no chain, and left as they are.
+    pub smooth: Vec<(EdgeKey, ClassifiedMargin)>,
 }
 
 impl<T: Real> BatteryVerdict<T> {
@@ -1046,7 +1046,7 @@ pub(crate) enum Resolved<T: Real> {
     /// A link with a definite wedge side.
     Link(Link<T>),
     /// The smooth seam at this edge.
-    Smooth(EdgeKey),
+    Smooth(EdgeKey, ClassifiedMargin),
 }
 
 /// Resolve one link: supports, arm, blend, convexity. Refuses typed
@@ -1110,7 +1110,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         band,
     )? {
         (LinkWedge::Blend(convexity), margin) => (convexity, margin),
-        (LinkWedge::Smooth, _) => return Ok(Resolved::Smooth(edge)),
+        (LinkWedge::Smooth, margin) => return Ok(Resolved::Smooth(edge, margin)),
     };
     let (arm, blend, axis) = classify_arm(
         &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, edge, kind, band,
@@ -1897,14 +1897,14 @@ pub fn run_battery_for<T: Decide + Bounds>(
     for edge in &req.edges {
         match resolve_link(body, *edge, r, band, kind)? {
             Resolved::Link(link) => links.push(link),
-            Resolved::Smooth(edge) => smooth.push(edge),
+            Resolved::Smooth(edge, margin) => smooth.push((edge, margin)),
         }
     }
     let blended: Vec<EdgeKey> = req
         .edges
         .iter()
         .copied()
-        .filter(|e| !smooth.contains(e))
+        .filter(|e| !smooth.iter().any(|(s, _)| s == e))
         .collect();
     let chains = walk_chains(links);
 
@@ -2860,7 +2860,7 @@ fn corner_at<T: Decide + Bounds>(
             // not lost SILENTLY, because the tag says the
             // configuration did not classify. A smooth neighbour is no
             // wedge to count, and folds the same way.
-            Ok(Resolved::Smooth(_)) | Err(_) => {
+            Ok(Resolved::Smooth(..)) | Err(_) => {
                 return Err(indeterminate());
             }
         }

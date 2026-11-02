@@ -344,9 +344,13 @@ impl TreeRow {
     pub fn tone(&self) -> Tone {
         match &self.readout {
             Some(Readout::Asserted(asserted)) => asserted.tone(),
-            Some(Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_)) | None => {
-                self.status.tone()
-            }
+            Some(
+                Readout::Value(_)
+                | Readout::Unavailable(_)
+                | Readout::Empty(_)
+                | Readout::LeftAlone(_),
+            )
+            | None => self.status.tone(),
         }
     }
 }
@@ -371,6 +375,27 @@ pub enum Readout {
     /// holds no material. A legal value, and the one a consumer
     /// refuses as its input, so the row it came from says so.
     Empty(Emptiness),
+    /// A blend's selected edges it left as they are, smooth seams with
+    /// no wedge to round, by name ([`LeftAlone`]).
+    LeftAlone(LeftAlone),
+}
+
+/// **The edges a blend left as they are**: the smooth seams of its
+/// selection (`editor_core::NodeValue::left_alone`), spoken by their
+/// names in its operand's table.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LeftAlone(pub Vec<String>);
+
+impl std::fmt::Display for LeftAlone {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let n = self.0.len();
+        let noun = if n == 1 { "edge" } else { "edges" };
+        write!(
+            f,
+            "left {n} smooth {noun} as selected, with no wedge to round: {}",
+            self.0.join(", ")
+        )
+    }
 }
 
 /// **Which part of a value holds no material**, and its phrase.
@@ -899,7 +924,13 @@ fn readout_of(
     node: &Node<ProfileProgram>,
     evaluation: &Evaluation<f64>,
 ) -> Option<Readout> {
-    match &evaluation.usable(id).ok()?.payload {
+    let value = evaluation.usable(id).ok()?;
+    if !value.left_alone.is_empty() {
+        return Some(Readout::LeftAlone(LeftAlone(
+            value.left_alone.iter().map(ToString::to_string).collect(),
+        )));
+    }
+    match &value.payload {
         ValuePayload::Measure { value, dim } => Some(Readout::Value(Computed {
             canonical: *value,
             dimension: *dim,

@@ -7,13 +7,14 @@
 //! The rows pin the change from both sides:
 //! - the #554 pair: the same cone×cylinder corner, full and partial
 //!   revolve, DECIDES its dihedral on both (the closed rim no longer
-//!   misreports `KnifeEdge` on a transverse corner) — and past
+//!   misreports a zero wedge on a transverse corner) — and past
 //!   that decision the closed rim's band is BUILT while the open arc
 //!   reaches the unimplemented seam-meridian corner;
 //! - the differential: a co-surface seam meridian — dihedral sine
-//!   exactly zero — still refuses `KnifeEdge` at a margin of
-//!   exactly 0.0, at a lever that is now definitely nonzero (the fix
-//!   removed the false positive, not the detector);
+//!   exactly zero — still reads Zero at a margin of exactly 0.0, a
+//!   smooth seam the blend leaves as it is, at a lever that is now
+//!   definitely nonzero (the fix removed the false positive, not the
+//!   detector);
 //! - convexity classification on closed rims: a dome's equator
 //!   decides Convex, a boss's root rim decides Concave, each at a
 //!   lever of ~the rim diameter.
@@ -118,7 +119,7 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
     )
     .map_err(|r| r.error);
     assert!(
-        !matches!(open, Err(BlendError::KnifeEdge { .. })),
+        !sweep::test_support::read_as_tangent(&open),
         "open rim: a transverse 30° corner is not a tangency, got {open:?}"
     );
     assert!(
@@ -130,10 +131,10 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
 
 /// **The differential row: genuine tangency is still detected.** A
 /// full revolve's seam meridian is a co-surface edge — the same
-/// sphere on both sides, dihedral sine exactly 0 — and it still
-/// refuses `KnifeEdge` at a margin of exactly 0.0 even though
-/// its lever is now definitely nonzero. The zero comes from the
-/// sine, not from a collapsed arm.
+/// sphere on both sides, dihedral sine exactly 0 — and it still reads
+/// Zero, a smooth seam, at a margin of exactly 0.0 even though its
+/// lever is now definitely nonzero. The zero comes from the sine, not
+/// from a collapsed arm.
 #[test]
 fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
     let ball = revolved(
@@ -163,24 +164,13 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
         (p1 - p0).norm() > 1.9,
         "the seam meridian's endpoints span ~the ball's diameter"
     );
-    match fillet_edges(
-        &sweep::test_support::at_rest(&ball, tol()),
-        &[seam],
-        0.05,
-        tol(),
-    )
-    .map_err(|r| r.error)
-    {
-        Err(BlendError::KnifeEdge { margin, .. }) => {
-            assert_eq!(margin.predicate, "fillet3_convexity_sign");
-            assert_eq!(
-                margin.reading.diagnostic_f64_for_error_text().value(),
-                Some(0.0),
-                "a co-surface seam's sine is structurally zero"
-            );
-        }
-        other => panic!("expected KnifeEdge at exactly zero, got {other:?}"),
-    }
+    let margin = sweep::test_support::smooth_reading(&ball, seam, 0.05, tol());
+    assert_eq!(margin.predicate, "fillet3_convexity_sign");
+    assert_eq!(
+        margin.reading.diagnostic_f64_for_error_text().value(),
+        Some(0.0),
+        "a co-surface seam's sine is structurally zero"
+    );
 }
 
 /// **Convex classification on a closed rim.** A dome ring — a

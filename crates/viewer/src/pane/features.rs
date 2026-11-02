@@ -275,7 +275,7 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
                 }
             }
             // Each is a sentence, drawn under the row.
-            Some(Readout::Unavailable(_)) | None => {}
+            Some(Readout::Unavailable(_) | Readout::LeftAlone(_)) | None => {}
         },
         RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
             ui.label(toned(row.status.badge(), theme, row.tone()));
@@ -292,6 +292,9 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
     match &row.readout {
         Some(Readout::Unavailable(reason)) => {
             advisory_line(ui, &reason.to_string(), theme);
+        }
+        Some(Readout::LeftAlone(left)) => {
+            advisory_line(ui, &left.to_string(), theme);
         }
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {

@@ -26,8 +26,8 @@
 //!    partial revolve of the same profile refuse the SAME class, over
 //!    a randomized range of dihedral angles
 //!    (`the_554_pair_agrees_across_a_randomized_dihedral`).
-//! 5. **The detector survived** — a co-surface seam still refuses
-//!    `KnifeEdge` at a margin of exactly 0.0 while a transverse
+//! 5. **The detector survived** — a co-surface seam still reads Zero
+//!    at a margin of exactly 0.0, a smooth seam, while a transverse
 //!    closed rim of the same body family does not
 //!    (`co_surface_seams_still_refuse_while_transverse_rims_do_not`).
 //! 6. **Both convexity signs on closed rims**
@@ -36,8 +36,9 @@
 //!    arc approaching a full turn must NOT collapse either; the lever
 //!    is monotone in the swept angle beyond the crossover
 //!    (`open_arcs_approaching_a_full_turn_do_not_collapse`).
-//! 8. **The refusal's prose no longer asserts tangency as a fact**
-//!    (`the_tangential_refusal_prose_states_no_geometric_fact`).
+//! 8. **The refusal's prose states what it established**: a decided
+//!    Zero with the material facing itself, a cusp or slit, which
+//!    `wedge_end_doors` pins on a real cusp body.
 //!
 //! Randomized rows draw a fresh seed per process and take their
 //! counts off `CAD_FUZZ_EFFORT` (`test_utils::fuzz`), per the
@@ -363,7 +364,7 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
 
         for (which, v) in [("closed", &closed_verdict), ("open", &open_verdict)] {
             assert!(
-                !matches!(v, Err(BlendError::KnifeEdge { .. })),
+                !sweep::test_support::read_as_tangent(v),
                 "{which} rim at half-angle {half_angle} rad reports tangency on a \
                  transverse cone×cylinder corner: {v:?}"
             );
@@ -388,8 +389,8 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
 /// scale:
 ///
 /// - a full revolve's co-surface seam meridian — the same sphere on
-///   both sides — refuses `KnifeEdge` at a margin of EXACTLY
-///   0.0, at every randomized radius;
+///   both sides — reads smooth at a margin of EXACTLY 0.0, at every
+///   randomized radius, and the blend leaves it as it is;
 /// - the transverse plane–sphere equator of a dome of the same
 ///   radius does not refuse tangency at all.
 ///
@@ -409,26 +410,15 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
             endpoint_chord(&ball, seam) > r,
             "the seam's own lever is definitely nonzero — the zero must come from the sine"
         );
-        match fillet_edges(
-            &sweep::test_support::at_rest(&ball, tol()),
-            &[seam],
-            r * 0.05,
-            tol(),
-        )
-        .map_err(|r| r.error)
-        {
-            Err(BlendError::KnifeEdge { margin, .. }) => assert_eq!(
-                (
-                    margin.predicate,
-                    margin.reading.diagnostic_f64_for_error_text().value()
-                ),
-                ("fillet3_convexity_sign", Some(0.0)),
-                "a co-surface seam's dihedral sine is structurally zero (r={r})"
+        let margin = sweep::test_support::smooth_reading(&ball, seam, r * 0.05, tol());
+        assert_eq!(
+            (
+                margin.predicate,
+                margin.reading.diagnostic_f64_for_error_text().value()
             ),
-            other => {
-                panic!("the tangency detector stopped firing on a co-surface seam: {other:?}")
-            }
-        }
+            ("fillet3_convexity_sign", Some(0.0)),
+            "a co-surface seam's dihedral sine is structurally zero (r={r})"
+        );
 
         let transverse = dome(
             r,
@@ -598,50 +588,4 @@ fn open_arcs_approaching_a_full_turn_do_not_collapse() {
             "the fixture must actually be in the collapsing regime"
         );
     }
-}
-
-/// **Claim 8, the prose.** `KnifeEdge` is raised whenever the
-/// dihedral's signed margin DECIDES Zero — of which genuine tangency
-/// is one cause. Its user-visible text must therefore state no
-/// geometric fact it has not established. Asserted on a real refusal
-/// from a real body, so the row is about what a consumer reads.
-///
-/// This row is the mechanical guard for the rewrite: the prose sites
-/// are otherwise pinned only by a doc comment, and doc comments do
-/// not go red.
-#[test]
-fn the_tangential_refusal_prose_states_no_geometric_fact() {
-    let ball = revolved(
-        vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
-        Revolution::Full,
-    );
-    let seam = pick_edge(&ball, false, |a, b| is_sphere(a) && is_sphere(b));
-    let err = fillet_edges(
-        &sweep::test_support::at_rest(&ball, tol()),
-        &[seam],
-        0.05,
-        tol(),
-    )
-    .expect_err("the co-surface seam refuses");
-    let text = format!("{err}");
-    for forbidden in [
-        "share a tangent plane",
-        "shares a tangent plane",
-        "sharing a tangent plane",
-        "joins its supports tangentially",
-        "the supports are tangent",
-    ] {
-        assert!(
-            !text.contains(forbidden),
-            "the refusal asserts an unestablished geometric fact ({forbidden:?}): {text}"
-        );
-    }
-    assert!(
-        text.contains("no definite wedge side"),
-        "the refusal should say what it DID establish: {text}"
-    );
-    assert!(
-        !sweep::blend::FILLET3_TANGENTIAL_RECOURSE.contains("a tangential join has no wedge"),
-        "the recourse still states tangency as the established cause"
-    );
 }

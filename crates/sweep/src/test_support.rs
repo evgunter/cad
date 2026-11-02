@@ -252,6 +252,87 @@ pub fn at_rest<T: topo::AtRestPolicy>(body: &Body<T>, tol: Tol) -> topo::AtRestB
     finished(&format!("the blend operand at {caller}"), body.clone(), tol)
 }
 
+/// **A declared cusp**: the lune between the internally tangent circles
+/// `(0,1) r 1` and `(0,2) r 2`, closed by a straight run up the y axis
+/// from the kiss's far side, `.cusp()` at the kiss. Extruded, its kiss
+/// is a strut whose two walls meet at wedge 0 (a knife edge), and its
+/// line's two ends are struts at a definite angle.
+///
+/// # Panics
+///
+/// If the profile door refuses the construction, a fixture bug.
+#[must_use]
+pub fn lune(tol: Tol) -> ProfileLoop<f64> {
+    use profile::{Open, Start};
+    Open.at(Point2::new(0.0, 4.0))
+        .angle(-core::f64::consts::FRAC_PI_2, tol)
+        .unwrap()
+        .line(2.0, tol)
+        .unwrap()
+        .turn(core::f64::consts::FRAC_PI_2, tol)
+        .unwrap()
+        .tangent_arc_to(Point2::new(0.0, 0.0), tol)
+        .unwrap()
+        .cusp()
+        .tangent_arc_to(Start, tol)
+        .unwrap()
+        .into()
+}
+
+/// **Whether a blend read a requested edge as tangent**: a knife edge
+/// refused, or a smooth seam left as it is. Either is a dihedral that
+/// decided Zero, so a row that guards a transverse corner against a
+/// false zero asks this rather than for one of the two.
+#[must_use]
+pub fn read_as_tangent(outcome: &Result<Blended<f64>, crate::blend::BlendError>) -> bool {
+    match outcome {
+        Err(crate::blend::BlendError::KnifeEdge { .. }) => true,
+        Ok(out) => out.naming.as_ref().is_some_and(|n| !n.smooth.is_empty()),
+        Err(_) => false,
+    }
+}
+
+/// **The margin a smooth seam was read at**: `edge` requested alone of
+/// the battery at `size`, which must leave it as a smooth seam, and of
+/// the fillet door, which must return `body` as it is with `edge` in
+/// its smooth row. The decided-Zero margin `fillet3_convexity_sign`
+/// read is handed back for the row to pin.
+///
+/// # Panics
+///
+/// If either refuses, or `edge` is not the one smooth seam.
+#[must_use]
+#[track_caller]
+pub fn smooth_reading(
+    body: &Body<f64>,
+    edge: EdgeKey,
+    size: f64,
+    tol: Tol,
+) -> crate::blend::ClassifiedMargin {
+    let band = Band::linear(tol).expect("the run's band");
+    let req = BlendRequest {
+        body,
+        edges: vec![edge],
+        size,
+    };
+    let verdict =
+        run_battery(&req, band).unwrap_or_else(|e| panic!("a smooth seam is no refusal, got {e}"));
+    let [(seam, margin)] = verdict.smooth[..] else {
+        panic!("{edge:?} is the one smooth seam, got {:?}", verdict.smooth)
+    };
+    assert_eq!(seam, edge, "the battery names the requested seam");
+    let out = crate::blend::build::fillet_edges(&at_rest(body, tol), &[edge], size, tol)
+        .unwrap_or_else(|e| panic!("the fillet of a smooth seam refused: {e}"));
+    let named = &out.naming.as_ref().expect("the door's records").smooth;
+    assert_eq!(named, &vec![edge], "the door names the seam it left");
+    assert_eq!(
+        (out.body.faces().count(), out.body.edges().count()),
+        (body.faces().count(), body.edges().count()),
+        "a seam alone comes back as it was"
+    );
+    margin
+}
+
 /// The square of side `l` with a corner at the origin, counter-clockwise
 /// from that corner, as profile vertices — the one spelling of the block
 /// outline the fixtures here build on when they need the loop rather
@@ -2280,7 +2361,7 @@ pub fn resolved_links(
         .map(
             |&e| match resolve_link(body, e, size, band, BlendKind::Fillet) {
                 Ok(Resolved::Link(link)) => link,
-                Ok(Resolved::Smooth(e)) => {
+                Ok(Resolved::Smooth(e, _)) => {
                     panic!("every requested edge resolves to a link, {e:?} is smooth")
                 }
                 Err(e) => panic!("every requested edge resolves to a link, got {e}"),
@@ -2375,7 +2456,7 @@ fn turn_readings_of<T: Decide>(
     };
     let links = links.map(|l| match l {
         Ok(Resolved::Link(link)) => link,
-        Ok(Resolved::Smooth(e)) => panic!("a turning edge resolves, {e:?} is smooth"),
+        Ok(Resolved::Smooth(e, _)) => panic!("a turning edge resolves, {e:?} is smooth"),
         Err(err) => panic!("a turning edge resolves, got {err}"),
     });
     let reading = crate::blend::battery::turn_reading(body, vertex, [&links[0], &links[1]], third)

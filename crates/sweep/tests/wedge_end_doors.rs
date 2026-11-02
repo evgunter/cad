@@ -20,7 +20,7 @@
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
-use profile::{Open, Profile, ProfileLoop, Start};
+use profile::{Profile, ProfileLoop};
 use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
 use sweep::test_support::{brick, finished, sketch_at};
@@ -77,22 +77,9 @@ fn plate_with_hole() -> Body<f64> {
     .body
 }
 
-/// The lune between the internally tangent circles `(0,1) r 1` and
-/// `(0,2) r 2`, `.cusp()` at the kiss — the DECLARED cusp.
+/// The DECLARED cusp ([`sweep::test_support::lune`]).
 fn lune() -> ProfileLoop<f64> {
-    Open.at(Point2::new(0.0, 4.0))
-        .angle(-std::f64::consts::FRAC_PI_2, tol())
-        .unwrap()
-        .line(2.0, tol())
-        .unwrap()
-        .turn(std::f64::consts::FRAC_PI_2, tol())
-        .unwrap()
-        .tangent_arc_to(Point2::new(0.0, 0.0), tol())
-        .unwrap()
-        .cusp()
-        .tangent_arc_to(Start, tol())
-        .unwrap()
-        .into()
+    sweep::test_support::lune(tol())
 }
 
 /// The edges check 4 marks `Tangent`, each by its two endpoints.
@@ -887,10 +874,16 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
             ),
         ] {
             match got {
-                Err(refusal) => assert!(
-                    matches!(refusal.error, BlendError::KnifeEdge { edge, .. } if edge == strut),
-                    "{name} {verb}: expected KnifeEdge on the strut, got {refusal:?}"
-                ),
+                Err(refusal) => {
+                    assert!(
+                        matches!(refusal.error, BlendError::KnifeEdge { edge, .. } if edge == strut),
+                        "{name} {verb}: expected KnifeEdge on the strut, got {refusal:?}"
+                    );
+                    // The refusal says what it established: a wedge
+                    // decided Zero with the material facing itself.
+                    let text = refusal.to_string();
+                    assert!(text.contains("cusp or slit"), "{name} {verb}: {text}");
+                }
                 Ok(()) => panic!("{name} {verb}: blended a wedge-{name} edge"),
             }
         }

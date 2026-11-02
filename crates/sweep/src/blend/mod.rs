@@ -449,7 +449,10 @@ impl BlendDecision {
             Self::SpineRegularity => FILLET3_SPINE_RECOURSE,
             Self::ChainG1 | Self::ChainArm => FILLET3_CHAIN_RECOURSE,
             Self::ConvexitySign => FILLET3_TANGENTIAL_RECOURSE,
-            Self::MaterialSide => geom_brep::MATERIAL_PAIRING.lever,
+            // Past the arm gate, the pairing refuses only an arm too
+            // short to read a side over (`geom_brep::MATERIAL_PAIRING`):
+            // the arm gate's own lever.
+            Self::MaterialSide => FILLET3_CHAIN_RECOURSE,
             Self::RingClearance => FILLET3_RING_RECOURSE,
             Self::SupportCoaxiality => FILLET3_SPINE_KIND_RECOURSE,
             Self::ContactArm => FILLET3_CONTACT_ARM_RECOURSE,
@@ -477,7 +480,7 @@ impl BlendDecision {
             Self::ChainArm => Some(("link length", SizedPass::Positive)),
             Self::CutOffFeet => Some(("separation of the feet", SizedPass::Positive)),
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
-            Self::MaterialSide => Some((geom_brep::MATERIAL_PAIRING.size, SizedPass::NonZero)),
+            Self::MaterialSide => Some(("link length", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
             // Either definite sign of the sagitta picks a description.
             Self::ContactSecondOrder => Some(("separation", SizedPass::AnySign)),

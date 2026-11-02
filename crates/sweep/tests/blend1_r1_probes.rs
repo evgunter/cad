@@ -395,7 +395,7 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
 /// `SeamVertex` rows) nor a superset of the rim's arcs reaches the
 /// carve — only the rim itself.
 #[test]
-fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
+fn p5_the_rim_arcs_plus_a_seam_meridian_carve_the_rim_and_leave_the_seam() {
     let body = lantern();
     let mut req = rim_arcs_at(&body, SHOULDER.0, SHOULDER.1);
     assert_eq!(req.len(), 2);
@@ -409,25 +409,27 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
         })
         .expect("a full revolve of a pole-touching profile has seam meridians");
     req.push(seam);
-    match fillet_edges(
+    let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &req,
         0.05,
         tol(),
     )
-    .map_err(|r| r.error)
-    {
-        Err(BlendError::KnifeEdge { margin, .. }) => {
-            assert_eq!(margin.predicate, "fillet3_convexity_sign");
-            assert_eq!(margin.sign, Sign::Zero);
-            assert_eq!(
-                margin.reading.diagnostic_f64_for_error_text().value(),
-                Some(0.0),
-                "a co-surface seam is tangential exactly"
-            );
-        }
-        other => panic!("a request carrying a seam meridian refuses tangential, got {other:?}"),
-    }
+    .unwrap_or_else(|e| panic!("the rim carves past the seam it leaves, got {e:?}"));
+    assert_eq!(
+        out.naming.as_ref().expect("the door's records").smooth,
+        vec![seam],
+        "the seam meridian is a smooth seam the blend leaves as it is"
+    );
+    assert_eq!(out.band_faces.len(), 1, "the rim is carved whole, one band");
+    let margin = sweep::test_support::smooth_reading(&body, seam, 0.05, tol());
+    assert_eq!(margin.predicate, "fillet3_convexity_sign");
+    assert_eq!(margin.sign, Sign::Zero);
+    assert_eq!(
+        margin.reading.diagnostic_f64_for_error_text().value(),
+        Some(0.0),
+        "a co-surface seam is tangential exactly"
+    );
 }
 
 // ------------------------------------------------------------------

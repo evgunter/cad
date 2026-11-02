@@ -334,7 +334,7 @@ pub fn documents() -> Vec<CorpusDoc> {
         // BESIDE this registry for a milestone, with its refusal
         // pinned: `Node::Fillet` was every-edge, and every pipped body
         // carries cap MERIDIAN edges (two half-caps on one sphere, no
-        // wedge) the battery honestly refuses `KnifeEdge`. M6-5
+        // wedge) the battery then refused. M6-5
         // gave the node a SELECTION and the surgery a naming emitter,
         // so the fourteen edges that do have wedges can be named and
         // the two that do not can be left out. The flipped pin and the

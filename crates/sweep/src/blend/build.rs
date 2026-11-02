@@ -257,7 +257,7 @@ fn assemble<T: Decide + Bounds + topo::AtRestPolicy>(
         super::surgery::blend_surgery(body, verdict, band, tol)?
     };
     if let Some(naming) = blended.naming.as_mut() {
-        naming.smooth.clone_from(&verdict.smooth);
+        naming.smooth = verdict.smooth.iter().map(|&(edge, _)| edge).collect();
     }
     Ok(blended)
 }
