@@ -58,5 +58,8 @@ refusal is the report. The unit is
 
 PR 6301 merged before Ev had read point 2 (f64 certifies). Ev asked
 what "the engine lifts every carrier exactly" means; the answer is on
-6301. Point 2 alone is re-asked in its own `[ev]` PR, whose diff states
-what an f64 certificate certifies: the body as stored.
+6301. Point 2 alone is re-asked in PR 6308. Ev agreed with the goal
+("this goal makes sense") and found the engine's input typing
+conflated (an f64 entering as an Interval). Point 2 now states the
+goal only: f64 and Probe certify with a 2ε margin. The typing is
+`clearance-cell-enclosures-are-typed-as-the-interval-scalar`.
