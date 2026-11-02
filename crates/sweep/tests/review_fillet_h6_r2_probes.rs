@@ -76,6 +76,7 @@ fn worst_rim_verdict(eps: f64, k: f64, arm: f64) -> Result<DihedralClass, String
     // the wall's tilt away from the cap.
     let cap = cap_plane(Vec3::new(0.0, 0.0, 1.0));
     let wall = wall_plane(Vec3::new(0.0, 1.0, 0.0), w);
+    let arm = geom_core::test_support::fixture_lever(arm);
     classify_dihedral(&cap, &wall, Point3::new(0.0, 0.0, 0.0), arm, band)
         .map_err(|e| format!("{e:?}"))
 }

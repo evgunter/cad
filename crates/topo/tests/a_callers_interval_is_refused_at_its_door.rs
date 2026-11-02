@@ -177,7 +177,7 @@ fn every_door_refuses_a_callers_interval_typed() {
         a,
         a,
         |_| None,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band,
         geom_brep::NurbsLane::certified(),
     )

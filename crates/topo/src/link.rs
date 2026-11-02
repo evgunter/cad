@@ -64,7 +64,12 @@
 //! the face's reach so that its readings are taken where the face's
 //! would be ([`FaceSector::cleared`]). A curved face, or such a face held at
 //! its corner, refuses ([`TouchUnread::Unreadable`]); a sphere or
-//! cylinder face is read by its carrier instead, as above.
+//! cylinder face is read by its carrier instead, as above. Where a solid
+//! touches itself, a link with a curved face or edge in it is read once
+//! more as its faces' tangent cones ([`FaceSector::tangent`]), which
+//! [`rest::one_material`] reads only where its first order decides; no
+//! other reading takes such a link ([`rest::judge`] and
+//! [`rest::by_round`] refuse it).
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
@@ -111,6 +116,12 @@ const LINK_TIE: &str = "link_offset_tie";
 /// it, against a sphere's or a cylinder's carrier, in metres — on the
 /// side of it the face's material is on ([`rest::by_round`]).
 const LINK_ROUND: &str = "link_round_offset";
+/// K name: a carrier's frame direction against the plane of a tangent
+/// sector through its apex, moved `0.6` either way along the normal, in
+/// metres — whether the direction is within `0.6` of square to the
+/// normal, so its part in the plane turns the sector's fan
+/// ([`in_plane`]).
+const LINK_TANGENT_FRAME: &str = "link_tangent_frame";
 /// K name: two coplanar faces' outward normals, one of each link,
 /// aligned or opposed ([`geom_brep::classify_material_pairing_as`]).
 const LINK_NORMAL: &str = "link_normal";
@@ -160,15 +171,16 @@ pub(crate) mod metric {
         /// past the face's normal section along it
         /// ([`geom_brep::parting`]). Both together (`Jet`), for a bound a
         /// slack tied: the point's distance to second order.
-        pub(crate) fn departure(d: Departure<T>, n: Vec3<T>, arm: T) -> Self {
+        pub(crate) fn departure(d: Departure<T>, n: Vec3<T>, arm: geom_core::Lever<T>) -> Self {
             Self(match d {
                 Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),
-                Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),
+                Departure::Parted(bend) => geom_brep::parting(bend, n, arm.length()).value(),
                 Departure::Jet(dir, bend) => {
-                    geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()
+                    geom_brep::rise(dir, n, arm).value()
+                        + geom_brep::parting(bend, n, arm.length()).value()
                 }
                 Departure::Charge { slope, lever } => {
-                    crate::bound_side::sagitta_charge(slope, lever, arm)
+                    crate::bound_side::sagitta_charge(slope, lever, arm.length())
                 }
             })
         }
@@ -438,7 +450,12 @@ pub enum TouchUnread {
     /// A curved face or edge takes part: a face off a plane, or a planar
     /// face with an edge that is not a line where [`FaceSector::cleared`]
     /// does not read it — held at a corner, or bounded by a curve no
-    /// clearance reads. (A tied edge whose key does not
+    /// clearance reads; and where the faces' tangent cones are read
+    /// ([`FaceSector::tangent`]), a face with no tangent plane at the
+    /// point (a cone's apex), a corner whose edges leave it along one
+    /// tangent (a cusp), or a bound or plane lying on another sheet's to
+    /// first order only (a tangency), which a reading of second order
+    /// would part. (A tied edge whose key does not
     /// resolve reads the same; tier 1, which the census runs behind,
     /// admits none. A face whose surface or loops do not resolve reads
     /// [`Self::Corrupt`].)
@@ -501,14 +518,16 @@ pub(crate) struct Sector<T: Real> {
 }
 
 /// **One face's sector at the touch point `p`**, spanning the face's
-/// whole sector at `p`: either the face's piece there ([`face_piece`]),
-/// whose wedges are real points of the face, or the disc its edges clear
+/// whole sector at `p`: the face's piece there ([`face_piece`]), whose
+/// wedges are real points of the face; the disc its edges clear
 /// ([`FaceSector::cleared`]), the face's own inside `clear` and carried
-/// past the face beyond it.
+/// past the face beyond it; or the face's tangent cone there
+/// ([`FaceSector::tangent`]), the face only to first order, which only
+/// [`rest::one_material`] reads ([`Tangent`]).
 ///
 /// Its fields are this module's: a face sector is built only by its
-/// builders off a face ([`FaceSector::of_face`], [`FaceSector::cleared`]),
-/// so a cone that is not a body's faces (a tangent cone) can be a
+/// builders off a face ([`FaceSector::of_face`], [`FaceSector::cleared`],
+/// [`FaceSector::tangent`]), so a cone that is no body's faces can be a
 /// [`Cone`] and never a [`Link`].
 pub(crate) struct FaceSector<T: Real> {
     sector: Sector<T>,
@@ -527,6 +546,53 @@ pub(crate) struct LinkFace<T: Real> {
     /// about `p` inside which they are the face's own. `None` where every
     /// wedge is real points of the face.
     clear: Option<T>,
+    /// Where the sector is the face's tangent cone at `p` rather than
+    /// real points of it ([`FaceSector::tangent`]): what
+    /// [`rest::one_material`] holds such a link to before it reads it.
+    tangent: Option<Tangent>,
+}
+
+/// **What a tangent sector keeps of its face** ([`FaceSector::tangent`]):
+/// whether its plane is the face's own, and the edges its bounds run
+/// along at the point.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Tangent {
+    /// The face is planar: the sector's plane is the face's own.
+    plane_exact: bool,
+    /// The edges along the sector's first ray and its last, each with
+    /// whether the ray is the edge's own (a line, not a curve's
+    /// tangent); `None` for a closed sector, which has no bound.
+    bounds: Option<[(EdgeKey, bool); 2]>,
+}
+
+/// **Where a face meets the point, to first order** — the shape
+/// [`FaceSector::tangent`] builds its sector in: rays from the apex in
+/// the face's tangent plane, each a direction scaled to the reach it is
+/// read at.
+pub(crate) enum TangentFan<T: Real> {
+    /// A corner: from the departure `d0` of the face's loop out of its
+    /// vertex, counterclockwise about the outward normal, to the
+    /// departure `d1` back along the loop's edge into it.
+    Corner {
+        d0: Vec3<T>,
+        d1: Vec3<T>,
+        /// The edges along `d0` and `d1`, each with whether it is a line.
+        bounds: [(EdgeKey, bool); 2],
+        /// The loop leaves the vertex back along the half-edge it came in
+        /// by, reversed: a spur's tip, its sector the whole turn.
+        spur: bool,
+    },
+    /// Inside an edge: the half-plane left of the loop's unit direction
+    /// `along` the edge, about the outward normal, read out to `reach`.
+    Edge {
+        along: Vec3<T>,
+        reach: T,
+        edge: (EdgeKey, bool),
+    },
+    /// Inside the face: its whole tangent plane, read out to `reach`,
+    /// its fan turned from the part in the plane of one of the carrier's
+    /// own orthonormal `frame` ([`in_plane`]).
+    Inside { reach: T, frame: [Vec3<T>; 3] },
 }
 
 /// Where a point on a sector's plane lies against the sector.
@@ -584,7 +650,7 @@ pub struct Link<T: Real> {
     /// Each sector's face, by the sector's index in the cone.
     faces: Vec<LinkFace<T>>,
     /// The farthest wedge point from `p`.
-    reach: T,
+    reach: geom_core::Lever<T>,
     /// The radius of the ball about `p` the link's wedges fill: the
     /// least distance from `p` to a wedge's far side, or to a cleared
     /// sector's edge of the face ([`LinkFace::clear`]). Inside it each
@@ -734,7 +800,7 @@ fn pairing<T: Decide>(
     s: (&geom::Surface<T>, bool),
     t: (&geom::Surface<T>, bool),
     p: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Option<geom_brep::MaterialPairing> {
     let arm = geom_brep::folded_lever_arm(s.0, t.0, p, reach);
@@ -1257,6 +1323,7 @@ impl<T: Real> FaceSector<T> {
                 surface,
                 sense: true,
                 clear: None,
+                tangent: None,
             },
         }
     }
@@ -1323,6 +1390,7 @@ impl<T: Decide> FaceSector<T> {
                     surface: face.surface.clone(),
                     sense: face.sense,
                     clear: None,
+                    tangent: None,
                 },
             })
         };
@@ -1951,12 +2019,15 @@ impl<T: Decide> Link<T> {
         let wedges = || sectors.iter().flat_map(|s| &s.sector.wedges);
         let reach = wedges()
             .flat_map(|&(a, b)| [a, b])
-            .map(|q| (q - p).norm())
-            .fold(T::zero(), |r, l| r.max(l));
+            .map(|q| geom_brep::ExtentBall::point(q).lever_from(p))
+            .fold(
+                geom_brep::ExtentBall::point(p).lever(),
+                geom_core::Lever::max,
+            );
         let ball = wedges()
             .map(|&(a, b)| to_segment(p, (a, b)))
             .chain(sectors.iter().filter_map(|s| s.face.clear))
-            .fold(reach, |r, l| r.min(l));
+            .fold(reach.length(), |r, l| r.min(l));
         let (sectors, faces) = sectors.into_iter().map(|s| (s.sector, s.face)).unzip();
         Ok(Self {
             cone: Cone::of(p, sectors)?,
@@ -1964,6 +2035,12 @@ impl<T: Decide> Link<T> {
             reach,
             ball,
         })
+    }
+
+    /// Whether a sector of the link is a face's tangent cone
+    /// ([`FaceSector::tangent`]).
+    fn tangent(&self) -> bool {
+        self.faces.iter().any(|f| f.tangent.is_some())
     }
 
     /// The link's cone.
@@ -2188,7 +2265,8 @@ impl<T: Decide> FaceSector<T> {
         }
         let radius = radius.ok_or(TouchUnread::Corrupt)?;
         let far = crate::splitting::rules::face_reach_from(body, f, p)
-            .map_err(|_| TouchUnread::Corrupt)?;
+            .map_err(|_| TouchUnread::Corrupt)?
+            .length();
         for length in [radius, far] {
             if !geom_core::is_finite_length(length) || geom_core::is_zero_length(length, length) {
                 return Err(TouchUnread::ChordScale);
@@ -2213,10 +2291,160 @@ impl<T: Decide> FaceSector<T> {
                     surface: surface.clone(),
                     sense: face.sense,
                     clear: Some(radius),
+                    tangent: None,
                 },
             })
             .collect())
     }
+}
+
+impl<T: Decide> FaceSector<T> {
+    /// **A face as its tangent cone at the point**: the sector of its
+    /// tangent plane through `apex` of outward unit normal `outward`
+    /// that the face leaves the point in, as `fan` places it — a
+    /// corner's from its loop's departure out of the vertex round to its
+    /// departure back, under half a turn as one wedge, or past it cut at
+    /// the quarter turns from the first ray; the half-plane left of an
+    /// edge; the whole plane. Its wedges are directions, not real points
+    /// of the face: the sector is the face only to first order, which
+    /// [`rest::one_material`] reads as [`Tangent`] says.
+    ///
+    /// A corner whose two departures are one direction (a cusp: the face
+    /// a horn about the ray, or the whole plane but it, as its edges bend)
+    /// is [`TouchUnread::Unreadable`], its sector being second order; a
+    /// spur's tip, the loop back along the half-edge it came in by, is the
+    /// whole turn. One whose turn reads in band is [`TouchUnread::InBand`].
+    pub(crate) fn tangent(
+        surface: geom::Surface<T>,
+        sense: bool,
+        outward: Vec3<T>,
+        apex: Point3<T>,
+        fan_of: TangentFan<T>,
+        band: Band,
+    ) -> Result<Self, TouchUnread> {
+        let plane_exact = matches!(surface, geom::Surface::Plane { .. });
+        let (wedges, closed, bounds) = match fan_of {
+            TangentFan::Corner {
+                d0,
+                d1,
+                bounds,
+                spur,
+            } => (
+                corner_fan(apex, outward, (d0, d1), spur, band)?,
+                false,
+                Some(bounds),
+            ),
+            TangentFan::Edge { along, reach, edge } => (
+                fan(apex, outward, along, reach, true),
+                false,
+                Some([edge, edge]),
+            ),
+            TangentFan::Inside { reach, frame } => {
+                let along = in_plane(apex, outward, frame, band)?;
+                (fan(apex, outward, along, reach, false), true, None)
+            }
+        };
+        Ok(Self {
+            sector: Sector {
+                outward,
+                apex,
+                wedges,
+                closed,
+            },
+            face: LinkFace {
+                surface,
+                sense,
+                clear: None,
+                tangent: Some(Tangent {
+                    plane_exact,
+                    bounds,
+                }),
+            },
+        })
+    }
+}
+
+/// **A unit direction in the plane through `apex` of unit normal `m`**,
+/// off an orthonormal `frame`: the part in the plane of the first of
+/// its three directions decided within `0.6` of square to `m` (the
+/// signed distance of its point from the plane, read against `±0.6`,
+/// as the K row `link_tangent_frame`), normalized. The three are
+/// orthonormal, so the least of them is within `1/√3` of square, and its
+/// part in the plane is longer than `0.8`: the direction lies in the
+/// plane by construction, not by rounding. [`TouchUnread::InBand`]
+/// where none of the three reads so.
+fn in_plane<T: Decide>(
+    apex: Point3<T>,
+    m: Vec3<T>,
+    frame: [Vec3<T>; 3],
+    band: Band,
+) -> Result<Vec3<T>, TouchUnread> {
+    let bound = T::from_f64(0.6);
+    for e in frame {
+        let below = Distance::of(apex + e - m * bound, apex, m);
+        let above = Distance::of(apex + e + m * bound, apex, m);
+        if metric::sign(LINK_TANGENT_FRAME, below, band) == Some(Sign::Negative)
+            && metric::sign(LINK_TANGENT_FRAME, above, band) == Some(Sign::Positive)
+        {
+            return Ok((e - m * m.dot(e)).normalize());
+        }
+    }
+    Err(TouchUnread::InBand)
+}
+
+/// **A corner's fan** about `apex` in the plane of unit normal `m`, from
+/// `d0` counterclockwise to `d1`: one wedge where `d1` lies left of
+/// `d0` (under half a turn), and past half a turn the rays at a quarter,
+/// a half and, where `d1` lies past it, three quarters of a turn from
+/// `d0`, scaled to the shorter departure. `d1` on `d0`'s line is half a
+/// turn where it points back along it, and a cusp where it points the
+/// same way. A `spur`'s tip, whose two departures are one half-edge's,
+/// is the whole turn from `d0`, read off nothing.
+fn corner_fan<T: Decide>(
+    apex: Point3<T>,
+    m: Vec3<T>,
+    (d0, d1): (Vec3<T>, Vec3<T>),
+    spur: bool,
+    band: Band,
+) -> Result<Vec<Segment<T>>, TouchUnread> {
+    let rd = Reading {
+        band,
+        slack: None,
+        own: false,
+    };
+    let (a, b) = (apex + d0, apex + d1);
+    let u = d0.normalize();
+    let reach = d0.norm().min(d1.norm());
+    let quarter = m.cross(u);
+    let mut rays = vec![a];
+    if spur {
+        rays.extend([
+            apex + quarter * reach,
+            apex - u * reach,
+            apex - quarter * reach,
+            a,
+        ]);
+        return Ok(rays.windows(2).map(|w| (w[0], w[1])).collect());
+    }
+    match wedge_side(apex, m, a, b, rd) {
+        Some(Sign::Positive) => {}
+        Some(Sign::Negative) => {
+            rays.push(apex + quarter * reach);
+            rays.push(apex - u * reach);
+            let three = apex - quarter * reach;
+            if wedge_side(apex, m, three, b, rd) == Some(Sign::Positive) {
+                rays.push(three);
+            }
+        }
+        Some(Sign::Zero) => match ahead(apex, a, b, rd) {
+            Some(Sign::Negative) => rays.push(apex + quarter * reach),
+            Some(_) => return Err(TouchUnread::Unreadable),
+            None => return Err(TouchUnread::InBand),
+        },
+        None => return Err(TouchUnread::InBand),
+    }
+    rays.push(b);
+    Ok(rays.windows(2).map(|w| (w[0], w[1])).collect())
 }
 
 /// The fan about `p` normal to `outward` whose every chord stands past
@@ -3111,6 +3339,9 @@ pub(crate) mod rest {
     /// crossing that only a skipped piece would show refuses rather than
     /// clears.
     pub(crate) fn judge<T: Decide>(a: &Link<T>, b: &Link<T>, band: Band) -> TouchVerdict {
+        if a.tangent() || b.tangent() {
+            return TouchVerdict::Unread(TouchUnread::Unreadable);
+        }
         // Every reading over the pair is taken about `p`, while each
         // sector stands on its own apex, off `p` by at most its link's
         // tie: one link's point read against the other's planes and rays
@@ -3301,6 +3532,9 @@ pub(crate) mod rest {
         reach: T,
         band: Band,
     ) -> TouchVerdict {
+        if a.tangent() {
+            return TouchVerdict::Unread(TouchUnread::Unreadable);
+        }
         let rd = Reading::tied(band, a.cone.tie);
         if let Some(open) = held_closed(&[a], rd) {
             return open;
@@ -3355,6 +3589,154 @@ pub(crate) mod rest {
         }
     }
 
+    /// Whether the ray through `r`, along `edge` (a line where `line`),
+    /// lying on a bound of sector `j`, lies there as the faces keep it:
+    /// the bound is the same edge, or both are lines.
+    fn kept_bound<T: Decide>(
+        link: &Link<T>,
+        j: usize,
+        (edge, line): (super::EdgeKey, bool),
+        r: Point3<T>,
+        rd: Reading<T>,
+    ) -> bool {
+        let (p, t) = (link.cone.p, &link.cone.sectors[j]);
+        let (Some(tags), Some(rays)) = (link.faces[j].tangent.and_then(|o| o.bounds), t.bounds())
+        else {
+            return false;
+        };
+        tags.into_iter().zip(rays).any(|((e, l), b)| {
+            wedge_side(p, t.outward, b, r, rd) == Some(Sign::Zero)
+                && ahead(p, b, r, rd) == Some(Sign::Positive)
+                && (e == edge || (l && line))
+        })
+    }
+
+    /// Whether `r`, a point of a line edge's ray from `p` lying in a
+    /// cylinder face's tangent sector there (outward unit `m`), lies on
+    /// the face's ruling through `p`: on the plane through `p` square to
+    /// the sector and holding the axis (the side of the axis's ray, in
+    /// the sector's plane, [`wedge_side`]), and on the carrier
+    /// ([`Round`]), each within the band. Such a ray is the ruling itself,
+    /// which the face holds as its tangent plane does. A sphere has no
+    /// ruling, and no other carrier is read.
+    fn on_carrier<T: Decide>(
+        face: &super::LinkFace<T>,
+        (p, m): (Point3<T>, super::Vec3<T>),
+        r: Point3<T>,
+        rd: Reading<T>,
+    ) -> bool {
+        let geom::Surface::Cylinder { axis, .. } = face.surface else {
+            return false;
+        };
+        let along = p + axis * (r - p).norm();
+        wedge_side(p, m, along, r, rd) == Some(Sign::Zero)
+            && Round::of(&face.surface, face.sense)
+                .and_then(|round| Distance::off(&round, (r, r)))
+                .is_some_and(|d| metric::sign(LINK_ROUND, d, rd.band) == Some(Sign::Zero))
+    }
+
+    /// **Whether a link of tangent sectors reads its faces' germ**
+    /// ([`FaceSector::tangent`](super::FaceSector::tangent)): `None` where
+    /// it does, the refusal otherwise. A face is its tangent sector only to
+    /// first order, so a reading of the cone stands for the faces' only
+    /// where it is stable: every coincidence it reads is one the faces
+    /// keep. A line edge's ray read against a planar face's plane is the
+    /// faces' own geometry, read as the planar link reads it. Every other
+    /// bound of each sector is read against every other sector's plane:
+    /// off it, or on it outside the sector, is stable (the faces part there
+    /// at every small enough scale); on it, it is kept where it lies on
+    /// the other's bound along the same edge, or along a line edge where
+    /// it is one too ([`kept_bound`]), or inside a
+    /// cylinder's sector as a line on its carrier, a ruling
+    /// ([`on_carrier`]); else it is a tangency, [`TouchUnread::Unreadable`].
+    /// Two closed sectors have no bounds, so each pair of them with a plane
+    /// not its face's own is read for one plane, each against the other:
+    /// two rays of one's fan a quarter turn apart on the other's plane,
+    /// either way round.
+    ///
+    /// **Sound**: where it passes, the cone's verdict is the faces' at
+    /// every small enough scale (the argument: `crates/topo/README.md`,
+    /// tier 3′'s self-touch reading).
+    fn first_order<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Option<TouchUnread> {
+        if !link.tangent() {
+            return None;
+        }
+        let (p, sectors) = (link.cone.p, &link.cone.sectors);
+        let tangent = |k: usize| link.faces[k].tangent;
+        for (k, s) in sectors.iter().enumerate() {
+            let (Some(bounds), Some(rays)) = (tangent(k).and_then(|t| t.bounds), s.bounds()) else {
+                continue;
+            };
+            for ((edge, line), r) in bounds.into_iter().zip(rays) {
+                for (j, t) in sectors.iter().enumerate() {
+                    if j == k {
+                        continue;
+                    }
+                    let other = tangent(j);
+                    if line && other.is_none_or(|o| o.plane_exact) {
+                        continue;
+                    }
+                    match link.cone.side(t, r, rd) {
+                        Some(Sign::Positive | Sign::Negative) => continue,
+                        Some(Sign::Zero) => {}
+                        None => return Some(TouchUnread::InBand),
+                    }
+                    let kept = match t.place(p, r, rd) {
+                        Ok(Place::Outside) => true,
+                        Ok(Place::Bound) => kept_bound(link, j, (edge, line), r, rd),
+                        Ok(Place::Inside) => {
+                            line && on_carrier(&link.faces[j], (p, t.outward), r, rd)
+                        }
+                        Err(_) => return Some(TouchUnread::InBand),
+                    };
+                    if !kept {
+                        return Some(TouchUnread::Unreadable);
+                    }
+                }
+            }
+        }
+        let whole: Vec<usize> = (0..sectors.len())
+            .filter(|&k| sectors[k].closed && tangent(k).is_some_and(|t| t.bounds.is_none()))
+            .collect();
+        for (i, &k) in whole.iter().enumerate() {
+            for &j in &whole[i + 1..] {
+                let exact = |x: usize| tangent(x).is_some_and(|t| t.plane_exact);
+                if exact(k) && exact(j) {
+                    continue;
+                }
+                // Two rays of each whole plane's fan a quarter turn apart,
+                // read against the other's plane.
+                let rays = |x: usize| {
+                    let s = &sectors[x];
+                    match (s.wedges.first(), s.wedges.get(2)) {
+                        (Some(&(u, _)), Some(&(v, _))) => Some([u - s.apex, v - s.apex]),
+                        _ => None,
+                    }
+                };
+                let (Some(rk), Some(rj)) = (rays(k), rays(j)) else {
+                    return Some(TouchUnread::Corrupt);
+                };
+                let read = |d: [super::Vec3<T>; 2], on: usize| {
+                    d.map(|d| link.cone.side(&sectors[on], p + d, rd))
+                };
+                let reads = [read(rk, j), read(rj, k)];
+                let off = |r: &[Option<Sign>; 2]| {
+                    r.iter()
+                        .any(|r| matches!(r, Some(Sign::Positive | Sign::Negative)))
+                };
+                if reads.iter().all(off) {
+                    continue;
+                }
+                return Some(if reads.iter().flatten().any(Option::is_none) {
+                    TouchUnread::InBand
+                } else {
+                    TouchUnread::Unreadable
+                });
+            }
+        }
+        None
+    }
+
     /// **Whether one solid's link at a point where it touches itself
     /// bounds one material** (D1 tier 3, `crates/topo/README.md`): no two
     /// of its sheets cross, and its winding over the sphere of directions
@@ -3399,6 +3781,9 @@ pub(crate) mod rest {
         let rd = reading(link, link, band);
         if let Some(open) = held_closed(&[link], rd) {
             return open;
+        }
+        if let Some(why) = first_order(link, rd) {
+            return TouchVerdict::Unread(why);
         }
         let mut notes = Notes::default();
         let near = |q| within(link.cone.p, q, link.ball);
@@ -3646,6 +4031,8 @@ mod round_rows;
 
 #[cfg(test)]
 mod cleared_rows;
+#[cfg(test)]
+mod tangent_rows;
 
 #[cfg(test)]
 mod tests {
@@ -4521,7 +4908,7 @@ mod tests {
     /// touch analysis (`census.rs`, from its banner to the backstop's
     /// header), and the boolean's side of the gathered cone, which
     /// builds a cone's rays and reads an own edge through it
-    /// (`boolean::sectors::fans`, the line cone's `boolean::sectors::line_fans`, `bound_side::Reach::point`,
+    /// (`boolean::sectors::fans`, the line cone's `boolean::sectors::line_fans`, `bound_side::BoundSupport::point`,
     /// `boolean::vtxfac::cone_classes`), and holds:
     /// - every `Margin` door and every `decide` call lies inside `mod
     ///   metric` (one `Margin::of`);
@@ -4820,7 +5207,7 @@ mod tests {
         assert!(
             door[departure.start - metric.start..departure.end - metric.start].contains(
                 "Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),\n                \
-                 Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),"
+                 Departure::Parted(bend) => geom_brep::parting(bend, n, arm.length()).value(),"
             ),
             "`Distance::departure` is a first-order rise or a second-order parting, and \
              nothing else"
@@ -4828,7 +5215,8 @@ mod tests {
         assert!(
             door[departure.start - metric.start..departure.end - metric.start].contains(
                 "Departure::Jet(dir, bend) => {\n                    \
-                 geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()"
+                 geom_brep::rise(dir, n, arm).value()\n                        \
+                 + geom_brep::parting(bend, n, arm.length()).value()"
             ),
             "`Distance::departure`'s jet is the rise and the parting together, and nothing else"
         );

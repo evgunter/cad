@@ -7,14 +7,14 @@
 //! in both senses where the input is signed, a short angle, a zero one,
 //! one in the zero band and one in the band, and a reversed window. No
 //! case moves: both rates are exact, and the sign and forward halves
-//! read the same margin through `Margin::metered` as through `levered`.
+//! read the same product the old pair did.
 
 #![allow(clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, TAU};
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Tol};
+use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Sign, Tol};
 
 use super::RevolveError;
 use super::tube::{TubeDecision, TubeError, arc_window};
@@ -60,13 +60,17 @@ fn defects(band: Band, rate: f64) -> Vec<(f64, f64)> {
 
 /// **The oracle**: the revolve's partial angle as it was spelled.
 fn old_revolve<T: Decide>(t: T, r_max: T, band: Band) -> Outcome {
-    let reverse = match decide("revolve_angle", Margin::levered(t, r_max), band) {
+    let reverse = match decide(
+        "revolve_angle",
+        Margin::metered(t, InfSpeed::new(r_max)),
+        band,
+    ) {
         Err(cause) => return escalated(cause),
         Ok(Sign::Zero) => return Outcome::Degenerate,
         Ok(Sign::Positive) => true,
         Ok(Sign::Negative) => false,
     };
-    let headroom = Margin::levered(T::tau() - t.abs(), r_max);
+    let headroom = Margin::metered(T::tau() - t.abs(), InfSpeed::new(r_max));
     match decide("revolve_angle_headroom", headroom, band) {
         Err(cause) => escalated(cause),
         Ok(Sign::Positive) => Outcome::Admitted(if reverse { 1.0 } else { 0.0 }),
@@ -120,12 +124,16 @@ fn old_decide<T: Decide>(
 /// **The oracle**: the tube's arc window as it was spelled.
 fn old_tube<T: Decide + Into<f64>>(t0: T, t1: T, arm: T, band: Band) -> Outcome {
     let span = t1 - t0;
-    match old_decide(TubeDecision::WindowSpan, Margin::levered(span, arm), band) {
+    match old_decide(
+        TubeDecision::WindowSpan,
+        Margin::metered(span, InfSpeed::new(arm)),
+        band,
+    ) {
         Err(cause) => return escalated(cause),
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) => return Outcome::Degenerate,
     }
-    let headroom = Margin::levered(T::tau() - span, arm);
+    let headroom = Margin::metered(T::tau() - span, InfSpeed::new(arm));
     match old_decide(TubeDecision::WindowHeadroom, headroom, band) {
         Err(cause) => escalated(cause),
         Ok(Sign::Positive) => Outcome::Admitted(span.into()),
