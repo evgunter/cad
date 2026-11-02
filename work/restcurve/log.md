@@ -57,3 +57,7 @@
   - One fix pass. I re-ran M8 and the precision row myself.
   - The tier-3 switch is on `the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band` (P1), dispatched next.
 - 2026-11-01 — Dispatched `the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band` (P1 H; dual, concurrent; branch `restcurve/two-leg`). It goes to the pole-door implementer.
+- 2026-11-02 — **PR 6307 merged** (the sphere door's two-leg path, and tier 3's pole side through the door; closes its row).
+  - Concurrent pair (H): both APPROVE-WITH-FIXES, no MAJOR, tallied 0. One fix pass; I re-ran two mutants myself.
+  - Tier 3 no longer reads `walk_loop`; only step-import does (FOREIGN's row).
+  - RESTCURVE has no open P0 or P1.

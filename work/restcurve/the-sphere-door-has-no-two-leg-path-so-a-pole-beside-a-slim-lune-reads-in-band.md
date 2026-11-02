@@ -2,12 +2,14 @@
 id: the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band
 kind: issue
 title: The sphere door has no two-leg path, so a pole beside a slim lune reads in band and tier 3's pole side still reads locate
-status: dispatched
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: H
 refs: [the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar, a-loop-the-chart-singularity-walk-cannot-certify-is-exempt, import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave, the-cone-door-reads-an-apex-generators-crossings-through-a-cut-angle]
 branch: restcurve/two-leg
+closed: 2026-11-02
+pr: 6307
 ---
 
 
