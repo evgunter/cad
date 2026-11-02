@@ -62,9 +62,8 @@ mod spout_belly_section_probe {
         for s in &spheres {
             for w in &walls {
                 let Surface::Nurbs(n) = w else { continue };
-                let spans =
-                    |k: &pncad::geom_core::spline::KnotVector| k.interior_knots().count() + 1;
-                let (ku, kv) = (n.knots_u_f64_interim(), n.knots_v_f64_interim());
+                let spans = |k: &pncad::geom_core::spline::Knots<f64>| k.runs().count() - 1;
+                let (ku, kv) = (n.knot_values_u(), n.knot_values_v());
                 let (p, q) = (ku.degree(), kv.degree());
                 let start = std::time::Instant::now();
                 let read = pair_section(s, w, None, Some(SsiLane::marched()), band);

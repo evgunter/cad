@@ -222,11 +222,12 @@ impl Curved {
     /// the surface from below. Refused where the divisor has no positive
     /// finite upper bound.
     pub(crate) fn floor_metres(&self, f: Interval, q: Vec3<Interval>) -> Interval {
-        let divisor = geom_core::Real::abs(self.meters.divisor(q));
-        if !(divisor.is_certified() && divisor.hi() > 0.0 && divisor.hi().is_finite()) {
+        let divisor = self.meters.divisor(q);
+        let sup = divisor.lo().abs().max(divisor.hi().abs());
+        if !(divisor.is_certified() && sup > 0.0 && sup.is_finite()) {
             return Interval::refused();
         }
-        f / Interval::point(divisor.hi())
+        f / Interval::point(sup)
     }
 
     /// **A ceiling in metres** (module docs): an upper bound on the
@@ -303,10 +304,7 @@ impl<'a> ImplicitWall<'a> {
         super::finite_net("NURBS wall", wall)?;
         domain.check()?;
         let charted = super::ChartedNurbs::mint(wall)?;
-        let (ud, vd) = (
-            wall.knots_u_f64_interim().domain(),
-            wall.knots_v_f64_interim().domain(),
-        );
+        let (ud, vd) = (wall.knot_values_u().domain(), wall.knot_values_v().domain());
         let root = super::exhaust::UvRect { u: ud, v: vd };
         let speed = charted.speeds().max();
         let floor = super::exhaust::SweepFloor::chart(

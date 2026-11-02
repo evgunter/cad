@@ -147,7 +147,7 @@ pub(super) fn hull(
     let (framed, box_) = framed(curved, net)?;
     let (ku, kv) = (net.knots_u_f64_interim(), net.knots_v_f64_interim());
     let nv = kv.control_count();
-    let weights = net.weights_f64_interim();
+    let weights = net.weights();
     let coord = |v: &Vec3<Interval>, c: usize| match c {
         0 => v.x,
         1 => v.y,
