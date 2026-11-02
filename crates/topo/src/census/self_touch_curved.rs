@@ -178,6 +178,11 @@ fn rows_hold(at: Seat) {
             ("into", into, crossing),
             ("along the arc", circle, tangency),
             ("down the wall's plane, under the post", under, rest),
+            (
+                "down the wall's plane in band of it, under the post",
+                [[3.0 * zero, 0.0, -0.3], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]],
+                in_band,
+            ),
         ],
         Seat::Wall => vec![
             ("off", off, rest),

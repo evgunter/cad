@@ -292,7 +292,9 @@ fn read_at(p: Point3<f64>, sectors: Vec<FaceSector<f64>>) -> TouchVerdict {
 /// **A sphere's whole tangent plane at its pole, its axis tilted, reads
 /// by its first order**: its fan lies in the plane however the pole
 /// rounds. Two balls kissing there, and a ball in a socket, are one
-/// plane to first order and refuse; a corner resting shallow on the
+/// plane to first order and refuse, and so do two kissing off the pole,
+/// where the frame's first direction stands half off square to the
+/// normal; a corner resting shallow on the
 /// ball off its material rests. Near the origin and a kilometre off it,
 /// at five tilts of the axis. Red where the fan leaves the plane on
 /// rounding (a kiss read as a crossing or degenerate, the rest as a
@@ -324,6 +326,18 @@ fn a_sphere_poles_whole_plane_reads_by_its_first_order_at_any_tilt() {
                 if got != Unread(TouchUnread::Unreadable) {
                     bad.push(format!("{raw:?} {far}: {what}: {got:?}"));
                 }
+            }
+            // Off the pole, where the frame's first direction is half off
+            // square to the normal: the fan is the part of it in the plane.
+            // `s0` is the ball's reference direction.
+            let n = (s0 * 0.5 + a * 0.8).normalize();
+            let (one, two) = (
+                whole_at(ball(p - n * r, r, a), n, p, 1.0),
+                whole_at(ball(p + n * r, r, a), -n, p, 1.0),
+            );
+            let got = read_at(p, vec![one, two]);
+            if got != Unread(TouchUnread::Unreadable) {
+                bad.push(format!("{raw:?} {far}: kissing off the pole: {got:?}"));
             }
             let ring = [
                 s0 * 0.3 + a * 0.05,
