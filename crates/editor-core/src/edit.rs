@@ -4650,13 +4650,15 @@ impl EditError {
                 tail.recourse(f, format_args!("clear only an attribute the name carries"))
             }
             Self::InvalidTolerance { value } => {
-                use geom_core::tolerance::{EPS_MIN, EpsFloor};
-                write!(f, "tolerance {value:e} is not admissible: {EpsFloor}")?;
+                use geom_core::tolerance::{EpsFloor, eps_min};
+                let floor = EpsFloor::for_eps(*value);
+                write!(f, "tolerance {value:e} is not admissible: {floor}")?;
                 tail.recourse(
                     f,
                     format_args!(
                         "keep the tolerance the document records, or offer a length in metres of \
-                         at least {EPS_MIN:.2e}"
+                         at least {:.2e}",
+                        eps_min(floor.k)
                     ),
                 )
             }

@@ -305,7 +305,8 @@ This section is where that rule's parts live.
   coordinates: a fixed count of unit roundoffs times the session box.
   The *headroom* is `(K − 1)·ε`, the room between "the same point"
   (within ε) and "definitely apart" (beyond Kε). A run is admitted only
-  where the headroom covers the floor. The check is a comparison
+  where the headroom covers the floor, and no ε is finer than one unit
+  roundoff of the session box, whatever K. The check is a comparison
   against a constant, so the least admissible ε follows from K, and
   K < 2 is allowed at the price of a larger least ε. This is the one
   statement about rounding, and no site charges it.

@@ -569,7 +569,7 @@ impl Staged for PersistError {
                 write!(
                     f,
                     "recorded ε {value:e} is not admissible: {}",
-                    geom_core::tolerance::EpsFloor
+                    geom_core::tolerance::EpsFloor::for_eps(*value)
                 )
             }
         }
@@ -711,7 +711,8 @@ fn reconcile_epsilon(eps: f64) -> Result<(), PersistError> {
                 })
             }
         }
-        // Unreachable past the snapshot check, which refuses an
+        // Unreachable past the snapshot check, which asks the same rule at
+        // the same K (`geom_core::tolerance::eps_admissible`) and refuses an
         // inadmissible ε as `SnapshotError::EpsilonInvalid` first.
         Err(_) => Err(PersistError::ToleranceInvalid { value: eps }),
     }

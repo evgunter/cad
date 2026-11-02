@@ -1876,7 +1876,7 @@ impl core::fmt::Display for SnapshotError {
             Self::EpsilonInvalid { value } => write!(
                 f,
                 "the recorded ε {value:e} is not admissible: {}",
-                geom_core::tolerance::EpsFloor
+                geom_core::tolerance::EpsFloor::for_eps(*value)
             ),
             Self::ConstraintNotMinted { node, constraint } => write!(
                 f,

@@ -155,7 +155,10 @@ fn the_floor_refuses_every_eps_that_collapses_linear() {
     for eps in [collapse_boundary_eps(), f64::from_bits(1)] {
         assert_eq!(
             Tolerance::init(Tolerance { eps, k: least_k() }),
-            Err(ToleranceError::BelowFloor { value: eps }),
+            Err(ToleranceError::BelowFloor {
+                value: eps,
+                k: least_k()
+            }),
             "a collapsing ε is below the floor: {eps:e}"
         );
     }
