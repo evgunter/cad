@@ -1,5 +1,6 @@
-//! The three symbolic decision tables of the boolean classifier, TYPED
-//! and unit-tested per row.
+//! The boolean classifier's on-component lump (Eq. 15.3) and the copy of
+//! a coincident region it keeps, TYPED and unit-tested per row; and how
+//! the classifier reads TOG's Tables II and III.
 //!
 //! # Eq. 15.3 — on-component lumping (the BOOK's table, adjudicated)
 //!
@@ -26,7 +27,8 @@
 //! TOG's printed Table III carries the ∖-row misprint above in its
 //! A-versus-B rows (`∖` Yes where the lump derives No, and No where it
 //! derives Yes); its worked example (Fig. 18, ∪) exercises only the ∪
-//! column and matches.
+//! column, and the fold reproduces it (`recl`'s
+//! `tog_fig18_worked_example`).
 
 use super::{BooleanOp, Operand, SideCode};
 use crate::boolean::plane_eq::PlaneRelation;
