@@ -1765,7 +1765,6 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
 fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
     ToolKind::ALL.map(|kind| match kind {
         ToolKind::Mate => tools.mate().is_some(),
-        ToolKind::Revolve => tools.revolve().is_some(),
         ToolKind::Boolean => tools.boolean().is_some(),
         ToolKind::Split => tools.split().is_some(),
         ToolKind::Transform => tools.transform().is_some(),
@@ -1881,15 +1880,6 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             }
         };
         let op = match seat {
-            Seat::RevolveProfile => SessionOp::AddRevolve {
-                profile: filled(Seat::RevolveProfile),
-                axis_through: [
-                    Formula::zero(Dimension::Length),
-                    Formula::zero(Dimension::Length),
-                ],
-                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
-                angle: ang(core::f64::consts::TAU),
-            },
             // A member beside one filled correctly, so the refusal is
             // about the member under test.
             Seat::Member => SessionOp::AddBoolean {
@@ -2232,18 +2222,6 @@ fn a_tool_closes_on_its_own_committed_edit() {
                 },
             },
         ),
-        (
-            ToolKind::Revolve,
-            SessionOp::AddRevolve {
-                profile: RecipeNodeId::new(0, tagged(1)),
-                axis_through: [
-                    Formula::zero(Dimension::Length),
-                    Formula::zero(Dimension::Length),
-                ],
-                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
-                angle: ang(1.0),
-            },
-        ),
     ];
     let mut tools = Tools::new();
     for (author, op) in &edits {
@@ -2262,6 +2240,15 @@ fn a_tool_closes_on_its_own_committed_edit() {
         SessionOp::AddExtrude {
             profile: RecipeNodeId::new(0, tagged(1)),
             distance: len(0.01),
+        },
+        SessionOp::AddRevolve {
+            profile: RecipeNodeId::new(0, tagged(1)),
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: ang(1.0),
         },
         SessionOp::Undo,
     ] {
@@ -2549,8 +2536,6 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
             // bodies from the tree.
             ToolKind::Mate | ToolKind::Mirror | ToolKind::Clearance => PickKinds::FacesOnly,
             ToolKind::Blend => PickKinds::EdgesOnly,
-            // The one tool whose seat reads a profile.
-            ToolKind::Revolve => PickKinds::Any,
             ToolKind::Boolean
             | ToolKind::Split
             | ToolKind::Transform
@@ -3372,7 +3357,7 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
             ToolKind::Part => continue,
             // Faces and edges, taken whole rather than as a node; and
             // a profile and an axis, which a face pick never is.
-            ToolKind::Mate | ToolKind::Blend | ToolKind::Revolve => continue,
+            ToolKind::Mate | ToolKind::Blend => continue,
             // A face pick seats the face itself, not its body.
             ToolKind::Clearance => continue,
         };

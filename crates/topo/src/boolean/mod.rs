@@ -104,11 +104,15 @@ mod fragments;
 mod glue;
 #[cfg(test)]
 mod glued_pair_rows;
+mod holdings;
+#[cfg(test)]
+mod holdings_rows;
 pub(crate) mod insert;
 mod join;
 mod nary;
 mod node;
 mod ops;
+mod overlap;
 pub(crate) use ops::{GluedSurfacePair, GluedSurfaces};
 pub(crate) mod section_cert;
 mod section_table;
@@ -198,10 +202,13 @@ pub use edge_join::{
     EdgeJoin, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
 };
+pub use holdings::{Held, HeldRefusal, Holdings};
 pub use join::CompletedPolygonPair;
+#[doc(hidden)]
+pub use nary::MemberLineage;
 pub use nary::{
-    Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, MemberLineage, NaryEnd, NaryJudgement,
-    NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
+    Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
+    NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
 };
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, Recharts,
@@ -209,6 +216,7 @@ pub use ops::{
 };
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
+pub use overlap::{OverlapRefusal, overlap};
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation, oriented_plane_eq};
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
 pub(crate) use records::{Parting, incident};
@@ -267,6 +275,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        "bool_overlap_on_plane" => "whether a point of one face lies on the other face's plane",
+        "bool_overlap_cut_order" => "where along an edge its meetings with a face's boundary lie",
+        "bool_overlap_senses" => "whether two faces on one carrier face one way",
         "bool_point_in_solid_sphere" => "how far a point lies off a sphere face's carrier",
         "bool_point_in_solid_beside" => "whether a face lies to one side of a ray along its plane",
         "bool_point_in_solid_clearance" => {
@@ -1165,7 +1176,16 @@ pub(crate) struct Glue<T: Real> {
     /// The pairs the glue door read in band and left unglued, each with
     /// the reading it could not decide ([`InBandPair`]).
     pub(crate) in_band: Vec<InBandPair>,
+    /// Where the caller asks for them, each operand's clone as the
+    /// operation's cuts left it, before any discard, A's then B's: the
+    /// operation puts them here, so the caller can read a discarded
+    /// fragment's region. Clones of the glue share the one slot.
+    pub(crate) clones: Option<CloneSlot<T>>,
 }
+
+/// Where an operation puts its operand clones for its caller
+/// ([`Glue::clones`]).
+pub(crate) type CloneSlot<T> = std::sync::Arc<std::sync::Mutex<[Option<Body<T>>; 2]>>;
 
 /// **A pair the glue door read in band** over both faces and left
 /// unglued: its faces and what the carrier ladder could not decide
@@ -1208,6 +1228,7 @@ impl<T: Real> Glue<T> {
             records_b: OperandRecords::default(),
             verdicts: Verdicts::Decided,
             in_band: Vec::new(),
+            clones: None,
         }
     }
 
@@ -1228,6 +1249,18 @@ impl<T: Real> Glue<T> {
             records_b: records_b.clone(),
             verdicts,
             in_band: Vec::new(),
+            clones: None,
+        }
+    }
+
+    /// Puts `operand`'s clone where the caller asked for it, if it did
+    /// ([`Self::clones`]).
+    pub(crate) fn keep_clone(&self, operand: Operand, clone: impl FnOnce() -> Body<T>) {
+        if let Some(slot) = &self.clones {
+            let mut held = slot
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            held[usize::from(operand == Operand::B)] = Some(clone());
         }
     }
 }

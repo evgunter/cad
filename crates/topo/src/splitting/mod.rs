@@ -69,7 +69,7 @@ pub use classify::{ConicRootFault, CrossingDecision};
 pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
-mod neighborhood;
+pub(crate) mod neighborhood;
 pub(crate) use neighborhood::{EntryFault, entry_side, wide_entries};
 // `pub(crate)` for `order::{FRAME_ARM, FRAME_AXIS}`, which
 // `chord_join` reads rather than minting a second copy.

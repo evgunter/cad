@@ -591,7 +591,7 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
         start,
         end,
         |k| body.get_surface(k).cloned(),
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band,
         geom_brep::NurbsLane::certified(),
     )

@@ -2135,7 +2135,7 @@ mod tests {
             p0,
             p1,
             |k| arena.get(k).cloned(),
-            geom_core::Real::from_f64(1.0),
+            geom_core::test_support::fixture_lever(lift(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )

@@ -149,13 +149,14 @@ struct Excluded {
 
 /// **The sweep of a wall against its partner `phi`** to `floor`, at
 /// `band` (module docs); `extent` is the feature extent the slopes are
-/// levered by.
+/// levered by, the net ball's diameter
+/// ([`crate::ExtentBall::certified_diameter`]).
 pub(super) fn sweep(
     boxes: &NurbsBoxes<'_, f64>,
     phi: Phi<'_>,
     floor: SweepFloor<UvRect>,
     band: Band,
-    extent: f64,
+    extent: geom_core::Lever<Interval>,
 ) -> Sweep {
     let net = boxes.surface();
     let (ud, vd) = (net.knot_values_u().domain(), net.knot_values_v().domain());
@@ -170,7 +171,6 @@ pub(super) fn sweep(
     if root.window().is_none() {
         return Sweep::Declined(Declined::Unread);
     }
-    let arm = Interval::from_certified(extent);
     let off = |name, margin| {
         matches!(
             decide(name, margin, band),
@@ -207,7 +207,7 @@ pub(super) fn sweep(
             Vec3::new(d.x, d.y, d.z),
             Interval::from_certified(speed),
         );
-        off("spline_sweep_regular", Margin::levered(slope, arm))
+        off("spline_sweep_regular", Margin::levered(slope, extent))
     };
     let regular = |cell: UvRect| {
         cell.window().is_some_and(|w| {
@@ -347,7 +347,7 @@ pub(super) fn sweep(
             // A reading that does not certify is halved as an undecided
             // one is, down to the floor.
             let read = metres.is_certified() && slope.is_certified();
-            let along = read && off("spline_sweep_regular", Margin::levered(slope, arm));
+            let along = read && off("spline_sweep_regular", Margin::levered(slope, extent));
             if let Some(above) = side(piece, metres).filter(|_| read) {
                 excluded.borrow_mut().push(Excluded {
                     cell: piece,
@@ -581,7 +581,7 @@ fn swept(p: &geom::Surface<f64>, w: &geom::Surface<f64>, band: Band) -> Sweep {
         pivot.phi(),
         reading.account_floor(),
         band,
-        pose.domain().extent,
+        pose.ball().certified_diameter(),
     )
 }
 

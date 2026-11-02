@@ -1331,18 +1331,6 @@ pub(crate) fn unit_vec3_row(
     });
 }
 
-/// Two Length fields, one point of the sketch frame — each carrying
-/// the axis it is, because a row of a path form holds several points
-/// and a bare pair of numbers says which of them it belongs to only
-/// by position.
-///
-/// Answers whether the person edited either coordinate this frame.
-pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut Point2<f64>) -> bool {
-    let x = named_field(ui, "x", unit, FIELD_DRAG_SPEED, &mut point.x);
-    let y = named_field(ui, "y", unit, FIELD_DRAG_SPEED, &mut point.y);
-    x || y
-}
-
 /// **What a step row's fields draw for each argument** — the seam
 /// between the step list, which knows WHICH argument each number is
 /// (its row and its [`StepArg`], the role the document's slot walk

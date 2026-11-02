@@ -1731,7 +1731,7 @@ fn walls_inside<T: Decide>(
                 ) else {
                     return Err(refused(unread));
                 };
-                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm);
+                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm.length());
                 let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, apart, band)
                     .map_err(sectors)?;
                 match side {
@@ -1824,7 +1824,7 @@ pub(super) const RIDER_WALL_BEND_ACROSS: &str = "bool_rider_wall_bend_across";
 fn coplanar_wall_inside<T: Decide>(
     normal: geom_core::Vec3<T>,
     floor: geom_core::Vec3<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     band: Band,
     refused: impl Fn(EdgeInFaceGap) -> BooleanError,
 ) -> Result<bool, BooleanError> {

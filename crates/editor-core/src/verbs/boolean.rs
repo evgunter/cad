@@ -120,6 +120,7 @@ fn boolean_record<T: topo::AtRestPolicy>(record: VerbRecord<T>) -> Option<Boolea
             contacts,
             naming,
             verdicts: _,
+            holdings: _,
         } => Some(BooleanRecord {
             kind,
             contacts,

@@ -316,3 +316,130 @@ fn the_cap_states_its_meridian_crossings_as_meetings() {
         );
     }
 }
+
+/// The body node `id` evaluated to, with its frame.
+fn framed_at(
+    ev: &editor_core::Evaluation<f64>,
+    id: RecipeNodeId,
+    what: &str,
+) -> editor_core::Framed<f64> {
+    match &ev.value(id).expect("the node evaluated").payload {
+        editor_core::ValuePayload::Body(b)
+        | editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { body: b, .. }) => {
+            b.clone()
+        }
+        other => panic!("{what}: expected a body, got {other:?}"),
+    }
+}
+
+/// Every face of `result` holds a member face, and every member face
+/// `holdings` names is a face of the body at its place in `members`.
+fn names_member_faces(
+    holdings: &topo::Holdings,
+    result: &topo::Body<f64>,
+    members: [&topo::Body<f64>; 2],
+    what: &str,
+) {
+    for (f, _) in result.faces() {
+        assert!(
+            holdings.of(f).is_some(),
+            "{what}: finished face {f:?} has holdings"
+        );
+    }
+    let rows = holdings
+        .faces()
+        .map(|(_, h)| h)
+        .chain(holdings.lost_rows())
+        .chain(holdings.uncut_rows());
+    for held in rows {
+        let faces = held
+            .faces()
+            .unwrap_or_else(|| panic!("{what}: a holding refused: {held:?}"));
+        for &(m, f) in faces {
+            assert!(
+                members[m].get_face(f).is_some(),
+                "{what}: the holdings name member {m}'s face {f:?}, which it does not hold"
+            );
+        }
+    }
+    for (f, held) in holdings.faces() {
+        assert!(
+            held.faces().is_some_and(|s| !s.is_empty()),
+            "{what}: finished face {f:?} holds a member face"
+        );
+    }
+}
+
+/// **The holdings of every op over the lens and the brick name only
+/// faces of their operands**: the kernel cuts the lens's top face along
+/// a meridian before the op, and rewrites the op's division rows after
+/// it, so the holdings it publishes are read from the rows as rewritten,
+/// the cut's new piece read back to the face it divided. The pair door
+/// and the n-ary door's one step, each op, each operand order.
+#[test]
+fn the_holdings_over_a_cut_in_name_only_their_operands_faces() {
+    let tol = Tol::witness();
+    let (doc, [lens, brick, _]) = document("union", true);
+    let ev = run(&doc);
+    let lens = framed_at(&ev, lens, "the lens");
+    let brick = framed_at(&ev, brick, "the brick");
+    // The brick read in the lens's coordinates, as the op reads it.
+    let brick = match lens.relative(&brick).expect("the frames compose") {
+        None => brick.body().clone(),
+        Some(map) => topo::transform::transform_rigid(brick.body(), &map, tol)
+            .expect("the brick maps into the lens's frame"),
+    };
+    let lens = topo::test_support::finished("the lens", lens.body().clone(), tol);
+    let brick = topo::test_support::finished("the brick", brick, tol);
+    let (mut cut_in, mut built) = (0, 0);
+    for (x, y, order) in [
+        (&lens, &brick, "lens first"),
+        (&brick, &lens, "brick first"),
+    ] {
+        for op in [
+            topo::BooleanOp::Union,
+            topo::BooleanOp::Intersect,
+            topo::BooleanOp::Subtract,
+        ] {
+            let what = format!("{op:?}, {order}");
+            let out = match topo::boolean_op_with(
+                op,
+                x,
+                y,
+                &topo::BooleanInputs::default(),
+                topo::SweepStrategy::Realized,
+                tol,
+            ) {
+                Ok(topo::BooleanResult::Body(out)) => out,
+                other => {
+                    println!("{what}: no body to read: {other:?}");
+                    continue;
+                }
+            };
+            cut_in += usize::from(out.naming.chart_cuts.iter().any(|c| !c.is_empty()));
+            built += 1;
+            names_member_faces(&out.holdings, &out.body, [x, y], &what);
+        }
+        for op in [topo::NaryOp::Union, topo::NaryOp::Intersect] {
+            let what = format!("n-ary {op:?}, {order}");
+            let inputs = topo::MemberInputs::default();
+            let members: [topo::NaryMember<'_, f64>; 2] = [
+                topo::NaryMember {
+                    body: x,
+                    inputs: &inputs,
+                },
+                topo::NaryMember {
+                    body: y,
+                    inputs: &inputs,
+                },
+            ];
+            let run = topo::nary_boolean(op, &members, topo::SweepStrategy::Realized, tol);
+            if let Some(step) = run.steps.first() {
+                names_member_faces(&step.holdings, &step.body.body, [x, y], &what);
+                built += 1;
+            }
+        }
+    }
+    assert!(cut_in > 0, "some op cuts the lens's face in before it runs");
+    assert!(built >= 6, "most of the ten runs build: {built}");
+}

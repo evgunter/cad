@@ -31,7 +31,7 @@ struct EdgeData<'b, T: Real> {
     t0: T,
     t1: T,
     witness: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
 }
 
 fn edge_data<T: SpanLocate + Decide>(

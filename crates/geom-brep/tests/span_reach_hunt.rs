@@ -111,7 +111,7 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
                 t0,
                 t1,
             };
-            let got = reach.span_reach_from(p);
+            let got = reach.span_reach_from(p).length();
             let far = farthest(&carrier, t0, t1, p);
             let scale = (center - Point3::origin()).norm() + (p - Point3::origin()).norm() + big;
             let tol = 16.0 * f64::EPSILON * scale;
@@ -131,7 +131,7 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
                 fuzz::replay()
             );
             assert!(
-                got <= reach.lever_from(p),
+                got <= reach.lever_from(p).length(),
                 "{label}: {got} passes the whole turn; {}",
                 fuzz::replay()
             );

@@ -9,7 +9,7 @@
 //!
 //! # Why one value and not one per tool
 //!
-//! The revolve tool and the combining tools differ in exactly two
+//! The combining tools differ in exactly two
 //! things: how many seats they have and what those seats MEAN. Everything
 //! else — fill the first empty seat, replace the last when both are
 //! full, drop a pick whose node left the document, refuse typed until a
@@ -113,8 +113,6 @@ vocabulary! {
     /// composed the same way wherever it appears.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Seat {
-        /// The profile a revolve sweeps.
-        RevolveProfile,
         /// A union's or an intersect's member — one of any number, held
         /// in pick order by the boolean tool rather than in a [`Seats`].
         Member,
@@ -162,7 +160,6 @@ impl Seat {
     /// the door rejects.
     pub fn wants(self) -> NodeKindWanted {
         match self {
-            Self::RevolveProfile => NodeKindWanted::Profile,
             Self::PartInstance => NodeKindWanted::Instances,
             Self::Member
             | Self::SubtractFrom
@@ -179,7 +176,6 @@ impl Seat {
     /// The seat's name, for sentences.
     pub fn name(self) -> &'static str {
         match self {
-            Self::RevolveProfile => "profile",
             Self::Member => "member",
             Self::SubtractFrom => "body kept",
             Self::SubtractTool => "body removed",

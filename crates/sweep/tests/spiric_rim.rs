@@ -132,9 +132,12 @@ fn the_edge_extent_brackets_the_sampled_diameter() {
         let step = (t1 - t0) / n as f64;
         for k in 0..n {
             let (a, b) = (t0 + step * k as f64, t0 + step * (k + 1) as f64);
-            let chord = carrier.eval(a).distance(carrier.eval(b));
-            let extent = geom_brep::edge_extent_inf(&carrier, a, b, chord);
-            let sup = geom_brep::edge_extent_sup(&carrier, a, b, chord);
+            let extent =
+                geom_brep::edge_extent_inf(&carrier, a, b, (carrier.eval(a), carrier.eval(b)))
+                    .length();
+            let sup =
+                geom_brep::edge_extent_sup(&carrier, a, b, (carrier.eval(a), carrier.eval(b)))
+                    .length();
             let samples: Vec<Point3<f64>> = (0..=200)
                 .map(|i| carrier.eval(a + (b - a) * f64::from(i) / 200.0))
                 .collect();
@@ -186,9 +189,10 @@ fn the_edge_extent_arm_is_the_minor_radius_at_the_elbows_ratio() {
         (0.7, 2.9),
         (2.0, 5.5),
     ] {
-        let chord = carrier.eval(a).distance(carrier.eval(b));
-        let extent = geom_brep::edge_extent_inf(&carrier, a, b, chord);
-        let sup = geom_brep::edge_extent_sup(&carrier, a, b, chord);
+        let extent =
+            geom_brep::edge_extent_inf(&carrier, a, b, (carrier.eval(a), carrier.eval(b))).length();
+        let sup =
+            geom_brep::edge_extent_sup(&carrier, a, b, (carrier.eval(a), carrier.eval(b))).length();
         let samples: Vec<Point3<f64>> = (0..=400)
             .map(|i| carrier.eval(a + (b - a) * f64::from(i) / 400.0))
             .collect();
