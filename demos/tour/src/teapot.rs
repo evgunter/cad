@@ -1101,16 +1101,15 @@ pub fn spout_belly_carriers(
 ) -> (Vec<Surface<f64>>, Vec<Surface<f64>>) {
     let carriers = |id, keep: fn(&Surface<f64>) -> bool| {
         let body = body_at(ev, id, tol);
-        let mut out: Vec<Surface<f64>> = Vec::new();
+        let mut keys = Vec::new();
         for (_, face) in body.faces() {
-            if let Some(s) = body.get_surface(face.surface)
-                && keep(s)
-                && !out.contains(s)
-            {
-                out.push(s.clone());
+            if !keys.contains(&face.surface) && body.get_surface(face.surface).is_some_and(keep) {
+                keys.push(face.surface);
             }
         }
-        out
+        keys.iter()
+            .filter_map(|&k| body.get_surface(k).cloned())
+            .collect::<Vec<_>>()
     };
     (
         carriers(r.pot, |s| matches!(s, Surface::Sphere { .. })),
