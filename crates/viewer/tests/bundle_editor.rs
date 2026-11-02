@@ -168,7 +168,7 @@ fn a_stale_draft_reloads_and_its_apply_is_refused() {
 fn the_verdict_names_a_repeated_equation_before_apply() {
     let tol = Tol::witness();
     let bench = asm::bench("bundle-verdict", tol);
-    let session = asm::open_bench(&bench, tol);
+    let mut session = asm::open_bench(&bench, tol);
     let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
     let tool = seated(&session, &bench);
     let one = common::proposed(&session, &tool, rest()).expect("one rest proposes");
@@ -184,17 +184,101 @@ fn the_verdict_names_a_repeated_equation_before_apply() {
     assert_eq!(twice.mates.len(), 2);
     let states = session.history().len();
     let verdict = session.bundle_verdict(&twice.op());
+    let BundleVerdict::Refused(Refusal::Edit(said)) = &verdict else {
+        panic!("a second rest of the same faces is the door's refusal: {verdict:?}")
+    };
     assert!(
         matches!(
-            &verdict,
-            BundleVerdict::Refused(Refusal::Edit(error))
-                if error.to_string().contains("already")
-                    || matches!(**error, pncad::document::EditError::MateRefused { .. })
-        ) || matches!(&verdict, BundleVerdict::Faults(_)),
-        "a second rest of the same faces repeats an equation: {verdict:?}"
+            &**said,
+            pncad::document::EditError::MateRefused { fault, .. }
+                if matches!(**fault, pncad::document::MateFault::Overconstrained { .. })
+        ),
+        "the door says the repeated equation: {said:?}"
+    );
+    assert_eq!(
+        session.history().len(),
+        states,
+        "the verdict records nothing"
+    );
+    // Apply does what the verdict said: the same refusal, nothing recorded.
+    let before = session.committed_doc().clone();
+    let outcome = session.perform(twice.op());
+    assert_eq!(
+        outcome.refusal.as_ref().map(ToString::to_string),
+        Some(Refusal::Edit(said.clone()).to_string()),
+        "Apply refuses as the verdict said"
+    );
+    assert!(session.committed_doc().bit_eq(&before), "nothing changed");
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
+
+/// **A copy that would not stand is not applied from the editor**: a
+/// point mate read off two flat faces does not evaluate
+/// (`SideUnevaluated`), so the verdict is the placement's fault, and
+/// Apply is withheld with it, nothing recorded.
+#[test]
+fn an_apply_whose_copy_would_not_stand_is_withheld() {
+    let tol = Tol::witness();
+    let bench = asm::bench("bundle-withheld", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let tool = seated(&session, &bench);
+    let point = MateChoice {
+        kind: VarKind::Point,
+        flip: false,
+        values: Vec::new(),
+    };
+    let proposal = common::proposed(&session, &tool, point).expect("two faces propose as points");
+    let verdict = session.bundle_verdict(&proposal.op());
+    assert!(
+        matches!(&verdict, BundleVerdict::Faults(fault)
+            if matches!(**fault, pncad::document::MateFault::SideUnevaluated { .. })),
+        "a point read off a flat face does not evaluate: {verdict:?}"
+    );
+    let states = session.history().len();
+    let outcome = session.perform(proposal.op());
+    assert!(
+        matches!(&outcome.refusal, Some(Refusal::PlacementFails { fault: Some(fault) })
+            if matches!(**fault, pncad::document::MateFault::SideUnevaluated { .. })),
+        "Apply is withheld with the verdict's fault: {:?}",
+        outcome.refusal
     );
     assert_eq!(session.history().len(), states, "nothing is recorded");
     std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
+
+/// **The kernel's one chain read turns as the rotation does near its
+/// pole** (`editor_core::mate::chain_turns`): a turn whose `x` stands a
+/// hair off `z`, where the general branch reads it, and one exactly on
+/// it, where the pole branch does — each read back into the chain
+/// `Rz·Ry·Rx` and compared with the rotation it was read off.
+#[test]
+fn the_chain_read_turns_as_the_rotation_does_at_and_near_its_pole() {
+    use pncad::geom_core::linalg::{Mat3, Vec3};
+    let about = |axis: Vec3<f64>, a: f64| {
+        let (s, c) = a.sin_cos();
+        let turn = |v: Vec3<f64>| v * c + axis.cross(v) * s + axis * (axis.dot(v) * (1.0 - c));
+        Mat3::from_cols(
+            turn(Vec3::unit_x()),
+            turn(Vec3::unit_y()),
+            turn(Vec3::unit_z()),
+        )
+    };
+    let chain = |[x, y, z]: [f64; 3]| {
+        about(Vec3::unit_z(), z) * about(Vec3::unit_y(), y) * about(Vec3::unit_x(), x)
+    };
+    for off in [0.0, 1.0e-6, 1.0e-3] {
+        let r = chain([0.4, -std::f64::consts::FRAC_PI_2 + off, 0.5236]);
+        let read = editor_core::mate::chain_turns(&r);
+        let back = chain(read);
+        let gap = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()]
+            .iter()
+            .map(|&e| (back * e - r * e).norm())
+            .fold(0.0, f64::max);
+        assert!(
+            gap < 1.0e-8,
+            "{off} off the pole: the chain read {read:?} turns {gap} away"
+        );
+    }
 }
 
 /// **The tree's `remove`**: a value is refused — its freedom is always
@@ -330,4 +414,83 @@ fn the_create_door_places_a_body_where_it_stands() {
         "a copy of the body in its own space: {:?}",
         doc.node(copy)
     );
+}
+
+/// **A kept chart keeps its slides**: post_b rested under the shelf, the
+/// shelf then turned 60° about `x`, so the rest's target leans past the
+/// diagonal and the orientation nearest where post_b now stands is no
+/// longer the loaded one. The Edit door opened untouched still lists the
+/// loaded slides — the chart is the bundle's — and its Apply writes
+/// nothing.
+#[test]
+fn an_untouched_draft_over_a_tilted_target_keeps_its_slides() {
+    let tol = Tol::witness();
+    let bench = asm::bench("bundle-tilted", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let tool = seated(&session, &bench);
+    let proposal = common::proposed(&session, &tool, rest()).expect("the rest proposes");
+    common::commit_mate(&mut session, proposal.op());
+    let loaded: Vec<Coord> = authored(&session, bench.post_b)
+        .iter()
+        .filter_map(|c| c.value().map(|v| v.coord))
+        .collect();
+    let (tilt, _) = value_on(&session, bench.shelf_i, Coord::Spin(Some(TargetAxis::X)));
+    let outcome = session.perform(SessionOp::SetSlot {
+        node: bench.shelf_i,
+        slot: SlotId::ValueSpin { constraint: tilt },
+        value: viewer::props::SlotValue::of(Dimension::Angle, 60.0_f64.to_radians())
+            .expect("a value"),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let draft = MateTool::edit(doc, bench.post_b)
+        .expect("post_b is a placement")
+        .proposal(doc, ev, tol)
+        .expect("the loaded bundle proposes");
+    let coords: Vec<Coord> = draft.values.iter().map(|row| row.coord).collect();
+    assert_eq!(coords, loaded, "the loaded slides and spin");
+    assert!(
+        draft.dropped.is_empty(),
+        "nothing drops: {:?}",
+        draft.dropped
+    );
+    let states = session.history().len();
+    let outcome = session.perform(draft.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(
+        session.history().len(),
+        states,
+        "an untouched draft writes nothing"
+    );
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
+
+/// **A Create draft over a body placed since is stale**: its Apply,
+/// sent again once the body has its copy, is refused rather than
+/// placing the body a second time.
+#[test]
+fn a_create_draft_over_a_body_placed_since_is_refused() {
+    let tol = Tol::witness();
+    let mut session = common::inline_without_door(
+        pncad::document::Doc::empty_derived("bundle-create-stale", tol),
+        tol,
+    );
+    let body = common::xy_box_in(&mut session, [0.02, 0.03, 0.01]);
+    session.pump();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let proposal = MateTool::create(Operand::Node(body))
+        .proposal(doc, ev, tol)
+        .expect("no mate proposes");
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let states = session.history().len();
+    let again = session.perform(proposal.op());
+    assert!(
+        matches!(again.refusal, Some(Refusal::BundleStale { .. })),
+        "a second Create of the body is stale: {:?}",
+        again.refusal
+    );
+    assert_eq!(session.history().len(), states, "nothing is recorded");
 }

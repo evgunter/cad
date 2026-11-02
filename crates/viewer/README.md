@@ -2154,8 +2154,16 @@ one nearest the snapped turn. The numbers are read back where the snap
 stands the copy through the chart that will place it
 (`editor_core::mate::read_back`). A number the person typed on a
 surviving freedom is kept, and so is a loaded value reading a named
-variable or an expression, or read on the same chart as loaded; only a
-constant whose chart changed is measured again. "A mate in place of a
+variable or an expression, or read on the same chart as loaded (whose
+slides are then the loaded ones); only a constant whose chart changed
+is measured again. A loaded turn whose freedom goes is carried onto the
+new freedom's turn where it reads what that measures, with its sign;
+every other value whose freedom goes is said dropped in the draft,
+with its formula, before Apply. Each value row is a field showing its
+formula as the person reads it (`matetool::value_text`: a variable by
+its name, never its id), and typing replaces it. A freedom that reads
+no number where the copy stands, or a mate whose kind does not
+resolve, is said, never written as `0` or read as a plane. "A mate in place of a
 slide or a spin" is *add a mate*: the value rows shrink to what the
 admitted mates leave.
 
@@ -2165,7 +2173,10 @@ on a scratch recording and evaluates it
 or the placement's fault — mates repeating an equation, a freedom left
 unpinned, two spaces, a side off the copy, a pick its kind cannot read
 — while the draft can still change, and a refused Apply leaves the
-editor open (`ToolKind::commits`). Where `to` is read in another space
+editor open (`ToolKind::commits`). A copy the verdict says would not
+stand (a fault, or a read that does not evaluate) is not applied: the
+panel withholds Apply, and `SessionOp::Place` and `SessionOp::SetBundle`
+refuse it (`Refusal::PlacementFails`). Where `to` is read in another space
 than the one the copy is placed into, the door refuses the Edit,
 `EditError::SpaceMismatch` naming both spaces: the gesture never moves
 a copy as a side effect. The panel's "move the copy into the target's
@@ -2233,8 +2244,10 @@ is drawn — never enters a bundle.
 
 **The tree shows a placement's constraints as its children**
 (`tree::ConstraintRow`, on `TreeRow::constraints`): one line per
-constraint under its placement's row, in bundle order, each with the
-button that removes it. A constraint is no node, so it has no row in
+constraint under its placement's row, in bundle order, a mate's with
+the `remove` that opens the placement editor with it struck out, and
+the placement's row with `edit placement`; a value has no button, its
+freedom always set. A constraint is no node, so it has no row in
 the order of its own. The world, which every document holds and no
 edit deletes, has no row.
 

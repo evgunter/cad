@@ -743,6 +743,9 @@ impl ViewerBehavior<'_> {
                             |at| self.drafts.mate_value_edits[at].1.clone(),
                         );
                         let field = ui.text_edit_singleline(&mut text);
+                        if row.from == crate::matetool::ValueFrom::Unmeasured {
+                            ui.label("not measured: the mate's poses do not evaluate here");
+                        }
                         if field.changed() {
                             match held {
                                 Some(at) => self.drafts.mate_value_edits[at].1 = text.clone(),

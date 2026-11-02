@@ -281,14 +281,18 @@ fn scene_error_forwards_its_tessellation_arm() {
     prose(&outer, "InvalidChordalTolerance");
 }
 
-/// A freedom that reads no number names the freedom, in the kernel's
-/// own words — never a variant name.
+/// A freedom whose number no value holds names the freedom, in the
+/// kernel's own words — never a variant name.
 #[test]
-fn mate_tool_error_names_the_freedom_it_cannot_measure() {
+fn mate_tool_error_names_the_freedom_it_cannot_write() {
     use pncad::document::Coord;
-    let outer = MateToolError::Unmeasured { coord: Coord::SPIN }.to_string();
+    let outer = MateToolError::Unwritable {
+        coord: Coord::SPIN,
+        by: f64::INFINITY,
+    }
+    .to_string();
     assert!(outer.contains(Coord::SPIN.name()), "{outer}");
-    prose(&outer, "Unmeasured");
+    prose(&outer, "Unwritable");
 }
 
 #[test]

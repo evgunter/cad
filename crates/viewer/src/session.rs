@@ -4204,6 +4204,17 @@ impl DocSession {
         let body = as_body(self.committed_doc(), body);
         self.require_placeable(&body)?;
         let doc = self.committed_doc();
+        // The Create door is a body not yet placed: one placed since the
+        // draft opened is stale, never placed a second time.
+        if let Some(var) = crate::world::read_var(doc, &body)
+            && let Some(copy) = doc.placements().into_iter().find(|&at| {
+                matches!(doc.node(at), Some(Node::Place { source, .. }) if source.read == var)
+            })
+        {
+            return Err(Refusal::BundleStale {
+                node: doc.spoken(copy),
+            });
+        }
         let mut takeover = Takeover::of(doc, &body);
         takeover.copies.clear();
         takeover.stranded_pick(doc)?;

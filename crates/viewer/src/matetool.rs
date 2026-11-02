@@ -31,10 +31,16 @@
 //! ([`editor_core::mate::read_back`]). A number the person typed on a
 //! freedom that survives is kept, and so is a value loaded from the
 //! bundle that reads a named variable or an expression, or that the mate
-//! fixing a direction — the chart it is read on — still reads as loaded.
-//! Only a constant (a number, or the anonymous variable a typed field
-//! mints) whose chart changed is measured again, so no value reading
-//! `px` is ever re-written as a measured number.
+//! fixing a direction — the chart it is read on — still reads as loaded,
+//! whose slides are then the loaded ones. Only a constant (a number, or
+//! the anonymous variable a typed field mints) whose chart changed is
+//! measured again. A loaded turn whose freedom goes is carried onto the
+//! new freedom's turn where it reads what that measures, with its sign,
+//! so `pa` on the spin about a rest's normal is read as `-pa` on the
+//! chain's turn about the same line; every other value whose freedom
+//! goes is said dropped in the draft ([`MateProposal::dropped`]), with
+//! its formula, before Apply — none is dropped silently, and none is
+//! written over with a measured number.
 //!
 //! "A mate in place of a slide or a spin" is [`MateTool::add_mate`]:
 //! the value rows shrink to what the admitted mates leave.
@@ -644,6 +650,10 @@ pub enum ValueFrom {
     Typed,
     /// Where the copy stands, snapped onto the mates.
     Measured,
+    /// Nowhere: the mates' poses do not evaluate where the copy stands,
+    /// so the freedom reads no number, and the bundle holds the kernel's
+    /// fill (the constant `0`, [`Placed::of`]) until a number is typed.
+    Unmeasured,
 }
 
 /// **The person's choice for the active row** — its kind, its sense —
@@ -742,13 +752,6 @@ pub enum MateToolError {
         /// The kind chosen.
         kind: VarKind,
     },
-    /// A freedom the live mates leave reads no number where the copy
-    /// stands — a spin about the target's direction whose mate's poses
-    /// do not evaluate — and nobody typed one.
-    Unmeasured {
-        /// The freedom.
-        coord: Coord,
-    },
     /// A freedom's measured number is no literal a value can hold.
     Unwritable {
         /// The freedom.
@@ -816,11 +819,6 @@ impl core::fmt::Display for MateToolError {
                     .join(", ")
             ),
             Self::NoSense { kind } => write!(f, "a {kind} has no sense to turn round"),
-            Self::Unmeasured { coord } => write!(
-                f,
-                "the {} reads no number where the copy stands; type one",
-                coord.name()
-            ),
             Self::Unwritable { coord, by } => {
                 write!(
                     f,
@@ -858,7 +856,6 @@ impl MateToolError {
             | Self::NotAMate { .. }
             | Self::KindNotOffered { .. }
             | Self::NoSense { .. }
-            | Self::Unmeasured { .. }
             | Self::Unwritable { .. }
             | Self::KindUnread { .. }) => unspoken,
         }
@@ -1888,7 +1885,16 @@ impl MateTool {
                 landed.push(same.0);
             }
             let Some(by) = *measured else {
-                return Err(MateToolError::Unmeasured { coord });
+                // The mates' poses do not evaluate where the copy stands,
+                // so this freedom reads no number: it is said, written by
+                // the kernel's fill rule (the constant `0`,
+                // [`Placed::of`]), and the verdict names the mate's fault.
+                values.push(ValueRow {
+                    coord,
+                    by: Formula::zero(coord.dimension()),
+                    from: ValueFrom::Unmeasured,
+                });
+                continue;
             };
             // A loaded turn about another freedom that reads what this
             // one measures, a variable or an expression: carried, read
@@ -1957,7 +1963,7 @@ impl MateTool {
         for row in &values {
             let id = match row.from {
                 ValueFrom::Loaded(id) => Some(id),
-                ValueFrom::Typed | ValueFrom::Measured => loaded
+                ValueFrom::Typed | ValueFrom::Measured | ValueFrom::Unmeasured => loaded
                     .iter()
                     .find(|(id, v)| v.coord == row.coord && !used.contains(id))
                     .map(|(id, _)| *id),

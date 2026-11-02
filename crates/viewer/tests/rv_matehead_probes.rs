@@ -84,13 +84,12 @@ fn the_kind_refusal_says_the_entity_and_what_the_kind_reads() {
 }
 
 /// **A face name at an instance that its copy does not carry is the
-/// placement's refusal where it evaluates.** The tool reads no pose
-/// before committing, so a hand-built selection naming a face at the
-/// instance that its part's product holds no row of proposes and
-/// commits; the instance's copy holds only its part's rows, so the
-/// mate's `on` does not evaluate and the post's row fails
-/// `SideUnevaluated` on the `on` side — never a placement that
-/// silently stands somewhere.
+/// placement's refusal, judged before Apply.** A hand-built selection
+/// naming a face at the instance that its part's product holds no row
+/// of proposes; the instance's copy holds only its part's rows, so the
+/// mate's `on` does not evaluate. The verdict is `SideUnevaluated` on
+/// the `on` side, and Apply is withheld with it — never a placement
+/// that silently stands somewhere, and never one committed failing.
 #[test]
 fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates() {
     let tol = Tol::witness();
@@ -112,16 +111,10 @@ fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates
     tool.pick(session.doc(), b);
     let proposal = common::proposed(&session, &tool, asm::seat_choice())
         .expect("no pose is read before the commit");
+    let states = session.history().len();
     let outcome = session.perform(proposal.op_into_target_space());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.pump();
-    let (_, eval) = session.landed_pair().expect("landed");
-    match eval
-        .result(bench.post_b)
-        .and_then(|r| r.error())
-        .map(|e| &e.kind)
-    {
-        Some(pncad::document::NodeErrorKind::Mate(fault))
+    match &outcome.refusal {
+        Some(viewer::session::Refusal::PlacementFails { fault: Some(fault) })
             if matches!(
                 fault.as_ref(),
                 pncad::document::MateFault::SideUnevaluated {
@@ -130,7 +123,8 @@ fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates
                 }
             ) => {}
         other => {
-            panic!("a face name its copy does not carry refuses where it evaluates, got {other:?}")
+            panic!("a face name its copy does not carry is withheld at Apply, got {other:?}")
         }
     }
+    assert_eq!(session.history().len(), states, "nothing is recorded");
 }

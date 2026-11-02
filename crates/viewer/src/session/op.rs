@@ -60,15 +60,15 @@ pub enum SessionOp {
         /// The node to delete, with its dependents.
         node: RecipeNodeId,
     },
-    /// Remove one constraint from its placement's bundle
-    /// (`DocEdit::RemoveConstraint`): the bundle written whole without
-    /// it, by the rule a mate's addition writes it — a mate taken away
-    /// frees what it fixed, and each freedom no value then sets is
-    /// written the constant `0`, so the copy stays pinned (D10
-    /// `[placement.values]`). A constraint is no node, so it has no cone
-    /// to delete: the copy it pinned is recomputed from what remains. A
-    /// constraint the bundle does not hold is refused as
-    /// `DocEdit::RemoveConstraint` refuses it.
+    /// **Take one mate out of its placement's bundle**, as the
+    /// placement editor does: the mate struck out of the placement's
+    /// draft (`MateTool::edit_striking`) and the draft applied
+    /// (`SessionOp::SetBundle`) — each freedom it frees measured where
+    /// the copy stands, a loaded turn carried where it reads what its
+    /// new freedom measures, so the copy stays where it stood. A value is
+    /// refused (`Refusal::ValueNotRemoved`): a freedom is always set, and
+    /// its only edit is its number. A constraint the bundle does not hold
+    /// is refused as no mate of it.
     RemoveConstraint {
         /// The constraint: its placement and minted id.
         mate: MateRef,
@@ -496,21 +496,16 @@ pub enum SessionOp {
     /// reason: it is the other cancel door, and the other thing an
     /// Escape on the field emits.
     CancelFreeMove,
-    /// Add the mate to `placement`'s bundle (`DocEdit::AddConstraint`,
-    /// which writes the bundle whole: the values whose freedoms the
-    /// mate fixes go, each freedom it leaves keeps its value or is the
-    /// constant `0`, and a mate beside mates that already fix its
-    /// equations is refused overconstrained), then the values written
-    /// over the freedoms they set (`DocEdit::SetConstraints`). A mate
-    /// whose `to` reads
-    /// outside the placement's target space is refused by the door,
-    /// naming both spaces, unless the author asked to move the copy
-    /// there (`into_target_space`): the gesture never moves a copy into
-    /// another space as a side effect. The mate
-    /// tool's one committed action, so one history state and one undo.
-    /// A bundle the door refuses ends the action and nothing of it is
-    /// recorded.
-    /// Everything before it (the two picks, the choice) is tool state.
+    /// **Add one mate to `placement`'s bundle**, as the placement
+    /// editor does: the placement's draft loaded, `mate` a row as
+    /// written, `values` typed, and the draft applied
+    /// (`SessionOp::SetBundle`) — the values derived as the editor
+    /// derives them. A mate whose `to` reads outside the placement's
+    /// target space is refused by the door, naming both spaces, unless
+    /// the author asked to move the copy there (`into_target_space`):
+    /// the gesture never moves a copy into another space as a side
+    /// effect. One history state and one undo; a bundle the door refuses
+    /// records nothing.
     AddMate {
         /// The placement whose copy the mate places.
         placement: RecipeNodeId,

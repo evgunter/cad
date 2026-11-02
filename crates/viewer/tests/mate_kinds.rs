@@ -519,3 +519,121 @@ fn a_frame_mated_on_a_frame_coincides() {
     assert!(moved.len() >= 2, "post_b's edge is drawn on post_a's");
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
+
+/// **A point beside a direction, struck out one at a time, drops
+/// nothing silently**: post_b's top cap kept parallel to the shelf's
+/// underside (a direction, reversed) and its top front right corner on
+/// post_a's (a point), its spin about the direction reading `pa`. Each
+/// mate struck out in the editor leaves a draft in which every loaded
+/// value is a value row or is said dropped, and `pa` is read by one or
+/// said dropped by its name.
+#[test]
+fn striking_a_point_or_a_direction_drops_nothing_silently() {
+    use pncad::document::{Coord, Dimension, SlotId, VarName};
+    use viewer::matetool::{MateTool, ValueFrom};
+    let tol = Tol::witness();
+    let bench = asm::bench("matekinds-strike", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let index = asm::index_of(&session);
+    let top = asm::POST_HEIGHT;
+    let camera = front_camera(Point3::new(0.04, 0.0, 0.025));
+    let [Hovered::Vertex(b_vertex), Hovered::Vertex(a_vertex)] = [
+        Point3::new(asm::POST_B_AT[0] + asm::POST_SECTION, 0.0, top),
+        Point3::new(asm::POST_SECTION, 0.0, top),
+    ]
+    .map(|at| hovered(&session, &index, &camera, at, PickKinds::WithVertices)) else {
+        panic!("a cursor on each corner picks the vertex")
+    };
+    let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
+    let mut tool = MateTool::edit(session.doc(), bench.post_b).expect("post_b is a placement");
+    tool.add_mate(VarKind::Direction);
+    tool.pick(session.doc(), post_top);
+    tool.pick(session.doc(), shelf_bottom);
+    tool.set_sense(0, true);
+    tool.add_mate(VarKind::Point);
+    tool.pick(session.doc(), b_vertex);
+    tool.pick(session.doc(), a_vertex);
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, ev, tol)
+        .expect("a point beside a direction proposes");
+    let coords: Vec<Coord> = proposal.values.iter().map(|row| row.coord).collect();
+    assert_eq!(
+        coords,
+        [Coord::SPIN],
+        "the pair leaves the spin about the direction"
+    );
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let outcome = session.perform(SessionOp::DeclareVar {
+        name: VarName::new("pa").expect("a name"),
+        value: pncad::document::FreeVar::continuous(Dimension::Angle, 0.3),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let bundle = |session: &DocSession| {
+        let doc = session.committed_doc();
+        match doc.node(bench.post_b).map(|node| node.authored(doc)) {
+            Some(pncad::document::Node::InstantiatePart { constraints, .. }) => constraints,
+            other => panic!("post_b is an instance: {other:?}"),
+        }
+    };
+    let spin = bundle(&session)
+        .iter()
+        .find_map(|c| c.value().filter(|v| v.coord == Coord::SPIN).map(|_| c.id))
+        .expect("the spin");
+    let outcome = session.perform(SessionOp::SetSlotExpression {
+        node: bench.post_b,
+        slot: SlotId::ValueSpin { constraint: spin },
+        text: "pa".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let mates: Vec<_> = bundle(&session)
+        .iter()
+        .filter(|c| c.mate().is_some())
+        .map(|c| pncad::document::MateRef::new(bench.post_b, c.id))
+        .collect();
+    assert_eq!(mates.len(), 2, "two mates");
+    let loaded: Vec<_> = bundle(&session)
+        .iter()
+        .filter(|c| c.value().is_some())
+        .map(|c| c.id)
+        .collect();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    for mate in mates {
+        let struck = MateTool::edit_striking(doc, mate)
+            .expect("a mate of the bundle")
+            .proposal(doc, ev, tol)
+            .unwrap_or_else(|error| panic!("striking {mate:?} proposes: {error}"));
+        for id in &loaded {
+            let kept = struck
+                .values
+                .iter()
+                .chain(&struck.dropped)
+                .any(|row| row.from == ValueFrom::Loaded(*id));
+            let replaced = struck
+                .values
+                .iter()
+                .any(|row| row.from == ValueFrom::Measured);
+            assert!(
+                kept || replaced,
+                "striking {mate:?}: loaded value {id:?} is neither a row nor said dropped: \
+                 {:?} / {:?}",
+                struck.values,
+                struck.dropped
+            );
+        }
+        let read = |rows: &[viewer::matetool::ValueRow]| {
+            rows.iter()
+                .any(|row| viewer::matetool::value_text(doc, &row.by).contains("pa"))
+        };
+        assert!(
+            read(&struck.values) || read(&struck.dropped),
+            "striking {mate:?}: pa is read or said dropped: {:?} / {:?}",
+            struck.values,
+            struck.dropped
+        );
+    }
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
