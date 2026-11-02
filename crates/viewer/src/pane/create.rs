@@ -482,6 +482,7 @@ enum LoopFields<'a> {
         radius: &'a mut f64,
     },
     Rectangle {
+        centre: &'a mut [f64; 2],
         width: &'a mut f64,
         height: &'a mut f64,
     },
@@ -495,7 +496,15 @@ impl<'a> LoopFields<'a> {
     fn of(shape: &'a mut ProfileShape) -> Self {
         match shape {
             ProfileShape::Circle { centre, radius } => Self::Circle { centre, radius },
-            ProfileShape::Rectangle { width, height } => Self::Rectangle { width, height },
+            ProfileShape::Rectangle {
+                centre,
+                width,
+                height,
+            } => Self::Rectangle {
+                centre,
+                width,
+                height,
+            },
             ProfileShape::Path { steps } => Self::Path { steps },
         }
     }
@@ -553,8 +562,15 @@ fn loop_fields_ui(
             });
             None
         }
-        LoopFields::Rectangle { width, height } => {
+        LoopFields::Rectangle {
+            centre,
+            width,
+            height,
+        } => {
             ui.horizontal(|ui| {
+                ui.label("centre");
+                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[0]);
+                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[1]);
                 ui.label("width");
                 unit_field(ui, unit, FIELD_DRAG_SPEED, width);
                 ui.label("height");
@@ -579,16 +595,6 @@ fn loop_fields_ui(
                 .then_some(Withheld::Waiting("add a step to the chain"))
         }
     }
-}
-
-/// **What a bored circle withholds the button for**: a bore at least as
-/// wide as the radius, which is an input the reader gave and the form
-/// refuses — [`Withheld::Refused`], not a request for the next input.
-fn bore_withholds(bored: bool, bore: f64, radius: f64) -> Option<Withheld> {
-    (bored && bore >= radius).then_some(Withheld::Refused(
-        "the bore must be smaller than the radius — which loop is the hole is decided by \
-         containment, so a larger bore would swap the roles rather than refuse",
-    ))
 }
 
 /// The withheld button's reason, drawn in its own voice. A free function
@@ -859,17 +865,7 @@ impl ViewerBehavior<'_> {
     ///
     /// The first loop is the chosen shape; loops added under it
     /// ([`Self::added_loops_ui`]) are each their own shape, and
-    /// containment decides which are holes. The circle's optional bore
-    /// is a second circle loop spelled on the first's fields.
-    ///
-    /// The bore field is guarded IN THE FORM: loop roles come from
-    /// the profile layer's containment forest, not from list order,
-    /// so a bore at or beyond the outer radius would not refuse — it
-    /// would silently swap which circle is the hole. The form says
-    /// "bore", so it disables its commit until the bore is smaller, with
-    /// the reason shown. This is a chrome affordance guarding the
-    /// template's stated intent; the op stays unjudged and the
-    /// kernel's containment rule stays the one home.
+    /// containment decides which are holes.
     pub(crate) fn add_profile_ui(&mut self, ui: &mut egui::Ui) {
         if !form_door(ui, ADD_PROFILE_DOOR, &mut self.drafts.profile_open) {
             return;
@@ -905,7 +901,11 @@ impl ViewerBehavior<'_> {
                     },
                     ShapeKind::Rectangle => {
                         let [width, height] = &mut drafts.profile_extent;
-                        LoopFields::Rectangle { width, height }
+                        LoopFields::Rectangle {
+                            centre: &mut drafts.profile_centre,
+                            width,
+                            height,
+                        }
                     }
                     ShapeKind::Path => LoopFields::Path {
                         steps: &mut drafts.profile_path,
@@ -919,24 +919,6 @@ impl ViewerBehavior<'_> {
             }
         }
         match shape {
-            Some(ShapeKind::Circle) => {
-                let unit = self.notation.length.def();
-                // A second way to make a second loop, now that loops
-                // are added below: `the-rectangle-and-circle-templates-
-                // reopen-as-paths` removes it.
-                ui.horizontal(|ui| {
-                    ui.checkbox(&mut self.drafts.profile_bored, "with bore");
-                    if self.drafts.profile_bored {
-                        ui.label("bore radius");
-                        unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_bore);
-                    }
-                });
-                withholds.extend(bore_withholds(
-                    self.drafts.profile_bored,
-                    self.drafts.profile_bore,
-                    self.drafts.profile_radius,
-                ));
-            }
             Some(ShapeKind::Path) => {
                 if !self.drafts.sketch_on_face {
                     ui.checkbox(
@@ -948,7 +930,7 @@ impl ViewerBehavior<'_> {
                     withholds.extend(self.trace_rows(ui));
                 }
             }
-            Some(ShapeKind::Rectangle) | None => {}
+            Some(ShapeKind::Circle | ShapeKind::Rectangle) | None => {}
         }
         if shape.is_some() {
             let (added, waits) = self.added_loops_ui(ui);
@@ -1022,8 +1004,7 @@ impl ViewerBehavior<'_> {
     /// **The form does not say which loop is the outer.** Containment
     /// decides it, and the preview draws what it decided: an added loop
     /// larger than the first becomes the outer and the first a hole,
-    /// which is a profile the person can see and keep. The bore is
-    /// guarded because its own word promises a hole; "add loop"
+    /// which is a profile the person can see and keep: "add loop"
     /// promises nothing about the role.
     ///
     /// Answers what the commit waits for — a traced chain is the
@@ -2636,7 +2617,7 @@ mod tone_tests {
 
     use pncad::document::DocumentId;
 
-    use super::{Withheld, bore_withholds, part_listing, withheld_for, withheld_line};
+    use super::{Withheld, part_listing, withheld_for, withheld_line};
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
     use crate::parts::{PartCensus, PartChooser, PartEntry};
     use crate::session::Refusal;
@@ -2698,18 +2679,6 @@ mod tone_tests {
         assert_eq!(find(&painted, &id.to_string()).ink, Some(voices.weak));
     }
 
-    /// **A bore at least as wide as the radius is a refused input**, and
-    /// loud — not the form asking for its next one.
-    #[test]
-    fn a_bore_as_wide_as_the_radius_is_refused() {
-        assert!(matches!(
-            bore_withholds(true, 0.01, 0.01),
-            Some(Withheld::Refused(_))
-        ));
-        assert_eq!(bore_withholds(true, 0.005, 0.01), None);
-        assert_eq!(bore_withholds(false, 0.02, 0.01), None);
-    }
-
     /// **Which withholding reason is said**: a refused input over the form
     /// waiting for one, wherever it came in the form; between two of
     /// one kind, the earlier.
@@ -2717,13 +2686,13 @@ mod tone_tests {
     fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
         let frame = Withheld::Waiting("pick a face to draw on");
         let chain = Withheld::Waiting("add a step to the chain");
-        let bore = Withheld::Refused("the bore is too wide");
-        let wider = Withheld::Refused("the bore is wider still");
+        let refused = Withheld::Refused("the traced chain is the profile's one loop");
+        let later = Withheld::Refused("the traced frame does not read");
         assert_eq!(withheld_for([frame, chain]), Some(frame));
-        assert_eq!(withheld_for([frame, bore]), Some(bore));
-        assert_eq!(withheld_for([bore, frame]), Some(bore));
-        assert_eq!(withheld_for([frame, bore, chain]), Some(bore));
-        assert_eq!(withheld_for([bore, wider]), Some(bore));
+        assert_eq!(withheld_for([frame, refused]), Some(refused));
+        assert_eq!(withheld_for([refused, frame]), Some(refused));
+        assert_eq!(withheld_for([frame, refused, chain]), Some(refused));
+        assert_eq!(withheld_for([refused, later]), Some(refused));
         assert_eq!(withheld_for([]), None);
     }
 
@@ -2732,11 +2701,15 @@ mod tone_tests {
     #[test]
     fn a_withheld_profile_button_says_why_in_the_reasons_own_voice() {
         let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            withheld_line(ui, theme, Withheld::Refused("the bore is too wide"));
+            withheld_line(
+                ui,
+                theme,
+                Withheld::Refused("the traced frame does not read"),
+            );
             withheld_line(ui, theme, Withheld::Waiting("choose a shape to add"));
         });
         assert_eq!(
-            find(&painted, "the bore is too wide").ink,
+            find(&painted, "the traced frame does not read").ink,
             Some(voices.actionable)
         );
         assert_eq!(

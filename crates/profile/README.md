@@ -154,8 +154,9 @@ than canonical positions on #3193, with the role lists on #3202.*
 **V4 — The stored form, chain-only.** `Node::Profile` carries
 `ProfileProgram { loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>>, on: Option<DrawnOn> }`,
 `on` the frame and faces a drawn profile reads (none for a free one).
-`LoopProgram` is `Chain(Vec<ProgramStep>)`, `Circle { centre, radius }`
-or `CircleSplit { centre, radius, n, phase }`, the carrier forms being
+`LoopProgram` is `Chain(Vec<ProgramStep>)`, `Circle { centre, radius }`,
+`CircleSplit { centre, radius, n, phase }` or
+`Rectangle { centre, width, height }`, the complete-loop forms being
 one-step programs whose form is structural. There is one wire
 vocabulary: no raw vertex-table loop exists at rest (VQ1).
 
@@ -214,8 +215,9 @@ canonical form already validated: `lift_onto`, `value_channel`,
 predicates classify at replay exactly as at typed authoring. Replay is
 deterministic (libm-pure, no ordering effects). A chain's seam still
 sits at a junction or fillet, never mid-carrier (PQ4); `circle` and
-`circle_split` author no seam (their split is a private lowering), so
-they are program forms, not a PQ4 relaxation. The differential suite
+`circle_split` author no seam (their split is a private lowering), and
+`rectangle`'s seam sits at its lower-left corner, a junction, so all
+three are program forms, not a PQ4 relaxation. The differential suite
 (`tests/path_differential.rs`) compares against recorded fixtures and
 independent closed-form oracles.
 

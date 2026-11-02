@@ -445,3 +445,8 @@ row's last section says what moved.
   - A read-only planning pass found fifteen choices (Q1–Q15) that neither the ruled text nor the code settles. One may be a contradiction between ratified texts: VQ4's `toward(dx,dy)` two scalars against `[variables.poses]`' "a 2-D direction is an angle". Every unit is blocked on that residue.
   - The residue went to a designer pair. The draws are on `analysis/design-fork/a-profiles-self-reads-residue`, and the fork has two designers.
   - Flag for Ev: doctail has no orchestrator and is at load 111/45, and U1/U3/U4 add 19 points to it. The README's note that an X row "typically" becomes a program of its own is the alternative. (VSEAM)
+- 2026-11-02 — PR 6340 fix pass, orchestrator's read.
+  - Every ruled item is done. The circle census is one: `carrier_radius`.
+  - The part guard is pinned by `a_parts_wall_names_are_not_read_against_the_hosts_circle`. It goes red with the guard deleted, checked by hand.
+  - The negative-side and straddling-Interval refusals are covered.
+  - Filed: `a-parts-circle-wall-is-no-longer-one-carrier` (P2) and `complete-loop-identifiers-are-named-carrier` (P3). (VSEAM)

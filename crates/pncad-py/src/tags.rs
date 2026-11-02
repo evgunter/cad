@@ -198,6 +198,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::NonpositiveLeg => "nonpositive_leg",
         PathErrorKind::NonpositiveFilletRadius => "nonpositive_fillet_radius",
         PathErrorKind::NonpositiveCircleRadius => "nonpositive_circle_radius",
+        PathErrorKind::NonpositiveRectangleSide => "nonpositive_rectangle_side",
         PathErrorKind::CircleSplitCount => "circle_split_count",
         PathErrorKind::PolygonTooFewVertices => "polygon_too_few_vertices",
         PathErrorKind::ZeroDirection => "zero_direction",
