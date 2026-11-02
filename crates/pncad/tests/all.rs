@@ -2938,11 +2938,11 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     // the verdict is about the READ door, not about the geometry.
     let (doc, _) = insert(
         doc,
-        Node::Assertion {
+        Node::Assertion { claim: pncad::document::Claim::Value {
             value: pncad::document::Formula::var(value, pncad::document::Dimension::Length),
             bound: len(0.0),
             relation: pncad::document::AssertionRelation::AtLeast,
-        },
+        } },
     );
     (doc, solid)
 }
@@ -5111,8 +5111,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `AxisScalar`, `var_env_over`, `SeedScalar`,
 ///   `seed_env`, `std_deviation`, `sensitivities`,
-///   `BindingViolation`; `MinClearanceOperand`, which is how a
-///   `min_clearance` measure hands the engine one resolved side; and
+///   `BindingViolation`; `ClearanceSeat`, which is how a clearance
+///   assertion hands the engine one resolved seat; and
 ///   `ProfileLane`, the sealed fact that the `f64` lane is a profile's
 ///   first pass).
 ///
@@ -5168,6 +5168,7 @@ const NOT_CARRIED: [&str; 101] = [
     "BranchCertification",
     "BranchMarginEvidence",
     "CertifiedRange",
+    "ClearanceSeat",
     "ContentKey",
     "Coset",
     "DerivedRange",
@@ -5188,7 +5189,6 @@ const NOT_CARRIED: [&str; 101] = [
     "MetaError",
     "MetaInt",
     "MetaValue",
-    "MinClearanceOperand",
     "Mint",
     "Minted",
     "NamingKey",

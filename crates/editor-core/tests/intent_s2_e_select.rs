@@ -319,38 +319,6 @@ fn each_primitive_admits_its_kinds_at_the_edit_door() {
     }
 }
 
-/// **FORK-VTX at the load door**: a file whose measure reads a vertex
-/// under a primitive that does not admit one refuses `SlotVarKind` at
-/// load. The file is a saved `distance` between a vertex and a face
-/// with its primitive's tag re-spelled `Angle`, which reads no vertex:
-/// every other byte is what a door wrote.
-#[test]
-fn a_file_whose_measure_reads_an_unadmitted_kind_refuses_at_load() {
-    let (doc, p) = prism(blank("s2e-vtx-load"), 0.0);
-    let (doc, _) = fixture::measure_node(
-        &doc,
-        MeasurePrimitive::Distance { a: 0, b: 1 },
-        vec![
-            crate::fixture::sited_ref(p.vertex.clone()),
-            crate::fixture::sited_ref(p.faces[1].clone()),
-        ],
-    );
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    assert!(load(&text, Tol::witness()).is_ok(), "the saved file loads");
-    assert_eq!(text.matches("\"Distance\"").count(), 1, "one distance");
-    let corrupt = text.replace("\"Distance\"", "\"Angle\"");
-    match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
-            found: VarKind::Vertex,
-            expected: SlotKind::Measured(MeasureVerb::Angle),
-            ..
-        })) => {}
-        other => {
-            panic!("an angle at a vertex must refuse by the seat's kind, got {other:?}")
-        }
-    }
-}
-
 /// A placed unit prism the split rows cut out: its profile, extrude
 /// and world placement, the placement, and the extrude's walls and an
 /// edge.

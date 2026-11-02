@@ -509,11 +509,11 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let position = doc.output(measure, 0).expect("a measure defines its value");
     let assertion = insert(
         &mut doc,
-        Node::Assertion {
+        Node::Assertion { claim: pncad::document::Claim::Value {
             value: Formula::var(position, Dimension::Length),
             bound: len(bound),
             relation: AssertionRelation::AtMost,
-        },
+        } },
         tol,
     );
     Chain {

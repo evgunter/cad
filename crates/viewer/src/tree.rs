@@ -112,7 +112,7 @@
 
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
-    HeldNodes, Label, MateFault, MateRef, MeasureUnavailableAt, Node, NodeError, NodeErrorKind,
+    HeldNodes, Label, MateFault, MateRef, Node, NodeError, NodeErrorKind,
     NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode,
     ValuePayload, held_by, node_kind_noun,
 };
@@ -344,7 +344,7 @@ impl TreeRow {
     pub fn tone(&self) -> Tone {
         match &self.readout {
             Some(Readout::Asserted(asserted)) => asserted.tone(),
-            Some(Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_)) | None => {
+            Some(Readout::Value(_) | Readout::Empty(_)) | None => {
                 self.status.tone()
             }
         }
@@ -361,11 +361,7 @@ pub enum Readout {
     /// ([`Computed::spelled`]), in the working notation in force then,
     /// so a notation changed after the run re-spells it.
     Value(Computed),
-    /// No value at this build's scalar — a value of the node, not a
-    /// failure. Its `Display` is the kernel's sentence, which names
-    /// the door that can answer.
-    Unavailable(MeasureUnavailableAt),
-    /// An assertion's verdict over its measure.
+    /// An assertion's verdict.
     Asserted(Asserted),
     /// A boolean's typed empty result, or a split with a side that
     /// holds no material. A legal value, and the one a consumer
@@ -420,12 +416,11 @@ pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
 pub struct Asserted {
     /// The landed verdict.
     pub verdict: AssertionVerdict<Computed>,
-    /// How the value must relate to the bound.
-    pub relation: AssertionRelation,
-    /// The measure under the value the assertion bounds — the
-    /// `min_clearance` one when there is one, since that is the measure
-    /// a point scalar cannot answer — or `None` for a value no measure
-    /// is under.
+    /// How the value must relate to the bound; `None` for a clearance,
+    /// whose bounds are its own.
+    pub relation: Option<AssertionRelation>,
+    /// The measure under the value the assertion bounds, or `None` for a
+    /// value no measure is under and for a clearance.
     pub measure: Option<SpokenNode>,
 }
 
@@ -456,10 +451,10 @@ impl Asserted {
             | AssertionVerdict::Violated { measured, bound } => Some(format!(
                 "{} {} {}",
                 measured.spelled(notation),
-                self.relation.symbol(),
+                self.relation?.symbol(),
                 bound.spelled(notation)
             )),
-            AssertionVerdict::Unevaluated { .. } => None,
+            AssertionVerdict::Unevaluated { .. } | AssertionVerdict::Clearance(_) => None,
         }
     }
 }
@@ -830,7 +825,6 @@ fn readout_of(
             canonical: *value,
             dimension: *dim,
         })),
-        ValuePayload::MeasureUnavailable { reason, .. } => Some(Readout::Unavailable(*reason)),
         ValuePayload::Assertion(verdict) => Some(Readout::Asserted(asserted(doc, node, verdict))),
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
         ValuePayload::Split { above, below } => split_emptiness(above, below).map(Readout::Empty),
@@ -896,45 +890,48 @@ impl std::fmt::Display for SplitUnread {
 }
 
 /// **An assertion's verdict, its numbers carried in its value's
-/// dimension.** The value is a scalar variable, and its kind's
-/// dimension is the one both numbers are in.
+/// dimension.** A value claim's value is a scalar variable, and its
+/// kind's dimension is the one both numbers are in; a clearance carries
+/// no number of its own.
 fn asserted(
     doc: &Doc<ProfileProgram>,
     node: &Node<ProfileProgram>,
     verdict: &AssertionVerdict<f64>,
 ) -> Asserted {
-    let Node::Assertion {
-        value, relation, ..
-    } = node
-    else {
-        unreachable!("only an assertion node evaluates to a verdict")
-    };
-    let dim = || match doc.var(*value).and_then(|var| var.kind().dimension()) {
-        Some(dim) => dim,
-        None => unreachable!("an assertion's value is a scalar variable the document holds"),
-    };
-    let measures: Vec<RecipeNodeId> = doc
-        .observed_outputs(*value)
-        .into_iter()
-        .filter_map(|output| doc.operation_of(output))
-        .collect();
-    let clearance = measures.iter().copied().find(|&measure| {
-        matches!(
-            doc.node(measure),
-            Some(Node::Measure {
-                primitive: editor_core::MeasurePrimitive::MinClearance { .. }
-            })
-        )
-    });
-    Asserted {
-        verdict: verdict.clone().map(|number| Computed {
+    let map = |verdict: &AssertionVerdict<f64>, dim| {
+        verdict.clone().map(|number| Computed {
             canonical: number,
-            dimension: dim(),
-        }),
-        relation: *relation,
-        measure: clearance
-            .or_else(|| measures.first().copied())
-            .map(|measure| doc.spoken(measure)),
+            dimension: dim,
+        })
+    };
+    match node {
+        Node::Assertion {
+            claim: editor_core::Claim::Value {
+                value, relation, ..
+            },
+        } => {
+            let dim = match doc.var(*value).and_then(|var| var.kind().dimension()) {
+                Some(dim) => dim,
+                None => unreachable!("an assertion's value is a scalar variable the document holds"),
+            };
+            Asserted {
+                verdict: map(verdict, dim),
+                relation: Some(*relation),
+                measure: doc
+                    .observed_outputs(*value)
+                    .into_iter()
+                    .find_map(|output| doc.operation_of(output))
+                    .map(|measure| doc.spoken(measure)),
+            }
+        }
+        Node::Assertion {
+            claim: editor_core::Claim::Clearance { .. },
+        } => Asserted {
+            verdict: map(verdict, editor_core::Dimension::Length),
+            relation: None,
+            measure: None,
+        },
+        _ => unreachable!("only an assertion node evaluates to a verdict"),
     }
 }
 
@@ -1314,7 +1311,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MeasureNotParallel { .. }
         | NodeErrorKind::MeasureUnsupported(_)
         | NodeErrorKind::PayloadExpr { .. }
-        | NodeErrorKind::MeasureClearanceRefused(_)
         | NodeErrorKind::AssertionDimension { .. } => None,
     }
 }

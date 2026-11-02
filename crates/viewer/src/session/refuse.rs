@@ -1070,7 +1070,6 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&pncad::document::
         | ValuePayload::Instances(_)
         | ValuePayload::Family
         | ValuePayload::Measure { .. }
-        | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
     }
 }

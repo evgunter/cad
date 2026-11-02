@@ -232,43 +232,45 @@ fn an_upper_bound_is_proved_by_a_pair_and_exceeded_by_none() {
     );
 }
 
-/// **Row 3**: a band and `= c` are one sweep. Asked as one assertion,
-/// the receipt counts each candidate face pair once — two searches
-/// would count each twice — and the band's answer is both bounds'.
+/// **Row 3**: a band and `= c` are one sweep. `= 0.45` reaches the
+/// neck walls under both of its bounds, and asked as one assertion its
+/// receipt counts their one face pair once — two searches would count
+/// it twice — while its answer is both bounds': a pair closer than
+/// 0.45 violates it. A band around the gap holds, proved by a pair.
 #[test]
 fn a_band_and_an_equality_run_one_fused_sweep() {
-    let lower = nominal(ClearanceBounds::AtLeast(0.3));
-    let upper = nominal(ClearanceBounds::AtMost(0.5));
-    let band = nominal(ClearanceBounds::Within { lo: 0.3, hi: 0.5 });
-    let ClearanceVerdict::Within(w) = band.verdict() else {
-        panic!("0.3 ≤ 0.4 ≤ 0.5 holds: {}", band.render());
-    };
-    assert!((0.3..=0.5).contains(&w.geometry.distance), "{}", band.render());
+    let lower = nominal(ClearanceBounds::AtLeast(0.45));
+    let upper = nominal(ClearanceBounds::AtMost(0.45));
+    let equal = nominal(ClearanceBounds::Equal(0.45));
+    assert_eq!(lower.receipt().candidates, 1, "{}", lower.render());
+    assert_eq!(upper.receipt().candidates, 1, "{}", upper.render());
     assert_eq!(
-        band.receipt().candidates,
-        lower.receipt().candidates,
-        "the band examines each face pair once, as one bound does"
+        equal.receipt().candidates,
+        1,
+        "`= 0.45` examines the wall pair once, as one bound does: {:?}",
+        equal.receipt()
     );
-    assert_eq!(lower.receipt().candidates, upper.receipt().candidates);
     assert!(
-        band.receipt().splits <= lower.receipt().splits.max(upper.receipt().splits),
-        "one subdivision serves both bounds: band {:?}, lower {:?}, upper {:?}",
-        band.receipt(),
+        equal.receipt().splits <= lower.receipt().splits.max(upper.receipt().splits),
+        "one subdivision serves both bounds: equal {:?}, lower {:?}, upper {:?}",
+        equal.receipt(),
         lower.receipt(),
         upper.receipt()
     );
-    // `= c` is the band with `lo = hi = c`: off the gap either way it is
-    // violated, by a pair below or by every pair above.
-    let below = nominal(ClearanceBounds::Equal(0.45));
-    let ClearanceVerdict::Violated(_) = below.verdict() else {
-        panic!("= 0.45 over a 0.4 gap has a pair closer: {}", below.render());
+    let ClearanceVerdict::Violated(_) = equal.verdict() else {
+        panic!("= 0.45 over a 0.4 gap has a pair closer: {}", equal.render());
     };
-    assert_eq!(below.receipt().candidates, lower.receipt().candidates);
     assert_eq!(
         nominal(ClearanceBounds::Equal(0.35)).verdict(),
         &ClearanceVerdict::Exceeded,
         "= 0.35 over a 0.4 gap has no pair within it"
     );
+    let band = nominal(ClearanceBounds::Within { lo: 0.3, hi: 0.5 });
+    let ClearanceVerdict::Within(w) = band.verdict() else {
+        panic!("0.3 ≤ 0.4 ≤ 0.5 holds: {}", band.render());
+    };
+    assert!((0.3..=0.5).contains(&w.geometry.distance), "{}", band.render());
+    assert_eq!(band.receipt().candidates, 1, "{:?}", band.receipt());
 }
 
 /// **Row 4**: a negative bound is not a distance. The assertion answers
@@ -306,7 +308,7 @@ fn a_point_scalar_reads_the_third_state_naming_the_certifying_lane() {
     assert_eq!(*scalar, "f64");
     let said = refusal.to_string();
     assert!(
-        said.contains("Interval") && said.contains("Recourse"),
+        said.contains("the interval lane") && said.contains("Recourse"),
         "the refusal names the certifying lane: {said}"
     );
 }

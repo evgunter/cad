@@ -2492,7 +2492,10 @@ where
         band: b,
         budgets: crate::clearance::ClearanceConfig::default().budgets,
     };
-    let report = lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
+    // The sweep's decisions are its report's, not the node's log
+    // (audit row F30).
+    let report = geom_core::k_stats::unlogged("F30", || {
+        lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
         let (faces, ask) = (candidate.faces(), candidate.ask());
         let (bx, by) = rebuilt.as_ref().map_err(Clone::clone)?;
         crate::clearance::closest_pair(
@@ -2501,6 +2504,7 @@ where
             lane.on_face_stations(candidate),
             (ask, b),
         )
+        })
     });
     let param = || {
         witness.map_or(crate::clearance::ParamWitness { offsets: Vec::new() }, |w| {

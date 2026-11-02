@@ -224,16 +224,14 @@ fn true_notch_clearance() -> f64 {
     (OFFSET * OFFSET + LIFT * LIFT).sqrt()
 }
 
-/// **The engine's region readings stay out of the measure node's log.**
-/// The notch's walk decides cells and stations at every level, and
-/// every one of those readings runs in the unlogged scope (audit row
-/// F28), so the node records none of their rows and none of their
-/// in-band escalations. What it does record is reading the block into
-/// the cap's frame. Breaks if the scope is removed: measured, the node
-/// then holds 3901 more verdicts, under the region doors' names, and
-/// 138 escalations.
+/// **The engine's readings stay out of the clearance node's log.** The
+/// notch's sweep decides cells and stations at every level, and every
+/// one of those readings runs in the unlogged scope (audit row F30), so
+/// the node records none of their rows and none of their in-band
+/// escalations. Breaks if the scope is removed: measured, the node then
+/// holds 2140 region-reading verdicts and 297 escalations.
 #[test]
-fn the_notch_measure_records_none_of_the_engines_region_readings() {
+fn the_notch_clearance_records_none_of_the_engines_region_readings() {
     let n = notch_nodes(0.2, AssertionRelation::AtLeast);
     let ev = eval_over::<geom_core::Interval>(&n.doc, None);
     let Some(NodeResult::Ok(v)) = ev.result(n.assertion) else {
@@ -247,7 +245,7 @@ fn the_notch_measure_records_none_of_the_engines_region_readings() {
     let leaked: Vec<_> = v.verdicts.iter().filter(|x| region(x.predicate)).collect();
     assert!(
         leaked.is_empty() && v.escalations.is_empty(),
-        "the measure node's log holds {} region-reading verdicts and {} escalations: {:?} {:?}",
+        "the clearance node's log holds {} region-reading verdicts and {} escalations: {:?} {:?}",
         leaked.len(),
         v.escalations.len(),
         leaked.iter().take(4).collect::<Vec<_>>(),

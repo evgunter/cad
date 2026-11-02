@@ -804,8 +804,8 @@ them"*. The app shows neither: a measure is a tree row reading
 in `crates/viewer/src/`. `work/view`'s
 `the-gui-shows-no-measure-value-and-no-clearance` carries the finding,
 including the half that makes it harder than a panel change —
-`min_clearance` has no value at the `f64` scalar the viewer runs at, by
-design. The declaration count on the status line is clearance-adjacent
+a clearance is decided by the certified sweep, which the `f64` scalar
+the viewer runs at does not run, by design. The declaration count on the status line is clearance-adjacent
 and genuinely on screen, but it is a COUNT, not a distance.
 
 ## The MC density lane (`render-mc.sh`)
