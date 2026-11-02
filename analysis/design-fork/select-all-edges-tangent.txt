@@ -1,0 +1,6 @@
+fork: select-all-edges-tangent (REFS, select-all-edges-picks-edges-a-fillet-refuses)
+drawn: 2026-11-02T06:32:21Z, od -tu1 /dev/urandom
+bytes: 226 69
+arm: two designers (226 >= 86)
+mapping: A = Fable designer, B = Opus designer (69 odd)
+protocol: 2126b860b6
