@@ -260,3 +260,12 @@ and bodies unchanged. No orchestrator yet.
     - the pre-march volume refusal;
     - cylinder × sphere on the ruling sweep.
   - **NURBS stage 3 dispatched** (`sectarms/nurbs-implicit-arm-stage3`; H, dual review). Its node arcs ride `PairSection::node_sets`; there is no `SiteFoot::Node`.
+
+- 2026-11-02 20:20 — **NURBS stage 3: the trace-shape question is settled by ratified text; the stage is restaged with a fresh implementer.** The lane found that the ℝ⁴ machinery (`ends`, `handle`, fit, `RectExit`, `one_arc`, the chart tube) is typed to the plane's system. It asked whether to build a real 1×2 system or embed the equation as 3×4 with identity rows. C3 settles it: "the point eliminated wherever a chart side exists … one equation `f∘S = 0` on the chart's knot rectangle (1×2)". So the build is a real `LocalSystem<1,2>`; the embedding would contradict ratified text. Restaged:
+  - **3a-0**: a behaviour-preserving refactor making that machinery generic over the system (M, single full review), dispatched to a fresh implementer, briefed with `~/.local/share/cad-work/sectarms-orch/nurbs-stage3-handoff.md`;
+  - **3a**: the 1×2 lane and the whole reading (H, dual review);
+  - **3b**: node ends and touch arcs (H, single full review).
+- 2026-11-02 20:20 — **Cylinder 3b split.**
+  - **3b-i** is building: the closed-form carried chord arm, parallel rulings and cylinder × sphere coaxial circles; the parallel plane lane retires.
+  - **3b-ii** waits on the bisector lane's retirement and on **design fork F1, "a germ leaves a node"**: which component a site at a node and a germ leaving it ride, and by what decision; one rule for every pair with nodes (cylinders now, spline and cone nodes later).
+  - The fork draw puts three designers on F1 (bytes on `analysis/design-fork/a-germ-leaves-a-node`). They are dispatched concurrently with one problem statement and no candidates.
