@@ -194,3 +194,11 @@ and bodies unchanged. No orchestrator yet.
   - Disclose: the 256 cap, not the Hessian, stops near-flat tops; C5's node sentence vs the pinch is staging until stage 3.
   
   Review session archived.
+
+- 2026-11-02 13:05 — **PR 6347 merged** (NURBS arm stage 2; single full review, fix pass accepted).
+  - Every must-fix item was closed, the partner-Hessian rows were added for all three forms, and the crossings read is now load-bearing (one-sided line reads at cut knots).
+  - Two mutants survive, each with a stated reason:
+    - the cluster reach: the covering argument is in code;
+    - Krawczyk containment: it proves existence and is masked by the 256 cap. Filed `no-row-guards-the-krawczyk-existence-test-on-a-spline-critical-point` (P3 M).
+  - Also filed by the lane: the per-piece cell budget (P3 E).
+  - Next on the NURBS line: stage 3, the curved whole reading, listing a node's or a touch's neighbouring arcs. It will be dispatched once cylinder stage 3, which shares the join, is up.
