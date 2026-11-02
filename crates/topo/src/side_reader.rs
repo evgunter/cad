@@ -306,9 +306,7 @@ fn aim_at<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let surface = body
-        .get_surface(f.surface)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let surface = body.face_surface_linked(face, f);
     let aim = match *geo {
         FaceGeo::Cylinder { ref region, .. } | FaceGeo::Cone { ref region, .. } => {
             match region.aim() {
@@ -412,7 +410,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
 ///
 /// # Errors
 ///
-/// A face or surface that does not resolve.
+/// A face that does not resolve.
 fn beyond<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -421,8 +419,7 @@ fn beyond<T: Decide>(
     let mut reach = selection_reach(body, faces, aim)?;
     for &face in faces {
         let surface = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
+            .face_surface(face)
             .ok_or(PointInSolidError::CorruptFace { face })?;
         let whole = match *surface {
             geom::Surface::Sphere { center, radius, .. } => (aim - center).norm() + radius.abs(),
@@ -862,8 +859,7 @@ pub struct EdgeFrame {
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Vec<EdgeFrame> {
     let kind = |f: FaceKey| {
-        body.get_face(f)
-            .and_then(|fc| body.get_surface(fc.surface))
+        body.face_surface(f)
             .map_or("?".to_owned(), |s| format!("{:?}", s.kind()))
     };
     let mut out = Vec::new();

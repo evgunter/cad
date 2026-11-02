@@ -2597,8 +2597,7 @@ pub(crate) fn wall_section<T: Decide>(
     at: VertexKey,
 ) -> Result<Option<WallSection<T>>, SplitJoinError> {
     let wall = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+        .face_surface(face)
         .cloned()
         .ok_or_else(|| corrupt_face(face))?;
     match wall {
@@ -4093,10 +4092,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
 ) -> Result<Result<Sign, Indeterminate>, SplitJoinError> {
     let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
     let sense = face_data.sense;
-    let surface = body
-        .get_surface(face_data.surface)
-        .cloned()
-        .ok_or_else(|| corrupt_face(face))?;
+    let surface = body.face_surface_linked(face, face_data).clone();
     let WallChart {
         origin: centre,
         axis,
@@ -4379,9 +4375,7 @@ impl<T: Decide> IslandReading<T> {
     ) -> Result<Result<Self, Indeterminate>, SplitJoinError> {
         let invariant = |what| SplitJoinError::SectionInvariant { face, what };
         let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-        let surface = body
-            .get_surface(face_data.surface)
-            .ok_or_else(|| corrupt_face(face))?;
+        let surface = body.face_surface_linked(face, face_data);
         let quadric = Quadric::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
         let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
         let end = cycle
@@ -5564,9 +5558,7 @@ impl ChordJoiner {
         let invariant = |what| SplitJoinError::SectionInvariant { face: oldf, what };
         let old = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
         let outer = old.outer;
-        let surface = body
-            .get_surface(old.surface)
-            .ok_or_else(|| corrupt_face(oldf))?;
+        let surface = body.face_surface_linked(oldf, old);
         if RimSide::of(surface) != Some(RimSide::Plane) {
             return Err(invariant(
                 "a null strut's chords divide a face that is not a plane",
@@ -5660,10 +5652,7 @@ impl ChordJoiner {
         let side = match kind {
             LoneRing::Closed => None,
             LoneRing::Pierce => {
-                let surface = body
-                    .get_face(oldf)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .ok_or_else(|| corrupt_face(oldf))?;
+                let surface = body.face_surface(oldf).ok_or_else(|| corrupt_face(oldf))?;
                 Some(RimSide::of(surface).ok_or(invariant(
                     "a one-site loop's pierce ring on a face no whole conic is sided on",
                 ))?)
@@ -5757,8 +5746,7 @@ impl ChordJoiner {
         }
         let run = body.get_face(newf).ok_or_else(|| corrupt_face(newf))?.outer;
         let surface = body
-            .get_face(oldf)
-            .and_then(|f| body.get_surface(f.surface))
+            .face_surface(oldf)
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
         // How a ring's side is read: off the plane, or by a path on a
@@ -5876,12 +5864,10 @@ fn face_plane_normal<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
-    let f = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    match body.get_surface(f.surface) {
-        Some(geom::Surface::Plane { normal, .. }) => Ok(*normal),
-        // Corruption and an unwired arm are different refusals.
-        None => Err(corrupt_face(face)),
-        Some(_) => Err(SplitJoinError::SectionInvariant {
+    // Corruption and an unwired arm are different refusals.
+    match body.face_surface(face).ok_or_else(|| corrupt_face(face))? {
+        geom::Surface::Plane { normal, .. } => Ok(*normal),
+        _ => Err(SplitJoinError::SectionInvariant {
             face,
             what: "ring re-homing read a plane off a face whose carrier is not a plane (re-homing \
                    sends every other kind to its own reading)",

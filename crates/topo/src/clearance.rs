@@ -3240,11 +3240,7 @@ impl RegionMemo {
         }
         let region = match w.region {
             Region::Whole => CellRegion::Inside,
-            Region::Trimmed => match w
-                .body
-                .get_face(w.face)
-                .and_then(|f| w.body.get_surface(f.surface))
-            {
+            Region::Trimmed => match w.body.face_surface(w.face) {
                 None => CellRegion::Undecided,
                 Some(stored) => {
                     // The carrier is the window's own lift, which
@@ -3365,9 +3361,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     let Some(f) = body.get_face(face) else {
         return unsupported("an unreadable face");
     };
-    let Some(stored) = body.get_surface(f.surface) else {
-        return unsupported("an unreadable surface");
-    };
+    let stored = body.face_surface_linked(face, f);
     let Some((bounds, boundary)) = boundary_of(body, face) else {
         return unsupported("a face whose boundary carries no sound enclosure");
     };

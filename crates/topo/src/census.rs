@@ -4381,7 +4381,7 @@ fn curved_overlap_cells<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Vec<Point3<T>> {
-    let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
+    let Some(surface) = body.face_surface(f) else {
         return Vec::new();
     };
     match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
@@ -6871,7 +6871,7 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
             face,
             solid: body.solid_of_face(face)?,
             surface: f.surface,
-            kind: body.get_surface(f.surface)?.kind(),
+            kind: body.face_surface_linked(face, f).kind(),
             edges: face_cycles(body, f)
                 .filter_map(Result::ok)
                 .flatten()
@@ -8541,14 +8541,11 @@ impl<T: Decide> FaceSector<T> {
         holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
-        // A face or surface that does not resolve, or a loop that does
-        // not walk, is a defect (tier 1 admits none); a face that
-        // resolves off a plane is curved.
+        // A face that does not resolve, or a loop that does not walk, is
+        // a defect (tier 1 admits none); a face that resolves off a plane
+        // is curved.
         let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = body
-            .get_surface(face.surface)
-            .cloned()
-            .ok_or(TouchUnread::Corrupt)?;
+        let surface = body.face_surface_linked(f, face).clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Unreadable)?;
         if !fg.walked {
             return Err(TouchUnread::Corrupt);
@@ -8743,7 +8740,7 @@ fn round_face<T: Decide>(
     p: Point3<T>,
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
     let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-    let surface = body.get_surface(face.surface).ok_or(TouchUnread::Corrupt)?;
+    let surface = body.face_surface_linked(f, face);
     let Some(round) = crate::link::Round::of(surface, face.sense) else {
         return Ok(None);
     };
@@ -10905,7 +10902,7 @@ fn flush_pairs<T: Decide>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> FlushAtRest {
-    let kind = |f: FaceKey| Some(body.get_surface(body.get_face(f)?.surface)?.kind());
+    let kind = |f: FaceKey| Some(body.face_surface(f)?.kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
     let edges: Vec<Option<BTreeSet<EdgeKey>>> = faces.iter().map(|&f| edge_set(body, f)).collect();
     let mut out = FlushAtRest::default();
@@ -11010,8 +11007,7 @@ fn flush_pairs<T: Decide>(
 /// Whether `f` lies on a cylinder or a sphere, the curved kinds Door 1
 /// decides exactly ([`crate::boolean::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
-    body.get_face(f)
-        .and_then(|face| body.get_surface(face.surface))
+    body.face_surface(f)
         .is_some_and(crate::boolean::carrier_eq::exact_curved)
 }
 
