@@ -1538,6 +1538,29 @@ Flagged, NOT fixed here (dispositions):
   **Carried as `k_stats::unlogged("F30", ..)`**. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.
 
+- **F31** (added by ONEHOME's finished-body lane, PR 6371)
+  `topo/src/props.rs` `AtRestPolicy::leaf` at `f64` and `Probe`: a sweep
+  door's own finish (tiers 1–3) at the point scalars, every decision
+  under it. Every row keeps its own dimension. What this row argues is
+  why their outcomes stay out of the sweep node's verdict log.
+  - The finish's outcome is the door's: a finished body, or a typed
+    refusal (`NotFinished`) that fails the node. An in-band reading
+    refuses the door at its own end and is never a verdict a box leaf
+    re-reads.
+  - Logged, the readings would be rows in the `f64` witness's vector
+    that a box leaf cannot have. At the box scalars the switch runs
+    tier 2 alone (Ev on PR 6371), so every leaf of every document with
+    a sweep would refuse `flip_crossing` (measured on PR 6371: the
+    tier-3 battery's `side_at_infinity_*`, `positive_volume_exact`,
+    `planar_*_residual` and `dihedral_*` rows diverged at every M10
+    drive).
+  - It goes with the switch
+    (`work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`): with
+    the finish at every scalar, both lanes log it.
+
+  **Carried as `k_stats::unlogged("F31", ..)`**. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

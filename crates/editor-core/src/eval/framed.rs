@@ -296,32 +296,50 @@ impl<T: topo::AtRestPolicy> Framed<T> {
 }
 
 impl<T: topo::AtRestPolicy> Framed<T> {
-    /// **`other`'s body in this one's coordinates**, mapped once
-    /// ([`Self::relative`]) and finished at this door, the placement's
-    /// ([`topo::AtRestPolicy::finish`]), or `other`'s own body finished
-    /// ([`Self::finished`]) where the two are in one frame.
+    /// **`other`'s body in this one's coordinates**, as its scalar's
+    /// leaf: mapped once ([`Self::relative`]) and ended at the
+    /// placement's door ([`topo::AtRestPolicy::leaf`]: the finish at
+    /// `f64` and `Probe`, tier 2 at the box scalars), or `other`'s own
+    /// `Arc` where the two are in one frame. A reader that takes a
+    /// finished body finishes it ([`Self::finished_in`]).
     ///
     /// # Errors
     ///
     /// The relative map's overflow, the kernel's own
-    /// [`topo::transform::TransformError`], the mapped body's finish
-    /// ([`super::NodeErrorKind::NotFinished`]), or a box scalar's leaf
-    /// that does not finish ([`super::NodeErrorKind::UnfinishedLeaf`]).
+    /// [`topo::transform::TransformError`], or the mapped body's leaf
+    /// ([`super::NodeErrorKind::NotFinished`]).
     pub(crate) fn read_in(
         &self,
         other: &Self,
         tol: Tol,
-    ) -> Result<Arc<T::Finished>, super::NodeErrorKind> {
+    ) -> Result<Arc<T::Leaf>, super::NodeErrorKind> {
         match self.relative(other).map_err(super::NodeErrorKind::Motion)? {
-            None => other.finished(tol),
+            None => Ok(Arc::clone(&other.body)),
             Some(map) => {
                 super::counters::rigid_map();
                 let mapped = topo::transform::transform_rigid(&other.body, &map, tol)
                     .map_err(super::NodeErrorKind::Transform)?;
-                T::finish(mapped, tol)
+                T::leaf(mapped, tol)
                     .map(Arc::new)
                     .map_err(|findings| super::NodeErrorKind::NotFinished { findings })
             }
         }
+    }
+
+    /// **[`Self::read_in`], finished**, for a reader that takes a
+    /// finished body (a Boolean's, the product's): the same `Arc` at
+    /// `f64` and `Probe`; tier 3 run here at the box scalars.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::read_in`]'s, or [`super::NodeErrorKind::UnfinishedLeaf`].
+    pub(crate) fn finished_in(
+        &self,
+        other: &Self,
+        tol: Tol,
+    ) -> Result<Arc<T::Finished>, super::NodeErrorKind> {
+        let leaf = self.read_in(other, tol)?;
+        topo::LeafBody::finished_arc(&leaf, tol)
+            .map_err(|findings| super::NodeErrorKind::UnfinishedLeaf { findings })
     }
 }

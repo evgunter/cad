@@ -1202,7 +1202,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         }
         let read = computing
             .get_or_insert(body)
-            .read_in(body, tol)
+            .finished_in(body, tol)
             .map_err(|kind| ProductError::Frame {
                 node: *node,
                 kind: Box::new(kind),

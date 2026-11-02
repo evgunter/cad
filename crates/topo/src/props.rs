@@ -7031,6 +7031,9 @@ pub trait AtRestPolicy: Decide {
     /// shell's and a blend's operand, the product, an at-rest check.
     /// That is the one exception to "doors take finished bodies; none
     /// re-gates", and every other door and scalar keeps the full finish.
+    /// At `f64` and `Probe` the finish runs outside the node's verdict
+    /// log (`docs/predicate-dimension-audit.md` F31), so the `f64`
+    /// witness and a box leaf log the same rows.
     ///
     /// It retires when the box scalars' tier 3 reads what the box
     /// studies build: the rows
@@ -7179,8 +7182,11 @@ impl AtRestPolicy for f64 {
     }
     type Leaf = crate::AtRestBody<Self>;
 
+    /// The finish, its decisions kept out of the node's verdict log: the
+    /// box scalars' leaf runs tier 2 alone, so the witness's log must
+    /// not hold tier 3's rows (`docs/predicate-dimension-audit.md` F31).
     fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        Self::finish(body, tol)
+        geom_core::k_stats::unlogged("F31", || Self::finish(body, tol))
     }
 
     fn census_at_rest(
@@ -7317,8 +7323,11 @@ impl AtRestPolicy for geom_core::Probe {
     }
     type Leaf = crate::AtRestBody<Self>;
 
+    /// The finish, its decisions kept out of the node's verdict log: the
+    /// box scalars' leaf runs tier 2 alone, so the witness's log must
+    /// not hold tier 3's rows (`docs/predicate-dimension-audit.md` F31).
     fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
-        Self::finish(body, tol)
+        geom_core::k_stats::unlogged("F31", || Self::finish(body, tol))
     }
 
     fn census_at_rest(

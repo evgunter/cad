@@ -82,7 +82,7 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
         into: &crate::eval::Framed<T>,
         tol: Tol,
     ) -> Result<Arc<T::Finished>, NodeErrorKind> {
-        into.read_in(&self.body, tol)
+        into.finished_in(&self.body, tol)
     }
 
     /// Its names as the seat's table spells them: each holder's

@@ -635,13 +635,15 @@ fn twisted<T: Decide + topo::AtRestPolicy>(
             .at::<T>(tol)
             .map_err(NodeErrorKind::Motion)?;
         let turned = transform_rigid(body.body(), &twist, tol).map_err(NodeErrorKind::Transform)?;
+        // The twisted copy is its scalar's leaf (`topo::AtRestPolicy::leaf`):
+        // finished at `f64`, tier 2 at the box scalars, as its source is.
         let turned =
-            T::finish(turned, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+            T::leaf(turned, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
         let back = super::Frame::Own
             .moved(&twist.inverse().map_err(NodeErrorKind::Motion)?)
             .map_err(NodeErrorKind::Motion)?;
         return Ok(OpOut {
-            payload: ValuePayload::Body(super::Framed::in_frame(Arc::new(turned), back)),
+            payload: ValuePayload::Body(super::Framed::in_frame_leaf(Arc::new(turned), back)),
             ..out
         });
     }
@@ -2764,15 +2766,16 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     let reflection =
         topo::Reflection::across_unit(PoseValue::plane_foot(*normal, *offset), *normal);
     let image = topo::mirror_body(body.body(), &reflection, tol).map_err(NodeErrorKind::Mirror)?;
-    let image =
-        T::finish(image, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    // The image is its scalar's leaf (`topo::AtRestPolicy::leaf`), as
+    // its source is.
+    let image = T::leaf(image, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let value = value_of(results, source)?;
     let table = read_table(value)
         .project(0)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, &image, 0).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::in_frame(
+        ValuePayload::Body(super::Framed::in_frame_leaf(
             Arc::new(image),
             body.frame().clone(),
         )),
@@ -3168,7 +3171,7 @@ impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
             .relative(&self.framed)
             .map_err(NodeErrorKind::Motion)?
             .is_none();
-        let read = computing.read_in(&self.framed, tol)?;
+        let read = computing.finished_in(&self.framed, tol)?;
         let framed = if same_frame {
             self.framed.clone()
         } else {

@@ -370,7 +370,7 @@ impl RowCell {
 /// one computing frame (`Framed::computing_among`), the other read into
 /// it through `relative`.
 struct ReadCells<'e, T: topo::AtRestPolicy + Decide> {
-    cells: Vec<(std::sync::Arc<T::Finished>, EntityRef)>,
+    cells: Vec<(std::sync::Arc<T::Leaf>, EntityRef)>,
     computing: &'e crate::eval::Framed<T>,
 }
 
@@ -442,7 +442,7 @@ impl Saying {
 /// it: an axis off a cylinder, a cone or a torus, a centre off a sphere;
 /// `None` for any other cell.
 fn pose_kind<T: Decide + topo::AtRestPolicy>(
-    (body, ent): &(std::sync::Arc<T::Finished>, EntityRef),
+    (body, ent): &(std::sync::Arc<T::Leaf>, EntityRef),
 ) -> Option<crate::VarKind> {
     use geom::SurfaceKind as S;
     let EntityKey::Face(face) = ent.key else {
