@@ -91,9 +91,15 @@
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
 //!   distinct-key curved pairs (the backstop is cross-solid); a point
 //!   where a solid touches itself with a curved face or edge in its link
-//!   whose tangent cones leave it to second order — a cone's apex, a
-//!   corner whose edges leave along one tangent, a spline face held off
-//!   a corner, or sheets tangent to first order there — which
+//!   whose tangent cones leave it unread ([`SelfTouch::SecondOrder`]) —
+//!   a cone's apex or a vertex in the band of its axis, a corner whose
+//!   two edges leave along one tangent (a cusp; a slit's tip, one edge
+//!   both ways, reads as the whole turn), a spline face held off a
+//!   corner, a face whose foot normal, reach or corner face does not
+//!   read, a curved edge with no certified curve, sheets tangent to
+//!   first order there, or sectors read lying on each other (two
+//!   tangent sectors that coincide, or a slit or doubled sheet of planar
+//!   faces in a link with a curved face) — which
 //!   [`sweep_self_touch_points`] leaves unread
 //!   (`work/restread/tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face.md`);
 //!   and one
