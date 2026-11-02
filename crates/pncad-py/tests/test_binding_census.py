@@ -3030,10 +3030,6 @@ NOT_BOUND = {
     # directions by a gesture holding an evaluation: Python names them
     # itself (`Node.linear_pattern(..., across=["x", "z"])`).
     "slides_across": INTERIOR,
-    # A GUI draft's check of a formula ahead of its write, in the edit
-    # door's words: a Python caller writes and reads the same refusal
-    # from the door (`EditError`).
-    "slot_admits": INTERIOR,
     "FrameMove": INTERIOR,
     # A pose variable's evaluated value, read by the mates and the
     # splits that consume it: a Python caller reads where a face sits
