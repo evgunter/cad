@@ -762,24 +762,17 @@ pub(super) fn apex_pair_refusal<T: geom_core::Real>(
 /// gate's rejection, on the log under the predicate that decided it.
 ///
 /// A tie a reading's slack made carries the sign the band decided, which
-/// the nonzero gate passes: it is refused on the Zero every `On` states,
-/// within `±zero`, as `recl::resolve_bisector_graze` refuses a record's.
+/// the nonzero gate passes: that sign is refused as the gate that admits
+/// only a zero refuses it, offering no tolerance, since the `On` is the
+/// slack's and not the band's.
 pub(super) fn bisector_zero_refusal(on: OnReading, band: Band) -> BooleanError {
-    let decided = match on.decided.sign {
-        geom_core::Sign::Zero => on.decided,
-        _ => Decided {
-            sign: geom_core::Sign::Zero,
-            margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
-        },
+    let passes = match on.decided.sign {
+        geom_core::Sign::Zero => geom_core::SizedPass::NonZero,
+        _ => geom_core::SizedPass::Zero,
     };
     BooleanError::Escalated {
         decision: BooleanDecision::BisectorSide,
-        diag: geom_core::k_stats::gate_rejection(
-            on.predicate,
-            decided,
-            band,
-            geom_core::SizedPass::NonZero,
-        ),
+        diag: geom_core::k_stats::gate_rejection(on.predicate, on.decided, band, passes),
     }
 }
 
@@ -2900,8 +2893,8 @@ mod tests {
 
     /// **A bisector's `On` from a tie a slack made refuses typed**: the
     /// tie carries the sign the band decided (`1.5·zero` at `K = 1.4`),
-    /// which the nonzero gate passes, so it is refused on the Zero every
-    /// `On` states rather than handed to the gate as its rejection.
+    /// which the nonzero gate passes, so it is refused as the zero-only
+    /// gate refuses it rather than handed to the nonzero gate.
     #[test]
     fn a_slack_ties_bisector_on_refuses_on_the_bands_zero() {
         let zero = 1e-9;
