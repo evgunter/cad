@@ -12,3 +12,17 @@ A profile drawn on a frame (`ProfileProgram::on`, INTENT stage 6 C) evaluates in
 **The sketch tool's trace preview shows it** (INTENT stage 6 E, `viewer::sketch::trace_preview`, drawn on `profile_plane()`). The tool's frame stands its origin on the traced face's axis, at a vertex of the picked plane face's foot: on a cylinder whose disc is centred off its body's origin (the review probe `r1_offset_cylinder_frame_moves`, now the row `trace_tool::an_offset_cylinder_keeps_its_boss_through_a_centre_edit`), the frame's origin is the axis's foot, so the shown trace and the committed footprint are drawn about the world's origin, off the cylinder by the disc's centre; on a top-cap pick they are drawn at `z = 0` rather than on the cap. The boss built from them stands where it should; only the drawing is off.
 
 The fix reads the drawn profile's frame and its space's world placement and draws the loops (and the preview) on that plane. The evaluation holds the frame only inside the profile's resolution (`editor_core::eval::wire::trace::drawn`'s `Drawn::frame`), so the profile value, or a read beside `editor_core::traced_faces`, would have to hand it out, and the preview would read its frame the same way (`pncad::trace::sketch_trace` already lowers it).
+
+## 2026-11-02: the pick follows the drawing (PR 6299)
+
+Since PR 6299 a committed profile is picked by its drawn outline, and the
+pick index measures the same polylines the viewport draws
+(`viewer::pickindex`, `Outline`, through
+`sketch::PreviewLoop::drawn_on`). So this row's gap is the pick's too: a
+profile drawn on a frame is picked at the world's `xy`, where it is
+drawn, not on its frame. A profile `SessionOp::SketchOnFace` makes is the
+same case from the other side. It is a FREE profile, drawn and picked at
+its own `z = 0`, with only its extrude's copy placed against the face.
+The pending on-face design (`[ev]` PR 6298) retires `SketchOnFace`. The
+fix here moves the pick with the drawing, because the index reads the
+drawing's own polylines.
