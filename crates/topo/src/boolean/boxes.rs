@@ -778,8 +778,8 @@ pub(crate) fn torus_extent<T: Real>(
 /// closed form.
 ///
 /// The closed form reads `R + r·cos v ≥ 0` over the window: every torus
-/// the spans admit is a ring, `R ≥ r ≥ 0`. Each lane decides that at its
-/// own scalar before it enters here ([`FaceBoxRule`]). The rows `u_ref`,
+/// the spans admit is a ring, `R ≥ r ≥ 0`. The box lanes decide that
+/// before they enter here ([`FaceBoxRule`]). The rows `u_ref`,
 /// `v_ref` and `axis` enter as given, so the extent is exact for
 /// `S = c + (R + r·cos v)·(cos u·u_ref + sin u·v_ref) + r·sin v·axis`
 /// whatever their lengths; the meet with [`torus_extent`] every reader
@@ -1302,15 +1302,13 @@ pub(crate) fn circle_box<T: Bounds>(
 ///   lane's own arena walk), which is a read of certified data
 ///   exactly as `EdgeCurve::params` is for a conic edge's arc.
 ///
-///   The closed form needs `R + r·cos v ≥ 0`, the ring convention,
-///   and each lane decides it at its own scalar. The bracket lane
-///   ([`face_box`]) reads the radii's brackets, `R.lo > r.hi` and
-///   `r.lo ≥ 0`, so every torus they admit is a ring; it asks no
-///   `decide`. The census lane, at a point description, decides
-///   `r` and `R − r` positive under the band through the convention's
-///   one home ([`ring_decided`]). Where either lane's reading does not
-///   hold, the face keeps the whole tube, the coarser box the sphere
-///   arm's ball is to its rectangle.
+///   The closed form needs `R + r·cos v ≥ 0`, the ring convention.
+///   Both lanes decide it at the body's scalar under the band through
+///   its one home (`geom::is_ring_torus`), so they take the same arm;
+///   at a bracketed scalar a decided convention holds over the whole
+///   bracket, so every torus the bracket lane's spans admit is a
+///   ring. Where it is not decided, the face keeps the whole tube,
+///   the coarser box the sphere arm's ball is to its rectangle.
 ///
 /// **Every surface kind has an arm**, and that is a statement this
 /// enum makes at the type level: there is no `NoSoundBox` on the face
@@ -1492,16 +1490,6 @@ pub(crate) fn face_box_rule<T: Decide>(
             u_ref: *u_ref,
         },
     })
-}
-
-/// Whether a point description's ring convention `R > r > 0` is
-/// decided, read from its one home (`geom::torus_tube`, then
-/// `geom::ring_torus`, since `R − r` alone passes a negative `r`): the
-/// premise [`ring_window_extent`] reads, which the census lane decides
-/// at its own scalar ([`FaceBoxRule`]'s torus arm).
-pub(crate) fn ring_decided<T: Decide>(major: T, minor: T, band: Band) -> bool {
-    let positive = |d: Result<geom_core::Decided, geom_core::Indeterminate>| matches!(d, Ok(d) if d.sign == geom_core::Sign::Positive);
-    positive(geom::torus_tube(minor, band)) && positive(geom::ring_torus(major, minor, band))
 }
 
 /// The K funnel name of a sphere's polar axis read as a unit direction,
@@ -1990,8 +1978,8 @@ pub(crate) fn face_box<T: Decide + Bounds>(
             let (c, ax) = (bracket_point(center), bracket_vector(axis));
             let whole = torus_extent(&c, &ax, major_radius.hi(), minor_radius.hi());
             // BOTH ends of each radius bracket: the extent encloses the
-            // whole family of tori they admit, and the ring convention
-            // is read off those ends, so it holds for every member.
+            // whole family of tori they admit, each a ring once the
+            // convention is decided at the body's scalar.
             let radii = (
                 Span {
                     lo: major_radius.lo(),
@@ -2002,8 +1990,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                     hi: minor_radius.hi(),
                 },
             );
-            let ring = radii.0.lo > radii.1.hi && radii.1.lo >= 0.0;
-            match ring
+            match geom::is_ring_torus(major_radius, minor_radius, band)
                 .then(|| chart_window(major_radius, minor_radius))
                 .flatten()
             {
@@ -4795,9 +4782,9 @@ pub(crate) mod tests {
     }
 
     /// **The §Geometry ORACLE**: the exact extremes of `e·S` over the
-    /// chart rectangle, in closed form — what the sampled
-    /// construction is measured against, and not what any lane
-    /// computes.
+    /// chart rectangle, in closed form, spelled from the geometry
+    /// rather than from [`torus_rect_extent`]: what the rows measure
+    /// the lanes against, and not what any lane computes.
     ///
     /// At fixed `v`, `f = e·c + (R + r cos v)·a(u) + r sin v·e_n` is
     /// affine in `a(u) = |e_⊥|·cos(u − u*)` with POSITIVE slope
@@ -4997,13 +4984,15 @@ pub(crate) mod tests {
 
     /// **A bracketed description is ENCLOSED, and no looser than its
     /// corners**: [`torus_rect_extent`] over spans of the frame's
-    /// components and both radii holds every torus they admit — the
-    /// spans' corners and a grid through their interiors, each read at
-    /// a point — and each end IS the most extreme corner's to rounding,
-    /// since the extremes of the family are attained at a corner
-    /// ([`torus_rect_extent`]'s three facts). A span product read at one
-    /// end, or a corner of `(p, q)` not read, puts a member outside; a
-    /// pad or a sampled charge would leave the ends off the corners.
+    /// components and both radii holds every torus they admit, a grid
+    /// varying all five independently through their interiors, and
+    /// each end IS the most extreme corner's, since the family's
+    /// extremes are attained at a corner ([`torus_rect_extent`]'s three
+    /// facts). The corners are read by an independent oracle, a dense
+    /// grid of `e·S` over the window, so the row does not grade the
+    /// function with itself. A span product read at one end, or a
+    /// corner of `(p, q)` not read, puts a member outside; a pad or a
+    /// sampled charge leaves the ends off the corners.
     #[test]
     fn a_bracketed_torus_window_encloses_every_torus_it_admits() {
         let sp = |lo: f64, hi: f64| Span { lo, hi };
@@ -5039,57 +5028,189 @@ pub(crate) mod tests {
         ];
         let ends = |s: Span<f64>| [s.lo, s.hi];
         let x = Span::exact;
+        // `e·S − c` over the window on an `n × n` grid: a lower bound on
+        // the greatest and an upper bound on the least, short of them by
+        // the grid's chord error `(R + r)·h²/8` at most.
+        let n = 160;
+        let sampled =
+            |(p, q, a, big, small): (f64, f64, f64, f64, f64), u: Span<f64>, v: Span<f64>| {
+                let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+                for i in 0..=n {
+                    let uu = u.lo + (u.hi - u.lo) * f64::from(i) / f64::from(n);
+                    let along = p * uu.cos() + q * uu.sin();
+                    for j in 0..=n {
+                        let vv = v.lo + (v.hi - v.lo) * f64::from(j) / f64::from(n);
+                        let f = (big + small * vv.cos()) * along + small * a * vv.sin();
+                        lo = lo.min(f);
+                        hi = hi.max(f);
+                    }
+                }
+                (lo, hi)
+            };
         for (k, &(p, q, a, big, small, u, v)) in cases.iter().enumerate() {
             let got = torus_rect_extent(x(0.0), (p, q, a), (big, small), (u, v));
-            let point = |p: f64, q: f64, a: f64, big: f64, small: f64| {
-                torus_rect_extent(x(0.0), (x(p), x(q), x(a)), (x(big), x(small)), (u, v))
-            };
             let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
             for p in ends(p) {
                 for q in ends(q) {
                     for a in ends(a) {
                         for big in ends(big) {
                             for small in ends(small) {
-                                let one = point(p, q, a, big, small);
-                                lo = lo.min(one.lo);
-                                hi = hi.max(one.hi);
+                                let (slo, shi) = sampled((p, q, a, big, small), u, v);
+                                lo = lo.min(slo);
+                                hi = hi.max(shi);
                             }
                         }
                     }
                 }
             }
-            let tol = 16.0 * f64::EPSILON * (big.hi + small.hi);
+            let h = (u.hi - u.lo).max(v.hi - v.lo) / f64::from(n);
+            let chord = (big.hi + small.hi) * 2.0 * h * h / 8.0;
             assert!(
-                (got.lo - lo).abs() <= tol && (got.hi - hi).abs() <= tol,
-                "case {k}: [{}, {}] must be its most extreme corners' [{lo}, {hi}]",
+                got.lo <= lo && got.hi >= hi,
+                "case {k}: [{}, {}] must enclose the corners' sampled [{lo}, {hi}]",
                 got.lo,
                 got.hi
             );
+            assert!(
+                lo - got.lo <= chord && got.hi - hi <= chord,
+                "case {k}: [{}, {}] is looser than the corners' sampled [{lo}, {hi}] by more \
+                 than the grid's chord error {chord:e}",
+                got.lo,
+                got.hi
+            );
+            let tol = 16.0 * f64::EPSILON * (big.hi + small.hi);
             let inner = |s: Span<f64>, i: u32| s.lo + (s.hi - s.lo) * f64::from(i) / 4.0;
             for i in 0..=4 {
                 for j in 0..=4 {
                     for l in 0..=4 {
                         for m in 0..=4 {
-                            let one = point(
-                                inner(p, i),
-                                inner(q, j),
-                                inner(a, l),
-                                inner(big, m),
-                                inner(small, 4 - m),
-                            );
-                            assert!(
-                                one.lo >= got.lo - tol && one.hi <= got.hi + tol,
-                                "case {k}: a member's [{}, {}] left the enclosure [{}, {}]",
-                                one.lo,
-                                one.hi,
-                                got.lo,
-                                got.hi
-                            );
+                            for o in 0..=4 {
+                                let one = torus_rect_extent(
+                                    x(0.0),
+                                    (x(inner(p, i)), x(inner(q, j)), x(inner(a, l))),
+                                    (x(inner(big, m)), x(inner(small, o))),
+                                    (u, v),
+                                );
+                                assert!(
+                                    one.lo >= got.lo - tol && one.hi <= got.hi + tol,
+                                    "case {k}: a member's [{}, {}] left the enclosure [{}, {}]",
+                                    one.lo,
+                                    one.hi,
+                                    got.lo,
+                                    got.hi
+                                );
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    /// **The ring convention holds the closed form back, in both lanes
+    /// alike.** A spindle (`R < r`) breaks the closed form's premise:
+    /// `R + r·cos v` goes negative, and the best azimuth then depends on
+    /// the latitude. Along `u_ref` over `u ∈ [−0.1, 0.1]` and every `v`,
+    /// a spindle of `R = 0.3`, `r = 1` reaches `−0.700`, and the closed
+    /// form claims only `−0.6965`, so it must never be read there.
+    ///
+    /// On a real face both lanes refuse it twice over: the chart window's
+    /// own slack guard reads `R − r` as a length and gives no window for
+    /// a spindle (held here on a ring face's caches read under a
+    /// spindle's radii), and the convention (`geom::is_ring_torus`) is
+    /// not decided. The window guard shadows the convention on a
+    /// spindle, so the near-horn face, `R − r` inside the band where the
+    /// window still reads, is what holds the convention alone: each lane
+    /// must take the whole tube there, and a lane whose guard read the
+    /// bracket or skipped the decision takes the rectangle.
+    #[test]
+    fn a_torus_outside_the_decided_ring_convention_keeps_the_whole_tube() {
+        use core::f64::consts::PI;
+        let (u, v) = ((-0.1, 0.1), (-PI, PI));
+        // The premise is load-bearing: the closed form under-claims a
+        // spindle, so the guard is what keeps it out.
+        let (big, small) = (0.3, 1.0);
+        let at = |uu: f64, vv: f64| (big + small * vv.cos()) * uu.cos();
+        let mut least = f64::INFINITY;
+        for i in 0..=200 {
+            for j in 0..=2000 {
+                let uu = u.0 + (u.1 - u.0) * f64::from(i) / 200.0;
+                let vv = v.0 + (v.1 - v.0) * f64::from(j) / 2000.0;
+                least = least.min(at(uu, vv));
+            }
+        }
+        let x = Span::exact;
+        let closed = torus_rect_extent(
+            x(0.0),
+            (x(1.0), x(0.0), x(0.0)),
+            (x(big), x(small)),
+            (Span { lo: u.0, hi: u.1 }, Span { lo: v.0, hi: v.1 }),
+        );
+        assert!(
+            closed.lo > least + 1e-3,
+            "the closed form's least {} must under-claim the spindle's {least}, or this row \
+             no longer witnesses why the convention is decided",
+            closed.lo
+        );
+
+        let band = witness_band();
+        let pose = (
+            Point3::new(0.4, -0.3, 0.2),
+            Vec3::new(1.0, 2.0, 3.0).normalize(),
+        );
+        let u_ref = pose.1.orthonormal_basis().0;
+        let window = ((0.3, 1.9), (-0.7, 0.8));
+        let whole = |major: f64, minor: f64| {
+            aabb_of(torus_extent(
+                &SpanBox::point(pose.0),
+                &SpanBox::vector(pose.1),
+                major,
+                minor,
+            ))
+        };
+        // A ring face's certified caches, read under a spindle's radii:
+        // the window's slack guard refuses, so no lane reaches the
+        // closed form there whatever its convention reads.
+        let (body, face) = torus_wall(pose.0, pose.1, u_ref, 2.0, 0.5, window.0, window.1);
+        assert!(
+            read_window(&body, face, 2.0, 0.5).is_some(),
+            "the ring face's own window reads"
+        );
+        assert!(
+            read_window(&body, face, big, small).is_none(),
+            "a spindle's radii must give no window"
+        );
+
+        // The near-horn face: `R − r` inside the band, its window read.
+        let minor = 0.5;
+        let major = minor + 0.25 * band.zero();
+        let (body, face) = torus_wall(pose.0, pose.1, u_ref, major, minor, window.0, window.1);
+        assert!(
+            read_window(&body, face, major, minor).is_some(),
+            "the near-horn face's window must read, or this row does not hold the convention"
+        );
+        assert!(
+            !geom::is_ring_torus(major, minor, band),
+            "R − r = {:e} must lie inside the band",
+            major - minor
+        );
+        let want = whole(major, minor);
+        let boxed = face_box(&body, face, 0.0, band).unwrap();
+        let (lo, hi) = crate::census::face_reach(&body, face, band).unwrap();
+        agrees_with_the_rule(&boxed, &want, major, "face_box on the near-horn face");
+        agrees_with_the_rule(
+            &Aabb {
+                min_x: lo.x,
+                min_y: lo.y,
+                min_z: lo.z,
+                max_x: hi.x,
+                max_y: hi.y,
+                max_z: hi.z,
+            },
+            &want,
+            major,
+            "face_reach on the near-horn face",
+        );
     }
 
     /// **The window is the EDGE'S OWN SPAN, and it is the stored rows'
@@ -5224,7 +5345,11 @@ pub(crate) mod tests {
                         // fidelity row is what pins it to `[u0, u1] × [v0, v1]`);
                         // the CONSTRUCTION is restated here rather than called,
                         // through the oracle's own closed form, so this row can
-                        // see a term or the meet go missing.
+                        // see a term go missing. The meet with the tube is
+                        // restated too but cannot bind here: at a point
+                        // description the rectangle lies inside the tube, and
+                        // the meet binds only where a bracket's corners leave
+                        // unit norm.
                         let (wu, wv) = read_window(&body, face, major, minor).unwrap();
                         let window = ((wu.lo, wu.hi), (wv.lo, wv.hi));
                         let side =
@@ -5329,6 +5454,21 @@ pub(crate) mod tests {
                     tilt,
                     tilt.orthonormal_basis().0,
                     2.0,
+                    0.5,
+                    (0.3, 1.9),
+                    (-0.7, 0.8),
+                ),
+            ),
+            // `R − r` inside the band: both lanes must take the same
+            // arm, the whole tube, though the window reads.
+            (
+                "near-horn torus window",
+                2.5,
+                torus_wall(
+                    Point3::new(0.4, -0.3, 0.2),
+                    tilt,
+                    tilt.orthonormal_basis().0,
+                    0.5 + 0.25 * witness_band().zero(),
                     0.5,
                     (0.3, 1.9),
                     (-0.7, 0.8),

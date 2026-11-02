@@ -7115,9 +7115,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             minor_radius,
             u_ref,
         } => {
-            use crate::boolean::boxes::{
-                Span, SpanBox, meet, ring_decided, ring_window_extent, torus_extent,
-            };
+            use crate::boolean::boxes::{Span, SpanBox, meet, ring_window_extent, torus_extent};
             let (c, ax) = (
                 SpanBox::point(frame.point(center)),
                 SpanBox::vector(frame.vector(axis)),
@@ -7128,7 +7126,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             // the same extent as the boolean lane, at this lane's
             // scalar ([`torus_chart_window`]), once the ring
             // convention the extent reads is decided.
-            let window = if ring_decided(major_radius, minor_radius, band) {
+            let window = if geom::is_ring_torus(major_radius, minor_radius, band) {
                 torus_chart_window(body, f, major_radius, minor_radius)
             } else {
                 None
