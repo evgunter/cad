@@ -299,3 +299,5 @@ and bodies unchanged. No orchestrator yet.
   - **Small pass sent before merge:** `RectExit` silently accepts `first >= N` (narrow the bound and check it); a stale plane-only doc line; document the order of `feet`.
   - **Class, logged:** `nurbs_nurbs_section` rows built as graphs over (x, y) cannot catch a swapped `feet`. 3a's rows use non-graph charts.
   - **Unchanged:** MINOR-1 (`feet`'s two-point shape) stays on 3a's list. Ev's PR 6398 has no comments yet.
+
+- 2026-11-02 22:20 — **PR 6400 merged** (NURBS 3a-0; single full review APPROVE; a small pass added a `first < N` debug check, narrowed the `RectExit` bound to `SectionSystem`, and fixed docs). **Stage 3a dispatched** to the same implementer (`sectarms/nurbs-implicit-arm-stage3a`; H, dual review). The pcurve on the implicit side follows an existing lane's precedent, or stops for a ruling.
