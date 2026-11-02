@@ -2065,8 +2065,8 @@ mod tests {
     /// The review's two poses: a unit cylinder about `x`, a bisector at
     /// `p = (0, 0, 1)` 45° off the axis, against a plane through `p`
     /// holding it, tilted by `ψ` from the cylinder's tangent plane. Its
-    /// normal section stands below the plane at the arm in both, by
-    /// 5e-9 (the gap) and by 2.9e-2 (decided).
+    /// parting, `cos ψ·l²/4`, stands below the plane in both: midway in
+    /// the gap at `l = 0.1`, and decided at `l = 1`.
     #[test]
     fn a_bisectors_tie_reads_its_partings_own_verdict() {
         let c = core::f64::consts::FRAC_1_SQRT_2;
@@ -2093,7 +2093,7 @@ mod tests {
             tie.descend()
         };
         assert_eq!(
-            descent(5e-9 / 0.0025, 0.1).unwrap(),
+            descent(0.5 * (band().zero() + band().escalate()) / 0.0025, 0.1).unwrap(),
             Descent::Unresolved(Unresolved::Gap),
             "a parting in the gap"
         );
