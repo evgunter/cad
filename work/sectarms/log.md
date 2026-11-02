@@ -121,3 +121,14 @@ and bodies unchanged. No orchestrator yet.
   - **Krawczyk and Hessian isolation** plug in at `Declined::Floor`.
   - **A class the review found, which bears on your build:** W5 first ran its sweep ahead of stages 1 and 2. A wall within the band everywhere, and a boundary graze, then cleared where main refuses them as tangent. Run the hull's coincidence call and the boundary pass before the sweep for every implicit `f`. The re-review also showed that the sweep alone reads a long thin in-band wall as loop-free, so the guarantee lives in stages 1 and 2.
   - **Also:** "excluded or regular ⇒ loop-free" is unsound without the same-side join, because an excluded cell can hold the loop's extremum.
+- 2026-11-02 — **Cylinder stage 2 (PR 6151) reviewed and fixed.**
+  - **Single full review on `cf488e3`:** APPROVE-WITH-FIXES, no MAJOR.
+  - **Fix pass `bf4063f`:**
+    - one `join_reads` gate covers the join's held and carried readings;
+    - rows pin the straddling-march and tangent-ruling paths, and both mutants go red;
+    - `traced_in_r3` moved to geom-brep;
+    - the parallel-walls check is a method on the error, not a string compare at the reader;
+    - face boxes are computed once;
+    - the three stale citations are fixed.
+  - **Accepted:** the held-lane gate has no red-without-it row. No current cylinder pose reaches `one_site` while the frame answers, because the frame refuses at germ mint first. It is precautionary until stage 3 retires it, and is stated on the skew row.
+  - **Not a typed variant:** a new `SectionError` variant for parallel walls would move every reader's escalation rows, so the method on the error stands.
