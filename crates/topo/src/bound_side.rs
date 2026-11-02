@@ -516,6 +516,54 @@ impl<T: geom_core::Real> Carrier<T> {
         geom_brep::implicit_residual(&self.surface(), p)
     }
 
+    /// **A bound on [`Self::residual`]'s own rounding at `p`**, in
+    /// metres: its squared terms (`ρ² − R²` and the like), each rounded
+    /// at their own size, over its divisor, plus the coordinates'
+    /// subtraction carried through them. A residual far smaller than
+    /// the carrier's own size cancels, and this is what it may have
+    /// lost.
+    fn rounding(self, p: Point3<T>) -> T {
+        let eps = T::from_f64(4.0 * f64::EPSILON);
+        let at = |q: Point3<T>| (q - Point3::origin()).norm();
+        let split = |anchor: Point3<T>, axis: Vec3<T>| {
+            let q = p - anchor;
+            let h = q.dot(axis);
+            ((q - axis * h).norm(), h.abs(), at(p) + at(anchor))
+        };
+        let two = T::from_f64(2.0);
+        match self {
+            Self::Sphere { center, radius, .. } => {
+                let (d, coords) = ((p - center).norm(), at(p) + at(center));
+                eps * (d.powi(2) + radius.powi(2) + two * d * coords) / (two * radius)
+            }
+            Self::Cylinder {
+                origin,
+                axis,
+                radius,
+                ..
+            } => {
+                let (rho, _, coords) = split(origin, axis);
+                eps * (rho.powi(2) + radius.powi(2) + two * rho * coords) / (two * radius)
+            }
+            Self::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                ..
+            } => {
+                let (rho, h, coords) = split(center, axis);
+                let d = (rho - major_radius).abs();
+                eps * (d.powi(2)
+                    + h.powi(2)
+                    + minor_radius.powi(2)
+                    + two * (d + h) * (coords + rho + major_radius))
+                    / (two * minor_radius)
+            }
+            Self::Cone { apex, .. } => eps * ((p - apex).norm() + at(p) + at(apex)),
+        }
+    }
+
     /// **The point of the carrier nearest `p`**: the closed-form foot
     /// the boolean's carrier distance reads
     /// (`boolean::carrier_touch::distance`) on a sphere, a cylinder or a
@@ -1014,18 +1062,30 @@ impl<T: Decide> Tie<T> {
     /// normal, in metres: the bound's point at `l`
     /// ([`Reach::witness`]) against a curved face's carrier by the
     /// carrier's own residual ([`Carrier::residual`]), against a plane
-    /// by its height over the plane through the base vertex. `None`
-    /// where the bound has no point behind it or the face no carrier.
-    fn witness_offset(self, l: T) -> Option<T> {
+    /// by its height over the plane through the base vertex; and a
+    /// bound on that reading's own rounding ([`Carrier::rounding`]).
+    /// `None` where the bound has no point behind it or the face no
+    /// carrier.
+    fn witness_offset(self, l: T) -> Option<(T, T)> {
         let n = self.face.reference.vec();
         let w = self.reach.witness(self.dir, l)?;
         match self.face.bend {
-            FaceBend::Plane => Some((w - self.reach.base()?).dot(n)),
+            FaceBend::Plane => {
+                let base = self.reach.base()?;
+                let at = |q: Point3<T>| (q - Point3::origin()).norm();
+                Some((
+                    (w - base).dot(n),
+                    T::from_f64(4.0 * f64::EPSILON) * (at(w) + at(base)),
+                ))
+            }
             FaceBend::Implicit {
                 gradient, carrier, ..
             } => {
                 let along = gradient.dot(n);
-                Some(carrier.residual(w) * along / along.abs())
+                Some((
+                    carrier.residual(w) * along / along.abs(),
+                    carrier.rounding(w),
+                ))
             }
             FaceBend::Fitted => None,
         }
@@ -1161,12 +1221,20 @@ impl<T: Decide> Tie<T> {
     /// # Errors
     ///
     /// [`ReadFault::Witness`]: a witness decided against the parting's
-    /// side, poisoned or straddling the zero band, or none (a bound with
-    /// no point behind it, a foot that does not read).
+    /// side, poisoned or straddling the zero band, one whose own rounding
+    /// is past the zero band's share ([`Carrier::rounding`]), or none (a
+    /// bound with no point behind it, a foot that does not read).
     fn witnessed(self, leading: Option<Side>, arm: T, band: Band) -> Result<Descent, ReadFault<T>> {
-        let offset = self
-            .witness_offset(arm)
-            .unwrap_or_else(|| T::from_f64(f64::NAN));
+        let nan = T::from_f64(f64::NAN);
+        let (offset, rounding) = self.witness_offset(arm).unwrap_or((nan, nan));
+        if let Err(margin) = crate::validate::resolved(WITNESS_ROUNDING, rounding, band) {
+            return Err(ReadFault::Witness(Indeterminate {
+                margin,
+                band,
+                predicate: Some(WITNESS_ROUNDING),
+                terminal_sliver: false,
+            }));
+        }
         let decided = match crate::validate::decide_reported(
             "tangent_sector_witness",
             Margin::of(offset),
@@ -1197,6 +1265,11 @@ impl<T: Decide> Tie<T> {
         }
     }
 }
+
+/// The witness's own rounding, decided within the zero band's share of
+/// noise ([`crate::validate::resolved`]): past it, the witness's offset
+/// is not the input's, and the reading refuses.
+const WITNESS_ROUNDING: &str = "tangent_sector_witness_rounding";
 
 /// Whether the classifier's escalation is the gap: a point margin it
 /// read between the zero band and the escalation band, or an enclosure
@@ -1301,12 +1374,14 @@ mod tests {
     }
 
     /// **A tie's second order reads the first order's own ladder, and a
-    /// poisoned reading refuses**: a unit line in a ball's tangent plane
-    /// parts from it by `l²/2R` at `l = 1`, so the radius sets the
+    /// poisoned reading refuses**: a line in a unit ball's tangent plane
+    /// parts from it by `l²/2` at its length, so the length sets the
     /// parting. Within the zero band it rides the ball; in the gap
     /// between the zero band and the escalation band, where its witness
     /// at `l = 1` stands too, it is unresolved; past the escalation band
-    /// it leaves. A poisoned jet (a NaN
+    /// it leaves. A unit line on a ball so large that its witness's
+    /// residual cancels in the ball's own size leaves, or refuses on its
+    /// rounding: it never reads within the band. A poisoned jet (a NaN
     /// Hessian, and a cone's own apex, where it has no gradient) is no
     /// gap: it refuses.
     #[test]
@@ -1325,15 +1400,14 @@ mod tests {
             };
             tie.descend(b)
         };
-        let parting_at = |margin: f64| {
-            let radius = 0.5 / margin;
-            let face = FaceDatum::of_face(
+        let ball = |radius: f64| {
+            FaceDatum::of_face(
                 OutwardNormal::from_chart(z, true),
                 FaceBend::ball(z, radius),
                 radius,
-            );
-            descent(x, face)
+            )
         };
+        let parting_at = |margin: f64| descent(x * (2.0 * margin).sqrt(), ball(1.0));
         let (zero, escalate) = (b.zero(), b.escalate());
         assert_eq!(
             parting_at(0.5 * zero).unwrap(),
@@ -1349,6 +1423,18 @@ mod tests {
             parting_at(10.0 * escalate).unwrap(),
             Descent::Leaves(Side::Above),
             "past the escalation band"
+        );
+        let huge = descent(x, ball(0.05 / escalate));
+        assert!(
+            matches!(
+                huge,
+                Ok(Descent::Leaves(Side::Above))
+                    | Err(ReadFault::Witness(Indeterminate {
+                        predicate: Some(WITNESS_ROUNDING),
+                        ..
+                    }))
+            ),
+            "a ball whose residual at the witness cancels in its own size: {huge:?}"
         );
         let nan = f64::NAN;
         let poisoned = FaceBend::Implicit {
