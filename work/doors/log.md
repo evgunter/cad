@@ -185,3 +185,8 @@ AUTHOR's narrative is recoverable from
 - Six fix passes, six re-verifies; re-verify 6 says merge. CI green at `e8faa38a47`; local full suite: only the 11 environment rows and main's base red `coincidence_door::the_axis_edit_mates_the_copy…`.
 - What landed: the takeover door rebinds every document reader and every held pick (drafts, tools) of a taken-over copy — through copy, mirror and split chains, in rounds — at commit; name questions are answered only by an evaluation of the shown document (`Answered`, `Seed`, private constructors), else abstain.
 - Follow-ups filed: `the-name-gate-is-tested-as-a-table` (P2), `a-fresh-pick-off-the-older-picture-commits-a-stale-reference` (P2), `a-fused-patterns-takeover-rebinds-nothing` (P3), `name-carrying-chain-walks-restate-verbatim-edge-by-hand` (P3).
+
+## 2026-11-02 07:00 — 6264 merged; 6209 rows re-read
+
+- PR 6264 merged (`a285cdbf7d`). The P0 row is closed on it; the three rows other programs had parked on it (CHROME `a-findings-face-reference-reads-as-stale`, PLACING `a-feature-gesture-re-points-every-copy-of-its-target` and `deleting-a-placed-feature-unplaces-its-target`) were un-parked in the state-sync, with seam notes on both logs answering PLACING's two questions (every placement is re-pointed; the takeover is recorded in memory at commit, not in the document, and offers no inverse).
+- PR 6209 (SPACES) merged 2026-11-01 with Ev's answers. The three DOORS rows parked on it (split drawn unsplit P0, fillet on a drawn union's operand P1, mirror two pieces P1) are being re-read against the ratified "picture draws bodies" rule and SPACES' landed units before any dispatch.
