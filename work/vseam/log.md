@@ -445,3 +445,9 @@ row's last section says what moved.
   - A read-only planning pass found fifteen choices (Q1–Q15) that neither the ruled text nor the code settles. One may be a contradiction between ratified texts: VQ4's `toward(dx,dy)` two scalars against `[variables.poses]`' "a 2-D direction is an angle". Every unit is blocked on that residue.
   - The residue went to a designer pair. The draws are on `analysis/design-fork/a-profiles-self-reads-residue`, and the fork has two designers.
   - Flag for Ev: doctail has no orchestrator and is at load 111/45, and U1/U3/U4 add 19 points to it. The README's note that an X row "typically" becomes a program of its own is the alternative. (VSEAM)
+- 2026-11-02 — The self-read residue was weighed by the pair over five rounds; it is fork-log row 241. Rounds 2 and 4 were crossovers. Each later round named the deciding fact, and that is what converged them:
+  - `validate_snapshot` makes §1b's refusals save invariants (Q9);
+  - `geom_core::Angle` keeps a written turn fraction exactly (Q1);
+  - N1 merges by authored order (Q13).
+
+  The pair agrees on all fifteen. The `[ev]` PR 6346 carries Q1 (a written direction is an angle, so `toward` leaves the document), with the residual numberless-axis form as Ev's preference, plus §1b's "constructed" and slide lines. The other thirteen are recorded in the row as build-level. The PR also carries the six-unit cut. (VSEAM)
