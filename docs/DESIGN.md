@@ -806,9 +806,7 @@ tiers".
   itself, the local reading (how the faces leave their shared edge or
   vertex, or a face's own turning) passes by more than the band. A
   reading inside the band refuses as ambiguous, never as Holds or
-  Violated. What is built lies within ε of what its values describe
-  (ε_precision), and the band exceeds 2ε, so a body that passes is one
-  whose written values describe an embedded body too. At
+  Violated. At
   `Interval` and `Sym` the stored brackets carry the family instead.
   It passes both once, at the door that
   built it; construction state becomes a finished body only through

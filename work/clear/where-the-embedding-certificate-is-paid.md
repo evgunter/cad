@@ -63,3 +63,8 @@ what "the engine lifts every carrier exactly" means; the answer is on
 conflated (an f64 entering as an Interval). Point 2 now states the
 goal only: f64 and Probe certify with the K·ε band every verdict uses. The typing is
 `clearance-cell-enclosures-are-typed-as-the-interval-scalar`.
+
+Point 2 ruled (Ev, PR 6308, 2026-11-02): "mostly looks good". At `f64`
+and `Probe`, the check decides with the K·ε band. The soundness note
+(the band exceeds 2ε) is dropped: K may be below 2, and Ev holds the
+geometry to internal consistency rather than to that inequality.
