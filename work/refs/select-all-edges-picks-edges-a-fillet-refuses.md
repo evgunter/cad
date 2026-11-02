@@ -113,7 +113,7 @@ Two designers weighed this (fork `select-all-edges-tangent`) and agreed after on
   - names README N3's "Numeric coplanarity never merges" contradicts DESIGN `[topology.conventions]` and the topo README; re-word it to the ratified rule;
   - SELECT-DESIGN GS-Q2's "no 3D edge-convexity predicate exists" is now false;
   - KERNEL-VERBS' fillet run-out note, "no consumer has ever wanted either", now has a consumer:
-    `work/bandrule/a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds.md`.
+    `work/band/a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds.md`.
 
 **Done when:**
 

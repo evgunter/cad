@@ -1380,7 +1380,7 @@ fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
     let doc = r.doc;
     let sel = Selection::body_of(loft);
     // On the numeric lane by name: at the symbolic tier this loft does
-    // not build (work/pctail/loft-builds-at-interval-and-refuses-a-rational-column-at-sym.md).
+    // not build (work/pcert/loft-builds-at-interval-and-refuses-a-rational-column-at-sym.md).
     let report = clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),

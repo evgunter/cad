@@ -1061,7 +1061,7 @@ fn assert_encloses_corners(
 /// transform, which certifies each placed edge on its placed carrier,
 /// and a box-wide translation widens those two independently past the
 /// band — a refusal every boxed placer meets today
-/// (`work/topotail/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`,
+/// (`work/topo/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`,
 /// its "Measured" section). A box a fraction of ε wide is placed, and
 /// the rows that read the BODY read it over one; the rows that read
 /// the SOLVE read it over a wide one ([`assert_pose_encloses_corners`]).
@@ -1480,7 +1480,7 @@ fn a2_a_box_on_a_value_encloses_the_mated_part() {
 /// (`NodeErrorKind::Motion`), which a widened rotation's enclosure
 /// cannot pass by its seven margins alone. Over a box this wide the
 /// bolt still refuses, at the placed edge's endpoint certification
-/// (`work/shelf/transform-rigid-recertifies-images-enclosed-apart.md`).
+/// (`work/shell/transform-rigid-recertifies-images-enclosed-apart.md`).
 ///
 /// *Breaks if* a placement's boxed rotation is decided by its widened
 /// matrix's orthogonality residuals rather than admitted as a rotation.

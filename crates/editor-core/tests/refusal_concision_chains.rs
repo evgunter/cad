@@ -143,7 +143,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Split/Reduce/CrossingInsertion",
         "inserting the plane crossing on edge EdgeKey    refused",
     ),
-    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
+    // work/lathe/carve-refusals-short-of-the-shape-guard.md
     (
         "Revolve/VoidInsertion",
         "inserting the cavity of hole loop 1 refused",
@@ -171,7 +171,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Boolean/Join/SectionInvariant",
         "curved-section invariant at face FaceKey",
     ),
-    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
+    // work/lathe/carve-refusals-short-of-the-shape-guard.md
     ("Blend/SurgeryInvariant", "at face FaceKey"),
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/Merge", "merge_coplanar_faces"),
@@ -200,12 +200,12 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "Extrude/SmoothJoinRefuted",
         span: "EdgeKey(null)",
-        filed: "work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+        filed: "work/lathe/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     Admission {
         row: "Revolve/SmoothJoinRefuted",
         span: "EdgeKey(null)",
-        filed: "work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+        filed: "work/lathe/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     // A shell-role escalation names the aimed ray's faces by key.
     Admission {
@@ -287,7 +287,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Split/Finish/Merge",
-    // work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/lathe/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Revolve/PinnedRunStation",
     // work/hone/reach-refusals-short-of-the-shape-guard.md
     "Boolean/Join/Corrupt",
@@ -310,7 +310,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
-    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
+    // work/lathe/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
     "Extrude/SidePlane",
@@ -930,7 +930,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
         pub(super) const TRACE_FAULT: TraceFault = [
-            Unsupported, Grazing, Apex, OnCarrier, Escalated, Unsettled,
+            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled,
         ];
     }
 
@@ -4464,6 +4464,13 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
             "Carrier/Unsupported",
             F::Carrier(TraceFault::Unsupported {
                 carrier: geom::SurfaceKind::Nurbs,
+            }),
+        ),
+        (
+            "Carrier/Unbounded",
+            F::Carrier(TraceFault::Unbounded {
+                carrier: geom::SurfaceKind::Sphere,
+                what: geom::cover::Unknown::NonFinite,
             }),
         ),
         ("Carrier/Grazing", F::Carrier(TraceFault::Grazing)),

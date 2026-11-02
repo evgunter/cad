@@ -2538,6 +2538,10 @@ pub enum LineUnread {
     /// other or to the face for its side of them to be placed: a sliver
     /// or a thin wedge, within the input tolerance.
     Unplaced,
+    /// A face's edge reads on one side of a face of the other operand
+    /// along its own extent and on the other at its point there: the two
+    /// stand within the input tolerance of each other near the line.
+    Contradicted,
 }
 
 /// One sector read of a vertex, named in
@@ -5275,6 +5279,10 @@ impl core::fmt::Display for BooleanError {
                     LineUnread::Unplaced => {
                         "the other solid's faces about it lie within ε_input of each other or \
                          of a face of the first"
+                    }
+                    LineUnread::Contradicted => {
+                        "a face's edge reads on one side of a face of the other solid along \
+                         itself and on the other at its end"
                     }
                 }
             ),

@@ -10,7 +10,7 @@ refs: [main-red-two-sweep-rows-at-sym-and-the-certified-scalar-since-limb-2, 566
 ---
 
 Handed over by OFFSET (the main-red bisect lane, 2026-10-28), from
-`work/offset/main-red-two-sweep-rows-at-sym-and-the-certified-scalar-since-limb-2.md`,
+`work/shell/main-red-two-sweep-rows-at-sym-and-the-certified-scalar-since-limb-2.md`,
 which suspected PR 5728. The bisect says otherwise.
 
 **The row.** `sweep` `verbs_germarms2_interval::the_meeting_axes_pose_builds_at_the_certified_scalar`

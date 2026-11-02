@@ -70,7 +70,7 @@ builds: `stem ∪ arch` and `arch ∪ stem` are one shell of the two tubes'
 volume, `stem ∩ arch` is empty and each difference gives back its first
 operand (`mate7a_r1_probes::p1_wall1_glues_the_stem_into_one_body`).
 Rows: `section_cert_parallel_tori_rows`. Filed: level tubes' node
-(`work/secttail/level-tubes-of-parallel-tori-refuse-at-the-node.md`), the cone
-sibling and ball separation for tilted poses (both `work/secttail/`), and the
+(`work/sect/level-tubes-of-parallel-tori-refuse-at-the-node.md`), the cone
+sibling and ball separation for tilted poses (both `work/sect/`), and the
 tour's two-piece stem
 (`work/issues/the-tour-lily-ships-its-stem-as-two-pieces.md`).

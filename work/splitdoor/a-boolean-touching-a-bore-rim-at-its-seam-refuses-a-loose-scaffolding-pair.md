@@ -27,7 +27,7 @@ at `P`), the cube on either side (both `s`). It refuses
 from `boolean/join.rs` `ring_order`. The `out` and `across` seam poses and the poses at azimuth 0.3
 build with the quadrature's volumes and pass tier 3′.
 
-Distinct from `work/secttail/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm`,
+Distinct from `work/sect/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm`,
 which refuses otherwise. The split's chord at the same pose (two copies of `P` joined by a whole
 turn, PR 6020) is unreached here: the refusal comes first. Why the role order separates the pair
 is unmeasured.
