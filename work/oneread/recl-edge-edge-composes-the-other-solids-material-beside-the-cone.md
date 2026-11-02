@@ -2,11 +2,12 @@
 id: recl-edge-edge-composes-the-other-solids-material-beside-the-cone
 kind: issue
 title: recl::resolve_edge_edge composes the other solid's material at a vertex from its wedge and the faces holding the line, a second gathered reading beside the boolean's cone
-status: dispatched
+status: review
 opened: 2026-11-01
 priority: P1
 cost: H
 branch: oneread/recl-line-cone
+pr: 6282
 ---
 
 Filed by `the-boolean-reads-the-other-operand-through-one-cone`'s sweep
