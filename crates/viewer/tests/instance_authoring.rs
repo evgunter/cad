@@ -123,15 +123,15 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // The three shipped GUI-4 tools this door exists to feed, on an
     // instance it authored: hide, the free-move probe, and the mate.
-    let hidden = session.perform(SessionOp::SetBodyHidden {
+    let hidden = session.perform(SessionOp::SetBodyOn {
         node: post_i,
-        hidden: true,
+        on: false,
     });
     assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
-    assert!(session.display().hidden_bodies().contains(&post_i));
-    let shown = session.perform(SessionOp::SetBodyHidden {
+    assert!(!session.toggles().body_on(post_i));
+    let shown = session.perform(SessionOp::SetBodyOn {
         node: post_i,
-        hidden: false,
+        on: true,
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
 

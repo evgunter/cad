@@ -2,11 +2,10 @@
 id: mate-tool-commits-one-mate
 kind: issue
 title: the mate tool commits one mate and its values, not a placement's whole bundle
-status: parked
+status: open
 opened: 2026-10-31
 priority: P1
 cost: H
-blocked_on: [the-mate-tool-offers-two-of-the-five-mate-kinds]
 refs: [the-viewers-mate-remove-takes-the-structural-door, removing-a-value-constraint-is-a-second-spelling-of-setting-it]
 ---
 
@@ -102,3 +101,5 @@ Two designers weighed this, reconciled over two rounds, and agreed. No ratified 
 - The unverified piece is the generalised snap. `session/snap.rs`'s `snapped` reads only the first mate, and its `Hold` has no case for a point held by a frame or a ball. Tier: FULL review at least; decide dual at dispatch.
 - Riders: `the-mate-panel-names-no-slide-a-plane-leaves` (subsumed by the derived value rows) and `the-viewers-mate-remove-takes-the-structural-door`.
 - Filed for DOCTAIL: `removing-a-value-constraint-is-a-second-spelling-of-setting-it`.
+
+**From PR 6284's review (2026-11-02, MINOR-2, likely).** Under the point kind's pick rule, a click that misses a vertex falls back to an edge or a face. On a prismatic part every such pick is accepted and lands a copy that fails (`SideUnevaluated`, typed and undoable). That follows the tool's present rule ("the placement's own refusal where it evaluates, never a pre-check"). The editor's live verdict before Apply is the answer, so that verdict covers every kind's unreadable picks, not only overconstraint.

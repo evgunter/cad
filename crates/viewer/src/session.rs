@@ -103,7 +103,7 @@ pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     GestureFrameFault, NodeKindWanted, Refusal, SaveChoice, Step, VersionOffer, admits, admits_read,
 };
-pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
+pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing, VertexSelection};
 
 /// What a gesture is dragging.
 #[derive(Clone, Debug)]
@@ -1078,6 +1078,10 @@ impl DocSession {
                 edge: edge.clone(),
                 resolution: self.entity_resolution(edge.node, edge.body, &edge.name),
             },
+            Selection::Vertex(vertex) => Standing::Vertex {
+                vertex: vertex.clone(),
+                resolution: self.entity_resolution(vertex.node, vertex.body, &vertex.name),
+            },
         }
     }
 
@@ -1262,6 +1266,14 @@ impl DocSession {
     /// The display snapshot the scene and pick paths consume.
     pub fn display_view(&self) -> DisplayView {
         self.display.view(self.doc())
+    }
+
+    /// **Every show/hide toggle** ([`crate::display::Toggles`]), read
+    /// over the committed document — the one the toggle's own door
+    /// decides against ([`SessionOp::SetBodyOn`]), so what a checkbox
+    /// shows and what its click does read one document.
+    pub fn toggles(&self) -> crate::display::Toggles {
+        self.display.toggles(self.committed_doc())
     }
 
     /// The directory this session resolves part references against —
@@ -1838,11 +1850,8 @@ impl DocSession {
             SessionOp::Open(path) => self.open(&path),
             SessionOp::Save(path) => self.save(&path),
             SessionOp::SaveAsNewDocument(path) => self.save_as_new_document(&path),
-            SessionOp::SetBodyHidden { node, hidden } => {
-                match self
-                    .display
-                    .set_body_hidden(self.history.doc(), node, hidden)
-                {
+            SessionOp::SetBodyOn { node, on } => {
+                match self.display.set_body_on(self.history.doc(), node, on) {
                     Ok(()) => OpOutcome::default(),
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
                 }
@@ -2101,6 +2110,9 @@ impl DocSession {
     /// pick up a generation without the run it answers. The fourth,
     /// `tol`, is this session's ε — construction-time, never rewritten
     /// by a landing — and rides along because the build needs it.
+    /// The author's shows ride too ([`DisplayState::shown`]): a show
+    /// draws a body the default leaves out, so the picture the index
+    /// describes is the landing's drawing them.
     ///
     /// `pickcache` is a vocabulary and may not name this driver, so
     /// the read is hoisted rather than the rule widened
@@ -2114,6 +2126,7 @@ impl DocSession {
             run.doc.as_ref(),
             &run.evaluation,
             self.tol,
+            self.display.shown(),
         ))
     }
 
@@ -2387,7 +2400,7 @@ impl DocSession {
             .map(Refusal::SlotUnit)
     }
 
-    /// **What `SessionOp::SetBodyHidden` would answer for `node`, or
+    /// **What `SessionOp::SetBodyOn` would answer for `node`, or
     /// `None` where it would accept** — asked ahead of the click by the
     /// control that pushes the op.
     ///
@@ -2396,7 +2409,7 @@ impl DocSession {
     /// and neither drag's table in `perform` refuses it. So a row drawn
     /// from the LANDED document (the feature tree's) reads the refusal
     /// for a node deleted since the last landing.
-    pub fn body_hidden_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
+    pub fn body_toggle_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
         crate::display::body_check(self.committed_doc(), node)
             .err()
             .map(|fault| Refusal::Display(fault.into()))
@@ -3075,7 +3088,7 @@ impl DocSession {
                 ))));
             }
         };
-        let faces = traced.iter().map(|face| face_read(doc, face)).collect();
+        let faces = traced.iter().map(|face| pick_read(doc, face)).collect();
         match pncad::trace::drawn_profile(frame, faces, chains) {
             Ok(node) => Ok(creating(move |run| run.insert(node))),
             Err(error) => Err(Refusal::Edit(Box::new(error))),
@@ -3105,7 +3118,7 @@ impl DocSession {
             doc,
             ev,
             frame,
-            face_read(doc, face),
+            pick_read(doc, face),
             (pncad::geom_core::Point2::origin(), half),
             SKETCH_TRACE_RAYS,
             self.tol,
@@ -4803,13 +4816,17 @@ impl core::fmt::Display for SketchTraceFault {
 
 impl core::error::Error for SketchTraceFault {}
 
-/// **The body a face pick is read on, and the face's name there**
+/// **The body a pick is read on, and the entity's name there**
 /// (`crate::world::body_of`; a copy carries its body's names, so the
 /// name is the pick's): the node's output by its port where it holds
 /// several, its body output otherwise.
-fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, StableName) {
-    let (at, port) = crate::world::body_of(doc, face.node, face.body);
-    let name = face.name.clone();
+fn picked_body(
+    doc: &Doc<ProfileProgram>,
+    pick: &impl crate::tree::PickedEntity,
+) -> (Operand, StableName) {
+    let on = pick.on();
+    let (at, port) = crate::world::body_of(doc, on.node(), on.body());
+    let name = pick.name().clone();
     let body = match crate::world::seat_read(doc, at, Some(port)) {
         (at, Some(port)) => Operand::output(at, port),
         (at, None) => body_of(doc, at),
@@ -4817,10 +4834,14 @@ fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, Sta
     (body, name)
 }
 
-/// **The face `face` selects, as an operand**: its name on the body the
-/// pick is read on ([`picked_body`]).
-pub(crate) fn face_read(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> Operand {
-    let (body, name) = picked_body(doc, face);
+/// **The entity a pick selects, as an operand** — a face, or for the
+/// mate tool an edge or a vertex: its name on the body the pick is read
+/// on ([`picked_body`]).
+pub(crate) fn pick_read(
+    doc: &Doc<ProfileProgram>,
+    pick: &impl crate::tree::PickedEntity,
+) -> Operand {
+    let (body, name) = picked_body(doc, pick);
     Operand::select(body, vec![name])
 }
 
@@ -4840,8 +4861,8 @@ fn drawn_frame(
     pncad::trace::traced_frame(
         doc,
         ev,
-        &face_read(doc, plane),
-        &face_read(doc, traced),
+        &pick_read(doc, plane),
+        &pick_read(doc, traced),
         tol,
     )
 }
@@ -5189,7 +5210,7 @@ mod tests {
     /// **The hide admission is asked of the document the op reads, not
     /// of the one the tree is drawn from**: an instance deleted since
     /// the last landing still has a tree row, and the answer for it is
-    /// the refusal `SetBodyHidden` gives.
+    /// the refusal `SetBodyOn` gives.
     #[test]
     fn a_deleted_instance_not_yet_landed_is_refused_its_hide() {
         use pncad::document::{ContentPin, DocRef, DocumentId, ProfileDoc};
@@ -5211,7 +5232,7 @@ mod tests {
         );
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        assert!(session.body_hidden_refusal(instance).is_none());
+        assert!(session.body_toggle_refusal(instance).is_none());
         let deleted = session.perform(SessionOp::DeleteNode { node: instance });
         assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
         assert!(
@@ -5219,13 +5240,13 @@ mod tests {
             "the tree still draws the landed document's row"
         );
         let said = session
-            .body_hidden_refusal(instance)
+            .body_toggle_refusal(instance)
             .expect("the committed document holds no such node")
             .to_string();
         let got = session
-            .perform(SessionOp::SetBodyHidden {
+            .perform(SessionOp::SetBodyOn {
                 node: instance,
-                hidden: true,
+                on: false,
             })
             .refusal
             .expect("the op refuses a deleted instance")
