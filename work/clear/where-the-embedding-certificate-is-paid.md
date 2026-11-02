@@ -53,3 +53,10 @@ reads a region swept twice as outside). Ev: "3 is fine indefinitely,
 then". Refusing to finish is the standing answer, not an interim; the
 refusal is the report. The unit is
 `the-at-rest-gate-certifies-embedding`.
+
+## Point 2 re-asked (2026-11-02)
+
+PR 6301 merged before Ev had read point 2 (f64 certifies). Ev asked
+what "the engine lifts every carrier exactly" means; the answer is on
+6301. Point 2 alone is re-asked in its own `[ev]` PR, whose diff states
+what an f64 certificate certifies: the body as stored.

@@ -797,7 +797,11 @@ tiers".
   boundary is **embedded** off those records (it meets itself only
   along its own edges and its recorded contacts), certified by the
   clearance engine's body-level injectivity question at every scalar
-  with certification rights. It passes both once, at the door that
+  with certification rights. At `f64` that is a theorem about the body
+  as stored: each stored number lifts exactly to its degenerate
+  interval and the engine's arithmetic rounds outward, so a Holds
+  certifies the witness build itself; the Interval lane's widths carry
+  it over the family the written values allow. It passes both once, at the door that
   built it; construction state becomes a finished body only through
   that gate. The validity class rides the result wrapper
   (`BooleanBody`, body and contacts), never a mutable `Body` field.
