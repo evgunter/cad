@@ -413,8 +413,8 @@ mod fuzz_rows {
     use test_utils::fuzz;
 
     /// **Every certified answer is true of the geometry.** For random
-    /// ellipses (semi-axes 0.5–5 mm, eccentricity up to 25, any stored
-    /// order and sign) against random walls and spheres posed to cross
+    /// ellipses (semi-axes 0.5–5 mm, eccentricity up to 25, either stored
+    /// order) against random walls and spheres posed to cross
     /// them:
     ///
     /// - every certified root lies on the surface, its TRUE distance
@@ -459,11 +459,6 @@ mod fuzz_rows {
                 } else {
                     (small, big)
                 };
-                // Either semi-axis stored negative, on a cycle of the case
-                // number rather than a draw, so the pinned seed's draws
-                // are the ones it was pinned on.
-                let major = if i % 3 == 1 { -major } else { major };
-                let minor = if i % 5 >= 3 { -minor } else { minor };
                 let e = geom::Curve3::Ellipse(geom::Ellipse::new(
                     geom::ConicFrame::new(
                         Point3::new(0.0, 0.0, 0.0),
@@ -546,7 +541,7 @@ mod fuzz_rows {
 mod graze_rows {
     //! Grazes at a vertex, by depths of a few bands either side of zero —
     //! the poses where a certified `Miss` is wrong if it is ever wrong —
-    //! on circles and ellipses in every stored order and sign, through the
+    //! on circles and ellipses in either stored order, through the
     //! degree-2 doors' certified subdivision.
 
     use core::f64::consts::FRAC_PI_2;
@@ -556,87 +551,6 @@ mod graze_rows {
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
 
-    /// **A negative `major` is charged at its magnitude, at a metre and a
-    /// kilometre out.** The graze fuzz's counterexample on the signed
-    /// charge, pinned: an ellipse of `major = −3.41 m`, `minor = −0.18 m`
-    /// crossing a 17 µm ball by 1.8e-11 m at ε = 1e-12, and the same pose
-    /// carried 1 km out. The harmonics' rounding charged at the signed
-    /// `major` came to `(|C₀ − o| − 3.41)²` — near zero at the metre pose,
-    /// ~180× short at the kilometre one — and both read a certified
-    /// `Miss`.
-    #[test]
-    fn a_negative_major_is_charged_its_magnitude() {
-        let band = Band::new(1e-12, 1e-11).unwrap();
-        let axis = Vec3::new(
-            0.784_321_624_695_285_9,
-            -0.311_122_040_118_748_94,
-            0.536_696_064_069_501_7,
-        );
-        let u_ref = Vec3::new(
-            0.620_298_357_327_510_8,
-            0.404_949_218_494_292_5,
-            -0.671_748_523_137_679_4,
-        );
-        let center = Point3::new(
-            0.617_664_175_002_875_5,
-            -0.050_650_563_273_673_79,
-            0.736_877_021_230_139_7,
-        );
-        let hub = Point3::new(
-            2.735_196_927_577_549,
-            1.331_737_803_810_837_2,
-            -1.556_292_842_004_988_2,
-        );
-        for out in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(1000.0, -700.0, 400.0)] {
-            let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(center + out, axis, u_ref),
-                -3.413_716_003_510_488,
-                -0.175_755_441_781_259_68,
-            ));
-            let s = geom::Surface::Sphere {
-                center: hub + out,
-                radius: 1.664_235_542_121_884e-5,
-                axis,
-                u_ref: Vec3::new(
-                    0.620_354_405_993_338,
-                    0.393_355_381_418_971_8,
-                    -0.678_551_364_948_437_9,
-                ),
-            };
-            let vertex = (0..4)
-                .map(|k| FRAC_PI_2 * f64::from(k))
-                .min_by(|&a, &b| {
-                    let d = |t: f64| {
-                        ((e.eval(t) - (hub + out)).norm() - 1.664_235_542_121_884e-5).abs()
-                    };
-                    d(a).total_cmp(&d(b))
-                })
-                .unwrap();
-            let got = conic_quadric_roots(&e, vertex - 0.5, vertex + 0.5, &s, band);
-            assert!(
-                !matches!(got, Ok(Ok(CircleRoots::Miss))),
-                "{out:?} out: a certified Miss for a crossing 1.8e-11 m deep"
-            );
-        }
-    }
-
-    /// **No certified `Miss` on a graze within the band, or across it.** A
-    /// carrier (a circle, or an ellipse of semi-axes 0.5–5 m and
-    /// eccentricity up to 40, stored in either order and either sign, its
-    /// centre up to 1 km out) meets a small sphere or wall (radius
-    /// 1–100 µm) at one of its vertices, the surface set off along the
-    /// carrier's outward normal there by `gap` — drawn from −40 to 40
-    /// bands — so the carrier's least distance from the surface IS `gap`
-    /// (the carrier bends away from it on both sides). The wall's axis
-    /// lies along the carrier's tangent at the vertex, so the door takes
-    /// its subdivision, not a first-harmonic arm. Every certified root
-    /// must read ON the surface (its true distance inside the zero band),
-    /// and a `Miss` needs `gap` past the zero band.
-    ///
-    /// Charging the harmonics' rounding at the SIGNED `major` (a negative
-    /// one under-charged ~180× at a kilometre) certified misses on
-    /// crossings 1e-10 m deep at ε = 1e-12; dropping the subdivision's
-    /// Taylor remainder certified misses on grazes at ε = 1e-9.
     #[test]
     fn no_certified_miss_on_a_graze() {
         let mut rng = fuzz::start("conic_quadric::no_certified_miss_on_a_graze");
@@ -654,17 +568,11 @@ mod graze_rows {
                 } else {
                     big / rng.range(1.0, 40.0)
                 };
-                let (mut major, mut minor) = if rng.below(2) == 0 {
+                let (major, minor) = if rng.below(2) == 0 {
                     (big, small)
                 } else {
                     (small, big)
                 };
-                if !circle && rng.below(2) == 0 {
-                    major = -major;
-                }
-                if !circle && rng.below(3) == 0 {
-                    minor = -minor;
-                }
                 let far = if rng.below(3) == 0 { 1000.0 } else { 1.0 };
                 let center = Point3::new(
                     rng.range(-far, far),

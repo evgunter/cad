@@ -913,11 +913,9 @@ fn pillow_with_carrier(
 /// These are the carriers the mint CERTIFIES: certification meters the
 /// carrier's residuals against its endpoints and its chart, and a
 /// circle or ellipse whose `axis` is zero traces the diameter between
-/// the two vertices — which lies in the chart — while an ellipse whose
-/// `major` is negative and whose `u_ref` is flipped traces the ellipse
-/// it would with both signs righted; a circle whose `axis` has length 2
-/// traces an ellipse through the same two vertices. Before check 1 read
-/// carrier datums all four minted and nothing at rest named the datum
+/// the two vertices — which lies in the chart; a circle whose `axis` has
+/// length 2 traces an ellipse through the same two vertices. Before
+/// check 1 read carrier datums all three minted and nothing at rest named the datum
 /// (the carried row's measurement); each is now refused, first, by
 /// name.
 ///
@@ -929,8 +927,8 @@ fn pillow_with_carrier(
 /// rides after the datum's.)
 #[test]
 fn check_1_names_the_carrier_datum_that_describes_no_curve() {
-    use geom::ConventionEnd::{Lower, Upper};
-    use geom::ConventionMeasure::{Length, Value};
+    use geom::ConventionEnd::Upper;
+    use geom::ConventionMeasure::Length;
     use geom::Curve3;
     use geom::CurveDatum as D;
     use geom::CurveKind as K;
@@ -980,13 +978,6 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
             Verdict::Poisoned,
         ),
         (
-            "ellipse, negative major with u_ref flipped",
-            ellipse(axis, -0.5, x),
-            K::Ellipse,
-            D::SemiU,
-            Verdict::Unrepresentable(Value, Lower),
-        ),
-        (
             "circle, axis of length 2 (it evaluates an ellipse)",
             circle(axis * 2.0),
             K::Circle,
@@ -1023,7 +1014,7 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
 
 /// **The carrier-datum read over the datums no mint lets through**:
 /// certification refuses a carrier whose datum is not a number, or
-/// whose radius or semi-minor axis is not positive, before it reaches
+/// whose radius or either semi-axis is not positive, before it reaches
 /// an arena (the carried row's measurement: `StatedInterval` or an
 /// escalated endpoint or span predicate), so no body can carry one to
 /// check 1. The read is asked of the carrier directly, so that it names
@@ -1103,6 +1094,15 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
             "circle, zero radius",
             circle(o, z, 0.0, x),
             Some(V::Unrepresentable(D::Radius, Value, Lower)),
+        ),
+        (
+            "ellipse, negative major with u_ref flipped",
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::ConicFrame::new(o, z, -x),
+                -0.5,
+                0.3,
+            )),
+            Some(V::Unrepresentable(D::SemiU, Value, Lower)),
         ),
         (
             "circle, negative radius",
@@ -1217,9 +1217,7 @@ fn the_carrier_poison_read_reads_every_scalar() {
 /// - at `r = 4`, `δ = ε/8` passes (`δ·r = ε/2`) and would refuse at a
 ///   lever of `r²` (`2ε`);
 /// - an ellipse stored `major = 1, minor = 4`: `δ = ε/2` refuses at
-///   the lever 4 and would pass at the stored `major`; and stored
-///   `major = −4, minor = 1` (a negative semi-axis) the same, where a
-///   signed `max` would read the lever as 1.
+///   the lever 4 and would pass at the stored `major`.
 ///
 /// Surfaces (a cylinder's `u_ref` length) and carriers (a circle's and
 /// an ellipse's `axis` length), each at `f64` and at the interval
@@ -1320,55 +1318,38 @@ fn the_frame_lever_is_the_kinds_radius() {
     ] {
         assert_eq!(got, (want.clone(), want), "{name}: (f64, Interval)");
     }
-    // A negative semi-axis is refused on its VALUE first, whatever the
-    // frame; the frame's lever for it is asked directly.
-    let neg = ellipse(-4.0, 1.0, eps / 2.0);
-    let margins = neg.representability_margins(band);
-    assert!(
-        margins.iter().any(|m| m.datum == CD::Axis
-            && m.measure == Length
-            && m.end == Upper
-            && m.margin < 0.0),
-        "the axis at |major| = 4 is off by 2 eps, and a signed max would read the lever as 1: \
-         {margins:?}"
-    );
 }
 
 /// **An elliptic arc's perimeter lever is `|Δ|` times its larger
-/// semi-axis MAGNITUDE** (`loop_winding::conic_segment_term`, read by
-/// the merge's role assigner, check 6 and the boolean join's
-/// `ring_run_ccw`), on the two ellipses the mint certifies with a
-/// stored order the lever must not trust: `minor > major`, and a
-/// negative `major` with its `u_ref` flipped (the D-2 table). A lever
-/// of `|Δ|·major` reads the first too short, a signed `max` the second;
-/// either is a lower bound on the arc length, which overstates the
-/// metered width.
+/// semi-axis** (`loop_winding::conic_segment_term`, read by the merge's
+/// role assigner, check 6 and the boolean join's `ring_run_ccw`), on an
+/// ellipse the mint certifies with a stored order the lever must not
+/// trust, `minor > major`. A lever of `|Δ|·major` reads it too short, a
+/// lower bound on the arc length, which overstates the metered width.
 #[test]
-fn the_elliptic_lever_is_the_larger_semi_axis_magnitude() {
+fn the_elliptic_lever_is_the_larger_semi_axis() {
     use geom::Curve3;
     let tol = Tol::witness();
     let pi = core::f64::consts::PI;
-    let x = Vec3::unit_x();
-    for (name, major, minor, u_ref, reach) in [
-        ("minor > major", 0.5, 0.7, -x, 0.7),
-        ("negative major, u_ref flipped", -0.5, 0.3, x, 0.5),
-    ] {
-        let carrier = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::new(0.5, 0.0, 0.0), Vec3::unit_z(), u_ref),
-            major,
-            minor,
-        ));
-        let (body, edge) = pillow_with_carrier(carrier, 0.0, pi, tol)
-            .unwrap_or_else(|e| panic!("{name}: the mint certifies it: {e:?}"));
-        let curve = body
-            .get_curve_geom(body.get_edge(edge).unwrap().curve)
-            .and_then(crate::null::CurveGeom::certified)
-            .unwrap();
-        let (_, lever) =
-            crate::loop_winding::conic_segment_term((curve.carrier(), curve.params()), true)
-                .unwrap();
-        assert_eq!(lever, pi * reach, "{name}: the lever is |Δ| times {reach}");
-    }
+    // `minor > major`, `u_ref` along the minor axis.
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(Point3::new(0.5, 0.0, 0.0), Vec3::unit_z(), -Vec3::unit_x()),
+        0.5,
+        0.7,
+    ));
+    let (body, edge) = pillow_with_carrier(carrier, 0.0, pi, tol)
+        .unwrap_or_else(|e| panic!("the mint certifies it: {e:?}"));
+    let curve = body
+        .get_curve_geom(body.get_edge(edge).unwrap().curve)
+        .and_then(crate::null::CurveGeom::certified)
+        .unwrap();
+    let (_, lever) =
+        crate::loop_winding::conic_segment_term((curve.carrier(), curve.params()), true).unwrap();
+    assert_eq!(
+        lever,
+        pi * 0.7,
+        "the lever is |Δ| times the larger semi-axis"
+    );
 }
 
 #[test]

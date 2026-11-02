@@ -619,3 +619,111 @@ impl<T: Real> Curve3<T> {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::float_cmp)]
+mod tests {
+    use core::f64::consts::{PI, TAU};
+
+    use geom_core::{Point3, Real, Vec3};
+
+    use super::on_span_branch;
+    use crate::Curve3;
+
+    fn carriers() -> [Curve3<f64>; 3] {
+        let (c, n) = (Point3::new(0.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0) / 3.0);
+        let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
+        [
+            Curve3::circle(c, n, 0.7, u),
+            Curve3::Ellipse(super::Ellipse::new(
+                super::ConicFrame::new(c, n, u),
+                0.9,
+                0.4,
+            )),
+            Curve3::Ellipse(super::Ellipse::new(
+                super::ConicFrame::new(c, n, u),
+                0.4,
+                0.9,
+            )),
+        ]
+    }
+
+    /// **The conic readings are the carrier's own**: the point, the
+    /// derivatives and the jet a reader takes through [`Conic`] are
+    /// [`Curve3`]'s bit for bit, and a point's parameter on a span's branch
+    /// is the parameter it was evaluated at, on either kind and in either
+    /// stored order. A reader that re-spelled the ellipse formula for a
+    /// circle (`center + u·(r·cos) + v·(r·sin)`) would round apart.
+    #[test]
+    fn the_conic_readings_are_the_carriers_own() {
+        for carrier in carriers() {
+            let k = carrier.conic().unwrap();
+            for t in [-2.5, -0.3, 0.0, 0.7, 2.0, 3.1] {
+                let bits = |p: Point3<f64>| [p.x, p.y, p.z].map(f64::to_bits);
+                let vbits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
+                assert_eq!(
+                    bits(k.point_at(t)),
+                    bits(carrier.eval(t)),
+                    "{carrier:?} at {t}"
+                );
+                assert_eq!(
+                    vbits(k.derivative_at(t)),
+                    vbits(carrier.deriv(t)),
+                    "{carrier:?}"
+                );
+                assert_eq!(vbits(k.second_derivative_at(t)), vbits(carrier.deriv2(t)));
+                let (p, d) = k.jet_at(t);
+                assert_eq!(
+                    (bits(p), vbits(d)),
+                    (bits(carrier.eval(t)), vbits(carrier.deriv(t)))
+                );
+                let span = (t - 0.4, t + 0.9);
+                let back = k.param_in(carrier.eval(t), span);
+                assert!(
+                    (back - t).abs() < 1e-14,
+                    "{carrier:?}: {t} reads back as {back}"
+                );
+                let lo = k.speed_lo();
+                assert!(
+                    lo <= k.speed_at(t) && k.speed_at(t) <= k.speed_hi(),
+                    "{carrier:?}"
+                );
+                assert!(lo > 0.0 && lo <= k.semi_axes().0.min(k.semi_axes().1));
+            }
+        }
+    }
+
+    /// **The span-branch rule keeps an on-branch angle's bits.** It adds
+    /// whole turns only, so an angle already on the branch of the span's
+    /// middle comes back unchanged. The retired re-centring spelling,
+    /// `mid + (t − mid).reduce_periodic_centred(τ)`, rounded the angle
+    /// through the middle and back: on `t = 0.1` against `(3.0, 3.2)` it
+    /// returns a different double, and an angle compared with a span end
+    /// of another provenance moved by its rounding. Off the branch it
+    /// lands within half a turn of the middle, a half turn on landing at
+    /// the top of the window.
+    #[test]
+    fn the_span_branch_rule_keeps_an_on_branch_angle() {
+        let (t, span) = (0.1_f64, (3.0, 3.2));
+        assert_eq!(on_span_branch(t, span).to_bits(), t.to_bits());
+        let mid = 3.1_f64;
+        let recentred = mid + (t - mid).reduce_periodic_centred(TAU);
+        assert_ne!(
+            recentred.to_bits(),
+            t.to_bits(),
+            "the re-centring spelling rounds it"
+        );
+        for (t, span, want) in [
+            (0.1 + TAU, (-0.2, 0.4), 0.1),
+            (-PI + 0.1, (2.0, 3.0), PI + 0.1),
+            (PI, (0.0, 0.0), PI),
+            (-PI, (0.0, 0.0), PI),
+        ] {
+            let got = on_span_branch(t, span);
+            assert!(
+                (got - want).abs() < 1e-14,
+                "{t} on {span:?}: {got}, not {want}"
+            );
+        }
+    }
+}

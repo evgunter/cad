@@ -76,9 +76,6 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
         if g.unit() < 0.2 {
             core::mem::swap(&mut a, &mut b);
         }
-        if g.unit() < 0.1 {
-            a = -a;
-        }
         let carrier = if ecc == 0.0 && g.unit() < 0.5 {
             Curve3::circle(center, axis, r, u_ref)
         } else {
@@ -88,7 +85,7 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
                 b,
             ))
         };
-        let big = a.abs().max(b.abs());
+        let big = a.max(b);
         let span = if g.unit() < 0.1 {
             g.range(6.0, 13.0)
         } else {

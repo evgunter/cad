@@ -505,7 +505,7 @@ pub fn ellipse_level_clearance<T: Decide>((x, y): (T, T), (a, b): (T, T)) -> T {
     let (u, v) = (x / a, y / b);
     let f = u.powi(2) + v.powi(2) - T::one();
     let g2 = (two * u / a).powi(2) + (two * v / b).powi(2);
-    let small = a.abs().min(b.abs());
+    let small = a.min(b);
     two * f / (g2.sqrt() + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt())
 }
 

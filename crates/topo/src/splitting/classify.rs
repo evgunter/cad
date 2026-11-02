@@ -668,13 +668,12 @@ fn span_roots<T: Decide>(
     band: Band,
 ) -> ConicPlaneMeet<T> {
     let tau = T::tau();
-    // The conservative meter (radians → meters): the smaller semi-axis
-    // MAGNITUDE (the stored semi-axes carry no order, `geom_brep::Conic`;
-    // `s_v` in the ordinary order). An INF bound on the speed by being
-    // the smaller principal rate, which is what the interiority claim
-    // below needs — a root this meter proves clear of an endpoint is
-    // clear of it in metres.
-    let meter = geom_core::InfSpeed::new(s_u.abs().min(s_v.abs()));
+    // The conservative meter (radians → meters): the smaller semi-axis,
+    // in either stored order. An INF bound on the speed by being the
+    // smaller principal rate, which is what the interiority claim below
+    // needs — a root this meter proves clear of an endpoint is clear of
+    // it in metres.
+    let meter = geom_core::InfSpeed::new(s_u.min(s_v));
     let mut roots: Vec<T> = Vec::with_capacity(2);
     let half = T::from_f64(0.5);
     let mid = (t0 + t1) * half;

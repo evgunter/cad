@@ -1589,7 +1589,7 @@ pub(crate) fn carrier_ball<T: Decide>(
 
 /// **A ball holding the arc `span` of a conic `carrier`, of the arc's
 /// own size**: about the arc's middle point, to half the span's width
-/// times a bound on the speed over it ([`geom::carrier_speed::SemiAxes::speed_over`]),
+/// times a bound on the speed over it ([`geom::Conic::speed_over`]),
 /// widened by the rounding of that middle point at the coordinates the
 /// carrier is placed at. `None` for any carrier but a circle or an
 /// ellipse.
@@ -2936,8 +2936,8 @@ mod tests {
             return SpanRead::Wound;
         }
         let (sm, cm) = (t0 - gap * T::from_f64(0.5)).sin_cos();
-        let speed = ((a * sm).powi(2) + (b * cm).powi(2)).sqrt()
-            + a.abs().max(b.abs()) * gap.abs() * T::from_f64(0.5);
+        let speed =
+            ((a * sm).powi(2) + (b * cm).powi(2)).sqrt() + a.max(b) * gap.abs() * T::from_f64(0.5);
         if ellipse
             && let Ok(Decided {
                 sign: Sign::Negative,

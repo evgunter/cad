@@ -3551,12 +3551,12 @@ mod conic_tests {
     }
 
     /// **The arc enclosure holds for every stored frame** — a counterexample
-    /// search over random ellipses in any stored order and sign
-    /// (eccentricity up to 20), against random tori, spheres and walls,
-    /// on arcs log-uniform over three decades: every one of a dense run
-    /// of pointwise residuals lies inside the arc's range. Reading the
-    /// stored `semi_u` as the speed bound (an ellipse stored with
-    /// `semi_v > semi_u`, or with a negative `semi_u`) fails it.
+    /// search over random ellipses in either stored order (eccentricity
+    /// up to 20), against random tori, spheres and walls, on arcs
+    /// log-uniform over three decades: every one of a dense run of
+    /// pointwise residuals lies inside the arc's range. Reading the stored
+    /// `semi_u` as the speed bound (an ellipse stored with
+    /// `semi_v > semi_u`) fails it.
     #[test]
     fn the_arc_enclosure_holds_for_any_stored_frame() {
         use test_utils::fuzz;
@@ -3578,17 +3578,11 @@ mod conic_tests {
             let u_ref = (u - axis * u.dot(axis)).normalize();
             let big = rng.range(0.1, 2.0);
             let small = big / rng.range(1.0, 20.0);
-            let (mut semi_u, mut semi_v) = if rng.below(2) == 0 {
+            let (semi_u, semi_v) = if rng.below(2) == 0 {
                 (big, small)
             } else {
                 (small, big)
             };
-            if rng.below(3) == 0 {
-                semi_u = -semi_u;
-            }
-            if rng.below(3) == 0 {
-                semi_v = -semi_v;
-            }
             let conic = geom::Ellipse::new(
                 geom::ConicFrame::new(
                     Point3::new(

@@ -232,13 +232,13 @@ fn assert_on_within(
         semi_u.is_finite() && semi_v.is_finite(),
         "{what}: the served semi-axes are {semi_u:e} and {semi_v:e}"
     );
-    let scale = (center - Point3::origin()).norm() + semi_u.abs().max(semi_v.abs()).min(reach);
+    let scale = (center - Point3::origin()).norm() + semi_u.max(semi_v).min(reach);
     let rounding = 8.0 * f64::EPSILON * scale;
     let (mut worst_plane, mut worst, mut read) = (0.0_f64, 0.0_f64, 0);
     // The whole period, or where the reach is finite, stations spread
     // evenly along the larger semi-axis's span within it, both sides.
     let ts: Vec<f64> = if reach.is_finite() {
-        let (major, along_u) = (semi_u.abs().max(semi_v.abs()), semi_u.abs() >= semi_v.abs());
+        let (major, along_u) = (semi_u.max(semi_v), semi_u >= semi_v);
         (0..=4096)
             .flat_map(|i| {
                 let x = (f64::from(i) / 2048.0 - 1.0) * reach.min(major) / major;

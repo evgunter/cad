@@ -2728,7 +2728,7 @@ mod tests {
                     true,
                 ),
             ] {
-                let truth = segment_arc_distance(&c, ends);
+                let truth = segment_arc_distance(c, ends);
                 assert_eq!(
                     truth > 1e-6 * f.s,
                     misses,
@@ -2737,7 +2737,7 @@ mod tests {
                 assert_eq!(
                     segment_misses(
                         ends,
-                        &c,
+                        c,
                         resolution(&[ends.0, ends.1, c.conic().frame().center]),
                         band()
                     )
@@ -2767,14 +2767,14 @@ mod tests {
                             }
                             let Ok(true) = segment_misses(
                                 (from, to),
-                                &c,
+                                c,
                                 resolution(&[from, to, c.conic().frame().center]),
                                 band(),
                             ) else {
                                 continue;
                             };
                             apart += 1;
-                            let truth = segment_arc_distance(&c, (from, to));
+                            let truth = segment_arc_distance(c, (from, to));
                             assert!(
                                 truth > 1e-6 * f.s,
                                 "read apart, {:?} → {:?} at scale {}: {truth} off the arc",

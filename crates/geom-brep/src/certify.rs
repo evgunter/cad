@@ -3846,13 +3846,11 @@ fn decide_turn<T: Decide>(
     // A periodic carrier's span is forward at the carrier's speed floor
     // (`geom::carrier_speed::speed_floor`, the one spelling the conic
     // readers share): a circle's radius; an ellipse's smaller semi-axis
-    // magnitude (|dP/dθ| ≥ min(a, b), so the span times it is a
-    // certified lower bound on the child's arc length — the semi-axes'
-    // ORDER is not this gate's to decide, `Conic` — with a non-positive
-    // `minor` refused as `IntervalNotForward`, a door's `StatedInterval`,
-    // and a negative `major` (its `u_ref` flipped, the same locus)
-    // admitted as it always has, for tier 3 to refuse on its value); a
-    // spiric's MINOR radius (`|dP/dv| ≥ r`). The winding bound is the
+    // (|dP/dθ| ≥ min(a, b), so the span times it is a certified lower
+    // bound on the child's arc length, in either stored order), so a
+    // non-positive semi-axis, either one, is refused as
+    // `IntervalNotForward`, a door's `StatedInterval`; a spiric's MINOR
+    // radius (`|dP/dv| ≥ r`). The winding bound is the
     // 8kτ sample-alias argument about the parameter period, which all
     // three share.
     Ok(match &spec.carrier {

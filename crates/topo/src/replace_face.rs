@@ -4846,16 +4846,15 @@ mod pose_reach_rows {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
-    /// **The reach bounds every point of an ellipse in any stored order or
-    /// sign.** The mint certifies an ellipse stored with `minor > major`
-    /// and one with a negative `major` (its `u_ref` flipped); the span's
-    /// lever from a surface's anchor must still be at least each point's
-    /// distance from it, round the whole turn. Read at `|major|`, the
-    /// first falls short by `minor − major`.
+    /// **The reach bounds every point of an ellipse in either stored
+    /// order.** The mint certifies an ellipse stored with `minor > major`;
+    /// the span's lever from a surface's anchor must still be at least
+    /// each point's distance from it, round the whole turn. Read at
+    /// `major`, it falls short by `minor − major`.
     #[test]
     fn the_reach_bounds_an_ellipse_in_any_stored_frame() {
         let anchor = Point3::new(0.3, -0.2, 0.1);
-        for (major, minor, u) in [(0.5, 0.9, 1.0), (-0.9, 0.5, -1.0), (0.9, -0.5, 1.0)] {
+        for (major, minor, u) in [(0.5, 0.9, 1.0), (0.9, 0.5, -1.0)] {
             let e = Curve3::Ellipse(geom::Ellipse::new(
                 geom::ConicFrame::new(
                     Point3::new(0.1, 0.2, 0.0),

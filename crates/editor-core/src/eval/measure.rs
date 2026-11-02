@@ -1696,17 +1696,16 @@ mod tests {
 
     use super::*;
 
-    /// **`curve_reach` bounds an ellipse in any stored frame.** The
-    /// semi-axes carry no order and no sign, so an ellipse stored with
-    /// `minor` the larger, or `major` negative, reaches as far as its
-    /// larger magnitude. Read at the stored `major` it under-reached —
+    /// **`curve_reach` bounds an ellipse in either stored order.** An
+    /// ellipse stored with `minor` the larger reaches as far as its larger
+    /// semi-axis. Read at the stored `major` it under-reached —
     /// and an under-estimate here certifies a parallelism that does not
     /// hold. Dense samples of the whole ellipse against the bound.
     #[test]
     fn the_reach_bounds_an_ellipse_in_any_stored_frame() {
         let origin = Point3::new(0.3, -0.2, 0.1);
         let center = Point3::new(1.0, 2.0, -0.5);
-        for (major, minor) in [(0.5, 3.0), (-3.0, 0.5), (-0.5, -3.0), (3.0, -0.5)] {
+        for (major, minor) in [(0.5, 3.0), (3.0, 0.5)] {
             let e = Curve3::Ellipse(geom::Ellipse::new(
                 geom::ConicFrame::new(
                     center,

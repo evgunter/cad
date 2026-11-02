@@ -261,7 +261,7 @@ fn the_second_harmonic_band_reaches_past_the_tilt_band() {
             };
             assert!(tilt > band.escalate(), "{label}: the tilt is definite");
             let h = geom_brep::conic_cylinder_harmonics(
-                &(&pose.carrier::<f64>()).conic().unwrap(),
+                pose.carrier::<f64>().conic().unwrap(),
                 Point3::origin(),
                 Vec3::new(0.0, 0.0, 1.0),
                 r,
@@ -325,7 +325,7 @@ fn a_near_square_circle_inside_the_band_by_its_second_harmonic_is_not_on_the_wal
             rho: r,
         };
         let h = geom_brep::conic_cylinder_harmonics(
-            &(&pose.carrier::<f64>()).conic().unwrap(),
+            pose.carrier::<f64>().conic().unwrap(),
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
             r,

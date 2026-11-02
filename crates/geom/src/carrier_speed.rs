@@ -44,15 +44,16 @@ pub fn speed_range<T: SpanLocate>(carrier: &crate::Curve3<T>) -> (InfSpeed<T>, S
 
 /// **The speed floor a span on a periodic carrier is decided at**, the
 /// one spelling certification's check 2 and the conic readers share: a
-/// circle's radius, an ellipse's `min(|semi_u|, semi_v)` (either stored
-/// order, its smaller magnitude; a non-positive `semi_v` keeps the floor
-/// non-positive, so no span is forward at it), a spiric's minor radius
+/// circle's radius, an ellipse's smaller semi-axis
+/// ([`crate::Conic::speed_lo`], either stored order; a non-positive
+/// semi-axis keeps the floor non-positive, so no span is forward at it),
+/// a spiric's minor radius
 /// (`|C′|² = r²(1 + (d/f)²·sin²v)`). `None` on a line or a spline, which
 /// have no period.
 pub fn speed_floor<T: Real>(carrier: &crate::Curve3<T>) -> Option<InfSpeed<T>> {
     match *carrier {
         crate::Curve3::Circle(c) => Some(InfSpeed::new(c.radius)),
-        crate::Curve3::Ellipse(e) => Some(InfSpeed::new(e.semi_u.abs().min(e.semi_v))),
+        crate::Curve3::Ellipse(e) => Some(InfSpeed::new(crate::Conic::speed_lo(&e))),
         crate::Curve3::Spiric { minor_radius, .. } => Some(InfSpeed::new(minor_radius)),
         crate::Curve3::Line { .. } | crate::Curve3::Nurbs(_) => None,
     }

@@ -906,7 +906,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                 let (t0, t1) = curve.params();
                 let half =
                     ((t1 - t0) * T::from_f64(0.5)).min(T::from_f64(core::f64::consts::FRAC_PI_2));
-                radius.abs() * T::from_f64(2.0) * half.sin()
+                *radius * T::from_f64(2.0) * half.sin()
             }
             geom::Curve3::Nurbs(n) => geom_brep::control_net_reach(n.control(), at),
             _ => crate::census::edge_reach_in(body, edge_key, &super::boxes::BoxFrame::World)
@@ -7700,17 +7700,11 @@ mod clearance_rows {
                 } else {
                     big / rng.range(1.0, 40.0)
                 };
-                let (mut major, mut minor) = if combo & 1 == 0 {
+                let (major, minor) = if combo & 1 == 0 {
                     (big, small)
                 } else {
                     (small, big)
                 };
-                if !circle && combo & 2 != 0 {
-                    major = -major;
-                }
-                if !circle && combo & 4 != 0 {
-                    minor = -minor;
-                }
                 let far = [1.0, 1e3, 1e6][rng.below(3)];
                 let center = Point3::new(
                     rng.range(-far, far),

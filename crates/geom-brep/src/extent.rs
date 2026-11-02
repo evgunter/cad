@@ -1168,7 +1168,7 @@ mod tests {
                     Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (semi_u, semi_v),
                     _ => unreachable!(),
                 };
-                let big = a.abs().max(b.abs());
+                let big = a.max(b);
                 for (t0, t1) in [
                     (0.3, 0.31),
                     (1.0, 1.05),

@@ -923,13 +923,11 @@ mod tests {
             )
         };
         let ordered = ellipse_step(target, &ellipse(a, b));
-        for (major, minor) in [(b, a)] {
-            let got = ellipse_step(target, &ellipse(major, minor));
-            assert!(
-                (got - ordered).abs() <= 1e-15 * ordered,
-                "({major}, {minor}): step {got} against the ordered {ordered}"
-            );
-        }
+        let got = ellipse_step(target, &ellipse(b, a));
+        assert!(
+            (got - ordered).abs() <= 1e-15 * ordered,
+            "({b}, {a}): step {got} against the ordered {ordered}"
+        );
         let p = |t: f64| (a * t.cos(), b * t.sin());
         let mut worst = 0.0_f64;
         let mut t = 0.0;

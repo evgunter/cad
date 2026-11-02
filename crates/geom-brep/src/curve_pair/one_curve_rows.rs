@@ -201,16 +201,15 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
                         f,
                         geom::Ellipse {
                             frame: geom::ConicFrame {
-                                u_ref: f.frame().v_ref(),
+                                u_ref: f.frame.v_ref(),
                                 ..f.frame
                             },
-                            semi_u: f.semi_axes().1,
-                            semi_v: f.semi_axes().0,
-                            ..f
+                            semi_u: f.semi_v,
+                            semi_v: f.semi_u,
                         },
                         geom::Ellipse {
                             frame: geom::ConicFrame {
-                                axis: -f.frame().axis,
+                                axis: -f.frame.axis,
                                 ..f.frame
                             },
                             ..f
