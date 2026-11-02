@@ -627,9 +627,11 @@ on a directed point and the same fillet resolution on a bound arrival.
 `(dx, dy)` is normalized and the unit ray stored VERBATIM, with no trig
 round-trip. Axis-aligned and Pythagorean directions are therefore
 exact: `.toward(-1, 0)` gives `(-1, 0)`, where `.angle(PI)` gives
-`(-1, 1.2246e-16)`. Only the components' RATIO is read — the magnitude
-is not a length and binds nothing — so the author never has to
-normalize by hand.
+`(-1, 1.2246e-16)`. The components are `Length`s, a displacement, so
+a direction can aim along one written in the model's own dimensions
+(`.toward(w, h)` runs along a `w`×`h` diagonal and follows `w` and `h`).
+Only their RATIO is read — the magnitude binds nothing — so the author
+never has to normalize by hand.
 
 This kills the W1 drift class at its source. The corpus's one line×line
 fillet (the bracket, the #101 showcase) could not move to the algebra

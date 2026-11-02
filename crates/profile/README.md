@@ -78,8 +78,8 @@ author (`tests/common/mod.rs::pinned`).
 **V2 — Expression binding.** In the document form (`editor-core`'s
 `ProgramStep`, the mirror of `Step`) every continuous scalar is an
 `Expr`: coordinates, lengths and radii are Length; `angle`, `turn` and
-the `circle_split` phase are Angle; bulges and a ray director's
-components are Scalar. A director holds one `Direction2` (PATHS-DESIGN
+the `circle_split` phase are Angle; a ray director's components are
+Length; bulges are Scalar. A director holds one `Direction2` (PATHS-DESIGN
 §1b), written as an angle or as a ray. Structural data (the verb tag, `Start`,
 side/winding tags, the `circle_split` count) stays literal; no slot edit
 changes it.
