@@ -3027,9 +3027,10 @@ pub enum BooleanError {
     /// against a plane or another fan (`boolean::fan`); what refuses here
     /// is a reader still built on a sector's plane
     /// (`boolean::sectors::BoolSector::plane`: the reclassification of a
-    /// crossing record that a fan bounds), and a whole-turn cone vertex
-    /// whose partner is anything but the fans of one cone, on one nappe
-    /// (`boolean::fan::nappe_classes`)
+    /// crossing record that a fan bounds), a fan's bound the edge rules
+    /// leave `On` the partner's face (`boolean::recl::recl_edges`), and a
+    /// whole-turn cone vertex whose partner is anything but the fans of one
+    /// cone, on one nappe (`boolean::fan::nappe_classes`)
     /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`).
     VertexPairAtConeApex {
         /// The operand the cone face belongs to.
