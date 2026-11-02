@@ -2,11 +2,12 @@
 id: reach-names-eight-unrelated-types
 kind: issue
 title: "Reach" names eight or more unrelated types across geom-brep, topo and sweep
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P4
 cost: C
 rides_with: section-cert-reach-parallels-extent-ball
+branch: onehome/one-extent
 ---
 
 Found by the margin-scale fork's designer weighing (PR 6329, 2026-11-02).

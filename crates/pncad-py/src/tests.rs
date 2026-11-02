@@ -5106,6 +5106,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unnamed",
             "unsettled_vertex",
             "unsupported_turned_cell",
+            "unsupported_unjudged_glue",
         ],
         delegates: &[
             "band_error_tag",

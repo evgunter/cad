@@ -7,7 +7,7 @@ opened: 2026-09-06
 refs: [1907]
 priority: P1
 cost: H
-blocked_on: [the-region-an-entity-occupies-is-one-cover]
+blocked_on: [cover-topo-faces]
 ---
 
 
