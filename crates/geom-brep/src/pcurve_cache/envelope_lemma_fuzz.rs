@@ -1018,17 +1018,27 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize, tally: &mut Tally) -> Opti
     // tolerance and no term can see it; at the door check 2 refuses such
     // a circle's span before check 4
     // (`work/pcert/a-lifted-copy-of-a-circle-whose-turn-is-within-the-band-certifies.md`).
-    let turn_in_band =
-        super::chart_sup_arms_at(&surface, &stored.chart_box(t0, t1)).is_ok_and(|(arm_u, _)| {
-            matches!(
-                decide(
-                    "pcurve_envelope_term",
-                    Margin::of(arm_u.to_meters(PI)),
-                    band()
-                ),
-                Ok(Sign::Zero)
-            )
-        });
+    // The arm is the term's own: `fidelity`'s, over the orthonormalised
+    // chart, at the nearer of the two images' slant reaches (on a cone
+    // the nearer slant levers the azimuth).
+    let reach_of = |image: &Pcurve<f64>| {
+        let (u, v) = channels_of(image);
+        let (c0, ca, cb, cl) = super::harmonic_form_of(u, v);
+        super::harmonic_span_box(c0, ca, cb, cl, t0, t1).v_reach()
+    };
+    let turn_in_band = super::chart_sup_arms_over(&super::orthonormal_chart(&surface), || {
+        reach_of(&stored).min(reach_of(&derived))
+    })
+    .is_ok_and(|(arm_u, _)| {
+        matches!(
+            decide(
+                "pcurve_envelope_term",
+                Margin::of(arm_u.to_meters(PI)),
+                band()
+            ),
+            Ok(Sign::Zero)
+        )
+    });
     if k != 0 && turn_in_band {
         tally.vacuous += 1;
     } else if k != 0 {

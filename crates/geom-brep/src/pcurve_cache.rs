@@ -10952,12 +10952,12 @@ mod incidence {
     /// Returned as the moved carrier, the moved chart, the slack, and
     /// the shift the moved carrier's parameter is read less (`mid` for a
     /// line, zero otherwise).
-    fn anchored<T: Decide>(
+    fn anchored<T: geom_core::Real>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         (t0, t1): (T, T),
     ) -> Option<(Curve3<T>, Surface<T>, T, T)> {
-        use geom_core::running::{Rounded, dot, exact_vec};
+        use geom_core::running::{Rounded, cross, exact_vec};
         let mid = match carrier {
             Curve3::Line(_) => (t0 + t1) * T::from_f64(0.5),
             _ => T::zero(),
@@ -10991,23 +10991,36 @@ mod incidence {
         let [ax, ay, az] = exact_vec(*anchor - geom_core::Point3::origin());
         let [kx, ky, kz] = k;
         let mut off = [ax - kx, ay - ky, az - kz];
-        // Slid to its foot nearest the carrier: in the plane, the normal
-        // part of the offset; on the axis, its radial part. A direction
-        // whose square's enclosure may hold zero divides nothing
-        // (`Rounded::divisor`): the carrier is then read where it sits.
-        let slide = |off: [Rounded<T>; 3], dir: geom_core::Vec3<T>, keep_along: bool| {
-            let d = exact_vec(dir);
-            let along = dot(off, d).quotient(dot(d, d).divisor()?);
-            let part = [d[0] * along, d[1] * along, d[2] * along];
-            Some(if keep_along {
-                part
-            } else {
-                [off[0] - part[0], off[1] - part[1], off[2] - part[2]]
-            })
+        // Slid to about its foot nearest the carrier, along the chart:
+        // on the axis by `axis·λ`, in the plane by `normal × q`, each a
+        // move the chart is blind to for ANY `λ` or `q` (a point of the
+        // axis line, of the plane). So `λ` and `q` are the foot's, taken
+        // in plain arithmetic, nothing decided and nothing charged for
+        // them: only the move by them is the chart's, and its rounding is
+        // the offset's (`Rounded`). A degenerate direction poisons them,
+        // and the poisoned read escalates.
+        let plain = |r: [Rounded<T>; 3]| geom_core::Vec3::new(r[0].value, r[1].value, r[2].value);
+        let by = |off: [Rounded<T>; 3], v: [Rounded<T>; 3]| {
+            [off[0] + v[0], off[1] + v[1], off[2] + v[2]]
         };
         match *surface {
-            Surface::Plane { normal, .. } => off = slide(off, normal, true)?,
-            Surface::Cylinder { axis, .. } => off = slide(off, axis, false)?,
+            // At an enclosure scalar the foot itself, `n·(off·n)/(n·n)`:
+            // its arithmetic encloses the exact foot, which is on the
+            // plane, so nothing need be tracked (and a sum of the offset
+            // and its large in-plane part would widen it).
+            Surface::Plane { normal, .. } if T::WITNESS == geom_core::Witness::Exact => {
+                let foot = normal * (plain(off).dot(normal) / normal.dot(normal));
+                off = exact_vec(foot);
+            }
+            Surface::Plane { normal, .. } => {
+                let q = normal.cross(plain(off)) / normal.dot(normal);
+                off = by(off, cross(exact_vec(normal), exact_vec(q)));
+            }
+            Surface::Cylinder { axis, .. } => {
+                let lambda = Rounded::exact(T::zero() - plain(off).dot(axis) / axis.dot(axis));
+                let [x, y, z] = exact_vec(axis);
+                off = by(off, [x * lambda, y * lambda, z * lambda]);
+            }
             _ => {}
         }
         let error = off[0].error + off[1].error + off[2].error;
