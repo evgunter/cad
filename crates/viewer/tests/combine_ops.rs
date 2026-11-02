@@ -29,9 +29,7 @@ use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
 use common::drawn::spacing_of;
-use common::{
-    ang, body_volume, len, len3, near, scl3, session_insert, shape,
-};
+use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::BooleanValue;
 use pncad::document::Speaker;
 use pncad::document::SplitSide;
@@ -44,8 +42,8 @@ use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use pncad::select::SplitHalf;
 use viewer::combine::{
-    BooleanTool, DUPLICATE_GAP, DuplicateFault, MEASURE_CHORD, PatternOutputChoice, PatternTool,
-    DuplicateTool, STEP_DIRECTION, SplitTool, denotes_body,
+    BooleanTool, DUPLICATE_GAP, DuplicateFault, DuplicateTool, MEASURE_CHORD, PatternOutputChoice,
+    PatternTool, STEP_DIRECTION, SplitTool, denotes_body,
 };
 use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
@@ -415,8 +413,7 @@ fn a_feature_re_points_each_placement_of_its_target() {
     };
     let family = session_insert(&mut session, row());
     let reads_family = |doc: &Doc<ProfileProgram>| {
-        [first, second]
-            .map(|copy| doc.copied_read(copy) == doc.outputs(family).first().copied())
+        [first, second].map(|copy| doc.copied_read(copy) == doc.outputs(family).first().copied())
     };
     assert_eq!(
         reads_family(session.committed_doc()),
@@ -806,9 +803,7 @@ fn the_transform_tool_opens_the_placement_editor_on_its_pick() {
     let editor = tools.mate().expect("the editor opened in the tool's place");
     assert_eq!(
         editor.door(),
-        Some(&PlaceDoor::Create {
-            body: fresh.into()
-        }),
+        Some(&PlaceDoor::Create { body: fresh.into() }),
         "the Create door on the body nothing places"
     );
     assert!(editor.rows().is_empty(), "no mate row");
@@ -830,7 +825,10 @@ fn the_transform_tool_opens_the_placement_editor_on_its_pick() {
     assert!(
         matches!(
             &notices[..],
-            [ToolNotice::Mate(MateToolEvent::SeenThroughSeveral { copies: 2, .. })]
+            [ToolNotice::Mate(MateToolEvent::SeenThroughSeveral {
+                copies: 2,
+                ..
+            })]
         ),
         "{notices:?}"
     );
@@ -2814,6 +2812,7 @@ fn a_duplicates_copy_moves_on_its_own() {
         panic!("a stand-in and a stepped copy: {:?}", outcome.minted);
     };
     assert_eq!(stepped, copy, "the copy made is the stepped one");
+    let step = spacing_of(&session, copy);
 
     let op = common::transformed(
         &mut session,
@@ -2867,25 +2866,17 @@ fn a_duplicates_copy_moves_on_its_own() {
     assert_eq!(original_above, 0.0, "the original did not move");
     assert!(near(original_below, one), "it is wholly below the plane");
 
-    // The step along `x` survives the move: a plane past the original's
-    // far side, short of the gap the step clears, has the copy wholly
-    // beyond it and the stand-in wholly before it.
-    let across = A[0] * (1.0 + DUPLICATE_GAP / 2.0);
-    for (target, beyond) in [(placed, one), (stand_in, 0.0)] {
-        let cut = session_insert(
-            &mut session,
-            SessionOp::AddSplit {
-                target: target.into(),
-                origin: len3([across, 0.0, 0.0]),
-                normal: scl3([1.0, 0.0, 0.0]),
-            },
-        );
-        let (above, below) = split_volumes(&mut session, cut, tol);
-        assert!(
-            near(above, beyond) && near(below, one - beyond),
-            "{target:?} along x: {above} beyond, {below} before the plane"
-        );
-    }
+    // The step along `x` survives the move: the copy stands where the
+    // duplicate stepped it along `x`, and lifted along `y`.
+    let doc = session.committed_doc();
+    let at = common::solve(&session, doc, tol)
+        .relative(placed)
+        .expect("the copy stands");
+    assert!(
+        near(at.translation[0], step) && near(at.translation[1], A[1] * 3.0),
+        "the copy stands at {:?}: stepped {step} along x, lifted along y",
+        at.translation
+    );
 }
 
 /// **The part seats track the part door**, in both directions, over

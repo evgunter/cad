@@ -501,9 +501,10 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let mut session = asm::open_bench(&bench, tol);
     session.pump();
     // A placement between the instance and the pattern — a duplicate of
-    // the instance's copy: the pattern's input is the duplicate's
-    // `Place`, not an `InstantiatePart`, which is one of the heads
-    // `member_of` declines.
+    // the instance, stood back on it by the Transform tool's Edit door,
+    // every value zero: the pattern's input is the duplicate's `Place`,
+    // not an `InstantiatePart`, which is one of the heads `member_of`
+    // declines.
     let duplicated = session.perform(SessionOp::Duplicate {
         input: bench.post_b.into(),
         beside: None,
@@ -517,6 +518,14 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
         ),
         "the pattern's head is a Place"
     );
+    let mut values = common::slides([0.0; 3]);
+    values.extend(
+        pncad::document::TargetAxis::ALL
+            .map(|axis| (pncad::document::Coord::Spin(Some(axis)), common::ang(0.0))),
+    );
+    let op = common::transformed(&mut session, moved, &values);
+    let stood = session.perform(op);
+    assert!(stood.refusal.is_none(), "{:?}", stood.refusal);
     session.pump();
     let pattern = common::session_insert(
         &mut session,
