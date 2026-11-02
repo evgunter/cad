@@ -1,15 +1,15 @@
 ---
 id: topo
 kind: program
-title: TOPO — the Euler operators: the surgery doors' P2 breaks, and their endings, cost and hygiene
+title: TOPO — the Euler operators: the surgery doors' P2 breaks, their describing contract, torn records, and their endings, cost and hygiene
 status: ready
 opened: 2026-09-04
 group: kernel/topo/euler
 prefix: topo/
 tag: (TOPO orchestrator)
 ab_band: 2700-2799
-paths: [crates/topo/src/euler.rs, crates/topo/src/euler_ring.rs, crates/topo/src/euler_kill.rs, crates/topo/src/attach.rs, crates/topo/src/movefac.rs, crates/topo/src/revert.rs, crates/topo/src/merge_faces.rs, crates/topo/src/fixtures.rs]
-keep_out: [the 2026-10-26 cut moved the describing-door family to RESTATE (which double-claims attach.rs euler_kill.rs and euler_ring.rs with this program on purpose) and PIPE's two live rows to CORES - the 2026-10-11 cut moved the torn-record, refusal-recourse and hygiene rows to TOPOTAIL (which claims body.rs) - the 2026-09-20 priority-seam cut moved validate.rs and tier3_tests.rs to ATREST, split.rs and query.rs to TQUERY, provenance.rs source.rs source_walk.rs readback.rs live.rs to ORIGIN, seqgen.rs seqgen/* review_d18.rs review_d18_probes.rs to PROBE, and WALKS claims no paths at all - a TOPO unit reaching any of them announces the seam in its PR where the changes are coupled, the paths list is ENUMERATED rather than globbed on purpose - crates/topo/src/* would double-claim ground five programs already hold and territory is blind to a double claim (work/meta/territory-cannot-see-a-path-two-programs-both-claim), so this program names its files and nothing else, topo/src/boolean/* and splitting/* and census.rs and chord_join.rs and chart_region.rs and face_normal.rs are S-BOOL's and CURVED's (code-quality Track Q's fence), topo/src/query.rs and flush.rs were SEAT's until SEAT left the tracker on 2026-09-06 (docs/DOC-LEDGER.md sweep 8) - they are unowned now and this program edits them as its own ground where a readback or query door is the unit (edge-carrier-kind-has-no-readback-door), announcing nothing to a closed board, topo/src/coherence.rs is S-MESH's, topo/src/shell.rs and replace_face.rs and transform.rs and offset_together.rs are SHELL's, topo/src/pcurves.rs is TRIM's, topo/src/props.rs is code-quality Track M's (S-CERT's), crates/topo/tests/* is S-TCOST's glob (crates/*/tests/*) — this program's units add rows there as ordinary tests and say so in the PR rather than drawing a second fence, crates/test-utils/ is code-quality Track W's and S-TCOST's - D261 converts topo's own readers and its own census entries only and re-derives the shared UNCONVERTED_TODAY ceiling from the table at landing rather than lowering it by its own member count, the remaining ~25 crates/topo/src files (body.rs entity.rs geometry.rs instance.rs null.rs contact.rs separation.rs iso.rs chart.rs chart_iso.rs ray_walk.rs sector_face.rs sector_shape.rs offset_axial.rs and the review_m1_* readers) are UNOWNED AND NOT FINISHED in the sense the code-quality plan's geom-brep seam gives that phrase - a row landing on one draws the fence in the PR that mints it, and this program does not edit there until it has]
+paths: [crates/topo/src/euler.rs, crates/topo/src/euler_ring.rs, crates/topo/src/euler_kill.rs, crates/topo/src/attach.rs, crates/topo/src/movefac.rs, crates/topo/src/revert.rs, crates/topo/src/merge_faces.rs, crates/topo/src/fixtures.rs, crates/topo/src/body.rs]
+keep_out: [the 2026-10-26 cut moved the describing-door family to RESTATE (which double-claims attach.rs euler_kill.rs and euler_ring.rs with this program on purpose) and PIPE's two live rows to CORES - the 2026-10-11 cut moved the torn-record, refusal-recourse and hygiene rows to TOPOTAIL (which claims body.rs) - the 2026-09-20 priority-seam cut moved validate.rs and tier3_tests.rs to ATREST, split.rs and query.rs to TQUERY, provenance.rs source.rs source_walk.rs readback.rs live.rs to ORIGIN, seqgen.rs seqgen/* review_d18.rs review_d18_probes.rs to PROBE, and WALKS claims no paths at all - a TOPO unit reaching any of them announces the seam in its PR where the changes are coupled, the paths list is ENUMERATED rather than globbed on purpose - crates/topo/src/* would double-claim ground five programs already hold and territory is blind to a double claim (work/meta/territory-cannot-see-a-path-two-programs-both-claim), so this program names its files and nothing else, topo/src/boolean/* and splitting/* and census.rs and chord_join.rs and chart_region.rs and face_normal.rs are S-BOOL's and CURVED's (code-quality Track Q's fence), topo/src/query.rs and flush.rs were SEAT's until SEAT left the tracker on 2026-09-06 (docs/DOC-LEDGER.md sweep 8) - they are unowned now and this program edits them as its own ground where a readback or query door is the unit (edge-carrier-kind-has-no-readback-door), announcing nothing to a closed board, topo/src/coherence.rs is S-MESH's, topo/src/shell.rs and replace_face.rs and transform.rs and offset_together.rs are SHELL's, topo/src/pcurves.rs is TRIM's, topo/src/props.rs is code-quality Track M's (S-CERT's), crates/topo/tests/* is S-TCOST's glob (crates/*/tests/*) — this program's units add rows there as ordinary tests and say so in the PR rather than drawing a second fence, crates/test-utils/ is code-quality Track W's and S-TCOST's - D261 converts topo's own readers and its own census entries only and re-derives the shared UNCONVERTED_TODAY ceiling from the table at landing rather than lowering it by its own member count, the remaining ~25 crates/topo/src files (body.rs entity.rs geometry.rs instance.rs null.rs contact.rs separation.rs iso.rs chart.rs chart_iso.rs ray_walk.rs sector_face.rs sector_shape.rs offset_axial.rs and the review_m1_* readers) are UNOWNED AND NOT FINISHED in the sense the code-quality plan's geom-brep seam gives that phrase - a row landing on one draws the fence in the PR that mints it, and this program does not edit there until it has, RESTATE merged in on 2026-11-02 (docs/doc-ledger/restate-leaves-the-tracker.md) - its notes: opened 2026-10-26 by TOPO's priority-seam cut (TOPO measured 59 budget points against 30 once PIPE folded in) - the rows moved by git mv with ids and bodies unchanged - TOPO keeps the Euler doors' P2 breaks and their endings and hygiene and its band 2700-2799 - the three paths above are ALSO TOPO's (a double claim on purpose - TOPO keeps its whole enumerated fence and these are the files the describing doors live in) and the rows also reach euler.rs and merge_faces.rs which TOPO claims alone - a unit here announces the seam on TOPO's log when TOPO is active - the restater (restatement-derives-each-moved-edges-kind) is called by the shell - the offset doors - the boolean's describe pass and the split's finish - those callers are SHELL's - OFFSET's and the boolean and split programs' ground and each is announced in the PR that converts it - its details and D2's prefer-intrinsic authority rule wait on the intent refactor (Ev - 2026-10-06 - quoted on the row) and no lane decides them by implementing, TOPOTAIL merged in on 2026-11-02 (docs/doc-ledger/topotail-leaves-the-tracker.md) - its notes: opened 2026-10-11 by TOPO's priority-seam cut (Ev - in chat; TOPO measured 74.5 budget points against 30 and had no P0 or P1 row left) - TOPO kept the Euler surgery doors and its band 2700-2799 - PROBE took four test-guard rows and WALKS one - most rows here land on ground other programs claim (topo/src/boolean/* is CLEAVE's and CURVED's - merge_faces.rs and the euler files are TOPO's - geom-brep is ENCL's and VERDICT's) - run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled - body.rs was unowned and is claimed here for the torn-record getter rows]
 ---
 
 The Euler operators proper: the surgery doors that MUTATE a body. The
@@ -31,7 +31,7 @@ which rows travel with it), and CORES took PIPE's two P1 layering rows
 **2026-10-11, the second cut** (Ev, in chat): TOPO dropped to P2 at
 74.5 budget points against 30 and split on its priority seam. TOPOTAIL
 took the torn-record, refusal-recourse and hygiene rows; PROBE took four
-test-guard rows; WALKS took one (`work/topotail/log.md`).
+test-guard rows; WALKS took one (`work/topo/log.md`).
 
 TOPO was 132 budget points in one directory on 2026-09-20 — about four
 and a half sittings. The cut (Ev, in chat, the same day) divided it on
@@ -44,3 +44,26 @@ unchanged. TOPO keeps its band 2700-2799.
 
 Charter and the unit order: `work/topo/plan.md`; narrative in
 `work/topo/log.md`.
+
+## Merged in 2026-11-02
+
+RESTATE (the describing-door family, 2026-10-26) and TOPOTAIL (torn records, refusal recourse and hygiene, 2026-10-11) were cut from TOPO on its priority seam; under the budget rule of this date the three fit one track again. The track budget now counts only dispatchable P0, P1 and unbanded rows (`work/README.md`, Track size), so these tracks had fallen far under it; their rows moved here by `git mv` with ids and bodies unchanged.
+
+**From RESTATE** (RESTATE — the describing contract of the Euler doors: how a door that moves or mints an edge says what it lies on, and which pcurve rows it keeps, re-mints or drops):
+
+What a topo door that MOVES an edge, loop or run between charts, or
+mints one under a caller's description, owes the body: the right
+description, and pcurve rows that are certified against the chart the
+face now wears. Eleven P3 rows (one unpriced): the kills across keys
+and the restater ruled in outline on PR 3970, the describing door
+`set_face_surfaces_describing`, the half-minting family of the moving
+doors, the minting doors that ask nothing, and the fan site's re-basing
+gate.
+
+**From TOPOTAIL** (TOPOTAIL — topo's tail: torn records read as absent, refusals that end on their lever or offer the wrong value, and hygiene the Euler doors left):
+
+What TOPO left behind its surgery doors when it dropped to P2:
+- torn records that a walk or getter reads as absent rather than refusing;
+- refusals that end on their lever alone, offer a value that is not the binding one, or open with a stage label;
+- dead arms, dead wraps and mismetered levers;
+- six parked rows: five on INTENT stage 4 (the boolean's declaration menu) and one on stage 3 (boxed placement).

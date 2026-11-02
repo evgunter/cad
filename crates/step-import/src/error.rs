@@ -566,7 +566,7 @@ impl fmt::Display for StepImportError {
                  iso line crosses the face, or is not certified clear of it, where the import \
                  splits it so that no cell \
                  carries a crease, and the split cannot be placed: {what} \
-                 (work/foreign/the-c0-knot-split-refuses-what-it-cannot-place.md)"
+                 (work/importgate/the-c0-knot-split-refuses-what-it-cannot-place.md)"
             ),
             Self::TierInvalid { solid, errors } => {
                 // Both forms of each verdict: the Debug shape names

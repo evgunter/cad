@@ -1209,6 +1209,31 @@ fn zero_at_its_slots<P: Clone + crate::program::SlotPayload<Formula>>(
     node
 }
 
+/// **Whether `slot` admits `formula`** — D6's slot rule, refused as
+/// the edit door refuses it: a formula whose dimension is not the one
+/// the slot's address fixes, a lone `0` excepted (VR6). Every door that
+/// writes one formula at one slot asks this; a caller holding a formula
+/// it has not written yet (a GUI's draft) asks it ahead of the write,
+/// in the door's own words.
+///
+/// # Errors
+///
+/// [`EditError::SlotDimensionMismatch`].
+pub fn slot_admits(slot: SlotId, formula: &Formula) -> Result<(), EditError> {
+    match slot.dimension_fault(formula) {
+        Some(SlotDimensionFault {
+            slot,
+            expected,
+            found,
+        }) => Err(EditError::SlotDimensionMismatch {
+            slot,
+            expected,
+            found,
+        }),
+        None => Ok(()),
+    }
+}
+
 /// A lone `0` at `slot`, read at the slot's dimension (VR6).
 fn zero_at(slot: SlotId, formula: &mut Formula) {
     if let Some(dim) = slot.dimension()
@@ -8180,19 +8205,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 .collect();
             let lowering = Lowering::start(new, fresh)?;
             let loops = lower_loops(new, &lowering, doc.spoken(*node), loops)?;
-            if let Some(SlotDimensionFault {
-                slot,
-                expected,
-                found,
-            }) = rows
-                .iter()
-                .find_map(|&(slot, formula)| slot.dimension_fault(formula))
-            {
-                return Err(EditError::SlotDimensionMismatch {
-                    slot,
-                    expected,
-                    found,
-                });
+            for &(slot, formula) in &rows {
+                slot_admits(slot, formula)?;
             }
             // The ids FIRST: ids the door could not honour make the
             // replay below moot, and the caller mends the field named
@@ -9142,18 +9156,7 @@ fn lower_index<P>(
     let mut formula = formula.clone();
     zero_at(slot, &mut formula);
     let formula = &formula;
-    if let Some(SlotDimensionFault {
-        slot,
-        expected,
-        found,
-    }) = slot.dimension_fault(formula)
-    {
-        return Err(EditError::SlotDimensionMismatch {
-            slot,
-            expected,
-            found,
-        });
-    }
+    slot_admits(slot, formula)?;
     let var = Lowering::none()
         .slot(new, formula)
         .map_err(|fault| fault.at(new, spoken.clone(), ExprSite::Slot(slot)))?;
@@ -9194,21 +9197,10 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     let mut formula = formula.clone();
     zero_at(slot, &mut formula);
     let formula = &formula;
-    // D6's comparison, from its one home (`SlotId::dimension_fault`) —
-    // the same rule the node-wide walk asks, of a formula the node
-    // does not hold yet.
-    if let Some(SlotDimensionFault {
-        slot,
-        expected,
-        found,
-    }) = slot.dimension_fault(formula)
-    {
-        return Err(EditError::SlotDimensionMismatch {
-            slot,
-            expected,
-            found,
-        });
-    }
+    // D6's comparison, from its one home ([`slot_admits`]) — the same
+    // rule the node-wide walk asks, of a formula the node does not
+    // hold yet.
+    slot_admits(slot, formula)?;
     let lowering = Lowering::start(new, fresh)?;
     let var = lowering
         .slot(new, formula)

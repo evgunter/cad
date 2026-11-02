@@ -1507,7 +1507,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PinchRaysInAFace => "pinch_rays_in_a_face",
-        BooleanErrorKind::TangentCrescentUnsupported => "tangent_crescent_unsupported",
         BooleanErrorKind::CrossingsAlongAContactLine => "crossings_along_a_contact_line",
         BooleanErrorKind::LineMaterialUnread => "line_material_unread",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
@@ -1840,7 +1839,8 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
 /// The stable tag for why a profile step reading a face's trace
 /// refused — the inner arm of a `trace` node refusal. A carrier that
 /// could not be read along the piece says how
-/// (`topo::boolean::trace::TraceFault`): no closed form, a grazing or
+/// (`topo::boolean::trace::TraceFault`): no closed form, data that bounds
+/// no region, a grazing or
 /// on-carrier piece, a sign in the band, an uncertified root count.
 pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
     use pncad::document::TraceStepFault as F;
@@ -1858,6 +1858,7 @@ pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static
         F::NoTangent => "no_tangent",
         F::Unreached => "unreached",
         F::Carrier(C::Unsupported { .. }) => "unsupported_carrier",
+        F::Carrier(C::Unbounded { .. }) => "unbounded_carrier",
         F::Carrier(C::Grazing) => "grazing",
         F::Carrier(C::Apex) => "apex",
         F::Carrier(C::OnCarrier) => "on_carrier",

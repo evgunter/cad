@@ -128,7 +128,7 @@ Refusals that are not this row's, which the pins assert with their rows:
 - at ε 1e-9, turned from 12ε up and moved below 30ε, every run refuses
   on the reduction's sector question (`bool_sector_within`,
   `bool_sector_coplanar`), on main too:
-  `work/germcert/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`;
+  `work/germ/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`;
 - at ε 1e-6, turned, 30ε, `slab ∖ fill` refuses
   `ResultVolumeImplausible`, on main too:
   `work/hone/the-subtract-volume-backstop-holds-flush-operands-bit-exact-and-refuses-a-correct-bar.md`;
