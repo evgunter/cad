@@ -379,6 +379,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::ChainG1 => "chain_g1",
         BlendDecision::ChainArm => "chain_arm",
         BlendDecision::ConvexitySign => "convexity_sign",
+        BlendDecision::MaterialSide => "material_side",
         BlendDecision::RingClearance => "ring_clearance",
         BlendDecision::SupportCoaxiality => "support_coaxiality",
         BlendDecision::ContactArm => "contact_arm",

@@ -125,7 +125,7 @@ crates/sweep/src/swept.rs	test	1	oracle
 crates/sweep/tests/a_keel_on_a_bores_ruling.rs	test	1	oracle
 crates/sweep/tests/a_slit_tip_on_a_curved_face_reads_its_full_turn.rs	test	1	oracle
 crates/sweep/tests/a_thin_cap_keeps_its_digits.rs	test	2	oracle
-crates/sweep/tests/a_vertex_on_a_grazing_plane.rs	test	2	oracle
+crates/sweep/tests/a_vertex_on_a_grazing_plane.rs	test	3	oracle
 crates/sweep/tests/bisector_lane_stubs.rs	test	1	oracle
 crates/sweep/tests/blend2_r2_probes.rs	test	3	oracle
 crates/sweep/tests/blend_arms_centre_placement.rs	test	1	oracle
