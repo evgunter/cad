@@ -174,12 +174,7 @@ pub(super) fn rim_arc(
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     });
-    let circle = geom::Curve3::Circle {
-        center: centre,
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let circle = geom::Curve3::circle(centre, Vec3::unit_z(), 1.0, Vec3::unit_x());
     let (carrier, t0, t1) = if u1 > u0 {
         (circle, u0, u1)
     } else {

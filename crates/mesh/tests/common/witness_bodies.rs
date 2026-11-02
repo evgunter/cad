@@ -42,17 +42,21 @@ pub fn keyway() -> (Body<f64>, FaceKey) {
     let on = |u: f64, v: f64| Point3::new(u.cos(), u.sin(), v);
     // A rim at height `v`, walked in DECREASING `u`: the circle about
     // −Z has `u = −t`, so the certified forward interval is increasing.
-    let rim_back = |v: f64| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, v),
-        axis: Vec3::new(0.0, 0.0, -1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    let rim_back = |v: f64| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, v),
+            Vec3::new(0.0, 0.0, -1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     };
-    let rim_fwd = |v: f64| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, v),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    let rim_fwd = |v: f64| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, v),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     };
     let line = EdgeCurveSpec::line_between;
     let (v0, v1, v2, v3_, v4, v5, v6, v7) = (
@@ -132,20 +136,10 @@ pub fn oblique_lens() -> (Body<f64>, FaceKey) {
     let section = |n: Vec3<f64>, from: Point3<f64>, to: Point3<f64>| {
         let center = Point3::new(0.0, 0.0, 0.0) + n * d;
         let u_ref = (from - center) * (1.0 / r);
-        let mut circle = Curve3::Circle {
-            center,
-            axis: n,
-            radius: r,
-            u_ref,
-        };
+        let mut circle = Curve3::circle(center, n, r, u_ref);
         let mut t1 = circle.param_near(to, 0.0).unwrap();
         if t1 < 0.0 {
-            circle = Curve3::Circle {
-                center,
-                axis: n * -1.0,
-                radius: r,
-                u_ref,
-            };
+            circle = Curve3::circle(center, n * -1.0, r, u_ref);
             t1 = -t1;
         }
         arc(circle, 0.0, t1)
@@ -201,11 +195,13 @@ pub fn oblique_lens() -> (Body<f64>, FaceKey) {
 pub fn slit() -> (Body<f64>, FaceKey) {
     let tol = Tol::witness();
     let on = |u: f64, v: f64| Point3::new(u.cos(), u.sin(), v);
-    let rim = |v: f64, axis_z: f64| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, v),
-        axis: Vec3::new(0.0, 0.0, axis_z),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    let rim = |v: f64, axis_z: f64| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, v),
+            Vec3::new(0.0, 0.0, axis_z),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     };
     let line = EdgeCurveSpec::line_between;
     let (v0, v1, v3_, v2, v7, tip) = (
@@ -285,19 +281,16 @@ pub fn pole_crossing_half_cap() -> (Body<f64>, FaceKey, FaceKey) {
     let r = (1.0 - z * z).sqrt();
     let a = Point3::new(r, 0.0, z);
     let b = Point3::new(-r, 0.0, z);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     // The great circle in the plane y = 0 anchored at `b`, oriented so
     // the arc `b → a` climbs over the north pole.
-    let great = |axis: Vec3<f64>| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis,
-        radius: 1.0,
-        u_ref: Vec3::new(-r, 0.0, z),
+    let great = |axis: Vec3<f64>| {
+        Curve3::circle(Point3::new(0.0, 0.0, 0.0), axis, 1.0, Vec3::new(-r, 0.0, z))
     };
     let mut g = great(Vec3::new(0.0, 1.0, 0.0));
     if g.eval(core::f64::consts::FRAC_PI_2).z < z {
@@ -368,11 +361,13 @@ pub fn apex_crossing_bowtie() -> (Body<f64>, FaceKey, FaceKey) {
         Point3::new(-s, 0.0, s),
         Point3::new(s, 0.0, s),
     );
-    let rim = |z: f64| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: s,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    let rim = |z: f64| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, z),
+            Vec3::new(0.0, 0.0, 1.0),
+            s,
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     };
     let line = EdgeCurveSpec::line_between;
     let mut body = Body::<f64>::new();

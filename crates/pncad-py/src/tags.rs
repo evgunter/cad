@@ -1429,7 +1429,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::RadiusHeadroom { .. } => "radius_headroom",
         BlendError::FaceClearanceUncertified { .. } => "face_clearance_uncertified",
         BlendError::FaceClearance { .. } => "face_clearance",
-        BlendError::TangentialEdge { .. } => "tangential_edge",
+        BlendError::KnifeEdge { .. } => "knife_edge",
         BlendError::SpineIrregular { .. } => "spine_irregular",
         BlendError::ChainNotG1 { .. } => "chain_not_g1",
         BlendError::ConvexitySignFlip { .. } => "convexity_sign_flip",

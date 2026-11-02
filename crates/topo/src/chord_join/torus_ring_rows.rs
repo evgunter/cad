@@ -42,7 +42,7 @@ fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeC
     };
     let touching = matches!(
         e.carrier,
-        geom::Curve3::Circle { radius, .. } if (radius - major_radius).abs() < 1e-9 * major_radius
+        geom::Curve3::Circle(geom::Circle { radius, .. }) if (radius - major_radius).abs() < 1e-9 * major_radius
     );
     let description = if touching {
         geom_brep::EdgeDescriptionSpec::Chart {

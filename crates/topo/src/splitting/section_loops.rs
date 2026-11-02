@@ -13,6 +13,7 @@
 //! `n_SP·m < 0` ⇒ **m = −n_SP**; symmetrically the below body's
 //! section face carries **m = +n_SP** ([`section_normal`]).
 
+use geom::Conic;
 use geom_core::{Decide, Indeterminate, Point3, Real, UnitVec3, Vec3};
 
 use super::PlaneSide;
@@ -100,7 +101,14 @@ fn whole_conic_principal<T: Real>(
         return None;
     }
     match *curve.carrier() {
-        geom::Curve3::Circle { u_ref, .. } | geom::Curve3::Ellipse { u_ref, .. } => Some(u_ref),
+        geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { u_ref, .. },
+            ..
+        })
+        | geom::Curve3::Ellipse(geom::Ellipse {
+            frame: geom::Frame { u_ref, .. },
+            ..
+        }) => Some(u_ref),
         _ => None,
     }
 }
@@ -279,13 +287,13 @@ pub(super) fn outlines_disjoint<T: Decide>(
         for y in &eb {
             let separated = match (x, y) {
                 (OutlineEdge::Undecided, _) | (_, OutlineEdge::Undecided) => return Ok(false),
-                (OutlineEdge::Line(p, q), OutlineEdge::Conic(c, true))
-                | (OutlineEdge::Conic(c, true), OutlineEdge::Line(p, q)) => {
-                    line_clears_conic(*p, *q, c, band)
+                (OutlineEdge::Line(p, q), OutlineEdge::Conic(c @ geom::Curve3::Ellipse(_)))
+                | (OutlineEdge::Conic(c @ geom::Curve3::Ellipse(_)), OutlineEdge::Line(p, q)) => {
+                    line_clears_conic(*p, *q, conic(c), band)
                 }
-                (OutlineEdge::Conic(c, true), OutlineEdge::Conic(d, _))
-                | (OutlineEdge::Conic(c, _), OutlineEdge::Conic(d, true)) => {
-                    conics_clear(c, d, band)
+                (OutlineEdge::Conic(c @ geom::Curve3::Ellipse(_)), OutlineEdge::Conic(d))
+                | (OutlineEdge::Conic(c), OutlineEdge::Conic(d @ geom::Curve3::Ellipse(_))) => {
+                    conics_clear(conic(c), conic(d), band)
                 }
                 // Lines and circles: check 9 decided them above.
                 _ => true,
@@ -299,19 +307,19 @@ pub(super) fn outlines_disjoint<T: Decide>(
 }
 
 /// One outline edge, as [`outlines_disjoint`] reads it: a segment by
-/// its ends; a conic by its carrier, flagged `true` for an ellipse
-/// (the kind check 9's edge arms skip); or a kind nothing decides.
+/// its ends; a conic by its carrier, a circle or an ellipse (the kind
+/// check 9's edge arms skip); or a kind nothing decides.
 enum OutlineEdge<T: Real> {
     Line(Point3<T>, Point3<T>),
-    Conic(Conic<T>, bool),
+    Conic(geom::Curve3<T>),
     Undecided,
 }
 
-/// A conic carrier: centre and the two semi-axis vectors.
-struct Conic<T: Real> {
-    centre: Point3<T>,
-    a: Vec3<T>,
-    b: Vec3<T>,
+/// An [`OutlineEdge::Conic`]'s carrier read as a conic.
+fn conic<T: Real>(carrier: &geom::Curve3<T>) -> &dyn Conic<T> {
+    carrier
+        .conic()
+        .unwrap_or_else(|| unreachable!("an outline conic is a circle or an ellipse"))
 }
 
 /// Loop `l`'s edges in walk order, as [`outlines_disjoint`] reads them.
@@ -343,33 +351,9 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
                 };
                 OutlineEdge::Line(point(h.start)?, point(end)?)
             }
-            geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => OutlineEdge::Conic(
-                Conic {
-                    centre: center,
-                    a: u_ref * radius,
-                    b: axis.cross(u_ref) * radius,
-                },
-                false,
-            ),
-            geom::Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => OutlineEdge::Conic(
-                Conic {
-                    centre: center,
-                    a: u_ref * semi_u,
-                    b: axis.cross(u_ref) * semi_v,
-                },
-                true,
-            ),
+            geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
+                OutlineEdge::Conic(curve.carrier().clone())
+            }
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => OutlineEdge::Undecided,
         });
     }
@@ -381,20 +365,21 @@ fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T
 fn line_clears_conic<T: Decide>(
     p: Point3<T>,
     q: Point3<T>,
-    c: &Conic<T>,
+    c: &dyn Conic<T>,
     band: geom_core::Band,
 ) -> bool {
     let along = q - p;
     if !positive("split_nest_line_conic", along.norm(), band)
-        || !positive("split_nest_line_conic", c.a.norm().min(c.b.norm()), band)
+        || !positive("split_nest_line_conic", c.speed_lo(), band)
     {
         return false;
     }
-    let m = c.a.cross(c.b).normalize().cross(along.normalize());
-    let reach = (m.dot(c.a).powi(2) + m.dot(c.b).powi(2)).sqrt();
+    let m = c.frame().axis.cross(along.normalize());
+    let (p_m, q_m) = c.along(m);
+    let reach = (p_m.powi(2) + q_m.powi(2)).sqrt();
     positive(
         "split_nest_line_conic",
-        m.dot(c.centre - p).abs() - reach,
+        m.dot(c.frame().center - p).abs() - reach,
         band,
     )
 }
@@ -413,16 +398,15 @@ fn line_clears_conic<T: Decide>(
 /// spans in metres. `σ` is padded up by a few ulps so the bound stays an
 /// upper bound under rounding; the triangle inequality in `|c′| ± σ`
 /// is the one remaining slack (exact for concentric conics).
-fn conics_clear<T: Decide>(e: &Conic<T>, h: &Conic<T>, band: geom_core::Band) -> bool {
-    let (ae, be) = (e.a.norm(), e.b.norm());
-    let lever = ae.min(be);
+fn conics_clear<T: Decide>(e: &dyn Conic<T>, h: &dyn Conic<T>, band: geom_core::Band) -> bool {
+    let lever = e.speed_lo();
     if !positive("split_nest_conic_conic", lever, band) {
         return false;
     }
-    let unit = |v: Vec3<T>| (v.dot(e.a) / ae.powi(2), v.dot(e.b) / be.powi(2));
-    let (cx, cy) = unit(h.centre - e.centre);
-    let (ax, ay) = unit(h.a);
-    let (bx, by) = unit(h.b);
+    let (ha, hb) = h.semi_axis_vectors();
+    let (cx, cy) = e.unit_in_plane(h.frame().center);
+    let (ax, ay) = e.unit_of(ha);
+    let (bx, by) = e.unit_of(hb);
     let centre = (cx.powi(2) + cy.powi(2)).sqrt();
     let (aa, bb, ab) = (
         ax.powi(2) + ay.powi(2),

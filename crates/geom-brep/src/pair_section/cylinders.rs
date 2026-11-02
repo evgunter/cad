@@ -653,19 +653,9 @@ fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) 
 
 /// A closed conic's ball: its centre, out to its larger semi-axis.
 fn conic_ball<T: Real>(curve: &Curve3<T>) -> Option<ExtentBall<T>> {
-    match *curve {
-        Curve3::Ellipse {
-            center,
-            semi_u,
-            semi_v,
-            ..
-        } => Some(ExtentBall::new(
-            center,
-            Curve3::semi_axes_by_size(semi_u, semi_v).0,
-        )),
-        Curve3::Circle { center, radius, .. } => Some(ExtentBall::new(center, radius.abs())),
-        Curve3::Line(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
-    }
+    curve
+        .conic()
+        .map(|k| ExtentBall::new(k.frame().center, k.speed_hi()))
 }
 
 /// **The parameter span of the line `origin + t·dir`** (`dir` unit)

@@ -183,12 +183,12 @@ fn point_piece<T: Decide>(p: Point3<T>) -> Piece<T> {
 /// The ring an arc of `arc`'s conic lies in: an ellipse lies within its
 /// semi-axes' difference of its major circle, in its plane.
 pub(super) fn conic_ring<T: Decide>(arc: &ConicArc<'_, T>) -> Ring<T> {
-    let (u, v) = (arc.semi_u.abs(), arc.semi_v.abs());
+    let k = arc.conic;
     Ring {
-        center: arc.center,
-        normal: arc.axis,
-        major: u.max(v),
-        minor: (u - v).abs(),
+        center: k.frame().center,
+        normal: k.frame().axis,
+        major: k.speed_hi(),
+        minor: k.speed_hi() - k.speed_lo(),
     }
 }
 
@@ -281,8 +281,8 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
                     EdgeBoxRule::ConicAmplitude(arc) => {
                         depths.push(Proposed {
                             depth: Depth::Axis {
-                                origin: arc.center,
-                                axis: arc.axis,
+                                origin: arc.conic.frame().center,
+                                axis: arc.conic.frame().axis,
                             },
                             level: None,
                             source: Source::Arc(
@@ -938,19 +938,14 @@ mod tests {
     /// which puts the least depth at 2.
     #[test]
     fn an_ellipse_ring_holds_its_minor_vertices() {
-        let carrier = geom::Curve3::Ellipse {
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
-            semi_u: 2.0,
-            semi_v: -1.0,
-            u_ref: v(1.0, 0.0, 0.0),
-        };
+        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
+            2.0,
+            1.0,
+        ));
         let ring = Piece::Ring(conic_ring(&ConicArc {
             carrier: &carrier,
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
-            semi_u: 2.0,
-            semi_v: -1.0,
+            conic: carrier.conic().unwrap(),
             params: (0.0, core::f64::consts::TAU),
         }));
         assert!(inf_on(z_axis(), &ring).unwrap() <= 1.0, "the minor vertex");

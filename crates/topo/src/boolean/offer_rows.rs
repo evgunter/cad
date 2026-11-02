@@ -745,7 +745,7 @@ fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
             matches!(
                 x.get_curve_geom(e.curve),
                 Some(crate::null::CurveGeom::Certified(c))
-                    if matches!(c.carrier(), geom::Curve3::Circle { .. })
+                    if matches!(c.carrier(), geom::Curve3::Circle(..))
             )
         })
         .unwrap();
@@ -1214,12 +1214,12 @@ fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
 /// The arc `[0, 1]` of the unit circle about `z` against the plane
 /// `x = cos(t)`: a root at `t`, the conic root lane's.
 fn circle_roots(t: f64) -> Result<(), BooleanError> {
-    let circle = geom::Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let circle = geom::Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     conic_roots(&circle, (0.0, 1.0), t.cos())
 }
 
@@ -1235,13 +1235,15 @@ const ELLIPSE: (f64, f64) = (1e4, 1e-3);
 /// window's reduction takes the later root first there).
 fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
     let (major, minor) = ELLIPSE;
-    let ellipse = geom::Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: major,
-        semi_v: minor,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        major,
+        minor,
+    ));
     let half = D / (2.0 * minor);
     let (mid, x) = if beyond {
         (core::f64::consts::PI, -major * half.cos())

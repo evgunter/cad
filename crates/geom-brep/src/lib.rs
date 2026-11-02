@@ -118,12 +118,13 @@ pub use description::{
 };
 pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,
-    MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations,
-    MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal,
-    RestLocus, SeamEscalation, SeamFace, SecondOrder, SecondOrderWalk, SmoothJoin, Station,
-    StationHook, classify_dihedral, classify_material_pairing, classify_material_pairing_as,
-    classify_seam, folded_lever_arm, interior_stations, material_kappa_rel, must_carry_description,
-    must_carry_over_edge, reask_chart, reask_pair, second_order_walk, tangent_second_order,
+    EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE, MaterialPairing,
+    MaterialWedge, MixedStations, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
+    MustCarryVerdict, PairRefusal, PositiveArm, RestLocus, SeamEscalation, SeamFace, SecondOrder,
+    SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral, classify_edge_wedge,
+    classify_material_pairing, classify_material_pairing_as, classify_seam, folded_lever_arm,
+    interior_stations, material_kappa_rel, must_carry_description, must_carry_over_edge,
+    reask_chart, reask_pair, second_order_walk, tangent_second_order,
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
@@ -153,13 +154,13 @@ pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
 pub use implicit::{
-    ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, Conic, ConicHarmonics, ConicTorusHarmonics,
-    SurfaceSide, circle_arc_residual_range, circle_residual_curvature_bound,
-    circle_residual_extremes, circle_sphere_harmonic, cone_elevation, conic_arc_residual_range,
-    conic_cone_harmonics, conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual,
-    conic_residual_extremes, conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit,
-    conic_torus_jet, conic_torus_residual, curvature_lever_arm, graph_acceleration,
-    implicit_gradient, implicit_graph_acceleration, implicit_hessian, implicit_hessian_form,
+    ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, ConicHarmonics, ConicTorusHarmonics, SurfaceSide,
+    circle_arc_residual_range, circle_residual_curvature_bound, circle_residual_extremes,
+    circle_sphere_harmonic, cone_elevation, conic_arc_residual_range, conic_cone_harmonics,
+    conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual, conic_residual_extremes,
+    conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit, conic_torus_jet,
+    conic_torus_residual, curvature_lever_arm, graph_acceleration, implicit_gradient,
+    implicit_graph_acceleration, implicit_hessian, implicit_hessian_form,
     implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
     implicit_section_acceleration, min_radius_of_curvature, min_radius_of_curvature_toward,
 };

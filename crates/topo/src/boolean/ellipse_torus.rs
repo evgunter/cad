@@ -74,7 +74,7 @@ pub(super) fn ellipse_torus_roots<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
     let (
-        geom::Curve3::Ellipse { .. },
+        geom::Curve3::Ellipse(..),
         Some(conic),
         &geom::Surface::Torus {
             center,
@@ -83,7 +83,7 @@ pub(super) fn ellipse_torus_roots<T: Decide>(
             minor_radius,
             ..
         },
-    ) = (carrier, geom_brep::Conic::of(carrier), surface)
+    ) = (carrier, carrier.conic(), surface)
     else {
         return Err(BooleanError::ClassificationInvariant {
             what: "the ellipse × torus root door was handed a carrier that is not an ellipse or \
@@ -109,7 +109,7 @@ const TORUS_ROOT_SLACK: &str = "bool_ellipse_torus_root_slack";
 /// and the surface's ([`geom_brep::ConicTorusHarmonics`]): a root it
 /// meters reads ON the surface.
 fn torus_walk<T: Decide>(
-    conic: &geom_brep::Conic<T>,
+    conic: &dyn geom::Conic<T>,
     torus: (geom_core::Point3<T>, geom_core::Vec3<T>, T, T),
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
@@ -133,7 +133,7 @@ fn torus_walk<T: Decide>(
                 sin: h.sin,
                 degree: 4,
             },
-            &|theta| geom_brep::implicit_residual(surface, conic.point(theta)),
+            &|theta| geom_brep::implicit_residual(surface, conic.point_at(theta)),
             &SubdivisionFrame {
                 t0,
                 t1,
@@ -270,7 +270,7 @@ mod tests {
                 else {
                     unreachable!("a torus")
                 };
-                let conic = geom_brep::Conic::of(e).unwrap();
+                let conic = e.conic().unwrap();
                 let h = geom_brep::conic_torus_harmonics(
                     &conic,
                     center,
@@ -341,12 +341,12 @@ mod tests {
     /// torus, is a dispatch desync.
     #[test]
     fn a_wrong_kind_is_a_desync() {
-        let circle = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let ring = torus([0.0; 3], [0.0, 0.0, 1.0], 0.515, 0.01);
         let e = ellipse([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 1.0, 0.5);
         let ball = geom::Surface::Sphere {
@@ -415,13 +415,11 @@ mod torus_rows {
             (small, big)
         };
         let center = Point3::new(0.0, 0.0, 0.0) + out;
-        let e = geom::Curve3::Ellipse {
-            center,
-            axis: n,
-            semi_u: major,
-            semi_v: minor,
-            u_ref: (u - n * u.dot(n)).normalize(),
-        };
+        let e = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(center, n, (u - n * u.dot(n)).normalize()),
+            major,
+            minor,
+        ));
         let theta = rng.range(0.0, TAU);
         let p = e.eval(theta);
         let tangent = e.deriv(theta).normalize();
@@ -553,13 +551,15 @@ mod torus_rows {
 
     impl Pose {
         fn build(&self) -> (geom::Curve3<f64>, geom::Surface<f64>) {
-            let e = geom::Curve3::Ellipse {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::from_array(self.n),
-                semi_u: self.semi[0],
-                semi_v: self.semi[1],
-                u_ref: Vec3::from_array(self.u),
-            };
+            let e = geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::from_array(self.n),
+                    Vec3::from_array(self.u),
+                ),
+                self.semi[0],
+                self.semi[1],
+            ));
             let s = crate::boolean::conic_oracle::torus(
                 Point3::from_array(self.hub),
                 Vec3::from_array(self.t_axis),
@@ -572,7 +572,7 @@ mod torus_rows {
         /// The door's answer, and the walk's with no slack meter.
         fn answers(&self, band: Band) -> (Answer, Answer) {
             let (e, s) = self.build();
-            let conic = geom_brep::Conic::of(&e).unwrap();
+            let conic = e.conic().unwrap();
             let torus = (
                 Point3::from_array(self.hub),
                 Vec3::from_array(self.t_axis).normalize(),
@@ -1025,13 +1025,16 @@ mod torus_rows {
                 for _ in 0..fuzz::scaled(250) {
                     let (e, s, t0, t1) = pose(&mut rng, family, eps);
                     let (
-                        geom::Curve3::Ellipse {
-                            center,
-                            axis,
+                        geom::Curve3::Ellipse(geom::Ellipse {
+                            frame:
+                                geom::Frame {
+                                    center,
+                                    axis,
+                                    u_ref,
+                                },
                             semi_u,
                             semi_v,
-                            u_ref,
-                        },
+                        }),
                         geom::Surface::Torus {
                             center: hub,
                             axis: t_axis,
@@ -1051,7 +1054,7 @@ mod torus_rows {
                         Ok(Err(_)) | Err(BooleanError::Escalated { .. }) => ("uncertain", vec![]),
                         other => panic!("{other:?}"),
                     };
-                    let conic = geom_brep::Conic::of(&e).expect("an ellipse");
+                    let conic = e.conic().expect("an ellipse");
                     let bounds: Vec<[f64; 2]> = roots
                         .iter()
                         .map(|&t| {

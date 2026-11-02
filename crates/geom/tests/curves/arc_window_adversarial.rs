@@ -171,20 +171,13 @@ fn carrier(rng: &mut fuzz::Rng) -> Curve3<f64> {
     let u_ref = b0 * phi.cos() + b1 * phi.sin();
     let semi_u = rng.log_uniform(1e-3, 1e3);
     if rng.below(2) == 0 {
-        Curve3::Circle {
-            center,
-            axis,
-            radius: semi_u,
-            u_ref,
-        }
+        Curve3::circle(center, axis, semi_u, u_ref)
     } else {
-        Curve3::Ellipse {
-            center,
-            axis,
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(center, axis, u_ref),
             semi_u,
-            semi_v: semi_u * rng.log_uniform(1e-4, 1.0),
-            u_ref,
-        }
+            semi_u * rng.log_uniform(1e-4, 1.0),
+        ))
     }
 }
 
@@ -193,19 +186,25 @@ fn carrier(rng: &mut fuzz::Rng) -> Curve3<f64> {
 /// itself can cancel far below it.
 fn harmonic_of(carrier: &Curve3<f64>, n: Vec3<f64>) -> (f64, f64, f64, f64) {
     let (center, axis, u, a, b) = match *carrier {
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => (center, axis, u_ref, radius, radius),
-        Curve3::Ellipse {
-            center,
-            axis,
+        }) => (center, axis, u_ref, radius, radius),
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => (center, axis, u_ref, semi_u, semi_v),
+        }) => (center, axis, u_ref, semi_u, semi_v),
         _ => unreachable!("the sweep draws circles and ellipses"),
     };
     let v = axis.cross(u);
@@ -279,19 +278,14 @@ fn past_a_full_turn_both_doors_read_both_crests() {
 fn the_box_and_directional_doors_contain_hard_arcs() {
     let axis = Vec3::new(1.0, 2.0, 3.0).normalize();
     let u = axis.orthonormal_basis().0;
-    let flat = |semi_v: f64| Curve3::Ellipse {
-        center: Point3::new(-1.0, 0.5, 2.0),
-        axis,
-        semi_u: 5.0,
-        semi_v,
-        u_ref: u,
+    let flat = |semi_v: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(-1.0, 0.5, 2.0), axis, u),
+            5.0,
+            semi_v,
+        ))
     };
-    let circle = |center: Point3<f64>, radius: f64| Curve3::Circle {
-        center,
-        axis,
-        radius,
-        u_ref: u,
-    };
+    let circle = |center: Point3<f64>, radius: f64| Curve3::circle(center, axis, radius, u);
     let cases = [
         ("flat 5000", flat(1e-3), 0.3, 5.9),
         ("flat 1e8", flat(5e-8), 0.3, 5.9),
@@ -324,7 +318,7 @@ fn the_box_and_directional_doors_contain_hard_arcs() {
     let at = |t0: f64, t1: f64, i: u32| t0 + (t1 - t0) * f64::from(i) / f64::from(SAMPLES);
     for (what, c, t0, t1) in cases {
         let b = match c {
-            Curve3::Circle { .. } => circle_arc_aabb(&c, t0, t1, c.eval(t0), c.eval(t1)),
+            Curve3::Circle(..) => circle_arc_aabb(&c, t0, t1, c.eval(t0), c.eval(t1)),
             _ => ellipse_arc_aabb(&c, t0, t1, c.eval(t0), c.eval(t1)),
         }
         .unwrap();
@@ -406,12 +400,7 @@ fn an_undecided_tie_at_a_full_turn_takes_both_crests() {
 /// returning an end about 65 short of `A ≈ 1055`.
 #[test]
 fn past_a_turn_the_f64_door_holds_the_crest_antipodal_to_the_middle() {
-    let circle = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let circle = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
     let n = Vec3::new(730.3003055298171, 761.676099383592, 0.0);
     let (t0, t1) = (0.4539818544898191, 7.442052950951721);
     let a = n.norm();

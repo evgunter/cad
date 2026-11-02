@@ -118,32 +118,13 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>, frame: Option<&Frame>) -> O
     let pt = |p: Point3<T>| frame.map_or(lift_p(p), |f| f.point(lift_p(p)));
     let vc = |v: Vec3<Interval>| frame.map_or(v, |f| f.vector(v));
     match carrier {
-        Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => {
-            let (axis, u_ref, r) = (lift_v(*axis), lift_v(*u_ref), i(*radius));
+        Curve3::Circle(_) | Curve3::Ellipse(_) => {
+            let lifted = carrier.map_scalar(i);
+            let (u, v) = lifted.conic()?.semi_axis_vectors();
             Some(Harmonic {
-                p0: pt(*center),
-                u: vc(u_ref * r),
-                v: vc(axis.cross(u_ref) * r),
-                alpha: Alpha::Cos,
-            })
-        }
-        Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => {
-            let (axis, u_ref) = (lift_v(*axis), lift_v(*u_ref));
-            Some(Harmonic {
-                p0: pt(*center),
-                u: vc(u_ref * i(*semi_u)),
-                v: vc(axis.cross(u_ref) * i(*semi_v)),
+                p0: pt(carrier.conic()?.frame().center),
+                u: vc(u),
+                v: vc(v),
                 alpha: Alpha::Cos,
             })
         }
@@ -1095,19 +1076,21 @@ mod tests {
             .collect()
         }
         let carriers = [
-            Curve3::Circle {
-                center: Point3::new(0.3, -1.1, 2.7),
-                axis: Vec3::new(0.0, 0.6, 0.8),
-                radius: 1.7,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
-            Curve3::Ellipse {
-                center: Point3::new(-4.0, 0.25, 1.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                semi_u: 3.0,
-                semi_v: 0.7,
-                u_ref: Vec3::new(0.6, 0.8, 0.0),
-            },
+            Curve3::circle(
+                Point3::new(0.3, -1.1, 2.7),
+                Vec3::new(0.0, 0.6, 0.8),
+                1.7,
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::new(-4.0, 0.25, 1.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(0.6, 0.8, 0.0),
+                ),
+                3.0,
+                0.7,
+            )),
             Curve3::Spiric {
                 center: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
@@ -1200,24 +1183,14 @@ mod tests {
         let center = Point3::new(0.3, -0.2, 0.5);
         let kinds = [
             ("line", Curve3::line(center, Vec3::new(0.2, 0.7, -0.1))),
-            (
-                "circle",
-                Curve3::Circle {
-                    center,
-                    axis,
-                    radius: 0.8,
-                    u_ref,
-                },
-            ),
+            ("circle", Curve3::circle(center, axis, 0.8, u_ref)),
             (
                 "ellipse",
-                Curve3::Ellipse {
-                    center,
-                    axis,
-                    semi_u: 1.2,
-                    semi_v: 0.4,
-                    u_ref,
-                },
+                Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(center, axis, u_ref),
+                    1.2,
+                    0.4,
+                )),
             ),
             (
                 "spiric",
@@ -1260,19 +1233,12 @@ mod tests {
         let (axis, u_ref) = (Vec3::new(0.0, 0.6, 0.8), Vec3::new(1.0, 0.0, 0.0));
         let center = Point3::new(0.3, -0.2, 0.5);
         let kinds = [
-            Curve3::Circle {
-                center,
-                axis,
-                radius: 0.8,
-                u_ref,
-            },
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u: 1.2,
-                semi_v: 0.4,
-                u_ref,
-            },
+            Curve3::circle(center, axis, 0.8, u_ref),
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(center, axis, u_ref),
+                1.2,
+                0.4,
+            )),
             Curve3::Spiric {
                 center,
                 axis,
@@ -1346,12 +1312,12 @@ mod tests {
     /// point outside the net.
     #[test]
     fn r2_uneven_spans_need_the_joint_hull() {
-        let circle = Curve3::Circle {
-            center: Point3::new(0.3, -0.2, 0.5),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.8,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let circle = Curve3::circle(
+            Point3::new(0.3, -0.2, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            0.8,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         for breaks in [
             &[-0.4, 1.6, 1.601][..],
             &[-0.4, -0.399, 1.6],
@@ -1449,12 +1415,12 @@ mod tests {
         );
         assert!(net.cuts().is_empty(), "a closed form owes no cuts");
 
-        let circle = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let circle = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let net = carrier_net(&circle, (0.0, 1.0), &[0.5]).unwrap();
         assert_eq!(net.operand().0.degree(), super::ORDER, "a circle at ORDER");
         assert_eq!(net.operand().0.control_count(), 2 * super::ORDER + 1);
