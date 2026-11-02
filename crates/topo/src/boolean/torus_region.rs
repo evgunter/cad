@@ -263,12 +263,13 @@ type Leg<T> = region::Leg<T, TorusCircle<T>>;
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a key that does not resolve,
-/// a surface that is not a torus, or an outer loop with no cycle.
+/// [`PointInSolidError::CorruptFace`] for a surface that is not a torus,
+/// or an outer loop with no cycle.
 ///
 /// # Panics
 ///
-/// Where a boundary edge's curve does not resolve (D2 row 4): a torn
+/// Where `face`, a face the kernel enumerated, or a boundary edge's
+/// curve does not resolve (D2 row 4): a torn
 /// curve is not null scaffolding. The links hold at rest and, on the
 /// reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
@@ -277,14 +278,14 @@ pub(crate) fn torus_face_region<T: Decide>(
     face: FaceKey,
 ) -> Result<Option<TorusFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.get_face(face).ok_or_else(corrupt)?;
+    let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
     let &geom::Surface::Torus {
         center,
         axis,
         major_radius,
         minor_radius,
         u_ref,
-    } = body.get_surface(f.surface).ok_or_else(corrupt)?
+    } = body.face_surface_linked(face, f)
     else {
         return Err(corrupt());
     };

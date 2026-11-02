@@ -527,6 +527,12 @@ pub enum Coincide {
     /// band, so no margin it carries binds the operation
     /// (the lever alone).
     VertexOnFace,
+    /// Whether a vertex of one solid on the plane of a face of the other
+    /// lies on the section that plane cuts in a curved face at the vertex
+    /// (`vertex_section`), where every side passes. Refused at the first
+    /// vertex read in band, as [`Coincide::VertexOnFace`] is (the lever
+    /// alone).
+    VertexOnSection,
     /// Whether an end of a straight edge of one solid lies on a curved
     /// face of the other: every side passes, a vertex definitely inside
     /// the face going on to the exact wall roots.
@@ -624,6 +630,10 @@ impl Coincide {
             Self::VertexOnFace | Self::VertexOnCurvedFace | Self::VertexOnCoveredFace => {
                 "whether a vertex of one solid lies on a face of the other"
             }
+            Self::VertexOnSection => {
+                "whether a vertex of one solid on the plane of a face of the other lies on the \
+                 section that plane cuts in a face at the vertex"
+            }
             Self::EdgeOnPlane => {
                 "whether a curved edge of one solid lies in, grazes or misses the plane of a face \
                  of the other"
@@ -675,6 +685,7 @@ impl Coincide {
             | (
                 Self::Planes
                 | Self::VertexOnFace
+                | Self::VertexOnSection
                 | Self::VertexOnCurvedFace
                 | Self::VertexOnCoveredFace
                 | Self::EdgeOnPlane
@@ -703,7 +714,7 @@ impl Coincide {
             Self::Planes => Ending::Frontier(PLANES_FRONTIER),
             Self::Rim => Ending::Lever(RIM_LEVER),
             Self::OnPlanes | Self::Carriers => Ending::Lever(geom_core::coincidence_move_arm!()),
-            Self::VertexOnFace => Ending::Lever(proximity_lever!()),
+            Self::VertexOnFace | Self::VertexOnSection => Ending::Lever(proximity_lever!()),
             Self::EdgeOnPlane | Self::SectorSide | Self::Sectors | Self::Join => {
                 Ending::Sized(proximity(SizedPass::AnySign))
             }
@@ -734,6 +745,7 @@ impl Coincide {
             // settles them either: their own ending.
             Self::Planes
             | Self::VertexOnFace
+            | Self::VertexOnSection
             | Self::VertexOnCurvedFace
             | Self::VertexOnCoveredFace
             | Self::EdgeOnPlane
@@ -2094,6 +2106,10 @@ pub(in crate::boolean) mod tests {
             | Coincide::VertexOnCoveredFace => {
                 "whether a vertex of one solid lies on a face of the other"
             }
+            Coincide::VertexOnSection => {
+                "whether a vertex of one solid on the plane of a face of the other lies on the \
+                 section that plane cuts in a face at the vertex"
+            }
             Coincide::EdgeOnPlane => {
                 "whether a curved edge of one solid lies in, grazes or misses the plane of a face \
                  of the other"
@@ -2139,7 +2155,7 @@ pub(in crate::boolean) mod tests {
             ),
             Coincide::OnPlanes | Coincide::Carriers => Ending::Lever("Recourse: move the geometry"),
             // Refused at the first vertex read in band, the rest unread.
-            Coincide::VertexOnFace => Ending::Lever(MEET),
+            Coincide::VertexOnFace | Coincide::VertexOnSection => Ending::Lever(MEET),
             // Clear of the face passes only beside an end the face
             // records, and contradicts the declaration elsewhere.
             Coincide::VertexOnCoveredFace => {
@@ -2202,6 +2218,7 @@ pub(in crate::boolean) mod tests {
             )),
             Coincide::Planes
             | Coincide::VertexOnFace
+            | Coincide::VertexOnSection
             | Coincide::VertexOnCurvedFace
             | Coincide::VertexOnCoveredFace
             | Coincide::EdgeOnPlane
@@ -2807,6 +2824,7 @@ pub(in crate::boolean) mod tests {
                 }
                 Coincide::Planes
                 | Coincide::VertexOnFace
+                | Coincide::VertexOnSection
                 | Coincide::VertexOnCurvedFace
                 | Coincide::VertexOnCoveredFace
                 | Coincide::EdgeOnPlane

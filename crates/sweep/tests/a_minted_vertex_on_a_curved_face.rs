@@ -89,6 +89,42 @@ fn area_in_disc(a: f64, b: f64) -> f64 {
         * h
 }
 
+/// The area of the whole triangle `(1, 0)`, `(1, 0) + LEN·(cos a, sin a)`,
+/// `(1, 0) + LEN·(cos b, sin b)` inside the unit disc, by the midpoint
+/// rule across `y`: each slice is the triangle's chord at `y` clipped to
+/// the disc's.
+fn triangle_in_disc(a: f64, b: f64) -> f64 {
+    let apex = (1.0, 0.0);
+    let corner = |t: f64| {
+        let t = t.to_radians();
+        (1.0 + LEN * t.cos(), LEN * t.sin())
+    };
+    let tri = [apex, corner(a), corner(b)];
+    let (y0, y1) = tri.iter().fold((f64::MAX, f64::MIN), |(lo, hi), p| {
+        (lo.min(p.1), hi.max(p.1))
+    });
+    let n = 200_000;
+    let h = (y1 - y0) / n as f64;
+    (0..n)
+        .map(|i| {
+            let y = y0 + (i as f64 + 0.5) * h;
+            let xs: Vec<f64> = (0..3)
+                .filter_map(|k| {
+                    let (p, q) = (tri[k], tri[(k + 1) % 3]);
+                    ((p.1 - y) * (q.1 - y) <= 0.0 && p.1 != q.1)
+                        .then(|| p.0 + (y - p.1) * (q.0 - p.0) / (q.1 - p.1))
+                })
+                .collect();
+            let (lo, hi) = xs
+                .iter()
+                .fold((f64::MAX, f64::MIN), |(lo, hi), &x| (lo.min(x), hi.max(x)));
+            let r = (1.0 - y * y).max(0.0).sqrt();
+            (hi.min(r) - lo.max(-r)).max(0.0)
+        })
+        .sum::<f64>()
+        * h
+}
+
 type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 fn builds_at(what: &str, got: Result<BooleanResult<f64>, BooleanError>, volume: f64) {
@@ -162,35 +198,44 @@ fn line_body(a: f64, b: f64, z0: f64, h: f64) -> AtRestBody<f64> {
     }
 }
 
-/// **Two wedges sharing the wall's tangent-plane face refuse an untyped
-/// join, in every op and order**, today
-/// (`work/tang/two-wedges-sharing-a-tangent-plane-face-on-a-ruling-refuse-unpaired-loose-ends.md`).
-/// The piece opens over −90°..−50° and the tool over −150°..−90°, both
-/// over `z ∈ [0.2, 1.8]`, so their caps coincide; each has a side along
-/// −90°, in the plane `x = 1`. Pins the refusal, so it flips when fixed.
+/// **Two wedges sharing the wall's tangent-plane face answer every op
+/// in both orders**, at the closed form. The piece opens over
+/// −90°..−50° and the tool over −150°..−90°, both over `z ∈ [0.2, 1.8]`,
+/// so their caps coincide; each has a side along −90°, in the plane
+/// `x = 1` tangent to the wall along the ruling. The piece lies wholly
+/// outside the cylinder and meets the tool only across that face, so
+/// the tool's part inside the cylinder is the whole intersection.
 #[test]
-fn two_wedges_sharing_the_tangent_plane_face_refuse_unpaired_loose_ends() {
+fn two_wedges_sharing_the_tangent_plane_face_answer_every_op() {
+    let triangle = |a: f64, b: f64| 0.5 * LEN * LEN * (b - a).to_radians().sin();
     let line = line_body(-90.0, -50.0, 0.2, 1.6);
     let tool = wedge(-150.0, -90.0, 0.2, 1.6);
-    let ops: [(&str, Op); 3] = [
-        ("intersection", topo::intersect),
-        ("subtraction", topo::subtract),
-        ("union", topo::union),
+    let (body, whole) = (
+        2.0 * PI + 1.6 * triangle(-90.0, -50.0),
+        1.6 * triangle(-150.0, -90.0),
+    );
+    let inside = 1.6 * triangle_in_disc(-150.0, -90.0);
+    let rows: [(&str, Op, f64, f64); 3] = [
+        ("intersection", topo::intersect, inside, inside),
+        ("subtraction", topo::subtract, body - inside, whole - inside),
+        (
+            "union",
+            topo::union,
+            body + whole - inside,
+            body + whole - inside,
+        ),
     ];
-    for (name, op) in ops {
-        for (order, got) in [
-            ("line body first", op(&line, &tool, t())),
-            ("tool first", op(&tool, &line, t())),
-        ] {
-            let Err(e) = got else {
-                panic!("{name}, {order}: builds, where it refused")
-            };
-            assert_eq!(
-                format!("{e:?}"),
-                "Join(BooleanJoin(UnpairedLooseEnds { count: 4 }))",
-                "{name}, {order}"
-            );
-        }
+    for (name, op, line_first, tool_first) in rows {
+        builds_at(
+            &format!("{name}, line body first"),
+            op(&line, &tool, t()),
+            line_first,
+        );
+        builds_at(
+            &format!("{name}, tool first"),
+            op(&tool, &line, t()),
+            tool_first,
+        );
     }
 }
 

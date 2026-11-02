@@ -127,7 +127,10 @@
 //!   slab in meters. `Negative` and `Zero` both end the branch open, a
 //!   cut end ([`BranchEnd::Cut`]): a region no tube covers past an end
 //!   in the band is refined by the accounting pass and refuses typed at
-//!   the floor. The
+//!   the floor. A pose whose ruling sweep counts its section ends its
+//!   branches at the sweep's ball instead ([`BallExit`]), on the same
+//!   decision read past the ball's sphere, and each cut end is matched
+//!   to one the sweep certified. The
 //!   settled seed is decided the same way before it is marched: a seed
 //!   `Negative`, or `Zero` outside the box, is no branch
 //!   ([`super::SsiError::SeedOffDomain`]), and one in the escalation
@@ -777,6 +780,54 @@ impl SlabEnd {
     }
 }
 
+/// **The ℝ³ lane's open-end decision**, every exit's: a state's margin
+/// inside the exit's domain decided on `ssi_branch_open_end`, a seed in
+/// the band admitted only where `holds` takes it, a step past the band
+/// ending the branch open with its last state pushed onto the boundary
+/// ([`push_boundary`]).
+mod open_end {
+    use super::{
+        Band, LocalSystem, MarchContext, Margin, Sign, SlabEnd, SsiError, StepperMode,
+        TraceDecision, decide, push_boundary,
+    };
+
+    pub(super) fn seed(
+        margin: f64,
+        held: bool,
+        mode: StepperMode,
+        band: Band,
+    ) -> Result<(), SsiError> {
+        match decide("ssi_branch_open_end", Margin::of(margin), band) {
+            Ok(Sign::Positive) => Ok(()),
+            Ok(Sign::Zero) if held => Ok(()),
+            Ok(Sign::Zero | Sign::Negative) => Err(SsiError::SeedOffDomain {
+                mode: mode.name(),
+                margin,
+            }),
+            Err(diag) => Err(TraceDecision::BranchOpenEnd.escalated(diag)),
+        }
+    }
+
+    pub(super) fn after_step<S: LocalSystem<2, 3>>(
+        margin: f64,
+        sys: &S,
+        states: &mut Vec<[f64; 3]>,
+        (inside, next): ([f64; 3], [f64; 3]),
+        ctx: &MarchContext<3>,
+        holds: impl Fn(&[f64; 3]) -> bool,
+        band: Band,
+    ) -> Result<Option<SlabEnd>, SsiError> {
+        match decide("ssi_branch_open_end", Margin::of(margin), band) {
+            Ok(Sign::Positive) => Ok(None),
+            Ok(Sign::Zero | Sign::Negative) => {
+                push_boundary(sys, states, inside, next, ctx, holds);
+                Ok(Some(SlabEnd::Cut))
+            }
+            Err(diag) => Err(TraceDecision::BranchOpenEnd.escalated(diag)),
+        }
+    }
+}
+
 impl<S: LocalSystem<2, 3>> Exit<2, 3, S> for SlabExit {
     type End = SlabEnd;
     const CLOSED: SlabEnd = SlabEnd::Closed;
@@ -793,16 +844,12 @@ impl<S: LocalSystem<2, 3>> Exit<2, 3, S> for SlabExit {
         mode: StepperMode,
         band: Band,
     ) -> Result<(), SsiError> {
-        let margin = domain_margin(x, ctx, sys, x);
-        match decide("ssi_branch_open_end", Margin::of(margin), band) {
-            Ok(Sign::Positive) => Ok(()),
-            Ok(Sign::Zero) if within(x, &ctx.domain) => Ok(()),
-            Ok(Sign::Zero | Sign::Negative) => Err(SsiError::SeedOffDomain {
-                mode: mode.name(),
-                margin,
-            }),
-            Err(diag) => Err(TraceDecision::BranchOpenEnd.escalated(diag)),
-        }
+        open_end::seed(
+            domain_margin(x, ctx, sys, x),
+            within(x, &ctx.domain),
+            mode,
+            band,
+        )
     }
 
     fn after_step(
@@ -815,18 +862,82 @@ impl<S: LocalSystem<2, 3>> Exit<2, 3, S> for SlabExit {
         band: Band,
     ) -> Result<Option<SlabEnd>, SsiError> {
         let margin = domain_margin(&next, ctx, sys, &inside);
-        match decide("ssi_branch_open_end", Margin::of(margin), band) {
-            Ok(Sign::Positive) => Ok(None),
-            Ok(Sign::Zero | Sign::Negative) => {
-                push_boundary(sys, states, inside, next, ctx);
-                Ok(Some(SlabEnd::Cut))
-            }
-            Err(diag) => Err(TraceDecision::BranchOpenEnd.escalated(diag)),
-        }
+        let holds = |r: &[f64; 3]| within(r, &ctx.domain);
+        open_end::after_step(margin, sys, states, (inside, next), ctx, holds, band)
     }
 
     fn holds(&self, x: &[f64; 3], ctx: &MarchContext<3>) -> bool {
         within(x, &ctx.domain)
+    }
+
+    fn unsettled(
+        &self,
+        _inside: [f64; 3],
+        _predicted: [f64; 3],
+        _ctx: &MarchContext<3>,
+    ) -> Option<SlabEnd> {
+        None
+    }
+}
+
+/// **The ℝ³ lane's exit at a ball** inside the caller's slab: a pose that
+/// counts its section by the ruling sweep cuts it by the ball, so its
+/// march ends there, by [`SlabExit`]'s open-end decision and boundary
+/// search ([`open_end`]), read on the distance past the ball's sphere.
+pub(crate) struct BallExit {
+    pub(crate) center: Point3<f64>,
+    pub(crate) radius: f64,
+}
+
+impl BallExit {
+    /// How far inside the ball `x` stands, in metres.
+    fn margin(&self, x: &[f64; 3]) -> f64 {
+        self.radius - (Point3::from_array(*x) - self.center).norm()
+    }
+
+    fn inside(&self, x: &[f64; 3], ctx: &MarchContext<3>) -> bool {
+        within(x, &ctx.domain) && self.margin(x) >= 0.0
+    }
+}
+
+impl<S: LocalSystem<2, 3>> Exit<2, 3, S> for BallExit {
+    type End = SlabEnd;
+    const CLOSED: SlabEnd = SlabEnd::Closed;
+
+    fn seed(
+        &self,
+        _sys: &S,
+        x: &[f64; 3],
+        ctx: &MarchContext<3>,
+        mode: StepperMode,
+        band: Band,
+    ) -> Result<(), SsiError> {
+        open_end::seed(self.margin(x), self.inside(x, ctx), mode, band)
+    }
+
+    fn after_step(
+        &self,
+        sys: &S,
+        states: &mut Vec<[f64; 3]>,
+        inside: [f64; 3],
+        next: [f64; 3],
+        ctx: &MarchContext<3>,
+        band: Band,
+    ) -> Result<Option<SlabEnd>, SsiError> {
+        let holds = |r: &[f64; 3]| self.inside(r, ctx);
+        open_end::after_step(
+            self.margin(&next),
+            sys,
+            states,
+            (inside, next),
+            ctx,
+            holds,
+            band,
+        )
+    }
+
+    fn holds(&self, x: &[f64; 3], ctx: &MarchContext<3>) -> bool {
+        self.inside(x, ctx)
     }
 
     fn unsettled(
@@ -1481,6 +1592,7 @@ fn push_boundary<S>(
     inside: [f64; 3],
     outside: [f64; 3],
     ctx: &MarchContext<3>,
+    holds: impl Fn(&[f64; 3]) -> bool,
 ) where
     S: LocalSystem<2, 3>,
 {
@@ -1494,7 +1606,7 @@ fn push_boundary<S>(
             *v = inside[i] + (outside[i] - inside[i]) * m;
         }
         match newton_refine(sys, t, ctx.tol) {
-            Some(r) if within(&r, &ctx.domain) => {
+            Some(r) if holds(&r) => {
                 lo = m;
                 best = Some(r);
             }
@@ -1561,11 +1673,32 @@ pub(crate) fn march_both<S>(
 where
     S: LocalSystem<2, 3> + TransversalityData<3>,
 {
-    let fwd = march(sys, &SlabExit, seed, ctx, mode, 1.0, band)?;
+    march_both_to(sys, &SlabExit, seed, ctx, mode, band)
+}
+
+/// [`march_both`] ending its open branches at `exit`: the caller's slab
+/// ([`SlabExit`]) or a ball inside it ([`BallExit`]).
+///
+/// # Errors
+///
+/// As [`march_both`].
+pub(crate) fn march_both_to<S, E>(
+    sys: &S,
+    exit: &E,
+    seed: [f64; 3],
+    ctx: MarchContext<3>,
+    mode: StepperMode,
+    band: Band,
+) -> Result<Trace<3, SlabEnd>, SsiError>
+where
+    S: LocalSystem<2, 3> + TransversalityData<3>,
+    E: Exit<2, 3, S, End = SlabEnd>,
+{
+    let fwd = march(sys, exit, seed, ctx, mode, 1.0, band)?;
     if fwd.end == SlabEnd::Closed {
         return Ok(fwd);
     }
-    let bwd = march(sys, &SlabExit, seed, ctx.rest(&fwd), mode, -1.0, band)?;
+    let bwd = march(sys, exit, seed, ctx.rest(&fwd), mode, -1.0, band)?;
     let mut states = bwd.states;
     states.reverse();
     // `states` now runs backward-end → seed; append the forward half

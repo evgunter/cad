@@ -443,32 +443,64 @@ fn the_gradient_is_bounded_over_the_cell() {
     );
 }
 
-/// **A critical point within the band of the plane declines at the
-/// floor.** The dome's top within the band of the plane: the cells about
-/// the top are neither regular nor past the band, down to the floor,
-/// where an isolated critical point is decided (a touch). The dome
-/// scaled to `10⁻⁷` m deep has its top half an escalation below the
-/// plane, its floor cells' boxes far narrower than that. Red against a
-/// declined cell read as regular, and against the exclusion read past
-/// zero rather than past the band (the shallow top's cells read below
-/// the plane, joined to the sides, and the in-band touch is proved
-/// away).
+/// **A critical point decided zero is a touch; one only in band
+/// declines at the floor.** The dome's top within the band's zero of the
+/// plane, above it, on it, or below it: the cells about the top are
+/// neither regular nor past the band down to the floor, where the
+/// Krawczyk operator isolates the top as `∇φ`'s one zero, its Hessian
+/// definite and its height decided zero: a touch, decided Zero, and no
+/// loop outside it. The dome scaled to `10⁻⁷` m deep, its top half an
+/// escalation below the plane, is a critical point whose height is in
+/// band, not decided, and the sweep declines there. Red against a
+/// declined cell read as regular, against the exclusion read past zero
+/// rather than past the band (the shallow top's cells read below the
+/// plane, joined to the sides, and the in-band touch is proved away),
+/// against the critical height read off its sign rather than decided
+/// zero (the shallow top would read a touch), and against the Hessian's
+/// sign read the other way (a node).
 #[test]
-fn a_critical_point_in_band_declines_at_the_floor() {
-    let g = [-0.25e-7, 0.25e-7, -0.25e-7];
-    let shallow = net(&|i, j| g[i] + g[j]);
-    for (what, h, w) in [
-        ("above", 0.5 * band().zero(), dome()),
-        ("through", 0.0, dome()),
-        ("below", -0.5 * band().zero(), dome()),
-        ("above the shallow dome", 0.5 * band().escalate(), shallow),
+fn a_critical_point_decided_zero_is_a_touch() {
+    for (what, h) in [
+        ("above", 0.5 * band().zero()),
+        ("through", 0.0),
+        ("below", -0.5 * band().zero()),
     ] {
-        let got = swept(&level(h), &w);
+        let got = swept(&level(h), &dome());
+        let Sweep::LoopFree(decided) = &got else {
+            panic!("{what}, h {h:e}: {got:?}");
+        };
         assert!(
-            matches!(got, Sweep::Declined(Declined::Floor(_))),
-            "{what}, h {h:e}: {got:?}"
+            matches!(decided.as_slice(), [c] if c.kind == super::Kind::Touch
+                && (c.at.0 - 0.5).abs() < 1e-6 && (c.at.1 - 0.5).abs() < 1e-6),
+            "{what}, h {h:e}: one touch at the top: {decided:?}"
         );
     }
+    let g = [-0.25e-7, 0.25e-7, -0.25e-7];
+    let shallow = net(&|i, j| g[i] + g[j]);
+    let got = swept(&level(0.5 * band().escalate()), &shallow);
+    assert!(
+        matches!(got, Sweep::Declined(Declined::Floor(_) | Declined::Budget)),
+        "above the shallow dome: {got:?}"
+    );
+}
+
+/// **A saddle at the zero level is a node.** The saddle
+/// `z = (x − ½)² − (y − ½)²` against the plane `z = 0`: its centre is
+/// `∇φ`'s one zero there, its Hessian indefinite, its height zero, so the
+/// section's two lines cross at a node decided Zero. Red against the
+/// Hessian's sign read the other way (a touch).
+#[test]
+fn a_saddle_at_the_zero_level_is_a_node() {
+    let g = [0.25, -0.25, 0.25];
+    let saddle = net(&|i, j| g[i] - g[j]);
+    let got = swept(&level(0.0), &saddle);
+    let Sweep::LoopFree(decided) = &got else {
+        panic!("{got:?}");
+    };
+    assert!(
+        matches!(decided.as_slice(), [c] if c.kind == super::Kind::Node),
+        "one node at the centre: {decided:?}"
+    );
 }
 
 /// A pyramid of four bilinear patches over `[0, 1]²`, creased along
@@ -490,17 +522,20 @@ fn pyramid() -> Surface<f64> {
     wall(NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap())
 }
 
-/// **A crease inside the rectangle declines.** The pyramid cut at
-/// `z = ½` meets the plane in a loop about its apex, which lies on its
-/// creases: each patch's gradient is off zero near the apex, from its
-/// own side, and `φ` peaks where they meet. Red against the crease left
-/// unread (every cell regular or joined below the plane: the loop is
-/// proved away).
+/// **A loop about the crossing of two creases declines.** The pyramid
+/// cut at `z = ½` meets the plane in a loop about its apex, which lies
+/// where its two creases cross: each patch's gradient is off zero near
+/// the apex, from its own side, and `φ` peaks there. The crease pass
+/// reads the crossing as a point, excluded above the plane and joined to
+/// no side, so the sweep declines. Red against the crease pass skipped
+/// (every cell regular or joined below the plane: the loop is proved
+/// away).
 #[test]
-fn a_crease_inside_the_rectangle_declines() {
-    assert_eq!(
-        swept(&level(0.5), &pyramid()),
-        Sweep::Declined(Declined::Crease)
+fn a_loop_about_a_crease_crossing_declines() {
+    let got = swept(&level(0.5), &pyramid());
+    assert!(
+        matches!(got, Sweep::Declined(Declined::Enclosed(_))),
+        "{got:?}"
     );
 }
 

@@ -449,15 +449,25 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "turned",
     );
-    let moved = run(
+    // The Transform tool's Apply on a body nothing places: the Create
+    // door, its slides typed.
+    let op = common::transformed(&mut session, block, &common::slides([0.005, 0.007, 0.003]));
+    let moved = run(&mut session, op, "moved");
+    // The Create door places a body not yet placed.
+    let loose = common::xy_box_in(&mut session, [0.01, 0.01, 0.01]);
+    session.pump();
+    let home = session
+        .committed_doc()
+        .operand_space(&loose.into())
+        .expect("the box is in a space");
+    run(
         &mut session,
-        SessionOp::AddTransform {
-            input: block.into(),
-            translation: len3([0.005, 0.007, 0.003]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
+        SessionOp::Place {
+            body: loose.into(),
+            target: home,
+            constraints: pncad::document::stand().bundle(),
         },
-        "moved",
+        "placed",
     );
     run(
         &mut session,
@@ -610,6 +620,15 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
             },
         },
         "image",
+    );
+    run(
+        &mut session,
+        SessionOp::AddClearance {
+            a: viewer::session::ClearedSeat::Body(block.into()),
+            b: viewer::session::ClearedSeat::Body(block.into()),
+            bounds: pncad::document::ClearanceBounds::AtLeast(len(0.001)),
+        },
+        "gap",
     );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(

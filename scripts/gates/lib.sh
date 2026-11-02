@@ -8,9 +8,8 @@
 #
 # WHY `scripts/` AND NOT `local-scripts/`: every workflow job runs
 # `rm -rf local-scripts` right after checkout, so hosted CI cannot read
-# anything there. `scripts/**` is also unscopable to a workspace member,
-# so `scripts/ci-filter.py` classifies a change here as TIER=all — a
-# gate edit re-runs everything, which is the conservative answer.
+# anything there. `scripts/ci-filter.py` classifies a change here as an
+# aux path: the lint job, which runs this directory, runs on every tier.
 #
 # Each gate script takes `--root DIR` (the tree to scan; default is this
 # repo) and `--selftest` (assert the gate passes a clean fixture and

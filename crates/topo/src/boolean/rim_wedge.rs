@@ -557,13 +557,11 @@ fn contains<T: Decide>(
         super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
         _ => unread,
     };
-    let f = body.get_face(face).ok_or(unread)?;
-    let read = match body.get_surface(f.surface) {
-        Some(geom::Surface::Plane { normal, .. }) => {
+    let read = match body.proven_face_surface(face) {
+        geom::Surface::Plane { normal, .. } => {
             super::contain::contfp(body, face, *normal, p, band).map(Some)
         }
-        Some(_) => super::contain::curved_face_containment(body, face, p, band),
-        None => return Err(unread),
+        _ => super::contain::curved_face_containment(body, face, p, band),
     };
     // The boundary pass placed the point at an arc's end and clear of
     // its corners, two definite readings no verdict reconciles at this
@@ -733,7 +731,7 @@ fn crossings<T: Decide>(
     let inside = |m: T| matches!(read(m), Ok(geom_core::Sign::Positive));
     let mut candidates: Vec<Point3<T>> = Vec::new();
     match (curve.carrier(), locus) {
-        (geom::Curve3::Line { .. }, _) => {
+        (geom::Curve3::Line(_), _) => {
             let p1 = curve.carrier().eval(t1);
             let w = p1 - p0;
             match locus {
@@ -814,7 +812,7 @@ fn crossings<T: Decide>(
                         candidates.push(origin + dir * (ae.dot(ce - origin) / ad));
                     }
                     if maybe_zero(ad) && maybe_zero(ae.dot(origin - ce)) {
-                        let foot = origin + dir * (ce - origin).dot(dir);
+                        let foot = geom::Line { origin, dir }.foot(ce);
                         let h = (foot - ce).norm();
                         if maybe_not_positive(h - re) {
                             let half = (re.powi(2) - h.powi(2)).max(T::zero()).sqrt();
@@ -902,7 +900,7 @@ fn rides<T: Decide>(
             band,
         )
         .map(|one| one.is_some()),
-        (Locus::Line { origin, dir }, geom::Curve3::Line { .. }) => {
+        (Locus::Line { origin, dir }, geom::Curve3::Line(_)) => {
             let (t0, t1) = curve.params();
             for p in [curve.carrier().eval(t0), curve.carrier().eval(t1)] {
                 let d = p - origin;

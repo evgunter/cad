@@ -196,18 +196,6 @@ pub(crate) const FILED_DECLARE: &[&str] = &[];
 /// The rows that render a key or a hex id, by exact row id and the
 /// exact span, each filed with its owner.
 pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
-    // `EngineRefusal::say` (`topo/src/clearance.rs`) names a face by
-    // its side and its `FaceKey` `Debug`, and this arm says it.
-    Admission {
-        row: "MeasureClearanceRefused/Unsupported",
-        span: "FaceKey(null)",
-        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
-    },
-    Admission {
-        row: "MeasureClearanceRefused/PoisonEnclosure",
-        span: "FaceKey(null)",
-        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
-    },
     // A smooth-join refusal names its edge by key.
     Admission {
         row: "Extrude/SmoothJoinRefuted",
@@ -295,10 +283,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
-    // work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
-    "MeasureClearanceRefused/EmptyScope",
-    "MeasureClearanceRefused/PoisonEnclosure",
-    "MeasureClearanceRefused/Unsupported",
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
@@ -749,7 +733,6 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
-use editor_core::clearance::MinSeparationRefusal;
 use editor_core::{BifurcationKind, Diagnosis, EvalError, ParamBoxError, ResolveError, SeedError};
 
 test_utils::f6_variants! {
@@ -802,7 +785,7 @@ test_utils::f6_variants! {
         Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
         WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
-        MeasureNotParallel, MeasureUnsupported, PayloadExpr, MeasureClearanceRefused,
+        MeasureNotParallel, MeasureUnsupported, PayloadExpr,
         AssertionDimension,
     ];
 }
@@ -1049,12 +1032,6 @@ test_utils::f6_variants! {
     const BIFURCATION_KIND: BifurcationKind = [FoldProximity, AmbiguousBasin, ResidualFailure];
 }
 
-test_utils::f6_variants! {
-    /// `MinSeparationRefusal`'s arms, for the `MeasureClearanceRefused/` rows.
-    const MIN_SEPARATION_REFUSAL: MinSeparationRefusal =
-        [Unsupported, PoisonEnclosure, EmptyScope];
-}
-
 /// Every roster the weld checks, by the refusal it is the census of.
 /// [`forward`] names a level's roster here, and the weld reds on an
 /// entry no row reached, so an arm reclassified away from its roster
@@ -1068,7 +1045,6 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("ResolveError", RESOLVE_ERROR.identifiers()),
         ("Diagnosis", DIAGNOSIS.identifiers()),
         ("BifurcationKind", BIFURCATION_KIND.identifiers()),
-        ("MinSeparationRefusal", MIN_SEPARATION_REFUSAL.identifiers()),
         (
             "NamingError",
             crate::display_contract::NAMING_ERROR.identifiers(),
@@ -1167,7 +1143,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             welded(levels)
         }
         NodeErrorKind::WitnessBifurcation(e) => one("BifurcationKind", &e.kind),
-        NodeErrorKind::MeasureClearanceRefused(e) => one("MinSeparationRefusal", e),
         // Labelled by the standing each carries, the names the filed
         // rows cite them by.
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Forward::Welded {
@@ -4753,6 +4728,22 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "UnsupportedUnjudgedGlue",
+            NamingError::UnsupportedUnjudgedGlue {
+                face: topo::FaceKey::default(),
+                faces: vec![
+                    (
+                        editor_core::VarId::new(0, tagged(41)),
+                        stable(EntityKind::Face, 3),
+                    ),
+                    (
+                        editor_core::VarId::new(0, tagged(43)),
+                        stable(EntityKind::Face, 4),
+                    ),
+                ],
+            },
+        ),
+        (
             "UnsupportedTurnedCell",
             NamingError::UnsupportedTurnedCell {
                 read: editor_core::VarId::new(0, tagged(38)),
@@ -5072,7 +5063,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         PartFault, WitnessAge, WitnessBifurcation,
     };
     use payloads::*;
-    use topo::{FaceKey, ReadbackError};
+    use topo::ReadbackError;
     let face = || stable(EntityKind::Face, 3);
     let mut rows = vec![
         row(
@@ -5141,36 +5132,6 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 },
             }),
         ));
-    }
-    {
-        for (n, refusal) in [
-            (
-                "Unsupported",
-                MinSeparationRefusal::Unsupported {
-                    carrier: "an approximated face",
-                    face: FaceKey::default(),
-                    side: topo::clearance::Which::First,
-                },
-            ),
-            (
-                "PoisonEnclosure",
-                MinSeparationRefusal::PoisonEnclosure {
-                    a: FaceKey::default(),
-                    b: FaceKey::default(),
-                },
-            ),
-            (
-                "EmptyScope",
-                MinSeparationRefusal::EmptyScope {
-                    side: topo::clearance::Which::First,
-                },
-            ),
-        ] {
-            rows.push(row(
-                &format!("MeasureClearanceRefused/{n}"),
-                NodeErrorKind::MeasureClearanceRefused(refusal),
-            ));
-        }
     }
     let interrogate = [
         (

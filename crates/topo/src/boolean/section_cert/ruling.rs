@@ -88,7 +88,10 @@
 //! **precision** row where the representation cannot resolve the band:
 //! where its resolution (the largest of the harmonics' noise and the
 //! clearance's running bound round the turn, in metres)
-//! is not inside the band's zero, or where the same reading with its
+//! is not inside the band's zero, where a line's clearance divides by a
+//! quantity within its own rounding of zero (a generator along the
+//! partner's axis, which a chart decided off the band can still read at
+//! a fine band and a long lever), or where the same reading with its
 //! rounding uncharged (no harmonic noise, no slack meter or slacks, and
 //! the residual's value, read on the surface where its running bound
 //! covers it or it changes sign between neighbouring scalars) answers. Otherwise it refuses under the row that
@@ -338,10 +341,15 @@ impl<T: Real> Quadric<T> {
 
     /// The line `P + u + t·w`'s clearance bound (module docs), from its
     /// discriminant `e`, with its running bound: `r − δ` against a
-    /// cylinder, `E/16d` against a cone. `d` is at least the apex's
-    /// distance from the chart's carrier, which the caller decides off
-    /// the band's zero, so the division is well conditioned.
-    fn clearance(&self, u: [Rounded<T>; 3], w: [Rounded<T>; 3], e: Rounded<T>) -> Rounded<T> {
+    /// cylinder, `E/16d` against a cone. `None` where its divisor
+    /// (`|w × d|` against a cylinder, `16d` against a cone) is within its
+    /// own rounding of zero, where the bound has no bound of its own: a
+    /// chart decided off the band near a generator along the partner's
+    /// axis can read one there at a fine band and a long lever.
+    fn clearance(&self, u: [Rounded<T>; 3], w: [Rounded<T>; 3], e: Rounded<T>) -> Option<Rounded<T>>
+    where
+        T: Decide,
+    {
         match *self {
             Self::Cylinder { d, r, .. } => {
                 let m = running::cross(w, running::exact_vec(d));
@@ -350,13 +358,14 @@ impl<T: Real> Quadric<T> {
                     value: reach.value.abs(),
                     ..reach
                 };
-                Rounded::exact(r) - reach.quotient(running::dot(m, m).sqrt())
+                let across = running::dot(m, m).sqrt().divisor()?;
+                Some(Rounded::exact(r) - reach.quotient(across))
             }
             Self::Cone { .. } => {
                 let along = running::dot(u, w);
                 let perp = [0, 1, 2].map(|i| u[i] - w[i] * along);
                 let apart = running::dot(perp, perp).sqrt();
-                e.quotient(apart * Rounded::exact(T::from_f64(16.0)))
+                Some(e.quotient((apart * Rounded::exact(T::from_f64(16.0))).divisor()?))
             }
         }
     }
@@ -407,19 +416,10 @@ fn discriminant<T: Real, S: Ring<T>>([p2, p1, p0]: [S; 3]) -> S {
     p1.times(p1).plus(minus_four.times(p2.times(p0)))
 }
 
-/// `|x|` less its rounding bound, at least zero.
-fn room<T: Real>(x: Rounded<T>) -> T {
-    (x.value.abs() - x.error).max(T::zero())
-}
-
 /// The value with its rounding bound taken off its magnitude, so that a
 /// sign decided on it is the exact value's; `charged` false, the value.
 fn shrunk<T: Real>(x: Rounded<T>, charged: bool) -> T {
-    if !charged {
-        return x.value;
-    }
-    let mag = room(x);
-    x.value.select_le_zero(T::zero() - mag, mag)
+    if charged { x.toward_zero() } else { x.value }
 }
 
 /// A walk's residual at `θ` with its rounding uncharged: its value, read
@@ -430,7 +430,7 @@ fn uncharged<T: Real>(residual: &dyn Fn(T) -> Rounded<T>, theta: T) -> T {
     let at = residual(theta);
     let step = theta.abs() * T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
     let straddle = residual(theta - step).value * residual(theta + step).value;
-    room(at).min(straddle).select_le_zero(T::zero(), at.value)
+    at.room().min(straddle).select_le_zero(T::zero(), at.value)
 }
 
 /// A family of lines `B(θ) + t·v(θ)` ruling a carrier, one of `B`, `v`
@@ -571,13 +571,11 @@ fn before<T: Decide>(
     row: &'static str,
     band: Band,
 ) -> Result<bool, &'static str> {
-    let gap = (y - x) * speed;
-    let mag = (gap.abs() - slacks).max(T::zero());
-    match sign(
-        row,
-        Margin::of(gap.select_le_zero(T::zero() - mag, mag)),
-        band,
-    ) {
+    let gap = Rounded {
+        value: (y - x) * speed,
+        error: slacks,
+    };
+    match sign(row, Margin::of(gap.toward_zero()), band) {
         Some(Sign::Positive) => Ok(true),
         Some(Sign::Negative) => Ok(false),
         _ => Err(row),
@@ -666,9 +664,17 @@ fn reading<T: Decide>(
         Quadric::Cone { .. } => kappa * big_u.powi(2),
     };
     let per_metre = partner.per_metre(big_u);
+    // A line whose clearance has no bound ends the reading under the
+    // precision row (below); its stand-in is never answered on.
+    let unbounded = core::cell::Cell::new(false);
     let clearance = |theta: T| {
         let (u, w) = line_at(theta);
-        partner.clearance(u, w, discriminant(partner.coefficients(&u, &w)))
+        partner
+            .clearance(u, w, discriminant(partner.coefficients(&u, &w)))
+            .unwrap_or_else(|| {
+                unbounded.set(true);
+                Rounded::exact(T::zero())
+            })
     };
     let noise = rounding_charge(t1.powi(2) + four * t2 * t0);
     let quarter = T::from_f64(core::f64::consts::FRAC_PI_4);
@@ -680,35 +686,14 @@ fn reading<T: Decide>(
         acc.max(clearance(quarter * T::from_f64(f64::from(k))).error)
     });
     let refused = |row: &'static str| (row, resolution);
-    let folds = roots(
-        &Walk {
-            f: e.poly(),
-            residual: &clearance,
-            per_metre,
-            noise,
-            row: rows.fold,
-        },
-        chart.reach_speed,
-        rows,
-        charged,
-        band,
-    )
-    .map_err(refused)?;
-    // The asymptotes: where `p₂` vanishes, and the branch that leaves
-    // there. Against a cylinder `p₂ = |v × d|²` (the cone's chart: its
-    // zero is a generator along the axis, the aperture the caller
-    // decides) or constant (the wall's chart), and neither vanishes.
-    let mut asymptotes: Vec<(T, Sign)> = Vec::new();
-    if let Quadric::Cone { .. } = partner {
-        let lever = Rounded::exact(chart.lever);
-        let lean = |theta: T| at_line(theta)[0] * lever;
-        let found = roots(
+    let answer = (|| {
+        let folds = roots(
             &Walk {
-                f: p2.poly(),
-                residual: &lean,
-                per_metre: T::one() / chart.lever,
-                noise: rounding_charge(t2),
-                row: rows.asymptote,
+                f: e.poly(),
+                residual: &clearance,
+                per_metre,
+                noise,
+                row: rows.fold,
             },
             chart.reach_speed,
             rows,
@@ -716,68 +701,95 @@ fn reading<T: Decide>(
             band,
         )
         .map_err(refused)?;
-        for theta in found {
-            let p1_at = at_line(theta)[1];
-            let half = p1_at.div_exact(two);
-            let leaving = match sign(rows.asymptote, Margin::of(shrunk(half, charged)), band) {
-                Some(Sign::Positive) => Sign::Negative,
-                Some(Sign::Negative) => Sign::Positive,
-                _ => return Err(refused(rows.asymptote)),
-            };
-            asymptotes.push((theta, leaving));
-        }
-    }
-    // A point of branch `σ` at `θ` (`None`: the root nearer `B`), by the
-    // root form that does not cancel: `q = −(p₁ + sign(p₁)√E)/2`, roots
-    // `q/p₂` and `p₀/q`. The form's coefficients round as `|B − P|²`
-    // and `p₂` as one, which a far root multiplies by `t²`; so the root
-    // is polished on the partner's [`Quadric::level`], each step kept
-    // within a quarter of the roots' gap (on its branch) and only where
-    // it lowers the level.
-    let point = |theta: T, branch: Option<Sign>| {
-        let (b, w) = chart.line(theta);
-        let [p2, p1, p0] = at_line(theta).map(|x| x.value);
-        let root = (p1.powi(2) - four * p2 * p0).max(T::zero()).sqrt();
-        let q = (p1 + p1.select_le_zero(T::zero() - root, root)) / (T::zero() - two);
-        let (wide, narrow) = (q / p2, p0 / q);
-        // `p₁ ≤ 0`: `q/p₂` is `σ = +`; otherwise it is `σ = −`.
-        let mut t = match branch {
-            Some(Sign::Positive) => p1.select_le_zero(wide, narrow),
-            Some(_) => p1.select_le_zero(narrow, wide),
-            None => narrow,
-        };
-        let reach = (wide - narrow).abs() / four;
-        for _ in 0..2 {
-            let (level, slope) = partner.level(b + w * t, w);
-            let step = (level / slope).max(T::zero() - reach).min(reach);
-            let next = t - step;
-            let after = partner.level(b + w * next, w).0;
-            // A step through the partner's axis (its apex, for a cone)
-            // reads a 0/0 slope; a poisoned comparison keeps the
-            // closed-form root rather than passing NaN on.
-            let gain = after.abs() - level.abs();
-            if !gain.is_poison() {
-                t = gain.select_le_zero(next, t);
+        // The asymptotes: where `p₂` vanishes, and the branch that leaves
+        // there. Against a cylinder `p₂ = |v × d|²` (the cone's chart: its
+        // zero is a generator along the axis, the aperture the caller
+        // decides) or constant (the wall's chart), and neither vanishes.
+        let mut asymptotes: Vec<(T, Sign)> = Vec::new();
+        if let Quadric::Cone { .. } = partner {
+            let lever = Rounded::exact(chart.lever);
+            let lean = |theta: T| at_line(theta)[0] * lever;
+            let found = roots(
+                &Walk {
+                    f: p2.poly(),
+                    residual: &lean,
+                    per_metre: T::one() / chart.lever,
+                    noise: rounding_charge(t2),
+                    row: rows.asymptote,
+                },
+                chart.reach_speed,
+                rows,
+                charged,
+                band,
+            )
+            .map_err(refused)?;
+            for theta in found {
+                let p1_at = at_line(theta)[1];
+                let half = p1_at.div_exact(two);
+                let leaving = match sign(rows.asymptote, Margin::of(shrunk(half, charged)), band) {
+                    Some(Sign::Positive) => Sign::Negative,
+                    Some(Sign::Negative) => Sign::Positive,
+                    _ => return Err(refused(rows.asymptote)),
+                };
+                asymptotes.push((theta, leaving));
             }
         }
-        b + w * t
-    };
-    let side = |theta: T| {
-        sign(
-            rows.fold,
-            Margin::of(shrunk(clearance(theta), charged)),
+        // A point of branch `σ` at `θ` (`None`: the root nearer `B`), by the
+        // root form that does not cancel: `q = −(p₁ + sign(p₁)√E)/2`, roots
+        // `q/p₂` and `p₀/q`. The form's coefficients round as `|B − P|²`
+        // and `p₂` as one, which a far root multiplies by `t²`; so the root
+        // is polished on the partner's [`Quadric::level`], each step kept
+        // within a quarter of the roots' gap (on its branch) and only where
+        // it lowers the level.
+        let point = |theta: T, branch: Option<Sign>| {
+            let (b, w) = chart.line(theta);
+            let [p2, p1, p0] = at_line(theta).map(|x| x.value);
+            let root = (p1.powi(2) - four * p2 * p0).max(T::zero()).sqrt();
+            let q = (p1 + p1.select_le_zero(T::zero() - root, root)) / (T::zero() - two);
+            let (wide, narrow) = (q / p2, p0 / q);
+            // `p₁ ≤ 0`: `q/p₂` is `σ = +`; otherwise it is `σ = −`.
+            let mut t = match branch {
+                Some(Sign::Positive) => p1.select_le_zero(wide, narrow),
+                Some(_) => p1.select_le_zero(narrow, wide),
+                None => narrow,
+            };
+            let reach = (wide - narrow).abs() / four;
+            for _ in 0..2 {
+                let (level, slope) = partner.level(b + w * t, w);
+                let step = (level / slope).max(T::zero() - reach).min(reach);
+                let next = t - step;
+                let after = partner.level(b + w * next, w).0;
+                // A step through the partner's axis (its apex, for a cone)
+                // reads a 0/0 slope; a poisoned comparison keeps the
+                // closed-form root rather than passing NaN on.
+                let gain = after.abs() - level.abs();
+                if !gain.is_poison() {
+                    t = gain.select_le_zero(next, t);
+                }
+            }
+            b + w * t
+        };
+        let side = |theta: T| {
+            sign(
+                rows.fold,
+                Margin::of(shrunk(clearance(theta), charged)),
+                band,
+            )
+        };
+        assemble(
+            &Roots { folds, asymptotes },
+            &side,
+            &point,
+            (chart.reach_speed, slacks(charged, band)),
+            rows,
             band,
         )
-    };
-    assemble(
-        &Roots { folds, asymptotes },
-        &side,
-        &point,
-        (chart.reach_speed, slacks(charged, band)),
-        rows,
-        band,
-    )
-    .map_err(refused)
+        .map_err(refused)
+    })();
+    if unbounded.get() {
+        return Err(refused(rows.precision));
+    }
+    answer
 }
 
 /// The components on one chart from its roots (module docs): `side` is
@@ -916,6 +928,40 @@ mod tests {
             asymptotes: asymptotes.to_vec(),
         };
         assemble(&roots, &cosine, &origin, (1.0, 0.0), &ROWS, band()).map(|r| r.bounded.len())
+    }
+
+    /// **A ruling along the partner's axis refuses under the precision
+    /// row.** The cone's chart (apex at the origin, axis `ẑ`, `α = π/4`)
+    /// has its generator at `θ = 0`, one of the eight angles the
+    /// resolution reads, exactly along the cylinder's axis
+    /// `(sin α, 0, cos α)`: the clearance's divisor `|w × d|` is zero
+    /// there with no room, so the reading has no bound and refuses as the
+    /// representation's, neither answering on a bound nor panicking.
+    #[test]
+    fn a_ruling_along_the_partners_axis_refuses_under_precision() {
+        let (s, c) = core::f64::consts::FRAC_PI_4.sin_cos();
+        let zero = Vec3::new(0.0, 0.0, 0.0);
+        let chart = Chart {
+            base: Point3::origin(),
+            offset: Swing::fixed(zero),
+            dir: Swing::round([
+                Vec3::new(0.0, 0.0, c),
+                Vec3::new(s, 0.0, 0.0),
+                Vec3::new(0.0, s, 0.0),
+            ]),
+            reach_speed: 10.0,
+            lever: 10.0,
+        };
+        let partner = Quadric::Cylinder {
+            o: Point3::new(3.0, 0.0, 0.0),
+            d: Vec3::new(s, 0.0, c),
+            r: 1.0,
+        };
+        assert_eq!(
+            read(&chart, &partner, &ROWS, band()).err(),
+            Some("precision"),
+            "a generator along the axis has no clearance bound"
+        );
     }
 
     #[test]
