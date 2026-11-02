@@ -835,10 +835,10 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
     let (doc, a) = insert(
         &doc,
         Node::Assertion(editor_core::Claim::Value {
-                value: fixture::value_of(&doc, m),
-                bound: len(0.1),
-                relation: AssertionRelation::AtLeast,
-            }),
+            value: fixture::value_of(&doc, m),
+            bound: len(0.1),
+            relation: AssertionRelation::AtLeast,
+        }),
     );
     let at_f64 = measured(&eval(&doc), m).0;
     let ev_d = evaluate::<Dual64>(
@@ -930,10 +930,10 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
     let (doc_eq, a_eq) = insert(
         &doc,
         Node::Assertion(editor_core::Claim::Value {
-                value: fixture::value_of(&doc, m),
-                bound: len(DEPTH),
-                relation: AssertionRelation::AtLeast,
-            }),
+            value: fixture::value_of(&doc, m),
+            bound: len(DEPTH),
+            relation: AssertionRelation::AtLeast,
+        }),
     );
     match verdict(&eval(&doc_eq), a_eq) {
         AssertionVerdict::Holds { measured, bound } => {
@@ -947,10 +947,10 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
     let (doc_band, a_band) = insert(
         &doc,
         Node::Assertion(editor_core::Claim::Value {
-                value: fixture::value_of(&doc, m),
-                bound: len(DEPTH - 5.0 * eps),
-                relation: AssertionRelation::AtLeast,
-            }),
+            value: fixture::value_of(&doc, m),
+            bound: len(DEPTH - 5.0 * eps),
+            relation: AssertionRelation::AtLeast,
+        }),
     );
     match verdict(&eval(&doc_band), a_band) {
         AssertionVerdict::Unevaluated { .. } => {}
@@ -975,10 +975,10 @@ fn r1_ops_refuse_measurement_operands_typed() {
     let (doc, a) = insert(
         &doc,
         Node::Assertion(editor_core::Claim::Value {
-                value: fixture::value_of(&doc, m),
-                bound: len(0.1),
-                relation: AssertionRelation::AtLeast,
-            }),
+            value: fixture::value_of(&doc, m),
+            bound: len(0.1),
+            relation: AssertionRelation::AtLeast,
+        }),
     );
     // Boolean over the ASSERTION: an assertion defines nothing.
     let refusal = crate::fixture::insert_refused(
@@ -1026,10 +1026,10 @@ fn corruptible() -> ProfileDoc {
     let (doc, _) = insert(
         &doc,
         Node::Assertion(editor_core::Claim::Value {
-                value: fixture::value_of(&doc, m),
-                bound: len(0.777),
-                relation: AssertionRelation::AtLeast,
-            }),
+            value: fixture::value_of(&doc, m),
+            bound: len(0.777),
+            relation: AssertionRelation::AtLeast,
+        }),
     );
     doc
 }
@@ -1155,10 +1155,10 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                    value,
-                    bound: len(0.0),
-                    relation: AssertionRelation::AtLeast,
-                })),
+                value,
+                bound: len(0.0),
+                relation: AssertionRelation::AtLeast,
+            })),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -1233,10 +1233,10 @@ fn r1_own_document_web_and_flip() {
     let (d7, a) = insert(
         &d6,
         Node::Assertion(editor_core::Claim::Value {
-                value: web,
-                bound: len(0.05),
-                relation: AssertionRelation::AtLeast,
-            }),
+            value: web,
+            bound: len(0.05),
+            relation: AssertionRelation::AtLeast,
+        }),
     );
     // Web = 0.5 − 0.2 = 0.3 ≥ 0.05: Holds.
     let ev = eval(&d7);

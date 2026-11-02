@@ -298,10 +298,10 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &measured_doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                    value,
-                    bound: len(0.1),
-                    relation: editor_core::AssertionRelation::AtLeast,
-                })),
+                value,
+                bound: len(0.1),
+                relation: editor_core::AssertionRelation::AtLeast,
+            })),
             fresh: Vec::new(),
         },
     );

@@ -2939,10 +2939,10 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, _) = insert(
         doc,
         Node::Assertion(pncad::document::Claim::Value {
-                value: pncad::document::Formula::var(value, pncad::document::Dimension::Length),
-                bound: len(0.0),
-                relation: pncad::document::AssertionRelation::AtLeast,
-            }),
+            value: pncad::document::Formula::var(value, pncad::document::Dimension::Length),
+            bound: len(0.0),
+            relation: pncad::document::AssertionRelation::AtLeast,
+        }),
     );
     (doc, solid)
 }

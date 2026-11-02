@@ -167,10 +167,10 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     let measured = r.measure(&[web], &refs);
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: crate::fixture::read_var(&r.doc, measure_value),
-            bound: len(0.25e-3),
-            relation: editor_core::AssertionRelation::AtLeast,
-        }));
+        value: crate::fixture::read_var(&r.doc, measure_value),
+        bound: len(0.25e-3),
+        relation: editor_core::AssertionRelation::AtLeast,
+    }));
     (r.doc, measure, assertion)
 }
 

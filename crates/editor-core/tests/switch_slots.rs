@@ -739,10 +739,10 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             },
         },
         Node::Assertion(editor_core::Claim::Value {
-                value: len(1.0),
-                bound: len(1.0),
-                relation: AssertionRelation::AtLeast,
-            }),
+            value: len(1.0),
+            bound: len(1.0),
+            relation: AssertionRelation::AtLeast,
+        }),
     ]);
     nodes
 }

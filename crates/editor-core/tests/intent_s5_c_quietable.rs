@@ -86,10 +86,10 @@ fn with_gap(doc: &ProfileDoc, outer: &FaceSite, inner: &FaceSite) -> (ProfileDoc
     insert(
         d,
         Node::Assertion(editor_core::Claim::Value {
-                value,
-                bound: len(-1e-5),
-                relation: AssertionRelation::AtMost,
-            }),
+            value,
+            bound: len(-1e-5),
+            relation: AssertionRelation::AtMost,
+        }),
     )
 }
 

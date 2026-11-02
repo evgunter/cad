@@ -118,10 +118,10 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: fixture::read_var(&r.doc, measure_value),
-            bound: len(1.0),
-            relation: AssertionRelation::AtLeast,
-        }));
+        value: fixture::read_var(&r.doc, measure_value),
+        bound: len(1.0),
+        relation: AssertionRelation::AtLeast,
+    }));
     (r.doc, measure, assertion)
 }
 

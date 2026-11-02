@@ -218,10 +218,10 @@ fn an_assertion_is_a_use_and_an_unasserted_measure_fires() {
     let (doc, _) = insert(
         doc,
         Node::Assertion(editor_core::Claim::Value {
-                value,
-                bound: len(0.5),
-                relation: AssertionRelation::AtLeast,
-            }),
+            value,
+            bound: len(0.5),
+            relation: AssertionRelation::AtLeast,
+        }),
     );
     assert_eq!(doc.unused(), quiet(), "asserted, the chain is used");
 }
@@ -433,10 +433,10 @@ fn an_asserted_mid_chain_body_stays_used() {
     let (doc, _) = insert(
         doc,
         Node::Assertion(editor_core::Claim::Value {
-                value,
-                bound: len(0.5),
-                relation: AssertionRelation::AtLeast,
-            }),
+            value,
+            bound: len(0.5),
+            relation: AssertionRelation::AtLeast,
+        }),
     );
     assert_eq!(doc.unused(), ops(&[placement]));
     let doc = delete(doc, placement);

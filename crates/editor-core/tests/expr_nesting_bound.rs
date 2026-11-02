@@ -95,10 +95,10 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
         distance: deep_length(0.5, levels),
     });
     let measure = r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: deep_sum(0.5, levels, levels.div_ceil(2)),
-            bound: len(0.0),
-            relation: editor_core::AssertionRelation::AtLeast,
-        }));
+        value: deep_sum(0.5, levels, levels.div_ceil(2)),
+        bound: len(0.0),
+        relation: editor_core::AssertionRelation::AtLeast,
+    }));
     (r, extrude, measure)
 }
 
@@ -558,10 +558,10 @@ fn an_assertion_value_shares_the_bound_at_every_split() {
             let at = deep_sum(0.5, BOUND, measure_levels);
             let (mut r, _) = extrude_document(len(0.5));
             r.insert(Node::Assertion(editor_core::Claim::Value {
-                    value: at.clone(),
-                    bound: len(0.0),
-                    relation: editor_core::AssertionRelation::AtLeast,
-                }));
+                value: at.clone(),
+                bound: len(0.0),
+                relation: editor_core::AssertionRelation::AtLeast,
+            }));
             let pin = content_pin(&r.doc, Tol::witness()).expect("the document pins");
             for (label, text) in both_saves(&r) {
                 let loaded = editor_core::persist::load(&text, Tol::witness())

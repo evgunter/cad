@@ -853,10 +853,10 @@ mod tests {
                 inserted(
                     doc,
                     Node::Assertion(editor_core::Claim::Value {
-                            value: Formula::var(value, bound.dim()),
-                            bound,
-                            relation,
-                        }),
+                        value: Formula::var(value, bound.dim()),
+                        bound,
+                        relation,
+                    }),
                     tol,
                 )
             };
@@ -1191,7 +1191,9 @@ mod tests {
     /// with the kernel's relation for the side assertion `id` records.
     fn compared(fixture: &MeasureFixture, id: RecipeNodeId, measured: &str, bound: &str) -> String {
         match fixture.doc.node(id) {
-            Some(pncad::document::Node::Assertion(editor_core::Claim::Value { relation, .. })) => {
+            Some(pncad::document::Node::Assertion(editor_core::Claim::Value {
+                relation, ..
+            })) => {
                 format!("{measured} {} {bound}", relation.symbol())
             }
             other => panic!("the premise: {id:?} is an assertion: {other:?}"),

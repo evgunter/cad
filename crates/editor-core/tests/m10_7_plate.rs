@@ -175,10 +175,10 @@ pub(crate) fn plate_with_holes(spacing_half_width: f64, radius_sigma: f64, tol: 
     .expect("Length - Length");
 
     let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: web,
-            bound: len(WEB - 1.0e-4),
-            relation: editor_core::AssertionRelation::AtLeast,
-        }));
+        value: web,
+        bound: len(WEB - 1.0e-4),
+        relation: editor_core::AssertionRelation::AtLeast,
+    }));
     let measure = fixture::assertion_value(&r.doc, assertion);
     Plate {
         doc: r.doc,

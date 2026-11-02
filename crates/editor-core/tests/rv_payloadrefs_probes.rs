@@ -84,10 +84,10 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                    value: leaf,
-                    bound: ang(0.0),
-                    relation: editor_core::AssertionRelation::AtLeast,
-                })),
+                value: leaf,
+                bound: ang(0.0),
+                relation: editor_core::AssertionRelation::AtLeast,
+            })),
             fresh: Vec::new(),
         },
         Tol::witness(),

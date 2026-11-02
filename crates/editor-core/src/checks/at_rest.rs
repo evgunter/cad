@@ -710,8 +710,8 @@ fn holding_measures<'a, P, T: Decide>(
         .into_iter()
         .flat_map(move |id| {
             let Some(Node::Assertion(crate::measure::Claim::Value {
-                        value, relation, ..
-                    })) = doc.node(id)
+                value, relation, ..
+            })) = doc.node(id)
             else {
                 return None;
             };

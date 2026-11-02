@@ -52,10 +52,10 @@ fn assert_on(
     insert(
         doc,
         Node::Assertion(editor_core::Claim::Value {
-                value,
-                bound,
-                relation,
-            }),
+            value,
+            bound,
+            relation,
+        }),
     )
 }
 
@@ -122,9 +122,9 @@ fn the_relation_is_the_wire_field_and_dir_refuses() {
         matches!(
             loaded.doc.node(id),
             Some(Node::Assertion(editor_core::Claim::Value {
-                    relation: AssertionRelation::Equal,
-                    ..
-                }))
+                relation: AssertionRelation::Equal,
+                ..
+            }))
         ),
         "`=` round-trips"
     );

@@ -296,18 +296,18 @@ fn the_analysis_lanes_read_a_round_gap_over_its_radius() {
         let (doc, _) = insert(
             doc,
             Node::Assertion(editor_core::Claim::Value {
-                    value: read.clone(),
-                    bound: len(nominal + 2.0 * H),
-                    relation: AssertionRelation::AtMost,
-                }),
+                value: read.clone(),
+                bound: len(nominal + 2.0 * H),
+                relation: AssertionRelation::AtMost,
+            }),
         );
         let (doc, _) = insert(
             doc,
             Node::Assertion(editor_core::Claim::Value {
-                    value: read,
-                    bound: len(nominal - 2.0 * H),
-                    relation: AssertionRelation::AtLeast,
-                }),
+                value: read,
+                bound: len(nominal - 2.0 * H),
+                relation: AssertionRelation::AtLeast,
+            }),
         );
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let verdict = drive(

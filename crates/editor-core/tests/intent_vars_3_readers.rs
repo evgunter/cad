@@ -1658,10 +1658,10 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
             &gone,
             DocEdit::InsertNode {
                 node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                        value: Formula::var(var, Dimension::Length),
-                        bound: len(0.0),
-                        relation: editor_core::AssertionRelation::AtLeast,
-                    })),
+                    value: Formula::var(var, Dimension::Length),
+                    bound: len(0.0),
+                    relation: editor_core::AssertionRelation::AtLeast,
+                })),
                 fresh: Vec::new(),
             },
         ) {
@@ -1682,11 +1682,13 @@ fn the_assertion_key_reads_the_value_at_the_runs_scalar() {
         Tol::witness(),
     );
     let doc = declare(&declare(&doc, "a", 0.25), "b", 0.25);
-    let assertion = |name| Node::Assertion(editor_core::Claim::Value {
+    let assertion = |name| {
+        Node::Assertion(editor_core::Claim::Value {
             value: named(name),
             bound: len(0.0),
             relation: editor_core::AssertionRelation::AtLeast,
-        });
+        })
+    };
     let (doc, on_a) = insert(doc, assertion("a"));
     let (doc, on_b) = insert(doc, assertion("b"));
     let evaluation = eval_after(&doc, None);

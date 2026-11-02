@@ -239,10 +239,10 @@ fn asserted_gap(
     insert(
         doc,
         Node::Assertion(editor_core::Claim::Value {
-                value,
-                bound: len(bound),
-                relation,
-            }),
+            value,
+            bound: len(bound),
+            relation,
+        }),
     )
 }
 

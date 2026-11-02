@@ -466,10 +466,10 @@ fn web_across(
         )
         .outputs[0];
     let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: fixture::read_var(&r.doc, measure),
-            bound: len(bound),
-            relation: AssertionRelation::AtLeast,
-        }));
+        value: fixture::read_var(&r.doc, measure),
+        bound: len(bound),
+        relation: AssertionRelation::AtLeast,
+    }));
     (r.doc, measure, assertion)
 }
 
@@ -916,10 +916,10 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         )
         .outputs[0];
     r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: fixture::read_var(&r.doc, measure),
-            bound: len(1.0),
-            relation: AssertionRelation::AtLeast,
-        }));
+        value: fixture::read_var(&r.doc, measure),
+        bound: len(1.0),
+        relation: AssertionRelation::AtLeast,
+    }));
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     match MassBasis::of(&analyzed) {
         MassBasis::Forced { by } => {
@@ -1031,10 +1031,10 @@ fn bracket(
         )
         .outputs[0];
     let web_ok = r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: fixture::read_var(&r.doc, web),
-            bound: len(0.9),
-            relation: AssertionRelation::AtLeast,
-        }));
+        value: fixture::read_var(&r.doc, web),
+        bound: len(0.9),
+        relation: AssertionRelation::AtLeast,
+    }));
     let clear_ok = r.insert(Node::clearance(
         SitedRef::new(
             post,
@@ -1316,10 +1316,10 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     .expect("L − L");
     let measure = r.define("measure", web);
     let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: fixture::read_var(&r.doc, measure),
-            bound: len(bound),
-            relation: AssertionRelation::AtLeast,
-        }));
+        value: fixture::read_var(&r.doc, measure),
+        bound: len(bound),
+        relation: AssertionRelation::AtLeast,
+    }));
 
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     let verdict = drive(&r.doc, &analyzed, &DriveConfig::default(), tol).expect("builds");

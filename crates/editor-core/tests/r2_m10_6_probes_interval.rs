@@ -185,12 +185,12 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
     );
     let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: fixture::read_var(&r.doc, measure_value),
-            // The bound IS the measured value, so no enclosure separates
-            // them: E10's third state at every leaf.
-            bound: len(1.0),
-            relation: AssertionRelation::AtLeast,
-        }));
+        value: fixture::read_var(&r.doc, measure_value),
+        // The bound IS the measured value, so no enclosure separates
+        // them: E10's third state at every leaf.
+        bound: len(1.0),
+        relation: AssertionRelation::AtLeast,
+    }));
     (r.doc, assertion)
 }
 

@@ -187,10 +187,10 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
 
     let nominal_web = BORE_B_X - BORE_A_X - 2.0 * BORE;
     let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: web,
-            bound: len(nominal_web - 5.0e-5),
-            relation: editor_core::AssertionRelation::AtLeast,
-        }));
+        value: web,
+        bound: len(nominal_web - 5.0e-5),
+        relation: editor_core::AssertionRelation::AtLeast,
+    }));
     let measure = crate::fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
 }

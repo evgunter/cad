@@ -806,12 +806,12 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                    value: crate::fixture::value_of(&d2, measure),
-                    // A bound the measure VIOLATES: the box diagonal is at
-                    // most sqrt(3) < 100.
-                    bound: len(100.0),
-                    relation: AssertionRelation::AtLeast,
-                })),
+                value: crate::fixture::value_of(&d2, measure),
+                // A bound the measure VIOLATES: the box diagonal is at
+                // most sqrt(3) < 100.
+                bound: len(100.0),
+                relation: AssertionRelation::AtLeast,
+            })),
             fresh: Vec::new(),
         },
     );
@@ -904,10 +904,10 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
         &with_measure_doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                    value: crate::fixture::value_of(&with_measure_doc, measure),
-                    bound: len(100.0),
-                    relation: AssertionRelation::AtLeast,
-                })),
+                value: crate::fixture::value_of(&with_measure_doc, measure),
+                bound: len(100.0),
+                relation: AssertionRelation::AtLeast,
+            })),
             fresh: Vec::new(),
         },
     );
@@ -1061,10 +1061,10 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                    value: crate::fixture::value_of(&d2, measure),
-                    bound: len(0.5),
-                    relation: AssertionRelation::AtLeast,
-                })),
+                value: crate::fixture::value_of(&d2, measure),
+                bound: len(0.5),
+                relation: AssertionRelation::AtLeast,
+            })),
             fresh: Vec::new(),
         },
     );
@@ -1085,10 +1085,10 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                    value: crate::fixture::value_of(&d2, measure),
-                    bound: ang(0.5),
-                    relation: AssertionRelation::AtLeast,
-                })),
+                value: crate::fixture::value_of(&d2, measure),
+                bound: ang(0.5),
+                relation: AssertionRelation::AtLeast,
+            })),
             fresh: Vec::new(),
         },
     );
@@ -1100,14 +1100,14 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                    // The box's body, read as a length: no value at all.
-                    value: Formula::var(
-                        d2.output(b, 0).expect("a box defines its body"),
-                        editor_core::Dimension::Length,
-                    ),
-                    bound: len(0.5),
-                    relation: AssertionRelation::AtLeast,
-                })),
+                // The box's body, read as a length: no value at all.
+                value: Formula::var(
+                    d2.output(b, 0).expect("a box defines its body"),
+                    editor_core::Dimension::Length,
+                ),
+                bound: len(0.5),
+                relation: AssertionRelation::AtLeast,
+            })),
             fresh: Vec::new(),
         },
     );
@@ -1162,10 +1162,10 @@ fn r2_e2e_nested_balls_authored_and_saved() {
             &d3,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                        value: crate::fixture::value_of(&d3, measure),
-                        bound: len(-0.02),
-                        relation: AssertionRelation::AtMost,
-                    })),
+                    value: crate::fixture::value_of(&d3, measure),
+                    bound: len(-0.02),
+                    relation: AssertionRelation::AtMost,
+                })),
                 fresh: Vec::new(),
             },
         );
@@ -1241,10 +1241,10 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                    value: crate::fixture::value_of(&d2, measure),
-                    bound: len(0.5),
-                    relation: AssertionRelation::AtLeast,
-                })),
+                value: crate::fixture::value_of(&d2, measure),
+                bound: len(0.5),
+                relation: AssertionRelation::AtLeast,
+            })),
             fresh: Vec::new(),
         },
     );
@@ -1344,10 +1344,10 @@ fn r2_a_measured_quotient_that_is_not_finite_refuses() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                    value: value.clone(),
-                    bound: len(1.0),
-                    relation: AssertionRelation::AtLeast,
-                })),
+                value: value.clone(),
+                bound: len(1.0),
+                relation: AssertionRelation::AtLeast,
+            })),
             fresh: Vec::new(),
         },
     );
@@ -1412,10 +1412,10 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                    value: value.clone(),
-                    bound: len(1.0),
-                    relation: AssertionRelation::AtLeast,
-                })),
+                value: value.clone(),
+                bound: len(1.0),
+                relation: AssertionRelation::AtLeast,
+            })),
             fresh: Vec::new(),
         },
     ) else {

@@ -904,8 +904,8 @@ fn asserted(
     };
     match node {
         Node::Assertion(editor_core::Claim::Value {
-                value, relation, ..
-            }) => {
+            value, relation, ..
+        }) => {
             let dim = match doc.var(*value).and_then(|var| var.kind().dimension()) {
                 Some(dim) => dim,
                 None => {

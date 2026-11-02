@@ -134,12 +134,7 @@ pub fn clearances_at_nominal(
         .ids()
         .iter()
         .copied()
-        .filter(|&id| {
-            matches!(
-                doc.node(id),
-                Some(Node::Assertion(Claim::Clearance { .. }))
-            )
-        })
+        .filter(|&id| matches!(doc.node(id), Some(Node::Assertion(Claim::Clearance { .. }))))
         .map(|assertion| {
             let answer = match ev.result(assertion) {
                 Some(NodeResult::Ok(value)) => match &value.payload {

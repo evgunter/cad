@@ -332,10 +332,10 @@ fn distributed_plate() -> ProfileDoc {
     // `Holds` rather than a band-coincident one. Row 1 is about the
     // verdict being taken and holding, not about the band.
     r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: web,
-            bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
-            relation: AssertionRelation::AtLeast,
-        }));
+        value: web,
+        bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
+        relation: AssertionRelation::AtLeast,
+    }));
     r.doc
 }
 
@@ -899,9 +899,9 @@ fn plain_distance_doc() -> ProfileDoc {
     );
     let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: fixture::read_var(&r.doc, measure_value),
-            bound: len(0.5),
-            relation: AssertionRelation::AtLeast,
-        }));
+        value: fixture::read_var(&r.doc, measure_value),
+        bound: len(0.5),
+        relation: AssertionRelation::AtLeast,
+    }));
     r.doc
 }

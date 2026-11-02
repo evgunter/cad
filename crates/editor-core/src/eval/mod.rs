@@ -4017,7 +4017,9 @@ fn doc_asserts_a_clearance(doc: &Doc<ProfileProgram>) -> bool {
     doc.ids().into_iter().any(|id| {
         matches!(
             doc.node(id),
-            Some(crate::node::Node::Assertion(crate::measure::Claim::Clearance { .. }))
+            Some(crate::node::Node::Assertion(
+                crate::measure::Claim::Clearance { .. }
+            ))
         )
     })
 }
@@ -5481,10 +5483,10 @@ where
         // below; the measures under the value are upstream, so their
         // own keys carry them.
         Node::Assertion(crate::measure::Claim::Value {
-                    value: _,
-                    bound: _,
-                    relation,
-                }) => h.write_tag(match relation {
+            value: _,
+            bound: _,
+            relation,
+        }) => h.write_tag(match relation {
             crate::measure::AssertionRelation::AtLeast => 1,
             crate::measure::AssertionRelation::AtMost => 2,
             crate::measure::AssertionRelation::Equal => 3,

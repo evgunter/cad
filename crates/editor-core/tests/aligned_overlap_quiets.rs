@@ -56,10 +56,10 @@ fn a_flush_sided_slab_is_quiet_under_its_gap() {
     let (doc, assertion) = insert(
         doc,
         Node::Assertion(editor_core::Claim::Value {
-                value,
-                bound: len(-0.01),
-                relation: AssertionRelation::AtMost,
-            }),
+            value,
+            bound: len(-0.01),
+            relation: AssertionRelation::AtMost,
+        }),
     );
     let run = corpus::eval::<f64>(&doc);
     let findings = crate::fixture::at_rest(&doc, &run)
@@ -112,10 +112,10 @@ fn an_aligned_pairs_negative_gap_quiets_no_interference() {
     let (doc, assertion) = insert(
         doc,
         Node::Assertion(editor_core::Claim::Value {
-                value,
-                bound: len(-0.01),
-                relation: AssertionRelation::AtMost,
-            }),
+            value,
+            bound: len(-0.01),
+            relation: AssertionRelation::AtMost,
+        }),
     );
     let run = corpus::eval::<f64>(&doc);
     assert!(

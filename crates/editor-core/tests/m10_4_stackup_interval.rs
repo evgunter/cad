@@ -309,10 +309,10 @@ fn plate_spaced(
     .expect("Length - Length");
 
     let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
-            value: web,
-            bound: len(MIN_WEB),
-            relation: AssertionRelation::AtLeast,
-        }));
+        value: web,
+        bound: len(MIN_WEB),
+        relation: AssertionRelation::AtLeast,
+    }));
     let web = fixture::assertion_value(&r.doc, assertion);
     (r.doc, web, assertion)
 }

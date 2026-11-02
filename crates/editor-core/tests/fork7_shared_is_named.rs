@@ -369,10 +369,10 @@ fn the_value_and_the_bound_of_one_assertion_are_two_readers() {
     let doc = ProfileDoc::empty(DocumentId::derive("fork7-assertion"), Tol::witness());
     let edit = |fresh: FreshEntry| DocEdit::InsertNode {
         node: Box::new(Node::Assertion(editor_core::Claim::Value {
-                value: Formula::fresh(0, Dimension::Length),
-                bound: Formula::fresh(0, Dimension::Length),
-                relation: editor_core::AssertionRelation::AtMost,
-            })),
+            value: Formula::fresh(0, Dimension::Length),
+            bound: Formula::fresh(0, Dimension::Length),
+            relation: editor_core::AssertionRelation::AtMost,
+        })),
         fresh: vec![fresh],
     };
     match try_step(

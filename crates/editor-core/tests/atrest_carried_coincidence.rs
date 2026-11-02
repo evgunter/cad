@@ -110,10 +110,10 @@ fn gap_zero<R: Clone + Into<Operand>>(
     insert(
         doc,
         Node::Assertion(editor_core::Claim::Value {
-                value,
-                bound: len(0.0),
-                relation: AssertionRelation::Equal,
-            }),
+            value,
+            bound: len(0.0),
+            relation: AssertionRelation::Equal,
+        }),
     )
 }
 

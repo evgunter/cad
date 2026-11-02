@@ -2299,10 +2299,12 @@ impl<P> Node<P> {
                 v.extend(side_rows_mut(constraints));
                 v
             }
-            Node::World
-            | Node::Space
-            | Node::Assertion(crate::measure::Claim::Value { .. }) => Vec::new(),
-            Node::Assertion(crate::measure::Claim::Clearance { a, b, .. }) => vec![(O::Cleared(0), a), (O::Cleared(1), b)],
+            Node::World | Node::Space | Node::Assertion(crate::measure::Claim::Value { .. }) => {
+                Vec::new()
+            }
+            Node::Assertion(crate::measure::Claim::Clearance { a, b, .. }) => {
+                vec![(O::Cleared(0), a), (O::Cleared(1), b)]
+            }
             Node::Profile(p) => p.read_rows_mut(),
             Node::Extrude {
                 profile,
@@ -2378,7 +2380,9 @@ impl<P> Node<P> {
     ) -> Option<AssertionBoundFault> {
         let dim = |var: &VarId| doc.vars.get(var)?.kind().dimension();
         match self {
-            Node::Assertion(crate::measure::Claim::Value { value, bound, .. }) => AssertionBoundFault::against(dim(value)?, dim(bound)?),
+            Node::Assertion(crate::measure::Claim::Value { value, bound, .. }) => {
+                AssertionBoundFault::against(dim(value)?, dim(bound)?)
+            }
             // A clearance is a length, so each bound is one.
             Node::Assertion(crate::measure::Claim::Clearance { bounds, .. }) => bounds
                 .exprs()
@@ -3267,10 +3271,10 @@ impl<P> Node<P, crate::Formula> {
         bounds: crate::measure::ClearanceBounds<crate::Formula>,
     ) -> Self {
         Node::Assertion(crate::measure::Claim::Clearance {
-                a: a.into(),
-                b: b.into(),
-                bounds,
-            })
+            a: a.into(),
+            b: b.into(),
+            bounds,
+        })
     }
 
     /// **The names this authored node's selection seats author**
