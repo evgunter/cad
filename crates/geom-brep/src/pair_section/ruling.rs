@@ -34,7 +34,9 @@
 //! cell that spends the budget, escalates on its own reading.
 
 use geom_core::k_stats::{decide, decide_reported, gate_rejection, straddle};
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SizedPass, Vec3};
+use geom_core::{
+    Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SizedPass, Vec3, rounding_charge,
+};
 
 use crate::ExtentBall;
 
@@ -71,9 +73,9 @@ fn straddle_row(name: &'static str) -> &'static str {
 /// **A closed interval of a scalar**, its two ends read at the scalar:
 /// the sweep's enclosure of a quantity over a cell of the ruling angle.
 /// The ends are combined as an interval's are, so at `Interval` each end
-/// is itself an enclosure and the bound is certified; at `f64` the
-/// rounding of the ends is the band's to absorb, as it is for every
-/// closed-form margin the pose decides.
+/// is itself an enclosure and the bound is certified; at `f64` each
+/// reading is widened by its rounding in the `f64` lane's sense
+/// ([`rounding_charge`]), the precedent of `gap`'s sweep.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Iv<T> {
     pub(crate) lo: T,
@@ -96,6 +98,14 @@ impl<T: Real> Iv<T> {
         Self {
             lo: self.lo.min(o.lo),
             hi: self.hi.max(o.hi),
+        }
+    }
+
+    /// Widened by `e` each way.
+    fn widen(self, e: T) -> Self {
+        Self {
+            lo: self.lo - e,
+            hi: self.hi + e,
         }
     }
 
@@ -198,6 +208,14 @@ impl<T: Real> V3<T> {
             x: self.x.plus(o.x),
             y: self.y.plus(o.y),
             z: self.z.plus(o.z),
+        }
+    }
+
+    fn widen(self, e: T) -> Self {
+        Self {
+            x: self.x.widen(e),
+            y: self.y.widen(e),
+            z: self.z.widen(e),
         }
     }
 
@@ -354,9 +372,30 @@ impl<T: Real> RuledCylinders<T> {
         cell.cos.scale(self.rho).shift(T::zero() - self.gap)
     }
 
-    /// `√(r² − x²)` over the cell, through zero where it straddles it.
+    /// `√(r² − x²)` over the cell, through zero where it straddles it,
+    /// the radicand widened by its rounding.
     fn root(&self, cell: &Cell<T>) -> Iv<T> {
-        self.x(cell).square().from(self.r * self.r).sqrt()
+        let x = self.x(cell);
+        let reach = self.rho + self.gap.abs();
+        x.square()
+            .from(self.r * self.r)
+            .widen(rounding_charge(self.r * self.r + reach * reach))
+            .sqrt()
+    }
+
+    /// The `1/β` the roots are divided by.
+    fn tilt(&self) -> T {
+        T::one() / self.beta
+    }
+
+    /// **The rounding the meetings carry** ([`rounding_charge`]): the
+    /// frame's coordinates are of size `S`, `|foot| + ρ + r + |gap|`, and
+    /// a root's numerator of `ρ + r`, divided by `β`; a ruling nearly
+    /// parallel to the partner's axis levers both by `1/|β|`.
+    fn charge(&self) -> (T, T) {
+        let size = (self.foot - Point3::origin()).norm() + self.rho + self.r + self.gap.abs();
+        let t = rounding_charge(size + self.rho + self.r) * self.tilt().abs();
+        (rounding_charge(size), t)
     }
 }
 
@@ -366,37 +405,44 @@ impl<T: Real> Ruled<T> for RuledCylinders<T> {
     }
 
     fn discriminant(&self, cell: &Cell<T>) -> Iv<T> {
-        self.x(cell).abs().from(self.r)
+        self.x(cell)
+            .abs()
+            .from(self.r)
+            .widen(rounding_charge(self.rho + self.gap.abs() + self.r))
     }
 
     fn discriminant_slope(&self, cell: &Cell<T>) -> Iv<T> {
-        self.x(cell).times(cell.sin)
+        self.x(cell)
+            .times(cell.sin)
+            .widen(rounding_charge(self.rho + self.gap.abs()))
     }
 
     fn meeting(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T> {
+        let (point, along) = self.charge();
         let t = cell
             .sin
             .scale(self.rho * self.cos)
             .plus(self.root(cell).scale(sheet.sign()))
-            .scale(T::one() / self.beta);
+            .scale(self.tilt())
+            .widen(along);
         V3::at(self.foot)
             .plus(V3::along(self.n, cell.cos.scale(self.rho)))
             .plus(V3::along(self.v, cell.sin.scale(self.rho)))
             .plus(V3::along(self.axis, t))
+            .widen(point)
     }
 
     fn velocity(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T> {
         // `x′ = −ρ sin φ`, so `(√(r² − x²))′ = ρ·x·sin φ / √(r² − x²)`.
-        let ds = self
-            .x(cell)
-            .times(cell.sin)
-            .scale(self.rho)
-            .over(self.root(cell));
+        let root = self.root(cell);
+        let ds = self.x(cell).times(cell.sin).scale(self.rho).over(root);
+        let (_, along) = self.charge();
         let dt = cell
             .cos
             .scale(self.rho * self.cos)
             .plus(ds.scale(sheet.sign()))
-            .scale(T::one() / self.beta);
+            .scale(self.tilt())
+            .widen(along * (T::one() + self.rho / root.lo));
         V3::along(self.n, cell.sin.scale(T::zero() - self.rho))
             .plus(V3::along(self.v, cell.cos.scale(self.rho)))
             .plus(V3::along(self.axis, dt))
@@ -546,12 +592,14 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     }
 
     /// Counts a cell against the budget.
-    fn spend(&mut self, name: &'static str, reading: Iv<T>) -> Result<(), SweepRefusal> {
+    fn spend(&mut self) {
         self.spent += 1;
-        if self.spent > BUDGET {
-            return Err(self.escalate(name, reading));
-        }
-        Ok(())
+    }
+
+    /// Whether an unsettled `cell` may not be split again: at the floor,
+    /// or past the budget.
+    fn spent_on(&self, cell: &Cell<T>) -> bool {
+        cell.width() <= FLOOR || self.spent > BUDGET
     }
 
     /// `Some(true)` where `x` is decided positive, `Some(false)` where it
@@ -605,7 +653,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         out: &mut Vec<(Cell<T>, Disc)>,
     ) -> Result<(), SweepRefusal> {
         let m = self.ruled.discriminant(&cell);
-        self.spend(ROW_DISCRIMINANT, m)?;
+        self.spend();
         let kind = if self.positive(ROW_DISCRIMINANT, Margin::of(m.lo)) {
             Some(Disc::Positive)
         } else if self.positive(ROW_DISCRIMINANT, Margin::of(T::zero() - m.hi)) {
@@ -617,7 +665,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             out.push((cell, kind));
             return Ok(());
         }
-        if cell.width() <= FLOOR {
+        if self.spent_on(&cell) {
             return Err(self.escalate(ROW_DISCRIMINANT, m));
         }
         let (l, r) = cell.halves();
@@ -682,7 +730,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             let both = self
                 .past(self.ruled.meeting(&cell, Sheet::Plus))
                 .hull(self.past(self.ruled.meeting(&cell, Sheet::Minus)));
-            self.spend(ROW_BRANCH, both)?;
+            self.spend();
             // An arc with no cell clear of its branch points has no stretch
             // to witness it on: split until it has one.
             let side = if self.positive(ROW_BRANCH, Margin::of(T::zero() - both.hi)) {
@@ -695,7 +743,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             if let (Some(inside), false) = (side, smooth.is_empty()) {
                 return Ok(inside);
             }
-            if cell.width() <= FLOOR {
+            if self.spent_on(&cell) {
                 return Err(match side {
                     None => self.escalate(ROW_BRANCH, both),
                     Some(_) => self.escalate(ROW_DISCRIMINANT, self.ruled.discriminant(&cell)),
@@ -755,7 +803,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     ) -> Result<(), SweepRefusal> {
         let x = self.ruled.meeting(&cell, sheet);
         let h = self.past(x);
-        self.spend(ROW_CUT, h)?;
+        self.spend();
         if self.positive(ROW_CUT, Margin::of(T::zero() - h.hi)) {
             out.push(Leaf::Inside(cell));
             return Ok(());
@@ -768,7 +816,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             out.push(leaf);
             return Ok(());
         }
-        if cell.width() <= FLOOR {
+        if self.spent_on(&cell) {
             return Err(self.escalate(ROW_CUT, h));
         }
         let (l, r) = cell.halves();
@@ -900,6 +948,9 @@ fn arcs<T: Real>(cells: Vec<(Cell<T>, Disc)>) -> Result<Vec<Arc<T>>, SweepRefusa
     Ok(arcs)
 }
 
+/// An open stretch inside the ball, as [`cut_loop`] walks it.
+type Stretch<T> = (Point3<T>, Point3<T>, Vec<Point3<T>>);
+
 /// **One loop's readings cut into its components**: each stretch inside
 /// the ball between an entering cut end and the next leaving one is an
 /// open component; a loop no cut end crosses is one component where it
@@ -952,7 +1003,9 @@ fn cut_loop<T: Real>(
     // From just past a leaving cut end: outside, until the next entering.
     let n = events.len();
     let mut out = Vec::new();
-    let mut run: Option<(Point3<T>, Point3<T>, Vec<Point3<T>>)> = None;
+    // The open stretch: its entering cut end, the point beside it, and
+    // the points read inside along it.
+    let mut run: Option<Stretch<T>> = None;
     for k in 1..=n {
         run = match (run, events[(start + k) % n]) {
             (None, Event::Side(false, _)) => None,

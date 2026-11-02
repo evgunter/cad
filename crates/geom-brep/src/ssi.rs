@@ -3215,21 +3215,19 @@ pub(crate) fn march_cylinder_cylinder(
     // DESIGN's error taxonomy, row 5: a re-derivation, so it runs in
     // debug builds alone and changes nothing shipped.
     //
-    // **Calibration.** Over the cylinder pair rows of
-    // `tests/cylinder_pair_section.rs`, the cylinder rows of
-    // `topo::boolean::section_cert_rows` and the sweep crate's rows that
-    // carry a crossing cylinder pair, every coverage settled within
-    // COVERAGE_TRIP_DEPTH halvings of its first cut (the deepest read
-    // COVERAGE_TRIP_SEEN) against `COVERAGE_DEPTH`'s 30, and read at
-    // most COVERAGE_TRIP_CELLS cells against `COVERAGE_CELLS`'s 2¹⁸. A
-    // firing one is a component the count did not list, or a branch
-    // whose tube box the march's certificate did not hold.
+    // **Calibration** (2026-11-02): over the 17 carries of a crossing
+    // cylinder pair in `tests/cylinder_pair_section.rs`, the carry's
+    // `pair_section::wiring` rows and the cylinder rows of
+    // `topo::boolean::section_cert_rows`, every coverage closed by its
+    // 7th halving of the first cut's 64 cells and within 1324 cells,
+    // against `COVERAGE_DEPTH`'s 30 halvings and `COVERAGE_CELLS`'s 2¹⁸.
+    // Coverage converges once a cell's meetings fit a tube box, so the
+    // depth grows with the log of the section's length over its tube
+    // radius; a firing one is a component the count did not list, or a
+    // branch whose tube box the march's certificate did not hold.
     #[cfg(debug_assertions)]
     {
         let covered = crate::pair_section::ruling::coverage(a, b, ball, &tubes);
-        if std::env::var_os("CAD_RULING_COVERAGE_PROBE").is_some() {
-            eprintln!("RULING_COVERAGE {covered:?}");
-        }
         debug_assert!(
             covered.is_ok(),
             "the ruling angle's cells {covered:?} hold meetings inside the ball the march ends \
