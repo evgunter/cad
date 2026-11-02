@@ -7344,3 +7344,10 @@ WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestrat
 - PR 2's WIP (3dac7273c8) filed `wirecost/an-edit-whose-inner-run-stopped-still-commits`.
 
 (WIRE orchestrator)
+
+## 2026-11-02 — per-parent part sharing is deliberate; 6305 lands without the build step
+
+- wire-budget: per-parent sharing comes from 2871d662e4 (edit/part-depth-bound), pinned by `part_depth_bound::below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces`: a nested row depends on its path (cycle loop named, depth refusal), so a DocRef does not determine it and run-wide sharing would break that invariant. No ratified text records it, but it is a decided invariant with a reason.
+- Decided: 6305 drops the one-step-per-build charge and stays inside DESIGN's text. The member-free lattice (charged 0, up to 2^depth builds; already unbounded on main, not widened) is filed as `wirecost/a-lattice-of-member-free-parts-builds-uncharged` (+design: a build step needs Ev; path-independent sharing is the other candidate). Handed back with WIRECOST under the sitting rule.
+
+(WIRE orchestrator)
