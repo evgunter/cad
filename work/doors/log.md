@@ -224,3 +224,9 @@ AUTHOR's narrative is recoverable from
 - PR 6292 merged (`0479a02dab`) after its main-merge re-earned CI (gate ok).
 - `the-gui-has-no-clearance-consumer` (P1 M) dispatched locally on `doors/clearance-consumer`. Tier: style + correctness (a verdict drawn wrong is a wrong picture). The brief binds the witness faces to `name_run` (6264's gate) and seats to the document's words (no raw ids).
 - `a-meeting-scope-over-a-box-refuses-where-topology-decides-zero` (P2 E, a regression of 6292's fix pass) dispatched to a cloud session — tail work this sitting is best placed for. Tier: orchestrator's read (E).
+
+## 2026-11-02 12:10 — 6357 (clearance consumer) reviews in: fix pass 1
+
+- Correctness: seam, resolver, witness frames, seats-read-where-drawn, row and tool all HOLD; MAJOR — a clearance with a pattern seat crashes the viewer: the submit trigger was `usable()`, the value is a `Family`, and #6292's pncad door `unreachable!`s on it inside a worker whose panic takes the process down. Class note: a door that `unreachable!`s on a document's value violates D9 and only waits for its first reachable caller; the fix pass makes it a typed refusal.
+- Style: mergeable; the equation spelled twice (the kernel's `ClearanceBounds::equation` is unused), stale README counts, the witness gate restating `name_run`'s rule with `ptr::eq`, and two larger copies (a third seam, the tool's own seat handling) to be filed as rows.
+- Seats are read where drawn (a world copy, not the construction): accepted as faithful, not a fork — a clearance is about geometry as it stands; the reviewer found no pick computed in another space than the picture shows.
