@@ -54,8 +54,6 @@
 mod common;
 mod mate2_common;
 mod revolve_common;
-#[path = "zz_probe_b.rs"]
-mod zz_probe_b;
 mod seam_region_common;
 
 #[path = "a_carried_record_no_reading_covers.rs"]
@@ -1350,6 +1348,8 @@ mod fallback_rows_review;
 
 #[path = "a_box_along_a_fillets_line_arc_junction.rs"]
 mod a_box_along_a_fillets_line_arc_junction;
+#[path = "a_cone_apex_meets_a_vertex.rs"]
+mod a_cone_apex_meets_a_vertex;
 #[path = "a_cone_apex_on_a_plane_through_it.rs"]
 mod a_cone_apex_on_a_plane_through_it;
 #[path = "a_cylinder_resting_on_a_box_top_grazes_along_a_line.rs"]

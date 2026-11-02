@@ -2980,14 +2980,16 @@ pub enum BooleanError {
         band: Band,
     },
     /// A vertex the boolean classifies is the apex of a cone face of
-    /// `operand` and pairs with a vertex of the other operand. A sector
-    /// there is a fan of the cone's rulings, and the vertex–vertex pair
-    /// algebra over a fan is unbuilt. Only an apex against an apex
-    /// reaches it: a corner or an edge of the other operand at the apex
-    /// has an edge through the apex, which refuses
-    /// [`BooleanError::CrossingAtConeApex`] first
-    /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`);
-    /// a pierce of the other operand's face at the apex reads.
+    /// `operand` and pairs with a vertex of the other operand, and a
+    /// reading of the pair has no arm for a fan of the cone's rulings.
+    /// The vertex–vertex lane reads a fan's side, membership and meeting
+    /// against a plane or another fan (`boolean::fan`); what refuses here
+    /// is a reader still built on a sector's plane
+    /// (`boolean::sectors::BoolSector::plane`: the reclassification of a
+    /// crossing record that a fan bounds), and a whole-turn cone vertex
+    /// whose partner is anything but the fans of one cone, on one nappe
+    /// (`boolean::fan::nappe_classes`)
+    /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`).
     VertexPairAtConeApex {
         /// The operand the cone face belongs to.
         operand: Operand,
@@ -4775,9 +4777,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::VertexPairAtConeApex { operand, .. } => write!(
                 f,
-                "the tip of a cone face of the {} operand meets the tip of a cone face of \
-                 the other part, and two cone tips meeting is not yet supported. \
-                 Recourse: move the parts so the two tips are apart",
+                "the tip of a cone face of the {} operand meets a corner of the other part \
+                 in a way the kernel cannot yet read around the tip. \
+                 Recourse: move the parts so the corner is clear of the cone's tip",
                 operand_word(*operand),
             ),
             Self::ApexSection { reading, .. } => write!(

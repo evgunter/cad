@@ -35,9 +35,8 @@
 //! A plane tangent to the cone along a ruling is a tangency between
 //! distinct carriers, and an undeclared one refuses typed at the
 //! ruling's rim end (`CurvedBooleanUnsupported`), never building. The
-//! apex against its copy's apex is a vertex pair, whose algebra over a
-//! fan of rulings is unbuilt: it refuses `VertexPairAtConeApex` by name.
-//! A vertex near a needle cone's axis, off its apex, refuses
+//! apex against another solid's vertex is pinned in
+//! `a_cone_apex_meets_a_vertex`. A vertex near a needle cone's axis, off its apex, refuses
 //! `VertexNearConeAxis` by name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -433,33 +432,6 @@ fn a_plane_grazing_a_tipped_cone_along_a_ruling_refuses_typed() {
                 }
             }
         }
-    }
-}
-
-/// **The apex against its copy's apex refuses the vertex pair by name**:
-/// the copy turned over about the apex, the two cones meeting there
-/// alone.
-#[test]
-fn a_tipped_cones_apex_on_its_copys_refuses_the_vertex_pair_by_name() {
-    let c = tipped(45.0);
-    let over = Affine3::translation(Vec3::new(0.0, 2.0, 0.0))
-        * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), PI);
-    let copy = topo::transform_rigid(
-        &one_wrap_edge(cone(45.0), true).0,
-        &geom_core::test_support::rigid(&over, tol()),
-        tol(),
-    )
-    .unwrap();
-    let copy = finished("the copy", copy, tol());
-    for (op, r) in [
-        ("c ∪ copy", union(&c, &copy, tol())),
-        ("c ∩ copy", intersect(&c, &copy, tol())),
-        ("copy ∖ c", subtract(&copy, &c, tol())),
-    ] {
-        assert!(
-            matches!(r, Err(BooleanError::VertexPairAtConeApex { .. })),
-            "{op}: {r:?}"
-        );
     }
 }
 

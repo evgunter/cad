@@ -615,9 +615,9 @@ fn push_apex_corner<T: Decide>(
     // ruling), in four equal turns, the own bound's side first.
     if !matches!(partners, Partners::Pierced(_)) {
         let window = apex.azimuth_from(unit_start, unit_end);
-        rulings = [3.0, 2.0, 1.0]
+        rulings = [T::from_f64(0.75), T::from_f64(0.5), T::from_f64(0.25)]
             .into_iter()
-            .map(|k| apex.ruling_from(unit_start, window * T::from_f64(k / 4.0)))
+            .map(|k| apex.ruling_from(unit_start, window * k))
             .collect();
     }
     let inner = Reach::Bisector(arm);
