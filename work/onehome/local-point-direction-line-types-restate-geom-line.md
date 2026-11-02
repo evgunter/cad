@@ -17,6 +17,10 @@ Five local types carry the same two fields under their own names, and their read
 - `crates/geom-brep/src/locus.rs` `TangentLocus::Line { origin, dir }`.
 - `crates/geom-brep/src/pair_section/gap.rs` `Spine::Line { origin, axis }`.
 - `crates/topo/src/census/depth_gap.rs` `Depth::Axis { origin, axis }`.
+- `crates/topo/src/ring_path.rs` `LoopArc::Line { origin, dir, span }`: the line plus its span.
+- `crates/editor-core/src/pose.rs` `AxisLine { foot, dir }`: its `dir` is a `UnitVec3` and its `foot` the line's point nearest the origin, both facts it adds; it reads a foot through `geom::Line` (`AxisLine::foot_of`) but builds that line each time.
 - `crates/topo/src/boolean/region.rs` `Line { start, dir }`, a leg's course: already owed by charttail's `the-region-legs-spell-a-circle-and-a-line-beside-curve3` (that row is the one to work there; this one only cross-references it).
 
 Fix: each variant holds a `geom::Line` (`Locus::Line(geom::Line<T>)`, …) and reads its foot, parameter and point through it. Where a variant adds a fact (a certified unit `dir`, a leg's start), it holds that beside the line, not instead of it.
+
+Not here: the analytic surfaces' bare axis fields (`origin`/`axis` on `Surface::Cylinder`, `apex`/`axis` on `Cone`, …) are the parked row `analytic-surfaces-spell-their-frame-field-by-field`.
