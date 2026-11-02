@@ -208,3 +208,7 @@ AUTHOR's narrative is recoverable from
 - The re-verifier would not post its report on its own (its standing brief covered one comment); I posted it verbatim. Briefs for cloud reviewers now name every comment they may post.
 - Residue: R1 (a regression of the fix pass: meeting scopes over a box refuse where topology decides 0) is DOORS' P2 E — this sitting's to do if time allows; R2, R3 to CLEARTAIL with a seam note.
 - The viewer half `the-gui-has-no-clearance-consumer` is un-parked and dispatched (`doors/clearance-consumer`).
+
+## 2026-11-02 11:35 — `a-meeting-scope-over-a-box-refuses-where-topology-decides-zero` merges (PR 6354)
+
+- Orchestrator's read: the 0 is read only for the meeting candidate's own station pair; soundness rests on the meeting being topological over the box (the shared point exists at every realization), not on the fixed stations tracking it. Over-broad mutation (every pair 0) reds the non-meeting rows. CI green.

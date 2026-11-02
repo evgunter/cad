@@ -488,8 +488,8 @@ fn a_create_draft_over_a_body_placed_since_is_refused() {
     let states = session.history().len();
     let again = session.perform(proposal.op());
     assert!(
-        matches!(again.refusal, Some(Refusal::BundleStale { .. })),
-        "a second Create of the body is stale: {:?}",
+        matches!(&again.refusal, Some(Refusal::BodyPlaced { body: placed, .. }) if placed.id() == body),
+        "a second Create of the body names its copy: {:?}",
         again.refusal
     );
     assert_eq!(session.history().len(), states, "nothing is recorded");

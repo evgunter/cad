@@ -204,7 +204,7 @@ impl Curved {
     }
 
     /// `∇f` over the frame box `q`, in the frame's coordinates.
-    fn frame_gradient(&self, q: Vec3<Interval>) -> Vec3<Interval> {
+    pub(crate) fn frame_gradient(&self, q: Vec3<Interval>) -> Vec3<Interval> {
         let two = Interval::point(2.0);
         match self.form {
             Form::Cylinder { .. } => Vec3::new(two * q.x, two * q.y, Interval::point(0.0)),
@@ -218,6 +218,42 @@ impl Curved {
                     four * q.y - eight * q.y,
                     four * q.z,
                 )
+            }
+        }
+    }
+
+    /// A world vector written in the frame.
+    pub(crate) fn frame_vector(&self, d: Vec3<Interval>) -> Vec3<Interval> {
+        Vec3::new(
+            d.dot(self.frame[0]),
+            d.dot(self.frame[1]),
+            d.dot(self.frame[2]),
+        )
+    }
+
+    /// `∇²f` over the frame box `q`, in the frame's coordinates, by rows.
+    pub(crate) fn frame_hessian(&self, q: Vec3<Interval>) -> [[Interval; 3]; 3] {
+        let (o, two) = (Interval::point(0.0), Interval::point(2.0));
+        match self.form {
+            Form::Cylinder { .. } => [[two, o, o], [o, two, o], [o, o, o]],
+            Form::Sphere { .. } => [[two, o, o], [o, two, o], [o, o, two]],
+            Form::Torus { major, minor } => {
+                // f = s² − 4R²(x² + y²), s = |q|² + R² − r²: ∇²f is
+                // 4s·I + 8·q qᵀ − 8R²·diag(1, 1, 0).
+                let shifted = q.x.sqr() + q.y.sqr() + q.z.sqr() + major.sqr() - minor.sqr();
+                let (four, eight) = (Interval::point(4.0) * shifted, Interval::point(8.0));
+                let r2 = eight * major.sqr();
+                let c = [q.x, q.y, q.z];
+                let mut h = [[o; 3]; 3];
+                for (i, row) in h.iter_mut().enumerate() {
+                    for (j, e) in row.iter_mut().enumerate() {
+                        *e = eight * c[i] * c[j];
+                        if i == j {
+                            *e = *e + four - if i < 2 { r2 } else { o };
+                        }
+                    }
+                }
+                h
             }
         }
     }

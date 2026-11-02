@@ -2,10 +2,11 @@
 id: a-meeting-scope-over-a-box-refuses-where-topology-decides-zero
 kind: issue
 title: A clearance between scopes that meet refuses box_dependent over a box where topology decides 0
-status: open
+status: closed
 opened: 2026-11-02
 priority: P2
 cost: E
+closed: 2026-11-02
 ---
 
 
@@ -28,3 +29,13 @@ Repair: a meeting candidate's `Within` belongs to the topology —
 it there, before the enclosure. Who hits it: a contact requirement
 (`= 0`, `≤ small`) between scopes that meet, on a part whose geometry
 varies with a parameter.
+
+## Closed
+
+PR 6354. A meeting candidate's station pair (the vertex both faces
+share, or one vertex of the one face) is read as separation exactly 0
+in `Enclosure::separation`, so an upper bound between scopes that meet
+is `Within` over a box; every other pair still goes through the
+interval enclosure. Sound as a universal proof because the meeting is
+topological, fixed over the lane's box: the shared point exists at
+every realization. Orchestrator's read (E).
