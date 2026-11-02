@@ -283,3 +283,13 @@ and bodies unchanged. No orchestrator yet.
   - NURBS stage 3's node arcs must end at the node along its ray, matched once at carry, or refuse typed. This goes into 3b's brief, not 3a's.
   - `cylinder_cylinder` lists nodes whose arcs the region dropped. Fix it in 3b-ii.
   - The −π/2/3π/2 parameter wrap means a node seat is the span end. Use this in 3b-i/ii.
+
+- 2026-11-02 21:30 — **NURBS stage 3a-0 is up as PR 6400.** The SSI ends, handle, fit and exit code are now generic over a new `SectionSystem<M,N>`. A probe dump on base and head (2.1 MB, sha256 equal) shows the outputs bit-identical, and CI is green.
+  - **Left for 3a:**
+    - the 1×2 pcurve shape: `feet` returns two, and the implicit side has no chart;
+    - the public `SeedOutsideTube` state array;
+    - an `Operands`/`Lane` variant;
+    - the `hermite` docs;
+    - `RectExit` offsets;
+    - limb 3.
+  - A single full review is running in a cloud session.
