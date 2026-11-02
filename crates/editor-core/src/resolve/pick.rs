@@ -643,9 +643,9 @@ impl crate::spoken::Say for NodePickError {
             Self::NotABody { node } => write!(
                 f,
                 "pick: {}'s value is not body-denoting (a pose, profile, declaration, or \
-                 mate), so there is nothing to tessellate and index — offer a body-producing \
-                 node instead",
-                by.node(*node)
+                 mate), so there is nothing to tessellate and index. {}",
+                by.node(*node),
+                crate::sentence::Recourse("offer a body-producing node instead")
             ),
             Self::NoSuchBody { node, body } => write!(
                 f,
