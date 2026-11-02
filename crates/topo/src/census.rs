@@ -8946,7 +8946,7 @@ fn tangent_sectors<T: Decide>(
 /// its axis `a` (a plane's normal), and `a × u` — what the tangent
 /// plane's fan is turned from ([`crate::link::TangentFan::Inside`]).
 /// `None` on a spline, which has no such frame.
-fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3<T>; 3]> {
+pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3<T>; 3]> {
     let (u, a) = match *surface {
         geom::Surface::Plane { u_ref, normal, .. } => (u_ref, normal),
         geom::Surface::Cylinder { u_ref, axis, .. }

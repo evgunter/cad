@@ -156,7 +156,13 @@ fn rows_hold(at: Seat) {
     let ruling_into = [[0.0, 0.0, 0.3], [0.3, -0.1, 0.1], [-0.3, 0.15, 0.1]];
     let circle = [[0.0, 0.3, 0.0], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
     let corner_into = [[-0.3, 0.1, 0.15], [-0.1, 0.3, 0.1], [-0.2, 0.05, 0.3]];
+    let under = [[0.0, 0.0, -0.3], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
+    // Along the circle, off the wall by three of the band's zero (in
+    // band) and by three of its escalation (decided).
+    let lift = |by: f64| [[by, 0.3, 0.0], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
+    let (zero, escalate) = (band().zero(), band().escalate());
     let rest = |v: &SelfTouch| matches!(v, SelfTouch::Read(TouchVerdict::Rest(_)));
+    let in_band = |v: &SelfTouch| *v == SelfTouch::Read(TouchVerdict::Unread(TouchUnread::InBand));
     let crossing = |v: &SelfTouch| *v == SelfTouch::Read(Crossing);
     let tangency = |v: &SelfTouch| *v == SelfTouch::SecondOrder(TouchUnread::Unreadable);
     type Reads = fn(&SelfTouch) -> bool;
@@ -171,6 +177,7 @@ fn rows_hold(at: Seat) {
             ("off", off, rest),
             ("into", into, crossing),
             ("along the arc", circle, tangency),
+            ("down the wall's plane, under the post", under, rest),
         ],
         Seat::Wall => vec![
             ("off", off, rest),
@@ -178,6 +185,16 @@ fn rows_hold(at: Seat) {
             ("along the ruling", ruling, rest),
             ("along the ruling, into", ruling_into, crossing),
             ("along the circle", circle, tangency),
+            (
+                "along the circle, off it in band",
+                lift(3.0 * zero),
+                in_band,
+            ),
+            (
+                "along the circle, off it past the band",
+                lift(3.0 * escalate),
+                rest,
+            ),
         ],
     };
     let mut bad = Vec::new();
@@ -272,4 +289,135 @@ fn an_edge_leaves_its_vertex_along_its_tangent_there() {
         }
     }
     assert_eq!(arcs, 2, "both halves of the arc");
+}
+
+/// **A corner whose two edges leave its vertex along one tangent is a
+/// cusp, left to second order**: a lamina in `z = 0` bounded by the unit
+/// circle's arc from `(1, 0)` to `(0, 1)`, the line on to `(1, 1)` and
+/// the line back down to `(1, 0)`, which leaves that vertex along the
+/// arc's own tangent there; a parallelepiped's corner below the lamina
+/// on that vertex, in its solid, tied to it. The arc and the line bend
+/// apart only to second order, so which side of the tangent the face
+/// lies on is no first-order reading's. Red where the cusp reads as half
+/// a turn, or as a whole one.
+#[test]
+fn a_cusp_corner_is_left_to_second_order() {
+    use crate::euler::{FaceSurface, MefSite, MevSite};
+    use crate::test_support_fixtures::line;
+    let tol = Tol::witness();
+    let o = Point3::origin();
+    let circle = geom::Curve3::Circle {
+        center: o,
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let (a, b, c) = (
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(0.0, 1.0, 0.0),
+        Point3::new(1.0, 1.0, 0.0),
+    );
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(a, true).unwrap();
+    let plane = body.add_surface(geom::Surface::Plane {
+        origin: o,
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    });
+    let wall = body.add_surface(geom::Surface::Cylinder {
+        origin: o,
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    });
+    let arc = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            b,
+            geom_brep::EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
+                    pair: geom_brep::SurfacePair::new(wall, plane),
+                    selector: geom_brep::CurveSelector::Witness(
+                        circle.eval(core::f64::consts::FRAC_PI_4),
+                    ),
+                },
+                carrier: circle,
+                param_start: 0.0,
+                param_end: core::f64::consts::FRAC_PI_2,
+            },
+            tol,
+        )
+        .unwrap();
+    let top = body
+        .mev(
+            MevSite::Fan {
+                he1: arc.he_minus,
+                he2: arc.he_minus,
+            },
+            c,
+            line(b, c),
+            tol,
+        )
+        .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: top.he_minus,
+            he2: arc.he_plus,
+        },
+        line(c, a),
+        FaceSurface::Shared {
+            key: plane,
+            sense: true,
+        },
+        tol,
+    )
+    .unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::Shared {
+            key: plane,
+            sense: false,
+        },
+    )
+    .unwrap();
+    let (e0, e1, e2) = (
+        Vec3::new(0.3, -0.1, -0.2),
+        Vec3::new(-0.1, -0.3, -0.2),
+        Vec3::new(0.1, 0.1, -0.3),
+    );
+    let (e0, e1) = if e0.cross(e1).dot(e2) < 0.0 {
+        (e1, e0)
+    } else {
+        (e0, e1)
+    };
+    let part = mapped_cube::<f64>(move |u, v, w| a + e0 * u + e1 * v + e2 * w, tol);
+    let before: BTreeSet<VertexKey> = body.vertices.keys().collect();
+    let keep = census_entity_solid(&body, EntityId::Vertex(*before.first().unwrap())).unwrap();
+    let gone = crate::instance::graft_disjoint(&mut body, &part).unwrap();
+    for sh in body.solids.remove(gone).unwrap().shells {
+        body.shells[sh].solid = keep;
+        body.solids[keep].shells.push(sh);
+    }
+    body.solid_provenance.remove(gone);
+    let at = |body: &Body<f64>, v: VertexKey| body.points[body.vertices[v].point];
+    let near = |body: &Body<f64>, v: VertexKey| (at(body, v) - a).norm() < 1e-12;
+    let corner = body
+        .vertices
+        .keys()
+        .find(|&v| !before.contains(&v) && near(&body, v))
+        .unwrap();
+    let cusp = before.iter().copied().find(|&v| near(&body, v)).unwrap();
+    let ties = Ties {
+        vv: vec![(corner, cusp), (cusp, corner)],
+        ..Ties::default()
+    };
+    let (planar, verdict) = read(&body, corner, &ties);
+    assert_eq!(
+        planar,
+        TouchUnread::Unreadable,
+        "a planar face's curved edge held at its corner"
+    );
+    assert_eq!(verdict, SelfTouch::SecondOrder(TouchUnread::Unreadable));
 }

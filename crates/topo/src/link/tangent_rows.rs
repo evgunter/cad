@@ -84,6 +84,17 @@ fn corner(
     keys: &[EdgeKey],
     curves: &[usize],
 ) -> Vec<FaceSector<f64>> {
+    corner_at(Point3::origin(), ring, inside, keys, curves)
+}
+
+/// [`corner`] at `p`.
+fn corner_at(
+    p: Point3<f64>,
+    ring: &[Vec3<f64>],
+    inside: bool,
+    keys: &[EdgeKey],
+    curves: &[usize],
+) -> Vec<FaceSector<f64>> {
     let axis = ring.iter().fold(Vec3::zero(), |s, &r| s + r);
     let n = ring.len();
     (0..n)
@@ -97,8 +108,7 @@ fn corner(
                 (-m, ring[b], ring[a], [tag(b), tag(a)])
             };
             let fan = TangentFan::Corner { d0, d1, bounds };
-            FaceSector::tangent(plane(m), true, m, Point3::origin(), fan, band())
-                .expect("a corner's face")
+            FaceSector::tangent(plane(m), true, m, p, fan, band()).expect("a corner's face")
         })
         .collect()
 }
@@ -254,4 +264,134 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
         Unread(TouchUnread::Unreadable),
         "against a ball"
     );
+}
+
+/// A ball of radius `r` about `c`, its axis `a`.
+fn ball(c: Point3<f64>, r: f64, a: Vec3<f64>) -> geom::Surface<f64> {
+    geom::Surface::Sphere {
+        center: c,
+        radius: r,
+        axis: a,
+        u_ref: a.cross(v(0.3, -0.7, 0.2)).normalize(),
+    }
+}
+
+/// A sphere face's whole tangent plane at `p`, outward `n`, its fan
+/// turned off the carrier's own frame as the census turns it
+/// ([`crate::census::carrier_frame`]), out to `reach`.
+fn whole_at(s: geom::Surface<f64>, n: Vec3<f64>, p: Point3<f64>, reach: f64) -> FaceSector<f64> {
+    let frame = crate::census::carrier_frame(&s).expect("an analytic carrier");
+    let fan = TangentFan::Inside { reach, frame };
+    FaceSector::tangent(s, true, n, p, fan, band()).expect("a whole plane")
+}
+
+fn read_at(p: Point3<f64>, sectors: Vec<FaceSector<f64>>) -> TouchVerdict {
+    rest::one_material(&Link::of(p, sectors).expect("a link"), band())
+}
+
+/// **A sphere's whole tangent plane at its pole, its axis tilted, reads
+/// by its first order**: its fan lies in the plane however the pole
+/// rounds. Two balls kissing there, and a ball in a socket, are one
+/// plane to first order and refuse; a corner resting shallow on the
+/// ball off its material rests. Near the origin and a kilometre off it,
+/// at five tilts of the axis. Red where the fan leaves the plane on
+/// rounding (a kiss read as a crossing or degenerate, the rest as a
+/// crossing).
+#[test]
+fn a_sphere_poles_whole_plane_reads_by_its_first_order_at_any_tilt() {
+    use TouchVerdict::Unread;
+    let k = edges(3);
+    let mut bad = Vec::new();
+    for raw in [
+        [1.0, 2.0, 3.0],
+        [0.3, -0.9, 0.1],
+        [-2.0, 0.5, 7.0],
+        [1.0, 1.0, 1.0],
+        [0.1, 0.2, -0.97],
+    ] {
+        let a = v(raw[0], raw[1], raw[2]).normalize();
+        let s0 = a.cross(v(0.3, -0.7, 0.2)).normalize();
+        let s1 = a.cross(s0);
+        for far in [0.0, 1e3] {
+            let p = Point3::new(0.3 + far, -0.2 + 2.0 * far, 0.1);
+            let r = 0.7;
+            // The ball below `p` along `a`, outward `a` at its pole.
+            let below = || whole_at(ball(p - a * r, r, a), a, p, 1.0);
+            let kiss = whole_at(ball(p + a * r, r, a), -a, p, 1.0);
+            let socket = whole_at(ball(p - a * (2.0 * r), 2.0 * r, a), -a, p, 1.0);
+            for (what, other) in [("kissing", kiss), ("in a socket", socket)] {
+                let got = read_at(p, vec![other, below()]);
+                if got != Unread(TouchUnread::Unreadable) {
+                    bad.push(format!("{raw:?} {far}: {what}: {got:?}"));
+                }
+            }
+            let ring = [
+                s0 * 0.3 + a * 0.05,
+                s1 * 0.3 + a * 0.05,
+                -(s0 + s1) * 0.2 + a * 0.05,
+            ];
+            let mut rest = corner_at(p, &ring, true, &k, &[]);
+            rest.push(below());
+            let got = read_at(p, rest);
+            if !matches!(got, TouchVerdict::Rest(_)) {
+                bad.push(format!("{raw:?} {far}: a shallow corner: {got:?}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+/// **Two whole tangent planes are read one plane each against the
+/// other**: a ball's plane out to a hundred metres and another's out to
+/// a centimetre, turned off each other by an angle the long fan reads
+/// past the band and the short one inside it, refuse in either order.
+/// Red where only the first plane's rays are read against the second's.
+#[test]
+fn two_whole_planes_are_read_one_plane_either_way_round() {
+    let (z, x) = (v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0));
+    let theta = 3.0 * band().escalate() / 100.0;
+    let tilted = (z * theta.cos() + x * theta.sin()).normalize();
+    let o = Point3::origin();
+    let long = || whole_at(ball(o - z, 1.0, z), z, o, 100.0);
+    let short = || whole_at(ball(o + tilted, 1.0, tilted), -tilted, o, 0.01);
+    for (what, s) in [
+        ("long first", vec![long(), short()]),
+        ("short first", vec![short(), long()]),
+    ] {
+        assert_eq!(
+            read(s),
+            TouchVerdict::Unread(TouchUnread::Unreadable),
+            "{what}"
+        );
+    }
+}
+
+/// **A slit's tip is the whole turn**: one edge leaving and coming back
+/// along one direction is four quarter turns, where two edges doing so
+/// are a cusp, refused. Red where a slit's tip reads as a cusp, or a
+/// cusp as a whole turn.
+#[test]
+fn a_slits_tip_is_the_whole_turn_and_a_cusp_refuses() {
+    let z = v(0.0, 0.0, 1.0);
+    let d = v(2.0, 0.0, 0.0);
+    let tip = corner_fan(Point3::origin(), z, (d, d), true, band()).expect("a slit's tip");
+    assert_eq!(tip.len(), 4, "{tip:?}");
+    assert!(matches!(
+        corner_fan(Point3::origin(), z, (d, d), false, band()),
+        Err(TouchUnread::Unreadable)
+    ));
+}
+
+/// **A bound in band of another sector's plane refuses in band**: a
+/// corner on a ball's tangent plane, one of its edges off the plane by
+/// three of the band's zero. Red where an in-band reading is passed as
+/// off the plane.
+#[test]
+fn a_bound_in_band_of_another_plane_refuses_in_band() {
+    let k = edges(3);
+    let lift = 3.0 * band().zero();
+    let ring = [v(1.0, 0.0, lift), v(-0.2, 0.3, 1.0), v(-0.1, -0.4, 1.0)];
+    let mut s = corner(&ring, true, &k, &[]);
+    s.push(whole(sphere(-1.0), true));
+    assert_eq!(read(s), TouchVerdict::Unread(TouchUnread::InBand));
 }
