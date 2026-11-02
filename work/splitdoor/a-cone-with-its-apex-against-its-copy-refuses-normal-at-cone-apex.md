@@ -2,10 +2,11 @@
 id: a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex
 kind: issue
 title: A cone with its apex, booleaned with an identical copy, refuses NormalAtConeApex at the apex vertex before the On verdict
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: H
+branch: splitdoor/cone-apex-vertex-pairs
 ---
 
 
