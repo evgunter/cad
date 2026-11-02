@@ -16,6 +16,13 @@
 //! two edges as the window of the whole turn, and each side holds its
 //! closed form, the cone over its part of the rim's disc less the
 //! cavity, and passes tiers 3 and 3′.
+//!
+//! A Boolean against the half-space beyond each of those planes reads the
+//! apex as the wall's rulings too (`boolean::sectors::build_sectors`): each
+//! op builds its closed form and places a lattice of points as the region
+//! does, but for the half-space less the cone where the cavity lies in
+//! the half-space, whose result holds the cavity touching the cone's hole
+//! along the slit's ruling, and refuses typed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
@@ -23,8 +30,8 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
 use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
 use topo::{
-    Body, ContactRecords, FaceKey, HalfEdgeKey, SplitPart, VertexKey, split, validate_geometric,
-    validate_pseudomanifold,
+    Body, BooleanError, ContactRecords, FaceKey, HalfEdgeKey, SplitPart, VertexKey, split,
+    validate_geometric, validate_pseudomanifold,
 };
 
 fn tol() -> Tol {
@@ -341,6 +348,177 @@ fn a_split_through_the_apex_reversed_or_near_the_slit_builds() {
                 Ok(()),
                 "{what}: tier 3′"
             );
+        }
+    }
+}
+
+/// The half-space `n·p > 0` (`n` unit), as the cube of side 8 with a face
+/// on its plane, the apex at that face's centre.
+fn half_space(n: Vec3<f64>) -> topo::AtRestBody<f64> {
+    use geom_core::Affine3;
+    let b = topo::test_support::brick((0.0, 8.0), (-4.0, 4.0), (-4.0, 4.0), tol());
+    let x = Vec3::new(1.0, 0.0, 0.0);
+    let c = x.cross(n);
+    let turn = if c.norm() < 1e-15 {
+        Affine3::rotation_about_axis(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            core::f64::consts::PI * (1.0 - n.x) / 2.0,
+        )
+    } else {
+        Affine3::rotation_about_axis(
+            Point3::origin(),
+            c / c.norm(),
+            x.dot(n).clamp(-1.0, 1.0).acos(),
+        )
+    };
+    let moved =
+        topo::transform_rigid(&b, &geom_core::test_support::rigid(&turn, tol()), tol()).unwrap();
+    topo::test_support::finished("the half-space", moved, tol())
+}
+
+/// The notched cone's region as a signed margin, positive inside: the
+/// cone less the cavity, each the least of its faces' margins.
+fn the_notched_cone(p: Point3<f64>) -> f64 {
+    let cone = (p.z - p.x.hypot(p.y)).min(1.0 - p.z);
+    let a = Point3::new(0.0, 0.0, 0.0);
+    let r = Point3::new(0.0, 1.0, 1.0);
+    let (q1, q2) = (Point3::new(0.1, 0.3, 0.6), Point3::new(-0.1, 0.3, 0.6));
+    let corners = [a, r, q1, q2];
+    let mut cavity = f64::INFINITY;
+    for k in 0..4 {
+        let [u, v, w] = [0, 1, 2].map(|j| corners[(k + 1 + j) % 4]);
+        let n = (v - u).cross(w - u);
+        let n = n / n.norm();
+        // Inward: toward the corner off this face.
+        let n = if n.dot(corners[k] - u) > 0.0 { n } else { -n };
+        cavity = cavity.min(n.dot(p - u));
+    }
+    cone.min(-cavity)
+}
+
+/// Holds `b` to `want` and to `region` at a lattice about the cone, and to
+/// tiers 3 and 3′ over the contacts it records.
+fn holds(what: &str, b: &topo::BooleanBody<f64>, want: f64, region: &dyn Fn(Point3<f64>) -> f64) {
+    let v = topo::test_support::pinned_volume(what, &b.body, tol()).volume;
+    assert!((v - want).abs() < 1e-9, "{what}: holds {v}, not {want}");
+    assert_eq!(validate_geometric(&b.body, tol()), Ok(()), "{what}: tier 3");
+    assert_eq!(
+        validate_pseudomanifold(&b.body, &b.contacts, tol()),
+        Ok(()),
+        "{what}: tier 3′"
+    );
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let n = 8;
+    let at = |t: usize, o: f64, lo: f64, w: f64| lo + w * (t as f64 + o) / (n as f64 - 1.0 + 0.37);
+    for i in 0..n {
+        for j in 0..n {
+            for k in 0..n {
+                let p = Point3::new(
+                    at(i, 0.11, -1.1, 2.2),
+                    at(j, 0.23, -1.1, 2.2),
+                    at(k, 0.07, -0.1, 1.2),
+                );
+                let s = region(p);
+                if s.abs() < 3e-3 {
+                    continue;
+                }
+                let want = if s > 0.0 {
+                    topo::SolidContainment::In
+                } else {
+                    topo::SolidContainment::Out
+                };
+                assert_eq!(
+                    topo::point_in_solid(&b.body, p, band, tol()),
+                    Ok(want),
+                    "{what}: places {p:?}"
+                );
+            }
+        }
+    }
+}
+
+/// **A Boolean through the apex at the slit's tip builds**, against the
+/// half-space beyond each of the split rows' planes: each op at its
+/// closed form, the cone over its part of the rim's disc less the cavity
+/// where the cavity lies on its side, and placing a lattice of points as
+/// the region does; but for the half-space less the cone where the
+/// cavity lies in the half-space, which refuses typed.
+#[test]
+fn a_boolean_through_the_apex_at_the_slits_tip_builds() {
+    let body = topo::test_support::finished("the notched cone", notched_cone(), tol());
+    let cone = core::f64::consts::PI / 3.0 - CAVITY;
+    for n in [
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(1.0, 0.5, 0.0),
+        Vec3::new(0.3, 1.0, -0.2),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec3::new(-1.0, -0.5, 0.0),
+        Vec3::new(-0.3, -1.0, 0.2),
+        Vec3::new(-0.3, -0.1, 0.101),
+        Vec3::new(0.3, -0.1, 0.101),
+        Vec3::new(-0.3, -0.1, 0.1),
+        Vec3::new(0.3, -0.1, 0.1),
+    ] {
+        // A plane holding a cavity face, `(±0.3, −0.1, 0.1)`.
+        let flush = n.y == -0.1 && n.z == 0.1;
+        let n = n / n.norm();
+        let h = half_space(n);
+        // The cavity lies on the half-space's side where its centroid does.
+        let cavity_beyond = n.dot(Vec3::new(0.0, 0.3, 0.6)) > 0.0;
+        let beyond =
+            core::f64::consts::PI / 3.0 - cone_below(n) - if cavity_beyond { CAVITY } else { 0.0 };
+        let half = move |p: Point3<f64>| n.dot(p - Point3::origin());
+        type Region = Box<dyn Fn(Point3<f64>) -> f64>;
+        for (op, r, want, region) in [
+            (
+                "c ∩ h",
+                topo::intersect(&body, &h, tol()),
+                beyond,
+                Box::new(move |p| the_notched_cone(p).min(half(p))) as Region,
+            ),
+            (
+                "h ∩ c",
+                topo::intersect(&h, &body, tol()),
+                beyond,
+                Box::new(move |p| the_notched_cone(p).min(half(p))),
+            ),
+            (
+                "c ∖ h",
+                topo::subtract(&body, &h, tol()),
+                cone - beyond,
+                Box::new(move |p| the_notched_cone(p).min(-half(p))),
+            ),
+            (
+                "c ∪ h",
+                topo::union(&body, &h, tol()),
+                512.0 + cone - beyond,
+                Box::new(move |p| the_notched_cone(p).max(half(p))),
+            ),
+            (
+                "h ∖ c",
+                topo::subtract(&h, &body, tol()),
+                512.0 - beyond,
+                Box::new(move |p| half(p).min(-the_notched_cone(p))),
+            ),
+        ] {
+            let what = format!("n {n:?}, {op}");
+            match r {
+                Ok(topo::BooleanResult::Body(b)) => holds(&what, &b, want, &region),
+                // The box less the cone holds the cavity as a solid of its
+                // own, touching the cone's hole along the slit's ruling:
+                // the result's two coincident edges there refuse, or where
+                // the plane holds a cavity face, the edge it leaves in it.
+                Err(BooleanError::LineWedges {
+                    fault: topo::LineWedgeFault::Overlap { .. },
+                    ..
+                }) if op == "h ∖ c" && cavity_beyond && !flush => {}
+                Err(BooleanError::EdgeInFace {
+                    gap: topo::EdgeInFaceGap::Pocket,
+                    ..
+                }) if op == "h ∖ c" && cavity_beyond && flush => {}
+                other => panic!("{what}: {other:?}"),
+            }
         }
     }
 }
