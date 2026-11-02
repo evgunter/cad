@@ -123,3 +123,11 @@ AUTHOR's narrative is recoverable from
   - One orchestrator ruling on pass 3: a held pick is said on the copy that was clicked, because a mate seats on a copy and two copies must read apart.
 - 2026-11-01 — (DOORS orchestrator) **Clearance ratified (PR 6261, merged).** A clearance is an E10 assertion on `clearance(a, b)`, bounded below, above, or both. Two bounds are one fused E7 sweep. The minimum is never computed. The witness is a violating pair, or the proving pair for an upper bound. The row reads like an equation. The kernel half is filed here as `a-clearance-assertion-is-decided-by-the-sweep` (P1 H) and dispatched; `the-gui-has-no-clearance-consumer` is parked on it and re-priced M for the viewer half. **Tier: dual-quality.** It is a style review plus a correctness reviewer, because it retires a measure, changes an assertion form and touches a validation-adjacent engine.
 - 2026-11-01 — (DOORS orchestrator) The clearance kernel lane runs as its own cloud session, `session_013mPGJ3FZxeHCcvJtYKZoR9`, on branch `doors/clearance-assertion`, because local disk was at 7.5 GB with the takeover lane building. The lane reports as the PR's final comment.
+
+## 2026-11-02 00:40 — 6264 fix pass 2 in; re-verify dispatched
+
+- Fix pass 2 head `719b90b0c3`, CI green. Re-seat now happens at commit (`perform_with` + `Holds`, one `follow` site); pending queue gone. Merged onto main's seen-path `Takeover::of` (SPACES) — main's is now the one place deciding which copies a takeover reaches.
+- Class finding (logged here as its durable home): a per-frame step judged held names against a landed run that answered an *older* document, so a pick that followed at commit was dropped before landing. Fixed for the open tool's survival step (`!busy` gate); re-verify asked to sweep for other such paths. Rule of thumb for viewer lanes: a name question asked of a run must check the run answers the shown document.
+- Main was red on `node_standing` (count 18→20 after `cc28b3997f`'s members.rs reads); the bump rides 6264. Re-verify confirms the reads fall under the listed reason.
+- Fused-pattern takeover deferred to `a-fused-patterns-takeover-rebinds-nothing` (P3, design) — no single successor per face.
+- Re-verify (style + correctness, prior digests as the checklist) dispatched on the new head.
