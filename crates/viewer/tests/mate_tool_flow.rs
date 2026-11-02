@@ -7,7 +7,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::{Dimension, Formula};
 
 use common::asm;
 use common::{ang, len, scl};
@@ -492,7 +491,7 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     }
 }
 
-/// **A9 — a pick on a pattern copy OVER A TRANSFORM is a target**, read
+/// **A9 — a pick on a pattern copy OVER A PLACEMENT is a target**, read
 /// at the node the ray met: the copy's placement, under the pattern's
 /// copy-headed name. The composed offset is the solve's to apply.
 #[test]
@@ -500,21 +499,23 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let tol = Tol::witness();
     let bench = asm::bench("matepatternnon", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // A transform between the instance and the pattern: the pattern's
-    // input is the move's `Place`, not an `InstantiatePart`, which is
-    // one of the heads `member_of` declines.
-    let moved = common::session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: bench.post_b.into(),
-            translation: [
-                Formula::zero(Dimension::Length),
-                Formula::zero(Dimension::Length),
-                Formula::zero(Dimension::Length),
-            ],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
+    session.pump();
+    // A placement between the instance and the pattern — a duplicate of
+    // the instance's copy: the pattern's input is the duplicate's
+    // `Place`, not an `InstantiatePart`, which is one of the heads
+    // `member_of` declines.
+    let duplicated = session.perform(SessionOp::Duplicate {
+        input: bench.post_b.into(),
+        beside: None,
+    });
+    assert!(duplicated.refusal.is_none(), "{:?}", duplicated.refusal);
+    let moved = duplicated.made.expect("the duplicate's copy");
+    assert!(
+        matches!(
+            session.committed_doc().node(moved),
+            Some(pncad::document::Node::Place { .. })
+        ),
+        "the pattern's head is a Place"
     );
     session.pump();
     let pattern = common::session_insert(

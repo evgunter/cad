@@ -36,12 +36,11 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::{Dimension, Formula};
 use viewer::session::BooleanSpec;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape, translation};
+use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -155,18 +154,10 @@ fn circle(session: &mut DocSession, radius: f64) -> RecipeNodeId {
     )
 }
 
-/// `body` moved by `translation` — the transform gesture, which places
-/// the body against its own geometry.
+/// `body` moved by `translation` — the Transform tool on a body nothing
+/// places: the placement editor's Create door, its slides typed.
 fn lifted(session: &mut DocSession, body: RecipeNodeId, translation: [f64; 3]) -> RecipeNodeId {
-    session_insert(
-        session,
-        SessionOp::AddTransform {
-            input: body.into(),
-            translation: len3(translation),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
-    )
+    common::moved_to(session, body, translation)
 }
 
 /// The whole sitting, top to bottom. One test because it is one
@@ -288,8 +279,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
 
     // ── The crown: two crossing slots, the second the first cutter
-    //    quarter-turned about the axis (one cutter body, moved by
-    //    both transforms — the DAG's sharing) ─────────────────────────
+    //    quarter-turned about the axis (one cutter body, copied twice:
+    //    the second a duplicate of the first copy, moved by the
+    //    Transform tool's Edit door — the DAG's sharing) ──────────────
     let (_, cutter) = common::box_in(&mut session, [CUT_W, CUT_T, CUT_H]);
     let cutter1 = lifted(&mut session, cutter, [0.0, 0.0, CUT_Z]);
     let cut1 = session_insert(
@@ -306,15 +298,21 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         near(v_cut1, v_u3 - slab_area() * (DRUM_Z + DRUM_H - CUT_Z)),
         "the first slot removes a chord slab of the drum: {v_cut1}"
     );
-    let cutter2 = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: cutter.into(),
-            translation: translation([0.0, 0.0, CUT_Z + CUT2_LIFT]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(FRAC_PI_2),
-        },
-    );
+    session.pump();
+    let duplicated = session.perform(SessionOp::Duplicate {
+        input: cutter1.into(),
+        beside: None,
+    });
+    assert!(duplicated.refusal.is_none(), "{:?}", duplicated.refusal);
+    let cutter2 = duplicated.made.expect("the second copy of the cutter");
+    let mut values = common::slides([0.0, 0.0, CUT_Z + CUT2_LIFT]);
+    values.push((
+        pncad::document::Coord::Spin(Some(pncad::document::TargetAxis::Z)),
+        ang(FRAC_PI_2),
+    ));
+    let op = common::transformed(&mut session, cutter2, &values);
+    let moved = session.perform(op);
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
     let carved = session_insert(
         &mut session,
         SessionOp::AddBoolean {

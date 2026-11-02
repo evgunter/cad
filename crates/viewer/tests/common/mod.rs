@@ -984,3 +984,66 @@ pub fn proposed(
         .chosen(choice)?
         .proposal(doc, ev, session.tol())
 }
+
+/// **The Transform tool, as a person drives it**: the placement editor
+/// opened on `node` by the tool's door
+/// ([`viewer::matetool::MateTool::moving`]), each of `values` typed on
+/// its value row, and its Apply — the Create door's `Place` on a body
+/// nothing places, the Edit door's `SetBundle` on a copy. Pumps first:
+/// the editor derives its Apply against the landed pair.
+///
+/// # Panics
+///
+/// Where the door does not open or the draft proposes no Apply.
+pub fn transformed(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    values: &[(pncad::document::Coord, Formula)],
+) -> SessionOp {
+    transformed_at(session, node, None, values)
+}
+
+/// [`transformed`] of the output `body` of `node` a viewport pick hit —
+/// a split's half.
+pub fn transformed_at(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    body: Option<u32>,
+    values: &[(pncad::document::Coord, Formula)],
+) -> SessionOp {
+    session.pump();
+    let tol = session.tol();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let mut tool = viewer::matetool::MateTool::moving(doc, node, body)
+        .unwrap_or_else(|event| panic!("the Transform tool opens on {node:?}: {event}"));
+    for (coord, by) in values {
+        tool.type_value(*coord, by.clone());
+    }
+    tool.proposal(doc, ev, tol)
+        .unwrap_or_else(|error| panic!("the draft proposes an Apply: {error}"))
+        .op()
+}
+
+/// **The three slides the Transform tool types**, each zero the constant
+/// `0` ([`translation`]).
+pub fn slides(by: [f64; 3]) -> Vec<(pncad::document::Coord, Formula)> {
+    pncad::document::TargetAxis::ALL
+        .into_iter()
+        .zip(translation(by))
+        .map(|(axis, by)| (pncad::document::Coord::Slide(axis), by))
+        .collect()
+}
+
+/// **`node` moved by the Transform tool to the slides `by`**, its other values
+/// as the door loads them, and the placement it wrote: the new copy a
+/// Create inserts, or the copy an Edit rewrote.
+pub fn moved_to(session: &mut DocSession, node: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
+    let op = transformed(session, node, &slides(by));
+    let edited = match &op {
+        SessionOp::SetBundle { placement, .. } => Some(*placement),
+        _ => None,
+    };
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    edited.unwrap_or_else(|| outcome.made.expect("the Create door made a copy"))
+}
