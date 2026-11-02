@@ -301,7 +301,12 @@ jobs:
           if [ "$TIER" = all ]; then
             cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
           else
-            [ "$TOOLKIT" = true ] || SCOPE="$(echo " $SCOPE " | sed 's/ -p viewer / /')"
+            if [ "$TOOLKIT" != true ] && [[ " $SCOPE " == *" -p viewer "* ]]; then
+              SCOPE="$(echo " $SCOPE " | sed 's/ -p viewer / /')"
+              # The test shards build no examples, so viewer's featureless
+              # ones are checked here; the viewer job checks the rest.
+              cargo clippy -p viewer --examples -- -D warnings
+            fi
             # shellcheck disable=SC2086 # SCOPE is a list of -p flags
             cargo clippy $SCOPE --all-targets --all-features -- -D warnings
           fi
