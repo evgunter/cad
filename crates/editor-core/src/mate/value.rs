@@ -672,7 +672,7 @@ fn coordinates<T: SolveScalar>(heads: &[Heading<T>], t: Vec3<T>) -> Option<Vec<T
     match heads.len() {
         2 => {
             let (a, b, c) = (g(0, 0), g(0, 1), g(1, 1));
-            let det = a * c - b * b;
+            let det = a * c - b.powi(2);
             if zero(det) {
                 return None;
             }
@@ -1445,14 +1445,28 @@ mod tests {
             });
         let want = Affine3::from_parts(Mat3::identity(), shift) * spun;
         let bits = |m: &Affine3<f64>| {
-            [m.translation.x, m.translation.y, m.translation.z].map(f64::to_bits)
+            let l = m.linear;
+            [
+                m.translation.x,
+                m.translation.y,
+                m.translation.z,
+                l.c0.x,
+                l.c0.y,
+                l.c0.z,
+                l.c1.x,
+                l.c1.y,
+                l.c1.z,
+                l.c2.x,
+                l.c2.y,
+                l.c2.z,
+            ]
+            .map(f64::to_bits)
         };
         assert_eq!(
             bits(&at),
             bits(&want),
-            "the settled origin, {at:?} against {want:?}"
+            "the settled map, {at:?} against {want:?}"
         );
-        assert_eq!(at.linear, want.linear, "the settled turn");
         assert!(
             (t - at.translation).norm() > 1e-3,
             "the slides moved the copy: the row is not vacuous"

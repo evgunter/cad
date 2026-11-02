@@ -4420,11 +4420,11 @@ mod properties_pane_tests {
             .into_iter()
             .flat_map(|axis| {
                 [
-                    pncad::document::Coord::slide(axis),
-                    pncad::document::Coord::Spin(Some(axis)),
+                    <pncad::document::Coord>::slide(axis),
+                    <pncad::document::Coord>::spin(axis),
                 ]
             })
-            .map(pncad::document::Coord::name)
+            .map(|coord| coord.name())
             .collect();
         let fields: Vec<(String, egui::Pos2)> = painted
             .windows(2)
@@ -4447,7 +4447,7 @@ mod properties_pane_tests {
         let slide_x = painted
             .windows(2)
             .find(|pair| {
-                pair[0].0 == pncad::document::Coord::slide(pncad::document::TargetAxis::X).name()
+                pair[0].0 == <pncad::document::Coord>::slide(pncad::document::TargetAxis::X).name()
             })
             .map(|pair| pair[1].1.center())
             .expect("the slide along x is drawn");

@@ -89,7 +89,7 @@ pub(crate) struct Drafts {
     pub(crate) mate_verdict: Option<MateVerdict>,
     /// The placement editor's value fields being typed in, by freedom:
     /// the text, until the field loses focus and the draft takes it.
-    pub(crate) mate_value_edits: Vec<(pncad::document::Coord, String)>,
+    pub(crate) mate_value_edits: Vec<(pncad::document::Coord<pncad::document::Operand>, String)>,
     /// The door the value edits were typed under: a different door, or
     /// the same one over another bundle (a reload), drops them.
     pub(crate) mate_value_door: Option<crate::matetool::PlaceDoor>,
@@ -1327,7 +1327,7 @@ impl Drafts {
     pub(crate) fn sync_mate_edits(
         &mut self,
         door: Option<&crate::matetool::PlaceDoor>,
-        coords: &[pncad::document::Coord],
+        coords: &[pncad::document::Coord<pncad::document::Operand>],
     ) {
         if self.mate_value_door.as_ref() != door {
             self.mate_value_edits.clear();

@@ -40,22 +40,30 @@ fn wedge() -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// The wedge's face through `at` with outward normal `normal`, read as a
-/// plane.
-fn plane(doc: &ProfileDoc, wedge: RecipeNodeId, at: [f64; 3], normal: [f64; 3]) -> Operand {
-    let read = editor_core::test_support::plane_on(doc, wedge, at, normal, Tol::witness());
-    assert!(read.role.is_none(), "a face read plainly: {read:?}");
-    read.read
+/// The wedge's flat face whose normal runs along `normal`, read as a
+/// plane: found by its carrier's axis on the evaluated wedge.
+fn plane(doc: &ProfileDoc, wedge: RecipeNodeId, normal: [f64; 3]) -> Operand {
+    let ev = fixture::run(doc, &EvalOptions::default());
+    let n = normal.iter().map(|c| c * c).sum::<f64>().sqrt();
+    let name = editor_core::all_faces(&ev, wedge)
+        .into_iter()
+        .find(|name| {
+            editor_core::face_frame(&ev, wedge, name).is_ok_and(|pose| {
+                let a = [pose.axis.x, pose.axis.y, pose.axis.z];
+                let along: f64 = a.iter().zip(normal).map(|(c, u)| c * u / n).sum();
+                (along.abs() - 1.0).abs() < 1e-12
+            })
+        })
+        .unwrap_or_else(|| panic!("the wedge has a face across {normal:?}"));
+    Operand::Pose(Box::new(PoseDef::Plane {
+        face: Operand::select(Operand::Node(wedge), vec![name]),
+    }))
 }
 
-/// The slanted wall's normal, a direction read through the plane's
-/// role.
+/// The slanted wall's outward normal, a direction read through the
+/// plane's role.
 fn slant(doc: &ProfileDoc, wedge: RecipeNodeId) -> RoleRead<Operand> {
-    let h = core::f64::consts::FRAC_1_SQRT_2;
-    RoleRead::through(
-        plane(doc, wedge, [0.5, 0.5, 0.5], [h, h, 0.0]),
-        PoseRole::Normal,
-    )
+    RoleRead::through(plane(doc, wedge, [1.0, 1.0, 0.0]), PoseRole::Normal)
 }
 
 /// A copy of the wedge placed into its own space by `placed`, and
@@ -140,10 +148,9 @@ fn a_read_direction_beside_slides_it_lies_among_refuses_typed() {
 #[test]
 fn a_spin_about_a_read_axis_turns_about_that_line() {
     let (doc, wedge) = wedge();
-    let h = core::f64::consts::FRAC_1_SQRT_2;
     let edge = Operand::Pose(Box::new(PoseDef::Meet {
-        a: RoleRead::plain(plane(&doc, wedge, [0.5, 0.0, 0.5], [0.0, -1.0, 0.0])),
-        b: RoleRead::plain(plane(&doc, wedge, [0.5, 0.5, 0.5], [h, h, 0.0])),
+        a: RoleRead::plain(plane(&doc, wedge, [0.0, 1.0, 0.0])),
+        b: RoleRead::plain(plane(&doc, wedge, [1.0, 1.0, 0.0])),
     }));
     let placed = Placed::unmated(vec![(
         Coord::SpinAbout(RoleRead::plain(edge)),

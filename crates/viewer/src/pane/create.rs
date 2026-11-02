@@ -811,7 +811,11 @@ impl ViewerBehavior<'_> {
         });
         let doc = self.session.committed_doc();
         let coords: Vec<_> = match &proposal {
-            Some(Ok(proposal)) => proposal.values.iter().map(|row| row.coord).collect(),
+            Some(Ok(proposal)) => proposal
+                .values
+                .iter()
+                .map(|row| row.coord.clone())
+                .collect(),
             _ => Vec::new(),
         };
         self.drafts.sync_mate_edits(tool.door(), &coords);
@@ -839,16 +843,17 @@ impl ViewerBehavior<'_> {
                         if field.changed() {
                             match held {
                                 Some(at) => self.drafts.mate_value_edits[at].1 = text.clone(),
-                                None => {
-                                    self.drafts.mate_value_edits.push((row.coord, text.clone()))
-                                }
+                                None => self
+                                    .drafts
+                                    .mate_value_edits
+                                    .push((row.coord.clone(), text.clone())),
                             }
                         }
                         if field.lost_focus()
                             && let Some(at) = held
                         {
                             let (coord, typed) = self.drafts.mate_value_edits.remove(at);
-                            match crate::matetool::typed_value(doc, coord, &typed) {
+                            match crate::matetool::typed_value(doc, coord.clone(), &typed) {
                                 Ok(by) => edited.type_value(coord, by),
                                 Err(error) => self
                                     .notices
