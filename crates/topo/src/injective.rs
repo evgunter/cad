@@ -3246,9 +3246,7 @@ fn straight(
         u_ref,
     } = *surface
     {
-        let Some((carrier, (t0, t1))) = rim.arc.as_ref().filter(|(c, _)| !c.is_curved()) else {
-            return None;
-        };
+        let (carrier, (t0, t1)) = rim.arc.as_ref().filter(|(c, _)| !c.is_curved())?;
         let v_ref = normal.cross(u_ref);
         let chart = |p: Point3<Interval>| {
             let d = p - origin;
