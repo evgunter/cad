@@ -126,9 +126,10 @@ pub struct Blended<T: Real> {
 }
 
 impl<T: Decide> Blended<T> {
-    /// `records`, the operand's, carried onto the blended body through
-    /// [`Self::lineage`] ([`topo::ContactRecords::carried_through`], at `band`
-    /// through `region`).
+    /// `records`, the operand's, carried onto the blended body
+    /// ([`super::naming::BlendNaming::carry_contacts`]). A body with no
+    /// birth records carries through [`Self::lineage`]'s read-everything
+    /// lineage.
     ///
     /// # Errors
     ///
@@ -139,118 +140,22 @@ impl<T: Decide> Blended<T> {
         band: geom_core::Band,
         region: Option<topo::RegionLane<T>>,
     ) -> Result<topo::ContactRecords, topo::CarryRefusal> {
-        records.carried_through(0, &self.lineage(), &self.body, band, region)
+        match &self.naming {
+            Some(naming) => naming.carry_contacts(records, &self.body, band, region),
+            None => records.carried_through(0, &self.lineage(), &self.body, band, region),
+        }
     }
 
-    /// **What the blend made of each source cell** (D1), read through the
-    /// closing join. The blend keeps every key it does not carve away,
-    /// in place. It removes each edge it replaces with a band
-    /// ([`super::naming::BlendNaming::blends`],
-    /// [`super::naming::BlendNaming::joined_blends`]), each corner it
-    /// rounds, each vertex it retracts to a foot, each rim edge a trim
-    /// arc replaces, and whatever else it retired: a blend face holds
-    /// none of the points of the cell it replaces, so it takes no record
-    /// from it. A source edge the band's carve split is divided into its
-    /// surviving pieces ([`super::naming::BlendNaming::meridian_remnants`],
-    /// [`super::naming::BlendNaming::slits`]) and the vertices that split
-    /// it, the carved span removed; a support face is divided into itself
-    /// and the trimlines and feet the blend minted in it, the strip it
-    /// carved away removed. Every other cell whose geometry the blend
-    /// changed under its key is read, not kept: the lineage carries the
-    /// source's geometry ([`topo::Lineage::from_source`]). A body with
-    /// no birth records names no carve and carries no source, so every
-    /// record is read, and one on a cell the result lost refuses.
+    /// **What the blend made of each source cell** (D1):
+    /// [`super::naming::BlendNaming::lineage`]. A body with no birth
+    /// records names no carve and carries no source, so every record is
+    /// read, and one on a cell the result lost refuses.
     #[must_use]
     pub fn lineage(&self) -> topo::Lineage {
-        use topo::{Cell, Division, Fate, Remainder};
-        let Some(n) = self.naming.as_ref() else {
-            return topo::Lineage::new().from_source(topo::SourceGeometry::default());
-        };
-        let mut lineage = topo::Lineage::new().through_joins(&n.edge_joins);
-        let removed = n
-            .blends
-            .iter()
-            .map(|&(_, e)| Cell::Edge(e))
-            .chain(
-                n.joined_blends
-                    .iter()
-                    .flat_map(|(_, es)| es.iter().map(|&e| Cell::Edge(e))),
-            )
-            .chain(n.corners.iter().map(|&(_, v)| Cell::Vertex(v)))
-            .chain(n.feet.iter().map(|&(_, v, _)| Cell::Vertex(v)))
-            .chain(n.turn_feet.iter().map(|&(_, v)| Cell::Vertex(v)))
-            .chain(n.rim_trims.iter().map(|&(_, e, _)| Cell::Edge(e)))
-            .chain(n.rim_feet.iter().map(|&(_, v)| Cell::Vertex(v)))
-            .chain(n.dead.edges.iter().map(|&e| Cell::Edge(e)))
-            .chain(n.dead.vertices.iter().map(|&v| Cell::Vertex(v)));
-        // Every statement is a removal, and two removals of one cell
-        // merge: a band edge whose carve also left remnants keeps them.
-        let remove = |lineage: topo::Lineage, cell: Cell, fate: Fate| {
-            lineage
-                .with_removal(cell, fate)
-                .unwrap_or_else(|e| unreachable!("the blend states only removals: {e:?}"))
-        };
-        for cell in removed {
-            lineage = remove(lineage, cell, Fate::Removed);
-        }
-        let mut carved: Vec<(topo::EdgeKey, Division)> = Vec::new();
-        let mut piece = |source: topo::EdgeKey, cell: Cell, minted: bool| {
-            let at = match carved.iter().position(|(e, _)| *e == source) {
-                Some(at) => at,
-                None => {
-                    carved.push((
-                        source,
-                        Division {
-                            pieces: Vec::new(),
-                            minted: Vec::new(),
-                            remainder: Remainder::Removed,
-                        },
-                    ));
-                    carved.len() - 1
-                }
-            };
-            let d = &mut carved[at].1;
-            let list = if minted { &mut d.minted } else { &mut d.pieces };
-            if !list.contains(&cell) {
-                list.push(cell);
-            }
-        };
-        for &(remnant, source) in &n.meridian_remnants {
-            piece(source, Cell::Edge(remnant), false);
-        }
-        for &(slit, source, _) in &n.slits {
-            piece(source, Cell::Edge(slit), false);
-        }
-        for &(v, source, _) in &n.meridian_splits {
-            piece(source, Cell::Vertex(v), true);
-        }
-        for (source, division) in carved {
-            lineage = remove(lineage, Cell::Edge(source), Fate::Divided(division));
-        }
-        let mut supports: Vec<(topo::FaceKey, Vec<Cell>)> = Vec::new();
-        let minted_in = n
-            .trims
-            .iter()
-            .map(|&(t, _, f)| (f, Cell::Edge(t)))
-            .chain(n.feet.iter().map(|&(v, _, f)| (f, Cell::Vertex(v))));
-        for (f, cell) in minted_in {
-            match supports.iter_mut().find(|(g, _)| *g == f) {
-                Some((_, cells)) => cells.push(cell),
-                None => supports.push((f, vec![cell])),
-            }
-        }
-        for (f, minted) in supports {
-            lineage = remove(
-                lineage,
-                Cell::Face(f),
-                Fate::Divided(Division {
-                    pieces: vec![Cell::Face(f)],
-                    minted,
-                    remainder: Remainder::Removed,
-                }),
-            );
-        }
-        lineage.from_source(n.source.clone())
+        self.naming.as_ref().map_or_else(
+            || topo::Lineage::new().from_source(topo::SourceGeometry::default()),
+            super::naming::BlendNaming::lineage,
+        )
     }
 }
 

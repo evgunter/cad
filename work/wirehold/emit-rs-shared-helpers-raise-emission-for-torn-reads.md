@@ -67,3 +67,35 @@ From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT clos
 `output_body` (`emit.rs:1115`) stays fallible, tracked by `wire/loop-coordinates-narrowing-has-no-bound`.
 
 Each site needs the D9 argument: a type change, a typed refusal, or `unreachable!` with its why. Check first whether a member's own value can be multi-body, since the `e.body != 0` check may be reachable.
+
+## Argued and converted (2026-11-01, `wire-emitraise`, branch `wirehold/emit-raises-argued`)
+
+All three sites are row (c): `unreachable!` with its why. None is reachable from a legal input, so no witness exists to build red first. (a) was weighed and is not local: a "one body's table" type would have to travel through every emitter and pass-through that hands a `NameTable` on.
+
+**`name_family`, `e.body != 0`.** Can a member's own value be multi-body? No. `eval/members.rs` `family_value` calls `name_family` only when every member's payload is `ValuePayload::Body` or `Boolean(Body)`. A family of families takes the `ValuePayload::Family` arm and is never named here. Each member table is that one-body value's `output(0)`.
+
+That table names only body 0, because a value's table names only the output bodies the value holds (`OWN_BODIES`):
+- every emitter mints a one-body output at 0 (`check_total(.., 0)` closes each);
+- a family's rows sit at the member's index (`name_family`, `name_copy` beside a placed family);
+- every pass-through hands a table on beside a value of the same count:
+  - `name_copy` of one body;
+  - `name_lone_member`;
+  - `projected` (a split half's own per-port table, or a family member through `NameTable::project`, which re-indexes to 0);
+  - `pick_of` (a non-family piece's table is its one-body member's).
+
+**`name_assemble`, `bridges.get(e.body)`.** `wire_assemble` and `distribute` build one `GraftKeys` per body of the member's value, so `bridges.len()` is that value's body count. By `OWN_BODIES`, every row's `e.body` is below it.
+
+**`name_assemble`, the bridge's image.** The argument is `GRAFT_TOTAL`:
+- `topo::graft_disjoint_all_keyed`'s bridge is total over the source's live faces, edges and vertices (`GraftKeys`' doc);
+- the source is `Framed::read_in` of the member body, which is the body itself or `transform_rigid`'s clone with identical arena keys;
+- a member's rows name only that body's live entities (the same claim `LIVE_ARGUMENT` makes for a table emitted for a body).
+
+The old `EntityKey::Body => None` arm is now its own `unreachable!`. Body-kind names are skipped above it, and a table refuses a row whose key kind disagrees with its name's kind (`SeatingRefusal::KindMismatch`).
+
+**K and ε.** None of the three arguments reads a tolerance or a band. Each is combinatorial (payload shape, table indices, arena keys), so it holds for every K > 1 and every ε.
+
+**Sweep of `names/` for `NamingError::Emission`.** Pattern: `Emission {` plus the `bug(..)`/`bug = |what|` wrappers (`borders.rs`, `emit_topo.rs`, `emit_union.rs`). Every other hit is a boolean-lineage or classification fact, not a torn table/body read: `UNSIDED`, `UNCLASSIFIED_SIDE`, `RESENSED_OFF_SIDES`, a chart cut surviving, split lineage leaving the graft rows, a carried group naming no operand, a crossing with no classified piece, the n-ary verdicts disagreeing. The rest are `output_body` (left alone, `wire/loop-coordinates-narrowing-has-no-bound`), Display and test sites.
+
+**Blind spot:** a raise built outside `names/` from a `what` string. A second pass over `editor-core/src` for `NamingError::Emission` found two of this shape:
+- `wire_assemble`'s and `distribute`'s `carry_contacts` → `Emission { what }`. They need the same graft-totality argument. Filed as `work/wire/an-assembles-contact-carry-raises-emission-for-a-bridge-the-graft-keeps-total.md`.
+- `coincide::name_rows`' `ROW_CELL_NOT_IN_TABLE` is a record-cell lookup with its own history, which is not this shape (`cleave/a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold.md`, closed).
