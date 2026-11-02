@@ -597,10 +597,7 @@ impl<T: SolveScalar> Chart<T> {
                 if let Some(across) = across {
                     let within = geom_core::k_stats::decide(
                         super::MATE_READ_SLIDE_WITHIN,
-                        Margin::levered(
-                            across,
-                            geom_core::Lever::unsourced(T::from_computed(self.arm.get())),
-                        ),
+                        Margin::levered(across, T::from_computed(self.arm.get())),
                         self.band,
                     );
                     if within != Ok(Sign::Zero) {
@@ -655,7 +652,7 @@ fn independent<T: SolveScalar>(heads: &[Heading<T>], d: Vec3<T>, arm: Arm, band:
     matches!(
         geom_core::k_stats::decide(
             super::MATE_SLIDES_INDEPENDENT,
-            Margin::levered(det, geom_core::Lever::unsourced(T::from_computed(arm.get()))),
+            Margin::levered(det, T::from_computed(arm.get())),
             band,
         ),
         Ok(Sign::Positive | Sign::Negative)

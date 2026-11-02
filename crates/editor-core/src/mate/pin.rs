@@ -181,10 +181,12 @@ impl Placed {
         // mates leave as written; a gesture's reading off the geometry
         // chooses them otherwise.
         let along = if named.iter().any(Coord::is_slide) {
-            Some(super::SlideAxes::of(loaded.iter().filter_map(|c| match c {
-                Coord::Slide(Some(axis)) => Some(*axis),
-                _ => None,
-            })))
+            Some(super::SlideAxes::of(loaded.iter().filter_map(
+                |c| match c {
+                    Coord::Slide(Some(axis)) => Some(*axis),
+                    _ => None,
+                },
+            )))
         } else {
             along
         };
