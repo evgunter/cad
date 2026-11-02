@@ -2850,10 +2850,10 @@ mod tests {
                 Ok(Some(roots)) => Some(!roots.is_empty()),
                 _ => None,
             };
-            if let Some(meets) = definite {
-                if exact.abs() < band.escalate() || meets != (exact > 0.0) {
-                    wrong += 1;
-                }
+            if let Some(meets) = definite
+                && (exact.abs() < band.escalate() || meets != (exact > 0.0))
+            {
+                wrong += 1;
             }
         }
         (read, wrong)

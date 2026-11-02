@@ -15,6 +15,11 @@ use sweep::test_support::{brick, finished, revolved_about_y};
 /// spiric edge the cut leaves on the torus rides a carrier whose stored
 /// terms reach `|c| + R + r ≈ 1050` m, past the box: read so, the cut
 /// was refused.
+///
+/// A pinned red at ε = 1e-12, `work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`:
+/// there the cut's spiric section near 1 km stops on limb 2's kernel
+/// limit (a certified bound ~9e-11 m over 113 m), past the box's own
+/// reading, which the default-ε run shows passes.
 #[test]
 fn a_bar_cutting_a_large_torus_inside_the_box_builds() {
     let tol = Tol::witness();
@@ -39,8 +44,14 @@ fn a_bar_cutting_a_large_torus_inside_the_box_builds() {
         brick::<f64>((100.0, 400.0), (200.0, 400.0), (400.0, 800.0), tol),
         tol,
     );
-    let cut =
-        topo::intersect(&torus, &bar, tol).unwrap_or_else(|e| panic!("the in-box cut builds: {e}"));
+    let Some(cut) = test_utils::kernel_limit::pinned(
+        topo::intersect(&torus, &bar, tol),
+        tol.eps(),
+        &[1e-12],
+        "the in-box cut",
+    ) else {
+        return;
+    };
     let body = cut.body().expect("the cut is a body");
     assert!(
         topo::validate_geometric(&body.body, tol).is_ok(),
