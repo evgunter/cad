@@ -42,3 +42,10 @@ twice-met vertex decided the apex, wind each lobe on its own, and sum
 them, the apex being where every ruling meets and so a legal pinch of one
 face's boundary. Once props measures it, retire `pinched_at_cone_apex`
 and turn the pin into a build.
+
+## Sibling (2026-11-02)
+
+`a-pinched-cone-loop-reaches-the-gate-unnamed`: a cone loop that passes
+the apex BETWEEN a seam vertex's two copies, rather than meeting itself
+there. The same `require_cone_loop_vertices_distinct` refuses it, because
+the azimuth turn is lost at the apex.

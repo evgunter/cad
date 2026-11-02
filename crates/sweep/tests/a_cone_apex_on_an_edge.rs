@@ -164,7 +164,7 @@ fn four_ops(
             // kept face's loop passes the apex between the seam vertex's
             // two copies, and props cannot read the azimuth turn across
             // the apex
-            // (`work/splitdoor/a-pinched-cone-loop-reaches-the-gate-unnamed.md`).
+            // (`work/conearm/a-pinched-cone-loop-reaches-the-gate-unnamed.md`).
             Err(topo::BooleanError::ResultInvalid { errors })
                 if pinch
                     && matches!(op, "a ∪ b" | "a ∖ b")

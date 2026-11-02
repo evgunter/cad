@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-02
 priority: P2
 cost: M
+refs: [props-measures-a-cone-loop-pinched-at-its-apex]
 ---
 
 
@@ -71,4 +72,10 @@ The face is valid: the lower band and the upper three-quarter sector,
 glued along the seam. The fix is in props. The loop's turn across the
 apex is the angle between its in and out rulings, taken on the face's
 side, which needs the face's material side at the apex. Why the same
-pose at 30° and 45° measures is not traced.
+pose at 30° and 45° measures is not traced: at turn 0 both build every
+op, for a reason not yet traced.
+
+Filed on CONEARM's slate, beside its sibling
+`props-measures-a-cone-loop-pinched-at-its-apex` (a loop meeting itself
+AT the apex), because `crates/geom-brep/src/props/curved.rs`'s cone arm
+is CONEARM's. The fix is left to this row, not to SPLITDOOR's B2.
