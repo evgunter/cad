@@ -206,3 +206,9 @@ AUTHOR's narrative is recoverable from
 
 - Style + correctness reviews, one fix pass (the shared successor query had been widened for every door; now the split passes its own halves as `intact`), re-verify says merge. CI green at `b572bc4803`.
 - Residue filed: `a-split-half-cannot-be-split` (P3 E), `a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it` (P3 M); `a-takeover-could-re-seat-a-pick-its-result-keeps`'s premise corrected in place.
+
+## 2026-11-02 09:20 — 6292 fix pass 1 in; re-verify dispatched
+
+- Head `b2015ee1c2`, CI green. M1: over a box, `Within` now rests on a station pair whose separation is enclosed over every realization; a straddling pair refuses `BoxDependent`, which is the drive's bisection cue. Every MUST FIX item reported fixed with a mutation.
+- Two disputes accepted: (1) facet pruning now serves only bounds with no upper end — the "largest facet" suggestion would answer `Exceeded` on `Within`'s evidence; (2) a reversed band refuses at evaluation (`EmptyBand` via `of_bound`), where `NotADistance` already refuses, since a band's ends are formulas.
+- Re-verify sent to the first correctness reviewer's cloud session (it posts on the PR).
