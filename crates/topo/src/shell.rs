@@ -5123,7 +5123,7 @@ fn moved_walls<T: Decide>(
                                 }
                             };
                         match *curve.carrier() {
-                            geom::Curve3::Line { .. } => EdgeArc::Line,
+                            geom::Curve3::Line(_) => EdgeArc::Line,
                             geom::Curve3::Circle {
                                 center,
                                 ref axis,

@@ -388,7 +388,7 @@ impl<T: Bounds> SectionFrame<T> {
     /// by less than `minor`. `None` for a carrier with no closed form.
     fn depth(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
         let rho = match *carrier {
-            Curve3::Line { origin, dir } => self
+            Curve3::Line(geom::Line { origin, dir }) => self
                 .scaled(origin + dir * ta - center)
                 .max(self.scaled(origin + dir * tb - center)),
             Curve3::Circle {
@@ -415,7 +415,7 @@ impl<T: Bounds> SectionFrame<T> {
     /// for a carrier with no closed form.
     fn outside(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
         let rho = match *carrier {
-            Curve3::Line { origin, dir } => {
+            Curve3::Line(geom::Line { origin, dir }) => {
                 let at = |p: Point3<T>| {
                     let d = p - center;
                     (d.dot(self.u) / self.major, d.dot(self.w) / self.minor)
@@ -679,10 +679,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let mut least = (section.minor * (section.scaled(q) - T::one()))
             .min(b.axis.cross(ua).normalize().dot(q))
             .min(ub.cross(b.axis).normalize().dot(q));
-        let ray = Curve3::Line {
-            origin: self.center,
-            dir: q,
-        };
+        let ray = Curve3::line(self.center, q);
         let span = (T::zero(), T::one());
         for (rim, window) in &b.rims {
             least = least.min(apart((&ray, span), (rim, *window), b.axis)?);
@@ -868,7 +865,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
                         };
                         (center, axis, f.major.abs(), f.minor.abs(), f.major_dir)
                     }
-                    Curve3::Line { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                    Curve3::Line(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                         return Err(unbuilt_geometry(
                             EntityId::Vertex(vertex),
                             "a cut-off's round end curve is neither a circle nor an ellipse",
@@ -1019,7 +1016,7 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
         );
         let (carrier, _) = stored_piece(body, rim)?;
         let rate = match *carrier {
-            Curve3::Line { .. } => InfSpeed::new(T::one()),
+            Curve3::Line(_) => InfSpeed::new(T::one()),
             Curve3::Circle { radius, .. } => InfSpeed::new(radius),
             // An ellipse's speed is never below its minor semi-axis.
             Curve3::Ellipse { semi_u, semi_v, .. } => {
@@ -1464,10 +1461,10 @@ mod tests {
                             "{what}, {scalar}: {a:?} → {b:?}: {read} is below the least G {least}"
                         );
                     }
-                    let carrier = Curve3::Line {
-                        origin: Point3::new(a.0, a.1, 0.0),
-                        dir: Vec3::new(b.0 - a.0, b.1 - a.1, 0.0),
-                    };
+                    let carrier = Curve3::line(
+                        Point3::new(a.0, a.1, 0.0),
+                        Vec3::new(b.0 - a.0, b.1 - a.1, 0.0),
+                    );
                     let whole = region.sliver::<f64>().whole_clearance(&carrier, (0.0, 1.0));
                     handed_over += usize::from(m > 1e-3 && whole.is_some_and(|w| w <= 0.0));
                 }
@@ -1642,7 +1639,9 @@ mod tests {
     fn quarter() -> CapSliver<f64> {
         let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
         let v = |x: f64, y: f64| Vec3::new(x, y, 0.0);
-        let rim = |o: Point3<f64>, d: Vec3<f64>| (Curve3::Line { origin: o, dir: d }, (0.0, 1.0));
+        let rim = |o: Point3<f64>, d: Vec3<f64>| {
+            (Curve3::Line(geom::Line { origin: o, dir: d }), (0.0, 1.0))
+        };
         CapSliver {
             cap: FaceKey::default(),
             rims: [EdgeKey::default(); 2],

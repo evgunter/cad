@@ -212,7 +212,7 @@ pub fn tangent_certificate_lane<T: Real>(
     let round =
         |s: &Surface<T>| straight(s) || matches!(s, Surface::Torus { .. } | Surface::Cone { .. });
     match carrier {
-        Curve3::Line { .. } => straight(s1) && straight(s2),
+        Curve3::Line(_) => straight(s1) && straight(s2),
         Curve3::Circle { .. } => round(s1) && round(s2),
         _ => false,
     }

@@ -2254,11 +2254,8 @@ mod tests {
             slotmap::SlotMap::with_key();
         let k1 = arena.insert(s1.map_scalar(lift));
         let k2 = arena.insert(s2.map_scalar(lift));
-        let carrier = Curve3::Line {
-            origin: Point3::new(x, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        }
-        .map_scalar(lift);
+        let carrier =
+            Curve3::line(Point3::new(x, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)).map_scalar(lift);
         let (t0, t1) = (lift(0.0), lift(1.0));
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let spec = EdgeCurveSpec {

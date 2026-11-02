@@ -1250,7 +1250,7 @@ fn corner_arms<T: Decide>(
             // A line's parameter IS arc length; a circle's is an angle
             // levered by its own radius. Anything else falls back to
             // the endpoints' chord, which is what the carrier can say.
-            Curve3::Line { .. } => (t1 - t0).abs(),
+            Curve3::Line(_) => (t1 - t0).abs(),
             Curve3::Circle { radius, .. } => (t1 - t0).abs() * *radius,
             other => other.eval(t1).distance(other.eval(t0)),
         });
@@ -2123,7 +2123,7 @@ fn mint_carrier<T: Decide>(
             // change moves it perpendicular to itself, radially — a
             // rigid translation OF THAT LINE even though the surface's
             // own motion is not one.
-            (Surface::Cylinder { .. }, Curve3::Line { origin, .. }) => {
+            (Surface::Cylinder { .. }, Curve3::Line(geom::Line { origin, .. })) => {
                 let e = frame.radial(*origin);
                 let n = e.norm();
                 match decide("offset_axial_seam_radial", Margin::of(n), band) {
@@ -2267,10 +2267,12 @@ fn mint_carrier<T: Decide>(
         let old_dir = old.eval(old_span.1) - old.eval(old_span.0);
         let q_mid = old.mid_point(old_span.0, old_span.1);
         let off = |l: &Curve3<T>| {
-            let Some(line) = l.as_line() else {
+            let Some(geom::Line { origin, dir }) = l.as_line() else {
                 unreachable!("{edge:?}: a generator pair is two lines")
             };
-            (q_mid - line.foot(q_mid)).norm()
+            let d = dir.normalize();
+            let v = q_mid - origin;
+            (v - d * v.dot(d)).norm()
         };
         let chosen = match decide(
             "offset_axial_generator_side",
@@ -2295,11 +2297,8 @@ fn mint_carrier<T: Decide>(
             Margin::levered(old_dir.normalize().dot(dir.normalize()), frame.extent),
             band,
         ) {
-            Ok(Sign::Positive) => Ok(Curve3::Line { origin, dir }),
-            Ok(Sign::Negative) => Ok(Curve3::Line {
-                origin,
-                dir: Vec3::zero() - dir,
-            }),
+            Ok(Sign::Positive) => Ok(Curve3::Line(geom::Line { origin, dir })),
+            Ok(Sign::Negative) => Ok(Curve3::line(origin, Vec3::zero() - dir)),
             Ok(Sign::Zero) => Err(refuse(
                 "a generator edge whose moved line stands square to its old one",
             )),
@@ -2399,7 +2398,7 @@ fn mint_carrier<T: Decide>(
         let normal_of = |c: &Curve3<T>| match c {
             Curve3::Circle { axis, .. } | Curve3::Ellipse { axis, .. } => Some(axis.normalize()),
             Curve3::Spiric { u_ref, .. } => Some(u_ref.normalize()),
-            Curve3::Line { .. } | Curve3::Nurbs(_) => None,
+            Curve3::Line(_) | Curve3::Nurbs(_) => None,
         };
         let Some(old_normal) = normal_of(old) else {
             return Err(refuse(
@@ -2431,7 +2430,7 @@ fn mint_carrier<T: Decide>(
     // solves. The caller reads both endpoints back onto it and meters
     // the result, and meters its midpoint against both moved surfaces.
     match old {
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             // Two moved surfaces that both contain a straight edge move
             // it perpendicular to itself: the direction survives, and
             // the old carrier's `t = 0` anchor is conventional data
@@ -2446,10 +2445,7 @@ fn mint_carrier<T: Decide>(
             // section above.
             let shift = p_start - old.eval(t0_old);
             let delta = shift - *dir * shift.dot(*dir);
-            Ok(Curve3::Line {
-                origin: *origin + delta,
-                dir: *dir,
-            })
+            Ok(Curve3::line(*origin + delta, *dir))
         }
         Curve3::Circle {
             center,
@@ -2724,7 +2720,7 @@ fn param_on<T: Decide>(
                 Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
         }
-        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => t_old,
+        Curve3::Line(_) | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => t_old,
     };
     let read = carrier.param_near(q, guess).ok_or_else(unread)?;
     // On a carried frame the read IS the old parameter, and a second
@@ -2836,7 +2832,7 @@ fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
             let (floor, ceiling) = geom::carrier_speed::speed_range(carrier);
             Some((floor.get(), ceiling.get()))
         }
-        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Line(_) | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
     }
 }
 
@@ -3425,10 +3421,10 @@ mod tests {
         p_start: Point3<T>,
         band: Band,
     ) -> geom_brep::MappedCurve<T> {
-        let carrier = Curve3::Line {
-            origin: Point3::new(T::zero(), T::zero(), T::zero()),
-            dir: Vec3::new(T::one(), T::zero(), T::zero()),
-        };
+        let carrier = Curve3::line(
+            Point3::new(T::zero(), T::zero(), T::zero()),
+            Vec3::new(T::one(), T::zero(), T::zero()),
+        );
         reauthor(
             mapped,
             &carrier,

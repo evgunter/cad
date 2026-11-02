@@ -73,10 +73,7 @@ fn circle_carriers_are_in_the_certified_lane_on_every_revolution_kind() {
         );
     }
     // The LINE arm is unchanged: torus stays out of it.
-    let line = Curve3::Line {
-        origin: p(0.0, 0.0, 0.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let line = Curve3::line(p(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
     assert!(!tangent_certificate_lane(&line, &torus, &plane));
     assert!(tangent_certificate_lane(&line, &cylinder, &plane));
     // A carrier kind outside both arms stays outside.

@@ -2804,7 +2804,7 @@ fn germ_section_loops<T: Decide>(
     // test a curved edge.
     if let Some(along) = along_edge_conic((a, b), germ)? {
         return match along.carrier {
-            geom::Curve3::Line { .. } => Ok(None),
+            geom::Curve3::Line(_) => Ok(None),
             geom::Curve3::Circle { center, axis, .. }
             | geom::Curve3::Ellipse { center, axis, .. } => {
                 Ok(Some(SectionLoops::conic((center, axis))))
@@ -3090,7 +3090,7 @@ fn rulings_are_straight<T: geom_core::Real>(
     for (curve, operand, face) in sides {
         match curve.spec().map(|spec| &spec.carrier) {
             None => {}
-            Some(geom::Curve3::Line { .. }) => {
+            Some(carrier) if !carrier.is_curved() => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
@@ -7962,10 +7962,7 @@ mod radical_plane_rows {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = |n: u64| FaceKey::from(KeyData::from_ffi(n));
         let (fa, fb) = (face(3), face(7));
-        let line = geom::Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let circle = geom::Curve3::Circle {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),

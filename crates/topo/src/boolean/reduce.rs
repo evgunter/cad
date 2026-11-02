@@ -901,7 +901,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         let end =
             body.resolve_vertex_point(body.proven_half_edge_end(edge.he_plus), crate::live::Proven);
         let arm = match curve.carrier() {
-            geom::Curve3::Line { .. } => (end - at).norm(),
+            geom::Curve3::Line(_) => (end - at).norm(),
             geom::Curve3::Circle { radius, .. } => {
                 let (t0, t1) = curve.params();
                 let half =
@@ -2407,7 +2407,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         .as_ref()
         .is_some_and(|(d1, d2)| zero(d1) || zero(d2));
     match (geom_brep::Conic::of(curve.carrier()), curve.carrier()) {
-        (None, geom::Curve3::Line { .. }) => {}
+        (None, geom::Curve3::Line(_)) => {}
         (Some(conic), _) => 'clearance: {
             if end_on_carrier {
                 break 'clearance;
@@ -3947,7 +3947,7 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
             radius,
             ..
         } => Some((center, axis, radius)),
-        geom::Curve3::Line { .. } | geom::Curve3::Ellipse { .. } => None,
+        geom::Curve3::Line(_) | geom::Curve3::Ellipse { .. } => None,
         _ => return Ok(None),
     };
     let mut placed = [(Placement::Undecided, None); 2];
@@ -4753,7 +4753,7 @@ fn wall_crossing<T: Decide + Bounds>(
         refusal => Err(refusal),
     };
     let found = match *carrier {
-        geom::Curve3::Line { origin, dir } => {
+        geom::Curve3::Line(geom::Line { origin, dir }) => {
             match line_wall_roots_of(origin, dir, (t0, t1), surface, band) {
                 Ok(Some(Ok(found))) => Some(found),
                 Ok(Some(Err(verdict))) => return Ok(verdict),
@@ -6407,10 +6407,10 @@ mod declaration_order_rows {
             (0.0, 1.0),
             tol,
         );
-        let witness = geom::Curve3::Line {
-            origin: Point3::new(profile[3].0, 0.0, 0.0),
-            dir: geom_core::Vec3::new(0.0, 0.0, 1.0),
-        };
+        let witness = geom::Curve3::line(
+            Point3::new(profile[3].0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+        );
         contact_door(
             (&prism.body, prism.side_faces[3]),
             (&y, wall),
@@ -7088,10 +7088,7 @@ mod edge_span_tests {
         };
         let y = Body::<f64>::new();
         let crossing = |delta: f64, (t0, t1): (f64, f64)| {
-            let line = geom::Curve3::Line {
-                origin: Point3::new(2.0, 0.0, 0.0),
-                dir: Vec3::new(delta, 0.0, 1.0),
-            };
+            let line = geom::Curve3::line(Point3::new(2.0, 0.0, 0.0), Vec3::new(delta, 0.0, 1.0));
             wall_crossing(
                 &y,
                 FaceKey::default(),
@@ -8427,10 +8424,10 @@ mod arc_end_rows {
             axis: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
         };
-        let line = geom::Curve3::Line {
-            origin: geom_core::Point3::origin(),
-            dir: (q - geom_core::Point3::origin()) / reach,
-        };
+        let line = geom::Curve3::line(
+            geom_core::Point3::origin(),
+            (q - geom_core::Point3::origin()) / reach,
+        );
         let got = wall_crossing(
             &body,
             cap,
@@ -9050,10 +9047,7 @@ mod spline_face_rows {
         let tol = Tol::witness();
         let p = prism::<f64>(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
         let pt = |k| p.body.resolve_vertex_point(k, crate::live::Proven);
-        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::Line {
-            origin: a,
-            dir: (b - a).normalize(),
-        };
+        let line = |a: Point3<f64>, b: Point3<f64>| Curve3::line(a, (b - a).normalize());
         let (a, b, c) = (pt(p.bottom[0]), pt(p.bottom[1]), pt(p.bottom[2]));
         let ends = |q, r| [(p.bottom[0], q), (p.bottom[0], r)];
         let edge = line(a, b);

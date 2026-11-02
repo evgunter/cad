@@ -91,6 +91,16 @@ impl<T: Real> AxisLine<T> {
         self.foot
     }
 
+    /// The line's point nearest `p` ([`geom::Line::foot`]).
+    #[must_use]
+    pub fn foot_of(&self, p: Point3<T>) -> Point3<T> {
+        geom::Line {
+            origin: self.foot,
+            dir: self.dir.get(),
+        }
+        .foot(p)
+    }
+
     /// The line's direction.
     #[must_use]
     pub fn dir(&self) -> UnitVec3<T> {

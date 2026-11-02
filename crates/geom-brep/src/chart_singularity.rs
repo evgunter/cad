@@ -55,7 +55,7 @@
 //! loop's chart image, its spurs taken out by the caller from the
 //! face's structure (`topo::surface_boundary`): this home sees no keys.
 
-use geom::{ChartArm, ChartInverse, Curve3, Line, Surface};
+use geom::{ChartArm, ChartInverse, Curve3, Surface};
 use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SizedPass, Vec3};
@@ -498,7 +498,7 @@ enum Near<T> {
 /// spelling of the foot, which import's meridian landing cites.
 pub fn foot<T: Real>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
     match *carrier {
-        Curve3::Line { origin, dir } => Some(Line { origin, dir }.param(x)),
+        Curve3::Line(line) => Some(line.param(x)),
         Curve3::Circle {
             center,
             axis,
@@ -521,7 +521,7 @@ pub fn foot<T: Real>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
 fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T> {
     let (t0, t1) = (e.t0, e.t1);
     let speed = match e.carrier {
-        Curve3::Line { dir, .. } => dir.norm(),
+        Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
         Curve3::Circle { radius, .. } => radius,
         _ => return sampled_near(e, x, band),
     };
@@ -1083,7 +1083,7 @@ impl<T: Decide> EdgeShape<T> {
     fn of(carrier: &Curve3<T>, axis: Vec3<T>) -> Option<Self> {
         let speed = speed_bound(carrier)?;
         Some(match *carrier {
-            Curve3::Line { .. } => Self {
+            Curve3::Line(_) => Self {
                 speed,
                 line: true,
                 height: None,

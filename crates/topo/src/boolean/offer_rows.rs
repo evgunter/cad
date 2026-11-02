@@ -1355,7 +1355,7 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
     let y = Vec3::new(0.0, 1.0, 0.0);
     let floor = plane_through(o, y, Vec3::new(0.0, 0.0, 1.0));
     let extent = (2.0 * sagitta).sqrt();
-    let ruling = geom::Curve3::Line { origin: o, dir: y };
+    let ruling = geom::Curve3::Line(geom::Line { origin: o, dir: y });
     super::super::ops::seam_must_carry(
         &floor,
         &resting_cylinder(1.0),

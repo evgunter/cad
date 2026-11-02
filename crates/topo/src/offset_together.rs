@@ -387,8 +387,13 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                     what: "it joins two flat faces but is not straight",
                 });
             };
-            let shift = p_start - old_start;
-            let origin = origin + (shift - dir * shift.dot(dir));
+            // The start's move, less its slide along the line.
+            let slide = geom::Line {
+                origin: old_start,
+                dir,
+            }
+            .param(p_start);
+            let origin = origin + ((p_start - old_start) - dir * slide);
             // The other endpoint is VERIFIED onto that line rather than
             // assumed onto it: it is a different corner solve, and two
             // solves agreeing is the claim being made.
@@ -400,11 +405,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                 Ok(_) => return Err(ReplaceFaceError::TogetherEdgeDisagreement { edge, gap }),
                 Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
-            (
-                Curve3::Line { origin, dir },
-                (p_start - origin).dot(dir),
-                t1,
-            )
+            (Curve3::Line(moved), moved.param(p_start), t1)
         };
 
         let displacement = p_start - old_start;

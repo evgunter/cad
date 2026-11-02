@@ -87,13 +87,10 @@ pub enum Curve3<T: Real> {
     ///   length in meters; domain t ∈ ℝ, not periodic.
     /// - `origin` is the `t = 0` point — conventional data (any point of
     ///   the line would do; the choice fixes the parameterization).
-    Line {
-        /// The point at parameter `t = 0`.
-        origin: Point3<T>,
-        /// The unit tangent direction (conventional, unchecked);
-        /// increasing `t` runs along it.
-        dir: Vec3<T>,
-    },
+    ///
+    /// The held [`Line`] is the carrier's data and its readings
+    /// ([`Line::param`], [`Line::foot`]); [`Curve3::line`] builds one.
+    Line(Line<T>),
 
     /// The full circle
     /// `P(θ) = center + (u_ref·cos θ + v_ref·sin θ)·radius`, where
@@ -435,7 +432,7 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn kind(&self) -> CurveKind {
         match self {
-            Self::Line { .. } => CurveKind::Line,
+            Self::Line(_) => CurveKind::Line,
             Self::Circle { .. } => CurveKind::Circle,
             Self::Ellipse { .. } => CurveKind::Ellipse,
             Self::Spiric { .. } => CurveKind::Spiric,
@@ -693,7 +690,10 @@ pub enum CurveData<'a, T: Real> {
 /// [`Self::foot`].
 ///
 /// `dir` is unit by the carriers' convention; the readings divide by
-/// `dir·dir`, so they hold for any nonzero `dir`.
+/// `dir·dir`, so they hold for any nonzero `dir`. **`dir` must be
+/// nonzero**: on a zero `dir` they divide `0/0`. Nothing here checks it;
+/// at rest, `topo`'s tier-3 check 1 refuses a zero direction on every
+/// edge carrier (crate docs, "Unit-vector and orthogonality fields").
 #[derive(Clone, Copy, Debug)]
 pub struct Line<T: Real> {
     /// The point at `t = 0`.
@@ -717,6 +717,12 @@ impl<T: Real> Line<T> {
 }
 
 impl<T: Real> Curve3<T> {
+    /// The line `origin + dir·t` as a carrier.
+    #[must_use]
+    pub fn line(origin: Point3<T>, dir: Vec3<T>) -> Self {
+        Self::Line(Line { origin, dir })
+    }
+
     /// **Whether the carrier is straight, read as its line**: `Some` for
     /// a `Line`, whose [`Line`] is the carrier's own parameterization
     /// (`self.eval(t) == origin + dir·t`), and `None` for every kind that
@@ -725,7 +731,7 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn as_line(&self) -> Option<Line<T>> {
         match *self {
-            Curve3::Line { origin, dir } => Some(Line { origin, dir }),
+            Curve3::Line(line) => Some(line),
             Curve3::Circle { .. }
             | Curve3::Ellipse { .. }
             | Curve3::Spiric { .. }
@@ -759,7 +765,7 @@ impl<T: Real> Curve3<T> {
         use crate::DatumValue::{Direction, Point, Scalar};
         use CurveDatum as D;
         CurveData::Analytic(match *self {
-            Curve3::Line { origin, dir } => {
+            Curve3::Line(Line { origin, dir }) => {
                 AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
             }
             Curve3::Circle {
@@ -880,7 +886,7 @@ impl<T: Real> Curve3<T> {
             } => core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
                 .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
                 .collect(),
-            Curve3::Line { origin: _, dir: _ } | Curve3::Nurbs(_) => Vec::new(),
+            Curve3::Line(Line { origin: _, dir: _ }) | Curve3::Nurbs(_) => Vec::new(),
         }
     }
 
@@ -1037,7 +1043,7 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn reversed(&self) -> Option<Self> {
         Some(match self.clone() {
-            Curve3::Line { origin, dir } => Curve3::Line { origin, dir: -dir },
+            Curve3::Line(Line { origin, dir }) => Curve3::line(origin, -dir),
             Curve3::Circle {
                 center,
                 axis,
@@ -1091,10 +1097,7 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn translated(&self, by: Vec3<T>) -> Option<Self> {
         Some(match self.clone() {
-            Curve3::Line { origin, dir } => Curve3::Line {
-                origin: origin + by,
-                dir,
-            },
+            Curve3::Line(Line { origin, dir }) => Curve3::line(origin + by, dir),
             Curve3::Circle {
                 center,
                 axis,
@@ -1407,7 +1410,7 @@ impl<T: SpanLocate> Curve3<T> {
     ///   the sealed seam; all-poison for the placeholder state).
     pub fn eval(&self, t: T) -> Point3<T> {
         match self {
-            Curve3::Line { origin, dir } => *origin + *dir * t,
+            Curve3::Line(Line { origin, dir }) => *origin + *dir * t,
             Curve3::Circle {
                 center,
                 axis,
@@ -1469,7 +1472,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// pass).
     pub fn deriv(&self, t: T) -> Vec3<T> {
         match self {
-            Curve3::Line { dir, .. } => *dir,
+            Curve3::Line(Line { dir, .. }) => *dir,
             Curve3::Circle {
                 axis,
                 radius,
@@ -1537,7 +1540,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// passes and are not projections of this one.
     pub fn ders1(&self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
-            Curve3::Line { origin, dir } => (*origin + *dir * t, *dir),
+            Curve3::Line(Line { origin, dir }) => (*origin + *dir * t, *dir),
             Curve3::Circle {
                 center,
                 axis,
@@ -1602,7 +1605,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
     pub fn deriv2(&self, t: T) -> Vec3<T> {
         match self {
-            Curve3::Line { .. } => Vec3::zero(),
+            Curve3::Line(_) => Vec3::zero(),
             Curve3::Circle {
                 axis,
                 radius,
@@ -1786,7 +1789,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// flip, and decided by two unrelated last bits.
     pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
         match self {
-            Curve3::Line { origin, dir } => Some((p - *origin).dot(*dir)),
+            Curve3::Line(Line { origin, dir }) => Some((p - *origin).dot(*dir)),
             Curve3::Circle { center, .. } => {
                 let w = p - *center;
                 let (p_near, tau_near) = self.ders1(near);
@@ -1868,7 +1871,7 @@ mod tests {
         let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
         let c = Point3::new(0.5, -1.0, 2.0);
         let curves = [
-            Curve3::Line { origin: c, dir: u },
+            Curve3::Line(Line { origin: c, dir: u }),
             Curve3::Circle {
                 center: c,
                 axis: n,
@@ -1943,10 +1946,7 @@ mod tests {
 
     #[test]
     fn line_evaluates_exactly_on_dyadic_data() {
-        let line = Curve3::Line {
-            origin: Point3::new(1.0, -2.0, 0.5),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), Vec3::new(0.0, 0.0, 1.0));
         let p = line.eval(3.25);
         assert_eq!((p.x, p.y, p.z), (1.0, -2.0, 3.75));
         let d = line.deriv(3.25);
@@ -2059,10 +2059,7 @@ mod tests {
         /// chain rule multiplies dir by the seed, both single products).
         #[test]
         fn line_deriv_matches_dual_of_eval(t in -1.0e3..1.0e3f64) {
-            let line = Curve3::Line {
-                origin: Point3::new(1.0, -2.0, 0.5),
-                dir: Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0),
-            };
+            let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0));
             let ld: Curve3<Dual64> = line.map_scalar(Dual::constant);
             let p = ld.eval(Dual::variable(t));
             let d = line.deriv(t);
@@ -2178,12 +2175,9 @@ mod tests {
             );
         }
         assert!(
-            Curve3::<f64>::Line {
-                origin: Point3::origin(),
-                dir: Vec3::unit_x()
-            }
-            .major_frame()
-            .is_none()
+            Curve3::<f64>::line(Point3::origin(), Vec3::unit_x())
+                .major_frame()
+                .is_none()
         );
         // Equal semi-axes: the tie keeps the seam's own axis.
         let tie = at(2.0, 2.0).major_frame().unwrap();
@@ -3102,10 +3096,7 @@ mod tests {
     /// fixtures, at parameters that are not special to any of them.
     #[test]
     fn analytic_ders1_is_eval_and_deriv_bit_for_bit() {
-        let line = Curve3::Line {
-            origin: Point3::new(1.0, -2.0, 0.5),
-            dir: Vec3::new(0.3, -0.4, 1.2),
-        };
+        let line = Curve3::line(Point3::new(1.0, -2.0, 0.5), Vec3::new(0.3, -0.4, 1.2));
         for (kind, c) in [
             ("line", line),
             ("circle", tilted_circle()),
@@ -3179,10 +3170,7 @@ mod tests {
         let (jp, jd) = c.ders1(f64::NAN);
         assert!(jp.x.is_nan() && jp.y.is_nan() && jp.z.is_nan());
         assert!(jd.x.is_nan() && jd.y.is_nan() && jd.z.is_nan());
-        let line = Curve3::Line {
-            origin: Point3::origin(),
-            dir: Vec3::unit_x(),
-        };
+        let line = Curve3::line(Point3::origin(), Vec3::unit_x());
         let lp = line.eval(f64::NAN);
         assert!(lp.x.is_nan() && lp.y.is_nan() && lp.z.is_nan());
         // The line's deriv is parameter-independent — NaN t does not
@@ -3263,10 +3251,10 @@ mod tests {
         /// assertable form of enclosure containment for this variant.
         #[test]
         fn line_encloses_f64_evaluation() {
-            let line = Curve3::Line {
-                origin: Point3::new(1.0, -2.0, 0.5),
-                dir: Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0),
-            };
+            let line = Curve3::line(
+                Point3::new(1.0, -2.0, 0.5),
+                Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0),
+            );
             let li = line.map_scalar(Interval::from_f64);
             for t in [0.0, 1.75, -3.5e2, 1234.5678] {
                 let p = line.eval(t);

@@ -832,7 +832,7 @@ fn faces_at<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Vec<FaceKey>, Ble
 /// trimline or spine); `None` for any other carrier.
 fn foot_on<T: Real>(curve: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
     match *curve {
-        Curve3::Line { origin, dir } => Some(geom::Line { origin, dir }.foot(p)),
+        Curve3::Line(line) => Some(line.foot(p)),
         Curve3::Circle {
             center,
             axis,
@@ -985,7 +985,7 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
             axis,
             radius,
             ..
-        } => foot_on(&Curve3::Line { origin, dir: axis }, p).map(|c| (c, radius)),
+        } => foot_on(&Curve3::Line(geom::Line { origin, dir: axis }), p).map(|c| (c, radius)),
         Surface::Torus {
             center,
             axis,
@@ -1486,14 +1486,14 @@ fn corner_reach<T: Decide + Bounds>(
                     .filter_map(|l| l.trim_on(*f).map(|t| &t.0))
                     .collect();
                 let [
-                    Curve3::Line {
+                    Curve3::Line(geom::Line {
                         origin: o1,
                         dir: d1,
-                    },
-                    Curve3::Line {
+                    }),
+                    Curve3::Line(geom::Line {
                         origin: o2,
                         dir: d2,
-                    },
+                    }),
                 ] = trims[..]
                 else {
                     return Ok(None);
@@ -1794,7 +1794,7 @@ fn sheet_clip<T: Decide + Bounds>(
             let carrier = cert.carrier();
             let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
             let aabb = match carrier {
-                Curve3::Line { .. } => {
+                Curve3::Line(_) => {
                     let lo = |k: fn(&Point3<T>) -> T| k(&p0).min(k(&p1));
                     let hi = |k: fn(&Point3<T>) -> T| k(&p0).max(k(&p1));
                     [
@@ -1881,7 +1881,7 @@ fn sheet_clip<T: Decide + Bounds>(
                         (T::zero(), e, (z_far + d_mer) * e, T::zero())
                     }
                 }
-                Curve3::Line { .. } => {
+                Curve3::Line(_) => {
                     // A segment clear of the axis turns through the
                     // angle between its ends' radial directions.
                     let (v0, v1) = (p0 - o, p1 - o);

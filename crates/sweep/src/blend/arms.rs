@@ -365,17 +365,17 @@ pub fn plane_plane_blend<T: Real>(
         },
         spine_curvature: T::zero(),
         trim_a: (
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: foot_a,
                 dir: tau,
-            },
+            }),
             setback,
         ),
         trim_b: (
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: foot_b,
                 dir: tau,
-            },
+            }),
             setback,
         ),
     }
@@ -963,20 +963,8 @@ impl<T: Real> Ruling<T> {
                 u_ref: (q_a - center).normalize(),
             },
             spine_curvature: T::zero(),
-            trim_a: (
-                Curve3::Line {
-                    origin: q_a,
-                    dir: self.tau,
-                },
-                (q_a - self.rim).norm(),
-            ),
-            trim_b: (
-                Curve3::Line {
-                    origin: q_b,
-                    dir: self.tau,
-                },
-                (q_b - self.rim).norm(),
-            ),
+            trim_a: (Curve3::line(q_a, self.tau), (q_a - self.rim).norm()),
+            trim_b: (Curve3::line(q_b, self.tau), (q_b - self.rim).norm()),
         }
     }
 }
@@ -1148,17 +1136,17 @@ pub fn chamfer_strip<T: Real>(
         },
         spine_curvature: T::zero(),
         trim_a: (
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: foot_a,
                 dir: tau,
-            },
+            }),
             distance,
         ),
         trim_b: (
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: foot_b,
                 dir: tau,
-            },
+            }),
             distance,
         ),
     }

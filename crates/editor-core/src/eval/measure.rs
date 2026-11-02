@@ -431,7 +431,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                 .and_then(|g| g.certified())
                 .map(topo::EdgeCurve::carrier);
             match carrier {
-                Some(Curve3::Line { dir, .. }) => Carrier::Line {
+                Some(Curve3::Line(geom::Line { dir, .. })) => Carrier::Line {
                     dir: *dir,
                     ends: body
                         .half_edge_start_point(edge.he_plus)
@@ -710,7 +710,7 @@ pub(crate) fn reach_of<T: Decide>(
 fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Option<T> {
     let from = |p: Point3<T>| (p - origin).norm();
     match c {
-        Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
+        Curve3::Line(_) => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
         Curve3::Circle { center, radius, .. } => Some(from(*center) + *radius),
         // The semi-axes carry no order and no sign (`geom_brep::Conic`):
         // the reach is the larger MAGNITUDE.

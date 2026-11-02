@@ -605,7 +605,7 @@ fn conic_ball<T: Real>(curve: &Curve3<T>) -> Option<ExtentBall<T>> {
             Curve3::semi_axes_by_size(semi_u, semi_v).0,
         )),
         Curve3::Circle { center, radius, .. } => Some(ExtentBall::new(center, radius.abs())),
-        Curve3::Line { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Line(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }
 
@@ -717,10 +717,10 @@ pub(super) fn cylinder_cylinder<T: Decide>(
     // A ruling through `p`, cut to the region, where it reaches it.
     let ruling = |p: Point3<T>| {
         region_span(pose.region, p, axis, band).map(|span| {
-            let line = Curve3::Line {
+            let line = Curve3::Line(geom::Line {
                 origin: p,
                 dir: axis,
-            };
+            });
             let witness = line.eval((span.0 + span.1) * T::from_f64(0.5));
             (line, span, witness)
         })

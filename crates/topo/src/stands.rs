@@ -414,7 +414,7 @@ fn line_meetings<T: Decide>(
         vec![(-qb - root) / twice, (-qb + root) / twice]
     };
     match *c {
-        geom::Curve3::Line { origin, dir } => {
+        geom::Curve3::Line(geom::Line { origin, dir }) => {
             vec![(origin - m).cross(dir).dot(normal) / w.cross(dir).dot(normal)]
         }
         geom::Curve3::Circle {

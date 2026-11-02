@@ -297,7 +297,7 @@ impl<T: Decide> Conic<T> {
                 b: semi_v,
                 u: u_ref,
             },
-            geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+            geom::Curve3::Line(_) | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                 unreachable!("a conic edge of a ruled face is a circle or an ellipse")
             }
         }
@@ -446,9 +446,7 @@ fn reach_bound<T: Decide>(surface: &Ruled<T>, edges: &[Edge<T>]) -> T {
         Ruled::Cone { apex, .. } => edges
             .iter()
             .map(|e| match e.carrier {
-                geom::Curve3::Line { .. } => {
-                    (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm())
-                }
+                geom::Curve3::Line(_) => (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm()),
                 ref conic => {
                     let c = Conic::of(conic);
                     (c.center - apex).norm() + c.a.max(c.b)
@@ -806,7 +804,10 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
         let base = self.surface.base();
         let mut out = Vec::new();
         match (&edge.carrier, leg.course) {
-            (&geom::Curve3::Line { origin, dir }, LegShape::Parallel(Round { center, .. })) => {
+            (
+                &geom::Curve3::Line(geom::Line { origin, dir }),
+                LegShape::Parallel(Round { center, .. }),
+            ) => {
                 // A ruling crosses the parallel's plane once, at the
                 // parallel's one point on it.
                 let t = (center - origin).dot(axis) / dir.dot(axis);
@@ -814,7 +815,7 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
                     out.push((origin + dir * t, t, sideless));
                 }
             }
-            (geom::Curve3::Line { .. }, LegShape::Ruling { line, .. }) => {
+            (geom::Curve3::Line(_), LegShape::Ruling { line, .. }) => {
                 let ends = [edge.at(edge.t0), edge.at(edge.t1)];
                 let off_line = |y: Point3<T>| {
                     let w = y - line.start;

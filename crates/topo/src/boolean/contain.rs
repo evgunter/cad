@@ -577,7 +577,7 @@ pub(crate) fn loop_circle<T: Decide>(
             // scaffolding (which tier 2 refuses upstream): not one
             // circle's arc.
             Some(
-                geom::Curve3::Line { .. }
+                geom::Curve3::Line(_)
                 | geom::Curve3::Ellipse { .. }
                 | geom::Curve3::Spiric { .. }
                 | geom::Curve3::Nurbs(_),

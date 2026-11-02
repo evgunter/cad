@@ -9163,7 +9163,7 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
         vertex_point(body, body.half_edge_end(he)?)?,
     );
     let departure = match curve.carrier() {
-        geom::Curve3::Line { .. } => Some(Departure::Exact(p1 - p0)),
+        geom::Curve3::Line(_) => Some(Departure::Exact(p1 - p0)),
         geom::Curve3::Circle { .. }
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. } => {
@@ -9759,7 +9759,7 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
     let edge = body.half_edges.get(he)?.edge;
     let geom = certified_carrier(body, edge)?;
     let segment = match *geom.carrier() {
-        geom::Curve3::Line { .. } => {
+        geom::Curve3::Line(_) => {
             let (a, b) = edge_endpoints(body, he)?;
             MeetSegment::Line { a, b }
         }
@@ -10320,7 +10320,7 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
     match carrier {
         // `dir` is unit by convention, so the rejection is the residual
         // of the projection.
-        geom::Curve3::Line { origin, dir } => {
+        geom::Curve3::Line(geom::Line { origin, dir }) => {
             let d = p - *origin;
             Some((d - *dir * d.dot(*dir)).norm())
         }

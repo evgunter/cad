@@ -1381,7 +1381,7 @@ fn curved_arm<T: Decide + Bounds>(
             let axis = (topo::Relation::Coaxial, margin);
             Ok((arm, sheet.blend(ta, tb, radius), axis))
         }
-        Curve3::Line { dir, .. } => {
+        Curve3::Line(geom::Line { dir, .. }) => {
             let arm = ruling_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
             let sheet = Ruling {
                 tau: dir.normalize(),
@@ -2406,7 +2406,7 @@ pub(crate) fn turn_reading<T: Decide>(
     };
     let others = [other(l1), other(l2)];
     let trimline = |l: &Link<T>, f: FaceKey| match l.trim_on(f) {
-        Some((Curve3::Line { origin, dir }, _)) => Ok((*origin, *dir)),
+        Some((Curve3::Line(geom::Line { origin, dir }), _)) => Ok((*origin, *dir)),
         _ => Err(unbuilt_geometry(
             EntityId::Edge(l.edge),
             "a turning band's trimline is not a line",

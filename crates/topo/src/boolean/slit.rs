@@ -1255,7 +1255,7 @@ fn conic_or_line_on<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
     let (samples, site, coincide) = match (carrier, surface) {
-        (geom::Curve3::Line { .. }, geom::Surface::Plane { .. }) => {
+        (geom::Curve3::Line(_), geom::Surface::Plane { .. }) => {
             (Samples::Ends, RIDER_ON_PLANE, Coincide::EdgeOnPlane)
         }
         (
@@ -1285,10 +1285,7 @@ fn conic_or_line_on<T: Decide>(
         }
         // A line on a cylinder or a cone: the one reading of it
         // ([`crate::census::line_on_quadric_carrier`]).
-        (
-            geom::Curve3::Line { .. },
-            geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. },
-        ) => {
+        (geom::Curve3::Line(_), geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. }) => {
             return match crate::census::line_on_quadric_carrier(
                 surface,
                 carrier.eval(t0),
@@ -1737,7 +1734,7 @@ fn walls_inside<T: Decide>(
                 } else {
                     EdgeInFaceGap::CurvedFace
                 };
-                let (Some(wall_bend), Some(floor_bend), geom::Curve3::Line { .. }) = (
+                let (Some(wall_bend), Some(floor_bend), geom::Curve3::Line(_)) = (
                     bend_across(surface(wall)?, mid, tangent),
                     bend_across(surface(f)?, mid, tangent),
                     curve.carrier(),

@@ -2222,7 +2222,7 @@ fn pair_contact<T: Decide>(
     }
     match crate::boolean::tangent_pair_at_rest(body, fx, fy, band) {
         Ok(crate::boolean::RestTangent::Line {
-            carrier: geom::Curve3::Line { dir, .. },
+            carrier: geom::Curve3::Line(geom::Line { dir, .. }),
             ..
         }) => Some(PairContact::Line(dir.normalize())),
         _ => None,
@@ -3152,10 +3152,7 @@ fn on_edge_interior_reading<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<(T, MarginDiag)>> {
     let e = e.span();
-    let line = geom::Curve3::Line {
-        origin: e.p0,
-        dir: e.dir,
-    };
+    let line = geom::Curve3::line(e.p0, e.dir);
     match CarrierSpan::new(&line, e.at).contact(q, T::zero(), band) {
         Ok(Some(Hit::On { t, margin })) => Some(Some((t, margin))),
         Ok(Some(Hit::End(_)) | None) => Some(None),
@@ -4789,17 +4786,11 @@ fn meetings<T: Decide>(
     band: Band,
 ) -> Result<Vec<(T, CutAt)>, CrossRefusal> {
     use crate::splitting::containment::LoopEdge;
-    let along = geom::Curve3::Line {
-        origin: e.p0,
-        dir: e.dir,
-    };
+    let along = geom::Curve3::line(e.p0, e.dir);
     let (a, b) = side.ends;
     // A straight edge with no certified curve of its own is the segment
     // between its loop ends.
-    let chord = geom::Curve3::Line {
-        origin: a,
-        dir: (b - a).normalize(),
-    };
+    let chord = geom::Curve3::line(a, (b - a).normalize());
     let (boundary, at) = match (edge, stored) {
         (LoopEdge::Chord, Some(curve)) => (
             CarrierSpan::new(curve.carrier(), curve.params()),
@@ -19270,7 +19261,7 @@ mod two_carrier_records {
                 let b = Band::linear(Tol::witness()).unwrap();
                 let origin = geom_core::Point3::new(0.0, y, z);
                 let dir = geom_core::Vec3::unit_x();
-                let carrier = geom::Curve3::Line { origin, dir };
+                let carrier = geom::Curve3::Line(geom::Line { origin, dir });
                 let read = crate::boolean::line_through_both_faces(
                     [(body, face), (body, face)],
                     &carrier,

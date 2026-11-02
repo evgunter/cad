@@ -1551,7 +1551,7 @@ pub(crate) fn carrier_loop<T: Decide>(
                     unreachable!("a circle or an ellipse is a conic arc above")
                 }
                 // A line: its segment is its two end vertices'.
-                geom::Curve3::Line { .. } => LoopEdge::Chord,
+                geom::Curve3::Line(_) => LoopEdge::Chord,
                 geom::Curve3::Spiric {
                     center,
                     axis,
@@ -1601,7 +1601,7 @@ pub(crate) fn carrier_ball<T: Decide>(
     (t0, t1): (T, T),
 ) -> Option<(Point3<T>, T)> {
     match *carrier {
-        geom::Curve3::Line { .. } => None,
+        geom::Curve3::Line(_) => None,
         geom::Curve3::Circle { center, radius, .. } => Some((center, radius)),
         geom::Curve3::Ellipse {
             center,
@@ -1684,9 +1684,11 @@ pub(crate) fn arc_distance_floor<T: Decide>(
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
-        geom::Curve3::Line { .. } => ArcFloor::Segment(
-            crate::sector_shape::point_segment_distance(carrier.eval(t0), carrier.eval(t1), q),
-        ),
+        geom::Curve3::Line(_) => ArcFloor::Segment(crate::sector_shape::point_segment_distance(
+            carrier.eval(t0),
+            carrier.eval(t1),
+            q,
+        )),
         geom::Curve3::Circle { center, axis, .. } | geom::Curve3::Ellipse { center, axis, .. } => {
             let Some(crate::ring_path::LoopArc::Conic(conic)) =
                 crate::ring_path::LoopArc::of(carrier, (t0, t1))
@@ -2054,7 +2056,7 @@ fn certify_plane<T: Decide>(
     for step in &steps {
         let mut margins = vec![off(step.point)];
         match step.curve.map(|c| c.carrier()) {
-            None | Some(geom::Curve3::Line { .. }) => {}
+            None | Some(geom::Curve3::Line(_)) => {}
             Some(&geom::Curve3::Circle {
                 center,
                 axis,

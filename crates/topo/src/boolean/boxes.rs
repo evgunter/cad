@@ -2398,7 +2398,7 @@ pub(crate) fn edge_box_rule<T: Real>(
     let params = curve.params();
     let carrier = curve.carrier();
     match carrier {
-        geom::Curve3::Line { .. } => EdgeBoxRule::Chord,
+        geom::Curve3::Line(_) => EdgeBoxRule::Chord,
         geom::Curve3::Circle {
             center,
             axis,
@@ -5333,7 +5333,7 @@ pub(crate) mod tests {
                         body.get_curve_geom(e.curve)
                             .and_then(crate::null::CurveGeom::certified)
                             .map(|c| c.carrier()),
-                        Some(Curve3::Line { .. })
+                        Some(Curve3::Line(_))
                     );
                     line.then_some((e.curve, e.he_plus))
                 })

@@ -741,7 +741,7 @@ fn crossings<T: Decide>(
     let inside = |m: T| matches!(read(m), Ok(geom_core::Sign::Positive));
     let mut candidates: Vec<Point3<T>> = Vec::new();
     match (curve.carrier(), locus) {
-        (geom::Curve3::Line { .. }, _) => {
+        (geom::Curve3::Line(_), _) => {
             let p1 = curve.carrier().eval(t1);
             let w = p1 - p0;
             match locus {
@@ -910,7 +910,7 @@ fn rides<T: Decide>(
             band,
         )
         .map(|one| one.is_some()),
-        (Locus::Line { origin, dir }, geom::Curve3::Line { .. }) => {
+        (Locus::Line { origin, dir }, geom::Curve3::Line(_)) => {
             let (t0, t1) = curve.params();
             for p in [curve.carrier().eval(t0), curve.carrier().eval(t1)] {
                 let d = p - origin;
