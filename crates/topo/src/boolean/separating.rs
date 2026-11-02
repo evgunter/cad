@@ -141,6 +141,15 @@ pub(crate) fn face_axes<'b, T: Decide + 'b>(
     axes
 }
 
+/// The world's axes, the directions a world box reads.
+pub(crate) fn world_axes<T: Decide>() -> [UnitVec3<T>; 3] {
+    [
+        UnitVec3::exact_x(),
+        UnitVec3::exact_y(),
+        UnitVec3::exact_z(),
+    ]
+}
+
 /// A planar face's outward normal as a unit direction, levered by the
 /// diagonal of its reach `(lo, hi)`, the length it is consumed over.
 /// `None` for a face that is not planar, one with no reach, or a normal

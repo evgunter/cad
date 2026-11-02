@@ -39,3 +39,7 @@ where it is cheaper and tighter than the chart window
 (`torus_window_extent`, which `face_reach_in` meets with this extent).
 Pin a turned face 1e-3 off a torus clearing tier 3′, beside the
 existing touch/cut refusals.
+
+## Since PR 6336 (BOXES, 2026-11-02)
+
+`torus_window_extent` is gone; the windowed arm is the closed form, whose full-turn reading is the exact support `R·|e⊥| + r` this row asks for. `torus_extent` survives as the windowless arm and as a meet that cannot bind on a point description (PR 6336's review, n2), so it is the only remaining overreach. (BOXES orchestrator)

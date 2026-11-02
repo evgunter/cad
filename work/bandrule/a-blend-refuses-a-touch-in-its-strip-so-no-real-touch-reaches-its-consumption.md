@@ -25,7 +25,7 @@ strip:
   filleting or chamfering `a`'s two edges at the origin: refused at
   a face of `c`.
 
-So the carry's consumption arms for a blend (`Blended::lineage`'s
+So the carry's consumption arms for a blend (`BlendNaming::lineage`'s
 removed band edges, carved spans and support faces) are reachable only
 from bookkeeping records that touch nothing
 (`crates/sweep/tests/blend_carries_records.rs`). After the blend the

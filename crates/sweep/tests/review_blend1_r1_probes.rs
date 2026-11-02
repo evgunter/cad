@@ -467,7 +467,8 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
             .find_map(|(k, e)| {
                 let c = body.get_curve_geom(e.curve)?.certified()?;
                 match c.carrier() {
-                    geom::Curve3::Line { origin, dir } => ((origin.x - 1.0).abs() < 1e-12
+                    geom::Curve3::Line(geom::Line { origin, dir }) => ((origin.x - 1.0).abs()
+                        < 1e-12
                         && origin.y.abs() < 1e-6
                         && dir.z.abs() > 0.5)
                         .then_some(k),

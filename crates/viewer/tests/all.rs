@@ -68,6 +68,8 @@ mod assembly_display;
 mod assembly_walk;
 #[path = "blend_authoring.rs"]
 mod blend_authoring;
+#[path = "bundle_editor.rs"]
+mod bundle_editor;
 #[path = "camera_ops.rs"]
 mod camera_ops;
 #[path = "cascade_delete.rs"]
@@ -120,10 +122,14 @@ mod landing_gathers;
 mod lands_unplaced;
 #[path = "mate_door_and_badge.rs"]
 mod mate_door_and_badge;
+#[path = "mate_kinds.rs"]
+mod mate_kinds;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]
 mod mirror_authoring;
+#[path = "review_bundle_editor_r2.rs"]
+mod review_bundle_editor_r2;
 #[path = "review_intent_e_r1.rs"]
 mod review_intent_e_r1;
 
@@ -149,12 +155,20 @@ mod pick_windows;
 mod picture_draws_bodies;
 #[path = "prefs.rs"]
 mod prefs;
+#[path = "probe_6356.rs"]
+mod probe_6356;
+#[path = "product_door.rs"]
+mod product_door;
 #[path = "profile_draw.rs"]
 mod profile_draw;
 #[path = "profile_edit.rs"]
 mod profile_edit;
 #[path = "refusal_concision_edits.rs"]
 mod refusal_concision_edits;
+#[path = "review_6302.rs"]
+mod review_6302;
+#[path = "review_bundle_r1.rs"]
+mod review_bundle_r1;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
@@ -175,11 +189,14 @@ mod review_gui4_r2;
 mod review_m10_1_r1;
 #[path = "review_pick_r2.rs"]
 mod review_pick_r2;
+#[path = "review_recheck_6300.rs"]
+mod review_recheck_6300;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 #[path = "save_and_fork_doors.rs"]
 mod save_and_fork_doors;
-
+#[path = "saved_layout.rs"]
+mod saved_layout;
 #[path = "scene_build.rs"]
 mod scene_build;
 #[path = "screen_view.rs"]
@@ -194,6 +211,8 @@ mod story_assembly;
 mod story_authoring;
 #[path = "story_parametric.rs"]
 mod story_parametric;
+#[path = "takeovers.rs"]
+mod takeovers;
 #[path = "theme.rs"]
 mod theme;
 #[path = "tree_badges.rs"]
@@ -204,6 +223,8 @@ mod tree_shape;
 mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
+#[path = "view_toggles.rs"]
+mod view_toggles;
 #[path = "whole_rim_pick.rs"]
 mod whole_rim_pick;
 

@@ -196,18 +196,6 @@ pub(crate) const FILED_DECLARE: &[&str] = &[];
 /// The rows that render a key or a hex id, by exact row id and the
 /// exact span, each filed with its owner.
 pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
-    // `EngineRefusal::say` (`topo/src/clearance.rs`) names a face by
-    // its side and its `FaceKey` `Debug`, and this arm says it.
-    Admission {
-        row: "MeasureClearanceRefused/Unsupported",
-        span: "FaceKey(null)",
-        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
-    },
-    Admission {
-        row: "MeasureClearanceRefused/PoisonEnclosure",
-        span: "FaceKey(null)",
-        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
-    },
     // A smooth-join refusal names its edge by key.
     Admission {
         row: "Extrude/SmoothJoinRefuted",
@@ -245,7 +233,6 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
-    "CrossingUnverified",
     "CurvedSolidFrontier",
     "DegenerateDirection",
     "EmptyHalf",
@@ -296,10 +283,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
-    // work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
-    "MeasureClearanceRefused/EmptyScope",
-    "MeasureClearanceRefused/PoisonEnclosure",
-    "MeasureClearanceRefused/Unsupported",
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
@@ -750,7 +733,6 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
-use editor_core::clearance::MinSeparationRefusal;
 use editor_core::{BifurcationKind, Diagnosis, EvalError, ParamBoxError, ResolveError, SeedError};
 
 test_utils::f6_variants! {
@@ -803,7 +785,7 @@ test_utils::f6_variants! {
         Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
         WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
-        MeasureNotParallel, MeasureUnsupported, PayloadExpr, MeasureClearanceRefused,
+        MeasureNotParallel, MeasureUnsupported, PayloadExpr,
         AssertionDimension,
     ];
 }
@@ -876,7 +858,9 @@ mod kernel {
         pub(super) const LOFT_ERROR: LoftError = [
             Band, Skin, Euler, CapPlane, Pcurve, SeamStructure, SectionStructure,
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
-            FarSectionNotForward, FarStackingEscalated, StackingEscalated,
+            PinnedCorner, PinnedCornerUnsupported, CornerEscalated, SectionsTouch,
+            ClearanceUndecided, ClearanceFault, FarSectionNotForward, FarStackingEscalated,
+            StackingEscalated,
         ];
     }
 
@@ -919,7 +903,7 @@ mod kernel {
             NoCornerOfPair, FilletOffsetLeverTooShort, FilletArcFlattenedInStorage,
             FilletCarrierBelowSceneResolution, ArcLegOnOpenFillet,
             SeamRetrimsArcFirstSide, NonpositiveLeg, NonpositiveFilletRadius,
-            NonpositiveCircleRadius, DegenerateArcSpec, ArcSweepNotShortOfFullTurn,
+            NonpositiveCircleRadius, NonpositiveRectangleSide, DegenerateArcSpec, ArcSweepNotShortOfFullTurn,
             CircleSplitCount, PolygonTooFewVertices, ZeroDirection, NonFiniteDirection,
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
             ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesAuthoredPoint,
@@ -1048,12 +1032,6 @@ test_utils::f6_variants! {
     const BIFURCATION_KIND: BifurcationKind = [FoldProximity, AmbiguousBasin, ResidualFailure];
 }
 
-test_utils::f6_variants! {
-    /// `MinSeparationRefusal`'s arms, for the `MeasureClearanceRefused/` rows.
-    const MIN_SEPARATION_REFUSAL: MinSeparationRefusal =
-        [Unsupported, PoisonEnclosure, EmptyScope];
-}
-
 /// Every roster the weld checks, by the refusal it is the census of.
 /// [`forward`] names a level's roster here, and the weld reds on an
 /// entry no row reached, so an arm reclassified away from its roster
@@ -1067,7 +1045,6 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("ResolveError", RESOLVE_ERROR.identifiers()),
         ("Diagnosis", DIAGNOSIS.identifiers()),
         ("BifurcationKind", BIFURCATION_KIND.identifiers()),
-        ("MinSeparationRefusal", MIN_SEPARATION_REFUSAL.identifiers()),
         (
             "NamingError",
             crate::display_contract::NAMING_ERROR.identifiers(),
@@ -1166,7 +1143,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             welded(levels)
         }
         NodeErrorKind::WitnessBifurcation(e) => one("BifurcationKind", &e.kind),
-        NodeErrorKind::MeasureClearanceRefused(e) => one("MinSeparationRefusal", e),
         // Labelled by the standing each carries, the names the filed
         // rows cite them by.
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Forward::Welded {
@@ -3460,6 +3436,10 @@ fn skin() -> Vec<(String, NodeErrorKind)> {
 fn loft() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use sweep::LoftError as E;
+    let segment = |loop_index, segment| sweep::LoopSegment {
+        loop_index,
+        segment,
+    };
     [
         ("Band", E::Band(band_error())),
         (
@@ -3507,6 +3487,56 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
         ("SectionNotFinite", E::SectionNotFinite { section: 1 }),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
         ("DegenerateStacking", E::DegenerateStacking { slab: 1 }),
+        (
+            "PinnedCorner",
+            E::PinnedCorner {
+                loop_index: 1,
+                at: sweep::PinnedSite::Segment(12),
+                slab: 10,
+                moving: 11,
+            },
+        ),
+        (
+            "PinnedCornerUnsupported",
+            E::PinnedCornerUnsupported {
+                loop_index: 1,
+                at: sweep::PinnedSite::Segment(12),
+                slab: 10,
+            },
+        ),
+        (
+            "CornerEscalated",
+            E::CornerEscalated {
+                loop_index: 1,
+                corner: 12,
+                slab: 10,
+                source: diag(),
+            },
+        ),
+        (
+            "SectionsTouch",
+            E::SectionsTouch {
+                slab: 10,
+                segments: [segment(1, 12), segment(2, 13)],
+                shared: 1,
+            },
+        ),
+        (
+            "ClearanceUndecided",
+            E::ClearanceUndecided {
+                slab: 10,
+                segments: [segment(1, 12), segment(2, 13)],
+                source: diag(),
+            },
+        ),
+        (
+            "ClearanceFault",
+            E::ClearanceFault {
+                slab: 10,
+                segments: [segment(1, 12), segment(2, 13)],
+                readings: "the pose's discriminant and its root count",
+            },
+        ),
         ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),
         (
             "FarStackingEscalated",
@@ -4113,6 +4143,13 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "NonpositiveCircleRadius",
             P::NonpositiveCircleRadius { radius: -0.1 },
         ),
+        (
+            "NonpositiveRectangleSide",
+            P::NonpositiveRectangleSide {
+                side: "width",
+                length: -0.1,
+            },
+        ),
         ("DegenerateArcSpec", P::DegenerateArcSpec { value: 0.0 }),
         (
             "ArcSweepNotShortOfFullTurn",
@@ -4643,6 +4680,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "PastWidth",
+            NamingError::PastWidth {
+                what: editor_core::names::Numbered::InputPosition,
+                index: 7,
+            },
+        ),
+        (
             "SplitLineage",
             NamingError::SplitLineage(topo::SplitLineageCycle {
                 edge: topo::EdgeKey::default(),
@@ -4771,6 +4815,11 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     operand: topo::Operand::B,
                     vertex: topo::VertexKey::default(),
                     partner: topo::VertexKey::default(),
+                    in_band: topo::EdgeInBand {
+                        edge: topo::HalfEdgeKey::default(),
+                        face: None,
+                        predicate: None,
+                    },
                 },
             },
         ),
@@ -4998,7 +5047,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         PartFault, WitnessAge, WitnessBifurcation,
     };
     use payloads::*;
-    use topo::{FaceKey, ReadbackError};
+    use topo::ReadbackError;
     let face = || stable(EntityKind::Face, 3);
     let mut rows = vec![
         row(
@@ -5067,36 +5116,6 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 },
             }),
         ));
-    }
-    {
-        for (n, refusal) in [
-            (
-                "Unsupported",
-                MinSeparationRefusal::Unsupported {
-                    carrier: "an approximated face",
-                    face: FaceKey::default(),
-                    side: topo::clearance::Which::First,
-                },
-            ),
-            (
-                "PoisonEnclosure",
-                MinSeparationRefusal::PoisonEnclosure {
-                    a: FaceKey::default(),
-                    b: FaceKey::default(),
-                },
-            ),
-            (
-                "EmptyScope",
-                MinSeparationRefusal::EmptyScope {
-                    side: topo::clearance::Which::First,
-                },
-            ),
-        ] {
-            rows.push(row(
-                &format!("MeasureClearanceRefused/{n}"),
-                NodeErrorKind::MeasureClearanceRefused(refusal),
-            ));
-        }
     }
     let interrogate = [
         (

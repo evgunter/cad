@@ -490,6 +490,14 @@ impl MirrorTool {
         }
     }
 
+    /// **The plane the tool holds** ([`crate::session::Holds`]).
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        self.plane
+            .iter_mut()
+            .map(|held| crate::session::select::Held::One(held))
+            .collect()
+    }
+
     /// **The panel's held-picks line**: the body seat and the plane,
     /// each said by `by` — the body seat's node (the body a click on a
     /// copy seats), and the plane as the chrome says a held pick
@@ -541,7 +549,7 @@ impl Say for MirrorEvent {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::PlaneLost { plane, .. } => {
-                crate::matetool::face_lost(f, FaceRole::MirrorPlane.name(), plane, by)
+                crate::matetool::pick_lost(f, FaceRole::MirrorPlane.name(), plane, by)
             }
         }
     }
@@ -570,87 +578,44 @@ pub fn mirror_node(body: Operand, on: Operand, face: StableName) -> AuthoredNode
     )
 }
 
-/// **The transform tool**: one body pick plus the placement fields,
-/// committing one [`SessionOp::AddTransform`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// **The Transform tool before its door opens**: a pick opens the
+/// placement editor in its place ([`crate::matetool::MateTool::moving`]),
+/// and a split picked whole waits here for the half that is the body.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TransformTool {
-    seats: Seats,
-}
-
-impl Default for TransformTool {
-    fn default() -> Self {
-        Self::new()
-    }
+    split: Option<SpokenNode>,
 }
 
 impl TransformTool {
-    /// A tool holding nothing.
+    /// A tool waiting for its pick.
     pub const fn new() -> Self {
-        Self {
-            seats: Seats::one(Seat::TransformBody),
-        }
+        Self { split: None }
     }
 
-    /// The seats, roles and picks together — what the panel's line is
-    /// composed from ([`crate::seats::seat_line`]).
-    pub fn seats(&self) -> &Seats {
-        &self.seats
+    /// The split picked whole, waiting for its half.
+    pub fn awaiting_half(&self) -> Option<&SpokenNode> {
+        self.split.as_ref()
     }
 
-    /// The held body.
-    pub fn input(&self) -> Option<RecipeNodeId> {
-        self.seats.held(0)
+    /// Wait on `split` for its half.
+    pub(crate) fn await_half(&mut self, split: SpokenNode) {
+        self.split = Some(split);
     }
 
-    /// Feed one node pick — a second pick REPLACES the first, this tool
-    /// having only the one seat. `doc` routes it, and does not judge it.
-    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        self.seats.pick(doc, node);
-    }
-
-    /// [`Self::pick`] of the output `body` a viewport pick hit.
-    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
-        self.seats.pick_at(doc, node, body);
-    }
-
-    /// The half seat `i` reads, when it holds a split picked alone
-    /// ([`Seats::choose_half`]).
-    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
-        self.seats.choose_half(i, half);
-    }
-
-    /// Empty the seat.
-    pub fn clear(&mut self) {
-        self.seats.clear();
-    }
-
-    /// The survival step ([`crate::seats`]).
-    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-        self.seats.reconcile(doc)
-    }
-
-    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    /// The split, spoken again from `doc` ([`SpokenNode::respoken`]).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.seats.respeak(doc);
+        self.split = self.split.take().map(|split| split.respoken(doc));
     }
 
-    /// **The one committed edit**: the rigid placement.
-    ///
-    /// # Errors
-    ///
-    /// [`SeatError::Empty`] until a body is picked.
-    pub fn op(
-        &self,
-        translation: [Formula; 3],
-        rotation_axis: [Formula; 3],
-        rotation_angle: Formula,
-    ) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddTransform {
-            input: self.seats.require_read(0)?,
-            translation,
-            rotation_axis,
-            rotation_angle,
-        })
+    /// The survival step: a split `doc` no longer holds stops waiting.
+    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) {
+        if self
+            .split
+            .as_ref()
+            .is_some_and(|split| doc.node(split.id()).is_none())
+        {
+            self.split = None;
+        }
     }
 }
 

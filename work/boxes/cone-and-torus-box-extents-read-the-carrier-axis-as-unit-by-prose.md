@@ -38,3 +38,7 @@ orthonormal pair, not two independent decisions — an
 `RigidMotion`-shaped witness, which is the larger step. The cone lane
 is fenced in `FaceBoxRule::ConeSlab`'s own docs as another unit's
 jurisdiction; take it with that lane.
+
+## Since PR 6336 (BOXES, 2026-11-02)
+
+The torus half of this row's window bullet is resolved: `torus_window_extent` is gone, and the torus window is the closed form `boxes::torus_rect_extent` over spans, which is exact whatever the lengths of `u_ref` and `axis × u_ref` (its doc). What stands is the cone's axis and the torus tube extent `torus_extent` reading the axis as unit. (BOXES orchestrator)

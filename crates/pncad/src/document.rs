@@ -103,6 +103,10 @@ pub use editor_core::cascade_delete_order;
 // on the face and the union, as one action (`Recording::sketch_on_face`
 // composes it into a longer one).
 pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
+// A takeover (A10): copies of a body re-pointed to a result that
+// replaces it, each reference the result carries uniquely rebound by a
+// `Rebind`, as one action (`Recording::take_over` composes it).
+pub use editor_core::{Answered, Moved, TakeOverOutcome, Taken, TakenOver, take_over};
 
 // Node vocabulary. A union or intersect takes one `Bodies` argument (a
 // family read, or spelled reads); a subtract is binary. An operand
@@ -141,30 +145,24 @@ pub use editor_core::{Label, LabelFault};
 // `Recording::measure`) records one measure per primitive and answers
 // their outputs as `Measured` (in a `MeasureOutcome`). A caller who
 // cannot spell them cannot author one at all; `AssertionRelation` is a field
-// of `Node::Assertion` for the same reason. `Observed` and
-// `ObservedRefusal` are what `Evaluation::reading` answers a measured
-// value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
+// of `Node::Assertion` for the same reason. `ObservedRefusal` is what
+// `Evaluation::reading` refuses a measured value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
 // half — the payload an evaluated assertion carries — and E10's whole
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_PLANE_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
-// `MeasureUnavailableAt` and `MinSeparationRefusal` (with `Which`, the
-// side its arms name a face by) are carried for the
-// reason a payload's payload always is: they are what
-// `UnevaluatedReason::MeasureUnavailable` and
-// `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
-// name the outer type and not the inner one can see that there is a
-// reason and never read it.
+// `Claim` and `ClearanceBounds` are what `Node::Assertion` holds: a
+// value against a bound, or a clearance between two seats within its
+// bounds.
 // `SitedFace` is a mate's head — a `SitedRef` whose name is a
 // `FaceName`, so a mate whose head names an edge does not compile —
 // and `FaceName`/`NotAFaceName` are the type that makes that true and
 // the refusal its one constructor answers with. A caller authoring a
 // mate needs all three: the constructor is the door, and its refusal
 // is what a caller who read a name out of a file has to handle.
-pub use editor_core::clearance::{MinSeparationRefusal, Which};
 pub use editor_core::{
-    ASSERT_BOUND, AssertionRelation, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
-    MeasureUnavailableAt, MeasureVerb, Measured, NotAFaceName, Observed, ObservedRefusal,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Claim, ClearanceBounds, FaceName,
+    MeasureOutcome, MeasurePrimitive, MeasureVerb, Measured, NotAFaceName, ObservedRefusal,
     SitedFace, SitedRef, UnevaluatedReason, measure,
 };
 
@@ -325,12 +323,14 @@ pub use editor_core::DocParamField;
 // frame it computed in, which a payload holds wherever it holds a body;
 // `EvalCounters` counts what an evaluation built (a copy builds
 // nothing); `ComputingTwist` is `EvalOptions::computing_twist`'s type,
-// the second computing frame a test runs an evaluation in.
+// the second computing frame a test runs an evaluation in;
+// `DEFAULT_MEMBER_BUDGET` is `EvalOptions::member_budget`'s one default,
+// which a caller raising or lowering the budget reads it against.
 pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
-    DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation, Framed, Mispaired,
-    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    PoseValue, SplitSide, ValuePayload, evaluate,
+    DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
+    Framed, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
+    NodeStanding, NodeValue, PoseValue, SplitSide, ValuePayload, evaluate,
 };
 // What a body value carries from its source (`NodeValue::carry`), and
 // the pieces it holds: what a `⊔` grafted, each by its read, which a

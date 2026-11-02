@@ -546,7 +546,7 @@ pub fn require_one_chart_branch<T: Decide>(
         Surface::Cylinder { .. } => Ok(()),
         Surface::Cone { apex, .. } => {
             for (i, e) in outer.iter().enumerate() {
-                let Curve3::Line { origin, dir } = e.carrier else {
+                let Some(geom::Line { origin, dir }) = e.carrier.as_line() else {
                     continue;
                 };
                 // GENERATORS only, by the parse's own generator margin
@@ -1354,7 +1354,7 @@ fn cylinder_chart<T: Decide>(
         // closed form has no arm for, refuses as itself.
         let b = cylinder_boundary(origin, axis, radius, edges, band)?;
         for e in edges.iter() {
-            if let Curve3::Line { .. } = e.carrier {
+            if !e.carrier.is_curved() {
                 length = length + (e.p1() - e.p0()).norm();
             }
         }
@@ -1793,7 +1793,7 @@ fn cylinder_boundary<T: Decide>(
     let mut levels: Vec<T> = Vec::new();
     for e in edges {
         match e.carrier {
-            Curve3::Line { dir, .. } => {
+            Curve3::Line(geom::Line { dir, .. }) => {
                 // Incidence at the true distance from the cylinder over
                 // the span: the ends' radial residuals, and how far the
                 // segment sags inside between them ([`radial_sag`]).
@@ -2229,7 +2229,9 @@ fn require_on_cone<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     match e.carrier {
-        Curve3::Line { dir, .. } => require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band),
+        Curve3::Line(geom::Line { dir, .. }) => {
+            require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)
+        }
         Curve3::Circle {
             center,
             axis: n_c,
@@ -2578,7 +2580,7 @@ fn require_cone_conic_spans<T: Decide>(
 /// at most its major semi-axis.
 fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
     match e.carrier {
-        Curve3::Line { .. } => Ok((e.p1() - e.p0()).norm()),
+        Curve3::Line(_) => Ok((e.p1() - e.p0()).norm()),
         Curve3::Circle { radius, .. } => Ok(radius * (e.t1 - e.t0).abs()),
         Curve3::Ellipse { semi_u, semi_v, .. } => {
             Ok(geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * (e.t1 - e.t0).abs())
@@ -2841,7 +2843,7 @@ fn cone_loop_winding<T: Decide>(
                 }
             }
             AtApex::AlongGenerator => {
-                let line = matches!(e.carrier, Curve3::Line { .. });
+                let line = !e.carrier.is_curved();
                 match (
                     off("props_cone_loop_off_apex", a.norm())?,
                     off("props_cone_loop_off_apex", b.norm())?,
@@ -2978,7 +2980,7 @@ fn cone_boundary<T: Decide>(
     let mut generators = false;
     for e in edges {
         match e.carrier {
-            Curve3::Line { dir, .. } => {
+            Curve3::Line(geom::Line { dir, .. }) => {
                 generators = true;
                 require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)?;
                 levels.push((e.p0() - apex).dot(axis) / cos_a);

@@ -443,8 +443,10 @@ pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::
 
 /// [`commit_mate`] without the pump.
 pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
-    let SessionOp::AddMate { placement, .. } = &op else {
-        panic!("a mate is added by `AddMate`: {op:?}")
+    // A placement's editor writes its bundle whole; a mate is added to it.
+    let (SessionOp::AddMate { placement, .. } | SessionOp::SetBundle { placement, .. }) = &op
+    else {
+        panic!("a mate is added to a bundle by `AddMate` or the editor's `SetBundle`: {op:?}")
     };
     let placement = *placement;
     let mates = |doc: &Doc<ProfileProgram>| -> Vec<_> {
@@ -485,7 +487,11 @@ pub fn rectangle_in(session: &mut DocSession, width: f64, height: f64) -> Recipe
     session_insert(
         session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Rectangle { width, height })],
+            loops: vec![shape(&ProfileShape::Rectangle {
+                centre: [0.0, 0.0],
+                width,
+                height,
+            })],
         },
     )
 }
@@ -618,7 +624,12 @@ pub fn index_at(
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, PictureKey::of(generation, delta), session.tol())
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta, session.display().shown()),
+        session.tol(),
+    )
 }
 
 /// [`index_at`] for a fixture that indexes by construction: the
@@ -736,9 +747,10 @@ pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 
 /// **The one world placement of `body`**: the node its drawn copy is
 /// picked on (A10) — an instance itself, which is a placement. A new
-/// body lands unplaced, so a row that wants a copy places one by hand
-/// ([`world_copy`]); a row that wants whatever the body is drawn under
-/// asks [`drawn_node`].
+/// body lands unplaced, so a row that wants a copy adds it to the
+/// product ([`world_copy_in`]), or, building a document, places one by
+/// hand ([`world_copy`]); a row that wants whatever the body is drawn
+/// under asks [`drawn_node`].
 ///
 /// # Panics
 ///
@@ -755,10 +767,10 @@ pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
 }
 
 /// **`body`'s one world copy, placed by hand where nothing copies it**:
-/// a new body lands unplaced, so a row about a copy in the world writes
-/// that placement as a person would — a `Place` into the world by the
-/// identity bundle, the product left as it was — unless `doc` holds one
-/// already. Answers the document and the copy.
+/// a `Place` into the world by the identity bundle, the product left as
+/// it was, unless `doc` holds one already — a document a row builds,
+/// not a person's path, which is the product door's ([`world_copy_in`]).
+/// Answers the document and the copy.
 pub fn world_copy(
     doc: &Doc<ProfileProgram>,
     body: RecipeNodeId,
@@ -782,48 +794,49 @@ pub fn world_place(read: pncad::document::Operand) -> pncad::document::AuthoredN
     )
 }
 
-/// **`node`'s placement re-targeted into the world** in `doc`, by hand:
-/// what the product door does to a copy nothing in its space reads.
-pub fn into_world(doc: &Doc<ProfileProgram>, node: RecipeNodeId, tol: Tol) -> Doc<ProfileProgram> {
-    edited(
-        doc,
-        DocEdit::SetParam {
-            node,
-            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Space),
-            value: pncad::document::SlotValue::Read(pncad::document::Operand::Var(
-                pncad::document::VarId::WORLD,
-            )),
-            fresh: Vec::new(),
-        },
-        tol,
-    )
-    .0
-}
-
-/// **The session's document, written by hand and reopened**: `write`
-/// over it — what a person writes where no gesture writes it for them —
-/// saved to `path` and opened through the typed door, landed. History
-/// starts again at the open.
-pub fn reopened_with(
-    session: &mut DocSession,
-    path: &std::path::Path,
-    write: impl FnOnce(&Doc<ProfileProgram>) -> Doc<ProfileProgram>,
+/// **`body` added to the product in a session**, as a person adds it:
+/// a landed session over the session's document, `body` taken through
+/// the one door ([`SessionOp::AddToProduct`]) — which places it into
+/// the world by the identity bundle and adds that copy, or moves a
+/// placement nothing reads into the world — unless the world holds a
+/// copy of it already. Answers the session and the world copy.
+///
+/// # Panics
+///
+/// If the door refuses.
+pub fn world_copy_in(
+    session: &DocSession,
+    body: RecipeNodeId,
     tol: Tol,
-) {
-    let doc = write(session.committed_doc());
-    std::fs::write(
-        path,
-        pncad::document::save(&doc, &[], tol).expect("the document saves"),
-    )
-    .expect("the document writes");
-    let opened = session.perform(SessionOp::Open(path.to_path_buf()));
-    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
+) -> (DocSession, RecipeNodeId) {
+    let mut session = inline_without_door(session.committed_doc().clone(), tol);
     session.pump();
+    let doc = session.committed_doc();
+    let placed = matches!(doc.node(body), Some(Node::InstantiatePart { .. }))
+        || !viewer::world::placements_of(doc, body).is_empty();
+    if !placed {
+        let outcome = session.perform(SessionOp::AddToProduct {
+            node: body,
+            body: None,
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        session.pump();
+    }
+    let doc = session.committed_doc();
+    // A placement nothing read is moved into the world, not copied.
+    let copy = match viewer::world::world_copy(doc, body) {
+        Some(_) => body,
+        None => copy_of(doc, body),
+    };
+    (session, copy)
 }
 
 /// [`world_copy`] in a session: a landed session over the document
-/// that holds the copy, and the copy.
-pub fn world_copy_in(
+/// holding `body`'s world copy placed by hand, the product left as it
+/// was, and the copy — for a row about a document holding that shape,
+/// which the product door would not write (it moves a placement nothing
+/// reads rather than copying it).
+pub fn world_copy_by_hand_in(
     session: &DocSession,
     body: RecipeNodeId,
     tol: Tol,
@@ -879,56 +892,6 @@ pub fn inline_without_door(
     viewer::session::DocSession::inline(doc, tol).with_door(Box::new(NoDoor))
 }
 
-/// **The session's product said as `copies`**, through the session's
-/// own door ([`SessionOp::SetProduct`]), and landed: what a row about a
-/// GUI-authored document's product says it makes.
-///
-/// # Panics
-///
-/// If the door refuses.
-pub fn product_is(session: &mut DocSession, copies: &[RecipeNodeId]) {
-    let bodies = copies
-        .iter()
-        .map(|&copy| pncad::document::Operand::Node(copy))
-        .collect();
-    let outcome = session.perform(SessionOp::SetProduct { bodies });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.pump();
-}
-
-/// **A row of `count` copies of `body`** (D10 `[repetition]`): a fresh
-/// index `k = index(count)` and one placement of `body` in its own space
-/// slid `scalar(k)·pitch` along `axis` ([`pncad::pattern::linear_pattern`]).
-/// Answers the document and the family's placement.
-pub fn row_of_copies(
-    doc: &Doc<ProfileProgram>,
-    body: impl Into<pncad::document::Operand>,
-    count: i64,
-    (axis, pitch): (pncad::document::TargetAxis, f64),
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let index = viewer::combine::fresh_index(doc);
-    let declared = pncad::document::apply(
-        doc,
-        &pncad::pattern::index_decl(index.clone(), Formula::count(count), None),
-        tol,
-    )
-    .expect("an index declares")
-    .doc;
-    let body = body.into();
-    let space = declared
-        .operand_space(&body)
-        .unwrap_or(pncad::document::VarId::WORLD);
-    let row = pncad::pattern::linear_pattern(
-        &index,
-        pncad::document::BodyRead::plain(body),
-        pncad::document::Operand::Var(space),
-        &[(axis, len(pitch))],
-    )
-    .expect("a length pitch");
-    inserted(&declared, row, tol)
-}
-
 /// **One member of the family `family`, read alone** — the part door's
 /// node ([`viewer::combine::part_node`]).
 pub fn member_read(
@@ -970,4 +933,84 @@ pub fn recount_op(session: &DocSession, family: RecipeNodeId, count: i64) -> Ses
         var: family_index(session.committed_doc(), family),
         value: viewer::props::SlotValue::Count(count),
     }
+}
+
+/// **The placement editor's Apply for `tool`**, its active row chosen as
+/// `choice` says, derived against `session`'s landed pair.
+///
+/// # Panics
+///
+/// With nothing landed.
+pub fn proposed(
+    session: &DocSession,
+    tool: &viewer::matetool::MateTool,
+    choice: viewer::matetool::MateChoice,
+) -> Result<viewer::matetool::MateProposal, viewer::matetool::MateToolError> {
+    let (doc, ev) = session.landed_pair().expect("landed");
+    tool.clone()
+        .chosen(choice)?
+        .proposal(doc, ev, session.tol())
+}
+
+/// **The Transform tool, as a person drives it**: the placement editor
+/// opened on `node` by the tool's door
+/// ([`viewer::matetool::MateTool::moving`]), each of `values` typed on
+/// its value row, and its Apply — the Create door's `Place` on a body
+/// nothing places, the Edit door's `SetBundle` on a copy. Pumps first:
+/// the editor derives its Apply against the landed pair.
+///
+/// # Panics
+///
+/// Where the door does not open or the draft proposes no Apply.
+pub fn transformed(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    values: &[(pncad::document::Coord, Formula)],
+) -> SessionOp {
+    transformed_at(session, node, None, values)
+}
+
+/// [`transformed`] of the output `body` of `node` a viewport pick hit —
+/// a split's half.
+pub fn transformed_at(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    body: Option<u32>,
+    values: &[(pncad::document::Coord, Formula)],
+) -> SessionOp {
+    session.pump();
+    let tol = session.tol();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let mut tool = viewer::matetool::MateTool::moving(doc, node, body)
+        .unwrap_or_else(|event| panic!("the Transform tool opens on {node:?}: {event}"));
+    for (coord, by) in values {
+        tool.type_value(*coord, by.clone());
+    }
+    tool.proposal(doc, ev, tol)
+        .unwrap_or_else(|error| panic!("the draft proposes an Apply: {error}"))
+        .op()
+}
+
+/// **The three slides the Transform tool types**, each zero the constant
+/// `0` ([`translation`]).
+pub fn slides(by: [f64; 3]) -> Vec<(pncad::document::Coord, Formula)> {
+    pncad::document::TargetAxis::ALL
+        .into_iter()
+        .zip(translation(by))
+        .map(|(axis, by)| (pncad::document::Coord::Slide(axis), by))
+        .collect()
+}
+
+/// **`node` moved by the Transform tool to the slides `by`**, its other values
+/// as the door loads them, and the placement it wrote: the new copy a
+/// Create inserts, or the copy an Edit rewrote.
+pub fn moved_to(session: &mut DocSession, node: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
+    let op = transformed(session, node, &slides(by));
+    let edited = match &op {
+        SessionOp::SetBundle { placement, .. } => Some(*placement),
+        _ => None,
+    };
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    edited.unwrap_or_else(|| outcome.made.expect("the Create door made a copy"))
 }

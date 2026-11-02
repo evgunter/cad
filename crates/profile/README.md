@@ -57,8 +57,13 @@ identifier, which the table-coordinate sentence renders.
 
 The typed surface records as it lowers: a closing verb returns
 `ClosedLoop { loop_, program, structure }`. Replay is the only path from
-steps to geometry; serde (in `editor-core`) is transport, never a
-constructor. Two refusal classes (`ReplayErrorKind`):
+steps to geometry: `replay`, `replay_recording`, `replay_guided`,
+`replay_drawn` and `pen` are one driver walk over the steps, and serde
+(in `editor-core`) is transport, never a constructor. `replay_drawn`
+also records, at the call that hands each fused fillet's fit its two
+sides, those sides and the fillet circle the fit finds — so a refused
+fit still has them for the editor to draw. Two refusal classes
+(`ReplayErrorKind`):
 
 - `Transition` — a verb or arc mode ill-typed at the tip's `TipState`.
   No authoring surface produces it, so it is the
@@ -101,7 +106,8 @@ A profile drawn on a frame may hold steps that read a face's trace in
 the frame's `xy` (`editor_core::trace`), and any profile may run a leg
 to a written `x` or `y`. The profile itself reads no surface. Before
 the replay, an evaluation lowers each such step to the kernel step it
-lands on, from the pen its prefix leaves (`profile::pen`):
+lands on, from the pen its prefix leaves (`profile::pen`, the
+driver's walk over the prefix, reading the tip it stops at):
 
 - a leg to a crossing, or to a written `x` or `y`, becomes its length;
 - an arc to a crossing becomes the crossing's point;
@@ -148,8 +154,9 @@ than canonical positions on #3193, with the role lists on #3202.*
 **V4 — The stored form, chain-only.** `Node::Profile` carries
 `ProfileProgram { loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>>, on: Option<DrawnOn> }`,
 `on` the frame and faces a drawn profile reads (none for a free one).
-`LoopProgram` is `Chain(Vec<ProgramStep>)`, `Circle { centre, radius }`
-or `CircleSplit { centre, radius, n, phase }`, the carrier forms being
+`LoopProgram` is `Chain(Vec<ProgramStep>)`, `Circle { centre, radius }`,
+`CircleSplit { centre, radius, n, phase }` or
+`Rectangle { centre, width, height }`, the complete-loop forms being
 one-step programs whose form is structural. There is one wire
 vocabulary: no raw vertex-table loop exists at rest (VQ1).
 
@@ -208,8 +215,9 @@ canonical form already validated: `lift_onto`, `value_channel`,
 predicates classify at replay exactly as at typed authoring. Replay is
 deterministic (libm-pure, no ordering effects). A chain's seam still
 sits at a junction or fillet, never mid-carrier (PQ4); `circle` and
-`circle_split` author no seam (their split is a private lowering), so
-they are program forms, not a PQ4 relaxation. The differential suite
+`circle_split` author no seam (their split is a private lowering), and
+`rectangle`'s seam sits at its lower-left corner, a junction, so all
+three are program forms, not a PQ4 relaxation. The differential suite
 (`tests/path_differential.rs`) compares against recorded fixtures and
 independent closed-form oracles.
 
@@ -222,8 +230,14 @@ independent closed-form oracles.
   sub-path mechanism (`Expr::descend`) is reused unchanged.
 - **VQ4 — Exact directors.** `toward(dx, dy)` stores the normalized ray
   verbatim; `angle(θ)` stays for genuinely angular authoring.
-- **VQ5 — Steps are core verbs only.** Anything built above the table
-  expands to table steps at authoring; no sugar step exists on the wire.
+- **VQ5 — A step keeps what was written.** A step's arguments are the
+  variables its author wrote, numbers or 2-D poses (PATHS-DESIGN §1b);
+  the document's program stores them as such,
+  each step lowering to the table's core verbs at replay, and no stored
+  number is computed from them (`[recipe.forms]`). A builder whose
+  numbers already are some table step's arguments (`polygon`: its
+  corners) expands to those steps at authoring and stores nothing of its
+  own.
 - **VQ6 — One tolerance.** Replay-time junction checks and both
   validations run under the run's `Tolerance::get()`, reached through
   the `Tol` witness; there is no per-call tolerance value.

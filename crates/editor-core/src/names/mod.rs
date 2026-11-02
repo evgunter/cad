@@ -46,18 +46,21 @@ mod plane_pieces;
 pub(crate) mod role;
 mod seam_pair;
 mod select;
+mod successor;
 mod table;
 pub(crate) mod words;
 
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
 pub(crate) use discriminate::{CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE};
+#[cfg(debug_assertions)]
+pub(crate) use emit::assert_own_bodies;
 pub use emit::{
-    CrossingSensesShape, DisagreeShape, JoinShape, NamingError, RimShare, SeamSidesShape,
+    CrossingSensesShape, DisagreeShape, JoinShape, NamingError, Numbered, RimShare, SeamSidesShape,
     SeamVertexShape, UnionNameShape, WayShape,
 };
-pub(crate) use emit::{check_total, empty, name_family, output_body, to_u32};
-pub(crate) use emit::{name_assemble, name_copy};
+pub(crate) use emit::{GRAFT_TOTAL, name_assemble, name_copy};
+pub(crate) use emit::{check_total, empty, name_family, narrow, to_u32};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;
@@ -90,6 +93,8 @@ pub(crate) use role::{FOLD_A, FOLD_B, read_edge};
 pub(crate) use role::{VerbatimEdge, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
+pub(crate) use successor::recarried;
+pub use successor::successors;
 pub use table::{
     DuplicateName, EntityKey, EntityNamed, EntityRef, Entry, KindMismatch, NameTable,
     SeatingRefusal, ShortTie,

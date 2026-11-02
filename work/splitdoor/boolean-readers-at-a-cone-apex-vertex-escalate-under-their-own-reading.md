@@ -40,3 +40,20 @@ A third reader, found in the fix pass of PR 5956:
 a leg lands on a boundary edge (`region::offer`, which reads it as the
 landing's `face_side`). That point is not a vertex, but a landing exactly
 at a cone's apex would read a NaN normal there. Unmeasured.
+
+## The apex now reaches the join (2026-11-01, SPLITDOOR, `splitdoor/cone-apex-boolean`)
+
+The first unit of `a-planar-face-through-a-cones-apex-refuses-the-boolean-where-the-split-builds`
+lets a pierce at a cone's apex through, so the join, the contact
+verification and the region pass now meet bodies with a cone apex in a
+face's closure. None of the three readers above refused, under its own
+name or another, over that unit's rows at ε 1e-6, 1e-9 and 1e-12. The
+rows cover:
+
+- the one-wrap-edge cones at 30°, 45° and 60° against half-spaces
+  through the apex, every op either way round;
+- the notched cone against the split rows' planes;
+- a needle's apex in band of a plane.
+
+They are no fixture for these readers: no row puts an edge, a contact
+or a region leg's landing at the apex itself.

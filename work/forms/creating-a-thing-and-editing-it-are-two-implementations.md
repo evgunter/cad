@@ -43,7 +43,15 @@ next to the Properties pane's slot rows for the node they create
   blend (`create.rs:1212-1652`);
 - the mate tool (`create.rs:546`) against the placement's constraint
   rows. PLACING's `mate-tool-commits-one-mate` holds a design question
-  on the same ground. Reconcile with it, don't pre-empt it;
+  on the same ground. Reconcile with it, don't pre-empt it. A
+  specific instance (Ev, 2026-11-01): the placement editor in PR
+  #6300 (`placing/bundle-editor`, `crates/viewer/src/matetool.rs`)
+  has a Create door that inserts a placement together with its first
+  mates in one Apply (`SessionOp::Place` carrying the whole bundle),
+  beside an Edit door that writes an existing placement's bundle
+  (`SessionOp::SetBundle`). Under (a), Create commits a placement
+  with no mates where the body stands and opens the Edit door on it,
+  and every mate is added by the Edit door;
 - add variable (`properties.rs:240`) against the variable's own
   editor, filed as
   `a-variable-is-edited-in-a-separate-widget-not-on-its-own-row`.

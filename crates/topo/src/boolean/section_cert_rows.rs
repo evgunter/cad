@@ -78,10 +78,12 @@ fn donut() -> Surface<f64> {
     torus(p(0.0, 0.0, 0.0), 2.0, 0.5)
 }
 
-/// The rows' reach: a ball of diameter [`LEVER`] about the origin,
-/// where every row's torus and walls stand. A torus pair's section value
-/// reads its own ball and not this one (`geom_brep::pair_section::torus`),
-/// so it serves the rows of every pair alike.
+/// The rows' reach, a ball of diameter [`LEVER`] about the origin, where
+/// every row's torus and walls stand, and their region, the ball of
+/// radius [`LEVER`] there, across which two cylinders' pose levers a
+/// tilt by [`LEVER`] from an axis through the origin, as the reach's
+/// diameter does. A torus pair's section value reads its own ball and
+/// neither of these (`geom_brep::pair_section::torus`).
 pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
@@ -90,6 +92,7 @@ pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
             centre: p(0.0, 0.0, 0.0),
             radius: LEVER / 2.0,
         },
+        Some(geom_brep::ExtentBall::new(p(0.0, 0.0, 0.0), LEVER)),
         Some(geom_brep::SsiLane::marched()),
         band(),
     )
@@ -104,6 +107,7 @@ fn unmarched(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
             centre: p(0.0, 0.0, 0.0),
             radius: LEVER / 2.0,
         },
+        None,
         None,
         band(),
     )
@@ -426,6 +430,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
             radius: LEVER / 2.0,
         },
         None,
+        None,
         band(),
     );
     assert!(
@@ -607,18 +612,16 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
 // -------------------------------------------------------------------
 
 /// **The P0 saddle loop**: `r₁ = 1` about `z`, `r₂ = 0.5` about `x` at
-/// `y = 1.3`. One null loop, witnessed at `(±0.6, 0.8, 0)`. Reading the
-/// middle row as the first (two thin-essential loops) would let W2
-/// clear it on the arc face.
+/// `y = 1.3`. One null loop, witnessed on both walls by the ruling
+/// sweep. Reading the middle row as the first (two thin-essential loops)
+/// would let W2 clear it on the arc face.
 #[test]
 fn the_p0_saddle_loop_is_one_null_component() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let b = cylinder(p(-3.0, 1.3, 0.0), Vec3::unit_x(), 0.5);
     let s = classify(&a, &b);
     assert_eq!(shape(&s), (1, true, vec![false], vec![false], vec![false]));
-    let w = witness(&s);
-    on_both(w, &a, &b);
-    assert!((w.y - 0.8).abs() < 1e-12 && w.z.abs() < 1e-12, "{w:?}");
+    on_both(witness(&s), &a, &b);
     // Tilted 0.15 rad about y: the same class, the angle never read.
     let b = cylinder(
         p(0.0, 1.3, 0.0),
@@ -628,32 +631,22 @@ fn the_p0_saddle_loop_is_one_null_component() {
     on_both(witness(&classify(&a, &b)), &a, &b);
 }
 
-/// **The saddle witness's side is decided, per sign of `δ₀`.** Cylinder
-/// 2 crosses cylinder 1's axis at `y = ±1.3`, running along `+x` or
-/// `−x`; `m = d₁ × d₂` turns with the run, so the four poses give `δ₀`
+/// **The saddle witness lies on both walls, per sign of `δ₀`.**
+/// Cylinder 2 crosses cylinder 1's axis at `y = ±1.3`, running along `+x`
+/// or `−x`; `m = d₁ × d₂` turns with the run, so the four poses give `δ₀`
 /// of each sign on each side of the axis, taken with either wall the
-/// thinner. The witness is on the arc's middle ruling on cylinder 1's
-/// side of cylinder 2: on both carriers, at `y` of the offset's sign,
-/// `|y| = |offset| − r₂`. The far ruling never meets cylinder 1
-/// (`|δ₀| + r₂ > r₁` wherever the loop is a saddle), so a side chosen
-/// against `δ₀`'s sign reds every pose.
+/// thinner. The thinner is the ruled wall, so the sweep's frame (its
+/// foot, normal and signed gap) is read from either axis and either sign
+/// of the gap, and a frame read wrong puts its witness off a wall.
 #[test]
-fn the_saddle_witness_lies_on_cylinder_1s_side_for_either_sign() {
+fn the_saddle_witness_lies_on_both_walls_for_either_sign() {
     for (r1, r2) in [(1.0, 0.5), (0.5, 1.0)] {
         let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), r1);
         for oy in [1.3, -1.3] {
             for run in [1.0, -1.0] {
                 let (o2, d2) = (p(-3.0 * run, oy, 0.0), v(run, 0.0, 0.0));
                 let b = cylinder(o2, d2, r2);
-                let delta = (o2 - p(0.0, 0.0, 0.0)).dot(Vec3::unit_z().cross(d2));
-                let pose = format!("r₁ = {r1}, r₂ = {r2}, offset y = {oy}, δ₀ = {delta}");
-                let w = witness(&classify(&a, &b));
-                on_both(w, &a, &b);
-                let near = oy.signum() * (oy.abs() - r2);
-                assert!(
-                    (w.y - near).abs() < 1e-12 && w.z.abs() < 1e-12,
-                    "{pose}: the witness {w:?} is not on the near ruling y = {near}"
-                );
+                on_both(witness(&classify(&a, &b)), &a, &b);
             }
         }
     }
@@ -676,17 +669,17 @@ fn cylinder_pairs_every_class() {
         )
     );
     assert_eq!(shape(&classify(&rod, &a)).2, vec![true, true]);
-    // Parallel walls: rulings.
+    // Parallel walls: two rulings, each unbounded.
     let s = classify(&a, &cylinder(p(1.2, 0.0, 0.0), Vec3::unit_z(), 0.5));
-    assert_eq!(shape(&s).4, vec![true]);
-    // Coaxial walls of different radii: parallel, nothing shared.
+    assert_eq!(shape(&s).4, vec![true, true]);
+    // Coaxial walls of different radii: nested, nothing shared.
     let s = classify(&a, &cylinder(p(0.0, 0.0, 3.0), Vec3::unit_z(), 0.5));
-    assert_eq!(shape(&s).4, vec![true]);
+    assert_eq!(shape(&s).0, 0);
     // ONE carrier (same axis, same radius): the section is the surface
     // itself, not a curve, so it refuses as a tangency rather than
     // clearing as rulings.
     let s = classify(&a, &cylinder(p(0.0, 0.0, 3.0), v(0.0, 0.0, -1.0), 1.0));
-    assert_eq!(tangent(&s), "section_cylinder_pair_coincident");
+    assert_eq!(tangent(&s), "pair_section_coincident");
     // Apart.
     let s = classify(&a, &cylinder(p(0.0, 2.0, 0.0), Vec3::unit_x(), 0.5));
     assert_eq!(shape(&s).0, 0);
@@ -695,7 +688,7 @@ fn cylinder_pairs_every_class() {
         &a,
         &cylinder(p(0.0, 1.5, 0.0), Vec3::unit_x(), 0.5),
     ));
-    assert_eq!(t.name, "section_cylinder_pair_reach");
+    assert_eq!(t.name, "cc_crossing_gap");
     assert!(
         (t.at - p(0.0, 1.0, 0.0)).norm() < 1e-12,
         "touch at {:?}",
@@ -705,10 +698,11 @@ fn cylinder_pairs_every_class() {
 
 /// **Two equal walls whose axes meet** cut each other in the two
 /// bisector-plane ellipses, which cross at the nodes `p ± r·n̂`: one
-/// component, essential on both walls, witnessed at a node, at a right
-/// angle and at a slant, the second axis through a point off the first
-/// wall's origin. A nest pinch at unequal radii — the thinner wall
-/// inside the fatter, touching — still refuses R-tan.
+/// component, the four arcs joined at the nodes, essential on both
+/// walls, witnessed on an arc, at a right angle and at a slant, the
+/// second axis through a point off the first wall's origin. A nest
+/// pinch at unequal radii — the thinner wall inside the fatter,
+/// touching — still refuses R-tan.
 #[test]
 fn equal_walls_with_meeting_axes_are_one_component_essential_on_both() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
@@ -723,17 +717,10 @@ fn equal_walls_with_meeting_axes_are_one_component_essential_on_both() {
             (1, true, vec![true], vec![true], vec![false]),
             "axis {d2:?}"
         );
-        let w = witness(&s);
-        on_both(w, &a, &b);
-        let n = Vec3::unit_z().cross(d2).normalize();
-        let node = |sign: f64| p(0.0, 0.0, 0.4) + n * sign;
-        assert!(
-            (w - node(1.0)).norm() < 1e-12 || (w - node(-1.0)).norm() < 1e-12,
-            "axis {d2:?}: the witness {w:?} is a node"
-        );
+        on_both(witness(&s), &a, &b);
     }
     let thin = cylinder(p(0.0, 0.5, 0.0), Vec3::unit_x(), 0.5);
-    assert_eq!(tangent(&classify(&a, &thin)), "section_cylinder_pair_nest");
+    assert_eq!(tangent(&classify(&a, &thin)), "cc_crossing_nest");
 }
 
 /// **The `|d₁ × d₂|` decision**: two walls whose tilt, levered by the
@@ -745,7 +732,53 @@ fn equal_walls_with_meeting_axes_are_one_component_essential_on_both() {
 fn near_parallel_walls_refuse_as_a_tangency() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let b = cylinder(p(1.3, 0.0, 0.0), v(0.0, in_sliver() / LEVER, 1.0), 0.5);
-    assert_eq!(tangent(&classify(&a, &b)), "section_cylinder_axes_tilt");
+    assert_eq!(tangent(&classify(&a, &b)), "cc_axes_parallel");
+}
+
+/// **A cylinder pair the region cuts is counted, and its cut arcs clear
+/// as unbounded.** A wall of radius `0.5` about `z` and one `0.05` rad
+/// off it, `0.1` apart: their own ball (about `20` across) straddles a
+/// region of radius `1.5` about the origin, and the ruling sweep counts
+/// two arcs that end on the region, each unbounded (W1), with no march.
+#[test]
+fn a_cylinder_pair_the_region_cuts_counts_two_unbounded_arcs() {
+    let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 0.5);
+    let b = cylinder(p(0.1, 0.0, 0.0), v(0.0, 0.05f64.sin(), 0.05f64.cos()), 0.5);
+    let s = super::classify(
+        &a,
+        &b,
+        super::Reach {
+            centre: p(0.0, 0.0, 0.0),
+            radius: 1.5,
+        },
+        Some(geom_brep::ExtentBall::new(p(0.0, 0.0, 0.0), 1.5)),
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    );
+    let (count, _, _, _, unbounded) = shape(&s);
+    assert_eq!(count, 2, "two arcs: {s:?}");
+    assert_eq!(unbounded, vec![true, true], "each cut by the region: {s:?}");
+}
+
+/// **A tangent ruling is an unbounded component, not a tangency.** Two
+/// parallel walls touching along one ruling, outside (`r₁ + r₂ = d`) and
+/// inside (`|r₁ − r₂| = d`): the ruling runs out of the region at both
+/// ends, so W1 clears it whatever the touch, which the tangent locus
+/// reads (C7).
+#[test]
+fn a_tangent_ruling_reads_as_an_unbounded_component() {
+    let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
+    for (what, b) in [
+        ("outside", cylinder(p(1.5, 0.0, 0.0), Vec3::unit_z(), 0.5)),
+        ("inside", cylinder(p(0.5, 0.0, 0.0), Vec3::unit_z(), 0.5)),
+    ] {
+        let s = classify(&a, &b);
+        assert_eq!(
+            shape(&s),
+            (1, true, vec![false], vec![false], vec![true]),
+            "{what}: {s:?}"
+        );
+    }
 }
 
 /// A plane section of a wall is essential or unbounded on the wall, and
@@ -974,14 +1007,14 @@ fn a_touch_is_the_centre_of_every_loop_its_margin_admits() {
         let one = cylinder(origin, Vec3::unit_z(), 1.0);
         let pair = |delta: f64| (one.clone(), cylinder(p(0.0, delta, 0.0), u, 0.5));
         let (a, b) = pair(1.5);
-        let t = touch_both_ways(&a, &b, "section_cylinder_pair_reach");
+        let t = touch_both_ways(&a, &b, "cc_crossing_gap");
         assert!(
             (t.at - p(0.0, 1.0, 0.0)).norm() < 1e-12,
             "walls {tilt}: tangent at {:?}",
             t.at
         );
         let (a, b) = pair(1.5 - push);
-        let t = touch_both_ways(&a, &b, "section_cylinder_pair_reach");
+        let t = touch_both_ways(&a, &b, "cc_crossing_gap");
         centres(
             &format!("walls tilted {tilt}"),
             &t,
@@ -1004,15 +1037,9 @@ fn pinches_and_undecided_tangencies_are_not_touches() {
     assert_eq!(tangent(&classify(&ball, &girdle)), "cs_far_reach");
     let fat = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let inner = cylinder(p(0.0, 0.8, 0.0), Vec3::unit_x(), 0.2);
-    assert_eq!(
-        tangent(&classify(&fat, &inner)),
-        "section_cylinder_pair_nest"
-    );
+    assert_eq!(tangent(&classify(&fat, &inner)), "cc_crossing_nest");
     let same = cylinder(p(0.0, 0.0, 3.0), Vec3::unit_z(), 1.0);
-    assert_eq!(
-        tangent(&classify(&fat, &same)),
-        "section_cylinder_pair_coincident"
-    );
+    assert_eq!(tangent(&classify(&fat, &same)), "pair_section_coincident");
     // A ball about a wall's axis touches it all round, and two spheres
     // one inside the other about one centre stand within the band of
     // each other everywhere: neither is the extreme of a level clear of
@@ -3178,6 +3205,7 @@ fn a_plane_touch_near_the_top_parallel_stands_on_both_carriers() {
                     &tor.surface(),
                     &pl.surface(),
                     reach,
+                    None,
                     Some(geom_brep::SsiLane::marched()),
                     band,
                 ) {
@@ -3250,6 +3278,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                             &ball.surface(),
                             &wall.surface(),
                             reach,
+                            None,
                             Some(geom_brep::SsiLane::marched()),
                             band,
                         ),
@@ -3257,6 +3286,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                             &wall.surface(),
                             &ball.surface(),
                             reach,
+                            None,
                             Some(geom_brep::SsiLane::marched()),
                             band,
                         ),
@@ -3370,6 +3400,7 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
                         &t.surface(),
                         &partner.surface(),
                         reach,
+                        None,
                         Some(geom_brep::SsiLane::marched()),
                         band,
                     ),
@@ -3377,6 +3408,7 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
                         &partner.surface(),
                         &t.surface(),
                         reach,
+                        None,
                         Some(geom_brep::SsiLane::marched()),
                         band,
                     ),

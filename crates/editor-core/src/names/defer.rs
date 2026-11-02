@@ -376,7 +376,7 @@ impl CarriedRows {
     /// Carries one source body's rows: `from`'s candidates whose
     /// [`EntityRef::body`] is `ix`, each re-keyed by `map` onto body 0
     /// — a gathered product is ONE body. `map` answers `None` for a row
-    /// that does not carry.
+    /// that does not carry (a source's body row).
     ///
     /// # Errors
     ///

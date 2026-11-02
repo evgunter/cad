@@ -8,7 +8,8 @@
 //!
 //! [`two_boxes`] authors an overlapping pair through the creation
 //! vocabulary alone (rectangle profile → extrude, and a second one
-//! placed by [`SessionOp::AddTransform`]): a 40 × 20 × 10 mm block and
+//! moved by the Transform tool, the placement editor's Create door): a
+//! 40 × 20 × 10 mm block and
 //! a 20 × 10 × 6 mm block offset so that they overlap in a
 //! 5 × 10 × 6 mm brick and share NO plane. The constants below are
 //! that arrangement's closed form, and every boolean row asserts
@@ -28,9 +29,7 @@ use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
 use common::drawn::spacing_of;
-use common::{
-    ang, body_volume, len, len3, near, no_translation, scl3, session_insert, shape, translation,
-};
+use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::BooleanValue;
 use pncad::document::Speaker;
 use pncad::document::SplitSide;
@@ -43,8 +42,8 @@ use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use pncad::select::SplitHalf;
 use viewer::combine::{
-    BooleanTool, DUPLICATE_GAP, DuplicateFault, MEASURE_CHORD, PatternOutputChoice, PatternTool,
-    STEP_DIRECTION, SplitTool, TransformTool, denotes_body,
+    BooleanTool, DUPLICATE_GAP, DuplicateFault, DuplicateTool, MEASURE_CHORD, PatternOutputChoice,
+    PatternTool, STEP_DIRECTION, SplitTool, denotes_body,
 };
 use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
@@ -69,25 +68,19 @@ fn session(tol: Tol) -> DocSession {
     crate::common::inline_without_door(Doc::empty_derived("combine-start", tol), tol)
 }
 
-/// The two overlapping blocks (module docs), the second placed by a
-/// transform, each then placed into the world by hand (a new body lands
-/// unplaced). Answers the session and the two BODY nodes, in the order
-/// the module's constants name them.
+/// The two overlapping blocks (module docs), the second moved by the
+/// Transform tool, each then given a world copy by hand, the product left
+/// empty: a document these rows combine over, which the product door
+/// would not write — it moves the Transform tool's placement, which nothing
+/// reads, into the world rather than copy it. Answers the session and
+/// the two BODY nodes, in the order the module's constants name them.
 fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let mut session = session(tol);
     let a = common::xy_box_in(&mut session, A);
     let raw_b = common::xy_box_in(&mut session, B);
-    let b = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: raw_b.into(),
-            translation: len3(OFFSET),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
-    );
-    let (session, _) = common::world_copy_in(&session, a, tol);
-    let (session, _) = common::world_copy_in(&session, b, tol);
+    let b = common::moved_to(&mut session, raw_b, OFFSET);
+    let (session, _) = common::world_copy_by_hand_in(&session, a, tol);
+    let (session, _) = common::world_copy_by_hand_in(&session, b, tol);
     (session, a, b)
 }
 
@@ -180,15 +173,7 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
     let (mut session, a, b) = two_boxes(tol);
     // A third block well clear of both.
     let raw_c = common::xy_box_in(&mut session, B);
-    let c = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: raw_c.into(),
-            translation: translation([0.0, 0.05, 0.0]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
-    );
+    let c = common::moved_to(&mut session, raw_c, [0.0, 0.05, 0.0]);
     let mut tools = Tools::new();
     tools.open(ToolKind::Boolean);
     let picks: Vec<_> = [a, b, c]
@@ -243,7 +228,7 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
 ///
 /// Two placed bodies `a`, `b` (`b` moved): the combine gesture leaves
 /// the world `[c]` — `b` placed against `a` where it stands, `a`'s
-/// placement re-pointed to `c` through the slot door and `b`'s
+/// placement taken over by `c` (re-pointed, what read it re-seated) and `b`'s
 /// deleted, in ONE recorded action — and one undo restores
 /// `[a, b]` bit for bit. Breaks if the gesture leaves the boolean
 /// unplaced (the world stays `[a, b]`), places it beside them, or
@@ -401,7 +386,7 @@ fn a_combine_takes_the_placement_of_the_operand_the_world_places() {
 
 /// **A feature gesture re-points every placement of its target, and a
 /// target nothing places places nothing.** Two identity placements of
-/// one body are two copies (A10); a transform of the body takes both.
+/// one body are two copies (A10); a pattern of the body takes both.
 #[test]
 fn a_feature_re_points_each_placement_of_its_target() {
     let tol = Tol::witness();
@@ -415,46 +400,42 @@ fn a_feature_re_points_each_placement_of_its_target() {
         },
         tol,
     );
-    let (doc, _) = common::placed(&doc, body, tol);
-    let (doc, _) = common::placed(&doc, body, tol);
+    let (doc, first) = common::placed(&doc, body, tol);
+    let (doc, second) = common::placed(&doc, body, tol);
     let mut session = DocSession::inline(doc, tol);
-    let moved = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: body.into(),
-            translation: translation([0.0, 0.0, A[2] * 4.0]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
+    let row = || SessionOp::AddPattern {
+        input: body.into(),
+        count: 2,
+        rule: PatternRuleSpec::Linear {
+            direction: scl3([1.0, 0.0, 0.0]),
+            spacing: len(A[0] * 2.0),
         },
-    );
+    };
+    let family = session_insert(&mut session, row());
+    let reads_family = |doc: &Doc<ProfileProgram>| {
+        [first, second].map(|copy| doc.copied_read(copy) == doc.outputs(family).first().copied())
+    };
     assert_eq!(
-        common::world(session.committed_doc()),
-        [moved, moved],
-        "both copies now place the transform"
+        reads_family(session.committed_doc()),
+        [true, true],
+        "both copies now place the family"
     );
 
-    let world = common::world(session.committed_doc());
-    let outcome = session.perform(SessionOp::AddTransform {
-        input: body.into(),
-        translation: len3(OFFSET),
-        rotation_axis: scl3([0.0, 0.0, 1.0]),
-        rotation_angle: Formula::zero(Dimension::Angle),
-    });
+    let outcome = session.perform(row());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
-        matches!(&outcome.committed[..], [DocEdit::InsertNode { .. }]),
-        "the body is no longer placed, so its second transform re-points nothing: \
-         its placement, inserted with its bundle: {:?}",
+        matches!(
+            &outcome.committed[..],
+            [DocEdit::DeclareVar { .. }, DocEdit::InsertNode { .. }]
+        ),
+        "the body is no longer placed, so its second pattern re-points nothing: its \
+         index declared and its family inserted: {:?}",
         outcome.committed
     );
-    // Nothing reads the second transform's copy, so it is drawn, in the
-    // body's own space, beside the two copies it did not touch. A copy
-    // into the space of what it copies is no gesture's copy, so a pick on
-    // it is on the transform itself.
-    let second = outcome.minted[0];
     assert_eq!(
-        common::world(session.committed_doc()),
-        [world, vec![second]].concat()
+        reads_family(session.committed_doc()),
+        [true, true],
+        "the copies still place the first family"
     );
 }
 
@@ -660,11 +641,10 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             SessionOp::AddBoolean {
                 spec: BooleanSpec::Union(vec![wrong.into(), body.into()]),
             },
-            SessionOp::AddTransform {
-                input: wrong.into(),
-                translation: no_translation(),
-                rotation_axis: scl3([0.0, 0.0, 1.0]),
-                rotation_angle: Formula::zero(Dimension::Angle),
+            SessionOp::Place {
+                body: wrong.into(),
+                target: pncad::document::VarId::WORLD,
+                constraints: pncad::document::stand().bundle(),
             },
             SessionOp::AddSplit {
                 target: wrong.into(),
@@ -686,25 +666,33 @@ fn several_bodies_are_not_one_body_at_a_seat() {
     }
 }
 
-/// The transform door places a body rigidly: a placement of it into its
-/// own space, standing at the frame the form's numbers make, by values
-/// on the space's axes the property panel then owns.
+/// **The Transform tool places a body rigidly**: on a body nothing
+/// places, the placement editor's Create door with no mate, into the
+/// body's own space; the slides and the spin about `z` typed on its
+/// value rows, the copy stands at the frame they make, and the values
+/// are slots the property panel then owns.
 #[test]
 fn the_transform_door_places_a_body_with_values() {
+    use pncad::document::{Coord, TargetAxis};
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let placed = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: body.into(),
-            translation: len3(OFFSET),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(core::f64::consts::FRAC_PI_2),
-        },
+    let mut values = vec![(
+        Coord::Spin(Some(TargetAxis::Z)),
+        ang(core::f64::consts::FRAC_PI_2),
+    )];
+    values.extend(common::slides(OFFSET));
+    let op = common::transformed(&mut session, body, &values);
+    assert!(
+        matches!(&op, SessionOp::Place { body: read, target, constraints }
+            if *read == body.into()
+                && Some(*target) == session.committed_doc().operand_space(&body.into())
+                && constraints.iter().all(|c| c.mate().is_none())),
+        "the Create door, no mate, into the body's own space: {op:?}"
     );
+    let placed = session_insert(&mut session, op);
     // A rigid placement preserves the volume, and the copy stands at
-    // the frame the form's numbers make, in its body's own space.
+    // the frame the typed numbers make, in its body's own space.
     assert_volume(&mut session, placed, A[0] * A[1] * A[2], tol);
     let doc = session.committed_doc();
     assert!(
@@ -771,24 +759,165 @@ fn the_transform_door_places_a_body_with_values() {
         Err(DimensionError::NonFiniteLiteral)
     ));
 
-    // What the door still refuses is a wrong-DIMENSION expression —
-    // an angle where a translation belongs — typed, before any edit.
-    let states = session.history().len();
-    let refused = session.perform(SessionOp::AddTransform {
-        input: body.into(),
-        translation: [ang(0.0), len(0.0), len(0.0)],
-        rotation_axis: scl3([0.0, 0.0, 1.0]),
-        rotation_angle: Formula::zero(Dimension::Angle),
-    });
+    // What a value row still refuses is a wrong-DIMENSION quantity —
+    // an angle where a slide belongs — typed, before the draft holds it.
+    assert!(matches!(
+        viewer::matetool::typed_value(
+            session.committed_doc(),
+            Coord::Slide(TargetAxis::X),
+            "turn/4"
+        ),
+        Err(viewer::matetool::TypedValueError::Dimension {
+            found: Dimension::Angle,
+            ..
+        })
+    ));
+}
+
+/// **The Transform tool opens the placement editor on its pick**, in
+/// the tool's place and with no mate row: on a body nothing places, the
+/// Create door on that body; on a copy, that copy's Edit door, its
+/// bundle as written; on a body one copy places, picked in the tree,
+/// the same Edit door, the copy being what is seen. A body two copies
+/// place opens no door, and says the copy is the pick to make.
+#[test]
+fn the_transform_tool_opens_the_placement_editor_on_its_pick() {
+    use viewer::matetool::{MateTool, MateToolEvent, PlaceDoor};
+    use viewer::tools::ToolNotice;
+    let tol = Tol::witness();
+    let (mut session, a, _) = two_boxes(tol);
+    let fresh = common::xy_box_in(&mut session, B);
+    let doc = session.committed_doc().clone();
+    let opened = |doc: &Doc<ProfileProgram>, node: RecipeNodeId| {
+        let mut tools = Tools::new();
+        tools.open(ToolKind::Transform);
+        let notices = tools.feed(
+            doc,
+            Err(viewer::pickcache::NotIndexed::Absent),
+            &[SessionOp::Select(Selection::Node(node))],
+        );
+        (tools, notices)
+    };
+
+    let (tools, notices) = opened(&doc, fresh);
+    assert!(notices.is_empty(), "{notices:?}");
+    let editor = tools.mate().expect("the editor opened in the tool's place");
+    assert_eq!(
+        editor.door(),
+        Some(&PlaceDoor::Create { body: fresh.into() }),
+        "the Create door on the body nothing places"
+    );
+    assert!(editor.rows().is_empty(), "no mate row");
+
+    let copy = common::copy_of(&doc, a);
+    let edit = MateTool::edit(&doc, copy).expect("a copy is a placement");
+    for picked in [copy, a] {
+        let (tools, notices) = opened(&doc, picked);
+        assert!(notices.is_empty(), "{notices:?}");
+        assert_eq!(
+            tools.mate(),
+            Some(&edit),
+            "a pick on {picked:?} opens the copy's Edit door, its bundle as written"
+        );
+    }
+
+    let (doc, _) = common::inserted(&doc, common::world_place(a.into()), tol);
+    let (tools, notices) = opened(&doc, a);
     assert!(
         matches!(
-            refused.refusal.as_ref(),
-            Some(Refusal::Frame(fault)) if matches!(**fault, GestureFrameFault::Dimension { .. })
+            &notices[..],
+            [ToolNotice::Mate(MateToolEvent::SeenThroughSeveral {
+                copies: 2,
+                ..
+            })]
         ),
-        "{:?}",
-        refused.refusal
+        "{notices:?}"
     );
-    assert_eq!(session.history().len(), states, "a refusal records nothing");
+    assert_eq!(
+        tools.open_kind(),
+        Some(ToolKind::Transform),
+        "no door opened: the tool still waits for its pick"
+    );
+}
+
+/// **The Transform tool opens no door on what is no body**, typed: a
+/// profile is not placeable, a pattern's family is moved by its rule, and
+/// a split picked whole waits for the half that is the body, whose
+/// choice then opens that half's Create door.
+#[test]
+fn the_transform_tool_refuses_what_is_no_body_and_asks_a_split_for_its_half() {
+    use viewer::matetool::{MateToolEvent, PlaceDoor};
+    use viewer::tools::ToolNotice;
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let (profile, body) = common::box_in(&mut session, A);
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body.into(),
+            origin: len3([0.0, 0.0, A[2] / 2.0]),
+            normal: scl3([0.0, 0.0, 1.0]),
+        },
+    );
+    let patterned = common::xy_box_in(&mut session, B);
+    let family = session_insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: patterned.into(),
+            count: 3,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(B[0] * 2.0),
+            },
+        },
+    );
+    let doc = session.committed_doc().clone();
+    let picked = |node: RecipeNodeId| {
+        let mut tools = Tools::new();
+        tools.open(ToolKind::Transform);
+        let notices = tools.feed(
+            &doc,
+            Err(viewer::pickcache::NotIndexed::Absent),
+            &[SessionOp::Select(Selection::Node(node))],
+        );
+        (tools, notices)
+    };
+
+    let (tools, notices) = picked(profile);
+    assert!(
+        matches!(&notices[..], [ToolNotice::Mate(MateToolEvent::NotPlaceable { node })] if node.id() == profile),
+        "a profile: {notices:?}"
+    );
+    assert_eq!(tools.open_kind(), Some(ToolKind::Transform));
+
+    for node in [patterned, family] {
+        let (tools, notices) = picked(node);
+        assert!(
+            matches!(&notices[..], [ToolNotice::Mate(MateToolEvent::PatternFamily { family: f })] if f.id() == family),
+            "{node:?} is moved by its pattern's rule: {notices:?}"
+        );
+        assert!(tools.mate().is_none(), "no door opens on the family");
+    }
+
+    let (mut tools, notices) = picked(split);
+    assert!(notices.is_empty(), "{notices:?}");
+    assert_eq!(
+        tools
+            .transform()
+            .and_then(|tool| tool.awaiting_half())
+            .map(|s| s.id()),
+        Some(split),
+        "the split waits for its half"
+    );
+    let notices = tools.transform_half(&doc, SplitHalf::Below);
+    assert!(notices.is_empty(), "{notices:?}");
+    assert_eq!(
+        tools.mate().and_then(|editor| editor.door()),
+        Some(&PlaceDoor::Create {
+            body: Operand::output(split, SplitHalf::Below.port())
+        }),
+        "the chosen half's Create door"
+    );
 }
 
 /// The pattern door declares an index of the count it was handed, and
@@ -1187,11 +1316,10 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             origin: len3([0.0; 3]),
             normal: scl3([0.0, 0.0, 1.0]),
         },
-        SessionOp::AddTransform {
-            input: body.into(),
-            translation: no_translation(),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
+        SessionOp::Place {
+            body: body.into(),
+            target: pncad::document::VarId::WORLD,
+            constraints: pncad::document::stand().bundle(),
         },
         SessionOp::AddPattern {
             input: body.into(),
@@ -1252,11 +1380,10 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             origin: len3([0.0; 3]),
             normal: scl3([0.0; 3]),
         },
-        SessionOp::AddTransform {
-            input: plane.into(),
-            translation: no_translation(),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
+        SessionOp::Place {
+            body: plane.into(),
+            target: pncad::document::VarId::WORLD,
+            constraints: pncad::document::stand().bundle(),
         },
         SessionOp::AddPattern {
             input: plane.into(),
@@ -1320,7 +1447,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
 
 /// **The authored path admits any count, and the evaluation judges it**
 /// — the door does not judge the count: the form declines to offer a
-/// count below one, and the op vocabulary is not narrowed to what the
+/// count below zero, and the op vocabulary is not narrowed to what the
 /// form offers, because the index's count can be written to the same
 /// number afterwards. A count of zero is a family of no member, which
 /// evaluates; a count below zero refuses typed on the family's own
@@ -1463,31 +1590,6 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
         split.op(len3([0.0; 3]), scl3([0.0, 0.0, 1.0])),
         Ok(SessionOp::AddSplit { .. })
     ));
-
-    let mut transform = TransformTool::new();
-    assert!(matches!(
-        transform.op(
-            no_translation(),
-            scl3([0.0, 0.0, 1.0]),
-            Formula::zero(Dimension::Angle)
-        ),
-        Err(SeatError::Empty {
-            seat: Seat::TransformBody
-        })
-    ));
-    transform.pick(session.committed_doc(), b);
-    let events = transform.reconcile(session.committed_doc());
-    assert!(
-        matches!(
-            events.as_slice(),
-            [SeatEvent::PickLost {
-                seat: Seat::TransformBody,
-                ..
-            }]
-        ),
-        "{events:?}"
-    );
-    assert_eq!(transform.input(), None);
 
     // The pattern tool's one seat is its body, whichever rule; a
     // circular rule's axis is fields.
@@ -1693,12 +1795,6 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                 origin: len3([0.0, 0.0, 0.005]),
                 normal: scl3([0.0, 0.0, 1.0]),
             },
-            Seat::TransformBody => SessionOp::AddTransform {
-                input: filled(Seat::TransformBody).into(),
-                translation: no_translation(),
-                rotation_axis: scl3([0.0, 0.0, 1.0]),
-                rotation_angle: Formula::zero(Dimension::Angle),
-            },
             Seat::PartInstance => SessionOp::AddPart {
                 of: filled(Seat::PartInstance),
                 select: PartSelectSpec::Instance(0),
@@ -1811,7 +1907,7 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
 /// pick rule degenerates to "replace", and this is the row that holds
 /// it there: the rule underneath fills the first EMPTY slot, so
 /// without the arity arm a second pick lands in a slot nothing reads
-/// and the transform tool's own door ("a second pick replaces the
+/// and the pattern tool's own door ("a second pick replaces the
 /// first") stops being true.
 #[test]
 fn a_second_pick_replaces_a_one_seat_tools_body() {
@@ -1819,18 +1915,18 @@ fn a_second_pick_replaces_a_one_seat_tools_body() {
     let (session, a, b) = two_boxes(tol);
     let doc = session.committed_doc();
 
-    let mut transform = TransformTool::new();
-    transform.pick(doc, a);
-    assert_eq!(transform.input(), Some(a));
-    transform.pick(doc, b);
-    assert_eq!(transform.input(), Some(b), "the second pick replaces");
+    let mut pattern = PatternTool::new();
+    pattern.pick(doc, a);
+    assert_eq!(pattern.input(), Some(a));
+    pattern.pick(doc, b);
+    assert_eq!(pattern.input(), Some(b), "the second pick replaces");
 
     // The survival step sees one seat, so a vanished pick is reported
     // once rather than twice.
     let mut session = session;
     let out = session.perform(SessionOp::DeleteNode { node: b });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    let events = transform.reconcile(session.committed_doc());
+    let events = pattern.reconcile(session.committed_doc());
     assert_eq!(events.len(), 1, "one seat, one drop: {events:?}");
 }
 
@@ -1935,11 +2031,11 @@ fn the_seat_line_names_the_roles() {
         boolean.line(Speaker::of(&doc)),
         "body kept: node 000000000003; body removed: none picked"
     );
-    let mut transform = TransformTool::new();
-    transform.pick(&doc, RecipeNodeId::new(0, tagged(7)));
+    let mut pattern = PatternTool::new();
+    pattern.pick(&doc, RecipeNodeId::new(0, tagged(7)));
     assert_eq!(
-        seat_line(transform.seats(), Speaker::of(&doc)),
-        "transformed body: node 000000000007"
+        seat_line(pattern.seats(), Speaker::of(&doc)),
+        "patterned body: node 000000000007"
     );
 }
 
@@ -2005,15 +2101,6 @@ fn a_tool_closes_on_its_own_committed_edit() {
                 target: (RecipeNodeId::new(0, tagged(1))).into(),
                 origin: len3([0.0; 3]),
                 normal: scl3([0.0, 0.0, 1.0]),
-            },
-        ),
-        (
-            ToolKind::Transform,
-            SessionOp::AddTransform {
-                input: (RecipeNodeId::new(0, tagged(1))).into(),
-                translation: no_translation(),
-                rotation_axis: scl3([0.0, 0.0, 1.0]),
-                rotation_angle: Formula::zero(Dimension::Angle),
             },
         ),
         (
@@ -2341,13 +2428,14 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
             // picked by one too.
             ToolKind::Mate | ToolKind::Mirror => PickKinds::FacesOnly,
             ToolKind::Blend => PickKinds::EdgesOnly,
-            ToolKind::Revolve
-            | ToolKind::Boolean
+            // The one tool whose seat reads a profile.
+            ToolKind::Revolve => PickKinds::Any,
+            ToolKind::Boolean
             | ToolKind::Split
             | ToolKind::Transform
             | ToolKind::Pattern
             | ToolKind::Part
-            | ToolKind::Duplicate => PickKinds::Any,
+            | ToolKind::Duplicate => PickKinds::FacesAndEdges,
         };
         assert_eq!(tools.pick_kinds(), want, "{kind:?}");
     }
@@ -2407,9 +2495,10 @@ fn box_and_pattern(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     (session, body, pattern)
 }
 
-/// **A split's half is a body at a seat, read by its port**: a
-/// transform's placement of the split's `below` output reads that
-/// output's variable, and its body is the lower half.
+/// **A split's half is a body at a seat, read by its port**: the
+/// Transform tool's placement of the split's `below` output, picked on
+/// that half, reads that output's variable, and its body is the lower
+/// half.
 #[test]
 fn a_split_half_is_read_by_its_port_at_a_body_seat() {
     let tol = Tol::witness();
@@ -2424,15 +2513,13 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
         },
     );
     let (above, below) = split_volumes(&mut session, split, tol);
-    let moved = session_insert(
+    let op = common::transformed_at(
         &mut session,
-        SessionOp::AddTransform {
-            input: pncad::document::Operand::output(split, SplitHalf::Below.port()),
-            translation: no_translation(),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
+        split,
+        Some(u32::from(SplitHalf::Below.port())),
+        &[],
     );
+    let moved = session_insert(&mut session, op);
     let doc = session.committed_doc();
     assert!(
         matches!(
@@ -2440,7 +2527,7 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
             Some(Node::Place { source, .. })
                 if Some(source.read) == doc.output(split, SplitHalf::Below.port())
         ),
-        "the transform's placement reads the split's below output"
+        "the Transform tool's placement reads the split's below output"
     );
     let read = body_volume(&mut session, moved, tol);
     assert!(near(read, below), "the lower half {read} vs {below}");
@@ -2603,8 +2690,8 @@ fn a_pattern_takes_its_body_over_and_a_member_read_places_nothing() {
     assert_eq!(at_rest_findings(session), 0, "and they do not overlap");
 }
 
-/// Box `A` placed into the world by hand: the session, the box and its
-/// world copy.
+/// Box `A` added to the product, so placed into the world: the session,
+/// the box and its world copy.
 fn session_with_box_in_world(tol: Tol) -> (DocSession, (RecipeNodeId, RecipeNodeId)) {
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -2663,7 +2750,7 @@ fn duplicating_an_unplaced_body_writes_a_stand_in_and_a_stepped_copy() {
 }
 
 /// **A duplicate of a copy in the world is one more copy there**: the
-/// body placed into the world by hand, then duplicated — one placement
+/// body added to the product, so placed into the world, then duplicated — one placement
 /// of the body into the world beside the copy, which the world's volume
 /// doubles to.
 #[test]
@@ -2787,8 +2874,8 @@ fn duplicating_is_one_undo() {
 
 /// **The payoff**: the copy moves and the stand-in stays put, both
 /// still drawn — a duplicate of a body nothing copies is two copies of
-/// it in its own space, so a transform of the stepped one takes that
-/// copy alone.
+/// it in its own space, so the Transform tool on the stepped one opens
+/// that copy's Edit door and moves it alone, its step along `x` kept.
 #[test]
 fn a_duplicates_copy_moves_on_its_own() {
     let tol = Tol::witness();
@@ -2806,20 +2893,27 @@ fn a_duplicates_copy_moves_on_its_own() {
         panic!("a stand-in and a stepped copy: {:?}", outcome.minted);
     };
     assert_eq!(stepped, copy, "the copy made is the stepped one");
+    let step = spacing_of(&session, copy);
 
-    let placed = session_insert(
+    let op = common::transformed(
         &mut session,
-        SessionOp::AddTransform {
-            input: copy.into(),
-            translation: translation([0.0, A[1] * 3.0, 0.0]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
+        copy,
+        &[(
+            pncad::document::Coord::Slide(pncad::document::TargetAxis::Y),
+            len(A[1] * 3.0),
+        )],
     );
+    assert!(
+        matches!(&op, SessionOp::SetBundle { placement, .. } if *placement == copy),
+        "the stepped copy's Edit door: {op:?}"
+    );
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let placed = copy;
     assert_eq!(
         crate::common::drawn_copies(session.committed_doc()),
         [stand_in, placed],
-        "the transform took the stepped copy; the stand-in is untouched",
+        "the stepped copy moved in place; the stand-in is untouched",
     );
     session.pump();
     // And the two are apart in SPACE, not merely in the tree: a
@@ -2852,6 +2946,18 @@ fn a_duplicates_copy_moves_on_its_own() {
     let (original_above, original_below) = split_volumes(&mut session, cut_original, tol);
     assert_eq!(original_above, 0.0, "the original did not move");
     assert!(near(original_below, one), "it is wholly below the plane");
+
+    // The step along `x` survives the move: the copy stands where the
+    // duplicate stepped it along `x`, and lifted along `y`.
+    let doc = session.committed_doc();
+    let at = common::solve(&session, doc, tol)
+        .relative(placed)
+        .expect("the copy stands");
+    assert!(
+        near(at.translation[0], step) && near(at.translation[1], A[1] * 3.0),
+        "the copy stands at {:?}: stepped {step} along x, lifted along y",
+        at.translation
+    );
 }
 
 /// **The part seats track the part door**, in both directions, over
@@ -2970,33 +3076,26 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
     let (doc, placed) = common::placed_read(session.committed_doc(), below.clone(), tol);
 
     // A pick on the placed half's copy seats the half it places.
-    let mut tool = TransformTool::new();
+    let mut tool = DuplicateTool::new();
     tool.pick_at(&doc, placed, Some(0));
     assert_eq!(tool.input(), Some(split));
     assert_eq!(tool.seats().read(0), Some(below.clone()));
 
     // A tree pick of the split names neither half: the commit refuses
     // naming the seat, and reads the half once it is chosen.
-    let mut tool = TransformTool::new();
+    let mut tool = DuplicateTool::new();
     tool.pick(&doc, split);
     assert!(tool.seats().awaits_half(0));
-    let op = |tool: &TransformTool| {
-        tool.op(
-            no_translation(),
-            scl3([0.0, 0.0, 1.0]),
-            Formula::zero(Dimension::Angle),
-        )
-    };
     assert!(matches!(
-        op(&tool),
+        tool.op(),
         Err(SeatError::HalfUnchosen {
-            seat: Seat::TransformBody
+            seat: Seat::DuplicateBody
         })
     ));
     tool.choose_half(0, SplitHalf::Below);
     assert!(matches!(
-        op(&tool),
-        Ok(SessionOp::AddTransform { input, .. }) if input == below
+        tool.op(),
+        Ok(SessionOp::Duplicate { input, .. }) if input == below
     ));
     assert!(
         seat_line(tool.seats(), Speaker::of(&doc)).ends_with("below half"),
@@ -3072,9 +3171,10 @@ fn at_rest_findings(session: &mut DocSession) -> usize {
         .count()
 }
 
-/// Box `A` duplicated, and the copy moved `lift` along +y — the
-/// workflow the gesture exists for. Answers the session, the moved
-/// copy's node and where its centre now is in plan.
+/// Box `A` duplicated, and the copy moved `lift` along +y by the
+/// Transform tool, its Edit door — the workflow the gesture exists for.
+/// Answers the session, the moved copy's node and where its centre now
+/// is in plan.
 fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -3086,24 +3186,25 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let copy = outcome.made.expect("the stepped copy");
     let step = spacing_of(&session, copy);
-    let moved = session_insert(
+    let op = common::transformed(
         &mut session,
-        SessionOp::AddTransform {
-            input: copy.into(),
-            translation: translation([0.0, lift, 0.0]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
+        copy,
+        &[(
+            pncad::document::Coord::Slide(pncad::document::TargetAxis::Y),
+            len(lift),
+        )],
     );
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
-    (session, moved, [step, lift])
+    (session, copy, [step, lift])
 }
 
 /// **A viewport click seats the body that was DRAWN, not the feature
 /// that made the face** — for every tool whose seat takes a body.
 ///
 /// The picked face on a moved copy was minted by the ORIGINAL extrude
-/// (a transform mints no name), so `Selection::node` — the feature
+/// (a placement mints no name), so `Selection::node` — the feature
 /// tree's question — answers the extrude, which sits where the
 /// original is. A tool that took that answer would author against a
 /// body the user did not click.
@@ -3137,7 +3238,11 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
         let held = match kind {
             ToolKind::Boolean => tools.boolean().and_then(|t| t.picks().first().copied()),
             ToolKind::Split => tools.split().and_then(|t| t.target()),
-            ToolKind::Transform => tools.transform().and_then(|t| t.input()),
+            // The placement editor opened on the copy's Edit door.
+            ToolKind::Transform => tools.mate().and_then(|t| match t.door() {
+                Some(viewer::matetool::PlaceDoor::Edit { placement, .. }) => Some(*placement),
+                _ => None,
+            }),
             ToolKind::Pattern => tools.pattern().and_then(|t| t.input()),
             ToolKind::Duplicate => tools.duplicate().and_then(|t| t.input()),
             ToolKind::Mirror => tools.mirror().and_then(|t| t.input()),
@@ -3444,13 +3549,13 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     session.pump();
     let picked = picked_from_above(&session, 0.0, 0.0);
     let mut tools = Tools::new();
-    tools.open(ToolKind::Transform);
+    tools.open(ToolKind::Duplicate);
     let _ = tools.feed(
         session.committed_doc(),
         Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(picked)],
     );
-    let tool = tools.transform().expect("open");
+    let tool = tools.duplicate().expect("open");
     assert_eq!(tool.input(), Some(split));
     assert_eq!(
         tool.seats().read(0),
@@ -3473,15 +3578,15 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let extrude = common::xy_box_in(&mut session, [0.01, 0.02, 0.01]);
-    let turned = session_insert(
+    let op = common::transformed(
         &mut session,
-        SessionOp::AddTransform {
-            input: extrude.into(),
-            translation: no_translation(),
-            rotation_axis: scl3([0.0, 1.0, 0.0]),
-            rotation_angle: ang(core::f64::consts::FRAC_PI_2),
-        },
+        extrude,
+        &[(
+            pncad::document::Coord::Spin(Some(pncad::document::TargetAxis::Y)),
+            ang(core::f64::consts::FRAC_PI_2),
+        )],
     );
+    let turned = session_insert(&mut session, op);
     session.pump();
     let grown = session.perform(SessionOp::SetSlot {
         node: extrude,
@@ -3539,15 +3644,7 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
     // The channel: through the block's whole depth and 5 mm into its
     // top, with no face coplanar with one of the block's.
     let raw = common::xy_box_in(&mut session, CHANNEL);
-    let channel = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: raw.into(),
-            translation: translation([0.0, 0.0, CHANNEL_DROP]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
-    );
+    let channel = common::moved_to(&mut session, raw, [0.0, 0.0, CHANNEL_DROP]);
     let channelled = session_insert(
         &mut session,
         SessionOp::AddBoolean {
@@ -3560,15 +3657,7 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
     // The boss, stood on the block's top: its own box, moved up by the
     // block's height.
     let (_, raw_boss) = common::box_in(&mut session, BOSS);
-    let boss = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: raw_boss.into(),
-            translation: translation([0.0, 0.0, common::BOSS_BLOCK[2]]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
-    );
+    let boss = common::moved_to(&mut session, raw_boss, [0.0, 0.0, common::BOSS_BLOCK[2]]);
     session.pump();
 
     let steps = session.history().len();
@@ -3665,7 +3754,7 @@ fn the_boolean_tools_picks_carry_their_ports_across_the_operation() {
 
 /// **A session op's body read that names a variable is read as that
 /// variable's output, and one that names no output refuses typed**: a
-/// duplicate of a body read by its variable lands, and a transform of a
+/// duplicate of a body read by its variable lands, and a placement of a
 /// selection refuses `NotABodyRead`.
 #[test]
 fn a_body_read_by_variable_lands_and_a_selection_refuses_typed() {
@@ -3682,14 +3771,13 @@ fn a_body_read_by_variable_lands_and_a_selection_refuses_typed() {
         beside: None,
     });
     assert!(duplicated.refusal.is_none(), "{:?}", duplicated.refusal);
-    let refused = session.perform(SessionOp::AddTransform {
-        input: Operand::Select {
+    let refused = session.perform(SessionOp::Place {
+        body: Operand::Select {
             body: Box::new(body.into()),
             names: Vec::new(),
         },
-        translation: no_translation(),
-        rotation_axis: scl3([0.0, 0.0, 1.0]),
-        rotation_angle: Formula::zero(Dimension::Angle),
+        target: pncad::document::VarId::WORLD,
+        constraints: pncad::document::stand().bundle(),
     });
     assert!(
         matches!(refused.refusal, Some(Refusal::NotABodyRead { .. })),
@@ -3699,9 +3787,9 @@ fn a_body_read_by_variable_lands_and_a_selection_refuses_typed() {
 }
 
 /// **Taking over one half of a split leaves the other's copy**: two
-/// placements draw the two halves of a split, and a transform of the
+/// placements draw the two halves of a split, and a pattern of the
 /// lower half re-points the placement copying that half alone, so the
-/// upper half is still drawn and the lower half is drawn once.
+/// upper half is still drawn and the lower half is drawn as the family.
 #[test]
 fn taking_over_one_half_of_a_split_leaves_the_other() {
     let tol = Tol::witness();
@@ -3715,11 +3803,13 @@ fn taking_over_one_half_of_a_split_leaves_the_other() {
     let below = Operand::output(split, SplitHalf::Below.port());
     let moved = session_insert(
         &mut session,
-        SessionOp::AddTransform {
+        SessionOp::AddPattern {
             input: below,
-            translation: translation([0.0, 0.0, -0.02]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([0.0, 1.0, 0.0]),
+                spacing: len(A[1] * 2.0),
+            },
         },
     );
     let doc = session.committed_doc();
@@ -3730,7 +3820,7 @@ fn taking_over_one_half_of_a_split_leaves_the_other() {
     assert_eq!(
         [read(upper), read(lower)],
         [above, doc.output(moved, 0)],
-        "the upper half kept, the lower half taken over by the transform"
+        "the upper half kept, the lower half taken over by the pattern"
     );
 }
 
@@ -3871,9 +3961,10 @@ fn a_staged_split_says_whether_its_plane_cuts_the_body() {
 /// the tools, the session and a built pick index). A viewport pick on
 /// the block's world copy keeps that copy, and the plane is drawn where
 /// it stands. A tree pick hit no part, so nothing is drawn. A target
-/// whose frame is a map (a transform's copy, translated, so its body's
-/// `in_space` is `Some`) is drawn where its own copy stands, the
-/// translation applied once.
+/// whose frame is a map (a second block lifted in its own space by the
+/// Transform tool, then given a world copy by hand, so the lifted
+/// copy's `in_space` is `Some`) is drawn where its own copy stands, the
+/// lift applied once.
 ///
 /// *Breaks if* the seat forgets the part, the preview stops reading the
 /// index's drawn map, or a target's own frame is applied twice or not
@@ -3946,28 +4037,18 @@ fn the_split_plane_is_drawn_under_the_picked_copy() {
     assert!(plane.is_none(), "a tree pick draws no plane");
 
     let lift = 4.0 * A[2];
-    let moved = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: body.into(),
-            translation: translation([0.0, 0.0, lift]),
-            rotation_axis: scl3(z),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
-    );
-    session.pump();
-    let [copy] = viewer::world::placements_of(session.committed_doc(), moved)[..] else {
-        panic!("the block's world copy now places the transform")
-    };
+    let raw = common::xy_box_in(&mut session, A);
+    let moved = common::moved_to(&mut session, raw, [0.0, 0.0, lift]);
+    let (session, copy) = common::world_copy_by_hand_in(&session, moved, tol);
     let (tool, source, centre, plane) = drawn(&session, pick_on(copy));
     assert_eq!(
         tool.target(),
         Some(moved),
-        "the pick seats the transform's copy"
+        "the pick seats the lifted copy the world copies"
     );
     assert!(
         pncad::document::in_space(&source).is_some(),
-        "the transform's body is framed by a map"
+        "the lifted copy's body is framed by a map"
     );
     assert!(
         near(centre[2], 0.5 * A[2] + lift),

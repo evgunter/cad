@@ -1949,7 +1949,7 @@ fn present_plane<'a>(
     };
     let segment = |ei: usize| -> Result<(Point2<Interval>, Point2<Interval>), Unpresented> {
         let e = b.edges.get(ei).ok_or(Unpresented::Local)?;
-        let Some((carrier @ Curve3::Line { .. }, (t0, t1))) = &e.arc else {
+        let Some((carrier, (t0, t1))) = e.arc.as_ref().filter(|(c, _)| !c.is_curved()) else {
             return Err(unread(ei, near_edges));
         };
         let [u] = e.uses.as_slice() else {
@@ -2419,7 +2419,7 @@ fn reads_curve(surface: &Surface<Interval>, rim: &Rim) -> bool {
 /// a line; on a chart, an image that is no coordinate line.
 fn is_curved(surface: &Surface<Interval>, rim: &Rim) -> bool {
     match surface {
-        Surface::Plane { .. } => !matches!(rim.arc, Some((Curve3::Line { .. }, _))),
+        Surface::Plane { .. } => rim.arc.as_ref().is_none_or(|(c, _)| c.is_curved()),
         _ => rim.uses.iter().any(|u| u.iso.is_none()),
     }
 }
@@ -2954,9 +2954,9 @@ fn present_wall<'a>(
     let local = if x == piece.u && a == piece.v {
         piece.local.clone()
     } else {
-        let m = |(l, h): (f64, f64)| at(geom::mid_param(l, h));
+        let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
         let ball = Ball::holding(
-            piece.surface.eval(m(x), m(a)),
+            piece.surface.point_eval(m(x), m(a)),
             piece.surface.rect_enclosure(x, a),
         );
         Local::of(piece.boundary, ball, band)
@@ -3246,9 +3246,7 @@ fn straight(
         u_ref,
     } = *surface
     {
-        let Some((carrier @ Curve3::Line { .. }, (t0, t1))) = &rim.arc else {
-            return None;
-        };
+        let (carrier, (t0, t1)) = rim.arc.as_ref().filter(|(c, _)| !c.is_curved())?;
         let v_ref = normal.cross(u_ref);
         let chart = |p: Point3<Interval>| {
             let d = p - origin;
@@ -3474,8 +3472,8 @@ fn present_line_corner<'a>(
     }) {
         return Err(Unpresented::Local);
     }
-    let m = |(l, h): (f64, f64)| at(geom::mid_param(l, h));
-    let ball = Ball::holding(surface.eval(m(x), m(y)), surface.rect_enclosure(x, y));
+    let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+    let ball = Ball::holding(surface.point_eval(m(x), m(y)), surface.rect_enclosure(x, y));
     let local = Local::of(b, ball, band);
     // The line admits only the vertex: its far end in `R` would leave the
     // face free to come round it.
@@ -3811,8 +3809,8 @@ fn graph_read(
     let local = if rb == (b0, b1) && cell == own {
         piece.local.clone()
     } else {
-        let m = |(l, h): (f64, f64)| at(geom::mid_param(l, h));
-        let ball = Ball::holding(surface.eval(m(x), m(y)), surface.rect_enclosure(x, y));
+        let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
+        let ball = Ball::holding(surface.point_eval(m(x), m(y)), surface.rect_enclosure(x, y));
         Local::of(piece.boundary, ball, band)
     };
     if !alone(piece, ei, through.map(|th| th.corner.other), &local) {
@@ -4572,7 +4570,7 @@ fn plane_through(
         .edges
         .iter()
         .map(|&(i, _)| match x.boundary.edges.get(i)?.arc.as_ref()? {
-            (Curve3::Line { dir, .. }, _) => unit(vmid(*dir)),
+            (Curve3::Line(geom::Line { dir, .. }), _) => unit(vmid(*dir)),
             _ => None,
         })
         .collect::<Option<_>>()?;
@@ -4742,7 +4740,7 @@ pub(crate) fn monotone(
     band: Band,
 ) -> bool {
     let (du, dv) = (u.1 - u.0, v.1 - v.0);
-    let centre = surface.jet(at(geom::mid_param(u.0, u.1)), at(geom::mid_param(v.0, v.1)));
+    let centre = surface.point_jet(geom::mid_param(u.0, u.1), geom::mid_param(v.0, v.1));
     let (a, b) = (vmid(centre.du) * du, vmid(centre.dv) * dv);
     // G = JᵀJ and its square root R; L = R⁻¹Jᵀ has orthonormal rows and
     // L·J = R.
@@ -4879,10 +4877,7 @@ mod presentation_rows {
         Rim {
             key: edge(n),
             arc: Some((
-                Curve3::Line {
-                    origin: origin(),
-                    dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                },
+                Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
                 (iv0(0.0), iv0(1.0)),
             )),
             ends: ends.map(vertex),
@@ -5551,10 +5546,7 @@ mod presentation_rows {
             edges: vec![Rim {
                 key: edge(1),
                 arc: Some((
-                    Curve3::Line {
-                        origin: origin(),
-                        dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                    },
+                    Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
                     (iv0(0.0), iv0(4.0)),
                 )),
                 ends: [vertex(1), vertex(2)],
@@ -5603,10 +5595,7 @@ mod presentation_rows {
     /// boxes may hold, narrowed to them from both ends.
     #[test]
     fn edge_piece_narrows_to_the_parameters_the_boxes_hold() {
-        let line = Curve3::Line {
-            origin: origin(),
-            dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-        };
+        let line = Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)));
         let bx = |a: f64, b: f64| {
             Point3::new(
                 Interval::from_bounds(a, b),
@@ -5806,10 +5795,10 @@ mod presentation_rows {
         Rim {
             key: edge(n),
             arc: Some((
-                Curve3::Line {
-                    origin: p(from),
-                    dir: Vec3::new(iv0(to.0 - from.0), iv0(to.1 - from.1), iv0(0.0)),
-                },
+                Curve3::line(
+                    p(from),
+                    Vec3::new(iv0(to.0 - from.0), iv0(to.1 - from.1), iv0(0.0)),
+                ),
                 (iv0(0.0), iv0(1.0)),
             )),
             ends: ends.map(vertex),
@@ -5853,7 +5842,7 @@ mod presentation_rows {
         let p = |x: f64, y: f64| Point3::new(iv0(x), iv0(y), iv0(0.0));
         let mut vertices = BTreeMap::from([(vertex(1), p(1.0, 0.0)), (vertex(2), p(0.0, 1.0))]);
         for e in core::iter::once(&other).chain(&extra) {
-            if let Some((Curve3::Line { origin, dir }, _)) = &e.arc {
+            if let Some((Curve3::Line(geom::Line { origin, dir }), _)) = &e.arc {
                 vertices.entry(e.ends[0]).or_insert(*origin);
                 vertices.entry(e.ends[1]).or_insert(*origin + *dir);
             }
@@ -6033,10 +6022,10 @@ mod presentation_rows {
         Rim {
             key: edge(n),
             arc: Some((
-                Curve3::Line {
-                    origin: Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                },
+                Curve3::line(
+                    Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
                 (iv0(t.0), iv0(t.1)),
             )),
             ends: ends.map(vertex),
@@ -6072,10 +6061,7 @@ mod presentation_rows {
         let ruling = Rim {
             key: edge(10),
             arc: Some((
-                Curve3::Line {
-                    origin: on_cyl(1.0, 0.5),
-                    dir: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
-                },
+                Curve3::line(on_cyl(1.0, 0.5), Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0))),
                 (iv0(0.0), iv0(0.5)),
             )),
             ends: [vertex(1), vertex(2)],
@@ -6097,7 +6083,7 @@ mod presentation_rows {
             (vertex(3), on_cyl(far.0, far.1)),
         ]);
         for e in &extra {
-            if let Some((Curve3::Line { origin, dir }, _)) = &e.arc {
+            if let Some((Curve3::Line(geom::Line { origin, dir }), _)) = &e.arc {
                 vertices.entry(e.ends[0]).or_insert(*origin);
                 vertices.entry(e.ends[1]).or_insert(*origin + *dir);
             }
@@ -6264,10 +6250,10 @@ mod presentation_rows {
         let rim_line = Rim {
             key: edge(11),
             arc: Some((
-                Curve3::Line {
-                    origin: Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                },
+                Curve3::line(
+                    Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
                 (iv0(0.0), iv0(1.0)),
             )),
             ends: [vertex(3), vertex(1)],
@@ -6423,10 +6409,10 @@ mod presentation_rows {
         let arc = Rim {
             key: edge(30),
             arc: Some((
-                Curve3::Line {
-                    origin: Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                },
+                Curve3::line(
+                    Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
                 (iv0(0.0), iv0(1.0)),
             )),
             ends: [vertex(1), vertex(2)],
@@ -6445,10 +6431,10 @@ mod presentation_rows {
         let ruling = Rim {
             key: edge(31),
             arc: Some((
-                Curve3::Line {
-                    origin: Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                },
+                Curve3::line(
+                    Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
                 (iv0(0.0), iv0(1.0)),
             )),
             ends: [vertex(1), vertex(8)],
@@ -6631,10 +6617,7 @@ mod presentation_rows {
             vec![Rim {
                 key: edge(12),
                 arc: Some((
-                    Curve3::Line {
-                        origin: on_cyl(1.015, -0.5),
-                        dir: Vec3::new(iv0(0.0), iv0(0.0), iv0(2.0)),
-                    },
+                    Curve3::line(on_cyl(1.015, -0.5), Vec3::new(iv0(0.0), iv0(0.0), iv0(2.0))),
                     (iv0(0.0), iv0(1.0)),
                 )),
                 ends: [vertex(5), vertex(6)],
@@ -6865,10 +6848,7 @@ mod presentation_rows {
         b.edges.push(Rim {
             key: edge(2),
             arc: Some((
-                Curve3::Line {
-                    origin: lip(0.0502),
-                    dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                },
+                Curve3::line(lip(0.0502), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
                 (iv0(0.0), iv0(1e-4)),
             )),
             ends: [vertex(2), vertex(3)],
@@ -8282,10 +8262,7 @@ mod presentation_rows {
             edges: vec![Rim {
                 key: edge(1),
                 arc: Some((
-                    Curve3::Line {
-                        origin: origin(),
-                        dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                    },
+                    Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
                     (iv0(0.0), end),
                 )),
                 ends: [vertex(1), vertex(2)],

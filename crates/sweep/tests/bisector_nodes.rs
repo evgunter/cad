@@ -1332,8 +1332,9 @@ fn slanted_bores_build_every_operation_one_difference_pinched_to_itself_row() {
 /// boxes overlap, so a reading that refuses for such a pair (here the
 /// parallelism, in band) must pre-empt nothing: at every `α` and every
 /// operation the boolean answers what its own route does — the body, or
-/// at the witness band and `α = 3e-10` the fallback extent's refusal —
-/// and never the node reading's escalation.
+/// at the witness band and `α = 3e-9` the fallback extent's refusal, the
+/// tilt read across the operation's region (`7e-9` there) in band — and
+/// never the node reading's escalation.
 #[test]
 fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
     let tol = Tol::witness();
@@ -1359,7 +1360,7 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
             ("pin ∖ bore", topo::subtract(&b, &a, tol)),
         ] {
             let what = format!("α = {alpha:e}, {op}");
-            if witness && alpha == 3e-10 {
+            if witness && alpha == 3e-9 {
                 assert!(
                     matches!(r, Err(topo::BooleanError::FallbackExtentUnsupported { .. })),
                     "{what}: the fallback extent's refusal, got {r:?}"

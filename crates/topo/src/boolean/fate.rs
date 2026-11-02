@@ -492,12 +492,12 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
     let chord = (end - base).norm();
     let (t0, t1) = curve.params();
     let reach = match curve.carrier() {
-        geom::Curve3::Line { .. } => LeverBounds::Exact(chord),
+        geom::Curve3::Line(_) => LeverBounds::Exact(chord),
         carrier => geom_brep::edge_reach_bounds(carrier, t0, t1, base),
     };
     let (dir, bend) = match curve.carrier() {
         _ if secant => (curve.mid_point() - base, None),
-        geom::Curve3::Line { .. } => (end - base, Some(Vec3::new(T::zero(), T::zero(), T::zero()))),
+        geom::Curve3::Line(_) => (end - base, Some(Vec3::new(T::zero(), T::zero(), T::zero()))),
         geom::Curve3::Circle { .. }
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. }
@@ -554,7 +554,7 @@ pub(super) fn bisector<T: Decide>(
     s: &super::sectors::BoolSector<T>,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
-    let mid = s.start + s.end;
+    let mid = s.middle();
     let len = mid.norm();
     match sign(len, T::one(), band)? {
         Sign::Positive => Ok(mid / len),
@@ -1407,7 +1407,7 @@ fn along_spec<T: Decide>(
         )
     };
     match carrier {
-        geom::Curve3::Line { .. } => geom_brep::EdgeCurveSpec::segment_of_line(carrier, t0, t1),
+        geom::Curve3::Line(_) => geom_brep::EdgeCurveSpec::segment_of_line(carrier, t0, t1),
         geom::Curve3::Circle { .. } if !closed => {
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1)
         }

@@ -220,6 +220,82 @@ fn a_cancel_keeps_the_last_good_picture_and_reevaluate_recovers_it() {
     assert_eq!(session.outstanding(), Outstanding::Current);
 }
 
+/// **A staged run out of member budget answers**: the staged seam hands
+/// back the exhausted run, which the session reads as its own answer,
+/// rather than nothing, which reads as a stage still checking forever.
+#[test]
+fn a_staged_run_out_of_member_budget_answers() {
+    use viewer::evalseam::{InlineStager, StagedKey, StagedRequest, StagedService};
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let (doc, row) = common::row_of_copies(
+        &doc,
+        extrude,
+        i64::from(u32::MAX),
+        (pncad::document::TargetAxis::X, 0.05),
+        tol,
+    );
+    let mut stager = InlineStager::new();
+    stager.submit(StagedRequest {
+        key: StagedKey(1),
+        doc,
+        prime: None,
+        resolver: None,
+        tol,
+    });
+    let done = stager.poll().expect("an exhausted stage answers");
+    assert!(
+        matches!(done.evaluation.outcome, EvalOutcome::Exhausted { at, .. } if at == row),
+        "it answers with the run out at the row: {:?}",
+        done.evaluation.outcome
+    );
+}
+
+/// **A run out of member budget never becomes the picture, and says so
+/// apart from a cancel**: a row of `u32::MAX` copies runs out at the row
+/// on landing, the session reports where, and re-evaluating the same
+/// document runs out there again. Red if the landing reads as a cancel,
+/// whose recourse (re-evaluate) cannot help.
+#[test]
+fn a_run_out_of_member_budget_lands_as_its_own_state() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let (doc, row) = common::row_of_copies(
+        &doc,
+        extrude,
+        i64::from(u32::MAX),
+        (pncad::document::TargetAxis::X, 0.05),
+        tol,
+    );
+    let out = viewer::session::OutOfBudget {
+        at: row,
+        held: 0,
+        budget: EvalOptions::default().member_budget,
+    };
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(
+        session.pump(),
+        vec![Landing::Exhausted(out)],
+        "it lands out of budget"
+    );
+    assert_eq!(
+        session.outstanding(),
+        Outstanding::Exhausted(out),
+        "and the chrome reads it as its own state, not a cancel"
+    );
+    session.perform(SessionOp::Reevaluate);
+    assert_eq!(
+        session.outstanding(),
+        Outstanding::Evaluating,
+        "a new request clears it"
+    );
+    assert_eq!(
+        session.pump(),
+        vec![Landing::Exhausted(out)],
+        "and the same document runs out at the same row again"
+    );
+}
+
 /// An [`InlineEvaluator`] that never reports itself idle.
 ///
 /// `DocSession` holds a `Box<dyn EvalService>`, so a seam is free to
@@ -285,6 +361,7 @@ fn cancel_reaches_the_shipped_token_and_the_prefix_is_typed_canceled() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     assert!(seam.busy());
     seam.cancel();
@@ -307,6 +384,7 @@ fn cancel_reaches_the_shipped_token_and_the_prefix_is_typed_canceled() {
         doc,
         tol,
         resolver: None,
+        seed: None,
     });
     let done = seam.poll().expect("the next run answers");
     assert!(done.completed());
@@ -322,6 +400,7 @@ fn an_edit_during_an_evaluation_cancels_and_restarts_rather_than_queueing() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     let second = Generation::FIRST.next();
     seam.submit(EvalRequest {
@@ -329,6 +408,7 @@ fn an_edit_during_an_evaluation_cancels_and_restarts_rather_than_queueing() {
         doc,
         tol,
         resolver: None,
+        seed: None,
     });
     let done = seam.poll().expect("a result");
     assert_eq!(
@@ -351,6 +431,7 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     let first = seam.poll().expect("a result");
     assert!(first.completed());
@@ -375,6 +456,7 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
         doc: edited,
         tol,
         resolver: None,
+        seed: None,
     });
     let second = seam.poll().expect("a result");
     assert!(second.completed());
@@ -401,6 +483,7 @@ fn the_seams_result_agrees_with_a_direct_evaluation() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     let through_seam = seam.poll().expect("a result");
     let direct = evaluate::<f64>(
@@ -433,6 +516,7 @@ fn the_threaded_seam_answers_the_same_generations() {
         doc,
         tol,
         resolver: None,
+        seed: None,
     });
     let mut results = drained(&mut seam, 1);
     assert_eq!(results.len(), 1, "one submit is answered once");
@@ -463,6 +547,7 @@ fn the_threaded_seam_coalesces_two_submits_into_one_result() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     let second = Generation::FIRST.next();
     seam.submit(EvalRequest {
@@ -470,6 +555,7 @@ fn the_threaded_seam_coalesces_two_submits_into_one_result() {
         doc,
         tol,
         resolver: None,
+        seed: None,
     });
 
     let results: Vec<Generation> = drained(&mut seam, 0)
@@ -504,6 +590,7 @@ fn a_cancel_reaches_a_threaded_seams_waiting_job() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     let second = Generation::FIRST.next();
     seam.submit(EvalRequest {
@@ -511,6 +598,7 @@ fn a_cancel_reaches_a_threaded_seams_waiting_job() {
         doc,
         tol,
         resolver: None,
+        seed: None,
     });
     // The second job is waiting behind the first; cancel names it.
     seam.cancel();
@@ -547,7 +635,11 @@ fn the_seams_traffic_is_send() {
 fn index_request(session: &DocSession, generation: Generation) -> IndexRequest {
     let (doc, _) = session.landed_pair().expect("a landed pair");
     IndexRequest {
-        key: PictureKey::of(generation, common::plate_delta()),
+        key: PictureKey::of(
+            generation,
+            common::plate_delta(),
+            viewer::world::Shown::none(),
+        ),
         doc: doc.clone(),
         evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
         tol: session.tol(),
@@ -571,14 +663,25 @@ fn the_index_seam_answers_with_the_key_it_was_asked_with() {
     assert!(seam.busy(), "asked, and not yet answered");
     let done = seam.poll().expect("the inline seam answers inside poll");
     assert!(!seam.busy());
-    assert_eq!(done.key, PictureKey::of(generation, common::plate_delta()));
+    assert_eq!(
+        done.key,
+        PictureKey::of(
+            generation,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        )
+    );
     let index = done.index.expect("the plate indexes");
     assert_eq!(
         index.generation(),
         generation,
         "the index is stamped with the generation the answer is filed under",
     );
-    assert!(index.current_for(Some(PictureKey::of(generation, common::plate_delta()))));
+    assert!(index.current_for(Some(PictureKey::of(
+        generation,
+        common::plate_delta(),
+        viewer::world::Shown::none()
+    ))));
     assert!(seam.poll().is_none(), "and there is nothing else to take");
 }
 
@@ -674,6 +777,7 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
     other.key = PictureKey::of(
         generation,
         common::plate_delta().scaled(2.0).expect("a positive delta"),
+        viewer::world::Shown::none(),
     );
     seam.submit(other);
     seam.submit(index_request(&broken, generation));
@@ -683,7 +787,11 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
     assert_eq!(results.len(), 1, "one answer for one picture");
     assert_eq!(
         results[0].key,
-        PictureKey::of(generation, common::plate_delta())
+        PictureKey::of(
+            generation,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        )
     );
     assert!(
         results[0]
@@ -893,4 +1001,93 @@ fn a_panic_inside_an_egui_frame_is_not_swallowed() {
         Some("the planted panic"),
         "and it must be the SAME panic, not one egui re-raised of its own",
     );
+}
+
+/// **A seeded request starts from its seed, not the seam's own run**
+/// (`EvalRequest::seed`): a completed evaluation of the document, made
+/// beside the seam (a takeover's door reads one before it writes its
+/// rebinds), primes the run, so the seam recomputes nothing it already
+/// holds. The same request unseeded, on a fresh seam, recomputes every
+/// node. Goes red if the seam stops reading the seed.
+#[test]
+fn a_seeded_request_starts_from_its_seed() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let seeded = seeded_run(&doc, Some(&doc));
+    assert_eq!(seeded.recomputed, 0, "every node read off the seed");
+    let unseeded = seeded_run(&doc, None);
+    assert!(
+        unseeded.recomputed > 0,
+        "a fresh seam computes the document"
+    );
+}
+
+/// **A seed that answers another document, or an earlier state of
+/// this one, costs work and never a wrong answer**: the memo keys on
+/// content and the document's id, so a seed of another document is
+/// dropped by the kernel and one of an earlier state answers only what
+/// did not change. Each run recomputes, and every node's value is the
+/// one a direct evaluation gives. Goes red if a seed is trusted beyond
+/// what it holds.
+#[test]
+fn a_wrong_seed_recomputes_and_answers_as_a_direct_run() {
+    let tol = Tol::witness();
+    let (earlier, _profile, extrude) = common::parametric_plate(tol);
+    let (doc, _) = common::placed_at(&earlier, extrude, [0.1, 0.0, 0.0], tol);
+    let (other, _, _) = common::broken_document(tol);
+    let direct = beside(&doc);
+    for (what, of) in [("another document", &other), ("an earlier state", &earlier)] {
+        let run = seeded_run(&doc, Some(of));
+        assert!(
+            run.recomputed > 0,
+            "{what}: the seed does not answer the new nodes"
+        );
+        for id in &direct.order {
+            assert_eq!(
+                format!("{:?}", run.value(*id)),
+                format!("{:?}", direct.value(*id)),
+                "{what}: {id:?} is evaluated as a direct run evaluates it"
+            );
+        }
+    }
+}
+
+/// A completed evaluation of `doc` beside the seam.
+fn beside(doc: &pncad::document::Doc<ProfileProgram>) -> Arc<pncad::document::Evaluation<f64>> {
+    let ev = Arc::new(evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    ));
+    assert_eq!(ev.outcome, EvalOutcome::Completed);
+    ev
+}
+
+/// `doc` through a fresh seam, started from a seed made by evaluating
+/// `seed_of` (a seed is made only by evaluating), where one is given.
+fn seeded_run(
+    doc: &pncad::document::Doc<ProfileProgram>,
+    seed_of: Option<&pncad::document::Doc<ProfileProgram>>,
+) -> Arc<pncad::document::Evaluation<f64>> {
+    let mut seam = InlineEvaluator::new();
+    seam.submit(EvalRequest {
+        generation: Generation::FIRST,
+        doc: doc.clone(),
+        tol: Tol::witness(),
+        resolver: None,
+        seed: seed_of.map(|of| {
+            let answered = pncad::document::Answered::evaluate(
+                Arc::new(of.clone()),
+                None,
+                &CancelToken::new(),
+                &EvalOptions::default(),
+                Tol::witness(),
+            );
+            assert_eq!(answered.evaluation().outcome, EvalOutcome::Completed);
+            viewer::evalseam::Seed::of(answered)
+        }),
+    });
+    seam.poll().expect("the run answers").evaluation
 }

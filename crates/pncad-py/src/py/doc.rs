@@ -1748,6 +1748,48 @@ impl Doc {
         Ok(SketchedOnFace(sketched))
     }
 
+    /// **A takeover**: each of `copies` (placements) re-pointed to copy
+    /// `result`, which replaces the body they copied, and every
+    /// selection that read one of them rebound where the result carries
+    /// its entity (a face, an edge or a vertex) as one entity; one the
+    /// result splits, ties or consumes stays stale. One action. Answers
+    /// each name moved, as `(copy, old name, new name)`, for a name held
+    /// outside the document.
+    ///
+    /// Reading where a name went evaluates the document, under
+    /// `resolver=` as `evaluate` takes it: a document with instances
+    /// needs the workspace their parts resolve in, or their copies
+    /// evaluate to nothing and no name of them moves. A node down a
+    /// chain of name-carrying edges from a copy (a copy of the copy, a
+    /// mirror of it, a split of it) carries the same names, and answers
+    /// them too.
+    #[pyo3(signature = (copies, result, *, resolver=None))]
+    fn take_over(
+        &mut self,
+        py: Python<'_>,
+        copies: Vec<NodeId>,
+        result: OperandArg,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<Vec<(NodeId, String, String)>> {
+        let copies: Vec<d::RecipeNodeId> = copies.into_iter().map(|c| c.0).collect();
+        let result = result.read();
+        let opts = d::EvalOptions {
+            resolver: seam(resolver),
+            ..d::EvalOptions::default()
+        };
+        let tol = Tol::witness();
+        let done = d::take_over(&self.inner, &copies, &result, &opts, tol)
+            .map_err(|err| edit_err(py, &err))?;
+        let mut moved = Vec::new();
+        for (copy, names) in &done.taken.moved.0 {
+            for (from, to) in names {
+                moved.push((NodeId(*copy), name_text(py, from)?, name_text(py, to)?));
+            }
+        }
+        self.take_up(done.doc, done.maintenance);
+        Ok(moved)
+    }
+
     /// **Place one copy of `source` into `target`**, placed by
     /// `constraints`, and return the placement's id: the insert of
     /// `Node.place(source, target, constraints)`.
@@ -3334,9 +3376,8 @@ impl Node {
     ///
     /// What each primitive reads is checked when the node is inserted:
     /// `distance` a face, an edge or a vertex, `angle` a face or an
-    /// edge, `min_clearance` a body or a face, `gap` a face, an edge or
-    /// a vertex, and any
-    /// other refuses `slot_var_kind`. The rest are the kernel's own
+    /// edge, `gap` a face, an edge or a vertex, and any other refuses
+    /// `slot_var_kind`. The rest are the kernel's own
     /// typed refusals at `evaluate`: a name that no longer resolves
     /// (`select_resolve`), a carrier pair with no v1 closed form
     /// (`measure_unsupported`) and a non-finite result
@@ -3383,7 +3424,7 @@ impl Node {
         bound: &super::expr::Formula,
     ) -> PyResult<Self> {
         Ok(Self {
-            inner: d::Node::Assertion {
+            inner: d::Node::Assertion(d::Claim::Value {
                 // A variable is read at its own kind's dimension, so a
                 // mismatch with the bound is the door's
                 // `assertion_dimension`; anything else at the bound's.
@@ -3396,7 +3437,55 @@ impl Node {
                 },
                 bound: bound.0.clone(),
                 relation: relation.to_kernel(),
+            }),
+        })
+    }
+
+    /// **A recorded clearance requirement** (ERROR-DESIGN E3, E10):
+    /// the clearance between seats `a` and `b` lies within the bounds.
+    /// A clearance is a requirement and never a value — the minimum
+    /// distance is not computed, and no formula reads it.
+    ///
+    /// Each seat is a `(node, name)` pair: a BODY name selects every
+    /// face of that body, a FACE name the one. Anything else (an edge,
+    /// a vertex) refuses when the node is inserted, `slot_var_kind`.
+    ///
+    /// The bounds are lengths, from `Doc.parse_formula`, and exactly
+    /// one shape of them: `at_least`, `at_most`, both (a band), or
+    /// `equal` alone. Any other combination raises `ValueError`.
+    ///
+    /// **The verdict needs the certified sweep**, which reads
+    /// enclosures. At the `f64` scalar this binding evaluates at, it is
+    /// the third state: `Value.assertion` answers `"Refused"`, `holds`
+    /// `None`, `refusal` `"needs_certifying_lane"`, and a `reason`
+    /// naming the lane that answers. The node evaluates; it is not
+    /// failed.
+    #[staticmethod]
+    #[pyo3(signature = (a, b, *, at_least=None, at_most=None, equal=None))]
+    fn clearance(
+        a: (NodeId, String),
+        b: (NodeId, String),
+        at_least: Option<&super::expr::Formula>,
+        at_most: Option<&super::expr::Formula>,
+        equal: Option<&super::expr::Formula>,
+    ) -> PyResult<Self> {
+        let f = |c: &super::expr::Formula| c.0.clone();
+        let bounds = match (at_least, at_most, equal) {
+            (Some(lo), None, None) => d::ClearanceBounds::AtLeast(f(lo)),
+            (None, Some(hi), None) => d::ClearanceBounds::AtMost(f(hi)),
+            (Some(lo), Some(hi), None) => d::ClearanceBounds::Within {
+                lo: f(lo),
+                hi: f(hi),
             },
+            (None, None, Some(c)) => d::ClearanceBounds::Equal(f(c)),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "a clearance takes `at_least`, `at_most`, both, or `equal` alone",
+                ));
+            }
+        };
+        Ok(Self {
+            inner: d::Node::clearance(super::measure::sited(a)?, super::measure::sited(b)?, bounds),
         })
     }
 }

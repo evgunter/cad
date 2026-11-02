@@ -2,10 +2,12 @@
 id: the-chrome-vocabulary-is-not-held-to-the-target-the-panel-draws
 kind: issue
 title: Nothing holds a gesture vocabulary to the target its own panel row is drawing
-status: open
+status: closed
 opened: 2026-09-21
 priority: P3
 cost: E
+closed: 2026-11-02
+pr: 6286
 ---
 
 
@@ -75,3 +77,16 @@ So the row is now a test: select one of two instances, drag its
 free-move probe through that harness, and assert that every op it
 emits names the selected instance. The `instance.0 + 1` mutation
 above is the check that the test can go red.
+
+## Closed — 2026-11-02
+
+PR 6286. `app::properties_pane_tests::the_free_move_probe_drives_the_instance_its_row_draws`:
+of two instances in spaces of their own, the selected one's probe is
+dragged through the whole-app harness. The probe held mid-drag is the
+selected instance's, and on release only its space carries the
+free-move. The `ordinal + 1` mutation in `widgets::free_move_gesture`
+reds it. That mutation also reds
+`pane::properties::tests::a_number_typed_into_the_free_move_probe_commits_in_the_working_unit`
+now, which the receipt above predates. That row holds the widget
+against a node it hands in itself; only the new one holds the node
+`PropertiesPane::instance_ui` hands down.

@@ -372,6 +372,7 @@ fn main() {
             doc: ring.doc().clone(),
             tol,
             resolver: None,
+            seed: None,
         });
     }
     let start = std::time::Instant::now();

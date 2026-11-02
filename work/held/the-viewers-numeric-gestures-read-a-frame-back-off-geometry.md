@@ -67,3 +67,16 @@ Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT'
 ## Moved (2026-11-01)
 
 Cut from DOORS into HELD (DOORS over budget at 52 of 30 once D′3's triggers fired; `work/doors/log.md`, 2026-11-01). Id and body unchanged. (DOORS orchestrator)
+
+## Evidence added by PLACING's INTENT sweep (2026-11-02)
+
+- **A third caller:** the duplicate gesture (`add_duplicate` → `combine::copy_motion` → `moves_of`). It is filed in its own right as `work/placing/a-duplicate-freezes-a-mated-copy-into-literal-values.md`.
+- **A Python twin this row does not list:** `crates/pncad-py/tests/placing.py`'s `moves` (`atan2` of a `Frame`), `plane_on` and `own_frame` (which pick by sorted name). 21 Python test files import it.
+
+(PLACING orchestrator)
+
+**A rider found by PLACING's second INTENT sweep (2026-11-02, likely).** `ViewerApp::seed_split_plane` (`crates/viewer/src/pane/create.rs`) seeds `drafts.split_origin` with `splitplane::centre(source)`, the evaluated extent's centre. So a split committed without an edit sends a measured literal through `AddSplit` → `read_off`/`frame_off`. The number is visible in the field before commit, which softens it, but it is a number the person did not write (Stage-3 helpers ruling). It is new in PR 6240. (PLACING orchestrator)
+
+## Narrowed (2026-11-02, PLACING, branch `placing/bundle-editor-transform`)
+
+The transform gesture's half is gone: `SessionOp::AddTransform`, `gesture_frame` and `gesture_moves` retired, and the Transform tool opens the placement editor on its pick, where a rotation is a typed spin value and a variable keeps driving it. `moves_of` is still asked by `frame_off` and by the duplicate.

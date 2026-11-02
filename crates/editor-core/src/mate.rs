@@ -41,7 +41,7 @@ pub(crate) mod value;
 
 pub use corner::{PinRefusal, corner_frame, corner_frame_in};
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
-pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
+pub use member::{Headed, Member, Placing, head_face, head_of, member_of, member_reading};
 pub use orient::{Orientation, SignedAxis};
 pub use pin::{FrameMove, Placed, moved_frame, stand};
 pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach, part_reach_from};
@@ -49,9 +49,12 @@ pub use solve::{
     Atan2Branch, Composing, PoseRefusal, SolveScalar, SolvedPoses, in_space, mate_coset,
     relative_freedom_components, solve_document, solve_document_at,
 };
-pub use turn::{LeastTurn, slides_left_along};
+pub use turn::{LeastTurn, slides_left_along, turn_onto};
 pub use unobservable::{Unobservable, unobservable};
-pub use value::flipped;
+pub use value::{
+    ChainTurn, Charted, MatedDirection, MatedHold, chain_turns, flipped, mated_direction,
+    read_back, side_flipped, spin_as_chain_turn,
+};
 
 /// Which side of a mate a diagnostic is about.
 #[derive(

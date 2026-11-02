@@ -149,6 +149,7 @@ use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::ring_path::{LoopArc, LoopSplit, Path, Quadric, SplineArc, path_parity};
+use crate::splitting::ApexSectionReading;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::order::{FRAME_ARM, FRAME_AXIS};
 use crate::splitting::rules::{face_axial_range, face_extent};
@@ -2433,7 +2434,8 @@ fn chord_spec<T: Decide>(
         // gate by the mef/mekr caller. No arc-side rule applies: a line
         // has no complementary candidate.
         SectionCase::Tangent(line) => {
-            let (geom::Curve3::Line { origin, dir }, Some(back)) = (line.clone(), line.reversed())
+            let (geom::Curve3::Line(geom::Line { origin, dir }), Some(back)) =
+                (line.clone(), line.reversed())
             else {
                 return Err(SplitJoinError::SectionInvariant {
                     face,
@@ -2625,6 +2627,99 @@ pub(crate) fn wall_section<T: Decide>(
         section_reach(body, at, face, (&wall, None), band)?,
     )?;
     Ok(Some(WallSection { wall, case }))
+}
+
+/// **The section ruling inside a sub-sector at a cone's apex**: of the
+/// rulings the plane through `origin` along `normal` cuts `face`, a cone
+/// at its apex `at`, in ([`wall_section`]: a line pair, or one line where
+/// the plane is tangent), each turned onto the face's nappe, the one
+/// strictly inside the sub-sector the face's sweep turns through from the
+/// ruling along `from` to the one along `to`, which the walk read with the
+/// plane's side turning across it. Which one is read as its turn from
+/// each bound into the sweep ([`ConeApex::turn`](crate::sector_face::ConeApex::turn)), levered at the
+/// sub-sector's `arm` (`germ_apex`).
+///
+/// The one trace both lanes read a germ at an apex by: the split's
+/// section germ and the Boolean's pierce germ.
+///
+/// # Errors
+///
+/// [`ApexRulingFault`].
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn apex_section_ruling<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    (origin, normal): (Point3<T>, UnitVec3<T>),
+    (face, at): (FaceKey, VertexKey),
+    apex: &crate::sector_face::ConeApex<T>,
+    (from, to): (Vec3<T>, Vec3<T>),
+    arm: T,
+) -> Result<Vec3<T>, ApexRulingFault> {
+    let lines = match wall_section(body, band, origin, normal, face, at) {
+        Ok(Some(WallSection {
+            case: SectionCase::Straight([l1, l2]),
+            ..
+        })) => vec![l1, l2],
+        Ok(Some(WallSection {
+            case: SectionCase::Tangent(l),
+            ..
+        })) => vec![l],
+        Err(SplitJoinError::Escalated { diag, .. }) => {
+            return Err(ApexRulingFault::Escalated(diag));
+        }
+        Err(section) => {
+            return Err(ApexRulingFault::Disagrees(ApexSectionReading::Refused(
+                Box::new(section),
+            )));
+        }
+        Ok(Some(WallSection {
+            case: SectionCase::Conic(_),
+            ..
+        })) => {
+            return Err(ApexRulingFault::Disagrees(
+                ApexSectionReading::ClosedOffApex,
+            ));
+        }
+        Ok(_) => unreachable!(
+            "{face:?} carries a cone, whose section table reads a conic, a line pair or a \
+             tangent line"
+        ),
+    };
+    let mut inside = None;
+    for line in lines {
+        let Some(geom::Line { dir, .. }) = line.as_line() else {
+            unreachable!("{face:?}: a cone's section ruling through its apex is a line")
+        };
+        let z = apex.onto_nappe_of(dir, to);
+        let into = apex.turn(from, z).min(apex.turn(z, to));
+        match decide("germ_apex", Margin::levered(into, arm), band)
+            .map_err(ApexRulingFault::Escalated)?
+        {
+            Sign::Positive if inside.is_none() => inside = Some(z),
+            Sign::Positive => {
+                return Err(ApexRulingFault::Disagrees(
+                    ApexSectionReading::BothRulingsInside,
+                ));
+            }
+            Sign::Zero | Sign::Negative => {}
+        }
+    }
+    inside.ok_or(ApexRulingFault::Disagrees(
+        ApexSectionReading::NoRulingInside,
+    ))
+}
+
+/// Why [`apex_section_ruling`] names no ruling: an escalation, or the
+/// table disagreeing with the walk, in the one vocabulary both lanes
+/// refuse it by ([`ApexSectionReading`]; the split's
+/// [`crate::SplitReduceError::ApexSection`], the Boolean's
+/// [`crate::BooleanError::ApexSection`]).
+#[derive(Debug)]
+pub(crate) enum ApexRulingFault {
+    /// The table or the turn escalated.
+    Escalated(Indeterminate),
+    /// The table disagrees with the walk on the apex.
+    Disagrees(ApexSectionReading),
 }
 
 /// [`wall_section`]'s answer.
@@ -3152,7 +3247,7 @@ fn run_back<T: Decide>(
     let (t0, t1) = (T::zero() - spec.param_end, T::zero() - spec.param_start);
     match &spec.description {
         geom_brep::EdgeDescriptionSpec::Scaffold(_) => match carrier {
-            geom::Curve3::Line { .. } => EdgeCurveSpec::segment_of_line(carrier, t0, t1),
+            geom::Curve3::Line(_) => EdgeCurveSpec::segment_of_line(carrier, t0, t1),
             back => EdgeCurveSpec::arc_of_circle(back, t0, t1),
         }
         .ok_or(invariant(
@@ -3297,7 +3392,7 @@ fn between_edge_is_section<T: Decide>(
         return Ok(Some(true)); // null scaffolding: zero-length, ON
     };
     match curve.carrier() {
-        geom::Curve3::Line { .. } => Ok(Some(true)),
+        geom::Curve3::Line(_) => Ok(Some(true)),
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
             Err(SplitJoinError::RunEdgeCarrierUnsupported {
                 face: body
@@ -4094,7 +4189,7 @@ fn quadric_loop_arc<T: Decide>(
         (Quadric::Sphere { .. }, geom::Curve3::Circle { .. })
         | (
             Quadric::Cylinder { .. } | Quadric::Cone { .. },
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } | geom::Curve3::Line { .. },
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } | geom::Curve3::Line(_),
         ) => LoopArc::of(carrier, params),
         (Quadric::Torus { .. }, geom::Curve3::Spiric { .. }) => {
             quadric.torus_spiric_arc(carrier, params)
@@ -4540,7 +4635,7 @@ fn along_edge_spec<T: Decide>(
             what: "the segment's edge carries no certified curve",
         });
     };
-    if let geom::Curve3::Line { .. } = curve.carrier() {
+    if !curve.carrier().is_curved() {
         return Ok(Some(EdgeCurveSpec::line_between(p1, p2)));
     }
     // The chord starts at the copy of whichever end of the edge null
@@ -5208,31 +5303,25 @@ impl RimSide {
                     band,
                 )
                 .map_err(escalated)?;
-                let mut reads = loop_points(body, outer)?.into_iter().map(|w| {
-                    decide(
-                        "bool_lone_ring_outer_side",
-                        Margin::of((w - center).dot(axis)),
-                        band,
-                    )
+                // The first point read definitely off the plane decides,
+                // and any such point reads the one side (the loop does not
+                // cross its ring's plane); an escalation escalates only
+                // where none does.
+                use geom_brep::ladder::{Answering, Climb, Rung, climb};
+                let points = loop_points(body, outer)?;
+                let read = climb(Answering::Any, points, |w| {
+                    let offset = Margin::of((w - center).dot(axis));
+                    Rung::decide("bool_lone_ring_outer_side", offset, band, |d| {
+                        (d.sign != Sign::Zero).then_some(d.sign)
+                    })
                 });
-                // The first point read definitely off the plane decides;
-                // an escalation escalates only where none does.
-                let mut first_escalation = None;
-                let outer_side = loop {
-                    match reads.next() {
-                        Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => break sign,
-                        Some(Ok(Sign::Zero)) => {}
-                        Some(Err(diag)) => {
-                            first_escalation.get_or_insert(diag);
-                        }
-                        None => {
-                            return Err(match first_escalation {
-                                Some(diag) => escalated(diag),
-                                None => invariant(
-                                    "the old face's outer loop lies on its pierce ring's plane",
-                                ),
-                            });
-                        }
+                let outer_side = match read {
+                    Climb::Answered { answer, .. } => answer,
+                    Climb::Undecided(diag) => return Err(escalated(diag)),
+                    Climb::Passed => {
+                        return Err(invariant(
+                            "the old face's outer loop lies on its pierce ring's plane",
+                        ));
                     }
                 };
                 match region {
@@ -7920,10 +8009,7 @@ mod segment_curve_tests {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = FaceKey::from(KeyData::from_ffi(3));
         let surface = SurfaceKey::default();
-        let line = geom::Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let spec = |description| EdgeCurveSpec {
             description,
             carrier: line.clone(),

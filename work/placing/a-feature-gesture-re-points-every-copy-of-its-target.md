@@ -2,11 +2,11 @@
 id: a-feature-gesture-re-points-every-copy-of-its-target
 kind: issue
 title: A feature gesture re-points every placement of its target body, not only the placement whose copy the author picked
-status: parked
+status: open
 opened: 2026-10-08
 priority: P1
 cost: M
-blocked_on: [a-mate-on-a-taken-over-copys-face-goes-stale]
+design: true
 ---
 
 

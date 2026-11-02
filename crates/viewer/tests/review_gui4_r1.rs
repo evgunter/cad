@@ -129,32 +129,33 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
         common::copy_of(session.committed_doc(), rot_shelf)
     );
 
+    // The post's world mate comes off before the editor loads its
+    // bundle.
+    asm::unpin(&mut session, rot_post);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_a_top.clone());
     tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
-        .expect("the tool proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the tool proposes");
 
     // The rotated placement enters nothing: each side names the
     // part's own face — the row the instance placed, whatever the
     // instance's placement is — and no number read at the world spot
     // enters the mate.
     assert_eq!(
-        asm::side_face(doc, &proposal.on),
+        asm::side_face(doc, &proposal.mates[0].on[0]),
         Some(bench.post_top.clone()),
         "the on side is the post's own top cap"
     );
     assert_eq!(
-        asm::side_face(doc, &proposal.to),
+        asm::side_face(doc, &proposal.mates[0].to[0]),
         Some(bench.shelf_bottom.clone()),
         "the to side is the shelf's own underside"
     );
 
-    // The edit lands once, into the post's bundle once its world mate
-    // is off, and the document stays green.
-    asm::unpin(&mut session, rot_post);
+    // The edit lands once, into the post's bundle, and the document
+    // stays green.
     common::commit_mate(&mut session, proposal.op_into_target_space());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "after the mate: {row:?}");
@@ -307,9 +308,9 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         frame: asm::where_b_stood(Frame::translation([0.05, 0.0, 0.0])),
     });
     session.perform(SessionOp::CommitFreeMove { node: bench.post_b });
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: bench.post_b,
-        hidden: true,
+        on: false,
     });
     let view = session.display_view();
     let scene = index.scene_for(&view).expect("a scene");
@@ -336,9 +337,9 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     );
 
     // Unhide: both facts come back together.
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: bench.post_b,
-        hidden: false,
+        on: true,
     });
     assert_eq!(
         index
@@ -361,8 +362,8 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
     assert_eq!(
         first.committed.len(),
-        3,
-        "the re-target, the mate and its values"
+        2,
+        "the re-target, and the bundle written whole with the mate and its values"
     );
     let [superseded] = &first.withdrawn.superseded[..] else {
         panic!("exactly one frame is superseded at the edit")
@@ -728,11 +729,13 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), top);
     tool.pick(session.doc(), bottom);
-    let (doc, _) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, asm::seat_choice()) {
-        Err(viewer::matetool::MateToolError::SamePick { head }) => {
-            assert_eq!(head.id(), bench.post_b, "said as the picked copy");
-        }
+    // A pick on the copy is its on pick, so the second replaces the
+    // first and the to seat stays empty.
+    match common::proposed(&session, &tool, asm::seat_choice()) {
+        Err(viewer::matetool::MateToolError::SeatEmpty {
+            side: pncad::document::MateSide::To,
+            ..
+        }) => {}
         other => panic!("a self-mate must refuse at the tool, got {other:?}"),
     }
     // Nothing entered the document.
@@ -802,21 +805,22 @@ fn r1_a_patterned_instance_is_drawn_through_its_copies_and_its_space_is_not_show
          and the member reads are each read as a body"
     );
 
-    // HIDE: accepted on the instance, which the picture does not draw,
-    // so the picture keeps every copy.
+    // HIDE: accepted on the instance, which the picture does not draw:
+    // its toggle is already off, so nothing is held and the picture
+    // keeps every copy.
     assert!(
         session
-            .perform(SessionOp::SetBodyHidden {
+            .perform(SessionOp::SetBodyOn {
                 node: instance,
-                hidden: true,
+                on: false,
             })
             .refusal
             .is_none(),
         "hide is accepted on the patterned instance"
     );
     assert!(
-        session.display().is_body_hidden(instance),
-        "the state says hidden"
+        !session.toggles().body_on(instance) && session.display().toggled().is_empty(),
+        "the toggle reads off, and an off turned off holds nothing"
     );
     assert_eq!(
         index
@@ -828,18 +832,18 @@ fn r1_a_patterned_instance_is_drawn_through_its_copies_and_its_space_is_not_show
         "the instance is not drawn, so its hide takes nothing off the picture"
     );
     // A world copy's hide takes that copy off.
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: copies[0],
-        hidden: true,
+        on: false,
     });
     let hidden_scene = index.scene_for(&session.display_view()).expect("a scene");
     assert!(
         hidden_scene.stats().triangles < baseline,
         "hiding a drawn copy takes it off the picture"
     );
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: copies[0],
-        hidden: false,
+        on: true,
     });
     assert_eq!(
         index
@@ -876,9 +880,9 @@ fn r1_a_patterned_instance_is_drawn_through_its_copies_and_its_space_is_not_show
     // The family's placement builds bodies, so its hide is accepted.
     assert!(
         session
-            .perform(SessionOp::SetBodyHidden {
+            .perform(SessionOp::SetBodyOn {
                 node: pattern,
-                hidden: true,
+                on: false,
             })
             .refusal
             .is_none(),
@@ -928,9 +932,9 @@ fn r1_an_assembly_alone_in_an_empty_directory_opens_and_badges() {
     }
     // The hide op still works on an unresolvable instance — display
     // state is about the DOCUMENT's nodes, not about what evaluated.
-    let hidden = session.perform(SessionOp::SetBodyHidden {
+    let hidden = session.perform(SessionOp::SetBodyOn {
         node: RecipeNodeId(rows[0].id.0),
-        hidden: true,
+        on: false,
     });
     assert!(
         hidden.refusal.is_none(),

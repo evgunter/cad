@@ -121,3 +121,33 @@ Build-time items:
 - reading a pinch as the guard's `Touch` needs its own argument;
 - the march door seeds on the thinner wall's chart cut by the region;
 - seeding uses the pair's scale, not the region's.
+
+## 2026-11-02: what stage 3 retires (stage 2 review, PR 6151)
+
+Stage 2 left two staging seams for stage 3 to retire:
+- **The join's gate.** `SectionTable::join_reads` (through
+  `held_at_the_join` and `carried_at_the_join`) keeps two cylinders off
+  the join's readings of the table, so the join still reads them through
+  its frame and bisector lanes.
+- **The frame lane's cylinder reading at `frame_lever`.** That lane
+  (`cylinder_pair_axes`, `cylinder_pair_frame`, `crossing_cylinder_reading`
+  for `node.rs`) reads at the faces' reach, while the table's records
+  come from the pose read across the operation's region. In band the two
+  can disagree until stage 3 makes the join read the pose.
+
+Stage 3 also owns the per-arc `winds` of the bisector arcs, which store a
+fact about their node-joined set.
+
+## 2026-11-02: the ruling sweep (branch `sectarms/cylinder-ruling-sweep`)
+
+Every crossing pose now counts. The thinner wall's ruling sweep
+(`pair_section::ruling`) lists one loop or two, cut by the region:
+- arcs between certified cut ends;
+- loops the region holds whole, each witnessed.
+
+The march seeds from the witnesses and ends at the region's ball. The
+carry matches the branches one to one, which closes exhaustiveness. The
+provisional `Counted`/`Marched` split by the pair's ball is gone.
+Stage 3 (the join) is next. Its seams are unchanged: `join_reads`, and
+the frame lane's reading at `frame_lever`.
+
