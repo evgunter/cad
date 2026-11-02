@@ -1979,13 +1979,7 @@ fn resolve_edge_sector<T: Decide>(
     // The reference's material about the edge's line is its face's
     // half-turn: the line cone of the face's plane either side of the
     // line, or of its two halves where a bisector parts it on the ray.
-    let sheets = match other_holder {
-        Some(h) => vec![
-            LineSheet::Start(h),
-            LineSheet::End((h + 1) % ref_secs.len()),
-        ],
-        None => vec![LineSheet::Across(ref_idx)],
-    };
+    let sheets = super::sectors::half_turn(ref_secs.len(), ref_idx, other_holder.is_some());
     let own_point = corner_of(own_body, &own_secs[f_s]);
     let ref_point = corner_of(ref_body, ref_sector);
     let (axis, axis_reach) = (own_secs[f_s].start, own_secs[f_s].start_reach);

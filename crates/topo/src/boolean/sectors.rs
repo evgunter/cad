@@ -2766,6 +2766,20 @@ pub(crate) fn line_fans<T: geom_core::Real>(
     out
 }
 
+/// **The sheets of one face's half-turn about a line it holds**
+/// ([`line_fans`]): sector `idx` the line runs inside, its plane either
+/// side of the line; or, where a subdivision bisector parts the face on
+/// the line (`parted`), `idx` the half whose start bound the bisector
+/// is and the next sector the half whose end bound it is. Of `n`
+/// sectors in the orbit.
+pub(crate) fn half_turn(n: usize, idx: usize, parted: bool) -> Vec<LineSheet> {
+    if parted {
+        vec![LineSheet::Start(idx), LineSheet::End((idx + 1) % n)]
+    } else {
+        vec![LineSheet::Across(idx)]
+    }
+}
+
 /// Each corner's face, in [`fans`]' order.
 pub(crate) fn fan_faces<T: geom_core::Real>(
     sectors: &[BoolSector<T>],
