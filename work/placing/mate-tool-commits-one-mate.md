@@ -2,11 +2,10 @@
 id: mate-tool-commits-one-mate
 kind: issue
 title: the mate tool commits one mate and its values, not a placement's whole bundle
-status: parked
+status: open
 opened: 2026-10-31
 priority: P1
 cost: H
-blocked_on: [the-mate-tool-offers-two-of-the-five-mate-kinds]
 refs: [the-viewers-mate-remove-takes-the-structural-door, removing-a-value-constraint-is-a-second-spelling-of-setting-it]
 ---
 

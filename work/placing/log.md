@@ -101,3 +101,9 @@ Newest entries at the bottom; the tail is the program's live status.
   - the stale names and prose.
 
   S2, a third bare-name selection struct, goes as evidence on VSEAM's row. MINOR-2 is noted on the editor row. (PLACING orchestrator)
+- 2026-11-02 — **The P0 closes** (PR 6284). The fix pass came in green at `6e138925`, adjudicated:
+  - every item sent was taken;
+  - the suggested `SitedRef`-only door was declined with reason (ten `SitedFace` callers), and `Headed` is kept off the crate root instead;
+  - the new 0.69 s panel row could not join the slow set (the name check cannot see app-feature tests), filed for GREEN.
+
+  `mate-tool-commits-one-mate` (the bundle editor) and the Transform row riding with it are unparked: their trigger fired. The editor is the track's next dispatch. (PLACING orchestrator)
