@@ -1211,4 +1211,355 @@ mod tests {
             geom_core::Bounds::hi,
         );
     }
+
+    /// The north pole and points near it, read against the lune `w` wide
+    /// from the equator down to the south pole, on the sphere of radius
+    /// `8.726e-4` about `(3, −2, 5)`, at the band `(1e-6, 1e-5)`: the
+    /// blend4 fillet corner's pose (`blend4_r1_probes::p2_slim_skews…`).
+    fn slim_lune<T: Decide>(
+        w_deg: f64,
+        turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+    ) -> (SphereFaceRegion<T>, faces::Shape) {
+        let shape = faces::lune(1.0, w_deg.to_radians(), core::f64::consts::FRAC_PI_2, false);
+        let region = faces::build::<T>(&shape.specs, 0.0, SLIM_CENTRE, SLIM_RADIUS, true, turn);
+        (region, shape)
+    }
+
+    const SLIM_CENTRE: [f64; 3] = [3.0, -2.0, 5.0];
+    const SLIM_RADIUS: f64 = 8.726e-4;
+
+    fn slim_at<T: Decide>(v: [f64; 3]) -> Point3<T> {
+        let (c, r) = (SLIM_CENTRE, SLIM_RADIUS);
+        Point3::new(
+            T::from_f64(c[0] + r * v[0]),
+            T::from_f64(c[1] + r * v[1]),
+            T::from_f64(c[2] + r * v[2]),
+        )
+    }
+
+    /// **A slim lune's far pole reads out by the two-leg path.** The 1° and
+    /// 2° lunes from the equator down to the south pole, on the blend4
+    /// fillet corner's sphere: every ray from the north pole meets the
+    /// face only at the south-pole vertex or runs within the band of both
+    /// meridian arcs, and the two-leg path crosses them head-on. The pole
+    /// and points `1e-3`, `3e-3` and `1e-2` rad from it, at `f64` and at
+    /// `Interval`, read out; the nearer ones' first legs end short of the
+    /// vertex that puts their arcs' far roots in band. (A 0.1° lune here is
+    /// `1.5e-6` wide at the equator, inside the band, and escalates.)
+    #[test]
+    fn a_slim_lunes_far_pole_reads_out_by_the_two_leg_path() {
+        fn read<T: Decide>(
+            scalar: &str,
+            turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+        ) {
+            let band = Band::new(1e-6, 1e-5).unwrap();
+            for w in [1.0, 2.0] {
+                let (region, _) = slim_lune::<T>(w, turn);
+                for off in [0.0, 1e-3, 3e-3, 1e-2] {
+                    let p = slim_at::<T>(faces::sph(off, 3.0));
+                    assert_eq!(
+                        region.contains(p, band),
+                        Ok(Some(false)),
+                        "{w}° lune, {off:e} rad off its far pole, at {scalar}"
+                    );
+                }
+            }
+        }
+        read::<f64>("f64", crate::boolean::region::fixture_turn);
+        read::<geom_core::Interval>("Interval", crate::boolean::region::fixture_turn_interval);
+    }
+
+    /// **Every two-leg path that decides agrees with the truth.** On slim
+    /// lunes (from the equator to a pole, and pole to pole), a tilted cap
+    /// and a zone, each sense, at points far from the boundary — the
+    /// poles, points near them, and points spread over the sphere — each
+    /// path from each target, each way round, that reads a side reads the
+    /// face's own. A leg crossing read at the wrong place, or against the
+    /// wrong heading, reads the other side somewhere here.
+    #[test]
+    fn every_two_leg_path_that_decides_agrees_with_the_face() {
+        use core::f64::consts::{FRAC_PI_2, PI, TAU};
+        fn read<T: Decide>(
+            scalar: &str,
+            turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+        ) {
+            let band = Band::new(1e-6, 1e-5).unwrap();
+            let mut shapes = Vec::new();
+            for w in [1.0f64, 2.0] {
+                for flip in [false, true] {
+                    shapes.push(faces::lune(1.0, w.to_radians(), FRAC_PI_2, flip));
+                    shapes.push(faces::lune(4.0, w.to_radians(), 0.0, flip));
+                }
+            }
+            shapes.push(faces::cap(0.5, 0.6, false));
+            shapes.push(faces::zone(0.4, 0.3, 1.0, false));
+            let mut queries = vec![[0.0, 0.0, 1.0], [0.0, 0.0, -1.0]];
+            for off in [1e-1, 1e-2] {
+                for k in 0..6 {
+                    let az = f64::from(k) * TAU / 6.0 + 0.1;
+                    queries.push(faces::sph(off, az));
+                    queries.push(faces::sph(PI - off, az));
+                }
+            }
+            for i in 0..12 {
+                let i = f64::from(i);
+                queries.push(faces::sph(
+                    0.05 + (PI - 0.1) * (i * 0.618_034).fract(),
+                    TAU * (i * 0.414_214).fract(),
+                ));
+            }
+            let (mut settled, mut agreed) = (0, 0);
+            for shape in &shapes {
+                for sense in [true, false] {
+                    let region =
+                        faces::build::<T>(&shape.specs, 0.0, SLIM_CENTRE, SLIM_RADIUS, sense, turn);
+                    for &q in &queries {
+                        let (inside, d) = (shape.truth)(q);
+                        if d * SLIM_RADIUS <= 20.0 * band.escalate() {
+                            continue;
+                        }
+                        let want = inside == sense;
+                        let p = slim_at::<T>(q);
+                        for target in targets(&region.edges).collect::<Vec<_>>() {
+                            for (first_forward, then_forward) in
+                                [(true, true), (true, false), (false, true), (false, false)]
+                            {
+                                let path = Path::Aimed {
+                                    target,
+                                    parallel_first: false,
+                                    first_forward,
+                                    then_forward,
+                                };
+                                if let Ok(got) = region::read_path(&region, p, path, band) {
+                                    settled += 1;
+                                    assert_eq!(
+                                        got, want,
+                                        "{} sense {sense}, {q:?}, at {scalar}",
+                                        shape.name
+                                    );
+                                    agreed += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            assert!(
+                settled > 1000 && agreed == settled,
+                "{settled} paths settled at {scalar}"
+            );
+        }
+        read::<f64>("f64", crate::boolean::region::fixture_turn);
+        read::<geom_core::Interval>("Interval", crate::boolean::region::fixture_turn_interval);
+    }
+
+    /// Sphere faces built from arc specs in a unit frame, with each one's
+    /// truth: a lune, a cap and a zone (PR 6307's review probe).
+    #[allow(clippy::type_complexity, clippy::many_single_char_names, dead_code)]
+    mod faces {
+        use super::*;
+        use crate::entity::EdgeKey;
+        use slotmap::KeyData;
+        use std::f64::consts::{FRAC_PI_2, PI, TAU};
+
+        pub(super) type V = [f64; 3];
+        pub(super) fn rot(beta: f64, v: V) -> V {
+            // rotate about x by beta, then about z by 0.3*beta-ish fixed gamma
+            let (s, c) = beta.sin_cos();
+            let v = [v[0], c * v[1] - s * v[2], s * v[1] + c * v[2]];
+            let (s2, c2) = (0.37f64).sin_cos();
+            let v = if beta == 0.0 {
+                v
+            } else {
+                [c2 * v[0] - s2 * v[1], s2 * v[0] + c2 * v[1], v[2]]
+            };
+            v
+        }
+        pub(super) fn unrot(beta: f64, v: V) -> V {
+            let v = if beta == 0.0 {
+                v
+            } else {
+                let (s2, c2) = (0.37f64).sin_cos();
+                [c2 * v[0] + s2 * v[1], -s2 * v[0] + c2 * v[1], v[2]]
+            };
+            let (s, c) = beta.sin_cos();
+            [v[0], c * v[1] + s * v[2], -s * v[1] + c * v[2]]
+        }
+
+        /// (center-offset, axis, radius, u_ref, t0, t1, forward) in unit-sphere frame
+        pub(super) type Spec = (V, V, f64, V, f64, f64, bool);
+
+        pub(super) fn build<T: Decide>(
+            specs: &[Spec],
+            beta: f64,
+            c: V,
+            r: f64,
+            sense: bool,
+            turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+        ) -> SphereFaceRegion<T> {
+            let l = T::from_f64;
+            let p3 = |v: V| Point3::new(l(v[0]), l(v[1]), l(v[2]));
+            let v3 = |v: V| Vec3::new(l(v[0]), l(v[1]), l(v[2]));
+            let edges = specs
+                .iter()
+                .enumerate()
+                .map(|(k, &(cen, ax, rad, u, t0, t1, fwd))| {
+                    let cen = rot(beta, cen);
+                    RegionEdge {
+                        edge: EdgeKey::from(KeyData::from_ffi(k as u64 + 1)),
+                        r#loop: LoopKey::default(),
+                        cycle: 0,
+                        carrier: geom::Curve3::Circle {
+                            center: p3([c[0] + r * cen[0], c[1] + r * cen[1], c[2] + r * cen[2]]),
+                            axis: v3(rot(beta, ax)),
+                            radius: l(r * rad),
+                            u_ref: v3(rot(beta, u)),
+                        },
+                        t0: l(t0),
+                        t1: l(t1),
+                        turn: turn(t0, t1),
+                        forward: fwd,
+                    }
+                })
+                .collect();
+            SphereFaceRegion {
+                center: p3(c),
+                radius: l(r),
+                sense,
+                outer: LoopKey::default(),
+                edges,
+            }
+        }
+
+        pub(super) fn sph(polar: f64, az: f64) -> V {
+            [polar.sin() * az.cos(), polar.sin() * az.sin(), polar.cos()]
+        }
+        pub(super) fn polar_az(v: V) -> (f64, f64) {
+            let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+            (
+                (v[2] / n).clamp(-1.0, 1.0).acos(),
+                v[1].atan2(v[0]).rem_euclid(TAU),
+            )
+        }
+        pub(super) fn ang(a: V, b: V) -> f64 {
+            let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+            let x = [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0],
+            ];
+            (x[0] * x[0] + x[1] * x[1] + x[2] * x[2]).sqrt().atan2(d)
+        }
+
+        /// A face: arcs, plus truth (in?, angular distance to boundary) in face frame
+        pub(super) struct Shape {
+            pub(super) name: String,
+            pub(super) specs: Vec<Spec>,
+            pub(super) truth: Box<dyn Fn(V) -> (bool, f64)>,
+        }
+
+        pub(super) fn meridian(az: f64, t0: f64, t1: f64, fwd: bool) -> Spec {
+            (
+                [0.0; 3],
+                [-az.sin(), az.cos(), 0.0],
+                1.0,
+                [0.0, 0.0, 1.0],
+                t0,
+                t1,
+                fwd,
+            )
+        }
+        /// parallel at polar `top` from az `hi` down to az `lo` (axis -z)
+        pub(super) fn parallel_down(top: f64, lo: f64, hi: f64, fwd: bool) -> Spec {
+            (
+                [0.0, 0.0, top.cos()],
+                [0.0, 0.0, -1.0],
+                top.sin(),
+                [hi.cos(), hi.sin(), 0.0],
+                0.0,
+                hi - lo,
+                fwd,
+            )
+        }
+        pub(super) fn in_az(az: f64, lo: f64, w: f64) -> (bool, f64) {
+            let d = (az - lo).rem_euclid(TAU);
+            (d < w, d.min((d - w).abs()).min(TAU - d))
+        }
+
+        /// lune [lo, lo+w] in azimuth, polar from `top` to π (south pole vertex); top=0 → pole to pole
+        pub(super) fn lune(lo: f64, w: f64, top: f64, flip: bool) -> Shape {
+            let hi = lo + w;
+            let mut specs = vec![meridian(lo, top, PI, !flip), meridian(hi, top, PI, flip)];
+            if top > 0.0 {
+                specs.push(parallel_down(top, lo, hi, !flip));
+            }
+            Shape {
+                name: format!("lune w={w:e} top={top} flip={flip}"),
+                specs,
+                truth: Box::new(move |v| {
+                    let (th, az) = polar_az(v);
+                    let (ina, da) = in_az(az, lo, w);
+                    let inside = ina && th > top;
+                    // distance: crude angular distance lower bound
+                    let dm = (da * th.sin()).min(PI - th + 0.0).max(0.0);
+                    let dm = if inside {
+                        dm.min(th - top)
+                    } else {
+                        dm.max(if th < top { top - th } else { 0.0 })
+                    };
+                    // for points: distance to meridian arcs approx sin(th)*da; to vertex PI-th
+                    let dvert = PI - th;
+                    let d = if top > 0.0 {
+                        dm.min(dvert.max(0.0)).min((th - top).abs())
+                    } else {
+                        dm.min(dvert).min(th)
+                    };
+                    (inside != flip, d)
+                }),
+            }
+        }
+
+        /// cap about axis n (polar alpha, az 0) of angular radius rho
+        pub(super) fn cap(alpha: f64, rho: f64, flip: bool) -> Shape {
+            let n = sph(alpha, 0.0);
+            let u = sph(alpha + FRAC_PI_2, 0.0);
+            Shape {
+                name: format!("cap alpha={alpha} rho={rho} flip={flip}"),
+                specs: vec![(
+                    [n[0] * rho.cos(), n[1] * rho.cos(), n[2] * rho.cos()],
+                    n,
+                    rho.sin(),
+                    u,
+                    0.0,
+                    TAU,
+                    !flip,
+                )],
+                truth: Box::new(move |v| {
+                    let a = ang(v, n);
+                    ((a < rho) != flip, (a - rho).abs())
+                }),
+            }
+        }
+
+        /// zone between rho1<rho2 about tilted axis
+        pub(super) fn zone(alpha: f64, rho1: f64, rho2: f64, flip: bool) -> Shape {
+            let n = sph(alpha, 0.0);
+            let u = sph(alpha + FRAC_PI_2, 0.0);
+            let c = |r: f64| [n[0] * r.cos(), n[1] * r.cos(), n[2] * r.cos()];
+            Shape {
+                name: format!("zone alpha={alpha} {rho1}..{rho2} flip={flip}"),
+                specs: vec![
+                    (c(rho1), n, rho1.sin(), u, 0.0, TAU, flip),
+                    (c(rho2), n, rho2.sin(), u, 0.0, TAU, !flip),
+                ],
+                truth: Box::new(move |v| {
+                    let a = ang(v, n);
+                    (
+                        ((a > rho1) && (a < rho2)) != flip,
+                        (a - rho1).abs().min((a - rho2).abs()),
+                    )
+                }),
+            }
+        }
+    }
 }
