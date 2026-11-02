@@ -48,7 +48,11 @@ fn union_in(bodies: &[AtRestBody<f64>], order: &[usize]) -> (AtRestBody<f64>, Ta
         })
         .collect();
     let run = topo::nary_boolean(NaryOp::Union, &members, SweepStrategy::Realized, tol());
-    assert!(matches!(run.end, NaryEnd::Built), "order {order:?}: {:?}", run.end);
+    assert!(
+        matches!(run.end, NaryEnd::Built),
+        "order {order:?}: {:?}",
+        run.end
+    );
     let step = run.steps.into_iter().last().unwrap();
     let table = step
         .holdings
@@ -123,13 +127,25 @@ fn a_bar_over_a_sunk_boss_holds_both_wall_halves_in_every_order() {
         ),
         finished("bar", brick((1.4, 1.6), (0.5, 2.5), (0.8, 2.0), t), t),
     ];
-    let walls: BTreeSet<(usize, FaceKey)> = curved(&bodies[1]).into_iter().map(|k| (1, k)).collect();
+    let walls: BTreeSet<(usize, FaceKey)> =
+        curved(&bodies[1]).into_iter().map(|k| (1, k)).collect();
     assert_eq!(walls.len(), 2, "the boss's wall is two half-cylinders");
     let mut tables = BTreeSet::new();
-    for order in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]] {
+    for order in [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
+    ] {
         let (result, table) = union_in(&bodies, &order);
         let pieces = curved(&result);
-        assert_eq!(pieces.len(), 2, "order {order:?}: the bar cuts the wall in two");
+        assert_eq!(
+            pieces.len(),
+            2,
+            "order {order:?}: the bar cuts the wall in two"
+        );
         for f in &pieces {
             assert_eq!(
                 table[f], walls,
@@ -137,10 +153,78 @@ fn a_bar_over_a_sunk_boss_holds_both_wall_halves_in_every_order() {
             );
         }
         let built = rejoin_oracle(&bodies, &order, &result, &table);
-        assert!(built >= 2, "order {order:?}: the boss's and the bar's rejoins build");
+        assert!(
+            built >= 2,
+            "order {order:?}: the boss's and the bar's rejoins build"
+        );
         let mut rows: Vec<_> = table.into_values().collect();
         rows.sort();
         tables.insert(rows);
     }
     assert_eq!(tables.len(), 1, "one holdings table in every member order");
+}
+
+/// Where face `f` of an `n`-arc boss of radius `r` about `c` starts
+/// round its axis, in whole degrees, counterclockwise: each wall face
+/// spans `360 / n` from a corner, the one whose span's middle, at height
+/// `z`, the face holds.
+fn starts_at(body: &Body<f64>, f: FaceKey, n: u32, (c, r, z): (Point2<f64>, f64, f64)) -> u32 {
+    let mut at: Vec<u32> = body
+        .vertex_points()
+        .filter(|&(v, _)| body.faces_of_vertex(v).unwrap().contains(&f))
+        .map(|(_, p)| {
+            let deg = (p.y - c.y).atan2(p.x - c.x).to_degrees().rem_euclid(360.0);
+            u32::try_from(deg.round() as i64).unwrap() % 360
+        })
+        .collect();
+    at.sort_unstable();
+    at.dedup();
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let holds_middle = |s: u32| {
+        let mid = f64::from(s + 180 / n).to_radians();
+        let p = geom_core::Point3::new(c.x + r * mid.cos(), c.y + r * mid.sin(), z);
+        topo::curved_face_containment(body, f, p, band).unwrap() == Some(topo::FaceContainment::In)
+    };
+    let starts: Vec<u32> = at.into_iter().filter(|&s| holds_middle(s)).collect();
+    let [s] = starts[..] else {
+        panic!("a wall face holds the middle of one span from its corners: {starts:?}");
+    };
+    s
+}
+
+/// **`overlap` on a cylinder**: each half of a two-arc boss's wall
+/// against each third of a three-arc boss's wall on the same cylinder,
+/// shifted up half its height, meets it in area exactly where their
+/// spans round the axis overlap; two that share only a seam ruling
+/// touch from either side of it, and share no area.
+#[test]
+fn overlap_reads_wall_pieces_of_one_cylinder_by_their_spans() {
+    let t = tol();
+    let band = geom_core::Band::linear(t).unwrap();
+    let c = Point2::new(0.0, 0.0);
+    let halves = cylinder_of_arcs_at(2, 0.5, c, 0.0, 1.0, t);
+    let thirds = cylinder_of_arcs_at(3, 0.5, c, 0.5, 1.0, t);
+    let mut seen = [0, 0];
+    for h in curved(&halves) {
+        let sh = starts_at(&halves, h, 2, (c, 0.5, 0.5));
+        for k in curved(&thirds) {
+            let sk = starts_at(&thirds, k, 3, (c, 0.5, 1.0));
+            let meets = (0..360).any(|d| {
+                let x = f64::from(d) + 0.5;
+                let within = |s: u32, w: f64| (x - f64::from(s)).rem_euclid(360.0) < w;
+                within(sh, 180.0) && within(sk, 120.0)
+            });
+            let got = topo::overlap((&halves, h), (&thirds, k), band).unwrap();
+            assert_eq!(
+                got, meets,
+                "the half from {sh} degrees and the third from {sk} meet in area: {meets}"
+            );
+            seen[usize::from(meets)] += 1;
+        }
+    }
+    assert_eq!(
+        seen,
+        [2, 4],
+        "two pairs touch along a seam alone, four overlap"
+    );
 }

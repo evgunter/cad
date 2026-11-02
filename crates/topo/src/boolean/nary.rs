@@ -682,7 +682,9 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take();
         let band = Band::linear(tol).unwrap_or_else(|e| {
-            unreachable!("the fold step joining member {member} built at a band it cannot read: {e}")
+            unreachable!(
+                "the fold step joining member {member} built at a band it cannot read: {e}"
+            )
         });
         holdings = lift(&holdings, member, &body, clone_a.as_ref(), members, band);
         records_a = body.contacts.carried();

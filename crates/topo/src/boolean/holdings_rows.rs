@@ -10,11 +10,11 @@ use super::holdings::{Held, Holdings};
 use super::nary::{MemberInputs, NaryEnd, NaryMember, NaryOp, nary_boolean};
 use super::overlap::{OverlapRefusal, overlap};
 use super::{BooleanResult, Operand, SweepStrategy};
+use crate::AtRestBody;
 use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::test_support::meeting::orders;
 use crate::test_support::{brick, finished, prism_z};
-use crate::AtRestBody;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -63,7 +63,10 @@ fn overlap_reads_each_witness_kind_and_no_area_as_false() {
         assert!(overlaps(&x, &y).unwrap(), "{what}: the faces meet in area");
     };
     let no = |what: &str, x: Vec<(f64, f64)>, y: Vec<(f64, f64)>| {
-        assert!(!overlaps(&x, &y).unwrap(), "{what}: the faces share no area");
+        assert!(
+            !overlaps(&x, &y).unwrap(),
+            "{what}: the faces share no area"
+        );
     };
     yes(
         "a vertex strictly inside",
@@ -164,7 +167,8 @@ fn the_pair_door_holds_a_sunk_tiles_top_through_its_substitution() {
         out.naming
             .substituted
             .iter()
-            .any(|s| s.operand == Operand::B && tops_at(&tile, 1.0).contains(&out.naming.face_fragments_b.root(s.face))),
+            .any(|s| s.operand == Operand::B
+                && tops_at(&tile, 1.0).contains(&out.naming.face_fragments_b.root(s.face))),
         "the tile's top reaches the result through a substitution row"
     );
     let finished_tops = tops_at(&out.body, 1.0);
@@ -188,13 +192,17 @@ fn the_pair_door_holds_a_sunk_tiles_top_through_its_substitution() {
     );
 }
 
-/// Runs the n-ary union of `bodies` in `order`: its finished body and
-/// the last step's holdings, with each member face read back to its
-/// place in `bodies`.
+/// What each finished face holds, each member face by its place in the
+/// list the union was given.
+type Table = BTreeMap<FaceKey, BTreeSet<(usize, FaceKey)>>;
+
+/// Runs the n-ary union of `bodies` in `order`: its finished body, the
+/// last step's holdings, and every member face some step's discarded
+/// face held, each member face read back to its place in `bodies`.
 fn union_in(
     bodies: &[AtRestBody<f64>],
     order: &[usize],
-) -> (AtRestBody<f64>, BTreeMap<FaceKey, BTreeSet<(usize, FaceKey)>>) {
+) -> (AtRestBody<f64>, Table, BTreeSet<(usize, FaceKey)>) {
     let inputs: Vec<MemberInputs> = order
         .iter()
         .map(|&i| MemberInputs {
@@ -211,7 +219,18 @@ fn union_in(
         })
         .collect();
     let run = nary_boolean(NaryOp::Union, &members, SweepStrategy::Realized, tol());
-    assert!(matches!(run.end, NaryEnd::Built), "order {order:?}: {:?}", run.end);
+    assert!(
+        matches!(run.end, NaryEnd::Built),
+        "order {order:?}: {:?}",
+        run.end
+    );
+    let mut lost = BTreeSet::new();
+    for step in &run.steps {
+        for (row, held) in step.holdings.lost_rows().iter().enumerate() {
+            let what = format!("order {order:?}'s step {}'s discard row {row}", step.member);
+            lost.extend(faces(held, &what).into_iter().map(|(m, k)| (order[m], k)));
+        }
+    }
     let mut steps = run.steps;
     let step = steps.pop().unwrap();
     let holdings: &Holdings = &step.holdings;
@@ -225,7 +244,7 @@ fn union_in(
             (f, set)
         })
         .collect();
-    (step.body.body, held)
+    (step.body.body, held, lost)
 }
 
 /// **A union's holdings read alike in every member order**, and match
@@ -243,8 +262,19 @@ fn a_unions_holdings_read_alike_in_every_member_order() {
     ];
     let top_of = |i: usize| (i, tops_at(&bodies[i], 1.0)[0]);
     let mut tables = BTreeSet::new();
+    let mut losses = BTreeSet::new();
     for order in orders(bodies.len()) {
-        let (result, held) = union_in(&bodies, &order);
+        let (result, held, lost) = union_in(&bodies, &order);
+        assert!(
+            lost.contains(&top_of(0)) && lost.contains(&top_of(1)),
+            "order {order:?}: P's top and Q's lose the strip under the bar"
+        );
+        assert!(
+            !lost.contains(&top_of(3)),
+            "order {order:?}: the tile's top loses no area, though the bar cuts a face that \
+             holds it"
+        );
+        losses.insert(lost);
         let mut tops: Vec<BTreeSet<(usize, FaceKey)>> = tops_at(&result, 1.0)
             .into_iter()
             .map(|f| held[&f].clone())
@@ -264,6 +294,11 @@ fn a_unions_holdings_read_alike_in_every_member_order() {
         tables.insert(table);
     }
     assert_eq!(tables.len(), 1, "one holdings table in every member order");
+    assert_eq!(
+        losses.len(),
+        1,
+        "the same member faces lose area in every member order"
+    );
 }
 
 /// **The rejoin oracle**: each member rejoined to the finished body
@@ -274,7 +309,7 @@ fn rejoin_oracle(
     bodies: &[AtRestBody<f64>],
     order: &[usize],
     result: &AtRestBody<f64>,
-    held: &BTreeMap<FaceKey, BTreeSet<(usize, FaceKey)>>,
+    held: &Table,
     all: bool,
 ) -> usize {
     let mut built = 0;
@@ -282,7 +317,10 @@ fn rejoin_oracle(
         let rejoin = match super::union(result, &bodies[i], tol()) {
             Ok(BooleanResult::Body(rj)) => rj,
             other => {
-                assert!(!all, "order {order:?}: rejoining member {i} builds: {other:?}");
+                assert!(
+                    !all,
+                    "order {order:?}: rejoining member {i} builds: {other:?}"
+                );
                 continue;
             }
         };

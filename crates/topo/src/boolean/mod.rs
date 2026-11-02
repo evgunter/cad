@@ -102,11 +102,11 @@ mod fate;
 mod finish;
 mod fragments;
 mod glue;
+#[cfg(test)]
+mod glued_pair_rows;
 mod holdings;
 #[cfg(test)]
 mod holdings_rows;
-#[cfg(test)]
-mod glued_pair_rows;
 pub(crate) mod insert;
 mod join;
 mod nary;
@@ -203,21 +203,21 @@ pub use edge_join::{
     EdgeJoin, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
 };
-pub use join::CompletedPolygonPair;
 pub use holdings::{Held, HeldRefusal, Holdings};
+pub use join::CompletedPolygonPair;
 #[doc(hidden)]
 pub use nary::MemberLineage;
 pub use nary::{
     Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
     NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
 };
-pub use overlap::{OverlapRefusal, overlap};
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, Recharts,
     SettleError, Settler, boolean_op_with, intersect, subtract, union,
 };
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
+pub use overlap::{OverlapRefusal, overlap};
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation, oriented_plane_eq};
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
 pub(crate) use records::{Parting, incident};
@@ -1254,7 +1254,9 @@ impl<T: Real> Glue<T> {
     /// ([`Self::clone_a`]).
     pub(crate) fn keep_clone_a(&self, a: impl FnOnce() -> Body<T>) {
         if let Some(slot) = &self.clone_a {
-            let mut held = slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut held = slot
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             *held = Some(a());
         }
     }

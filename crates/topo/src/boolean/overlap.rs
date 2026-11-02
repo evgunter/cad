@@ -342,7 +342,12 @@ fn corners_meet<T: Decide>(
     n: Vec3<T>,
     band: Band,
 ) -> Result<bool, OverlapRefusal> {
-    for (d, first, corner) in [(y.0, true, x), (y.1, false, x), (x.0, true, y), (x.1, false, y)] {
+    for (d, first, corner) in [
+        (y.0, true, x),
+        (y.1, false, x),
+        (x.0, true, y),
+        (x.1, false, y),
+    ] {
         match corner_holds(d.ray(), corner, || Ok(false), n, band)
             .map_err(|e| OverlapRefusal::Corner(std::sync::Arc::new(e)))?
         {
@@ -406,11 +411,10 @@ fn edge_witness<T: Decide>(
             let h = x.0.get_half_edge(he).unwrap_or_else(|| {
                 unreachable!("half-edge {he:?} of a resolved face's loop does not resolve")
             });
-            let Some(curve) = x
-                .0
-                .get_edge(h.edge)
-                .and_then(|e| x.0.get_curve_geom(e.curve))
-                .and_then(|c| c.certified())
+            let Some(curve) =
+                x.0.get_edge(h.edge)
+                    .and_then(|e| x.0.get_curve_geom(e.curve))
+                    .and_then(|c| c.certified())
             else {
                 return Err(OverlapRefusal::Unread {
                     what: "a boundary edge with no certified curve",
@@ -441,7 +445,8 @@ fn edge_witness<T: Decide>(
                     return Ok(true);
                 }
                 let ys = corners_at(y, at, q)?;
-                if !ys.is_empty() && any_corners_meet(x, &[half_plane(x.0, he, q)?], &ys, q, band)? {
+                if !ys.is_empty() && any_corners_meet(x, &[half_plane(x.0, he, q)?], &ys, q, band)?
+                {
                     return Ok(true);
                 }
             }
@@ -453,16 +458,16 @@ fn edge_witness<T: Decide>(
 /// `params` in ascending order, by decided differences metred at the
 /// carrier's `speed`: the scalars carry no order of their own. Two that
 /// read equal are one cut.
-fn sort_params<T: Decide>(
-    params: &mut Vec<T>,
-    speed: T,
-    band: Band,
-) -> Result<(), OverlapRefusal> {
+fn sort_params<T: Decide>(params: &mut Vec<T>, speed: T, band: Band) -> Result<(), OverlapRefusal> {
     let mut out: Vec<T> = Vec::with_capacity(params.len());
     'next: for &p in params.iter() {
         let mut at = out.len();
         for (i, &q) in out.iter().enumerate() {
-            match crate::validate::decide("bool_overlap_cut_order", Margin::of((p - q) * speed), band) {
+            match crate::validate::decide(
+                "bool_overlap_cut_order",
+                Margin::of((p - q) * speed),
+                band,
+            ) {
                 Ok(Sign::Negative) => {
                     at = i;
                     break;
