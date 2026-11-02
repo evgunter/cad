@@ -372,7 +372,7 @@ fn walls_touching_outside_are_one_point() {
 /// each with its two cut ends on the region's sphere, with no 3-D sweep.
 /// The march then refuses typed: limb 3 cannot prove one arc in the tube
 /// of either 2 m, nearly parallel arc (`ssi_tube_one_arc` undecided;
-/// `work/pcert/the-tube-walk-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
+/// `work/ssimarch/limb-three-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
 #[test]
 fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
     let r = 1e-3;

@@ -55,9 +55,11 @@
 //! closed branches, each winding as the fitted loop's turns about each
 //! surface's axis and core circle, read over the loop's uniqueness tube
 //! in ℝ³, say
-//! ([`winds`]); where it is counted, the march's distinct branches must
-//! match the count, so the closed form is a cross-check of the march's
-//! exhaustiveness receipt. A reader that needs a list no closed form
+//! ([`winds`]); where it is counted, the march's distinct branches are
+//! matched one to one to the count, so the closed form is a cross-check
+//! of the march's exhaustiveness receipt, and where the ruling sweep
+//! counted a ruled pair ([`ruling`]) that match is its exhaustiveness and
+//! no cell sweep runs. A reader that needs a list no closed form
 //! counts carries. A site's component is its foot on the carried section
 //! ([`CarriedSection::foot`]), the one reading of it. Only `carry`
 //! builds a `CarriedSection`, and it refuses where a component has no
@@ -862,9 +864,8 @@ impl<T: Decide> PairPose<T> {
     /// which is `R` from the centre), the smaller of two tori's as the
     /// pose decided it ([`TorusTorusPose::ball`]). A cylinder is
     /// unbounded along its axis, so it is never the ball: two cylinders
-    /// are read over their own ball where the region holds it, and over
-    /// the region otherwise ([`CylinderCylinderPose::ball`]), which holds
-    /// every section point the operation can use.
+    /// are read over the region ([`CylinderCylinderPose::ball`]), which
+    /// holds every section point the operation can use.
     pub fn ball(&self) -> ExtentBall<T> {
         match self {
             Self::CylinderSphere(p) => p.ball(),
@@ -898,9 +899,8 @@ impl PairPose<f64> {
     /// which the bounding surface reaches (a sphere everywhere, a torus
     /// round its outer equator); the feature extent the ball's diameter,
     /// the standard accounting floor. For two cylinders it is the cube of
-    /// one ball ([`CylinderCylinderPose::ball`]): their own ball where
-    /// the region holds it, else the region's, each a superset of their
-    /// ball cut by the region.
+    /// region's ball ([`CylinderCylinderPose::ball`]), a superset of their
+    /// ball cut by the region, which their branches end at.
     #[must_use]
     pub fn domain(&self) -> SsiDomain {
         if let Self::PlaneSpline(p) = self {

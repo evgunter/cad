@@ -12,7 +12,9 @@
 //! `d` is `Zero`, a tangent ruling inside otherwise; crossing axes by the
 //! gap `e` along `a₁ × a₂` against the same two levels, the inner
 //! level's `Zero` a node pose: the bisector ellipses where the radii
-//! decide equal and the axes meet, the pinch otherwise.
+//! decide equal and the axes meet, the pinch otherwise. Where the walls
+//! cross in one loop or two, the thinner wall's ruling sweep counts the
+//! loops and cuts them by the region ([`ruling`]).
 
 use geom::{Curve3, Surface};
 use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, Vec3};
@@ -590,11 +592,11 @@ fn crossing_ball<T: Real>(
 }
 
 /// **Where `ball` stands against `region`** ([`RegionPlacement`]), the one
-/// reading every listing of the pair takes: the crossing loops are
-/// counted where the region holds the pair's ball, none where it is
-/// clear of it, and marched where it cuts it; a closed-form component
-/// is dropped where its own ball is clear of the region, and carried
-/// whole, flagged cut, where the region cuts it. A choice of listing,
+/// reading every listing of the pair takes: the crossing loops are none
+/// where the region is clear of the pair's ball, and the ruling sweep's
+/// otherwise; a closed-form component is dropped where its own ball is
+/// clear of the region, and carried whole, flagged cut, where the region
+/// cuts it. A choice of listing,
 /// not a decision about the pair, so it reads the margins' signs without
 /// recording them.
 fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) -> RegionPlacement {
@@ -716,12 +718,16 @@ pub(crate) fn parallel_rulings<T: Real>(
 /// listed over the domain ([`placement`]): a closed form clear of the
 /// region is not listed, and one the region cuts is carried whole, its
 /// carrier exact past the region, flagged cut; the crossing loops are
-/// counted where the region holds the pair's ball, none where it is
-/// clear of it, and marched where it cuts it.
+/// none where the region is clear of the pair's ball, and otherwise
+/// counted and cut by the region in the ruling sweep ([`ruling`]): each
+/// a loop the region holds or an arc between two cut ends, witnessed,
+/// carried by the march.
 ///
 /// # Errors
 ///
-/// [`SectionError::Carrier`] where a bisector ellipse refuses.
+/// [`SectionError::Carrier`] where a bisector ellipse refuses;
+/// [`SectionError::Escalated`] where the sweep escalates, and
+/// [`SectionError::Unaccounted`] where its readings disagree.
 pub(super) fn cylinder_cylinder<T: Decide>(
     pose: CylinderCylinderPose<T>,
     band: Band,
