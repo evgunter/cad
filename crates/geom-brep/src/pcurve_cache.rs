@@ -979,13 +979,13 @@ fn harmonic_span_box<T: Real>(
 ) -> ChartWindow<T> {
     let (s0, c0) = t0.sin_cos();
     let (s1, c1) = t1.sin_cos();
-    let dip = (t1 - t0).powi(2) * T::from_f64(0.125);
     let channel = |c: T, a: T, b: T, l: T| {
         let (l0, l1) = (c + l * t0, c + l * t1);
         let amp = (a.powi(2) + b.powi(2)).sqrt();
         let (e0, e1) = (a * c0 + b * s0, a * c1 + b * s1);
-        let lo = (e0.min(e1) - amp * dip).max(T::zero() - amp);
-        let hi = (e0.max(e1) + amp * dip).min(amp);
+        let dip = crate::implicit::chord_dip_charge(amp, t1 - t0);
+        let lo = (e0.min(e1) - dip).max(T::zero() - amp);
+        let hi = (e0.max(e1) + dip).min(amp);
         (l0.min(l1) + lo, l0.max(l1) + hi)
     };
     let (u_min, u_max) = channel(p0.x, pa.x, pb.x, pl.x);
@@ -6937,11 +6937,10 @@ fn run_spiric_checks<T: Decide>(
             ];
             // Read as an identity ladder (`crate::ladder`): a gate
             // decided apart answers past an earlier in-band one.
-            let reader = |name, margin| geom_core::k_stats::decide_reported(name, margin, band);
-            match read_identity(gates, reader) {
+            match read_identity(gates, band) {
                 IdentityLadder::Zero(_) => {}
-                IdentityLadder::Undecided(kept) => {
-                    return Err(identity_escalated(kept.refusing_cause()));
+                IdentityLadder::Undecided(cause) => {
+                    return Err(identity_escalated(cause));
                 }
                 IdentityLadder::Apart { at, .. } => {
                     // Not the named torus. Only a CENTRE apart can leave
@@ -6966,16 +6965,14 @@ fn run_spiric_checks<T: Decide>(
                         .into_iter()
                         .skip(1)
                         .chain([("pcurve_spiric_chart_other", Margin::norm3(d_other))]);
-                    return Err(match read_identity(data, reader) {
+                    return Err(match read_identity(data, band) {
                         IdentityLadder::Zero(_) => PcurveCertifyError::ImageMismatch {
                             image: PcurveKind::Spiric,
                             why: "the wall image names one of the two tori that hold the \
                                   oval, and the chart is the other",
                         },
                         IdentityLadder::Apart { .. } => neither,
-                        IdentityLadder::Undecided(kept) => {
-                            identity_escalated(kept.refusing_cause())
-                        }
+                        IdentityLadder::Undecided(cause) => identity_escalated(cause),
                     });
                 }
             }
@@ -10466,9 +10463,7 @@ fn torus_oblique_circle<T: Decide>(
     //   and the incidence test escalates on it before the gates read
     //   anything.
     // `ladder`'s rows hold the rule itself.
-    match read_identity(gates, |name, margin| {
-        geom_core::k_stats::decide_reported(name, margin, band)
-    }) {
+    match read_identity(gates, band) {
         IdentityLadder::Zero(_) => {}
         // Not a Villarceau circle, and not shown off the torus (the
         // incidence test above): no closed form images it, so D3's lane
@@ -10477,13 +10472,13 @@ fn torus_oblique_circle<T: Decide>(
         IdentityLadder::Apart { .. } => {
             return Err(incidence::general_lane(carrier, surface, place, band, None));
         }
-        IdentityLadder::Undecided(kept) => {
+        IdentityLadder::Undecided(cause) => {
             return Err(incidence::general_lane(
                 carrier,
                 surface,
                 place,
                 band,
-                Some(kept.refusing_cause()),
+                Some(cause),
             ));
         }
     }

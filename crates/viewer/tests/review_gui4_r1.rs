@@ -129,32 +129,33 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
         common::copy_of(session.committed_doc(), rot_shelf)
     );
 
+    // The post's world mate comes off before the editor loads its
+    // bundle.
+    asm::unpin(&mut session, rot_post);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_a_top.clone());
     tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
-        .expect("the tool proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the tool proposes");
 
     // The rotated placement enters nothing: each side names the
     // part's own face — the row the instance placed, whatever the
     // instance's placement is — and no number read at the world spot
     // enters the mate.
     assert_eq!(
-        asm::side_face(doc, &proposal.on),
+        asm::side_face(doc, &proposal.mates[0].on[0]),
         Some(bench.post_top.clone()),
         "the on side is the post's own top cap"
     );
     assert_eq!(
-        asm::side_face(doc, &proposal.to),
+        asm::side_face(doc, &proposal.mates[0].to[0]),
         Some(bench.shelf_bottom.clone()),
         "the to side is the shelf's own underside"
     );
 
-    // The edit lands once, into the post's bundle once its world mate
-    // is off, and the document stays green.
-    asm::unpin(&mut session, rot_post);
+    // The edit lands once, into the post's bundle, and the document
+    // stays green.
     common::commit_mate(&mut session, proposal.op_into_target_space());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "after the mate: {row:?}");
@@ -361,8 +362,8 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
     assert_eq!(
         first.committed.len(),
-        3,
-        "the re-target, the mate and its values"
+        2,
+        "the re-target, and the bundle written whole with the mate and its values"
     );
     let [superseded] = &first.withdrawn.superseded[..] else {
         panic!("exactly one frame is superseded at the edit")
@@ -728,11 +729,13 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), top);
     tool.pick(session.doc(), bottom);
-    let (doc, _) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, asm::seat_choice()) {
-        Err(viewer::matetool::MateToolError::SamePick { head }) => {
-            assert_eq!(head.id(), bench.post_b, "said as the picked copy");
-        }
+    // A pick on the copy is its on pick, so the second replaces the
+    // first and the to seat stays empty.
+    match common::proposed(&session, &tool, asm::seat_choice()) {
+        Err(viewer::matetool::MateToolError::SeatEmpty {
+            side: pncad::document::MateSide::To,
+            ..
+        }) => {}
         other => panic!("a self-mate must refuse at the tool, got {other:?}"),
     }
     // Nothing entered the document.

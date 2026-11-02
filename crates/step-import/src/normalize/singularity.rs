@@ -26,8 +26,11 @@
 //! between.
 //!
 //! **Where it lies** is the kernel's one reading of it,
-//! [`geom_brep::chart_singularity::locate`], which tier 3 refuses the
-//! same faces by; this pass keeps its dispositions and the band it reads
+//! [`geom_brep::chart_singularity::locate`], whose boundary placement
+//! tier 3 shares (tier 3 reads the side through the face's point-in-face
+//! door, which this pass is filed to follow:
+//! `work/foreign/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`);
+//! this pass keeps its dispositions and the band it reads
 //! at, the coarser of the file's and the run's, so a point the kernel
 //! reads as one with a vertex is not cut a sub-tolerance edge away from
 //! it, and one the file cannot place is not placed finer.

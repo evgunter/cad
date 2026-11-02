@@ -71,6 +71,6 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         Node::Space => "space",
         Node::InstantiatePart { .. } => "instantiate_part",
         Node::Measure { .. } => "measure",
-        Node::Assertion { .. } => "assertion",
+        Node::Assertion(_) => "assertion",
     }
 }
