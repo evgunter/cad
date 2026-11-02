@@ -136,3 +136,8 @@
     - Double tilts adding past the zero escalate typed, the same at φ=90°, so this is no regression.
     - A d=6e-9 sliver now refuses honestly in band (D10's pairs). The row is re-stated; the witness pose went to TINT.
   - **Class measured, no fix.** `HalfGerm.dir`'s join.rs readers (`bool_join_facing`, `rotational_sense`) decide at full magnitude, so a turn moves them only by α²/2. They do not amplify. (SPLITDOOR orchestrator)
+- 2026-11-02 — **Closed** `a-planar-face-through-a-cones-apex-refuses-the-boolean-where-the-split-builds` (PR 6266), cone-apex unit A, as decided on the row. DUAL tier, letter H, concurrent pair. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, over ~20k apex Booleans at three ε: 0 wrong bodies, 0 panics. The union fix pass was accepted on the orchestrator's read. Row `docs/dual-review-log/rows/PR-6266.md`.
+  - `BoolSector` carries `BoolFace{Tangent, Apex}`. The pierce lane reads an apex through the split's `apex_corner_shape` and the shared `apex_section_ruling`.
+  - The vertex–vertex lane refuses `VertexPairAtConeApex`, and the owed second unit is `a-cone-with-its-apex-against-its-copy-…` (P1/H). `NearAxis` refuses `VertexNearConeAxis`.
+  - A pinched result is refused by name (`ResultPinchedAtConeApex`); props' gap is filed in conearm.
+  - **Class (filed P1):** `a-straight-section-of-two-crossing-lines-off-a-cone-pairs-germs-across-the-crossing`. The join's on-line rule is keyed on surface kind, but the real trigger is two lines crossing at a point. Component identity at germ mint is the general rule. (SPLITDOOR orchestrator)

@@ -896,6 +896,7 @@ fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
     let held = marks::Held {
         faces: [None, Some(&face), Some(&twin)],
         edges: None,
+        entities: [None, None],
     };
     let (marked, _) = marks::compose(&index, &DisplayView::none(), &Selection::None, None, &held);
     assert_eq!(marked.selected, IdMap::NOTHING, "nothing is selected");
@@ -937,6 +938,7 @@ fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
     let held = marks::Held {
         faces: [Some(&face), None, None],
         edges: None,
+        entities: [None, None],
     };
     let (marked, _) = marks::compose(&index, &DisplayView::none(), &Selection::None, None, &held);
     assert_eq!(

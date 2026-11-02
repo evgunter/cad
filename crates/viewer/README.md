@@ -21,7 +21,7 @@ it rather than using it. The ratified plan that record answers to is
 
 | Gesture | Action |
 | --- | --- |
-| LEFT click | select (face pick; also feeds the mate tool's picks) |
+| LEFT click | select (a face, edge or vertex pick; also feeds the mate tool's picks) |
 | MIDDLE drag | orbit (shift+middle: pan) |
 | ALT + LEFT drag | orbit — the trackpad binding (plain left never moves the camera) |
 | RIGHT drag | pan |
@@ -2086,10 +2086,25 @@ where it was written; where a space is drawn otherwise is held in one
 way only, as a display frame. The "Add part…" gesture writes the new
 space's display frame clear of what is drawn, the same kind of value a
 free-move writes (IDENTITY DI5), so two inserted parts never land on
-each other within a session (Ev, PR 6209: one way to store where
-something is displayed, not a derived layout beside it). Display frames
-are not saved with the document yet, so a reopened document draws them
-at the identity (`work/spaces/display-frames-are-not-saved-with-the-document.md`).
+each other (Ev, PR 6209: one way to store where something is displayed,
+not a derived layout beside it). A save keeps every committed display
+frame in a layout file beside the document (`crate::layout`:
+`part.pncad.layout`), outside the document's bytes, its content pin and
+its evaluation, and an open restores them, so a reopened document draws
+its parts where they were drawn. Each saved frame carries a witness, a
+node drawn in its space at the save: a frame is restored while its
+space is shown (the one rule a held frame is asked by, DI5) and its
+witness still stands in it, which is what tells the space apart from
+another minted under the same id after an undo
+(`DisplayState::restore`). Any other frame is dropped and said, by the
+names the saving document gave it. The file is read as the preferences
+are: a key the viewer does not know, or a frame it cannot read, is
+skipped and said while the rest applies; a layout of another document
+or one that is not TOML restores nothing and is said. A document with
+no layout draws every space at the identity. A document written
+through the API or `docio` over a file the viewer saved leaves that
+file's layout in place, and the next open restores it by the same rule.
+Hides and shows are not saved.
 
 A free-move frame is display state keyed by a shown space's `Space`
 variable and moves every body drawn in it; it is dropped when the space
@@ -2112,16 +2127,27 @@ and a placement's constraints are its mates and the values that set
 their freedoms. Every bundle pins its copy. A mate is two poses
 of one kind: the first pick is `on`, read off the copy the mate
 places, and the second is `to`, read where it was picked; each is the
-picked face read as its plane or its carrier's axis
-(`matetool::MATE_KINDS`), and `to` is flipped where the faces rest
-against each other (a plain plane mate equates outward normals). So
+picked entity read as a pose of the chosen kind, one pick a side
+(`matetool::MATE_KINDS`, `matetool::MateReading`): a face as its plane,
+a face's carrier or an edge's line as an axis, a vertex or a carrier's
+or a circle's centre as a point, a face's normal or an edge's line as
+a direction. Whether the pose's read admits the entity is the kernel's
+seat, and a held pick the chosen kind does not read is refused at the
+commit (`MateToolError::KindDoesNotRead`); the cursor's rule follows
+the chosen kind (`matetool::pick_kinds`: faces alone for a plane,
+vertices before edges before faces for a point). `to` is flipped where
+the faces rest against each other (a plain plane mate equates outward
+normals; a point has no sense to flip). So
 the mate tool's one committed action adds the mate to the `on` pick's
 placement's bundle (`DocEdit::AddConstraint`), which writes the bundle
 whole: the values whose freedoms the mate fixes go, each freedom the
 bundle's mates leave keeps its value or is written the constant `0`,
 and the door refuses what overconstrains. The person's numbers on the
 freedoms the kind leaves (`matetool::MateFreedom`) are then written
-over those values, in the same action (`DocEdit::SetConstraints`); the
+over those values, in the same action (`DocEdit::SetConstraints`) —
+which freedoms a lone mate of the kind leaves is the kernel's answer
+(`SubgroupFamily::leaves`): slides and the spin beside a plane, an
+axis or a direction, the chain of spins beside a point; the
 panel states that a freedom left unset is written where the copy
 stands, snapped onto the mate (every bundle pins its copy). A value is measured on the axes of the space the copy is placed
 into, carried onto the mated direction by the least turn from where
@@ -2130,7 +2156,9 @@ orientation nearest where the copy stands, the spin the least turn
 leaves, and each slide it keeps at the copy's snapped coordinate, so a
 freshly mated copy moves only by the snap: its mated direction turned
 the least way onto the target's, its mated point moved the shortest
-way onto the target's plane or line (`session/snap.rs`). So a freshly
+way onto the target's plane or line (`session/snap.rs`). A point mate
+fixes no direction and has no snap: the values the door keeps stand
+its copy. So a freshly
 inserted copy, standing by the identity bundle, is mated as it is. Where `to` is read
 in another space than the one the copy is placed into, the door
 refuses the mate, `EditError::SpaceMismatch` naming both spaces: the
@@ -2169,7 +2197,7 @@ space's axes. Nothing a place gesture writes reads the copy's geometry.
 
 **A body reaches the product through one door.** Nothing joins the
 product unasked, a document's first body included. **Add to the
-product** is offered on the body under a viewport pick, on a drawn
+product** (`SessionOp::AddToProduct`) is offered on the body under a viewport pick, on a drawn
 body's tree row, and as the action of the `EmptyProduct`,
 `StrandedProduct` and `unused` recourses, each one action and one undo:
 a copy in the world is added to the slot (`SetProduct`); a placement's

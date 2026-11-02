@@ -793,9 +793,13 @@ tiers".
      never scanning to bless.
 
   A **finished body** (`AtRestBody`) passes tier 3′ against its own
-  contact records, none for a body that touches nothing, once, at the
-  door that built it; construction state becomes a finished body only
-  through that gate. The validity class rides the result wrapper
+  contact records, none for a body that touches nothing, and its
+  boundary is **embedded** off those records (it meets itself only
+  along its own edges and its recorded contacts), certified by the
+  clearance engine's body-level injectivity question at every scalar
+  with certification rights. It passes both once, at the door that
+  built it; construction state becomes a finished body only through
+  that gate. The validity class rides the result wrapper
   (`BooleanBody`, body and contacts), never a mutable `Body` field.
 - **The census reads one number per cell pair.** `[topology.census]`
   A census finding decides one number per pair of cells (two edges,
@@ -1127,6 +1131,8 @@ suits the slot.
 - *Discrete kinds:* a side, a half, a sense, an orientation
   ([placement.values]).
 - *Poses:* `Point`, `Direction`, `Axis`, `Plane`, `Pivot`, `Flag`, `Frame`
+- *2-D poses:* `Point2`, `Direction2`, in one profile's coordinates
+  ([variables.poses]).
   ([variables.poses]).
 - *Shapes:* `Body`; `Bodies`, an ordered list of bodies whose length
   is a `Count`; and `Profile`. Only an operation defines a shape. A
@@ -1199,9 +1205,13 @@ Every number a pose, a construction's axis or a placement holds is a
 component of a direction or of a frame's axis, and a 2-D direction is
 an angle. A face reads as a plane and a vertex as a point; no reader
 takes a carrier's reference direction. A 2-D value (a profile's step,
-a revolve's axis line) lives in the node that holds its frame, as
-length and angle slots, and is never a variable of a 2-D kind; its
-lift to a 3-D pose is how it leaves.
+a revolve's axis line) is a `Point2` or `Direction2` in the
+coordinates of one profile, scoped to it as a selection is to its body:
+it is read only by that profile's later steps, by a node that reads
+that profile, or by a profile drawn on the same frame. Its plane is
+established by its scope and never checked between two values. Where
+the profile is drawn on a frame, its lift is a pose of that frame's
+space; a free profile's lifts nowhere (PATHS-DESIGN §1b).
 
 ### Operations `[operations]`
 
@@ -2165,7 +2175,13 @@ these. All are shipped in `editor-core` except where noted:
 - **Cancelation** (`CancelToken`, yielding between nodes/levels and
   before each member of a family; a canceled run returns the completed
   prefix as a typed outcome, a family canceled part-way holding no
-  result). Remaining: progress reporting (nothing exists) and in-op
+  result). A run stops by cancelation or by exhausting its member
+  budget (one recorded default in the evaluation options, which a
+  caller may raise or lower), and either returns the completed prefix
+  as a typed outcome. The budget counts the index values bound while
+  families are listed, across the whole evaluation, charged at
+  admission in the schedule's order before anything is built; no
+  document caps a family. Remaining: progress reporting (nothing exists) and in-op
   yield points — a long single boolean or fillet, a union folding a
   family's members among them, is still uninterruptible.
 - **Selection stability across edits** — the user face of [identity]'s
