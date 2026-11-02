@@ -7935,6 +7935,8 @@ mod segment_fuzz;
 mod self_touch;
 #[cfg(test)]
 mod self_touch_curved;
+#[cfg(test)]
+mod r1_probe;
 
 impl TouchUnread {
     /// The cross-solid backstop's reason for a touch left unread.
