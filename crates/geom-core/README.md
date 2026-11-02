@@ -296,7 +296,7 @@ Review checklist form: for every arm added to a decision, name which
 
 ## Float rounding
 
-DESIGN `[conditioned]`: every computation is posed well-conditioned
+DESIGN `[simple.conditioned]`: every computation is posed well-conditioned
 where its result is decided, and at `f64` is then computed as if exact.
 This section is where that rule's parts live.
 
