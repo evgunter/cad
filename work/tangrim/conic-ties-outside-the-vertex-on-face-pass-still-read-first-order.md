@@ -137,4 +137,4 @@ at its point at its reach (`Reach::point`) against the other's flank
 half-planes, first order as `side_code` was; a held face's side stays
 `PierceDatum::side`, given to the cone. Item 4's conic, its tangent
 along the line, now reads on every sheet's bound and refuses as
-`CrossingsAlongAContactLine` rather than `bool_flank_offset`.
+`LineMaterialUnread { why: Along }` rather than `bool_flank_offset`.
