@@ -141,7 +141,7 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::World
         | Node::Space
         | Node::Measure { .. }
-        | Node::Assertion { .. } => None,
+        | Node::Assertion(_) => None,
     }
 }
 
@@ -1134,7 +1134,6 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&pncad::document::
         | ValuePayload::Instances(_)
         | ValuePayload::Family
         | ValuePayload::Measure { .. }
-        | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
     }
 }

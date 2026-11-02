@@ -1813,7 +1813,7 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::World
         | Node::Space
         | Node::Measure { .. }
-        | Node::Assertion { .. } => None,
+        | Node::Assertion(_) => None,
     }
 }
 

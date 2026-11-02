@@ -2,10 +2,11 @@
 id: slit-reads-a-faces-edges-through-its-own-walk
 kind: issue
 title: boolean/slit.rs keeps its own walk of a face's edges beside solid_contain::face_edges
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P4
 cost: E
+branch: onehome/face-walks
 ---
 
 

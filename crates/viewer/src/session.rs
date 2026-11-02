@@ -5947,7 +5947,7 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         | Node::Intersect { .. }
         | Node::Assemble { .. }
         | Node::Measure { .. }
-        | Node::Assertion { .. } => false,
+        | Node::Assertion(_) => false,
     }
 }
 

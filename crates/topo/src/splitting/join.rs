@@ -571,7 +571,7 @@ fn ruling_pairs<T: Decide>(
 ) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
     let mut lines = Vec::with_capacity(2);
     for ruling in rulings {
-        let geom::Curve3::Line { origin, dir } = *ruling else {
+        let Some(geom::Line { origin, dir }) = ruling.as_line() else {
             return Err(SplitJoinError::SectionInvariant {
                 face,
                 what: "a ruling section carried a non-line",
@@ -1064,7 +1064,7 @@ impl<T: Decide> Sweep<T> {
             let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
             if !matches!(
                 body.edge_curve_linked(edge, data),
-                CurveGeom::Certified(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
+                CurveGeom::Certified(c) if !c.carrier().is_curved()
             ) {
                 return Err(SplitJoinError::CurvedSlitTrace { face });
             }
@@ -1353,9 +1353,7 @@ pub(super) fn spur_tips<T: Decide>(
             .get_edge(he_data.edge)
             .ok_or_else(|| corrupt_edge(he_data.edge))?;
         let run = match body.edge_curve_linked(he_data.edge, edge) {
-            CurveGeom::Certified(c) if matches!(c.carrier(), geom::Curve3::Line { .. }) => {
-                Run::Line
-            }
+            CurveGeom::Certified(c) if !c.carrier().is_curved() => Run::Line,
             CurveGeom::Certified(c)
                 if crate::loop_winding::ConicFrame::of(c.carrier()).is_some() =>
             {

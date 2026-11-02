@@ -15,17 +15,7 @@ use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
 fn line(a: Point3<f64>, b: Point3<f64>, s: u32, e: u32) -> LoopEdge<f64> {
-    LoopEdge::hand_built(
-        Curve3::Line {
-            origin: a,
-            dir: b - a,
-        },
-        0.0,
-        1.0,
-        true,
-        s,
-        e,
-    )
+    LoopEdge::hand_built(Curve3::line(a, b - a), 0.0, 1.0, true, s, e)
 }
 
 /// Region under y = t(1−t) over x = t ∈ [0,1] (a degree-2 Bézier),

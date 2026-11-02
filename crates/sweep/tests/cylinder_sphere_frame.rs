@@ -19,7 +19,9 @@
 //! legal operand, the volume) or refuses at its pinned door past the
 //! join ([`Door`]): the join cuts both sides' chords from the section's
 //! carried loop, and every run stops downstream of it, at the result
-//! gate's volume or at the spline edge join. [`door`] is the one reading
+//! gate's volume. Two chords meeting end to end on the loop both crease
+//! there (each is a clamped spline piece), so the edge join leaves that
+//! vertex standing rather than refusing. [`door`] is the one reading
 //! of those doors the other cylinder × sphere rows share. The turned-chart
 //! pose's ops close a carried chord's ring-lane island on the drum's wall,
 //! and the two-loop poses' on the ball (`IslandClosing::Carried`), so the
@@ -297,8 +299,9 @@ pub(crate) enum Door {
     /// The result gate's volume on a sphere face holding a ring, which
     /// the sphere reads only where circles bound it (the same row).
     Ring,
-    /// The edge join: two chords meeting at a valence-2 vertex on one
-    /// spline carrier (`work/splice/joining-a-spline-carrier-is-unbuilt.md`).
+    /// The edge join on a spline carrier
+    /// (`work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`),
+    /// which no pose here reaches.
     Join,
 }
 
@@ -374,25 +377,31 @@ macro_rules! pose_rows {
     )*};
 }
 
+// Pinned red at the result gate's volume, every door here (`Projected`
+// the cylinder's arm, `Sphere` the sphere's conic trim, `Ring` the
+// sphere's ring gate):
+// work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
+// When it lands, each run builds and is held SOUND against [`oracle`],
+// and these door arrays go with the pin.
 pose_rows! {
     a_ball_across_a_cylinder_wall_centre_on_the_wall:
-        0 => [Projected, Sphere, Join, Join, Join, Join];
+        0 => [Projected, Sphere, Projected, Sphere, Projected, Sphere];
     a_ball_across_a_cylinder_wall_centre_inside:
-        1 => [Join, Join, Join, Join, Projected, Join];
+        1 => [Projected, Sphere, Projected, Sphere, Projected, Sphere];
     a_ball_across_a_cylinder_wall_centre_outside:
-        2 => [Projected, Projected, Join, Join, Join, Join];
+        2 => [Projected, Projected, Projected, Sphere, Projected, Sphere];
     a_ball_across_a_cylinder_wall_turned_chart:
         3 => [Projected, Sphere, Sphere, Sphere, Projected, Sphere];
     a_ball_across_a_cylinder_wall_wider_than_the_wall:
-        4 => [Projected, Sphere, Join, Join, Join, Join];
+        4 => [Projected, Sphere, Projected, Sphere, Projected, Sphere];
     a_ball_across_a_cylinder_wall_in_two_loops:
         5 => [Projected, Ring, Sphere, Projected, Projected, Ring];
     a_ball_across_a_cylinder_wall_in_two_loops_turned:
         6 => [Projected, Ring, Sphere, Projected, Projected, Ring];
     a_ball_across_a_cylinder_wall_r_0_2_across_the_rim:
-        7 => [Sphere, Sphere, Join, Join, Join, Join];
+        7 => [Sphere, Sphere, Sphere, Sphere, Projected, Sphere];
     a_ball_across_a_cylinder_wall_r_0_1_across_the_rim:
-        8 => [Join, Join, Join, Join, Projected, Join];
+        8 => [Sphere, Sphere, Sphere, Sphere, Projected, Sphere];
 }
 
 /// A site's place on its loop of the analytic section, read off the

@@ -94,4 +94,4 @@ Place { source: @0, target: @1, constraints: [Constraint { id: ConstraintId(Mint
 Measure { primitive: Distance { a: @0, b: @1 } }
   @0 Operand(Measured(Distance, 0))
   @1 Operand(Measured(Distance, 1))
-Assertion { value: VarId(MintId { ordinal: 1, digest: 11183020936580787592 }), bound: VarId(MintId { ordinal: 2, digest: 2287397637766653602 }), relation: AtLeast }
+Assertion(Value { value: VarId(MintId { ordinal: 1, digest: 11183020936580787592 }), bound: VarId(MintId { ordinal: 2, digest: 2287397637766653602 }), relation: AtLeast })

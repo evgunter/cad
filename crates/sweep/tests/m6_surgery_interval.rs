@@ -148,7 +148,7 @@ mod certified {
                 pipped
                     .get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
-                    .is_some_and(|c| matches!(c.carrier(), Curve3::Line { .. }))
+                    .is_some_and(|c| matches!(c.carrier(), Curve3::Line(_)))
             })
             .map(|(k, _)| k)
             .collect();
