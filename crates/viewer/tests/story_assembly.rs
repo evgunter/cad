@@ -547,11 +547,17 @@ fn the_windmill_story() {
     tool.pick(session.doc(), hub_bottom.clone());
     tool.pick(session.doc(), tower_top);
     assert!(
-        tool.rows()[0].side(pncad::document::MateSide::To).pick(MateSeat::One).is_some(),
+        tool.rows()[0]
+            .side(pncad::document::MateSide::To)
+            .pick(MateSeat::One)
+            .is_some(),
         "both seats are held"
     );
     let seat_proposal = {
-        common::proposed(&session, &tool, rest_choice(
+        common::proposed(
+            &session,
+            &tool,
+            rest_choice(
                 [
                     (pncad::document::TargetAxis::X, 0.0),
                     (pncad::document::TargetAxis::Y, 0.0),
@@ -734,10 +740,8 @@ fn the_windmill_story() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), sail_a_bottom.clone());
     tool.pick(session.doc(), front_wall.clone());
-    let sail_a_proposal = {
-        common::proposed(&session, &tool, sail_choice(0.0))
-            .expect("the first sail proposes")
-    };
+    let sail_a_proposal =
+        { common::proposed(&session, &tool, sail_choice(0.0)).expect("the first sail proposes") };
     let outcome = session.perform(sail_a_proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(

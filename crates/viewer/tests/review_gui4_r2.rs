@@ -59,8 +59,8 @@ fn proposal_sides_agree_with_the_standalone_part_documents() {
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
     let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = common::proposed(&session, &tool, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
 
     // The oracle: resolve each pinned part from the store (the same
     // door the evaluator uses), evaluate it STANDALONE, and read the
@@ -144,8 +144,8 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let proposal = common::proposed(&session, &tool, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op_into_target_space());
 
     let centre = [
@@ -295,8 +295,8 @@ fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a.clone());
     tool.pick(session.doc(), b.clone());
-    let proposal = common::proposed(&session, &tool, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op_into_target_space());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
@@ -364,8 +364,8 @@ fn a_mate_kills_an_in_flight_gesture() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let proposal = common::proposed(&session, &tool, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     session.perform(SessionOp::PreviewFreeMove {
@@ -413,8 +413,8 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let proposal = common::proposed(&session, &tool, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     session.perform(SessionOp::PreviewFreeMove {

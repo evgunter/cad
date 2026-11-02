@@ -136,8 +136,8 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
     tool.pick(session.doc(), post_a_top.clone());
     tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = common::proposed(&session, &tool, asm::seat_choice())
-        .expect("the tool proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the tool proposes");
 
     // The rotated placement enters nothing: each side names the
     // part's own face — the row the instance placed, whatever the

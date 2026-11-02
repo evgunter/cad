@@ -7274,7 +7274,14 @@ mod properties_pane_tests {
             "the survival step kept the pick"
         );
         driven.click(crate::pane::create::ASSEMBLE_PARTS);
-        let shown: Vec<String> = driven.quiet().into_iter().map(|(text, _)| text).collect();
+        // The run that would land the rename is held, so the frames are
+        // drawn without settling.
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let shown: Vec<String> = driven
+            .frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)])
+            .into_iter()
+            .map(|(text, _)| text)
+            .collect();
         let base = format!(
             "Place \"base\" ({})",
             test_utils::refusal::tag(placement().0.digest())
@@ -7287,7 +7294,9 @@ mod properties_pane_tests {
             "the panel says the landed label: {shown:?}"
         );
         assert!(
-            shown.iter().any(|t| t.contains("mate 1's to seat is empty")),
+            shown
+                .iter()
+                .any(|t| t.contains("mate 1's to seat is empty")),
             "the panel says what the draft lacks: {shown:?}"
         );
     }

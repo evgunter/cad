@@ -650,8 +650,8 @@ fn a_mates_fixed_freedoms_leave_the_draft_before_apply() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let proposal = common::proposed(&session, &tool, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     let coords: Vec<Coord> = proposal.values.iter().map(|row| row.coord).collect();
     assert_eq!(
         coords,

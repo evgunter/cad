@@ -37,7 +37,9 @@ fn an_edge_named_pick_is_refused_by_a_plane_mate() {
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
     match common::proposed(&session, &tool, asm::seat_choice()) {
-        Err(MateToolError::KindDoesNotRead { side, kind, entity, .. }) => {
+        Err(MateToolError::KindDoesNotRead {
+            side, kind, entity, ..
+        }) => {
             assert_eq!(side, MateSide::On);
             assert_eq!(kind, VarKind::Plane);
             assert_eq!(entity, EntityKind::Edge);

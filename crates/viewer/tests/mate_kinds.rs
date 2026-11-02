@@ -158,7 +158,10 @@ fn the_cursors_rule_admits_what_the_chosen_kind_reads() {
         // without faces: its rule admits faces too, which its seats
         // refuse at the verdict.
         if kind != VarKind::Frame {
-            assert_eq!(admitted, reads, "{kind:?}: the rule {rule:?} admits nothing more");
+            assert_eq!(
+                admitted, reads,
+                "{kind:?}: the rule {rule:?} admits nothing more"
+            );
         }
     }
     assert_eq!(
@@ -200,7 +203,9 @@ fn two_straight_edges_mated_as_axes_are_collinear() {
     let tools = mate_fed(&session, &index, &picks);
     let tool = tools.mate().expect("the mate tool is open");
     match common::proposed(&session, tool, choice(VarKind::Plane, true)) {
-        Err(MateToolError::KindDoesNotRead { side, kind, entity, .. }) => {
+        Err(MateToolError::KindDoesNotRead {
+            side, kind, entity, ..
+        }) => {
             assert_eq!(
                 (side, kind, entity),
                 (MateSide::On, VarKind::Plane, EntityKind::Edge)
@@ -329,8 +334,9 @@ fn an_edge_mated_as_a_direction_runs_parallel() {
     let proposal = common::proposed(
         &session,
         tools.mate().expect("the mate tool is open"),
-        choice(VarKind::Direction, false))
-        .expect("two edges mate as directions");
+        choice(VarKind::Direction, false),
+    )
+    .expect("two edges mate as directions");
     common::commit_mate(&mut session, proposal.op_into_target_space());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(b_edge);
@@ -397,9 +403,14 @@ fn a_circular_edge_is_coaxial_with_a_cylinder_face() {
     let proposal = common::proposed(
         &session,
         tools.mate().expect("the mate tool is open"),
-        choice(VarKind::Axis, false))
-        .expect("a rim and a cylinder mate as axes");
-    assert_eq!(proposal.placement, Some(small_copy), "the rim's copy is placed");
+        choice(VarKind::Axis, false),
+    )
+    .expect("a rim and a cylinder mate as axes");
+    assert_eq!(
+        proposal.placement,
+        Some(small_copy),
+        "the rim's copy is placed"
+    );
     common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(rim);
@@ -443,7 +454,11 @@ fn a_frame_mated_on_a_frame_coincides() {
         edge_at(middle(&on_b)),
         // Aimed a hair inside the corner, which stands on the posts'
         // silhouette from this eye.
-        vertex_at(Point3::new(asm::POST_B_AT[0] + INSIDE, INSIDE, top - INSIDE)),
+        vertex_at(Point3::new(
+            asm::POST_B_AT[0] + INSIDE,
+            INSIDE,
+            top - INSIDE,
+        )),
         edge_at(middle(&on_a)),
         vertex_at(Point3::new(INSIDE, INSIDE, top - INSIDE)),
     ];

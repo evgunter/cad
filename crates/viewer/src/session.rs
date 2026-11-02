@@ -4105,7 +4105,6 @@ impl DocSession {
         let doc = self.committed_doc();
         if held_bundle(doc, placement) == base {
             Ok(())
-
         } else {
             Err(Refusal::BundleStale {
                 node: doc.spoken(placement),
@@ -4156,9 +4155,14 @@ impl DocSession {
                 constraints,
                 into_target_space,
             } => self.bundle_fresh(*placement, base).and_then(|()| {
-                bundle_run(&mut run, *placement, constraints.clone(), *into_target_space)
-                    .map(|()| *placement)
-                    .map_err(|error| Refusal::Edit(Box::new(error)))
+                bundle_run(
+                    &mut run,
+                    *placement,
+                    constraints.clone(),
+                    *into_target_space,
+                )
+                .map(|()| *placement)
+                .map_err(|error| Refusal::Edit(Box::new(error)))
             }),
             SessionOp::Place {
                 body,

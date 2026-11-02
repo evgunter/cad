@@ -161,7 +161,10 @@ fn the_exit_demo_walk() {
     assert_eq!(shelf_bottom.node, bench.shelf_i);
     tool.pick(session.doc(), shelf_bottom.clone());
     assert!(
-        tool.rows()[0].side(pncad::document::MateSide::To).pick(MateSeat::One).is_some(),
+        tool.rows()[0]
+            .side(pncad::document::MateSide::To)
+            .pick(MateSeat::One)
+            .is_some(),
         "both seats are held"
     );
 
@@ -177,8 +180,8 @@ fn the_exit_demo_walk() {
         .node_space(bench.post_b)
         .expect("post_b is placed");
     assert!(session.display().free_move_of(own).is_some());
-    let proposal = common::proposed(&session, &tool, asm::seat_choice())
-        .expect("the seat proposes");
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(

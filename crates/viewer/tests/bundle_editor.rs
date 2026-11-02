@@ -239,11 +239,19 @@ fn removing_a_mate_from_a_turned_copy_keeps_it_where_it_stands() {
     );
     let (doc, ev) = session.landed_pair().expect("landed");
     let struck = MateTool::edit_striking(doc, mate).expect("the rest is a mate");
-    assert!(struck.rows()[0].struck(), "the tree's remove opens it struck");
-    let draft = struck.proposal(doc, ev, tol).expect("the struck draft proposes");
+    assert!(
+        struck.rows()[0].struck(),
+        "the tree's remove opens it struck"
+    );
+    let draft = struck
+        .proposal(doc, ev, tol)
+        .expect("the struck draft proposes");
     assert!(draft.mates.is_empty(), "no live mate");
     assert!(
-        draft.values.iter().any(|row| row.from == ValueFrom::Measured),
+        draft
+            .values
+            .iter()
+            .any(|row| row.from == ValueFrom::Measured),
         "the freed freedoms are measured: {:?}",
         draft.values
     );

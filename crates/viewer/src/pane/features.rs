@@ -1176,6 +1176,7 @@ mod tests {
                 super::REMOVE_CONSTRAINT,
                 "constraint 2: mate",
                 super::REMOVE_CONSTRAINT,
+                super::EDIT_PLACEMENT,
             ],
             "the row, its constraints with their buttons, and no badge"
         );
@@ -1549,6 +1550,7 @@ mod tests {
             hide: hide.get(),
             accept: None,
             remove: remove.get(),
+            edit: false,
         }
     }
 

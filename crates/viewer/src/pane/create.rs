@@ -18,11 +18,11 @@ use crate::forms::{
 };
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_KINDS, MateTool, PlaceDoor};
-use crate::session::BundleVerdict;
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seat, Seats, seat_line};
+use crate::session::BundleVerdict;
 use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, Staged, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
@@ -621,10 +621,12 @@ impl ViewerBehavior<'_> {
                         match row.by.literal_value() {
                             Some(mut value) => {
                                 let (unit, speed) = match row.coord {
-                                    Coord::Slide(_) => (self.notation.length.def(), FIELD_DRAG_SPEED),
+                                    Coord::Slide(_) => {
+                                        (self.notation.length.def(), FIELD_DRAG_SPEED)
+                                    }
                                     Coord::Spin(_) => (self.notation.angle.def(), ANGLE_DRAG_SPEED),
                                 };
-                                if unit_field(ui, unit, speed, &mut value).changed() {
+                                if unit_field(ui, unit, speed, &mut value) {
                                     let typed = match row.coord {
                                         Coord::Slide(_) => self.notation.length_literal(value),
                                         Coord::Spin(_) => self.notation.angle_literal(value),
@@ -647,7 +649,7 @@ impl ViewerBehavior<'_> {
                 })
             }
             Some(Err(error)) => {
-                crate::widgets::message(ui, ToolKind::Mate.refuses(error));
+                crate::widgets::message(ui, ToolKind::Mate.refuses(error).to_string());
                 None
             }
             None => None,
@@ -677,7 +679,9 @@ impl ViewerBehavior<'_> {
             if let Some(held) = &self.drafts.mate_verdict {
                 match &held.said {
                     Ok(said) => crate::widgets::message(ui, ToolKind::Mate.says(said)),
-                    Err(said) => crate::widgets::message(ui, ToolKind::Mate.refuses(said)),
+                    Err(said) => {
+                        crate::widgets::message(ui, ToolKind::Mate.refuses(said).to_string())
+                    }
                 };
             }
         }

@@ -523,7 +523,11 @@ impl MateRow {
     /// **A row holding `mate` as written**, read in `doc`: its kind its
     /// `on`'s, its sense whether its `to` reads the opposite sense of
     /// its `on`.
-    fn written(doc: &Doc<ProfileProgram>, loaded: Option<ConstraintId>, mate: &Mate<Formula>) -> Self {
+    fn written(
+        doc: &Doc<ProfileProgram>,
+        loaded: Option<ConstraintId>,
+        mate: &Mate<Formula>,
+    ) -> Self {
         let kind = editor_core::mate::pin::operand_kind(doc, &mate.on).unwrap_or(VarKind::Plane);
         let flip = side_flipped(doc, &mate.to) != side_flipped(doc, &mate.on);
         let written = |side: &Operand| MateSideDraft {
@@ -1023,7 +1027,11 @@ pub(crate) fn plane_of(face: Operand) -> Operand {
 /// The placement whose copy a pick at `at` is on: `at` itself when it
 /// is a `Place` or an instance, the instance A11's member walk reaches
 /// otherwise.
-fn placement_of(doc: &Doc<ProfileProgram>, at: RecipeNodeId, read: &SitedRef) -> Option<RecipeNodeId> {
+fn placement_of(
+    doc: &Doc<ProfileProgram>,
+    at: RecipeNodeId,
+    read: &SitedRef,
+) -> Option<RecipeNodeId> {
     match doc.node(at) {
         Some(Node::Place { .. } | Node::InstantiatePart { .. }) => Some(at),
         _ => member_of(doc, read).map(|member| member.instance),
@@ -1033,7 +1041,12 @@ fn placement_of(doc: &Doc<ProfileProgram>, at: RecipeNodeId, read: &SitedRef) ->
 /// The placement whose copy `pick` is on, if any.
 fn copy_picked(doc: &Doc<ProfileProgram>, pick: &MatePick) -> Option<RecipeNodeId> {
     let read = SitedRef::new(pick.node(), pick.name().clone());
-    placement_of(doc, pick.node(), &read)
+    placement_of(doc, pick.node(), &read).filter(|&at| {
+        matches!(
+            doc.node(at),
+            Some(Node::Place { .. } | Node::InstantiatePart { .. })
+        )
+    })
 }
 
 /// **The entity `pick` names as an `on` side reads it**: off the shape

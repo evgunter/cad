@@ -991,5 +991,7 @@ pub fn proposed(
     choice: viewer::matetool::MateChoice,
 ) -> Result<viewer::matetool::MateProposal, viewer::matetool::MateToolError> {
     let (doc, ev) = session.landed_pair().expect("landed");
-    tool.clone().chosen(choice)?.proposal(doc, ev, session.tol())
+    tool.clone()
+        .chosen(choice)?
+        .proposal(doc, ev, session.tol())
 }

@@ -40,11 +40,15 @@ fn two_picks_one_choice_one_committed_edit() {
     assert!(tool.pick(session.doc(), shelf_bottom.clone()).is_none());
     let row = &tool.rows()[tool.active()];
     assert_eq!(
-        row.side(MateSide::On).pick(MateSeat::One).and_then(|p| p.pick().face()),
+        row.side(MateSide::On)
+            .pick(MateSeat::One)
+            .and_then(|p| p.pick().face()),
         Some(&post_top)
     );
     assert_eq!(
-        row.side(MateSide::To).pick(MateSeat::One).and_then(|p| p.pick().face()),
+        row.side(MateSide::To)
+            .pick(MateSeat::One)
+            .and_then(|p| p.pick().face()),
         Some(&shelf_bottom)
     );
 
@@ -299,11 +303,16 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     );
     let row = &tool.rows()[0];
     assert_eq!(
-        row.side(MateSide::On).pick(MateSeat::One).and_then(|p| p.pick().face()),
+        row.side(MateSide::On)
+            .pick(MateSeat::One)
+            .and_then(|p| p.pick().face()),
         Some(&post_top),
         "the on pick is held"
     );
-    assert!(row.side(MateSide::To).pick(MateSeat::One).is_none(), "its seat is empty");
+    assert!(
+        row.side(MateSide::To).pick(MateSeat::One).is_none(),
+        "its seat is empty"
+    );
 
     // A reconcile against an unchanged pair is quiet.
     assert!(tool.reconcile(doc, eval).is_empty());
@@ -403,8 +412,7 @@ fn shelf_on(
     tool.pick(session.doc(), target.clone());
     let mut choice = asm::seat_choice();
     choice.values = Vec::new();
-    common::proposed(&session, &tool, choice)
-        .expect("the shelf's rest proposes")
+    common::proposed(&session, &tool, choice).expect("the shelf's rest proposes")
 }
 
 /// **The name a target pick on a placement's copy carries**: the
@@ -940,7 +948,10 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
     // Read at the read's copy, under the FAMILY's own name: the read
     // carries every name verbatim, so the target's head is the family's
     // placement the member was minted by.
-    assert_eq!(proposal.mates[0].to[0].at, picked.node, "the copy the ray met");
+    assert_eq!(
+        proposal.mates[0].to[0].at, picked.node,
+        "the copy the ray met"
+    );
     let own = own_name(&proposal.mates[0].to[0]);
     assert_eq!(own.node, inner);
     assert!(
@@ -994,8 +1005,8 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
         None,
         "the premise: the landed pair predates it"
     );
-    let refused = common::proposed(&session, &tool, asm::seat_choice())
-        .expect_err("one instance is no pair");
+    let refused =
+        common::proposed(&session, &tool, asm::seat_choice()).expect_err("one instance is no pair");
     assert_eq!(
         refused.respoken(doc).to_string(),
         "mate 1's to seat is empty"
@@ -1064,13 +1075,16 @@ fn a_freshly_mated_copy_moves_only_by_the_snap() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_top.clone());
     tool.pick(session.doc(), shelf_bottom.clone());
-    let proposal = common::proposed(&session, &tool, viewer::matetool::MateChoice {
-                kind: pncad::document::VarKind::Plane,
-                flip: true,
-                values: Vec::new(),
-            },
-        )
-        .expect("the seat proposes");
+    let proposal = common::proposed(
+        &session,
+        &tool,
+        viewer::matetool::MateChoice {
+            kind: pncad::document::VarKind::Plane,
+            flip: true,
+            values: Vec::new(),
+        },
+    )
+    .expect("the seat proposes");
     common::commit_mate(&mut session, proposal.op());
     let after = pose(&session);
     for (c, (got, was)) in after.columns.iter().zip(&before.columns).enumerate() {
@@ -1125,7 +1139,10 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
     mate.pick(session.doc(), underside);
     mate.pick(session.doc(), top);
     let proposal = {
-        common::proposed(&session, &mate, viewer::matetool::MateChoice {
+        common::proposed(
+            &session,
+            &mate,
+            viewer::matetool::MateChoice {
                 kind: pncad::document::VarKind::Plane,
                 flip: true,
                 values: Vec::new(),
@@ -1222,13 +1239,16 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
         let mut tool = MateTool::new();
         tool.pick(session.doc(), post_top.clone());
         tool.pick(session.doc(), shelf_bottom.clone());
-        let proposal = common::proposed(&session, &tool, viewer::matetool::MateChoice {
-                    kind: pncad::document::VarKind::Plane,
-                    flip: true,
-                    values: Vec::new(),
-                },
-            )
-            .expect("the seat proposes");
+        let proposal = common::proposed(
+            &session,
+            &tool,
+            viewer::matetool::MateChoice {
+                kind: pncad::document::VarKind::Plane,
+                flip: true,
+                values: Vec::new(),
+            },
+        )
+        .expect("the seat proposes");
         common::commit_mate(&mut session, proposal.op());
         let after = pose(&session);
         // Expected: least turn of R0·z onto +z, composed after R0.

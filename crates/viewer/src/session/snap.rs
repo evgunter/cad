@@ -27,8 +27,8 @@ use editor_core::mate::{Charted, LeastTurn, read_back, slides_left_along};
 use editor_core::{Coord, Formula, Orientation, SlideAxes};
 use pncad::document::pose::{PoseValue, RoleRead};
 use pncad::document::{
-    ConstraintId, Doc, DocEdit, Evaluation, Frame, Mate, MateSide, Node, Operand,
-    OperandSlot, Placed, ProfileProgram, Recording,
+    ConstraintId, Doc, DocEdit, Evaluation, Frame, Mate, MateSide, Node, Operand, OperandSlot,
+    Placed, ProfileProgram, Recording,
 };
 use pncad::geom_core::Tol;
 use pncad::geom_core::linalg::{Mat3, Point3, Vec3};
@@ -285,9 +285,10 @@ pub(crate) fn draft_snap(
         })
         .collect();
     let point = read.iter().find_map(|(_, on, to, _)| match (on, to) {
-        (PoseValue::Point { position: o }, PoseValue::Point { position: t }) => {
-            Some((*o - pncad::geom_core::linalg::Point3::origin(), *t - pncad::geom_core::linalg::Point3::origin()))
-        }
+        (PoseValue::Point { position: o }, PoseValue::Point { position: t }) => Some((
+            *o - pncad::geom_core::linalg::Point3::origin(),
+            *t - pncad::geom_core::linalg::Point3::origin(),
+        )),
         _ => None,
     });
     let affine = |r: Mat3<f64>, t: Vec3<f64>| pncad::geom_core::linalg::Affine3::from_parts(r, t);
@@ -327,10 +328,6 @@ pub(crate) fn draft_snap(
         at: affine(turned, t),
         orient: Some(orient),
         along: Some(slides_left_along(slides, n)),
-        chart: Some((
-            on.clone(),
-            to.clone(),
-            to_flipped,
-        )),
+        chart: Some((on.clone(), to.clone(), to_flipped)),
     })
 }

@@ -267,10 +267,7 @@ pub(crate) fn kept(
 /// kind, a node output's (a revolve's axis port), a definition's own,
 /// or, for a move, a flip or a carried pose, the kind of the read it
 /// keeps through its role. `None` where it reads nothing live.
-pub fn operand_kind<P>(
-    doc: &crate::doc::Doc<P>,
-    operand: &Operand,
-) -> Option<crate::VarKind> {
+pub fn operand_kind<P>(doc: &crate::doc::Doc<P>, operand: &Operand) -> Option<crate::VarKind> {
     match operand {
         Operand::Var(var) => doc.var(*var).map(crate::Var::kind),
         Operand::Output { node, port } => doc

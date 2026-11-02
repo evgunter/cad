@@ -426,7 +426,9 @@ pub fn read_back(
         return coords
             .iter()
             .map(|coord| match *coord {
-                Coord::Slide(axis) => Some([at.translation.x, at.translation.y, at.translation.z][axis.index()]),
+                Coord::Slide(axis) => {
+                    Some([at.translation.x, at.translation.y, at.translation.z][axis.index()])
+                }
                 Coord::Spin(Some(axis)) => chain.map(|turns| turns[axis.index()]),
                 Coord::Spin(None) => None,
             })
@@ -441,7 +443,16 @@ pub fn read_back(
             return None;
         }
         let arm = Arm::of(0.0, 0.0).ok()?;
-        Chart::charted(d, copy_d, seat, charted.to_flipped, charted.orient, arm, band).ok()
+        Chart::charted(
+            d,
+            copy_d,
+            seat,
+            charted.to_flipped,
+            charted.orient,
+            arm,
+            band,
+        )
+        .ok()
     });
     coords
         .iter()
