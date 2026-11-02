@@ -8074,7 +8074,10 @@ mod radical_plane_rows {
         let curve = |spec| SegmentCurve::of((he(1), he(2)), spec);
         let straight = curve(None);
         let ask = |a: &SegmentCurve<f64>, b: &SegmentCurve<f64>| {
-            rulings_are_straight([(a, Operand::A, fa), (b, Operand::B, fb)])
+            rulings_are_straight([
+                (a, Operand::A, fa, geom::SurfaceKind::Cylinder),
+                (b, Operand::B, fb, geom::SurfaceKind::Cylinder),
+            ])
         };
         assert!(ask(&straight, &straight).is_ok(), "two rulings pass");
         // The tangent chord is the ruling under either description the

@@ -1680,7 +1680,10 @@ fn beside_order<T: Decide>(
     let Some([bp, bq]) = p.tie_flankers(q) else {
         return Ok(Sign::Zero);
     };
-    let n = s.tangent().vec();
+    // A fan has no plane for an edge's flanker to lie flush with.
+    let Some(n) = s.apex().is_none().then(|| s.tangent().vec()) else {
+        return Ok(Sign::Zero);
+    };
     let off = |x: Vec3<T>| {
         crate::validate::decide("bool_beside_flush", Margin::levered(n.dot(x), s.arm), band)
             .map_err(|diag| {
@@ -1736,7 +1739,14 @@ fn walks_after<T: Decide>(
     band: Band,
 ) -> Result<Sign, BooleanError> {
     let lever = leaned_lever(s.arm, (x.lean, y.lean));
-    let m = Margin::levered(x.dir.cross(y.dir).dot(s.tangent().vec()), lever);
+    // At a cone's apex the sector is a fan, whose sweep runs from its
+    // start bound to its end bound as a planar sector's turn about its
+    // normal does: `y` after `x` is the face's turn from `x`'s ruling to
+    // `y`'s ([`crate::sector_face::ConeApex::turn`]).
+    let m = match s.apex() {
+        Some(apex) => Margin::levered(apex.turn(x.dir, y.dir), lever),
+        None => Margin::levered(x.dir.cross(y.dir).dot(s.tangent().vec()), lever),
+    };
     crate::validate::decide("bool_shared_cut_order", m, band)
         .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))
 }
@@ -2314,6 +2324,20 @@ fn walk_faces_first<T: Decide>(
         return Ok(before);
     }
     let s = &sectors[first.entry];
+    // A fan's germs are rulings: the strut order agrees with the walk
+    // within an entry (`the_strut_order_agrees_with_the_walk_within_an_entry`),
+    // the first germ met first where the walk reads the second before
+    // it, and a tie refuses as the coincidence it is.
+    if let Some(apex) = s.apex() {
+        let lever = leaned_lever(s.arm, (first.line.lean, second.line.lean));
+        return crate::validate::decide_nonzero(
+            "bool_shared_cut_order",
+            Margin::levered(apex.turn(first.line.dir, second.line.dir), lever),
+            band,
+        )
+        .map(|sign| sign == geom_core::k_stats::NonzeroSign::Negative)
+        .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag));
+    }
     // The germs are read from the corner's arrival bound: the arrival
     // edge's departure from the vertex, which a germ leaving along a
     // curved edge's tangent lies on.

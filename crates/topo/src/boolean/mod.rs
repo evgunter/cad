@@ -6345,7 +6345,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             mut records,
             touching,
         } = sectors::pair_search_at(Some(([&a, &b], [c.a, c.b])), &a_sectors, &b_sectors, band)?;
-        sectors::apex_crossing_refusal(&records, [&a_sectors, &b_sectors])?;
         if op == BooleanOp::Union {
             sectors::crescent_refusal(
                 [&a, &b],

@@ -348,12 +348,12 @@ pub(super) fn recl_sectors<T: Decide>(
             let [a_start, a_end] = sa.reached_bounds();
             let [b_start, b_end] = sb.reached_bounds();
             let ca = (
-                side(&s_a, &s_b, sb.tangent(), a_start)?,
-                side(&s_a, &s_b, sb.tangent(), a_end)?,
+                side(&s_a, &s_b, sb.plane(super::Operand::B)?, a_start)?,
+                side(&s_a, &s_b, sb.plane(super::Operand::B)?, a_end)?,
             );
             let cb = (
-                side(&s_b, &s_a, sa.tangent(), b_start)?,
-                side(&s_b, &s_a, sa.tangent(), b_end)?,
+                side(&s_b, &s_a, sa.plane(super::Operand::A)?, b_start)?,
+                side(&s_b, &s_a, sa.plane(super::Operand::A)?, b_end)?,
             );
             // Per-bound propagation, the Rest loop's shape with the
             // SHARED bound's own code (definite codes only — an `On`
@@ -1349,6 +1349,7 @@ fn flank_rep<T: Decide>(
 /// answers a representative lying in a half-turn's plane by the flank
 /// it lies along, before asking here.
 fn wedge_is_reflex<T: Decide>(
+    operand: super::Operand,
     secs: &[BoolSector<T>],
     fl: &[(usize, Rep<T>); 2],
     arm: T,
@@ -1357,7 +1358,7 @@ fn wedge_is_reflex<T: Decide>(
     let ((first, _), (_, (second, _))) = (fl[0], fl[1]);
     Ok(crate::validate::decide_nonzero(
         "bool_wedge_reflex",
-        Margin::levered(second.dot(secs[first].tangent().vec()), arm),
+        Margin::levered(second.dot(secs[first].plane(operand)?.vec()), arm),
         band,
     )
     .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?
@@ -1668,6 +1669,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         } else {
             (b_sectors, a_sectors)
         };
+        let other_operand = if own_is_a {
+            super::Operand::B
+        } else {
+            super::Operand::A
+        };
         let (own_body, other_body): (&Body<T>, &Body<T>) = if own_is_a {
             (a_body, b_body)
         } else {
@@ -1678,7 +1684,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             match side_code(
                 w,
                 reach,
-                other_secs[oi].tangent(),
+                other_secs[oi].plane(other_operand)?,
                 super::sectors::NO_CURVATURE(),
                 band,
             )? {
@@ -1763,8 +1769,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                 &s_own,
                                 &s_other,
                                 reach,
-                                other_sec.tangent(),
-                                own_sec.tangent(),
+                                other_sec.plane(other_op)?,
+                                own_sec.plane(own_op)?,
                                 p,
                                 op,
                                 comparison,
@@ -1801,7 +1807,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             // from says nothing about it.
             [Half::Along(inside), Half::Away] | [Half::Away, Half::Along(inside)] => inside,
             [h0, h1] if h0.inside() == h1.inside() => h0.inside(),
-            _ => wedge_is_reflex(other_secs, other, arm, band)?,
+            _ => wedge_is_reflex(other_operand, other_secs, other, arm, band)?,
         })
     };
     let flanks = |secs: &[BoolSector<T>], w: Wedge| -> Result<Flanks<T>, BooleanError> {
@@ -1847,7 +1853,12 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         held_link[slot] = holding[slot].map(|face| link_of(face.datum)).transpose()?;
         for face in fs {
             let link = link_of(face.datum)?;
-            let bounding = link == SideCode::Out || wedge_is_reflex(secs, &fl, arm, band)?;
+            let operand = if slot == 0 {
+                super::Operand::A
+            } else {
+                super::Operand::B
+            };
+            let bounding = link == SideCode::Out || wedge_is_reflex(operand, secs, &fl, arm, band)?;
             beside[slot].push(Part {
                 fl: flanks(secs, face.wedge)?,
                 link,
@@ -2071,7 +2082,7 @@ fn resolve_edge_sector<T: Decide>(
         super::sectors::tangent_relative_side(
             &super::sectors::tangent_carrier(own_body, own_sec.face)?,
             &super::sectors::tangent_carrier(ref_body, ref_sector.face)?,
-            ref_sector.tangent(),
+            ref_sector.plane(ref_op)?,
             p,
             d,
             reached,
@@ -2080,8 +2091,8 @@ fn resolve_edge_sector<T: Decide>(
         )
     };
     let (mut k1, mut k2) = (
-        flank_key(own_secs, f_s, false, ref_sector.tangent(), band)?,
-        flank_key(own_secs, f_e, true, ref_sector.tangent(), band)?,
+        flank_key(own_secs, f_s, false, ref_sector.plane(ref_op)?, band)?,
+        flank_key(own_secs, f_e, true, ref_sector.plane(ref_op)?, band)?,
     );
     // One On flanker stays On: Table III lumps it whole and the germ
     // stays on the other (`the_stadium_answers_every_op`).
@@ -2110,8 +2121,8 @@ fn resolve_edge_sector<T: Decide>(
                 &super::sectors::tangent_carrier(own_body, own_sec.face)?,
                 &super::sectors::tangent_carrier(ref_body, ref_sector.face)?,
                 declared.reach_of(own_op, own_sec.face, ref_op, ref_sector.face)?,
-                ref_sector.tangent(),
-                own_sec.tangent(),
+                ref_sector.plane(ref_op)?,
+                own_sec.plane(own_op)?,
                 p,
                 op,
                 comparison,
@@ -2221,8 +2232,28 @@ fn resolve_bisector_graze<T: Decide>(
     } else {
         &a_sectors[ref_idx]
     };
-    let k1 = flank_key(own_secs, f_s, false, ref_sector.tangent(), band)?;
-    let k2 = flank_key(own_secs, f_e, true, ref_sector.tangent(), band)?;
+    let k1 = flank_key(
+        own_secs,
+        f_s,
+        false,
+        ref_sector.plane(if a_side {
+            super::Operand::B
+        } else {
+            super::Operand::A
+        })?,
+        band,
+    )?;
+    let k2 = flank_key(
+        own_secs,
+        f_e,
+        true,
+        ref_sector.plane(if a_side {
+            super::Operand::B
+        } else {
+            super::Operand::A
+        })?,
+        band,
+    )?;
     // Both outer keys definitely on one side: the grazing bisector
     // cannot read Zero when K > 2 (the argument at `vtxfac`'s on-edge
     // resolution — the keys are the physical sector's own bounds, read
@@ -2306,7 +2337,7 @@ mod tests {
                 (0, (secs[0].end, Reach::Bisector(1.0))),
                 (1, (secs[1].start, Reach::Bisector(1.0))),
             ];
-            wedge_is_reflex(&secs, &fl, 1.0, band)
+            wedge_is_reflex(super::super::Operand::A, &secs, &fl, 1.0, band)
         };
         assert!(
             !wedge([0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]).unwrap(),

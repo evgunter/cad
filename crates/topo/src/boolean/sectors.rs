@@ -30,8 +30,8 @@
 //! monotone, and its middle is the ruling halfway round
 //! ([`BoolSector::middle`]), not its bounds' sum. The pierce reads such
 //! a sector through its apex arms; the vertex–vertex lane's pair search
-//! reads it through the fan arms ([`super::fan`]), and refuses a record
-//! that crosses at the apex ([`apex_crossing_refusal`]).
+//! reads it through the fan arms ([`super::fan`]), and a reader with no
+//! fan arm refuses by name ([`BoolSector::plane`]).
 //!
 //! # Side codes (the F3 chain — the 15.7 sign resolution)
 //!
@@ -186,9 +186,11 @@ impl<T: geom_core::Real> BoolSector<T> {
     }
     /// The face's outward normal at the base vertex, its tangent plane's.
     /// A sector at a cone's apex is read through its own arms
-    /// ([`Self::apex`]): the pierce's, and the vertex–vertex pair
-    /// search's ([`super::fan`]), which refuses a record crossing at the
-    /// apex before any tangent reader sees it ([`apex_crossing_refusal`]).
+    /// ([`Self::apex`]): the pierce's, and the vertex–vertex lane's
+    /// ([`super::fan`]). A reader that may meet one and has no fan arm reads
+    /// [`Self::plane`], which refuses there by name; this one panics, and
+    /// is left to the readers no fan reaches (the pierce's tangent-plane
+    /// arms, the planar carriers' identity rungs).
     ///
     /// The panic at an apex rests on that order, not on the type: the
     /// readers of a tangent are some sixty sites across both lanes'
@@ -203,6 +205,26 @@ impl<T: geom_core::Real> BoolSector<T> {
                 "a sector at a cone's apex has no tangent plane: the pierce reads it by its \
                  apex arms, and the vertex-vertex lane refuses it first"
             ),
+        }
+    }
+
+    /// **The face's tangent plane, for a reader with no fan arm**: the
+    /// outward normal ([`Self::tangent`]) where the face has one; at a
+    /// cone's apex the reader's refusal, by name
+    /// ([`BooleanError::VertexPairAtConeApex`], `operand` the sector's),
+    /// never a panic: a pair the search reads at the apex can reach a
+    /// reader the fan arms do not yet cover.
+    ///
+    /// # Errors
+    ///
+    /// As above.
+    pub(super) fn plane(&self, operand: Operand) -> Result<OutwardNormal<T>, BooleanError> {
+        match &self.at_vertex {
+            BoolFace::Tangent(normal) => Ok(*normal),
+            BoolFace::Apex(_) => Err(BooleanError::VertexPairAtConeApex {
+                operand,
+                face: self.face,
+            }),
         }
     }
 
@@ -812,33 +834,6 @@ pub(super) fn sector_face<T: Decide>(
         VertexFace::Tangent(normal) => Ok((resolved.face, BoolFace::Tangent(normal))),
         VertexFace::Apex(apex) => Ok((resolved.face, BoolFace::Apex(apex))),
     }
-}
-
-/// **The vertex–vertex lane's crossings at a cone's apex**: a pair
-/// record that crosses (not one carrier) with a sector at a cone's apex
-/// refuses [`BooleanError::VertexPairAtConeApex`], after the pair search
-/// and before any reading of its records. The search reads a fan's side,
-/// membership and meetings ([`super::fan`]), so two fans of one cone (a
-/// cone against its copy) and fans that meet nowhere but the apex (a
-/// cone against its copy turned over about the apex) read through; the
-/// reclassification and the insertion read a crossing record's faces as
-/// planes, and over a fan that algebra is unbuilt
-/// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`).
-pub(super) fn apex_crossing_refusal<T: geom_core::Real>(
-    records: &[PairRecord],
-    [a, b]: [&[BoolSector<T>]; 2],
-) -> Result<(), BooleanError> {
-    for r in records.iter().filter(|r| !r.coplanar()) {
-        for (operand, s) in [(Operand::A, &a[r.a]), (Operand::B, &b[r.b])] {
-            if s.apex().is_some() {
-                return Err(BooleanError::VertexPairAtConeApex {
-                    operand,
-                    face: s.face,
-                });
-            }
-        }
-    }
-    Ok(())
 }
 
 /// The refusal for a bisector reading On between two bounds definitely
