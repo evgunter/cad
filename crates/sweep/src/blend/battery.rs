@@ -779,8 +779,9 @@ pub fn wedge_at<T: Decide + Bounds>(
         )),
         geom_brep::EdgeWedge::Smooth => Ok((LinkWedge::Smooth, reading(Sign::Zero))),
         // A cusp or slit: the material sides face each other across
-        // the tangent plane, and no ball fits the vanishing crescent
-        // (wedge 0) or touches both faces from outside it (wedge 2π).
+        // the tangent plane. Its ball rests away from the edge, where the
+        // supports open to 2r, a construction the blend does not make
+        // (`work/bandrule/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`).
         geom_brep::EdgeWedge::Knife => Err(BlendError::KnifeEdge {
             edge,
             margin: reading(Sign::Zero),

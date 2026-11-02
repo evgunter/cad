@@ -850,7 +850,8 @@ fn two_discs_kissing_externally_touch_at_every_op() {
 
 /// **Chamfer and fillet refuse the cusp strut typed** — on the lune's
 /// cusp (wedge 0) and on a lune-shaped hole's slit (wedge 2π) alike:
-/// the supports meet tangentially, so the blend has no side to sit in.
+/// the supports meet tangentially, and the blend there, whose ball
+/// touches them away from the edge, is not built.
 #[test]
 fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
     let cusp = extruded(vec![lune()], 0.0, 1.0);

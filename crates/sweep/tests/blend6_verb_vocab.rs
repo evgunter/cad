@@ -332,7 +332,7 @@ fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
         0.05,
         Tol::witness(),
     )
-    .expect_err("a cusp has no wedge for a strip");
+    .expect_err("a cusp's strip is not built");
     match err.error {
         BlendError::KnifeEdge { margin, .. } => {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");

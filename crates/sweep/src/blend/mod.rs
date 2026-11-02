@@ -1069,12 +1069,14 @@ pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the blend size, enlar
      into SEQUENTIAL calls (the second on the first's result), since the two setbacks \
      belong to different chains";
 /// The recourse for an edge whose supports meet tangentially with their
-/// material facing each other — a cusp or slit, at any size — and for
-/// a convexity sign in band. Both verbs meter the dihedral (the strip
-/// needs a wedge to sit in exactly as the ball does), so the sentence
-/// speaks of the blend, not the ball.
-pub const FILLET3_WEDGE_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; a cusp or slit leaves \
-     the blend no side to sit in, at any size";
+/// material facing each other — a cusp or slit — and for a convexity
+/// sign in band. A cusp's or slit's blend is defined (its rolling ball
+/// rests where the supports' offsets meet, away from the edge) but not
+/// built: `work/bandrule/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`. So the sentence asks for the edge to be left out
+/// of the request. Both verbs meter the dihedral, so it speaks of the
+/// blend, not the ball.
+pub const FILLET3_WEDGE_RECOURSE: &str = "blend an edge whose supports meet at a definite angle, or leave a cusp or \
+     slit out of the request";
 /// The recourse for a spine the rolling ball's own envelope folds on.
 /// Ball language kept deliberately: spine regularity is a rolling-ball
 /// fact, metered on no chamfer run.
@@ -1513,7 +1515,11 @@ pub enum BlendError {
     /// **Predicate 5, the knife edge**: the dihedral's signed margin
     /// decided Zero with the two faces' outward normals opposed
     /// ([`geom_brep::EdgeWedge::Knife`]): a cusp (wedge 0) or a knife
-    /// slit (wedge 2π), where no band has a side to sit in. (Zero with
+    /// slit (wedge 2π). Its rolling ball is defined, centred where the
+    /// supports' `r`-offsets meet and touching them away from the edge,
+    /// where they open to `2r` (the concave fill between two tangent
+    /// cylinders, centre at `R + r` from both axes); that construction
+    /// is not built (`work/bandrule/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`). (Zero with
     /// the normals aligned is the smooth seam, which the verb leaves
     /// as it is.) Distinct from [`BlendError::ConvexitySignFlip`]: a
     /// `Zero` edge does not disagree with the chain's convexity — none
@@ -2052,8 +2058,8 @@ impl fmt::Display for BlendError {
             }
             Self::KnifeEdge { margin, .. } => write!(
                 f,
-                "an edge is a cusp or slit, its supports tangent with their material on \
-                 opposite sides ({margin}). {}",
+                "an edge is a cusp or slit ({margin}), whose blend is not built yet: its ball \
+                 touches the supports away from the edge, where they open to 2r. {}",
                 BlendDecision::ConvexitySign.recourse(margin.arm())
             ),
             Self::SpineIrregular { margin, radius } => write!(
