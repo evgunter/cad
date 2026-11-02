@@ -373,7 +373,7 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
                 // This pass cuts lines and circles alone.
                 if !matches!(
                     loops[r#loop][edge].carrier,
-                    Curve3::Line { .. } | Curve3::Circle { .. }
+                    Curve3::Line { .. } | Curve3::Circle(..)
                 ) {
                     return Err(foreign_carrier(face.id));
                 }
@@ -638,7 +638,7 @@ enum Hit {
 /// The carrier length per unit parameter (the radius for a circle).
 fn speed(carrier: &Curve3<f64>) -> f64 {
     match *carrier {
-        Curve3::Circle { radius, .. } => radius,
+        Curve3::Circle(geom::Circle { radius, .. }) => radius,
         Curve3::Line { dir, .. } => dir.norm(),
         _ => 1.0,
     }
@@ -672,7 +672,7 @@ fn first_hit(
     // representative past the start by at most a turn.
     let walked = |t: f64| {
         let mut delta = delta_of(t);
-        if matches!(ray.carrier, Curve3::Circle { .. }) {
+        if matches!(ray.carrier, Curve3::Circle(..)) {
             let tau = core::f64::consts::TAU;
             delta = delta.rem_euclid(tau);
             if delta <= lead {
@@ -767,18 +767,24 @@ fn crossings(
     // `other` as a plane-and-distance test (a circle) or a line.
     match (ray, other) {
         (
-            &Curve3::Circle {
-                center: c,
-                axis: n,
+            &Curve3::Circle(geom::Circle {
+                frame:
+                    geom::ConicFrame {
+                        center: c,
+                        axis: n,
+                        u_ref: u,
+                    },
                 radius: r,
-                u_ref: u,
-            },
-            &Curve3::Circle {
-                center: ce,
-                axis: ne,
+            }),
+            &Curve3::Circle(geom::Circle {
+                frame:
+                    geom::ConicFrame {
+                        center: ce,
+                        axis: ne,
+                        ..
+                    },
                 radius: re,
-                ..
-            },
+            }),
         ) => {
             let w = n.cross(u);
             // ne · (C(t) − ce) = a cos t + b sin t + k.
@@ -804,12 +810,15 @@ fn crossings(
         }
         (
             &Curve3::Line { origin: o, dir: g },
-            &Curve3::Circle {
-                center: ce,
-                axis: ne,
+            &Curve3::Circle(geom::Circle {
+                frame:
+                    geom::ConicFrame {
+                        center: ce,
+                        axis: ne,
+                        ..
+                    },
                 radius: re,
-                ..
-            },
+            }),
         ) => {
             let den = ne.dot(g);
             if den.abs() <= 1e-12 * g.norm() {
@@ -848,12 +857,13 @@ fn crossings(
             })
         }
         (
-            &Curve3::Circle {
-                center: c,
-                axis: n,
+            &Curve3::Circle(geom::Circle {
+                frame:
+                    geom::ConicFrame {
+                        center: c, axis: n, ..
+                    },
                 radius: r,
-                ..
-            },
+            }),
             &Curve3::Line {
                 origin: oe,
                 dir: ge,
@@ -924,7 +934,7 @@ fn require_read_carriers(solid: &SolidSpec, fi: usize) -> Result<(), StepImportE
         for u in &lp.uses {
             if !matches!(
                 solid.edges[&u.edge].carrier,
-                Curve3::Line { .. } | Curve3::Circle { .. }
+                Curve3::Line { .. } | Curve3::Circle(..)
             ) {
                 return Err(foreign_carrier(face.id));
             }
@@ -1120,7 +1130,7 @@ fn strut_tip(
         (spec.t1, -1.0)
     };
     let reach = match twin {
-        Curve3::Circle { .. } => core::f64::consts::TAU,
+        Curve3::Circle(..) => core::f64::consts::TAU,
         _ => f64::INFINITY,
     };
     let ray = Ray {
@@ -1375,19 +1385,19 @@ mod side_through_a_pole {
             Point3::new(0.0, 0.0, 1.0),
             Point3::new(-b.cos(), 0.0, b.sin()),
         );
-        let rim = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, b.sin()),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: b.cos(),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let rim = Curve3::circle(
+            Point3::new(0.0, 0.0, b.sin()),
+            Vec3::new(0.0, 0.0, 1.0),
+            b.cos(),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         // θ runs from +x up through the north pole (θ = π/2) to −x.
-        let meridian = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, -1.0, 0.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let meridian = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let edge = |start, end, carrier: &Curve3<f64>, t0, t1| EdgeSpec {
             start,
             end,

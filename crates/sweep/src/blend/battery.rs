@@ -1364,7 +1364,10 @@ fn curved_arm<T: Decide + Bounds>(
 ) -> Result<(BlendArm, EdgeBlend<T>, SupportAxis), BlendError> {
     let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
     match *carrier {
-        Curve3::Circle { center, axis, .. } => {
+        Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { center, axis, .. },
+            ..
+        }) => {
             let arm = coaxial_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
             let sheet = Meridian {
                 origin: center,

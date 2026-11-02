@@ -72,18 +72,24 @@ pub(crate) fn endpoint_params(
             }
             Ok((t0, t1))
         }
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             ..
-        }
-        | Curve3::Ellipse {
-            center,
-            axis,
-            u_ref,
+        })
+        | Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             ..
-        } => {
+        }) => {
             // The start angle in [0, τ), the end angle in (t0, t0 + τ]
             // — the increasing-parameter arc. For the ellipse the
             // angle is the eccentric anomaly: dividing the in-plane
@@ -91,7 +97,7 @@ pub(crate) fn endpoint_params(
             // case (atan2 is scale-invariant per axis).
             let v_ref = axis.cross(*u_ref);
             let (maj, min) = match carrier {
-                Curve3::Ellipse { semi_u, semi_v, .. } => (*semi_u, *semi_v),
+                Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (*semi_u, *semi_v),
                 _ => (1.0, 1.0),
             };
             // Each angle is refused where it is derived, so the
@@ -177,12 +183,12 @@ mod tests {
 
     #[test]
     fn a_finite_pair_whose_difference_overflows_refuses_on_the_conic_arm() {
-        let carrier = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, -HUGE),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let carrier = Curve3::circle(
+            Point3::new(0.0, 0.0, -HUGE),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let p = Point3::new(1.0, 0.0, HUGE);
         match endpoint_params(7, &carrier, p, p, true) {
             Err(StepImportError::Topology { id, what }) => {

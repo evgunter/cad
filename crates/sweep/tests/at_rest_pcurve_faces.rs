@@ -91,12 +91,7 @@ fn oblique_circle_through(p: Point3<f64>) -> Curve3<f64> {
     let helper = Vec3::unit_x();
     let u = unit(helper - axis * helper.dot(axis));
     let radius = 0.3;
-    Curve3::Circle {
-        center: p - u * radius,
-        axis,
-        radius,
-        u_ref: u,
-    }
+    Curve3::circle(p - u * radius, axis, radius, u)
 }
 
 /// A circle ⊥ the torus's axis through `p` on its crest, centred
@@ -106,12 +101,12 @@ fn crest_circle_through(p: Point3<f64>) -> Curve3<f64> {
     let delta = 2.0 * tol().k() * tol().eps();
     let center = Point3::new(0.0, p.y, delta);
     let radius = p.distance(center);
-    Curve3::Circle {
+    Curve3::circle(
         center,
-        axis: Vec3::unit_y(),
+        Vec3::unit_y(),
         radius,
-        u_ref: (p - center) * (1.0 / radius),
-    }
+        (p - center) * (1.0 / radius),
+    )
 }
 
 fn strut(body: &mut Body<f64>, he: HalfEdgeKey, end: Point3<f64>, spec: EdgeCurveSpec<f64>) {
@@ -267,7 +262,7 @@ fn a_stale_wide_row_is_refused_complete_or_half_minted() {
             .unwrap()
             .carrier()
             .clone();
-        if !matches!(carrier, Curve3::Circle { .. }) {
+        if !matches!(carrier, Curve3::Circle(..)) {
             continue;
         }
         let cache = base.pcurve(h1).unwrap().clone();
@@ -303,12 +298,12 @@ fn a_stale_wide_row_is_refused_complete_or_half_minted() {
 /// zone.
 fn tilted_parallel_through(p: Point3<f64>, tilt: f64) -> Curve3<f64> {
     let r = (p.x * p.x + p.z * p.z).sqrt();
-    Curve3::Circle {
-        center: Point3::new(0.0, p.y, 0.0),
-        axis: unit(Vec3::new(tilt, 1.0, 0.0)),
-        radius: r,
-        u_ref: Vec3::new(p.x / r, 0.0, p.z / r),
-    }
+    Curve3::circle(
+        Point3::new(0.0, p.y, 0.0),
+        unit(Vec3::new(tilt, 1.0, 0.0)),
+        r,
+        Vec3::new(p.x / r, 0.0, p.z / r),
+    )
 }
 
 fn certificate_refused(e: &PcurveMintError) -> bool {
@@ -413,7 +408,7 @@ fn a_row_restated_a_whole_period_over_is_no_row() {
             .unwrap()
             .carrier()
             .clone();
-        if !matches!(carrier, Curve3::Circle { .. }) {
+        if !matches!(carrier, Curve3::Circle(..)) {
             continue;
         }
         let cache = base.pcurve(h1).unwrap().clone();
@@ -580,12 +575,12 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
         let chart = body.get_face(face).unwrap().surface;
         let tilt = (r / big).asin();
         let side = Vec3::new(0.0, family * tilt.sin(), sweep * tilt.cos());
-        let villarceau = Curve3::Circle {
-            center: Point3::new(r, 0.0, 0.0),
-            axis: Vec3::unit_x().cross(side),
-            radius: big,
-            u_ref: Vec3::unit_x(),
-        };
+        let villarceau = Curve3::circle(
+            Point3::new(r, 0.0, 0.0),
+            Vec3::unit_x().cross(side),
+            big,
+            Vec3::unit_x(),
+        );
         assert!(villarceau.eval(0.0).distance(outer) < 1e-12);
         assert!(villarceau.eval(core::f64::consts::PI).distance(inner) < 1e-12);
         let spec = EdgeCurveSpec::arc_of_circle(villarceau, 0.0, core::f64::consts::PI)

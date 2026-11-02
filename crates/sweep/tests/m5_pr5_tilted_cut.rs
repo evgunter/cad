@@ -53,7 +53,7 @@ fn ellipse_edges(body: &Body<f64>) -> Vec<(topo::EdgeKey, geom_brep::EdgeCurve<f
     let mut out = Vec::new();
     for (ek, edge) in body.edges() {
         if let Some(c) = body.get_curve_geom(edge.curve).and_then(|g| g.certified())
-            && matches!(c.carrier(), Curve3::Ellipse { .. })
+            && matches!(c.carrier(), Curve3::Ellipse(..))
         {
             out.push((ek, c.clone()));
         }
@@ -157,7 +157,10 @@ fn perpendicular_cut_stays_rung_1_circles() {
             let Some(c) = part.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
                 continue;
             };
-            if let Curve3::Circle { center, radius, .. } = *c.carrier()
+            if let Curve3::Circle(geom::Circle {
+                frame: geom::ConicFrame { center, .. },
+                radius,
+            }) = *c.carrier()
                 && (center.z - 0.5).abs() < 1e-12
             {
                 assert!((radius - 0.5).abs() < 1e-12);
@@ -321,7 +324,7 @@ mod interval {
             let Some(c) = above.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
                 continue;
             };
-            if !matches!(c.carrier(), Curve3::Ellipse { .. }) {
+            if !matches!(c.carrier(), Curve3::Ellipse(..)) {
                 continue;
             }
             count += 1;
@@ -730,7 +733,7 @@ fn even_crossing_belly_cut_at_interval() {
             let Some(c) = part.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
                 continue;
             };
-            if !matches!(c.carrier(), Curve3::Ellipse { .. }) {
+            if !matches!(c.carrier(), Curve3::Ellipse(..)) {
                 continue;
             }
             let (t0, t1) = c.params();

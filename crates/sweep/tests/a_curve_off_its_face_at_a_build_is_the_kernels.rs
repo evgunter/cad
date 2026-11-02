@@ -60,7 +60,10 @@ fn seam<T: Decide + Bounds>(body: &Body<T>) -> EdgeKey {
             body.get_curve_geom(e.curve)
                 .and_then(CurveGeom::certified)
                 .is_some_and(|c| match c.carrier() {
-                    Curve3::Circle { axis, .. } => axis.y.hi().abs() < 0.5,
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::ConicFrame { axis, .. },
+                        ..
+                    }) => axis.y.hi().abs() < 0.5,
                     _ => false,
                 })
         })

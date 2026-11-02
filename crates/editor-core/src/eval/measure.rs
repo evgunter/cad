@@ -439,7 +439,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                         .map(|(start, end)| [start, end]),
                     cell: CellOf::Edge(body, k),
                 },
-                Some(Curve3::Circle { .. }) => Carrier::Other("a circular edge"),
+                Some(Curve3::Circle(..)) => Carrier::Other("a circular edge"),
                 Some(_) => Carrier::Other("a curved edge"),
                 None => Carrier::Other("an unreadable edge"),
             }
@@ -711,15 +711,12 @@ fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Opt
     let from = |p: Point3<T>| (p - origin).norm();
     match c {
         Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
-        Curve3::Circle { center, radius, .. } => Some(from(*center) + *radius),
-        // The semi-axes carry no order and no sign (`geom_brep::Conic`):
-        // the reach is the larger MAGNITUDE.
-        Curve3::Ellipse {
-            center,
-            semi_u,
-            semi_v,
-            ..
-        } => Some(from(*center) + geom::Curve3::semi_axes_by_size(*semi_u, *semi_v).0),
+        Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { center, .. },
+            radius,
+        }) => Some(from(*center) + *radius),
+        // The reach is the larger semi-axis, whichever is stored first.
+        Curve3::Ellipse(e) => Some(from(e.frame.center) + e.semi_axes_by_size().0),
         // Every point of the spiric lies on its torus, within `R + r` of
         // the torus centre.
         Curve3::Spiric {
@@ -1710,13 +1707,15 @@ mod tests {
         let origin = Point3::new(0.3, -0.2, 0.1);
         let center = Point3::new(1.0, 2.0, -0.5);
         for (major, minor) in [(0.5, 3.0), (-3.0, 0.5), (-0.5, -3.0), (3.0, -0.5)] {
-            let e = Curve3::Ellipse {
-                center,
-                axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
-                semi_u: major,
-                semi_v: minor,
-                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
-            };
+            let e = Curve3::Ellipse(geom::Ellipse::new(
+                geom::ConicFrame::new(
+                    center,
+                    geom_core::Vec3::new(0.0, 0.0, 1.0),
+                    geom_core::Vec3::new(1.0, 0.0, 0.0),
+                ),
+                major,
+                minor,
+            ));
             let reach = curve_reach(&e, 0.0, core::f64::consts::TAU, origin).expect("a conic");
             let far = (0..=4000)
                 .map(|k| (e.eval(core::f64::consts::TAU * f64::from(k) / 4000.0) - origin).norm())

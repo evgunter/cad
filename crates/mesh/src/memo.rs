@@ -1064,8 +1064,8 @@ impl KeyWriter {
     fn curve3_kind(&mut self, c: &Curve3<f64>) {
         self.u8(match c {
             Curve3::Line { .. } => 0,
-            Curve3::Circle { .. } => 1,
-            Curve3::Ellipse { .. } => 2,
+            Curve3::Circle(..) => 1,
+            Curve3::Ellipse(..) => 2,
             Curve3::Nurbs(_) => 3,
             Curve3::Spiric { .. } => 4,
         });
@@ -1325,24 +1325,14 @@ mod tests {
                     dir: frame.1,
                 },
             ),
-            (
-                "circle",
-                Curve3::Circle {
-                    center: frame.0,
-                    axis: frame.1,
-                    radius: 1.0,
-                    u_ref: frame.2,
-                },
-            ),
+            ("circle", Curve3::circle(frame.0, frame.1, 1.0, frame.2)),
             (
                 "ellipse",
-                Curve3::Ellipse {
-                    center: frame.0,
-                    axis: frame.1,
-                    semi_u: 2.0,
-                    semi_v: 1.0,
-                    u_ref: frame.2,
-                },
+                Curve3::Ellipse(geom::Ellipse::new(
+                    geom::ConicFrame::new(frame.0, frame.1, frame.2),
+                    2.0,
+                    1.0,
+                )),
             ),
             (
                 "spiric",

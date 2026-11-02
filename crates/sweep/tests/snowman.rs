@@ -1537,7 +1537,10 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
         .map(|(v, d)| (v, caps.get_half_edge(d.emanating.unwrap()).unwrap().edge))
         .expect("a cap circle's conventional vertex");
     let at_vertex = *caps.get_point(caps.get_vertex(x).unwrap().point).unwrap();
-    let geom::Curve3::Circle { center, axis, .. } = *caps
+    let geom::Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame { center, axis, .. },
+        ..
+    }) = *caps
         .get_curve_geom(caps.get_edge(circle).unwrap().curve)
         .unwrap()
         .certified()
@@ -1618,7 +1621,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
                         .certified()
                         .unwrap()
                         .carrier(),
-                    geom::Curve3::Circle { .. }
+                    geom::Curve3::Circle(..)
                 ),
                 "{label}: the record's edge is the cap circle"
             );
@@ -1692,7 +1695,10 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
         .map(|(v, d)| (v, cap.get_half_edge(d.emanating.unwrap()).unwrap().edge))
         .expect("the cap circle's conventional vertex");
     let at_vertex = *cap.get_point(cap.get_vertex(x).unwrap().point).unwrap();
-    let geom::Curve3::Circle { center, axis, .. } = *cap
+    let geom::Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame { center, axis, .. },
+        ..
+    }) = *cap
         .get_curve_geom(cap.get_edge(circle).unwrap().curve)
         .unwrap()
         .certified()

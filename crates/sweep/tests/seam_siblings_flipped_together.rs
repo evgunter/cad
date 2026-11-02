@@ -287,12 +287,15 @@ fn split_along_a_meridian(
     let mut seam = None;
     let mut inside = None;
     for e in &edges {
-        let Curve3::Circle {
-            center: c,
-            axis: n,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center: c,
+                    axis: n,
+                    u_ref,
+                },
             radius: r,
-            u_ref,
-        } = e.carrier
+        }) = e.carrier
         else {
             continue;
         };

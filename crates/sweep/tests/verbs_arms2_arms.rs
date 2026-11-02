@@ -324,7 +324,10 @@ fn every_curved_arm_solves_the_rolling_ball_equations_in_both_configurations() {
                 (&row.b, &blend.trim_b, "second"),
             ] {
                 let q = match trim.0 {
-                    Curve3::Circle { center, radius, .. } => center + radial * radius,
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::ConicFrame { center, .. },
+                        radius,
+                    }) => center + radial * radius,
                     Curve3::Line { origin, .. } => origin,
                     _ => panic!("a blend trimline is a circle or a line"),
                 };
@@ -518,16 +521,14 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
         assert!((n0 - n1).abs() < 1e-12, "sphere_sense = {sphere_sense}");
         for (o, w) in [(&old.trim_a, &new.trim_a), (&old.trim_b, &new.trim_b)] {
             let (
-                Curve3::Circle {
-                    center: a,
+                Curve3::Circle(geom::Circle {
+                    frame: geom::ConicFrame { center: a, .. },
                     radius: ra,
-                    ..
-                },
-                Curve3::Circle {
-                    center: b,
+                }),
+                Curve3::Circle(geom::Circle {
+                    frame: geom::ConicFrame { center: b, .. },
                     radius: rb,
-                    ..
-                },
+                }),
             ) = (o.0.clone(), w.0.clone())
             else {
                 panic!("both doors mint circles");

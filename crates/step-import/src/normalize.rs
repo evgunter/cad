@@ -418,12 +418,13 @@ fn mint_band(
         for (ui, u) in lp.uses.iter().enumerate() {
             let spec = &solid.edges[&u.edge];
             let coaxial = match spec.carrier {
-                Curve3::Circle {
-                    center,
-                    axis: n,
+                Curve3::Circle(geom::Circle {
+                    frame:
+                        geom::ConicFrame {
+                            center, axis: n, ..
+                        },
                     radius,
-                    ..
-                } => {
+                }) => {
                     let d = center - axis_point;
                     let off_axis = (d - s_axis * d.dot(s_axis)).norm();
                     let tilt = radius * n.cross(s_axis).norm();
@@ -521,12 +522,12 @@ fn mint_band(
             origin: p_start,
             dir: s_axis,
         },
-        Some((center, major_radius, minor_radius)) => Curve3::Circle {
-            center: crate::signed_zero::plus_zero_point(center + s_u_ref * major_radius),
-            axis: crate::signed_zero::plus_zero(s_u_ref.cross(s_axis)),
-            radius: minor_radius,
-            u_ref: s_u_ref,
-        },
+        Some((center, major_radius, minor_radius)) => Curve3::circle(
+            crate::signed_zero::plus_zero_point(center + s_u_ref * major_radius),
+            crate::signed_zero::plus_zero(s_u_ref.cross(s_axis)),
+            minor_radius,
+            s_u_ref,
+        ),
     };
     let (t0, t1) = crate::geometry::endpoint_params(gen_id, &carrier, p_start, p_end, false)?;
     solid.edges.insert(
@@ -648,12 +649,15 @@ fn seam_vertex_on_loop(
     let mut crossing = None;
     for u in &solid.faces[fi].loops[li].uses {
         let spec = &solid.edges[&u.edge];
-        let Curve3::Circle {
-            center,
-            axis: n,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis: n,
+                    u_ref: uc,
+                },
             radius,
-            u_ref: uc,
-        } = spec.carrier
+        }) = spec.carrier
         else {
             // The caller checked every rim carrier is a coaxial
             // circle; anything else lands in the typed refusal below.
@@ -766,7 +770,11 @@ fn wall_inversion(
         let mut readable = true;
         for use_ in &lp.uses {
             let spec = &solid.edges[&use_.edge];
-            let Curve3::Circle { axis: n_c, .. } = spec.carrier else {
+            let Curve3::Circle(geom::Circle {
+                frame: geom::ConicFrame { axis: n_c, .. },
+                ..
+            }) = spec.carrier
+            else {
                 continue;
             };
             if n_c.dot(axis).abs() <= 0.5 {
@@ -855,12 +863,12 @@ mod tests {
             EdgeSpec {
                 start: base_v,
                 end: base_v,
-                carrier: Curve3::Circle {
-                    center: Point3::new(0.0, 0.0, -1.0),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    radius: 1.0,
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
-                },
+                carrier: Curve3::circle(
+                    Point3::new(0.0, 0.0, -1.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    1.0,
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 t0: 0.0,
                 t1: TAU,
                 reversed: false,

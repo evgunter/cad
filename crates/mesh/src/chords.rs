@@ -135,7 +135,7 @@ pub(crate) fn compute_chords(
         let target = edge_target(body, ek, delta)?;
         let n = match *curve.carrier() {
             Curve3::Line { .. } => 1,
-            Curve3::Circle { .. } => {
+            Curve3::Circle(..) => {
                 let mut n = ceil_count(span, sagitta_step(target, circle_radius(curve.carrier())))?;
                 for fk in adjacent_faces(body, ek)? {
                     if let Some(h) = grid_boundary_step(body, fk, curve, ek, delta)? {
@@ -148,9 +148,7 @@ pub(crate) fn compute_chords(
             // certified-conservative curvature-bound step; no torus
             // tightening applies (an ellipse never lies on a torus
             // chart of this kernel's constructions).
-            Curve3::Ellipse { semi_u, semi_v, .. } => {
-                ceil_count(span, ellipse_step(target, semi_u, semi_v))?
-            }
+            Curve3::Ellipse(ref e) => ceil_count(span, ellipse_step(target, e))?,
             // Spiric arcs (the hollowed partial revolve's torus rim):
             // the curvature-bound step from the closed-form `sup|C″|`
             // (`spiric_step`). No torus tightening: `grid_boundary_step`
@@ -799,7 +797,7 @@ pub(crate) fn projected_circle_speeds(
 /// The radius of a circle carrier (caller guarantees the variant).
 fn circle_radius(carrier: &Curve3<f64>) -> f64 {
     match *carrier {
-        Curve3::Circle { radius, .. } => radius,
+        Curve3::Circle(geom::Circle { radius, .. }) => radius,
         _ => f64::NAN,
     }
 }

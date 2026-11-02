@@ -182,7 +182,11 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
             .unwrap()
             .certified()
             .unwrap();
-        let Curve3::Circle { axis, .. } = *curve.carrier() else {
+        let Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { axis, .. },
+            ..
+        }) = *curve.carrier()
+        else {
             continue;
         };
         let mut on_torus = None;

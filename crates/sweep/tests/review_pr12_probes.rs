@@ -168,7 +168,7 @@ fn probe_d_rim_arc_orientation() {
         let c0 = carrier.eval(t0);
         let c1e = carrier.eval(t1);
         let aligned = (c0 - sp).norm() <= (c1e - sp).norm();
-        let is_circle = matches!(carrier, geom::Curve3::Circle { .. });
+        let is_circle = matches!(carrier, geom::Curve3::Circle(..));
         if is_circle {
             let req = BlendRequest {
                 body: &pipped,

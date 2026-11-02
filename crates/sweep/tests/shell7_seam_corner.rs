@@ -138,12 +138,10 @@ fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
     let (mut meridians, mut equators) = (0, 0);
     for &(e, _) in &out.naming.inner_edges {
         let (c, (t0, t1)) = carrier(cavity, e);
-        let Curve3::Circle {
-            center,
-            axis,
+        let Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { center, axis, .. },
             radius,
-            ..
-        } = c
+        }) = c
         else {
             panic!("{e:?}: a torus seam is a circle, got {c:?}");
         };

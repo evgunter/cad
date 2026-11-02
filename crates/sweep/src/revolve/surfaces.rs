@@ -107,12 +107,7 @@ pub(super) fn revolved_strut_spec<T: Real>(
                 angle: theta,
             },
         )),
-        carrier: Curve3::Circle {
-            center,
-            axis: axis_c,
-            radius,
-            u_ref: rim.normalize(),
-        },
+        carrier: Curve3::circle(center, axis_c, radius, rim.normalize()),
         param_start: T::zero(),
         param_end: theta.abs(),
     }

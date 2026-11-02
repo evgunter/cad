@@ -235,12 +235,15 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
     let mut meridians = 0;
     for (_, e) in a.edges() {
         let c = a.get_curve_geom(e.curve).unwrap().certified().unwrap();
-        let geom::Curve3::Circle {
-            center,
-            axis,
+        let geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } = *c.carrier()
+        }) = *c.carrier()
         else {
             continue;
         };

@@ -361,7 +361,7 @@ fn a_tilted_cut_clear_of_a_tipped_cylinder_hosts_trim_carves() {
             let Some(g) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
                 return false;
             };
-            matches!(*g.carrier(), geom::Curve3::Circle { radius, center, .. }
+            matches!(*g.carrier(), geom::Curve3::Circle(geom::Circle { frame: geom::ConicFrame { center, .. }, radius })
                 if (radius - 1.0).abs() < 1e-9
                     && (center.x - centre.x).abs() < 1e-9
                     && (center.y - centre.y).abs() < 1e-9

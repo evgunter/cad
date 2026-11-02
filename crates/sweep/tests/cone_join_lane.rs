@@ -173,7 +173,7 @@ fn conic_chords(body: &Body<f64>) -> Vec<Chord> {
     body.edges()
         .filter_map(|(_, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
-            if !matches!(c.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. }) {
+            if !matches!(c.carrier(), Curve3::Circle(..) | Curve3::Ellipse(..)) {
                 return None;
             }
             let EdgeDescription::Intersection { pair, .. } = c.description() else {
@@ -236,13 +236,14 @@ fn section(
 /// `chord`'s carrier is the conic `(centre, normal, a, b)`.
 fn is_conic(chord: &Chord, (centre, normal, a, b): (Point3<f64>, Vec3<f64>, f64, f64)) -> bool {
     let (c, axis, ra, rb) = match chord.carrier {
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { center, axis, .. },
             radius,
+        }) => (center, axis, radius, radius),
+        ref e @ Curve3::Ellipse(geom::Ellipse {
+            frame: geom::ConicFrame { center, axis, .. },
             ..
-        } => (center, axis, radius, radius),
-        ref e @ Curve3::Ellipse { center, axis, .. } => {
+        }) => {
             let frame = e.major_frame().unwrap();
             (center, axis, frame.major, frame.minor)
         }
@@ -376,13 +377,15 @@ fn cut_by_plane(chord: &Chord, cone: &Surface<f64>, (q, n): (Point3<f64>, Vec3<f
 /// The point of an ellipse carrier at its angle parameter `t`, and the
 /// parameter of a point on it.
 fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
-    let Curve3::Ellipse {
-        center,
-        axis,
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::ConicFrame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    } = e
+    }) = e
     else {
         panic!("an ellipse")
     };
@@ -390,13 +393,15 @@ fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
 }
 
 fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
-    let Curve3::Ellipse {
-        center,
-        axis,
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::ConicFrame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    } = e
+    }) = e
     else {
         panic!("an ellipse")
     };
@@ -478,7 +483,7 @@ fn lune_loops(
                     carrier: carrier.clone(),
                     surfaces: pair.keys().map(|s| body.get_surface(s).unwrap().clone()),
                 };
-                if !matches!(carrier, Curve3::Ellipse { .. })
+                if !matches!(carrier, Curve3::Ellipse(..))
                     || !planes.iter().any(|&pl| cut_by_plane(&chord, cone, pl))
                 {
                     all_lune = false;
@@ -558,7 +563,7 @@ fn the_rings_island_on_the_cone_face_winds_by_the_sections_curve() {
                     .filter(|ch| cut_by_plane(ch, &cone, (q, n)))
                 {
                     assert!(
-                        matches!(ch.carrier, Curve3::Ellipse { .. }),
+                        matches!(ch.carrier, Curve3::Ellipse(..)),
                         "{label}: the chord is an ellipse, got {:?}",
                         ch.carrier
                     );

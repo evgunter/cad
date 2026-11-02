@@ -151,7 +151,11 @@ fn die_pip_subtract_is_green() {
         let Some(curve) = cut.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        let &Curve3::Circle { radius, center, .. } = curve.carrier() else {
+        let &Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { center, .. },
+            radius,
+        }) = curve.carrier()
+        else {
             continue;
         };
         if (radius - rho).abs() < slack() && (center.z - 1.0).abs() < slack() {

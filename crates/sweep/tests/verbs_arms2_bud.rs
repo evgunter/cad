@@ -218,7 +218,11 @@ fn the_bud_band_meets_its_two_supports_on_the_closed_form_circles() {
             .unwrap()
             .certified()
             .unwrap();
-        let Curve3::Circle { center, radius, .. } = *c.carrier() else {
+        let Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { center, .. },
+            radius,
+        }) = *c.carrier()
+        else {
             panic!("a trim circle")
         };
         assert!(

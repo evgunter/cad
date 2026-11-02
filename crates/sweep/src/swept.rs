@@ -655,12 +655,14 @@ fn register_placed_carrier_end<T: Real>(
     start: Point2<T>,
     tol: Tol,
 ) {
-    let Curve3::Circle {
-        center,
-        axis,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    } = *carrier
+    }) = *carrier
     else {
         return;
     };
@@ -719,12 +721,12 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             // expression below rather than spelled twice: one
             // subtraction, one node, one set of bits.
             register_rigidity(rim, arc, seg.a(), tol);
-            let carrier = Curve3::Circle {
-                center: c_world,
-                axis: turn_axis(turn, normal),
-                radius: arc.radius,
-                u_ref: rim.normalize(),
-            };
+            let carrier = Curve3::circle(
+                c_world,
+                turn_axis(turn, normal),
+                arc.radius,
+                rim.normalize(),
+            );
             let param_end = arc_span(turn, arc);
             // The carrier end, stated where it is guaranteed
             // (`register_placed_carrier_end` carries the proof), about the
@@ -1712,12 +1714,15 @@ mod tests {
             let to3 = |p: Point2<S>| place.transform_point(Point3::new(p.x, p.y, lit(0.0)));
             let (q_from, q_to) = (to3(seg.a), to3(seg.b));
             let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);
-            let Curve3::Circle {
-                center,
-                axis,
+            let Curve3::Circle(geom::Circle {
+                frame:
+                    geom::ConicFrame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            } = spec.carrier
+            }) = spec.carrier
             else {
                 panic!("an arc places onto a circle carrier");
             };

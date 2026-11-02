@@ -768,7 +768,7 @@ fn piece_box(
                 i(origin.z) + i(dir.z) * t,
             ])
         }
-        Curve3::Circle { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
+        Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => {
             let bx = geom::curves::boxes::conic_arc_aabb(
                 carrier,
                 a,
@@ -1037,12 +1037,12 @@ mod tests {
             vec![1.0; 6],
         )
         .unwrap();
-        let circle = Curve3::Circle {
-            center: Point3::new(cx, 0.5, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.2,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let circle = Curve3::circle(
+            Point3::new(cx, 0.5, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            0.2,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let t0 = core::f64::consts::FRAC_PI_8;
         let p = circle.eval(t0);
         SolidSpec {
@@ -1338,12 +1338,12 @@ mod tests {
         }
 
         fn circle(cx: f64, cy: f64, r: f64) -> Curve3<f64> {
-            Curve3::Circle {
-                center: Point3::new(cx, cy, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: r,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }
+            Curve3::circle(
+                Point3::new(cx, cy, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                r,
+                Vec3::new(1.0, 0.0, 0.0),
+            )
         }
 
         /// Circles whose rightmost point passes the line `x = xk` by
