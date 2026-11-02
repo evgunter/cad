@@ -62,6 +62,11 @@ use topo::BooleanOp;
 /// name says that read too ("joined at Union … from Place …"), and its
 /// claimed name says one more read by tag
 /// (`name-words-budget-grew-under-placed-copy-wrapping`).
+///
+/// Seven of its words are its recourse's: "Recourse: update the
+/// reference to a version of the part that names it" says thirteen,
+/// and the clause it replaced ("so the crossing does not re-verify")
+/// said six.
 const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 87)];
 
 /// **The names' own lengths in words, p50, p99, max and the total**: a

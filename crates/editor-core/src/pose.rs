@@ -772,6 +772,21 @@ pub enum PoseFault {
     },
 }
 
+impl PoseFault {
+    /// The edit that writes this pose as a door stores it, where the
+    /// fault names one of its own; `None` where the read's kinds are
+    /// the way through.
+    pub(crate) fn own_recourse(&self) -> Option<&'static str> {
+        match self {
+            Self::DoubleFlip => Some(
+                "read the unflipped pose instead, through the role the inner flip reads it \
+                 through if it reads one",
+            ),
+            _ => None,
+        }
+    }
+}
+
 impl core::fmt::Display for PoseFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -785,10 +800,7 @@ impl core::fmt::Display for PoseFault {
                 read.label(),
                 crate::sentence::article(&found.to_string())
             ),
-            Self::DoubleFlip => f.write_str(
-                "it flips a flip, which is the unflipped pose: read that pose instead, through \
-                 the role the inner flip reads it through if it reads one",
-            ),
+            Self::DoubleFlip => f.write_str("it flips a flip, which is the unflipped pose"),
             Self::Unminted { var } => {
                 write!(
                     f,

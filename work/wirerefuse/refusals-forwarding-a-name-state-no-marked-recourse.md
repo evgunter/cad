@@ -66,3 +66,12 @@ line) found and fixed four more: `SelectRefusal::NotAPlane`
 (`resolve/pick.rs`). Blind spot: a recourse joined by `,`/`:` or
 spread over a wrapped literal line the regex does not see, and rows
 that state none at all (those are `FILED_NO_RECOURSE`'s).
+
+Review fix pass (2026-11-02): the sweep's `:` blind spot hid
+`PoseFault::DoubleFlip` (`pose.rs`), whose "read that pose instead"
+rode inside both pose doors' own marked recourse. The fault now says
+the problem alone, and `PoseFault::own_recourse` gives the edit door
+its recourse in place of the generic one; the load door's stays
+`REGENERATE_RECOURSE`. `display_contract::the_swept_rows_say_one_recourse_marked`
+now holds the four swept rows and both doubled-flip doors to one
+marked recourse and none before the label.
