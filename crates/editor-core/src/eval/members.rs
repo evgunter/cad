@@ -109,6 +109,31 @@ pub(crate) fn members<'a, P: crate::ProfilePayload, E: Clone + 'a, C: Decide + '
     counts: impl Fn(&E) -> &crate::expr::VarEnv<C> + 'a,
     bind: impl Fn(&mut E, &[(VarId, i64)]) + 'a,
 ) -> impl Iterator<Item = Result<(Vec<i64>, E), MemberCountFault>> + 'a {
+    listing(doc, base, chain, counts, bind).filter_map(|step| match step {
+        Ok(Listed::Member(values, at)) => Some(Ok((values, at))),
+        Ok(Listed::Within) => None,
+        Err(fault) => Some(Err(fault)),
+    })
+}
+
+/// One step of a listing: a member, or an outer index's value bound
+/// with the indices within it still to list.
+enum Listed<E> {
+    Member(Vec<i64>, E),
+    Within,
+}
+
+/// [`members`], one item per index value bound: a member where the
+/// value is the innermost index's, [`Listed::Within`] where it is an
+/// outer one's. So a reader counting listing steps counts each as it
+/// happens, however many outer values bind no member.
+fn listing<'a, P: crate::ProfilePayload, E: Clone + 'a, C: Decide + 'a>(
+    doc: &'a Doc<P>,
+    base: E,
+    chain: &'a [VarId],
+    counts: impl Fn(&E) -> &crate::expr::VarEnv<C> + 'a,
+    bind: impl Fn(&mut E, &[(VarId, i64)]) + 'a,
+) -> impl Iterator<Item = Result<Listed<E>, MemberCountFault>> + 'a {
     // `levels[d]` is the environment with the indices above `chain[d]`
     // bound, the next value of `chain[d]` and its count.
     let count_of = move |index: VarId, env: &E| -> Result<i64, MemberCountFault> {
@@ -133,7 +158,7 @@ pub(crate) fn members<'a, P: crate::ProfilePayload, E: Clone + 'a, C: Decide + '
         if let Some(base) = first.take() {
             let Some(&outer) = chain.first() else {
                 done = true;
-                return Some(Ok((Vec::new(), base)));
+                return Some(Ok(Listed::Member(Vec::new(), base)));
             };
             match count_of(outer, &base) {
                 Ok(count) => levels.push((base, 0, count)),
@@ -159,10 +184,13 @@ pub(crate) fn members<'a, P: crate::ProfilePayload, E: Clone + 'a, C: Decide + '
             bind(&mut at, &[(chain[depth - 1], value)]);
             if depth == chain.len() {
                 let values = levels.iter().map(|(_, next, _)| next - 1).collect();
-                return Some(Ok((values, at)));
+                return Some(Ok(Listed::Member(values, at)));
             }
             match count_of(chain[depth], &at) {
-                Ok(count) => levels.push((at, 0, count)),
+                Ok(count) => {
+                    levels.push((at, 0, count));
+                    return Some(Ok(Listed::Within));
+                }
                 Err(fault) => {
                     done = true;
                     return Some(Err(fault));
@@ -170,6 +198,53 @@ pub(crate) fn members<'a, P: crate::ProfilePayload, E: Clone + 'a, C: Decide + '
             }
         }
     })
+}
+
+/// **The listing steps `chain`'s members take**: every index value
+/// bound while they are listed by [`members`]' own walk, over `env` and
+/// `nominal` as [`eval_family`] binds them, no member evaluated. `None` as soon as the steps pass `remaining`, so a
+/// charge never lists further than the budget it is charged against. A
+/// count that faults ends the listing where the family's evaluation
+/// refuses it.
+///
+/// # Errors
+///
+/// [`super::Canceled`] where `cancel` is set before a step.
+pub(super) fn listing_steps<T: Decide>(
+    doc: &Doc<ProfileProgram>,
+    env: &crate::expr::VarEnv<T>,
+    nominal: &crate::expr::VarEnv<f64>,
+    chain: &[VarId],
+    remaining: u64,
+    cancel: &super::CancelToken,
+) -> Result<Option<u64>, super::Canceled> {
+    let mut steps = 0u64;
+    for step in listing(
+        doc,
+        (env.clone(), nominal.clone()),
+        chain,
+        |(params, _): &(crate::expr::VarEnv<T>, crate::expr::VarEnv<f64>)| params,
+        // Only an outer index's binding is read, by the counts within
+        // it; a member's environment is never built.
+        |(params, nominal): &mut (crate::expr::VarEnv<T>, crate::expr::VarEnv<f64>), at| {
+            if at.iter().all(|(index, _)| Some(index) != chain.last()) {
+                doc.bind_member(params, at);
+                doc.bind_member(nominal, at);
+            }
+        },
+    ) {
+        if cancel.is_canceled() {
+            return Err(super::Canceled);
+        }
+        if step.is_err() {
+            break;
+        }
+        steps += 1;
+        if steps > remaining {
+            return Ok(None);
+        }
+    }
+    Ok(Some(steps))
 }
 
 /// **`results` at one member**: each family a member of whose stands

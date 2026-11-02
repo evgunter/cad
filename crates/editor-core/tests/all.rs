@@ -331,6 +331,8 @@ mod m10_4_r1_probes_interval;
 mod m10_4_seed;
 #[path = "maintenance_net.rs"]
 mod maintenance_net;
+#[path = "member_budget.rs"]
+mod member_budget;
 #[path = "msolve10_door_admission.rs"]
 mod msolve10_door_admission;
 #[path = "msolve11_mate_log.rs"]

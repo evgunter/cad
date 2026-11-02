@@ -396,6 +396,9 @@ pub struct DocSession {
     /// How many stages have been asked for: the next one's key.
     stages: u64,
     generation: Generation,
+    /// Where the current request's run ran out of its member budget,
+    /// once it has landed so; cleared by the next request.
+    exhausted: Option<OutOfBudget>,
     /// The document handed to the seam under [`DocSession::generation`]
     /// — kept so a landed result can be paired with the document it
     /// actually answers.
@@ -793,6 +796,24 @@ pub enum Landing {
     /// last good evaluation stays on screen and the session goes on
     /// owing an answer.
     Canceled,
+    /// It answered the current request but ran out of its member budget
+    /// ([`pncad::document::EvalOutcome::Exhausted`]), so it carries a
+    /// prefix as a canceled one does, and the last good evaluation stays.
+    /// Unlike a cancel, evaluating the same document again runs out at
+    /// the same node: the recourse is a smaller count.
+    Exhausted(OutOfBudget),
+}
+
+/// **Where a run ran out of its member budget**
+/// ([`pncad::document::EvalOutcome::Exhausted`]'s fields).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OutOfBudget {
+    /// The family whose listing crossed the budget.
+    pub at: RecipeNodeId,
+    /// The listing steps the families before it were charged.
+    pub held: u64,
+    /// The budget.
+    pub budget: u64,
 }
 
 /// What the session owes at one moment: the picture against the
@@ -818,6 +839,11 @@ pub enum Outstanding {
     /// from it, and the state exists so the chrome does not spin over
     /// an idle seam forever.
     Canceled,
+    /// The picture is older than the document and nothing is working
+    /// on it because the current request ran out of its member budget
+    /// ([`Landing::Exhausted`]). Re-evaluating the same document runs
+    /// out again; an edit that lowers a count is the recourse.
+    Exhausted(OutOfBudget),
 }
 
 impl DocSession {
@@ -842,6 +868,7 @@ impl DocSession {
             stager: Box::new(InlineStager::new()),
             stages: 0,
             generation: Generation::FIRST,
+            exhausted: None,
             derived: Derived::none(),
             path: None,
             display: DisplayState::new(),
@@ -1385,6 +1412,8 @@ impl DocSession {
             Outstanding::Current
         } else if self.running() {
             Outstanding::Evaluating
+        } else if let Some(out) = self.exhausted {
+            Outstanding::Exhausted(out)
         } else {
             Outstanding::Canceled
         }
@@ -1527,6 +1556,13 @@ impl DocSession {
     pub fn land(&mut self, done: crate::evalseam::EvalDone) -> Landing {
         if done.generation != self.generation {
             return Landing::Stale;
+        }
+        if let pncad::document::EvalOutcome::Exhausted { at, held, budget } =
+            done.evaluation.outcome
+        {
+            let out = OutOfBudget { at, held, budget };
+            self.exhausted = Some(out);
+            return Landing::Exhausted(out);
         }
         if !done.completed() {
             return Landing::Canceled;
@@ -4193,6 +4229,7 @@ impl DocSession {
         self.derived.stage = None;
         self.stager.cancel();
         self.generation = self.generation.next();
+        self.exhausted = None;
         // ONE clone of the shown document per request: into the
         // `Arc` the session keeps, then out of it into the request the
         // seam owns. The second is the seam's vocabulary (`EvalRequest`
@@ -5344,6 +5381,7 @@ impl core::fmt::Debug for DocSession {
             stager: _,
             stages: _,
             generation,
+            exhausted,
             requested_doc: _,
             requested_resolver: _,
             derived,
@@ -5356,6 +5394,7 @@ impl core::fmt::Debug for DocSession {
         } = self;
         f.debug_struct("DocSession")
             .field("generation", generation)
+            .field("exhausted", exhausted)
             .field("states", &history.len())
             .field(
                 "gesture",

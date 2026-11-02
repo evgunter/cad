@@ -193,6 +193,17 @@ const FEATURES_SLACK: f32 = 8.0;
 /// on screen (`frame::Progress::Canceled`).
 const CANCELED_LINE: &str = "canceled — showing an older result";
 
+/// What the toolbar says while a run that ran out of its member budget
+/// leaves an older picture on screen (`frame::Progress::Exhausted`),
+/// `at` the spoken family it ran out at.
+fn exhausted_line(at: &str, out: crate::session::OutOfBudget) -> String {
+    format!(
+        "ran out of the member budget at {at} ({} of {} listing steps held before it) — \
+         showing an older result; lower a count to evaluate it",
+        out.held, out.budget
+    )
+}
+
 /// `color` as the toolkit's own colour type.
 ///
 /// The one place a [`Rgba8`] becomes an `egui::Color32`, matching
@@ -1922,6 +1933,17 @@ impl ViewerApp {
                         ui.ctx().request_repaint();
                     }
                 }
+                // No Re-evaluate beside it: the same document runs out
+                // at the same family again.
+                Some(frame::Progress::Exhausted { index, out }) => {
+                    ui.separator();
+                    if index == IndexSeam::Building {
+                        ui.spinner();
+                        ui.ctx().request_repaint();
+                    }
+                    let at = self.session.doc().spoken(out.at).to_string();
+                    crate::widgets::message(ui, exhausted_line(&at, out));
+                }
                 // No Cancel button beside it, and that is the
                 // seam's promise showing through the chrome: the
                 // build cannot be stopped, only outrun by a newer
@@ -3171,6 +3193,9 @@ mod tests {
                     session.perform(SessionOp::Reevaluate);
                     session.perform(SessionOp::CancelEvaluation);
                     session.pump();
+                }
+                Outstanding::Exhausted(_) => {
+                    unreachable!("the plate runs out of no budget; the table below plants none")
                 }
             }
             assert_eq!(

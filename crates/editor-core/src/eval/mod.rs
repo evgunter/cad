@@ -120,7 +120,7 @@ pub struct Evaluation<T: Decide> {
     /// because the question is the same one.
     ///
     /// `evaluate` is total (it returns no `Result`) and [`EvalOutcome`]
-    /// is completed-or-canceled, so the refusal is recorded on the
+    /// is completed, canceled or exhausted, so the refusal is recorded on the
     /// value the caller already reads rather than pushed into an
     /// outcome arm that would mean something else. `None` is both "no
     /// prior" and "a prior of this document".
@@ -130,10 +130,10 @@ pub struct Evaluation<T: Decide> {
     /// lesser id, the node inserted first). Always the FULL order, even when
     /// canceled — order is data, not schedule.
     pub order: Vec<RecipeNodeId>,
-    /// Per-node results. On cancelation this holds the completed
-    /// prefix only.
+    /// Per-node results. On cancelation or exhaustion this holds the
+    /// completed prefix only.
     pub nodes: BTreeMap<RecipeNodeId, NodeResult<T>>,
-    /// Completed or canceled (spec D5's typed partial result).
+    /// Completed, canceled or exhausted (spec D5's typed partial result).
     pub outcome: EvalOutcome,
     /// How many nodes actually ran their op this evaluation (spec D4's
     /// acceptance counter: the downstream cone of an edit).
@@ -504,7 +504,8 @@ impl<T: Decide> Evaluation<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NodeStanding {
     /// The node is in this evaluation's order but has no result: the
-    /// run was canceled before it reached the node.
+    /// run was canceled, or ran out of its member budget, before it
+    /// reached the node.
     NotEvaluated {
         /// The node.
         node: RecipeNodeId,
@@ -606,10 +607,13 @@ impl crate::spoken::Say for NodeStanding {
         match *self {
             Self::NotEvaluated { node } => write!(
                 f,
-                "{} has no result in this evaluation: the run was canceled before it \
-                 reached the node. {}",
+                "{} has no result in this evaluation: the run stopped before it reached \
+                 the node, canceled or out of its member budget. {}",
                 by.node(node),
-                Recourse("re-evaluate the document to completion")
+                Recourse(
+                    "re-evaluate the document to completion, under a member budget that \
+                     admits its families"
+                )
             ),
             Self::NotInDocument { node } => write!(
                 f,
@@ -696,6 +700,19 @@ pub enum EvalOutcome {
     /// The cancel token was observed set at a yield point; `nodes`
     /// holds the completed prefix.
     Canceled,
+    /// The run's member budget ([`EvalOptions::member_budget`]) ran out
+    /// at admission: `nodes` holds the completed prefix, the nodes
+    /// before `at` in [`Evaluation::order`], and `at` and every node
+    /// after it hold no result. Running out is the run's, not a fault of
+    /// `at`; the recourse is a larger budget or a smaller count.
+    Exhausted {
+        /// The family whose listing crossed the budget.
+        at: RecipeNodeId,
+        /// The listing steps the families before `at` were charged.
+        held: u64,
+        /// The budget the run was given.
+        budget: u64,
+    },
 }
 
 /// One node's outcome (F2 verbatim, spec D2).
@@ -1692,8 +1709,8 @@ pub enum NodeErrorKind {
         source: EvalError,
     },
     /// **An index's count evaluated outside the counts an index holds**:
-    /// below zero, or past the largest member index the evaluator reads
-    /// into a `u32`.
+    /// below zero, or past `u32::MAX`, which no member index can be.
+    /// A fact about the document, not about any run's cost.
     IndexCountOutOfRange {
         /// The index.
         index: crate::VarId,
@@ -2273,12 +2290,17 @@ impl crate::spoken::Say for NodeErrorKind {
                     by.read(*index)
                 )
             }
+            Self::IndexCountOutOfRange { index, count } if *count < 0 => write!(
+                f,
+                "the count of index {} evaluated to {count}, below zero. Recourse: make it \
+                 evaluate to zero or more",
+                by.read(*index),
+            ),
             Self::IndexCountOutOfRange { index, count } => write!(
                 f,
-                "the count of index {} evaluated to {count}, and an index holds {} to {} \
-                 members. Recourse: make it evaluate within that range",
+                "the count of index {} evaluated to {count}, and a member index is a 32-bit \
+                 value, so no count past {} can name its members. Recourse: lower the count",
                 by.read(*index),
-                crate::MemberCountFault::ADMITS.start(),
                 crate::MemberCountFault::ADMITS.end()
             ),
             // Every role word is already a complete noun phrase for
@@ -3064,7 +3086,24 @@ pub struct EvalOptions {
     /// the row that holds the frame no part of meaning compares both.
     /// `None` — the default — is the evaluation as built.
     pub computing_twist: Option<ComputingTwist>,
+    /// **The run's member budget** (D9): the listing steps every family
+    /// of the run may take together, a listing step being one index
+    /// value bound while a family's members are listed, memo-served or
+    /// not. Families are charged at admission in the schedule's order,
+    /// before anything is built; the first whose charge passes what
+    /// remains stops the run as [`EvalOutcome::Exhausted`]. The budget
+    /// enters no key: a run under it is the same run at any budget.
+    /// [`DEFAULT_MEMBER_BUDGET`] by default.
+    pub member_budget: u64,
 }
+
+/// **The member budget a run has unless its caller states another**
+/// ([`EvalOptions::member_budget`]). A member costs about 17.5 KB and
+/// 1.1 ms in a debug build (a ring of copies of one block), so the
+/// default admits about 1.1 GB and a minute and a quarter of members:
+/// within a desktop's memory, and as large as the subdivision driver's
+/// leaf budget ([`crate::drive::DEFAULT_MAX_LEAVES`]).
+pub const DEFAULT_MEMBER_BUDGET: u64 = 65_536;
 
 /// **A rigid motion stated in `f64`**, lifted to an evaluation's scalar
 /// ([`EvalOptions::computing_twist`]): a turn of `angle` radians about
@@ -3442,6 +3481,7 @@ impl Default for EvalOptions {
             symbols: false,
             pin: false,
             computing_twist: None,
+            member_budget: DEFAULT_MEMBER_BUDGET,
         }
     }
 }
@@ -3740,6 +3780,7 @@ where
         None => parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
             .with_symbols(opts.symbols)
             .with_twist(opts.computing_twist)
+            .with_member_budget(opts.member_budget)
             .enter_census(doc, prior.map(|p| &p.parts), cancel, tol),
     };
     // A placement's bundle is folded where the placement evaluates
@@ -3769,6 +3810,19 @@ where
     let mut recomputed = 0usize;
     let mut reused = 0usize;
     let mut outcome = EvalOutcome::Completed;
+    let mut admission = Admission::new(&sched.order, opts.member_budget);
+    let charge = |id: RecipeNodeId, remaining: u64| {
+        // A part whose own run ran out stops this run at its instance.
+        if parts::instantiated(doc, id).is_some_and(|r| entry.reached.exhausted(&r, tol)) {
+            return Ok(None);
+        }
+        match chains.get(&id) {
+            Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
+                members::listing_steps(doc, &env, &nominal_env, chain, remaining, cancel)
+            }
+            _ => Ok(Some(0)),
+        }
+    };
 
     // The level schedule runs only where a decision is thread-portable
     // (`geom_core::sym::decisions_are_thread_portable`): under an
@@ -3789,6 +3843,27 @@ where
                 outcome = EvalOutcome::Canceled;
                 break;
             }
+            // Admission runs in `sched.order`, through the level's last
+            // node in it, so a level runs what the serial walk would
+            // have run of it and the crossing node is the serial walk's.
+            let through = level.iter().map(|id| admission.position(*id)).max();
+            if let Some(through) = through
+                && admission.admit_through(through, &charge).is_err()
+            {
+                outcome = EvalOutcome::Canceled;
+                break;
+            }
+            let admitted: Vec<RecipeNodeId>;
+            let level = if admission.crossed.is_some() {
+                admitted = level
+                    .iter()
+                    .copied()
+                    .filter(|id| admission.admits(*id))
+                    .collect();
+                &admitted
+            } else {
+                level
+            };
             // D6 / D9-addendum idiom 1: an INDEXED parallel map into
             // per-node slots — results land keyed by node id, the
             // combination is positional (one map entry per node),
@@ -3815,9 +3890,16 @@ where
             }
         }
     } else {
-        for &id in &sched.order {
+        for (at, &id) in sched.order.iter().enumerate() {
             if cancel.is_canceled() {
                 outcome = EvalOutcome::Canceled;
+                break;
+            }
+            if admission.admit_through(at, &charge).is_err() {
+                outcome = EvalOutcome::Canceled;
+                break;
+            }
+            if admission.crossed.is_some() {
                 break;
             }
             let Ok(step) = eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol)
@@ -3828,6 +3910,12 @@ where
             bookkeep(&step, &mut recomputed, &mut reused);
             nodes.insert(id, step.result);
         }
+    }
+
+    if outcome == EvalOutcome::Completed
+        && let Some(exhausted) = admission.exhausted()
+    {
+        outcome = exhausted;
     }
 
     // Cycle leftovers (unreachable through `apply`): typed refusals,
@@ -3871,6 +3959,73 @@ where
         spaces: Arc::new(doc.spaces()),
         parts: entry.carried,
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
+    }
+}
+
+/// **A run's member budget, charged at admission** in `order`, the
+/// schedule's order: each node is charged its listing steps before it
+/// runs, and every node before it in `order` is charged first, so the
+/// node the budget runs out at is the same under either schedule.
+struct Admission<'o> {
+    order: &'o [RecipeNodeId],
+    position: BTreeMap<RecipeNodeId, usize>,
+    /// The position in `order` of the next node to charge.
+    next: usize,
+    held: u64,
+    budget: u64,
+    /// The position of the node whose charge passed what remained.
+    crossed: Option<usize>,
+}
+
+impl<'o> Admission<'o> {
+    fn new(order: &'o [RecipeNodeId], budget: u64) -> Self {
+        Self {
+            order,
+            position: order.iter().enumerate().map(|(at, &id)| (id, at)).collect(),
+            next: 0,
+            held: 0,
+            budget,
+            crossed: None,
+        }
+    }
+
+    fn position(&self, id: RecipeNodeId) -> usize {
+        self.position
+            .get(&id)
+            .copied()
+            .unwrap_or_else(|| unreachable!("a level holds nodes of the schedule's order"))
+    }
+
+    /// Charges every node through position `through` not yet charged,
+    /// stopping at the first whose charge passes what remains; `charge`
+    /// lists a node's members against the remainder.
+    fn admit_through(
+        &mut self,
+        through: usize,
+        charge: &impl Fn(RecipeNodeId, u64) -> Result<Option<u64>, Canceled>,
+    ) -> Result<(), Canceled> {
+        while self.crossed.is_none() && self.next <= through {
+            match charge(self.order[self.next], self.budget - self.held)? {
+                Some(steps) => self.held += steps,
+                None => self.crossed = Some(self.next),
+            }
+            self.next += 1;
+        }
+        Ok(())
+    }
+
+    /// Whether `id` stands before the node the budget ran out at.
+    fn admits(&self, id: RecipeNodeId) -> bool {
+        self.crossed
+            .is_none_or(|crossed| self.position(id) < crossed)
+    }
+
+    fn exhausted(&self) -> Option<EvalOutcome> {
+        self.crossed.map(|crossed| EvalOutcome::Exhausted {
+            at: self.order[crossed],
+            held: self.held,
+            budget: self.budget,
+        })
     }
 }
 

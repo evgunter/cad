@@ -325,12 +325,14 @@ pub use editor_core::DocParamField;
 // frame it computed in, which a payload holds wherever it holds a body;
 // `EvalCounters` counts what an evaluation built (a copy builds
 // nothing); `ComputingTwist` is `EvalOptions::computing_twist`'s type,
-// the second computing frame a test runs an evaluation in.
+// the second computing frame a test runs an evaluation in;
+// `DEFAULT_MEMBER_BUDGET` is `EvalOptions::member_budget`'s one default,
+// which a caller raising or lowering the budget reads it against.
 pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
-    DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation, Framed, Mispaired,
-    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    PoseValue, SplitSide, ValuePayload, evaluate,
+    DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
+    Framed, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
+    NodeStanding, NodeValue, PoseValue, SplitSide, ValuePayload, evaluate,
 };
 // What a body value carries from its source (`NodeValue::carry`), and
 // the pieces it holds: what a `⊔` grafted, each by its read, which a

@@ -279,6 +279,12 @@ pub enum BindingViolation {
     /// The `f64` evaluation (or a pass) did not run to completion — a
     /// canceled prefix validates nothing.
     Incomplete,
+    /// The `f64` evaluation (or a pass) ran out of its member budget
+    /// ([`EvalOutcome::Exhausted`]): a prefix validates nothing.
+    Exhausted {
+        /// The budget it ran out of.
+        budget: u64,
+    },
     /// The `f64` evaluation (or a pass) refused before building
     /// anything ([`Evaluation::refused_whole`]): it was asked for a
     /// seed or a parameter box its scalar cannot carry, or its
@@ -324,6 +330,12 @@ impl core::fmt::Display for BindingViolation {
             Self::Incomplete => f.write_str(
                 "the f64 build of record is a canceled prefix — an incomplete run \
                  validates nothing, so there is no build of record to differentiate",
+            ),
+            Self::Exhausted { budget } => write!(
+                f,
+                "the f64 build of record ran out of its member budget of {budget} listing steps \
+                 — a prefix validates nothing; raise `EvalOptions::member_budget` or lower a \
+                 count",
             ),
             Self::NotABuild => f.write_str(
                 "the f64 build of record refused every node before building anything (a \
@@ -791,8 +803,12 @@ impl ValueBits for Dual64 {
 impl BuildIdentity {
     /// `ev`'s identity, or why it has none to bind by.
     fn of<T: ValueBits>(ev: &Evaluation<T>) -> Result<Self, BindingViolation> {
-        if ev.outcome != EvalOutcome::Completed {
-            return Err(BindingViolation::Incomplete);
+        match ev.outcome {
+            EvalOutcome::Completed => {}
+            EvalOutcome::Canceled => return Err(BindingViolation::Incomplete),
+            EvalOutcome::Exhausted { budget, .. } => {
+                return Err(BindingViolation::Exhausted { budget });
+            }
         }
         if ev.refused_whole() {
             return Err(BindingViolation::NotABuild);
