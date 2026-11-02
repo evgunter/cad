@@ -175,7 +175,7 @@ pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
     CornerRefusal, CornerWindow, LineTarget, OntoTarget, Open, PartialPath, PathError,
     PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via,
-    circle, circle_split,
+    circle, circle_split, rectangle,
 };
 /// The path door's read-back rounding bounds and its magnitude
 /// headroom (`seg::read_back_arc`), for the suites that hold a scene's
@@ -183,7 +183,7 @@ pub use path::{
 #[cfg(any(test, feature = "test-support"))]
 pub use seg::{LANDING_ULPS as READ_BACK_LANDING_ULPS, READ_BACK_RIM_ULPS, resolution_headroom};
 pub use structure::{
-    CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
+    CIRCLE_PIECES, CanonicalStructure, RECTANGLE_PIECES, CornerGate, Decision, DecisionValue, FilletDecision,
     LoopCanonical, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure,
     RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind, carrier_pieces,
 };

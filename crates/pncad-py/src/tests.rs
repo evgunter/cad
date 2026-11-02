@@ -5408,6 +5408,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "nonpositive_circle_radius",
             "nonpositive_fillet_radius",
             "nonpositive_leg",
+            "nonpositive_rectangle_side",
             "overdetermined_junction",
             "polygon_too_few_vertices",
             "seam_arrival_lever_too_short",

@@ -5774,6 +5774,7 @@ fn verb_tag(verb: profile::Verb) -> u8 {
         V::FilletArc => 38,
         V::ArcFillet => 39,
         V::ArcFilletArc => 40,
+        V::Rectangle => 44,
     }
 }
 
@@ -5993,6 +5994,16 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             h.write_u64(*n as u64);
             f(h, *phase);
         }
+        Step::Rectangle {
+            centre,
+            width,
+            height,
+        } => {
+            f(h, centre.x);
+            f(h, centre.y);
+            f(h, *width);
+            f(h, *height);
+        }
     }
 }
 
@@ -6099,6 +6110,15 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
             pt(h, centre);
             f(h, radius);
             f(h, phase);
+        }
+        Step::Rectangle {
+            centre,
+            width,
+            height,
+        } => {
+            pt(h, centre);
+            f(h, width);
+            f(h, height);
         }
     }
 }

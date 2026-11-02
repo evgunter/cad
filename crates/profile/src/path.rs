@@ -410,7 +410,7 @@ pub use family::{
 /// [`program`]; this module is their public home.
 pub use onto::{ArcOnto, ArcOntoStart, OntoTarget};
 #[doc(inline)]
-pub use program::{circle, circle_split};
+pub use program::{circle, circle_split, rectangle};
 pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
 #[doc(hidden)]
 pub use verbs::{DirectedPoint, TangentArcLeg};
@@ -1217,6 +1217,16 @@ pub enum PathError<T: Real> {
         /// The refused swept angle, radians.
         angle: T,
     },
+    /// A [`rectangle`] width or height that is not definitely positive:
+    /// a zero side is a segment and a negative one names no rectangle.
+    /// Classified through the funnel (`path_rectangle_side`), consistent
+    /// with the other sign gates.
+    NonpositiveRectangleSide {
+        /// Which side was refused: `"width"` or `"height"`.
+        side: &'static str,
+        /// The refused extent, meters (scalar-typed payload).
+        length: T,
+    },
     /// A [`circle_split`] subdivision count outside `2..=u32::MAX`.
     /// One vertex cannot carry a full turn (bulge = tan(θ/4) diverges
     /// at θ = 2π), so the smallest declared subdivision of a closed
@@ -1524,6 +1534,8 @@ pub enum PathErrorKind {
     NonpositiveFilletRadius,
     /// [`PathError::NonpositiveCircleRadius`].
     NonpositiveCircleRadius,
+    /// [`PathError::NonpositiveRectangleSide`].
+    NonpositiveRectangleSide,
     /// [`PathError::DegenerateArcSpec`].
     DegenerateArcSpec,
     /// [`PathError::ArcSweepNotShortOfFullTurn`].
@@ -1589,6 +1601,7 @@ impl<T: Real> PathError<T> {
             Self::NonpositiveLeg { .. } => PathErrorKind::NonpositiveLeg,
             Self::NonpositiveFilletRadius { .. } => PathErrorKind::NonpositiveFilletRadius,
             Self::NonpositiveCircleRadius { .. } => PathErrorKind::NonpositiveCircleRadius,
+            Self::NonpositiveRectangleSide { .. } => PathErrorKind::NonpositiveRectangleSide,
             Self::DegenerateArcSpec { .. } => PathErrorKind::DegenerateArcSpec,
             Self::ArcSweepNotShortOfFullTurn { .. } => PathErrorKind::ArcSweepNotShortOfFullTurn,
             Self::CircleSplitCount { .. } => PathErrorKind::CircleSplitCount,
@@ -1926,6 +1939,13 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "a circle needs a definitely positive radius (got {radius} m): r = 0 is a \
                  point and r < 0 names no circle",
                 radius = num(radius)
+            ),
+            Self::NonpositiveRectangleSide { side, length } => write!(
+                f,
+                "a rectangle needs a definitely positive {side} (got {length} m): a zero side \
+                 is a segment and a negative one names no rectangle. Recourse: author a \
+                 positive {side}",
+                length = num(length)
             ),
             Self::CircleSplitCount { n } => write!(
                 f,
@@ -4785,6 +4805,39 @@ fn circle_split_kernel<T: Decide>(
         band,
         program::Verb::CircleSplit,
     )
+}
+
+/// The kernel behind the table's rectangle row: the lowered loop (the
+/// row supplies the one-step program). Each side is gated definitely
+/// positive, then the four corners are the centre less and plus the
+/// half extents, counterclockwise from the lower-left one.
+fn rectangle_kernel<T: Decide>(
+    centre: Point2<T>,
+    width: T,
+    height: T,
+    tol: Tol,
+) -> Result<ProfileLoop<T>, PathError<T>> {
+    let band = linear_band(tol)?;
+    for (side, length) in [("width", width), ("height", height)] {
+        match decide("path_rectangle_side", Margin::of(length), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => return Err(PathError::NonpositiveRectangleSide { side, length }),
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+    }
+    let half = T::from_f64(0.5);
+    let (hw, hh) = (width * half, height * half);
+    let (x0, x1) = (centre.x - hw, centre.x + hw);
+    let (y0, y1) = (centre.y - hh, centre.y + hh);
+    let corners: [Point2<T>; crate::structure::RECTANGLE_PIECES as usize] = [
+        Point2::new(x0, y0),
+        Point2::new(x1, y0),
+        Point2::new(x1, y1),
+        Point2::new(x0, y1),
+    ];
+    Ok(ProfileLoop::from_chain(
+        corners.into_iter().map(|p| (p, Segment::Line)),
+    ))
 }
 
 /// **The circle forms' one conversion**: the vertices on the authored

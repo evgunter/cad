@@ -1083,6 +1083,11 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_leg_length",
         kind: EndingKind::Sized,
     },
+    // a rectangle's width or height metered against zero
+    DecisionEnding {
+        name: "path_rectangle_side",
+        kind: EndingKind::Sized,
+    },
     // an emitted segment told apart from a fillet's arrival carrier: its end's lateral miss
     // from the arrival ray and its advance along it, or its end's and arc midpoint's radial
     // misses from the arrival circle
@@ -1273,6 +1278,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "path_junction_turn" => "whether the path turns at this junction",
         "path_fillet_joint_turn" => "whether a fillet's stored joint turns",
         "path_leg_length" => "whether an authored leg has any length",
+        "path_rectangle_side" => "whether a rectangle's side is zero",
         "path_run_out_carrier" => "whether an emitted segment lands on a fillet's arrival carrier",
         "path_seam_arrival_lever" => "whether the seam arrival has a leg long enough to measure",
         "path_seam_arrival_side" => {
