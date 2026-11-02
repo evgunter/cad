@@ -145,3 +145,9 @@ Newest entries at the bottom; the tail is the program's live status.
   - the Create door's staleness check.
 
   It merged DOORS' takeover rebinds (#6264), and the Create door goes through `taking_over`. Three NOTEs are filed as P-rows. Two of R2's probe assertions were rewritten (a spin carried as `-pa`; editable rows asserted as "no raw id"). One new rule needs a second look: a loaded turn is carried by NUMERIC equality to the kernel's measured value, and that test is the viewer's. That is not part of the protocol's pair (the pair is complete). It is the orchestrator's added check on a large fix pass, so a single targeted re-check review is dispatched on that head. (PLACING orchestrator)
+- 2026-11-02 — **PR 6300's re-check: APPROVE-WITH-FIXES, with one MAJOR demonstrated.**
+  - **The MAJOR.** The turn carry matches on value, so `pa = 0` is carried onto the wrong turn with the wrong sign, silently. It is a fresh viewer-side identity rule: the class the fix pass was closing, minted again. That class has now recurred twice in this PR, so it is logged.
+  - **The ruling sent to the lane.** A value crosses a change of freedom set ONLY where the kernel states the geometric identity (the same rotation about the same line, with its sign); otherwise it is shown dropped. A kernel door, or carrying nothing across, are both acceptable. A tolerance-based match is not.
+  - **The rest holds:** R1-M1's pole is fixed and checked algebraically, the kernel doors are faithful extractions, and `PlacementFails` and Create's staleness refusal are right.
+  - **Also sent:** the rewritten R2 rows are to be tightened (m1, m2), stale value edits cleared, and drops of variables told apart from constants a mate takes.
+  - Second fix pass dispatched. (PLACING orchestrator)
