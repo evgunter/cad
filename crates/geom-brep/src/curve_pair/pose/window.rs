@@ -289,8 +289,8 @@ impl<T: Decide> Window<'_, T> {
     /// A seed for `q`'s foot on `b`: its angle about `b`'s centre in
     /// `b`'s unit coordinates.
     fn foot_seed(&self, q: Point3<T>) -> T {
-        let ((x, y), (a, b)) = (self.b.frame().in_plane(q), self.b.semi_axes());
-        super::angle(y / b, x / a)
+        let (x, y) = self.b.unit_in_plane(q);
+        super::angle(y, x)
     }
 
     /// **The pieces of `(l, r)`, each read**, halved until each reads or

@@ -353,10 +353,7 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
             )
         };
         let crest = LoopArc::Crest {
-            centre: at(0.0, 0.0, 0.0),
-            axis: z,
-            u_ref: x,
-            radius: 1.0,
+            circle: geom::Circle::new(geom::Frame::new(at(0.0, 0.0, 0.0), z, x), 1.0),
             span: (0.0, 1.0),
             core: (at(0.0, 0.0, 0.0), z, 1.0),
             own: ArcLoop {

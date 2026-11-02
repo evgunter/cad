@@ -978,12 +978,6 @@ impl<T: Decide> ConicArc<T> {
             .unwrap_or_else(|| unreachable!("a conic arc's carrier is a circle or an ellipse"))
     }
 
-    /// `x` in the conic's unit coordinates, where it is the unit circle.
-    fn unit(&self, x: Point3<T>) -> (T, T) {
-        let ((wu, wv), (a, b)) = (self.conic().frame().in_plane(x), self.conic().semi_axes());
-        (wu / a, wv / b)
-    }
-
     /// The carrier's point at parameter `t`: the probes' placement (the
     /// ends are [`Self::ends`]).
     #[cfg(test)]
@@ -1556,8 +1550,9 @@ pub(crate) fn carrier_ball<T: Decide>(
 ) -> Option<(Point3<T>, T)> {
     match *carrier {
         geom::Curve3::Line { .. } => None,
-        geom::Curve3::Circle(c) => Some((c.frame.center, c.radius)),
-        geom::Curve3::Ellipse(e) => Some((e.frame.center, e.speed_hi())),
+        geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
+            carrier.conic().map(|k| (k.frame().center, k.speed_hi()))
+        }
         // The arc from its midpoint: no point of it lies further from
         // `P(mid)` than the oval's speed bound times half the parameter
         // width.
@@ -1992,12 +1987,10 @@ fn certify_plane<T: Decide>(
         let mut margins = vec![off(step.point)];
         match step.curve.map(|c| c.carrier()) {
             None | Some(geom::Curve3::Line { .. }) => {}
-            Some(&geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
-                radius,
-            })) => margins.extend([off(center), tilt(axis, radius)]),
-            Some(geom::Curve3::Ellipse(e)) => {
-                margins.extend([off(e.frame.center), tilt(e.frame.axis, e.speed_hi())]);
+            Some(conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
+                if let Some(k) = conic.conic() {
+                    margins.extend([off(k.frame().center), tilt(k.frame().axis, k.speed_hi())]);
+                }
             }
             Some(&geom::Curve3::Spiric {
                 center,
@@ -2179,7 +2172,7 @@ fn conic_crossings<T: Decide>(
     d: Vec3<T>,
     band: Band,
 ) -> Result<Option<usize>, Indeterminate> {
-    let (px, py) = k.unit(q);
+    let (px, py) = k.conic().unit_in_plane(q);
     let (f, (a, b)) = (k.conic().frame(), k.conic().semi_axes());
     let (dx, dy) = (d.dot(f.u_ref) / a, d.dot(f.v_ref()) / b);
     // On `point_in_loop`, `certify_plane` has put the conic in the plane

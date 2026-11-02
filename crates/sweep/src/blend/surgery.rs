@@ -2567,13 +2567,8 @@ pub(super) fn piece_distance<T: Bounds>(
                 (pa - c).norm().max((pb - c).norm()),
             ))
         }
-        Curve3::Ellipse(
-            ref e @ geom::Ellipse {
-                frame: geom::Frame { center, .. },
-                ..
-            },
-        ) => {
-            let (d, major) = ((center - c).norm(), e.semi_axes_by_size().0);
+        Curve3::Ellipse(ref e) => {
+            let (d, major) = ((e.frame.center - c).norm(), geom::Conic::speed_hi(e));
             Some(((d - major).max(T::zero()), d + major))
         }
         _ => CircleFrame::of(carrier).map(|k| k.distance((ta, tb), c)),
@@ -2603,26 +2598,18 @@ pub(super) fn piece_along<T: Bounds>(
             );
             Some((la.min(lb), la.max(lb)))
         }
-        Curve3::Ellipse(geom::Ellipse {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            semi_u,
-            semi_v,
-        }) => {
-            let v = axis.cross(u_ref);
+        Curve3::Ellipse(ref e) => {
+            let f = e.frame;
             let unit = CircleFrame {
-                center,
-                axis,
+                center: f.center,
+                axis: f.axis,
                 radius: T::one(),
-                u_ref,
+                u_ref: f.u_ref,
             };
-            let lifted = u_ref * (semi_u * u_ref.dot(u)) + v * (semi_v * v.dot(u));
-            let (low, high) = unit.along((ta, tb), center, lifted);
-            let mid = (center - c).dot(u);
+            let (p, q) = geom::Conic::along(e, u);
+            let lifted = f.u_ref * p + f.v_ref() * q;
+            let (low, high) = unit.along((ta, tb), f.center, lifted);
+            let mid = (f.center - c).dot(u);
             Some((mid + low, mid + high))
         }
         _ => CircleFrame::of(carrier).map(|k| k.along((ta, tb), c, u)),
@@ -3540,20 +3527,10 @@ fn boxed_reach<T: Bounds>(
                 (l.min(v), h.max(v))
             });
             match carrier {
-                Curve3::Ellipse(geom::Ellipse {
-                    frame:
-                        geom::Frame {
-                            center,
-                            axis,
-                            u_ref,
-                        },
-                    semi_u,
-                    semi_v,
-                }) => {
-                    let mid = (*center - c).dot(u);
-                    let amp = ((*semi_u * u_ref.dot(u)).powi(2)
-                        + (*semi_v * axis.cross(*u_ref).dot(u)).powi(2))
-                    .sqrt();
+                Curve3::Ellipse(e) => {
+                    let mid = (e.frame.center - c).dot(u);
+                    let (p, q) = geom::Conic::along(e, u);
+                    let amp = (p.powi(2) + q.powi(2)).sqrt();
                     Some((low.max(mid - amp), high.min(mid + amp)))
                 }
                 _ => Some((low, high)),

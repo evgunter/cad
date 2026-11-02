@@ -25,8 +25,8 @@
 //! definite-nonzero consistency residual or an out-of-inventory shape
 //! is a typed [`PropsError`].
 
+use geom::Curve3;
 use geom::Surface;
-use geom::{Conic, Curve3};
 use geom_core::period::{Exact, Extent, NotForward, TurnRate, TurnRows};
 use geom_core::{
     Band, Decide, Indeterminate, InfSpeed, LeveredUnitError, Margin, Point3, Real, RigidMotion,
@@ -2583,8 +2583,10 @@ fn require_cone_conic_spans<T: Decide>(
 fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
     match e.carrier {
         Curve3::Line { .. } => Ok((e.p1() - e.p0()).norm()),
-        Curve3::Circle(geom::Circle { radius, .. }) => Ok(radius * (e.t1 - e.t0).abs()),
-        Curve3::Ellipse(k) => Ok(k.speed_hi() * (e.t1 - e.t0).abs()),
+        Curve3::Circle(_) | Curve3::Ellipse(_) => match e.carrier.conic() {
+            Some(k) => Ok(k.speed_hi() * (e.t1 - e.t0).abs()),
+            None => unreachable!("a circle or an ellipse is a conic"),
+        },
         Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
     }
 }

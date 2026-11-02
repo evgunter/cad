@@ -939,10 +939,7 @@ fn line_conic<T: Decide>(
     // line's normal in the plane, a first harmonic in the conic's angle.
     let m = unit(n.cross(u));
     let c0 = (k.frame().center - o).dot(m);
-    let (cp, sp) = (
-        k.semi_axes().0 * k.frame().u_ref.dot(m),
-        k.semi_axes().1 * k.frame().v_ref().dot(m),
-    );
+    let (cp, sp) = k.along(m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
     if !definite(row::SWING, Margin::of(swing), band)? {
         return Err(MeetFault::Unsupported {
@@ -981,11 +978,8 @@ enum Coplanar {
 /// The conic `k`'s height above the plane through `on` with unit normal
 /// `n`: its first harmonic's constant, cosine and sine parts, in metres.
 pub(super) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
-    (
-        (k.frame().center - on).dot(n),
-        k.semi_axes().0 * k.frame().u_ref.dot(n),
-        k.semi_axes().1 * k.frame().v_ref().dot(n),
-    )
+    let (cp, sp) = k.along(n);
+    ((k.frame().center - on).dot(n), cp, sp)
 }
 
 /// Two conics, `a` the one parametrized in one plane (module docs).

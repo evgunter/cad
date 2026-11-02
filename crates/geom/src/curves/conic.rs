@@ -63,7 +63,7 @@
 //!
 //! [`speed_floor`]: crate::carrier_speed::speed_floor
 
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Point3, Real, Rounded, Vec3};
 
 use crate::azimuth;
 use crate::curves::Curve3;
@@ -277,10 +277,27 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// seam is at; a tie, and a circle, keep the seam's own axis.
     fn major_frame(&self) -> MajorFrame<T>;
 
-    /// The circle, where the conic is one: for a reader that mirrors the
-    /// kind's own evaluation order (a running rounding bound on its
-    /// point), which differs between the two kinds.
-    fn as_circle(&self) -> Option<&Circle<T>>;
+    /// **The point at `θ` with a first-order running bound on its
+    /// rounding** ([`Rounded`]), from `sin θ` and `cos θ` already charged:
+    /// [`Self::point_at`] operation for operation, so its value is that
+    /// point bit for bit. The frame and the sizes are taken as exact.
+    fn running_point(&self, sin_cos: (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3];
+
+    /// **`p` in the conic's unit coordinates**: its in-plane components
+    /// over the semi-axes, `((p − c)·u_ref/a, (p − c)·v_ref/b)`, in which
+    /// the conic is the unit circle and its parameter the polar angle.
+    fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
+        let ((x, y), (a, b)) = (self.frame().in_plane(p), self.semi_axes());
+        (x / a, y / b)
+    }
+
+    /// **The conic's harmonic along `n`**: `(a·(u_ref·n), b·(v_ref·n))`,
+    /// so `(P(θ) − center)·n = first·cos θ + second·sin θ`. `n` need not
+    /// be unit: the pair is linear in it.
+    fn along(&self, n: Vec3<T>) -> (T, T) {
+        let (f, (a, b)) = (self.frame(), self.semi_axes());
+        (a * f.u_ref.dot(n), b * f.v_ref().dot(n))
+    }
 
     /// **The parameter of `p` on the branch of `span`'s middle**: its
     /// [principal angle](Self::angle_of) [unwound](on_span_branch) onto
@@ -358,8 +375,14 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     fn major_frame(&self) -> MajorFrame<T> {
         (**self).major_frame()
     }
-    fn as_circle(&self) -> Option<&Circle<T>> {
-        (**self).as_circle()
+    fn running_point(&self, sin_cos: (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
+        (**self).running_point(sin_cos)
+    }
+    fn along(&self, n: Vec3<T>) -> (T, T) {
+        (**self).along(n)
+    }
+    fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
+        (**self).unit_in_plane(p)
     }
     fn param_in(&self, p: Point3<T>, span: (T, T)) -> T {
         (**self).param_in(p, span)
@@ -374,6 +397,18 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
         (**self).speed_over(span)
     }
 }
+
+/// A frame's centre, `u_ref` and `v_ref` entered exactly into running
+/// arithmetic, `v_ref` crossed there in [`Vec3::cross`]'s order.
+fn running_frame<T: Real>(f: &Frame<T>) -> RunningFrame<T> {
+    use geom_core::running::{cross, exact_vec};
+    let (n, u) = (exact_vec(f.axis), exact_vec(f.u_ref));
+    let c = exact_vec(Vec3::new(f.center.x, f.center.y, f.center.z));
+    (c, u, cross(n, u))
+}
+
+/// A frame in running arithmetic: centre, `u_ref`, `v_ref`.
+type RunningFrame<T> = ([Rounded<T>; 3], [Rounded<T>; 3], [Rounded<T>; 3]);
 
 impl<T: Real> Circle<T> {
     /// The circle of `radius` placed by `frame`.
@@ -446,8 +481,10 @@ impl<T: Real> Conic<T> for Circle<T> {
         self.radius
     }
 
-    fn as_circle(&self) -> Option<&Circle<T>> {
-        Some(self)
+    fn running_point(&self, (sin, cos): (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
+        let (c, u, v) = running_frame(&self.frame);
+        let r = Rounded::exact(self.radius);
+        core::array::from_fn(|i| c[i] + (u[i] * cos + v[i] * sin) * r)
     }
 
     fn major_frame(&self) -> MajorFrame<T> {
@@ -596,8 +633,8 @@ impl<T: Real> Conic<T> for Ellipse<T> {
     }
 
     fn angle_of(&self, p: Point3<T>) -> T {
-        let (x, y) = self.frame.in_plane(p);
-        (y / self.semi_v).atan2(x / self.semi_u)
+        let (x, y) = self.unit_in_plane(p);
+        y.atan2(x)
     }
 
     fn param_near(&self, p: Point3<T>, near: T) -> T {
@@ -627,8 +664,13 @@ impl<T: Real> Conic<T> for Ellipse<T> {
         self.frame_turned_where(self.semi_v - self.semi_u)
     }
 
-    fn as_circle(&self) -> Option<&Circle<T>> {
-        None
+    fn running_point(&self, (sin, cos): (Rounded<T>, Rounded<T>)) -> [Rounded<T>; 3] {
+        let (c, u, v) = running_frame(&self.frame);
+        let (ac, bs) = (
+            Rounded::exact(self.semi_u) * cos,
+            Rounded::exact(self.semi_v) * sin,
+        );
+        core::array::from_fn(|i| c[i] + (u[i] * ac + v[i] * bs))
     }
 }
 
@@ -672,35 +714,60 @@ mod tests {
         ]
     }
 
-    /// **The conic readings are the carrier's own**: the point, the
-    /// derivatives and the jet a reader takes through [`Conic`] are
-    /// [`Curve3`]'s bit for bit, and a point's parameter on a span's branch
-    /// is the parameter it was evaluated at, on either kind and in either
-    /// stored order. A reader that re-spelled the ellipse formula for a
-    /// circle (`center + u·(r·cos) + v·(r·sin)`) would round apart.
+    /// The D9 evaluators written out, independent of the trait: a
+    /// circle's `c + (u·cos + v·sin)·r` and its derivatives, an ellipse's
+    /// `c + (u·(a·cos) + v·(b·sin))` and its, `v = axis × u`. The oracle
+    /// for [`the_conic_readings_are_the_carriers_own`].
+    fn written_out(carrier: &Curve3<f64>, t: f64) -> [Vec3<f64>; 3] {
+        let (s, c) = Real::sin_cos(t);
+        let o = Point3::origin();
+        match carrier {
+            Curve3::Circle(k) => {
+                let (u, r) = (k.frame.u_ref, k.radius);
+                let v = k.frame.axis.cross(u);
+                [
+                    (k.frame.center + (u * c + v * s) * r) - o,
+                    (u * (-s) + v * c) * r,
+                    (u * (-c) + v * (-s)) * r,
+                ]
+            }
+            Curve3::Ellipse(k) => {
+                let (u, a, b) = (k.frame.u_ref, k.semi_u, k.semi_v);
+                let v = k.frame.axis.cross(u);
+                [
+                    (k.frame.center + (u * (a * c) + v * (b * s))) - o,
+                    u * (-(a * s)) + v * (b * c),
+                    u * (-(a * c)) + v * (-(b * s)),
+                ]
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    /// **The conic readings are the D9 evaluators**: the point, the
+    /// derivatives and the jet a reader takes through [`Conic`], and
+    /// [`Curve3`]'s, are [`written_out`]'s bit for bit, on either kind and
+    /// in either stored order, so a change to either kind's formula goes
+    /// red here (a circle read with the ellipse formula at equal
+    /// semi-axes rounds apart). A point's parameter on a span's branch is
+    /// the parameter it was evaluated at, and the speed lies within its
+    /// bounds.
     #[test]
     fn the_conic_readings_are_the_carriers_own() {
+        let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
+        let o = Point3::origin();
         for carrier in carriers() {
             let k = carrier.conic().unwrap();
             for t in [-2.5, -0.3, 0.0, 0.7, 2.0, 3.1] {
-                let bits = |p: Point3<f64>| [p.x, p.y, p.z].map(f64::to_bits);
-                let vbits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
-                assert_eq!(
-                    bits(k.point_at(t)),
-                    bits(carrier.eval(t)),
-                    "{carrier:?} at {t}"
-                );
-                assert_eq!(
-                    vbits(k.derivative_at(t)),
-                    vbits(carrier.deriv(t)),
-                    "{carrier:?}"
-                );
-                assert_eq!(vbits(k.second_derivative_at(t)), vbits(carrier.deriv2(t)));
-                let (p, d) = k.jet_at(t);
-                assert_eq!(
-                    (bits(p), vbits(d)),
-                    (bits(carrier.eval(t)), vbits(carrier.deriv(t)))
-                );
+                let [p, d, d2] = written_out(&carrier, t).map(bits);
+                assert_eq!(bits(k.point_at(t) - o), p, "{carrier:?} at {t}");
+                assert_eq!(bits(carrier.eval(t) - o), p, "{carrier:?} at {t}");
+                assert_eq!(bits(k.derivative_at(t)), d, "{carrier:?} at {t}");
+                assert_eq!(bits(carrier.deriv(t)), d, "{carrier:?} at {t}");
+                assert_eq!(bits(k.second_derivative_at(t)), d2, "{carrier:?} at {t}");
+                assert_eq!(bits(carrier.deriv2(t)), d2, "{carrier:?} at {t}");
+                let (jp, jd) = k.jet_at(t);
+                assert_eq!((bits(jp - o), bits(jd)), (p, d), "{carrier:?} at {t}");
                 let span = (t - 0.4, t + 0.9);
                 let back = k.param_in(carrier.eval(t), span);
                 assert!(

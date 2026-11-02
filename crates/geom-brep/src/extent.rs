@@ -320,8 +320,10 @@ fn schedule<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T), n: u32) -> Vec
 fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
     let sup = match carrier {
         Curve3::Line { dir, .. } => dir.norm(),
-        Curve3::Circle(geom::Circle { radius, .. }) => *radius,
-        Curve3::Ellipse(e) => e.speed_hi(),
+        Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
+            Some(k) => k.speed_hi(),
+            None => unreachable!("a circle or an ellipse is a conic"),
+        },
         Curve3::Spiric {
             major_radius,
             minor_radius,
@@ -735,8 +737,10 @@ impl<T: Real> Reach<T> {
             Self::Measured { lever, .. } => *lever,
             Self::Face { across, .. } => *across,
             Self::Span { carrier, .. } => match carrier {
-                Curve3::Circle(c) => (c.frame.center - pivot).norm() + c.radius,
-                Curve3::Ellipse(e) => (e.frame.center - pivot).norm() + e.speed_hi(),
+                Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
+                    Some(k) => (k.frame().center - pivot).norm() + k.speed_hi(),
+                    None => unreachable!("a circle or an ellipse is a conic"),
+                },
                 Curve3::Spiric {
                     center,
                     major_radius,

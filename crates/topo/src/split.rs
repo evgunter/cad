@@ -313,12 +313,18 @@ impl<T: Decide> Body<T> {
         let (t0, t1) = curve.params();
         let scale = match *curve.carrier() {
             geom::Curve3::Line { .. } => InfSpeed::new(T::one()),
-            geom::Curve3::Circle(geom::Circle { radius, .. }) => InfSpeed::new(radius),
-            // The conic lane (M5 PR 5, C12.3): metered at the smaller
-            // semi-axis — the conservative meter (|dP/dθ| ≥ min(a, b)), so
-            // a sub-span this gate accepts as definitely interior is truly
-            // clear of the endpoints in meters.
-            geom::Curve3::Ellipse(e) => InfSpeed::new(e.semi_axes_by_size().1),
+            // A periodic carrier (M5 PR 5, C12.3) is metered at its speed
+            // floor, certification's span meter: a circle's radius, an
+            // ellipse's smaller semi-axis, a spiric's minor radius
+            // (`|dP/dv| ≥ r`), so a sub-span this gate accepts as
+            // definitely interior is truly clear of the endpoints in
+            // meters.
+            ref periodic @ (geom::Curve3::Circle(_)
+            | geom::Curve3::Ellipse(_)
+            | geom::Curve3::Spiric { .. }) => match geom::carrier_speed::speed_floor(periodic) {
+                Some(floor) => floor,
+                None => unreachable!("`speed_floor` answers every periodic carrier"),
+            },
             // The general rung (M5 PR 7, C12.3): a fitted SSI carrier
             // is metered at the CERTIFIED LOWER BOUND on ‖C′(t)‖ —
             // the same conservative posture as the conic lane's minor
@@ -332,10 +338,6 @@ impl<T: Decide> Body<T> {
             // of accepting a split that is not clear of the endpoints
             // in meters.
             geom::Curve3::Nurbs(ref n) => n.speed_lower_bound(),
-            // The spiric's speed floor is its minor radius (`|dP/dv|
-            // ≥ r`, the variant docs), the same meter certification
-            // spans it at.
-            geom::Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
         };
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),

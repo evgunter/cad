@@ -505,17 +505,8 @@ enum Near<T> {
 pub fn foot<T: Real>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
     match *carrier {
         Curve3::Line { origin, dir } => Some((x - origin).dot(dir) / dir.dot(dir)),
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    center,
-                    axis,
-                    u_ref,
-                },
-            ..
-        }) => {
-            let w = x - center;
-            let t = w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref));
+        Curve3::Circle(ref c) => {
+            let t = geom::Conic::angle_of(c, x);
             Some(from + (t - from).reduce_periodic(T::tau()))
         }
         _ => None,

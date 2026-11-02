@@ -287,8 +287,8 @@ impl<T: Decide> Curve3<T> {
                 return self.foot_at(q, angle_near(x, y, near));
             }
             Self::Ellipse(e) => {
-                let (x, y) = e.frame.in_plane(q);
-                angle_near(x / e.semi_u, y / e.semi_v, near)
+                let (x, y) = crate::Conic::unit_in_plane(e, q);
+                angle_near(x, y, near)
             }
             Self::Spiric {
                 center,

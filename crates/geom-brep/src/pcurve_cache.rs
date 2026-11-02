@@ -174,7 +174,7 @@
 
 use std::sync::Arc;
 
-use geom::{Conic, Curve3, NurbsCurve2, NurbsCurve3};
+use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
@@ -5127,9 +5127,12 @@ fn param_rate<T: SpanLocate>(carrier: &Curve3<T>) -> InfSpeed<T> {
     match *carrier {
         Curve3::Line { .. } => InfSpeed::new(T::one()),
         Curve3::Nurbs(ref n) => n.speed_lower_bound(),
-        Curve3::Circle(geom::Circle { radius, .. }) => InfSpeed::new(radius),
-        Curve3::Ellipse(e) => InfSpeed::new(e.speed_lo()),
-        Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
+        Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
+            match geom::carrier_speed::speed_floor(carrier) {
+                Some(floor) => floor,
+                None => unreachable!("`speed_floor` answers every periodic carrier"),
+            }
+        }
     }
 }
 

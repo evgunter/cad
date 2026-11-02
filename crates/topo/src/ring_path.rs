@@ -654,16 +654,12 @@ pub(crate) enum LoopArc<T: Real> {
     },
     Oval(Oval<T>),
     /// An arc of a torus's top or bottom circle, the parallel of radius
-    /// `R` (`centre + (u_ref·cos t + (axis × u_ref)·sin t)·radius`),
-    /// whose plane touches the torus along it. A path meets it only where
+    /// `R`, whose plane touches the torus along it. A path meets it only where
     /// it crosses the cylinder `ρ = R` about the torus's axis, which cuts
     /// the torus transversally in this circle and the one across the tube
     /// (`own` tells them apart by the height along the axis).
     Crest {
-        centre: Point3<T>,
-        axis: Vec3<T>,
-        u_ref: Vec3<T>,
-        radius: T,
+        circle: geom::Circle<T>,
         span: (T, T),
         /// The torus's centre, unit axis and major radius `R`.
         core: (Point3<T>, Vec3<T>, T),
@@ -1142,10 +1138,7 @@ impl<T: Decide> Quadric<T> {
                     Sign::Zero => return Ok(None),
                 };
                 return Ok(Some(LoopArc::Crest {
-                    centre: c,
-                    axis: a,
-                    u_ref,
-                    radius: ra,
+                    circle: geom::Circle::new(geom::Frame::new(c, a, u_ref), ra),
                     span,
                     core: (centre, axis, major),
                     own: ArcLoop {
@@ -1313,10 +1306,7 @@ pub(crate) fn path_parity<T: Decide>(
                 (
                     Piece::Meridian(p),
                     LoopArc::Crest {
-                        centre,
-                        axis,
-                        u_ref,
-                        radius,
+                        circle,
                         span,
                         core: (c, a, _),
                         own,
@@ -1328,12 +1318,10 @@ pub(crate) fn path_parity<T: Decide>(
                     let Some(roots) = plane_roots(&p, (p.centre, e), arrival, slack, band)? else {
                         return Ok(None);
                     };
-                    let v_ref = axis.cross(u_ref);
                     for (t, slope) in roots {
-                        let w = p.at(t) - centre;
-                        let s = geom::on_span_branch(w.dot(v_ref).atan2(w.dot(u_ref)), span);
+                        let s = circle.param_in(p.at(t), span);
                         let [p0, p1] = in_span(t, p.span, p.radius * slope);
-                        let [a0, a1] = in_span(s, span, radius * slope);
+                        let [a0, a1] = in_span(s, span, circle.radius * slope);
                         readings.push([p0, p1, a0, a1, own.read(p.at(t), slack, band)]);
                     }
                 }
@@ -1709,9 +1697,8 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
     for arc in arcs {
         match arc {
             LoopArc::Conic(c) => points.push(c.conic().frame().center),
-            LoopArc::Oval(Oval { centre, .. }) | LoopArc::Crest { centre, .. } => {
-                points.push(*centre)
-            }
+            LoopArc::Crest { circle, .. } => points.push(circle.frame.center),
+            LoopArc::Oval(Oval { centre, .. }) => points.push(*centre),
             LoopArc::Line { origin, .. } => points.push(*origin),
             LoopArc::Spline(SplineArc { carrier, span }) => {
                 points.extend([carrier.eval(span.0), carrier.eval(span.1)]);

@@ -674,8 +674,10 @@ fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
         Curve3::Line { dir, .. } => (dir.norm() * Interval::point(span)).mag(),
-        Curve3::Circle(geom::Circle { radius, .. }) => (radius * Interval::point(span)).mag(),
-        Curve3::Ellipse(k) => (k.semi_axes_by_size().0 * Interval::point(span)).mag(),
+        Curve3::Circle(_) | Curve3::Ellipse(_) => match e.carrier.conic() {
+            Some(k) => (k.speed_hi() * Interval::point(span)).mag(),
+            None => unreachable!("a circle or an ellipse is a conic"),
+        },
         Curve3::Spiric { .. } => spiric_edge_q(e, Point3::origin(), None)
             .and_then(|q| spiric::spiric_length_bound(&q, spiric::LENGTH_PIECES))
             .ok_or(PropsError::QuadratureUnsupported {

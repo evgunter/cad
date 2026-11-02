@@ -713,3 +713,78 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
         wrong.join("\n")
     );
 }
+
+/// The near-gap poses of the ρ = 1500 family against the wall of radius 1
+/// at ε = 1e-9: depths 0.5–2 µm into it, four tilts, each crossing twice.
+/// `ratio` makes the carrier at a pose an ellipse of semi-axes `ρ` and
+/// `ρ·ratio`, seamed at the vertex that grazes, or a circle at `None`.
+fn near_gap_family(ratio: Option<f64>) -> Vec<geom::Curve3<f64>> {
+    let mut out = Vec::new();
+    for depth in [
+        -0.5e-6, -0.6e-6, -0.7e-6, -0.8e-6, -0.9e-6, -1e-6, -1.1e-6, -1.2e-6, -1.5e-6, -2e-6,
+    ] {
+        for (g, b) in [(1.2, 0.7), (1.1, 0.7), (1.2, 0.6), (1.3, 0.8)] {
+            let c = tangent_circle(1.0, 1500.0, depth, g, b);
+            out.push(match (ratio, c) {
+                (None, c) => c,
+                (Some(k), geom::Curve3::Circle(c)) => {
+                    geom::Curve3::Ellipse(geom::Ellipse::new(c.frame, c.radius, c.radius * k))
+                }
+                _ => unreachable!(),
+            });
+        }
+    }
+    out
+}
+
+/// How many of `family` the door certifies at ε = 1e-9, each certified
+/// root checked within the zero band of the exact oracle's.
+fn certified_near_gap(family: &[geom::Curve3<f64>]) -> usize {
+    let eps = 1e-9;
+    let band = Band::new(eps, 10.0 * eps).unwrap();
+    family
+        .iter()
+        .filter(|c| {
+            let Ok(Ok(CircleRoots::Certified(found))) =
+                conic_quadric_roots(c, -1.0, 1.0, &wall(1.0), band)
+            else {
+                return false;
+            };
+            let truth = exact::truth(c, &wall(1.0));
+            for &t in found.roots() {
+                let off = truth
+                    .roots
+                    .iter()
+                    .map(|&x| arc_between(t, x, 1500.0))
+                    .fold(f64::INFINITY, f64::min);
+                assert!(off <= eps, "{c:?}: root {t} lies {off:e} m from the truth");
+            }
+            true
+        })
+        .count()
+}
+
+/// **The near-gap ρ = 1500 families keep the answers they certify**: of
+/// the 40 poses of [`near_gap_family`], the circles and the ellipses at
+/// each ratio, the door answers at least the measured count, each root
+/// true, and refuses the rest `Meter`, typed. Floors on measured counts
+/// (circle 7, ellipse 1.25 / 0.999 / 1.001 each 7, ellipse 0.8 1); the
+/// walk and its running meter read each carrier's own point, whose bound
+/// is a little wider than the ellipse-form chain an earlier reading took
+/// (17, 17 and 7 there). Red if the root-slack meter's charge grows.
+#[test]
+fn the_near_gap_families_keep_their_certified_answers() {
+    for (ratio, floor) in [
+        (None, 7),
+        (Some(1.25), 7),
+        (Some(0.999), 7),
+        (Some(1.001), 7),
+        (Some(0.8), 1),
+    ] {
+        let got = certified_near_gap(&near_gap_family(ratio));
+        assert!(
+            got >= floor,
+            "{ratio:?}: {got} of 40 certified, below the measured {floor}"
+        );
+    }
+}

@@ -976,9 +976,8 @@ fn torus_curvature_bound<T: Real>(
     let two = T::from_f64(2.0);
     // `a` bounds `|C′|` and `|C″|` over the whole carrier ([`Conic`]).
     let a = conic.speed_hi();
-    let a_h = ((conic.semi_axes().0 * conic.frame().u_ref.dot(tn)).powi(2)
-        + (conic.semi_axes().1 * conic.frame().v_ref().dot(tn)).powi(2))
-    .sqrt();
+    let (a_u, a_v) = conic.along(tn);
+    let a_h = (a_u.powi(2) + a_v.powi(2)).sqrt();
     let step = (t1 - t0) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
     let lipschitz = a * step.abs() / two;
     // A radius is never negative, so the clamp is the honest floor
@@ -1179,42 +1178,22 @@ pub fn conic_cone_harmonics<T: Real>(
     }
 }
 
-/// **The conic's point at `theta` less `origin`, with a first-order
-/// running bound on its rounding** ([`Rounded`]): the carrier's own
-/// evaluation ([`Conic::point_at`]), operation for operation — a
-/// circle's `c + (u·cos θ + v·sin θ)·r`, an ellipse's
-/// `c + (u·(a·cos θ) + v·(b·sin θ))`, `v = axis × u` — so its value is
-/// the carrier's point bit for bit, `sin` and `cos` (`sin_cos`, here
-/// already charged) carrying their own error. The frame, the sizes and
-/// `origin` are taken as exact.
+/// The conic's running point at `theta` ([`Conic::running_point`]) less
+/// `origin`, taken as exact.
 fn running_offset<T: Real>(
     conic: &dyn Conic<T>,
-    (sin, cos): (Rounded<T>, Rounded<T>),
+    sin_cos: (Rounded<T>, Rounded<T>),
     origin: Point3<T>,
 ) -> [Rounded<T>; 3] {
-    use geom_core::running::{cross, exact_vec};
-    let f = conic.frame();
-    let (n, u) = (exact_vec(f.axis), exact_vec(f.u_ref));
-    let v = cross(n, u);
-    let point = |p: Point3<T>| exact_vec(Vec3::new(p.x, p.y, p.z));
-    let (c, o) = (point(f.center), point(origin));
-    match conic.as_circle() {
-        Some(circle) => {
-            let r = Rounded::exact(circle.radius);
-            core::array::from_fn(|i| c[i] + (u[i] * cos + v[i] * sin) * r - o[i])
-        }
-        None => {
-            let (a, b) = conic.semi_axes();
-            let (ac, bs) = (Rounded::exact(a) * cos, Rounded::exact(b) * sin);
-            core::array::from_fn(|i| c[i] + (u[i] * ac + v[i] * bs) - o[i])
-        }
-    }
+    let o = geom_core::running::exact_vec(Vec3::new(origin.x, origin.y, origin.z));
+    let p = conic.running_point(sin_cos);
+    core::array::from_fn(|i| p[i] - o[i])
 }
 
 /// The cone's [`implicit_residual`] at the [`Conic`] point of parameter
 /// `theta`, `ρ cos α − |h| sin α` ([`cone_elevation`] with no nappe),
 /// carried with a first-order running bound on its rounding
-/// ([`Rounded`]): the point's own evaluation (an ellipse's [`Conic::point_at`] order,
+/// ([`Rounded`]): the point's own evaluation (the kind's own [`Conic::point_at`] order, through [`Conic::running_point`]:
 /// `sin` and `cos` charged an ulp each), the axial split, the distance
 /// from the axis and the elevation, `sin α` and `cos α` charged an ulp
 /// each. `theta`, the frames and the half-angle are taken as exact.
@@ -1398,10 +1377,10 @@ pub fn conic_torus_harmonics<T: Real>(
 /// The torus's [`implicit_residual`] at the [`Conic`] point of parameter
 /// `theta`, `(d² + h² − r²)/2r` with `d = ρ − R`, carried with a
 /// first-order running bound on its rounding ([`Rounded`]): the point's
-/// own evaluation (an ellipse's [`Conic::point_at`] order, `sin` and `cos` charged an
+/// own evaluation (the kind's own [`Conic::point_at`] order, through [`Conic::running_point`]: `sin` and `cos` charged an
 /// ulp each), the axial split, the distance from the axis and the
 /// residual. `theta`, the frames and the radii are taken as exact. The
-/// value is bit-identical to [`implicit_residual`] at an ellipse's [`Conic::point_at`]:
+/// value is bit-identical to [`implicit_residual`] at [`Conic::point_at`]:
 /// every operation is that chain's, in its order.
 #[must_use]
 pub fn conic_torus_residual<T: Real>(
@@ -1459,7 +1438,7 @@ pub fn conic_torus_implicit<T: Real>(
 /// scale there (`|q|` near the tube is at most `R + 2r`, and `E`, `E′`
 /// enter at the carrier's speed, one power per derivative): the bound is
 /// `u` of those magnitudes plus the point's own rounding carried through.
-/// `q` is formed as `(C₀ − c) + E`, not in an ellipse's [`Conic::point_at`] order, so
+/// `q` is formed as `(C₀ − c) + E`, not in [`Conic::point_at`]'s order, so
 /// that rounding is `u` of `|C₀ − c|` and `|E|`, not of the frame's
 /// `|C₀|`. The harmonics' evaluation sums terms as
 /// large as `F`'s amplitude round the whole carrier, `~ρ⁴` for a circle
@@ -1556,10 +1535,10 @@ fn conic_torus_split<T: Real>(
 /// point of parameter `theta`, `(|⊥q|² − r²)/2r` (`⊥` the identity on a
 /// sphere, the projection off the axis on a wall), carried with a
 /// first-order running bound on its rounding ([`Rounded`]): the point's
-/// own evaluation (an ellipse's [`Conic::point_at`] order, `sin` and `cos` charged an
+/// own evaluation (the kind's own [`Conic::point_at`] order, through [`Conic::running_point`]: `sin` and `cos` charged an
 /// ulp each), the axial split, the square and the residual. `theta`, the
 /// frames and the radius are taken as exact. The value is bit-identical
-/// to [`implicit_residual`] at an ellipse's [`Conic::point_at`]: every operation is that
+/// to [`implicit_residual`] at [`Conic::point_at`]: every operation is that
 /// chain's, in its order. The surface is given by its anchor (a sphere's
 /// centre, a wall's origin), its axis (`None` on a sphere) and its
 /// radius.
@@ -1721,10 +1700,10 @@ fn conic_residual_harmonics<T: Real>(
             let d = conic.frame().center - origin;
             return Some(ResidualHarmonics {
                 c0: d.dot(normal),
-                a1: amp(
-                    conic.semi_axes().0 * conic.frame().u_ref.dot(normal),
-                    conic.semi_axes().1 * conic.frame().v_ref().dot(normal),
-                ),
+                a1: {
+                    let (a_u, a_v) = conic.along(normal);
+                    amp(a_u, a_v)
+                },
                 a2: T::zero(),
                 // Linear in the offset: its terms are metres already.
                 noise: rounding_charge(d.norm() + conic.speed_hi()),
@@ -3169,53 +3148,95 @@ mod conic_tests {
         }
     }
 
-    /// **The running residual is the plain one, bit for bit.**
-    /// [`conic_torus_residual`]'s value equals [`implicit_residual`] at
-    /// [`Conic::point_at`] exactly, on every ellipse here, a circle and a
-    /// skewed frame, against two tori, round the turn — so the walk that
-    /// bisects on the one and the meter that bounds the other read the
-    /// same number — and its bound is never negative.
+    /// **The running residuals are the plain ones, bit for bit.** The
+    /// torus's ([`conic_torus_residual`]), the cone's
+    /// ([`conic_cone_residual`]) and the sphere's and wall's
+    /// ([`conic_quadric_residual`]) values equal [`implicit_residual`] at
+    /// [`Conic::point_at`] exactly, on every ellipse here, a skewed frame
+    /// and two circles, round the turn — so the walk that bisects on the
+    /// one and the meter that bounds the other read the same number — and
+    /// each bound is never negative. A circle's point is its own chain,
+    /// `c + (u·cos θ + v·sin θ)·r`, not the ellipse's with equal
+    /// semi-axes; a mirror spelling one kind's chain for both goes red on
+    /// the other.
     #[test]
-    fn the_running_torus_residual_is_the_plain_chain() {
-        let tori = [
-            (
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(0.0, 0.0, 1.0),
-                0.55,
-                0.2,
-            ),
-            (
-                Point3::new(0.3, -0.1, 0.4),
-                Vec3::new(0.2, 1.0, -0.3).normalize(),
-                1.1,
-                0.35,
-            ),
-        ];
-        let mut conics = ellipses();
-        conics.push(geom::Ellipse {
+    fn the_running_residuals_are_the_plain_chain() {
+        let first = ellipses()[2];
+        let mut conics: Vec<Box<dyn Conic<f64>>> = ellipses()
+            .into_iter()
+            .map(|e| Box::new(e) as Box<dyn Conic<f64>>)
+            .collect();
+        conics.push(Box::new(geom::Ellipse {
             frame: geom::Frame {
                 u_ref: Vec3::new(1.0, 0.3, 0.1),
-                ..conics[2].frame
+                ..first.frame
             },
-            ..conics[2]
-        });
-        for (k, conic) in conics.iter().enumerate() {
-            for &(c, ax, big, small) in &tori {
-                let s = Surface::Torus {
-                    center: c,
-                    axis: ax,
-                    major_radius: big,
-                    minor_radius: small,
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
-                };
+            ..first
+        }));
+        for (c, n, r) in [
+            ([0.2, 0.1, -0.1], [0.0, 0.6, 0.8], 0.7),
+            ([1.0, -2.0, 0.5], [2.0, 2.0, 1.0], 1.3),
+        ] {
+            let n = Vec3::new(n[0], n[1], n[2]).normalize();
+            let u = n.cross(Vec3::new(0.3, -0.4, 0.5)).normalize();
+            conics.push(Box::new(geom::Circle::new(
+                geom::Frame::new(Point3::new(c[0], c[1], c[2]), n, u),
+                r,
+            )));
+        }
+        let (c, ax) = (
+            Point3::new(0.3, -0.1, 0.4),
+            Vec3::new(0.2, 1.0, -0.3).normalize(),
+        );
+        let (big, small) = (1.1, 0.35);
+        let (apex, half) = (Point3::new(-0.2, 0.5, -1.0), 0.6);
+        let surfaces = [
+            Surface::Torus {
+                center: c,
+                axis: ax,
+                major_radius: big,
+                minor_radius: small,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            Surface::Cone {
+                apex,
+                axis: ax,
+                half_angle: half,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            Surface::Sphere {
+                center: c,
+                radius: 0.9,
+                axis: ax,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            Surface::Cylinder {
+                origin: c,
+                axis: ax,
+                radius: 0.8,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+        ];
+        for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
+            for s in &surfaces {
                 for j in 0..97 {
                     let t = TAU * f64::from(j) / 97.0 - 1.3;
-                    let r = conic_torus_residual(conic, c, ax, big, small, t);
-                    let plain = implicit_residual(&s, conic.point_at(t));
+                    let r = match *s {
+                        Surface::Torus { .. } => conic_torus_residual(conic, c, ax, big, small, t),
+                        Surface::Cone { .. } => conic_cone_residual(conic, apex, ax, half, t),
+                        Surface::Sphere { radius, .. } => {
+                            conic_quadric_residual(conic, (c, None, radius), t)
+                        }
+                        Surface::Cylinder { radius, .. } => {
+                            conic_quadric_residual(conic, (c, Some(ax), radius), t)
+                        }
+                        _ => unreachable!(),
+                    };
+                    let plain = implicit_residual(s, conic.point_at(t));
                     assert_eq!(
                         r.value.to_bits(),
                         plain.to_bits(),
-                        "conic {k} at {t}: running {} against plain {plain}",
+                        "conic {k} against {s:?} at {t}: running {} against plain {plain}",
                         r.value
                     );
                     assert!(r.error >= 0.0, "conic {k} at {t}: bound {}", r.error);

@@ -135,12 +135,8 @@ fn extent_along<T: Real>(
     origin: Point3<T>,
     n: Vec3<T>,
 ) -> (T, T) {
-    let (frame, (a, b)) = (conic.frame(), conic.semi_axes());
-    window.extent(
-        (frame.center - origin).dot(n),
-        a * frame.u_ref.dot(n),
-        b * frame.v_ref().dot(n),
-    )
+    let (p, q) = conic.along(n);
+    window.extent((conic.frame().center - origin).dot(n), p, q)
 }
 
 /// The carrier with every scalar entered as the [`Interval`] of its
