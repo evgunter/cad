@@ -5064,7 +5064,12 @@ impl Takeover {
             &self.copies,
             &replacement.into(),
             &intact,
-            &crate::evalseam::options(&self.reads.resolver),
+            // The viewer's gesture runs on the UI thread with no token a
+            // cancel reaches: a top-level door with no caller's stop.
+            (
+                &crate::evalseam::options(&self.reads.resolver),
+                &pncad::document::CancelToken::new(),
+            ),
             self.reads.prior.as_deref(),
             held,
         )?;

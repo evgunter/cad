@@ -1784,8 +1784,15 @@ impl Doc {
             ..d::EvalOptions::default()
         };
         let tol = Tol::witness();
-        let done = d::take_over(&self.inner, &copies, &result, &opts, tol)
-            .map_err(|err| edit_err(py, &err))?;
+        let done = d::take_over(
+            &self.inner,
+            &copies,
+            &result,
+            &opts,
+            &d::CancelToken::new(),
+            tol,
+        )
+        .map_err(|err| edit_err(py, &err))?;
         let mut moved = Vec::new();
         for (copy, names) in &done.taken.moved.0 {
             for (from, to) in names {
