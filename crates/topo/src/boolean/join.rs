@@ -2602,7 +2602,22 @@ fn partners<T: Decide>(
         )?,
         None => {
             let loops = germ_loops(red, &rga, band)?;
-            facing(loops.as_ref(), &rga, &ega, p_c, p_e, band)?
+            match facing(loops.as_ref(), &rga, &ega, p_c, p_e, band)? {
+                // Two cones through one apex meet along two rulings, not
+                // one line: a straight partner must lie on the germ's own
+                // ruling, or the chord test pairs the two rulings' rim
+                // germs across the apex.
+                Faced::Straight if two_rulings(red, &rga, band)? => {
+                    let off = rga.dir.cross(p_e - p_c).norm();
+                    match decide("bool_join_on_ruling", Margin::of(off), band)
+                        .map_err(join_escalate)?
+                    {
+                        Sign::Zero => Faced::Straight,
+                        Sign::Positive | Sign::Negative => Faced::Apart,
+                    }
+                }
+                faced => faced,
+            }
         }
     };
     if let Faced::Apart = faced {
@@ -2633,6 +2648,24 @@ fn partners<T: Decide>(
         turn,
         along,
     }))
+}
+
+/// **Whether `germ`'s face pair is two cones through one apex**
+/// ([`KindArm::Apex`]): their section is two rulings through it, each a
+/// straight line of its own ([`partners`]).
+fn two_rulings<T: Decide>(
+    red: &BooleanReduction<T>,
+    germ: &HalfGerm<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let (_, sa) = face_surface(&red.a, germ.a_face)?;
+    let (_, sb) = face_surface(&red.b, germ.b_face)?;
+    Ok(match (sa, sb) {
+        (geom::Surface::Cone { apex: p1, .. }, geom::Surface::Cone { apex: p2, .. }) => {
+            super::fan::cones_share_apex(*p1, *p2, band).map_err(join_escalate)?
+        }
+        _ => false,
+    })
 }
 
 /// An `OnEdge` germ's edge runs from the germ's site: one of its ends
