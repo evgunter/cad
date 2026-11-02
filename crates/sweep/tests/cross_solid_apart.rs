@@ -1143,3 +1143,195 @@ fn a_cap_on_another_plane_across_a_plates_top_refuses() {
         }
     }
 }
+
+// ---- ver5918 probes (local only) ----
+
+fn ver_square() -> Body<f64> {
+    use profile::{Open, ProfileLoop, Start};
+    let t = tol();
+    let mut path = Open.at(Point2::new(0.5, 0.0)).toward(1.0, 0.0, t).unwrap();
+    for (corner, (dx, dy)) in [
+        (Point2::new(1.0, 0.5), (0.0, 1.0)),
+        (Point2::new(0.5, 1.0), (-1.0, 0.0)),
+        (Point2::new(0.0, 0.5), (0.0, -1.0)),
+    ] {
+        path = path.fillet(0.25, t).unwrap().at(corner, t).unwrap().toward(dx, dy, t).unwrap();
+    }
+    let outline: ProfileLoop<f64> = path.fillet(0.25, t).unwrap().to(Start, t).unwrap().into();
+    sweep::test_support::extruded(sweep::test_support::sketch_at(0.0), vec![outline], 1.0, t)
+}
+
+/// A wedge on y in [-0.5, 1.5], foot at x0, height 1 + lift; underside
+/// rising toward -x at slope s; top side 1 higher at xl.
+fn ver_wedge_pair(x0: f64, s: f64, lift: f64) -> AtRestBody<f64> {
+    use sweep::test_support::{corners, prism_on, sketch_from_axes};
+    let t = tol();
+    let plane = sketch_from_axes(
+        geom_core::Point3::new(0.0, 1.5, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        t,
+    );
+    let xl = -0.5;
+    let under = 1.0 + lift + s * (x0 - xl);
+    let wedge = prism_on(
+        plane,
+        corners::<f64>(&[(x0, 1.0 + lift), (xl, under + 1.0), (xl, under)]),
+        2.0,
+        t,
+    );
+    let mut out = ver_square();
+    topo::graft_disjoint(&mut out, &wedge).expect("grafts");
+    finished("ver wedge", out, t)
+}
+
+fn ver_top_vs_under(pair: &AtRestBody<f64>, errs: &[ValidationError]) -> bool {
+    refuses_on(pair, errs, up, |n| n.z < -0.1)
+}
+
+/// The original r1 (wedge) fixture's literal values, and steep variants.
+#[test]
+fn ver5918_wedges() {
+    let z = band().zero();
+    eprintln!("VER z = {z:e}");
+    // must refuse: original r1 values (literal) and z-scaled
+    let mut must_refuse = vec![
+        ("r1 hover 5e-10", 1.0 + 5e-8, 0.01, 0.0 + 5e-10),
+        ("r1 dip -9e-10", 1.0 + 5e-8, 0.01, -9e-10),
+        ("r1 legit-shape s0.1 hover0", 1.0 + 5e-8, 0.1, 0.0),
+        ("r1 s0.01 hover0", 1.0 + 5e-8, 0.01, 0.0),
+    ];
+    // 60 deg and just-past-half, foot inside A: crossing or touching
+    for &s in &[3f64.sqrt(), 0.6] {
+        for &lift in &[-0.9 * z, 0.0, 0.5 * z] {
+            must_refuse.push(("steep foot 50z inside", 1.0 - 50.0 * z, s, lift));
+        }
+    }
+    let mut bad = Vec::new();
+    for (what, x0, s, lift) in must_refuse {
+        let pair = ver_wedge_pair(x0, s, lift);
+        let r = census(&pair);
+        let ok = r.as_ref().err().is_some_and(|e| ver_top_vs_under(&pair, e));
+        eprintln!("VER must-refuse {what} s={s} lift={lift:e}: top/under refused={ok} census_ok={}", r.is_ok());
+        if !ok {
+            bad.push((what, s, lift));
+        }
+    }
+    // informational: steep, foot well outside: apart
+    for &s in &[3f64.sqrt(), 0.6, 0.55] {
+        for &lift in &[-0.9 * z, 0.0, 0.5 * z] {
+            for &g in &[50.0, 40.0] {
+                let pair = ver_wedge_pair(1.0 + g * z, s, lift);
+                let r = census(&pair);
+                let top = r.as_ref().err().map(|e| ver_top_vs_under(&pair, e));
+                eprintln!("VER info apart g={g}z s={s} lift={lift:e}: census_ok={} top/under refused={top:?}", r.is_ok());
+            }
+        }
+    }
+    assert!(bad.is_empty(), "false clears: {bad:?}");
+}
+
+/// A cube turned 1/16 about x then 1/16 about y, its lowest corner put at
+/// `at` (+ lift in z): its three lowest faces stand on z = 1 at a corner,
+/// the base at sin θ ≈ 0.521.
+fn ver_corner_down(at: (f64, f64, f64)) -> AtRestBody<f64> {
+    let t = tol();
+    let cube = sweep::test_support::brick::<f64>((0.0, 0.3), (0.0, 0.3), (0.0, 0.3), t);
+    let mut b = cube;
+    for axis in [geom_core::UnitVec3::exact_x(), geom_core::UnitVec3::exact_y()] {
+        b = topo::transform_rigid(
+            &b,
+            &RigidMotion::turned(geom_core::Point3::new(0.0, 0.0, 0.0), axis, geom_core::Turns::new(1, 16).unwrap()),
+            t,
+        )
+        .unwrap();
+    }
+    let low = b.vertex_points().map(|(_, p)| p).min_by(|p, q| p.z.total_cmp(&q.z)).unwrap();
+    let placed = topo::transform_rigid(
+        &b,
+        &RigidMotion::translation(Vec3::new(at.0 - low.x, at.1 - low.y, at.2 - low.z)).unwrap(),
+        t,
+    )
+    .unwrap();
+    let mut out = ver_square();
+    topo::graft_disjoint(&mut out, &placed).expect("grafts");
+    finished("ver corner", out, t)
+}
+
+#[test]
+fn ver5918_corner_down_cube() {
+    let z = band().zero();
+    let mut bad = Vec::new();
+    for (what, at) in [
+        ("corner on top, inside", (0.5, 0.5, 1.0)),
+        ("corner dips 0.9z, inside", (0.5, 0.5, 1.0 - 0.9 * z)),
+        ("corner hovers 0.5z, inside", (0.5, 0.5, 1.0 + 0.5 * z)),
+        ("corner on top, 20z outside edge", (1.0 + 20.0 * z, 0.5, 1.0)),
+    ] {
+        let pair = ver_corner_down(at);
+        let r = census(&pair);
+        eprintln!(
+            "VER corner {what}: {:?}",
+            r.as_ref().map(|_| ()).map_err(|e| (refuses_curved_within_reach(&pair, e), e.len()))
+        );
+        if !r.as_ref().err().is_some_and(|e| refuses_on(&pair, e, up, |n| n.z < 0.0)) {
+            bad.push(what);
+        }
+    }
+    for g in [50.0, 100.0] {
+        let pair = ver_corner_down((1.0 + g * z, 0.5, 1.0 - 0.9 * z));
+        let r = census(&pair);
+        eprintln!("VER corner info {g}z outside, dip: census_ok={}", r.is_ok());
+    }
+    assert!(bad.is_empty(), "false clears: {bad:?}");
+}
+
+/// r1's rod lying on the L's arm (not ported to head).
+#[test]
+fn ver5918_r1_rod_on_plate() {
+    let rod = revolved(0.0, 0.5, 1.0);
+    for quarter in [(0i64, 1u64), (1, 10), (1, 4), (1, 2)] {
+        let turned = topo::transform_rigid(
+            &rod,
+            &RigidMotion::turned(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::UnitVec3::exact_y(),
+                geom_core::Turns::new(quarter.0, quarter.1).unwrap(),
+            ),
+            tol(),
+        )
+        .unwrap();
+        let placed = topo::transform_rigid(
+            &turned,
+            &RigidMotion::translation(Vec3::new(1.5, 0.5, 1.5)).unwrap(),
+            tol(),
+        )
+        .unwrap();
+        let mut body = rounded_ell();
+        topo::graft_disjoint(&mut body, &placed).expect("grafts");
+        let pair = finished("the plate and the rod", body, tol());
+        let errs = census(&pair).expect_err("the rod lies on the plate");
+        let cap = refuses_on(&pair, &errs, level, |n| n.x.abs() < 1e-12 && n.z.abs() < 1e-12);
+        eprintln!("VER rod {quarter:?}: cap_on_top={cap}");
+        assert!(cap, "turn {quarter:?}");
+    }
+}
+
+/// r2's tilt at its default REV_Y0 = 0.5 and at the port's 1.5.
+#[test]
+fn ver5918_r2_tilt_y0() {
+    use sweep::test_support::{corners, prism_on, sketch_from_axes};
+    let t = tol();
+    for y0 in [0.5, 1.5] {
+        let mut island = corners::<f64>(&[(0.02, 0.9), (0.07, 0.9), (0.07, 1.1), (0.02, 1.1)]);
+        island[1].1 = 0.2;
+        let plane = sketch_from_axes(geom_core::Point3::new(0.0, y0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), t);
+        let block = prism_on(plane, corners::<f64>(&[(0.0, 1.0 - 0.9e-9), (1.0, 1.0 + 2e-8), (1.0, 2.0), (0.0, 2.0)]), 1.0, t);
+        let ys: Vec<f64> = block.vertex_points().map(|(_, p)| p.y).collect();
+        let pair = plate_and(island, &block);
+        let r = census(&pair);
+        eprintln!("VER r2 tilt y0={y0} block y in {:?}: census_ok={} top/base refused={:?}",
+            (ys.iter().cloned().fold(f64::MAX, f64::min), ys.iter().cloned().fold(f64::MIN, f64::max)),
+            r.is_ok(), r.as_ref().err().map(|e| refuses_on(&pair, e, up, down)));
+    }
+}

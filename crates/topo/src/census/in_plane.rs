@@ -116,6 +116,10 @@ fn loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Loop<T>>> {
 }
 
 /// Whether `p` lies definitely outside `face`, on its plane.
+fn ver_mut(m: &str) -> bool {
+    std::env::var("VER_MUT").is_ok_and(|v| v == m)
+}
+
 fn outside<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>, band: Band) -> bool {
     matches!(
         face_placement(body, face, p, band, REGION_ON_PLANE),
@@ -154,7 +158,7 @@ pub(super) fn apart_in_plane<T: Decide>(
             Some(_)
         )))
     );
-    if one_plane {
+    if one_plane || ver_mut("r1two") {
         return la.iter().all(|x| outside(body, b, x.point, band))
             && lb.iter().all(|y| outside(body, a, y.point, band))
             && la.iter().flat_map(|x| &x.edges).all(|&ea| {
@@ -195,7 +199,7 @@ fn standing<T: Decide>(
     };
     let half = T::from_f64(0.5);
     let steep = (n.get().cross(nb.get()).norm() - half) * lever;
-    if !matches!(
+    if !ver_mut("slope") && !matches!(
         decide(REGION_SLOPE, Margin::of(steep), band),
         Ok(Sign::Positive)
     ) {
@@ -222,7 +226,7 @@ fn standing<T: Decide>(
             EdgeBoxRule::Chord
         ) {
             arcs.push(e);
-        } else if s0 == Sign::Zero || s1 == Sign::Zero {
+        } else if if ver_mut("tip") { s0 == Sign::Zero && s1 == Sign::Zero } else { s0 == Sign::Zero || s1 == Sign::Zero } {
             touching.push((e, ends, [s0, s1]));
         }
     }
@@ -242,11 +246,11 @@ fn standing<T: Decide>(
             Ok(Sign::Positive)
         )
     };
-    arcs.into_iter().all(off)
+    (ver_mut("arc") || arcs.into_iter().all(off))
         && touching.iter().all(|&(e, ends, signs)| {
             ends.iter()
                 .zip(signs)
-                .all(|(&p, s)| s != Sign::Zero || outside(body, a, p, band))
+                .all(|(&p, s)| s != Sign::Zero || ver_mut("outskip") || outside(body, a, p, band))
                 && la
                     .iter()
                     .flat_map(|x| &x.edges)
