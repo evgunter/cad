@@ -759,3 +759,446 @@ fn staggered_parallel_rods_part_along_the_line_of_centres_until_they_touch() {
     let errs = census(&touching).expect_err("the walls meet along a ruling");
     assert!(refuses_curved_within_reach(&touching, &errs), "{errs:?}");
 }
+
+/// The L plate `[0, 6] × [0, 3] ∪ [0, 3] × [0, 6]` over `z ∈ [0, 1]`,
+/// every corner rounded at 0.5, the reflex one's centre at `(3.5, 3.5)`.
+fn rounded_ell() -> Body<f64> {
+    use profile::{Open, ProfileLoop, Start};
+    let t = tol();
+    let mut path = Open.at(Point2::new(3.0, 0.0)).toward(1.0, 0.0, t).unwrap();
+    for (corner, (dx, dy)) in [
+        (Point2::new(6.0, 1.5), (0.0, 1.0)),
+        (Point2::new(4.5, 3.0), (-1.0, 0.0)),
+        (Point2::new(3.0, 4.5), (0.0, 1.0)),
+        (Point2::new(1.5, 6.0), (-1.0, 0.0)),
+        (Point2::new(0.0, 3.0), (0.0, -1.0)),
+    ] {
+        path = path
+            .fillet(0.5, t)
+            .unwrap()
+            .at(corner, t)
+            .unwrap()
+            .toward(dx, dy, t)
+            .unwrap();
+    }
+    let outline: ProfileLoop<f64> = path.fillet(0.5, t).unwrap().to(Start, t).unwrap().into();
+    sweep::test_support::extruded(sweep::test_support::sketch_at(0.0), vec![outline], 1.0, t)
+}
+
+/// The rounded L with the block `x × y × z`, two solids of one body.
+fn ell_and_block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
+    let mut out = rounded_ell();
+    topo::graft_disjoint(&mut out, &sweep::test_support::brick(x, y, z, tol())).expect("grafts");
+    finished("the plate and the block", out, tol())
+}
+
+/// Whether `errs` holds the curved-pair refusal on a planar face of the
+/// plate (the solid with a cylinder face) whose normal `on_plate` holds
+/// of, against a planar face of the block whose normal `on_block` holds
+/// of.
+fn refuses_on(
+    body: &AtRestBody<f64>,
+    errs: &[ValidationError],
+    on_plate: fn(Vec3<f64>) -> bool,
+    on_block: fn(Vec3<f64>) -> bool,
+) -> bool {
+    refusals_on(body, errs, on_plate, on_block) > 0
+}
+
+/// How many of [`refuses_on`]'s refusals `errs` holds.
+fn refusals_on(
+    body: &AtRestBody<f64>,
+    errs: &[ValidationError],
+    on_plate: fn(Vec3<f64>) -> bool,
+    on_block: fn(Vec3<f64>) -> bool,
+) -> usize {
+    let normal = |f| match body.get_face(f).and_then(|d| body.get_surface(d.surface)) {
+        Some(geom::Surface::Plane { normal, .. }) => Some(*normal),
+        _ => None,
+    };
+    let plate = body
+        .faces()
+        .find(|(_, d)| {
+            matches!(
+                body.get_surface(d.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .and_then(|(f, _)| body.solid_of_face(f))
+        .expect("the plate has a rounded wall");
+    errs.iter()
+        .filter(|e| match e {
+            ValidationError::CensusUndecidable {
+                a: EntityId::Face(a),
+                b: EntityId::Face(b),
+                what,
+                ..
+            } if what.contains(CURVED_WITHIN_REACH) => {
+                [(*a, *b), (*b, *a)].into_iter().any(|(p, q)| {
+                    body.solid_of_face(p) == Some(plate)
+                        && body.solid_of_face(q).is_some_and(|s| s != plate)
+                        && normal(p).is_some_and(on_plate)
+                        && normal(q).is_some_and(on_block)
+                })
+            }
+            _ => false,
+        })
+        .count()
+}
+
+/// A normal along `z`: the plate's top, the block's base or top.
+fn level(n: Vec3<f64>) -> bool {
+    n.x.abs() < 1e-12 && n.y.abs() < 1e-12
+}
+
+/// A normal across `z`: a wall.
+fn upright(n: Vec3<f64>) -> bool {
+    n.z.abs() < 1e-12
+}
+
+/// **A block in a plate's reflex notch passes, until it touches.** The
+/// block stands on the L's top plane in the notch, 0.5 or less clear of
+/// the L in plan: its base lies in the top's plane and its walls stand
+/// on it, and the L wraps two sides of it, so no plane parts the top
+/// from the base or from a wall, and the block's corner lies on the
+/// notch fillet's axis, so no depth does. Each is apart where it meets
+/// the top's plane (`census::in_plane`). Moved onto the fillet (its
+/// corner on the arc) or onto the L's straight edge, it touches, and
+/// the base and a wall refuse with the curved-pair finding. Red where
+/// arm 1 has no reading in the plane.
+#[test]
+fn a_block_in_a_plates_notch_passes_until_it_touches() {
+    let m = 0.5 * (1.0 - core::f64::consts::FRAC_1_SQRT_2);
+    for (x, y) in [
+        ((3.5, 6.0), (3.5, 6.0)),
+        ((3.5, 5.5), (3.5, 5.5)),
+        ((3.0 + m, 6.0), (3.5, 6.0)),
+        ((3.5, 6.0), (3.0 + m, 3.5)),
+    ] {
+        let pair = ell_and_block(x, y, (1.0, 2.0));
+        assert_eq!(census(&pair), Ok(()), "the block {x:?} × {y:?}");
+    }
+    for (x, y, what) in [
+        ((3.0 + m, 6.0), (3.0 + m, 6.0), "its corner on the fillet"),
+        ((3.5, 5.5), (3.0, 4.0), "its edge on the plate's"),
+    ] {
+        let pair = ell_and_block(x, y, (1.0, 2.0));
+        let errs = census(&pair).expect_err(what);
+        assert!(
+            refuses_on(&pair, &errs, level, level),
+            "{what}, the base: {errs:?}"
+        );
+        assert!(
+            refuses_on(&pair, &errs, level, upright),
+            "{what}, a wall: {errs:?}"
+        );
+    }
+}
+
+/// **A block across a plate's arm, on it, over it or sunk through it
+/// still refuses against the plate's top.** Across the arm, every vertex
+/// of the block's base and walls lies outside the top, but their edges
+/// cross the top's; on the arm, the base lies inside the top and the
+/// walls stand in it, no edge near the top's; over the whole plate, the
+/// top lies inside the base; sunk through the arm, the walls cross the
+/// top's plane with no vertex on it. Red where the reading in the plane
+/// drops its edge gaps, a placement either way, or the side a face lies
+/// on.
+#[test]
+fn a_block_over_a_plates_top_still_refuses() {
+    let base_and_wall = [
+        ((4.0, 5.0), (-1.0, 4.0), "across the arm"),
+        ((0.5, 2.5), (3.5, 5.5), "on the arm"),
+    ];
+    for (x, y, what) in base_and_wall {
+        let pair = ell_and_block(x, y, (1.0, 2.0));
+        let errs = census(&pair).expect_err(what);
+        assert!(
+            refuses_on(&pair, &errs, level, level),
+            "{what}, the base: {errs:?}"
+        );
+        assert!(
+            refuses_on(&pair, &errs, level, upright),
+            "{what}, a wall: {errs:?}"
+        );
+    }
+    let over = ell_and_block((-1.0, 7.0), (-1.0, 7.0), (1.0, 2.0));
+    let errs = census(&over).expect_err("over the plate");
+    assert!(
+        refuses_on(&over, &errs, level, level),
+        "over the plate, the base: {errs:?}"
+    );
+    let sunk = ell_and_block((1.0, 2.0), (1.0, 2.0), (0.5, 1.5));
+    let errs = census(&sunk).expect_err("through the arm");
+    assert!(
+        refuses_on(&sunk, &errs, level, upright),
+        "through the arm, a wall: {errs:?}"
+    );
+}
+
+/// A normal within 1e-6 of `+z`: a top.
+fn up(n: Vec3<f64>) -> bool {
+    n.z > 0.999_999
+}
+
+/// A normal within 1e-6 of `−z`: a base, level or nearly.
+fn down(n: Vec3<f64>) -> bool {
+    n.z < -0.999_999
+}
+
+/// The plate on the bulge loop `pts` over `z ∈ [0, 1]`, and `other`:
+/// two solids of one body.
+fn plate_and(pts: Vec<(Point2<f64>, f64)>, other: &Body<f64>) -> AtRestBody<f64> {
+    let mut out = sweep::test_support::prism_at(pts, 0.0, 1.0, tol());
+    topo::graft_disjoint(&mut out, other).expect("grafts");
+    finished("the plate and the other", out, tol())
+}
+
+/// **A base tilted within the band across a plate's top refuses.** The
+/// plate is the island `[0.02, 0.07] × [0.9, 1.1]`, one side an arc, and
+/// the block's base, turned about `y`, lies 0.9z below the top's plane
+/// at `x = 0` (decided on it; `z` the band's zero threshold) and 20z
+/// above at `x = 1` (decided off it): it crosses the plane at `x ≈ 0.043`, through the
+/// top, far in plan from its feet. Red where the reading of a face
+/// standing on the plane takes its feet's Zero for nought: so shallow a
+/// face's section lies wherever the band allows, and its slope is not
+/// one the reading admits.
+#[test]
+fn a_base_tilted_within_the_band_across_a_plates_top_refuses() {
+    use sweep::test_support::{corners, prism_on, sketch_from_axes};
+    let t = tol();
+    let mut island = corners::<f64>(&[(0.02, 0.9), (0.07, 0.9), (0.07, 1.1), (0.02, 1.1)]);
+    island[1].1 = 0.2;
+    let z = band().zero();
+    let (delta, high) = (0.9 * z, 20.0 * z);
+    let plane = sketch_from_axes(
+        geom_core::Point3::new(0.0, 1.5, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        t,
+    );
+    let block = prism_on(
+        plane,
+        corners::<f64>(&[
+            (0.0, 1.0 - delta),
+            (1.0, 1.0 + high),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ]),
+        1.0,
+        t,
+    );
+    let pair = plate_and(island, &block);
+    let errs = census(&pair).expect_err("the base crosses the top");
+    assert!(
+        refuses_on(&pair, &errs, up, down),
+        "the top and the base: {errs:?}"
+    );
+}
+
+/// The square `[0, 1]²`, its corners rounded at 0.25, over `z ∈ [0, 1]`.
+fn rounded_square() -> Body<f64> {
+    use profile::{Open, ProfileLoop, Start};
+    let t = tol();
+    let mut path = Open.at(Point2::new(0.5, 0.0)).toward(1.0, 0.0, t).unwrap();
+    for (corner, (dx, dy)) in [
+        (Point2::new(1.0, 0.5), (0.0, 1.0)),
+        (Point2::new(0.5, 1.0), (-1.0, 0.0)),
+        (Point2::new(0.0, 0.5), (0.0, -1.0)),
+    ] {
+        path = path
+            .fillet(0.25, t)
+            .unwrap()
+            .at(corner, t)
+            .unwrap()
+            .toward(dx, dy, t)
+            .unwrap();
+    }
+    let outline: ProfileLoop<f64> = path.fillet(0.25, t).unwrap().to(Start, t).unwrap().into();
+    sweep::test_support::extruded(sweep::test_support::sketch_at(0.0), vec![outline], 1.0, t)
+}
+
+/// **A wedge footed a hair off a plate's edge, its underside over the
+/// top, refuses**: the rounded square `[0, 1]²` (corners 0.25) over
+/// `z ∈ [0, 1]`, and a wedge whose lowest edge runs at `x = 1 + 50z`
+/// (`z` the band's zero threshold) within the band of the top's plane
+/// (0.5z and 5z above, 0.9z below), its underside rising over the top
+/// at slope 0.01 or 0.1, so within the band of the plane over the top's
+/// edge. Red where the standing reading takes the foot for exactly on
+/// the plane.
+#[test]
+fn a_wedge_footed_beside_a_plates_edge_over_its_top_refuses() {
+    use sweep::test_support::{corners, prism_on, sketch_from_axes};
+    let t = tol();
+    let z = band().zero();
+    for (slope, lift) in [(0.01, 0.5 * z), (0.1, 5.0 * z), (0.01, -0.9 * z)] {
+        let plane = sketch_from_axes(
+            geom_core::Point3::new(0.0, 1.5, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            t,
+        );
+        let (x0, xl) = (1.0 + 50.0 * z, -0.5);
+        let wedge = prism_on(
+            plane,
+            corners::<f64>(&[
+                (x0, 1.0 + lift),
+                (xl, 1.6),
+                (xl, 1.0 + lift + slope * (x0 - xl)),
+            ]),
+            2.0,
+            t,
+        );
+        let mut out = rounded_square();
+        topo::graft_disjoint(&mut out, &wedge).expect("grafts");
+        let pair = finished("the plate and the wedge", out, t);
+        let errs = census(&pair).expect_err("the wedge lies on the top's plane");
+        assert!(
+            refuses_on(&pair, &errs, up, |n| n.z < -0.99),
+            "slope {slope}, lift {lift}: the top and the underside: {errs:?}"
+        );
+    }
+}
+
+/// **A wall across a plate's rounded corner refuses, though every vertex
+/// of the top lies on one side of it.** The plate `[0, 2]²` with its
+/// `(2, 2)` corner rounded at 0.5 has every vertex of its top at
+/// `x + y ≤ 3.5`; a diamond prism over `z ∈ [0.5, 1.5]` has a wall on
+/// `x + y = 3.6`, which the corner's arc crosses (it reaches
+/// `x + y ≈ 3.71`). Red where the standing reading reads an arc by its
+/// ends.
+#[test]
+fn a_wall_across_a_plates_rounded_corner_refuses() {
+    use sweep::test_support::{corners, prism_at};
+    let mut plate = corners::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.5), (1.5, 2.0), (0.0, 2.0)]);
+    plate[2].1 = (core::f64::consts::PI / 8.0).tan();
+    let diamond = prism_at(
+        corners::<f64>(&[(2.1, 1.5), (2.6, 2.0), (2.0, 2.6), (1.5, 2.1)]),
+        0.5,
+        1.0,
+        tol(),
+    );
+    let pair = plate_and(plate, &diamond);
+    let errs = census(&pair).expect_err("the diamond crosses the corner");
+    assert!(
+        refuses_on(&pair, &errs, up, |n| n.z.abs() < 1e-9
+            && (n.x - n.y).abs() < 1e-9),
+        "the top and the wall: {errs:?}"
+    );
+}
+
+/// **A cap on another plane across a plate's top refuses, whichever
+/// loop vertex either face starts at.** The pentagon top (z = 1, one
+/// side a shallow arc) holds `y = 5` over `x ∈ [0, 10]` with a vertex at
+/// `(10, 5)`; the chevron prism's caps lie on planes through the line
+/// `y = 5, z = 1` at 45°, one with a vertex at `(−1, 5, 1)`, and cross
+/// the top along `x ∈ [0, 5]`. Their boundaries miss each other and
+/// each face's starting vertex lies outside the other, so the region
+/// reading would clear them were it let onto two planes. Every rotation
+/// of either loop's start, both caps.
+#[test]
+fn a_cap_on_another_plane_across_a_plates_top_refuses() {
+    use sweep::test_support::{prism_at, prism_on, sketch_from_axes};
+    let t = tol();
+    for ra in 0..5 {
+        for rb in 0..5 {
+            let mut ring = [
+                (0.0, 2.0, 0.0),
+                (6.0, 0.0, 0.0),
+                (10.0, 5.0, 0.0),
+                (6.0, 10.0, 0.05),
+                (0.0, 8.0, 0.0),
+            ];
+            ring.rotate_left(ra);
+            let pts = ring
+                .iter()
+                .map(|&(x, y, b)| (Point2::new(x, y), b))
+                .collect();
+            let mut chevron = [
+                (0.0, 0.0),
+                (-2.0, -3.0),
+                (5.5, -0.2),
+                (5.5, 0.2),
+                (-2.0, 3.0),
+            ];
+            chevron.rotate_left(rb);
+            let plane = sketch_from_axes(
+                geom_core::Point3::new(-1.0, 5.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 1.0),
+                t,
+            );
+            let block = prism_on(
+                plane,
+                chevron
+                    .iter()
+                    .map(|&(x, y)| (Point2::new(x, y), 0.0))
+                    .collect(),
+                0.5,
+                t,
+            );
+            let mut out = prism_at(pts, 0.0, 1.0, t);
+            topo::graft_disjoint(&mut out, &block).expect("grafts");
+            let pair = finished("the pentagon and the chevron", out, t);
+            let errs = census(&pair).expect_err("the caps cross the top");
+            assert_eq!(
+                refusals_on(&pair, &errs, up, |n| n.x.abs() < 1e-9
+                    && (n.y + n.z).abs() < 1e-9),
+                2,
+                "starts {ra}, {rb}: both caps against the top: {errs:?}"
+            );
+        }
+    }
+}
+
+/// **A cube standing on a corner inside a plate's top refuses, its
+/// corner on the top's plane or within the band of it.** The cube of
+/// side 0.3, turned a sixteenth about `x` and then about `y`, has its
+/// lowest corner at `(0.5, 0.5)` on the rounded square's top: flush,
+/// 0.9z below or 0.5z above (`z` the band's zero threshold), and flush
+/// 20z outside the top's edge. Its three lowest faces stand on the
+/// plane at that corner (the steepest at sin θ ≈ 0.521, past the slope
+/// the standing reading asks), each meeting it at the corner alone,
+/// through edges with one end on the plane. Red where the reading
+/// counts a line edge as meeting the plane only when both its ends lie
+/// on it.
+#[test]
+fn a_cube_on_its_corner_inside_a_plates_top_refuses() {
+    let t = tol();
+    let z = band().zero();
+    for (what, at) in [
+        ("on the top", (0.5, 0.5, 1.0)),
+        ("0.9z below", (0.5, 0.5, 1.0 - 0.9 * z)),
+        ("0.5z above", (0.5, 0.5, 1.0 + 0.5 * z)),
+        ("20z outside the edge", (1.0 + 20.0 * z, 0.5, 1.0)),
+    ] {
+        let mut cube = sweep::test_support::brick::<f64>((0.0, 0.3), (0.0, 0.3), (0.0, 0.3), t);
+        for axis in [
+            geom_core::UnitVec3::exact_x(),
+            geom_core::UnitVec3::exact_y(),
+        ] {
+            let sixteenth = RigidMotion::turned(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                axis,
+                geom_core::Turns::new(1, 16).unwrap(),
+            );
+            cube = topo::transform_rigid(&cube, &sixteenth, t).unwrap();
+        }
+        let low = cube
+            .vertex_points()
+            .map(|(_, p)| p)
+            .min_by(|p, q| p.z.total_cmp(&q.z))
+            .unwrap();
+        let by = Vec3::new(at.0 - low.x, at.1 - low.y, at.2 - low.z);
+        let placed =
+            topo::transform_rigid(&cube, &RigidMotion::translation(by).unwrap(), t).unwrap();
+        let mut out = rounded_square();
+        topo::graft_disjoint(&mut out, &placed).expect("grafts");
+        let pair = finished("the plate and the cube", out, t);
+        let errs = census(&pair).expect_err(what);
+        assert!(
+            refuses_on(&pair, &errs, up, |n| n.z < 0.0),
+            "{what}: a lowest face against the top: {errs:?}"
+        );
+    }
+}

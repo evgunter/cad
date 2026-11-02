@@ -2182,7 +2182,7 @@ space's axes. Nothing a place gesture writes reads the copy's geometry.
 
 **A body reaches the product through one door.** Nothing joins the
 product unasked, a document's first body included. **Add to the
-product** is offered on the body under a viewport pick, on a drawn
+product** (`SessionOp::AddToProduct`) is offered on the body under a viewport pick, on a drawn
 body's tree row, and as the action of the `EmptyProduct`,
 `StrandedProduct` and `unused` recourses, each one action and one undo:
 a copy in the world is added to the slot (`SetProduct`); a placement's
