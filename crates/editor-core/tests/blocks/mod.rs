@@ -101,9 +101,11 @@ pub(crate) fn census_of(
     ev: &Evaluation<f64>,
     id: RecipeNodeId,
 ) -> Result<(), Vec<topo::ValidationError>> {
-    match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
-            topo::validate_pseudomanifold(body.body(), contacts, Tol::witness()).map(|_| ())
+    let value = ev.value(id).expect("the node evaluated");
+    match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+            topo::validate_pseudomanifold(body.body(), &value.carry.contacts, Tol::witness())
+                .map(|_| ())
         }
         other => panic!("expected a boolean body, got {other:?}"),
     }

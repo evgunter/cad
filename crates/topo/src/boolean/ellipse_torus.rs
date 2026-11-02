@@ -40,8 +40,8 @@
 
 use geom_core::{Band, Decide};
 
-use super::BooleanError;
-use super::circle_roots::CircleRoots;
+use super::circle_roots::{CircleRoots, door_refusal};
+use super::{BooleanDecision, BooleanError};
 use geom_brep::half_angle::{
     RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
 };
@@ -63,9 +63,9 @@ const TORUS_ROWS: SubdivisionRows = SubdivisionRows {
 ///
 /// [`BooleanError::ClassificationInvariant`] when `carrier` is not an
 /// ellipse or `surface` not a torus — the caller dispatched on those
-/// kinds, so a mismatch is a desync, never an answer. The subdivision
-/// never escalates; a count it cannot certify is the inner
-/// [`Unsettled`].
+/// kinds, so a mismatch is a desync, never an answer. The subdivision's
+/// sign in band escalates as [`BooleanDecision::ArcTorusRoots`], its
+/// fault is the kernel's, and its limit is the inner [`Unsettled`].
 pub(super) fn ellipse_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -126,28 +126,31 @@ fn torus_walk<T: Decide>(
         residual: &placed,
         f_per_metre_hi: h.f_per_metre_hi.min(h.f_per_metre_surface),
     });
-    Ok(certified_subdivision(
-        &TrigPoly {
-            cos: h.cos,
-            sin: h.sin,
-            degree: 4,
-        },
-        &|theta| geom_brep::implicit_residual(surface, conic.point(theta)),
-        &SubdivisionFrame {
-            t0,
-            t1,
-            speed_hi: conic.speed_hi(),
-            noise: rounding_charge(h.terms),
-            f_per_metre: h.f_per_metre_lo,
-            f_per_metre_hi: h.f_per_metre_surface,
-            residual_reach: Some(minor_radius / T::from_f64(2.0)),
-            jet: None,
-        },
-        &TORUS_ROWS,
-        meter.as_ref(),
-        band,
+    door_refusal(
+        certified_subdivision(
+            &TrigPoly {
+                cos: h.cos,
+                sin: h.sin,
+                degree: 4,
+            },
+            &|theta| geom_brep::implicit_residual(surface, conic.point(theta)),
+            &SubdivisionFrame {
+                t0,
+                t1,
+                speed_hi: conic.speed_hi(),
+                noise: rounding_charge(h.terms),
+                f_per_metre: h.f_per_metre_lo,
+                f_per_metre_hi: h.f_per_metre_surface,
+                residual_reach: Some(minor_radius / T::from_f64(2.0)),
+                jet: None,
+            },
+            &TORUS_ROWS,
+            meter.as_ref(),
+            band,
+        ),
+        BooleanDecision::ArcTorusRoots,
     )
-    .map(Roots::widen))
+    .map(|found| found.map(Roots::widen))
 }
 
 #[cfg(test)]
@@ -374,9 +377,13 @@ mod torus_rows {
     use std::fmt::Write as _;
 
     use super::*;
+    use crate::boolean::circle_roots::door_answer;
     use crate::boolean::conic_oracle::{distance, exact, unit};
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
+
+    /// A door's answer for a row ([`door_answer`]).
+    type Answer = Result<CircleRoots<f64>, Option<Unsettled>>;
 
     /// The families a pose is drawn from.
     const FAMILIES: [&str; 4] = ["crossing", "graze", "far-out", "millimetre"];
@@ -483,9 +490,7 @@ mod torus_rows {
                 let (mut certified, mut misses, mut uncertain) = (0, 0, 0);
                 for i in 0..fuzz::scaled(120) {
                     let (e, s, t0, t1) = pose(&mut rng, family, eps);
-                    let found = ellipse_torus_roots(&e, t0, t1, &s, band).unwrap_or_else(|err| {
-                        panic!("ε {eps}, {name} {i}: the torus arm escalated {err:?}")
-                    });
+                    let found = door_answer(ellipse_torus_roots(&e, t0, t1, &s, band));
                     let truth = exact::truth(&e, &s);
                     let label = format!(
                         "ε {eps}, {name} {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
@@ -565,13 +570,7 @@ mod torus_rows {
         }
 
         /// The door's answer, and the walk's with no slack meter.
-        fn answers(
-            &self,
-            band: Band,
-        ) -> (
-            Result<CircleRoots<f64>, Unsettled>,
-            Result<CircleRoots<f64>, Unsettled>,
-        ) {
+        fn answers(&self, band: Band) -> (Answer, Answer) {
             let (e, s) = self.build();
             let conic = geom_brep::Conic::of(&e).unwrap();
             let torus = (
@@ -582,8 +581,8 @@ mod torus_rows {
             );
             let [t0, t1] = self.arc;
             (
-                ellipse_torus_roots(&e, t0, t1, &s, band).unwrap(),
-                torus_walk(&conic, torus, (t0, t1), &s, None, band).unwrap(),
+                door_answer(ellipse_torus_roots(&e, t0, t1, &s, band)),
+                door_answer(torus_walk(&conic, torus, (t0, t1), &s, None, band)),
             )
         }
     }
@@ -594,7 +593,7 @@ mod torus_rows {
     /// the carrier is about 1e-5, so its `f64` rounding moves the bisected
     /// root by tens of zero bands. The true roots are the 40-digit ones
     /// `scripts/oracles/ellipse_torus_mpmath.py` finds from the stored
-    /// values. The door refuses `Unsettled` for both, and never a `Miss`
+    /// values. The door refuses both, and never a `Miss`
     /// (they cross); any root it certified would have to lie within the
     /// zero band, as arc length, of a true one. On the first the meter is
     /// what decides: with no slack meter the walk certifies all four of its
@@ -1049,7 +1048,7 @@ mod torus_rows {
                             ("certified", found.roots().to_vec())
                         }
                         Ok(Ok(CircleRoots::Miss)) => ("miss", vec![]),
-                        Ok(Err(_)) => ("uncertain", vec![]),
+                        Ok(Err(_)) | Err(BooleanError::Escalated { .. }) => ("uncertain", vec![]),
                         other => panic!("{other:?}"),
                     };
                     let conic = geom_brep::Conic::of(&e).expect("an ellipse");

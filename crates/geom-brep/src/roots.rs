@@ -4,8 +4,8 @@
 //! quartic ([`crate::quartic`]), and the circle × surface doors above this
 //! crate — answers `Result<Roots<T, N, C>, _>`: the value holds decided
 //! answers only, and every way of not deciding is a typed refusal in the
-//! `Err` ([`Unsettled`], or [`RootRefusal`] where the finder's own band
-//! decisions can escalate). A refusal is never read as a verdict (D4): a
+//! `Err` ([`RootRefusal`]: a sign in band, a limit
+//! ([`Unsettled`]) or a fault ([`RootFault`])). A refusal is never read as a verdict (D4): a
 //! caller takes it down a path that decides the question itself, or
 //! refuses in turn.
 //!
@@ -123,30 +123,33 @@ impl<T: Real, const M: usize, C: Into<OnCarrier>> Roots<T, M, C> {
     }
 }
 
-/// Why a root finder gave no decided answer: the finder could not
-/// certify a count at this band. Never a miss and never a count.
+/// Why a root finder gave no decided answer about the geometry: a limit
+/// of the finder at this precision, a definite reading it has no arm
+/// for, or a pose it has no reading for. Never a miss, never a count,
+/// and never a reading in the band's gap, which is
+/// [`RootRefusal::Touch`]: this is the typed frontier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unsettled {
-    /// A double root: a piece the band cannot cut further that is neither
-    /// clear nor monotone, an extreme of the residual in the zero band, or
-    /// a repeated root of the quartic's sign ladder.
+    /// A touch decided in the zero band: a double root, an extreme of
+    /// the residual or a stretch of it read zero, a straddle of a value
+    /// and its error, or two roots the band reads at one point. Definite,
+    /// and not a crossing at any order the finder reads.
     Tangency,
-    /// A sign the finder must read definite at a point it chose (a cut, a
-    /// split, a located root read ON) did not read so.
-    SignInBand,
     /// A meter refused: the residual's rounding, or a located root's
     /// slack, is not definitely inside the band.
     Meter,
     /// The walk ran past [`geom_core::bisect::PIECE_BUDGET`].
     Exhausted,
-    /// The roots located are a count the residual cannot have (odd round
-    /// a closed turn, or more than its degree allows).
-    ImpossibleCount,
+    /// A piece at the walk's floor whose enclosure the band cannot decide:
+    /// an enclosure wider than the band, not a reading in it.
+    Floor,
     /// The quartic's resolvent has no positive largest root, which its own
-    /// constant term contradicts.
+    /// constant term contradicts but for rounding; a legitimately small
+    /// root reaches it too.
     Resolvent,
     /// The quartic's constructed roots disagree in number with the count
-    /// its sign ladder certified.
+    /// its sign ladder certified: the ladder's discriminant carries
+    /// rounding its band does not charge, which a legal far ray reaches.
     CountDisagrees {
         /// The count the sign ladder certified.
         certified: usize,
@@ -164,20 +167,83 @@ pub enum Unsettled {
     Crease,
 }
 
-/// Why a finder whose own band decisions can escalate gave no decided
-/// answer.
+/// Two of a root finder's own readings contradict where no legal input
+/// takes them apart: a charge the finder states is exceeded, a kernel
+/// fault. Only [`crate::half_angle::certified_subdivision`] raises one;
+/// a count past a finder's capacity is ruled out by construction, at
+/// each site, and is no fault but an `unreachable!`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RootFault {
+    /// The subdivision located a count the residual cannot have: odd
+    /// round a closed turn, or more than `2N` for a residual of degree
+    /// `N`. A sign change on a piece read clear, the residual and its
+    /// harmonics disagreeing by more than the noise the walk charges.
+    ImpossibleCount,
+}
+
+impl RootFault {
+    /// The two readings that contradict, in words.
+    #[must_use]
+    pub fn readings(self) -> &'static str {
+        match self {
+            Self::ImpossibleCount => {
+                "a root finder located a count of roots its residual cannot have"
+            }
+        }
+    }
+}
+
+/// Why a root finder gave no decided answer.
 #[derive(Debug, Clone, Copy)]
 pub enum RootRefusal {
-    /// A classifying sign the finder needed fell in the band's
-    /// escalation gap: the caller's decision escalates.
+    /// A classifying sign the finder needed fell in the band's escalation
+    /// gap: the caller's decision escalates.
     Escalated(Indeterminate),
-    /// The finder could not certify a count ([`Unsettled`]).
+    /// The residual reads in the band's gap where a root can lie: at
+    /// every cut the walk can place there, over a piece the band cannot
+    /// cut further, or at a located root. A reading in band of the
+    /// geometry, which escalates where the carrier is the model's, and is
+    /// the probe's where the caller chose the carrier (a ray or a path it
+    /// can cast again).
+    Touch(Indeterminate),
+    /// The finder reached a limit ([`Unsettled`]).
     Unsettled(Unsettled),
+    /// The finder's readings contradict ([`RootFault`]).
+    Fault(RootFault),
 }
 
 impl From<Unsettled> for RootRefusal {
     fn from(why: Unsettled) -> Self {
         Self::Unsettled(why)
+    }
+}
+
+/// **How far `value` lies past zero at the least its rounding allows**:
+/// `value − noise`, and zero where that is not positive. The one
+/// spelling of the rule that reads an in-band extreme less its noise,
+/// so roots only the noise parts read as one touch
+/// (`curve_pair::pose`'s root gap, and the touch of
+/// [`crate::half_angle::certified_subdivision_touching`]).
+pub fn past_noise<T: Decide>(value: T, noise: T) -> T {
+    (value - noise).max(T::zero())
+}
+
+/// **The refusal of a walk that cut nowhere definite**: a touch on the
+/// first reading it met in the band's gap (`gap`), told as the caller's
+/// `touch`, or [`Unsettled::Tangency`] where every reading it tried
+/// decided zero. The one spelling of that rule for the walks
+/// ([`crate::half_angle::certified_subdivision`],
+/// [`crate::curve_face::composite`]).
+pub fn touch_or_tangency<R: From<Unsettled>>(
+    gap: Option<Indeterminate>,
+    touch: impl FnOnce(Indeterminate) -> R,
+) -> R {
+    gap.map_or_else(|| Unsettled::Tangency.into(), touch)
+}
+
+impl From<RootFault> for RootRefusal {
+    fn from(fault: RootFault) -> Self {
+        Self::Fault(fault)
     }
 }
 

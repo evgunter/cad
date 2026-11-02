@@ -53,3 +53,17 @@ defect, re-posed or certified, never covered by K".
 off the long run it lies along or levered at the reach it was read
 over. Then flip the turned ε 1e-9 rows of the pin above from refusing
 to building.
+
+## Moved by PR 6053 (2026-10-30)
+
+PR 6053 reads a direction's side of a bound at the shorter of the two's
+own reaches rather than at the sector's arm. On its head,
+`crates/topo/tests/shell_role_reader.rs`
+`a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void`
+at ε 1e-9 builds every run but the turned 12ε channel's five, which
+still refuse `bool_sector_coplanar`. On main, the turned channel from
+12ε up and the moved channel below 30ε refused `bool_sector_within` or
+`bool_sector_coplanar`. The turned leaning channel
+(`a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam`)
+builds at ε 1e-9 too. Every run that builds is held to the rows'
+checks (tier 3′, volume, corners).

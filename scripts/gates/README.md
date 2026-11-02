@@ -1,8 +1,12 @@
 # `scripts/gates/` — the invariants CI holds that Rust cannot express
 
-Each file here is one gate with one home. `.github/workflows/ci.yml`'s
-`lint` job runs every `*.sh` here except `lib.sh`, so the roster is the
-directory and neither the gate logic nor the gate list is maintained twice.
+Each file here is one gate with one home. `scripts/run-gates.sh` runs
+every `*.sh` here except `lib.sh`, so the roster is the directory and
+neither the gate logic nor the gate list is maintained twice.
+`.github/workflows/ci.yml`'s `lint` job runs it plain on every PR, and
+`.github/workflows/nightly.yml`'s `gate-selftests` job runs it with
+`--selftest`, which fails a gate whose output lacks its own
+`<gate> selftest OK` line.
 Every gate takes `--root DIR` and `--selftest`. The shared plumbing — the Rust reader, the test-only module resolver, the self-test
 harness — is `lib.sh`, and what each gate's own matcher can and cannot see is
 that gate's header.

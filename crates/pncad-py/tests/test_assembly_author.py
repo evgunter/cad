@@ -43,8 +43,8 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
 WHAT THE CHECKS SAY OF A MATE READ BELOW A PLACER, AND WHY
 ---------------------------------------------------------
 A mate's pose is read off the body it names. A pose may read a node
-that a `placed_union` consumes: no placement reads that node, so the
-mate states nothing about the product, and the seat is a touch between
+that a union consumes and no placement reads: the mate states nothing
+about the product, and the seat is a touch between
 two copies, which the `unproven-coincidence` check reports against
 them (the gather's rule, pinned in editor-core).
 
@@ -54,19 +54,18 @@ the door is structural — and refused where its placement evaluates
 
 THE SPELLING OF THE PLACED FAMILY, MEASURED RATHER THAN CLAIMED
 ---------------------------------------------------------------
-The layout's placed posts are `Node.pattern` — the tour's own node —
-and `bench_scene.layout`'s `posts=` says them with `Node.placed_union`
-instead. `TestBenchLayout` runs its whole battery against BOTH, which
-is what turns "the fused spelling says the same placed family" from a
-sentence into a reading: the material, the per-placement cap frames,
-the instance-qualified names, their denotations and an at-rest check
-with nothing to report are the same for a PLURAL `instances` value as for a
-single body, and `test_the_two_spellings_differ_in_the_values_
-plurality_alone` is what keeps that from being a coincidence of two
-identical nodes.
+The layout's placed posts are the members of a row — the tour's own
+spelling — and `bench_scene.layout`'s `posts="union"` places the row's
+union whole instead. `TestBenchLayout` runs its whole battery against
+BOTH, which is what turns "the fused spelling says the same placed
+family" from a sentence into a reading: the material, the per-member cap
+frames, the member-qualified names, their denotations and an at-rest
+check with nothing to report are the same either way, and
+`test_the_family_is_plural_and_its_union_one_body` is what keeps that
+from being a coincidence of two identical nodes.
 
 The mate door is measured on the tour's own node: a mate head stands
-on a PATTERN's copy, and the solve places the shelf against it.
+on a row's member, and the solve places the shelf against it.
 """
 
 import math
@@ -107,12 +106,12 @@ from pncad import (
     Mate,
     MateValue,
     Node,
-    PatternKind,
     Placed,
     PoseDef,
     RoleRead,
     SegTag,
     CheckId,
+    VarDecl,
     VarName,
     Workspace,
     content_pin,
@@ -125,7 +124,7 @@ from pncad import (
     solve_document,
 )
 
-from placing import against, moves, placed, assemble_world_copies
+from placing import against, moves, placed, plane_on, assemble_world_copies
 from measuring import pinned
 
 
@@ -176,13 +175,13 @@ def zeros():
     return [MateValue(coord, 0) for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin())]
 
 
-#: The two nodes `bench_scene.layout`'s `posts=` admits, by the name
-#: this file reports a failure under. Every expectation below is
+#: The two spellings `bench_scene.layout`'s `posts=` admits, by the
+#: name this file reports a failure under. Every expectation below is
 #: asserted against BOTH: what the audit row used to carry was a CLAIM
 #: that the fused spelling says the same placed family as the tour's
 #: plural one, and a claim about two spellings is measured by running
 #: both, not by asserting one and writing a sentence about the other.
-SPELLINGS = {"pattern": Node.pattern, "placed_union": Node.placed_union}
+SPELLINGS = {"members": "members", "union": "union"}
 
 
 class TestBenchLayout(BenchWorkspace):
@@ -194,7 +193,7 @@ class TestBenchLayout(BenchWorkspace):
     one is held to is the material, the placements, the names and an
     at-rest check with nothing to report."""
 
-    def layout(self, posts=Node.pattern):
+    def layout(self, posts="members"):
         doc, post_i, family, shelf_i = bench_scene.layout(
             self.ws, self.post_ref, self.shelf_ref, posts
         )
@@ -205,11 +204,11 @@ class TestBenchLayout(BenchWorkspace):
             with self.subTest(posts=name):
                 doc, _, _, _ = self.layout(posts)
                 # The placements state the product: the post instance,
-                # a loose pattern master and so no part of it; the shelf
-                # instance, pinned to the world; then the posts' copies
-                # (each pattern instance projected and placed, or the
-                # fused family placed whole).
-                placed = PATTERN_COUNT + 2 if name == "pattern" else 3
+                # a loose pattern master and so no part of it; the row;
+                # the shelf instance, pinned to the world; then the
+                # posts' copies (each member placed, or the fused family
+                # placed whole).
+                placed = PATTERN_COUNT + 3 if name == "members" else 4
                 self.assertEqual(len(doc.placements()), placed)
                 ev = evaluate(doc, resolver=self.ws)
                 volume = pinned(product(doc, ev)).volume
@@ -223,11 +222,11 @@ class TestBenchLayout(BenchWorkspace):
                 doc, family, _, _ = self.layout(posts)
                 ev = evaluate(doc, resolver=self.ws)
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance])
+                    family, cap_selector(CapEnd.End, [SegTag.Member])
                 )
-                # One per placement, and the name NESTS rather than
-                # concatenating: pattern index, then instance, then
-                # the part's own cap. Distinct names are the
+                # One per member, and the name NESTS rather than
+                # concatenating: the member's index, then the part's
+                # own cap. Distinct names are the
                 # structural claim the volume cannot make.
                 self.assertEqual(len(caps), PATTERN_COUNT)
                 self.assertEqual(len(set(caps)), PATTERN_COUNT)
@@ -253,67 +252,61 @@ class TestBenchLayout(BenchWorkspace):
                     delta=1e-12,
                 )
 
-    def test_the_two_spellings_differ_in_the_values_plurality_alone(self):
-        """What the two nodes actually say, which is the difference the
-        rows either side of this one are measuring ACROSS.
+    def test_the_family_is_plural_and_its_union_one_body(self):
+        """What the two spellings actually place, which is the
+        difference the rows either side of this one are measuring
+        ACROSS.
 
-        `Node.pattern` answers the family unfused — N bodies, and no
-        single-body door at all — where `placed_union` answers one
-        body of the same material. Every expectation in this class
-        holds for both; this row is why that is a finding and not a
-        coincidence, and it is what a reader needs to know the two
-        spellings are not the same node under two names.
+        The row answers the family unfused — N bodies, and no
+        single-body door at all — where its union answers one body of
+        the same material. Every expectation in this class holds for
+        both; this row is why that is a finding and not a coincidence.
         """
-        volumes = {}
-        for name, posts in SPELLINGS.items():
-            with self.subTest(posts=name):
-                doc, family, _, _ = self.layout(posts)
-                value = evaluate(doc, resolver=self.ws).value(family)
-                bodies = value.bodies()
-                volumes[name] = sum(pinned(b).volume for b in bodies)
-                if name == "pattern":
-                    self.assertEqual(value.kind, "instances")
-                    self.assertEqual(len(bodies), PATTERN_COUNT)
-                    # The plural value has no single-body door, and
-                    # says so typed rather than handing back the first.
-                    with self.assertRaises(pncad.EvaluationError):
-                        value.body()
-                else:
-                    self.assertEqual(value.kind, "body")
-                    self.assertEqual(len(bodies), 1)
-                    value.body()
+        doc, family, _, _ = self.layout()
+        fused = doc.insert(Node.union(family))
+        ev = evaluate(doc, resolver=self.ws)
+        value = ev.value(family)
+        self.assertEqual(value.kind, "instances")
+        bodies = value.bodies()
+        self.assertEqual(len(bodies), PATTERN_COUNT)
+        # The plural value has no single-body door, and says so typed
+        # rather than handing back the first.
+        with self.assertRaises(pncad.EvaluationError):
+            value.body()
+        one_body = ev.value(fused)
+        self.assertEqual(one_body.kind, "boolean")
         self.assertAlmostEqual(
-            volumes["pattern"], volumes["placed_union"], delta=1e-12
+            sum(pinned(b).volume for b in bodies),
+            pinned(one_body.body()).volume,
+            delta=1e-12,
         )
 
     def test_a_mate_head_stands_on_a_patterned_copy(self):
         """The mate side of the scene's placed family, measured — NOT
         the scene, which declares nothing.
 
-        A mate's `to` may read a face of a pattern's copy: the copy is
-        projected out of the family (`Node.part` — a pose reads one
-        body), the plane is read off the face the pattern placed, and
-        the solve places the shelf against it. The mate and its values
+        A mate's `to` may read a face of a row's member: the member is
+        read out of the family (`row[0]` — a pose reads one body), the
+        plane is read off the face the row placed, and the solve places
+        the shelf against it. The mate and its values
         are the shelf's bundle, written whole in place of the identity
         it was inserted with, so they are what places the shelf.
         """
         doc = Doc("pncad-mate-onto-pattern")
         post_i = self.pinned(doc, self.post_ref)
+        doc.apply(DocEdit.declare_var(VarName("k"), VarDecl.index(PATTERN_COUNT)))
         family = doc.insert(
-            Node.pattern(
+            Node.linear_pattern(
+                VarName("k"),
                 post_i,
-                Formula.count(PATTERN_COUNT),
-                PatternKind.linear((
-                    Formula.literal(0.0),
-                    Formula.literal(1.0),
-                    Formula.literal(0.0),
-                ), Formula.length_in(SHELF_LENGTH, m)),
+                doc.world,
+                [("y", Formula.length_in(SHELF_LENGTH, m))],
             )
         )
-        first = doc.insert(Node.part(family, pncad.PartSelect.instance(Formula.count(0))))
+        first = doc.place(family[0], doc.world, Placed.identity())
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, doc.world))
         ev = evaluate(doc, resolver=self.ws)
-        cap = one(ev.select(first, cap_selector(CapEnd.End, [SegTag.Instance])))
+        cap = one(ev.select(first, cap_selector(CapEnd.End, [SegTag.Member])))
         bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, PART_FACE)))
         joint, values = rest(
             doc, shelf_i, (shelf_i, bottom), (first, cap), SHELF_ON_POST
@@ -338,9 +331,9 @@ class TestBenchLayout(BenchWorkspace):
         world mate each placed copy holds moves it, bit for bit, to the
         pose the scene lays it at.
 
-        The index is read off the GEOMETRY, not off the name: an
-        instance-qualified name is opaque text and the role segment
-        the Rust tour filters on (`Instance { i: 2 }`) is deliberately
+        The index is read off the GEOMETRY, not off the name: a
+        member-qualified name is opaque text and the role segment the
+        Rust tour filters on (`Member { at, .. }`) is deliberately
         unreadable from Python. Which is the honest shape here — the
         question is where a cap sits, and the answer is what
         identifies it.
@@ -371,7 +364,7 @@ class TestBenchLayout(BenchWorkspace):
                     -math.pi / 2 * rad,
                     ((bench_scene.FLAT_PACK_GAP + POST_HEIGHT) * m, 0 * m, 0 * m),
                 )
-                for copy in doc.placements()[2:]:
+                for copy in doc.placements()[3:]:
                     at = world.placement(doc, copy)
                     for got, want in zip(at.origin, lying.origin, strict=True):
                         self.assertAlmostEqual(got.meters, want.meters, delta=1e-12)
@@ -386,7 +379,7 @@ class TestBenchLayout(BenchWorkspace):
                 ]
 
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance])
+                    family, cap_selector(CapEnd.End, [SegTag.Member])
                 )
                 read = sorted(
                     tuple(c.meters for c in ev.face_frame(family, cap).origin)
@@ -418,7 +411,7 @@ class TestBenchLayout(BenchWorkspace):
                 doc, family, _, _ = self.layout(posts)
                 ev = evaluate(doc, resolver=self.ws)
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance])
+                    family, cap_selector(CapEnd.End, [SegTag.Member])
                 )
                 for cap in caps:
                     denotation = ev.denotation(family, cap)
@@ -962,14 +955,14 @@ class TestAssemblyRefusals(BenchWorkspace):
         ev = evaluate(doc)
         with self.assertRaises(pncad.ProductError) as gather:
             product(doc, ev)
-        self.assertEqual(gather.exception.variant, "root_failed")
+        self.assertEqual(gather.exception.variant, "read_failed")
         self.assertIsNotNone(gather.exception.node)
         with self.assertRaises(pncad.ChecksError) as checks:
             run_checks(doc, ev)
-        self.assertEqual(checks.exception.variant, "root_without_value")
+        self.assertEqual(checks.exception.variant, "placement_without_value")
         self.assertEqual(checks.exception.node, gather.exception.node)
 
-    def test_a_gather_refusal_speaks_its_root_from_the_evaluated_document(self):
+    def test_a_gather_refusal_speaks_its_piece_from_the_evaluated_document(self):
         doc = Doc("no-resolver-labelled")
         lonely = self.pinned(doc, self.post_ref)
         doc.apply(DocEdit.set_label(lonely, "lonely post"))
@@ -981,7 +974,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         for door in (product, pncad.product_named):
             with self.assertRaises(pncad.ProductError) as gather:
                 door(doc, ev)
-            self.assertEqual(gather.exception.variant, "root_failed")
+            self.assertEqual(gather.exception.variant, "read_failed")
             self.assertIn('InstantiatePart "lonely post" (', str(gather.exception))
             self.assertEqual(gather.exception.node, lonely)
 
@@ -1295,6 +1288,30 @@ class TestRefactorings(BenchWorkspace):
             pncad.inline(doc, body, self.ws)
         self.assertEqual(caught.exception.variant, "not_an_instance")
         self.assertEqual(caught.exception.node, body)
+
+    def test_inline_refuses_a_part_holding_a_named_pose_nothing_reads(self):
+        # A named pose outlives its reader, and a pose crosses only with
+        # one, so inline refuses rather than drop it.
+        part = Doc("unread-pose-part")
+        profile = part.insert(Node.polygon([
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.length_in(1, m), Formula.length_in(0, m)),
+            (Formula.length_in(1, m), Formula.length_in(1, m)),
+        ]))
+        block = part.insert(Node.extrude(profile, Formula.length_in(1, m)))
+        placed(part, block, Frame.translation((0 * m, 0 * m, 0 * m)))
+        assemble_world_copies(part)
+        cut = part.insert(Node.split(block, plane_on(part, block, (0.0, 0.0, 0.5), (0.0, 0.0, 1.0))))
+        pose = part.slot(cut, "tool")
+        part.apply(DocEdit.rename_var(pose, VarName("cut_plane")))
+        part.apply(DocEdit.delete_node(cut))
+        self.ws.create(part)
+        host = Doc("unread-pose-host")
+        instance = host.insert(Node.instantiate_part(DocRef(part.id, content_pin(part)), host.world))
+        with self.assertRaises(pncad.InlineError) as caught:
+            pncad.inline(host, instance, self.ws)
+        self.assertEqual(caught.exception.variant, "unread_pose")
+        self.assertIn("cut_plane", str(caught.exception))
 
     def test_split_refuses_a_definition_tied_to_both_sides_naming_each(self):
         # `k = w + j` is read by nothing; `w` only by the cut block and

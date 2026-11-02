@@ -19,10 +19,9 @@ use editor_core::{
     CapEnd, Diagnosis, Dimension, DimensionError, DocRef, DocumentId, EditError, EntityKind,
     EvalError, FreeValue, HitTestError, InterrogateError, LeverRefusal, Maintenance, MateFault,
     MateRef, MeshPickError, MetaVersionError, NamingError, NodeErrorKind, NodePickError,
-    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
-    RecordedProgramError, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal,
-    SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
-    UnnamedEntity, VarName,
+    ParseError, PartFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
+    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal, SlotId, SnapshotError,
+    StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
@@ -1022,10 +1021,7 @@ test_utils::f6_variants! {
         ProductRead,
         PickPath,
         ConstraintNotMinted,
-        PlacementNonFinite,
-        PlacementNonRigid,
         MateRefused,
-        PlacementRule,
         InputList,
         AssertionBound,
         ObservedRead,
@@ -1072,11 +1068,9 @@ fn a_node_refusal_names_its_slot_by_its_label() {
 /// `Debug` dump.
 ///
 /// The payload-carrying arms forward their payload's own `Display`
-/// (`PlacementRuleFault`, `InputFault`, `MetaVersionError`) rather
-/// than restating it, and the
-/// two placement-frame arms forward the frame rule's clause — so each
-/// case below asks for the payload's words, which is what proves the
-/// forwarding happened.
+/// (`InputFault`, `MetaVersionError`) rather than restating it — so
+/// each case below asks for the payload's words, which is what proves
+/// the forwarding happened.
 #[test]
 fn snapshot_error_display_names_its_content_not_its_struct() {
     // The node a document holds, labelled, and one it does not.
@@ -1426,28 +1420,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::PlacementNonFinite {
-                node: held(5, "PlacedUnion"),
-                at: editor_core::FrameSite::Listed { index: 0 },
-            },
-            vec![
-                "placement 0 of PlacedUnion 000000000005",
-                "non-finite coordinate",
-            ],
-        ),
-        (
-            SnapshotError::PlacementNonRigid {
-                node: held(5, "PlacedUnion"),
-                at: editor_core::FrameSite::Listed { index: 0 },
-                check: "transform_rigid_col01_orth",
-            },
-            vec![
-                "placement 0 of PlacedUnion 000000000005",
-                "not definitely rigid",
-                "may shear",
-            ],
-        ),
-        (
             SnapshotError::MateRefused {
                 node: held(5, "Place"),
                 constraint: editor_core::ConstraintId(editor_core::MintId::new(
@@ -1471,13 +1443,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "equates an `on` pose of kind plane with a `to` pose of kind frame; a mate's two poses \
                  are of one kind",
             ],
-        ),
-        (
-            SnapshotError::PlacementRule {
-                node: held(5, "Pattern"),
-                fault: PlacementRuleFault::NoPlacements,
-            },
-            vec!["Pattern 000000000005: ", "placement list is empty"],
         ),
         (
             SnapshotError::InputList {
@@ -1775,17 +1740,17 @@ fn a_predicate_flip_names_its_signs_as_words() {
         .concat(),
     );
     // A predicate with no words says so in the kernel's one phrase for
-    // it, never by its name: the volume backstop, wordless on purpose
+    // it, never by its name: tier 3's check 7, wordless on purpose
     // (`edit_refusal_recourse::WORDLESS` says why).
     let unnamed = Diagnosis::PredicateFlip {
-        predicate: "volume_backstop",
+        predicate: "positive_volume_exact",
         from: geom_core::predicate::Sign::Zero,
         to: geom_core::predicate::Sign::Positive,
     }
     .to_string();
     assert!(
         unnamed.starts_with(&format!("the margin of {}", geom_core::UNNAMED_DECISION))
-            && !unnamed.contains("volume_backstop"),
+            && !unnamed.contains("positive_volume_exact"),
         "{unnamed}"
     );
 }
@@ -1977,7 +1942,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
 fn the_path_and_upstream_scopes_state_which_one_answered() {
     use editor_core::{RecipeEditRef, UpstreamCause};
     use geom_core::predicate::Sign;
-    let count = SlotId::Count.label();
+    let count = SlotId::Stations.label();
     let path = [
         (
             Diagnosis::PredicateFlip {
@@ -1992,11 +1957,20 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
         (
             Diagnosis::StructuralParam {
                 node: RecipeNodeId::new(0, tagged(9)),
-                param: SlotId::Count,
+                param: SlotId::Stations,
             },
             format!(
                 "a structural parameter changed on the derivation path: slot {count} of node 000000000009"
             ),
+        ),
+        (
+            Diagnosis::IndexCount {
+                node: RecipeNodeId::new(0, tagged(9)),
+                index: editor_core::VarId::new(0, tagged(2)),
+            },
+            "the count of read 000000000002, an index node 000000000009 on the derivation path \
+             is repeated over, changed"
+                .to_owned(),
         ),
         (
             Diagnosis::RecipeEdit {
@@ -2031,9 +2005,18 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
         (
             upstream(UpstreamCause::StructuralParam {
                 node: RecipeNodeId::new(0, tagged(10)),
-                param: SlotId::Count,
+                param: SlotId::Stations,
             }),
             format!("a structural parameter changed: slot {count} of node 00000000000a{tail}"),
+        ),
+        (
+            upstream(UpstreamCause::IndexCount {
+                node: RecipeNodeId::new(0, tagged(10)),
+                index: editor_core::VarId::new(0, tagged(2)),
+            }),
+            format!(
+                "the count of read 000000000002, an index node 00000000000a is repeated over, changed{tail}"
+            ),
         ),
         (
             upstream(UpstreamCause::RecipeEdit {
@@ -2054,6 +2037,7 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
                 "UpstreamCause",
                 "PredicateFlip",
                 "StructuralParam",
+                "IndexCount",
                 "RecipeEdit",
             ],
         );
@@ -2580,13 +2564,12 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     operand: topo::Operand::A,
                     vertex: topo::VertexKey::default(),
                     partner: topo::VertexKey::default(),
-                    neighbourhood: topo::UnreadNeighbourhood::NoBisector,
                 },
             },
             vec![
-                "on an edge whose two faces hold no bisector",
-                "classed none of the vertex's edges",
-                "a-lone-unread-partner-has-no-class-rule",
+                "reads within the tolerance of the partner's faces",
+                "no edge there is classed",
+                "clearly on or off the other operand's faces",
             ],
         ),
         (

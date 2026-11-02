@@ -366,3 +366,12 @@ Process: the box has 15 GB RAM and limited disk, so concurrent builds OOM. Lanes
 - **Speed, for Ev.** 65 of 73 `analytic_rung3` calls across the geom-brep, topo, sweep and editor-core suites skip the tube; the waiver ran 1.3–12× faster than the tube on stated pairs (26 ms against 102 ms in total).
 - **Review.** Concurrent dual review, 0 tallied: no MAJOR in the pair. R2's delta read of the fix pass found one (contract, executed): `uncertified_arc` matched an error shape the re-chart never produces, so `TogetherConicArc` never fired, on the first head as well; both first reviews missed it. Fixed by reading `RechartFalsifies{edge, ..}`.
 - **Hand-back.** No P0 or P1 row remains; the track is `ready` with 19 P2 rows. Its dispatchable load (77 against a budget of 30) is over; a successor should cut it (Track size) before dispatching.
+
+## A note from GREEN (2026-10-28) — shared tests with #5935
+
+GREEN's `main-reds-editor-core-slow-set-and-the-k-probe-sweep`
+(`work/green/`) covers editor-core slow-set reds that include
+`m10_3_driver_interval`, `m10_9_pins_interval` and `sym11`'s
+`two_hole_plate`, which #5935 re-pins at #5728's reading. GREEN's lane
+(branch `green/slow-set-reds*`) leaves the reds #5935 attributes to
+#5728 to that PR, and names any test both PRs touch in its PR body.

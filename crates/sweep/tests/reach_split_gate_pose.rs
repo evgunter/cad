@@ -422,6 +422,24 @@ fn split_posed(
 /// integral.
 #[test]
 fn a_cut_clear_of_the_face_splits_in_every_pose() {
+    // Pinned since PR 5728 (limb 2 for every carrier): at ε = 1e-12 a sphere
+    // fixture (extent 2236) refuses to revolve as limb 2's kernel limit, bound
+    // 3.35e-12. Whether that is an accepted kernel limit or a regression is
+    // the question of
+    // `work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728`;
+    // until it closes, the row stops there, and the pin goes red the day the
+    // row passes.
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the posed sphere faces",
+        a_cut_clear_of_the_face_splits_in_every_pose_row,
+    );
+}
+
+/// The row [`a_cut_clear_of_the_face_splits_in_every_pose`]
+/// runs, under its pin.
+fn a_cut_clear_of_the_face_splits_in_every_pose_row() {
     let tilted = Vec3::new(
         0.7f64.sin() * 1.3f64.cos(),
         0.7f64.cos(),

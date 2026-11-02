@@ -2,8 +2,7 @@
 //! of the inner equator.** No event lies on the lens's rim, so the
 //! crossings the rod makes through the cap are the only ones the join
 //! sees, and the body it builds drops the lens. That body is valid at
-//! tier 3 and passes the volume backstop, so the section certificate is
-//! what refuses it. The rod's axis turns in the torus's equatorial
+//! tier 3, so the section certificate is what refuses it. The rod's axis turns in the torus's equatorial
 //! plane, square to its axis at every tilt, so the certificate's
 //! square-wall arm classifies each torus × rod-wall pair: it certifies
 //! the lens's rim a loop interior to both faces (R-loop) where the rod
@@ -119,8 +118,7 @@ fn torus_wall(h: &AtRestBody<f64>, c: &AtRestBody<f64>) -> Vec<String> {
 /// clear, and it reads `Err(Loop)`, a loop certified inside both faces;
 /// every other pair clears. Red against a lens pair cleared (its witness
 /// read `Out`, or its loop flagged essential): every op then answers a
-/// `Seamed` body valid at tier 3 that the volume backstop passes, and
-/// wrong (∪ drops the lens, `c ∖ h` keeps only the stub above the cap).
+/// `Seamed` body valid at tier 3, and wrong (∪ drops the lens, `c ∖ h` keeps only the stub above the cap).
 #[test]
 fn the_rod_that_pokes_the_lens_refuses_every_op_on_its_certified_loop() {
     let (h, c) = (half_donut(), rod(0.5, FRAC_PI_2));
@@ -223,14 +221,120 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
     }
 }
 
-/// **The other spins, and the steeper tilts, refuse in the join**
-/// with `GermFrameUnsupported` (a torus germ against the rod's wall or
-/// its end cap that no frame arm reads), on every op, before any body is
-/// built.
+/// Where one of the other spins' runs stops, by refusal variant.
+fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
+    use geom_brep::PropsError;
+    use topo::{MassPropsError, ValidationError};
+    match r {
+        Err(BooleanError::GermFrameUnsupported { .. }) => "frame".to_owned(),
+        Err(BooleanError::CurvedBooleanUnsupported {
+            kind: SurfaceKind::Torus,
+            ..
+        }) => "curved join".to_owned(),
+        Err(BooleanError::JoinCarrierUnsupported {
+            carrier: geom::CurveKind::Nurbs,
+            ..
+        }) => "spline join".to_owned(),
+        Err(BooleanError::ResultInvalid { errors }) => match errors.as_slice() {
+            [
+                ValidationError::VolumeUncomputable {
+                    source: MassPropsError::RingOnCurvedFace { .. },
+                    ..
+                },
+            ] => "ring volume".to_owned(),
+            [
+                ValidationError::VolumeUncomputable {
+                    source:
+                        MassPropsError::Face {
+                            source: PropsError::QuadratureUnsupported { .. },
+                            ..
+                        },
+                    ..
+                },
+            ] => "quadrature volume".to_owned(),
+            other => format!("result {other:?}"),
+        },
+        other => outcome(other),
+    }
+}
+
+/// The other spins' stops by pose and op ([`every_op`]'s order),
+/// measured alike at the compiled ε, 1e-6 and 1e-12: the edge join on
+/// the wall's spline chord, or the result gate's volume, its quadrature
+/// on a face the chords bound (a projected image, a conic trim or a
+/// spiric's lifted image) or a ring left on a curved face.
+const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "ring volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "ring volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "ring volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "ring volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "quadrature volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "quadrature volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "quadrature volume",
+        "spline join",
+    ],
+    [
+        "spline join",
+        "quadrature volume",
+        "quadrature volume",
+        "quadrature volume",
+        "spline join",
+    ],
+];
+
+/// **The other spins, and the steeper tilts, refuse typed** before any
+/// body is built, on every op, each at its pinned door
+/// ([`OTHER_SPINS_STOPS`], the same at every ε row): each wall germ takes its site's foot on the
+/// carried section, which each op marches once, and the run passes the
+/// join to the edge join on the wall's closed spline chord (`JoinCarrierUnsupported`,
+/// `work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`) or the
+/// result gate's volume (a face the fitted chords bound, a conic trim, a
+/// spiric's lifted image, or a ring left on a curved face; SPIRICARM's
+/// `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`).
 #[test]
-fn other_spins_and_steeper_tilts_refuse_in_the_join() {
+fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     let h = half_donut();
-    for (beta, spin) in [
+    let poses = [
         (0.5, 0.0),
         (0.5, 0.5),
         (0.5, 1.0),
@@ -239,16 +343,31 @@ fn other_spins_and_steeper_tilts_refuse_in_the_join() {
         (0.6, FRAC_PI_2),
         (0.7, 0.0),
         (0.7, FRAC_PI_2),
-    ] {
+    ];
+    let eps = Tol::witness().eps();
+    let want = OTHER_SPINS_STOPS;
+    let mut got = Vec::new();
+    for &(beta, spin) in &poses {
         let c = rod(beta, spin);
-        for (_, _, what, r) in every_op(&h, &c) {
-            assert!(
-                matches!(r, Err(BooleanError::GermFrameUnsupported { .. })),
-                "{what} at β {beta}, spin {spin}: {}",
-                outcome(&r)
-            );
+        let before = geom_brep::implicit_pair_marches();
+        let mut row = Vec::new();
+        for (_, _, _, r) in every_op(&h, &c) {
+            row.push(stop_word(&r));
         }
+        let marches = geom_brep::implicit_pair_marches() - before;
+        if marches != 5 {
+            row.push(format!("{marches} marches over the five ops"));
+        }
+        got.push(row);
     }
+    let off: Vec<String> = got
+        .iter()
+        .zip(want)
+        .zip(poses)
+        .filter(|((g, w), _)| g.iter().map(String::as_str).ne(w.iter().copied()))
+        .map(|((g, _), (beta, spin))| format!("β {beta}, spin {spin}: {g:?}"))
+        .collect();
+    assert!(off.is_empty(), "at ε {eps:e}:\n{}", off.join("\n"));
 }
 
 /// **The lens is real.** At the rod axis's closest approach to the

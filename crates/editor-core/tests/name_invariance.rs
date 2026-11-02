@@ -1127,6 +1127,12 @@ const SPLITS: &[SplitCase] = &[
         [1.5, 0.0, 0.0],
         X,
     ),
+    (
+        "prism and cube through the pinch",
+        Target::Union(decide_alike::prism_and_cube),
+        [1.0, 0.0, 0.0],
+        X,
+    ),
 ];
 
 /// A split's tool, in the world's coordinates.
@@ -2047,3 +2053,48 @@ const ADMITTED_FAR: &[Admitted] = &[];
 
 /// The far-feature cases that compare no table today.
 const VACUOUS_FAR: &[Vacuous] = &[("bridging / a far member", BRIDGE_FOLDED_LAST)];
+
+/// Review probe (PR 5981): [`decide_alike::prism_and_cube`] with its
+/// members listed the other way round.
+fn cube_and_prism(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, mut m) = decide_alike::prism_and_cube(doc);
+    m.reverse();
+    (doc, m)
+}
+
+/// Review probe (PR 5981): **a split through a union's pinch names
+/// its halves alike in either member order.** The fused vertex is the
+/// one standing for the smaller operand vertex; red if that choice
+/// reads the union's arena order, which member order moves.
+#[test]
+fn review_a_pinch_split_names_alike_in_either_member_order() {
+    let mut found = Found::default();
+    for n in [X, X.map(|c| -c)] {
+        let a = split(
+            Target::Union(decide_alike::prism_and_cube),
+            Tool::Plane([1.0, 0.0, 0.0], n),
+            &unedited,
+        )
+        .tables;
+        let b = split(
+            Target::Union(cube_and_prism),
+            Tool::Plane([1.0, 0.0, 0.0], n),
+            &unedited,
+        )
+        .tables;
+        assert!(
+            a.iter().chain(&b).all(Published::is_table),
+            "{n:?}: {a:?} {b:?}"
+        );
+        for port in 0..2 {
+            found.compare(
+                &format!("pinch split {n:?} / member order"),
+                &format!("half {port}"),
+                &a[port],
+                &b[port],
+                Compare::Geometry,
+            );
+        }
+    }
+    found.settle(&[], &[]);
+}

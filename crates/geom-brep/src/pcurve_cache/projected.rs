@@ -102,10 +102,12 @@
 //! part's break (`distance_floor`), where the composite's value `f(p)`
 //! is enclosed and `p` is the part's end control: `|f(p)|`'s lower end
 //! over an upper bound on `Meters::divisor` at `p`, a factor with
-//! `|f| = distance · divisor` exactly on the plane, cylinder, sphere and
-//! every torus, and `|f| ≥ distance · divisor` on the cone. Every
-//! surface lies in its form's zero set, so the floor is a certified
-//! lower bound on the carrier's distance from it there. Limb 2 reads it
+//! `|f| ≤ distance · divisor`, the distance being from the form's zero
+//! set: equal on the plane, cylinder and sphere, and on the torus where
+//! the divisor's larger term is the one matching the nearer tube circle;
+//! in general below it on the cone. Every surface lies in its form's
+//! zero set, so the floor is a certified lower bound on the carrier's
+//! distance from it there. Limb 2 reads it
 //! as a measured miss.
 //!
 //! **The sector condition**, decided per piece: the piece's radial hull
@@ -1599,22 +1601,25 @@ impl<S: Real> Meters<S> {
         })
     }
 
-    /// At a point `p` of the chart's frame, a factor whose magnitude
-    /// times the point's distance from the chart is at most `|f(p)|`, so
-    /// that `|f(p)|` over an upper bound on it bounds the distance from
-    /// below. On the cylinder, sphere and torus the distance is
-    /// `|f| / divisor` exactly: `|ρ − R|·(ρ + R)`, `||p| − r|·(|p| + r)`,
-    /// and on the torus `f = (m² − r²)(M² − r²)` with
+    /// At a point `p` of the chart's frame, a factor with
+    /// `|f(p)| ≤ d(p) · divisor(p)`, `d(p)` the point's distance from the
+    /// form's zero set, so that `|f(p)|` over an upper bound on the
+    /// divisor bounds that distance from below. It is a factor at `p`
+    /// itself, not a bound along a path to the zero set. On the cylinder
+    /// and the sphere it is exact: `|f|` is `|ρ − R|·(ρ + R)` and
+    /// `||p| − r|·(|p| + r)`. On the torus `f = (m² − r²)(M² − r²)`, with
     /// `m = √((ρ − R)² + z²)` and `M = √((ρ + R)² + z²)` the distances
-    /// from the meridian plane's two tube circles, so the distance
-    /// `min(|m − r|, |M − r|)` is `|f|` over
-    /// `max((m + r)·|M² − r²|, (M + r)·|m² − r²|)` at every `R` and `r`
-    /// (on a ring torus the first term is the larger). On the cone `|f|`
-    /// is `|ρ cos α − z sin α|·|ρ cos α + z sin α|`, the distances from
-    /// the two generator lines of the meridian plane, the nearer of which
-    /// is the double cone's distance, and each factor is at most
-    /// `ρ cos α + |z| sin α`. Each surface lies in its form's zero set,
-    /// so it is no nearer than that set.
+    /// from the meridian plane's two tube circles, and the zero set's
+    /// distance is `min(|m − r|, |M − r|)`. Since
+    /// `|f| = |m − r|·(m + r)·|M² − r²| = |M − r|·(M + r)·|m² − r²|`, `|f|`
+    /// is at most that distance times
+    /// `max((m + r)·|M² − r²|, (M + r)·|m² − r²|)`, with equality where
+    /// the larger term is the one matching the nearer circle. On the cone
+    /// `|f|` is `|ρ cos α − z sin α|·|ρ cos α + z sin α|`, the distances
+    /// from the two generator lines of the meridian plane, the nearer of
+    /// which is the double cone's distance, and the other is at most
+    /// `ρ cos α + |z| sin α`. Each surface lies in its form's zero set, so
+    /// it is no nearer than that set.
     pub(crate) fn divisor(self, p: Vec3<S>) -> S {
         let rho = (p.x.powi(2) + p.y.powi(2)).sqrt();
         match self {
@@ -1830,6 +1835,21 @@ pub(crate) enum Offset<T> {
         floor: T,
         bound: Result<T, PcurveCertifyError>,
     },
+}
+
+impl<T: geom_core::CertifiedEnclosure> Offset<T> {
+    /// The upper bound's upper end, NaN where none was read or the bound
+    /// does not certify: at an enclosure scalar limb 2 decides this end
+    /// ([`crate::pcurve_cache::limb2_offset_sup`]), so a refused bound
+    /// stalls the limb rather than passing on its ordinary ends.
+    pub(crate) fn upper(&self) -> f64 {
+        match self {
+            Self::Bound(b) | Self::Miss { bound: Ok(b), .. } => {
+                b.certified_bracket().map_or(f64::NAN, |(_, hi)| hi)
+            }
+            Self::Miss { bound: Err(_), .. } => f64::NAN,
+        }
+    }
 }
 
 /// The carrier's own size in the frame a round's composite read it in

@@ -52,6 +52,7 @@ fn cylinder() -> (ProfileDoc, RecipeNodeId) {
                 radius: len(1.0),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     fixture::insert(
@@ -481,7 +482,7 @@ fn a_pose_moved_by_a_measured_length_is_observed() {
 /// A ring of three boxes about the line two planes meet in: `a` the
 /// block's own yz plane spun `a_tilt` about its y axis and slid to
 /// `a_origin`, `b` its own plane `y = 0`, both read off the block's
-/// frame at its own origin. The pattern is the `Meet`'s reader.
+/// frame at its own origin. The ring's mate is the `Meet`'s reader.
 fn ring_about_a_meet(a_origin: [f64; 3], a_tilt: f64) -> String {
     let (doc, p) = fixture::on_frame(
         ProfileDoc::empty_derived("s3a_meet", Tol::witness()),
@@ -514,20 +515,16 @@ fn ring_about_a_meet(a_origin: [f64; 3], a_tilt: f64) -> String {
                 by: len(by),
             })
         });
-    let (doc, ring) = fixture::insert(
+    let meet = RoleRead::plain(pose(PoseDef::Meet {
+        a: plain(a),
+        b: axis(PoseRole::Zx),
+    }));
+    let (doc, _, ring) = fixture::circular(
         doc,
-        Node::Pattern {
-            input: block.into(),
-            count: Formula::count(3),
-            kind: editor_core::PatternKind::Circular {
-                axis: pose(PoseDef::Meet {
-                    a: plain(a),
-                    b: axis(PoseRole::Zx),
-                })
-                .into(),
-                step: ang(std::f64::consts::FRAC_PI_2),
-            },
-        },
+        block,
+        (meet, editor_core::TargetAxis::Z),
+        std::f64::consts::FRAC_PI_2,
+        3,
     );
     let ev = eval(&doc);
     format!("{:?}", ev.value(ring).expect("the ring builds").payload)
@@ -1004,19 +1001,15 @@ fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
         .into_iter()
         .find(|n| face_carrier_kind(&ev, revolve, n) == Ok(SurfaceKind::Cone))
         .expect("a conical wall");
-    let (doc, ring) = fixture::insert(
+    let wall_axis = RoleRead::plain(pose(PoseDef::Axis {
+        of: select(revolve, wall),
+    }));
+    let (doc, _, ring) = fixture::circular(
         doc,
-        Node::Pattern {
-            input: Operand::output(revolve, 0),
-            count: Formula::count(2),
-            kind: editor_core::PatternKind::Circular {
-                axis: pose(PoseDef::Axis {
-                    of: select(revolve, wall),
-                })
-                .into(),
-                step: ang(std::f64::consts::FRAC_PI_2),
-            },
-        },
+        revolve,
+        (wall_axis, editor_core::TargetAxis::Y),
+        std::f64::consts::FRAC_PI_2,
+        2,
     );
     let ev = eval(&doc);
     let axis_of = |var| match bound_pose(&doc, &ev, OperandSlot::Axis, var, Tol::witness()) {
@@ -1024,14 +1017,13 @@ fn a_revolves_axis_output_is_the_axis_its_body_turns_about() {
         other => panic!("an axis, not {other:?}"),
     };
     let port = doc.output(revolve, 1).expect("a revolve defines its axis");
-    let Some(Node::Pattern {
-        kind: editor_core::PatternKind::Circular { axis: read, .. },
-        ..
-    }) = doc.node(ring)
-    else {
-        panic!("the ring");
-    };
-    let ((o1, d1), (o2, d2)) = (axis_of(port.into()), axis_of(*read));
+    // The ring's mate equates the wall's axis on the copy with the
+    // wall's axis read off the revolve: its `to` side.
+    let read = fixture::bundle(&doc, ring)
+        .into_iter()
+        .find_map(|c| c.mate().map(|m| m.to))
+        .expect("the ring");
+    let ((o1, d1), (o2, d2)) = (axis_of(port), axis_of(read));
     let slack = 8.0 * f64::EPSILON * 4.0;
     assert!(d1.cross(d2).norm() <= slack, "{d1:?} against {d2:?}");
     let off = |o: geom_core::Point3<f64>, at: geom_core::Point3<f64>, d: geom_core::Vec3<f64>| {

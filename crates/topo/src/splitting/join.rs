@@ -185,18 +185,35 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
         let mut joined = [false, false];
         for (slot, half) in [(0, up), (1, down)] {
             if let Some(end) = st.take_neighbor(&red.body, half)? {
-                let leave = Leave {
-                    at: [
-                        (
-                            end,
-                            split_leave(&red.body, red.plane.normal, &st.above_set, end)?,
-                        ),
-                        (
-                            half,
-                            split_leave(&red.body, red.plane.normal, &st.above_set, half)?,
-                        ),
-                    ],
-                    datum: Datum::Section,
+                // A site at a cone's apex has no outward normal there: its
+                // section leaves along its germ, a ruling, which the chord
+                // between the two sites runs along.
+                let leave = match (red.apex_germs.get(end), red.apex_germs.get(half)) {
+                    (None, None) => Leave {
+                        at: [
+                            (
+                                end,
+                                split_leave(&red.body, red.plane.normal, &st.above_set, end)?,
+                            ),
+                            (
+                                half,
+                                split_leave(&red.body, red.plane.normal, &st.above_set, half)?,
+                            ),
+                        ],
+                        datum: Datum::Section,
+                    },
+                    (Some(&g), None) => Leave {
+                        at: [(end, g), (half, -g)],
+                        datum: Datum::Germ,
+                    },
+                    (None, Some(&g)) => Leave {
+                        at: [(end, -g), (half, g)],
+                        datum: Datum::Germ,
+                    },
+                    (Some(&g), Some(&h)) => Leave {
+                        at: [(end, g), (half, h)],
+                        datum: Datum::Germ,
+                    },
                 };
                 let Sweep {
                     joiner, section, ..
@@ -302,19 +319,26 @@ fn fixed_partners<T: Decide>(
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
             let start = body.get_half_edge(h).ok_or_else(|| corrupt_he(h))?.start;
+            let germ = red.apex_germs.get(h).copied();
             crossings.push(Crossing {
                 half: h,
                 point: vertex_point(body, start),
                 // The half's up/down sense, read as the sweep reads it
                 // (`Sweep::is_down`).
                 down: above_set.contains_key(start),
-                leave: leave_on(
-                    body,
-                    red.plane.normal,
-                    above_set,
-                    h,
-                    (wall, face_data.sense),
-                )?,
+                // At a cone's apex the face has no outward normal, and the
+                // section leaves along the half's germ.
+                leave: match germ {
+                    Some(germ) => germ,
+                    None => leave_on(
+                        body,
+                        red.plane.normal,
+                        above_set,
+                        h,
+                        (wall, face_data.sense),
+                    )?,
+                },
+                germ,
             });
         }
         let pairs = match *wall {
@@ -400,6 +424,15 @@ fn leave_on<T: Decide>(
         .ok_or_else(|| corrupt_he(half))?
         .start;
     let out = geom_brep::implicit_outward_normal(wall, sense, vertex_point(body, start));
+    // A wall with no normal at the site (a cone's apex, where the half
+    // carries its germ instead) has no direction to leave it in.
+    let n = out.vec();
+    if n.x.is_poison() || n.y.is_poison() || n.z.is_poison() {
+        return Err(SplitJoinError::SectionInvariant {
+            face: he_face(body, half)?,
+            what: "a null-edge half at a point where its wall has no normal carries no germ",
+        });
+    }
     let heading = plane_normal.get().cross(out.vec());
     Ok(if above_set.contains_key(start) {
         heading
@@ -416,6 +449,10 @@ struct Crossing<T: Decide> {
     down: bool,
     /// The section's direction into the face there ([`split_leave`]).
     leave: geom_core::Vec3<T>,
+    /// Where the half sits at its face's cone apex, the section ruling
+    /// it leaves the apex along
+    /// ([`SplitReduction::apex_germs`](super::SplitReduction)).
+    germ: Option<geom_core::Vec3<T>>,
 }
 
 /// A planar face's crossings paired along its section line: keyed by
@@ -506,11 +543,17 @@ fn pair_along_line<T: Decide>(
 /// left unpaired on its ruling refuses rather than falling to the
 /// book's rule, which could pair it across to the other ruling.
 ///
-/// **Unpinned**: no shipped fixture reaches either refusal. The side
-/// is undecided only where the rulings meet, at a cone's apex, and a
-/// split through the apex refuses in the reduction first; a ruling
-/// with a crossing left over is a face whose sections along it do not
-/// alternate in and out.
+/// **At a cone's apex** both rulings pass through the crossing, so its
+/// position names neither: it goes to the ruling its section leaves the
+/// apex along, its germ (**`split_join_ruling_germ`**: the germ's sine
+/// from the other ruling less its sine from this one, levered at the
+/// face's farthest crossing from the apex). The germ was read off the
+/// same section table at the reduction (`insert`).
+///
+/// **Unpinned**: no shipped fixture reaches either refusal. A side is
+/// undecided where a crossing lies as near one ruling as the other; a
+/// ruling with a crossing left over is a face whose sections along it
+/// do not alternate in and out.
 ///
 /// # Errors
 ///
@@ -539,10 +582,28 @@ fn ruling_pairs<T: Decide>(
     let off = |p: Point3<T>, (o, d): (Point3<T>, geom_core::Vec3<T>)| (p - o).cross(d).norm();
     let mut on: [Vec<&Crossing<T>>; 2] = [Vec::new(), Vec::new()];
     for c in crossings {
-        let margin = Margin::of(off(c.point, lines[1]) - off(c.point, lines[0]));
-        match decide_nonzero("split_join_ruling_side", margin, band)
-            .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-        {
+        let reading = match c.germ {
+            // At the apex both rulings pass through the crossing: it lies
+            // on the ruling its section leaves along, its germ's sine from
+            // each levered at the face's farthest crossing from it.
+            Some(germ) => decide_nonzero(
+                "split_join_ruling_germ",
+                Margin::levered(
+                    germ.cross(lines[1].1).norm() - germ.cross(lines[0].1).norm(),
+                    crossings
+                        .iter()
+                        .map(|o| (o.point - c.point).norm())
+                        .fold(T::zero(), T::max),
+                ),
+                band,
+            ),
+            None => decide_nonzero(
+                "split_join_ruling_side",
+                Margin::of(off(c.point, lines[1]) - off(c.point, lines[0])),
+                band,
+            ),
+        };
+        match reading.map_err(|diag| SplitJoinError::Escalated { face, diag })? {
             NonzeroSign::Positive => on[0].push(c),
             NonzeroSign::Negative => on[1].push(c),
         }
@@ -607,9 +668,17 @@ fn ruling_pairs<T: Decide>(
 /// reads the order cyclically, so where the cycle starts changes no
 /// pair.
 ///
+/// **The touches.** A run of crossings at one point is where the section
+/// touches the face's boundary, and [`touch_order`] orders it by the
+/// alternation round it. The hole-rim and bore-rim tangent splits
+/// reach it from inside (`a_split_through_a_wrap_edges_vertex.rs`,
+/// `split_across_a_revolve_seam.rs`).
+///
 /// **Unpinned**: no shipped fixture reaches [`ConicCrossingsCase::Grazing`]
 /// or [`ConicCrossingsCase::NotAlternating`]; both are typed and read
-/// here only.
+/// here only. The same heading read Zero at a chord's start is the
+/// chord's own refusal, [`SplitJoinError::SectionDepartureGrazes`],
+/// which a needle cone cut near its apex reaches.
 ///
 /// # Errors
 ///
@@ -661,11 +730,12 @@ fn conic_pairs<T: Decide>(
         (w[a] - w[b]) * conic.tangent((w[a] + w[b]) * T::from_f64(0.5)).norm()
     };
     let n = crossings.len();
-    let order = super::order::sort_along(n, |a, b| gap(&walk, a, b), band).map_err(escalate)?;
+    let runs = super::order::sort_along_runs(n, |a, b| gap(&walk, a, b), band).map_err(escalate)?;
+    let order = runs.concat();
     let (lo, hi) = (order[0], order[n - 1]);
     let mut across = walk.clone();
     across[lo] = across[lo] + T::tau();
-    let order = if decide(
+    let runs = if decide(
         "split_join_line_gap",
         Margin::of(gap(&across, lo, hi)),
         band,
@@ -692,10 +762,11 @@ fn conic_pairs<T: Decide>(
         }
         let mut cycled = order;
         cycled.rotate_left(k);
-        super::order::group_coincident(cycled, |a, b| gap(&walk, a, b), band).map_err(escalate)?
+        super::order::coincident_runs(cycled, |a, b| gap(&walk, a, b), band).map_err(escalate)?
     } else {
-        order
+        runs
     };
+    let order = touch_order(&runs, |i| crossings[i].down);
     let down = |k: usize| crossings[order[k % n]].down;
     if (0..n).any(|k| down(k) == down(k + 1)) {
         return Err(refuse(ConicCrossingsCase::NotAlternating));
@@ -710,6 +781,71 @@ fn conic_pairs<T: Decide>(
             )
         })
         .collect())
+}
+
+/// [`conic_pairs`] over bare sites, each its point, whether it starts at
+/// an above end, and the section's direction into the face there; the
+/// pairs come back as site indices.
+#[cfg(test)]
+pub(crate) fn conic_pairs_of_sites<T: Decide>(
+    wall: &geom::Surface<T>,
+    conic: &SectionConic<T>,
+    sites: &[(Point3<T>, bool, geom_core::Vec3<T>)],
+    band: Band,
+) -> Result<Vec<(usize, usize)>, SplitJoinError> {
+    let mut halves = slotmap::SlotMap::<HalfEdgeKey, usize>::with_key();
+    let crossings: Vec<_> = sites
+        .iter()
+        .enumerate()
+        .map(|(i, &(point, down, leave))| Crossing {
+            half: halves.insert(i),
+            point,
+            down,
+            leave,
+            germ: None,
+        })
+        .collect();
+    let pairs = conic_pairs(FaceKey::default(), wall, conic, &crossings, band)?;
+    Ok(pairs
+        .into_iter()
+        .map(|(a, b)| (halves[a], halves[b]))
+        .collect())
+}
+
+/// A cycle of crossings along a section, from its `runs` at one point
+/// each, with each run of two or more put in the order its context
+/// fixes. A run is where the section touches the face's boundary: from
+/// inside, the arc arriving ends before the one leaving begins (exits
+/// first); from outside, the section enters the face and leaves it
+/// there, an arc of no length (entries first). Entries and exits
+/// alternate round the section, so the sense of the crossing before a
+/// run says which it is. The cycle is read from a run of one crossing;
+/// where there is none, every crossing a touch, each run is read as a
+/// touch from inside, the one of the two that leaves the face an arc of
+/// the section. A run that cannot alternate keeps its order, for the
+/// caller's alternation check to refuse.
+fn touch_order(runs: &[Vec<usize>], down: impl Fn(usize) -> bool) -> Vec<usize> {
+    let Some(lone) = runs.iter().position(|run| run.len() == 1) else {
+        return runs
+            .iter()
+            .flat_map(|run| {
+                let mut run = run.clone();
+                run.sort_by_key(|&i| down(i));
+                run
+            })
+            .collect();
+    };
+    let mut prev = runs[lone][0];
+    let mut order = vec![prev];
+    for k in 1..runs.len() {
+        let mut run = runs[(lone + k) % runs.len()].clone();
+        while !run.is_empty() {
+            let j = run.iter().position(|&i| down(i) != down(prev)).unwrap_or(0);
+            prev = run.remove(j);
+            order.push(prev);
+        }
+    }
+    order
 }
 
 /// The sweep state.
@@ -1385,6 +1521,37 @@ mod tests {
             })
         ));
     }
+
+    /// **A touch is ordered by the crossing before it.** Crossings `0..`
+    /// with `down` (an entry) as given; each case's runs are listed
+    /// with the touch's pair in insertion order against the answer.
+    #[test]
+    fn a_touch_alternates_with_the_crossing_before_it() {
+        let down = [true, false, true, false];
+        let d = |i: usize| down[i];
+        // Inside: an entry, then the touch (exit 1 and entry 2 at one
+        // point, inserted entry first), then the exit.
+        assert_eq!(
+            touch_order(&[vec![0], vec![2, 1], vec![3]], d),
+            [0, 1, 2, 3]
+        );
+        // Outside: an exit, then the touch (entry 0 and exit 3), then
+        // the entry; the touch takes its entry first.
+        assert_eq!(
+            touch_order(&[vec![1], vec![3, 0], vec![2]], d),
+            [1, 0, 3, 2]
+        );
+        // The cycle starts at a lone crossing wherever it lies.
+        assert_eq!(
+            touch_order(&[vec![3, 0], vec![2], vec![1]], d),
+            [2, 1, 0, 3]
+        );
+        // Every crossing a touch: each from inside, exits first.
+        assert_eq!(touch_order(&[vec![0, 1], vec![2, 3]], d), [1, 0, 3, 2]);
+        // A run of two entries cannot alternate: it keeps its insertion
+        // order, for the caller to refuse.
+        assert_eq!(touch_order(&[vec![1], vec![2, 0]], d), [1, 2, 0]);
+    }
 }
 
 /// **The sweep's reads past a face or a loop it resolved panic on a
@@ -1468,6 +1635,7 @@ mod torn_hop_rows {
                     sides: SecondaryMap::new(),
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
+                    apex_germs: SecondaryMap::new(),
                     coincidences: Vec::new(),
                     edge_pieces: crate::lineage::SplitEdgeDivisions::new(
                         crate::lineage::LineageRows::EdgeDivisions(None),

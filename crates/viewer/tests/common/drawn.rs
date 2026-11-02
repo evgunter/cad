@@ -27,14 +27,15 @@ pub fn translated(at: [f64; 3]) -> Frame {
 
 /// **`body`'s one world copy pinned at `pose`**: a landed session over
 /// `session`'s document with that copy's bundle replaced, and the copy.
+/// A body nothing copies is placed into the world by hand first
+/// ([`super::world_copy`]).
 pub fn moved_copy(
     session: &DocSession,
     body: RecipeNodeId,
     pose: &Frame,
     tol: Tol,
 ) -> (DocSession, RecipeNodeId) {
-    let doc = session.committed_doc().clone();
-    let copy = super::copy_of(&doc, body);
+    let (doc, copy) = super::world_copy(session.committed_doc(), body, tol);
     let mut session = super::inline_without_door(pinned(doc, copy, pose), tol);
     session.pump();
     (session, copy)
@@ -124,22 +125,31 @@ pub fn rest_on(
     super::commit_mate(session, proposal.op());
 }
 
-/// A duplicate's pattern's spacing: the step's length along
-/// `viewer::combine::STEP_DIRECTION`, which the door authors literal.
-pub fn spacing_of(session: &DocSession, pattern: RecipeNodeId) -> f64 {
-    use pncad::document::{Dimension, Expr, Node, PatternKind};
-    let Some(Node::Pattern {
-        kind: PatternKind::Linear { spacing, .. },
-        ..
-    }) = session.committed_doc().node(pattern)
-    else {
-        panic!("a duplicate is a linear pattern");
+/// A duplicate's step: the length of the slides its stepped placement
+/// moves the copy by, along `viewer::combine::STEP_DIRECTION`, which
+/// the door authors literal.
+pub fn spacing_of(session: &DocSession, copy: RecipeNodeId) -> f64 {
+    use pncad::document::{Coord, Expr, Node};
+    let doc = session.committed_doc();
+    let Some(Node::Place { constraints, .. }) = doc.node(copy) else {
+        panic!("a duplicate is a stepped placement");
     };
-    session
-        .committed_doc()
-        .written(&Expr::var(*spacing, Dimension::Length))
-        .literal_value()
-        .expect("the door authors a literal spacing")
+    let slides: Vec<f64> = constraints
+        .iter()
+        .filter_map(|c| c.value())
+        .filter(|value| matches!(value.coord, Coord::Slide(_)))
+        .map(|value| doc.written(&Expr::var(value.by, value.coord.dimension())))
+        .filter(|written| !written.is_zero())
+        .map(|written| {
+            written
+                .literal_value()
+                .unwrap_or_else(|| panic!("the door authors a literal step: {written:?}"))
+        })
+        .collect();
+    match slides[..] {
+        [one] => one.abs(),
+        _ => slides.iter().map(|s| s * s).sum::<f64>().sqrt(),
+    }
 }
 
 /// **A box of `size` split at half its height**, landed: the session,

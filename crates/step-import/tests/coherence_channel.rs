@@ -167,22 +167,20 @@ fn a_trimmed_curved_face_is_unexamined_data_not_a_skipped_check() {
 ///
 /// **What this kills**, stated as the mutations rather than as an
 /// adjective: dropping `NonIsoCarrier` entries as "not interesting"
-/// (`cut_cylinder` carries two and nothing else), dropping or
-/// rewriting a finding (`halfcap.step` carries two), examining an
+/// (`cut_cylinder` carries two and nothing else), examining an
 /// intermediate body instead of the one that ships, and examining at
-/// a band other than the import's. Each of the three subjects has
-/// something in one of the two lists, so no comparison is vacuous.
+/// a band other than the import's.
 ///
-/// **What it does NOT kill, measured rather than assumed**: a
-/// PERMUTATION of the findings keyed on their magnitude. No committed
-/// fixture reports two findings with distinct `metres` — the two
-/// `halfcap.step` reports at every band are one 1.6974e-2 m half-turn
-/// read twice, once as `MeridianClosure` and once as
-/// `MeridianContinuation` — so a magnitude sort is the identity on
-/// every subject this crate has, and naming it as a falsifier would
-/// be naming a mutant that survives. What the second row below does
-/// kill is a permutation keyed on the CONDITION, by writing the
-/// sequence out instead of reading it back from the door.
+/// **What it does NOT kill, measured rather than assumed**: dropping,
+/// rewriting or permuting a FINDING. The one committed fixture that
+/// shipped findings was `halfcap.step`, whose meridian arc crossed the
+/// pole; a chart singularity in a face is a vertex of it, so import now
+/// splits that arc at the pole and the body ships quiet
+/// (`chart_singularity_vertex.rs`). No file this door ships carries a
+/// finding, so the channel's handling of one is read through no shipped
+/// body (`work/foreign/the-coherence-channel-has-no-shipped-finding.md`).
+/// The second row below still states the DOOR's order on the half-cap's
+/// stated form, built by hand.
 #[test]
 fn the_channel_reports_the_kernel_door_verbatim() {
     let tol = Tol::witness();
@@ -195,24 +193,6 @@ fn the_channel_reports_the_kernel_door_verbatim() {
              it shipped"
         );
     }
-    let text = halfcap_fixture("halfcap.step");
-    let (body, reported) = match import_step(&text, &examining(), tol) {
-        Ok(StepImport::Solid {
-            body, coherence, ..
-        }) => (body, coherence.unwrap()),
-        other => panic!("halfcap must import as a solid: {other:?}"),
-    };
-    assert!(
-        !reported.findings.is_empty(),
-        "the half-cap's half-turn is 1.7e-2 m and is over every band this \
-         matrix runs, so an empty list here means the channel is not reaching \
-         the door"
-    );
-    assert_eq!(
-        reported,
-        topo::examine_chart_coherence(body.body(), tol),
-        "the half-cap's findings are not the door's"
-    );
 }
 
 /// The half-cap's two findings arrive in the door's order, written
@@ -222,14 +202,15 @@ fn the_channel_reports_the_kernel_door_verbatim() {
 /// The row above compares the channel to the door, so a permutation
 /// applied by the door itself is invisible to it and so is one the
 /// channel applies if the same call is compared. This states the
-/// sequence: the closure reading first, the continuation second. It
-/// reds on any reordering, on either side, that moves the two
-/// conditions past each other.
+/// sequence: on this body, the continuation reading first and the
+/// closure second. It reds on any reordering, on either side, that
+/// moves the two conditions past each other.
 ///
-/// The split arc is cut here by hand: the import ends with the join
-/// (`docs/DESIGN.md`, maximal edges), so `halfcap.step`'s ordinary
-/// vertex no longer ships, and a body holding it is construction state
-/// — which the door, a pure function of the body, reads all the same.
+/// The stated arc is rebuilt here by hand: import makes the pole a
+/// vertex and ends with the join (`docs/DESIGN.md`, maximal edges), so
+/// neither the pole-crossing arc nor `halfcap.step`'s ordinary vertex
+/// ships, and a body holding them is construction state — which the
+/// door, a pure function of the body, reads all the same.
 #[test]
 fn the_half_cap_findings_arrive_in_the_doors_order() {
     let tol = Tol::witness();
@@ -245,27 +226,19 @@ fn the_half_cap_findings_arrive_in_the_doors_order() {
         .collect();
     assert_eq!(
         sequence,
-        ["closure", "meridian"],
+        ["meridian", "closure"],
         "the half-cap's finding sequence moved: {:?}",
         report.findings
     );
 }
 
-/// `halfcap_nosplit`'s solid with its pole-crossing meridian arc split
-/// at an ordinary point halfway from the arc's start to the pole: the
-/// split twin as the file states it, before the import's join.
+/// `halfcap_nosplit`'s solid as the file states it, its meridian arc
+/// one edge through the pole, then split at an ordinary point halfway
+/// from the arc's start to the pole: the split twin as the file states
+/// it, before the import's join.
+///
 fn split_half_cap(tol: Tol) -> Body<f64> {
-    let Ok(StepImport::Solid { body, .. }) = import_step(
-        &halfcap_fixture("halfcap_nosplit.step"),
-        &ImportOptions::default(),
-        tol,
-    ) else {
-        panic!(
-            "halfcap_nosplit must import as a solid at eps {:e}",
-            tol.eps()
-        );
-    };
-    let mut body = body.into_body();
+    let mut body = common::halfcap_with_its_arc_through_the_pole(tol);
     let (centre, axis) = body
         .faces()
         .find_map(|(_, f)| match body.get_surface(f.surface) {
@@ -423,100 +396,49 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
 }
 
 // ---------------------------------------------------------------
-// 4. The half-cap witness, band-shaped.
+// 4. The half-cap witness, quiet.
 // ---------------------------------------------------------------
 
-/// **Issue 723's recorded witness reaches the channel**, and it is
-/// band-shaped, which is what makes it a measurement rather than a
-/// flag.
+/// **Issue 723's recorded witness ships quiet.** The fixtures are one
+/// solid stated at four coordinate precisions, the sphere face's
+/// meridian side a pole-crossing arc whose carrier's midpoint sat a
+/// half-turn from its own endpoint: the channel's one finding-carrying
+/// witness. A chart singularity in a face is a vertex of it, so import
+/// splits that arc at the pole wherever it ships (`chart_singularity_vertex.rs`),
+/// and the half-turn is gone: the report is empty, in both lists, at
+/// every band.
 ///
-/// The fixtures are one solid stated at four coordinate precisions;
-/// the sphere face's meridian side is a pole-crossing arc, so its
-/// carrier's midpoint sits a half-turn from its own endpoint and the
-/// gap opens at the endpoint's distance from the axis. Each row
-/// asserts the reported set against the metres the file states, which
-/// is a different answer at each of the matrix's three ε.
-///
-/// **The COUNT is pinned, not just the emptiness.** Three of the four
-/// files split that arc with an ordinary vertex, so where that vertex
-/// ships the same half-turn is read twice — once as `MeridianClosure`
-/// against the endpoint, once as `MeridianContinuation` against the
-/// neighbouring edge — and where the arc is one edge there is no column
-/// junction and it reports once, at the arc's own endpoint.
-///
-/// The import ends with the join (`docs/DESIGN.md`, maximal edges), so
-/// which of the two a split file ships is the join's reading of its
-/// vertex at this band: `halfcap.step`'s is ordinary and is joined at
-/// every band, so it ships the no-split twin's one arc; the near-pole
-/// twins' (Ev, PR 4251) reads at the pole at 1e-6 and ships as stated,
-/// lands in the sliver band at the default ε and refuses, and is a
-/// regular point at 1e-12 and is joined.
+/// Where it ships is band-shaped: the near-pole twins (Ev, PR 4251)
+/// state a vertex 1e-8 m (eps6) and 1e-9 m (eps7) off the pole, which
+/// at 1e-6 reads AT the pole, so the vertex is the pole's and the file
+/// ships as stated; at the default ε lies in the band of the pole, so
+/// the import refuses rather than guess; and at 1e-12 is off it, so the
+/// arc is split at the pole and the ordinary vertex joined.
 #[test]
-fn the_half_cap_witness_reaches_the_channel_band_shaped() {
+fn the_half_cap_witness_ships_quiet_at_every_band() {
     let tol = Tol::witness();
-    let eps = tol.eps();
-    // The one arc's closure gap, in metres, wherever the arc ships whole.
-    let whole = (2.757_006_929_353_305_5e-2, 1);
-    let default_band = (0.99e-9..=1.01e-9).contains(&eps);
-    let coarse = (0.99e-6..=1.01e-6).contains(&eps);
-    // (fixture, the meridian-closure gap the shipped body states in
-    // metres and how many findings it is read as when over band, or
-    // `None` where the import refuses at this band)
-    for (name, read) in [
-        ("halfcap.step", Some(whole)),
-        ("halfcap_nosplit.step", Some(whole)),
-        (
-            "halfcap_eps6.step",
-            (!default_band).then_some(if coarse {
-                (3.141_592_653_523_188_5e-8, 2)
-            } else {
-                whole
-            }),
-        ),
-        (
-            "halfcap_eps7.step",
-            (!default_band).then_some(if coarse {
-                (3.141_592_657_347_735e-9, 2)
-            } else {
-                whole
-            }),
-        ),
+    let default_band = (0.99e-9..=1.01e-9).contains(&tol.eps());
+    for (name, ships) in [
+        ("halfcap.step", true),
+        ("halfcap_nosplit.step", true),
+        ("halfcap_eps6.step", !default_band),
+        ("halfcap_eps7.step", !default_band),
     ] {
-        let text = halfcap_fixture(name);
-        let imported = import_step(&text, &examining(), tol);
-        let Some((metres, count)) = read else {
+        let imported = import_step(&halfcap_fixture(name), &examining(), tol);
+        if !ships {
             assert!(
-                matches!(imported, Err(StepImportError::Join { .. })),
-                "{name}: the join refuses in the sliver band: {imported:?}"
+                matches!(&imported, Err(StepImportError::SingularityUndecided { .. })),
+                "{name}: the pole in the band of a vertex refuses: {imported:?}"
             );
             continue;
-        };
+        }
         let Ok(StepImport::Solid { coherence, .. }) = imported else {
-            panic!("{name} must import as a solid at eps {eps:e}");
+            panic!("{name} must import as a solid at eps {:e}", tol.eps());
         };
         let report = coherence.expect("the examination was asked for");
-        let over_band = metres >= eps;
-        assert_eq!(
-            report.findings.len(),
-            if over_band { count } else { 0 },
-            "{name} states a {metres:e} m half-turn and the band is {eps:e}, so the \
-             channel must report it exactly when it is over the band, and read it \
-             {count} time(s) when it does: {report:?}"
-        );
-        for f in &report.findings {
-            assert_eq!(
-                f.metres, metres,
-                "{name}: the reported length is not the one the file states"
-            );
-            assert_eq!(
-                f.eps, eps,
-                "{name}: a finding judged at a band that is not \
-                 this run's"
-            );
-        }
         assert!(
-            report.unexamined.is_empty(),
-            "{name}: the half-cap's loops are all within the door's reach"
+            report.findings.is_empty() && report.unexamined.is_empty(),
+            "{name}: the pole is a vertex, so the half-cap reports nothing: {report:?}"
         );
     }
 }

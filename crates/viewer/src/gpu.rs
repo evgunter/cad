@@ -103,9 +103,33 @@ use crate::theme::{Mark, Theme};
 /// which needs no stencil aspect and is supported everywhere wgpu is.
 pub(crate) const DEPTH_BITS: u8 = 32;
 
+/// **Whether this build asks the id pass anything**: the blocking
+/// readback [`ViewportRenderer`]'s `read_id_at` is built on answers in
+/// the frame that asks it only where the device can be waited on.
+///
+/// **Not on the browser build.** wgpu's WebGPU backend polls the device
+/// itself, and its `Device::poll` returns at once whatever it is asked
+/// to wait for, so the map callback has not run when the wait returns
+/// and every query answered [`ReadbackFault::Map`] ("the mapping had
+/// not completed when the wait returned"). That fault is cursor news,
+/// so each pointer move over the viewport put it on the toolbar's
+/// status line and the next move retired it: the toolbar gained and
+/// lost a row as the pointer moved, and the page under it jumped. With
+/// the pointer just below the toolbar the two fed each other — the
+/// grown toolbar covers the pointer, which retires the line, which
+/// shrinks the toolbar back under the pointer — and the page flickered
+/// for as long as the pointer stayed there.
+///
+/// The id pass is the cross-check on the ray path, never the pick
+/// (`idpass::compare`), so a build that asks it nothing picks exactly
+/// as one that does and loses only the cross-check. What would bring
+/// it to the browser is a readback that spans frames, which
+/// `read_id_at` says is not the shape this pass takes.
+pub(crate) const ID_PASS_ASKED: bool = cfg!(not(target_family = "wasm"));
+
 /// The depth format that pairs with [`DEPTH_BITS`]. Stated here so
 /// the pipeline and the startup request cannot drift apart.
-const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 /// The id buffer's texel format: one unsigned 32-bit id per pixel,
 /// which is what `crate::pickindex::IdMap` assigns. Not a colour format —
@@ -114,7 +138,7 @@ const ID_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Uint;
 
 /// `copy_texture_to_buffer`'s row alignment. One `u32` is read back,
 /// but the copy still pads its single row to this.
-const COPY_ROW_ALIGNMENT: u64 = 256;
+pub(crate) const COPY_ROW_ALIGNMENT: u64 = 256;
 
 /// The uniform block both pipelines read.
 ///
@@ -163,6 +187,9 @@ struct Uniforms {
     probe: [f32; 4],
     /// The focused feature's mark; see [`Uniforms::selected`].
     focus: [f32; 4],
+    /// The mark of a body outside the product; see
+    /// [`Uniforms::selected`].
+    outside: [f32; 4],
     /// The held mark (`Theme::held`); see [`Uniforms::selected`]. Read
     /// by the shaded pass's held stripes and the edge pass's held
     /// lane, so the two cannot come out different colours.
@@ -832,7 +859,8 @@ impl ViewportRenderer {
     /// user just asked and the answer is four bytes; an asynchronous
     /// path would buy a frame of latency back at the cost of a second
     /// state machine spanning frames, for a query that only runs when
-    /// the cursor moves inside the viewport.
+    /// the cursor moves inside the viewport. A device that cannot be
+    /// waited on is asked nothing ([`ID_PASS_ASKED`]).
     ///
     /// **Nothing to draw is an answer**: [`IdMap::NOTHING`], the word
     /// the pass would have read over an empty picture, so the reader
@@ -874,6 +902,7 @@ impl ViewportRenderer {
                 hovered: [0.0; 4],
                 probe: [0.0; 4],
                 focus: [0.0; 4],
+                outside: [0.0; 4],
                 held: [0.0; 4],
                 profile: [0.0; 4],
                 screen: [0.0; 4],
@@ -1470,6 +1499,7 @@ impl ViewportCallback {
             hovered: mark_lane(self.theme.hovered),
             probe: mark_lane(self.theme.probe),
             focus: mark_lane(self.theme.focus),
+            outside: mark_lane(self.theme.outside),
             held: mark_lane(self.theme.held()),
             profile: {
                 let [r, g, b] = crate::theme::linear(self.theme.profile);
@@ -1612,6 +1642,10 @@ fn shader_source(target_format: wgpu::TextureFormat) -> String {
             "{{FLAG_FOCUS}}",
             &crate::scene::SceneMesh::FLAG_FOCUS.to_string(),
         )
+        .replace(
+            "{{FLAG_OUTSIDE}}",
+            &crate::scene::SceneMesh::FLAG_OUTSIDE.to_string(),
+        )
         .replace("{{EDGE_LANE_MASK}}", &EDGE_LANE_MASK.to_string())
         .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
         .replace("{{EDGE_LANES}}", &EdgeLane::DRAW_ORDER.len().to_string())
@@ -1633,6 +1667,7 @@ struct Uniforms {
     hovered: vec4<f32>,
     probe: vec4<f32>,
     focus: vec4<f32>,
+    outside: vec4<f32>,
     held: vec4<f32>,
     // A committed profile's colour, in xyz; w is padding.
     profile: vec4<f32>,
@@ -1726,6 +1761,11 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let lambert = max(dot(n, to_light), 0.0);
     let ambient = uniforms.base_color.w;
     var base = uniforms.base_color.xyz;
+    // A body outside the product is tinted first: every other mark is
+    // a state of material, drawn over what the material is.
+    if ((in.flag & {{FLAG_OUTSIDE}}u) != 0u) {
+        base = tint(base, uniforms.outside);
+    }
     if ((in.flag & {{FLAG_PROBE}}u) != 0u) {
         base = tint(base, uniforms.probe);
     }
@@ -1983,6 +2023,7 @@ mod tests {
         for token in [
             "{{FLAG_PROBE}}",
             "{{FLAG_FOCUS}}",
+            "{{FLAG_OUTSIDE}}",
             "{{EDGE_LANE_MASK}}",
             "{{EDGE_FLAG_PROBE}}",
             "{{EDGE_LANES}}",
@@ -2244,6 +2285,7 @@ mod tests {
                 ("hovered", block.hovered[3], theme.hovered.strength.get()),
                 ("probe", block.probe[3], theme.probe.strength.get()),
                 ("focus", block.focus[3], theme.focus.strength.get()),
+                ("outside", block.outside[3], theme.outside.strength.get()),
                 ("held", block.held[3], theme.held().strength.get()),
             ];
             for (which, lane, stated) in weights {

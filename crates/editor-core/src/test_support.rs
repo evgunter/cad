@@ -155,7 +155,7 @@ pub fn stored_reading(
     }
     let doc = core::cell::RefCell::new(doc);
     node.try_map_slots(
-        |p, f| ProfileProgram::lower(p, f),
+        |p, f, r| ProfileProgram::lower(p, f, r),
         &mut |f| crate::edit::lower_slot_into(&mut doc.borrow_mut(), f),
         &mut |slot, operand| Ok(given(&doc, slot, operand, &read)),
     )
@@ -915,6 +915,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 2]) 
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = ins(
@@ -1038,8 +1039,6 @@ pub fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
 /// variant of `names::VerbatimEdge`, without the operands it carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VerbatimKind {
-    /// `VerbatimEdge::Selected`: one body of the input, projected.
-    Selected,
     /// `VerbatimEdge::Intact`: the entities a split leaves intact.
     Intact,
     /// `VerbatimEdge::Reflected`: a mirror's image.
@@ -1050,7 +1049,7 @@ pub enum VerbatimKind {
 
 /// **The name-carrying edge the recipe walks read `node` as, if any**:
 /// `names::verbatim_edge`, the one statement of N1's pass-through set
-/// that the product's two-roots check and the mate member walk follow,
+/// that the recipe walks (refactor, coincidence, the mate member walk) follow,
 /// reduced to its variant.
 ///
 /// Carries no oracle: it IS the classification, lifted out of the
@@ -1061,7 +1060,6 @@ pub enum VerbatimKind {
 pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     use crate::names::VerbatimEdge;
     Some(match crate::names::verbatim_edge(node)? {
-        VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
         VerbatimEdge::Intact { .. } => VerbatimKind::Intact,
         VerbatimEdge::Reflected { .. } => VerbatimKind::Reflected,
         VerbatimEdge::Copied { .. } => VerbatimKind::Copied,
@@ -1464,6 +1462,34 @@ pub(crate) fn judgement_naming_fault(k: usize) -> Option<crate::names::NamingErr
     .then_some(crate::names::NamingError::Emission {
         what: JUDGEMENT_NAMING_FAULT,
     })
+}
+
+// --- the quieting rule ---------------------------------------------
+
+/// **The row half of the quieting rule, asked of any row**
+/// (`checks::at_rest::quiet_row`): the assertion that quiets `row` in
+/// `evaluation`, or `None`. For a row of a kind no document reaches
+/// yet, pinned over cells of a real evaluation.
+#[must_use]
+pub fn quiet_row(
+    doc: &ProfileDoc,
+    evaluation: &crate::Evaluation<f64>,
+    row: &crate::coincide::NamedCoincidence,
+    tol: geom_core::Tol,
+) -> Option<RecipeNodeId> {
+    crate::checks::at_rest::quiet_row(doc, evaluation, row, tol)
+}
+
+/// Whether an assertion could quiet `row` in `evaluation`
+/// (`checks::at_rest::row_quietable`), asked as [`quiet_row`] asks.
+#[must_use]
+pub fn row_quietable(
+    doc: &ProfileDoc,
+    evaluation: &crate::Evaluation<f64>,
+    row: &crate::coincide::NamedCoincidence,
+    tol: geom_core::Tol,
+) -> bool {
+    crate::checks::at_rest::row_quietable(doc, evaluation, row, tol)
 }
 
 #[cfg(test)]

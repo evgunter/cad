@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::Formula;
 
 use editor_core::coincide::{NamedCell, NamedCoincidence, Proof, Rung};
@@ -99,8 +100,11 @@ fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDo
         seat.mate,
         &[
             (Coord::Slide(seat.across[0]), len(seat.apart)),
-            (Coord::Slide(seat.across[1]), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(seat.across[1]),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, m)
@@ -866,14 +870,14 @@ fn an_instances_record_cites_the_parts_record() {
     let ev = run(&outer, &with_resolver(store));
     let value = ev.value(instances[0]).expect("the instance evaluates");
     assert_eq!(
-        value.contacts.rows()[0].cites,
+        value.carry.contacts.rows()[0].cites,
         topo::Cites::one(topo::Backing::Carried {
             input: 0,
             record: 0
         })
     );
     assert_eq!(
-        value.cited_inputs.as_ref(),
+        value.carry.cited_inputs.as_ref(),
         [editor_core::CitedInput::Part(stand_ref)]
     );
     let product = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");

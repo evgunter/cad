@@ -85,6 +85,7 @@ fn rod(label: &str, creases: &[usize]) -> Rod {
         Node::Profile(ProfileProgram {
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = insert(
@@ -912,6 +913,7 @@ fn extruded(
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -940,6 +942,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
             node: Box::new(Node::Profile(ProfileProgram {
                 loops: vec![rod_loop(false)],
                 ids: Vec::new(),
+                on: None,
             })),
             fresh: Vec::new(),
         },
@@ -1438,6 +1441,7 @@ fn extrude_of(
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = insert(
@@ -2048,7 +2052,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
             &doc,
             &DocEdit::SetStructuralParam {
                 node: profile,
-                slot: SlotId::Count,
+                slot: SlotId::Stations,
                 expr: Formula::count(3),
                 fresh: Vec::new(),
             },
@@ -2402,6 +2406,7 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
                 },
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, a) = insert(
@@ -2458,6 +2463,7 @@ fn lofted(
         Node::Profile(ProfileProgram {
             loops: vec![lower],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, sec1) = insert(
@@ -2465,6 +2471,7 @@ fn lofted(
         Node::Profile(ProfileProgram {
             loops: vec![upper],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, loft) = insert(

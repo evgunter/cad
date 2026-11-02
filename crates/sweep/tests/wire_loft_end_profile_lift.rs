@@ -2,7 +2,7 @@
 //!
 //! A section is `f64` data and the walls are skinned from the `f64`
 //! canonical loops `loft_geometry` validates. These rows pin that the
-//! body's seam struts — `seam_edges[l][j]`, the strut at CANONICAL
+//! body's seam struts — `seam_edges[l][j][0]`, the strut at CANONICAL
 //! vertex `j` — join exactly that vertex's two world points, bit for
 //! bit at `f64` and as point enclosures at `Interval`. So the caps are
 //! the walls' own sections rather than a second canonicalization of
@@ -105,7 +105,7 @@ fn each_seam_strut_joins_its_canonical_vertexs_two_world_points() {
     let want = expected_struts();
     assert_eq!(lofted.seam_edges.len(), 1, "one loop");
     assert_eq!(lofted.seam_edges[0].len(), want.len(), "one strut a vertex");
-    for (j, &e) in lofted.seam_edges[0].iter().enumerate() {
+    for (j, &e) in lofted.seam_edges[0].iter().flatten().enumerate() {
         let mut got = edge_points(&lofted.body, e).map(bits);
         got.sort_unstable();
         assert_eq!(got, want[j], "strut {j}");
@@ -266,7 +266,7 @@ mod interval {
         .expect("the loft builds");
         let want = expected_struts();
         assert_eq!(lofted.seam_edges[0].len(), want.len());
-        for (j, &e) in lofted.seam_edges[0].iter().enumerate() {
+        for (j, &e) in lofted.seam_edges[0].iter().flatten().enumerate() {
             let mut got = edge_points(&lofted.body, e).map(bits);
             got.sort_unstable();
             assert_eq!(got, want[j], "strut {j} at Interval");

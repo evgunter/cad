@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "a_block_resting_in_the_zero_band_unions.rs"]
+mod a_block_resting_in_the_zero_band_unions;
 #[path = "a_callers_interval_is_refused_at_its_door.rs"]
 mod a_callers_interval_is_refused_at_its_door;
 #[path = "a_corrupted_row_is_never_read_as_its_carrier_off_the_face.rs"]
@@ -77,6 +79,12 @@ mod a_face_inside_an_edges_wedge_refuses_at_tier_3_prime;
 mod a_keel_on_the_floor_subtracts_as_a_slit;
 #[path = "a_keel_wrapped_at_both_ends_splits_as_a_ring.rs"]
 mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
+#[path = "a_slit_tip_at_a_cone_apex_reads_its_full_turn.rs"]
+mod a_slit_tip_at_a_cone_apex_reads_its_full_turn;
+#[path = "a_trace_reads_a_piece_against_its_carrier.rs"]
+mod a_trace_reads_a_piece_against_its_carrier;
+#[path = "a_zero_vertex_pair_keeps_the_kept_sides_point.rs"]
+mod a_zero_vertex_pair_keeps_the_kept_sides_point;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]
@@ -109,6 +117,8 @@ mod cell_pair_records;
 mod census_g2_carrier;
 #[path = "census_records_what_it_decides.rs"]
 mod census_records_what_it_decides;
+#[path = "clearance_windows_on_a_spline_chart.rs"]
+mod clearance_windows_on_a_spline_chart;
 #[path = "coincident_line_wedges.rs"]
 mod coincident_line_wedges;
 #[path = "cone_apex_cap_body.rs"]
@@ -393,8 +403,6 @@ test_utils::every_suite_file_is_aggregated!();
 mod f7d_delta_probes;
 #[path = "probe_census.rs"]
 mod probe_census;
-#[path = "probe_f34_review.rs"]
-mod probe_f34_review;
 #[path = "probe_s5_sectors.rs"]
 mod probe_s5_sectors;
 #[path = "review_f7_pole_r1_probes.rs"]
@@ -458,10 +466,14 @@ mod review_4730_divided_carry_probes;
 mod review_4740_r1_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
+#[path = "review_pinch_corner_split.rs"]
+mod review_pinch_corner_split;
 #[path = "spline_reanchor_rows.rs"]
 mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
+#[path = "split_through_a_union_pinch.rs"]
+mod split_through_a_union_pinch;
 #[path = "split_through_an_apex.rs"]
 mod split_through_an_apex;
 #[path = "tangent_touch_charges_both_sags.rs"]

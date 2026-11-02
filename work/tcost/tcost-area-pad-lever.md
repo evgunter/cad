@@ -12,7 +12,7 @@ TCOST-K1 (PR 1652) stopped the patch lanes from running a schedule
 they can prove cannot certify: a refused face now pays round 0 (64
 cells) and the last-round bound. What it still pays is everything
 BEFORE the rounds — the area pass (`area_midpoint_taylor` at
-`AREA_CELLS_PER_AXIS`), the hull blocks and the chord perimeter — which
+`AREA_CELLS_PER_SPAN`), the hull blocks and the chord perimeter — which
 is why an early refusal still reads 3–6 s per face on a loaded box
 (K1's suite prints it) against ~0.5 s for the integral lane's exit.
 The header of `rational_patch_face` names the next levers in order

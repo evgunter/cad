@@ -8,8 +8,8 @@
 //! `MEET` (`a_vertex_read_by_two_sector_passes` builds most of the same
 //! ones), nested to three levels on either side of the plate's top, an
 //! island in a void buried in a block (no face through `MEET`), and
-//! partners whose corner is neither convex nor hollow, read as polygon
-//! cones (`sectors::cone_read`): darts of four and five faces, whose
+//! partners whose corner is neither convex nor hollow (read, as every
+//! partner is, through one gathered cone, `vtxfac::cone_classes`): darts of four and five faces, whose
 //! apex is a reflex edge, on the plate, bare, and beside an arch; the
 //! apex of a pyramid over an L; a saddle, bare and under an arch; a
 //! crown with a thin fin folded at a short edge, bare and buried; a
@@ -160,7 +160,7 @@ impl G {
         let (mut i, mut o) = (0, 0);
         for k in 0..400 {
             let z = 1.0 - (2.0 * f64::from(k) + 1.0) / 400.0;
-            let (s, c) = (2.399_963 * f64::from(k)).sin_cos();
+            let (s, c) = (geom_core::GOLDEN_ANGLE * f64::from(k)).sin_cos();
             let r = z.mul_add(-z, 1.0).sqrt();
             let u = [r * c, r * s, z];
             let q = [0, 1, 2].map(|j| d[j] + ball * u[j]);
@@ -1056,7 +1056,7 @@ fn probe_material(
     let dirs: Vec<[f64; 3]> = (0..240)
         .map(|k| {
             let z = 1.0 - (2.0 * f64::from(k) + 1.0) / 240.0;
-            let (s, c) = (2.399_963 * f64::from(k)).sin_cos();
+            let (s, c) = (geom_core::GOLDEN_ANGLE * f64::from(k)).sin_cos();
             let r = z.mul_add(-z, 1.0).sqrt();
             [r * c, r * s, z]
         })

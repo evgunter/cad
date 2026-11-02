@@ -1,7 +1,7 @@
 ---
 id: quad-rational-patch-cross-grows-with-translation
 kind: issue
-title: quad: the rational patch lane (rational_patch_face, Ladder::cross_num over Collapse::Over) assembles A = w·P in the absolute frame from decorrelated hulls, so a rational face's area and flux enclosures grow with its translation (area width 0.124 at 0, 7.49 at 100 m, 66.5 at 1 km)
+title: quad: the rational patch lane (rational_patch_face, Ladder::cross_num_at over a column slice) assembles A = w·P in the absolute frame from decorrelated hulls, so a rational face's area and flux enclosures grow with its translation (area width 0.124 at 0, 7.49 at 100 m, 66.5 at 1 km)
 status: open
 opened: 2026-10-02
 priority: P2
@@ -16,7 +16,7 @@ Measured by that PR's reviewer; not reproduced by the filer. PR 3863's
 own §5 sweep missed it.
 
 `crates/geom-brep/src/props/quad/rational.rs`: the rational lane
-(`rational_patch_face` → `Ladder::cross_num`, read over
+(`rational_patch_face` → `Ladder::cross_num_at`, read over
 `Collapse::Over` windows) forms the homogeneous net `A = w·P` from the
 control points as given and assembles the area element's cross
 product from separately-hulled terms. Each term carries the net's
@@ -137,3 +137,16 @@ bracket). The widths are not re-measured. The rational lane is
 `rational_patch_face` (`props/quad/rational.rs:360`). Topo still reads
 each face about its shell's reference point (`props/quad_lane.rs`,
 `about`), so a body's translation still does not reach the lane.
+
+## The home (JETFRAME, CLEAR, 2026-11-01)
+
+`geom::net` now holds the home of a rational net's derivatives over a
+cell, read about a point of the cell: `rational_slope` (`S_u`, `S_v`)
+and `rational_mixed` (`S_uv`), behind `NurbsSurface::rect_jet`. This
+row's lane, `rational_patch_face` → `Ladder::cross_num_at` in
+`geom-brep`, forms the area element's cross product, which the home
+does not: `S_u × S_v` is a product of two quotients, and its width wants
+the cross formed from the recentred hulls (or the quotient statement
+`cell_measure_quotients` this row already measured). The home is
+`pub(crate)` in `geom`, so the lane would need it exported, or a `geom`
+door that returns the cross. Left open by JETFRAME.

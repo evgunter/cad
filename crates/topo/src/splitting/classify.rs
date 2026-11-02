@@ -246,7 +246,8 @@ pub(super) fn classify_vertices<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(SecondaryMap<VertexKey, PlaneSide>, Vec<VertexKey>), SplitReduceError> {
-    classify_vertices_margined(body, plane, band).map(|(sides, on, _)| (sides, on))
+    let tips = crate::sector_shape::SlitTips::of(body);
+    classify_vertices_margined(body, plane, &tips, band).map(|(sides, on, _)| (sides, on))
 }
 
 /// Each vertex's side, the ON vertices in arena order, and the margin
@@ -259,10 +260,12 @@ pub(super) type MarginedSides = (
 
 /// [`classify_vertices`], with the margin each ON vertex was decided
 /// Zero on: the coincidence a pinch records ([`crate::coincidence`]) —
-/// its section reading where one was read, else its offset.
+/// its section reading where one was read, else its offset. `tips` are
+/// `body`'s slit tips.
 pub(super) fn classify_vertices_margined<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
+    tips: &crate::sector_shape::SlitTips,
     band: Band,
 ) -> Result<MarginedSides, SplitReduceError> {
     let side_of = |sign| match sign {
@@ -306,7 +309,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
                 ))
             };
         let decided = crate::vertex_section::read_sections(
-            body,
+            (body, tips),
             (vertex_key, p),
             section_plane,
             (

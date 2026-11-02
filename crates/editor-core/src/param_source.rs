@@ -53,6 +53,7 @@ const T_ATAN2: u8 = 0x18;
 const T_MIN: u8 = 0x19;
 const T_MAX: u8 = 0x1a;
 const T_COUNT_TO_SCALAR: u8 = 0x1b;
+const T_MOD: u8 = 0x1c;
 
 /// **A document's definitions, as the encoding reads them**: the
 /// defining expression of a defined variable, `None` for a free one or
@@ -117,6 +118,7 @@ fn encode(expr: &Expr, defs: Definitions<'_, '_>, out: &mut Vec<u8>) {
         ExprKind::Atan2(a, b) => binary(T_ATAN2, a, b, defs, out),
         ExprKind::Min(a, b) => binary(T_MIN, a, b, defs, out),
         ExprKind::Max(a, b) => binary(T_MAX, a, b, defs, out),
+        ExprKind::Mod(a, b) => binary(T_MOD, a, b, defs, out),
         ExprKind::Neg(a) => unary(T_NEG, a, defs, out),
         ExprKind::Sin(a) => unary(T_SIN, a, defs, out),
         ExprKind::Cos(a) => unary(T_COS, a, defs, out),
@@ -276,6 +278,7 @@ mod tests {
         ("T_ATAN2", T_ATAN2, Shape::Binary),
         ("T_MIN", T_MIN, Shape::Binary),
         ("T_MAX", T_MAX, Shape::Binary),
+        ("T_MOD", T_MOD, Shape::Binary),
         ("T_COUNT_TO_SCALAR", T_COUNT_TO_SCALAR, Shape::Unary),
     ];
 
@@ -331,11 +334,12 @@ mod tests {
             | ExprKind::Atan2(..)
             | ExprKind::Min(..)
             | ExprKind::Max(..)
+            | ExprKind::Mod(..)
             | ExprKind::Neg(_)
             | ExprKind::Sin(_)
             | ExprKind::Cos(_)
             | ExprKind::Tan(_)
-            | ExprKind::CountToScalar(_) => 17,
+            | ExprKind::CountToScalar(_) => 18,
             // The stored form adds no leaf of its own.
             ExprKind::Leaf(own) => match own {},
         };

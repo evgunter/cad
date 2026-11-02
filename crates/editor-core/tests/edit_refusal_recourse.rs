@@ -12,11 +12,10 @@
 use crate::blocks::{block, block_on};
 use crate::fixture;
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause, VarKind, VarName,
-    apply,
+    Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause, VarKind, VarName, apply,
 };
-use fixture::{insert, len, run, scl, step};
+use fixture::{insert, len, run, step};
 use geom_core::{Sign, Tol};
 use std::collections::BTreeSet;
 
@@ -121,16 +120,12 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
             def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
         },
     );
-    let (doc, _pattern) = insert(
+    let (doc, k) =
+        crate::fixture::index_of(doc, "k", Formula::named(p("n"), Dimension::Count), None);
+    let (doc, _row) = crate::fixture::family_of(
         doc,
-        Node::Pattern {
-            input: body.into(),
-            count: Formula::named(p("n"), Dimension::Count),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
+        body,
+        crate::fixture::slides_along(k, [1.0, 0.0, 0.0], 2.0),
     );
     let refused = edit(
         &doc,
@@ -271,17 +266,6 @@ fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_th
 /// each group with its reason. A predicate in neither this list nor an
 /// owner's table reds [`every_predicate_a_subtract_logs_has_words_or_a_reason`].
 const WORDLESS: &[(&str, &[&str])] = &[
-    (
-        // Deliberately: the invariant lane (`k_stats::decide_invariant`)
-        // is the kernel checking its own result, not a decision about
-        // the model, so there is no model question to put in words.
-        "the invariant lane",
-        &[
-            "volume_backstop",
-            "volume_backstop_operand",
-            "volume_backstop_violation",
-        ],
-    ),
     (
         // Tier 3 at the boolean door: the at-rest gate the door runs on
         // its result and the boolean seat runs on each operand it

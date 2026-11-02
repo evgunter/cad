@@ -1,13 +1,13 @@
 # f64
-quintic_prism v=3f8b43650bdd8683 a=3fd89d360a67b42e vpad=3e49010b1e66d556 apad=3f69215a38e8c700 | verdicts n=0 h=cbf29ce484222325 esc n=0 h=cbf29ce484222325
+quintic_prism v=3f8b43650bdd8683 a=3fd89d2562980eac vpad=3e49010b1e66d556 apad=3f79215a38e69330 | verdicts n=0 h=cbf29ce484222325 esc n=0 h=cbf29ce484222325
 tilted_cut_upper v=3fd921fb54442d07 a=40096d2e7648c6bc vpad=3df110d915555556 apad=3e19994560000000 | verdicts n=10 h=c5311dd0c395a321 esc n=0 h=cbf29ce484222325
 bulged_extrusion v=4022487ed5110b46 a=403995a0313fde5c vpad=0000000000000000 apad=0000000000000000 | verdicts n=28 h=99ed4b2263813166 esc n=0 h=cbf29ce484222325
-loft_prism v=4022000000000000 a=4039524a6c672fe1 vpad=3d07000000000000 apad=3fc84532b9a1b030 | verdicts n=4 h=02d6a212b0c1a17d esc n=0 h=cbf29ce484222325
-arc_loft_1e11eps v=3f82b8d3cbd66e3b a=3fd05eaae589271c vpad=3da2fdc0669d036c apad=3f3e90b8bb97e700 | verdicts n=4 h=02d6a212b0c1a17d esc n=0 h=cbf29ce484222325
-arc_loft_1e9eps v=3e43a1a4c862669f a=3efad1fd5f7ed1ba vpad=3ce3e93a9ef2aaac apad=3e690a030ed1b300 | verdicts n=4 h=02d6a212b0c1a17d esc n=0 h=cbf29ce484222325
-thin_strip v=3f60624dd2eec0a9 a=4011c4d34da63920 vpad=3e22966b10000000 apad=3fa7e1105285a61b | verdicts n=4 h=02d6a212b0c1a17d esc n=0 h=cbf29ce484222325
+loft_prism v=4022000000000000 a=40395e0728d936fa vpad=3d07000000000000 apad=3fd5eb75f1845028 | verdicts n=4 h=02d6a212b0c1a17d esc n=0 h=cbf29ce484222325
+arc_loft_1e11eps v=3f82b8d3cbd15d60 a=3fd05cfddc88fc49 vpad=3db30319374e81b6 apad=3f503febb714d630 | verdicts n=4 h=02d6a212b0c1a17d esc n=0 h=cbf29ce484222325
+arc_loft_1e9eps v=3e43a1a4c860cf43 a=3efacf3e711b6bc6 vpad=3cd3ef5971c55556 apad=3e7a9f9d3ab4b6a0 | verdicts n=4 h=02d6a212b0c1a17d esc n=0 h=cbf29ce484222325
+thin_strip v=3f60624dd2ef8754 a=4011ba59d5652dcb vpad=3e12a51a8aaaaaac apad=3fb963e04e0f62fd | verdicts n=4 h=02d6a212b0c1a17d esc n=0 h=cbf29ce484222325
 # sym-session
 sym_arc_loft mass_properties OK decisions=4 sym=0 rref=0 rcon=0 num=4 disp=0 chk=4/4 frozen=0 shapes=4
-sym_arc_loft validate_geometric OK decisions=610 sym=430 rref=0 rcon=0 num=180 disp=0 chk=99/104 frozen=4 shapes=610
+sym_arc_loft validate_geometric OK decisions=650 sym=472 rref=0 rcon=0 num=178 disp=0 chk=97/104 frozen=0 shapes=650
 sym_thin_strip mass_properties OK decisions=4 sym=0 rref=0 rcon=0 num=4 disp=0 chk=4/4 frozen=0 shapes=4
-sym_thin_strip validate_geometric OK decisions=614 sym=322 rref=0 rcon=0 num=292 disp=0 chk=92/102 frozen=60 shapes=614
+sym_thin_strip validate_geometric OK decisions=654 sym=440 rref=0 rcon=0 num=214 disp=0 chk=92/102 frozen=168 shapes=654

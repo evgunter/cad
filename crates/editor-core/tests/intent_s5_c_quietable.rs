@@ -45,6 +45,7 @@ fn prism(doc: ProfileDoc, loops: Vec<LoopProgram<Formula>>, h: f64) -> (ProfileD
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -217,6 +218,7 @@ fn a_ball_in_a_concentric_socket_is_not_quietable() {
             Node::Profile(ProfileProgram {
                 loops: vec![meridian],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         insert(
@@ -314,8 +316,9 @@ fn tilted_press(
 /// funnel.** Turned and moved, the bore's and the pin's axes agree only
 /// to rounding, so whether they are one line is a decision at the band
 /// (`at_rest_quiet_axes_parallel`, `at_rest_quiet_centred`), not an exact
-/// comparison. `Gap(bore, pin) ≤ −0.001` holds and quiets it at both
-/// poses; `Gap(pin, bore)` reads +0.005 and quiets nothing.
+/// comparison. The bore and the pin are opposed, so the gap reads −0.005
+/// in either role order, and `Gap ≤ −0.001` holds and quiets it at both
+/// poses, the bore first or the pin.
 ///
 /// *Breaks if* `constant_pairing` compares the axes raw (the tilted fit
 /// stays loud, and no verdict is recorded under either site).
@@ -335,7 +338,7 @@ fn a_tilted_press_fit_is_quiet_and_its_axes_are_decided_in_band() {
         assert!(loud.is_loud() && loud.quietable, "{pose_name}: {loud:?}");
         for (why, outer, inner, quiets) in [
             ("bore first", (p, bore.clone()), (q, wall.clone()), true),
-            ("pin first", (q, wall.clone()), (p, bore.clone()), false),
+            ("pin first", (q, wall.clone()), (p, bore.clone()), true),
         ] {
             let (doc, assertion) = crate::intent_s5_b_interference::gap_at_copies(
                 doc.clone(),

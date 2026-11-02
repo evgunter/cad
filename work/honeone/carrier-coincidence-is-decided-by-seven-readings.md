@@ -45,3 +45,20 @@ Re-aimed to D3 "One reading per question". Coincident ± is one class of the car
 - `coaxial_rows` has an `if let Ok`. It was probed on the coaxiality row (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
 
 Both are undeclared detection, so a refusal there is a refusal of a pair nobody asked about. Both belong in the one table this row asks for, as unread arms with a stated reading.
+
+## 2026-10-29: the ladder carries a cone (SPLITDOOR)
+
+`boolean::carrier_eq` has a cone arm (`splitdoor/curved-copy`): apex, axis line, half-angle, the carrier the double cone. A frustum's two wall faces declared one pair now record the `PeriodClosure` the sphere's and the torus's do (`sweep/tests/curved_mergedoor.rs` `sphere_torus_and_cone_pairs_record_their_period_closure`), and `DeclaredPairUnread` is left to NURBS and `Approx`. An undeclared cone pair is read too.
+
+## 2026-10-31: reading 7's cylinder half moved into the pair's pose (SECTARMS)
+
+Two cylinders' `CoincidentSurfaces` is now decided in the section
+value's pose (`geom_brep::pair_section::cylinders`, `cc_coaxial` read
+across the operation's region), and `cylinder_cylinder_section` reads it
+there rather than deciding it itself (SECTARMS stage 1, branch
+`sectarms/cylinder-pair-on-the-value`). The carrier ladder's cylinder
+arm (`boolean::carrier_eq::cylinder_data`: `carrier_cyl_axis_parallel`,
+`carrier_cyl_axis_offset`, `carrier_cyl_radius`) still decides the same
+fact at its own lever. The torus pair already shares one decision
+between the two (`pair_section::torus_coincidence`); the cylinder pair
+could share the pose's the same way.

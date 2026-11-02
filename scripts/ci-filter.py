@@ -80,6 +80,9 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
                 them. `decorate` subtracts it again before keying JOB_ROOTS, so
                 pinning a guard cannot silently switch a named job row on>
   CARGO_SCOPE=--workspace | -p a -p b ...
+  TEST_SCOPE=<the test job's scope: CARGO_SCOPE, plus test-utils on a closure>
+  TEST_SHARDS=<JSON list of {"shard": "kernel"|"app", "scope": ...}, the test
+                job's matrix; `[]` when nothing builds. See `test_shards`>
   RUN_BUILD=true|false          any cargo/grep row at all (false only for docs)
   RUN_EDITOR_CORE=true|false    the editor-core rows (see JOB_ROOTS)
   RUN_STL=true|false            watertight (admesh) row
@@ -2814,6 +2817,66 @@ def parse_config(tokens: list[str], source: str) -> dict[str, tuple[str, str]]:
     return out
 
 
+# THE TEST SHARDS. The test job's build is the per-PR floor and is
+# throughput-bound on one 4-core runner, so its scope is split in two and each
+# half builds and runs on its own runner: `app` is `APP_ROOT`, every member
+# that depends on it (dev edges included), and `APP_BALLAST`; `kernel` is the
+# rest. A half the scope leaves empty is not run.
+#
+# The graph rule alone leaves the halves unequal: `app` waits on the
+# editor-core chain with cores idle while `kernel` has more test binaries than
+# cores. `APP_BALLAST` is kernel members whose tests are moved into `app`'s idle
+# cores to even the two out; it is a timing choice the member graph cannot
+# express, so it is kept by hand and re-chosen when the shard times drift
+# apart. The roster is spelled out so the shard scopes keep their order;
+# `_selftest_app_shard_premise` checks it against the member graph.
+APP_ROOT = "verbs"
+APP_BALLAST: tuple[str, ...] = ("mesh",)
+APP_SHARD: tuple[str, ...] = ("verbs", "editor-core", "pncad", "pncad-py", "viewer", "mesh")
+
+
+class ShardError(Exception):
+    """A run that builds, with no test shard to run its tests in."""
+
+
+def test_shards(tier: str, cargo_scope: str, run_build: str) -> tuple[str, str]:
+    """`(TEST_SCOPE, TEST_SHARDS)`: the test job's cargo scope, and the JSON
+    matrix `include` list that splits it into the `kernel` and `app` shards.
+
+    test-utils holds the tree-wide source-reader ledger and has no
+    dependencies, so every closure builds it: a new source-reading test
+    anywhere owes that ledger a line, and this is where it hears about it.
+
+    Raises ShardError when a run that builds would get no shard: the test job
+    would skip and drop every test from the gate.
+    """
+    pkgs = cargo_scope.replace("-p ", "").split()
+    if tier == "closure" and "test-utils" not in pkgs:
+        pkgs.append("test-utils")
+    if cargo_scope == "--workspace":
+        scope = cargo_scope
+        kernel = ["--workspace", *(f"--exclude {p}" for p in APP_SHARD)]
+        apps = [f"-p {p}" for p in APP_SHARD]
+    else:
+        scope = " ".join(f"-p {p}" for p in pkgs)
+        kernel = [f"-p {p}" for p in pkgs if p not in APP_SHARD]
+        apps = [f"-p {p}" for p in pkgs if p in APP_SHARD]
+        # test-utils alone is not worth a runner of its own.
+        if kernel == ["-p test-utils"] and apps:
+            apps, kernel = apps + kernel, []
+    shards = [
+        {"shard": name, "scope": " ".join(half)}
+        for name, half in (("kernel", kernel), ("app", apps))
+        if half
+    ]
+    if run_build == "true" and not shards:
+        raise ShardError(
+            f"a run that builds has no test shard (scope: '{scope}'); "
+            "the test job would skip and drop every test from the gate"
+        )
+    return scope, json.dumps(shards, separators=(",", ":"))
+
+
 def decorate(
     res: dict[str, str],
     files: list[str] | None = None,
@@ -3583,6 +3646,7 @@ def selftest() -> None:
                     ["crates/stl/src/lib.rs"], TIER="closure",
                     PKGS="stl", RUN_STL="true", REACHED="",
                     RUN_TOPO_RELEASE="false")
+        _selftest_test_shards(t)
 
         # --- the oracle signal, which is keyed on PATHS and not on the tier.
         _files_case(t, "certified sources re-certify",
@@ -3821,6 +3885,7 @@ def selftest() -> None:
 
     _selftest_docs_premise()
     _selftest_wheel_members_premise()
+    _selftest_app_shard_premise()
     _selftest_unsampled()
     _selftest_config()
     _selftest_gated()
@@ -3862,6 +3927,77 @@ _FIXTURE_NEXTEST = (
     "[profile.ci.junit]\n"
     'path = "junit.xml"\n'
 )
+
+
+def _selftest_app_shard_premise() -> None:
+    """`APP_SHARD` is `APP_ROOT`, its dependents on THIS tree's member graph, and
+    `APP_BALLAST`, so a new dependent of verbs or editor-core reds here rather
+    than landing in the kernel shard. Each ballast entry is a member outside
+    that closure: a renamed member, or one that came to depend on verbs, reds
+    rather than leaving a ballast line that moves nothing."""
+    try:
+        members, deps = _members(_repo_root())
+        dependents = set(_closure({APP_ROOT}, deps))
+    except Bail as exc:
+        raise SystemExit(f"SELFTEST FAILED: the app shard's roster cannot be derived: {exc}") from exc
+    for b in APP_BALLAST:
+        if b not in members or b in dependents:
+            raise SystemExit(
+                f"SELFTEST FAILED: APP_BALLAST names {b!r}, which is "
+                + ("not a member of this tree" if b not in members else f"already {APP_ROOT} or a dependent of it")
+            )
+    want = dependents | set(APP_BALLAST)
+    if set(APP_SHARD) != want or len(APP_SHARD) != len(want):
+        raise SystemExit(
+            f"SELFTEST FAILED: APP_SHARD is {sorted(APP_SHARD)}, but {APP_ROOT}, its "
+            f"dependents on this tree and APP_BALLAST are {sorted(want)}"
+        )
+
+
+def _selftest_test_shards(t: str) -> None:
+    """The test job's matrix, through the CLI on the fixture (where `verbs` is
+    the one roster member) and, for the scopes no fixture diff can draw,
+    through `test_shards` directly."""
+    def shards(*halves: tuple[str, str]) -> str:
+        return json.dumps([{"shard": n, "scope": s} for n, s in halves], separators=(",", ":"))
+
+    kernel = ("--workspace --exclude verbs --exclude editor-core --exclude pncad"
+              " --exclude pncad-py --exclude viewer --exclude mesh")
+    app = "-p verbs -p editor-core -p pncad -p pncad-py -p viewer -p mesh"
+    for what, files, scope, want in (
+        # test-utils, alone on the kernel side, rides with the app shard.
+        ("an app-only closure", ["crates/verbs/src/lib.rs"], "-p verbs -p test-utils",
+         shards(("app", "-p verbs -p test-utils"))),
+        ("a kernel-only closure", ["crates/geom-core/src/lib.rs"],
+         "-p geom-core -p stl -p topo -p test-utils",
+         shards(("kernel", "-p geom-core -p stl -p topo -p test-utils"))),
+        ("a closure on both sides", ["crates/stl/src/lib.rs", "crates/verbs/src/lib.rs"],
+         "-p stl -p verbs -p test-utils",
+         shards(("kernel", "-p stl -p test-utils"), ("app", "-p verbs"))),
+        ("the whole workspace", ["Cargo.toml"], "--workspace",
+         shards(("kernel", kernel), ("app", app))),
+        ("a docs change", ["docs/DESIGN.md"], "", "[]"),
+    ):
+        _files_case(t, f"test shards: {what}", files, TEST_SCOPE=scope, TEST_SHARDS=want)
+    for what, args, want in (
+        ("lone test-utils keeps a shard", ("closure", "-p test-utils", "true"),
+         ("-p test-utils", shards(("kernel", "-p test-utils")))),
+        ("test-utils is not added twice", ("closure", "-p geom-core -p test-utils -p verbs", "true"),
+         ("-p geom-core -p test-utils -p verbs",
+          shards(("kernel", "-p geom-core -p test-utils"), ("app", "-p verbs")))),
+        ("a ballast member rides with app", ("closure", "-p mesh -p topo -p test-utils", "true"),
+         ("-p mesh -p topo -p test-utils",
+          shards(("kernel", "-p topo -p test-utils"), ("app", "-p mesh")))),
+    ):
+        got = test_shards(*args)
+        if got != want:
+            raise SystemExit(f"ci-filter selftest FAILED: test shards: {what}: got {got}, want {want}")
+    try:
+        got = test_shards("docs", "", "true")
+    except ShardError:
+        pass
+    else:
+        raise SystemExit(f"ci-filter selftest FAILED: test shards: a build with no shard returned {got}")
 
 
 def _selftest_slow_set_edits(t: str) -> None:
@@ -4687,6 +4823,17 @@ def main() -> int:
 
     out = decorate(res, files, config, wheel_members)
     out["ALL_REASON"] = all_reason if out["TIER"] == "all" else ""
+    # Outside the fail-closed wrapper: a run that builds and tests nothing is
+    # a red step, not a classification to fall back from. It checks the
+    # classification itself, so a draft (whose RUN_* ci.yml turns off after
+    # this) reds on it too.
+    try:
+        out["TEST_SCOPE"], out["TEST_SHARDS"] = test_shards(
+            out["TIER"], out["CARGO_SCOPE"], out["RUN_BUILD"]
+        )
+    except ShardError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        return 1
 
     # THE NOTICES ARE COMPOSED HERE AND WRITTEN TWICE, TO ONE WORDING. They go
     # to stderr, where the local half and anyone running this by hand sees

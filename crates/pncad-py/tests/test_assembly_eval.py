@@ -59,7 +59,7 @@ Four things the guard does NOT see, named rather than summarised:
    a turntable and sets a crate on the shelf where Python pins it to
    the world. The guard would red if it compared recipes, and it
    does not compare recipes. (The flat-pack's placed family used to be
-   a third such difference; it is `Node.pattern` on both sides now.)
+   a third such difference; it is a row's members on both sides now.)
 3. Anything in `assembly.rs` outside its constant block, `layout_doc`
    and `stand_doc` — the tour's own assertions above all.
 4. A rename or a reformat in the tour, which reds this guard as a false
@@ -114,10 +114,10 @@ from pncad import CapEnd, Doc, DocEdit, DocRef, Formula, Frame, Node, SegTag, Wo
 from placing import placed, assemble_world_copies
 from measuring import pinned
 
-#: The layout's nodes: the post instance, its pattern and the shelf
-#: instance, then each pattern copy projected and placed, and the `⊔`
-#: of the world's copies the product slot reads.
-LAYOUT_NODES = 4 + 2 * PATTERN_COUNT
+#: The layout's nodes: the post instance, its row and the shelf
+#: instance, then each member of the row placed, and the `⊔` of the
+#: world's copies the product slot reads.
+LAYOUT_NODES = 4 + PATTERN_COUNT
 
 TOUR = Path(__file__).resolve().parents[3] / "demos" / "tour" / "src" / "assembly.rs"
 
@@ -245,9 +245,9 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
         """The tour's flat-pack oracle, reproduced: one post instance
         placed PATTERN_COUNT ways, plus the shelf.
 
-        The family is a `Node.pattern` — the tour's own node — so its
-        value is PLURAL: one body per placement, each a whole post,
-        nothing fused. That is what the count below reads, and it is
+        The family is a row — the tour's own spelling — so its value is
+        PLURAL: one body per member, each a whole post, nothing
+        fused. That is what the count below reads, and it is
         the shape every row further down has to answer over.
         """
         store, docs = opened()
@@ -301,14 +301,14 @@ class TestTheResolutionRefusals(CorpusCase):
 
     THREE arms are exercised here — `part_no_resolver` (the class
     above), `part_pin_mismatch` and `part_unresolved` — and three more
-    below: `part_root_failed`, by `TestAPartWhoseRootFails`, whose
-    part's root is an instance that fails on its own;
-    `part_root_poisoned`, by it one level down and by
-    `TestAPartWhoseRootIsPoisoned`; and `part_product` by
+    below: `part_product_failed`, by `TestAPartWhosePieceFails`, whose
+    part's piece is an instance that fails on its own;
+    `part_product_poisoned`, by it one level down and by
+    `TestAPartWhosePieceIsPoisoned`; and `part_product` by
     `TestAPartWithAnEmptyWorld`. The rest of the family is typed and
     tagged but UNREACHED from Python today, each for its own reason, and
     none of them is singled out: `part_epsilon_seam` needs a stored document recording a different
-    ε; `part_root_failure_unrecorded` and `part_not_entered` are
+    ε; `part_product_failure_unrecorded` and `part_not_entered` are
     kernel bugs no document reaches; `part_reference_cycle` needs an instantiate node
     pointing back up its own chain — and an honest store cannot hold
     one at all, since a cycle with valid pins wants a content hash
@@ -350,10 +350,9 @@ class TestTheResolutionRefusals(CorpusCase):
         refusals = failures(
             evaluate(docs["layout"], resolver=Workspace(str(directory)))
         )
-        # The post instance fails; the pattern over it, each copy
-        # projected out of the pattern, each copy's placement and the
-        # product's `⊔` are poisoned.
-        downstream = 2 + 2 * PATTERN_COUNT
+        # The post instance fails; the row over it, each member's
+        # placement and the product's `⊔` are poisoned.
+        downstream = 2 + PATTERN_COUNT
         self.assertEqual(
             [r.kind for r in refusals.values()],
             ["part_unresolved"] * (1 + downstream),
@@ -395,12 +394,12 @@ class TestTheResolutionRefusals(CorpusCase):
         self.assertEqual(failures(evaluate(docs["layout"], resolver=store)), {})
 
 
-class TestAPartWhoseRootFails(unittest.TestCase):
-    """A part whose own product refuses because its root failed, one
-    document down and two: the bracket's root is an instance of the
-    boss, a placement that fails on its own (`part_root_failed`), and
-    the boss's root is poisoned through its extrude
-    (`part_root_poisoned`).
+class TestAPartWhosePieceFails(unittest.TestCase):
+    """A part whose own product refuses because its piece failed, one
+    document down and two: the bracket's piece is an instance of the
+    boss, a placement that fails on its own (`part_product_failed`), and
+    the boss's piece is poisoned through its extrude
+    (`part_product_poisoned`).
 
     The instance's message is its own short sentence: it names the
     part's failed node and points at it, and never quotes that node's
@@ -409,7 +408,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
     way that node's own evaluation raises it — so a part inside a part
     is a chain of causes, one per document.
 
-    The assembly's first node is the bracket's root again, an instance
+    The assembly's first node is the bracket's piece again, an instance
     of the boss, so it has the same id (both documents mint from the
     zero chain) under another label: a part's node said with the
     host's label would show.
@@ -432,8 +431,8 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         # standing in the bracket's world by the identity bundle.
         building = DocRef(boss.id, pncad.content_pin(boss))
         bracket = pncad.Doc("pncad-partroot-bracket")
-        self.bracket_root = bracket.insert(Node.instantiate_part(building, bracket.world))
-        bracket.apply(DocEdit.set_label(self.bracket_root, "bracket seat"))
+        self.bracket_piece = bracket.insert(Node.instantiate_part(building, bracket.world))
+        bracket.apply(DocEdit.set_label(self.bracket_piece, "bracket seat"))
         # Then the boss's extrude is edited to no length, and the bracket
         # takes that version.
         (extrude,) = [n for n in boss.order() if boss.node_kind(n) == "extrude"]
@@ -445,7 +444,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         assemble_world_copies(bracket)
         self.store.create(bracket)
         self.bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
-        # The assembly's twin is inserted as the bracket's root was, and
+        # The assembly's twin is inserted as the bracket's piece was, and
         # takes the flat version the same way.
         self.assembly = pncad.Doc("pncad-partroot-assembly")
         self.twin = self.assembly.insert(Node.instantiate_part(building, self.assembly.world))
@@ -455,26 +454,26 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.instance = self.assembly.insert(Node.instantiate_part(self.bracket_ref, self.assembly.world))
 
     def test_the_part_refusal_is_short_and_its_cause_is_typed(self):
-        bracket_root, instance = self.bracket_root, self.instance
+        bracket_piece, instance = self.bracket_piece, self.instance
         refusal = failures(evaluate(self.assembly, resolver=self.store))[instance]
-        self.assertEqual(refusal.kind, "part_root_failed")
+        self.assertEqual(refusal.kind, "part_product_failed")
         text = str(refusal)
         self.assertLessEqual(len(text.split()), self.BUDGET, text)
         self.assertEqual(
-            bracket_root, self.twin, "both documents mint from the zero chain"
+            bracket_piece, self.twin, "both documents mint from the zero chain"
         )
-        seat = f'InstantiatePart "bracket seat" ({tag(bracket_root)})'
+        seat = f'InstantiatePart "bracket seat" ({tag(bracket_piece)})'
         self.assertIn(f"the part's {seat} failed", text)
         self.assertIn(f"repair {seat}", text)
         self.assertNotIn("host twin", text)
 
-        # One level down: the bracket's root, itself a part whose root
+        # One level down: the bracket's piece, itself a part whose piece
         # failed — in the bracket's own id space, said with the
         # bracket's label and never the assembly's for the same id.
         bracket_refusal = refusal.__cause__
         self.assertIsInstance(bracket_refusal, pncad.EvaluationError)
-        self.assertEqual(bracket_refusal.kind, "part_root_poisoned")
-        self.assertEqual(bracket_refusal.node, bracket_root)
+        self.assertEqual(bracket_refusal.kind, "part_product_poisoned")
+        self.assertEqual(bracket_refusal.node, bracket_piece)
         self.assertTrue(
             str(bracket_refusal).startswith(f"{seat} failed: "), str(bracket_refusal)
         )
@@ -506,7 +505,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         cause = refusal.__cause__
         self.assertIsInstance(cause, pncad.EvaluationError)
         self.assertEqual(
-            (cause.node, cause.document), (self.bracket_root, self.bracket_ref),
+            (cause.node, cause.document), (self.bracket_piece, self.bracket_ref),
             "the poisoned node hands on the chain its root cause carries",
         )
         self.assertEqual(cause.__cause__.document, self.boss_ref)
@@ -545,8 +544,8 @@ class TestAPartWithAnEmptyWorld(unittest.TestCase):
         self.assertIn("the product slot reads nothing", str(refusal))
 
 
-class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
-    """`part_root_poisoned`, reached: a part whose extrude refuses and
+class TestAPartWhosePieceIsPoisoned(unittest.TestCase):
+    """`part_product_poisoned`, reached: a part whose extrude refuses and
     whose one placed copy of it never runs.
 
     The instance names the part's placement and points at the extrude, the
@@ -582,11 +581,11 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         self.assembly = pncad.Doc("pncad-partpoison-assembly")
         self.instance = self.assembly.insert(Node.instantiate_part(self.part_ref, self.assembly.world))
 
-    def test_the_instance_carries_the_failure_that_poisoned_the_root(self):
+    def test_the_instance_carries_the_failure_that_poisoned_the_piece(self):
         refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
-        self.assertEqual(refusal.kind, "part_root_poisoned")
+        self.assertEqual(refusal.kind, "part_product_poisoned")
         text = str(refusal)
-        self.assertIn(f"its root, Place {tag(self.placed)}", text)
+        self.assertIn(f"poisoned Place {tag(self.placed)}, which its product reads", text)
         self.assertIn(f"repair Extrude {tag(self.extrude)}", text)
 
         cause = refusal.__cause__
@@ -600,12 +599,12 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         self.assertIsNone(cause.__cause__, "the chain ends at the refusing node")
         self.assertNotIn(str(cause), text, "the instance never quotes it")
 
-    def test_the_parts_own_gather_names_the_root_and_its_failed_ancestor(self):
+    def test_the_parts_own_gather_names_the_piece_and_its_failed_ancestor(self):
         """`ProductError.node` and `.through` are the standing's."""
         with self.assertRaises(pncad.ProductError) as caught:
             pncad.product(self.part, evaluate(self.part))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "root_poisoned")
+        self.assertEqual(refusal.variant, "read_poisoned")
         self.assertEqual(
             (refusal.node, refusal.through),
             (self.placed, self.extrude),
@@ -613,11 +612,11 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         )
 
     def test_two_documents_down_the_cause_chain_ends_at_the_failing_node(self):
-        """A bracket whose root is a placement of an instance of the
-        part: the bracket's root is poisoned through
+        """A bracket whose piece is a placement of an instance of the
+        part: the bracket's piece is poisoned through
         that failed instance, and the chain runs instance, instance,
         extrude. The inner instance is placed into a space of its own, so
-        it is no root of the bracket's world itself."""
+        it is no piece of the bracket's product."""
         # The bracket is placed while the part builds — the gesture
         # reads the instance's faces — and then pinned to the part as
         # it stands, edited to no length.
@@ -642,10 +641,10 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         instance = assembly.insert(Node.instantiate_part(bracket_ref, assembly.world))
 
         refusal = failures(evaluate(assembly, resolver=self.store))[instance]
-        self.assertEqual(refusal.kind, "part_root_poisoned")
+        self.assertEqual(refusal.kind, "part_product_poisoned")
         middle = refusal.__cause__
         self.assertIsInstance(middle, pncad.EvaluationError)
-        self.assertEqual(middle.kind, "part_root_poisoned")
+        self.assertEqual(middle.kind, "part_product_poisoned")
         self.assertEqual((middle.node, middle.document), (inner, bracket_ref))
         last = middle.__cause__
         self.assertIsInstance(last, pncad.EvaluationError)
@@ -749,7 +748,7 @@ class TestNestingPastTheBound(unittest.TestCase):
             f"the interpreter survives the descent: {child.stderr[-2000:]}",
         )
         said = json.loads(child.stdout)
-        self.assertEqual(said["top"], "part_root_failed")
+        self.assertEqual(said["top"], "part_product_failed")
         self.assertEqual(
             said["causes"],
             LINKED_CAUSES,
@@ -837,8 +836,8 @@ class TestTheMemoIsObservable(CorpusCase):
 
     def test_on_a_refusal_path_the_counters_undershoot_by_the_poisonings(self):
         """The no-resolver layout: two instantiate nodes RUN and fail,
-        and everything over them — the pattern, its projected copies
-        and their placements — is poisoned and never runs. So the sum is
+        and everything over them — the row and its members'
+        placements — is poisoned and never runs. So the sum is
         2 against every node in `order()` — and the difference is
         exactly the poisoning."""
         _, docs = opened()
@@ -1005,7 +1004,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
                 r.kind
                 for r in failures(evaluate(docs["layout"], resolver=gone)).values()
             ),
-            ["part_unresolved"] * (3 + 2 * PATTERN_COUNT),
+            ["part_unresolved"] * (3 + PATTERN_COUNT),
             "an evaluation that ASKS refuses the document that is not there",
         )
         memoized = evaluate(docs["layout"], resolver=gone, prior=before)
@@ -1062,7 +1061,7 @@ class TestTheResolverSnapshot(CorpusCase):
                 r.kind
                 for r in failures(evaluate(whole["layout"], resolver=gone)).values()
             ),
-            ["part_unresolved"] * (3 + 2 * PATTERN_COUNT),
+            ["part_unresolved"] * (3 + PATTERN_COUNT),
         )
         gone.create(whole["post"])
         self.assertEqual(
@@ -1095,8 +1094,8 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
         """
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
-        # The posts' world copies: each pattern copy's placement.
-        posts = docs["layout"].placements()[2:]
+        # The posts' world copies: each member's placement.
+        posts = docs["layout"].placements()[3:]
         positions = [
             p
             for placed in posts
@@ -1127,11 +1126,11 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
         evaluation = evaluate(docs["layout"], resolver=store)
         read = sorted(
             tuple(round(c.meters, 9) for c in evaluation.face_frame(placed, cap).origin)
-            for placed in docs["layout"].placements()[2:]
+            for placed in docs["layout"].placements()[3:]
             for cap in evaluation.select(
                 placed,
                 bench_scene.cap_selector(
-                    CapEnd.End, [SegTag.Instance]
+                    CapEnd.End, [SegTag.Member]
                 ),
             )
         )
@@ -1261,7 +1260,7 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
     def test_the_flat_packs_placement_literals_still_match_the_tour(self):
         """The layout's placements are literals at their call sites,
         read by nothing until this row: the post's rotation and offset,
-        the pattern's count and spacing, the shelf's offset."""
+        the row's count and pitch, the shelf's offset."""
         layout = self.body_of("layout_doc")
         placed = re.search(
             r"Coord::Spin\(Some\(TargetAxis::(\w)\)\),\s*crate::world::turn\((\d+),\s*(true|false)\),?\s*\)\];"
@@ -1280,10 +1279,10 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
             "the post's flat-pack offset",
         )
 
-        count = re.search(r'count: pe\("(\d+)", &scope\)', layout)
+        count = re.search(r'index_decl\(\s*k\.clone\(\),\s*pe\("(\d+)", &scope\)', layout)
         self.assertIsNotNone(count, "layout_doc no longer authors its count inline")
         self.assertScene(int(count.group(1)), PATTERN_COUNT, "PATTERN_COUNT")
-        spacing = re.search(r'spacing: pe\("(\d+) mm", &scope\)', layout)
+        spacing = re.search(r'TargetAxis::Y, pe\("(\d+) mm", &scope\)', layout)
         self.assertIsNotNone(spacing, "layout_doc no longer authors its spacing in mm")
         self.assertScene(
             int(spacing.group(1)) / 1000.0, PATTERN_SPACING, "PATTERN_SPACING"

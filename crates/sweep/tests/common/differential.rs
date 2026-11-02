@@ -216,6 +216,9 @@ pub struct Judgement {
     pub line: String,
     /// The measured volume.
     pub volume: Option<f64>,
+    /// The measured enclosure's half-width (`volume_pad`), where a
+    /// volume was measured.
+    pub pad: Option<f64>,
     /// The verdict the line prints.
     pub verdict: Verdict,
 }
@@ -231,20 +234,36 @@ pub fn judged(
     want: Option<f64>,
     tol: Tol,
 ) -> Judgement {
-    judge(r, want, tol, true)
+    judge(r, want, tol, true, VOLUME_PAD_BUDGET)
 }
 
-/// [`judged`], with `extra` one more condition a `SOUND` line needs.
+/// [`judged`] against an enclosure no wider than `pad_budget` in
+/// place of [`VOLUME_PAD_BUDGET`]: for a body whose certified enclosure
+/// is known not to meet the shared budget at every ε, the caller names
+/// its own ceiling, and why, at its site.
+pub fn judged_within(
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: Option<f64>,
+    tol: Tol,
+    pad_budget: f64,
+) -> Judgement {
+    judge(r, want, tol, true, pad_budget)
+}
+
+/// [`judged`], with `extra` one more condition a `SOUND` line needs and
+/// `pad_budget` the widest enclosure it accepts.
 fn judge(
     r: Result<BooleanResult<f64>, BooleanError>,
     want: Option<f64>,
     tol: Tol,
     extra: bool,
+    pad_budget: f64,
 ) -> Judgement {
     let want_col = want.map_or("want=none".to_string(), |w| format!("want={w:.9}"));
     let of = |line: String, volume, verdict| Judgement {
         line,
         volume,
+        pad: None,
         verdict,
     };
     match r {
@@ -283,7 +302,7 @@ fn judge(
                     Ok((v, pad)) => {
                         let verdict = match want {
                             _ if !(t2 && t3 && cert && operand && extra) => Verdict::Bad,
-                            _ if pad > VOLUME_PAD_BUDGET => Verdict::Bad,
+                            _ if pad > pad_budget => Verdict::Bad,
                             None => Verdict::Unjudged,
                             Some(w) if (v - w).abs() <= VOLUME_CLAIM + pad => Verdict::Sound,
                             Some(_) => Verdict::Bad,
@@ -298,14 +317,17 @@ fn judge(
                         } else {
                             String::new()
                         };
-                        of(
-                            format!(
-                                "OK {word} t2={t2} t3p={t3} cert={cert} operand={operand} \
-                                 v={v:.9}{pad_col} {want_col}"
-                            ),
-                            Some(v),
-                            verdict,
-                        )
+                        Judgement {
+                            pad: Some(pad),
+                            ..of(
+                                format!(
+                                    "OK {word} t2={t2} t3p={t3} cert={cert} operand={operand} \
+                                     v={v:.9}{pad_col} {want_col}"
+                                ),
+                                Some(v),
+                                verdict,
+                            )
+                        }
                     }
                     Err(e) => of(
                         format!(
@@ -380,7 +402,7 @@ pub fn judged_with_seams(
         .and_then(BooleanResult::body)
         .map(|bb| seams(&bb.body));
     let clean = seams.is_none_or(|(sk, _, z)| sk == 0 && z == 0);
-    let mut j = judge(r, want, tol, clean);
+    let mut j = judge(r, want, tol, clean, VOLUME_PAD_BUDGET);
     if let Some((sk, cp, z)) = seams {
         j.line = format!("{} samekey={sk} coplanar={cp} zero={z}", j.line);
     }
@@ -406,6 +428,7 @@ pub fn assert_sound_and_meshed(
     let mesh = mesh::tessellate(&bb.body, 5e-3, tol)
         .unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: the mesh: {e:?}"));
+    assert_meshed_geometry(label, &bb.body, &mesh, 5e-3);
     let line = outcome(r, want, tol);
     assert!(line.starts_with("OK SOUND"), "{label}: {line}");
 }
@@ -413,7 +436,9 @@ pub fn assert_sound_and_meshed(
 /// **Every op in both operand orders** between `a` (volume `va`) and
 /// `b` (`vb`), which overlap in `vab`: ∪, ∩ and ∖ run `a`-first then
 /// `b`-first, each with its closed-form volume, named `"A ∪ B"`,
-/// `"B ∪ A"`, `"A ∩ B"`, `"B ∩ A"`, `"A ∖ B"` and `"B ∖ A"`.
+/// `"B ∪ A"`, `"A ∩ B"`, `"B ∩ A"`, `"A ∖ B"` and `"B ∖ A"`. Each
+/// result that builds holds the volume relations
+/// (`topo::test_support::VolumeOracle`).
 #[allow(clippy::type_complexity)] // (op, result, closed form) per run
 pub fn every_op_both_orders(
     a: &AtRestBody<f64>,
@@ -421,14 +446,29 @@ pub fn every_op_both_orders(
     (va, vb, vab): (f64, f64, f64),
     tol: Tol,
 ) -> Vec<(&'static str, Result<BooleanResult<f64>, BooleanError>, f64)> {
-    vec![
-        ("A ∪ B", topo::union(a, b, tol), va + vb - vab),
-        ("B ∪ A", topo::union(b, a, tol), va + vb - vab),
-        ("A ∩ B", topo::intersect(a, b, tol), vab),
-        ("B ∩ A", topo::intersect(b, a, tol), vab),
-        ("A ∖ B", topo::subtract(a, b, tol), va - vab),
-        ("B ∖ A", topo::subtract(b, a, tol), vb - vab),
+    use topo::BooleanOp::{Intersect, Subtract, Union};
+    let oracle = topo::test_support::VolumeOracle::new(a, b, tol);
+    [
+        ("A ∪ B", Union, a, b, va + vb - vab),
+        ("B ∪ A", Union, b, a, va + vb - vab),
+        ("A ∩ B", Intersect, a, b, vab),
+        ("B ∩ A", Intersect, b, a, vab),
+        ("A ∖ B", Subtract, a, b, va - vab),
+        ("B ∖ A", Subtract, b, a, vb - vab),
     ]
+    .into_iter()
+    .map(|(name, op, x, y, want)| {
+        let r = match op {
+            Union => topo::union(x, y, tol),
+            Intersect => topo::intersect(x, y, tol),
+            Subtract => topo::subtract(x, y, tol),
+        };
+        if let Ok(built) = &r {
+            oracle.assert(name, op, x, y, built.body().map(|bb| &*bb.body));
+        }
+        (name, r, want)
+    })
+    .collect()
 }
 
 /// The reflex corner's `a` profile: the 315° corner at the origin, all
@@ -893,4 +933,72 @@ pub fn nt_poly_volume(poly: &NtPoly) -> f64 {
         })
         .sum::<f64>()
         / 6.0
+}
+
+/// The body's mass properties at the pinned resolution: its volume and
+/// its surface area, read off the B-rep.
+pub fn body_props(body: &Body<f64>) -> topo::MassProperties<f64> {
+    topo::test_support::pinned_volume(
+        "the meshed body",
+        &sweep::test_support::at_rest(body, Tol::witness()),
+        Tol::witness(),
+    )
+}
+
+/// [`body_props`]' volume.
+pub fn body_volume(body: &Body<f64>) -> f64 {
+    body_props(body).volume
+}
+
+/// **The mesh's geometry, against the body's.** Its volume within the
+/// chordal deficit of the body's, both read off the B-rep
+/// (`mesh::validate::check_volume`), and every sphere- and
+/// cylinder-face triangle wound outward ([`assert_outward`]).
+pub fn assert_meshed_geometry(label: &str, body: &Body<f64>, mesh: &mesh::Mesh, delta: f64) {
+    let p = body_props(body);
+    mesh::validate::check_volume(mesh, p.volume, p.surface_area, delta)
+        .unwrap_or_else(|e| panic!("{label}: the mesh encloses the body, got {e:?}"));
+    assert_outward(label, body, mesh);
+}
+
+/// **Every sphere- and cylinder-face triangle of `mesh` winds outward.**
+/// A triangle's normal, as the mesh winds it, must point the way its
+/// face's outward normal does at its centroid: off the sphere's centre,
+/// or off the cylinder's axis, reversed on a `sense: false` face. A
+/// triangle folded over the chord beside it, or a face meshed inside
+/// out, is a closed manifold mesh that [`mesh::validate::check_mesh`]
+/// passes; this is the geometry it does not read. Faces on other
+/// surfaces are not read. It spells the outward direction itself rather
+/// than calling the mesher's `TrimmedFace::outward` on purpose: it is
+/// the independent oracle the mesher's census is checked against, and
+/// it reads every face the mesh has, curved-lane faces included.
+pub fn assert_outward(label: &str, body: &Body<f64>, mesh: &mesh::Mesh) {
+    for patch in &mesh.patches {
+        let face = body.get_face(patch.face).expect("the patch's face");
+        let radial = |p: Point3<f64>| match *body.get_surface(face.surface).expect("its surface") {
+            geom::Surface::Sphere { center, .. } => Some(p - center),
+            geom::Surface::Cylinder { origin, axis, .. } => {
+                let d = p - origin;
+                Some(d - axis * d.dot(axis))
+            }
+            _ => None,
+        };
+        for tri in &patch.triangles {
+            let [a, b, c] = tri.map(|i| mesh.positions[i as usize]);
+            let centroid = Point3::new(
+                (a.x + b.x + c.x) / 3.0,
+                (a.y + b.y + c.y) / 3.0,
+                (a.z + b.z + c.z) / 3.0,
+            );
+            let Some(out) = radial(centroid) else { break };
+            let out = if face.sense { out } else { -out };
+            let normal = (b - a).cross(c - a);
+            assert!(
+                normal.dot(out) > 0.0,
+                "{label}: face {:?} has a triangle {tri:?} wound against it (cosine {})",
+                patch.face,
+                normal.dot(out) / (normal.norm() * out.norm())
+            );
+        }
+    }
 }

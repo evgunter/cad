@@ -36,3 +36,14 @@ line and is kept as the record of why the file was filed there.
 ## Un-parked (band-rule triage, 2026-10-25)
 
 Parked 2026-09-26 on `f64-refinement-inside-an-enclosure-has-five-more-sites` because the lerp-form width in the Bézier decomposition swamped any per-cell centre, so the measurement had to wait ("Measure after", `work/encl/log.md`). That was the row's site 5, and PR 3524 closed it. The one site still open there, `crates/mesh/src/chords.rs`, is not on either recentring path, so the measurement can be taken now. Re-priced from the legacy `cost: D`: `M`, with `design: true` for the open choice between the two centres.
+
+## The home (JETFRAME, CLEAR, 2026-11-01)
+
+JETFRAME gave `geom` a per-cell centre of its own: `rect_jet` and
+`span_deriv` read each cell's homogeneous net about the evaluation at
+that cell's middle (`net::cell_origin`). That is the cell-local choice
+this row weighs, made where the consumer is per cell. It does not
+decide this row: `patch_bound::comp_nets` already reads per cell, and
+`offset_fit::channel`'s whole-patch origin feeds products formed once
+over the merged break structure, so the cost measurement on
+`offset_fit` this row asks for is still owed.

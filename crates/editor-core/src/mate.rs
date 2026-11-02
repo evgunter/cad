@@ -23,7 +23,7 @@
 //! pose ([`mate_coset`]), and the mates of one placement fold by exact
 //! coset intersection — [`coset`], whose table is the spec's binding
 //! one. A mate declares no contact: where the copies it places touch
-//! is the at-rest census's to record ([`crate::assemble`]).
+//! is the at-rest census's to record ([`mod@crate::checks::at_rest`]).
 
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
@@ -137,34 +137,56 @@ pub(crate) fn rested_faces<P>(
 }
 
 /// **The two faces whose planes a mate equates, and its sense**: each
-/// side a face read as its plane through any number of plain flips,
-/// `on`'s face first, and whether the flips on both sides together are
-/// odd, so the two faces' outward normals are opposite. `None` exactly
-/// where [`rested_faces`] answers `None`.
+/// side a face read as its plane through any number of plain flips
+/// ([`poses_equated`]), `on`'s face first, and whether the flips on
+/// both sides together are odd, so the two faces' outward normals are
+/// opposite. `None` exactly where [`rested_faces`] answers `None`.
 pub(crate) fn planes_equated<P>(
     doc: &crate::doc::Doc<P>,
     mate: &Mate,
 ) -> Option<(crate::VarId, crate::VarId, bool)> {
-    let face = |mut var: crate::VarId| {
-        let mut flipped = false;
-        loop {
-            match doc.var(var).map(crate::Var::def)? {
-                crate::var::VarDef::Pose(crate::pose::PoseDef::Plane { face }) => {
-                    return Some((*face, flipped));
-                }
-                crate::var::VarDef::Pose(crate::pose::PoseDef::Flip {
-                    pose: crate::pose::RoleRead { read, role: None },
-                }) => {
-                    flipped = !flipped;
-                    var = *read;
-                }
-                _ => return None,
-            }
-        }
+    let (on, to, flipped) = poses_equated(doc, mate);
+    let face = |read: crate::pose::RoleRead<crate::VarId>| match read.role {
+        None => match doc.var(read.read).map(crate::Var::def)? {
+            crate::var::VarDef::Pose(crate::pose::PoseDef::Plane { face }) => Some(*face),
+            _ => None,
+        },
+        Some(_) => None,
     };
-    let (on, on_flipped) = face(mate.on)?;
-    let (to, to_flipped) = face(mate.to)?;
-    Some((on, to, on_flipped != to_flipped))
+    Some((face(on)?, face(to)?, flipped))
+}
+
+/// **The two poses a mate equates, and its sense**: each side unwound
+/// through any number of flips of a pose read plainly, to the pose it
+/// flips (read plainly or through a role), `on`'s first, and whether
+/// the flips on both sides together are odd. A mate of every kind
+/// equates the two (`[coincidence.structural]`: "a mate is that rung's
+/// statement"), where its bundle is admitted
+/// ([`solve::admits`]): this reads the mate alone, never whether it
+/// stands.
+pub(crate) fn poses_equated<P>(
+    doc: &crate::doc::Doc<P>,
+    mate: &Mate,
+) -> (
+    crate::pose::RoleRead<crate::VarId>,
+    crate::pose::RoleRead<crate::VarId>,
+    bool,
+) {
+    let unwound = |var: crate::VarId| {
+        let mut read = crate::pose::RoleRead::plain(var);
+        let mut flipped = false;
+        while read.role.is_none()
+            && let Some(crate::var::VarDef::Pose(crate::pose::PoseDef::Flip { pose })) =
+                doc.var(read.read).map(crate::Var::def)
+        {
+            flipped = !flipped;
+            read = *pose;
+        }
+        (read, flipped)
+    };
+    let (on, on_flipped) = unwound(mate.on);
+    let (to, to_flipped) = unwound(mate.to);
+    (on, to, on_flipped != to_flipped)
 }
 
 /// **How a placement copies the body a selection reads**
@@ -176,27 +198,19 @@ pub(crate) enum Copying {
     Own,
     /// A `Place` reads the body.
     Whole,
-    /// A `Place` reads a `Part` picking one of the body's bodies, the
-    /// pick's index the count variable held here.
-    Pick(crate::VarId),
+    /// A `Place` reads one member of the family `body` is
+    /// (`xs[i]`, [`crate::BodyRead`]).
+    Member,
 }
 
 /// **Every placement copying the body `body`**, in document order, and
-/// how: the placement whose output it is, each `Place` reading it, and
-/// each `Place` reading a `Part` that picks one of its bodies, once per
-/// pick.
+/// how: the placement whose output it is, and each `Place` reading it,
+/// whole or one member of it.
 pub(crate) fn copies_of<P>(
     doc: &crate::doc::Doc<P>,
     body: crate::VarId,
 ) -> Vec<(RecipeNodeId, Copying)> {
     let own = doc.operation_of(body);
-    let pick = |shape: crate::VarId| match doc.operation_of(shape).and_then(|at| doc.node(at)) {
-        Some(crate::Node::Part {
-            of,
-            select: crate::node::PartSelect::Instance(index),
-        }) if *of == body => Some(Copying::Pick(*index)),
-        _ => None,
-    };
     let mut out = Vec::new();
     for p in doc.placements() {
         if own == Some(p) {
@@ -207,9 +221,14 @@ pub(crate) fn copies_of<P>(
             continue;
         };
         if source.read == body {
-            out.push((p, Copying::Whole));
-        } else {
-            out.extend(pick(source.read).map(|how| (p, how)));
+            out.push((
+                p,
+                if source.is_indexed() {
+                    Copying::Member
+                } else {
+                    Copying::Whole
+                },
+            ));
         }
     }
     out
@@ -217,9 +236,7 @@ pub(crate) fn copies_of<P>(
 
 /// **Whether a mate side's face, read in the copy `copy` of its body,
 /// stands where the mate's statement puts it** (`[coincidence.structural]`):
-/// the one rule both the gather's mint and the coincidence door read a
-/// mate side's copy by, so the row the census attributes to a mate and
-/// the row the door proves by it are one copy's.
+/// the rule the coincidence door reads a mate side's copy by.
 ///
 /// A side's pose is read off the body its selection reads, where that
 /// body stands (`eval::wire::pose`). The mate's placement `placement`

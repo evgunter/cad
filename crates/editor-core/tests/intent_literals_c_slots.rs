@@ -442,6 +442,7 @@ fn frame_sharing_a_fresh_entry(seed: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap()],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, extrude) = insert(
@@ -885,26 +886,14 @@ fn the_load_door_reads_every_slots_variable() {
         (0.0, 1.0),
         1.0,
     );
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: body.into(),
-            count: Formula::count(3),
-            kind: editor_core::PatternKind::Linear {
-                direction: [
-                    crate::fixture::scl(1.0),
-                    crate::fixture::scl(0.0),
-                    crate::fixture::scl(0.0),
-                ],
-                spacing: len(3.0),
-            },
-        },
-    );
+    // The count slot: the index of a read of one member, `xs[1]`.
+    let (doc, _, xs) = crate::fixture::linear(doc, body, [1.0, 0.0, 0.0], 3.0, 3);
+    let (doc, pattern) = crate::fixture::member(doc, xs, 1);
     let doc = declare(&doc, "w", length(0.5));
     let w = doc.var_named("w").expect("declared");
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let measured = crate::wire::doctored(&text, |wire| {
-        wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["count"] =
+        wire["snapshot"]["nodes"][pattern.0.to_string()]["Place"]["source"]["at"][0] =
             serde_json::json!(w.0);
     });
     match load(&measured, Tol::witness()) {
@@ -918,7 +907,10 @@ fn the_load_door_reads_every_slots_variable() {
             (node.id(), slot, declared, referenced),
             (
                 pattern,
-                SlotId::Count,
+                SlotId::Index {
+                    seat: editor_core::OperandSlot::Source,
+                    k: 0,
+                },
                 editor_core::VarKind::Length,
                 editor_core::VarKind::Count
             )

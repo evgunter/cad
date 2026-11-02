@@ -283,8 +283,9 @@ fn assert_shape(err: &EditError, fault: &LoftFault, what: &str) {
 }
 
 /// **A shape no evaluation can loft refuses at both doors alike**: one
-/// section, a section with an empty station (it stands in the first
-/// section's plane), and a degree the sections cannot carry, each
+/// section, a section with an empty station or one whose moves carry
+/// the first section's plane onto itself under the current values (it
+/// stands in that plane), and a degree the sections cannot carry, each
 /// through `InsertNode` and through `SetLoftSections`. Broken by a
 /// shape check that one door asks and the other does not, or that
 /// either leaves to evaluation.
@@ -295,7 +296,12 @@ fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
         profile: b.into(),
         station: Vec::new(),
     };
-    let rows: [(Sections, i64, LoftFault, &str); 3] = [
+    let in_plane = |station| LoftSection {
+        profile: b.into(),
+        station,
+    };
+    let slide = |along, by| StationMove::Slide { along, by: len(by) };
+    let rows: [(Sections, i64, LoftFault, &str); 6] = [
         (
             Vec::new(),
             1,
@@ -307,6 +313,33 @@ fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
             1,
             LoftFault::EmptyStation { section: 2 },
             "an empty station",
+        ),
+        (
+            vec![up(b, 0.0)],
+            1,
+            LoftFault::StationInFirstPlane { section: 1 },
+            "a slide by nothing",
+        ),
+        (
+            vec![
+                up(c, 2.0),
+                in_plane(vec![
+                    slide(Axis3::X, 1.0),
+                    StationMove::Spin {
+                        about: Axis3::Z,
+                        by: fixture::ang(0.5),
+                    },
+                ]),
+            ],
+            1,
+            LoftFault::StationInFirstPlane { section: 2 },
+            "a slide and a spin within the plane",
+        ),
+        (
+            vec![in_plane(vec![slide(Axis3::Z, 1.0), slide(Axis3::Z, -1.0)])],
+            1,
+            LoftFault::StationInFirstPlane { section: 1 },
+            "a slide up and back",
         ),
         (
             vec![up(c, 2.0)],
@@ -335,6 +368,13 @@ fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
     assert!(
         err.to_string().contains("through 1 section"),
         "the sentence: {err}"
+    );
+    let err = fixture::insert_refused(&doc, lofted(a, vec![up(b, 0.0)], 1));
+    let said = err.to_string();
+    assert!(
+        said.contains("onto itself under the current values")
+            && said.contains("slide it along the first section's z"),
+        "the sentence and its recourse: {said}"
     );
 }
 
@@ -396,5 +436,104 @@ fn set_members_on_a_loft_names_set_loft_sections() {
     assert!(
         err.to_string().contains("SetLoftSections"),
         "the recourse names the edit: {err}"
+    );
+}
+
+/// The loft's evaluation, which is the skin's refusal of a degenerate
+/// stacking.
+fn assert_degenerate_stacking(doc: &ProfileDoc, loft: RecipeNodeId) {
+    let ev = editor_core::evaluate::<f64>(
+        doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    assert!(
+        matches!(
+            ev.result(loft),
+            Some(NodeResult::Failed(editor_core::NodeError {
+                kind: editor_core::NodeErrorKind::Loft(sweep::LoftError::DegenerateStacking {
+                    slab: 0
+                }),
+                ..
+            }))
+        ),
+        "{:?}",
+        ev.result(loft)
+    );
+}
+
+/// **A station rounding leaves next to the first plane is the skin's to
+/// refuse**: two half turns about x compose, in `f64`, to a plane a
+/// rounding off the first, which the door's exact check admits and the
+/// evaluation refuses typed. Broken by a door that judges coincidence
+/// within a tolerance of its own, or a skin that lofts the sliver.
+#[test]
+fn a_station_rounded_next_to_the_first_plane_is_refused_by_the_skin() {
+    let (doc, [a, b, _], _) = two_section_loft();
+    let half_turn = || StationMove::Spin {
+        about: Axis3::X,
+        by: fixture::ang(std::f64::consts::PI),
+    };
+    let (doc, loft) = insert(
+        doc,
+        lofted(
+            a,
+            vec![LoftSection {
+                profile: b.into(),
+                station: vec![half_turn(), half_turn()],
+            }],
+            1,
+        ),
+    );
+    assert_degenerate_stacking(&doc, loft);
+}
+
+/// **A value edit that brings a station's slide to 0 is admitted, and
+/// evaluation refuses the loft**: the door reads a station's values
+/// when it writes the loft, and `SetVarValue` writes no loft. The next
+/// edit that does write it (here its own degree, unchanged) refuses it
+/// at the door. Broken by a value edit that re-asks the loft's shape
+/// (this row then pins the wrong door), or by a skin that lofts the
+/// coincident section.
+#[test]
+fn a_value_edit_to_a_zero_slide_is_refused_at_evaluation() {
+    let (doc, _, loft) = two_section_loft();
+    let Some(Node::Loft { then, .. }) = doc.node(loft) else {
+        panic!("{loft} is a loft")
+    };
+    let [LoftSection { station, .. }] = &then[..] else {
+        panic!("one section after the first: {then:?}")
+    };
+    let [StationMove::Slide { by, .. }] = &station[..] else {
+        panic!("one slide: {station:?}")
+    };
+    let doc = doc
+        .apply(
+            &DocEdit::SetVarValue {
+                var: (*by).into(),
+                value: editor_core::FreeValue::Continuous(0.0),
+            },
+            Tol::witness(),
+        )
+        .expect("a value edit does not re-ask the loft's shape")
+        .doc;
+    assert_degenerate_stacking(&doc, loft);
+    let err = doc
+        .apply(
+            &DocEdit::SetStructuralParam {
+                node: loft,
+                slot: SlotId::VDegree,
+                expr: Formula::count(1),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect_err("a slot edit of the loft asks its shape");
+    assert_shape(
+        &err,
+        &LoftFault::StationInFirstPlane { section: 1 },
+        "SetStructuralParam after the value edit",
     );
 }

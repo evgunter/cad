@@ -152,6 +152,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                "declaration in crates/topo/src/validate.rs; the carry "
                                "is the facade crate's row and owes the CUR3 property "
                                "row plus a Python word"),
+    "SingularityBand": ("argued", "non-carriage with its falsifier, beside the "
+                        "declaration in crates/step-import/src/error.rs; the carry "
+                        "is the facade crate's row and owes the CUR3 property "
+                        "row plus a Python word"),
     "SetAsideWhy": ("argued", "non-carriage with its falsifier, beside the "
                     "declaration in crates/topo/src/side_reader.rs; the carry "
                     "is the facade crate's row and owes the CUR3 property "
@@ -186,6 +190,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # beside the declaration.
     "NodeWhy": ("argued", "non-carriage with its falsifier, beside the declaration "
                 "in crates/topo/src/boolean/mod.rs"),
+    # `TessellateError::SphereTrimShape`'s cause: why the trimmed lane's
+    # sphere arm refuses a face's shape.
+    "SphereTrimCause": ("argued", "non-carriage with its falsifier, beside the declaration "
+                        "in crates/mesh/src/types.rs"),
     # `BooleanError::GermSectionUnbuilt`'s reason: why a germ pair's
     # section was not built.
     "SectionUnbuilt": ("argued", "non-carriage with its falsifier, beside the declaration "
@@ -209,7 +217,7 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # `BooleanError::CarryRefused`'s `row`: whose record the carry refused.
     "RefusedRow": ("argued", "non-carriage with its falsifier, beside the declaration "
                    "in crates/topo/src/boolean/mod.rs"),
-    # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
+    # `BooleanError::Escalated`'s and `ContactContradicted`'s closed
     # decision types. The row also holds the two types nested one rung
     # further down (`SectorRung`, `CrossingDecision`), which this sweep
     # does not reach.
@@ -257,6 +265,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "StructureRead": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
     # `CensusUnsupportedCause`'s shape: the argument sits beside the
     # declaration, and the carry is the façade crate's row.
+    # `ValidationError::ChartSingularityNotAVertex`'s `lies`: where the
+    # point lies, argued beside the declaration as `WedgeCheck` is.
+    "SingularityLies": ("argued", "non-carriage with its falsifier, beside the declaration "
+                        "in crates/topo/src/validate.rs"),
     "WedgeCheck": ("argued", "non-carriage with its falsifier, beside the declaration "
                    "in crates/topo/src/validate.rs; the carry is "
                    "work/lib/wedge-check-is-a-rung-under-sliver-dihedral.md"),
@@ -266,6 +278,13 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Unwalked": ("argued", "the coincidence door's vocabulary is `document::coincide`'s, "
                            "re-exported whole; Python's `Coincidence.residual` says the "
                            "arm, crates/pncad-py/src/py/value.rs (`Coincidence`)"),
+    # The first of one axis, one radius and one sense an unproven row
+    # between two cells with an axis is left at (`Residual::axes`):
+    # carried through `document::coincide` like `Unwalked`, and said by
+    # the `unproven-coincidence` finding's sentence.
+    "Component": ("argued", "the coincidence door's vocabulary is `document::coincide`'s, "
+                            "re-exported whole; the finding's sentence says the arm, "
+                            "crates/editor-core/src/checks.rs (`axes_words`)"),
 
     # The pose definitions (D10, INTENT stage 3 A): carried through
     # `document::pose`, re-exported whole, and said in Python by

@@ -183,3 +183,106 @@ fn a_thin_ellipses_foot_reads_the_distance_not_its_unit_image() {
         "an ellipse's foot is a stationary point"
     );
 }
+
+/// **A closed spline's foot crosses its seam**: a point on the loop just
+/// short of the domain's end, seeded at its start (the same point), and
+/// one just past the start seeded at the end. The seed lies nearer than
+/// any span sample, and its descent is held at the end it stands on, so
+/// the foot is found from the other end, on the carrier.
+#[test]
+fn a_closed_splines_foot_crosses_its_seam() {
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        crate::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(
+                vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0],
+                2,
+            )
+            .unwrap(),
+            vec![
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(-1.0, 1.0, 0.0),
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(1.0, -1.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+            ],
+            vec![1.0; 6],
+        )
+        .unwrap(),
+    ));
+    for (t, seed) in [(0.99, 0.0), (0.01, 1.0)] {
+        let q = c.eval(t);
+        let foot = c.foot(q, seed);
+        assert!(
+            foot.gap() < ZERO,
+            "t {t} from {seed}: foot at {} gap {:e}",
+            foot.t(),
+            foot.gap()
+        );
+        assert_eq!(
+            name(c.on_carrier(q, seed, band())),
+            "on",
+            "t {t} from {seed}"
+        );
+    }
+}
+
+/// **A closed spline's foot is found from any seed**: two hundred closed
+/// quadratic and cubic loops on uneven knots, twenty points each on the
+/// loop within 0.03 of its seam, seeded at either end or anywhere: every
+/// foot lies on the carrier.
+#[test]
+fn a_closed_splines_foot_is_found_from_any_seed() {
+    let mut s: u64 = 0x9e37_79b9_7f4a_7c15;
+    let mut rnd = || {
+        s = s
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        ((s >> 11) as f64) / ((1u64 << 53) as f64)
+    };
+    let mut miss = 0;
+    for case in 0..200 {
+        let deg = 2 + case % 2;
+        let n = 5 + (rnd() * 6.0) as usize;
+        let mut pts: Vec<Point3<f64>> = (0..n)
+            .map(|i| {
+                let a = std::f64::consts::TAU * i as f64 / n as f64;
+                let r = 0.5 + rnd();
+                Point3::new(r * a.cos(), r * a.sin(), 0.3 * (rnd() - 0.5))
+            })
+            .collect();
+        pts.push(pts[0]);
+        let m = pts.len();
+        let w: Vec<f64> = (0..m - deg - 1).map(|_| 0.2 + rnd()).collect();
+        let tot = w.iter().sum::<f64>() + 0.2 + rnd();
+        let mut ks = vec![0.0; deg + 1];
+        let mut c = 0.0;
+        for a in &w {
+            c += a / tot;
+            ks.push(c);
+        }
+        ks.extend(vec![1.0; deg + 1]);
+        let kv = geom_core::spline::KnotVector::clamped(ks, deg).unwrap();
+        let curve = Curve3::Nurbs(std::sync::Arc::new(
+            crate::NurbsCurve3::new(kv, pts, vec![1.0; m]).unwrap(),
+        ));
+        for _ in 0..20 {
+            let t = if rnd() < 0.5 {
+                rnd() * 0.03
+            } else {
+                1.0 - rnd() * 0.03
+            };
+            let seed = [0.0, 1.0, rnd()][(rnd() * 3.0) as usize];
+            // A NaN gap is a miss too.
+            if curve.foot(curve.eval(t), seed).gap().partial_cmp(&ZERO)
+                != Some(core::cmp::Ordering::Less)
+            {
+                miss += 1;
+            }
+        }
+    }
+    assert_eq!(
+        miss, 0,
+        "{miss} points on a closed spline missed by their foot"
+    );
+}

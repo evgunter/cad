@@ -77,7 +77,8 @@ fn set_edge_curve_re_describes_every_m7_8_edge_at_f64() {
 /// is the composed door's order when check 11 is the only structural
 /// refusal (`validate_geometric_certificate`). This is the at-rest body whose join reading is undecided:
 /// a split nearer a pole or an apex refuses at the split's own readings
-/// in the same band, and the halfcap files at the import's join.
+/// in the same band, and the halfcap files at the import's reading of
+/// the pole.
 #[test]
 fn split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64() {
     let mut body = m7_8_cube::<f64>();
@@ -199,7 +200,7 @@ where
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(s1, s2),
-            witness: p0.lerp(p1, T::from_f64(0.5)),
+            selector: geom_brep::CurveSelector::Witness(p0.lerp(p1, T::from_f64(0.5))),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
             geom::NurbsCurve3::new(
@@ -314,4 +315,48 @@ fn kev_describing_runs_the_class_through_the_scalars_door() {
     );
     let dual = kev_describing_the_class::<Dual64>();
     assert_eq!(dual, Ok(()), "the dual's door mints the moved member");
+}
+
+/// **The join door refuses whole** (`Body::join_edges`): an ordinary
+/// line edge split at its midpoint (a joinable vertex, first in arena
+/// order), then an M7-8 edge split (its join reading undecided at every
+/// ε, the body this file's first row reaches). The door refuses
+/// `JoinUndecided` before any kill, so the ordinary vertex is not joined
+/// either and the body is exactly as it was. Before import made a sphere
+/// pole a vertex this was read on `step-import`'s half-cap, whose arc
+/// through the pole no longer ships.
+#[test]
+fn a_join_refused_in_the_band_leaves_the_body_as_found() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let mut body = m7_8_cube::<f64>();
+    let (line, (t0, t1)) = body
+        .edges()
+        .find_map(|(k, e)| match body.get_curve_geom(e.curve) {
+            Some(topo::CurveGeom::Certified(c))
+                if matches!(c.carrier(), geom::Curve3::Line { .. }) =>
+            {
+                Some((k, c.params()))
+            }
+            _ => None,
+        })
+        .expect("a line edge");
+    let ordinary = body.split_edge(line, 0.5 * (t0 + t1), tol).unwrap().vertex;
+    let (edge, _) = wall_edges(&body)[0].clone();
+    body.split_edge(edge, 0.5, tol).unwrap();
+    topo::mint_pcurves(&mut body, tol).expect("pcurves mint");
+    // The ordinary vertex alone joins: the same split on a fresh cube.
+    let mut alone = m7_8_cube::<f64>();
+    let lone = alone.split_edge(line, 0.5 * (t0 + t1), tol).unwrap().vertex;
+    assert_eq!(lone, ordinary, "the same arena slot");
+    alone
+        .join_edges(band, tol)
+        .expect("an ordinary split vertex joins");
+    let before = format!("{body:?}");
+    let got = body.join_edges(band, tol);
+    assert!(
+        matches!(got, Err(topo::BooleanError::JoinUndecided(_))),
+        "{got:?}"
+    );
+    assert_eq!(format!("{body:?}"), before, "refused, so untouched");
 }

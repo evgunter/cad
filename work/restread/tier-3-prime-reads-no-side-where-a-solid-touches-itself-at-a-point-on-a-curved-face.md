@@ -49,7 +49,7 @@ refused 19 sweep rows, 34 findings, every one curved.
 - `reach_wall_chord_rows::a_cube_touching_a_drum_at_a_corner_answers_its_closed_form`.
 - `rest_zip_admission`: a reflex union at a tangent site; the tangent
   site's controls; the reflex site off the pins' poses.
-- `verbs_ga_r2_probes::r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared`.
+- `verbs_ga_r2_probes::r2_a_box_with_on_carrier_rulings_builds_every_op_but_its_void_which_refuses_typed`.
 
 All are in `crates/sweep/tests/`. Each builds bodies where one solid
 touches itself at a point on a cylinder, cone, sphere or torus face,

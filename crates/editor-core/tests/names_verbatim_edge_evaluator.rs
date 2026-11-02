@@ -2,7 +2,7 @@
 //! passes through.**
 //!
 //! `names::verbatim_edge` is the one statement of N1's pass-through set
-//! that the product's two-roots check and the mate member walk follow.
+//! that the recipe walks (refactor, coincidence, the mate member walk) follow.
 //! What actually passes names through is the evaluator's decision
 //! (`eval::wire`), and the compiler holds nothing between the two: a
 //! node whose evaluation hands its input's names on unchanged compiles
@@ -14,7 +14,6 @@
 //!
 //! | `verbatim_kind`  | the node's table                         |
 //! |------------------|------------------------------------------|
-//! | `Some(Selected)` | at least one row, and every row foreign  |
 //! | `Some(Intact)`   | at least one foreign and one own row     |
 //! | `Some(Copied)`   | at least one foreign row                 |
 //! | `None`           | no foreign row                           |
@@ -23,7 +22,9 @@
 //! the walks would carry a name across wrongly. A split publishes its intact entities under their original minters and its
 //! cut faces under its own id, so it carries both. A copy (a placement's,
 //! or an instance's of its part's product) carries its source's names
-//! and, where it is one body, its own body row.
+//! and, where it is one body, its own body row. A family's copy carries
+//! them member by member: read whole, its table wraps each member's row
+//! in that member's `Member`, which this row reads through.
 //!
 //! **Why the head.** An op that re-mints by WRAPPING a foreign name
 //! inside a role argument (a blend's `FromTarget`, a boolean's
@@ -51,6 +52,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::AuthoredNode;
+use editor_core::{Dimension, Formula};
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -91,9 +93,6 @@ test_utils::f6_variants! {
         Place,
         World,
         Space,
-        Pattern,
-        Part,
-        PlacedUnion,
         InstantiatePart,
         Measure,
         Assertion,
@@ -149,9 +148,15 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
             fixture::head_at(base, in_part(base, base_body, CapEnd::End)),
         ),
         &[
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, opts)
@@ -208,15 +213,26 @@ fn evaluated() -> Vec<Sample> {
             let node = doc.node(id).expect("an evaluated node is in its document");
             let _ = value;
             let tables = crate::fixture::tables(&ev, id);
-            let heads = || tables.iter().flat_map(|t| t.iter()).map(|(n, _)| n);
+            // A family's table read whole wraps each member's row in its
+            // `Member` (D10 `[repetition]`); the row is read through it,
+            // as the member's own table holds it.
+            let heads = || {
+                tables
+                    .iter()
+                    .flat_map(|t| t.iter())
+                    .map(|(n, _)| match n.path.as_slice() {
+                        [editor_core::RoleSeg::Member { of, .. }] if n.node == id => (**of).clone(),
+                        _ => n.clone(),
+                    })
+            };
             out.push(Sample {
                 doc: name,
                 id,
                 kind: test_utils::f6::variant_identifier(node),
                 edge: verbatim_kind(node),
                 rows: tables.iter().map(|t| t.len()).sum(),
-                foreign: heads().find(|n| n.node != id).cloned(),
-                own: heads().find(|n| n.node == id).cloned(),
+                foreign: heads().find(|n| n.node != id),
+                own: heads().find(|n| n.node == id),
             });
         }
     }
@@ -228,7 +244,6 @@ fn evaluated() -> Vec<Sample> {
 fn disagreement(s: &Sample) -> Option<String> {
     let (foreign, own) = (s.foreign.is_some(), s.own.is_some());
     let wanted = match s.edge {
-        Some(VerbatimKind::Selected) if !foreign || own => "every row headed by another node",
         Some(VerbatimKind::Copied) if !foreign => "rows headed by another node",
         Some(VerbatimKind::Intact) if !foreign || !own => {
             "rows headed by another node AND rows headed by itself"
@@ -255,7 +270,7 @@ fn disagreement(s: &Sample) -> Option<String> {
 
 /// INVARIANT (N1, held against the producer): every evaluated node's
 /// rows are headed the way the edge `verbatim_edge` reads it as
-/// requires — foreign only for `Whole`/`Selected`, both for `Intact`,
+/// requires — foreign only for `Whole`, both for `Intact`,
 /// own only for `None` — and a `ROW_FREE` kind publishes none.
 ///
 /// Red when a node that evaluates to its input's names is filed under

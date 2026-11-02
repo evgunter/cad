@@ -2,11 +2,13 @@
 id: symbolic-tier-and-clearance-engine
 kind: issue
 title: The symbolic identity tier and the clearance engine do not compose
-status: parked
+status: closed
 opened: 2026-09-03
 priority: P1
 cost: H
-blocked_on: [SHELL-3]
+branch: clear/symclear
+closed: 2026-10-28
+pr: 5928
 ---
 
 The E12 symbolic identity tier (`geom_core::sym`) replays a driver leaf
@@ -107,3 +109,23 @@ Built in two steps. `SHELL-3` moves the engine with the generic door
 signature, with `Sym` still answering `None`. This row's unit then
 turns `Sym` on, deletes the refusal and the trait, and replays each
 leaf on its verdict's lane.
+
+## Scope added (CLEAR orchestrator, 2026-10-28, from PR #5909's review)
+
+- When `MinClearanceLane` goes, narrow `NodeErrorKind::MeasureClearanceRefused`'s carrier to what the measure door can raise. SHELL-3 split the refusal into `topo::clearance::EngineRefusal` and editor-core's `ClearanceRefusal`, but left the carrier wide.
+- Add a row that runs the generic door at a `T` other than `Interval`. Today none does, and at `Interval` `from_computed` and `from_f64` coincide.
+- The `clearance.rs:1588` references and the "written at Interval concretely" paragraph above describe the code before SHELL-3. The engine is now `topo::clearance`, with a generic door.
+
+## Closed (2026-10-28, #5928)
+
+- **What landed.**
+  - `topo::ClearanceLane<T>` is a door value on `AtRestPolicy::clearance_lane()`. `Sym<T>` holds it exactly when `T` does, so it is `Some` at `Interval` and `Sym<Interval>`, and `None` at `f64`, `Probe` and `Dual`. A row pins each answer.
+  - `MinClearanceLane` is deleted, and so is `DriveRefusal::SymbolicClearanceUnsupported`.
+  - The bracket re-enters `T` as a computed hull: the same bits at `Interval`, a fresh unknown at `Sym`.
+  - The measure refusal narrowed to `topo::clearance::MinSeparationRefusal`, with 4 arms.
+- **Riders closed in the same PR:**
+  - The clearance doors replay on the certified lane. `clearance_over` uses the verdict's tier. The per-leaf doors use `ClearanceQuery::symbolic`, which defaults to the default drive's tier.
+  - The `NeedsEnclosure` door string is fixed.
+- **Review.** A single FULL review gave APPROVE-WITH-FIXES, with two MAJORs: a 5 s-per-leaf replay path, and per-leaf doors still replaying off-lane. The fix pass root-caused the first: the old numeric replay refused before sweeping. It hoisted `cell_region`'s per-call lift, and fixed both MAJORs. The orchestrator read and accepted the delta.
+- **Cost, measured.** A tier-on leaf is about 10× a numeric one. That is the tier's own evaluation, not the door. Ad hoc per-leaf queries now replay at the tier, and fifteen rows moved into the slow set.
+- **Filed:** `work/pctail/loft-builds-at-interval-and-refuses-a-rational-column-at-sym.md` (P2).

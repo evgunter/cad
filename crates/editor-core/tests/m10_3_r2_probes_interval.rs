@@ -78,6 +78,7 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Formula) -> ProfileDoc 
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -620,6 +621,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                 },
             ],
             ids: Vec::new(),
+            on: None,
         }));
         r.insert(Node::Extrude {
             profile: p.into(),

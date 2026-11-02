@@ -7,9 +7,11 @@
 //! oracles and formats captions in plain f64, which generic kernel
 //! code must never do (the evaluation-code discipline routes every
 //! decision through `Decide`). Demos are narration, not evaluation
-//! code — and for both implementors the extraction is EXACT (`Probe`
+//! code — and for `f64` and `Probe` the extraction is EXACT (`Probe`
 //! is a transparent f64 wrapper; its arithmetic delegates verbatim),
 //! so every oracle asserted at f64 holds bit-identically at Probe.
+//! `Interval` builds scenes only for the rows that ask them for a
+//! certificate, and its `f` panics.
 
 use pncad::document::ContentBits;
 use pncad::geom_core::Decide;
@@ -138,6 +140,17 @@ pub trait Scalar:
 impl Scalar for f64 {
     fn f(self) -> f64 {
         self
+    }
+}
+
+/// The certifying scalar, for the rows that ask a certificate of a
+/// scene (`tests/wall_jets.rs`). An enclosure has no exact `f64`, so `f`
+/// panics: a scene path that narrates or decides off `f` (the lantern's
+/// mouth depth, the cone offsets) cannot be built at `Interval` until it
+/// stops reading one, and says so loudly rather than reading a midpoint.
+impl Scalar for pncad::geom_core::Interval {
+    fn f(self) -> f64 {
+        panic!("the tour reads no exact f64 off an Interval enclosure: {self:?}")
     }
 }
 

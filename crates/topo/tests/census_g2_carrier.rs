@@ -2,7 +2,7 @@
 //! #1063; `docs/CENSUS-G2-SPEC.md`).
 //!
 //! These rows are about the PREDICATE, not the census: they call
-//! [`topo::declared_pair_overlap`] directly, so each one can hand Door
+//! [`topo::glued_pair_overlap`] directly, so each one can hand Door
 //! 1's verdict in and pin what Door 2 does with it. The census-level
 //! rows — the flush seat certifying end to end — live with the seat, in
 //! `m9_c1_rest_face_rung.rs`.
@@ -26,7 +26,7 @@ use topo::construction::Construct;
 use geom::Surface;
 use geom_core::{Band, Point3, Tol};
 use topo::construction::FaceSurface;
-use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, declared_pair_overlap};
+use topo::{Body, ChartOverlap, ChartRegionError, FaceKey, glued_pair_overlap};
 
 fn band() -> Band {
     let tol = Tol::witness();
@@ -105,7 +105,7 @@ fn a_declared_planar_pair_with_no_structural_chart_certifies_on_the_world_carrie
         other => panic!("the structural rung must still refuse: {other:?}"),
     }
     assert_eq!(
-        declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()).unwrap(),
+        glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band()).unwrap(),
         ChartOverlap::PositiveArea,
     );
 }
@@ -117,36 +117,36 @@ fn a_declared_planar_pair_with_no_structural_chart_certifies_on_the_world_carrie
 #[test]
 fn the_verdict_does_not_depend_on_which_frame_is_representative() {
     let eps = Tol::witness().eps();
-    let cases: Vec<(&str, Body<f64>, Body<f64>, ContactVerdict)> = vec![
+    let cases: Vec<(&str, Body<f64>, Body<f64>, topo::CarrierPremise)> = vec![
         (
             "coincident",
             slab(1.0),
             plate(1.0, 0.0),
-            ContactVerdict::Definite,
+            topo::CarrierPremise::Decided,
         ),
         (
             "a peg-extent tilt the pair absorbs",
             slab(1.0),
             plate(1.0, eps / 2.0),
-            ContactVerdict::Definite,
+            topo::CarrierPremise::Decided,
         ),
         (
             "a table-extent tilt the pair does not",
             slab(100.0),
             plate(100.0, eps / 2.0),
-            ContactVerdict::Definite,
+            topo::CarrierPremise::Decided,
         ),
         (
-            "a bridged pair, whose witness rung declines",
+            "an in-band premise, whose witness rung declines",
             slab(1.0),
             plate(1.0, 0.0),
-            ContactVerdict::Bridged,
+            topo::CarrierPremise::InBand,
         ),
     ];
     for (what, a, b, verdict) in cases {
         let (fa, fb) = pair(&a, &b);
-        let ab = verdict_class(declared_pair_overlap(&a, fa, &b, fb, verdict, band()));
-        let ba = verdict_class(declared_pair_overlap(&b, fb, &a, fa, verdict, band()));
+        let ab = verdict_class(glued_pair_overlap(&a, fa, &b, fb, verdict, band()));
+        let ba = verdict_class(glued_pair_overlap(&b, fb, &a, fa, verdict, band()));
         assert_eq!(
             ab, ba,
             "{what}: the two argument orders disagreed — {ab} vs {ba}"
@@ -172,7 +172,7 @@ fn one_tilt_two_extents_two_answers() {
     let (a, b) = (slab(1.0), plate(1.0, slope));
     let (fa, fb) = pair(&a, &b);
     assert_eq!(
-        declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()).unwrap(),
+        glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band()).unwrap(),
         ChartOverlap::PositiveArea,
         "at a peg's extent the tilt is below the band and the carrier is a chart",
     );
@@ -181,7 +181,7 @@ fn one_tilt_two_extents_two_answers() {
     // the contact is definitely off the representative carrier.
     let (a, b) = (slab(100.0), plate(100.0, slope));
     let (fa, fb) = pair(&a, &b);
-    match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()) {
+    match glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band()) {
         Err(ChartRegionError::CarrierTilt) => {}
         other => panic!("at the table's own extent the same tilt must refuse typed, got {other:?}"),
     }
@@ -203,7 +203,7 @@ fn an_in_band_carrier_disagreement_escalates_naming_the_row() {
     // Extent 1 m, so the far end's separation IS the slope: 3ε.
     let (a, b) = (slab(1.0), plate(1.0, 3.0 * eps));
     let (fa, fb) = pair(&a, &b);
-    match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()) {
+    match glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band()) {
         Err(ChartRegionError::Escalated(diag)) => {
             assert_eq!(
                 diag.predicate,
@@ -224,7 +224,7 @@ fn the_tilt_refusal_is_never_an_empty() {
     let slope = Tol::witness().eps() / 2.0;
     let (a, b) = (slab(100.0), plate(100.0, slope));
     let (fa, fb) = pair(&a, &b);
-    let v = declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band());
+    let v = glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band());
     assert!(
         !matches!(v, Ok(ChartOverlap::Empty)),
         "a carrier the door cannot read is not evidence of disjointness: {v:?}"
@@ -237,10 +237,9 @@ fn the_tilt_refusal_is_never_an_empty() {
 
 /// INVARIANT (the spec's first binding condition, where it bites): the
 /// interior-witness rung discharges `contfp`'s "q already on the plane
-/// of `face`" precondition by carrier agreement, and a `Bridged`
-/// verdict says that agreement rests on the DECLARATION rather than on
-/// the geometry. A precondition may not be discharged by the claim
-/// under test, so the rung declines and the region walk's typed refusal
+/// of `face`" precondition by carrier agreement, and an in-band premise
+/// says the carriers stand in band of each other, so a point on one is
+/// not on the other: the rung declines and the region walk's typed refusal
 /// stands.
 #[test]
 fn a_bridged_door_one_declines_the_interior_witness_rung() {
@@ -249,11 +248,11 @@ fn a_bridged_door_one_declines_the_interior_witness_rung() {
     let (a, b) = (slab(1.0), plate(1.0, 0.0));
     let (fa, fb) = pair(&a, &b);
     assert_eq!(
-        declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()).unwrap(),
+        glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::Decided, band()).unwrap(),
         ChartOverlap::PositiveArea,
         "on the geometry's own evidence the rung proves the disc",
     );
-    match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Bridged, band()) {
+    match glued_pair_overlap(&a, fa, &b, fb, topo::CarrierPremise::InBand, band()) {
         Err(ChartRegionError::TouchingBoundary) => {}
         other => panic!("a bridged pair must keep the region walk's refusal, got {other:?}"),
     }
@@ -281,7 +280,7 @@ fn a_bridged_door_one_declines_the_interior_witness_rung() {
 ///   now refuse those pairs.
 /// - SPHERE / CONE / TORUS pairs keep the door refusal unchanged,
 ///   with each kind's residue restated at the refusal site
-///   (`declared_pair_overlap`'s kind gate).
+///   (`glued_pair_overlap`'s kind gate).
 #[test]
 fn a_declared_curved_cross_instance_pair_is_still_refused() {
     let build = |surface: &Surface<f64>, b_surface: &Surface<f64>| {
@@ -330,7 +329,14 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         u_ref: geom_core::Vec3::unit_x(),
     };
     let (a_body, fa, b_body, fb) = build(&cyl, &cyl);
-    match declared_pair_overlap(&a_body, fa, &b_body, fb, ContactVerdict::Definite, band()) {
+    match glued_pair_overlap(
+        &a_body,
+        fa,
+        &b_body,
+        fb,
+        topo::CarrierPremise::Decided,
+        band(),
+    ) {
         Err(ChartRegionError::MissingCache { .. }) => {}
         other => panic!("the cylinder arm engages and refuses the uncached trims: {other:?}"),
     }
@@ -349,7 +355,14 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         u_ref: geom_core::Vec3::unit_y(),
     };
     let (a_body, fa, b_body, fb) = build(&sphere, &sphere_b);
-    match declared_pair_overlap(&a_body, fa, &b_body, fb, ContactVerdict::Definite, band()) {
+    match glued_pair_overlap(
+        &a_body,
+        fa,
+        &b_body,
+        fb,
+        topo::CarrierPremise::Decided,
+        band(),
+    ) {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
         other => panic!("a sphere cross-instance declared pair stays refused: {other:?}"),
     }
@@ -446,20 +459,20 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
 fn both_orders(a: &Body<f64>, b: &Body<f64>) -> (String, String) {
     let (fa, fb) = pair(a, b);
     (
-        verdict_class(declared_pair_overlap(
+        verdict_class(glued_pair_overlap(
             a,
             fa,
             b,
             fb,
-            ContactVerdict::Definite,
+            topo::CarrierPremise::Decided,
             band(),
         )),
-        verdict_class(declared_pair_overlap(
+        verdict_class(glued_pair_overlap(
             b,
             fb,
             a,
             fa,
-            ContactVerdict::Definite,
+            topo::CarrierPremise::Decided,
             band(),
         )),
     )
@@ -566,8 +579,10 @@ fn near_parallel_pairs_never_contradict_and_agree_on_their_margins() {
             for &(tx, ty) in &[(0.0, 0.0), (0.3, 0.2), (0.5, 0.5), (0.95, 0.0)] {
                 let b = turned_plate(w, d, deg, tx, ty);
                 let (fa, fb) = pair(&base, &b);
-                let ab = declared_pair_overlap(&base, fa, &b, fb, ContactVerdict::Definite, band());
-                let ba = declared_pair_overlap(&b, fb, &base, fa, ContactVerdict::Definite, band());
+                let ab =
+                    glued_pair_overlap(&base, fa, &b, fb, topo::CarrierPremise::Decided, band());
+                let ba =
+                    glued_pair_overlap(&b, fb, &base, fa, topo::CarrierPremise::Decided, band());
                 match (&ab, &ba) {
                     (Ok(x), Ok(y)) if x != y => contradictions += 1,
                     (Ok(_), Err(_)) | (Err(_), Ok(_)) => split += 1,
@@ -711,13 +726,13 @@ fn the_band_edge_is_where_the_lemma_stops_and_the_margins_still_agree() {
         let noise = (1.0e3 * f64::EPSILON / sin_theta).clamp(1e-9, 0.5);
         let b = turned_plate(1.0, 1.0, sin_theta.atan().to_degrees(), 0.0, 0.0);
         let (fa, fb) = pair(&base, &b);
-        // `Bridged`, so the interior-witness rung declines and the
+        // An in-band premise, so the interior-witness rung declines and the
         // region walk's own margins are what each order reports: a
         // certified interior point would answer an in-band walk
         // `PositiveArea` in both orders, which is no measurement of
         // where the walk's frames part.
-        let ab = declared_pair_overlap(&base, fa, &b, fb, ContactVerdict::Bridged, band());
-        let ba = declared_pair_overlap(&b, fb, &base, fa, ContactVerdict::Bridged, band());
+        let ab = glued_pair_overlap(&base, fa, &b, fb, topo::CarrierPremise::InBand, band());
+        let ba = glued_pair_overlap(&b, fb, &base, fa, topo::CarrierPremise::InBand, band());
 
         // (1) never two different certified answers.
         if let (Ok(x), Ok(y)) = (&ab, &ba) {

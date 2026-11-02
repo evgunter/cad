@@ -32,6 +32,25 @@ host's door reads every evaluated value's `carried.coincidences`
 (`checks::carried_coincidences`), not the product's sources, so an
 instance consumed by a boolean still reports its part's rows.
 
+## Witnessed (the carry, PR 5903)
+
+The carry (`a-placement-carries-its-sources-at-rest-result`) witnessed
+it for a cut, and the pick half above is gone: a pick now carries its
+piece's findings (`eval/wire.rs`, `pick_of`, `Carry`).
+
+A part `a ⊔ a'` whose blocks overlap, instantiated in a host, and the
+host's `instance − tool` (a tool clear of both blocks). The cut
+distributes over the instance's pieces (`eval/wire/distribute.rs`,
+`distribute`): each piece's result carries the piece boolean's own
+output, so the instance's `Carry::findings` reach no piece, and the
+cut's value carries none. The cut's door then censuses the cut pieces
+and finds the part's overlap again, reported as the host's under the
+cut's read (`read <cut>: read … and read … overlap, …`) where the
+instance alone reports it as the part's, through the instance. Whether
+a cut door's census over pieces it cut decides a new meeting or
+confirms the operand's carried one is the census-per-`⊔` unit's
+question (each `⊔` decides its operands' meetings).
+
 ## Done when
 
 A row: a host unioning an instance of the overlapping part

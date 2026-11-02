@@ -105,6 +105,8 @@ mod blend5_r2_probes;
 mod blend5_rim_support;
 #[path = "blend5_rim_support_wire.rs"]
 mod blend5_rim_support_wire;
+#[path = "blend_carries_contacts.rs"]
+mod blend_carries_contacts;
 #[path = "blend_dual_sensitivity.rs"]
 mod blend_dual_sensitivity;
 #[path = "bool12r2_ec_probe.rs"]
@@ -121,6 +123,8 @@ mod boss_flush_offer;
 mod cascade_delete;
 #[path = "cert3r1_dump.rs"]
 mod cert3r1_dump;
+#[path = "clearance_refusals_say_what_they_found.rs"]
+mod clearance_refusals_say_what_they_found;
 #[path = "coincidence_door.rs"]
 mod coincidence_door;
 #[path = "display_contract.rs"]
@@ -187,8 +191,6 @@ mod edit_one_predicate;
 mod edit_pair_apply_names;
 #[path = "edit_placement_corpus_bits.rs"]
 mod edit_placement_corpus_bits;
-#[path = "edit_placement_type.rs"]
-mod edit_placement_type;
 #[path = "edit_planar_carve.rs"]
 mod edit_planar_carve;
 #[path = "edit_recorded_notation.rs"]
@@ -227,12 +229,20 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "fork7_shared_is_named.rs"]
 mod fork7_shared_is_named;
+#[path = "g_family_review_rows.rs"]
+mod g_family_review_rows;
+#[path = "g_index_families.rs"]
+mod g_index_families;
+#[path = "g_ring_closure_measure.rs"]
+mod g_ring_closure_measure;
 #[path = "gap_reads_a_cell_against_a_round_face.rs"]
 mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
 mod gap_reads_vertex_and_edge_cells;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
+#[path = "refactor_pose_definitions.rs"]
+mod refactor_pose_definitions;
 #[path = "refusal_concision.rs"]
 mod refusal_concision;
 #[path = "refusal_concision_at_rest.rs"]
@@ -544,8 +554,6 @@ mod parallel_node_map_probe;
 mod part_depth_bound;
 #[path = "parts_entered_before_the_map.rs"]
 mod parts_entered_before_the_map;
-#[path = "pattern_spacing_and_step.rs"]
-mod pattern_spacing_and_step;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -560,8 +568,6 @@ mod pierce_ring_engraving;
 mod pirad_wire;
 #[path = "place_mate_frame_offset.rs"]
 mod place_mate_frame_offset;
-#[path = "placedunion_wire.rs"]
-mod placedunion_wire;
 #[path = "product_gate_attribution.rs"]
 mod product_gate_attribution;
 #[path = "props_verdict_shapes.rs"]
@@ -623,6 +629,8 @@ mod seat4_verb_lowering;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
+#[path = "split_and_shell_carry_contacts.rs"]
+mod split_and_shell_carry_contacts;
 #[path = "split_carries_spaces.rs"]
 mod split_carries_spaces;
 #[path = "split_pinch_keeps.rs"]
@@ -816,6 +824,8 @@ mod intent_loft_set_sections;
 mod intent_part_census_seam;
 #[path = "intent_part_split_half.rs"]
 mod intent_part_split_half;
+#[path = "intent_placement_carries_at_rest.rs"]
+mod intent_placement_carries_at_rest;
 #[path = "intent_s2_a_outputs.rs"]
 mod intent_s2_a_outputs;
 #[path = "intent_s2_b_reads.rs"]
@@ -848,6 +858,14 @@ mod intent_s5_b_interference;
 mod intent_s5_c_at_rest_check;
 #[path = "intent_s5_c_quietable.rs"]
 mod intent_s5_c_quietable;
+#[path = "intent_s6_c_trace.rs"]
+mod intent_s6_c_trace;
+#[path = "intent_s6_d_tangency.rs"]
+mod intent_s6_d_tangency;
+#[path = "intent_s6_e_traced_frame.rs"]
+mod intent_s6_e_traced_frame;
+#[path = "intent_unused_check.rs"]
+mod intent_unused_check;
 #[path = "intent_value_chart_orientation.rs"]
 mod intent_value_chart_orientation;
 #[path = "intent_vars_2_table.rs"]
@@ -866,3 +884,5 @@ mod union_flush_fuses;
 mod union_member_orders_decide_alike;
 #[path = "value_chart_sweeps.rs"]
 mod value_chart_sweeps;
+#[path = "vessel_cavity_interval.rs"]
+mod vessel_cavity_interval;

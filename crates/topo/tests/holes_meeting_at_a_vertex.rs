@@ -376,7 +376,7 @@ fn probes(pose: &Pose) -> Vec<Point3<f64>> {
     }
     for k in 0..64 {
         let z = 1.0 - (2.0 * f64::from(k) + 1.0) / 64.0;
-        let (s, c) = (2.399_963 * f64::from(k)).sin_cos();
+        let (s, c) = (geom_core::GOLDEN_ANGLE * f64::from(k)).sin_cos();
         let r = z.mul_add(-z, 1.0).sqrt();
         out.push([0.03 * r * c, 0.03 * r * s, 0.03 * z]);
     }

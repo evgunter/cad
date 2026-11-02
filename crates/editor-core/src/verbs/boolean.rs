@@ -103,7 +103,11 @@ fn build_boolean(op: BooleanOp, inputs: BooleanInputs) -> Boolean {
 
 /// The n-ary kernel payload.
 fn build_members(op: NaryOp, members: Vec<MemberInputs>) -> Members {
-    Members { op, members }
+    Members {
+        op,
+        members,
+        apart: topo::Apart::default(),
+    }
 }
 
 /// The boolean family's arm of the record channel. Exhaustive with no
