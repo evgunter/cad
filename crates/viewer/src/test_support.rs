@@ -933,6 +933,39 @@ pub fn unclosable_tips() -> Vec<TipState> {
         .collect()
 }
 
+/// **A row of `count` copies of `body`** (D10 `[repetition]`): a fresh
+/// index `k = index(count)` and one placement of `body` in its own space
+/// slid `scalar(k)·pitch` along `axis` ([`pncad::pattern::linear_pattern`]).
+/// Answers the document and the family's placement.
+pub fn row_of_copies(
+    doc: &Doc<ProfileProgram>,
+    body: impl Into<pncad::document::Operand>,
+    count: i64,
+    (axis, pitch): (pncad::document::TargetAxis, f64),
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let index = crate::combine::fresh_index(doc);
+    let declared = pncad::document::apply(
+        doc,
+        &pncad::pattern::index_decl(index.clone(), Formula::count(count), None),
+        tol,
+    )
+    .expect("an index declares")
+    .doc;
+    let body = body.into();
+    let space = declared
+        .operand_space(&body)
+        .unwrap_or(pncad::document::VarId::WORLD);
+    let row = pncad::pattern::linear_pattern(
+        &index,
+        pncad::document::BodyRead::plain(body),
+        pncad::document::Operand::Var(space),
+        &[(axis, len(pitch))],
+    )
+    .expect("a length pitch");
+    inserted(&declared, row, tol)
+}
+
 /// **`held` with `values` written over it**: each
 /// value of `held` on a freedom `values` sets takes that number, keeping
 /// its id; a freedom `values` sets that `held` holds no value on is
