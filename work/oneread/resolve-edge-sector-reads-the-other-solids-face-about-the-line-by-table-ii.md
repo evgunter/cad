@@ -2,11 +2,12 @@
 id: resolve-edge-sector-reads-the-other-solids-face-about-the-line-by-table-ii
 kind: issue
 title: recl::resolve_edge_sector reads the other solid's material about the line (one face's half-turn) by Table II's side codes, beside the line cone
-status: dispatched
+status: parked
 opened: 2026-11-01
 priority: P1
 cost: M
 branch: oneread/edge-sector-line-cone
+blocked_on: [the-cones-parity-arc-refuses-where-the-flanks-side-is-decided]
 ---
 
 
