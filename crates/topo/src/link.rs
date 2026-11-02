@@ -4557,9 +4557,11 @@ mod tests {
     /// - the boolean's side decides nothing of its own: none of the bare
     ///   sign readers above, no structure read, no text made, no reading
     ///   through the link's door (`sign_over`, `metric::`) and none
-    ///   through the boolean's own side readers (`side_code(`,
-    ///   `pierce_side(`, `datum.side(`): the touched face's side reaches
-    ///   it decided, as a given side.
+    ///   through the boolean's side readers (`side_code(`,
+    ///   `pierce_side(`, `bound_read(`) but the one bound-side reading
+    ///   at the two sites `cone_classes` hands the cone a side from
+    ///   (`given_side(` for a partner's face, `datum.given(` for the
+    ///   touched face), each once.
     ///
     /// **What it cannot see.**
     /// - A sign decided through structure at a named site. The sites are
@@ -4754,7 +4756,7 @@ mod tests {
             "is_sign_positive",
             "side_code(",
             "pierce_side(",
-            "datum.side(",
+            "bound_read(",
             "is_poison(",
             "is_bounded(",
             "point_value(",
@@ -4770,6 +4772,27 @@ mod tests {
             for boolean_side in [&fans, &line_fans, &classes, &point] {
                 stray.extend(outside(boolean_side, needle, &[]));
             }
+        }
+        // A bound's side is read only through the one bound-side reading,
+        // and only where `cone_classes` hands it to the cone: once for a
+        // partner's face, once for the touched face.
+        let handed: Vec<core::ops::Range<usize>> = [
+            "super::sectors::given_side(dir, reach, s.datum(), rd)",
+            "datum.given(dir, reach, rd)",
+        ]
+        .into_iter()
+        .map(|site| {
+            let found: Vec<usize> = classes.match_indices(site).map(|(i, _)| i).collect();
+            assert_eq!(found.len(), 1, "the bound-side site `{site}`, once");
+            found[0]..found[0] + site.len()
+        })
+        .collect();
+        let handed: Vec<&core::ops::Range<usize>> = handed.iter().collect();
+        for needle in ["given_side(", "datum.given(", "datum.side("] {
+            for boolean_side in [&fans, &line_fans, &point] {
+                stray.extend(outside(boolean_side, needle, &[]));
+            }
+            stray.extend(outside(&classes, needle, &handed));
         }
         assert!(
             stray.is_empty(),

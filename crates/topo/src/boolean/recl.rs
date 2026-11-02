@@ -575,6 +575,26 @@ fn flank_read<T: Decide>(
     )
 }
 
+/// **A representative's side of a sheet's face in a line cone**
+/// ([`resolve_edge_edge`]): the one bound-side reading, on the cone's
+/// reading, as [`flank_read`] reads a flanker against its reference. A
+/// bound its descent leaves unresolved on the face is on it, as
+/// [`flank_read`] keys it, and the coincidence ladder reads it
+/// ([`crate::link::Material::On`]); `None` where the reading is in band
+/// ([`super::sectors::Ungiven::Undecided`]).
+fn sheet_side<T: Decide>(
+    (dir, reach): Rep<T>,
+    sheet: &BoolSector<T>,
+    rd: crate::link::metric::Reading<T>,
+) -> Option<Sign> {
+    use super::sectors::Ungiven;
+    match super::sectors::given_side(dir, reach, sheet.datum(), rd) {
+        Ok(side) => Some(side),
+        Err(Ungiven::Unresolved) => Some(Sign::Zero),
+        Err(Ungiven::Undecided) => None,
+    }
+}
+
 /// A flanker's key, and whether its bound tied with the
 /// reference at first order.
 #[derive(Clone, Copy, Debug)]
@@ -1599,7 +1619,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         // one side of it, read off the wedge's own bounds as the touch
         // reads its partners' (`vtxfac::PierceDatum::side`).
         let to_one_side = |datum: super::vtxfac::PierceDatum<T>| match bounds
-            .map(|(dir, reach)| datum.side(dir, reach, band))
+            .map(|(dir, reach)| datum.side(dir, reach, crate::link::metric::Reading::plain(band)))
         {
             [Ok(SideCode::In), Ok(SideCode::In)] | [Ok(SideCode::Out), Ok(SideCode::Out)] => Ok(()),
             [Err(e), _] | [_, Err(e)] => Err(e),
@@ -1756,19 +1776,19 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         |own_is_a: bool, own_idx: usize, (dir, reach): Rep<T>| -> Result<bool, BooleanError> {
             let (own, other) = if own_is_a { (0, 1) } else { (1, 0) };
             let (cone, from) = &cones[other];
-            // The held face's side, read on the cone's own reading.
-            let held = cone.inside(0);
-            let given: Vec<_> = match (held, holding[other]) {
-                (Some(plane), Some(face)) => {
-                    let side = match face.datum.side_on(dir, reach, cone.reading(band))? {
-                        SideCode::In => Sign::Negative,
-                        SideCode::On => Sign::Zero,
-                        SideCode::Out => Sign::Positive,
-                    };
-                    vec![(plane, side)]
-                }
-                _ => Vec::new(),
-            };
+            // The representative's side of every face of the cone, read
+            // through the one bound-side reading on the cone's reading:
+            // a sheet's face as the edge-sector site reads a flanker
+            // against its reference, the held face as the touch reads it.
+            let rd = cone.reading(band);
+            let mut given = Vec::with_capacity(from.len());
+            for (k, sheet) in from.iter().enumerate() {
+                let side = match sheet {
+                    Sheet::Sector(oi) => sheet_side((dir, reach), &secs_of(other)[*oi], rd),
+                    Sheet::Held(face) => Some(face.datum.side(dir, reach, rd)?.plane_side()),
+                };
+                given.extend(side.map(|side| (k, side)));
+            }
             // The refusal a cone's unread reading carries: the representative
             // on a flank's plane, where in it in band, the two flanks' sense;
             // its side of a face's plane, that side; the parity arc, the

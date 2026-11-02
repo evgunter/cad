@@ -565,7 +565,7 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
         n,
         crate::bound_side::FaceBend::Plane,
         NO_CURVATURE(),
-        band(),
+        crate::link::metric::Reading::plain(band()),
     )
     .map(|_| ())
 }

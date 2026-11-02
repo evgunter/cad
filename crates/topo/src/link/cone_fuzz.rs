@@ -736,14 +736,15 @@ fn read_edge(
         })
         .collect();
     let he = probe.he;
-    let classes = [(he, touched.map_or(SideCode::On, |(_, class)| class))];
-    let touched = touched.map(|(n, _)| {
-        (
-            crate::entity::FaceKey::default(),
-            OutwardNormal::from_chart(n, true),
-            &classes[..],
-        )
+    // The touched face is a plane, against which the probe's straight
+    // bound reads its far point's side: the side given to the cone.
+    let datum = touched.map(|(n, _)| crate::boolean::vtxfac::PierceDatum {
+        normal: OutwardNormal::from_chart(n, true),
+        bend: crate::bound_side::FaceBend::Plane,
+        lever: crate::boolean::sectors::PierceLever::Everywhere(crate::boolean::sectors::NO_CURVATURE()),
     });
+    let against: Vec<_> = datum.into_iter().map(|d| (he, d)).collect();
+    let touched = datum.map(|d| (crate::entity::FaceKey::default(), d.normal, &against[..]));
     let published = match cone_classes(o, &[probe], &[he], &partners, touched, band) {
         Ok(Ok(rows)) => match rows.as_slice() {
             &[(h, class)] if h == he => Ok(Some(class)),
@@ -1759,13 +1760,11 @@ fn check_corners(
 /// **A vertex touching a face beside a partner**: the face's plane
 /// through the vertex (outward `n`, the material behind it) and a
 /// partner of the same solid, a small convex cone in front of it
-/// touching the plane only at the vertex. Each probe edge is given its
-/// side of the face as the pierce reads it ([`cone_classes`]'s
-/// `touched`): the side of its far point; or, where the far point
-/// stands decidedly off the plane, the other side, which the cone's
-/// own reading of the plane contradicts, so the cone refuses it
-/// (`Unsettled::Contradicted`) and the class is judged as the far
-/// point mirrored across the plane, which a refusal never contradicts.
+/// touching the plane only at the vertex. The boolean reads each probe
+/// edge's side of the face itself ([`cone_classes`]' `touched`), and the
+/// cone is given the side of its far point. Where the far point stands
+/// decidedly off the plane, the cone given the other side refuses it
+/// (`Unsettled::Contradicted`).
 fn check_touched(what: &str, band: Band, rng: &mut Rng, family: &mut Family) -> Vec<String> {
     let o = Point3::new(0.0, 0.0, 0.0);
     let n = norm3([
@@ -1879,7 +1878,6 @@ fn check_touched(what: &str, band: Band, rng: &mut Rng, family: &mut Family) -> 
         if flip <= 4.0 * h.abs() + band.zero() {
             continue;
         }
-        let truth = union.class(mirror, rng);
         let label = format!("{what}, bent probe {k} {far:?}, given {:?}", side(-h));
         let against = match side(-h) {
             SideCode::In => Sign::Negative,
@@ -1899,7 +1897,9 @@ fn check_touched(what: &str, band: Band, rng: &mut Rng, family: &mut Family) -> 
                 "{label}: a side given against the cone's decided one reads {got:?}"
             )),
         }
-        read(label, far, side(-h), truth, flip, family);
+        // The boolean reads the edge's side of the face itself, the far
+        // point's own, and is judged there.
+        read(label, far, side(h), union.class(far, rng), flip, family);
     }
     wrong.extend(contradicted);
     wrong
