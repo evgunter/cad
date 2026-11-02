@@ -232,3 +232,27 @@ closed-row routing and #6093's re-bless).
   opt 0 is corrected: it does at 0, 1, `s` and `z`.
 - Not done, for a later row: a member-manifest edit that only adds a
   target (`[[example]]`, `[[bin]]`, `[[test]]`) still bails to TIER=all.
+
+## 2026-11-02 — picked up; four lanes
+
+- No `triage/nightly-*` PR exists for 10-31 or 11-01, so the charter's
+  wait-for-the-triage rule has nothing to wait on. The slate's own rows
+  were filed from lane evidence and are worked from it. Nightly 11-01's
+  full suite (run 41276693129) fit in 130 min and was red at 1e-12 on
+  rows beyond the slate (`refusal_concision_chains` ×3,
+  `seat7_sweep_lowering` digest, `certified_endpoint_census`,
+  `sym_rule_f_rows` copysign census, `m5_pr12_die_body`, `m6_surgery`,
+  `spline_spiric_operands` pin passing). Those wait for a triage table.
+- Lanes, each on its own `green/` branch:
+  - `green/full-suite-split` (P1 E): the nightly's full suite as one
+    archive build and one job per ε row. FULL review: a workflow change
+    whose failure mode is a row that silently stops running.
+  - `green/main-red-sweep` (P0) and `green/main-red-editor-core` (P1 and
+    the unbanded coincidence-door row), cloud sessions: reproduce on main,
+    attribute, then re-bless, pin or `#[ignore]` with the owner's row. STYLE
+    review per PR, as in nightly 77's pins.
+  - `green/pr-latency` (the user, in chat, 2026-11-02: improve test-suite
+    latency without increasing queueing). The alarm reads median 14.3 /
+    p90 24.6 min, n=193 (nightly 11-01). The lane measures the p90 tail
+    and proposes levers that cut wall clock without adding runner-minutes
+    or jobs. FULL review per lever.
