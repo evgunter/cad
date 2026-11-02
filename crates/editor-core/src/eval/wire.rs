@@ -2456,17 +2456,12 @@ where
     };
     let b = band(tol)?;
     // The bounds arrive as the enclosures they are at this lane (the
-    // caller's `Bounds` reads them), each a distance.
-    if let Some(c) = ends
-        .iter()
-        .flat_map(|&e| [geom_core::Bounds::lo(e), geom_core::Bounds::hi(e)])
-        .find(|c| !c.is_finite() || *c < 0.0)
-    {
-        return answer(ClearanceReport::refused(ClearanceRefusal::NotADistance {
-            c,
-        }));
-    }
+    // caller's `Bounds` reads them), and are asked as a question before
+    // any cell pair is read (`ClearanceRefusal::of_bound`).
     let bounds = bounds.with(ends);
+    if let Some(refusal) = ClearanceRefusal::of_bound(bounds.sweep_bound()) {
+        return answer(ClearanceReport::refused(refusal));
+    }
     // In the frame the two seats condition on (`Framed::computing_among`),
     // each body read into it.
     let computing = super::Framed::computing_among(read.iter().map(|(.., framed)| *framed))

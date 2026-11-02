@@ -577,6 +577,19 @@ pub enum ClearanceRefusal {
         /// The bound's offending end, as evaluated.
         c: f64,
     },
+    /// **A band no separation can satisfy**: its lower end is
+    /// definitely above its upper end, as evaluated. An authoring fault
+    /// rather than a fact about the geometry, so it is refused before any
+    /// cell pair is read — swept, it would answer `Violated` or
+    /// `Exceeded`, which names the geometry for a mistake in the bound.
+    /// Its ends are formulas, so, like [`Self::NotADistance`], it is a
+    /// fact of the evaluation and refused there.
+    EmptyBand {
+        /// The lower end's least value, as evaluated.
+        lo: f64,
+        /// The upper end's greatest value, as evaluated.
+        hi: f64,
+    },
     /// **This build's scalar cannot certify.** A clearance is decided by
     /// the certified sweep, which reads enclosures; a point scalar has
     /// none, and a pair it found closest is an upper bound on the
@@ -606,6 +619,31 @@ pub enum ClearanceRefusal {
 }
 
 impl ClearanceRefusal {
+    /// **What is wrong with `bound` as a question**, before any cell pair
+    /// is read: an end that is not a distance ([`Self::NotADistance`]),
+    /// or a band whose lower end is definitely above its upper
+    /// ([`Self::EmptyBand`]). The one check both routes ask — the
+    /// assertion's evaluation and the dials door.
+    pub fn of_bound(bound: ClearanceBound) -> Option<Self> {
+        use geom_core::Bounds;
+        let (lower, upper) = (bound.lower(), bound.upper());
+        if let Some(c) = [lower, upper]
+            .into_iter()
+            .flatten()
+            .flat_map(|e| [e.lo(), e.hi()])
+            .find(|c| !c.is_finite() || *c < 0.0)
+        {
+            return Some(Self::NotADistance { c });
+        }
+        match (lower, upper) {
+            (Some(lo), Some(hi)) if lo.lo() > hi.hi() => Some(Self::EmptyBand {
+                lo: lo.lo(),
+                hi: hi.hi(),
+            }),
+            _ => None,
+        }
+    }
+
     /// The refusal's own payload, rendered for the goldening form — the
     /// half `name` drops, so two runs that refuse for the same CLASS on
     /// different evidence do not serialize alike. A machine channel: a
@@ -616,6 +654,7 @@ impl ClearanceRefusal {
             Self::Selection(r) => r.payload(),
             Self::NothingCertified { refused_leaves } => format!("refused_leaves={refused_leaves}"),
             Self::NotADistance { c } => format!("{:016x}", c.to_bits()),
+            Self::EmptyBand { lo, hi } => format!("{:016x}/{:016x}", lo.to_bits(), hi.to_bits()),
             Self::NeedsCertifyingLane { scalar } => (*scalar).to_owned(),
             Self::ToleranceHasNoBand(error) => format!("{error:?}"),
             Self::RecordedContact { a, b } => format!("{a:?}/{b:?}"),
@@ -630,6 +669,7 @@ impl ClearanceRefusal {
             Self::Selection(_) => "selection",
             Self::NothingCertified { .. } => "nothing_certified",
             Self::NotADistance { .. } => "not_a_distance",
+            Self::EmptyBand { .. } => "empty_band",
             Self::NeedsCertifyingLane { .. } => "needs_certifying_lane",
             Self::ToleranceHasNoBand(_) => "tolerance_has_no_band",
             Self::RecordedContact { .. } => "recorded_contact",
@@ -666,6 +706,11 @@ impl crate::spoken::Say for ClearanceRefusal {
                 f,
                 "the bound {c} is not a distance: a clearance bound is finite and non-negative. \
                  Recourse: write the bound as a non-negative length"
+            ),
+            Self::EmptyBand { lo, hi } => write!(
+                f,
+                "the band's lower end {lo} is above its upper end {hi}, so no separation lies \
+                 in it. Recourse: write the lower end at or below the upper"
             ),
             Self::NeedsCertifyingLane { scalar } => write!(
                 f,
@@ -1180,16 +1225,11 @@ fn clearance_on(
     query: &ClearanceQuery<'_>,
     lane: crate::eval::LeafLane,
 ) -> ClearanceReport {
-    // Not a distance. Refused at the door: subdividing against a NaN
-    // bound classifies nothing, burns the whole budget and comes back
-    // `Budget`, which is the wrong name for it.
-    if let Some(c) = [query.bound.lower(), query.bound.upper()]
-        .into_iter()
-        .flatten()
-        .flat_map(|e| [geom_core::Bounds::lo(e), geom_core::Bounds::hi(e)])
-        .find(|c| !c.is_finite() || *c < 0.0)
-    {
-        return ClearanceReport::refused(ClearanceRefusal::NotADistance { c });
+    // Refused at the door: subdividing against a NaN bound classifies
+    // nothing, burns the whole budget and comes back `Budget`, which is
+    // the wrong name for it.
+    if let Some(refusal) = ClearanceRefusal::of_bound(query.bound) {
+        return ClearanceReport::refused(refusal);
     }
     for (sel, side) in [(a, Which::First), (b, Which::Second)] {
         if sel.is_empty_scope() {

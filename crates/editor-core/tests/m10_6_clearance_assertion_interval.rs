@@ -369,8 +369,9 @@ fn a_band_and_an_equality_run_one_fused_sweep() {
     assert_eq!(band.receipt().candidates, 1, "{:?}", band.receipt());
 }
 
-/// **Row 4**: a negative bound is not a distance. The assertion answers
-/// the third state, typed, and its node is no failure.
+/// **Row 4**: a negative bound is not a distance, and a reversed band
+/// is empty. The assertion answers the third state, typed, and its node
+/// is no failure.
 #[test]
 fn a_bound_that_is_not_a_distance_refuses_as_the_third_state() {
     let report = nominal(ClearanceBounds::AtLeast(-0.1));
@@ -380,6 +381,16 @@ fn a_bound_that_is_not_a_distance_refuses_as_the_third_state() {
     assert_eq!(*c, -0.1);
     assert_eq!(report.verdict().holds(), None, "the third state is no pass");
     assert_eq!(report.receipt().candidates, 0, "nothing was swept");
+    // A band whose lower end is above its upper is no question either:
+    // swept, it would read `Violated` and name the neck for a mistake in
+    // the bound.
+    let reversed = nominal(ClearanceBounds::Within { lo: 0.5, hi: 0.3 });
+    let ClearanceVerdict::Refused(ClearanceRefusal::EmptyBand { lo, hi }) = reversed.verdict()
+    else {
+        panic!("a reversed band refuses: {}", reversed.render());
+    };
+    assert_eq!((*lo, *hi), (0.5, 0.3));
+    assert_eq!(reversed.receipt().candidates, 0, "nothing was swept");
 }
 
 /// **Row 5**: at `f64` the document builds and the assertion reads the
