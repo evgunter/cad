@@ -3,3 +3,4 @@ drawn: 2026-11-02, /dev/urandom one byte
 byte: 96
 mapping: A = Opus designer, B = Fable designer
 further designer: C = Opus (round 4, fresh, on the two sub-questions)
+further pair (round 5, after Ev's comment on 6289 asking to go all the way to variables): byte 193, D = Fable, E = Opus
