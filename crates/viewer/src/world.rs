@@ -501,7 +501,7 @@ fn copy_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
     let placements = doc.placements();
     let read: BTreeSet<VarId> = placements
         .iter()
-        .filter_map(|&placement| copied_var(doc, placement))
+        .filter_map(|&placement| doc.copied_read(placement))
         .filter_map(|var| doc.space_of(var))
         .collect();
     placements
@@ -516,16 +516,6 @@ fn copy_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
                         .is_some_and(|(node, _)| matches!(doc.node(node), Some(Node::Space))))
         })
         .collect()
-}
-
-/// **The body a copy copies**: a `Place`'s source's read; `None` for
-/// any other node, an instance included — it copies its part's product,
-/// no body of this document.
-pub fn copied_var(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
-    match doc.node(node)? {
-        Node::Place { source, .. } => Some(source.read),
-        _ => None,
-    }
 }
 
 /// **What a copy's body copies**: the variable the placement reads, the
@@ -612,7 +602,7 @@ fn copies_where(doc: &Doc<ProfileProgram>, copies: impl Fn(VarId) -> bool) -> Ve
             doc.node_space(placement)
                 .is_some_and(|s| spaces.contains(&s))
         })
-        .filter(|&placement| copied_var(doc, placement).is_some_and(&copies))
+        .filter(|&placement| doc.copied_read(placement).is_some_and(&copies))
         .collect()
 }
 

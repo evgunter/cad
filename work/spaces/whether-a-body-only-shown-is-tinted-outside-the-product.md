@@ -17,7 +17,7 @@ Found in the STYLE review of PR 6270 (`the-view-pane-toggles-spaces-and-bodies`)
 code.
 
 A drawn body the product slot does not reach is tinted outside the
-product (`crates/viewer/README.md`, *The picture draws bodies*;
+product (`crates/viewer/README.md`, *What the picture shows*;
 `world::Picture::is_outside`, `PickIndex::is_outside`). A body only the
 author's show draws, such as an operand a boolean took over shown
 again (`world::Picture::showing`), is never reached by the product slot,

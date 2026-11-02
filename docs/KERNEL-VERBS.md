@@ -215,7 +215,7 @@ the table.
   how far it goes. And a slab whose FAR section's plane leans back
   across the slab's step refuses too, whatever the spine; that wall
   is conservative and also refuses some embedded lofts and oblique
-  sweeps. (`crates/sweep/src/loft.rs`, the `loft_stacking` fold.)
+  sweeps. (`crates/sweep/src/loft/stacking.rs`, the stacking door's `loft_stacking` step.)
 - **`tube_along_arc` is no longer solid-only.** FIXED by
   VERBS-TUBEWALL: the torus door has a hollow sibling,
   `tube_along_arc_hollow`, taking the outer `minor_radius` plus a

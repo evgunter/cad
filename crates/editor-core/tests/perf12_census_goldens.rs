@@ -71,6 +71,17 @@ use geom_core::Tol;
 /// `InstanceInterference` verdicts, which decide each pair first, and
 /// its pierces stand: 105 findings became 5, and 125 became 25 at 10,
 /// 40 and 160 fins.
+///
+/// Re-blessed at every ε row when arm 1 began parting a cross-solid
+/// curved pair along the offset from an axis to the other face's
+/// nearest boundary point: only `kitchen_sink` moved, by one
+/// `CensusUndecidable` (29 -> 28 findings). Face 47 is the revolve's
+/// outer wall, radius 2 about the vertical line through `(-2, 0, 0)`,
+/// a quarter turn from `(0, 0)` to `(-2, 2)`; face 21 is the lower
+/// half's wall on `y = 1`, `x` in `[0, 1.5]`. Their `z` spans overlap,
+/// and in plan the arc's nearest point to the wall's corner `(0, 1)`
+/// is `√5 − 2 ≈ 0.2361` away, along `(2, 1)/√5`, the direction that
+/// clears the pair with the same gap at every ε.
 const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
     (
         "1e-6",

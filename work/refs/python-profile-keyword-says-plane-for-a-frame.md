@@ -5,6 +5,7 @@ title: Python's Node.profile keyword says plane= for an operand whose slot, fiel
 status: open
 opened: 2026-10-09
 priority: P1
+cost: E
 ---
 
 

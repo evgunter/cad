@@ -3962,10 +3962,6 @@ fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
             FormKind::EditProfile,
             "edit profile: the distance is not a number",
         ),
-        (
-            FormKind::RevertProfile,
-            "revert profile: the distance is not a number",
-        ),
         (FormKind::Label, "label: the distance is not a number"),
     ];
     assert_eq!(forms.len(), FormKind::ALL.len(), "every form has a row");

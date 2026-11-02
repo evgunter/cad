@@ -169,7 +169,7 @@ mod swept;
 pub mod test_support;
 
 pub use extrude::{ExtrudeError, ExtrudeSide, Extruded, Extrusion, SideWall, extrude};
-pub use loft::{LoftError, Lofted, loft_body, loft_profiles, sweep_body};
+pub use loft::{LoftError, Lofted, LoopSegment, PinnedSite, loft_body, loft_profiles, sweep_body};
 pub use revolve::tube::{
     TubeDecision, TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow,
 };
