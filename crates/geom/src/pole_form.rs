@@ -54,10 +54,7 @@ pub fn half_turn_curve<T: Real>(
     let place = |p: Point3<T>| point(origin + half_turn(p - origin, axis));
     let turn = |w: Vec3<T>| vector(half_turn(w, axis));
     match *carrier {
-        Curve3::Line { origin: o, dir } => Some(Curve3::Line {
-            origin: place(o),
-            dir: turn(dir),
-        }),
+        Curve3::Line(crate::Line { origin: o, dir }) => Some(Curve3::line(place(o), turn(dir))),
         Curve3::Circle {
             center,
             axis: n,
@@ -104,10 +101,7 @@ pub fn cone_generator<T: Real>(
     d: Vec3<T>,
 ) -> Curve3<T> {
     let (s, c) = half_angle.sin_cos();
-    Curve3::Line {
-        origin: apex,
-        dir: axis * c + d * s,
-    }
+    Curve3::line(apex, axis * c + d * s)
 }
 
 #[cfg(test)]

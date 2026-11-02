@@ -21,8 +21,9 @@ depend on which of two sectors over one plane is read first, as an
 in-band reading may").
 
 The identity ladder's rule (any definite reading answers; an in-band one
-refuses only where none does) has one home since PR 4918:
-`topo::boolean::carrier_eq::identity_data`. A conjunction of "outside"
-readings is the same shape with the signs read the other way.
+refuses only where none does) has one home: `geom_brep::ladder::climb`
+(`read_identity` over banded data). A conjunction of "outside" readings
+is the same shape with the signs read the other way, which `climb`'s
+reader states (`Rung::Answers` on the refusing sign).
 
 Found by PR 4918's second-review sweep (2026-10-13). Not measured.

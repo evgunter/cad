@@ -54,6 +54,11 @@ fn sample_step(verb: Verb) -> Option<Step<f64>> {
             n: 4,
             phase: 0.0,
         },
+        Verb::Rectangle => Step::Rectangle {
+            centre: p,
+            width: 2.0,
+            height: 1.0,
+        },
         Verb::ArcTo | Verb::FilletArc | Verb::ArcFillet | Verb::ArcFilletArc => return None,
     })
 }

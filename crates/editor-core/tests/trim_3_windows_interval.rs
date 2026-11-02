@@ -15,11 +15,12 @@ use crate::fixture;
 
 use std::collections::BTreeMap;
 
+use crate::fixture::clearance;
 use editor_core::UnitSym;
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::clearance::{
     Budgets, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
-    ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection, clearance,
+    ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection,
 };
 use editor_core::{
     CapEnd, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
@@ -190,7 +191,7 @@ fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
 
 fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
-        bound: ClearanceBound::AtLeast(c),
+        bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
@@ -293,7 +294,7 @@ fn a_planted_approach_to_the_notch_wall_is_still_violated() {
     let (doc, ell, block_node) = ell_with_a_planted_block();
     let cap = named(ell, vec![fixture::fname(ell, RoleSeg::Cap(CapEnd::Start))]);
     let block = Selection::body_of(block_node);
-    let report = editor_core::clearance::clearance_with(
+    let report = editor_core::clearance::clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &cap,

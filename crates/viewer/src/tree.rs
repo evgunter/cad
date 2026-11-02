@@ -112,9 +112,9 @@
 
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
-    HeldNodes, Label, MateFault, MateRef, MeasureUnavailableAt, Node, NodeError, NodeErrorKind,
-    NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode,
-    ValuePayload, held_by, node_kind_noun,
+    HeldNodes, Label, MateFault, MateRef, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
+    ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode, ValuePayload, held_by,
+    node_kind_noun,
 };
 use pncad::prelude::StableName;
 use pncad::select::{
@@ -306,6 +306,9 @@ pub struct ConstraintRow {
     pub mate: MateRef,
     /// What the constraint is, in a few words ([`constraint_said`]).
     pub said: String,
+    /// Whether it is a mate — the one kind of row `remove` is offered
+    /// on, since a value's freedom is always set.
+    pub is_mate: bool,
 }
 
 /// **What a constraint is, as its child row says it**: its 1-based
@@ -331,6 +334,7 @@ fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<Constra
             .map(|(at, constraint)| ConstraintRow {
                 mate: MateRef::new(id, constraint.id),
                 said: constraint_said(at + 1, constraint),
+                is_mate: constraint.mate().is_some(),
             })
             .collect(),
         _ => Vec::new(),
@@ -344,9 +348,8 @@ impl TreeRow {
     pub fn tone(&self) -> Tone {
         match &self.readout {
             Some(Readout::Asserted(asserted)) => asserted.tone(),
-            Some(Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_)) | None => {
-                self.status.tone()
-            }
+            Some(Readout::Clearance(cleared)) => cleared.tone(),
+            Some(Readout::Value(_) | Readout::Empty(_)) | None => self.status.tone(),
         }
     }
 }
@@ -361,12 +364,10 @@ pub enum Readout {
     /// ([`Computed::spelled`]), in the working notation in force then,
     /// so a notation changed after the run re-spells it.
     Value(Computed),
-    /// No value at this build's scalar — a value of the node, not a
-    /// failure. Its `Display` is the kernel's sentence, which names
-    /// the door that can answer.
-    Unavailable(MeasureUnavailableAt),
-    /// An assertion's verdict over its measure.
+    /// An assertion's verdict.
     Asserted(Asserted),
+    /// A clearance requirement, as its equation and its answer.
+    Clearance(Cleared),
     /// A boolean's typed empty result, or a split with a side that
     /// holds no material. A legal value, and the one a consumer
     /// refuses as its input, so the row it came from says so.
@@ -422,10 +423,8 @@ pub struct Asserted {
     pub verdict: AssertionVerdict<Computed>,
     /// How the value must relate to the bound.
     pub relation: AssertionRelation,
-    /// The measure under the value the assertion bounds — the
-    /// `min_clearance` one when there is one, since that is the measure
-    /// a point scalar cannot answer — or `None` for a value no measure
-    /// is under.
+    /// The measure under the value the assertion bounds, or `None` for a
+    /// value no measure is under.
     pub measure: Option<SpokenNode>,
 }
 
@@ -459,8 +458,237 @@ impl Asserted {
                 self.relation.symbol(),
                 bound.spelled(notation)
             )),
-            AssertionVerdict::Unevaluated { .. } => None,
+            AssertionVerdict::Unevaluated { .. } | AssertionVerdict::Clearance(_) => None,
         }
+    }
+}
+
+/// **A clearance requirement, as its row says it**: the claim read as
+/// an equation — `clearance(<a>, <b>) ≥ 2 mm` — with both seats and
+/// every bound in the document's own words, and the answer the run in
+/// hand gave it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Cleared {
+    /// The first seat, as the document says it.
+    pub a: String,
+    /// The second seat.
+    pub b: String,
+    /// The bounds, each the length it evaluates to where it does.
+    pub bounds: pncad::document::ClearanceBounds<Bound>,
+    /// What the run in hand said.
+    pub answer: Certified,
+}
+
+// `ClearanceOutcome` derives `PartialEq` alone, over a witness pair's
+// raw `f64`s. Value equality is an equivalence over finite numbers, and
+// a pair's numbers are finite: they are points the `f64` verifier placed
+// on two faces and the distance between them (`clearance::closest_pair`).
+impl Eq for Cleared {}
+
+/// **One bound of a clearance, said**: its length, spelled when the
+/// row is drawn, or the formula as the document writes it where it
+/// has no value of its own (a bound over a measured output).
+#[derive(Clone, Debug, PartialEq)]
+pub enum Bound {
+    /// The bound's value, a length.
+    Value(Computed),
+    /// The bound as written.
+    Written(String),
+}
+
+impl Bound {
+    /// The bound in `notation`.
+    pub fn spelled(&self, notation: Notation) -> String {
+        match self {
+            Self::Value(value) => value.spelled(notation),
+            Self::Written(written) => written.clone(),
+        }
+    }
+}
+
+/// **What a clearance row's run said**: the certifying scalar's answer,
+/// that it is still owed, or that nothing is certifying it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Certified {
+    /// The landing owes the certifying scalar's answer, which runs at
+    /// rest (`crate::session::DocSession::certifying`).
+    Certifying,
+    /// The next request stopped the certify job before it answered, and
+    /// nothing certifies this landing: it is certified again when a
+    /// landing answers, which a cancelled request never does.
+    Stopped,
+    /// The answer, in plain numbers. At `f64` it is the third state,
+    /// naming the lane that certifies.
+    Answered(pncad::analysis::ClearanceOutcome),
+}
+
+/// The word the row's state reads as while the answer is owed.
+pub const CERTIFYING: &str = "certifying…";
+
+/// What a row whose certify job was stopped says under it.
+pub const CERTIFY_STOPPED: &str = "certifying stopped: a newer evaluation was asked for before it \
+     answered, and the requirement is certified when that evaluation lands. Recourse: Re-evaluate \
+     if the evaluation was cancelled";
+
+/// **The pair a clearance answer drew on**, where it has one: the pair
+/// that proves an upper bound (`Within`) or violates a lower one
+/// (`Violated`). The one reading the row and the witness mark share
+/// (`crate::session::DocSession::witness`).
+pub fn witness_pair(
+    answer: &pncad::analysis::ClearanceOutcome,
+) -> Option<&pncad::analysis::PairOfPoints> {
+    use pncad::analysis::ClearanceOutcome as O;
+    match answer {
+        O::Within(pair) | O::Violated(pair) => Some(pair),
+        O::Holds
+        | O::Exceeded
+        | O::Refused { .. }
+        | O::OverMembers { .. }
+        | O::Unanswered { .. } => None,
+    }
+}
+
+impl Cleared {
+    /// **The claim as an equation**, its bounds spelled in `notation`:
+    /// `clearance(a, b) ≥ 2 mm`, `≤`, `=`, or the band
+    /// `1 mm ≤ clearance(a, b) ≤ 3 mm` — the kernel's own spelling
+    /// ([`pncad::document::ClearanceBounds::equation`]).
+    pub fn equation(&self, notation: Notation) -> String {
+        self.bounds
+            .equation(&self.a, &self.b, |bound| bound.spelled(notation))
+    }
+
+    /// **The answer's state**, in the verdict's own word.
+    pub fn state(&self) -> &'static str {
+        use pncad::analysis::ClearanceOutcome as O;
+        match &self.answer {
+            Certified::Certifying => CERTIFYING,
+            Certified::Stopped => "not certified",
+            Certified::Answered(answer) => match answer {
+                O::Holds => "Holds",
+                O::Within(_) => "Within",
+                O::Violated(_) => "Violated",
+                O::Exceeded => "Exceeded",
+                O::Refused { .. } | O::OverMembers { .. } => "Refused",
+                O::Unanswered { .. } => "Unevaluated",
+            },
+        }
+    }
+
+    /// **What the answer says beside its state**, in `notation`: the
+    /// pair that decided it — "a violating pair 1.84 mm apart", "a pair
+    /// 2.1 mm apart lies within it" — or that every pair clears the
+    /// upper bound. `None` where the state is the whole answer.
+    pub fn detail(&self, notation: Notation) -> Option<String> {
+        use pncad::analysis::ClearanceOutcome as O;
+        let apart = |distance: f64| {
+            Computed {
+                canonical: distance,
+                dimension: pncad::document::Dimension::Length,
+            }
+            .spelled(notation)
+        };
+        match &self.answer {
+            Certified::Answered(O::Violated(pair)) => {
+                Some(format!("a violating pair {} apart", apart(pair.distance)))
+            }
+            Certified::Answered(O::Within(pair)) => Some(format!(
+                "a pair {} apart lies within it",
+                apart(pair.distance)
+            )),
+            Certified::Answered(O::Exceeded) => {
+                Some("every pair is farther apart than the upper bound".to_owned())
+            }
+            Certified::Certifying
+            | Certified::Stopped
+            | Certified::Answered(
+                O::Holds | O::Refused { .. } | O::OverMembers { .. } | O::Unanswered { .. },
+            ) => None,
+        }
+    }
+
+    /// **The sentence drawn under the row**: a refusal said with its
+    /// recourse, why the assertion did not evaluate, or that nothing is
+    /// certifying it.
+    pub fn sentence(&self) -> Option<&str> {
+        use pncad::analysis::ClearanceOutcome as O;
+        match &self.answer {
+            Certified::Answered(
+                O::Refused { sentence, .. }
+                | O::OverMembers { sentence }
+                | O::Unanswered { sentence },
+            ) => Some(sentence),
+            Certified::Stopped => Some(CERTIFY_STOPPED),
+            Certified::Certifying
+            | Certified::Answered(O::Holds | O::Within(_) | O::Violated(_) | O::Exceeded) => None,
+        }
+    }
+
+    /// **The witness pair the answer drew on**, where it has one
+    /// ([`witness_pair`]).
+    pub fn pair(&self) -> Option<&pncad::analysis::PairOfPoints> {
+        match &self.answer {
+            Certified::Answered(answer) => witness_pair(answer),
+            Certified::Certifying | Certified::Stopped => None,
+        }
+    }
+
+    /// **How loud the row is**: a requirement the geometry fails —
+    /// `Violated` or `Exceeded` — is one to act on; every other state is
+    /// a report.
+    pub fn tone(&self) -> Tone {
+        use pncad::analysis::ClearanceOutcome as O;
+        match &self.answer {
+            Certified::Answered(O::Violated(_) | O::Exceeded) => Tone::Actionable,
+            Certified::Certifying
+            | Certified::Stopped
+            | Certified::Answered(
+                O::Holds
+                | O::Within(_)
+                | O::Refused { .. }
+                | O::OverMembers { .. }
+                | O::Unanswered { .. },
+            ) => Tone::Advisory,
+        }
+    }
+}
+
+/// **A clearance claim's row**, its answer the run's own: `answer`.
+fn cleared(
+    doc: &Doc<ProfileProgram>,
+    [a, b]: [pncad::document::VarId; 2],
+    bounds: &pncad::document::ClearanceBounds<pncad::document::VarId>,
+    answer: pncad::analysis::ClearanceOutcome,
+) -> Cleared {
+    let by = Speaker::of(doc);
+    let bound = |var: pncad::document::VarId| match crate::props::variable_value(doc, var) {
+        Some(crate::props::SlotValue::Continuous(canonical)) => Bound::Value(Computed {
+            canonical,
+            dimension: pncad::document::Dimension::Length,
+        }),
+        Some(crate::props::SlotValue::Count(_)) | None => Bound::Written(by.read(var)),
+    };
+    // A face seat is its face, said; a body seat its read — a world
+    // copy's as the body it places ([`crate::world::copy_source`]), the
+    // part the author picked.
+    let seat = |var: pncad::document::VarId| match doc.selection(var).and_then(|s| s.names.first())
+    {
+        Some(face) => by.name(face).to_string(),
+        None => by.read(
+            doc.defined_by(var)
+                .and_then(|(node, _)| crate::world::copy_source(doc, node, 0))
+                .filter(|source| !source.member)
+                .map_or(var, |source| source.var),
+        ),
+    };
+    Cleared {
+        a: seat(a),
+        b: seat(b),
+        bounds: match bounds.try_map(|&var| Ok::<_, core::convert::Infallible>(bound(var))) {
+            Ok(bounds) => bounds,
+            Err(never) => match never {},
+        },
+        answer: Certified::Answered(answer),
     }
 }
 
@@ -904,15 +1132,37 @@ fn readout_of(
             canonical: *value,
             dimension: *dim,
         })),
-        ValuePayload::MeasureUnavailable { reason, .. } => Some(Readout::Unavailable(*reason)),
-        ValuePayload::Assertion(verdict) => Some(Readout::Asserted(asserted(doc, node, verdict))),
+        ValuePayload::Assertion(verdict) => Some(match (node, verdict) {
+            (
+                Node::Assertion(editor_core::Claim::Clearance { a, b, bounds }),
+                AssertionVerdict::Clearance(report),
+            ) => Readout::Clearance(cleared(
+                doc,
+                [*a, *b],
+                bounds,
+                pncad::analysis::ClearanceOutcome::of(report.verdict(), Speaker::of(doc)),
+            )),
+            _ => Readout::Asserted(asserted(doc, node, verdict)),
+        }),
+        // A clearance whose seat reads a pattern's members, lifted over
+        // the family: the row says so in the certifying door's words.
+        ValuePayload::Family => match node {
+            Node::Assertion(editor_core::Claim::Clearance { a, b, bounds }) => {
+                Some(Readout::Clearance(cleared(
+                    doc,
+                    [*a, *b],
+                    bounds,
+                    pncad::analysis::ClearanceOutcome::over_members(doc, id),
+                )))
+            }
+            _ => None,
+        },
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
         ValuePayload::Split { above, below } => split_emptiness(above, below).map(Readout::Empty),
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
-        | ValuePayload::Instances(_)
-        | ValuePayload::Family => None,
+        | ValuePayload::Instances(_) => None,
     }
 }
 
@@ -969,46 +1219,42 @@ impl std::fmt::Display for SplitUnread {
     }
 }
 
-/// **An assertion's verdict, its numbers carried in its value's
-/// dimension.** The value is a scalar variable, and its kind's
-/// dimension is the one both numbers are in.
+/// **A value assertion's verdict, its numbers carried in its value's
+/// dimension.** A value claim's value is a scalar variable, and its
+/// kind's dimension is the one both numbers are in.
 fn asserted(
     doc: &Doc<ProfileProgram>,
     node: &Node<ProfileProgram>,
     verdict: &AssertionVerdict<f64>,
 ) -> Asserted {
-    let Node::Assertion {
-        value, relation, ..
-    } = node
-    else {
-        unreachable!("only an assertion node evaluates to a verdict")
-    };
-    let dim = || match doc.var(*value).and_then(|var| var.kind().dimension()) {
-        Some(dim) => dim,
-        None => unreachable!("an assertion's value is a scalar variable the document holds"),
-    };
-    let measures: Vec<RecipeNodeId> = doc
-        .observed_outputs(*value)
-        .into_iter()
-        .filter_map(|output| doc.operation_of(output))
-        .collect();
-    let clearance = measures.iter().copied().find(|&measure| {
-        matches!(
-            doc.node(measure),
-            Some(Node::Measure {
-                primitive: editor_core::MeasurePrimitive::MinClearance { .. }
-            })
-        )
-    });
-    Asserted {
-        verdict: verdict.clone().map(|number| Computed {
+    let map = |verdict: &AssertionVerdict<f64>, dim| {
+        verdict.clone().map(|number| Computed {
             canonical: number,
-            dimension: dim(),
-        }),
-        relation: *relation,
-        measure: clearance
-            .or_else(|| measures.first().copied())
-            .map(|measure| doc.spoken(measure)),
+            dimension: dim,
+        })
+    };
+    match node {
+        Node::Assertion(editor_core::Claim::Value {
+            value, relation, ..
+        }) => {
+            let dim = match doc.var(*value).and_then(|var| var.kind().dimension()) {
+                Some(dim) => dim,
+                None => {
+                    unreachable!("an assertion's value is a scalar variable the document holds")
+                }
+            };
+            Asserted {
+                verdict: map(verdict, dim),
+                relation: *relation,
+                measure: doc
+                    .observed_outputs(*value)
+                    .into_iter()
+                    .find_map(|output| doc.operation_of(output))
+                    .map(|measure| doc.spoken(measure)),
+            }
+        }
+        // A clearance reads as its equation ([`Cleared`]).
+        _ => unreachable!("only a value assertion's verdict reads as `Asserted`"),
     }
 }
 
@@ -1388,7 +1634,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MeasureNotParallel { .. }
         | NodeErrorKind::MeasureUnsupported(_)
         | NodeErrorKind::PayloadExpr { .. }
-        | NodeErrorKind::MeasureClearanceRefused(_)
         | NodeErrorKind::AssertionDimension { .. } => None,
     }
 }
@@ -1697,7 +1942,7 @@ mod picked_name {
             "the mirror says the cap on the copy clicked: {plane}"
         );
         assert_eq!(
-            mate.line(by),
+            mate.line(mate.active(), by),
             format!("on: {}; to: {}", cap(place), cap(second)),
             "the mate says it alike, and the two copies apart"
         );

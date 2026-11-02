@@ -2,7 +2,7 @@
 id: restcurve
 kind: program
 title: RESTCURVE — the face region off the plane: chart singularities, curved containment, curved meeting arms
-status: active
+status: ready
 opened: 2026-10-29
 group: kernel/topo/certify
 prefix: restcurve/

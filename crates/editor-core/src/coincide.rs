@@ -309,6 +309,10 @@ pub enum Unreplayed {
     /// carrier verdict is decided in (D10 `[placement.frame]`): the
     /// relative map overflowed, or the kernel refused the mapped body.
     Frame,
+    /// The replay ran out of member budget
+    /// ([`crate::EvalOutcome::Exhausted`]) at or before the node the
+    /// row was decided at.
+    Exhausted,
 }
 
 impl fmt::Display for Unreplayed {
@@ -330,6 +334,10 @@ impl fmt::Display for Unreplayed {
             Self::Frame => {
                 "the replay with every variable a symbol could not read one cell's body into \
                  the frame its carriers are decided in"
+            }
+            Self::Exhausted => {
+                "the replay with every variable a symbol ran out of member budget before the \
+                 row's node"
             }
         })
     }
@@ -578,6 +586,9 @@ pub enum Recourse {
     /// a rim may be coaxial with its wall for every value, and the door
     /// does not read it so) ([`traced`]).
     ReadTheAxis,
+    /// Raise the evaluation's member budget, or lower a count: the
+    /// replay ran out of it before the row ([`Unreplayed::Exhausted`]).
+    MemberBudget,
 }
 
 impl Recourse {
@@ -624,6 +635,10 @@ impl Recourse {
             Self::ReadTheAxis => {
                 "Recourse: read the sweep's axis off the face the profile traces, so the sweep \
                  keeps the tangency the profile draws whatever the values"
+            }
+            Self::MemberBudget => {
+                "Recourse: raise the evaluation's member budget, or lower a count, so the replay \
+                 reaches the row"
             }
         }
     }
@@ -836,7 +851,7 @@ pub fn prove<P: crate::ProfilePayload>(
 /// cells with an axis is left**, `left` the first component not
 /// established: each cell's axis as the pose its mates reach
 /// ([`stated::Stated::reached`]), and the copy each cell is read in.
-fn axes<P>(
+fn axes<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     stated: &stated::Stated,
     constructions: &[Result<Construction, Unwalked>],
@@ -972,7 +987,7 @@ fn swept_tangent(
                 origin: traced.origin.clone(),
                 maps: wall.maps.iter().chain(&traced.maps).cloned().collect(),
             };
-            if stated::carrier(&read_here) != stated::carrier(face)
+            if stated::carrier(doc, &read_here) != stated::carrier(doc, face)
                 || !slides_along_its_generators(&traced)
             {
                 return Traced::No;
@@ -1146,7 +1161,10 @@ fn stated_by_the_mates<P: crate::ProfilePayload>(
 /// a band a revolve of `doc` mints, else the cell's own. Public so the
 /// arm is checked against the symbolic evaluation as the door reads it.
 #[must_use]
-pub fn axis_of<P>(doc: &crate::doc::Doc<P>, cell: &Construction) -> Construction {
+pub fn axis_of<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    cell: &Construction,
+) -> Construction {
     stated::axis_of(doc, cell)
 }
 
@@ -1163,7 +1181,7 @@ fn axis_row(row: &NamedCoincidence) -> bool {
 
 /// **Whether two cells' axes are one `Axis` read twice** by the mates'
 /// equivalence ([`stated::Stated`]), whatever their senses.
-fn one_axis<P>(
+fn one_axis<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     stated: &stated::Stated,
     a: &Construction,

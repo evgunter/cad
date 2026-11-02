@@ -88,7 +88,7 @@
 //! order): the sort is stable, and the topological neighbor criterion
 //! disambiguates join partners at coincident positions.
 
-use geom_core::k_stats::{Magnitude, decide_magnitude_reported, gate_rejection};
+use geom_core::k_stats::gate_rejection;
 use geom_core::{
     Band, BandError, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, SizedPass,
     Vec3,
@@ -96,6 +96,7 @@ use geom_core::{
 
 use super::SplitPlane;
 use crate::validate::decide;
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_brep::order::insertion_sort_by;
 
 /// The exact-order band (module docs; identical to profile's).
@@ -121,14 +122,17 @@ pub(crate) fn exact_band() -> Result<Band, BandError> {
 ///
 /// A frame search, not a ray walk: no member is cast from a point, so
 /// nothing grazes and nothing is crossed, and it is not
-/// [`crate::ray_walk::walk`]'s to drive. A member within the band of
-/// the normal is passed over; one in band of it is kept as the
-/// refusal should no member project definitely.
+/// [`crate::ray_walk::walk`]'s to drive. It is a ladder
+/// ([`geom_brep::ladder::climb`]) whose answer is the first member that
+/// projects ([`Answering::First`]): a member within the band of the
+/// normal is passed over; one in band of it is kept as the refusal
+/// should no member project definitely, and stays live where a later
+/// one does, since it may truly project and be the frame.
 ///
 /// # Errors
 ///
 /// [`axis_plane`]'s. When no eligible member projects definitely, the
-/// first in-band arm; else, every member's arm decided Zero, the gate's
+/// ladder's undecided arm; else, every member's arm decided Zero, the gate's
 /// one rejection of the member nearest to passing. Two axes lie in an
 /// axis plane, and no two oblique members lie near one line, so a
 /// normal is near at most one: every arm reads Zero only where `arm`
@@ -147,29 +151,28 @@ pub(super) fn in_plane_frame<T: Decide>(
     } else {
         oblique
     };
-    let mut first_in_band = None;
     let mut nearest: Option<MarginDiag> = None;
-    for r in members {
+    match climb(Answering::First, members, |r| {
         let r = r.map(T::from_f64);
         let d = r - n * n.dot(r);
-        match decide_magnitude_reported(FRAME_ARM, Margin::levered(d.norm() / r.norm(), arm), band)
-        {
-            Ok((Magnitude::Positive, _)) => {
+        let fraction = Margin::levered(d.norm() / r.norm(), arm);
+        Rung::decide(FRAME_ARM, fraction, band, |decided| match decided.sign {
+            Sign::Positive => {
                 let u = d.normalize();
-                return Ok((u, n.cross(u)));
+                Some((u, n.cross(u)))
             }
-            Ok((Magnitude::Zero, margin)) => {
-                if nearest.is_none_or(|m| m.binds_before(margin)) {
-                    nearest = Some(margin);
+            Sign::Zero => {
+                if nearest.is_none_or(|m| m.binds_before(decided.margin)) {
+                    nearest = Some(decided.margin);
                 }
+                None
             }
-            Err(diag) => {
-                first_in_band.get_or_insert(diag);
-            }
-        }
-    }
-    if let Some(diag) = first_in_band {
-        return Err(diag);
+            Sign::Negative => unreachable!("`{FRAME_ARM}` decided a norm's fraction Negative"),
+        })
+    }) {
+        Climb::Answered { answer, .. } => return Ok(answer),
+        Climb::Undecided(diag) => return Err(diag),
+        Climb::Passed => {}
     }
     let Some(margin) = nearest else {
         unreachable!("the schedule's axis and oblique members are fixed and none is empty")

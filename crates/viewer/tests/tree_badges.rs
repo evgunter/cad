@@ -561,12 +561,18 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         other => panic!("the face stays selected, got {other:?}"),
     }
     match mate_tool.reconcile(doc, ev).as_slice() {
-        [MateToolEvent::PickLost { resolution, .. }] => assert_eq!(
+        [
+            MateToolEvent::PickLost { resolution, .. },
+            MateToolEvent::Reloaded { .. },
+        ] => assert_eq!(
             **resolution,
             indeterminate(post_a),
             "the mate tool's dropped pick"
         ),
-        other => panic!("the mate tool drops its one pick, got {other:?}"),
+        other => panic!(
+            "the mate tool drops its one pick, then reloads the bundle the chaining changed, \
+             got {other:?}"
+        ),
     }
     // Each refusal carrying the standing whole says its nodes as the
     // document holds them: post_a by its kind, never `node <tag>`.
@@ -758,6 +764,13 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             ".usable(",
             "`body_reach` sizes a trace's window off the body's value; a refusal is dropped \
              (`.ok()`) and the window falls back to a unit reach, never drawn",
+        ),
+        (
+            "session.rs",
+            ".usable(",
+            "`holds_a_clearance` asks only whether a clearance answered at `f64`, to decide \
+             whether the landing owes a certified answer; one that refused is its own row's \
+             failure, which the tree draws",
         ),
     ];
 
@@ -1177,6 +1190,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
             .map(|(mate, said)| ConstraintRow {
                 mate,
                 said: said.to_owned(),
+                is_mate: said.ends_with(": mate"),
             })
             .collect::<Vec<_>>(),
         "post_b's row carries the seat that places it, and its values"
@@ -1186,6 +1200,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
         .enumerate()
         .map(|(at, c)| ConstraintRow {
             mate: pncad::document::MateRef::new(bench.shelf_i, c.id),
+            is_mate: false,
             said: format!(
                 "constraint {}: {} value",
                 at + 1,

@@ -51,3 +51,10 @@ which the same PR had just moved into the slow set. No added line spelled
 the test's name, so the PR's slow-set step selected nothing, and the
 PR's central row went green on no gate at all. The review caught it. The
 fix pass re-spells the name in the helper's doc comment.
+
+A third (GREEN lane, PR 6343, 2026-11-02). The PR re-pinned eleven
+sweep slow rows by editing their expectation tables
+(`cylinder_sphere_frame`'s `pose_rows!` door arrays, `germ_tilted_rod`'s
+`OTHER_SPINS_STOPS`, and the asserted `Stop` in `torus_doors_join`). Its
+first gate ran `Starting 0 tests` in the slow-set step and still
+concluded `gate ok`. The fix pass names each row in its pin comment.
