@@ -423,7 +423,12 @@ where
                 .unwrap_or_else(|_| unreachable!("a clearance reads two seats"));
             let payload =
                 cleared.unwrap_or_else(|| unreachable!("a clearance carries its bounds' values"));
-            wire_clearance(doc, seats, bounds, &at, payload, env.lane.witness, tol)
+            let ends: Vec<geom_core::Interval> = payload
+                .values
+                .iter()
+                .map(|v| geom_core::Interval::from_bounds(v.lo(), v.hi()))
+                .collect();
+            wire_clearance(doc, seats, bounds, &at, &ends, env.lane.witness, tol)
         }
         Node::Extrude { profile, .. } => {
             wire_extrude(id, at(O::Profile, *profile)?, results, vals, tol)
@@ -2410,12 +2415,12 @@ fn wire_clearance<'r, T>(
     seats: [(crate::OperandSlot, crate::VarId); 2],
     bounds: &crate::measure::ClearanceBounds<crate::VarId>,
     results_at: &dyn Fn(usize) -> &'r Results<T>,
-    payload: &super::Payload<T>,
+    ends: &[geom_core::Interval],
     witness: Option<&Witnessing<'_>>,
     tol: Tol,
 ) -> OpResult<T>
 where
-    T: Decide + geom_core::Bounds + topo::AtRestPolicy,
+    T: Decide + topo::AtRestPolicy,
 {
     use crate::clearance::{ClearanceRefusal, ClearanceReport};
     let answer = |report: ClearanceReport| {
@@ -2450,13 +2455,8 @@ where
         ));
     };
     let b = band(tol)?;
-    // The bounds as the enclosures they are at this lane, each a
-    // distance.
-    let ends: Vec<geom_core::Interval> = payload
-        .values
-        .iter()
-        .map(|v| geom_core::Interval::from_bounds(v.lo(), v.hi()))
-        .collect();
+    // The bounds arrive as the enclosures they are at this lane (the
+    // caller's `Bounds` reads them), each a distance.
     if let Some(c) = ends
         .iter()
         .flat_map(|&e| [geom_core::Bounds::lo(e), geom_core::Bounds::hi(e)])
@@ -2466,7 +2466,7 @@ where
             c,
         }));
     }
-    let bounds = bounds.with(&ends);
+    let bounds = bounds.with(ends);
     // In the frame the two seats condition on (`Framed::computing_among`),
     // each body read into it.
     let computing = super::Framed::computing_among(read.iter().map(|(.., framed)| *framed))

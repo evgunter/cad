@@ -1923,7 +1923,7 @@ pub(crate) fn closest_pair(
     else {
         return Err("the cells carry no station on their faces to verify at".to_owned());
     };
-    ask.confirms(<geom_core::Interval as geom_core::Real>::from_f64(d), band)
+    ask.confirms(geom_core::Interval::from_bounds(d, d), band)
         .map_err(|why| {
             format!("the f64 rebuild measures {d} between the closest stations: {why}")
         })?;
