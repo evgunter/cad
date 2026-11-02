@@ -458,6 +458,19 @@ fn a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it() {
         }
         let what = format!("{wall} at Kε");
         match build(k_eps, tol) {
+            // The fin's top face is Kε wide, so its flank across the
+            // cutter's face stands Kε off that face's plane, and the line
+            // cone reading its side may round under Kε first.
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::Coincidence(Coincide::SectorSide, _),
+                diag,
+            }) if wall == "fin" => {
+                let gap = diag.margin.diagnostic_f64_for_error_text().value();
+                assert!(
+                    diag.predicate == Some("link_plane") && gap.is_some_and(|g| g.abs() < k_eps),
+                    "{what}: a sector side is the line cone's, under Kε: {diag:?}"
+                );
+            }
             Err(refusal) => {
                 let gap = assert_refuses_on_a_pair(&what, k_eps, Err(refusal));
                 assert!(
