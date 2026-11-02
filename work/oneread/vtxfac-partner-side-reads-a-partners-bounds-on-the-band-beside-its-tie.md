@@ -7,6 +7,7 @@ opened: 2026-11-02
 priority: P2
 cost: E
 refs: [the-cone-takes-a-bounds-side-from-the-one-bound-side-reading, the-cone-sites-read-every-bounds-side-through-bound-read]
+branch: oneread/cone-sites-bound-read
 ---
 
 

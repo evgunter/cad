@@ -2732,8 +2732,7 @@ impl SlitFaceGap {
 ///
 /// **The falsifier is a caller that acts on the case by itself**: a
 /// placement driver that slides a part along its axis when it reads
-/// `OnBoundary`, which moves the seam or rim off the node, and turns it
-/// when it reads `NearlyParallel`, which no slide mends. Then carry it
+/// `OnBoundary`, which moves the seam or rim off the node. Then carry it
 /// and delete this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeWhy {
@@ -2745,9 +2744,6 @@ pub enum NodeWhy {
     /// A crossing of an edge of one operand with the other's wall lies
     /// at the node: its germ reads neither ellipse.
     GermOnNode,
-    /// The node's arcs cannot be told apart by their turn toward an
-    /// axis: the axes are this nearly parallel at the walls' radius.
-    NearlyParallel,
 }
 
 thread_local! {
@@ -5136,10 +5132,6 @@ impl core::fmt::Display for BooleanError {
                         "move or turn the parts so that no edge of either part meets a wall \
                          at a crossing point",
                     ),
-                    NodeWhy::NearlyParallel => (
-                        "where they cross when the axes are this nearly parallel",
-                        "turn the parts so that their axes cross at a wider angle",
-                    ),
                 };
                 write!(
                     f,
@@ -6291,7 +6283,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // The nodes of the equal cylinder pairs' sections, each a ring in
     // both walls (`node::mint_nodes`).
     let walls = glue::overlapping_pairs(a_operand, b_operand, node::is_wall, band)?;
-    for ring in node::mint_nodes((&mut a, &mut b), (a_operand, b_operand), &walls, band, tol)? {
+    for ring in node::mint_nodes(
+        &declared.sections,
+        (&mut a, &mut b),
+        (a_operand, b_operand),
+        &walls,
+        band,
+        tol,
+    )? {
         null_edges.extend(ring.edges)?;
         null_pairs.extend(ring.pairs);
         pierce_rings.push(ring.ring);

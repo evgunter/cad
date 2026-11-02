@@ -137,3 +137,14 @@ ring's one open row is its pcert item. U2b and U2c below remain.
     - *D4 across δ.* Within the zero band the edge passes through the node (U2b). In band, one decision on the crossings' separation escalates `VertexOnVertex`, with the move-or-meet or tighten-ε recourse. Beyond the band the poses build; up to a few K·ε the short arc's first station may escalate `SliverDihedral` with the tighten-ε recourse. Nothing refuses between the band and √band. No ratified text changes.
   - **Units.** U2a (M), the factored crossing (PR 5192): the sweep reads the family's walls through the planes; the near-node poses still refuse at the pierce until U2p. U-lever (M, general, its own lane): the wedge lever at check 4, certification and must-carry from one home; acceptance a digest fence over topo, sweep and editor-core at all three ε rows, plus one short, shallow, non-node edge at rest. U2p (M), the pair reading: the branch on the sweep's contact record, the pierce's sides and germ through it; acceptance seams and caps 1e-8, 1e-6 and 1e-4 off a node, and both operands' caps, building at the closed forms for ∪, ∩ and ∖, with one ∩ row at 1e-6 whose loop roles resolve; its acceptance waits on U-lever. U2b (M), the sweep's node split and tag, and the node pass's claim and mint with sites: the pipe cross as extruded and with one seam turned off, every op, both orders, re-posed. U2c (M, after U2b), rims (the one-sided fan; a germ whose gap holds no face gets no strut): the tee with its seam at a node and off it, both capped. Rows that go red knowingly: `bisector_nodes::a_rim_through_the_nodes_refuses_typed`, `verbs_germarms2::the_steinmetz_seams_are_tangent_at_the_sections_pinch_points`. The sphere pair's radical plane factors the same way; no symptom is known.
   - *The U2p acceptance at 1e-8, re-read by the orchestrator (PR 5203).* 1e-8 is the witness band's escalation edge (K·ε), so D4's ε < δ < K·ε row governs it there: a pose 1e-8 off a node builds or escalates in band. Measured, the node's placement stands 9.99e-9 off a seam, both caps' sectors 1e-9 to 4e-9 apart, and a single cap's rim 9.999999995e-9 off in one re-posed order, against an escalation of 1e-8. The line above is Ev's as approved; this one records how its 1e-8 case reads at the measured band.
+
+## 2026-11-02: a cited site retired (SECTARMS stage 3)
+
+`boolean::join::crossing_cylinder_reading`, cited above, is gone (branch
+`sectarms/cylinder-join-reads-value`). The node pass, the factored
+crossing and the vertex-on-face classifier read the bisector pose from
+the operation's section table: `CylinderCylinderPose::bisector_planes`
+(the axes' meeting point and the two planes' normals) and
+`PairSection::nodes`. The node's arc tangents are those normals, and no
+fresh decision of their turn toward an axis is read. The crossing
+through the bisector planes this row describes is unchanged.

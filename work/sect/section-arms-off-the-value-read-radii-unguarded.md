@@ -41,3 +41,13 @@ into the value (`plan.md` steps 2 and 3), with the frames and the
 classifier's arms retiring behind them.
 
 Moved from SECTRUNG to SECT on 2026-11-02, by `git mv`, when SECTRUNG merged back into SECT: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so SECT and the three tracks cut from it (SECTTAIL, SECTRUNG, SECTSITE) came in under one budget.
+
+## 2026-11-02: a cited site retired (SECTARMS stage 3)
+
+Branch `sectarms/cylinder-join-reads-value` retires `topo::boolean::join`'s
+`cylinder_pair_axes`, `cylinder_pair_frame`, `crossing_cylinder_reading`
+and `parallel_radical_plane`. The join now reads two cylinders on the
+section value (`join::cylinder_read`), and the parallel lane takes its
+plane from `geom_brep::CylinderCylinderPose::rulings_plane`. The hit
+above that cites one of those sites no longer exists. The rest of the
+row stands as filed.
