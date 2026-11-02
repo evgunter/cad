@@ -77,3 +77,31 @@
     - The P2 `vtxfac-partner-side-…` row, claimed into the lane.
     - One pierce spelling, a carry-over from both reviews of PR 6378.
   - The lane reviews at the dual tier, letter M, so rule 1's draw happens at hand-back.
+
+- 2026-11-02: lane 2 stopped on its stop rule, at head `44a836a6`. Items 1 and 4 move built → refused in 13 tangent-kiss tests, all `LineMaterialUnread` (`NoReference`) at recl's edge-edge line cone. The mechanism is the same in every case:
+  - At a kiss, each solid's line cone of the other is one plane, and the cone reads the rim's ray Zero. The descent decides the side and hands it in.
+  - Under `## Decided` item 3, a sector read only by a given side is no parity base, so no reference remains.
+  - At `cone_classes`, 11 On(k) readings move to Out/In, by descent, in 4 tests (still green).
+
+  The lane offered three options: A (a given-taken sector may be a base where no decided one exists), C (hand descended sides only where the cone's reading isn't Zero), or B (re-baseline the 13 as refusals).
+  - Rejected: B (the 13 are correct builds), and C (it keeps the motivating witness split between the two sites).
+  - Directed: measure A in its narrowest form (a decided base is always preferred), with an exact-oracle row and fuzz for given bases. Re-take both diffs against main. Every one of the 13 must build the same body as main, and every moved reading must be shown right. Only then do I amend item 3 (orchestrator-decided, never Ev-ratified). Any wrong move goes to a design weighing.
+  - Accepted: the lane's `given_side` distinctions (Unresolved(band)/Slack/Undecided), and Undecided for a bound in band of a far partner plane.
+  - The touched face (the brief's item 2) has no exposure from the cone's tie: the vertex's own point is unmoved. It stays on the plain band, with its row inverted to pin that.
+
+- 2026-11-02 — Lane 2 measured A (head `4c38a9ad`). A given-taken sector serves as the parity base only where no decided sector exists.
+  - 12 of the 13 build exactly as main (kind, counts and vertex hash, every op). Nothing else moved in 9,339 tests.
+  - recl germs are unchanged. 187 readings moved On(k) → Out/In, each equal to main's tangent lump.
+  - `cone_classes`: 79 moved readings, 0 disagreements with `point_in_solid` at the edge's second-order point.
+  - Holdout: `review_4704_flush_round_oracle::a_same_side_tangent_touch_answers_every_op`. Every sector of the cone lies in q's plane, so no arc can be placed and parity cannot read it.
+  - Lane's candidate A′: q strictly inside one sector k's plane and sector, on no other sector, with k's side given and taken → the material is that side's. This is On(k) read to the orders read (item 4), and is sound by local geometry.
+  - Directed: prototype A′ without A, with exact-oracle rows and fuzz, and re-take both diffs. Take A′ alone if all 13 build as main. Otherwise measure A′+A and report.
+  - Once measured, I amend item 3 on this branch.
+
+- 2026-11-02 — Lane 2 measured A′ alone, with A reverted (head `3c0f0b5e`).
+  - All 13 kiss tests build exactly as main does, `review_4704` included. 0 ops moved across 9,339 tests.
+  - recl germs and memberships are unchanged; 26 readings moved On(k) → Out/In, and each followed main's tangent-lump membership.
+  - `cone_classes`: 59 moved readings, 0 disagreements with `point_in_solid`.
+  - Fuzz: 0 wrong at three ε.
+  - Taken: A′ alone. Item 3 of the line-cone side's `## Decided` is amended with the A′ clause; lane 1's "no parity base" rule stands.
+  - Lane 2 carries on: the slow-set three-ε diff, the `pick` germ, K-REPORT, item 4's re-wording, the sweep, then the PR.
