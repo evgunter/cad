@@ -28,8 +28,7 @@ use pncad::geom_core::Tol;
 /// is a scene or kernel defect, and the panic names `what` and the
 /// validator's findings.
 pub fn finished<S: Scalar>(what: &str, body: Body<S>, tol: Tol) -> AtRestBody<S> {
-    S::gate_at_rest_kept(body, tol)
-        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+    topo::finish(body, tol).unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }
 
 /// A copy of `body` finished for the measurement doors

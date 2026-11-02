@@ -41,8 +41,7 @@ use pncad::topo::{AtRestBody, Body, FaceKey, LoopBoundary, ReplaceFaceError, She
 /// `body` finished for the boolean doors, the panic naming `what` and
 /// the validator's findings where the gate refuses it.
 fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol)
-        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+    topo::finish(body, tol).unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }
 
 /// A closed polygon through `$first` and the rest, on the `path`
@@ -170,7 +169,7 @@ fn r2_my_own_revolve_opens_at_a_chart_they_never_touch() {
     let chart = plane_chart_at(&body, top);
     println!("[r2-1] my mouth chart is {} face(s)", chart.len());
     let cup = pncad::topo::shell_open(
-        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        &topo::finish(body.clone(), tol).expect("a finished operand"),
         0.021,
         &chart,
         tol,
@@ -230,7 +229,7 @@ fn r2_revolved_tube_separates_seam_from_axis() {
         chart.len()
     );
     match pncad::topo::shell_open(
-        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        &topo::finish(body.clone(), tol).expect("a finished operand"),
         0.05,
         &chart,
         tol,
@@ -290,7 +289,7 @@ fn r2_partial_revolve_one_cap_face() {
     // CONTAINING the cylinder's axis, which their stated surviving
     // class ("a plane NORMAL to a cylinder's axis") excludes.
     match pncad::topo::shell(
-        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        &topo::finish(body.clone(), tol).expect("a finished operand"),
         0.05,
         tol,
     ) {
@@ -303,7 +302,7 @@ fn r2_partial_revolve_one_cap_face() {
     }
     if chart.len() == 1 {
         match pncad::topo::shell_open(
-            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            &topo::finish(body.clone(), tol).expect("a finished operand"),
             0.05,
             &chart,
             tol,
@@ -346,7 +345,7 @@ fn r2_ring_anatomy_on_a_drum() {
     let body = revolved(lp, tol);
     let chart = plane_chart_at(&body, h);
     let cup = pncad::topo::shell_open(
-        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        &topo::finish(body.clone(), tol).expect("a finished operand"),
         t,
         &chart,
         tol,
@@ -464,7 +463,7 @@ fn r2_box_control_is_right() {
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
     let cup = pncad::topo::shell_open(
-        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        &topo::finish(body.clone(), tol).expect("a finished operand"),
         t,
         &top,
         tol,
@@ -563,7 +562,7 @@ fn r2_oblique_plane_prisms_outside_their_table() {
     ] {
         let body = extruded(lp, 0.3, tol);
         match pncad::topo::shell(
-            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            &topo::finish(body.clone(), tol).expect("a finished operand"),
             0.02,
             tol,
         ) {
@@ -602,7 +601,7 @@ fn r2_tangent_bullet_which_door() {
         .into();
     let body = revolved(lp, tol);
     match pncad::topo::shell(
-        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        &topo::finish(body.clone(), tol).expect("a finished operand"),
         1.0 / 128.0,
         tol,
     ) {
@@ -639,7 +638,7 @@ fn r2_tangent_bullet_which_door() {
         .into();
     let b2 = revolved(lp2, tol);
     match pncad::topo::shell(
-        &AtRestBody::validate(b2.clone(), tol).expect("a finished operand"),
+        &topo::finish(b2.clone(), tol).expect("a finished operand"),
         1.0 / 128.0,
         tol,
     ) {
@@ -697,7 +696,7 @@ fn r2_acceptance_corpus_sits_inside_the_class() {
         ("the tube", tube, 0.1),
     ] {
         match pncad::topo::shell(
-            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            &topo::finish(body.clone(), tol).expect("a finished operand"),
             t,
             tol,
         ) {
@@ -820,7 +819,7 @@ fn r2_annular_mouth_anatomy() {
         genus(&body)
     );
     let sealed = pncad::topo::shell(
-        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        &topo::finish(body.clone(), tol).expect("a finished operand"),
         t,
         tol,
     )
@@ -839,7 +838,7 @@ fn r2_annular_mouth_anatomy() {
     );
     let chart = plane_chart_at(&body, h);
     let cup = pncad::topo::shell_open(
-        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        &topo::finish(body.clone(), tol).expect("a finished operand"),
         t,
         &chart,
         tol,
@@ -900,14 +899,14 @@ fn r2_step_frontier_kind() {
         tol,
     );
     let hollow = pncad::topo::shell(
-        &AtRestBody::validate(pot.clone(), tol).expect("a finished operand"),
+        &topo::finish(pot.clone(), tol).expect("a finished operand"),
         0.1,
         tol,
     )
     .expect("hollows")
     .body;
     let e = pncad::step_export::step_string(
-        &AtRestBody::validate(hollow, tol).expect("the hollow pot is at rest"),
+        &topo::finish(hollow, tol).expect("the hollow pot is at rest"),
         &pncad::step_export::StepOptions {
             product_name: "r2pot".to_string(),
             ..Default::default()
@@ -990,7 +989,7 @@ fn r2_the_scene_numbers() {
         "[r2-12] sense-aware clearance = {clearance}; sense-BLIND = {blind} (inf = none found)"
     );
     let pot = pncad::topo::shell(
-        &AtRestBody::validate(sharp.clone(), tol).expect("a finished operand"),
+        &topo::finish(sharp.clone(), tol).expect("a finished operand"),
         wall,
         tol,
     )

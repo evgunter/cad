@@ -221,7 +221,7 @@ fn sense_row(centre_rho: f64, winding: ArcSweep, scale: f64, what: &str) {
     for k in [1.0_f64, 2.0, 3.0, 4.0] {
         let t = scale * k / 128.0;
         let hollow = pncad::topo::shell(
-            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            &topo::finish(body.clone(), tol).expect("a finished operand"),
             t,
             tol,
         )
@@ -315,7 +315,7 @@ fn one_body_carrying_both_senses_moves_each_chart_its_own_way() {
 
     let t = 1.0 / 128.0;
     let hollow = pncad::topo::shell(
-        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        &topo::finish(body.clone(), tol).expect("a finished operand"),
         t,
         tol,
     )

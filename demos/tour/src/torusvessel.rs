@@ -406,7 +406,7 @@ pub fn wall_probes(tol: Tol) {
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
         tol,
     );
-    let quarter = AtRestBody::validate(quarter, tol).expect("the sectioned vessel is a valid body");
+    let quarter = topo::finish(quarter, tol).expect("the sectioned vessel is a valid body");
     let sectioned = pncad::topo::shell(&quarter, WALL, tol)
         .expect("the sectioned vessel hollows through tier 3")
         .body;
@@ -440,7 +440,7 @@ pub fn wall_probes(tol: Tol) {
 }
 
 pub fn stops(tol: Tol) -> Vec<TourStop> {
-    let body = AtRestBody::validate(bellied(tol), tol).expect("the operand: tier 3");
+    let body = topo::finish(bellied(tol), tol).expect("the operand: tier 3");
     assert_eq!(census(&body), (12, 18, 10), "the vessel's operand census");
     assert_eq!(euler_counts(&body).genus(), Ok(0), "a vessel is a ball");
     let props =
@@ -561,7 +561,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let litres = v_cav * 1000.0;
 
     // ---- THE SENSE TWIN: the same stations, the other centre ----
-    let twin = AtRestBody::validate(waisted(tol), tol).expect("the twin is a finished body");
+    let twin = topo::finish(waisted(tol), tol).expect("the twin is a finished body");
     assert_eq!(census(&twin), (12, 18, 10), "the twin's operand census");
     let twin_hollow = pncad::topo::shell(&twin, WALL, tol)
         .expect("the waisted twin hollows through the same arm")

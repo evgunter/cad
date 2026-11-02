@@ -204,7 +204,7 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
             .into(),
     ];
     let round = spring::<f64>(&round, PER_TURN, tol).expect("the round-wire coil builds");
-    let round = pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&round), tol)
+    let round = pncad::topo::finish(pncad::topo::Body::clone(&round), tol)
         .unwrap_or_else(|e| panic!("the round-wire coil passes tier 3: {e:?}"));
     let measured = pncad::topo::mass_properties(&round, tol, crate::printed())
         .unwrap_or_else(|e| panic!("wall 1 (the round-wire spring's volume) refuses: {e:?}"));
