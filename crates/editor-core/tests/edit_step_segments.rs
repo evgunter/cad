@@ -565,6 +565,7 @@ fn loft_of_loops(
         .iter()
         .enumerate()
         .map(|(i, &s)| editor_core::LoftSection {
+            id: None,
             profile: s.into(),
             station: vec![editor_core::StationMove::Slide {
                 along: editor_core::Axis3::Z,
@@ -578,6 +579,7 @@ fn loft_of_loops(
             first: ids[0].into(),
             then,
             v_degree: Formula::count(1),
+            first_id: None,
         },
     );
     (doc, ids, loft)
@@ -604,14 +606,13 @@ fn rim(
 }
 
 /// The degree-1 loft's wall at canonical segment `e` across slab
-/// `slab`: through two sections the one wall, named by the piece each
-/// draws there; through more, the slab's, named by its index and the
-/// pieces its two sections draw. `None` where a section draws none or
+/// `slab`: named by the slab's two sections, each by its id (`sids`)
+/// with the piece it draws there. `None` where a section draws none or
 /// the table has no such name.
 fn loft_wall(
     ev: &Evaluation<f64>,
     loft: RecipeNodeId,
-    sections: &[RecipeNodeId],
+    (sections, sids): (&[RecipeNodeId], &[editor_core::SectionId]),
     e: CanonicalSegment,
     slab: usize,
 ) -> Option<FaceKey> {
@@ -619,22 +620,11 @@ fn loft_wall(
         ValuePayload::Profile(pv) => pv.pieces.edge(e.loop_index as usize, e.segment as usize),
         _ => None,
     };
-    let seg = if sections.len() == 2 {
-        RoleSeg::LoftWall(
-            sections
-                .iter()
-                .map(|&s| piece(s))
-                .collect::<Option<Vec<_>>>()?,
-        )
-    } else {
-        RoleSeg::LoftSlabWall(
-            u32::try_from(slab).ok()?,
-            sections[slab..=slab + 1]
-                .iter()
-                .map(|&s| piece(s))
-                .collect::<Option<Vec<_>>>()?,
-        )
-    };
+    let seg = RoleSeg::LoftWall(
+        (slab..=slab + 1)
+            .map(|k| Some((sids[k], piece(sections[k])?)))
+            .collect::<Option<Vec<_>>>()?,
+    );
     match ev.table_at(loft)?.lookup(&fixture::fname(loft, seg))? {
         Entry::Unique(r) => match r.key {
             EntityKey::Face(f) => Some(f),
@@ -644,20 +634,17 @@ fn loft_wall(
     }
 }
 
-/// The edge of interior section `si`'s ring over canonical segment `e`,
-/// `None` where the table has no such name.
+/// The edge of the interior section `sid`'s ring over canonical
+/// segment `e`, `None` where the table has no such name.
 fn section_edge(
     ev: &Evaluation<f64>,
     node: RecipeNodeId,
-    si: usize,
+    sid: editor_core::SectionId,
     pieces: &editor_core::ProfilePieces,
     e: CanonicalSegment,
 ) -> Option<EdgeKey> {
     let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
-    let name = fixture::ename(
-        node,
-        RoleSeg::LoftSectionEdge(u32::try_from(si).ok()?, piece),
-    );
+    let name = fixture::ename(node, RoleSeg::LoftSectionEdge(sid, piece));
     match ev.table_at(node)?.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Edge(k) => Some(k),
@@ -723,6 +710,7 @@ fn assert_sections_bound_their_walls(
         panic!("{id}: the loft carries a body");
     };
     let last = ids.len() - 1;
+    let sids = fixture::section_ids(doc, loft);
     let mut every_wall = BTreeSet::new();
     for (si, &section) in ids.iter().enumerate() {
         let Some(Node::Profile(program)) = doc.node(section) else {
@@ -763,12 +751,13 @@ fn assert_sections_bound_their_walls(
                     // The slabs section `si` bounds: the one below it
                     // and the one above it.
                     for slab in si.saturating_sub(1)..si.min(last - 1) + 1 {
-                        let face = loft_wall(ev, loft, ids, *e, slab).unwrap_or_else(|| {
-                            panic!(
-                                "{id}: section {si} loop {li} step {step}: {e:?} names no wall \
+                        let face =
+                            loft_wall(ev, loft, (ids, &sids), *e, slab).unwrap_or_else(|| {
+                                panic!(
+                                    "{id}: section {si} loop {li} step {step}: {e:?} names no wall \
                                  of slab {slab}"
-                            )
-                        });
+                                )
+                            });
                         walls.insert(face);
                         let pts = face_vertex_points(body.body(), face);
                         for end in ends {
@@ -791,9 +780,13 @@ fn assert_sections_bound_their_walls(
                                 "{id}: section {si} step {step}'s ref {e:?} names no {cap:?} rim"
                             )
                         }),
-                        None => section_edge(ev, loft, si, &pv.pieces, *e).unwrap_or_else(|| {
-                            panic!("{id}: section {si} step {step}'s ref {e:?} names no ring edge")
-                        }),
+                        None => {
+                            section_edge(ev, loft, sids[si], &pv.pieces, *e).unwrap_or_else(|| {
+                                panic!(
+                                    "{id}: section {si} step {step}'s ref {e:?} names no ring edge"
+                                )
+                            })
+                        }
                     };
                     let [a, b] = fixture::ends(body.body(), edge);
                     let got = [
@@ -1108,7 +1101,8 @@ fn a_twisted_loft_takes_the_twist_the_author_wrote() {
             RoleSeg::LoftSeam(
                 sections
                     .iter()
-                    .map(|&s| fixture::vpiece(&doc, s, 0, k))
+                    .zip(fixture::section_ids(&doc, loft))
+                    .map(|(&s, sid)| (sid, fixture::vpiece(&doc, s, 0, k)))
                     .collect(),
             ),
         );
@@ -1168,6 +1162,9 @@ enum Claim {
     /// A one-step complete-loop carrier form: every segment of the
     /// loop, every vertex on the circle it authored.
     Carrier(Point2<f64>, f64),
+    /// A `rectangle`: every segment of the loop, every vertex a corner
+    /// of the rectangle of this width and height about this centre.
+    Rectangle(Point2<f64>, f64, f64),
     /// The step's arguments say nothing this row knows how to read
     /// back. The fused fillet verbs are here: what they emit depends on
     /// the arrival spec's own completion story, so an endpoint read off
@@ -1208,6 +1205,11 @@ fn claim(j: usize, step: &Step<f64>) -> Claim {
         Step::CloseTo => Claim::Closes,
         Step::Circle { centre, radius } => Claim::Carrier(*centre, *radius),
         Step::CircleSplit { centre, radius, .. } => Claim::Carrier(*centre, *radius),
+        Step::Rectangle {
+            centre,
+            width,
+            height,
+        } => Claim::Rectangle(*centre, *width, *height),
         Step::FilletArc { .. } | Step::ArcFillet { .. } | Step::ArcFilletArc { .. } => {
             Claim::Unread
         }
@@ -1338,6 +1340,26 @@ fn assert_attribution(
                         (d - radius * radius).abs() <= 1e-9,
                         "{what}: the carrier authored radius {radius} about {centre:?}, \
                          and segment {} leaves {v:?}, which is not on it",
+                        e.segment
+                    );
+                }
+            }
+            Claim::Rectangle(centre, width, height) => {
+                tally.carrier += 1;
+                assert_eq!(j, 0, "{what}: a rectangle authors one step, numbered 0");
+                assert_eq!(
+                    (edges.len(), n),
+                    (4, 4),
+                    "{what}: the rectangle's one step produced the whole loop"
+                );
+                for e in edges {
+                    let v = verts[seg(e)].0;
+                    let off = v - centre;
+                    assert!(
+                        (off.x.abs() - width / 2.0).abs() <= 1e-9
+                            && (off.y.abs() - height / 2.0).abs() <= 1e-9,
+                        "{what}: the rectangle authored {width} by {height} about {centre:?}, \
+                         and segment {} leaves {v:?}, which is no corner of it",
                         e.segment
                     );
                 }

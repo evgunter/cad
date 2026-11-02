@@ -21,10 +21,7 @@ pub(super) fn band() -> Band {
 }
 
 pub(super) fn line(o: [f64; 3], d: [f64; 3]) -> Curve3<f64> {
-    Curve3::Line {
-        origin: Point3::from_array(o),
-        dir: Vec3::from_array(d).normalize(),
-    }
+    Curve3::line(Point3::from_array(o), Vec3::from_array(d).normalize())
 }
 
 /// A frame `u_ref` square to `axis`.
@@ -70,7 +67,7 @@ pub(super) fn interiors_meet(m: &Meetings<f64>) -> bool {
 /// the reader.
 pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
     match *c {
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             let w = q - origin;
             let u = dir.normalize();
             (w - u * w.dot(u)).norm()
@@ -1344,14 +1341,14 @@ fn a_near_parallel_pair_is_read_over_its_overlap() {
 #[test]
 fn two_segments_on_one_line_two_metres_apart_meet_nowhere() {
     let band = Band::new(1e-6, 1e-5).unwrap();
-    let edge = Curve3::Line {
-        origin: Point3::new(-1.999_356_330_248_317_7, 0.535_723_727_818_681_7, 1.0),
-        dir: Vec3::new(0.965_926_090_343_448_7, -0.258_818_059_636_146_96, 0.0),
-    };
-    let boundary = Curve3::Line {
-        origin: Point3::new(1.999_999_999_999_999_8, -0.535_898_384_862_245_2, 1.0),
-        dir: Vec3::new(-0.965_925_826_289_068_3, 0.258_819_045_102_520_7, 0.0),
-    };
+    let edge = Curve3::line(
+        Point3::new(-1.999_356_330_248_317_7, 0.535_723_727_818_681_7, 1.0),
+        Vec3::new(0.965_926_090_343_448_7, -0.258_818_059_636_146_96, 0.0),
+    );
+    let boundary = Curve3::line(
+        Point3::new(1.999_999_999_999_999_8, -0.535_898_384_862_245_2, 1.0),
+        Vec3::new(-0.965_925_826_289_068_3, 0.258_819_045_102_520_7, 0.0),
+    );
     let a = Span::new(&edge, (0.0, 2.069_885_419_015_256_5));
     let b = Span::new(&boundary, (0.0, 0.000_666_381_398_214_661_7));
     for (label, x, y) in [("edge first", &a, &b), ("boundary first", &b, &a)] {
@@ -1621,14 +1618,14 @@ fn a_found_meetings_root_is_divided_out_of_the_closed_form() {
         i(-1.047_197_551_196_718_9, -1.047_197_551_196_476),
         i(-6.525_890_938_746_67e-13, 6.539_213_615_042_172e-13),
     );
-    let edge = Curve3::Line {
-        origin: p(i(0.3, 0.3), i(-0.4, -0.4), i(0.0, 0.0)),
-        dir: v(
+    let edge = Curve3::line(
+        p(i(0.3, 0.3), i(-0.4, -0.4), i(0.0, 0.0)),
+        v(
             i(0.0, 0.0),
             i(0.999_999_999_999_999_7, 1.000_000_000_000_000_4),
             i(0.0, 0.0),
         ),
-    };
+    );
     let edge_span = (
         i(0.053_589_838_486_223_26, 0.053_589_838_486_225_98),
         i(0.746_410_161_513_773_7, 0.746_410_161_513_777_4),
@@ -1867,14 +1864,8 @@ fn two_segments_touching_on_far_carriers_are_never_read_apart() {
         0.499_755_838_673_424_7,
         -0.322_242_914_387_750_1,
     );
-    let a = Curve3::Line {
-        origin: Point3::origin() - d * far,
-        dir: d,
-    };
-    let b = Curve3::Line {
-        origin: Point3::origin() + d * far,
-        dir: d,
-    };
+    let a = Curve3::line(Point3::origin() - d * far, d);
+    let b = Curve3::line(Point3::origin() + d * far, d);
     let t1 = 1_049_576.874_015_081_7;
     let s0 = t1 - 2.0 * far;
     assert_eq!(s0, -1_047_575.125_984_918_3, "the touch is exact in f64");
@@ -2149,14 +2140,14 @@ fn a_line_crossing_an_ellipse_past_its_minor_semi_axis_meets_it() {
 fn two_segments_on_one_line_far_apart_read_apart_at_interval() {
     use geom_core::Interval;
     let i = |x: f64| Interval::from_bounds(x - 1e-15, x + 1e-15);
-    let a = Curve3::Line {
-        origin: Point3::new(i(0.0), i(0.0), i(0.0)),
-        dir: Vec3::new(i(1.0), i(0.0), i(0.0)),
-    };
-    let b = Curve3::Line {
-        origin: Point3::new(i(0.0), i(2.0 * ZERO), i(0.0)),
-        dir: Vec3::new(i(1.0), i(ZERO), i(0.0)),
-    };
+    let a = Curve3::line(
+        Point3::new(i(0.0), i(0.0), i(0.0)),
+        Vec3::new(i(1.0), i(0.0), i(0.0)),
+    );
+    let b = Curve3::line(
+        Point3::new(i(0.0), i(2.0 * ZERO), i(0.0)),
+        Vec3::new(i(1.0), i(ZERO), i(0.0)),
+    );
     let got = pose(
         &Span::new(&a, (i(0.0), i(1.0))),
         &Span::new(&b, (i(3.0), i(4.0))),

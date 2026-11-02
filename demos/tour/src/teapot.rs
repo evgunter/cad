@@ -714,6 +714,7 @@ fn spout_loft(
     let (first, _) = sections.next().expect("a loft has a first section");
     let then = sections
         .map(|(profile, station)| LoftSection {
+            id: None,
             profile: profile.into(),
             station,
         })
@@ -724,6 +725,7 @@ fn spout_loft(
             first: first.into(),
             then,
             v_degree: Formula::count(3),
+            first_id: None,
         },
         tol,
     )
@@ -1088,6 +1090,33 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     });
     // What the pot is: its four copies.
     crate::world::set_product(&placed, &copies, tol).doc
+}
+
+/// **The pair wall 3 meets on, as evaluated**: the belly's sphere
+/// carriers in the pot and the NURBS carriers of the placed spout's
+/// walls, each once. The probe in `tests/teapot.rs` reads their section
+/// through the value's door.
+pub fn spout_belly_carriers(
+    ev: &Evaluation<f64>,
+    r: &Recipe,
+    tol: Tol,
+) -> (Vec<Surface<f64>>, Vec<Surface<f64>>) {
+    let carriers = |id, keep: fn(&Surface<f64>) -> bool| {
+        let body = body_at(ev, id, tol);
+        let mut keys = Vec::new();
+        for (_, face) in body.faces() {
+            if !keys.contains(&face.surface) && body.get_surface(face.surface).is_some_and(keep) {
+                keys.push(face.surface);
+            }
+        }
+        keys.iter()
+            .filter_map(|&k| body.get_surface(k).cloned())
+            .collect::<Vec<_>>()
+    };
+    (
+        carriers(r.pot, |s| matches!(s, Surface::Sphere { .. })),
+        carriers(r.spout, |s| matches!(s, Surface::Nurbs(_))),
+    )
 }
 
 /// The body a node evaluated to.

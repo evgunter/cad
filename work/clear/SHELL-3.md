@@ -18,7 +18,7 @@ Ruled B on `[ev]` #1737 (Ev, 2026-09-04). The inner subdivision of
 `separation`, `verify_witness`, `min_separation` and its selection and
 config types, everything that reads only `Body<Interval>`, `bvh` and
 `geom-core` — moves into `topo` behind the `interval` feature;
-`editor-core` keeps the leaf/param-box outer half (`clearance_over`,
+`editor-core` keeps the leaf/param-box outer half (`clearance_over_at_dials`,
 `LeafFold`, `facet_restrict`, the `Doc`/`Selection` resolution) and
 calls down. No behaviour change: the M10-5/M10-6 suites and goldens
 are the differential. Joint with M10 (the file is M10's; M10-7's PR
@@ -36,7 +36,7 @@ from the symbolic-tier designers (`symbolic-tier-and-clearance-engine`,
   certified code compiles in every build. The engine moves into
   `topo::clearance` unconditionally.
 - **`verify_witness` does not move.** It rebuilds the `Doc` at `f64` at
-  the leaf's midpoint. It stays in `editor-core` with `clearance_over`,
+  the leaf's midpoint. It stays in `editor-core` with `clearance_over_at_dials`,
   `LeafFold`, `facet_restrict` and the selection resolution. The `topo`
   walk takes a verifier or returns an unverified candidate: the spec
   picks one, and SHELL-4 needs its answer for a body with no document.

@@ -18,8 +18,7 @@
 //! boundary ([`face_read`]). A cylinder or sphere face lies at exactly
 //! its carrier's radius in the depth that carrier proposes, and a
 //! torus face at its minor radius from its core only on a ring torus
-//! (`r` and `R − r` decided positive, [`geom::require_ring_torus`]'s
-//! halves), since a spindle's points come nearer the core. A cone's
+//! (`r` and `R − r` decided positive, [`geom::is_ring_torus`]), since a spindle's points come nearer the core. A cone's
 //! faces have no one depth about its axis.
 //!
 //! **The bounds.** A face is covered by [`Piece`]s: rings (the points
@@ -204,7 +203,6 @@ pub(super) fn carrier_depth<T: Decide>(
     key: SurfaceKey,
     band: Band,
 ) -> Option<Proposed<T>> {
-    let positive = |d: Result<geom_core::Decided, geom_core::Indeterminate>| matches!(d, Ok(d) if d.sign == Sign::Positive);
     match *rule {
         FaceBoxRule::CylinderSlab {
             origin,
@@ -235,9 +233,7 @@ pub(super) fn carrier_depth<T: Decide>(
             minor_radius,
             ..
         } => {
-            // The tube first: `R − r` alone passes a negative `r`.
-            let ring = positive(geom::torus_tube(minor_radius, band))
-                && positive(geom::ring_torus(major_radius, minor_radius, band));
+            let ring = geom::is_ring_torus(major_radius, minor_radius, band);
             Some(Proposed {
                 depth: Depth::Core {
                     center,

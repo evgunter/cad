@@ -72,10 +72,7 @@ fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 fn generator(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     let (s, c) = ALPHA.sin_cos();
     topo::edge(
-        Curve3::Line {
-            origin: p3(APEX.0, APEX.1, APEX.2),
-            dir: v3(s * u.cos(), s * u.sin(), c),
-        },
+        Curve3::line(p3(APEX.0, APEX.1, APEX.2), v3(s * u.cos(), s * u.sin(), c)),
         t0,
         t1,
         a,
@@ -453,10 +450,7 @@ fn chord(p: [f64; 3], q: [f64; 3], a: u32, b: u32) -> LoopEdge<f64> {
     let d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];
     let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
     topo::edge(
-        Curve3::Line {
-            origin: p3(p[0], p[1], p[2]),
-            dir: v3(d[0] / l, d[1] / l, d[2] / l),
-        },
+        Curve3::line(p3(p[0], p[1], p[2]), v3(d[0] / l, d[1] / l, d[2] / l)),
         0.0,
         l,
         a,
@@ -507,10 +501,10 @@ fn an_edge_off_the_cone_refuses_as_incidence() {
     );
     let mut missing = good;
     missing[1] = topo::edge(
-        Curve3::Line {
-            origin: p3(APEX.0, APEX.1 + 0.3, APEX.2),
-            dir: v3(s * 1.0_f64.cos(), s * 1.0_f64.sin(), c),
-        },
+        Curve3::line(
+            p3(APEX.0, APEX.1 + 0.3, APEX.2),
+            v3(s * 1.0_f64.cos(), s * 1.0_f64.sin(), c),
+        ),
         1.0,
         2.0,
         1,
@@ -738,10 +732,7 @@ fn wall_on<T: geom_core::Real>(
         let d = at(at([0.0; 3], s * cu, e1), s * su, e2);
         let d = at(d, c, k);
         topo::edge(
-            Curve3::Line {
-                origin: p3(a[0], a[1], a[2]),
-                dir: v3(d[0], d[1], d[2]),
-            },
+            Curve3::line(p3(a[0], a[1], a[2]), v3(d[0], d[1], d[2])),
             t0,
             t1,
             i,

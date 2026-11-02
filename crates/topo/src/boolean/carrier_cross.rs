@@ -55,7 +55,7 @@ use geom_core::{Band, Decide, Point3};
 use super::contain::FaceContainment;
 use super::{BooleanDecision, BooleanError, CrossingDecision, Operand};
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
 
@@ -140,10 +140,10 @@ pub(super) fn boundary_crossing<T: Decide>(
 
 /// **The boundary pass over `face`'s boundary** ([`curve_face::boundary`]),
 /// read against `swept`: its answer or refusal, or `None` where the
-/// boundary holds a lone vertex (a pierce ring) or an edge with no
-/// certified curve, which the pass cannot read. Such a face answers
-/// `None` before any decision of the pass is made, so it never
-/// escalates.
+/// boundary holds a lone vertex (a pierce ring), which the pre-pass that
+/// places a crossing cannot read, or an edge with no certified curve,
+/// which the pass cannot. Such a face answers `None` before any decision
+/// of the pass is made, so it never escalates.
 ///
 /// # Errors
 ///
@@ -159,43 +159,100 @@ pub(super) fn read_boundary<T: Decide>(
     swept: &Span<'_, T>,
     band: Band,
 ) -> Result<Option<Result<Boundary<T>, BoundaryRefusal>>, BooleanError> {
-    Ok(boundary_spans(y, face)?.map(|edges| {
-        let edges: Vec<_> = edges
-            .iter()
-            .map(|(start, curve)| (*start, Span::new(curve.carrier(), curve.params())))
-            .collect();
-        curve_face::boundary(swept, &edges, band)
-    }))
+    Ok(face_boundary(y, face)?
+        .filter(|b| b.lone.is_empty())
+        .map(|b| curve_face::boundary(swept, &b.spans(), band)))
 }
 
-/// A boundary edge as the pass reads it: its half-edge's start point and
-/// its certified curve.
-type BoundaryEdge<'a, T> = (Point3<T>, &'a geom_brep::EdgeCurve<T>);
+/// A boundary edge as the pass reads it.
+pub(super) struct BoundaryEdge<'a, T: geom_core::Real> {
+    /// Its half-edge's start vertex, and that vertex's point.
+    pub(super) start: (VertexKey, Point3<T>),
+    /// Its certified curve.
+    pub(super) curve: &'a geom_brep::EdgeCurve<T>,
+    /// The edge's two vertices, its span's start first.
+    pub(super) ends: [VertexKey; 2],
+}
 
-/// `face`'s boundary edges in its walk order, each as its half-edge's
-/// start point and its certified curve; `None` as [`read_boundary`]
-/// says.
-fn boundary_spans<T: Decide>(
+/// `face`'s boundary as the pass reads it: its edges in walk order and
+/// its lone vertices.
+pub(super) struct FaceBoundary<'a, T: geom_core::Real> {
+    pub(super) edges: Vec<BoundaryEdge<'a, T>>,
+    pub(super) lone: Vec<(VertexKey, Point3<T>)>,
+}
+
+impl<T: Decide> FaceBoundary<'_, T> {
+    /// The edges as the pass takes them.
+    fn spans(&self) -> Vec<(Point3<T>, Span<'_, T>)> {
+        self.edges
+            .iter()
+            .map(|e| (e.start.1, Span::new(e.curve.carrier(), e.curve.params())))
+            .collect()
+    }
+
+    /// **Every meeting of `swept` with the boundary** ([`curve_face::read`]).
+    pub(super) fn read(
+        &self,
+        swept: &Span<'_, T>,
+        band: Band,
+    ) -> Result<curve_face::BoundaryReading<T>, BoundaryRefusal> {
+        let lone: Vec<_> = self.lone.iter().map(|&(_, p)| p).collect();
+        curve_face::read(swept, &self.spans(), &lone, band)
+    }
+}
+
+/// `face`'s boundary in its walk order; `None` where an edge has no
+/// certified curve.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where `face` does not
+/// resolve.
+///
+/// # Panics
+///
+/// As [`boundary_crossing`]'s.
+pub(super) fn face_boundary<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
-) -> Result<Option<Vec<BoundaryEdge<'_, T>>>, BooleanError> {
+) -> Result<Option<FaceBoundary<'_, T>>, BooleanError> {
     let face_data = y
         .get_face(face)
         .ok_or(BooleanError::ClassificationInvariant {
             what: "boundary pass: face lost",
         })?;
-    let mut edges = Vec::new();
+    let mut boundary = FaceBoundary {
+        edges: Vec::new(),
+        lone: Vec::new(),
+    };
     for member in y.face_boundary_linked(face, face_data) {
-        let BoundaryMember::Edge { he, half, ek, edge } = member else {
-            return Ok(None);
-        };
-        let start = y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
-        let CurveGeom::Certified(curve) = y.edge_curve_linked(ek, edge) else {
-            return Ok(None);
-        };
-        edges.push((start, curve));
+        match member {
+            BoundaryMember::Isolated { vertex, point } => boundary.lone.push((vertex, point)),
+            BoundaryMember::Edge { he, half, ek, edge } => {
+                let start = y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
+                let CurveGeom::Certified(curve) = y.edge_curve_linked(ek, edge) else {
+                    return Ok(None);
+                };
+                let end = |h, field| {
+                    crate::live::linked(
+                        &y.half_edges,
+                        h,
+                        EntityId::HalfEdge,
+                        EntityId::Edge(ek),
+                        field,
+                    )
+                    .start
+                };
+                boundary.edges.push(BoundaryEdge {
+                    start: (half.start, start),
+                    curve,
+                    // A span runs forward from its `he_plus`'s start.
+                    ends: [end(edge.he_plus, "he_plus"), end(edge.he_minus, "he_minus")],
+                });
+            }
+        }
     }
-    Ok(Some(edges))
+    Ok(Some(boundary))
 }
 
 /// A boundary pass's refusal: an escalation is this module's, a meeting
@@ -221,12 +278,20 @@ pub(super) fn boundary_refusal(
             })
         }
         BoundaryRefusal::Unread(_) => Ok(()),
-        BoundaryRefusal::Fault(MeetFault::Contradiction { readings }) => {
-            Err(BooleanError::ClassificationInvariant { what: readings })
+        BoundaryRefusal::Fault(fault) => Err(boundary_fault(fault)),
+    }
+}
+
+/// A boundary pass's [`BoundaryRefusal::Fault`]: a kernel fault, the
+/// readings that contradict named.
+pub(super) fn boundary_fault(fault: MeetFault) -> BooleanError {
+    match fault {
+        MeetFault::Contradiction { readings } => {
+            BooleanError::ClassificationInvariant { what: readings }
         }
-        BoundaryRefusal::Fault(_) => Err(BooleanError::ClassificationInvariant {
+        _ => BooleanError::ClassificationInvariant {
             what: "boundary pass: a carrier the meeting table misread",
-        }),
+        },
     }
 }
 
@@ -549,7 +614,7 @@ mod crossing_rows {
             .find_map(|(k, e)| {
                 let c = body.get_curve_geom(e.curve)?.certified()?;
                 match *c.carrier() {
-                    Curve3::Line { origin, dir }
+                    Curve3::Line(geom::Line { origin, dir })
                         if dir.z.abs() > 0.9
                             && Point3::new(origin.x, origin.y, 0.0).distance(foot) < 1e-12 =>
                     {
@@ -566,17 +631,14 @@ mod crossing_rows {
             .unwrap()
             .carrier()
         {
-            Curve3::Line { dir, .. } => dir,
+            Curve3::Line(geom::Line { dir, .. }) => dir,
             _ => panic!("a ruling is a line"),
         };
         let mid = body
             .split_edge(ruling, (0.5 - origin.z) / dir.z, tol)
             .unwrap()
             .vertex;
-        let along = Curve3::Line {
-            origin: foot,
-            dir: Vec3::unit_z(),
-        };
+        let along = Curve3::line(foot, Vec3::unit_z());
         match boundary_crossing(
             &body,
             (Operand::B, EdgeKey::default(), true),

@@ -28,7 +28,9 @@ write `d.u64(24)`:**
 
 - `ValuePayload::Datum(DatumValue::AxisInPlane { .. })`, whose own
   comment introduces it as *"Tag 24, appended"*;
-- `ValuePayload::MeasureUnavailable { .. }`.
+- `ValuePayload::MeasureUnavailable { .. }` (retired in PR 6292 with
+  the `min_clearance` measure, so tag 24 now has one spelling; the
+  missing keeper this row names is unchanged).
 
 And the second carries a comment asserting exactly what is false:
 

@@ -145,7 +145,7 @@ impl<T: Decide> ConicBend<T> {
                 }
             }
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => BendBounds::Unbounded,
-            geom::Curve3::Line { .. } => {
+            geom::Curve3::Line(_) => {
                 unreachable!("`ConicBend::of` reads a curved carrier, not a line")
             }
         };
@@ -201,7 +201,7 @@ pub fn conic_bend_side<T: Decide>(
     band: Band,
 ) -> Result<EntersMaterial, Indeterminate> {
     let n = reference_normal.vec();
-    let residue = |arm: T| Margin::levered(dir.normalize().dot(n), arm).value();
+    let residue = |arm: T| crate::enters::rise(dir, n, arm).value();
     let normal_part = bend.curvature.dot(n) / bend.curvature.norm();
     // The bend's lower bound, signed as `N̂·n̂` is. A spiric section has
     // no bend this reading certifies: it lifts nothing, and the margin

@@ -800,6 +800,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::CancelFreeMove
         | SessionOp::AddMate { .. }
+        | SessionOp::SetBundle { .. }
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::SketchOnFace { .. }
@@ -810,7 +811,8 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
-        | SessionOp::AddTransform { .. }
+        | SessionOp::AddClearance { .. }
+        | SessionOp::Place { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }
@@ -2187,11 +2189,25 @@ pub fn tool_notice(
         ToolNotice::Mate(_)
         | ToolNotice::Blend(_)
         | ToolNotice::Mirror(_)
+        | ToolNotice::Clearance(_)
         | ToolNotice::Seated { .. } => Subject::Document,
     };
     let retold = match notice {
-        ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
+        ToolNotice::Mate(
+            MateToolEvent::PickLost { .. }
+            | MateToolEvent::Reloaded { .. }
+            | MateToolEvent::PlacementGone { .. }
+            | MateToolEvent::NotPlaceable { .. }
+            | MateToolEvent::SeenThroughSeveral { .. }
+            | MateToolEvent::HalfUnchosen { .. }
+            | MateToolEvent::PatternFamily { .. },
+        ) => Retold::Never,
         ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
+        ToolNotice::Clearance(crate::combine::ClearanceEvent::FaceLost { .. }) => Retold::Never,
+        // A declined pick: the same pick says it again.
+        ToolNotice::Clearance(crate::combine::ClearanceEvent::SeveralCopies { .. }) => {
+            Retold::Again
+        }
         ToolNotice::Seated {
             event: SeatEvent::PickLost { .. },
             ..
@@ -2991,15 +3007,16 @@ pub fn prefs_badge(unusable: Option<&Unusable>) -> Option<Badge> {
 ///
 /// **Two of its names are [`Outstanding`]'s, because they are the same
 /// facts.** `Progress::Evaluating` holds exactly when
-/// `Outstanding::Evaluating` does, and `Progress::Canceled` exactly
-/// when `Outstanding::Canceled` does; `Current` is the one session
+/// `Outstanding::Evaluating` does, `Progress::Canceled` exactly when
+/// `Outstanding::Canceled` does, and `Progress::Exhausted` exactly when
+/// `Outstanding::Exhausted` does; `Current` is the one session
 /// state the index seam splits, into [`Self::Indexing`] and no state
 /// at all. Where two vocabularies share a spelling for two meanings
 /// the spelling is the defect, and [`RankedVerdict`] exists to remove
 /// one; here a second spelling would be the defect, telling a reader
 /// the states differ where they do not. Nor is this [`Outstanding`]
 /// beside an [`IndexSeam`]: an evaluation outranks the index build
-/// behind it, so the six pairs are five states, and the one pair the
+/// behind it, so the eight pairs are seven states, and the one pair the
 /// chrome does not tell apart has no variant to be drawn from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Progress {
@@ -3025,6 +3042,16 @@ pub enum Progress {
         /// Whether an index build is on its way behind the cancel.
         index: IndexSeam,
     },
+    /// [`Self::Canceled`]'s state, reached because the run ran out of
+    /// its member budget rather than by a cancel
+    /// ([`Outstanding::Exhausted`]): the recourse is a smaller count,
+    /// not a re-evaluation.
+    Exhausted {
+        /// Whether an index build is on its way behind the run.
+        index: IndexSeam,
+        /// Where the run ran out.
+        out: crate::session::OutOfBudget,
+    },
     /// The document is evaluated and its index is being built: the
     /// picture is the last one that finished, and picks are refused
     /// until this lands ([`crate::pickcache::unindexed`]).
@@ -3044,6 +3071,7 @@ pub fn progress(outstanding: Outstanding, index: IndexSeam) -> Option<Progress> 
     match (outstanding, index) {
         (Outstanding::Evaluating, _) => Some(Progress::Evaluating),
         (Outstanding::Canceled, index) => Some(Progress::Canceled { index }),
+        (Outstanding::Exhausted(out), index) => Some(Progress::Exhausted { index, out }),
         (Outstanding::Current, IndexSeam::Building) => Some(Progress::Indexing),
         (Outstanding::Current, IndexSeam::Idle) => None,
     }

@@ -288,7 +288,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The nested refusals: `inner_variant` names the arm and the
         // fields inside it stay on that type's own door.
         EditError::ProfileProgramRefused { node, refusal: _ }
-        | EditError::StepIdsRefused { node, fault: _ } => EditPayload {
+        | EditError::StepIdsRefused { node, fault: _ }
+        | EditError::SectionIdsRefused { node, fault: _ } => EditPayload {
             node: Some(node.id()),
             ..none
         },

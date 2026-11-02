@@ -2,11 +2,13 @@
 id: certified-line-carrier-is-read-in-five-places
 kind: issue
 title: "is this edge a certified Line" is spelled separately in five splitting/join files; one helper
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: E
 branch: onehome/geom-readings
+closed: 2026-11-02
+pr: 6328
 ---
 
 
@@ -48,3 +50,7 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P4 → P1: one question answered inline in five files: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Closed (ONEHOME, 2026-11-02, PR 6328)
+
+`geom::Line<T> { origin, dir }` with `param`/`foot` is the one line value, and `Curve3::Line(Line<T>)` holds it, so `Curve3::as_line()` returns the held value and `is_curved()` is `as_line().is_none()`. About 45 straightness sites and the axis-foot copies are repointed (including editor-core's `mate/corner` and `emit_topo`, and `AxisLine::foot_of`). The copies disagreed on non-unit `dir`; the dividing form is kept and pinned. STYLE review FIX-THEN-MERGE: the first version's `geom::Line` repeated `Curve3::Line`'s fields, fixed by making it the variant's payload. Delta FIX-THEN-MERGE: the slow-set digests were re-blessed after a spelling-only check. Follow-ups: `local-point-direction-line-types-restate-geom-line`, `a-points-radial-offset-from-an-axis-is-spelled-inline`, `a-curves-closed-form-foot-is-re-spelled-outside-geom`, `carrier-speed-is-re-spelled-with-a-default-arm-in-import`, `a-points-foot-on-a-plane-is-spelled-inline`, and the parked `analytic-surfaces-spell-their-frame-field-by-field`.

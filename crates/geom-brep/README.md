@@ -484,8 +484,10 @@ or in a boundary contact's certified region), or refined to the named
 floor, where the op refuses
 `SsiError::ExhaustivenessInconclusive`. Where the pose counts the
 section's components (C5), exhaustiveness closes by that count: the
-march, seeded from the counted cut ends and witnesses, returns
-certified branches matched one to one to them, else a desync; the cell
+march, seeded at the counted witnesses (an open arc's lies between its
+two cut ends), returns certified branches matched one to one to the
+count, each counted cut end the end of exactly one branch and each
+witness on exactly one branch, else a desync; the cell
 sweep runs where no pose counts. For a pair with a ruled side (a
 cylinder or cone against a plane, cylinder, cone or sphere) the count
 is the ruling sweep's, and a `debug_assert` re-derives it: each cell of
@@ -821,7 +823,15 @@ node where it is indefinite, its arcs ending at it), and a tangency
 along an interior curve, or anything in band, escalates. A side of the
 rectangle collapsed to one point not decided clear of the partner
 refuses at the door, before the sweep, naming the side. The
-interior-loop guard's loop-free stage is that sweep's verdict. A pair
+interior-loop guard's loop-free stage is that sweep's verdict outside
+the touches it decides: about a touch decided Zero, `φ`'s level sets at
+nearby values within the band are small closed curves, so the sweep's
+same-side join exempts the touch's cells, and the touch is the section
+there. On a wall with creases (knots of multiplicity at least the
+degree) the one sweep reads each piece of the rectangle between them,
+each crease line along itself and each crossing of two as a point: an
+extremum of `φ` on a crease is a critical point of `φ` along that line,
+or a crossing. A pair
 of two spline sides (NURBS, or `Approx` read as its fit) is classified
 the same way over both rectangles; until that is built, its tangency is
 its certificate's (C2). Tangential outcomes (`TangentLine`, `TangentPoint`) are
@@ -874,7 +884,10 @@ axis-aligned plane×torus (its axis-parallel pose off the axis the
 rulings and its bisector ellipses closed form, every other crossing pose
 marched over its ball cut by the region), cylinder×sphere,
 sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
-NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3). The offset door reads
+NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3);
+NURBS (and `Approx` as its fit) against a cylinder, sphere or torus is
+classified, its tangency and coincidence decided and its loop-free
+verdict read, and its whole reading over the knot rectangle is unbuilt. The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle. The boolean reads
 plane × NURBS and NURBS × NURBS (and `Approx` as its fit) through the
@@ -891,24 +904,45 @@ face. A point of the rectangle's side that lies in the face lies on one
 of the face's pcurves (C4), which is an edge of the face. So the
 interior-loop guard clears such a component as it clears an unbounded
 one.
-A plane × spline pair is classified before `all()` is read, in the
-order above: the hull decides it apart or coincident, or escalates, at
-every scalar; a collapsed side not decided clear refuses at the door;
-the boundary pass, run once and handed on to `all()`, refuses a graze
-by name and finds where the section ends; and the regularity sweep's
-loop-free verdict, every component open with its ends on those sides
-(`Components::Reaching`), is the value's, with no `all()`. The guard
-clears it where each of those sides bounds the face, and otherwise
-reads it whole. Where the sweep declines, the value is `all()`'s.
+A spline × implicit pair is classified before `all()` is read, in the
+order above: the hull decides it apart or coincident, or escalates; a
+collapsed side not decided clear refuses at the door; the boundary
+pass refuses a graze by name and finds where the section ends; and the
+regularity sweep's loop-free verdict, every component open with its
+ends on those sides (`Components::Reaching`), is the value's, with no
+`all()`. The guard clears it where each of those sides bounds the face,
+and otherwise reads it whole. Against a plane the hull is the net's
+control heights, read at every scalar, the pass is run once and handed
+on to `all()`, and where the sweep declines the value is `all()`'s.
+Against a cylinder, sphere or torus `φ` is the partner's canonical form
+along the wall: the hull is the Bernstein hull of the tensor composite
+`f∘S` in certification arithmetic, read through the march door, its
+apart on a floor in metres and its coincidence on a ceiling, each
+through the form's divisor, the torus read only as a ring torus
+(`R > r`), where the divisor's lower bound is positive; the pass reads
+`f∘C` along each side as the curve × face table's ring composite and
+`∇f(S)·S_d` across it; and where the sweep declines, the pose refuses as
+the general rung's, its whole reading unbuilt. The sweep decides a cell
+it cannot read at the floor as a critical point: each cluster of such
+cells is isolated as `∇φ`'s one zero by the Krawczyk operator on the
+wall's jet, its Hessian's determinant read for a touch or a node, and
+its value on a ceiling in metres for Zero; a cluster not decided so
+declines the sweep. A section whose decided points are touches alone,
+and whose pass found no end, is those touches, each a point component
+with its witness and a tangency decided Zero, the reading the guard's
+touch arm takes; a node, or a touch beside components with ends,
+pinches them (`spline_critical_value`), since the march that would list
+them does not start at a decided tangency.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
 closed form counts them, its components (`Components::Counted`); it
 costs no march and needs no lane. Carrying marches and fits the loops
 at `f64`, and lists the components: a counted section's, the count the
-proof and the march matched to it one to one (each boundary crossing
+proof and the march matched to it one to one (each counted cut end
 the end of exactly one branch, each listed witness on exactly one
-branch, each claimed winding held, else a desync), and
+branch, a loop's on a closed one, each claimed winding held, else a
+desync), and
 otherwise the march's own closed branches (`Components::Marched`), each
 winding about an operand as the fitted loop's turns about the
 operand's axis and core circle, read over the loop's uniqueness tube
@@ -1142,8 +1176,15 @@ so is a bisector bound in the boolean's sector passes; the split's
 subdivision bisectors (`wide_entries`, `split_bisector_side`) read
 their side of the plane outside it. A conic edge against a plane
 descends through `conic_bend_side`, its lift certified from the
-carrier's curvature bounds less the first-order residue. An in-band
-second-order tie escalates. Readings of different equations are never
+carrier's curvature bounds less the first-order residue. Any other
+tied bound descends by the parting of its bend past the face's normal
+section along it (a bisector bends as its own sector's face does), on
+the first order's own ladder: decided, it leaves the face; within the
+zero band, it rides it; in the gap between the zero band and the
+escalation band, or where no bend is certified (a spline face, a
+spiric or spline edge against a curved face), it falls back to its
+first-order tie until a witness reads it; a poisoned reading refuses.
+Readings of different equations are never
 summed: the witness's offset along the shared normal and across the
 locus are perpendicular, and a residual is a defect of its equation, not
 a distance to the locus (as for `Intersection`). Two terms are summed
@@ -1350,10 +1391,12 @@ by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
 (`props/curved.rs`, `sphere_face`). A chart
-singularity in a face's closure is a vertex of it, read off the face's
-region by one reading that STEP import and tier 3 both take
-(`chart_singularity.rs`, `locate`); on a sphere loop of circle arcs that
-reading takes a pole's side from this lane's own stereographic turning
+singularity in a face's closure is a vertex of it. STEP import reads
+where it lies off the face's region (`chart_singularity.rs`, `locate`);
+tier 3 places it on the boundary by the same reading
+(`place_on_boundary`) and reads its side through the face's
+point-in-face door. On a sphere loop of circle arcs `locate`
+takes a pole's side from this lane's own stereographic turning
 (`sphere_pole_left`, beside `pole_side`), so a sphere face lies on
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a

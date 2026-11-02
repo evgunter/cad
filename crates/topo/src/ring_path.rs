@@ -807,7 +807,9 @@ impl<T: Real> LoopArc<T> {
                 span,
                 own: None,
             })),
-            geom::Curve3::Line { origin, dir } => Some(Self::Line { origin, dir, span }),
+            geom::Curve3::Line(geom::Line { origin, dir }) => {
+                Some(Self::Line { origin, dir, span })
+            }
             geom::Curve3::Nurbs(_) | geom::Curve3::Spiric { .. } => None,
         }
     }
@@ -1587,10 +1589,7 @@ fn spline_crossings<T: Decide>(
             p.radius * (p.span.1 - p.span.0),
         ),
         Piece::Segment { from, to, .. } | Piece::Ruling { from, to } => (
-            geom::Curve3::Line {
-                origin: from,
-                dir: to - from,
-            },
+            geom::Curve3::line(from, to - from),
             (T::zero(), T::one()),
             (to - from).norm(),
         ),

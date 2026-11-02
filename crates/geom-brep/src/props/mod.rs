@@ -774,17 +774,7 @@ mod tests {
     fn line_edge(a: Point3<f64>, b: Point3<f64>) -> LoopEdge<f64> {
         let d = b - a;
         let len = d.norm();
-        LoopEdge::hand_built(
-            Curve3::Line {
-                origin: a,
-                dir: d * (1.0 / len),
-            },
-            0.0,
-            len,
-            true,
-            0,
-            0,
-        )
+        LoopEdge::hand_built(Curve3::line(a, d * (1.0 / len)), 0.0, len, true, 0, 0)
     }
 
     /// Assemble the unit cube from six planar faces (outward CCW

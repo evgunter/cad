@@ -448,10 +448,11 @@ fn verb_spelling(verb: Verb) -> Spelling {
         // classes is the same distinction and not a collision.
         Verb::FarEndTo => Bound(&["PathAngle.to"]),
         Verb::CloseTo => Bound(&["PathOpen.to"]),
-        // The two complete-loop forms are free functions, not lattice
+        // The complete-loop forms are free functions, not lattice
         // methods, on both surfaces.
         Verb::Circle => Bound(&["circle"]),
         Verb::CircleSplit => Bound(&["circle_split"]),
+        Verb::Rectangle => Bound(&["rectangle"]),
     }
 }
 
@@ -648,6 +649,7 @@ fn options_doors() -> Vec<Roster> {
         symbols: _,
         pin: _,
         computing_twist: _,
+        member_budget: _,
     } = &eval;
 
     vec![
@@ -786,6 +788,7 @@ fn options_doors() -> Vec<Roster> {
                                  the computing frame no part of meaning compares both",
                     },
                 ),
+                ("member_budget", Bound(&["member_budget"])),
             ],
         ),
     ]
