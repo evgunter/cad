@@ -76,7 +76,7 @@ fn wall() -> (Body<f64>, FaceKey, VertexKey) {
                 .get_curve_geom(body.get_edge(e).unwrap().curve)
                 .and_then(topo::CurveGeom::certified)
                 .unwrap();
-            matches!(c.carrier(), geom::Curve3::Circle { .. }) && c.params() == (0.2, 1.4)
+            matches!(c.carrier(), geom::Curve3::Circle(..)) && c.params() == (0.2, 1.4)
         })
         .unwrap();
     let split = body.split_edge(rim, UM, tol()).unwrap();
@@ -328,12 +328,7 @@ fn a_strut_that_bows_off_the_chart_between_its_ends_leaves_the_face_unminted() {
     let radius = from_c.norm();
     let axis = from_c.cross(to_c).normalize();
     let theta = 2.0 * (half / inset).atan();
-    let carrier = geom::Curve3::Circle {
-        center: centre,
-        axis,
-        radius,
-        u_ref: from_c / radius,
-    };
+    let carrier = geom::Curve3::circle(centre, axis, radius, from_c / radius);
     let end = carrier.eval(theta);
     let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, theta).unwrap();
     body.mev(MevSite::Fan { he1: he, he2: he }, end, spec, tol())
@@ -460,12 +455,12 @@ fn a_mef_closing_a_rim_circle_at_a_lone_vertex_mints_both_pieces() {
     let (mut body, face, m) = wall();
     let (ring, _) = lone_ring(&mut body, face, m);
     let frame = CylFrame::canonical(1.0);
-    let carrier = geom::Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.5),
-        axis: frame.axis,
-        radius: 1.0,
-        u_ref: frame.radial(UM),
-    };
+    let carrier = geom::Curve3::circle(
+        Point3::new(0.0, 0.0, 0.5),
+        frame.axis,
+        1.0,
+        frame.radial(UM),
+    );
     let spec =
         geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, core::f64::consts::TAU).unwrap();
     let made = body
@@ -606,7 +601,7 @@ fn a_mekr_across_the_principal_azimuth_cut_mints_the_passs_rows() {
                 .get_curve_geom(body.get_edge(e).unwrap().curve)
                 .and_then(topo::CurveGeom::certified)
                 .unwrap();
-            matches!(c.carrier(), geom::Curve3::Circle { .. }) && c.params() == (4.2, 5.2)
+            matches!(c.carrier(), geom::Curve3::Circle(..)) && c.params() == (4.2, 5.2)
         })
         .unwrap();
     let ma = body.split_edge(rim, ua, tol()).unwrap();
@@ -615,12 +610,12 @@ fn a_mekr_across_the_principal_azimuth_cut_mints_the_passs_rows() {
     let s = body
         .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(ua, 0.5), tol())
         .unwrap();
-    let circle = geom::Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.5),
-        axis: frame.axis,
-        radius: 1.0,
-        u_ref: frame.radial(ua),
-    };
+    let circle = geom::Curve3::circle(
+        Point3::new(0.0, 0.0, 0.5),
+        frame.axis,
+        1.0,
+        frame.radial(ua),
+    );
     let q = circle.eval(ub - ua);
     let arc = body
         .mev(
@@ -722,12 +717,15 @@ fn kef_merging_a_complete_face_into_an_unminted_one_leaves_it_half_minted() {
                 .and_then(topo::CurveGeom::certified)
                 .unwrap();
             let (t0, t1) = c.params();
-            let geom::Curve3::Circle {
-                center,
-                axis,
-                u_ref,
+            let geom::Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 ..
-            } = *c.carrier()
+            }) = *c.carrier()
             else {
                 return None;
             };
@@ -829,12 +827,12 @@ fn null_strut_at_tip(
 /// `v = 0.5`, so it describes an edge whose two ends are one point.
 fn circle_through_tip() -> geom_brep::EdgeCurveSpec<f64> {
     let frame = CylFrame::canonical(1.0);
-    let carrier = geom::Curve3::Circle {
-        center: frame.origin + frame.axis * 0.5,
-        axis: frame.axis,
-        radius: frame.radius,
-        u_ref: frame.u_ref,
-    };
+    let carrier = geom::Curve3::circle(
+        frame.origin + frame.axis * 0.5,
+        frame.axis,
+        frame.radius,
+        frame.u_ref,
+    );
     geom_brep::EdgeCurveSpec::arc_of_circle(carrier, UM, UM + core::f64::consts::TAU).unwrap()
 }
 
@@ -908,7 +906,7 @@ fn rim_piece(body: &Body<f64>) -> topo::EdgeKey {
                 .get_curve_geom(body.get_edge(e).unwrap().curve)
                 .and_then(topo::CurveGeom::certified)
                 .unwrap();
-            matches!(c.carrier(), geom::Curve3::Circle { .. }) && c.params() == (0.2, UM)
+            matches!(c.carrier(), geom::Curve3::Circle(..)) && c.params() == (0.2, UM)
         })
         .unwrap()
 }
@@ -927,12 +925,7 @@ fn a_re_parameterized_certified_edge_re_mints_its_faces() {
     let (mut body, face, m) = wall();
     let rim = rim_piece(&body);
     let frame = CylFrame::canonical(1.0);
-    let carrier = geom::Curve3::Circle {
-        center: frame.origin,
-        axis: frame.axis,
-        radius: frame.radius,
-        u_ref: frame.radial(0.1),
-    };
+    let carrier = geom::Curve3::circle(frame.origin, frame.axis, frame.radius, frame.radial(0.1));
     let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.1, UM - 0.1).unwrap();
     body.set_edge_curve(rim, spec, tol()).unwrap();
     let is_the_pass_s = |body: &Body<f64>, door: &str| {
@@ -964,11 +957,15 @@ fn a_carrier_that_keeps_its_ends_but_not_its_trace_re_mints_the_face() {
     let radius = 0.25 / 0.25_f64.sin();
     let center = p0.lerp(p1, 0.5) + frame.radial(UM) * (radius * 0.25_f64.cos());
     let u_ref = (p0 - center) / radius;
-    let arc = |axis: geom_core::Vec3<f64>| geom::Curve3::Circle {
-        center,
-        axis,
-        radius,
-        u_ref,
+    let arc = |axis: geom_core::Vec3<f64>| {
+        geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
+            radius,
+        })
     };
     let axis = frame.axis.cross(frame.radial(UM));
     let carrier = if arc(axis).eval(0.5).distance(p1) < 1e-12 {
@@ -1000,12 +997,12 @@ fn a_carrier_that_keeps_its_ends_but_not_its_trace_re_mints_the_face() {
 /// `UM`: a closed carrier on the chart, for a null edge at `(UM, v)`.
 fn circle_at(v: f64) -> geom_brep::EdgeCurveSpec<f64> {
     let frame = CylFrame::canonical(1.0);
-    let carrier = geom::Curve3::Circle {
-        center: frame.origin + frame.axis * v,
-        axis: frame.axis,
-        radius: frame.radius,
-        u_ref: frame.u_ref,
-    };
+    let carrier = geom::Curve3::circle(
+        frame.origin + frame.axis * v,
+        frame.axis,
+        frame.radius,
+        frame.u_ref,
+    );
     geom_brep::EdgeCurveSpec::arc_of_circle(carrier, UM, UM + core::f64::consts::TAU).unwrap()
 }
 
@@ -1143,12 +1140,12 @@ fn a_description_that_leaves_no_null_edge_completes_a_wall_with_another_gap() {
     );
 
     let frame = CylFrame::canonical(1.0);
-    let carrier = geom::Curve3::Circle {
-        center: frame.origin + frame.axis * p.z,
-        axis: frame.axis,
-        radius: frame.radius,
-        u_ref: frame.u_ref,
-    };
+    let carrier = geom::Curve3::circle(
+        frame.origin + frame.axis * p.z,
+        frame.axis,
+        frame.radius,
+        frame.u_ref,
+    );
     let azimuth = p.y.atan2(p.x);
     let round =
         geom_brep::EdgeCurveSpec::arc_of_circle(carrier, azimuth, azimuth + core::f64::consts::TAU)
@@ -1493,7 +1490,7 @@ fn chord_across_the_branch_jump() -> (Body<f64>, FaceKey, topo::construction::Me
                 .get_curve_geom(body.get_edge(e).unwrap().curve)
                 .and_then(topo::CurveGeom::certified)
                 .unwrap();
-            matches!(c.carrier(), geom::Curve3::Circle { .. }).then_some((e, c.params().0 != 0.0))
+            matches!(c.carrier(), geom::Curve3::Circle(..)).then_some((e, c.params().0 != 0.0))
         })
         .collect();
     rims.sort_by_key(|&(_, bottom)| !bottom);

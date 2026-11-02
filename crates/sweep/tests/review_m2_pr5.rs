@@ -846,7 +846,11 @@ fn survives_rim_witness_is_bitwise_mid_parameter_antipode() {
         assert_eq!(witness.z.to_bits(), mid.z.to_bits());
         // And it is the start point's antipode, not the start point.
         let start = c.carrier().eval(t0);
-        let Curve3::Circle { center, .. } = c.carrier().clone() else {
+        let Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, .. },
+            ..
+        }) = c.carrier().clone()
+        else {
             panic!("rim carrier")
         };
         assert!(
@@ -1137,12 +1141,12 @@ fn survives_near_full_period_rim_span_escalates() {
                 angle: span,
             },
         )),
-        carrier: Curve3::Circle {
+        carrier: Curve3::circle(
             center,
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        },
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         param_start: 0.0,
         param_end: span,
     };

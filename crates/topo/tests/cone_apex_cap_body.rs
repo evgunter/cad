@@ -38,12 +38,12 @@ fn cone_rim_row() -> Body<f64> {
     let h = SL * SIN_A;
     let a = Point3::new(r, 0.0, h);
     let b = Point3::new(-r, 0.0, h);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, h),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, h),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(

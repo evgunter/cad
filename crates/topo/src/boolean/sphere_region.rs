@@ -318,7 +318,7 @@ impl<T: Decide> SphereFaceRegion<T> {
     pub(crate) fn aim(&self) -> Option<Point3<T>> {
         let half = T::from_f64(0.5);
         let arc = self.edges.first()?;
-        let geom::Curve3::Circle { radius, .. } = arc.carrier else {
+        let geom::Curve3::Circle(geom::Circle { radius, .. }) = arc.carrier else {
             unreachable!("sphere_face_region admits circles only")
         };
         let t = arc.t0 + (arc.t1 - arc.t0) * T::from_f64(AIM_FRACTION);
@@ -347,7 +347,7 @@ impl<T: Decide> SphereFaceRegion<T> {
             if j == k {
                 continue;
             }
-            let (&geom::Curve3::Circle { radius, .. }, Some(circle)) =
+            let (&geom::Curve3::Circle(geom::Circle { radius, .. }), Some(circle)) =
                 (&arc.carrier, arc.carrier.clearance(m))
             else {
                 unreachable!("sphere_face_region admits circles only")
@@ -496,12 +496,15 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         ray: &Leg<T, Round<T>>,
         band: Band,
     ) -> Result<Vec<Landing<T>>, Fault> {
-        let geom::Curve3::Circle {
-            center,
-            axis,
+        let geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } = arc.carrier
+        }) = arc.carrier
         else {
             unreachable!("sphere_face_region admits circles only")
         };
@@ -596,12 +599,12 @@ mod tests {
                 edge: EdgeKey::from(KeyData::from_ffi(1)),
                 r#loop: LoopKey::default(),
                 cycle: 0,
-                carrier: geom::Curve3::Circle {
-                    center: Point3::new(0.0, 0.0, 0.5),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    radius: 0.75f64.sqrt(),
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
-                },
+                carrier: geom::Curve3::circle(
+                    Point3::new(0.0, 0.0, 0.5),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    0.75f64.sqrt(),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
                 t0: 0.0,
                 t1: core::f64::consts::TAU,
                 turn: crate::boolean::region::fixture_turn(0.0, core::f64::consts::TAU),
@@ -666,12 +669,12 @@ mod tests {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
             cycle: 0,
-            carrier: geom::Curve3::Circle {
-                center: Point3::origin(),
-                axis: Vec3::new(-az.sin(), az.cos(), 0.0),
-                radius: 1.0,
-                u_ref: Vec3::new(0.0, 0.0, 1.0),
-            },
+            carrier: geom::Curve3::circle(
+                Point3::origin(),
+                Vec3::new(-az.sin(), az.cos(), 0.0),
+                1.0,
+                Vec3::new(0.0, 0.0, 1.0),
+            ),
             t0: 0.0,
             t1: core::f64::consts::PI,
             turn: crate::boolean::region::fixture_turn(0.0, core::f64::consts::PI),
@@ -705,12 +708,12 @@ mod tests {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
             cycle: 0,
-            carrier: geom::Curve3::Circle {
-                center: Point3::origin() + pole * theta.cos(),
-                axis: pole,
-                radius: theta.sin(),
-                u_ref: u / u.norm(),
-            },
+            carrier: geom::Curve3::circle(
+                Point3::origin() + pole * theta.cos(),
+                pole,
+                theta.sin(),
+                u / u.norm(),
+            ),
             t0,
             t1,
             turn: crate::boolean::region::fixture_turn(t0, t1),
@@ -932,12 +935,8 @@ mod tests {
         let (z1, z2) = (0.5, 0.5 - 3.0 * tol.eps() * (pi / 3.0).sin());
         let rim = |z: f64| {
             let r = (1.0f64 - z * z).sqrt();
-            let circle = geom::Curve3::Circle {
-                center: Point3::new(0.0, 0.0, z),
-                axis: Vec3::unit_z(),
-                radius: r,
-                u_ref: Vec3::unit_x(),
-            };
+            let circle =
+                geom::Curve3::circle(Point3::new(0.0, 0.0, z), Vec3::unit_z(), r, Vec3::unit_x());
             (r, circle)
         };
         let mut body = Body::<f64>::new();
@@ -1106,18 +1105,20 @@ mod tests {
             turn: turn(t0, t1),
             forward,
         };
-        let meridian = |az: f64| geom::Curve3::Circle {
-            center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
-            axis: v(-az.sin(), az.cos(), 0.0),
-            radius: lift(1.0),
-            u_ref: v(0.0, 0.0, 1.0),
+        let meridian = |az: f64| {
+            geom::Curve3::circle(
+                Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+                v(-az.sin(), az.cos(), 0.0),
+                lift(1.0),
+                v(0.0, 0.0, 1.0),
+            )
         };
-        let parallel = geom::Curve3::Circle {
-            center: Point3::new(lift(0.0), lift(0.0), lift(1f64.cos())),
-            axis: v(0.0, 0.0, -1.0),
-            radius: lift(1f64.sin()),
-            u_ref: v(0.0, -1.0, 0.0),
-        };
+        let parallel = geom::Curve3::circle(
+            Point3::new(lift(0.0), lift(0.0), lift(1f64.cos())),
+            v(0.0, 0.0, -1.0),
+            lift(1f64.sin()),
+            v(0.0, -1.0, 0.0),
+        );
         SphereFaceRegion {
             center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
             radius: lift(1.0),
@@ -1414,12 +1415,12 @@ mod tests {
                         edge: EdgeKey::from(KeyData::from_ffi(k as u64 + 1)),
                         r#loop: LoopKey::default(),
                         cycle: 0,
-                        carrier: geom::Curve3::Circle {
-                            center: p3([c[0] + r * cen[0], c[1] + r * cen[1], c[2] + r * cen[2]]),
-                            axis: v3(rot(beta, ax)),
-                            radius: l(r * rad),
-                            u_ref: v3(rot(beta, u)),
-                        },
+                        carrier: geom::Curve3::circle(
+                            p3([c[0] + r * cen[0], c[1] + r * cen[1], c[2] + r * cen[2]]),
+                            v3(rot(beta, ax)),
+                            l(r * rad),
+                            v3(rot(beta, u)),
+                        ),
                         t0: l(t0),
                         t1: l(t1),
                         turn: turn(t0, t1),

@@ -60,7 +60,7 @@
 //! ([`super::circle_roots`], "The half-angle ladder, and the subdivision
 //! that answers").
 //!
-//! What remains is the residual read at the point in [`geom_brep::Conic`]'s
+//! What remains is the residual read at the point in [`geom::Conic`]'s
 //! own order, which the walk's piece ends and the root slack take: it
 //! rounds at `u·|C|`. At `ρ = 1000` a crossing as shallow as a `1.6e-8` m
 //! dip is placed that over its slope from the truth, past the default
@@ -215,12 +215,15 @@ pub(super) fn circle_torus_roots<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
     let (
-        &geom::Curve3::Circle {
-            center,
-            axis,
+        &geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        },
+        }),
         &geom::Surface::Torus {
             center: t_center,
             axis: t_axis,
@@ -364,7 +367,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
     // `F` the jet reads: the exact third and fourth harmonics against the
     // computed ones, and the jet's exact `v̂ = n̂ × û` against the rounded
     // `v_ref` the harmonics are built from.
-    let conic = geom_brep::Conic::circle(center, axis, radius, u_ref);
+    let conic = geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius);
     let h = geom_brep::conic_torus_harmonics(&conic, t_center, t_axis, major_radius, minor_radius);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
@@ -660,13 +663,13 @@ fn parallel_axes_roots<T: Decide>(
             Err(_) => return Err(Unsettled::Meter.into()),
         }
         // Each root on the branch of the span's middle: sound at every
-        // scalar by `ring_path::branch`'s window re-centring argument.
+        // scalar by `geom::on_span_branch`'s window re-centring argument.
         // The one reader, `boolean::reduce`'s wall crossing, decides a
         // root at either end of a closed edge's whole-turn span alike
         // (`at_end`), and reads it only against the span's ends, never as
         // an identity.
         for theta in [theta0 + spread, theta0 - spread] {
-            thetas[count] = super::circle_roots::near_span(theta, (t0, t1));
+            thetas[count] = geom::on_span_branch(theta, (t0, t1));
             count += 1;
         }
     }
@@ -707,12 +710,14 @@ mod tests {
         torus: &geom::Surface<T>,
         band: Band,
     ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
-        let carrier = geom::Curve3::Circle {
-            center,
-            axis,
+        let carrier = geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        };
+        });
         circle_torus_roots(&carrier, t0, t1, torus, band)
     }
 

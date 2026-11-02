@@ -488,12 +488,7 @@ fn a_cylinder_rim_only_face_is_extent_less() {
     let cyl = surf::cylinder::<f64>(RS);
     for (u0, u1) in [(0.0, TAU), (TAU, 0.0)] {
         let edges = vec![topo::edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, 0.0),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: RS,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), RS, v3(1.0, 0.0, 0.0)),
             u0,
             u1,
             0,
@@ -598,12 +593,7 @@ fn half_cap_with_a_pole_off_its_equator(th: f64, off: f64) -> (Surface<f64>, Vec
         u_ref: v3(1.0, 0.0, 0.0),
     };
     let equator = LoopEdge::hand_built(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: RS,
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), RS, v3(1.0, 0.0, 0.0)),
         HALF - th,
         HALF + th,
         true,
@@ -611,12 +601,12 @@ fn half_cap_with_a_pole_off_its_equator(th: f64, off: f64) -> (Surface<f64>, Vec
         1,
     );
     let rim = LoopEdge::hand_built(
-        Curve3::Circle {
-            center: p3(0.0, RS * th.cos(), 0.0),
-            axis: v3(0.0, 1.0, 0.0),
-            radius: RS * th.sin(),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            p3(0.0, RS * th.cos(), 0.0),
+            v3(0.0, 1.0, 0.0),
+            RS * th.sin(),
+            v3(1.0, 0.0, 0.0),
+        ),
         PI,
         TAU,
         true,
