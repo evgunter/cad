@@ -286,6 +286,15 @@ pub struct Theme {
     /// check does not require a hue difference precisely so that
     /// value-only separation stays a legitimate answer.
     pub focus: Mark,
+    /// **A body outside the product**: one the product slot does not
+    /// reach, drawn tinted (`crates/viewer/README.md`, *The picture
+    /// draws bodies*).
+    ///
+    /// Not one of [`Theme::marks`]: those say what STATE a piece of
+    /// material is in, and any of them can land on a body outside the
+    /// product, so this is mixed first, under them, as a second body
+    /// colour. `tests/theme.rs` holds it apart from the body.
+    pub outside: Mark,
     /// **The one chrome colour the palette states**, worn by whatever
     /// a reader may need to act on: [`crate::frame::Tone::Actionable`]
     /// — an unresolved selection, a deleted feature, a FAILED badge.
@@ -315,6 +324,15 @@ pub struct Theme {
     /// line across it rather than by its hue — the same redundancy
     /// argument [`Theme::actionable`] makes.
     pub profile: Rgba8,
+    /// **What a preview's fused fillet steps construct**: their whole
+    /// carriers and fillet circles, drawn under the preview's kept
+    /// pieces (`crate::marks::EdgeOverlay::construction`).
+    ///
+    /// A line colour, for [`Theme::profile`]'s reason, held to the
+    /// ground check for the same one, and told from both the preview
+    /// and the committed profile by `tests/theme.rs`: a carrier that
+    /// reads as a kept piece hides what the step trimmed.
+    pub construction: Rgba8,
     /// This palette's legibility claim.
     pub safety: Safety,
 }
@@ -362,6 +380,15 @@ impl Theme {
     }
 }
 
+/// **The neutral palettes' body outside the product**: a cool slate,
+/// so material the product does not reach reads as set aside rather than
+/// as a state of the material. One value, because both palettes mix it
+/// over the same body.
+const NEUTRAL_OUTSIDE: Mark = Mark {
+    tint: Rgba8::opaque(70, 110, 140),
+    strength: MixFraction::new(0.45).unwrap(),
+};
+
 /// The palette this viewer has always drawn, re-expressed in sRGB.
 ///
 /// It claims nothing about colourblind legibility — selection-orange
@@ -393,10 +420,15 @@ const DARK_NEUTRAL: Theme = Theme {
         tint: Rgba8::opaque(255, 229, 173),
         strength: MixFraction::new(0.24).unwrap(),
     },
+    outside: NEUTRAL_OUTSIDE,
     actionable: Rgba8::opaque(210, 90, 70),
     // A mid green, away from the selection amber, the hover blue and
     // the probe violet the preview is drawn in.
     profile: Rgba8::opaque(40, 170, 80),
+    // A light orange, away from the profile green and the preview
+    // violet; light, because protanopia takes a mid orange to the
+    // green's own yellow.
+    construction: Rgba8::opaque(255, 170, 60),
     safety: Safety::Unchecked,
 };
 
@@ -438,6 +470,7 @@ const LIGHT_NEUTRAL: Theme = Theme {
         tint: Rgba8::opaque(255, 229, 173),
         strength: MixFraction::new(0.24).unwrap(),
     },
+    outside: NEUTRAL_OUTSIDE,
     // Darker than the dark theme's red by as much as the ground
     // moved: the same hue at the same lightness on a pale panel is
     // the one chrome colour that stops being readable.
@@ -445,6 +478,8 @@ const LIGHT_NEUTRAL: Theme = Theme {
     // A deep green: the dark palette's hue, dark enough to stand on
     // the pale ground.
     profile: Rgba8::opaque(22, 124, 64),
+    // The dark palette's orange, a step darker for the pale ground.
+    construction: Rgba8::opaque(232, 140, 48),
     safety: Safety::Unchecked,
 };
 
@@ -593,6 +628,13 @@ const COLORBLIND_SAFE: Theme = Theme {
         tint: Rgba8::opaque(18, 20, 30),
         strength: MixFraction::new(0.35).unwrap(),
     },
+    // A step down on the ladder's lightness, the one channel every
+    // dichromacy keeps: material the product does not reach reads as
+    // set aside.
+    outside: Mark {
+        tint: Rgba8::opaque(60, 70, 90),
+        strength: MixFraction::new(0.45).unwrap(),
+    },
     // Dark, for the reason `LIGHT_NEUTRAL`'s is: this palette's
     // chrome is pale, and a light red on a pale panel is the one
     // chrome colour that stops being readable.
@@ -601,6 +643,9 @@ const COLORBLIND_SAFE: Theme = Theme {
     // near-black-on-grey tint: a purple at the preview's lightness
     // loses to it once dichromacy takes the hue.
     profile: Rgba8::opaque(110, 20, 80),
+    // Okabe–Ito's orange: lighter than both the preview and the
+    // profile, which is the channel every dichromacy keeps.
+    construction: Rgba8::opaque(230, 159, 0),
     safety: Safety::ColorblindSafe,
 };
 

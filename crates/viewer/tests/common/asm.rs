@@ -263,6 +263,27 @@ pub fn store_union(bench: &Bench, members: &[RecipeNodeId], tol: Tol) -> RecipeN
     union
 }
 
+/// **`body` placed into the world by hand in the bench's stored
+/// assembly**, by the identity bundle, answering the placement: a
+/// person's placement, which no creation writes for them.
+pub fn store_world_copy(bench: &Bench, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
+    let text = std::fs::read_to_string(&bench.asm_path).expect("the assembly reads");
+    let mut doc = pncad::document::load(&text, tol)
+        .expect("the assembly loads")
+        .doc;
+    let placement = insert_into(
+        &mut doc,
+        super::world_place(pncad::document::Operand::Node(body)),
+        tol,
+    );
+    std::fs::write(
+        &bench.asm_path,
+        pncad::document::save(&doc, &[], tol).expect("the assembly saves"),
+    )
+    .expect("the assembly writes");
+    placement
+}
+
 /// A session opened on the bench's assembly through the typed `Open`
 /// door (which is what wires the resolver), evaluated and landed.
 pub fn open_bench(bench: &Bench, tol: Tol) -> DocSession {
@@ -291,9 +312,11 @@ pub fn in_part(instance: RecipeNodeId, local: &StableName) -> crate::fixture::re
 /// against. `None` for a side outside the member vocabulary.
 pub fn side_face(
     doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
-    side: &pncad::document::SitedFace,
+    side: &pncad::document::SitedRef,
 ) -> Option<StableName> {
-    pncad::document::head_face(doc, side).map(pncad::document::FaceName::into_name)
+    let face = pncad::document::FaceName::new(side.name.clone()).ok()?;
+    pncad::document::head_face(doc, &pncad::document::SitedFace::new(side.at, face))
+        .map(pncad::document::FaceName::into_name)
 }
 
 // The assembly suites say `asm::down_at` / `asm::up_at`; both name the

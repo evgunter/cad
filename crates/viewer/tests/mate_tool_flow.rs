@@ -162,7 +162,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
 /// a class outside the vocabulary — here with the picks' instance
 /// deleted out from under the tool, which the pick door would refuse
 /// were it reached. Which freedoms a kind leaves is the panel's
-/// reading (`MateFreedom::offered_beside`).
+/// reading (`MateFreedom::left_by`).
 #[test]
 fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
     use pncad::document::{Coord, TargetAxis, VarKind};
@@ -253,7 +253,7 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
         format!("the to pick ({said}) no longer resolves; the tool dropped it")
     );
     match tool.state() {
-        MateToolState::One(held) => assert_eq!(held.face(), &post_top),
+        MateToolState::One(held) => assert_eq!(held.pick().face(), Some(&post_top)),
         other => panic!("the tool degrades to its previous step, got {other:?}"),
     }
 
@@ -360,8 +360,8 @@ fn shelf_on(
 
 /// **The name a target pick on a placement's copy carries**: the
 /// copied body's own name for the face, which a copy carries as it is.
-fn own_name(side: &pncad::document::SitedFace) -> pncad::prelude::StableName {
-    side.name.clone().into_name()
+fn own_name(side: &pncad::document::SitedRef) -> pncad::prelude::StableName {
+    side.name.clone()
 }
 
 /// **A pattern-placed copy is a target, and the shelf rests on it.** The
@@ -559,7 +559,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
         "the target is read at the union's copy"
     );
     assert_eq!(
-        proposal.to.name.clone().into_name(),
+        proposal.to.name.clone(),
         post_top.name,
         "by the name the union carries for post_b's face"
     );
@@ -698,7 +698,8 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let shelf_i = asm::instance_at(&mut doc, bench.shelf, asm::SHELF_AT, &bench.opts(), tol);
     let post_i = asm::instance_at(&mut doc, bench.post, asm::POST_B_AT, &bench.opts(), tol);
     let room = common::insert_into(&mut doc, Node::Space, tol);
-    let room = Operand::Var(doc.output(room, 0).expect("a new space defines its space"));
+    let room_space = doc.output(room, 0).expect("a new space defines its space");
+    let room = Operand::Var(room_space);
     let family = |doc: Doc<ProfileProgram>, name: &str, of: RecipeNodeId, dir: [f64; 3]| {
         let (doc, k) = crate::fixture::index(doc, name, 2);
         let placed = Placed::of(
@@ -758,6 +759,13 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let outcome = session.perform(SessionOp::Open(path));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
+    // The room draws the members no read takes, where the world copies
+    // stand: hidden, so the rows' rays meet the world's picture alone.
+    let hidden = session.perform(SessionOp::SetSpaceHidden {
+        space: room_space,
+        hidden: true,
+    });
+    assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
     (
         session,
         [post_i, shelf_i, inner, part, outer, loose, outer_one],
@@ -1047,11 +1055,12 @@ fn a_freshly_mated_copy_moves_only_by_the_snap() {
 }
 
 /// **A face on a split's second half is mated on that half**: a block
-/// split at mid-height, its lower half placed 0.1 m along x, rested by
-/// its underside on the whole block's top. The mate's `on` side reads
-/// the face on the split's LOWER output by its port — read alone, the
-/// split is two bodies and the commit refuses — and the half is drawn
-/// seated on the top.
+/// split at mid-height — the split takes the unplaced block over, so its
+/// upper half is drawn where the block stood — its lower half placed
+/// 0.1 m along x and rested by its underside on the upper half's top.
+/// The mate's `on` side reads the face on the split's LOWER output by
+/// its port — read alone, the split is two bodies and the commit
+/// refuses — and the half is drawn seated on the top.
 #[test]
 fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
     let tol = Tol::witness();
@@ -1060,15 +1069,35 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
     let below = pncad::select::SplitHalf::Below;
     let at = common::drawn::translated([0.1, 0.0, 0.0]);
     let (mut session, half) = common::drawn::half_placed(&session, split, below, &at, tol);
+    assert!(
+        !viewer::world::is_drawn(session.committed_doc(), block),
+        "the split took the block over"
+    );
     let underside = asm::pick_face(&session, &common::up_at(0.1, 0.0));
     let top = asm::pick_face(&session, &common::down_at(0.0, 0.0));
     assert_eq!(underside.node, half, "the ray met the lower half's copy");
     assert_eq!(
-        top.node,
-        common::copy_of(session.committed_doc(), block),
-        "and the block's top"
+        top.node, split,
+        "and the upper half's top, drawn by the split"
     );
-    common::drawn::rest_on(&mut session, underside, top);
+    // The upper half is drawn in the block's own space, so the rest
+    // moves the half into it by name.
+    let mut mate = viewer::matetool::MateTool::new();
+    mate.pick(session.doc(), underside);
+    mate.pick(session.doc(), top);
+    let proposal = {
+        let (doc, _) = session.landed_pair().expect("landed");
+        mate.proposal(
+            doc,
+            viewer::matetool::MateChoice {
+                kind: pncad::document::VarKind::Plane,
+                flip: true,
+                values: Vec::new(),
+            },
+        )
+        .expect("a rest proposes")
+    };
+    common::commit_mate(&mut session, proposal.op_into_target_space());
     let (x, y, z) = (size[0] / 2.0, size[1] / 2.0, size[2]);
     common::drawn::assert_drawn(
         &mut session,

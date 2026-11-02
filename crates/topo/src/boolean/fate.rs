@@ -554,7 +554,7 @@ pub(super) fn bisector<T: Decide>(
     s: &super::sectors::BoolSector<T>,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
-    let mid = s.start + s.end;
+    let mid = s.middle();
     let len = mid.norm();
     match sign(len, T::one(), band)? {
         Sign::Positive => Ok(mid / len),

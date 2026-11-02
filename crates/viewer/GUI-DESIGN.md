@@ -150,12 +150,12 @@ the end of the session (the badge paragraph above).
   no edges for, and those rows draw as downstream of the mate the
   fault names (`crate::tree`).
   The picture is partial the same way. The pick index and the scene
-  draw every drawn copy whose node has a value, and hold a copy
+  draw every drawn body whose node has a value, and hold a body
   without one as undrawn, with its reason: a failure takes away its
-  own copies' picture and no other. A copy that has a value and still
-  cannot be drawn (not a body, or a tessellation the kernel refused) is
-  held undrawn the same way, and said loudly, naming the copy, because
-  no row of the tree reports it. The index refuses as a whole only
+  own picture and no other. A body that has a value and still cannot
+  be drawn (not a body, or a tessellation the kernel refused) is held
+  undrawn the same way, and said loudly, naming its node, because no
+  row of the tree reports it. The index refuses as a whole only
   for a fault of the index itself (an id map that is not one-to-one, a
   body drawn twice, names from another document).
   Progress reporting and in-op yield points are absent; v1 shows a busy
@@ -181,9 +181,17 @@ the end of the session (the badge paragraph above).
   not participate in document history. Pick priority is proximity in
   the picture, scoped to the body under the cursor: the ray picks a
   face first, and an edge of that face's own body within
-  `EDGE_PICK_RADIUS_PX`, not hidden by the solid, beats it; elsewhere
-  the face wins and off the body nothing wins. A tool narrows the
-  kinds it accepts through `PickKinds`. Multi-select UX and the filter
+  `EDGE_PICK_RADIUS_PX`, not hidden by the solid, beats it. A
+  committed profile's drawn outline is a line like an edge, weighed in
+  the same walk, within the same radius and not hidden by the solid,
+  and picks its profile node. The nearer line wins, a body edge at a
+  tie. An outline needs no face under the cursor, so where one is in
+  the contest every drawn body's edges are too: an outline lying along
+  a silhouette loses to its rim on both sides of it. Elsewhere the face
+  wins, and off the body and every outline nothing wins. A tool narrows
+  the kinds it accepts through `PickKinds`. An outline is offered to
+  the bare cursor and to the revolve tool, whose seat reads a profile,
+  and to no other tool. Multi-select UX and the filter
   vocabulary wait on sketcher and tree design; filters, heterogeneous
   sets and vanishing-entity semantics are `docs/SELECT-DESIGN.md`'s.
 

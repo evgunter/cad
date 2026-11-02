@@ -311,12 +311,11 @@ impl IdAnswer {
     /// naming layer refused, because the picture drawing no patch
     /// under it is the fact about the id buffer's word.
     pub fn of(index: &PickIndex, display: &DisplayView, id: u32) -> Self {
-        // The patch's node is the placement the display view hides
-        // or not.
+        // The patch's body is one the display view hides or not.
         let hidden = index
             .ids()
             .key_of(id)
-            .is_some_and(|patch| display.hidden_placements.contains(&patch.node));
+            .is_some_and(|patch| display.hides(patch.node, patch.body));
         match index.face_of(id) {
             Ok(_) | Err(PatchNameFault::Unnamed { .. }) if hidden => Self::Hidden { id },
             Ok(face) => Self::Named(face),

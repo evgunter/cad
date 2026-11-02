@@ -504,11 +504,15 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     else {
         panic!("expected a lost target, got {notices:?}");
     };
-    assert_eq!(lost.node(), copy, "the picks were on the box's copy");
+    assert_eq!(
+        lost.node(),
+        copy,
+        "the picks were on the box, drawn unplaced"
+    );
     assert_eq!(
         node.kind(),
-        Some("Place"),
-        "the lost copy is said as the document held it when it was picked: {node}"
+        Some("Extrude"),
+        "the lost body is said as the document held it when it was picked: {node}"
     );
     assert_eq!(*edges, BOX_EDGES);
     assert_eq!(blend(&tools).count(), 0);
@@ -864,14 +868,9 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
             normal: scl3([0.0, 0.0, 1.0]),
         },
     );
-    // Each half placed by its port (A10), in place of the whole box.
-    let mut doc = session.committed_doc().clone();
-    let whole_box = common::copy_of(&doc, target);
-    common::edit_into(
-        &mut doc,
-        pncad::document::DocEdit::DeleteNode { id: whole_box },
-        tol,
-    );
+    // Each half placed by its port: the split took the unplaced box
+    // over.
+    let doc = session.committed_doc().clone();
     let doc_with_both = {
         let (with_first, first) =
             common::placed_read(&doc, pncad::document::Operand::output(split, 0), tol);
@@ -1132,13 +1131,9 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     );
     assert_eq!(blend(&tools).count(), BOX_EDGES, "the set is intact");
 
-    // The copy the picks were on has no value: the placement is
-    // poisoned by the extrude that failed under it.
-    let copy = common::drawn_node(session.committed_doc(), target);
-    let standing = NodeStanding::Poisoned {
-        node: copy,
-        through: target,
-    };
+    // The body the picks were on, drawn unplaced, has no value: the
+    // extrude failed.
+    let standing = NodeStanding::Failed { node: target };
     let refused = tools
         .blend_mut()
         .expect("the blend tool is open")
@@ -1161,7 +1156,7 @@ fn the_strand_check_is_not_asked_without_an_answer() {
         Some(format!(
             "{} has no edges to select: {}",
             whole(&session, target),
-            Said(&standing, Speaker::TAG.about(copy))
+            Said(&standing, Speaker::TAG.about(target))
         )),
     );
     assert_eq!(

@@ -938,7 +938,7 @@ fn a_hidden_copy_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
 
     // Hidden: nothing is drawn there, so nothing is picked there.
     let hidden = DisplayView {
-        hidden_placements: std::collections::BTreeSet::from([copy]),
+        hidden_drawn: vec![viewer::world::Drawn::whole(copy)],
         ..DisplayView::none()
     };
     assert!(
@@ -970,7 +970,7 @@ fn a_hidden_copy_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
     // not at the tessellated one.
     let shift = [0.0, 0.0, 0.05];
     let probed = DisplayView {
-        moved_placements: std::collections::BTreeMap::from([(copy, Frame::translation(shift))]),
+        moved_nodes: std::collections::BTreeMap::from([(copy, Frame::translation(shift))]),
         ..DisplayView::none()
     };
     let moved = Point3::new(

@@ -407,7 +407,7 @@ where
             let sections = core::iter::once(*first)
                 .chain(then.iter().map(|section| section.profile))
                 .enumerate()
-                .map(|(i, var)| at(O::Section(u32::try_from(i).unwrap_or(u32::MAX)), var))
+                .map(|(i, var)| at(O::Section(i), var))
                 .collect::<Result<Vec<_>, _>>()?;
             let stations: Vec<&[crate::node::StationMove]> = then
                 .iter()
@@ -430,7 +430,7 @@ where
             &crate::verbs::blend::fillet(),
             id,
             &select(doc, results, O::Selection, *selection)?,
-            results,
+            (doc, results),
             vals,
             tol,
         ),
@@ -438,7 +438,7 @@ where
             &crate::verbs::blend::chamfer(),
             id,
             &select(doc, results, O::Selection, *selection)?,
-            results,
+            (doc, results),
             vals,
             tol,
         ),
@@ -1325,11 +1325,9 @@ pub(crate) fn frame_axes<T: Decide>(
 /// not fit: past `u32::MAX` a loop's coordinate would name another
 /// loop's.
 fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
-    u32::try_from(n).map(|n| 0..n).map_err(|_| {
-        NodeErrorKind::Naming(names::NamingError::Emission {
-            what: "a profile holds more loops than a u32 loop index addresses",
-        })
-    })
+    names::narrow(n, names::Numbered::Loop)
+        .map(|n| 0..n)
+        .map_err(NodeErrorKind::Naming)
 }
 
 /// The profile node's F64 PRECOMPUTE (LIB-SWITCH §4b): the resolved
@@ -1747,6 +1745,8 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
 /// the op itself is [`NodeErrorKind::Blend`], carrying
 /// the kernel's error unaltered; the input body is never passed
 /// through, so a blend that did not happen reads as a failed node.
+/// An operand record the carry onto the blended body refuses is
+/// [`NodeErrorKind::ContactCarry`].
 ///
 /// # Naming
 ///
@@ -1761,7 +1761,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
     selection: &Selected<topo::EdgeKey>,
-    results: &Results<T>,
+    (doc, results): (&crate::doc::Doc<ProfileProgram>, &Results<T>),
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
@@ -1772,7 +1772,8 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // It computes in its operand's frame.
     let (body, operand) = finished_operand(results, target, tol)?;
     let size = slot_scalar(vals, verb.slots.size_slot);
-    let target_table = read_table(value_of(results, target)?);
+    let target_value = value_of(results, target)?;
+    let target_table = read_table(target_value);
     // D9 order; the kernel refuses a repeated edge itself.
     let mut edges: Vec<topo::EdgeKey> = selection.ents.iter().map(|&(_, edge)| edge).collect();
     edges.sort_unstable();
@@ -1788,6 +1789,19 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             verb.no_records
         )
     };
+    // The operand's records, as its door kept them, ride the blended
+    // body through the lineage its birth records state. Caller-side,
+    // until the blend's door carries them itself onto a finished body
+    // that holds its records (heldrecords' ratified unit
+    // `a-finished-body-holds-its-contact-records-at-every-door`).
+    let carried = rec
+        .carry_contacts(
+            &target_value.carry.kept(doc, tol).contacts,
+            &out.body,
+            band(tol)?,
+            T::region_lane(),
+        )
+        .map_err(|refusal| NodeErrorKind::ContactCarry { refusal })?;
     let table = (verb.emitter)(id, target, target_read, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
     let inputs = crate::coincide::RowInputs {
@@ -1801,6 +1815,10 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             operand.frame().clone(),
         )),
         table,
+    )
+    .holding(
+        Arc::new(carried),
+        vec![crate::coincide::CitedInput::Read(target_read)],
     )
     .recording(&out.coincidences, &inputs)
 }
@@ -2672,7 +2690,8 @@ fn instance_of<T: Decide>(
     slot: SlotId,
 ) -> Result<(super::Framed<T>, u32), NodeErrorKind> {
     let index = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
-    let count = names::output_body(instances.len()).map_err(NodeErrorKind::Naming)?;
+    let count = names::narrow(instances.len(), names::Numbered::OutputBody)
+        .map_err(NodeErrorKind::Naming)?;
     let ix = u32::try_from(index).ok().filter(|i| *i < count).ok_or(
         NodeErrorKind::MemberOutOfRange {
             input: of,
@@ -2697,10 +2716,7 @@ fn member_of<T: Decide>(
 ) -> Result<(super::Framed<T>, u32), NodeErrorKind> {
     let at = (0..rank)
         .map(|k| {
-            let slot = SlotId::Index {
-                seat,
-                k: u8::try_from(k).unwrap_or(u8::MAX),
-            };
+            let slot = SlotId::Index { seat, k };
             slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
         })
         .collect::<Result<Vec<i64>, _>>()?;
@@ -2720,7 +2736,7 @@ fn member_of<T: Decide>(
     let body = instances.get(index).cloned().ok_or_else(out)?;
     Ok((
         body,
-        names::output_body(index).map_err(NodeErrorKind::Naming)?,
+        names::narrow(index, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)?,
     ))
 }
 
@@ -2934,7 +2950,7 @@ fn split_port<T: Decide>(
     });
     let (of, index, projected) = projected(split, value, body, names, half.output_body())?;
     // A half carries its own side's records, keyed in its arena.
-    let at = usize::try_from(half.output_body()).unwrap_or(usize::MAX);
+    let at = half.output_body() as usize;
     let carry = value.carry.member(at).clone();
     Ok(Some((of, index, super::NodeValue { carry, ..projected })))
 }
@@ -3451,7 +3467,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .iter()
             .enumerate()
             .map(|(i, body)| {
-                let index = u32::try_from(i).unwrap_or(u32::MAX);
+                let index =
+                    names::narrow(i, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)?;
                 let table = read_table(value)
                     .project(index)
                     .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
@@ -3473,7 +3490,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             let mut members = Vec::with_capacity(reads.len());
             for (i, member) in reads.iter().enumerate() {
                 let read = member.read;
-                let slot = O::Member(u32::try_from(i).unwrap_or(u32::MAX));
+                let slot = O::Member(i);
                 let at = super::read_at(doc, slot, read)?;
                 let projected = reads_projected(node, &[(slot, read)], doc, (results, vals))?;
                 let results = projected.as_ref().unwrap_or(results);
@@ -3682,7 +3699,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let reads: Vec<crate::VarId> = members.iter().map(|m| m.read).collect();
     let inputs = members
         .iter()
-        .zip(member_ranks(&reads))
+        .zip(member_ranks(&reads)?)
         .map(|(m, rank)| topo::MemberInputs {
             records: m.carry.contacts.carried(),
             rank,
@@ -3758,8 +3775,10 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let mut coincidences = Vec::new();
     let mut published: Vec<Vec<usize>> = Vec::with_capacity(judged.len());
     for (j, rows) in judgements.iter().zip(&judged) {
-        let place = |m: usize| u32::try_from(m).unwrap_or(u32::MAX);
-        let pair = [place(j.a.min(j.b)), place(j.a.max(j.b))];
+        let place = |m: usize| {
+            names::narrow(m, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)
+        };
+        let pair = [place(j.a.min(j.b))?, place(j.a.max(j.b))?];
         published.push(
             rows.iter()
                 .map(|row| {
@@ -3796,7 +3815,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         let member_table = Arc::clone(&views[joined]);
         let out = &stepped.body;
         let (kind, naming) = (out.kind, &out.naming);
-        let member = u32::try_from(joined).unwrap_or(u32::MAX);
+        let member =
+            names::narrow(joined, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)?;
         if !pairwise {
             // The pair's rows and links are its one step's, in the two
             // members' own tables and the order its records cite them,
@@ -3879,15 +3899,17 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             );
         }
         let held = Arc::clone(&acc_records);
+        let rows = (base..base + decided)
+            .map(|row| names::narrow(row, names::Numbered::Row))
+            .collect::<Result<Vec<u32>, _>>()
+            .map_err(NodeErrorKind::Naming)?;
         let contacts = out
             .contacts
             .clone()
             .recited(|b| match b {
                 topo::Backing::Decided(k) if pairwise => {
-                    if (k as usize) < decided {
-                        vec![topo::Backing::Decided(
-                            u32::try_from(base + k as usize).unwrap_or(u32::MAX),
-                        )]
+                    if let Some(&row) = rows.get(k as usize) {
+                        vec![topo::Backing::Decided(row)]
                     } else {
                         unreachable!(
                             "union {id:?}'s fold step {step} cites its row {k}, though it \
@@ -3955,7 +3977,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         topo::NaryEnd::Empty => return empty(),
         topo::NaryEnd::Refused(topo::NaryRefusal::Step { member, error }) => {
             return Err(NodeErrorKind::UnionFoldStep {
-                member: u32::try_from(member).unwrap_or(u32::MAX),
+                member: names::narrow(member, names::Numbered::InputPosition)
+                    .map_err(NodeErrorKind::Naming)?,
                 read: members[member].read,
                 refusal: Box::new(NodeErrorKind::Boolean(*error)),
             });
@@ -3989,7 +4012,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // rows, then every fold step's, a fold row a judged row restates
     // being that row; the records are recited onto the rows they cite.
     let contacts = if pairwise {
-        let at: Vec<Vec<usize>> = fold_rows
+        let at: Vec<Vec<u32>> = fold_rows
             .into_iter()
             .map(|row| match row {
                 FoldRow::Restates(judged) => judged,
@@ -4007,20 +4030,20 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         }),
                 ],
             })
-            .collect();
+            .map(|rows| {
+                rows.into_iter()
+                    .map(|row| names::narrow(row, names::Numbered::Row))
+                    .collect::<Result<Vec<u32>, _>>()
+            })
+            .collect::<Result<_, _>>()
+            .map_err(NodeErrorKind::Naming)?;
         Arc::new(
             (*contacts)
                 .clone()
                 .recited(|b| match b {
                     topo::Backing::Decided(k) => at
                         .get(k as usize)
-                        .map(|rows| {
-                            rows.iter()
-                                .map(|&i| {
-                                    topo::Backing::Decided(u32::try_from(i).unwrap_or(u32::MAX))
-                                })
-                                .collect()
-                        })
+                        .map(|rows| rows.iter().map(|&i| topo::Backing::Decided(i)).collect())
                         .unwrap_or_else(|| {
                             unreachable!(
                                 "union {id:?}'s records cite fold row {k}, though the fold \
@@ -4088,7 +4111,7 @@ fn lone_member<T: Decide>(id: RecipeNodeId, one: &Member<T>) -> OpResult<T> {
 /// whose read is the lesser (the earlier minted), and a read spelled
 /// twice ties, the listed-first then A. One pair is one run of the pair
 /// verb in every member order, and publishes one margin.
-fn member_ranks(reads: &[crate::VarId]) -> Vec<u32> {
+fn member_ranks(reads: &[crate::VarId]) -> Result<Vec<u32>, NodeErrorKind> {
     let mut distinct = reads.to_vec();
     distinct.sort_unstable();
     distinct.dedup();
@@ -4098,7 +4121,7 @@ fn member_ranks(reads: &[crate::VarId]) -> Vec<u32> {
             let at = distinct
                 .binary_search(r)
                 .unwrap_or_else(|_| unreachable!("every read is among the distinct reads"));
-            u32::try_from(at).unwrap_or(u32::MAX)
+            names::narrow(at, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)
         })
         .collect()
 }
@@ -4126,7 +4149,8 @@ fn nary_refused(refusal: topo::NaryRefusal) -> NodeErrorKind {
 /// Two of a union's pairwise verdicts glue one accumulation face to one
 /// member face under two relations
 /// ([`topo::NaryRefusal::VerdictsDisagree`]).
-const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face to one member face under two relations";
+const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face \
+                                       to one member face under two relations";
 
 /// The role word a frame's authored +x direction is normalized under
 /// ([`frame_axes`]).
@@ -4248,7 +4272,8 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         // A member's own records ride the piece it is, re-keyed through
         // its graft (each member's of a family), citing the member by its
         // read.
-        let input = u32::try_from(citing.len()).unwrap_or(u32::MAX);
+        let input = names::narrow(citing.len(), names::Numbered::InputPosition)
+            .map_err(NodeErrorKind::Naming)?;
         for (i, keys) in bridges.iter().enumerate() {
             crate::product::carry_contacts(
                 &fused,
@@ -4392,14 +4417,13 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
         .iter()
         .map(|pid| section_value(results, *pid))
         .collect::<Result<Vec<_>, _>>()?;
-    // The v degree admits `1 ..= sections − 1` (`Node::Loft`). Fewer
-    // than two sections admit no degree at all, and what is wrong then
-    // is the section count, which the skin's own door names.
+    // The v degree admits `1 ..= sections − 1` (`Node::Loft`).
     if profiles.len() < 2 {
-        return Err(NodeErrorKind::Skin(sweep::SkinError::TooFewSections {
-            have: profiles.len(),
-            need: 2,
-        }));
+        unreachable!(
+            "loft {id} reached evaluation through {} section(s): every edit door that writes a \
+             loft and the load door refuse fewer than two (`edit::loft_structure_fault`)",
+            profiles.len()
+        );
     }
     let v_degree = need_count(vals, SlotId::VDegree, 1, profiles.len() - 1)?;
     // The first section is the loft's own plane; each after it stands
@@ -4513,7 +4537,7 @@ mod loop_coordinates_tests {
         assert!(
             matches!(
                 loop_coordinates(past),
-                Err(NodeErrorKind::Naming(NamingError::Emission { .. }))
+                Err(NodeErrorKind::Naming(NamingError::PastWidth { .. }))
             ),
             "one loop past u32::MAX is refused"
         );
@@ -4779,6 +4803,6 @@ mod union_row_tests {
             VarId::new(5, 5),
             VarId::new(3, 3),
         ];
-        assert_eq!(member_ranks(&reads), [2, 0, 1, 0]);
+        assert_eq!(member_ranks(&reads).ok(), Some(vec![2, 0, 1, 0]));
     }
 }

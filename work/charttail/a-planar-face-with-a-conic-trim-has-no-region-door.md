@@ -46,3 +46,20 @@ polygonal trim. A witness row: the half-disc seat above with its patch
 record verifies (`PositiveArea`), and the census's `EdgeFaceOverlap` on
 the shelf edge between its two rim crossings is then the only finding
 left for a line × conic crossing rung to take.
+
+**Reached from a document blend (PR 6277).** A = [0,2]²×[0,1] with
+B = [0.5,1.5]²×[1,2] standing on it, joined by `⊔`: the census keeps one
+face/face record (A's top, B's bottom). A fillet (R 0.1) of A's vertical
+edge (0,0,0)–(0,0,1), far from B, puts a quarter-circle arc in A's top
+face's trim. Carrying the record onto the fillet then has to confirm the
+face pair again: `boolean::records::landings` → `census::RecordConfirm::meets`.
+That confirm refuses `CensusUnsupported { FacePair(A.top, B.bottom),
+ChartRegion(NonPlanarTrim { .. "Harmonic trig channels are not
+exact-structural zeros" }) }` (`chart_region.rs`, the `Pcurve::Harmonic`
+arm of the plane-chart straight-segment read). The node therefore
+refuses `ContactCarry { Unread { record: 0, cells: [A.top, B.bottom] } }`
+where it used to build with no records. A chamfer of the same edge (a
+chord) and a fillet of a horizontal top edge (straight trimlines) carry
+the record. Witness:
+`crates/editor-core/tests/blend_carries_contacts.rs::a_fillet_trimming_a_census_face_record_with_an_arc_refuses_unread`.
+When this door reads the arc, that witness turns into a carry.

@@ -50,12 +50,25 @@ fn instance_of(session: &DocSession, node: RecipeNodeId) -> (pncad::document::Do
     }
 }
 
-/// Whether the instance's bundle is the identity bundle the place
-/// gesture writes (no mate, the constant `0` on every freedom), which
-/// `SolvedPoses::at_identity` reads off the recipe: the insert door's
-/// own placement (A11 (2)).
+/// Whether the instance stands by the identity bundle the place
+/// gesture writes (no mate, the constant `0` on every freedom) in the
+/// space it is placed into: the insert door's own placement (A11 (2)).
 fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
-    common::solve(session, session.doc(), Tol::witness()).at_identity(node)
+    common::solve(session, session.doc(), Tol::witness())
+        .relative(node)
+        .is_some_and(|at| at.is_identity_bits())
+}
+
+/// **`instance` added to the product** through the one door
+/// ([`SessionOp::AddToProduct`]), landed: the outcome's edits.
+fn add_to_product(session: &mut DocSession, instance: RecipeNodeId) -> usize {
+    let outcome = session.perform(SessionOp::AddToProduct {
+        node: instance,
+        body: None,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    outcome.committed.len()
 }
 
 // --- the acceptance ------------------------------------------------
@@ -82,17 +95,22 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     let (shelf_ref, shelf_interface) = instance_of(&session, shelf_i);
     assert_eq!(shelf_ref, bench.shelf);
     assert!(shelf_interface);
-    // And each is in the world by the same action (A10): an instance
-    // is a placement of its own, and nothing else copies it.
+    // And each lands in a space of its own by the same action: an
+    // instance is a placement of its own, and nothing else copies it.
     let doc = session.committed_doc();
     assert_eq!(
         doc.placements(),
         [post_i, shelf_i],
         "both instances are drawn, each its own placement"
     );
+    let spaces = [post_i, shelf_i].map(|i| doc.node_space(i));
+    assert!(
+        spaces[0] != spaces[1] && !spaces.contains(&Some(pncad::document::VarId::WORLD)),
+        "each in a fresh space of its own: {spaces:?}"
+    );
     assert!(
         [post_i, shelf_i].iter().all(|&i| at_origin(&session, i)),
-        "AddInstance places each instance at the identity"
+        "AddInstance places each instance at the identity of its space"
     );
 
     // The instances evaluate: the references resolve through the
@@ -105,28 +123,49 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // The three shipped GUI-4 tools this door exists to feed, on an
     // instance it authored: hide, the free-move probe, and the mate.
-    let hidden = session.perform(SessionOp::SetInstanceHidden {
-        instance: post_i,
-        hidden: true,
+    let hidden = session.perform(SessionOp::SetBodyOn {
+        node: post_i,
+        on: false,
     });
     assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
-    assert!(session.display().hidden().contains(&post_i));
-    let shown = session.perform(SessionOp::SetInstanceHidden {
-        instance: post_i,
-        hidden: false,
+    assert!(!session.toggles().body_on(post_i));
+    let shown = session.perform(SessionOp::SetBodyOn {
+        node: post_i,
+        on: true,
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
 
-    // Free-move: an authored instance is placed into the world at the
-    // identity, and the probe, which moves another shown space (DI5),
-    // refuses it typed.
+    // Free-move: an authored instance is drawn in a space of its own,
+    // which the probe moves (DI5).
+    let begun = session.perform(SessionOp::BeginFreeMove { node: shelf_i });
+    assert!(begun.refusal.is_none(), "{:?}", begun.refusal);
+    let cancelled = session.perform(SessionOp::CancelFreeMove);
+    assert!(cancelled.refusal.is_none(), "{:?}", cancelled.refusal);
+
+    // The shelf added to the product: nothing in its space reads its
+    // copy, so the door re-targets it into the world, deletes the space
+    // its insert minted and sets the product to it, in one action. The
+    // probe, which moves another shown space, then refuses it typed.
+    let minted = session.committed_doc().node_space(shelf_i);
+    assert_eq!(
+        add_to_product(&mut session, shelf_i),
+        3,
+        "the re-target, the minted space's delete, and the product slot"
+    );
+    let doc = session.committed_doc();
+    assert_eq!(doc.node_space(shelf_i), Some(pncad::document::VarId::WORLD));
+    assert!(
+        minted.and_then(|space| doc.defined_by(space)).is_none(),
+        "the space the insert minted is gone with the copy it held"
+    );
+    assert_eq!(viewer::world::product_reads(doc), doc.outputs(shelf_i));
     let probe = |session: &mut DocSession| {
-        let outcome = session.perform(SessionOp::BeginFreeMove { instance: shelf_i });
+        let outcome = session.perform(SessionOp::BeginFreeMove { node: shelf_i });
         assert!(
             matches!(
                 &outcome.refusal,
                 Some(Refusal::Display(DisplayFault::Admission(
-                    AdmissionFault::InTheWorld { instance }
+                    AdmissionFault::InTheWorld { node: instance }
                 ))) if instance.id() == shelf_i
             ),
             "an authored instance stands in the world: {:?}",
@@ -137,10 +176,10 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     probe(&mut session);
 
     // The shipped mate tool's op takes them from here. A fresh instance
-    // stands by the identity bundle, values and no mate: the mate drops
-    // the values it fixes, and the seat's values set the ones it leaves.
-    // The shelf stands at the world's identity, so the values are
-    // measured from it.
+    // stands by the identity bundle, values and no mate: the mate moves
+    // the post into the shelf's space, drops the values it fixes, and
+    // the seat's values set the ones it leaves. The shelf stands at the
+    // world's identity, so the values are measured from it.
     let seat = || {
         asm::seat_op_under(
             &bench,
@@ -153,8 +192,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        2,
-        "the mate, and its values written over the bundle"
+        3,
+        "the move into the shelf's space, the mate, and its values written over the bundle"
     );
     session.pump();
     assert!(!tree::has_faults(&session.tree_rows()));
@@ -181,8 +220,13 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     session.pump();
     probe(&mut session);
     assert!(!tree::has_faults(&session.tree_rows()));
-    // What the assembly makes: its two copies.
-    common::product_is(&mut session, &[post_i, shelf_i]);
+    // What the assembly makes: its two copies — the post, mated into
+    // the world, is a world copy now, and the door adds it to the slot.
+    assert_eq!(
+        add_to_product(&mut session, post_i),
+        2,
+        "a `⊔` and the slot"
+    );
 
     // Save, reload, re-evaluate: the same document, from the file.
     let saved = session.perform(SessionOp::Save(path.clone()));
@@ -1093,9 +1137,7 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
         session.doc().node_space(bench.shelf_i),
         "the post is placed into the shelf's space"
     );
-    let outcome = session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    let outcome = session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 
     // The accept undone: the root refuses again, under the gesture.
@@ -1123,7 +1165,7 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
     assert!(
         matches!(
             &killed.cause,
-            AdmissionFault::NoSpace { instance } if instance.id() == bench.post_b
+            AdmissionFault::NoSpace { node: instance } if instance.id() == bench.post_b
         ),
         "{}",
         killed.cause

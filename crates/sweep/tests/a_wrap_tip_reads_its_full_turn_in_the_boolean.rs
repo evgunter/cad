@@ -25,9 +25,9 @@
 //! tip: `work/charttail/a-section-circle-through-a-sphere-faces-pole-mints-no-pcurve.md`.)
 //!
 //! The cone of the same height, its apex reached by one wrap edge, splits
-//! through the apex at its closed forms; its Boolean through the apex
-//! refuses `NormalAtConeApex`, the Boolean's apex sector algebra not yet
-//! built.
+//! through the apex at its closed forms, and its Boolean through the
+//! apex builds them (`a_cone_apex_on_a_plane_through_it` holds the rest
+//! of the apex's poses).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::membership::{self, Region, ball, cuboid};
@@ -261,10 +261,10 @@ fn a_quarter_through_the_tip_cuts_each_tipped_body() {
 }
 
 /// **The cone's apex reached by one wrap edge splits** through planes
-/// holding the axis, each side half the cone; its Boolean through the
-/// apex refuses by name.
+/// holding the axis, each side half the cone, and its Boolean less the
+/// half-space beyond one of them holds the other half.
 #[test]
-fn the_tipped_cones_apex_splits_and_the_boolean_refuses_it_by_name() {
+fn the_tipped_cones_apex_splits_and_cuts_through_the_boolean() {
     let body = finished("the tipped cone", one_wrap_edge(cone(), true).0, tol());
     for n in [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)] {
         let what = format!("the split along {n:?}");
@@ -297,8 +297,11 @@ fn the_tipped_cones_apex_splits_and_the_boolean_refuses_it_by_name() {
         topo::test_support::brick((0.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol()),
         tol(),
     );
-    match subtract(&body, &half, tol()) {
-        Err(topo::BooleanError::NormalAtConeApex { .. }) => {}
-        other => panic!("the tipped cone less x > 0: {other:?}"),
-    }
+    holds(
+        "the tipped cone less x > 0",
+        &body_of(subtract(&body, &half, tol()), "the tipped cone less x > 0"),
+        PI / 6.0,
+        &|p: Point3<f64>| (1.0 - p.y - p.x.hypot(p.z)).min(p.y).min(-p.x),
+        FULL,
+    );
 }

@@ -296,6 +296,35 @@ pub struct Windows<'b, T: Real> {
     of: Vec<Window<'b, T>>,
 }
 
+#[cfg(any(test, feature = "test-support"))]
+impl<T: Real> Windows<'_, T> {
+    /// **How many readings each spline chart's and spline edge's memo
+    /// holds** ([`geom::NurbsSurface::memo_entries`],
+    /// [`geom::NurbsCurve3::memo_entries`]): the charts', then the
+    /// edges', `None` for one that keeps no memo.
+    #[doc(hidden)]
+    pub fn spline_memos(&self) -> (Vec<Option<usize>>, Vec<Option<usize>>) {
+        let charts = self
+            .of
+            .iter()
+            .filter_map(|w| match &w.surface {
+                Surface::Nurbs(net) => Some(net.memo_entries()),
+                _ => None,
+            })
+            .collect();
+        let edges = self
+            .of
+            .iter()
+            .flat_map(|w| &w.boundary.edges)
+            .filter_map(|rim| match rim.arc.as_ref()? {
+                (geom::Curve3::Nurbs(n), _) => Some(n.memo_entries()),
+                _ => None,
+            })
+            .collect();
+        (charts, edges)
+    }
+}
+
 /// Why the engine has no answer. Typed and named, never a silent
 /// partial.
 ///
@@ -1786,9 +1815,8 @@ fn coincidence<T: Real>(
     sb: &[(f64, f64)],
 ) -> Option<((f64, f64), (f64, f64))> {
     let mid = |i: Interval| geom::mid_param(i.lo(), i.hi());
-    let at = |x: f64| Interval::from_bounds(x, x);
     let jet = |s: &Surface<Interval>, (u, v): (f64, f64)| {
-        let j = s.jet(at(u), at(v));
+        let j = s.point_jet(u, v);
         (j.point.map(mid), j.du.map(mid), j.dv.map(mid))
     };
     let point = |s: &Surface<Interval>, uv| jet(s, uv).0;
@@ -1957,8 +1985,7 @@ fn piece_of<'a, T: Real>(w: &'a Window<'_, T>, c: Cell, local: &'a Local) -> Pie
 /// holds the cell's enclosure.
 fn ball_of(surface: &Surface<Interval>, c: Cell) -> Ball {
     let (u, v) = centre(c.u, c.v);
-    let at = |m| Interval::from_bounds(m, m);
-    Ball::holding(surface.eval(at(u), at(v)), c.enc)
+    Ball::holding(surface.point_eval(u, v), c.enc)
 }
 
 // ------------------------------------- the minimum-separation door
@@ -2884,7 +2911,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     Ok(Window {
         face,
         region,
-        surface: charted,
+        surface: charted.with_rect_memo(),
         u,
         v,
         body,
@@ -3236,7 +3263,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             let curve = body.get_curve_geom(e.curve)?.certified()?;
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
-            let carrier = curve.carrier().map_scalar(|x| lift.of(x));
+            let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
             // The whole parameter span as ONE interval: the carrier's
             // interval evaluation over it encloses the entire arc, which is
             // what makes a curved boundary bound its own face's window.
@@ -3649,7 +3676,7 @@ impl Hull {
     fn of(surface: &Surface<Interval>, c: Cell) -> Self {
         if let Surface::Plane { .. } = surface {
             let point = |x: f64| Interval::from_bounds(x, x);
-            let j = surface.jet(point(c.u.0), point(c.v.0));
+            let j = surface.point_jet(c.u.0, c.v.0);
             return Self::Plane {
                 at: j.point,
                 du: j.du,
@@ -3716,7 +3743,7 @@ fn support_separation(
     let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
     let normal = |s: &Surface<Interval>, c: Cell| {
         let (u, v) = centre(c.u, c.v);
-        let n = s.normal(Interval::from_f64(u), Interval::from_f64(v));
+        let n = s.point_normal(u, v);
         Vec3::new(mid(n.x), mid(n.y), mid(n.z))
     };
     let centres = Vec3::new(
@@ -3786,12 +3813,11 @@ fn split_axis<T: Real>(cell: Cell, root: &Window<'_, T>, axes: Axes) -> bool {
         Axes::Relative => cell.relative(root),
         Axes::Metric => {
             let stations = |(lo, hi): (f64, f64)| [lo, geom::mid_param(lo, hi), hi];
-            let at = |x: f64| Interval::from_bounds(x, x);
             let (mut u_least, mut u_most) = (f64::INFINITY, 0.0f64);
             let (mut v_least, mut v_most) = (f64::INFINITY, 0.0f64);
             for u in stations(cell.u) {
                 for v in stations(cell.v) {
-                    let j = root.surface.jet(at(u), at(v));
+                    let j = root.surface.point_jet(u, v);
                     let (su, sv) = (j.du.norm().hi(), j.dv.norm().hi());
                     (u_least, u_most) = (u_least.min(su), u_most.max(su));
                     (v_least, v_most) = (v_least.min(sv), v_most.max(sv));
@@ -3800,9 +3826,9 @@ fn split_axis<T: Real>(cell: Cell, root: &Window<'_, T>, axes: Axes) -> bool {
             if 8.0 * u_least < u_most || 8.0 * v_least < v_most {
                 cell.relative(root)
             } else {
-                let j = root.surface.jet(
-                    at(geom::mid_param(cell.u.0, cell.u.1)),
-                    at(geom::mid_param(cell.v.0, cell.v.1)),
+                let j = root.surface.point_jet(
+                    geom::mid_param(cell.u.0, cell.u.1),
+                    geom::mid_param(cell.v.0, cell.v.1),
                 );
                 (
                     j.du.norm().hi() * (cell.u.1 - cell.u.0),

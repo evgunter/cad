@@ -2,12 +2,13 @@
 id: the-viewer-does-not-show-a-constructions-own-space
 kind: issue
 title: viewer: a construction's own space is not shown (DI5's default set) because the viewer draws placements alone
-status: open
+status: closed
 opened: 2026-10-22
 priority: P1
 refs: [5811, 6209]
 cost: H
 parent: the-picture-draws-bodies
+closed: 2026-11-01
 ---
 
 
@@ -47,3 +48,7 @@ show and hide any space, the choice kept as display state.
 ## Slate triage (2026-10-28, INTENT)
 
 Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to CHROME's charter (viewer coverage of what a document holds). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).
+
+## Closed
+
+By `the-picture-draws-bodies` (PR 6265): a body no operation reads as a body is drawn in its own space; a family placed into an instance's space reads the instance's copy, so the members are drawn and member 0 stands in for the instance.

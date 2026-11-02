@@ -1153,7 +1153,8 @@ pub mod test_support {
 
     /// **The interior-loop guard's reading of two carriers, with no
     /// faces**: the section certificate's classification through the
-    /// march door, over the reach `(centre, radius)`, then its per-pair
+    /// march door, over the reach `(centre, radius)`, which two cylinders
+    /// read as the operation's region, then its per-pair
     /// rule with no event, no face describing one sheet and no witness
     /// placed, spelled by `Debug` as [`section_report`]'s outcomes are.
     /// A component the rule clears without a face clears here; any other
@@ -1170,6 +1171,7 @@ pub mod test_support {
             f,
             g,
             Reach { centre, radius },
+            Some(geom_brep::ExtentBall::new(centre, radius)),
             Some(geom_brep::SsiLane::marched()),
             band,
         );
@@ -1268,19 +1270,19 @@ pub use boolean::{
     CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
     CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
     ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeCarrierSite,
-    EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FaceDescent,
-    FfContact, Fusions, GlueVerdict, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
-    JoinUndecided, JudgedRow, LeverArm, LineWedgeFault, MemberFace, MemberInputs, MemberLineage,
-    NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy,
-    NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite,
-    PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung,
-    PointInSolidError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
-    SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap,
-    SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
-    SweepStrategy, SweepTrace, TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    EdgeInBand, EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment,
+    FaceDescent, FfContact, Fusions, GlueVerdict, JOIN_LEVER, JOIN_SUBJECT, JoinReading,
+    JoinRefusal, JoinUndecided, JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace,
+    MemberInputs, MemberLineage, NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun,
+    NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace,
+    PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
+    PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow, SectionUnbuilt,
+    SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
+    SlitFaceGap, SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops,
+    SubstitutedFace, SweepStrategy, SweepTrace, TorusConvention, UncutFace, UnreadPartner,
+    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
+    WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment,
+    decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
     nary_boolean_apart, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
     rest_locus, subtract, tangent_pair_relation, union,
@@ -1306,7 +1308,7 @@ pub use chord_join::face_azimuth_window_traces;
 pub use census::{
     CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, census_cell_solid,
     census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
-    census_uncleared_solids, record_at_rest,
+    census_uncleared_solids, line_segments_meet, line_segments_overlap, record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};

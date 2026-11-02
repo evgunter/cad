@@ -108,6 +108,8 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("revolve_angle_headroom", REVOLVE),
     ("extrusion_normal_component", EXTRUDE),
     ("extrusion_obliquity", EXTRUDE),
+    ("loft_corner_pinned", LOFT),
+    ("loft_rim_pinned", LOFT),
     ("loft_stacking", LOFT),
     ("sweep_path_tangent", PATH),
     ("sweep_path_chord", PATH),

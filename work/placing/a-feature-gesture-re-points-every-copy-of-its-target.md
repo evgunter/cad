@@ -37,3 +37,7 @@ same body, with no `Transform` (#4326: `Transform` retires).
 ## Priced (2026-10-11)
 
 P1 M. A gesture changes every copy of a body where the author picked one. It is open rather than parked, because threading the picked placement through the seats is the viewer's part and survives stage 3; read `a-placement-is-the-bundle-of-mates` first if it has merged.
+
+## Parked (2026-11-01, PLACING orchestrator)
+
+Parked on the row in `blocked_on`, a live lane rewriting the same gesture code; the reason is in `work/placing/log.md` (2026-11-01, track claimed).

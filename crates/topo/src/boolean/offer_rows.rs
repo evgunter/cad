@@ -961,25 +961,31 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         u_ref: x,
     });
     let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
-    let sector = |start: Vec3<f64>, end: Vec3<f64>, face| BoolSector {
+    // Each corner's face counterclockwise about its outward normal, its
+    // bounds at `reach`: A's quarter-turn under `y = 0`, B's over it,
+    // each with a flank along `x`, B's bounds at the short arm.
+    let sector = |start: Vec3<f64>, end: Vec3<f64>, reach: f64, face| BoolSector {
         he: crate::entity::HalfEdgeKey::default(),
         start,
         end,
         start_reach: Reach::Chord {
             base: o,
-            far: o + start,
+            far: o + start * reach,
         },
         end_reach: Reach::Chord {
             base: o,
-            far: o + end,
+            far: o + end * reach,
         },
         face,
-        normal: OutwardNormal::from_chart(y, true),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            start.cross(end),
+            true,
+        )),
         arm,
     };
-    let corner = |face| [sector(z, x, face), sector(x, z, face)];
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
-    let (sa, sb) = (corner(fca), corner(fcb));
+    let sa = [sector(z, x, 1.0, fca), sector(-y, z, 1.0, fca)];
+    let sb = [sector(z, y, arm, fcb), sector(x, z, arm, fcb)];
     resolve_edge_edge(
         &sa,
         &sb,
@@ -1016,7 +1022,10 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
             far: o + y,
         },
         face: crate::entity::FaceKey::default(),
-        normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            Vec3::new(0.0, 0.0, 1.0),
+            true,
+        )),
         arm: 1.0,
     };
     super::super::vtxfac::pierce_germ_dir(
@@ -1064,7 +1073,10 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
             far: o + y,
         },
         face: crate::entity::FaceKey::default(),
-        normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            Vec3::new(0.0, 0.0, 1.0),
+            true,
+        )),
         arm: 1.0,
     };
     super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
@@ -1453,23 +1465,27 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     let pa = prism_z::<f64>(&square(0.0), 0.0, 1.0, tol);
     let pb = prism_z::<f64>(&square(1.0), 0.0, 1.0, tol);
     let (fa, fb) = (pa.side_faces[1], pb.side_faces[3]);
-    let sector = |start: Vec3<f64>, end: Vec3<f64>, face| BoolSector {
+    // Each corner's face counterclockwise about its outward normal, its
+    // bounds at `reach`.
+    let sector = |start: Vec3<f64>, end: Vec3<f64>, reach: f64, face| BoolSector {
         he: crate::entity::HalfEdgeKey::default(),
         start,
         end,
         start_reach: Reach::Chord {
             base: o,
-            far: o + start,
+            far: o + start * reach,
         },
         end_reach: Reach::Chord {
             base: o,
-            far: o + end,
+            far: o + end * reach,
         },
         face,
-        normal: OutwardNormal::from_chart(y, true),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            start.cross(end),
+            true,
+        )),
         arm,
     };
-    let flank = if against { -x } else { x };
     let decls = Glue {
         pairs: if rest {
             vec![GluedPair::read(
@@ -1485,8 +1501,15 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     };
     let one = super::super::verify_glued_contacts(&pa.body, &pb.body, &decls, band())?;
     let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, Default::default(), band())?;
-    let sa = [sector(z, x, fa), sector(x, z, fa)];
-    let sb = [sector(z, flank, fb), sector(flank, z, fb)];
+    // A's quarter-turn under `y = 0` with a flank along `x`, B's over it
+    // with a flank along `x` (overlapping A's) or `-x` (only touching it
+    // along the line), B's bounds at the short arm.
+    let sa = [sector(z, x, 1.0, fa), sector(-y, z, 1.0, fa)];
+    let sb = if against {
+        [sector(z, -x, arm, fb), sector(y, z, arm, fb)]
+    } else {
+        [sector(z, y, arm, fb), sector(x, z, arm, fb)]
+    };
     resolve_edge_edge(
         &sa,
         &sb,
@@ -1527,7 +1550,10 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
             far: o + z * arm,
         },
         face,
-        normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        )),
         arm,
     };
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
@@ -2141,6 +2167,10 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::NormalAtConeApex
+        | BooleanErrorKind::VertexPairAtConeApex
+        | BooleanErrorKind::VertexNearConeAxis
+        | BooleanErrorKind::ResultPinchedAtConeApex
+        | BooleanErrorKind::ApexSection
         | BooleanErrorKind::NormalAtSplineCrease
         | BooleanErrorKind::PierceLeverUnread
         | BooleanErrorKind::EdgeCarrierUnsupported
@@ -2167,6 +2197,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PinchRaysInAFace
         | BooleanErrorKind::TangentCrescentUnsupported
         | BooleanErrorKind::CrossingsAlongAContactLine
+        | BooleanErrorKind::LineMaterialUnread
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::PartnerAlongFace
         | BooleanErrorKind::ClassificationInvariant
@@ -2711,7 +2742,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "piece_reading", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "piece_reading", "BooleanDecision::Containment", 1),
     ("ops.rs", "piece_reading", "SelfCheck::CarriedLineage", 1),
-    ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
     ("recl.rs", "recl_edges", "Coincide::EdgeOnEdge", 2),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
     (
@@ -2721,10 +2751,11 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
+    ("recl.rs", "resolve_edge_edge", "Coincide::SectorSide", 1),
+    ("recl.rs", "resolve_edge_edge", "Coincide::Sectors", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
     ("recl.rs", "resolve_edge_sector", "Coincide::TangentSide", 1),
     ("recl.rs", "unglued_tilt", "Coincide::Sectors", 1),
-    ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
         "reduce.rs",
         "arc_chain_reaches",
@@ -2887,7 +2918,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::BisectorSide",
         1,
     ),
-    ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
+    ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "crescent", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),
@@ -2998,6 +3029,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
+    ("vtxfac.rs", "pierce_apex_germ", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
         "ring_groups",

@@ -31,6 +31,12 @@ use crate::widgets::{
 /// What the door that opens the add-variable form says.
 pub(crate) const NEW_VARIABLE: &str = "New variable…";
 
+/// What the product door's button says ([`SessionOp::AddToProduct`]).
+pub(crate) const ADD_TO_THE_PRODUCT: &str = "Add to the product";
+
+/// What the button taking a copy out of the product says.
+pub(crate) const TAKE_OUT_OF_THE_PRODUCT: &str = "Take out of the product";
+
 /// What the add-variable form's commit button says: what it makes, so
 /// it reads apart from every other commit on screen.
 pub(crate) const NEW_VARIABLE_COMMIT: &str = "Create variable";
@@ -44,9 +50,9 @@ impl ViewerBehavior<'_> {
         let standing = self.session.standing();
         self.standing_ui(ui, &standing);
         if let Some(node) = self.session.selection().node() {
-            self.instance_ui(ui, node);
-            self.product_ui(ui, node);
+            self.display_ui(ui, node);
         }
+        self.product_ui(ui);
         // The forms whose op takes the selection, under its header and
         // above its rows, where a reader who picked it looks first:
         // nothing at all unless the selection is a profile.
@@ -76,7 +82,7 @@ impl ViewerBehavior<'_> {
             // pick is a way of reaching that feature, which is what
             // G3's click-to-select is for, and an edge reaches it the
             // same way a face does.
-            Selection::Face(_) | Selection::Edge(_) => {
+            Selection::Face(_) | Selection::Edge(_) | Selection::Vertex(_) => {
                 let groups = self.session.slot_groups();
                 if groups.is_empty() && standing.live() {
                     crate::widgets::message_toned(
@@ -169,7 +175,7 @@ impl ViewerBehavior<'_> {
                 // drawn for it here: the header above has said so
                 // ([`standing_verdict`]), loud, and this panel says a
                 // fact once — the rule `failure_lines` keeps for a
-                // failed tree row and `instance_ui` keeps for a
+                // failed tree row and `display_ui` keeps for a
                 // vanished instance. The header's `present` reads the
                 // same document this lookup does
                 // (`DocSession::standing`), so the two are one answer.
@@ -462,6 +468,10 @@ impl ViewerBehavior<'_> {
                 let picked = PickedName::edge(edge);
                 self.entity_header_ui(ui, &picked, standing);
             }
+            Standing::Vertex { vertex, .. } => {
+                let picked = PickedName::vertex(vertex);
+                self.entity_header_ui(ui, &picked, standing);
+            }
         }
         standing_verdict(ui, &self.theme, standing, landed, said);
     }
@@ -524,11 +534,10 @@ impl ViewerBehavior<'_> {
         });
     }
 
-    /// The selected instance's display controls: the hide toggle and
-    /// the free-move probe. Draws nothing for a node the document does
-    /// not admit display state on — the section is about per-instance
-    /// display state, which neither another kind of node nor an id the
-    /// document no longer holds has.
+    /// The selected body's display controls: the hide toggle and the
+    /// free-move probe. Draws nothing for a node the document does not
+    /// admit display state on — one that builds no body, or an id the
+    /// document no longer holds.
     ///
     /// **Silence is the whole answer for both refusals, and for the
     /// absent id it is half of a rule rather than a discard.** A
@@ -542,19 +551,12 @@ impl ViewerBehavior<'_> {
     /// again here would be one fact spelled twice in one pane, which
     /// this panel does nowhere.
     ///
-    /// **The section's gate and the toggle's are two different tests,
-    /// and each control reads the one its own door runs.**
-    /// [`crate::display::instance_check`] decides whether there is a
-    /// section at all — it is the kind test, and a node of another kind
-    /// has no per-instance display state to show. What the hide toggle
-    /// pushes runs [`crate::display::display_check`], the full
-    /// admission test, so an instance whose geometry is fused into a
-    /// placed body with another's is a live instance with a section and
-    /// no display operation that can address it: the toggle is gated on
-    /// the door's test and carries the door's own sentence.
-    pub(crate) fn instance_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
+    /// The body's toggle pushes [`SessionOp::SetBodyOn`], whose door
+    /// runs [`crate::display::body_check`] — the test that gates this
+    /// section — so the toggle is offered exactly where the op accepts.
+    pub(crate) fn display_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
         // **The COMMITTED document, because that is the one the doors
-        // read.** `set_hidden` and `begin_free_move` are handed
+        // read.** `set_body_on` and `begin_free_move` are handed
         // `history.doc()`, and both ops are permitted during a value
         // gesture, so a panel reading the previewed document would be
         // answering a different question from the click it is standing
@@ -564,7 +566,7 @@ impl ViewerBehavior<'_> {
         // The fault is discarded HERE, at the party that decides the
         // two refusals are one answer, rather than by a door that
         // answered a `bool` and could not have offered anything else.
-        if crate::display::instance_check(doc, node).is_err() {
+        if crate::display::body_check(doc, node).is_err() {
             return;
         }
         ui.separator();
@@ -573,43 +575,30 @@ impl ViewerBehavior<'_> {
             node,
             self.session.part_files(),
         ));
-        // The admission test `SetInstanceHidden` itself runs, read once
-        // for the section: the toggle below is offered exactly where
-        // the op would accept it, and the free-move probe runs this
-        // same test before its own.
-        let addressable = crate::display::display_check(doc, node);
-        let mut shown = !self.display.hidden.contains(&node);
-        if hide_toggle(ui, &self.theme, &addressable, &mut shown) {
-            self.ops.push(SessionOp::SetInstanceHidden {
-                instance: node,
-                hidden: !shown,
-            });
-        }
-        // The probe below would refuse this very fault —
-        // `free_move_check` runs `display_check` first — so the section
-        // ends at the toggle rather than saying it a second time.
-        if addressable.is_err() {
-            return;
+        let mut on = self.toggles.body_on(node);
+        if body_toggle(ui, &mut on) {
+            self.ops.push(SessionOp::SetBodyOn { node, on });
         }
         // The evaluation the op reads (DI5: free-move moves a shown
-        // space, and a copy with no value has no picture to move).
+        // space, and a body with no value has no picture to move).
         match free_move_check(doc, self.session.space_evaluation(), node) {
             Err(fault) => {
                 // The typed ineligibility, shown where the control
                 // would be — the same sentence the op would refuse
-                // with. Advisory for every fault that reaches here: the
-                // kind faults end the section above, which leaves a copy
-                // the document places into the world (the document working
-                // as written), a picture not known yet (an evaluation
-                // still on its way), neither of which asks anything of
-                // the reader, or a placement the evaluation refused,
-                // whose failure the tree's row already reports where it
-                // lives — here it only says why there is no probe.
+                // with. Advisory for every fault that reaches here: a
+                // body in the world (the document working as written),
+                // a picture not known yet (an evaluation still on its
+                // way), a space no drawn body is in, neither of which
+                // asks anything of the reader, or a node the evaluation
+                // refused, whose failure the tree's row already reports
+                // where it lives — here it only says why there is no
+                // probe.
                 crate::widgets::message_toned(ui, fault.to_string(), &self.theme, Tone::Advisory);
                 // The recourse the sentence names, where it is one: a
                 // copy placed into the world is given a space of its
                 // own, which the probe then moves.
                 if matches!(fault, crate::display::AdmissionFault::InTheWorld { .. })
+                    && doc.placements().contains(&node)
                     && ui.button("Into a space of its own").clicked()
                 {
                     self.ops.push(SessionOp::IntoOwnSpace { placement: node });
@@ -626,30 +615,36 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// **Whether a world copy is in what the document makes**, and the
-    /// control that says it is or is not (D10 `[operations]`): a copy in
-    /// the product can be taken out of it, any other copy in the world
-    /// added to it, through [`SessionOp::SetProduct`]. Nothing joins the
-    /// product by being placed, so this is where a document made in the
-    /// viewer says what it delivers. Read off the committed document, the
-    /// one the op reads.
-    fn product_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
-        let doc = self.session.committed_doc();
-        let Some(copy) = crate::world::world_copy(doc, node) else {
+    /// **Whether the selected body is in what the document makes**, and
+    /// the control that says it is or is not (D10 `[operations]`): a body
+    /// the product slot reads can be taken out of it
+    /// ([`SessionOp::SetProduct`]),
+    /// and any other drawn body added to it through the one door
+    /// ([`SessionOp::AddToProduct`]). The body is the one the selection
+    /// draws ([`Selection::seat_node`]): under a viewport pick the copy
+    /// the ray met, not the feature that minted the face. Read off the
+    /// committed document, the one the ops read.
+    fn product_ui(&mut self, ui: &mut egui::Ui) {
+        let selection = self.session.selection();
+        let Some(node) = selection.seat_node() else {
             return;
         };
-        let bodies = if crate::world::product_reads(doc).contains(&copy) {
+        let body = selection.seat_body();
+        let doc = self.session.committed_doc();
+        let read = crate::world::body_read(doc, node, body)
+            .and_then(|read| crate::world::read_var(doc, &read));
+        if let Some(var) = read.filter(|var| crate::world::product_reads(doc).contains(var)) {
             crate::widgets::message(ui, "in the product");
-            ui.button("Take out of the product")
-                .clicked()
-                .then(|| crate::world::product_without(doc, copy))
-        } else {
-            ui.button("Add to the product")
-                .clicked()
-                .then(|| crate::world::product_with(doc, copy))
-        };
-        if let Some(bodies) = bodies {
-            self.ops.push(SessionOp::SetProduct { bodies });
+            if ui.button(TAKE_OUT_OF_THE_PRODUCT).clicked() {
+                self.ops.push(SessionOp::SetProduct {
+                    bodies: crate::world::product_without(doc, var),
+                });
+            }
+        } else if read.is_some()
+            && crate::world::is_drawn(doc, node)
+            && ui.button(ADD_TO_THE_PRODUCT).clicked()
+        {
+            self.ops.push(SessionOp::AddToProduct { node, body });
         }
     }
 
@@ -1488,6 +1483,7 @@ pub(crate) fn standing_verdict(
         }
         Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
         Standing::Edge { resolution, .. } => ("edge", resolution.as_deref()),
+        Standing::Vertex { resolution, .. } => ("vertex", resolution.as_deref()),
     };
     let by = crate::frame::landed_speaker(landed).or_held(said);
     let said = match resolution {
@@ -1893,32 +1889,9 @@ fn bounds_notes(ui: &mut egui::Ui, theme: &Theme, reading: Option<&str>) -> bool
         .clicked()
 }
 
-/// **The hide toggle, offered exactly where `SetInstanceHidden` would
-/// accept it.** `addressable` is the admission test that op runs
-/// (`display::display_check`); where it refuses, the checkbox is drawn
-/// disabled and the refusal's own sentence stands under it, visible
-/// rather than behind a hover.
-///
-/// Answers whether the toggle was changed — which a refused toggle
-/// never is.
-fn hide_toggle(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    addressable: &Result<(), crate::display::AdmissionFault>,
-    shown: &mut bool,
-) -> bool {
-    let toggle = ui.add_enabled(
-        addressable.is_ok(),
-        egui::Checkbox::new(shown, "shown in viewport"),
-    );
-    if let Err(fault) = addressable {
-        // Advisory: past the section's own kind gate the one fault
-        // left is geometry fused into a placed body with another
-        // instance's, which is what the document says and nothing a
-        // reader got wrong.
-        crate::widgets::message_toned(ui, fault.to_string(), theme, Tone::Advisory);
-    }
-    toggle.changed()
+/// **The body's toggle**: answers whether it was changed.
+fn body_toggle(ui: &mut egui::Ui, on: &mut bool) -> bool {
+    ui.checkbox(on, "shown in viewport").changed()
 }
 
 /// What an offered variable's button says on hover.
@@ -2211,17 +2184,13 @@ mod tests {
 
     use std::cell::Cell;
 
-    use super::{free_move_probe, hide_toggle};
+    use super::{body_toggle, free_move_probe};
     use crate::app::ViewerBehavior;
-    use crate::display::AdmissionFault;
     use crate::pane::headless::{painted_after_clicking, painted_text};
     use crate::props::{Notation, SlotDriver, SlotFault, SlotRow, SlotValue};
     use crate::session::{Refusal, SessionOp};
-    use crate::theme::Theme;
     use eframe::egui;
     use pncad::document::{Dimension, RecipeNodeId, SlotId, SpokenVar, VarId, VarName};
-
-    use crate::test_support::spoken;
 
     const NODE: RecipeNodeId = RecipeNodeId::new(0, test_utils::refusal::tagged(4));
 
@@ -2345,67 +2314,17 @@ mod tests {
         );
     }
 
-    /// The fault a fused instance's display doors refuse with.
-    fn fused() -> AdmissionFault {
-        AdmissionFault::FusedGeometry {
-            instance: spoken(
-                RecipeNodeId::new(0, test_utils::refusal::tagged(0)),
-                Some("InstantiatePart"),
-            ),
-            body: spoken(
-                RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
-                Some("Union"),
-            ),
-            others: vec![spoken(
-                RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
-                Some("InstantiatePart"),
-            )],
-        }
-    }
-
-    /// **A refused hide toggle is drawn, cannot be flipped, and carries
-    /// the door's own sentence under it** — the panel half of the fused
-    /// instance's repair, drawn headless.
-    ///
-    /// The runtime value that makes it false is a toggle gated on
-    /// anything weaker than the display doors' own test: clicked here,
-    /// it would report a change the op then refuses.
+    /// **A click on the body's toggle flips it.**
     #[test]
-    fn a_refused_hide_toggle_is_disabled_and_says_why() {
+    fn a_body_toggle_flips() {
         let changed = Cell::new(false);
-        let painted = painted_after_clicking("shown in viewport", |ui| {
-            let mut shown = true;
-            if hide_toggle(ui, &Theme::DEFAULT, &Err(fused()), &mut shown) {
-                changed.set(true);
-            }
-        });
-        assert!(!changed.get(), "a refused toggle is not the user's to flip");
-        // Planted, not compared with another reading of the fault.
-        assert!(
-            painted.contains(
-                "InstantiatePart 000000000000's geometry is fused into Union 000000000002 \
-                 together with InstantiatePart 000000000001 — a display operation cannot \
-                 address it separately"
-            ),
-            "{painted}"
-        );
-    }
-
-    /// **The same click on an addressable toggle DOES flip it** — the
-    /// row that keeps the one above from passing because the harness
-    /// missed the checkbox, and that no sentence is owed where the op
-    /// would accept.
-    #[test]
-    fn an_addressable_hide_toggle_flips_and_says_nothing() {
-        let changed = Cell::new(false);
-        let painted = painted_after_clicking("shown in viewport", |ui| {
-            let mut shown = true;
-            if hide_toggle(ui, &Theme::DEFAULT, &Ok(()), &mut shown) {
+        painted_after_clicking("shown in viewport", |ui| {
+            let mut on = true;
+            if body_toggle(ui, &mut on) {
                 changed.set(true);
             }
         });
         assert!(changed.get(), "the click reached the checkbox");
-        assert!(!painted.contains("fused"), "{painted}");
     }
 
     /// **A slot the user can write is offered the probe**, with nothing
@@ -2521,7 +2440,7 @@ mod tests {
         let previewed: Vec<[f64; 3]> = emitted
             .iter()
             .filter_map(|op| match op {
-                SessionOp::PreviewFreeMove { instance, frame } if *instance == NODE => {
+                SessionOp::PreviewFreeMove { node, frame } if *node == NODE => {
                     Some(frame.translation)
                 }
                 _ => None,
@@ -2533,9 +2452,9 @@ mod tests {
             "one typed value, previewed as millimetres: {emitted:?}"
         );
         assert!(
-            emitted.iter().any(
-                |op| matches!(op, SessionOp::CommitFreeMove { instance } if *instance == NODE)
-            ),
+            emitted
+                .iter()
+                .any(|op| matches!(op, SessionOp::CommitFreeMove { node } if *node == NODE)),
             "and committed: {emitted:?}"
         );
     }

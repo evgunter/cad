@@ -449,6 +449,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         &cone,
         &pose.partner,
         reach,
+        None,
         Some(geom_brep::SsiLane::marched()),
         b,
     );
@@ -456,6 +457,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         &pose.partner,
         &cone,
         reach,
+        None,
         Some(geom_brep::SsiLane::marched()),
         b,
     );
@@ -622,6 +624,7 @@ fn the_cone_arms_agree_with_the_traced_section() {
                 &k.surface(),
                 &pose.partner,
                 reach_of(&k),
+                None,
                 Some(geom_brep::SsiLane::marched()),
                 band(),
             ) {
@@ -706,7 +709,14 @@ fn near_axis_balls_agree_with_the_closed_form() {
             centre: apex,
             radius: 5.0 * scale,
         };
-        match classify(&cone, &ball, reach, Some(geom_brep::SsiLane::marched()), b) {
+        match classify(
+            &cone,
+            &ball,
+            reach,
+            None,
+            Some(geom_brep::SsiLane::marched()),
+            b,
+        ) {
             Section::Tangent(_) => {
                 tangent += 1;
                 if gap > 8.0 * b.escalate() + 64.0 * f64::EPSILON * scale {

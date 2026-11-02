@@ -275,6 +275,25 @@ fn a_themes_ground_stays_off_its_own_swatches() {
     }
 }
 
+/// **A body outside the product is told from one inside it**, in every
+/// palette, under the vision types the palette's own claim covers,
+/// across the shading range: the outside mark composited over the body
+/// against the bare body. A tint too close to the body draws every
+/// construction as though the product held it.
+#[test]
+fn a_body_outside_the_product_is_told_from_the_product() {
+    for theme in Theme::ALL {
+        let (worst, at) = cvd::worst_outside_separation(theme);
+        assert!(
+            worst >= cvd::MIN_SEPARATION,
+            "{}: a body outside the product is only {worst:.4} from one inside it, {at}, \
+             under the {:.4} bar",
+            theme.name,
+            cvd::MIN_SEPARATION,
+        );
+    }
+}
+
 /// **A committed profile is told from the preview drawn over it, by
 /// colour, in every palette and under every dichromacy the suite
 /// simulates.**
@@ -290,6 +309,24 @@ fn a_profile_is_told_from_the_preview() {
         assert!(
             worst >= cvd::MIN_SEPARATION,
             "{}: the profile colour is only {worst:.4} from {at}, under the {:.4} bar",
+            theme.name,
+            cvd::MIN_SEPARATION,
+        );
+    }
+}
+
+/// **A fused step's construction is told from the preview drawn over
+/// it, the committed profile under it and the selected and hovered
+/// edges beside it**, by colour, in every
+/// palette and under every dichromacy the suite simulates — for
+/// [`a_profile_is_told_from_the_preview`]'s reason.
+#[test]
+fn a_construction_is_told_from_the_lines_beside_it() {
+    for theme in Theme::ALL {
+        let (worst, at) = cvd::worst_construction_separation(theme);
+        assert!(
+            worst >= cvd::MIN_SEPARATION,
+            "{}: the construction colour is only {worst:.4} from {at}, under the {:.4} bar",
             theme.name,
             cvd::MIN_SEPARATION,
         );
@@ -525,19 +562,22 @@ mod cvd {
     /// **What the GROUND is measured against**: every swatch, plus
     /// the two line colours.
     ///
-    /// `Theme::profile` is not a mark — it shades with nothing and
-    /// tints nothing — so it is absent from [`swatches`] and from the
-    /// marks check. It is still DRAWN IN THE VIEWPORT, though, which is
+    /// `Theme::profile` and `Theme::construction` are not marks — they
+    /// shade with nothing and tint nothing — so they are absent from
+    /// [`swatches`] and from the marks check. They are still DRAWN IN
+    /// THE VIEWPORT, though, which is
     /// the whole of what the ground check is about: a line the colour
-    /// of the surround is a line nobody can see. It is measured
+    /// of the surround is a line nobody can see. Each is measured
     /// unshaded, once, because a line is not lit.
     pub(super) fn against_ground(theme: &Theme, shade: f64) -> Vec<(&'static str, Color)> {
         let mut out = swatches(theme, shade);
-        let [r, g, b] = linear(theme.profile);
-        out.push((
-            "profile",
-            Color::new(f64::from(r), f64::from(g), f64::from(b)),
-        ));
+        for (label, line) in [
+            ("profile", theme.profile),
+            ("construction", theme.construction),
+        ] {
+            let [r, g, b] = linear(line);
+            out.push((label, Color::new(f64::from(r), f64::from(g), f64::from(b))));
+        }
         out
     }
 
@@ -594,11 +634,47 @@ mod cvd {
     /// [`KINDS`] whatever the palette claims: the preview, the probe
     /// mark over the body, drawn unshaded as the edge pass draws it.
     pub(super) fn worst_profile_separation(theme: &Theme) -> (f64, String) {
+        worst_line_separation(theme, theme.profile, &[])
+    }
+
+    /// The closest a theme's construction colour comes to the lines it
+    /// is drawn beside — the preview over it, the committed profile
+    /// under it, and a selected or hovered edge beside it (each mark
+    /// over the body, as the edge pass tints it; the held mark is the
+    /// selected one) — measured as [`worst_profile_separation`] is.
+    pub(super) fn worst_construction_separation(theme: &Theme) -> (f64, String) {
+        let edge = |label: &'static str, mark: viewer::theme::Mark| {
+            let composited = mark.over(theme.body);
+            assert!(
+                composited.is_some(),
+                "{}: {label} does not composite",
+                theme.name
+            );
+            (label, composited.unwrap_or(theme.body))
+        };
+        worst_line_separation(
+            theme,
+            theme.construction,
+            &[
+                ("the committed profile", theme.profile),
+                edge("a selected edge", theme.selected),
+                edge("a hovered edge", theme.hovered),
+            ],
+        )
+    }
+
+    /// The closest `line` comes to the preview and to each of `lines`,
+    /// under every vision type in [`KINDS`].
+    fn worst_line_separation(
+        theme: &Theme,
+        line: Rgba8,
+        lines: &[(&'static str, Rgba8)],
+    ) -> (f64, String) {
         let color = |c: Rgba8| {
             let [r, g, b] = linear(c);
             Color::new(f64::from(r), f64::from(g), f64::from(b))
         };
-        let profile = color(theme.profile);
+        let profile = color(line);
         // `swatches`' reason for asserting rather than defaulting: a
         // mark that does not composite measured as black would pass
         // every distance on a value nothing computed.
@@ -609,13 +685,45 @@ mod cvd {
             theme.name
         );
         let preview = composited.unwrap_or(theme.body);
-        let neighbours = [("the preview", color(preview))];
+        let neighbours = std::iter::once(("the preview", color(preview)))
+            .chain(lines.iter().map(|(name, c)| (*name, color(*c))));
         let mut worst = (f64::INFINITY, String::new());
         for (name, neighbour) in neighbours {
             for kind in KINDS {
                 let d = distance(seen(profile, kind), seen(neighbour, kind));
                 if d < worst.0 {
                     worst = (d, format!("{name} under {}", name_of(kind)));
+                }
+            }
+        }
+        worst
+    }
+
+    /// The closest a theme's body outside the product comes to its body,
+    /// over the shading range and the vision types its claim covers.
+    pub(super) fn worst_outside_separation(theme: &Theme) -> (f64, String) {
+        let composited = theme.outside.over(theme.body);
+        assert!(
+            composited.is_some(),
+            "{}: the outside mark does not composite",
+            theme.name
+        );
+        let outside = linear(composited.unwrap_or(theme.body));
+        let body = linear(theme.body);
+        let ambient = f64::from(theme.ambient.get());
+        let mut worst = (f64::INFINITY, String::new());
+        for shade in [ambient, ambient + (1.0 - ambient) * 0.5, 1.0] {
+            let scale = |c: [f32; 3]| {
+                Color::new(
+                    f64::from(c[0]) * shade,
+                    f64::from(c[1]) * shade,
+                    f64::from(c[2]) * shade,
+                )
+            };
+            for kind in kinds_of(theme) {
+                let d = distance(seen(scale(body), *kind), seen(scale(outside), *kind));
+                if d < worst.0 {
+                    worst = (d, format!("under {} at shade {shade:.2}", name_of(*kind)));
                 }
             }
         }

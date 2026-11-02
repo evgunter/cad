@@ -25,9 +25,11 @@ bit:
   witness is placed by the textbook form, which HONE's
   `circle-crossing-closed-forms-cancel-at-unequal-radii` already
   carries;
-- the same file's `cylinder_cylinder`, `section_cylinder_pair_reach` and
-  `section_cylinder_pair_nest` on `|δ|`, the axes' offset along their
-  common perpendicular;
+- the cylinder pair's pose (`geom_brep::pair_section::cylinders`,
+  `cc_crossing_gap` and `cc_crossing_nest` on `|e|`, the axes' gap along
+  their common perpendicular), which replaced `section_cert`'s
+  `cylinder_cylinder` and its `section_cylinder_pair_*` rows (SECTARMS,
+  PR 6151);
 - `crates/geom-brep/src/locus.rs` `parallel_cylinder_gaps`'s
   `tangent_locus_internal_gap` (`|r₁ − r₂| − d`), beside
   `crates/geom-brep/src/intersect.rs`'s `cc_parallel_gap`

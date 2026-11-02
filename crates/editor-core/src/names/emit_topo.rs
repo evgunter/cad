@@ -45,7 +45,7 @@ struct Side<'a, T: Decide> {
 impl<T: Decide> Side<'_, T> {
     /// The half's place among [`HalfNames`]: its output's port.
     fn slot(&self) -> usize {
-        usize::try_from(self.ix).unwrap_or(usize::MAX)
+        self.ix as usize
     }
 }
 
@@ -5760,6 +5760,11 @@ mod tests {
                 operand: topo::Operand::A,
                 vertex: listed,
                 partner,
+                in_band: topo::EdgeInBand {
+                    edge: topo::HalfEdgeKey::default(),
+                    face: None,
+                    predicate: None,
+                },
             }],
             ..topo::BooleanNaming::default()
         };

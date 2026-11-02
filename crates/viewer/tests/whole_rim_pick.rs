@@ -374,13 +374,8 @@ fn a_split_revolves_circles_stay_in_their_own_half() {
             normal: scl3([0.0, 1.0, 0.0]),
         },
     );
-    let mut doc = session.committed_doc().clone();
-    let whole = common::copy_of(&doc, feature);
-    common::edit_into(
-        &mut doc,
-        pncad::document::DocEdit::DeleteNode { id: whole },
-        tol,
-    );
+    // The halves placed by hand: the split took the feature over.
+    let doc = session.committed_doc().clone();
     let (doc, _) = common::placed_read(&doc, pncad::document::Operand::output(split, 0), tol);
     let (doc, _) = common::placed_read(&doc, pncad::document::Operand::output(split, 1), tol);
     let mut session = DocSession::inline(doc, tol);

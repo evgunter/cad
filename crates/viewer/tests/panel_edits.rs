@@ -717,6 +717,7 @@ test_utils::f6_variants! {
         SelfInstance,
         ProfileEditStale,
         StrandedPick,
+        InTheProduct,
     ];
 }
 

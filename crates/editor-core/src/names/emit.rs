@@ -26,7 +26,7 @@ use crate::node::RecipeNodeId;
 /// Typed failure of name emission (spec D4's loud assertions, as
 /// in-band errors — this crate has no panic paths).
 ///
-/// **Five kinds of thing live here, and the reader is told which.**
+/// **Six kinds of thing live here, and the reader is told which.**
 ///
 /// 1. An emission BUG — a mint-time fact inconsistent with the result
 ///    body. [`Self::Duplicate`], [`Self::EntityNamed`],
@@ -55,11 +55,13 @@ use crate::node::RecipeNodeId;
 ///    [`Self::JoinedPieceOffRoot`], [`Self::BandVerdictsDisagree`] and
 ///    [`Self::PartnerUnread`], a verdict the tolerance band cannot give
 ///    on a sound result. Each ends in the model's lever alone.
+/// 6. An INPUT past the width a name or a record numbers it within:
+///    [`Self::PastWidth`], a count the document sets ([`narrow`]).
 ///
-/// **Three of the five categories are readable off the opening
+/// **Three of the six categories are readable off the opening
 /// words.** Three framings are written once each —
 /// [`EMISSION_FRAMING`], [`UNRULED_FRAMING`] and [`LIMIT_FRAMING`] —
-/// and each opens every refusal of its category. Categories 2 and 3
+/// and each opens every refusal of its category. Categories 2, 3 and 6
 /// have one variant each, with a sentence of its own, and borrow no
 /// framing. So a reader tells a kernel bug from a MISSING RULE from a
 /// precision limit from everything else by the clause a refusal opens
@@ -128,6 +130,15 @@ pub enum NamingError {
     MissingUpstream {
         /// The upstream node whose table missed.
         node: RecipeNodeId,
+    },
+    /// A count or position the document sets that does not fit the
+    /// `u32` a name or a record numbers it by ([`narrow`]): an input
+    /// past `u32::MAX`, not a kernel bug.
+    PastWidth {
+        /// What it numbers.
+        what: Numbered,
+        /// The count or position.
+        index: usize,
     },
     /// A mint-time emission fact was inconsistent with the result
     /// body (kernel bug, loudly).
@@ -791,6 +802,12 @@ impl crate::spoken::Say for NamingError {
                  emission needed",
                 by.node(*node)
             ),
+            Self::PastWidth { what, index } => write!(
+                f,
+                "{} {index} does not fit the u32 a name or record numbers it by. {}",
+                what.noun(),
+                crate::sentence::Recourse(what.recourse())
+            ),
             Self::Emission { what } => write!(f, "{EMISSION_FRAMING}: {what}"),
             // The category IS an emission inconsistency, so the framing
             // is the same one; what the caught record adds is the locator.
@@ -1002,7 +1019,7 @@ impl NamingError {
             | Self::JoinedPieceOffRoot { .. }
             | Self::BandVerdictsDisagree { .. }
             | Self::PartnerUnread { .. } => Some(Category::Limit),
-            Self::Band(_) | Self::Escalated { .. } => None,
+            Self::Band(_) | Self::Escalated { .. } | Self::PastWidth { .. } => None,
         }
     }
 
@@ -1104,16 +1121,62 @@ pub(crate) fn empty() -> Arc<NameTable> {
     Arc::new(NameTable::new())
 }
 
-/// **An output-body index, as the table carries it.** [`EntityRef::body`]
-/// is a `u32`, so a body count past that has no row to land in — the
-/// one bound every multi-body value shares, which is why an index past
-/// it is this layer's refusal wherever it is met (the evaluator's
-/// placers and `Node::Part`, the emitters, the mate walk's `Part`
-/// agreement) and not a number silently narrowed.
-pub(crate) fn output_body(index: usize) -> Result<u32, NamingError> {
-    u32::try_from(index).map_err(|_| NamingError::Emission {
-        what: "an output-body index exceeds the table's u32 row width",
-    })
+/// **What a `u32` the document's own counts set numbers** — a
+/// [`NamingError::PastWidth`]'s subject, with the noun it is said by and
+/// the edit that brings it back within the width.
+///
+/// **Not carried to the façade's curated list, by decision**
+/// (`scripts/payload-rung-sweep.py` names this rung, and its disposition
+/// table cites this paragraph). A Rust caller matches it through
+/// `editor_core::names`; a Python caller reads `past_width` and the
+/// sentence, which says what the count numbers and its recourse. The
+/// falsifier is a Python caller that must branch on which count ran past
+/// the width rather than read it off the sentence; when the façade
+/// carries it, delete this paragraph and the disposition row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Numbered {
+    /// An output-body index of a multi-body value, as an
+    /// [`EntityRef::body`] holds it; a pattern's count sets it.
+    OutputBody,
+    /// A position among an n-ary operation's inputs, as a record
+    /// ([`topo::Backing::Carried`]), a judged pair or a fold step cites
+    /// it; a spelled list or a family sets it.
+    InputPosition,
+    /// A coincidence row of an operation's table, as a
+    /// [`topo::Backing::Decided`] cites it; the members a fold runs over
+    /// set it.
+    Row,
+    /// A program loop's coordinate; the loops a profile draws set it.
+    Loop,
+}
+
+impl Numbered {
+    fn noun(self) -> &'static str {
+        match self {
+            Self::OutputBody => "output body",
+            Self::InputPosition => "input",
+            Self::Row => "coincidence row",
+            Self::Loop => "loop",
+        }
+    }
+
+    fn recourse(self) -> &'static str {
+        match self {
+            Self::OutputBody => "make the value in parts of fewer bodies each",
+            Self::InputPosition | Self::Row => {
+                "join the inputs in nested operations of fewer inputs each"
+            }
+            Self::Loop => "draw the loops in several profiles of fewer loops each",
+        }
+    }
+}
+
+/// **A count or position the document sets, as the `u32` a name or a
+/// record numbers it by** ([`Numbered`] says which). Nothing bounds what
+/// a document writes, so past the width is the input's refusal
+/// ([`NamingError::PastWidth`]), never a number narrowed onto another's.
+pub(crate) fn narrow(index: usize, what: Numbered) -> Result<u32, NamingError> {
+    u32::try_from(index).map_err(|_| NamingError::PastWidth { what, index })
 }
 
 /// **A count or index of what one body holds, narrowed to the `u32`
@@ -1149,14 +1212,16 @@ pub(crate) fn name_family<T: geom_core::Real>(
         // A member's table read WHOLE seals here, as one read an entity
         // at a time seals in `upstream_name`.
         member.seal_order();
-        let body = output_body(at_body)?;
-        let place = |e: &EntityRef| -> Result<EntityRef, NamingError> {
+        let body = narrow(at_body, Numbered::OutputBody)?;
+        let place = |e: &EntityRef| -> EntityRef {
             if e.body != 0 {
-                return Err(NamingError::Emission {
-                    what: "a family's member names a body the member does not have",
-                });
+                unreachable!(
+                    "family {node:?}: member {at_body} names its body {}; {OWN_BODIES}, and a \
+                     member is one body",
+                    e.body
+                )
             }
-            Ok(ent(body, e.key))
+            ent(body, e.key)
         };
         for (name, entry) in member.iter_refs() {
             let wrapped = StableName {
@@ -1168,16 +1233,15 @@ pub(crate) fn name_family<T: geom_core::Real>(
                 }],
             };
             match entry {
-                super::table::Entry::Unique(e) => t.insert(wrapped, place(e)?)?,
+                super::table::Entry::Unique(e) => t.insert(wrapped, place(e))?,
                 super::table::Entry::Tied(es) => {
-                    let rows = es.iter().map(place).collect::<Result<Vec<_>, _>>()?;
-                    t.insert_tied(wrapped, rows)?;
+                    t.insert_tied(wrapped, es.iter().map(place).collect())?
                 }
             }
         }
     }
     for (i, body) in bodies.iter().enumerate() {
-        check_total(&t, body, output_body(i)?)?;
+        check_total(&t, body, narrow(i, Numbered::OutputBody)?)?;
     }
     Ok(Arc::new(t))
 }
@@ -1214,7 +1278,7 @@ pub(crate) fn name_copy<T: geom_core::Real>(
         }
     }
     for (ix, body) in placed.iter().enumerate() {
-        check_total(&t, body, output_body(ix)?)?;
+        check_total(&t, body, narrow(ix, Numbered::OutputBody)?)?;
     }
     Ok(Arc::new(t))
 }
@@ -1243,27 +1307,38 @@ pub(crate) fn name_assemble<T: geom_core::Real>(
             if name.kind == EntityKind::Body {
                 continue;
             }
-            let rows: Vec<EntityRef> = match entry {
-                super::table::Entry::Unique(e) => vec![*e],
-                super::table::Entry::Tied(es) => es.clone(),
+            let rows: &[EntityRef] = match entry {
+                super::table::Entry::Unique(e) => core::slice::from_ref(e),
+                super::table::Entry::Tied(es) => es,
             };
-            let moved = rows
-                .into_iter()
-                .map(|e| {
-                    let keys = bridges.get(e.body as usize).ok_or(NamingError::Emission {
-                        what: "a member's table names a body the member does not have",
-                    })?;
-                    let key = match e.key {
-                        EntityKey::Body => None,
-                        EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
-                        EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
-                        EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
-                    };
-                    key.map(|key| ent(0, key)).ok_or(NamingError::Emission {
-                        what: "a member's graft bridge is not total over its entities",
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let moved = rows.iter().map(|e| {
+                let Some(keys) = usize::try_from(e.body).ok().and_then(|b| bridges.get(b)) else {
+                    unreachable!(
+                        "assemble {node:?}: read {read:?} names body {}, past its {} (or past a \
+                         usize); {OWN_BODIES}",
+                        e.body,
+                        bridges.len()
+                    )
+                };
+                let key = match e.key {
+                    EntityKey::Body => unreachable!(
+                        "assemble {node:?}: read {read:?} seats a body row under a {:?} name; \
+                         a table seats each row at its name's kind",
+                        name.kind
+                    ),
+                    EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
+                    EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
+                    EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
+                };
+                let Some(key) = key else {
+                    unreachable!(
+                        "assemble {node:?}: read {read:?}'s graft bridge has no image for {:?}; \
+                         {GRAFT_TOTAL}",
+                        e.key
+                    )
+                };
+                ent(0, key)
+            });
             let keyed = StableName {
                 kind: name.kind,
                 node,
@@ -1285,6 +1360,38 @@ pub(crate) fn name_assemble<T: geom_core::Real>(
     }
     check_total(&t, fused, 0)?;
     Ok(Arc::new(t))
+}
+
+/// Why a value's table names only the output bodies the value holds:
+/// a one-body output's rows sit at 0 and a family's at each member's
+/// index. Debug builds check it on every node result the evaluator
+/// writes ([`assert_own_bodies`]).
+const OWN_BODIES: &str = "a value's table names only the output bodies the value holds";
+
+/// Why an assembled or gathered row has an image in the grafted body: a
+/// graft's bridge is total over its source's live entities, a rigid
+/// read keeps the source's keys, and the source's rows name its live
+/// entities ([`LIVE_ARGUMENT`]'s table leg, which [`check_total`]
+/// checks in debug builds).
+pub(crate) const GRAFT_TOTAL: &str =
+    "a graft's bridge is total over its source's live entities, which its rows name";
+
+/// [`OWN_BODIES`], checked: every row of `table` sits at an output body
+/// below `count`.
+#[cfg(debug_assertions)]
+#[track_caller]
+pub(crate) fn assert_own_bodies(table: &NameTable, count: usize, node: RecipeNodeId) {
+    for (name, row) in table.rows() {
+        for (_, e) in row.pairs() {
+            assert!(
+                usize::try_from(e.body).is_ok_and(|b| b < count),
+                "{node:?}'s value holds {count} bodies, though its table seats {:?} at body {}; \
+                 {OWN_BODIES}",
+                name.kind,
+                e.body
+            );
+        }
+    }
 }
 
 /// Per-body topology walk products the emitters share: half-edge
@@ -1516,13 +1623,31 @@ pub(crate) fn edge_ends<T: geom_core::Real>(body: &Body<T>, e: EdgeKey) -> (Vert
 
 /// TOTALITY (spec D4): every live face/edge/vertex of `body` (output
 /// body index `ix`) is covered by the table, plus the body row
-/// itself.
+/// itself. Debug builds check the converse too: every row at `ix`
+/// names a live entity of `body`, and a body key only under a body
+/// name.
 pub(crate) fn check_total<T: geom_core::Real>(
     table: &NameTable,
     body: &Body<T>,
     ix: u32,
 ) -> Result<(), NamingError> {
     let miss = |kind| NamingError::Unnamed { kind, body: ix };
+    #[cfg(debug_assertions)]
+    for (name, row) in table.rows() {
+        for (_, e) in row.pairs().filter(|(_, e)| e.body == ix) {
+            let live = match e.key {
+                EntityKey::Body => name.kind == EntityKind::Body,
+                EntityKey::Face(f) => body.get_face(f).is_some(),
+                EntityKey::Edge(k) => body.get_edge(k).is_some(),
+                EntityKey::Vertex(v) => body.get_vertex(v).is_some(),
+            };
+            assert!(
+                live,
+                "a {:?} name's row at body {ix} names {:?}, which is not a live entity of it",
+                name.kind, e.key
+            );
+        }
+    }
     if table.name_of(&ent(ix, EntityKey::Body)).is_none() {
         return Err(miss(EntityKind::Body));
     }
@@ -1887,6 +2012,11 @@ mod display_tests {
                         operand: topo::Operand::B,
                         vertex: two_vertices().0,
                         partner: two_vertices().1,
+                        in_band: topo::EdgeInBand {
+                            edge: topo::HalfEdgeKey::default(),
+                            face: None,
+                            predicate: None,
+                        },
                     },
                 },
                 vec![
@@ -1986,6 +2116,13 @@ mod display_tests {
                     "within one operand face",
                 ],
             ),
+            (
+                NamingError::PastWidth {
+                    what: Numbered::Loop,
+                    index: 9,
+                },
+                vec!["loop 9 does not fit", "Recourse: draw the loops"],
+            ),
         ];
         // The category is `NamingError::category`'s, which also chooses
         // the ending. Which framing each arm's `Display` interpolates is
@@ -2028,6 +2165,7 @@ mod display_tests {
                 NamingError::BandVerdictsDisagree { .. } => 25,
                 NamingError::JoinedPieceOffRoot { .. } => 26,
                 NamingError::UnsupportedTurnedCell { .. } => 27,
+                NamingError::PastWidth { .. } => 28,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
@@ -2705,5 +2843,33 @@ mod to_u32_tests {
     fn panics_one_past_the_bound() {
         let past = usize::try_from(u64::from(u32::MAX) + 1).expect("a 64-bit usize");
         to_u32(past, "the caller's sentence");
+    }
+
+    /// A count or position the document sets narrows exactly up to
+    /// the bound and is refused typed one past it, as the input's, never
+    /// saturated onto the last position, which another holds.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn a_position_past_the_bound_is_the_inputs_refusal() {
+        use super::{NamingError, Numbered, narrow};
+        let max = usize::try_from(u32::MAX).expect("a 32-bit or wider usize");
+        assert_eq!(narrow(max, Numbered::InputPosition).ok(), Some(u32::MAX));
+        let past = max + 1;
+        let refused = narrow(past, Numbered::InputPosition);
+        assert!(
+            matches!(
+                refused,
+                Err(NamingError::PastWidth {
+                    what: Numbered::InputPosition,
+                    index,
+                }) if index == past
+            ),
+            "one past the bound: {refused:?}"
+        );
+        let said = refused.map_err(|e| e.to_string()).unwrap_err();
+        assert!(
+            said.starts_with("input 4294967296 does not fit") && said.contains("Recourse: "),
+            "{said}"
+        );
     }
 }

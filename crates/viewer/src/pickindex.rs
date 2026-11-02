@@ -35,7 +35,8 @@
 //!   [`PickIndex::op_under`] turn a [`PickAction`] into a
 //!   [`SessionOp`], including the miss rule, and
 //!   [`PickIndex::hovered_for`] carries the priority rule that an edge
-//!   within [`EDGE_PICK_RADIUS_PX`] beats the face behind it. **The
+//!   or a committed profile's outline within [`EDGE_PICK_RADIUS_PX`]
+//!   beats the face behind it. **The
 //!   picking POLICY is here**, in the one door hovering and clicking
 //!   both read, so the two cannot disagree.
 //!
@@ -94,8 +95,11 @@ use crate::display::DisplayView;
 use crate::generation::Generation;
 use crate::input::{PickAction, ViewportSize};
 use crate::scene::{DisplayTolerance, SceneError, SceneMesh, ScenePart};
-use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection, SessionOp};
+use crate::session::{
+    EdgeSelection, FaceSelection, Hovered, Selection, SessionOp, VertexSelection,
+};
 use crate::tree::DrawnBody;
+use crate::world::Shown;
 
 /// One drawn face patch, addressed the way selection speaks: the node
 /// whose body carries it, which output body, and the patch's position
@@ -137,77 +141,138 @@ pub struct EdgeId {
     pub boundary: usize,
 }
 
-/// Which entity kinds a pick may answer with — the caller's half of
-/// the priority rule.
-///
-/// **Why a tool gets a say at all.** Edge-beats-face is a rule about
-/// what the user is AIMING at, and it is right for a bare cursor. It
-/// is wrong for a tool that can only use one kind: the mate tool takes
-/// faces, and on a real part whole faces are within
-/// [`EDGE_PICK_RADIUS_PX`] of their own boundary everywhere — a narrow
-/// shelf, a small hole's cylindrical wall — so with edges always
-/// winning those faces became unpickable while the tool was open.
-///
-/// **The blend tool is the mirror case and the second data point.**
-/// It consumes edges and nothing else, so a click that lands on a
-/// face is a click the tool cannot use: unfiltered, a cursor eight
-/// pixels off an edge silently re-selects the wall behind it and the
-/// user's click does nothing they can see. [`PickKinds::EdgesOnly`]
-/// makes that miss a MISS — nothing is picked, exactly as a cursor
-/// over the background picks nothing — so the answer is either an
-/// edge the tool takes or an honest empty.
-///
-/// **This is deliberately not a filter vocabulary.** Each variant is
-/// one answer to the one question the shipped tools actually ask, one
-/// per shape of tool the GUI has shipped, threaded through the one
-/// door that decides priority so a tool cannot get a different rule by
-/// re-implementing it; the enum is exhaustively matched at that door.
-/// Which filters are offered where — a general "kinds admitted" set, a
-/// per-tool cursor hint — is GQ7's open clause and issue #1379, which
-/// now carries two concrete tools rather than one; nothing here
-/// forecloses it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum PickKinds {
-    /// The bare cursor's rule: an edge within [`EDGE_PICK_RADIUS_PX`]
-    /// beats the face behind it.
-    #[default]
-    Any,
-    /// Faces only: the edge test is not run, so the answer is the
-    /// ray path's face or nothing.
-    FacesOnly,
-    /// Edges only: the edge test runs, and a cursor that no edge wins
-    /// answers NOTHING rather than the face the ray met.
-    EdgesOnly,
+crate::vocab::vocabulary! {
+    /// Which entity kinds a pick may answer with — the caller's half of
+    /// the priority rule.
+    ///
+    /// **Why a tool gets a say at all.** Edge-beats-face is a rule about
+    /// what the user is AIMING at, and it is right for a bare cursor. It
+    /// is wrong for a tool that can only use one kind: the mate tool takes
+    /// faces, and on a real part whole faces are within
+    /// [`EDGE_PICK_RADIUS_PX`] of their own boundary everywhere — a narrow
+    /// shelf, a small hole's cylindrical wall — so with edges always
+    /// winning those faces became unpickable while the tool was open.
+    ///
+    /// **The blend tool is the mirror case and the second data point.**
+    /// It consumes edges and nothing else, so a click that lands on a
+    /// face is a click the tool cannot use: unfiltered, a cursor eight
+    /// pixels off an edge silently re-selects the wall behind it and the
+    /// user's click does nothing they can see. [`PickKinds::EdgesOnly`]
+    /// makes that miss a MISS — nothing is picked, exactly as a cursor
+    /// over the background picks nothing — so the answer is either an
+    /// edge the tool takes or an honest empty.
+    ///
+    /// **A profile is the third.** A committed profile's outline is
+    /// pickable, and only the revolve tool's seat reads a profile; a
+    /// tool handed one it cannot use drops it (the mate tool) or seats
+    /// a node its door refuses. So the outline answers only under
+    /// [`PickKinds::Any`], and every other tool's rule leaves it out
+    /// ([`PickKinds::admits`]).
+    ///
+    /// **This is deliberately not a filter vocabulary.** Each variant is
+    /// one answer to the one question the shipped tools actually ask, one
+    /// per shape of tool the GUI has shipped, threaded through the one
+    /// door that decides priority so a tool cannot get a different rule by
+    /// re-implementing it; the enum is exhaustively matched at that door.
+    /// Which filters are offered where — a general "kinds admitted" set, a
+    /// per-tool cursor hint — is GQ7's open clause and issue #1379, which
+    /// now carries two concrete tools rather than one; nothing here
+    /// forecloses it.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum PickKinds {
+        /// The bare cursor's rule: an edge or a committed profile's
+        /// outline within [`EDGE_PICK_RADIUS_PX`] beats the face behind
+        /// it. Also the rule of a tool that reads a profile — the
+        /// revolve tool's seat.
+        #[default]
+        Any,
+        /// The bare cursor's rule less profiles: what a tool that reads
+        /// bodies through their faces and edges picks with, and a mate
+        /// kind that reads a face or an edge.
+        FacesAndEdges,
+        /// Faces only: the edge test is not run, so the answer is the
+        /// ray path's face or nothing.
+        FacesOnly,
+        /// Edges only: the edge test runs, and a cursor that no edge wins
+        /// answers NOTHING rather than the face the ray met.
+        EdgesOnly,
+        /// Faces and edges with vertices beating edges: the edge that
+        /// wins answers its end within [`VERTEX_PICK_RADIUS_PX`] where
+        /// there is one — what a tool reading a point off a vertex picks
+        /// with.
+        WithVertices,
+    }
+
+    /// Every rule.
+    pub const ALL;
+}
+
+crate::vocab::vocabulary! {
+    /// **What a pick can answer with**: an entity of a drawn body, or a
+    /// committed profile by its drawn outline. The subject of
+    /// [`PickKinds::admits`], the one table that says which rule takes
+    /// which.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum PickedKind {
+        /// A face of a drawn body.
+        Face,
+        /// An edge of a drawn body.
+        Edge,
+        /// A vertex of a drawn body.
+        Vertex,
+        /// A committed profile, by its outline.
+        Profile,
+    }
+
+    /// Every kind.
+    pub const ALL;
+}
+
+impl PickedKind {
+    /// **The pick kind a body entity is**; `None` for a whole body,
+    /// which no cursor picks.
+    #[must_use]
+    pub fn of(entity: pncad::select::EntityKind) -> Option<Self> {
+        use pncad::select::EntityKind as E;
+        match entity {
+            E::Face => Some(Self::Face),
+            E::Edge => Some(Self::Edge),
+            E::Vertex => Some(Self::Vertex),
+            E::Body => None,
+        }
+    }
 }
 
 impl PickKinds {
+    /// **Whether a cursor under this rule may answer `kind`** — the one
+    /// table; the cursor walk ([`PickIndex::hovered_for`]) and every
+    /// tool's rule read it and nothing else.
+    #[must_use]
+    pub fn admits(self, kind: PickedKind) -> bool {
+        use PickedKind as K;
+        match (self, kind) {
+            (Self::Any, K::Face | K::Edge | K::Profile)
+            | (Self::FacesAndEdges, K::Face | K::Edge)
+            | (Self::FacesOnly, K::Face)
+            | (Self::EdgesOnly, K::Edge)
+            | (Self::WithVertices, K::Face | K::Edge | K::Vertex) => true,
+            (Self::Any, K::Vertex)
+            | (Self::FacesAndEdges, K::Vertex | K::Profile)
+            | (Self::FacesOnly, K::Edge | K::Vertex | K::Profile)
+            | (Self::EdgesOnly, K::Face | K::Vertex | K::Profile)
+            | (Self::WithVertices, K::Profile) => false,
+        }
+    }
+
     /// **What a cursor that met none of these kinds met**, in the words
     /// a miss is said in: under an edges-only rule a face's material is
     /// no edge, not nothing.
     #[must_use]
     pub fn nothing(self) -> &'static str {
         match self {
-            Self::Any => "nothing",
+            Self::Any | Self::FacesAndEdges | Self::WithVertices => "nothing",
             Self::FacesOnly => "no face",
             Self::EdgesOnly => "no edge",
-        }
-    }
-
-    /// Whether an edge may win here.
-    fn edges(self) -> bool {
-        match self {
-            Self::Any | Self::EdgesOnly => true,
-            Self::FacesOnly => false,
-        }
-    }
-
-    /// Whether the face the ray met is an admissible answer — what
-    /// separates "no edge won, take the face" from "no edge won, so
-    /// nothing is here".
-    fn faces(self) -> bool {
-        match self {
-            Self::Any | Self::FacesOnly => true,
-            Self::EdgesOnly => false,
         }
     }
 }
@@ -238,6 +303,13 @@ impl PickKinds {
 /// would fix it is scaling by the pane's points-per-pixel, which is a
 /// number this layer is not handed today. Recorded, not solved.
 pub const EDGE_PICK_RADIUS_PX: f64 = 6.0;
+
+/// **How close a cursor must come to an end of the edge it won for the
+/// vertex there to beat the edge**, in physical pixels — the edge
+/// radius's rule one step further: a vertex is a point an edge only
+/// ends at, so it is reached near its edge's end, and only where the
+/// edge already won ([`PickKinds::WithVertices`]).
+pub const VERTEX_PICK_RADIUS_PX: f64 = EDGE_PICK_RADIUS_PX;
 
 /// The GPU id-buffer's alphabet: a bijection between the u32 an
 /// offscreen pass can write into a pixel and the [`PatchId`] it names.
@@ -345,7 +417,7 @@ pub enum IdMapError {
 /// Why a pick index could not be built as a whole (closed enum, D4
 /// ¶3): a fault of the index itself, never an editing state. A drawn
 /// copy that cannot be drawn is not here — the index holds it as an
-/// [`UndrawnCopy`] and draws the rest.
+/// [`UndrawnBody`] and draws the rest.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PickIndexError {
     /// The patch ids did not form a bijection.
@@ -432,20 +504,20 @@ impl core::fmt::Display for PickIndexError {
 
 impl core::error::Error for PickIndexError {}
 
-/// **A drawn copy the index holds without a picture**, and why: the
-/// placement and its own build's refusal, unaltered.
+/// **A drawn body the index holds without a picture**, and why: the
+/// node building it and its own build's refusal, unaltered.
 ///
-/// One copy's refusal takes away that copy's picture and picks and no
+/// One body's refusal takes away that body's picture and picks and no
 /// other's, so it is data on the index rather than a refusal of it
 /// ([`PickIndex::undrawn`]).
 #[derive(Clone, Debug, PartialEq)]
-pub struct UndrawnCopy {
+pub struct UndrawnBody {
     node: RecipeNodeId,
     error: NodePickError,
 }
 
-impl UndrawnCopy {
-    /// The placement that is not drawn.
+impl UndrawnBody {
+    /// The node whose body is not drawn.
     #[must_use]
     pub fn node(&self) -> RecipeNodeId {
         self.node
@@ -458,22 +530,21 @@ impl UndrawnCopy {
     }
 }
 
-impl Say for UndrawnCopy {
-    /// The placement is this layer's contribution — the payload names
-    /// the body, not the placement that owns it; why is the payload's
-    /// to say.
+impl Say for UndrawnBody {
+    /// The node is this layer's contribution; why is the payload's to
+    /// say.
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         write!(
             f,
             "{} is not drawn: {}",
-            by.node_as(self.node, "placement"),
+            by.node_as(self.node, "node"),
             Said(&self.error, by.about(self.node))
         )
     }
 }
 
 /// The sentence where no document is at hand: each node by its tag.
-impl core::fmt::Display for UndrawnCopy {
+impl core::fmt::Display for UndrawnBody {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.say(f, Speaker::TAG)
     }
@@ -520,6 +591,48 @@ trait DrawnKind {
     /// The address of the entity at `position` in the part drawing
     /// `(node, body)`, which is at `flat` in the whole index.
     fn address(node: RecipeNodeId, body: u32, position: usize, flat: usize) -> Self::Id;
+}
+
+/// **The share of a drawn body's box diagonal a vertex mark's arm
+/// spans** — large enough to see on the body, small enough to sit on
+/// the vertex rather than across its faces.
+const VERTEX_MARK_ARM: f64 = 0.02;
+
+/// **One part's drawn vertices, into `out`**: each named end of each
+/// drawn edge at its tessellated position, with the arm its mark is
+/// drawn at. A vertex the table does not name is left out here — the
+/// pick door says so loudly ([`VertexNameFault::Unnamed`]) — and the
+/// door's refusal of the call is the index's.
+fn drawn_vertices(
+    part: &NodePick,
+    eval: &Evaluation<f64>,
+    out: &mut BTreeMap<(RecipeNodeId, u32, StableName), (Point3<f64>, f64)>,
+) -> Result<(), PickIndexError> {
+    let mesh = part.mesh();
+    let Some(diagonal) = bvh::Aabb::from_points(mesh.positions.iter().copied()).map(|aabb| {
+        (Point3::new(aabb.max_x, aabb.max_y, aabb.max_z)
+            - Point3::new(aabb.min_x, aabb.min_y, aabb.min_z))
+        .norm()
+    }) else {
+        return Ok(());
+    };
+    let arm = diagonal * VERTEX_MARK_ARM;
+    for (position, boundary) in mesh.boundaries.iter().enumerate() {
+        let Some(names) = part
+            .boundary_end_names(eval, position)
+            .map_err(PickIndexError::Names)?
+        else {
+            continue;
+        };
+        let ends = [boundary.points.first(), boundary.points.last()];
+        for (name, end) in names.into_iter().zip(ends) {
+            if let (Ok(name), Some(&at)) = (name, end.and_then(|&i| mesh.positions.get(i as usize)))
+            {
+                out.insert((part.node(), part.body(), name), (at, arm));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The drawn face patches — addressed by the GLOBAL id an id buffer
@@ -963,29 +1076,89 @@ impl Rims {
     }
 }
 
-/// **What a picture IS**: the landed generation an index describes and
-/// the δ its copies were tessellated at.
+/// **A committed profile's drawn outline**: the loops
+/// [`crate::sketch::committed`] draws for one profile node, each as
+/// [`crate::sketch::PreviewLoop::drawn_on`] places it, at the picture's
+/// δ — the polylines the viewport's profile lane is drawn from, so a
+/// pick is measured against the line on screen.
+///
+/// A profile is 2-D and has no tessellated face, so nothing else in
+/// the index holds it; it is picked by screen distance to these lines
+/// ([`PickIndex::near`]).
+#[derive(Debug)]
+struct Outline {
+    node: RecipeNodeId,
+    loops: Vec<Vec<Point3<f64>>>,
+}
+
+impl Outline {
+    fn of(profile: crate::sketch::CommittedProfile) -> Self {
+        let loops = profile
+            .loops
+            .iter()
+            .map(|lp| lp.drawn_on(&profile.plane))
+            .collect();
+        Self {
+            node: profile.node,
+            loops,
+        }
+    }
+}
+
+/// **Which lines a cursor walk offers** ([`PickIndex::near`]): the
+/// edges of the bodies the front set names, the committed profiles'
+/// outlines, or both.
+#[derive(Clone, Copy)]
+struct Lines<'a> {
+    front: &'a [PickHit],
+    edges: bool,
+    outlines: bool,
+}
+
+/// A chord point and its pixel, or `None` where it has no pixel.
+type Projected = Option<(Point3<f64>, [f64; 2])>;
+
+/// **One line a walk offers**, by its place: a body's in the walk's
+/// body list, an outline's in the index's. The declaration order is the
+/// tie-break's: at one distance a body edge sorts before an outline.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Line {
+    Edge(usize),
+    Outline(usize),
+}
+
+/// The line a cursor walk answers with.
+enum Near {
+    Edge(EdgePick),
+    Profile(RecipeNodeId),
+}
+
+/// **What a picture IS**: the landed generation an index describes,
+/// the δ its copies were tessellated at, and the bodies the author's
+/// toggles show beyond the default ([`Shown`]): a show draws a body the
+/// default leaves out, which the index must hold to draw and pick it.
 ///
 /// **One value because it is one question.** *Is this the same
 /// picture?* is asked at every step of an index's life — by the cache
 /// deciding whether to rebuild ([`crate::pickcache::PickCache::sync`]),
 /// by the seam deciding whether a waiting request supersedes the answer
 /// in hand, by the pane deciding whether the index it holds minted the
-/// ids on screen ([`PickIndex::current_for`]) — and each half alone
+/// ids on screen ([`PickIndex::current_for`]) — and each part alone
 /// answers a different question. A δ typed while the document stands
 /// rebuilds the index at the SAME generation over a different
 /// tessellation, so a generation-only comparison reads as co-identity
 /// while checking something else; and a δ is a tessellation OF a
 /// generation, so a δ-only comparison has no subject at all.
 ///
-/// **The halves are compared together because there is no way to
+/// **The parts are compared together because there is no way to
 /// compare them apart.** [`PictureKey::of`] is the only door and takes
-/// both, `PartialEq` is over the pair, and every site that asks the
-/// question holds one of these rather than two fields — so the
+/// all three, `PartialEq` is over them, and every site that asks the
+/// question holds one of these rather than three fields — so the
 /// comparison a site means is the comparison it can write. Reading a
-/// half ([`PictureKey::generation`], [`PictureKey::delta`]) is for
-/// USING it: tessellating at the δ, naming the run. Neither read
-/// answers *the same picture?*, and the two sites in this crate that
+/// part ([`PictureKey::generation`], [`PictureKey::delta`],
+/// [`PictureKey::shown`]) is for USING it: tessellating at the δ,
+/// naming the run, drawing the shows. No read answers *the same
+/// picture?*, and the two sites in this crate that
 /// legitimately key on less than a picture do not go through this type
 /// at all.
 ///
@@ -1003,47 +1176,61 @@ impl Rims {
 ///   the argument for both of its halves.
 ///
 /// `PartialEq` and not `Eq`: [`DisplayTolerance`] is a float, so the
-/// pair inherits its equivalence and nothing here strengthens it.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// key inherits its equivalence and nothing here strengthens it. `Clone`
+/// and not `Copy`: the shows are a set, shared rather than copied.
+#[derive(Clone, Debug, PartialEq)]
 pub struct PictureKey {
     generation: Generation,
     delta: DisplayTolerance,
+    shown: Shown,
 }
 
 impl PictureKey {
-    /// The picture a run at `generation`, tessellated at `delta`, is.
+    /// The picture a run at `generation`, tessellated at `delta`, drawing
+    /// `shown` beside the default, is.
     #[must_use]
-    pub fn of(generation: Generation, delta: DisplayTolerance) -> Self {
-        Self { generation, delta }
+    pub fn of(generation: Generation, delta: DisplayTolerance, shown: Shown) -> Self {
+        Self {
+            generation,
+            delta,
+            shown,
+        }
+    }
+
+    /// The shows part — what the picture draws beyond the default.
+    #[must_use]
+    pub fn shown(&self) -> &Shown {
+        &self.shown
     }
 
     /// The run half — what the index was built from.
     #[must_use]
-    pub fn generation(self) -> Generation {
+    pub fn generation(&self) -> Generation {
         self.generation
     }
 
     /// The tessellation half — what the copies were built at.
     #[must_use]
-    pub fn delta(self) -> DisplayTolerance {
+    pub fn delta(&self) -> DisplayTolerance {
         self.delta
     }
 }
 
 /// The pick index for one evaluation generation.
 ///
-/// Built from the document's drawn copies, one [`NodePick`] per body
-/// of each copy that builds, in placement order then payload order —
-/// the order the ids and the drawn parts both follow, so a reader of
-/// either can predict the other. A copy whose build refuses is held in
+/// Built from the document's picture ([`crate::world::Picture`]),
+/// one [`NodePick`] per drawn body of each node that builds, in document
+/// order then payload order — the order the ids and the drawn parts both
+/// follow, so a reader of either can predict the other. A node whose
+/// build refuses is held in
 /// [`PickIndex::undrawn`] with its reason, and has no part, no ids and
 /// no windows.
 #[derive(Debug)]
 pub struct PickIndex {
     key: PictureKey,
     parts: Vec<NodePick>,
-    /// The drawn copies with no part, in placement order.
-    undrawn: Vec<UndrawnCopy>,
+    /// The drawn bodies with no part, in document order.
+    undrawn: Vec<UndrawnBody>,
     ids: IdMap,
     /// The drawn face patches, part by part — the ids, their names,
     /// and the windows the narrowing reads.
@@ -1058,20 +1245,29 @@ pub struct PickIndex {
     edges: PartWindows<Edges>,
     /// The drawn edges that are one circle ([`Rims`]).
     rims: Rims,
-    /// Each drawn placement's space, the one its copy is placed into
-    /// ([`Doc::node_space`]): the pick orders faces within one space
-    /// only.
+    /// The drawn vertices — every named end of a drawn edge — by the
+    /// drawn body and name, each at its tessellated position with the
+    /// arm its mark is drawn at ([`PickIndex::vertex_legs_for`]).
+    vertices: BTreeMap<(RecipeNodeId, u32, StableName), (Point3<f64>, f64)>,
+    /// Each drawn node's space ([`Doc::node_space`]): the pick orders
+    /// faces within one space only.
     spaces: BTreeMap<RecipeNodeId, VarId>,
+    /// The drawn bodies the product slot does not reach
+    /// ([`crate::world::Picture::product`]), by node and body: drawn
+    /// tinted as outside the product.
+    outside: BTreeSet<(RecipeNodeId, u32)>,
+    /// The committed profiles' drawn outlines, in document order.
+    outlines: Vec<Outline>,
 }
 
 impl PickIndex {
     /// Build the index for `generation` from the document's drawn
-    /// placements — those into each shown space — one drawn part per
-    /// body of each copy (A10).
+    /// bodies ([`crate::world::Picture`]), one drawn part per body
+    /// each covers.
     ///
-    /// **Per copy, not all or nothing**: a copy whose build refuses (no
+    /// **Per node, not all or nothing**: a node whose build refuses (no
     /// value, no body, a tessellation or indexing refusal) is held in
-    /// [`PickIndex::undrawn`] with its reason, and every other copy is
+    /// [`PickIndex::undrawn`] with its reason, and every other body is
     /// drawn and picked. Nothing is swallowed — the reason is on the
     /// index for the chrome to say ([`crate::frame::index_badge`]).
     ///
@@ -1084,21 +1280,26 @@ impl PickIndex {
         key: PictureKey,
         tol: Tol,
     ) -> Result<Self, PickIndexError> {
-        Self::assemble(doc, eval, key, |node| {
-            NodePick::build_all(eval, node, key.delta().get(), tol)
+        let delta = key.delta().get();
+        Self::assemble(doc, eval, key, |node, bodies| match bodies {
+            None => NodePick::build_all(eval, node, delta, tol),
+            Some(bodies) => bodies
+                .iter()
+                .map(|&body| NodePick::build(eval, node, body, delta, tol))
+                .collect(),
         })
     }
 
-    /// [`PickIndex::build`] over `memo`: a placement whose node the
-    /// evaluation reused keeps its previous picture's `NodePick`, and a
-    /// placement that was recomputed is tessellated through the per-face
+    /// [`PickIndex::build`] over `memo`: a drawn node the evaluation
+    /// reused keeps its previous picture's `NodePick`, and one that was
+    /// recomputed is tessellated through the per-face
     /// patch memo — the same index, byte for byte, built from what did
     /// not change ([`PickMemo`]).
     ///
     /// The picture is closed on the memo whether or not it was built:
-    /// what this picture did not use — an undrawn copy's bodies, a copy
+    /// what this picture did not use — an undrawn node's bodies, a node
     /// the document no longer holds — is evicted. The walk reaches every
-    /// copy, so fixing one copy rebuilds that copy and reuses the rest,
+    /// drawn node, so fixing one rebuilds that one and reuses the rest,
     /// and the memo stays one picture's size through any sequence of
     /// answers — the node map, the patch memo and the per-patch
     /// pick-table map alike.
@@ -1113,36 +1314,58 @@ impl PickIndex {
         tol: Tol,
         memo: &mut PickMemo,
     ) -> Result<Self, PickIndexError> {
-        let index = Self::assemble(doc, eval, key, |node| {
-            NodePick::build_all_with(eval, node, key.delta().get(), tol, memo)
+        let delta = key.delta().get();
+        let index = Self::assemble(doc, eval, key, |node, bodies| match bodies {
+            None => NodePick::build_all_with(eval, node, delta, tol, memo),
+            Some(bodies) => bodies
+                .iter()
+                .map(|&body| NodePick::build_with(eval, node, body, delta, tol, memo))
+                .collect(),
         });
         memo.end_picture();
         index
     }
 
-    /// The walk both doors share: every drawn copy through `parts`,
-    /// then the id windows over the ones that built.
+    /// The walk both doors share: every drawn node through `parts`,
+    /// the bodies it draws named where they are not all of them
+    /// ([`crate::world::Picture::indices`]), then the id windows over the
+    /// ones that built.
     fn assemble(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
         key: PictureKey,
-        mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
+        mut build_parts: impl FnMut(
+            RecipeNodeId,
+            Option<Vec<u32>>,
+        ) -> Result<Vec<NodePick>, NodePickError>,
     ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
         let mut undrawn = Vec::new();
         let mut spaces = BTreeMap::new();
-        // The drawn copies: the placements into each shown space (DI5),
-        // the world's as the product gathers them and every other one's
-        // where its frame puts it. A placement into a space whose bodies
-        // another placement copies is drawn through that copy
-        // ([`crate::world::shown_spaces`]).
-        for node in crate::world::drawn_copies(doc) {
+        // The picture ([`crate::world::Picture`]), read once: each node
+        // built once, for the bodies some drawing of it covers — a family
+        // less the members read alone, a `⊔`'s piece alone. A body two
+        // drawings cover is one part.
+        let picture = crate::world::Picture::showing(doc, key.shown());
+        let mut outside = BTreeSet::new();
+        for node in picture.nodes() {
             if let Some(space) = doc.node_space(node) {
                 spaces.insert(node, space);
             }
-            match build_parts(node) {
-                Ok(built) => parts.extend(built),
-                Err(error) => undrawn.push(UndrawnCopy { node, error }),
+            match build_parts(node, picture.indices(doc, node)) {
+                Ok(built) => {
+                    for part in built {
+                        let body = part.body();
+                        if !picture.drawn.iter().any(|d| d.draws(node, body)) {
+                            continue;
+                        }
+                        if picture.is_outside(node, body) {
+                            outside.insert((node, body));
+                        }
+                        parts.push(part);
+                    }
+                }
+                Err(error) => undrawn.push(UndrawnBody { node, error }),
             }
         }
         // ONE walk over the parts, appending to both kinds' windows.
@@ -1152,13 +1375,23 @@ impl PickIndex {
         let mut patches = PartWindows::<Patches>::new();
         let mut edges = PartWindows::<Edges>::new();
         let mut rims = Rims::default();
+        let mut vertices = BTreeMap::new();
         for part in &parts {
             patches.push(part, eval)?;
             edges.push(part, eval)?;
             rims.push(part, eval, edges.laid_out(part.node(), part.body()).1)?;
+            drawn_vertices(part, eval, &mut vertices)?;
         }
         let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
+        // A profile that does not flatten is not drawn, so it is not
+        // picked either; the viewport's lane counts it.
+        let outlines = crate::sketch::committed(doc, eval, key.delta().get(), None)
+            .drawn
+            .into_iter()
+            .map(Outline::of)
+            .collect();
         Ok(Self {
+            outlines,
             key,
             parts,
             undrawn,
@@ -1166,8 +1399,41 @@ impl PickIndex {
             patches,
             edges,
             rims,
+            vertices,
             spaces,
+            outside,
         })
+    }
+
+    /// **A vertex selection's mark, as legs**: three short legs crossing
+    /// at the vertex where its (node, body) draws it, along the axes of
+    /// the space it is drawn in, carried through the display's probe
+    /// frame — empty where the part is hidden or draws no vertex of
+    /// that name. The edge mark's rule ([`PickIndex::edge_polyline_for`])
+    /// for an entity with no extent of its own.
+    pub fn vertex_legs_for(
+        &self,
+        vertex: &VertexSelection,
+        display: &DisplayView,
+    ) -> Vec<[Point3<f64>; 2]> {
+        let VertexSelection { name, node, body } = vertex;
+        if display.hides(*node, *body) {
+            return Vec::new();
+        }
+        let (Some(part), Some(&(at, arm))) = (
+            self.part_of(*node, *body),
+            self.vertices.get(&(*node, *body, name.clone())),
+        ) else {
+            return Vec::new();
+        };
+        let place = placement(display, part);
+        [
+            pncad::geom_core::Vec3::new(arm, 0.0, 0.0),
+            pncad::geom_core::Vec3::new(0.0, arm, 0.0),
+            pncad::geom_core::Vec3::new(0.0, 0.0, arm),
+        ]
+        .map(|leg| [place(at - leg), place(at + leg)])
+        .to_vec()
     }
 
     /// Whether this index still describes the run on screen.
@@ -1175,13 +1441,13 @@ impl PickIndex {
     /// A `false` here means DISCARD: rebuild the index whole from the
     /// current evaluation. It never means repair.
     pub fn current_for(&self, key: Option<PictureKey>) -> bool {
-        Some(self.key) == key
+        key.as_ref() == Some(&self.key)
     }
 
     /// The picture this index describes — the whole key, and the value
     /// anything asking whether two pictures are the same compares.
     pub fn key(&self) -> PictureKey {
-        self.key
+        self.key.clone()
     }
 
     /// The generation this index was built under.
@@ -1200,25 +1466,32 @@ impl PickIndex {
         &self.parts
     }
 
-    /// **Where `placement`'s copy is drawn**: the map from its body's
+    /// **Where `node`'s body is drawn**: the map from its body's
     /// coordinates into the picture, as the picture draws it
-    /// ([`drawn`]), `None` where no part of that placement is drawn —
-    /// none indexed, or its copy hidden.
+    /// ([`drawn`]), `None` where no part of that node is drawn — none
+    /// indexed, or every one hidden.
     pub(crate) fn drawn_map(
         &self,
         display: &DisplayView,
-        placement: RecipeNodeId,
+        node: RecipeNodeId,
     ) -> Option<Affine3<f64>> {
-        if display.hidden_placements.contains(&placement) {
-            return None;
-        }
-        let part = self.parts.iter().find(|part| part.node() == placement)?;
+        let part = self
+            .parts
+            .iter()
+            .find(|part| part.node() == node && !display.hides(node, part.body()))?;
         Some(drawn(display, part).unwrap_or_else(Affine3::identity))
     }
 
-    /// The drawn copies this index holds without a picture, each with
-    /// its reason, in placement order.
-    pub fn undrawn(&self) -> &[UndrawnCopy] {
+    /// **Whether the drawn body `body` of `node` is outside the
+    /// product** — one the product slot does not reach, which the
+    /// picture tints.
+    pub fn is_outside(&self, node: RecipeNodeId, body: u32) -> bool {
+        self.outside.contains(&(node, body))
+    }
+
+    /// The drawn bodies this index holds without a picture, each with
+    /// its reason, in document order.
+    pub fn undrawn(&self) -> &[UndrawnBody] {
         &self.undrawn
     }
 
@@ -1329,9 +1602,9 @@ impl PickIndex {
         self.scene_for(&DisplayView::none())
     }
 
-    /// The drawable scene under a display view: hidden instances'
+    /// The drawable scene under a display view: hidden bodies'
     /// parts are omitted (the picture drops them; the ids and the
-    /// document keep them), and a free-moved instance's parts are
+    /// document keep them), and a free-moved space's parts are
     /// drawn under its probe frame, marked distinct.
     ///
     /// The id windows are walked over EVERY part, drawn or not, so an
@@ -1368,14 +1641,15 @@ impl PickIndex {
             // index already holds, is a third chance to disagree with
             // it about where a part's run starts.
             let ids = self.patches.in_target(part.node(), part.body());
-            if display.hidden_placements.contains(&part.node()) {
+            if display.hides(part.node(), part.body()) {
                 continue;
             }
             parts.push(ScenePart {
                 mesh: part.mesh(),
                 ids,
-                probe: display.moved_placements.get(&part.node()).copied(),
+                probe: display.moved_nodes.get(&part.node()).copied(),
                 placed: in_space_of(part),
+                outside: self.is_outside(part.node(), part.body()),
             });
         }
         if parts.is_empty() {
@@ -1407,10 +1681,10 @@ impl PickIndex {
     }
 
     /// The nearest face a ray meets **under a display view**: hidden
-    /// instances are not offered at all (a hidden part is out of the
+    /// bodies are not offered at all (a hidden part is out of the
     /// pick index exactly as it is out of the picture), and a
-    /// free-moved instance is picked WHERE IT IS DRAWN — the ray is
-    /// carried into that instance's display-local space through the
+    /// free-moved body is picked WHERE IT IS DRAWN — the ray is
+    /// carried into that space's display-local space through the
     /// probe frame's inverse, so the picture and the pick answer stay
     /// one tessellation even while the display displaces it.
     ///
@@ -1421,14 +1695,14 @@ impl PickIndex {
     /// the same certified tie the kernel refuses inside one call —
     /// so this refuses too, with every tied group's hit
     /// ([`HitTestError::Ambiguous`]). Group order (the unmoved batch
-    /// first, then moved instances in node order) is the order the
+    /// first, then moved bodies in node order) is the order the
     /// refusal LISTS them in and decides nothing.
     ///
     /// **A group's own refusal does not end the call.** A group that
     /// cannot order ITS faces has said nothing about another group's,
     /// and every hit it carries is true — so its tied faces join the
     /// candidate set and the merge runs over the union. Otherwise a
-    /// tie inside the unmoved batch would shadow a moved instance in
+    /// tie inside the unmoved batch would shadow a moved body in
     /// front of it, and the answer would depend on which batch the
     /// caller's display view happened to split the scene into rather
     /// than on the geometry.
@@ -1436,7 +1710,7 @@ impl PickIndex {
     /// The parameters stay comparable because the display layer
     /// admits only rigid probe frames (lengths preserved, so `t` in
     /// units of `|dir|` means the same world distance in every group);
-    /// a moved instance's hit crosses back with its point converted
+    /// a moved body's hit crosses back with its point converted
     /// and its interval carried, which is
     /// `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
     ///
@@ -1452,7 +1726,7 @@ impl PickIndex {
         ray: &Ray,
         display: &DisplayView,
     ) -> Result<Option<PickHit>, HitTestError> {
-        let visible = |part: &&NodePick| !display.hidden_placements.contains(&part.node());
+        let visible = |part: &&NodePick| !display.hides(part.node(), part.body());
         // The unmoved parts, one batch per space: the kernel orders
         // faces within one space only (A9, A11 (2)), and each space is
         // drawn where the display puts it — today a shown space's
@@ -1475,7 +1749,7 @@ impl PickIndex {
             }
         }
         // Every group's whole answer, in group order: the unmoved
-        // batches, the world's first, then the moved instances. A
+        // batches, the world's first, then the moved bodies. A
         // group that refuses contributes its tied faces rather than
         // ending the call.
         let mut candidates: Vec<PickHit> = Vec::new();
@@ -1501,6 +1775,14 @@ impl PickIndex {
                 });
             }
         }
+        // Across groups, in the parts' order — the order the picture
+        // draws them in — so a tie between bodies of two spaces lists
+        // them as a tie inside one space does.
+        candidates.sort_by_key(|hit| {
+            self.parts
+                .iter()
+                .position(|part| part.node() == hit.node && part.body() == hit.body)
+        });
         // The kernel's own rule over the whole candidate set, through
         // the kernel's own callable: the survivors of `precedes`,
         // grouped by face, then one answer or the refusal.
@@ -1685,14 +1967,14 @@ impl PickIndex {
 
     /// The world polyline a drawn edge is drawn as, under a display
     /// view: the tessellation's own chord points, carried through the
-    /// owning instance's free-move probe frame when it has one.
+    /// free-move probe frame of its space when it has one.
     ///
     /// Empty for an id this index did not assign and for an edge whose
     /// part is hidden — a hidden part is out of the picture, so there
     /// is nothing to mark, which is the same rule
     /// [`PickIndex::scene_for`] draws by.
     pub fn edge_polyline_for(&self, id: EdgeId, display: &DisplayView) -> Vec<Point3<f64>> {
-        if display.hidden_placements.contains(&id.node) {
+        if display.hides(id.node, id.body) {
             return Vec::new();
         }
         let Some(part) = self.part_of(id.node, id.body) else {
@@ -1744,7 +2026,10 @@ impl PickIndex {
     /// seed the search), a silhouette edge only across
     /// `EDGE_PICK_RADIUS_PX` on its inward side. Widening it would
     /// mean offering candidates with no face pick to seed them — a
-    /// search over every drawn body, and a different mechanism.
+    /// search over every drawn body, and a different mechanism. The
+    /// cursor walk runs that search only where a profile's outline is
+    /// in the contest ([`PickIndex::near`]), which this door never
+    /// offers.
     ///
     /// The nearest candidate is then checked for OCCLUSION, because
     /// screen distance alone cannot tell the near edge of a box from
@@ -1798,7 +2083,17 @@ impl PickIndex {
         display: &DisplayView,
     ) -> Result<Option<EdgePick>, PickError> {
         let front = self.seed(eval, camera, viewport, cursor, display)?;
-        self.edge_near(eval, camera, viewport, cursor, display, &front)
+        let edges = Lines {
+            front: &front,
+            edges: true,
+            outlines: false,
+        };
+        Ok(
+            match self.near(eval, camera, viewport, cursor, display, edges)? {
+                Some(Near::Edge(edge)) => Some(edge),
+                Some(Near::Profile(_)) | None => None,
+            },
+        )
     }
 
     /// **The faces under a cursor**, whichever entity the priority rule
@@ -1896,6 +2191,30 @@ impl PickIndex {
             .map_err(PickError::HitTest)
     }
 
+    /// Reviewer probe only: the front set's size, and the profile the
+    /// cursor walk answers with, if any.
+    #[cfg(test)]
+    pub(crate) fn front_at_for_review(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        cursor: [f64; 2],
+        display: &DisplayView,
+    ) -> Result<(usize, Option<RecipeNodeId>), PickError> {
+        let front = self.seed(eval, camera, viewport, cursor, display)?;
+        let lines = Lines {
+            front: &front,
+            edges: true,
+            outlines: true,
+        };
+        let profile = match self.near(eval, camera, viewport, cursor, display, lines)? {
+            Some(Near::Profile(node)) => Some(node),
+            Some(Near::Edge(_)) | None => None,
+        };
+        Ok((front.len(), profile))
+    }
+
     /// [`PickIndex::edge_at_for`] with nothing hidden or free-moved.
     ///
     /// # Errors
@@ -1911,9 +2230,10 @@ impl PickIndex {
         self.edge_at_for(eval, camera, viewport, cursor, &DisplayView::none())
     }
 
-    /// **What the cursor is over**: the edge when one is within
-    /// [`EDGE_PICK_RADIUS_PX`] and `kinds` admits edges, else the
-    /// face when `kinds` admits faces, else nothing.
+    /// **What the cursor is over**: the edge or the committed
+    /// profile outline nearer the cursor within
+    /// [`EDGE_PICK_RADIUS_PX`], the edge at a tie, where `kinds` admits
+    /// it; else the face when `kinds` admits faces; else nothing.
     ///
     /// The pick-priority rule lives here, in one place, so the hover
     /// op and the select op cannot disagree about which entity a
@@ -1941,15 +2261,31 @@ impl PickIndex {
         kinds: PickKinds,
     ) -> Result<Option<Hovered>, PickError> {
         let front = self.seed(eval, camera, viewport, cursor, display)?;
+        let lines = Lines {
+            front: &front,
+            edges: kinds.admits(PickedKind::Edge),
+            outlines: kinds.admits(PickedKind::Profile),
+        };
+        if front.is_empty() && !lines.outlines {
+            return Ok(None);
+        }
+        match self.near(eval, camera, viewport, cursor, display, lines)? {
+            Some(Near::Edge(edge)) => {
+                if kinds.admits(PickedKind::Vertex)
+                    && let Some(vertex) =
+                        self.vertex_near(eval, camera, viewport, cursor, display, &edge)?
+                {
+                    return Ok(Some(Hovered::Vertex(vertex)));
+                }
+                return Ok(Some(Hovered::Edge(edge.selection())));
+            }
+            Some(Near::Profile(node)) => return Ok(Some(Hovered::Profile(node))),
+            None => {}
+        }
         if front.is_empty() {
             return Ok(None);
         }
-        if kinds.edges()
-            && let Some(edge) = self.edge_near(eval, camera, viewport, cursor, display, &front)?
-        {
-            return Ok(Some(Hovered::Edge(edge.selection())));
-        }
-        if !kinds.faces() {
+        if !kinds.admits(PickedKind::Face) {
             // The ray met a body, but no edge won it and this caller
             // cannot use a face: the honest answer is that nothing the
             // cursor can mean is here, not the face it did not aim at.
@@ -1990,40 +2326,155 @@ impl PickIndex {
         )
     }
 
-    /// The nearest edge of the bodies `front` names within the pick
-    /// radius, or `None`. See [`PickIndex::edge_at_for`] for the whole
-    /// argument.
-    fn edge_near(
+    /// **The end of `edge` within [`VERTEX_PICK_RADIUS_PX`] of the
+    /// cursor**, the nearer where both are, as the vertex it is; `None`
+    /// where neither end is that near or has a pixel. The edge has
+    /// already won the cursor (occlusion included), so its end is what
+    /// the cursor means where it is that near.
+    fn vertex_near(
         &self,
         eval: &Evaluation<f64>,
         camera: &Camera,
         viewport: ViewportSize,
         cursor: [f64; 2],
         display: &DisplayView,
-        front: &[PickHit],
-    ) -> Result<Option<EdgePick>, PickError> {
+        edge: &EdgePick,
+    ) -> Result<Option<VertexSelection>, PickError> {
+        let Some(aspect) = viewport.aspect() else {
+            return Ok(None);
+        };
+        let Some(part) = self.part_of(edge.node, edge.body) else {
+            return Ok(None);
+        };
+        let mesh = part.mesh();
+        let Some(boundary) = mesh.boundaries.get(edge.boundary) else {
+            return Ok(None);
+        };
+        let place = placement(display, part);
+        let mut nearest: Option<(f64, usize)> = None;
+        for (end, index) in [boundary.points.first(), boundary.points.last()]
+            .into_iter()
+            .enumerate()
+        {
+            let Some(&position) = index.and_then(|&i| mesh.positions.get(i as usize)) else {
+                continue;
+            };
+            let Some(pixel) = camera
+                .project(place(position), aspect)
+                .map_err(PickError::Camera)?
+                .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
+            else {
+                continue;
+            };
+            let distance = (pixel[0] - cursor[0]).hypot(pixel[1] - cursor[1]);
+            if distance <= VERTEX_PICK_RADIUS_PX && nearest.is_none_or(|(best, _)| distance < best)
+            {
+                nearest = Some((distance, end));
+            }
+        }
+        let Some((_, end)) = nearest else {
+            return Ok(None);
+        };
+        let names = part
+            .boundary_end_names(eval, edge.boundary)
+            .map_err(|error| PickError::VertexName(VertexNameFault::Lookup(error)))?;
+        let Some(names) = names else {
+            return Ok(None);
+        };
+        let [start, finish] = names;
+        let name = if end == 0 { start } else { finish }
+            .map_err(|error| PickError::VertexName(VertexNameFault::Unnamed(error)))?;
+        Ok(Some(VertexSelection {
+            name,
+            node: edge.node,
+            body: edge.body,
+        }))
+    }
+
+    /// **The nearest drawn line within the pick radius that the solid
+    /// does not hide** — a body edge or a committed profile's outline,
+    /// whichever `lines` offers — or `None`. See
+    /// [`PickIndex::edge_at_for`] for the whole argument; this is the
+    /// one walk both kinds of line go through, so they meet one
+    /// distance contest, one tie rule and one occlusion test.
+    ///
+    /// **Which body edges are offered.** The edges of the bodies
+    /// `lines.front` names, as [`PickIndex::edge_at_for`] argues — and, when
+    /// an outline is offered, every drawn body's. An outline needs no
+    /// face to seed it, so without that an outline lying along a
+    /// silhouette would be offered off the body where its own rim is
+    /// not, and would win there by default rather than by the contest.
+    fn near(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        cursor: [f64; 2],
+        display: &DisplayView,
+        lines: Lines<'_>,
+    ) -> Result<Option<Near>, PickError> {
         // The caller un-projected a ray through this cursor already,
         // and that refuses first for a viewport with no area.
         let Some(aspect) = viewport.aspect() else {
             return Ok(None);
         };
-        // Every part the front set names, once each, in the set's order.
-        let mut bodies: Vec<&NodePick> = Vec::new();
-        for hit in front {
-            if bodies
-                .iter()
-                .all(|part| (part.node(), part.body()) != (hit.node, hit.body))
-                && let Some(part) = self.part_of(hit.node, hit.body)
-            {
-                bodies.push(part);
+        let project = |world: Point3<f64>| -> Result<Projected, PickError> {
+            Ok(camera
+                .project(world, aspect)
+                .map_err(PickError::Camera)?
+                .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
+                .map(|pixel| (world, pixel)))
+        };
+        // One candidate per line — its own nearest segment — rather
+        // than one per segment: a curved edge's chords all lie near the
+        // cursor together, and the question being asked is which LINE
+        // the cursor means.
+        //
+        // Each chord point is projected once, then the segments walked
+        // over the result. A chord point on or behind the eye plane has
+        // no pixel, so a segment with such an endpoint is not offered:
+        // measuring it would need clipping, and a line running through
+        // the eye is not something a cursor is aiming at.
+        let mut candidates: Vec<(Line, Candidate)> = Vec::new();
+        if lines.outlines {
+            for (rank, outline) in self.outlines.iter().enumerate() {
+                let mut best: Option<Candidate> = None;
+                for (lp, points) in outline.loops.iter().enumerate() {
+                    let projected = points
+                        .iter()
+                        .map(|&world| project(world))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    // The loop's position rides as the candidate's
+                    // `boundary`, the tie-break's coordinate.
+                    if let Some(found) = best_segment(cursor, lp, &projected)
+                        && best
+                            .as_ref()
+                            .is_none_or(|best| found.distance < best.distance)
+                    {
+                        best = Some(found);
+                    }
+                }
+                candidates.extend(best.map(|found| (Line::Outline(rank), found)));
             }
         }
-        // One candidate per drawn edge — its own nearest segment —
-        // rather than one per segment: a curved edge's chords all lie
-        // near the cursor together, and the question being asked is
-        // which EDGE the cursor means. Each carries its body's place
-        // in `bodies`.
-        let mut candidates: Vec<(usize, Candidate)> = Vec::new();
+        // The front set's parts, once each, in the set's order; then,
+        // where an outline is in the contest, every other drawn part.
+        let mut bodies: Vec<&NodePick> = Vec::new();
+        if lines.edges {
+            let fronted = lines
+                .front
+                .iter()
+                .filter_map(|hit| self.part_of(hit.node, hit.body));
+            let every = self.parts.iter().filter(|_| !candidates.is_empty());
+            for part in fronted.chain(every) {
+                if bodies
+                    .iter()
+                    .all(|held| (held.node(), held.body()) != (part.node(), part.body()))
+                {
+                    bodies.push(part);
+                }
+            }
+        }
         for (rank, part) in bodies.iter().enumerate() {
             let (node, body) = (part.node(), part.body());
             let mesh = part.mesh();
@@ -2032,61 +2483,43 @@ impl PickIndex {
                 let Some(boundary) = mesh.boundaries.get(id.boundary) else {
                     continue;
                 };
-                // Each chord point projected once, then the segments
-                // walked over the result: a shared point is projected
-                // by both of its segments otherwise, and the
-                // projection is the expensive half.
-                //
-                // A chord point on or behind the eye plane has no
-                // pixel, so a segment with such an endpoint is not
-                // offered: measuring it would need clipping, and an
-                // edge running through the eye is not something a
-                // cursor is aiming at.
-                let mut projected: Vec<Option<(Point3<f64>, [f64; 2])>> =
-                    Vec::with_capacity(boundary.points.len());
-                for &index in &boundary.points {
-                    let entry = match mesh.positions.get(index as usize) {
-                        Some(&position) => {
-                            let world = place(position);
-                            camera
-                                .project(world, aspect)
-                                .map_err(PickError::Camera)?
-                                .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
-                                .map(|pixel| (world, pixel))
-                        }
-                        None => None,
-                    };
-                    projected.push(entry);
-                }
+                let projected = boundary
+                    .points
+                    .iter()
+                    .map(|&index| match mesh.positions.get(index as usize) {
+                        Some(&position) => project(place(position)),
+                        None => Ok(None),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 candidates.extend(
-                    best_segment(cursor, id.boundary, &projected).map(|found| (rank, found)),
+                    best_segment(cursor, id.boundary, &projected)
+                        .map(|found| (Line::Edge(rank), found)),
                 );
             }
         }
-        // The tie-break, stated once: nearest first, then the body
-        // earlier in the seed, then the earlier boundary, then the
-        // earlier segment — all integers after the first, and the
-        // first is a distance [`best_segment`] admitted, so it is
-        // finite. Two parts' coincident edges are at one distance, so
-        // the one whose body the seed met first answers.
-        candidates.sort_by(|(left_rank, left), (right_rank, right)| {
+        // The tie-break, stated once: nearest first; then a body edge
+        // before an outline, since an extruded profile's outline lies
+        // on its own rim and the rim is what a cursor there can use;
+        // then the body earlier in `bodies` or the outline earlier in
+        // the document; then the earlier boundary or loop; then the
+        // earlier segment. All integers after the first, and the first
+        // is a distance [`best_segment`] admitted, so it is finite.
+        candidates.sort_by(|(left_line, left), (right_line, right)| {
             left.distance
                 .partial_cmp(&right.distance)
                 .unwrap_or(core::cmp::Ordering::Equal)
-                .then((*left_rank, left.boundary, left.segment).cmp(&(
-                    *right_rank,
+                .then((*left_line, left.boundary, left.segment).cmp(&(
+                    *right_line,
                     right.boundary,
                     right.segment,
                 )))
         });
-        for (rank, candidate) in candidates {
-            let part = bodies[rank];
-            let (node, body) = (part.node(), part.body());
+        for (line, candidate) in candidates {
             // Occlusion: the ray through this candidate's own pixel,
             // picked against everything drawn. A candidate the solid
             // hides is not what the cursor is aiming at however near
             // it projects — and the walk CONTINUES past it, because
-            // the edge behind a face and the edge in front of it are
+            // the line behind a face and the line in front of it are
             // both near the same cursor exactly when a body is seen
             // through its own silhouette.
             let ray = camera
@@ -2094,10 +2527,17 @@ impl PickIndex {
                 .map_err(PickError::Camera)?;
             let [a, b] = candidate.ends;
             let (s, point) = ray_segment_closest(&ray, a, b);
-            let Some(own) = own_crossing(&ray, part, &candidate, s, display) else {
-                // A chord point the kernel cannot give a parameter has
-                // nothing to be ordered by, and is not offered — as a
-                // chord point with no pixel is not.
+            // A body edge's own crossing is widened by its incident
+            // triangles' (`own_crossing`); an outline has none, and a
+            // profile drawn on a face ties with that face by its own
+            // point's span alone. A chord point the kernel cannot give
+            // a parameter has nothing to be ordered by, and is not
+            // offered — as a chord point with no pixel is not.
+            let own = match line {
+                Line::Edge(rank) => own_crossing(&ray, bodies[rank], &candidate, s, display),
+                Line::Outline(_) => ray_segment_point(&ray, candidate.ends, s),
+            };
+            let Some(own) = own else {
                 continue;
             };
             // Each front span is one face's: the hull of that face's
@@ -2118,26 +2558,43 @@ impl PickIndex {
             if !TSpan::survivors(&spans).contains(&own_at) {
                 continue;
             }
-            let id = EdgeId {
-                node,
-                body,
-                boundary: candidate.boundary,
-            };
-            // The loud unnamed-entity arm reaches the caller as a
-            // refusal, not as a silent miss. The address arms cannot
-            // fire here — this id was built from `edges_in`'s own
-            // window — and are reported rather than swallowed.
-            let name = self.edge_name_of(id).map_err(PickError::EdgeName)?.clone();
-            return Ok(Some(EdgePick {
-                name,
-                node: id.node,
-                body: id.body,
-                boundary: candidate.boundary,
-                distance_px: candidate.distance,
-                point,
+            return Ok(Some(match line {
+                Line::Outline(rank) => Near::Profile(self.outlines[rank].node),
+                Line::Edge(rank) => {
+                    let part = bodies[rank];
+                    let id = EdgeId {
+                        node: part.node(),
+                        body: part.body(),
+                        boundary: candidate.boundary,
+                    };
+                    // The loud unnamed-entity arm reaches the caller as
+                    // a refusal, not as a silent miss. The address arms
+                    // cannot fire here — this id was built from
+                    // `edges_in`'s own window — and are reported rather
+                    // than swallowed.
+                    let name = self.edge_name_of(id).map_err(PickError::EdgeName)?.clone();
+                    Near::Edge(EdgePick {
+                        name,
+                        node: id.node,
+                        body: id.body,
+                        boundary: candidate.boundary,
+                        distance_px: candidate.distance,
+                        point,
+                    })
+                }
             }));
         }
         Ok(None)
+    }
+
+    /// **A committed profile's drawn outline**: one world polyline per
+    /// loop ([`crate::sketch::PreviewLoop::drawn_on`]); empty for a
+    /// node this index draws no outline of.
+    pub fn profile_outline(&self, node: RecipeNodeId) -> &[Vec<Point3<f64>>] {
+        self.outlines
+            .iter()
+            .find(|outline| outline.node == node)
+            .map_or(&[], |outline| outline.loops.as_slice())
     }
 
     /// **The whole cursor path, as one function**: a cursor action
@@ -2151,8 +2608,8 @@ impl PickIndex {
     ///
     /// Which entity a cursor denotes is [`PickIndex::hovered_for`]'s
     /// answer, so hovering and clicking cannot disagree about it: an
-    /// edge within [`EDGE_PICK_RADIUS_PX`] beats the face behind it,
-    /// and everywhere else the face wins.
+    /// edge or a profile outline within [`EDGE_PICK_RADIUS_PX`] beats
+    /// the face behind it, and everywhere else the face wins.
     ///
     /// A [`PickAction::Select`] that hits nothing clears the
     /// selection — clicking empty space is how a user says "nothing",
@@ -2379,7 +2836,7 @@ struct Candidate {
 
 /// Where a drawn part's geometry actually lands: its own coordinates,
 /// or those coordinates through the free-move probe frame the display
-/// view puts the owning instance under.
+/// view puts the owning node under.
 ///
 /// One home for the displacement, because a highlight drawn at the
 /// tessellated placement while the picture draws the probed one is a
@@ -2392,15 +2849,81 @@ fn placement(display: &DisplayView, part: &NodePick) -> impl Fn(Point3<f64>) -> 
     }
 }
 
+/// **Where an inserted space is drawn, clear of what is drawn**: the
+/// display frame that steps `space`'s drawn bodies past everything else
+/// drawn along [`crate::combine::STEP_DIRECTION`] by
+/// [`crate::combine::clearance`] — the duplicate's rule, its own width's
+/// gap past the far side — each part as `display` draws it. The spaces
+/// in `ignored` are measured neither way: inserts still waiting for
+/// their own frame. `None` where nothing else is drawn, `space` draws
+/// nothing, it is clear already, or the picture does not build.
+///
+/// Measured as [`crate::combine::duplicate_step`] measures
+/// ([`crate::combine::measured_at_scale`]).
+pub fn clear_of_drawn(
+    doc: &Doc<ProfileProgram>,
+    eval: &Evaluation<f64>,
+    display: &DisplayView,
+    space: VarId,
+    ignored: &BTreeSet<VarId>,
+    tol: Tol,
+) -> Option<Frame> {
+    // The drawn points of `space`, and of everything else, at `delta`.
+    let points = |delta: f64| -> Result<_, ()> {
+        let delta = DisplayTolerance::new(delta).map_err(drop)?;
+        let index = PickIndex::build(
+            doc,
+            eval,
+            PictureKey::of(Generation::FIRST, delta, crate::world::Shown::none()),
+            tol,
+        )
+        .map_err(drop)?;
+        let (mut inserted, mut others) = (Vec::new(), Vec::new());
+        for part in index.parts() {
+            let at = index.spaces.get(&part.node()).copied();
+            if display.hides(part.node(), part.body()) || at.is_some_and(|at| ignored.contains(&at))
+            {
+                continue;
+            }
+            let map = drawn(display, part);
+            let into = if at == Some(space) {
+                &mut inserted
+            } else {
+                &mut others
+            };
+            into.extend(
+                part.mesh()
+                    .positions
+                    .iter()
+                    .map(|&p| map.map_or(p, |map| map.transform_point(p))),
+            );
+        }
+        Ok((inserted, others))
+    };
+    let ((inserted, others), chord) =
+        crate::combine::measured_at_scale(points, |(a, b)| a.iter().chain(b).copied().collect())
+            .ok()??;
+    let inserted = bvh::Aabb::from_points(inserted)?;
+    let others = bvh::Aabb::from_points(others)?;
+    let step = crate::combine::clearance(
+        others.max_x - inserted.min_x,
+        inserted.max_x - inserted.min_x,
+        chord,
+        tol,
+    );
+    (step.is_finite() && step > 0.0 && others.max_x > inserted.min_x)
+        .then(|| Frame::translation(crate::combine::STEP_DIRECTION.map(|d| d * step)))
+}
+
 /// **Where a drawn part's tessellation is drawn**: its body's frame
 /// composed into its space ([`pncad::document::in_space`], the picture's
 /// one composing door), then the free-move probe frame the display view
-/// puts the owning instance under. `None` where it is under neither,
+/// puts the owning node under. `None` where it is under neither,
 /// so a part computed in its space's coordinates is drawn as tessellated.
 fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
     let placed = in_space_of(part);
     let probe = display
-        .moved_placements
+        .moved_nodes
         .get(&part.node())
         .copied()
         .map(|frame: Frame| frame.affine::<f64>());
@@ -2411,11 +2934,11 @@ fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
     }
 }
 
-/// **The free-move probe frame a part's instance is drawn under**, if
+/// **The free-move probe frame a part's node is drawn under**, if
 /// the display view puts it under one: a display map, not the model's.
 fn probed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
     display
-        .moved_placements
+        .moved_nodes
         .get(&part.node())
         .copied()
         .map(|frame: Frame| frame.affine::<f64>())
@@ -2573,7 +3096,33 @@ pub enum PickError {
     /// an address this index does not draw, or a drawn edge the
     /// naming layer's lookup could not name.
     EdgeName(EdgeNameFault),
+    /// The picked vertex has no name here — [`VertexNameFault`], per
+    /// arm.
+    VertexName(VertexNameFault),
 }
+
+/// Why a vertex the cursor won names no stable name (closed enum, D4
+/// ¶3): `NodePick::boundary_end_names`' refusal of the call, or its
+/// lookup's of the one vertex.
+#[derive(Clone, Debug, PartialEq)]
+pub enum VertexNameFault {
+    /// The part's name door refused the call, verbatim.
+    Lookup(NameLookupError),
+    /// The vertex is drawn and its node's table has no name for it:
+    /// the naming layer's own bug report, carried verbatim.
+    Unnamed(UnnamedEntity),
+}
+
+impl core::fmt::Display for VertexNameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Lookup(error) => write!(f, "{error}"),
+            Self::Unnamed(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl core::error::Error for VertexNameFault {}
 
 /// Why a patch id names no stable name here (closed enum, D4 ¶3):
 /// [`PickIndex::name_of`]'s refusal.
@@ -2761,6 +3310,7 @@ impl Say for PickError {
             Self::EdgeName(fault) => {
                 write!(f, "the picked edge has no name: {}", Said(fault, by))
             }
+            Self::VertexName(fault) => write!(f, "the picked vertex has no name: {fault}"),
         }
     }
 }
@@ -2801,24 +3351,24 @@ mod tests {
         }
     }
 
-    /// **An undrawn copy says which placement is not drawn, and the
+    /// **An undrawn body says which node is not drawn, and the
     /// build's own refusal says why**, whatever the reason: no value or
     /// no body alike.
     #[test]
-    fn an_undrawn_copy_names_its_placement_and_forwards_why() {
+    fn an_undrawn_body_names_its_node_and_forwards_why() {
         let node = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
         for error in [
             NodePickError::NotABody { node },
             NodePickError::Standing(pncad::document::NodeStanding::Failed { node }),
         ] {
-            let copy = UndrawnCopy {
+            let copy = UndrawnBody {
                 node,
                 error: error.clone(),
             };
             assert_eq!(
                 copy.to_string(),
                 format!(
-                    "placement 000000000007 is not drawn: {}",
+                    "node 000000000007 is not drawn: {}",
                     Said(&error, Speaker::TAG.about(node))
                 ),
                 "the copy's sentence for {error:?}"
@@ -2853,8 +3403,9 @@ mod tests {
             PictureKey::of(
                 crate::generation::Generation::FIRST,
                 crate::test_support::plate_delta(),
+                crate::world::Shown::none(),
             ),
-            |_| Err(refusal.clone()),
+            |_, _| Err(refusal.clone()),
         )
         .expect("a copy that cannot be drawn does not refuse the index");
         assert!(index.parts().is_empty(), "the copy is not drawn");
@@ -2866,7 +3417,7 @@ mod tests {
             format!(
                 "picture: {}",
                 Said(
-                    &UndrawnCopy {
+                    &UndrawnBody {
                         node: copy,
                         error: refusal
                     },

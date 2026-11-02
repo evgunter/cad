@@ -631,10 +631,10 @@ type BoxedPreview<'a> = Box<dyn Fn([f64; 3]) -> SessionOp + 'a>;
 /// preview carries — and is
 /// the only part of the probe's vocabulary that is not the name's.
 pub(crate) fn free_move_gesture<'a>(
-    instance: RecipeNodeId,
+    node: RecipeNodeId,
     frame_of: impl Fn([f64; 3]) -> Frame + Copy + 'a,
 ) -> ProbeOps<'a> {
-    let name = FreeMoveName { instance };
+    let name = FreeMoveName { node };
     let gesture = GestureName::FreeMove(name);
     ProbeOps {
         gesture: GestureVocabulary {

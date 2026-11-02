@@ -27,14 +27,15 @@ pub fn translated(at: [f64; 3]) -> Frame {
 
 /// **`body`'s one world copy pinned at `pose`**: a landed session over
 /// `session`'s document with that copy's bundle replaced, and the copy.
+/// A body nothing copies is placed into the world by hand first
+/// ([`super::world_copy`]).
 pub fn moved_copy(
     session: &DocSession,
     body: RecipeNodeId,
     pose: &Frame,
     tol: Tol,
 ) -> (DocSession, RecipeNodeId) {
-    let doc = session.committed_doc().clone();
-    let copy = super::copy_of(&doc, body);
+    let (doc, copy) = super::world_copy(session.committed_doc(), body, tol);
     let mut session = super::inline_without_door(pinned(doc, copy, pose), tol);
     session.pump();
     (session, copy)
@@ -152,7 +153,7 @@ pub fn spacing_of(session: &DocSession, copy: RecipeNodeId) -> f64 {
 }
 
 /// **A box of `size` split at half its height**, landed: the session,
-/// the box (its one world copy still standing whole at the identity)
+/// the box (unplaced, so the split is drawn in its place)
 /// and the split.
 pub fn split_box(size: [f64; 3], tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let mut session = super::inline_without_door(Doc::empty_derived("split-halves", tol), tol);

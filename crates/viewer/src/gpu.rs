@@ -187,6 +187,9 @@ struct Uniforms {
     probe: [f32; 4],
     /// The focused feature's mark; see [`Uniforms::selected`].
     focus: [f32; 4],
+    /// The mark of a body outside the product; see
+    /// [`Uniforms::selected`].
+    outside: [f32; 4],
     /// The held mark (`Theme::held`); see [`Uniforms::selected`]. Read
     /// by the shaded pass's held stripes and the edge pass's held
     /// lane, so the two cannot come out different colours.
@@ -200,6 +203,9 @@ struct Uniforms {
     /// [`Mark`], so there is no strength to put in `w`: a profile is
     /// drawn in this colour, not tinted toward it.
     profile: [f32; 4],
+    /// **The construction colour** (`Theme::construction`), linear in
+    /// `xyz`; `w` is padding, for [`Uniforms::profile`]'s reason.
+    construction: [f32; 4],
     /// **What the passes need to measure the screen**: the viewport's
     /// size in physical pixels (`xy`), which the edge pass reads, and
     /// the width of one of a held face's stripes in physical pixels
@@ -388,6 +394,8 @@ fn lane_colour_wgsl(lane: EdgeLane) -> &'static str {
         // colour for it to be a state of. It is drawn in the theme's
         // own colour for it, as stated.
         EdgeLane::Profile => "uniforms.profile.xyz",
+        // Not a tint either, for the profile's reason.
+        EdgeLane::Construction => "uniforms.construction.xyz",
     }
 }
 
@@ -492,13 +500,15 @@ fn lane_style(lane: EdgeLane) -> LaneStyle {
             opacity: 1.0,
             hollow: HELD_EDGE_HOLLOW,
         },
-        EdgeLane::Profile | EdgeLane::Preview | EdgeLane::Hovered | EdgeLane::Selected => {
-            LaneStyle {
-                half_width_points: EDGE_MARK_HALF_WIDTH_POINTS,
-                opacity: 1.0,
-                hollow: 0.0,
-            }
-        }
+        EdgeLane::Profile
+        | EdgeLane::Construction
+        | EdgeLane::Preview
+        | EdgeLane::Hovered
+        | EdgeLane::Selected => LaneStyle {
+            half_width_points: EDGE_MARK_HALF_WIDTH_POINTS,
+            opacity: 1.0,
+            hollow: 0.0,
+        },
     }
 }
 
@@ -899,8 +909,10 @@ impl ViewportRenderer {
                 hovered: [0.0; 4],
                 probe: [0.0; 4],
                 focus: [0.0; 4],
+                outside: [0.0; 4],
                 held: [0.0; 4],
                 profile: [0.0; 4],
+                construction: [0.0; 4],
                 screen: [0.0; 4],
                 edge_lanes: [[0.0; 4]; EdgeLane::DRAW_ORDER.len()],
             }),
@@ -1495,9 +1507,14 @@ impl ViewportCallback {
             hovered: mark_lane(self.theme.hovered),
             probe: mark_lane(self.theme.probe),
             focus: mark_lane(self.theme.focus),
+            outside: mark_lane(self.theme.outside),
             held: mark_lane(self.theme.held()),
             profile: {
                 let [r, g, b] = crate::theme::linear(self.theme.profile);
+                [r, g, b, 0.0]
+            },
+            construction: {
+                let [r, g, b] = crate::theme::linear(self.theme.construction);
                 [r, g, b, 0.0]
             },
             screen: [
@@ -1637,6 +1654,10 @@ fn shader_source(target_format: wgpu::TextureFormat) -> String {
             "{{FLAG_FOCUS}}",
             &crate::scene::SceneMesh::FLAG_FOCUS.to_string(),
         )
+        .replace(
+            "{{FLAG_OUTSIDE}}",
+            &crate::scene::SceneMesh::FLAG_OUTSIDE.to_string(),
+        )
         .replace("{{EDGE_LANE_MASK}}", &EDGE_LANE_MASK.to_string())
         .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
         .replace("{{EDGE_LANES}}", &EdgeLane::DRAW_ORDER.len().to_string())
@@ -1658,9 +1679,12 @@ struct Uniforms {
     hovered: vec4<f32>,
     probe: vec4<f32>,
     focus: vec4<f32>,
+    outside: vec4<f32>,
     held: vec4<f32>,
     // A committed profile's colour, in xyz; w is padding.
     profile: vec4<f32>,
+    // The construction colour, in xyz; w is padding.
+    construction: vec4<f32>,
     // Viewport size in physical pixels (xy), a held face's stripe
     // width in physical pixels (z). See the Rust `Uniforms`.
     screen: vec4<f32>,
@@ -1751,6 +1775,11 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let lambert = max(dot(n, to_light), 0.0);
     let ambient = uniforms.base_color.w;
     var base = uniforms.base_color.xyz;
+    // A body outside the product is tinted first: every other mark is
+    // a state of material, drawn over what the material is.
+    if ((in.flag & {{FLAG_OUTSIDE}}u) != 0u) {
+        base = tint(base, uniforms.outside);
+    }
     if ((in.flag & {{FLAG_PROBE}}u) != 0u) {
         base = tint(base, uniforms.probe);
     }
@@ -2008,6 +2037,7 @@ mod tests {
         for token in [
             "{{FLAG_PROBE}}",
             "{{FLAG_FOCUS}}",
+            "{{FLAG_OUTSIDE}}",
             "{{EDGE_LANE_MASK}}",
             "{{EDGE_FLAG_PROBE}}",
             "{{EDGE_LANES}}",
@@ -2096,10 +2126,11 @@ mod tests {
             held_refused: None,
             held_probed: false,
             preview: segment(2.0),
+            construction: segment(1.5),
             profiles: segment(1.0),
         };
         let (positions, marks) = edge_vertices(&overlay);
-        assert_eq!(positions.len(), 5 * QUAD_CORNERS.len());
+        assert_eq!(positions.len(), 6 * QUAD_CORNERS.len());
         assert_eq!(marks.len(), positions.len());
         let codes: Vec<u32> = marks.iter().map(|word| word & EDGE_LANE_MASK).collect();
         assert!(
@@ -2269,6 +2300,7 @@ mod tests {
                 ("hovered", block.hovered[3], theme.hovered.strength.get()),
                 ("probe", block.probe[3], theme.probe.strength.get()),
                 ("focus", block.focus[3], theme.focus.strength.get()),
+                ("outside", block.outside[3], theme.outside.strength.get()),
                 ("held", block.held[3], theme.held().strength.get()),
             ];
             for (which, lane, stated) in weights {
@@ -2694,7 +2726,11 @@ mod tests {
         let index = PickIndex::build(
             &doc,
             &eval,
-            PictureKey::of(Generation::FIRST, plate_delta()),
+            PictureKey::of(
+                Generation::FIRST,
+                plate_delta(),
+                crate::world::Shown::none(),
+            ),
             tol,
         )
         .expect("the cube indexes");

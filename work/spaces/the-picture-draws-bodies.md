@@ -2,12 +2,14 @@
 id: the-picture-draws-bodies
 kind: unit
 title: the picture draws bodies, not placements: a body is drawn unless an operation reads it as a body
-status: dispatched
+status: closed
 opened: 2026-11-01
 priority: P0
 cost: H
 branch: spaces/picture-draws-bodies
 refs: [6209]
+pr: 6265
+closed: 2026-11-01
 ---
 
 
@@ -58,3 +60,15 @@ Review tier: **dual** (concurrent, H): the drawing rule is an
 architectural decision every later gesture and the product door build
 on, and it is easy to get subtly wrong (member granularity, same-space
 vs cross-space reads, picks seating the right node).
+
+## Closed
+
+PR 6265 (merged back to back with `a-new-body-lands-unplaced`, PR 6269).
+The picture draws every body no operation reads as a body (operand,
+one-input input, placement source; a member read takes the members its
+index range names, through `Doc::member_envs`); drawings keyed by what
+draws them; the product's body always drawn; a body the product does not
+reach tinted; one copy→body door; hide by body and by space; free-move by
+space, the world refused. Dual review (concurrent, row on
+`docs/dual-review-log/rows/PR-6265.md`): one tallied MAJOR, the split /
+pattern pick ambiguity, fixed by sequencing with the landing unit.

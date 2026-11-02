@@ -96,7 +96,7 @@ fn a_cone_with_a_tilted_seam_builds_its_true_body_or_refuses_typed() {
         (
             "x ≥ 0 (the apex pair)",
             bar((0.0, 3.0), (-1.0, 3.0), (-3.0, 3.0)),
-            36.0,
+            72.0,
             cone_volume / 2.0,
         ),
         (

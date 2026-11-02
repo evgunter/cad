@@ -120,8 +120,9 @@ fn open_at(path: &Path, tol: Tol) -> DocSession {
 }
 
 /// Author one box part through the creation ops — a new document, one
-/// centred rectangle, one extrude, the box's copy its product — assert
-/// its volume, and save it. Answers the part's document id.
+/// centred rectangle, one extrude, the box added to the product through
+/// its one door — assert its volume, and save it. Answers the part's
+/// document id.
 fn author_box_part(
     session: &mut DocSession,
     name: &str,
@@ -138,8 +139,12 @@ fn author_box_part(
         near(body_volume(session, extrude, tol), width * height * depth),
         "the {name} part's volume is its box"
     );
-    let copy = common::copy_of(session.committed_doc(), extrude);
-    common::product_is(session, &[copy]);
+    let added = session.perform(SessionOp::AddToProduct {
+        node: extrude,
+        body: None,
+    });
+    assert!(added.refusal.is_none(), "{:?}", added.refusal);
+    session.pump();
     let saved = session.perform(SessionOp::Save(file.to_path_buf()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     session.committed_doc().id()
@@ -172,12 +177,12 @@ fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
     let history_len = session.history().len();
     let before = session.doc().node(instance).cloned();
     for op in [
-        SessionOp::BeginFreeMove { instance },
+        SessionOp::BeginFreeMove { node: instance },
         SessionOp::PreviewFreeMove {
-            instance,
+            node: instance,
             frame: Frame::translation(at),
         },
-        SessionOp::CommitFreeMove { instance },
+        SessionOp::CommitFreeMove { node: instance },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -287,8 +292,8 @@ fn the_windmill_story() {
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
     assert_eq!(
         session.doc().ids().len(),
-        1,
-        "the slip is off the path: the tower, its own placement"
+        2,
+        "the slip is off the path: the tower and its own space"
     );
     let abandoned = session
         .history()
@@ -313,13 +318,13 @@ fn the_windmill_story() {
     );
     assert_eq!(
         history.entry(abandoned).doc().len(),
-        2,
-        "the abandoned two-tower document is intact, each tower its own placement"
+        4,
+        "the abandoned two-tower document is intact, each tower in its own space"
     );
     // Backwards and forwards across the add: redo follows the branch
     // the cursor is on — the hub, not the abandoned second tower.
     session.perform(SessionOp::Undo);
-    assert_eq!(session.doc().ids().len(), 1);
+    assert_eq!(session.doc().ids().len(), 2);
     session.perform(SessionOp::Redo);
     assert!(
         session.doc().node(hub_i).is_some(),
@@ -334,7 +339,16 @@ fn the_windmill_story() {
         other => panic!("expected the self-instance refusal, got {other:?}"),
     }
 
-    // ── 4. RESOLVE: two instance rows, both ok.
+    // ── 4. RESOLVE: two instance rows, both ok. The tower is then
+    // added to the product — an inserted part lands in a space of its
+    // own, and nothing there reads it, so the door moves it into the
+    // world where the product is made.
+    session.pump();
+    let added = session.perform(SessionOp::AddToProduct {
+        node: tower_i,
+        body: None,
+    });
+    assert!(added.refusal.is_none(), "{:?}", added.refusal);
     session.pump();
     let rows = common::asm::instance_rows(&session);
     assert_eq!(rows.len(), 2);
@@ -351,13 +365,13 @@ fn the_windmill_story() {
         .stats()
         .triangles;
     let history_len = session.history().len();
-    let hidden = session.perform(SessionOp::SetInstanceHidden {
-        instance: hub_i,
-        hidden: true,
+    let hidden = session.perform(SessionOp::SetBodyOn {
+        node: hub_i,
+        on: false,
     });
     assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
     assert!(hidden.committed.is_empty(), "hide commits no edit");
-    assert!(session.display().hidden().contains(&hub_i));
+    assert!(!session.toggles().body_on(hub_i));
     assert!(
         index
             .scene_for(&session.display_view())
@@ -373,12 +387,12 @@ fn the_windmill_story() {
         session.tree_rows().iter().any(|row| row.id == hub_i),
         "so does the tree"
     );
-    let shown = session.perform(SessionOp::SetInstanceHidden {
-        instance: hub_i,
-        hidden: false,
+    let shown = session.perform(SessionOp::SetBodyOn {
+        node: hub_i,
+        on: true,
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
-    assert!(session.display().hidden().is_empty());
+    assert!(session.display().toggled().is_empty());
 
     // ── 6. THE CAMERA AND A REAL PICK. Frame the scene off its own
     // drawn bounds, orbit, re-frame (a fit is not a reset), then aim
@@ -469,7 +483,7 @@ fn the_windmill_story() {
     assert!(session.standing().live(), "the selection resolves");
     session.perform(SessionOp::Hover(Some(Hovered::Face(picked.clone()))));
     assert_eq!(
-        session.hover().map(Hovered::name),
+        session.hover().and_then(Hovered::name),
         Some(&picked.name),
         "hover is its own transient value"
     );
@@ -484,9 +498,9 @@ fn the_windmill_story() {
     // the tower (a committed display value, never a document edit).
     let hub_space = asm::unpin(&mut session, hub_i);
     for op in [
-        SessionOp::BeginFreeMove { instance: hub_i },
+        SessionOp::BeginFreeMove { node: hub_i },
         SessionOp::PreviewFreeMove {
-            instance: hub_i,
+            node: hub_i,
             frame: Frame::translation([0.0, 0.0, 0.2]),
         },
         SessionOp::CancelFreeMove,
@@ -553,7 +567,8 @@ fn the_windmill_story() {
         )
     };
     assert_eq!(
-        superseded.instance, hub_i,
+        superseded.held,
+        viewer::display::Held::Node(hub_i),
         "the mate's edit discards the park"
     );
     session.pump();
@@ -578,7 +593,12 @@ fn the_windmill_story() {
     // identity-placed — and the faces' normals meet opposed. The base,
     // once the author says it is what the document makes, CERTIFIES at
     // rest: one declared contact, nested, answered.
-    common::product_is(&mut session, &[tower_i, hub_i]);
+    let added = session.perform(SessionOp::AddToProduct {
+        node: hub_i,
+        body: None,
+    });
+    assert!(added.refusal.is_none(), "{:?}", added.refusal);
+    session.pump();
     {
         let (_, eval) = session.landed_pair().expect("landed");
         let pose = face_frame(eval, hub_bottom.node, &hub_bottom.name)
@@ -616,10 +636,10 @@ fn the_windmill_story() {
 
     // The seated hub lives in the world's space, so it refuses the
     // probe, typed.
-    let refused = session.perform(SessionOp::BeginFreeMove { instance: hub_i });
+    let refused = session.perform(SessionOp::BeginFreeMove { node: hub_i });
     match refused.refusal {
         Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::InTheWorld {
-            instance,
+            node: instance,
         }))) => assert_eq!(instance.id(), hub_i),
         other => panic!("expected the in-the-world refusal, got {other:?}"),
     }
@@ -727,7 +747,8 @@ fn the_windmill_story() {
     };
     session.pump();
     assert_eq!(
-        superseded.instance, sail_a,
+        superseded.held,
+        viewer::display::Held::Node(sail_a),
         "the first sail's park goes with its mate"
     );
     assert!(
@@ -774,7 +795,11 @@ fn the_windmill_story() {
         panic!("exactly one frame is superseded at the edit")
     };
     session.pump();
-    assert_eq!(superseded.instance, sail_b, "and so does the second's");
+    assert_eq!(
+        superseded.held,
+        viewer::display::Held::Node(sail_b),
+        "and so does the second's"
+    );
     assert!(
         matches!(
             &superseded.cause,
@@ -798,7 +823,20 @@ fn the_windmill_story() {
     // induces — the gate's verdict is the truth about this design,
     // shown on the draw path rather than saved for an export — once the
     // author says the four are what the document makes.
-    common::product_is(&mut session, &[tower_i, hub_i, sail_a, sail_b]);
+    for sail in [sail_a, sail_b] {
+        let added = session.perform(SessionOp::AddToProduct {
+            node: sail,
+            body: None,
+        });
+        assert!(added.refusal.is_none(), "{:?}", added.refusal);
+    }
+    session.pump();
+    assert_eq!(
+        viewer::world::product_reads(session.committed_doc()),
+        [tower_i, hub_i, sail_a, sail_b]
+            .map(|copy| session.committed_doc().output(copy, 0).expect("a copy")),
+        "the four copies, in the order the author added them"
+    );
     let rows = session.tree_rows();
     assert_eq!(
         rows.len(),
@@ -875,7 +913,7 @@ fn the_windmill_story() {
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
-    assert!(reopened.display().hidden().is_empty());
+    assert!(reopened.display().toggled().is_empty());
     assert!(crate::common::asm::frame_of(&reopened, hub_i).is_none());
     assert_eq!(
         reopened.at_rest(),

@@ -874,7 +874,10 @@ axis-aligned plane×torus (its axis-parallel pose off the axis the
 rulings and its bisector ellipses closed form, every other crossing pose
 marched over its ball cut by the region), cylinder×sphere,
 sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
-NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3). The offset door reads
+NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3);
+NURBS (and `Approx` as its fit) against a cylinder, sphere or torus is
+classified, its tangency and coincidence decided and its loop-free
+verdict read, and its whole reading over the knot rectangle is unbuilt. The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle. The boolean reads
 plane × NURBS and NURBS × NURBS (and `Approx` as its fit) through the
@@ -891,15 +894,25 @@ face. A point of the rectangle's side that lies in the face lies on one
 of the face's pcurves (C4), which is an edge of the face. So the
 interior-loop guard clears such a component as it clears an unbounded
 one.
-A plane × spline pair is classified before `all()` is read, in the
-order above: the hull decides it apart or coincident, or escalates, at
-every scalar; a collapsed side not decided clear refuses at the door;
-the boundary pass, run once and handed on to `all()`, refuses a graze
-by name and finds where the section ends; and the regularity sweep's
-loop-free verdict, every component open with its ends on those sides
-(`Components::Reaching`), is the value's, with no `all()`. The guard
-clears it where each of those sides bounds the face, and otherwise
-reads it whole. Where the sweep declines, the value is `all()`'s.
+A spline × implicit pair is classified before `all()` is read, in the
+order above: the hull decides it apart or coincident, or escalates; a
+collapsed side not decided clear refuses at the door; the boundary
+pass refuses a graze by name and finds where the section ends; and the
+regularity sweep's loop-free verdict, every component open with its
+ends on those sides (`Components::Reaching`), is the value's, with no
+`all()`. The guard clears it where each of those sides bounds the face,
+and otherwise reads it whole. Against a plane the hull is the net's
+control heights, read at every scalar, the pass is run once and handed
+on to `all()`, and where the sweep declines the value is `all()`'s.
+Against a cylinder, sphere or torus `φ` is the partner's canonical form
+along the wall: the hull is the Bernstein hull of the tensor composite
+`f∘S` in certification arithmetic, read through the march door, its
+apart on a floor in metres and its coincidence on a ceiling, each
+through the form's divisor, the torus read only as a ring torus
+(`R > r`), where the divisor's lower bound is positive; the pass reads
+`f∘C` along each side as the curve × face table's ring composite and
+`∇f(S)·S_d` across it; and where the sweep declines, the pose refuses as
+the general rung's, its whole reading unbuilt.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
