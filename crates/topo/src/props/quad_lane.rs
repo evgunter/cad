@@ -111,6 +111,7 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
     surface: &Surface<T>,
     loops: &[Vec<LoopEdge<T>>],
+    held: &[Point3<T>],
     sense: bool,
     band: Band,
     centre: Point3<Interval>,
@@ -133,6 +134,16 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
                 .collect()
         })
         .collect();
+    let held: Vec<Point3<Interval>> = held
+        .iter()
+        .map(|p| {
+            Point3::new(
+                Interval::from_certified(p.x),
+                Interval::from_certified(p.y),
+                Interval::from_certified(p.z),
+            )
+        })
+        .collect();
     // A flux about `from` carried to `centre`: less `(centre − from)·A⃗`,
     // which keeps the width of `A⃗` times that lever.
     let about_centre = |flux: Interval, area, from: Point3<Interval>| -> Result<_, PropsError> {
@@ -153,12 +164,16 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
         return Ok((planar_face_about(&loops, normal, centre)?, true));
     }
     match moved_by(&surface, &loops, centre) {
-        Some((surface, moved_loops)) => Ok((
-            super::closed_form_of(&surface, &moved_loops, sense, band)?,
-            true,
-        )),
+        Some((surface, moved_loops)) => {
+            let moved_held: Vec<Point3<Interval>> =
+                held.iter().map(|&p| moved_point(p, centre)).collect();
+            Ok((
+                super::closed_form_of(&surface, &moved_loops, &moved_held, sense, band)?,
+                true,
+            ))
+        }
         None => {
-            let about_origin = super::closed_form_of(&surface, &loops, sense, band)?;
+            let about_origin = super::closed_form_of(&surface, &loops, &held, sense, band)?;
             about_centre(about_origin.flux, about_origin.area, Point3::origin())
         }
     }
@@ -212,6 +227,11 @@ fn loops_vector_area(
     Ok(va)
 }
 
+/// A point carried by `−by`, as [`moved_by`] carries a face's geometry.
+pub(super) fn moved_point<U: Decide>(p: Point3<U>, by: Point3<U>) -> Point3<U> {
+    Point3::origin() + (p - by)
+}
+
 /// `surface` carried by `−by`: every point-valued datum moved, every
 /// direction and length kept. `None` for a kind with no analytic datum
 /// to move (a spline or fitted surface).
@@ -219,7 +239,7 @@ pub(super) fn translated_surface<T: Decide>(
     surface: &Surface<T>,
     by: Point3<T>,
 ) -> Option<Surface<T>> {
-    let shift = |p: Point3<T>| Point3::origin() + (p - by);
+    let shift = |p: Point3<T>| moved_point(p, by);
     Some(match surface.clone() {
         Surface::Plane {
             origin,
@@ -546,11 +566,11 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     }
     // The structural curved-rim arm. A spiric bounds a plane cap or a
     // torus wall and nothing else (`Pcurve::Spiric` certifies on those two
-    // chart kinds only); the face walk routes a plane here only when a
-    // spiric or a rational spline rim is on its boundary, and a torus wall
-    // comes here when a spiric is on any of its loops, its outer loop or a
-    // ring.
-    if matches!(surface, Surface::Plane { .. })
+    // chart kinds only); the face walk routes a plane or a cone here only
+    // when a spiric or a rational spline rim is on its boundary, and a
+    // torus wall comes here when a spiric is on any of its loops, its
+    // outer loop or a ring.
+    if matches!(surface, Surface::Plane { .. } | Surface::Cone { .. })
         || (matches!(surface, Surface::Torus { .. })
             && loops
                 .iter()
@@ -779,6 +799,24 @@ fn rim_face<T: Decide + geom_core::CertifiedBounds>(
                 .collect();
             plane_cap(&loops, centre)?
         }
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let loops: Vec<Vec<LoopEdge<Interval>>> = loops
+                .iter()
+                .map(|(edges, _)| edges.iter().map(lift).collect())
+                .collect();
+            let apex = Point3::new(iv(apex.x), iv(apex.y), iv(apex.z));
+            let axis = geom_core::Vec3::new(iv(axis.x), iv(axis.y), iv(axis.z));
+            let axis = axis / (axis.x.sqr() + axis.y.sqr() + axis.z.sqr()).sqrt();
+            // Lane evaluation at `T`, crossed in through its bracket.
+            let sin_a = iv(half_angle.sin());
+            let face = cap_about(&loops, apex, centre)?;
+            return spiric::cone_cap_rounds::<T>(&face, (rv(axis), sin_a), band, window, accept);
+        }
         Surface::Torus {
             center,
             major_radius,
@@ -867,7 +905,17 @@ fn plane_cap(
     loops: &[Vec<LoopEdge<Interval>>],
     centre: Point3<Interval>,
 ) -> Result<spiric::RimFaceQ, PropsError> {
-    let anchor = loops_anchor(loops)?;
+    cap_about(loops, loops_anchor(loops)?, centre)
+}
+
+/// A cap's loops read about `anchor`: [`plane_cap`]'s reading, taken
+/// about a point of a plane, or about a cone's apex for
+/// [`spiric::cone_cap_rounds`].
+fn cap_about(
+    loops: &[Vec<LoopEdge<Interval>>],
+    anchor: Point3<Interval>,
+    centre: Point3<Interval>,
+) -> Result<spiric::RimFaceQ, PropsError> {
     let mut closed_va = [Interval::zero(); 3];
     let mut spirics = Vec::new();
     let mut rationals = Vec::new();
@@ -1069,9 +1117,10 @@ fn spiric_wall(
 /// Structure checks are EXACT `f64` (C6: the minted chart values
 /// are exact by construction; a non-exact or non-rectangular
 /// boundary refuses typed, naming the trimmed-NURBS lane as the
-/// cut-loft unit's). The traversal's shoelace sign IS the S10
-/// orientation input — winding-derived end to end, like the
-/// cylinder lane; no sense bit is read.
+/// cut-loft unit's). The direction the traversal walks its rectangle
+/// ([`rectangle_winding`]) IS the S10 orientation input —
+/// winding-derived end to end, like the cylinder lane; no sense bit is
+/// read.
 #[allow(clippy::too_many_arguments)]
 fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
@@ -1118,7 +1167,8 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             })
         }
     };
-    let mut polygon: Vec<(f64, f64)> = Vec::with_capacity(outer.len());
+    let mut segments: Vec<ChartSegment> = Vec::with_capacity(outer.len());
+    let mut slacks: Vec<SegmentSlack> = Vec::with_capacity(outer.len());
     let mut boundary_defect = 0.0f64;
     let mut perimeter = 0.0f64;
     let lifted = crate::pcurves::lifted_images(body, hes);
@@ -1164,33 +1214,33 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         }
         // Traversal order: the loop walks he_plus-forward edges
         // start→end and reversed ones end→start.
+        let mag = |x: T| Interval::from_certified(x).mag();
+        let (sa, sb) = (end_slack(image, t0, mag), end_slack(image, t1, mag));
         if le.forward {
-            polygon.push((ax, ay));
+            segments.push(((ax, ay), (bx, by)));
+            slacks.push((sa, sb));
         } else {
-            polygon.push((bx, by));
+            segments.push(((bx, by), (ax, ay)));
+            slacks.push((sb, sa));
         }
         // Metric boundary length bound + the map-residual defect.
         let len = carrier_metric_length(&le.carrier, t0, t1)?;
         perimeter += len;
         boundary_defect += len * Interval::from_certified(cache.certificate().envelope).mag();
     }
-    // The rectangle certificate: hull of the traversal polygon,
-    // every vertex on a corner, and the shoelace equal to ±the
-    // rectangle area — the sign IS the S10 winding.
+    // The rectangle certificate: hull of the segments' starts, every
+    // start on its boundary, and the segments walking that boundary
+    // once — the direction IS the S10 winding.
     let (mut u0, mut u1) = (f64::INFINITY, f64::NEG_INFINITY);
     let (mut v0, mut v1) = (f64::INFINITY, f64::NEG_INFINITY);
-    for &(x, y) in &polygon {
+    for &((x, y), _) in &segments {
         u0 = u0.min(x);
         u1 = u1.max(x);
         v0 = v0.min(y);
         v1 = v1.max(y);
     }
-    let mut shoelace = 0.0f64;
-    for i in 0..polygon.len() {
-        let (xa, ya) = polygon[i];
-        let (xb, yb) = polygon[(i + 1) % polygon.len()];
-        shoelace += xa * yb - xb * ya;
-        if (xa != u0 && xa != u1) && (ya != v0 && ya != v1) {
+    for &((x, y), _) in &segments {
+        if (x != u0 && x != u1) && (y != v0 && y != v1) {
             return Err(PropsError::QuadratureUnsupported {
                 what: "a NURBS-face boundary vertex sits strictly inside the UV \
                        rectangle — a re-entrant trim is outside the rectangle lane \
@@ -1198,19 +1248,13 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             });
         }
     }
-    shoelace *= 0.5;
-    let rect_area = (u1 - u0) * (v1 - v0);
-    let winding = if shoelace == rect_area {
-        1.0
-    } else if shoelace == -rect_area {
-        -1.0
-    } else {
-        return Err(PropsError::QuadratureUnsupported {
+    let winding = rectangle_winding(&segments, &slacks, (u0, u1, v0, v1)).ok_or(
+        PropsError::QuadratureUnsupported {
             what: "the NURBS-face boundary does not traverse its UV rectangle exactly \
-                   once (shoelace ≠ ±rectangle area) — a trimmed or multiply-wound \
-                   region is outside the rectangle lane (the cut-loft unit's)",
-        });
-    };
+                   once — a trimmed or multiply-wound region is outside the rectangle \
+                   lane (the cut-loft unit's)",
+        },
+    )?;
     let control = about(
         payload
             .control()
@@ -1248,6 +1292,106 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         flux: if winding < 0.0 { -b.flux } else { b.flux },
         area: b.area,
     }))
+}
+
+/// One trim edge's chart image as `(start, end)` in traversal order.
+type ChartSegment = ((f64, f64), (f64, f64));
+
+/// How far each end of a [`ChartSegment`] may stand from the vertex it
+/// images, per chart axis, `(start, end)`: [`end_slack`].
+type SegmentSlack = ((f64, f64), (f64, f64));
+
+/// How far an iso image's point at `t` may round from the vertex it
+/// images, per chart axis, from what it is computed from: an `IsoLine`
+/// is `p₀ + l·t`, two roundings of those terms; an `IsoArc` is
+/// `p₀ + d·g` with `g ∈ [0, 1]` read through the arc's tangent identity,
+/// which rounds `g` itself by a few ulps of one. NaN for any other kind,
+/// which joins nothing. `m` reads a scalar's magnitude, upward.
+fn end_slack<T: Decide>(image: &Pcurve<T>, t: T, m: impl Fn(T) -> f64) -> (f64, f64) {
+    let ulps = |x: f64| 4.0 * f64::EPSILON * x;
+    match image {
+        Pcurve::IsoLine { p0, pl } => (ulps(m(p0.x) + m(pl.x * t)), ulps(m(p0.y) + m(pl.y * t))),
+        Pcurve::IsoArc { p0, pd, .. } => (
+            ulps(m(p0.x) + m(pd.x)) + 4.0 * ulps(m(pd.x)),
+            ulps(m(p0.y) + m(pd.y)) + 4.0 * ulps(m(pd.y)),
+        ),
+        _ => (f64::NAN, f64::NAN),
+    }
+}
+
+/// Whether the trim's iso segments, each `(start, end)` in traversal
+/// order, walk the boundary of the rectangle `(u0, u1, v0, v1)` exactly
+/// once: `+1.0` counter-clockwise, `−1.0` clockwise, `None` otherwise.
+/// Read by comparisons alone, so a rectangle whose sides are not dyadic
+/// (a sub-patch at a knot of `1/9`) certifies as exactly as `[0, 1]²`,
+/// which a shoelace in `f64` cannot promise.
+///
+/// A once-around walk is closed and connected, each segment starting
+/// where the one before it ended. Each segment is axis-aligned, so it
+/// lies on one side of the rectangle (or inside it, which refuses) and
+/// runs one way along it. A once-around walk runs every moving segment
+/// the same way round and visits the four sides in their order, each in
+/// one run.
+fn rectangle_winding(
+    segments: &[ChartSegment],
+    slacks: &[SegmentSlack],
+    (u0, u1, v0, v1): (f64, f64, f64, f64),
+) -> Option<f64> {
+    if u0 >= u1 || v0 >= v1 {
+        return None;
+    }
+    // Each moving segment's side (bottom, right, top, left: the
+    // counter-clockwise order) and whether it runs counter-clockwise.
+    let mut sides = Vec::with_capacity(segments.len());
+    let mut ccw = None;
+    // Each segment starts where the one before it ended: the two are one
+    // vertex's images, each within its own slack of it, and a wider gap
+    // is two vertices.
+    if slacks.len() != segments.len() {
+        return None;
+    }
+    let ends = segments.iter().zip(slacks);
+    let joined = ends.clone().zip(ends.cycle().skip(1)).all(
+        |((&(_, (ex, ey)), &(_, (rx, ry))), (&((sx, sy), _), &((qx, qy), _)))| {
+            (ex - sx).abs() <= rx + qx && (ey - sy).abs() <= ry + qy
+        },
+    );
+    if !joined {
+        return None;
+    }
+    for &((ax, ay), (bx, by)) in segments {
+        let (side, forward) = if ay == by && ax != bx {
+            match ay {
+                y if y == v0 => (0u8, bx > ax),
+                y if y == v1 => (2, bx < ax),
+                _ => return None,
+            }
+        } else if ax == bx && ay != by {
+            match ax {
+                x if x == u1 => (1, by > ay),
+                x if x == u0 => (3, by < ay),
+                _ => return None,
+            }
+        } else if ax == bx && ay == by {
+            // A segment whose image is one chart point walks no way.
+            continue;
+        } else {
+            return None;
+        };
+        if *ccw.get_or_insert(forward) != forward {
+            return None;
+        }
+        if sides.last() != Some(&side) {
+            sides.push(side);
+        }
+    }
+    if sides.len() > 1 && sides.first() == sides.last() {
+        sides.pop();
+    }
+    let ccw = ccw?;
+    let next = |s: u8| if ccw { (s + 1) % 4 } else { (s + 3) % 4 };
+    let once = sides.len() == 4 && (0..4).all(|i| sides[(i + 1) % 4] == next(sides[i]));
+    once.then_some(if ccw { 1.0 } else { -1.0 })
 }
 
 /// A certified UPPER bound on a trim carrier's METRIC length, in
@@ -2030,9 +2174,16 @@ mod tests {
                 let centre = corner_of(lane, run);
                 let (face, surface) = resolve_face(&body, run.face);
                 let loops = face_loops(&body, face).unwrap();
-                let (c, _) =
-                    super::super::closed_form(surface, &loops, face.sense, band, centre, None)
-                        .unwrap();
+                let (c, _) = super::super::closed_form(
+                    surface,
+                    &loops,
+                    &crate::props::face_tips(&body, face).unwrap(),
+                    face.sense,
+                    band,
+                    centre,
+                    None,
+                )
+                .unwrap();
                 flux = flux + c.flux;
                 area = area + c.area;
                 polygon = polygon
@@ -2070,6 +2221,155 @@ mod tests {
                     "tight {tight}: the re-derivation is every face's closed form"
                 );
             }
+        }
+    }
+
+    /// `rectangle_winding` on hand-built walks of the unit square.
+    #[allow(clippy::float_cmp)]
+    mod rectangle_winding {
+        use super::super::{ChartSegment, SegmentSlack, end_slack, rectangle_winding};
+        use geom_brep::Pcurve;
+        use geom_core::{Point2, Vec2};
+
+        const R: (f64, f64, f64, f64) = (0.0, 1.0, 0.0, 1.0);
+
+        /// The slack of a walk on the unit square read off unit-sized
+        /// terms: four ulps of one at every end.
+        fn unit(w: &[ChartSegment]) -> Vec<SegmentSlack> {
+            let e = 4.0 * f64::EPSILON;
+            vec![((e, e), (e, e)); w.len()]
+        }
+
+        const ONCE: [ChartSegment; 4] = [
+            ((0.0, 0.0), (1.0, 0.0)),
+            ((1.0, 0.0), (1.0, 1.0)),
+            ((1.0, 1.0), (0.0, 1.0)),
+            ((0.0, 1.0), (0.0, 0.0)),
+        ];
+
+        #[test]
+        fn once_around_reads_its_direction_and_twice_around_refuses() {
+            assert_eq!(
+                rectangle_winding(&ONCE, &unit(&ONCE), R),
+                Some(1.0),
+                "counter-clockwise"
+            );
+            let cw: Vec<ChartSegment> = ONCE.iter().rev().map(|&(a, b)| (b, a)).collect();
+            assert_eq!(
+                rectangle_winding(&cw, &unit(&cw), R),
+                Some(-1.0),
+                "clockwise"
+            );
+            let twice: Vec<ChartSegment> = ONCE.iter().chain(&ONCE).copied().collect();
+            assert_eq!(
+                rectangle_winding(&twice, &unit(&twice), R),
+                None,
+                "twice around"
+            );
+        }
+
+        /// A vertex whose two images round apart by an ulp along their
+        /// side, as a degree-1 path sweep's wall closes, is one vertex.
+        #[test]
+        fn a_vertex_an_ulp_apart_on_its_two_images_is_one_vertex() {
+            let below_one = 1.0 - f64::EPSILON / 2.0;
+            let mut w = ONCE;
+            w[0].1 = (below_one, 0.0);
+            w[2].0 = (below_one, 1.0);
+            assert_eq!(rectangle_winding(&w, &unit(&w), R), Some(1.0));
+        }
+
+        /// Walks the segment sides and directions alone would read as
+        /// once around, each with a gap between two segments.
+        #[test]
+        fn a_walk_with_a_gap_refuses() {
+            let mut gap = ONCE;
+            gap[1].0 = (1.0, 0.5);
+            assert_eq!(
+                rectangle_winding(&gap, &unit(&gap), R),
+                None,
+                "the right side starts half way up"
+            );
+            let mut short = ONCE;
+            short[1].1 = (1.0, 0.5);
+            assert_eq!(
+                rectangle_winding(&short, &unit(&short), R),
+                None,
+                "the right side stops short"
+            );
+            let mut hair = ONCE;
+            hair[1].0 = (1.0, 1e-9);
+            assert_eq!(
+                rectangle_winding(&hair, &unit(&hair), R),
+                None,
+                "a gap of 1e-9"
+            );
+            let mut more = ONCE.to_vec();
+            more.push(((0.0, 0.0), (0.5, 0.0)));
+            assert_eq!(
+                rectangle_winding(&more, &unit(&more), R),
+                None,
+                "five quarters round, unclosed"
+            );
+        }
+
+        /// A spur on the bottom side, out to 1, back to 1/2, out again.
+        #[test]
+        fn a_spur_on_one_side_refuses() {
+            let w = [
+                ((0.0, 0.0), (1.0, 0.0)),
+                ((1.0, 0.0), (0.5, 0.0)),
+                ((0.5, 0.0), (1.0, 0.0)),
+                ((1.0, 0.0), (1.0, 1.0)),
+                ((1.0, 1.0), (0.0, 1.0)),
+                ((0.0, 1.0), (0.0, 0.0)),
+            ];
+            assert_eq!(rectangle_winding(&w, &unit(&w), R), None);
+        }
+
+        /// An `IsoLine` read at parameters about 100 rounds at ulps of
+        /// 100, not of the rectangle: the bottom side `x = −100 + t` ends
+        /// at `t = 100.7` some ulps of 100 off the right side's
+        /// `x = 0.7`, and is one vertex.
+        #[test]
+        fn an_image_at_offset_parameters_joins_within_its_own_slack() {
+            let bottom = Pcurve::IsoLine {
+                p0: Point2::new(-100.0, 0.0),
+                pl: Vec2::new(1.0, 0.0),
+            };
+            let at = |c: &Pcurve<f64>, t: f64| {
+                let p = c.eval(t);
+                (p.x, p.y)
+            };
+            let right = Pcurve::IsoLine {
+                p0: Point2::new(0.7, 0.0),
+                pl: Vec2::new(0.0, 1.0),
+            };
+            let top = Pcurve::IsoLine {
+                p0: Point2::new(0.7, 1.0),
+                pl: Vec2::new(-1.0, 0.0),
+            };
+            let left = Pcurve::IsoLine {
+                p0: Point2::new(0.0, 1.0),
+                pl: Vec2::new(0.0, -1.0),
+            };
+            let walk = [
+                (&bottom, 100.0, 100.7),
+                (&right, 0.0, 1.0),
+                (&top, 0.0, 0.7),
+                (&left, 0.0, 1.0),
+            ];
+            let segments: Vec<ChartSegment> =
+                walk.iter().map(|&(c, a, b)| (at(c, a), at(c, b))).collect();
+            assert_ne!(segments[0].1, segments[1].0, "the two images round apart");
+            let slacks: Vec<SegmentSlack> = walk
+                .iter()
+                .map(|&(c, a, b)| (end_slack(c, a, f64::abs), end_slack(c, b, f64::abs)))
+                .collect();
+            assert_eq!(
+                rectangle_winding(&segments, &slacks, (0.0, 0.7, 0.0, 1.0)),
+                Some(1.0)
+            );
         }
     }
 }

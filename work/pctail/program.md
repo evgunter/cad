@@ -4,11 +4,11 @@ kind: program
 title: PCTAIL — the P3 tail of pcurve certification - its refusal vocabulary, its guards, and the coverage it claims
 status: ready
 opened: 2026-10-01
-area: kernel
+group: kernel/topo/certify
 prefix: pctail/
 tag: (PCTAIL orchestrator)
 paths: [crates/geom-brep/src/pcurve_cache.rs]
-keep_out: [cut from PCERT along its priority seam on 2026-10-01 per work/README.md Track size - PCERT keeps the P0 and P1 spine and runs it, and this track holds the P3 and P4 rows behind it - both claim crates/geom-brep/src/pcurve_cache.rs and that shared ground is legitimate by the README's 2026-09-20 rule, so run scripts/work.py territory on your branch and announce the seam in the PR while PCERT is active]
+keep_out: [cut from PCERT along its priority seam on 2026-10-01 per work/README.md Track size - PCERT keeps the P0 and P1 spine and runs it, and this track holds the P3 and P4 rows behind it - both claim crates/geom-brep/src/pcurve_cache.rs and that shared ground is legitimate by the README's 2026-09-20 rule, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled while PCERT is active]
 ---
 **What `PcurveCertifyError` says when it refuses, and the guards and
 coverage claims around the certifier.** The spine of this ground — that

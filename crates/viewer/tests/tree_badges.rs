@@ -480,10 +480,11 @@ fn a_union_over_a_chained_copy_points_at_the_refused_placement() {
 fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     use pncad::document::{NodeStanding, ProductError};
     use pncad::select::{Resolution, ResolveIndeterminate};
-    use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
+    use viewer::blend::{BlendEvent, BlendTool};
     use viewer::combine::DuplicateFault;
     use viewer::matetool::{MateTool, MateToolEvent};
     use viewer::session::{FaceSelection, Selection, Standing};
+    use viewer::tree::DrawnBody;
 
     let tol = Tol::witness();
     let bench = common::asm::bench("panels-agree", tol);
@@ -581,39 +582,37 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         }
         other => panic!("the duplicate door refuses the boolean, got {other:?}"),
     }
-    let target = BlendTarget {
-        node: bench.post_a,
-        body: 0,
-    };
+    let target = DrawnBody::new(bench.post_a, 0);
     match BlendTool::new().load_all_edges(target, doc, ev, &index) {
         Some(BlendEvent::TargetHasNoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the blend loader");
         }
         other => panic!("the blend loader refuses post_a, got {other:?}"),
     }
-    // The pick index refuses on a placement with no value; its tooltip
-    // carries that placement's standing as the tree draws it.
-    let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
-        panic!("the index does not build over a placement with no value");
-    };
-    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
-        .expect("a refusal badges");
-    let detail = badge
-        .detail()
-        .expect("the badge defers its words to the tooltip");
+    // The pick index holds post_a undrawn, with its kernel standing, and
+    // badges nothing for it: the tree's row, downstream of the refused
+    // shelf, is the notice.
+    let index = common::index_at(&session, common::asm::delta())
+        .expect("a placement with no value does not refuse the index");
     assert!(
-        detail.contains(&format!(
-            "failure at {}",
-            session.landed_pair().expect("landed").0.spoken(offender)
-        )) && !detail.contains("ancestor"),
-        "the pick index's tooltip names the refused shelf: {detail}"
+        index
+            .undrawn()
+            .iter()
+            .any(|copy| copy.node() == bench.post_a),
+        "post_a is held undrawn: {:?}",
+        index.undrawn()
+    );
+    assert_eq!(
+        viewer::frame::index_badge(None, Some(&index), session.landed_pair()),
+        None,
+        "no badge beside the tree's row"
     );
 
     // The product gather: its value is the kernel's, the tree draws the
     // refused copy downstream of the refused shelf, and the at-rest badge says
     // nothing about it.
     let refused = match session.product_fault() {
-        Some(ProductError::Root(
+        Some(ProductError::Read(
             NodeStanding::Failed { node } | NodeStanding::Poisoned { node, .. },
         )) => *node,
         other => panic!("the gather refuses on a placement, got {other:?}"),
@@ -666,7 +665,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         "standing_as_drawn(",
         "resolution_as_drawn(",
         "interrogation_as_drawn(",
-        "index_refusal_as_drawn(",
     ];
     /// `(file, door, reason)`: each admits exactly one unread call.
     const ADMITTED: &[(&str, &str, &str)] = &[
@@ -682,6 +680,12 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
              to show, never whether the row stands",
         ),
         (
+            "tree.rs",
+            ".usable(",
+            "`split_reading` reads a staged split, which has no row: the split panel's verdict \
+             before commit, said in the panel and nowhere the tree draws",
+        ),
+        (
             "features.rs",
             ".usable(",
             "a unit test's premise: reads the measure's payload to name the reason it expects, \
@@ -690,7 +694,8 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         (
             "pickindex.rs",
             "NodePick::build_all",
-            "reaches the chrome only through `frame::index_badge`, which re-reads it",
+            "held as an `UndrawnBody`; `frame::index_badge` says only a copy `tree::cause_row` \
+             names no row for, whose standing the tree draws unchanged",
         ),
         (
             "pickindex.rs",
@@ -700,12 +705,14 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         (
             "pickindex.rs",
             "patch_names(",
-            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+            "a `PickIndexError::Names` refuses the whole index, and `frame::index_badge` \
+             says it Actionable in its own words: louder than the tree, never quieter",
         ),
         (
             "pickindex.rs",
             "boundary_names(",
-            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+            "a `PickIndexError::Names` refuses the whole index, and `frame::index_badge` \
+             says it Actionable in its own words: louder than the tree, never quieter",
         ),
         (
             "pickindex.rs",
@@ -720,7 +727,7 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         ),
         (
             "scene.rs",
-            "product(",
+            "product_recorded(",
             "`scene_of`'s headless path; no chrome surface draws its refusal",
         ),
         (
@@ -745,6 +752,12 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "session.rs",
             "run_checks_at_rest_on(",
             "the no-body subject's registry run; dropped the same way",
+        ),
+        (
+            "session.rs",
+            ".usable(",
+            "`body_reach` sizes a trace's window off the body's value; a refusal is dropped \
+             (`.ok()`) and the window falls back to a unit reach, never drawn",
         ),
     ];
 
@@ -857,7 +870,6 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         id: RecipeNodeId::new(0, id),
         spoken: spoken(RecipeNodeId::new(0, id), Some("Place")),
         which: None,
-        depth: 0,
         placed: false,
         status,
         repair_at: None,
@@ -889,14 +901,14 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
 /// the cause.
 ///
 /// One document, built up: an intersect of two blocks that do not
-/// meet, first alone and then under a pattern; a
-/// split whose tool plane clears the block, with a `Part` reading its
-/// empty side; and a `Part` indexed past a pattern's count.
+/// meet, first alone and then under a shell; a
+/// split whose tool plane clears the block, with a shell reading its
+/// empty side; and a member read indexed past a family's count.
 #[test]
 fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     use pncad::document::{
-        BooleanValue, Doc, Node, NodeErrorKind, PartSelect, PatternKind, ProfileProgram,
-        RecipeNodeId, SplitSide, ValuePayload,
+        BooleanValue, Doc, Node, NodeErrorKind, ProfileProgram, RecipeNodeId, SplitSide,
+        TargetAxis, ValuePayload,
     };
     use pncad::select::SplitHalf;
     use viewer::tree::{Emptiness, Readout};
@@ -963,24 +975,13 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     );
 
     // A consumer of the empty value: `EmptyOperand`.
-    let pattern_of = |doc: &Doc<ProfileProgram>, input: pncad::document::Operand| {
-        common::inserted(
-            doc,
-            Node::Pattern {
-                input,
-                count: pncad::document::Formula::count(2),
-                kind: PatternKind::Linear {
-                    direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                    spacing: common::len(0.05),
-                },
-            },
-            tol,
-        )
+    let shell_of = |doc: &Doc<ProfileProgram>, input: pncad::document::Operand| {
+        common::inserted(doc, Node::shell(input, common::len(0.001), Vec::new()), tol)
     };
-    let (doc, moved) = pattern_of(&doc, apart.into());
+    let (doc, moved) = shell_of(&doc, apart.into());
 
     // A tool plane above the block, read off its own geometry: the
-    // split's above side is empty, and a pattern reading it refuses
+    // split's above side is empty, and a shell reading it refuses
     // `EmptyHalf`.
     let tool =
         editor_core::test_support::plane_on(&doc, near, [0.0, 0.0, 0.05], [0.0, 0.0, 1.0], tol);
@@ -992,7 +993,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         },
         tol,
     );
-    let (doc, above) = pattern_of(
+    let (doc, above) = shell_of(
         &doc,
         pncad::document::Operand::output(split, SplitHalf::Above.port()),
     );
@@ -1018,27 +1019,9 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         tol,
     );
 
-    // A three-instance pattern, and a `Part` reading instance 3.
-    let (doc, pattern) = common::inserted(
-        &doc,
-        Node::Pattern {
-            input: far.into(),
-            count: pncad::document::Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                spacing: common::len(0.05),
-            },
-        },
-        tol,
-    );
-    let (doc, past) = common::inserted(
-        &doc,
-        Node::Part {
-            of: pattern.into(),
-            select: PartSelect::Instance(pncad::document::Formula::count(3)),
-        },
-        tol,
-    );
+    // A three-member family, and a read of member 3.
+    let (doc, pattern) = common::row_of_copies(&doc, far, 3, (TargetAxis::X, 0.05), tol);
+    let (doc, past) = common::member_read(&doc, pattern, 3, tol);
 
     let (ev, rows) = run(&doc);
     assert!(
@@ -1084,12 +1067,12 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     assert_eq!(
         common::row_of(&rows, apart).readout,
         Some(Readout::Empty(Emptiness::Whole)),
-        "the intersect still says so under a pattern"
+        "the intersect still says so under a shell"
     );
     assert_eq!(
         common::row_of(&rows, pattern).readout,
         None,
-        "a pattern's count is authored, and the refusal's words state it"
+        "a family's count is authored, and the refusal's words state it"
     );
     assert!(
         matches!(
@@ -1125,13 +1108,13 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     let raised = |id| match ev.node_error(id).map(|error| &error.kind) {
         Some(NodeErrorKind::EmptyOperand { .. }) => Some("EmptyOperand"),
         Some(NodeErrorKind::EmptyHalf { .. }) => Some("EmptyHalf"),
-        Some(NodeErrorKind::InstanceOutOfRange { .. }) => Some("InstanceOutOfRange"),
+        Some(NodeErrorKind::MemberOutOfRange { .. }) => Some("MemberOutOfRange"),
         _ => None,
     };
     let arms = [
         (moved, "EmptyOperand"),
         (above, "EmptyHalf"),
-        (past, "InstanceOutOfRange"),
+        (past, "MemberOutOfRange"),
     ];
     for (id, arm) in arms {
         assert_eq!(

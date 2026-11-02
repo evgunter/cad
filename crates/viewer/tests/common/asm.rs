@@ -19,6 +19,7 @@
 // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::expect_used)]
 
+use pncad::document::Dimension;
 use pncad::document::Formula;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -33,7 +34,7 @@ use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
 use viewer::session::{DocSession, FaceSelection, SessionOp};
 
-use super::{ang, insert_into, len};
+use super::{insert_into, len};
 
 /// The post's square section and height, metres.
 pub const POST_SECTION: f64 = 0.02;
@@ -262,6 +263,27 @@ pub fn store_union(bench: &Bench, members: &[RecipeNodeId], tol: Tol) -> RecipeN
     union
 }
 
+/// **`body` placed into the world by hand in the bench's stored
+/// assembly**, by the identity bundle, answering the placement: a
+/// person's placement, which no creation writes for them.
+pub fn store_world_copy(bench: &Bench, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
+    let text = std::fs::read_to_string(&bench.asm_path).expect("the assembly reads");
+    let mut doc = pncad::document::load(&text, tol)
+        .expect("the assembly loads")
+        .doc;
+    let placement = insert_into(
+        &mut doc,
+        super::world_place(pncad::document::Operand::Node(body)),
+        tol,
+    );
+    std::fs::write(
+        &bench.asm_path,
+        pncad::document::save(&doc, &[], tol).expect("the assembly saves"),
+    )
+    .expect("the assembly writes");
+    placement
+}
+
 /// A session opened on the bench's assembly through the typed `Open`
 /// door (which is what wires the resolver), evaluated and landed.
 pub fn open_bench(bench: &Bench, tol: Tol) -> DocSession {
@@ -325,7 +347,7 @@ pub fn seat_values_at(b_x: f64, shelf_at: [f64; 3]) -> Vec<(Coord, pncad::docume
             Coord::Slide(TargetAxis::Y),
             len(shelf_at[1] + SHELF_DEPTH / 2.0 - POST_SECTION / 2.0),
         ),
-        (Coord::SPIN, ang(0.0)),
+        (Coord::SPIN, Formula::zero(Dimension::Angle)),
     ]
 }
 

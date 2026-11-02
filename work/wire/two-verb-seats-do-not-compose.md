@@ -4,7 +4,6 @@ kind: issue
 title: The kernel seat and the recipe seat expose the same verbs twice and do not compose - one verb vocabulary decided, call-minted anchors open
 status: closed
 opened: 2026-08-31
-github: 1345
 refs: [757, 1372, 1388, 1224]
 priority: P1
 cost: D

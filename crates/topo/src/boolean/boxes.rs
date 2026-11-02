@@ -552,22 +552,29 @@ pub(crate) enum AxialCarrier<T> {
     /// A conic arc's axial image over its certified span, already
     /// entered into the reading lane's spans ([`axial_carrier`]).
     Conic(Span<T>),
+    /// A spline's control points, already entered into the reading
+    /// lane's boxes: the locus lies in their convex hull, so its axial
+    /// image lies in theirs.
+    Hull(Vec<SpanBox<T>>),
 }
 
 /// [`EdgeBoxRule`] as an axial span reads it: the one map from a rule
 /// to an [`AxialCarrier`], the conic arm's axial image computed by the
 /// lane (`conic`), which reads `geom`'s directional door at its own
 /// scalar — the certified bracket door on the bracket lane, the
-/// carrier's own arithmetic on the census's. No axial-span closed form
-/// is written for the spiric, and an edge with no sound box claims
-/// nothing: both are [`AxialCarrier::Unclaimable`].
+/// carrier's own arithmetic on the census's. A spline's is its control
+/// points, each entered into the lane's boxes (`enter`). No axial-span
+/// closed form is written for the spiric, and an edge with no sound box
+/// claims nothing: both are [`AxialCarrier::Unclaimable`].
 pub(crate) fn axial_carrier<'c, T: Real, S>(
     rule: EdgeBoxRule<'c, T>,
     conic: impl FnOnce(&ConicArc<'c, T>) -> Span<S>,
+    enter: impl Fn(Point3<T>) -> SpanBox<S>,
 ) -> AxialCarrier<S> {
     match rule {
-        EdgeBoxRule::NoSoundBox | EdgeBoxRule::ControlHull(_) | EdgeBoxRule::Spiric { .. } => {
-            AxialCarrier::Unclaimable
+        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => AxialCarrier::Unclaimable,
+        EdgeBoxRule::ControlHull(net) => {
+            AxialCarrier::Hull(net.control().iter().map(|&p| enter(p)).collect())
         }
         EdgeBoxRule::Chord => AxialCarrier::Chord,
         EdgeBoxRule::ConicAmplitude(arc) => AxialCarrier::Conic(conic(&arc)),
@@ -592,6 +599,9 @@ pub(crate) fn edge_axial_span<T: Real>(
         AxialCarrier::Unclaimable => chord.widen(poison_value::<T>()),
         AxialCarrier::Chord => chord,
         AxialCarrier::Conic(arc) => arc.hull(chord),
+        AxialCarrier::Hull(points) => points
+            .iter()
+            .fold(chord, |hull, p| hull.hull(along(p, origin))),
     }
 }
 
@@ -1690,7 +1700,9 @@ const SPHERE_REACH_ULPS: f64 = 16.0;
 /// face's `sense`, which places the face on the rectangle's side of its
 /// boundary. The trim's class then
 /// holds no pole inside the face, so the face lies in the rectangle its
-/// boundary spans. A face whose side is unencoded, refused, or in
+/// boundary spans. The side is read without the tips the chart image
+/// drops: a wrap-tip cap holds the pole at its tip, outside that class,
+/// and its rim alone encodes no side. A face whose side is unencoded, refused, or in
 /// disagreement, one whose outer loop is a lone vertex or carries null
 /// scaffolding, one outside the trim's class, one whose trim escalates,
 /// and one whose axis is not decided unit all keep the
@@ -1736,7 +1748,8 @@ fn sphere_window<T: Decide>(
     ) {
         return SphereWindow::Ball;
     }
-    let outer = match crate::props::loop_edges(body, f.outer) {
+    let outer = match crate::props::chart_image_edges(body, f.outer) {
+        Ok((outer, _)) if outer.is_empty() => return SphereWindow::Ball,
         Ok((outer, _)) => outer,
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return SphereWindow::Ball,
         Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, face, f, refusal),
@@ -1939,6 +1952,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                     let axial = axial_carrier(
                         edge_box_rule(body.edge_curve_linked(ek, e).certified()),
                         conic,
+                        bracket_point,
                     );
                     grow(edge_axial_span(
                         &origin,
@@ -2251,8 +2265,8 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   prunes every face the net's hull does not reach, which is sound
 ///   because the crossing lanes read a spline edge against every face
 ///   it does reach: the curve × face table's ring-composite arm at a
-///   plane, a typed refusal at a lane with no arm. No axial projection
-///   is written for it ([`AxialCarrier::Unclaimable`]).
+///   plane, a typed refusal at a lane with no arm. Its axial image is
+///   its control points' ([`AxialCarrier::Hull`]).
 /// - [`NoSoundBox`](Self::NoSoundBox) — an edge whose carrier is null
 ///   scaffolding. Nothing is certified about the locus, so nothing is
 ///   claimed; the chord is NOT a bound.
@@ -2571,6 +2585,53 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::boolean::conic_oracle::exact::Dd;
+
+    /// **A spline edge's axial span from its control points holds the
+    /// curve** ([`AxialCarrier::Hull`]): random clamped nets of degree one
+    /// to three, rational with weights from 0.02 to 50, a random axis and
+    /// sub-interval, the curve's height along the axis sampled inside the
+    /// span to 1e-12 (a counterexample search; seed logged).
+    #[test]
+    fn a_hull_axial_span_holds_the_curve() {
+        use geom_core::spline::KnotVector;
+        let mut rng = test_utils::fuzz::start("boxes::tests::a_hull_axial_span_holds_the_curve");
+        for _ in 0..test_utils::fuzz::scaled(400) {
+            let p = 1 + rng.below(3);
+            let n = p + 1 + rng.below(5);
+            let mut k = vec![0.0; p + 1];
+            let mut ks: Vec<f64> = (0..n - p - 1).map(|_| rng.range(0.05, 0.95)).collect();
+            ks.sort_by(f64::total_cmp);
+            k.extend(ks);
+            k.extend(vec![1.0; p + 1]);
+            let ctl: Vec<_> = (0..n)
+                .map(|_| Point3::new(rng.range(-1., 1.), rng.range(-1., 1.), rng.range(-1., 1.)))
+                .collect();
+            let w: Vec<f64> = (0..n).map(|_| rng.log_uniform(0.02, 50.0)).collect();
+            let Ok(net) = geom::NurbsCurve3::new(KnotVector::clamped(k, p).unwrap(), ctl, w) else {
+                continue;
+            };
+            let ax =
+                Vec3::new(rng.range(-1., 1.), rng.range(-1., 1.), rng.range(-1., 1.)).normalize();
+            let o = Point3::origin();
+            let (a, b) = (rng.range(0., 0.5), rng.range(0.5, 1.));
+            let span = edge_axial_span(
+                &SpanBox::point(o),
+                &SpanBox::vector(ax),
+                &AxialCarrier::Hull(net.control().iter().map(|&q| SpanBox::point(q)).collect()),
+                (&SpanBox::point(net.eval(a)), &SpanBox::point(net.eval(b))),
+            );
+            for i in 0..=200 {
+                let h = (net.eval(a + (b - a) * f64::from(i) / 200.) - o).dot(ax);
+                assert!(
+                    span.lo - 1e-12 <= h && h <= span.hi + 1e-12,
+                    "{h} outside [{}, {}]; {}",
+                    span.lo,
+                    span.hi,
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
+    }
     use crate::entity::LoopBoundary;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;
@@ -2716,7 +2777,7 @@ pub(crate) mod tests {
         let arc = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(plane, cyl),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start,
@@ -2908,7 +2969,7 @@ pub(crate) mod tests {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(wall, plane),
-                        witness: on((u0 + u1) * 0.5, z),
+                        selector: geom_brep::CurveSelector::Witness(on((u0 + u1) * 0.5, z)),
                     },
                     carrier,
                     param_start: t0,
@@ -3673,8 +3734,9 @@ pub(crate) mod tests {
     ///   planar-only corpus does not reach (the hull is the box) and a
     ///   curved reach box reaches once arm 1 has proved its face's
     ///   pairs apart, where it costs probes, never a wrong clear.
-    ///   And `flush_at_rest`'s `face_box` read, a tree over the planar
-    ///   faces whose overlapping boxes are the flush candidates.
+    ///   And `flush_at_rest`'s `face_box` read, a tree over the planar,
+    ///   cylinder and sphere faces whose overlapping boxes are the flush
+    ///   candidates.
     ///   **Prunes**: a loose box only adds candidates, each read
     ///   exactly; a box tighter than its face would drop a flush pair.
     /// - `census/depth_gap.rs` — arm 1's depth-gap clear: one
@@ -4058,7 +4120,7 @@ pub(crate) mod tests {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(torus, plane),
-                    witness: on((u0 + u1) * 0.5, v),
+                    selector: geom_brep::CurveSelector::Witness(on((u0 + u1) * 0.5, v)),
                 },
                 carrier,
                 param_start: t0,
@@ -4083,7 +4145,7 @@ pub(crate) mod tests {
                             u_ref: e(u),
                         }),
                     ),
-                    witness: on(u, (v0 + v1) * 0.5),
+                    selector: geom_brep::CurveSelector::Witness(on(u, (v0 + v1) * 0.5)),
                 }
             } else {
                 EdgeDescriptionSpec::chart(torus)
@@ -4399,38 +4461,39 @@ pub(crate) mod tests {
             },
         )
         .expect("the seed face is the torus annulus");
-        let meridian =
-            |body: &mut Body<f64>, u: f64| -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
-                let spine = center + e(u) * major;
-                let plane = Surface::Plane {
-                    origin: center,
-                    normal: axis.cross(e(u)),
-                    u_ref: e(u),
-                };
-                let pk = body.add_surface(plane);
-                let ax = if forward {
-                    e(u).cross(axis)
-                } else {
-                    axis.cross(e(u))
-                };
-                (
-                    EdgeCurveSpec {
-                        description: EdgeDescriptionSpec::Intersection {
-                            pair: SurfacePair::new(torus, pk),
-                            witness: on(u, core::f64::consts::PI),
-                        },
-                        carrier: Curve3::Circle {
-                            center: spine,
-                            axis: ax,
-                            radius: minor,
-                            u_ref: e(u),
-                        },
-                        param_start: 0.0,
-                        param_end: core::f64::consts::TAU,
-                    },
-                    pk,
-                )
+        let meridian = |body: &mut Body<f64>,
+                        u: f64|
+         -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
+            let spine = center + e(u) * major;
+            let plane = Surface::Plane {
+                origin: center,
+                normal: axis.cross(e(u)),
+                u_ref: e(u),
             };
+            let pk = body.add_surface(plane);
+            let ax = if forward {
+                e(u).cross(axis)
+            } else {
+                axis.cross(e(u))
+            };
+            (
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        pair: SurfacePair::new(torus, pk),
+                        selector: geom_brep::CurveSelector::Witness(on(u, core::f64::consts::PI)),
+                    },
+                    carrier: Curve3::Circle {
+                        center: spine,
+                        axis: ax,
+                        radius: minor,
+                        u_ref: e(u),
+                    },
+                    param_start: 0.0,
+                    param_end: core::f64::consts::TAU,
+                },
+                pk,
+            )
+        };
         let (m0, cap0_plane) = meridian(&mut body, u0);
         let cap0 = body
             .mef(
@@ -4453,7 +4516,7 @@ pub(crate) mod tests {
         let strut_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(torus, eq_plane),
-                witness: on((u0 + u1) * 0.5, 0.0),
+                selector: geom_brep::CurveSelector::Witness(on((u0 + u1) * 0.5, 0.0)),
             },
             carrier: Curve3::Circle {
                 center,
@@ -6691,7 +6754,7 @@ pub(crate) mod sphere_rect_rows {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: geom_brep::SurfacePair::new(sphere, plane),
-                    witness,
+                    selector: geom_brep::CurveSelector::Witness(witness),
                 },
                 carrier,
                 param_start: t0,
@@ -6950,7 +7013,7 @@ pub(crate) mod sphere_rect_rows {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: geom_brep::SurfacePair::new(sphere, plane),
-                        witness,
+                        selector: geom_brep::CurveSelector::Witness(witness),
                     },
                     carrier,
                     param_start: t0,

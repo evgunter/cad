@@ -46,7 +46,7 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         // it) under one more op.
         RoleSeg::From { of: n, .. }
         | RoleSeg::SplitFragment { parent: n, .. }
-        | RoleSeg::Instance { of: n, .. } => Head::Through(n),
+        | RoleSeg::Member { of: n, .. } => Head::Through(n),
         RoleSeg::Merged(set) => Head::Merged(set),
         // New entities an op minted FROM a source — a blend face, a
         // shell's cavity twin (an offset line, not the source's), a
@@ -115,7 +115,10 @@ pub(super) fn seam_edge_sides_carried(name: &StableName) -> Option<(StableName, 
                         of: inner,
                     },
                     RoleSeg::SplitFragment { .. } => RoleSeg::SplitFragment { parent: inner },
-                    RoleSeg::Instance { i, .. } => RoleSeg::Instance { i: *i, of: inner },
+                    RoleSeg::Member { at, .. } => RoleSeg::Member {
+                        at: at.clone(),
+                        of: inner,
+                    },
                     other => unreachable!(
                         "{other:?} is no wrapper `head` passes through: the walk above kept \
                          only `Head::Through` segments"

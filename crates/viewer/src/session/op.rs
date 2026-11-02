@@ -30,7 +30,7 @@ use crate::session::refuse::Refusal;
 use crate::session::select::{FaceSelection, Hovered, Selection};
 
 /// One typed operation on the session.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SessionOp {
     /// Move the selection.
     Select(Selection),
@@ -115,6 +115,15 @@ pub enum SessionOp {
     ProbeBounds {
         /// The field to probe.
         target: BoundsTarget,
+    },
+    /// **Stage a creating operation for its verdict**, committing
+    /// nothing ([`crate::session::DocSession::staged_for`]): the run its
+    /// door would record, evaluated beside the picture. A draft's
+    /// question, not an action: it neither edits nor counts as one
+    /// ([`crate::frame::acts`]).
+    Stage {
+        /// The operation staged.
+        creation: Creation,
     },
     /// Change how a slot's literal is WRITTEN — its display unit —
     /// leaving the canonical value bit-identical.
@@ -381,17 +390,16 @@ pub enum SessionOp {
     Reevaluate,
     /// Replace the session's document with a file's.
     Open(PathBuf),
-    /// Write the current path to a file.
+    /// Write the committed document at a path, identity kept (DI4):
+    /// through the store of the folder the file lands in, with no
+    /// edit log (GQ3). Save and Save As… both push this.
     ///
-    /// **Saving a COPY beside the original bricks the store for both**
-    /// (issue #1117): the copy claims the same document id, so the
-    /// directory then holds two files with one identity and every
-    /// resolution through it refuses `DuplicateId` — typed and
-    /// recoverable (delete either file), but a surprising blast
-    /// radius for an ordinary act. The identity is the document's, not
-    /// the file's, so a cheap rename-on-save cannot fix it without
-    /// forking the document; the issue carries the design question.
-    /// Save over the original, or save into a different directory.
+    /// That folder's scan decides the act before anything is written:
+    /// a resave, a create at the chosen name, or a refusal. A folder
+    /// that already holds this document under another name refuses
+    /// `SaveWouldDuplicateId` ([`Refusal::save_choice`] reads the two
+    /// ways on out of it), and a folder whose scan refuses gives that
+    /// refusal; both arrive as [`Refusal::Workspace`].
     ///
     /// **A save-as MOVES the document seam**: the directory rule
     /// follows the file, so an assembly saved into a directory that
@@ -401,71 +409,89 @@ pub enum SessionOp {
     /// first. Recorded with the rest of the seam's newly-reachable
     /// edges in issue #1387.
     Save(PathBuf),
-    /// Hide or show one instance (G3): a DISPLAY operation — the
-    /// scene and the pick index drop a hidden instance; the document
-    /// and the feature tree keep it, and nothing is persisted.
-    SetInstanceHidden {
-        /// The instance.
-        instance: RecipeNodeId,
+    /// **Save as a new document** (DI4): the committed document under
+    /// a fresh random id, written at the path through that folder's
+    /// store, and the session's whole history re-identified under the
+    /// new id as one operation, so no undo returns to the original's
+    /// identity. The original's file is untouched, and inbound
+    /// `DocRef`s keep naming it. Like [`SessionOp::Save`], the session
+    /// is then backed by the path and its resolver follows the folder.
+    SaveAsNewDocument(PathBuf),
+    /// Hide or show the body `node` builds (G3): a DISPLAY operation —
+    /// the scene and the pick index drop what draws it; the document
+    /// and the feature tree keep it, and nothing is persisted
+    /// ([`crate::display::DisplayState::set_body_hidden`]).
+    SetBodyHidden {
+        /// The node building the body.
+        node: RecipeNodeId,
         /// Hidden, or shown again.
         hidden: bool,
     },
-    /// Open a free-move probe gesture on the space `instance`'s copy is
-    /// placed into (G3's fit probe, DI5). Refused typed for a copy
-    /// placed into the world, and while no evaluation that answers the
-    /// document has landed — a copy with no value has no picture to move
+    /// Hide or show a space, every body drawn in it: a DISPLAY operation
+    /// as [`SessionOp::SetBodyHidden`] is
+    /// ([`crate::display::DisplayState::set_space_hidden`]).
+    SetSpaceHidden {
+        /// The space.
+        space: VarId,
+        /// Hidden, or shown again.
+        hidden: bool,
+    },
+    /// Open a free-move probe gesture on the space `node`'s body is in
+    /// (G3's fit probe, DI5). Refused typed for a body in the world, and
+    /// while no evaluation that answers the document has landed — a
+    /// body with no value has no picture to move
     /// ([`crate::display::free_move_check`]).
     BeginFreeMove {
-        /// The instance to probe.
-        instance: RecipeNodeId,
+        /// The node whose drawn body the probe is opened on.
+        node: RecipeNodeId,
     },
     /// Stream the probe's display frame. Each preview REPLACES the
     /// last; nothing enters the document.
     ///
-    /// **It names the instance it is probing**, and is refused
+    /// **It names the node it is probing**, and is refused
     /// [`crate::display::DisplayFault::WrongFreeMove`] when that is
-    /// not the instance the open probe was begun on — the value
+    /// not the node the open probe was begun on — the value
     /// gesture's rule ([`SessionOp::PreviewGesture`]) on the other
     /// drag, where the identity is one node rather than a target.
     ///
-    /// **One node is the whole identity because an instance has one
-    /// probe**, which is the subject rule and not a coarser one: a
+    /// **One node is the whole identity because the panel draws one
+    /// probe per node**, which is the subject rule and not a coarser one: a
     /// slot has one drag and is named by a slot. The panel draws the
     /// probe as three millimetre boxes; mapped a triple per box they
     /// are three gestures over one probe, and this payload cannot
-    /// separate them — both name the same instance, so the second
+    /// separate them — both name the same node, so the second
     /// box's preview overwrites the first's frame and its commit lands
     /// it and CLOSES the probe the pointer is still holding. So the
     /// row is mapped once ([`crate::widgets::vec3_row_ops`]).
     ///
     /// **A second DRIVER naming the open probe is accepted, and that is
-    /// what a target buys over a token.** The instance's one probe is
+    /// what a target buys over a token.** The node's one probe is
     /// driven by whoever names it: a batch whose
     /// [`SessionOp::BeginFreeMove`] is refused still previews and still
     /// commits, into the probe its own payload names. That is the
     /// recovery for a probe whose field stopped being drawn — the
-    /// selection moved off the instance, which
+    /// selection moved off the node, which
     /// [`SessionOp::permitted_during_free_move`] allows — and a token
     /// minted per begin would refuse it. The value gesture spends its
     /// identity the same way; `crates/viewer/README.md`'s *A driving
     /// operation names its own gesture* carries both rows.
     PreviewFreeMove {
-        /// The instance being probed.
-        instance: RecipeNodeId,
-        /// The display frame composed over the instance's drawn
-        /// placement.
+        /// The node being probed.
+        node: RecipeNodeId,
+        /// The display frame composed over the bodies drawn in its
+        /// space.
         frame: Frame,
     },
-    /// Land the probe: the last previewed frame becomes the
-    /// instance's committed display value. NO history holds it — the
-    /// plan's undo note governs document state only. Names its
-    /// instance for [`SessionOp::PreviewFreeMove`]'s reason.
+    /// Land the probe: the last previewed frame becomes its space's
+    /// committed display value. NO history holds it — the plan's undo
+    /// note governs document state only. Names its node for
+    /// [`SessionOp::PreviewFreeMove`]'s reason.
     CommitFreeMove {
-        /// The instance being probed.
-        instance: RecipeNodeId,
+        /// The node being probed.
+        node: RecipeNodeId,
     },
     /// Abandon whichever probe is open, restoring the committed
-    /// picture. Names no instance, for [`SessionOp::CancelGesture`]'s
+    /// picture. Names no node, for [`SessionOp::CancelGesture`]'s
     /// reason: it is the other cancel door, and the other thing an
     /// Escape on the field emits.
     CancelFreeMove,
@@ -503,26 +529,24 @@ pub enum SessionOp {
     /// session-state replacement rather than an `InsertNode`, because
     /// before it runs there is no document to insert into.
     ///
-    /// The identity ruling (logged in `docs/GAUTH-LOG.md`): the id is
-    /// authored at creation from the typed name —
-    /// `DocumentId::derive(&name)`, the deterministic spelling the
-    /// demo corpus uses — and never re-minted at save. Two documents
-    /// derived from one name collide at WORKSPACE resolution, where
-    /// the store's duplicate-id refusal is the fail-loud recourse.
+    /// The id is a fresh random one
+    /// ([`pncad::workspace::random_document_id`]), never derived from
+    /// the name, so two documents created under one name are two parts
+    /// to every store. A blank name refuses [`Refusal::EmptyName`];
+    /// an OS entropy source that refuses answers
+    /// [`Refusal::Workspace`] carrying
+    /// `WorkspaceError::RandomnessUnavailable`. Either refusal leaves
+    /// the session as it was.
     ///
     /// Everything session-scoped is cleared: path, history, selection,
     /// hover, display state and the resolver (a fresh document has no
     /// backing file, so its instantiate nodes refuse with the shipped
     /// no-resolver semantics until it is saved). Refused mid-gesture
-    /// by the table ([`SessionOp::permitted_during_value_gesture`]);
-    /// a blank name refuses [`Refusal::EmptyName`].
-    ///
-    /// The name is TRIMMED before the id is derived, so `" ring "` and
-    /// `"ring"` are one document by design — surrounding whitespace is
-    /// a typing accident, not an identity a user could re-derive on
-    /// purpose.
+    /// by the table ([`SessionOp::permitted_during_value_gesture`]).
     NewDocument {
-        /// The document's name; the id is derived from its trim.
+        /// The name typed at the New form. It decides no identity, and
+        /// nothing past this door keeps it yet
+        /// (`work/vseam/a-new-documents-typed-name-is-kept-nowhere`).
         name: String,
     },
     /// Insert one profile node from template loops, drawn on its own
@@ -549,8 +573,8 @@ pub enum SessionOp {
     /// from its start cap, flipped, to the face's plane, its origin
     /// over the face body's own and turned `spin` about the face's
     /// normal — and the face's body and the copy fused, as ONE action
-    /// (`Recording::sketch_on_face`), the face body's world placements
-    /// re-pointed to the union (A10, Ev's residue 1).
+    /// (`Recording::sketch_on_face`), the union taking over what read
+    /// the face's body (A10, Ev's residue 1).
     ///
     /// A pick on a copy is read on the body it places. A face whose
     /// node is no body refuses [`Refusal::WrongNodeKind`]; every other
@@ -566,6 +590,31 @@ pub enum SessionOp {
         distance: Formula,
         /// The turn about the face's normal (`Angle`).
         spin: Formula,
+    },
+    /// **A profile drawn on a frame, continuing tangent to a face's
+    /// trace** (D10, "Constructing a coincidence"): `chains` drawn on the
+    /// frame `Through` the first traced face's own axis and a vertex of
+    /// `plane`, a plane face square to that axis — its origin the
+    /// vertex's foot on the axis — tracing `traced`, by place
+    /// ([`pncad::trace::traced_frame`], [`pncad::trace::drawn_profile`]).
+    /// One `InsertNode`, in the frame's space.
+    ///
+    /// What is proven: a sweep up the frame's `z` of a chain that leaves
+    /// a traced wall's trace along its tangent (`OnTrace`, then
+    /// `AlongTrace`) is tangent to that wall by construction, and the
+    /// coincidence door reports the union's row `SameConstruction`.
+    ///
+    /// A traced face with no axis, or a picked face that is no plane
+    /// square to it, refuses [`Refusal::Frame`]; an argument of the
+    /// wrong dimension [`Refusal::Edit`]. A crossing the piece does not
+    /// make builds, and refuses at evaluation on the profile's badge.
+    AddDrawnProfile {
+        /// The plane face the frame's origin is stood in.
+        plane: FaceSelection,
+        /// The faces the profile traces, by place.
+        traced: Vec<FaceSelection>,
+        /// The loops, outer first, in the document's vocabulary.
+        chains: Vec<pncad::trace::Chain>,
     },
     /// **Write the path editor's program over a committed profile's**
     /// — the door the add-profile form's editor commits through when
@@ -614,9 +663,9 @@ pub enum SessionOp {
         /// for a new one (`DocEdit::SetProgram`'s `ids`).
         ids: Vec<Vec<Option<StepId>>>,
     },
-    /// Insert one extrude of an existing profile node, and its identity
-    /// world placement (A10) — the extrude tool's one committed action,
-    /// so what was made is drawn. A `profile` that is not a
+    /// Insert one extrude of an existing profile node — the extrude
+    /// tool's one committed action. It lands unplaced, drawn in its own
+    /// space. A `profile` that is not a
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
@@ -706,7 +755,7 @@ pub enum SessionOp {
     /// **Mirror an existing body across the plane of a picked face** —
     /// the mirror tool's one committed action. The plane is the face's
     /// own, read where it was picked: a pick on a copy is read on the
-    /// body the copy places (`crate::world::on_body`), so the plane reads
+    /// body the copy places (`crate::world::body_of`), so the plane reads
     /// the geometry of the body's space, as a mirror's plane must.
     ///
     /// A body the world draws becomes the symmetric part: the image
@@ -756,21 +805,23 @@ pub enum SessionOp {
         rotation_angle: Formula,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
-    /// committed edit. A pattern defines several bodies, which no world
-    /// placement reads, so it changes nothing in the world: each copy
-    /// reaches it through its projection (`SessionOp::AddPart`).
+    /// committed edit: an index `k = index(count)` and one placement of
+    /// the body in its own space whose values read it (D10
+    /// `[repetition]`), a family of `count` copies. The family lands
+    /// where the body was seen and takes over what read it, member 0
+    /// standing where the body stood; a pick on a drawn member seats
+    /// that member.
     ///
-    /// The count is an `i64` and lands as an exact Count literal: it
-    /// is the node's STRUCTURAL slot (spec D3), edited afterwards
-    /// through `SetStructuralParam` and never through the continuous
-    /// door. A count of zero or less is admitted here and refuses at
-    /// evaluation on the node's own badge — the same division of
-    /// labour a degenerate profile takes, one rule for authored and
+    /// The count is an `i64` and lands as the index's exact Count
+    /// literal, edited afterwards by redefining the index. A count of
+    /// zero or less is admitted here and refuses at evaluation on the
+    /// placement's own badge — the same division of labour a
+    /// degenerate profile takes, one rule for authored and
     /// hand-written documents.
     AddPattern {
         /// The body replicated.
         input: Operand,
-        /// Instance count.
+        /// Copy count.
         count: i64,
         /// The replication rule; a circular rule's axis is read off
         /// the input's own geometry at its numbers' nominal values, and
@@ -782,44 +833,33 @@ pub enum SessionOp {
     /// of a pattern points at.
     ///
     /// [`SessionOp::AddPattern`]'s twin, seat for seat and slot for
-    /// slot, because `Node::PlacedUnion` takes exactly what
-    /// `Node::Pattern` takes: a PROTOTYPE body, a count, a rule. What
-    /// differs is the result — ONE body, the union of the prototype at
-    /// every placement, which every downstream body seat consumes
-    /// where a pattern's several instances are refused.
+    /// slot: the same index and placement, and a `Union` reading the
+    /// family whole — ONE body, the union of the prototype at every
+    /// placement.
     ///
-    /// **The prototype, not a pattern node.** The fused node replicates
-    /// a body itself rather than consuming a `Node::Pattern`, so this
-    /// door's seat wants a BODY and refuses
-    /// [`Refusal::WrongNodeKind`] for a pattern exactly as the
-    /// unfused door does. A user who already authored the unfused
-    /// pattern re-commits over the same prototype and deletes the
-    /// pattern; there is no edit that converts one node into the
-    /// other, and inventing one here would be a second spelling of a
-    /// rule the document already has.
+    /// **The prototype, not a family.** This door's seat wants a BODY,
+    /// as the unfused door's does. A user who already authored the
+    /// unfused pattern fuses it with a boolean over the family instead.
     ///
     /// **The fused body takes the prototype's place in the world** (A10,
     /// Ev's residue 1): the prototype's placements are re-pointed to it
     /// in the same action.
     ///
-    /// **Disjointness is the node's question, not this door's.**
-    /// Placements that overlap refuse typed at evaluation on the
-    /// node's own badge, the same division of labour a non-positive
-    /// count takes: the door authors what the user asked for and the
-    /// node says whether it can be built.
-    AddPlacedUnion {
-        /// The prototype placed at every placement.
+    /// **Whether the copies meet is the union's question, not this
+    /// door's**: the door authors what the user asked for and the union
+    /// says what it builds.
+    AddFusedPattern {
+        /// The prototype each member copies.
         input: Operand,
-        /// Placement count.
+        /// The index's count.
         count: i64,
-        /// The placement rule, with the axis a circular rule was
+        /// How each member is placed, with the axis a circular one was
         /// picked with.
         rule: PatternRuleSpec,
     },
     /// Insert one constant-radius fillet on a SET of an existing
     /// body's edges — the blend tool's one committed action, as a
-    /// fillet, re-pointing the body's world placements to it (A10, Ev's
-    /// residue 1).
+    /// fillet, taking over what read the body (A10, Ev's residue 1).
     ///
     /// **A target that is a world placement is read on the body it
     /// places**: the fillet reads that body, and a copy carries its
@@ -871,31 +911,19 @@ pub enum SessionOp {
         /// The edges to chamfer, by stable name.
         selection: Vec<StableName>,
     },
-    /// Insert one PROJECTION of a multi-body value — the named half
-    /// of a split, or one instance of a pattern — as the `Body` value
-    /// every body seat takes (`Node::Part`), and its identity world
-    /// placement (A10): a creation, so the projected body is drawn.
+    /// Insert one MEMBER of a family as a body of its own: a placement
+    /// standing in the family's space whose read is the family indexed
+    /// at `select` (`BodyRead::indexed`), drawn as a creation is.
     ///
-    /// **`select` is an authoring spec, not the node's own enum**, and
-    /// the difference is one field: `PartSelect::Instance` carries an
-    /// `Expr` where [`PartSelectSpec::Instance`] carries an `i64`.
-    /// `SlotId::Instance` is a Count-typed STRUCTURAL slot (spec D3),
-    /// the same class as [`SessionOp::AddPattern`]'s count, and that
-    /// op's rule holds here for its own reason: a structural slot is
-    /// authored exact and edited afterwards through
-    /// `SetStructuralParam`, never through the continuous door. A door
-    /// taking `PartSelect` whole would be the one place an arbitrary
-    /// expression could reach one at authoring time.
-    ///
-    /// **The seat is per ARM, because the pairing is a fact about the
-    /// committed document.** A half reads a `Node::Split` and an index
-    /// reads a `Node::Pattern`; a half against a pattern is not a
-    /// well-typed node and never becomes one, so it refuses
-    /// [`Refusal::WrongNodeKind`] here rather than landing and failing
-    /// at evaluation — the same rule [`SessionOp::AddFillet`] states
-    /// for its target's kind. What is left to evaluation is the index
-    /// being IN RANGE, which is a fact about the pattern's value:
-    /// `NodeErrorKind::InstanceOutOfRange`, typed, on the node's own
+    /// **`select` is an authoring spec**: an `i64`, where the read
+    /// carries a `Count` formula. A member index is authored exact and
+    /// edited afterwards through the variable doors. The seat must read
+    /// a family, so a node that is none refuses
+    /// [`Refusal::WrongNodeKind`] here rather than landing and failing at
+    /// evaluation, the rule [`SessionOp::AddFillet`] states for its
+    /// target's kind. What is left to evaluation is the index being IN
+    /// RANGE, a fact about the family's value:
+    /// `NodeErrorKind::MemberOutOfRange`, typed, on the node's own
     /// badge.
     AddPart {
         /// The split or pattern whose value is read.
@@ -906,15 +934,13 @@ pub enum SessionOp {
     /// **Duplicate one body**: a copy stepped clear of the picked body,
     /// drawn and editable on its own.
     ///
-    /// **A duplicate is a pattern of two, its copy projected and
-    /// placed** — a `Node::Pattern` of count
-    /// [`crate::combine::DUPLICATE_COUNT`] over the body, a `Node::Part`
-    /// picking its second instance, and a placement of that projection
-    /// beside the original as it is drawn (A10). One action, one undo.
-    /// The original's placements are untouched. The copy is a body of its
-    /// own rather than a second placement of the original, because a
-    /// feature gesture re-points every placement of its target body
-    /// (`work/chrome/a-feature-gesture-re-points-every-copy-of-its-target.md`).
+    /// **A duplicate of a copy is one more copy** of its body in that
+    /// copy's space, stepped clear of it along the original's own `x`;
+    /// a duplicate of a body nothing copies is two copies in its own
+    /// space, a stand-in by the identity and the stepped one. One
+    /// action, one undo; the original's placements are untouched. The
+    /// copies are of one body, so a feature on one of them re-points
+    /// both (`work/placing/a-feature-gesture-re-points-every-copy-of-its-target.md`).
     ///
     /// **The step is measured, not fixed**
     /// ([`crate::combine::duplicate_step`]): along
@@ -1007,10 +1033,10 @@ pub enum SessionOp {
         bodies: Vec<Operand>,
     },
     /// **A creation, labelled**: the creation's own edits and then a
-    /// `DocEdit::SetLabel` on the node it created last, as ONE action
-    /// and one undo. The insert carries no label, because what an
-    /// insert carries is what its node's id is minted from; the label
-    /// is the second edit of the same action.
+    /// `DocEdit::SetLabel` on the node it made (`OpOutcome::made`), as
+    /// ONE action and one undo. The insert carries no label, because what an insert
+    /// carries is what its node's id is minted from; the label is the
+    /// last edit of the creation's own run.
     CreateLabelled {
         /// The creation.
         creation: Creation,
@@ -1087,8 +1113,9 @@ impl ValueGestureName {
     }
 }
 
-/// **Which free-move probe an operation names**: the instance, which
-/// is the whole identity because an instance has one probe
+/// **Which free-move probe an operation names**: the node it was
+/// opened on, which is the whole identity because the panel draws one
+/// probe per node
 /// ([`SessionOp::PreviewFreeMove`] carries why).
 ///
 /// A type rather than a bare [`RecipeNodeId`] so that the probe's
@@ -1096,17 +1123,15 @@ impl ValueGestureName {
 /// [`ValueGestureName`] mints the value drag's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FreeMoveName {
-    /// The instance being probed.
-    pub instance: RecipeNodeId,
+    /// The node being probed.
+    pub node: RecipeNodeId,
 }
 
 impl FreeMoveName {
     /// The operation that opens this probe.
     #[must_use]
     pub const fn begin(&self) -> SessionOp {
-        SessionOp::BeginFreeMove {
-            instance: self.instance,
-        }
+        SessionOp::BeginFreeMove { node: self.node }
     }
 
     /// The operation that moves it, carrying the whole composed frame
@@ -1114,7 +1139,7 @@ impl FreeMoveName {
     #[must_use]
     pub const fn preview(&self, frame: Frame) -> SessionOp {
         SessionOp::PreviewFreeMove {
-            instance: self.instance,
+            node: self.node,
             frame,
         }
     }
@@ -1122,9 +1147,7 @@ impl FreeMoveName {
     /// The operation that lands it.
     #[must_use]
     pub const fn commit(&self) -> SessionOp {
-        SessionOp::CommitFreeMove {
-            instance: self.instance,
-        }
+        SessionOp::CommitFreeMove { node: self.node }
     }
 }
 
@@ -1132,23 +1155,23 @@ impl FreeMoveName {
 /// this crate.
 ///
 /// The six driving operations spell their subject three ways, each
-/// right for its own door: a node and a slot, a variable id, an
-/// instance. What they are all spellings OF is this. A gesture's name
+/// right for its own door: a node and a slot, a variable id, a
+/// probed node. What they are all spellings OF is this. A gesture's name
 /// is what a preview and a commit are checked against before they
 /// touch anything ([`crate::g1::Slot`]'s two name checks), and
 /// [`SessionOp::names_gesture`] is the one place an operation becomes
 /// one.
 ///
 /// **The layers below still speak their own subjects.** The session
-/// compares a [`ValueGestureName`] and the display state compares an
-/// instance, because each holds only the gesture it can have; this is
+/// compares a [`ValueGestureName`] and the display state compares a
+/// probed node, because each holds only the gesture it can have; this is
 /// the name an OPERATION carries, which is the level at which all
 /// three are the same kind of fact.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GestureName {
     /// A slot or document-variable drag.
     Value(ValueGestureName),
-    /// An instance's free-move probe.
+    /// A space's free-move probe, by the node it was opened on.
     FreeMove(FreeMoveName),
 }
 
@@ -1196,6 +1219,7 @@ impl SessionOp {
         match self {
             Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
+            | Self::AddDrawnProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
@@ -1203,7 +1227,7 @@ impl SessionOp {
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
-            | Self::AddPlacedUnion { .. }
+            | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
@@ -1220,6 +1244,7 @@ impl SessionOp {
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
+            | Self::Stage { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1241,7 +1266,9 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Open(_)
             | Self::Save(_)
-            | Self::SetInstanceHidden { .. }
+            | Self::SaveAsNewDocument(_)
+            | Self::SetBodyHidden { .. }
+            | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
             | Self::CommitFreeMove { .. }
@@ -1270,7 +1297,7 @@ impl SessionOp {
     #[must_use]
     pub fn names_gesture(&self) -> Option<GestureName> {
         let value = |name| Some(GestureName::Value(name));
-        let probe = |instance| Some(GestureName::FreeMove(FreeMoveName { instance }));
+        let probe = |node| Some(GestureName::FreeMove(FreeMoveName { node }));
         match self {
             Self::BeginGesture { node, slot }
             | Self::PreviewGesture { node, slot, .. }
@@ -1281,9 +1308,9 @@ impl SessionOp {
             Self::BeginVariableGesture { var }
             | Self::PreviewVariableGesture { var, .. }
             | Self::CommitVariableGesture { var } => value(ValueGestureName::Variable(*var)),
-            Self::BeginFreeMove { instance }
-            | Self::PreviewFreeMove { instance, .. }
-            | Self::CommitFreeMove { instance } => probe(*instance),
+            Self::BeginFreeMove { node }
+            | Self::PreviewFreeMove { node, .. }
+            | Self::CommitFreeMove { node } => probe(*node),
             Self::CancelGesture
             | Self::CancelFreeMove
             | Self::Select(_)
@@ -1295,6 +1322,7 @@ impl SessionOp {
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
+            | Self::Stage { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1309,11 +1337,14 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Open(_)
             | Self::Save(_)
-            | Self::SetInstanceHidden { .. }
+            | Self::SaveAsNewDocument(_)
+            | Self::SetBodyHidden { .. }
+            | Self::SetSpaceHidden { .. }
             | Self::AddMate { .. }
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
+            | Self::AddDrawnProfile { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1322,7 +1353,7 @@ impl SessionOp {
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
-            | Self::AddPlacedUnion { .. }
+            | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
@@ -1455,11 +1486,11 @@ impl SessionOp {
     ///   is and not by a row here;
     /// - layer-3 moves that touch neither the document nor the history
     ///   ([`SessionOp::Select`], [`SessionOp::Hover`], the free-move
-    ///   family, [`SessionOp::SetInstanceHidden`]) and the evaluation
+    ///   family, [`SessionOp::SetBodyHidden`]) and the evaluation
     ///   controls ([`SessionOp::CancelEvaluation`],
     ///   [`SessionOp::Reevaluate`]);
     /// - [`SessionOp::Save`], which has TWO effects and this row is
-    ///   about both. It writes the COMMITTED history, so it ignores a
+    ///   about both. It writes the COMMITTED document, so it ignores a
     ///   preview that is not in it; and on a save-as whose parent
     ///   directory differs it rebinds the resolver and re-evaluates,
     ///   which submits the SHOWN document — mid-gesture, the scratch.
@@ -1501,6 +1532,7 @@ impl SessionOp {
         match self {
             Self::Select(_)
             | Self::Hover(_)
+            | Self::Stage { .. }
             | Self::PreviewGesture { .. }
             | Self::CommitGesture { .. }
             | Self::PreviewVariableGesture { .. }
@@ -1509,7 +1541,8 @@ impl SessionOp {
             | Self::CancelEvaluation
             | Self::Reevaluate
             | Self::Save(_)
-            | Self::SetInstanceHidden { .. }
+            | Self::SetBodyHidden { .. }
+            | Self::SetSpaceHidden { .. }
             | Self::BeginGesture { .. }
             | Self::BeginVariableGesture { .. }
             | Self::BeginFreeMove { .. }
@@ -1534,10 +1567,12 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::Open(_)
+            | Self::SaveAsNewDocument(_)
             | Self::NewDocument { .. }
             | Self::AddMate { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
+            | Self::AddDrawnProfile { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1546,7 +1581,7 @@ impl SessionOp {
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
-            | Self::AddPlacedUnion { .. }
+            | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
@@ -1590,7 +1625,7 @@ impl SessionOp {
     ///
     /// **And a report is not available here as the alternative**, which
     /// is what settles the fork rather than taste. A withdrawal names
-    /// an instance and carries a [`crate::display::DisplayFault`] about
+    /// a node or a space and carries a [`crate::display::DisplayFault`] about
     /// a document; at a replacement the only document left to ask is
     /// the incoming one, where a [`pncad::document::RecipeNodeId`]
     /// minted by the outgoing document's counter means something else
@@ -1616,13 +1651,13 @@ impl SessionOp {
     /// [`SessionOp::PreviewFreeMove`] and [`SessionOp::CommitFreeMove`]
     /// are `true` here and still refused
     /// [`crate::display::DisplayFault::WrongFreeMove`] when they name
-    /// an instance that is not the one being probed — the value
+    /// a node that is not the one being probed — the value
     /// gesture's rule, answered the same way and for the same reason:
     /// the question is about a payload against a state, and this table
     /// is a function of the operation alone.
     ///
     /// [`SessionOp::Save`] is `true`, as it is in the value table and
-    /// for a narrower reason: a save writes the committed history and
+    /// for a narrower reason: a save writes the committed document and
     /// a free-move probe enters no history at all, so there is nothing
     /// of the drag for a save to write or to lose.
     #[must_use]
@@ -1631,6 +1666,7 @@ impl SessionOp {
             Self::Open(_) | Self::NewDocument { .. } => false,
             Self::Select(_)
             | Self::Hover(_)
+            | Self::Stage { .. }
             | Self::PreviewGesture { .. }
             | Self::CommitGesture { .. }
             | Self::PreviewVariableGesture { .. }
@@ -1639,7 +1675,9 @@ impl SessionOp {
             | Self::CancelEvaluation
             | Self::Reevaluate
             | Self::Save(_)
-            | Self::SetInstanceHidden { .. }
+            | Self::SaveAsNewDocument(_)
+            | Self::SetBodyHidden { .. }
+            | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
             | Self::CommitFreeMove { .. }
@@ -1666,6 +1704,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
+            | Self::AddDrawnProfile { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1674,7 +1713,7 @@ impl SessionOp {
             | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
-            | Self::AddPlacedUnion { .. }
+            | Self::AddFusedPattern { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
@@ -1686,12 +1725,87 @@ impl SessionOp {
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
         }
     }
+
+    /// **Whether this operation puts another document under the
+    /// session**, when it lands: the doors that run
+    /// `DocSession::clear_for_new_document`. Everything the viewer
+    /// holds about the outgoing document is owed a reset by exactly
+    /// these, and a refusal raised before one says nothing about the
+    /// ids of the document after it.
+    ///
+    /// Every operation is listed, so a new one is sorted here by
+    /// whoever adds it.
+    #[must_use]
+    pub fn replaces_the_document(&self) -> bool {
+        match self {
+            Self::Open(_) | Self::NewDocument { .. } => true,
+            Self::Select(_)
+            | Self::Hover(_)
+            | Self::PreviewGesture { .. }
+            | Self::CommitGesture { .. }
+            | Self::PreviewVariableGesture { .. }
+            | Self::CommitVariableGesture { .. }
+            | Self::CancelGesture
+            | Self::CancelEvaluation
+            | Self::Reevaluate
+            | Self::Save(_)
+            | Self::SaveAsNewDocument(_)
+            | Self::SetBodyHidden { .. }
+            | Self::SetSpaceHidden { .. }
+            | Self::BeginFreeMove { .. }
+            | Self::PreviewFreeMove { .. }
+            | Self::CommitFreeMove { .. }
+            | Self::CancelFreeMove
+            | Self::DeleteNode { .. }
+            | Self::RemoveConstraint { .. }
+            | Self::IntoOwnSpace { .. }
+            | Self::SetSlot { .. }
+            | Self::SetSlotVariable { .. }
+            | Self::DeclineOffer { .. }
+            | Self::ProbeBounds { .. }
+            | Self::Stage { .. }
+            | Self::SetSlotUnit { .. }
+            | Self::SetSlotExpression { .. }
+            | Self::SetVariable { .. }
+            | Self::SetVariableUnit { .. }
+            | Self::SetVariableText { .. }
+            | Self::DeclareVar { .. }
+            | Self::RenameVar { .. }
+            | Self::DeleteVar { .. }
+            | Self::BeginGesture { .. }
+            | Self::BeginVariableGesture { .. }
+            | Self::Undo
+            | Self::Redo
+            | Self::AddMate { .. }
+            | Self::AddProfile { .. }
+            | Self::SketchOnFace { .. }
+            | Self::AddDrawnProfile { .. }
+            | Self::EditProfile { .. }
+            | Self::AddExtrude { .. }
+            | Self::AddRevolve { .. }
+            | Self::AddBoolean { .. }
+            | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
+            | Self::AddTransform { .. }
+            | Self::AddPattern { .. }
+            | Self::AddFusedPattern { .. }
+            | Self::AddFillet { .. }
+            | Self::AddChamfer { .. }
+            | Self::AddPart { .. }
+            | Self::Duplicate { .. }
+            | Self::AddInstance { .. }
+            | Self::AcceptPartVersion { .. }
+            | Self::SetLabel { .. }
+            | Self::SetProduct { .. } => false,
+            Self::CreateLabelled { creation, .. } => creation.op().replaces_the_document(),
+        }
+    }
 }
 
 /// **An operation that creates a node** — the only operation
 /// [`SessionOp::CreateLabelled`] labels, so a label can never be handed
 /// to an operation that has no node to give it.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Creation(Box<SessionOp>);
 
 impl Creation {
@@ -1743,6 +1857,11 @@ pub struct OpOutcome {
     /// reading "the last node in document order" would be a guess
     /// about an action nobody promised inserts only one thing.
     pub minted: Vec<RecipeNodeId>,
+    /// **The node a creation made**, the one a label or a form is
+    /// about — the creating door's own answer, so a placement or a
+    /// `new_space()` the same action minted beside it is never taken for
+    /// it. `None` for every operation that is no creation.
+    pub made: Option<RecipeNodeId>,
     /// Why nothing (or nothing more) happened.
     pub refusal: Option<Refusal>,
     /// What this operation's document transition WITHDREW from the
@@ -1830,23 +1949,12 @@ impl OpOutcome {
 /// with nothing behind it. A cancel door is that remedy, and its
 /// absence is what made the refusal dishonest.
 ///
-/// **A door that cannot act says so rather than vanishing**, which is
-/// the posture `platform::ChooserBackend`'s two dialog controls take: the
-/// door is drawn whatever the selection, the standing and the
-/// evaluation are, and disabled rather than absent when it can do
-/// nothing.
-///
-/// **How it says so is where the two part company.** A dialog
-/// control's refusal is the environment's and comes before any
-/// operation: with no chooser backend no path is ever chosen, so the
-/// `SessionOp::Open` or `SessionOp::Save` a click would push is never
-/// built, and the control reads its words off the probe's value,
-/// `platform::ChooserBackend::unusable`. A cancel door's refusal is its
-/// operation's own, and follows [`crate::pane::create`]'s catalogue entry:
-/// *carrying the op's own refusal — read off the entry, not minted
-/// here*. So [`CancelDoor::blocked`] is a [`Refusal`] and not a
-/// sentence, and the disabled control's words are the refused
-/// operation's own.
+/// **A door is drawn while its gesture is in flight, and only then**:
+/// the toolbar is where a cancel goes, and a cancel with nothing to
+/// cancel is chrome a reader at rest has to read past. Whether it is in
+/// flight is [`CancelDoor::blocked`], the refusal its own operation
+/// gives with no gesture open — the operation's answer, not a second
+/// test beside it.
 #[derive(Debug)]
 pub struct CancelDoor {
     /// What the control is called.
@@ -1854,9 +1962,8 @@ pub struct CancelDoor {
     /// The operation a click emits.
     pub op: SessionOp,
     /// `None` while the gesture this door closes is in flight — the
-    /// one state the door can act in — and otherwise the refusal
-    /// [`CancelDoor::op`] answers with, which is the whole of what the
-    /// disabled control has to say.
+    /// one state the door can act in, and the one state it is drawn
+    /// in — and otherwise the refusal [`CancelDoor::op`] answers with.
     pub blocked: Option<Refusal>,
 }
 

@@ -1,7 +1,7 @@
 # `work/` — the tracker
 
-Every stream of work in this repo is a file here. What is open, who
-owns it, and what waits on Ev are recorded here and nowhere else.
+Every stream of work in this repo is a file here. What is open and who
+owns it are recorded here and nowhere else.
 
 - **The board** is `work/STATUS.md`, generated on main by CI (The
   board, below). For a live view in any checkout, run
@@ -61,9 +61,9 @@ status: open               # Vocabularies, below
 opened: 2026-10-02
 closed:                    # a date; set exactly when status is closed
 priority: P1               # P0..P4 (Priority, below)
-cost: H                    # E | M | H: the effort (Vocabularies)
+cost: H                    # C | E | M | H | X: the effort (Vocabularies)
+points: 30                 # only with cost: X, priced by hand
 design: true               # present only while a design question is open
-needs_ev: true             # present only while a question is before Ev
 parent: some-carrying-unit # optional: another item's id
 blocked_on: [a-blocker, 1601]   # item ids, or PR/issue numbers as ints
 rides_with: its-carrier    # optional: the item this one travels with
@@ -73,11 +73,7 @@ branch: mesh/saturated-span
 ---
 ```
 
-`id`, `kind`, `title`, `status` and `opened` are required. Two keys
-appear only on older rows and are never added to new ones: `track`
-(the 2026-08 findings register's code-quality track letter) and
-`github` (the number of the GitHub issue a row was migrated from,
-which the fired-trigger rule reads; Rules, below).
+`id`, `kind`, `title`, `status` and `opened` are required.
 
 A program (`program.md`):
 
@@ -88,7 +84,7 @@ kind: program
 title: MESH — the tessellation kernel
 status: ready              # ready | active | blocked (Vocabularies)
 opened: 2026-09-02
-area: kernel               # kernel | api | gui | infra
+group: kernel/mesh          # where the board files it (below)
 prefix: mesh/              # the program's branch prefix; ends in `/`
 tag: (MESH orchestrator)   # the away-channel role tag
 ab_band: 1200-1299         # the program's band in docs/MODEL-AB-LOG.md
@@ -102,9 +98,17 @@ The prefix and tag follow the branch-prefix and away-channel
 conventions in `memories/orchestration-model.md`: unit branches are
 `<prefix><unit>`, the orchestrator's branch is `<prefix>orchestrator`,
 and every comment the orchestrator posts leads with its tag. A program
-carries no priority (Priority, below). The schema still accepts a
-`blocks` key, from the findings register's per-track id blocks; no
-program carries it, and none should, since an item's id is its name.
+carries no priority (Priority, below).
+
+**`group`** places the program in the hierarchy the board shows:
+lowercase segments joined by `/`, top level first (`kernel`, `api`,
+`gui`, `infra`), then a subsystem or two (`kernel/boolean/split`). The
+board names each program by its group and id together,
+`kernel/mesh/tess`. Only the header carries the hierarchy: the
+directories stay flat at `work/<id>/`, so re-filing a program edits one
+line and no citation of `work/<id>/` moves. File a program beside the
+programs whose work it most resembles; a split's successors usually
+share their parent's group.
 
 ## Vocabularies
 
@@ -137,15 +141,24 @@ dispatchable, and neither is listed as stale for going untouched.
 **cost** is the row's effort and nothing else (Ev, in chat,
 2026-09-27):
 
+- `C` — chore: a mechanical change (a rename, a citation or count
+  fix, a header sweep) that needs no judgement. Chores are dispatched
+  only in bundles, several to one lane, or ride along with a unit that
+  touches the same ground; a chore never gets an implementer of its
+  own.
 - `E` — easy: the fix is written in the item or is obvious.
 - `M` — medium: more than a written-down fix, short of hard.
 - `H` — hard: the intent is clear, and getting it right is technically
   difficult (geometry, certified-interval reasoning, topology
   invariants, tests that are hard to construct).
+- `X` — extra hard: larger than any one hard row, typically a feature
+  that will expand into a program of its own. An `X` row is priced by
+  hand in `points:`, with the reasoning in its body; no other row
+  carries `points:`.
 
 `cost: D` is legacy: before 2026-09-27 it meant either "a design
 question is open" or "medium", so read such a row's body, re-price it
-`E`/`M`/`H`, and set `design` if it applies, whenever you touch it.
+`C`/`E`/`M`/`H`/`X`, and set `design` if it applies, whenever you touch it.
 Lint refuses `cost: D` on a row opened on or after 2026-09-27.
 
 **design** is separate from cost, because effort and an open decision
@@ -153,9 +166,8 @@ vary independently: a hard row can be pure execution, and a cheap one
 can hinge on a choice. `design: true` says a question with several
 viable answers is open on the row and must be weighed before a lane
 builds it (`memories/orchestration-model.md`: designers first, and an
-`[ev]` PR only if the fork is Ev's). It is not `needs_ev`, which says
-the question is already in front of Ev. Remove the flag once the
-question is decided.
+`[ev]` PR only if the fork is Ev's). Remove the flag once the question
+is decided.
 
 **status of a program** says whether an orchestrator is on the track.
 That is the one fact the row counts beside it cannot show: a session
@@ -201,8 +213,11 @@ the board. The bands (Ev, in chat, 2026-09-20):
   should be handled uniformly, and the rest of that class. Also verb
   breadth beyond the everyday shapes, and GUI defects Ev reported as
   annoying rather than blocking.
-- **P2 — medium-high.** Interval and error propagation — the reach
-  goal `docs/DESIGN.md` says shapes the architecture.
+- **P2 — medium-high.** Between P1 and P3: work that matters soon
+  but neither blocks authoring nor entrenches as things are built on
+  it. Interval and error propagation — the reach goal `docs/DESIGN.md`
+  says shapes the architecture — is the band's standing example, not
+  its whole content.
 - **P3 — medium.** Library usability and the north-star audit;
   interop with other tools; tooling that prevents SILENT bugs; latent
   unsoundness, such as a certificate a downstream crate can forge.
@@ -248,9 +263,8 @@ lower band, and there are three ways to clear the error:
 
 A chain settles one link at a time: a blocker re-banded upward brings
 its own blockers under the rule. A program carries no band, so naming
-one as a blocker is not checked; a number in `blocked_on` reaches the
-rule only through `github:`, and only as a warning (Rules: *A fired
-trigger is not a blocker*). Raising a parked row's band can red `main`
+one as a blocker is not checked, and neither is a number in
+`blocked_on`. Raising a parked row's band can red `main`
 for a blocker on another program; the answer is to fix the blocker's
 band, not to soften the check.
 
@@ -273,27 +287,34 @@ on the next sitting's attention:
 
 | cost | points |
 |---|---|
+| `C` | 0 |
 | `E` | 1 |
-| `M` | 2.5 |
-| `H` | 5 |
-| legacy `D` | 2.5 |
-| unpriced | 2.5 |
+| `M` | 3 |
+| `H` | 8 |
+| `X` | its `points:` |
+| legacy `D` | 3 |
+| unpriced | 3 |
 
-The default budget is **30 points**: about 30 easy rows, 12 medium or
-6 hard, or any mix. `design` adds nothing, because the cost prices the
-whole row, the weighing included. An unpriced row is charged as medium
-so a track cannot come in under budget by declining to price itself.
+The default budget is **30 points**: about 30 easy rows, 10 medium or
+4 hard, or any mix. The weights come from the measured effort of
+closed rows (wall time and commits, `analysis/cost-tiers/` on the
+`analysis/cost-tier-effort` branch), and `H` carries the follow-up
+rows a hard row typically files as well as its own work. A chore costs
+nothing because it only ever travels in a bundle. `design` adds
+nothing, because the cost prices the whole row, the weighing included.
+An unpriced row is charged as medium so a track cannot come in under
+budget by declining to price itself.
 A program may set its own `budget`, with its reason in `program.md`.
 
 **The budget binds when a program opens and as it grows**: a program
 is not opened over budget, and one that grows past it splits.
 
-**A track splits along its priority seam, not a territory seam.** A
-fifty-row track is usually a dozen rows on the goal and thirty-eight
-behind them; cutting it there leaves one track a successor can charter
-and dispatch. Cutting the same slate five ways by file leaves five
-tracks too thin to charter, and shared ground is fine anyway (Rules:
-territory). The rows MOVE, by `git mv`, keeping their ids.
+**A track splits along its semantic seams.** Cut where the rows part
+by question, mechanism or charter, so each successor tells one story
+that someone can charter and dispatch as a whole. A file boundary is
+not by itself a seam: cutting a slate by file leaves tracks too thin
+to charter, and shared files are fine anyway (Rules: territory). The
+rows MOVE, by `git mv`, keeping their ids.
 
 **Over budget is a report, not a lint warning.** `STATUS.md`'s `load`
 column shows every track's weight against its budget and bolds the
@@ -354,7 +375,8 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   (`D102`, `S330`, `C15`); nothing mints new ids in that shape.
 - **References resolve.** Every id in `parent`, `blocked_on`,
   `rides_with` and `refs` names a file that exists. Ints are PR or
-  issue numbers and are not checked against GitHub.
+  issue numbers and are not checked against GitHub, so a blocker
+  that is an item should be named by its id.
 - **A fired trigger is not a blocker.** A `parked` row whose
   `blocked_on` names a CLOSED item has had its trigger fire, so the
   reference is no evidence the row is still blocked. Two cases:
@@ -368,27 +390,32 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   PR (one file, one item). That cost was accepted deliberately (Ev,
   2026-09-04): fix the stale rows, do not soften the check.
 
-  **A number reaches the rule only as a warning.** A migrated issue
-  carries its GitHub number on the item that replaced it (`github:`),
-  so an int in `blocked_on` matching exactly one such item is read as
-  that item, and if that item is closed the row is named — as a
-  warning in both cases above, never the error, because the match is
-  an inference rather than a naming, and an inference does not get to
-  red `main`. A number matching no `github:`, or two, is not checked.
-  To get the full check, name the item instead of the number.
-
 ### Territory
 
 - **Territory is a glob list** (`paths`) on the program, and every
   glob must match at least one tracked path. Globs are `fnmatch`
   patterns, where `*` crosses `/`: `crates/mesh/*` is the whole crate.
-- **Two open programs may claim one path.** Shared ground is
-  legitimate and expected — a kernel file often has a structural
-  question on it and a numeric one, and splitting it between two
-  programs is usually worse than letting both claim it (Ev, in chat,
-  2026-09-20: *"it's ok if units have shared ground, they should just
-  be aware of each other if working at the same time"*).
-- **What is owed is awareness while a lane is live.** Fetch, then run
+- **Two open programs may claim one path, and two lanes may edit one
+  file.** What needs care is SEMANTIC conflict, not textual overlap: a
+  kernel file often has a structural question on it and a numeric one,
+  and splitting it between two programs is usually worse than letting
+  both claim it (Ev, in chat, 2026-09-20: *"it's ok if units have
+  shared ground, they should just be aware of each other if working at
+  the same time"*).
+- **Logically independent changes share files freely.** Two changes are
+  independent when neither one's correctness depends on what the other
+  changes: different functions, different invariants, or different
+  arms of one match that read nothing the other writes. They need no
+  announcement and no sequencing, and a textual merge conflict between
+  them is routine (merge main, resolve, carry on), not a coordination
+  failure.
+- **What is owed is awareness where changes are coupled.** Changes are
+  coupled when one alters a contract, invariant, signature or
+  behaviour that the other reads or relies on, when both rework the
+  same logic, or when one would make the other's tests or reasoning
+  wrong. Then the lanes must know of each other while both are live:
+  the lane says so in its PR, and the orchestrator posts a note on the
+  other program's log. To find the candidates, fetch, then run
   `python3 scripts/work.py territory --base origin/main` on the
   branch. Use `origin/main`, never a bare `main`: in a worktree or
   remote checkout the local `main` ref is typically far behind, and
@@ -396,8 +423,8 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   reads the branch's prefix and diff and names every path another
   program owns, and every path the branch's own program shares with
   another ("owned by X" against "also claimed by X"). It warns; it
-  does not block. A lane touching another program's ground says so in
-  its PR, and the orchestrator posts a note on that program's log.
+  does not block. A path it names is a prompt to check what the other
+  program's live rows are doing there, not by itself a coupling.
 - **`keep_out` is for the next reader**, not for a checker. Write one
   when the relationship between two programs' ground is worth
   explaining, which is often.
@@ -450,12 +477,8 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 
 Ev does not edit files. Anything that needs Ev is a PR whose title
 starts with **`[ev]`**; how to write one is "Asking Ev" in
-`CLAUDE.md`. The tracker's half: the item that asked sets
-`needs_ev: true`. The item does not name the PR — the item usually
-exists before the PR does, and the PR is one `git log` away. Once Ev
-answers, the agent updates the item and the docs, merges, and removes
-the flag. `STATUS.md` lists every open `needs_ev` row oldest first, so
-the PR list filtered on `[ev]` and the tracker name the same set.
+`CLAUDE.md`. Once Ev answers, the agent updates
+the item and the docs, and merges.
 
 ## The log merges by union
 
@@ -481,7 +504,6 @@ each check-in and before bringing main into its branch.
 
 `work/STATUS.md`, top to bottom:
 
-- **Waiting on Ev** — every live row with `needs_ev`, oldest first.
 - **Programs** — one row per program, in board order (Priority). The
   band columns count live rows; `load` is the track's weight against
   its budget, bold when over (Track size); the status columns count
@@ -497,7 +519,7 @@ each check-in and before bringing main into its branch.
 
 ```
 python3 scripts/work.py lint                  every checkable rule above; CI runs it
-python3 scripts/work.py status [--program P]  the board, to stdout
+python3 scripts/work.py status [--program P]  the board, to stdout; P is an id, or a group for its subtree
 python3 scripts/work.py render                the board, to work/STATUS.md (CI's job)
 python3 scripts/work.py new <id> --kind K --title T [--program P] [--set k=v]
 python3 scripts/work.py set <id> key=value [key=value ...]

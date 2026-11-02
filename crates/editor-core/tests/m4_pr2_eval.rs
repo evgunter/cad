@@ -32,7 +32,7 @@ fn run(
 /// The final boolean body of an evaluation.
 fn final_body(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> &Body<f64> {
     match &ev.value(id).expect("final node evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.body(),
         other => panic!("expected boolean body, got {}", other.kind_name()),
     }
 }
@@ -223,7 +223,11 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         ValuePayload::Body(b) => b,
         other => panic!("expected a body, got {}", other.kind_name()),
     };
-    let mut z: Vec<f64> = body.vertex_points().map(|(_, p)| p).map(|p| p.z).collect();
+    let mut z: Vec<f64> = crate::fixture::in_space(body)
+        .vertex_points()
+        .map(|(_, p)| p)
+        .map(|p| p.z)
+        .collect();
     z.sort_by(f64::total_cmp);
     z.dedup();
     assert_eq!(z, [-0.25, 0.0], "below the sketch plane, a quarter deep");
@@ -457,7 +461,7 @@ fn split_evaluates_both_parts_role_tagged() {
                     "the measured body",
                     &topo::test_support::finished(
                         "the measured body",
-                        topo::Body::clone(&**above),
+                        topo::Body::clone(above.body()),
                         Tol::witness()
                     ),
                     Tol::witness()
@@ -470,7 +474,7 @@ fn split_evaluates_both_parts_role_tagged() {
                     "the measured body",
                     &topo::test_support::finished(
                         "the measured body",
-                        topo::Body::clone(&**below),
+                        topo::Body::clone(below.body()),
                         Tol::witness()
                     ),
                     Tol::witness()
@@ -479,8 +483,8 @@ fn split_evaluates_both_parts_role_tagged() {
                 2.0 * 2.0 * 0.5
             );
             for b in [above, below] {
-                assert_eq!(validate(b), Ok(()));
-                assert_eq!(validate_closed(b), Ok(()));
+                assert_eq!(validate(b.body()), Ok(()));
+                assert_eq!(validate_closed(b.body()), Ok(()));
             }
         }
         other => panic!("expected split value, got {}", other.kind_name()),

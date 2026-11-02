@@ -4,7 +4,6 @@ kind: issue
 title: Banked - the torus declared-Rest lane (lily wall 1's retirement path), deferred by ruling on #966
 status: deferred
 opened: 2026-08-23
-github: 968
 refs: [966, 1477, 1488, 1489]
 priority: P3
 cost: H

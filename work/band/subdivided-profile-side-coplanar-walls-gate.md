@@ -4,7 +4,6 @@ kind: issue
 title: sweep/topo: a subdivided profile side lowers to two coplanar walls — one surface key, one GeomSource, or does gate_maximal_faces refuse it?
 status: closed
 opened: 2026-09-02
-github: 1568
 refs: [1508, 1520, 433]
 priority: P0
 cost: D

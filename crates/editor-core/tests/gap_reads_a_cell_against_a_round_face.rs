@@ -96,6 +96,7 @@ fn extrude(
         Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

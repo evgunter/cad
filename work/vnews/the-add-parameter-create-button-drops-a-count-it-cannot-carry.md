@@ -2,12 +2,11 @@
 id: the-add-parameter-create-button-drops-a-count-it-cannot-carry
 kind: issue
 title: The add-parameter form's Create button drops a Count draft SlotValue::of refuses, with no word
-status: parked
+status: open
 opened: 2026-09-25
 refs: [a-refused-typed-value-reaches-no-word, a-disabled-control-says-why-in-four-shapes]
 priority: P3
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## Finding
@@ -39,4 +38,4 @@ closed: the button reads its refusal from the value and shows its words
 text is a second reason the same button carries, so the fix has to
 decide how the two compose.
 
-
+**Re-read 2026-10-29 (INTENT, D10 hold):** released. Stage 1 is built and the chain is unchanged on the variable form: `SlotValue::of(dimension, self.drafts.new_variable_value)` behind a live `Create`, which ends in `SessionOp::DeclareVar` (`crates/viewer/src/pane/properties.rs:344-350`).

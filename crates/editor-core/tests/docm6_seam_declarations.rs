@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 use editor_core::Formula;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
@@ -118,8 +119,11 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, Mate
         mate,
         &[
             (Coord::Slide(TargetAxis::X), len(shift)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, mate)
@@ -360,7 +364,7 @@ fn union_with_far_cube(
     match ev.value(union).map(|v| &v.payload) {
         Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
             body, ..
-        })) => Ok(body.solids().count()),
+        })) => Ok(body.body().solids().count()),
         other => panic!("a union of bodies is a body: {other:?}"),
     }
 }
@@ -408,31 +412,27 @@ fn a_placed_product_keeps_its_parts() {
     );
 }
 
-/// **A placed union of a product places it whole**: its prototype is
-/// the instance's one body, both cubes, placed at each frame.
+/// **A union of a family of a product places it whole**: each member
+/// is the instance's one body, both cubes, placed at its values.
 #[test]
-fn a_placed_union_of_a_product_places_both_parts() {
+fn a_union_of_a_family_of_a_product_places_both_parts() {
     let (store, inner_ref, _) = product_and_cube("placed", 0.0);
     let doc = ProfileDoc::empty(
         DocumentId::derive("docm6-bool-placed-outer"),
         Tol::witness(),
     );
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
+    let (doc, _, row) = fixture::linear(doc, instance, [1.0, 0.0, 0.0], 20.0, 2);
     let (doc, group) = insert(
         doc,
-        Node::PlacedUnion {
-            input: instance.into(),
-            count: None,
-            kind: editor_core::PatternKind::Explicit(vec![
-                Frame::IDENTITY,
-                Frame::translation([20.0, 0.0, 0.0]),
-            ]),
+        Node::Union {
+            members: editor_core::Bodies::Family(row.into()),
         },
     );
     let ev = run(&doc, &with_resolver(store));
     assert!(
         ev.node_error(group).is_none(),
-        "the placed union evaluates over a product: {:?}",
+        "the union of the family evaluates over a product: {:?}",
         ev.node_error(group)
     );
 }
@@ -460,7 +460,7 @@ fn a_measure_on_a_product_evaluates() {
     );
     let ev = run(&doc, &with_resolver(store));
     assert_eq!(
-        ev.value(instance).map(|v| v.parts),
+        ev.value(instance).map(|v| v.carry.parts),
         Some(2),
         "the stand is a product"
     );
@@ -713,10 +713,10 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
     let (fault, _) = part_fault(error);
     // The part's product is its placement's copy, and the placement
     // reads a body that is gone: its root failed.
-    let editor_core::PartFault::PartRootFailed { node, .. } = fault else {
-        panic!("the part's root fails: {fault:?}");
+    let editor_core::PartFault::PartProductFailed { node, .. } = fault else {
+        panic!("the part's piece fails: {fault:?}");
     };
-    assert_eq!(*node, block, "the failed root is the stranded placement");
+    assert_eq!(*node, block, "the failed piece is the stranded placement");
     let in_outer = error.spoken(&outer, &ev);
     assert!(
         in_outer.contains(&format!("Place \"inner block\" ({t})"))

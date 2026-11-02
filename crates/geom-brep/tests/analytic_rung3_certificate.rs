@@ -93,7 +93,7 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(k1, k2),
-            witness: c.eval(T::from_f64(0.5 * (d0 + d1))),
+            selector: geom_brep::CurveSelector::Witness(c.eval(T::from_f64(0.5 * (d0 + d1)))),
         },
         carrier: c.clone(),
         param_start: t0,
@@ -231,7 +231,7 @@ fn a_schedule_defect_refuses_as_itself() {
     let spec = |t0: f64, t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(k1, k2),
-            witness: c.eval(0.5),
+            selector: geom_brep::CurveSelector::Witness(c.eval(0.5)),
         },
         carrier: c.clone(),
         param_start: t0,
@@ -282,7 +282,7 @@ fn rest_re_derives_an_analytic_rung3_edges_certificate() {
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(k1, k2),
-            witness: c.eval(0.5),
+            selector: geom_brep::CurveSelector::Witness(c.eval(0.5)),
         },
         carrier: c.clone(),
         param_start: 0.0,
@@ -408,7 +408,7 @@ fn certify_over(
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(k1, k2),
-            witness: c.eval(0.5 * (t0 + t1)),
+            selector: geom_brep::CurveSelector::Witness(c.eval(0.5 * (t0 + t1))),
         },
         carrier: c.clone(),
         param_start: t0,
@@ -652,19 +652,19 @@ fn limb_two_halves_then_stops_on_a_breaks_miss() {
     assert!(refused(&got), "Interval: {got:?}");
 }
 
-/// **A cone operand refuses the tube by name once limb 2 holds, and a
-/// torus operand certifies.** The unit circle in `z = 0` lies on the
-/// plane exactly, on the torus `R = 5/4, r = 1/4` as its inner equator,
-/// and on the cone with apex `(0, 0, −1)` and half-angle `π/4`; its
-/// limbs hold against both operands of each pair. The tube's ℝ³
-/// enclosure has no cone arm, so the edge says which operand it has no
-/// enclosure of rather than reading that refusal as a sliver. Against
-/// the torus the tube certifies over boxes as wide as the carrier's
-/// eight spans: a torus gradient enclosed as the componentwise
-/// difference of its two `O(1)` terms straddles there
-/// (`TubeStraddles`).
+/// **A cone's section retires the tube, and a torus operand certifies
+/// on it.** The unit circle in `z = 0` lies on the plane exactly, on the
+/// torus `R = 5/4, r = 1/4` as its inner equator, and on the cone with
+/// apex `(0, 0, −1)` and half-angle `π/4`; its limbs hold against both
+/// operands of each pair. The tube's ℝ³ enclosure has no cone arm, but
+/// the plane×cone section states its crossing angle's floor
+/// (`sin θ = 1/√2` on this circle) and the tube's clearance, so the edge
+/// certifies with no tube. Against the torus the tube certifies over
+/// boxes as wide as the carrier's eight spans: a torus gradient enclosed
+/// as the componentwise difference of its two `O(1)` terms straddles
+/// there (`TubeStraddles`).
 #[test]
-fn a_cone_operand_refuses_the_tube_by_name_and_a_torus_one_certifies() {
+fn a_cones_section_retires_the_tube_and_a_torus_operand_certifies() {
     let carrier = bulged(8, 0.0);
     let torus = Surface::Torus {
         center: Point3::origin(),
@@ -680,15 +680,7 @@ fn a_cone_operand_refuses_the_tube_by_name_and_a_torus_one_certifies() {
         u_ref: Vec3::unit_x(),
     };
     let got = certify(&carrier, plane(), cone).map(|_| ());
-    assert_eq!(
-        got,
-        Err(CertifyError::AnalyticRung3(
-            AnalyticRung3Refusal::NoTubeEnclosure {
-                operand: geom::SurfaceKind::Cone
-            }
-        )),
-        "cone"
-    );
+    assert_eq!(got, Ok(()), "the plane×cone section retires the tube");
     let got = certify(&carrier, plane(), torus).map(|_| ());
     assert_eq!(got, Ok(()), "torus");
 }

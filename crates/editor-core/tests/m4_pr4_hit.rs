@@ -15,7 +15,7 @@ use editor_core::{
     Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx,
     SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name, evaluate,
 };
-use fixture::{ang, die, insert, len, on_frame, scl};
+use fixture::{ang, die, insert, len, on_frame};
 use geom_core::Tol;
 use topo::{Body, FaceKey};
 
@@ -32,23 +32,24 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// Every output body of a node's value, with its body index.
 fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
     match payload {
-        ValuePayload::Body(b) => vec![(0, &**b)],
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => vec![(0, &**body)],
+        ValuePayload::Body(b) => vec![(0, b.body())],
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => vec![(0, body.body())],
         ValuePayload::Boolean(BooleanValue::Empty) => vec![],
         ValuePayload::Split { above, below } => {
             let mut out = Vec::new();
             if let SplitSide::Body(b) = above {
-                out.push((0, &**b));
+                out.push((0, b.body()));
             }
             if let SplitSide::Body(b) = below {
-                out.push((1, &**b));
+                out.push((1, b.body()));
             }
             out
         }
+        ValuePayload::Family => vec![],
         ValuePayload::Instances(v) => v
             .iter()
             .enumerate()
-            .map(|(i, b)| (u32::try_from(i).unwrap(), &**b))
+            .map(|(i, b)| (u32::try_from(i).unwrap(), b.body()))
             .collect(),
         ValuePayload::Profile(_)
         // Neither sink denotes a body, so neither offers an entity to
@@ -203,17 +204,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         ),
     );
     // A pattern of the union.
-    let (doc, _pat) = insert(
-        doc,
-        Node::Pattern {
-            input: u.into(),
-            count: editor_core::Formula::count(3),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(0.0), scl(0.0), scl(1.0)],
-                spacing: len(3.0),
-            },
-        },
-    );
+    let (doc, _pat_k, _pat) = crate::fixture::linear(doc, u, [0.0, 0.0, 1.0], 3.0, 3);
     let ev = run(&doc);
     for &id in &ev.order {
         assert!(

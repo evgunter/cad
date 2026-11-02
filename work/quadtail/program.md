@@ -4,7 +4,7 @@ kind: program
 title: QUADTAIL — the quadrature lane's P2–P4 tail: enclosure looseness, missing volume rules and the tests over them
 status: ready
 opened: 2026-10-21
-area: kernel
+group: kernel/props
 prefix: quadtail/
 tag: (QUADTAIL orchestrator)
 budget: 32

@@ -2,7 +2,7 @@
 //!
 //! The product is gated once, as the aggregate; a refusal re-gates each
 //! source body on its own and lists every one that fails, by placement and
-//! output index (`ProductError::RootInvalid`). These rows hold the
+//! output index (`ProductError::PieceInvalid`). These rows hold the
 //! attribution, over the shapes a document can hand the gather: one
 //! source of one solid, two sources, one source of several solids, and
 //! two sources whose defects the aggregate's own findings cannot both
@@ -140,7 +140,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// `node`'s body, as the evaluation holds it.
-fn slot(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> &mut Arc<Body<f64>> {
+fn slot(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> &mut editor_core::Framed<f64> {
     let Some(NodeResult::Ok(value)) = ev.nodes.get_mut(&node) else {
         panic!("node {node:?} evaluated to no value");
     };
@@ -154,9 +154,9 @@ fn slot(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> &mut Arc<Body<f64>> {
 /// its value slot, and returns how many solids that body holds.
 fn flip_one_face(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> usize {
     let body = slot(ev, node);
-    let was = Arc::clone(body);
-    *body = flipped(body);
-    let now = Arc::clone(body);
+    let was = Arc::clone(body.shared());
+    *body = body.with_body(flipped(body.body()));
+    let now = Arc::clone(body.shared());
     let solids = now.solids().count();
     in_every_assemble(ev, &was, &now);
     solids
@@ -166,9 +166,9 @@ fn flip_one_face(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> usize {
 /// slot.
 fn turn_inside_out(ev: &mut Evaluation<f64>, node: RecipeNodeId) {
     let body = slot(ev, node);
-    let was = Arc::clone(body);
-    *body = Arc::new(body.revert().unwrap());
-    let now = Arc::clone(body);
+    let was = Arc::clone(body.shared());
+    *body = body.with_body(Arc::new(body.body().revert().unwrap()));
+    let now = Arc::clone(body.shared());
     in_every_assemble(ev, &was, &now);
 }
 
@@ -181,22 +181,23 @@ fn in_every_assemble(ev: &mut Evaluation<f64>, was: &Arc<Body<f64>>, now: &Arc<B
         let NodeResult::Ok(value) = result else {
             continue;
         };
-        let Some(pieces) = value.pieces.as_mut() else {
+        let Some(pieces) = value.carry.pieces.as_mut() else {
             continue;
         };
         for piece in &mut Arc::make_mut(pieces).pieces {
             for body in &mut piece.bodies {
-                if Arc::ptr_eq(body, was) {
-                    *body = Arc::clone(now);
+                if Arc::ptr_eq(body.shared(), was) {
+                    *body = body.with_body(Arc::clone(now));
                 }
             }
         }
         if value
+            .carry
             .census
             .as_ref()
             .is_some_and(|census| census.node == id)
         {
-            value.census = Some(Arc::new(editor_core::product::Census::new(
+            value.carry.census = Some(Arc::new(editor_core::product::Census::new(
                 id,
                 Arc::clone(pieces),
             )));
@@ -206,7 +207,7 @@ fn in_every_assemble(ev: &mut Evaluation<f64>, was: &Arc<Body<f64>>, now: &Arc<B
 
 /// The refusal's findings, as (placement, output) pairs, in list order.
 fn named(err: &ProductError) -> Vec<(RecipeNodeId, u32)> {
-    let ProductError::RootInvalid { findings } = err else {
+    let ProductError::PieceInvalid { findings } = err else {
         panic!("want the per-placement refusal, got {err:?}");
     };
     assert!(
@@ -313,8 +314,10 @@ fn a_defect_that_stops_check_7_does_not_hide_another_placements_inside_out_body(
     // aggregate's list.
     let mut aggregate = Body::new();
     for node in [a, b] {
-        topo::graft_disjoint_all(&mut aggregate, slot(&mut ev, node))
-            .expect("the two blocks are disjoint");
+        // Each block where it stands in the world.
+        let framed = slot(&mut ev, node).clone();
+        let placed = crate::fixture::in_space(&framed);
+        topo::graft_disjoint_all(&mut aggregate, &placed).expect("the two blocks are disjoint");
     }
     let together =
         topo::validate_geometric(&aggregate, Tol::witness()).expect_err("the aggregate is invalid");
@@ -325,7 +328,7 @@ fn a_defect_that_stops_check_7_does_not_hide_another_placements_inside_out_body(
 
     let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("invalid placements refuse");
     assert_eq!(named(&err), [(a, 0), (b, 0)], "both placements are named");
-    let ProductError::RootInvalid { findings } = &err else {
+    let ProductError::PieceInvalid { findings } = &err else {
         unreachable!("`named` read this arm");
     };
     let [
@@ -343,13 +346,13 @@ fn a_defect_that_stops_check_7_does_not_hide_another_placements_inside_out_body(
     let text = err.to_string();
     assert!(
         text.contains(&format!(
-            "placement {} output 0",
+            "piece {} output 0",
             test_utils::refusal::tag(a.0.digest())
         )) && text.contains(&format!(
-            "placement {} output 0",
+            "piece {} output 0",
             test_utils::refusal::tag(b.0.digest())
         )),
-        "the message names both placements: {text}"
+        "the message names both pieces: {text}"
     );
 }
 

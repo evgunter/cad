@@ -286,11 +286,10 @@ impl Frame {
     /// frame the document admits carries only numbers and is a rigid
     /// motion, so it preserves orientation.
     ///
-    /// One predicate with one home, asked wherever a document admits a
-    /// frame — a placement rule's listed frames
-    /// ([`crate::node::PlacementRuleFault`]) — so no door can come to
-    /// hold frames to a different standard. Its caller says WHICH frame
-    /// is at fault in its own vocabulary ([`FrameSite`]), and forwards
+    /// One predicate with one home, asked wherever a frame is admitted
+    /// — the viewer's drawn frame — so no door can come to hold frames to
+    /// a different standard. Its caller says WHICH frame
+    /// is at fault in its own vocabulary, and forwards
     /// this answer's sentence rather than restating it.
     ///
     /// Rigidity is [`RigidMotion::check_rigid`] at `tol`'s linear band,
@@ -366,7 +365,7 @@ pub enum FrameFault {
 }
 
 // The ONE prose for the frame rule: a predicate clause, so each door
-// forwards it into its own subject ([`FrameSite::subject`]) rather than
+// forwards it into its own subject rather than
 // inventing a second wording for the fact they share.
 impl core::fmt::Display for FrameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -390,30 +389,6 @@ impl FrameFault {
         match self {
             Self::NonFinite => "give every coordinate of that frame a finite value",
             Self::NotRigid { .. } => "use only a rotation and a translation in that frame",
-        }
-    }
-}
-
-/// **Which frame of a node a placement refusal is about** — the subject
-/// a door names beside the [`FrameFault`] sentence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FrameSite {
-    /// Listed placement `index` of an explicit placement rule.
-    Listed {
-        /// Its index in the placement list.
-        index: usize,
-    },
-}
-
-impl FrameSite {
-    /// The frame this site names on `node`, as a sentence's subject. A
-    /// step reads as a user counts, from one, as [`crate::SlotId::label`]
-    /// numbers a chain's steps; a listed placement reads by its index,
-    /// the one an instance's name carries.
-    #[must_use]
-    pub fn subject(self, node: &crate::SpokenNode) -> String {
-        match self {
-            Self::Listed { index } => format!("placement {index} of {node}"),
         }
     }
 }

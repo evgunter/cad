@@ -533,7 +533,8 @@ fn every_saved_document_in_the_tree_loads_or_refuses_typed() {
 }
 
 fn world_bounds(doc: &ProfileDoc, ev: &Evaluation<f64>) -> ([f64; 3], [f64; 3]) {
-    let body = editor_core::product(doc, ev, Tol::witness()).expect("the product gathers");
+    let body =
+        crate::fixture::product_in_world(doc, ev, Tol::witness()).expect("the product gathers");
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
     for (_, p) in body.points() {
@@ -618,11 +619,11 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
     let (doc, x) = insert(doc, fixture::mated_instance(p.base));
     let (doc, space) = fixture::into_new_space(doc, x);
     let ev = run(&doc, &o);
-    match editor_core::product(&doc, &ev, Tol::witness()) {
+    match crate::fixture::product_in_world(&doc, &ev, Tol::witness()) {
         Err(editor_core::ProductError::EmptyProduct) => {}
         other => panic!("the world gather refuses empty: {other:?}"),
     }
-    let said = editor_core::product(&doc, &ev, Tol::witness())
+    let said = crate::fixture::product_in_world(&doc, &ev, Tol::witness())
         .err()
         .map(|e| e.spoken(&doc))
         .unwrap_or_default();

@@ -176,7 +176,7 @@ run_dump() {
 # WHAT THESE TESTS ASSERT, stated because it is what decides the
 # placement: one-sided GREENNESS at `Probe` — `failures(&ev).is_empty()`
 # — and not bit-identity against an f64 run, which the `--ignored` half's
-# `probe_agrees_with_f64_bit_for_bit_over_the_corpus` compares and this
+# `probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits` compares and this
 # selection does not. Greenness is TOLERANCE-DEPENDENT, so this runs at a stated ε
 # rather than at whatever the ambient default happens to be.
 #

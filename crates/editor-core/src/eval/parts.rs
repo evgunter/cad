@@ -71,7 +71,6 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::Decide;
-use topo::Body;
 
 use crate::ProfileDoc;
 use crate::checks::at_rest::PartRow;
@@ -95,30 +94,25 @@ use geom_core::Tol;
 /// not that it looped.
 pub(crate) const MAX_DEPTH: usize = 1024;
 
-/// A resolved part: the referenced document's product, the product
-/// entities' part-local stable names, the product's CONTACT RECORDS
-/// (ASM-R2b D-1 — a part's records cross the document seam with its
-/// geometry, in the same keys), and its at-rest census verdict.
+/// A resolved part: the referenced document's product body and its
+/// part-local stable names, what that body carries
+/// ([`super::Carry`]: its CONTACT RECORDS, ASM-R2b D-1, in the same keys
+/// as its geometry, and its pieces), and the part's rows, which cross
+/// the document seam routed through the instance copying it
+/// ([`Self::carry_through`]).
 ///
-/// Each of the two row lists (`interference`, `at_rest`) is the
+/// Each row list (`interference`, `at_rest`, `door_rows`) is the
 /// referenced document's OWN rows first, then what it carried up from
 /// ITS parts, each as a [`PartRow`] that already holds the document's
 /// nodes it names. Instantiation adds its own instance to the route;
 /// nothing below is re-read.
 pub(crate) struct PartValue<T: Decide> {
-    pub body: Arc<Body<T>>,
+    /// The product body, in the frame the part's product computed in.
+    pub body: super::Framed<T>,
     pub names: Arc<NameTable>,
-    /// The pieces the product holds ([`super::Pieces`]), in the part's
-    /// frame: what a pick of one piece of an instance reads.
-    pub pieces: Option<Arc<super::Pieces<T>>>,
-    pub contacts: Arc<topo::ContactRecords>,
-    /// The at-rest census's rows the product's records cite
-    /// ([`crate::Product::coincidences`]), named in the part's
-    /// document.
-    pub coincidences: Arc<Vec<crate::checks::at_rest::AtRestRow>>,
-    /// The product's inputs its carried records cite
-    /// ([`crate::Product::cited_inputs`]).
-    pub cited_inputs: Arc<Vec<crate::coincide::CitedInput>>,
+    /// What the product body carries, its rows aside: the census that
+    /// decided the meetings inside it is the part's.
+    pub carry: super::Carry<T>,
     /// **The part's own at-rest census verdict**, its own rows first and
     /// then those it carried up: the overlaps between its copies,
     /// reported and never refused, as its own at-rest check reads them
@@ -136,26 +130,67 @@ pub(crate) struct PartValue<T: Decide> {
     /// document, when a report asks (`checks::DoorJob`).
     pub door_rows:
         Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::DocRows>>>>,
-    /// How many parts the referenced document's product is: its
-    /// placements' copies ([`crate::product::Product::solid_copies`]),
-    /// each counted at its own value's `parts`, so a sub-assembly's
-    /// parts count through (`NodeValue::parts`).
-    pub parts: usize,
+}
+
+impl<T: Decide> PartValue<T> {
+    /// **What the copy instance `through` defines carries**: the
+    /// product body's carry, and the part's rows, each the part's,
+    /// routed through `through` ([`PartRow::through`]). The door rows
+    /// ride unjudged: they are the part's, named in its document, and
+    /// judged over it where a report asks.
+    pub(crate) fn carry_through(&self, through: RecipeNodeId) -> super::Carry<T> {
+        use crate::checks::at_rest as a;
+        let findings = a::CarriedFindings {
+            interference: self
+                .interference
+                .iter()
+                .map(|row| {
+                    let (route, pinned, _) = row.through(through);
+                    a::CarriedInterference {
+                        route,
+                        pin: pinned.pin,
+                        finding: pinned.finding,
+                    }
+                })
+                .collect(),
+            at_rest: self
+                .at_rest
+                .iter()
+                .map(|row| {
+                    let (route, pinned, held) = row.through(through);
+                    a::CarriedAtRestFinding {
+                        route,
+                        pin: pinned.pin,
+                        finding: pinned.finding,
+                        held,
+                    }
+                })
+                .collect(),
+            coincidences: self
+                .door_rows
+                .iter()
+                .map(|row| {
+                    let (route, pinned, _) = row.through(through);
+                    (route, pinned).into()
+                })
+                .collect(),
+        };
+        super::Carry {
+            findings: Arc::new(findings),
+            ..self.carry.clone()
+        }
+    }
 }
 
 impl<T: Decide> Clone for PartValue<T> {
     fn clone(&self) -> Self {
         Self {
-            body: Arc::clone(&self.body),
+            body: self.body.clone(),
             names: Arc::clone(&self.names),
-            pieces: self.pieces.clone(),
-            contacts: Arc::clone(&self.contacts),
-            coincidences: Arc::clone(&self.coincidences),
-            cited_inputs: Arc::clone(&self.cited_inputs),
+            carry: self.carry.clone(),
             interference: Arc::clone(&self.interference),
             at_rest: Arc::clone(&self.at_rest),
             door_rows: Arc::clone(&self.door_rows),
-            parts: self.parts,
         }
     }
 }
@@ -183,13 +218,13 @@ pub enum PartFault {
         /// The resolver's diagnosis.
         message: String,
     },
-    /// The referenced document evaluated, but one of its PRODUCT ROOTS
+    /// The referenced document evaluated, but a node its PRODUCT reads
     /// failed — the ordinary "my part is broken, why?" path.
     ///
     /// The nested [`super::Evaluation`] dies with the resolution that
     /// produced it, so a caller can never be sent to look at it: the
-    /// root's own refusal travels here instead, typed and unaltered. A
-    /// root that is itself an instantiate node carries
+    /// node's own refusal travels here instead, typed and unaltered. A
+    /// node that is itself an instantiate node carries
     /// [`super::NodeErrorKind::Part`] in turn, so a part inside a part
     /// is a chain of these however many documents deep, and every
     /// level keeps the reference it crossed.
@@ -198,26 +233,26 @@ pub enum PartFault {
     /// that is another node's refusal, in another document, with its
     /// own recourse, and it is drawn as its own line (the exception
     /// written over [`super::NodeErrorKind`]'s `Display`).
-    PartRootFailed {
-        /// The failing root, in the REFERENCED document's id space.
+    PartProductFailed {
+        /// The failing node, in the REFERENCED document's id space.
         node: RecipeNodeId,
-        /// That root's own refusal.
+        /// That node's own refusal.
         refusal: super::NodeRefusal,
         /// The part's nodes this fault names, as the pinned part holds
         /// them ([`PartFault::held`]).
         held: Arc<HeldNodes>,
     },
-    /// The referenced document evaluated, but one of its PRODUCT ROOTS
+    /// The referenced document evaluated, but a node its PRODUCT reads
     /// never ran: a node upstream of it inside the part failed. The
     /// part's typical broken shape — a transform or a boolean over the
     /// node that failed.
     ///
     /// `through` is the node the author repairs, so its refusal is the
-    /// one carried, as [`Self::PartRootFailed`] carries a failed
-    /// root's; `root` says which of the part's roots it cost.
-    PartRootPoisoned {
-        /// The poisoned root, in the REFERENCED document's id space.
-        root: RecipeNodeId,
+    /// one carried, as [`Self::PartProductFailed`] carries a failed
+    /// node's; `node` says which node the part's product reads it cost.
+    PartProductPoisoned {
+        /// The poisoned node, in the REFERENCED document's id space.
+        node: RecipeNodeId,
         /// Its nearest failed ancestor, in the same id space.
         through: RecipeNodeId,
         /// That ancestor's own refusal.
@@ -226,12 +261,12 @@ pub enum PartFault {
         /// them ([`PartFault::held`]).
         held: Arc<HeldNodes>,
     },
-    /// The product door named a node as failed — a failed root, or a
-    /// poisoned root's failed ancestor — and the evaluation it read
+    /// The product door named a node as failed — a failed node, or a
+    /// poisoned node's failed ancestor — and the evaluation it read
     /// holds no failure there. The two disagree about one node, so this
     /// is a kernel bug, reported typed rather than as a failure with no
     /// cause.
-    RootFailureUnrecorded {
+    PartProductFailureUnrecorded {
         /// The node the product door named as failed, in the
         /// REFERENCED document's id space.
         node: RecipeNodeId,
@@ -240,7 +275,7 @@ pub enum PartFault {
         held: Arc<HeldNodes>,
     },
     /// The referenced document has no product for a reason that is not
-    /// a failed or poisoned root (no body-denoting root, an invalid
+    /// a failed or poisoned node (a product with no body, an invalid
     /// gather, a name collision).
     ///
     /// The gather's refusal crosses whole, its ids the part's: its
@@ -281,7 +316,7 @@ pub enum PartFault {
 
 impl PartFault {
     /// **The refusal this fault carries, when it carries one**: a
-    /// failed root, or a poisoned root's failed ancestor, and that
+    /// failed node, or a poisoned node's failed ancestor, and that
     /// node's own refusal, in the referenced document's id space ([`super::NodeErrorKind::carried`]). Exhaustive, for the
     /// reason [`crate::MateFault::carried`] states.
     #[must_use]
@@ -293,12 +328,12 @@ impl PartFault {
     /// [`PartFault::carried`], with the part's nodes the fault holds.
     pub(crate) fn carried_held(&self) -> Option<(RecipeNodeId, &super::NodeRefusal, &HeldNodes)> {
         match self {
-            Self::PartRootFailed {
+            Self::PartProductFailed {
                 node,
                 refusal,
                 held,
             } => Some((*node, refusal, &**held)),
-            Self::PartRootPoisoned {
+            Self::PartProductPoisoned {
                 through,
                 refusal,
                 held,
@@ -306,7 +341,7 @@ impl PartFault {
             } => Some((*through, refusal, &**held)),
             Self::NoResolver
             | Self::Unresolved { .. }
-            | Self::RootFailureUnrecorded { .. }
+            | Self::PartProductFailureUnrecorded { .. }
             | Self::PartProduct { .. }
             | Self::ReferenceCycle { .. }
             | Self::DepthExceeded
@@ -323,9 +358,9 @@ impl PartFault {
     #[must_use]
     pub fn held(&self) -> Option<&HeldNodes> {
         match self {
-            Self::PartRootFailed { held, .. }
-            | Self::PartRootPoisoned { held, .. }
-            | Self::RootFailureUnrecorded { held, .. }
+            Self::PartProductFailed { held, .. }
+            | Self::PartProductPoisoned { held, .. }
+            | Self::PartProductFailureUnrecorded { held, .. }
             | Self::PartProduct { held, .. } => Some(&**held),
             Self::NoResolver
             | Self::Unresolved { .. }
@@ -369,7 +404,7 @@ impl PartFault {
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
-            Self::PartRootFailed { node, .. } => {
+            Self::PartProductFailed { node, .. } => {
                 let node = by.node(*node);
                 write!(
                     f,
@@ -377,17 +412,17 @@ impl PartFault {
                     InThePart(format_args!("repair {node}")),
                 )
             }
-            Self::PartRootPoisoned { root, through, .. } => {
+            Self::PartProductPoisoned { node, through, .. } => {
                 let through = by.node(*through);
                 write!(
                     f,
-                    "the part's {through} failed and poisoned its root, {}, so the part has \
-                     no body. {}",
-                    by.node(*root),
+                    "the part's {through} failed and poisoned {}, which its product reads, so \
+                     the part has no body. {}",
+                    by.node(*node),
                     InThePart(format_args!("repair {through}")),
                 )
             }
-            Self::RootFailureUnrecorded { node, .. } => {
+            Self::PartProductFailureUnrecorded { node, .. } => {
                 let node = by.node(*node);
                 write!(
                     f,
@@ -494,7 +529,7 @@ enum ProductRecourse {
 }
 
 /// [`ProductRecourse`] by the gather's class. A nested evaluation runs
-/// its own document to completion, and the failed and poisoned roots
+/// its own document to completion, and the failed and poisoned nodes
 /// cross as their own arms, so the classes it cannot reach end in the
 /// kernel-defect recourse.
 fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
@@ -504,13 +539,14 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
         | K::StrandedProduct
         | K::ProductOutsideWorld
         | K::Graft
-        | K::RootInvalid
+        | K::PieceInvalid
         | K::ProductInvalid => ProductRecourse::Carried,
         K::ContactLineage
+        | K::Frame
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
-        | K::RootFailed
-        | K::RootPoisoned => ProductRecourse::KernelDefect,
+        | K::ReadFailed
+        | K::ReadPoisoned => ProductRecourse::KernelDefect,
     }
 }
 
@@ -535,6 +571,10 @@ pub(crate) struct PartStore<'a, T: Decide> {
     /// Whether the run binds every variable a symbol
     /// ([`super::EvalOptions::symbols`]), inherited for the same reason.
     symbols: bool,
+    /// The second computing frame ([`super::EvalOptions::computing_twist`]),
+    /// inherited so a part's constructions turn too (each by its own
+    /// node's [`super::ComputingTwist::for_node`]).
+    twist: Option<super::ComputingTwist>,
     rows: Rows<T>,
     /// How many referenced documents this store's descents evaluated,
     /// at every depth — the D-3 sharing evidence. A counter, not a
@@ -555,6 +595,7 @@ impl<'a, T: Decide> PartStore<'a, T> {
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
             symbols: false,
+            twist: None,
             rows: BTreeMap::new(),
             evaluations: 0,
         }
@@ -564,6 +605,12 @@ impl<'a, T: Decide> PartStore<'a, T> {
     /// `symbols`.
     pub(crate) fn with_symbols(self, symbols: bool) -> Self {
         Self { symbols, ..self }
+    }
+
+    /// The store, its parts evaluated in the run's second computing
+    /// frame ([`super::EvalOptions::computing_twist`]).
+    pub(crate) fn with_twist(self, twist: Option<super::ComputingTwist>) -> Self {
+        Self { twist, ..self }
     }
 }
 
@@ -748,6 +795,11 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             symbols: self.symbols,
             // The reference's own pin already says which version this is.
             pin: false,
+            // Inherited: a part's constructions compute in frames of
+            // their own too, each its node's variation of the twist
+            // (`ComputingTwist::for_node`), so its product is gathered
+            // over operands turned apart.
+            computing_twist: self.twist,
         };
         let evaluation =
             super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);
@@ -810,10 +862,15 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     }),
             )
             .collect();
-        // The part's own verdict on what its census found, read as its
-        // own at-rest check reads it, so the document instantiating it
-        // reports each finding once, as the part's.
-        let seam = crate::checks::at_rest::reading(&product, tol);
+        // The part's own verdict on what its censuses found, the
+        // product's and each door's, read as its own at-rest check reads
+        // them, so the document instantiating it reports each finding
+        // once, as the part's.
+        let crate::checks::at_rest::WholeReading {
+            reading: seam,
+            carried_interference,
+            carried_at_rest,
+        } = crate::checks::at_rest::whole_reading(&product, tol);
         Ok(PartValue {
             interference: Arc::new(
                 seam.interference
@@ -827,7 +884,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                             },
                         )
                     })
-                    .chain(product.carried_interference.into_iter().map(|row| {
+                    .chain(carried_interference.into_iter().map(|row| {
                         PartRow::below(
                             doc,
                             row.route,
@@ -853,7 +910,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                             },
                         )
                     })
-                    .chain(product.carried_at_rest.into_iter().map(|row| {
+                    .chain(carried_at_rest.into_iter().map(|row| {
                         PartRow::below(
                             doc,
                             row.route,
@@ -867,13 +924,15 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     .collect(),
             ),
             door_rows: Arc::new(door_rows),
-            parts,
-            pieces,
-            body: Arc::new(product.body.into_body()),
+            body: super::Framed::in_frame(Arc::new(product.body.into_body()), product.frame),
             names: Arc::new(product.names),
-            contacts: Arc::new(product.contacts),
-            coincidences: Arc::new(product.coincidences),
-            cited_inputs: Arc::new(product.cited_inputs),
+            carry: super::Carry {
+                contacts: Arc::new(product.contacts),
+                parts,
+                pieces,
+                censused: true,
+                ..super::Carry::default()
+            },
         })
     }
 }
@@ -1004,7 +1063,7 @@ impl<T: Decide> Entered<T> {
 /// Turns the referenced document's product refusal into a fault that
 /// still NAMES its cause.
 ///
-/// A failed root, and a poisoned root's failed ancestor, hold their
+/// A failed node, and a poisoned node's failed ancestor, hold their
 /// refusal in the nested evaluation, which is local to the resolution
 /// and cannot be reached from the caller. So the evaluation is taken
 /// here by value and the failure is moved out of it: the fault carries
@@ -1026,16 +1085,16 @@ fn product_fault<T: Decide>(
     // over `part`, recording what it names, and once holding them.
     type Arm = Box<dyn Fn(Arc<HeldNodes>) -> PartFault>;
     let unrecorded = |node: RecipeNodeId| -> Arm {
-        Box::new(move |held| PartFault::RootFailureUnrecorded { node, held })
+        Box::new(move |held| PartFault::PartProductFailureUnrecorded { node, held })
     };
     let mut refusal_at = |failed: RecipeNodeId| match evaluation.nodes.remove(&failed) {
         Some(super::NodeResult::Failed(failure)) => Ok(super::NodeRefusal::from(failure.kind)),
         _ => Err(failed),
     };
     let arm: Arm = match error {
-        crate::product::ProductError::Root(NodeStanding::Failed { node }) => {
+        crate::product::ProductError::Read(NodeStanding::Failed { node }) => {
             match refusal_at(node) {
-                Ok(refusal) => Box::new(move |held| PartFault::PartRootFailed {
+                Ok(refusal) => Box::new(move |held| PartFault::PartProductFailed {
                     node,
                     refusal: refusal.clone(),
                     held,
@@ -1043,10 +1102,10 @@ fn product_fault<T: Decide>(
                 Err(failed) => unrecorded(failed),
             }
         }
-        crate::product::ProductError::Root(NodeStanding::Poisoned { node, through }) => {
+        crate::product::ProductError::Read(NodeStanding::Poisoned { node, through }) => {
             match refusal_at(through) {
-                Ok(refusal) => Box::new(move |held| PartFault::PartRootPoisoned {
-                    root: node,
+                Ok(refusal) => Box::new(move |held| PartFault::PartProductPoisoned {
+                    node,
                     through,
                     refusal: refusal.clone(),
                     held,

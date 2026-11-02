@@ -4,7 +4,7 @@ kind: program
 title: ISOTAIL — the trimmed and rational lane: loft rims and drives that refuse, the plane × NURBS refusals' wording, at-rest certificates and untested mints
 status: ready
 opened: 2026-10-23
-area: kernel
+group: kernel/geom/curves
 prefix: isotail/
 tag: (ISOTAIL orchestrator)
 paths: [crates/geom-brep/src/edge_nurbs.rs]

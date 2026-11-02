@@ -190,15 +190,89 @@ impl<T: Decide> SplitResult<T> {
         band: geom_core::Band,
         region: Option<crate::RegionLane<T>>,
     ) -> Result<SplitContacts, CarryRefusal> {
-        let sides: Vec<(PlaneSide, &Body<T>)> = [
+        self.carried(records, band, region, None)
+    }
+
+    /// **[`Self::carry_contacts`], a record the cut parts across the cut
+    /// retired**: a record whose two cells the cut puts on different
+    /// sides, each cell with an image on the cut, is a touch between the
+    /// two sides, as their meeting across the cut is, and no one side's
+    /// records state it. An image is on the cut where it is a face its
+    /// side holds of the plane ([`SplitNaming::plane_pieces`]) or a cell
+    /// bounding one. The records retired, by index in `records`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::carry_contacts`], whose [`CarryRefusal::Parted`] stands
+    /// for a parted record a cell of which has no image on the cut.
+    pub fn carry_contacts_across(
+        &self,
+        records: &crate::boolean::ContactRecords,
+        band: geom_core::Band,
+        region: Option<crate::RegionLane<T>>,
+    ) -> Result<(SplitContacts, Vec<u32>), CarryRefusal> {
+        let mut parted = Vec::new();
+        let carried = self.carried(records, band, region, Some(&mut parted))?;
+        let sides = self.sides();
+        let pieces: Vec<Vec<FaceKey>> = sides
+            .iter()
+            .map(|&(side, body)| self.naming.plane_pieces(side, body).faces)
+            .collect();
+        let on_cut = |s: usize, cell: Cell| {
+            let body = sides[s].1;
+            let piece = |f: FaceKey| pieces[s].contains(&f);
+            match cell {
+                Cell::Face(f) => piece(f),
+                Cell::Edge(e) => body.get_edge(e).is_some_and(|edge| {
+                    [edge.he_plus, edge.he_minus]
+                        .into_iter()
+                        .filter_map(|he| body.face_of_half_edge(he))
+                        .any(piece)
+                }),
+                Cell::Vertex(v) => body
+                    .faces_of_vertex(v)
+                    .is_some_and(|faces| faces.into_iter().any(piece)),
+            }
+        };
+        let mut retired = Vec::with_capacity(parted.len());
+        for parting in parted {
+            if !parting
+                .held
+                .iter()
+                .all(|held| held.iter().any(|&(s, c)| on_cut(s, c)))
+            {
+                return Err(CarryRefusal::Parted {
+                    record: parting.record,
+                });
+            }
+            retired.push(parting.record);
+        }
+        Ok((carried, retired))
+    }
+
+    /// The sides that hold material, each with its body.
+    fn sides(&self) -> Vec<(PlaneSide, &Body<T>)> {
+        [
             (PlaneSide::Above, self.above.body()),
             (PlaneSide::Below, self.below.body()),
         ]
         .into_iter()
         .filter_map(|(side, body)| body.map(|b| (side, &**b)))
-        .collect();
+        .collect()
+    }
+
+    /// `records` carried onto the sides, each record the cut parts
+    /// listed in `parted` where it is given.
+    fn carried(
+        &self,
+        records: &crate::boolean::ContactRecords,
+        band: geom_core::Band,
+        region: Option<crate::RegionLane<T>>,
+        parted: Option<&mut Vec<crate::boolean::Parting>>,
+    ) -> Result<SplitContacts, CarryRefusal> {
+        let sides = self.sides();
         let bodies: Vec<&Body<T>> = sides.iter().map(|&(_, b)| b).collect();
-        let carried = records.carried_onto(0, &self.lineage(), &bodies, band, region)?;
+        let carried = records.carried_onto(0, &self.lineage(), &bodies, band, region, parted)?;
         let mut out = SplitContacts::default();
         for ((side, _), list) in sides.iter().zip(carried) {
             match side {
@@ -245,6 +319,7 @@ impl<T: Real> SplitResult<T> {
             .iter()
             .flat_map(|(_, g)| g.substitutions());
         let mut lineage = crate::Lineage::new()
+            .through_fusions(&self.naming.vertex_fusions)
             .through_merges(merged)
             .through_joins(&joins)
             .one_cut();
@@ -399,6 +474,12 @@ pub struct SplitNaming {
     /// another, with the innermost such ring, read by the section nesting
     /// rule ([`section_loops::nest`]). A piece in no ring has no row.
     pub islands: Vec<(crate::entity::LoopKey, FaceKey)>,
+    /// The fusions of a pinch's cones each side made
+    /// ([`super::section_cones`]), `(dead, kept)` in the order their
+    /// `kev`s ran, before the side's merges and joins: a dead vertex is
+    /// held by the vertex that survives it, a copy as well as an
+    /// original ([`Self::vertex_pairs`]).
+    pub vertex_fusions: crate::lineage::Fusions,
 }
 
 /// A side's faces that hold part of the tool plane
@@ -420,6 +501,29 @@ pub struct PlanePieces {
 }
 
 impl SplitNaming {
+    /// **The operand vertex `v` stands for**: `v` itself, or the end of
+    /// its chain of null-pair rows ([`Self::vertex_pairs`]), a copy of a
+    /// copy chased to the original.
+    ///
+    /// # Panics
+    ///
+    /// Where the rows cycle: each row is a copy with the vertex the null
+    /// edge that minted it was minted at, so it names an earlier key.
+    #[must_use]
+    pub fn original_of(&self, v: crate::entity::VertexKey) -> crate::entity::VertexKey {
+        let mut at = v;
+        for _ in 0..=self.vertex_pairs.len() {
+            match self.vertex_pairs.iter().find(|&&(copy, _)| copy == at) {
+                Some(&(_, original)) => at = original,
+                None => return at,
+            }
+        }
+        unreachable!(
+            "the null-pair rows cycle from {v:?}: each copy names the vertex it was minted at, \
+             an earlier key"
+        )
+    }
+
     /// Records one side's joins, with the side's `SplitEdge` records as
     /// they stood before the kills (`split_from`).
     pub(super) fn record_joins(
@@ -627,6 +731,7 @@ impl Default for SplitNaming {
             merge_groups: Default::default(),
             merge_skipped: Default::default(),
             islands: Default::default(),
+            vertex_fusions: crate::lineage::Fusions::new(crate::lineage::LineageRows::Fusions),
         }
     }
 }
@@ -673,6 +778,36 @@ pub enum SplitFinishError {
         edge: EdgeKey,
         /// The deciding reading's diagnostic.
         diag: geom_core::Indeterminate,
+    },
+    /// Whether a section corner at a pinch holds another side of its
+    /// loop, read to fuse the pinch's cones on a side
+    /// ([`super::section_cones`]), escalated. No input is known to reach
+    /// it: two sides of different cones within the band of one line at
+    /// the pinch refuse earlier, in the boolean that made the pinch
+    /// (`bool_vertex_face_side`, `enters_material`) or in the reduction
+    /// ([`super::SplitReduceError::SectionGermsEscalated`]), or read
+    /// decided. Guarded by
+    /// `split_through_a_union_pinch::no_tilt_in_the_band_reaches_the_cone_corner_escalation`,
+    /// which goes red at a witness.
+    ConeCornerEscalated {
+        /// The corner's vertex.
+        vertex: VertexKey,
+        /// The deciding reading's diagnostic.
+        source: geom_core::Indeterminate,
+    },
+    /// A corner of the cut where pieces of the solid touch could not be
+    /// read to fuse the pinch's cones ([`super::section_cones`]): a side
+    /// of it has no departure read (a NURBS edge), or its face no normal
+    /// there.
+    ConeCornerUnread {
+        /// The corner's vertex.
+        vertex: VertexKey,
+    },
+    /// The zero-length joint that fuses a pinch's cones on a side
+    /// ([`crate::fuse::fuse`]) lost a half-edge it made (a kernel bug).
+    ConeFusionDesync {
+        /// What no longer resolved.
+        what: &'static str,
     },
     /// A curved wall smooth against the section at an edge refused its
     /// material pairing ([`geom_brep::MATERIAL_PAIRING`]): in band, or
@@ -935,6 +1070,26 @@ impl core::fmt::Display for SplitFinishError {
                     diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
+            Self::ConeCornerEscalated { source, .. } => source
+                .undecided(
+                    "whether a corner of the cut, where pieces of the solid touch, overlaps \
+                     another",
+                    source.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
+            Self::ConeCornerUnread { .. } => write!(
+                f,
+                "a corner of the cut, where pieces of the solid touch, has a side whose \
+                 direction cannot be read (a NURBS edge), so whether it overlaps another \
+                 cannot be decided. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::ConeFusionDesync { what } => write!(
+                f,
+                "the joint between two pieces of the solid at a corner of the cut lost its \
+                 half-edge ({what}). {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
             Self::DescribeSideEscalated { diag, .. } => diag
                 .undecided(
                     geom_brep::MATERIAL_PAIRING_CLAUSE,
@@ -1124,6 +1279,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         merge_groups: Vec::new(),
         merge_skipped: Vec::new(),
         islands: Vec::new(),
+        vertex_fusions: crate::lineage::Fusions::new(crate::lineage::LineageRows::Fusions),
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
@@ -1678,10 +1834,16 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             match geom_brep::classify_dihedral(surf_self, surf_other, witness, reach, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {
                     let carrier = draft.span().0.kind();
+                    let drafted = crate::pcurves::seam_intersection(
+                        body,
+                        draft,
+                        [(he, s_self, surf_self), (mate, s_other, surf_other)],
+                        band,
+                    );
                     body.describe_intersection(
                         crate::policy_lane::KernelSite::SectionIntersection,
                         edge,
-                        draft.into_intersection(geom_brep::SurfacePair::new(s_self, s_other)),
+                        drafted,
                         tol,
                     )
                     .map_err(|e| of_attachment(edge, carrier, e))?;

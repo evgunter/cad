@@ -104,8 +104,9 @@
 //! **Smooth edges and duplicates: the wall decides.** Neither carries
 //! a corner to read. A smooth edge (a curved face's seam along the
 //! plane) is unsigned: the seam, the cusp and the slit all classify
-//! smooth. A duplicate stands inside a sector of one face of 180° or
-//! more, which includes the straight sector a root inserted on a cap's
+//! smooth. A duplicate stands inside a sector of one face (of 180° or
+//! more, or at a cone's apex any sector its plane turns in), which
+//! includes the straight sector a root inserted on a cap's
 //! rim leaves where the plane grazes a cylinder's wall. Where the face
 //! (both faces, at a smooth edge) is a curved wall tangent to the plane,
 //! the plane grazes it, and the entry goes by the wall's material
@@ -116,7 +117,11 @@
 //!   ([`geom_brep::bends_into_material`], a second-order read): a
 //!   cylinder or a cone touched from outside. Every bit of material at
 //!   the vertex is on `S`, so the entry goes to `S` and the body lands
-//!   whole on its material's side, as a planar edge contact does.
+//!   whole on its material's side, as a planar edge contact does. At a
+//!   cone's apex there is no tangent plane and no bend to read: the
+//!   plane grazes the face along a ruling it holds, and the cone bends
+//!   into its material wherever its sense keeps the material inside it
+//!   (`apex_reading`).
 //! - **Concave graze** — the wall bends away from its material: a
 //!   round hole or a conical socket touched from inside. Material lies
 //!   on both sides of the plane, and the piece on the wall's side meets
@@ -157,7 +162,7 @@
 
 use geom_brep::{EntersMaterial, NormalAlignment, ParallelSense, WallBend, enters_material};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
-use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use super::neighborhood::{chord, sector_face};
 use super::{
@@ -167,6 +172,7 @@ use super::{
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{BoundaryMember, Proven, proven};
+use crate::sector_face::{ConeApex, VertexFace};
 use crate::validate::decide;
 
 /// Rule (a): reclassify both bounding entries of every
@@ -192,6 +198,7 @@ pub(super) fn apply_rule_a<T: Decide>(
     plane: &SplitPlane<T>,
     vertex: VertexKey,
     entries: &mut [SectorEntry],
+    rays: &[Vec3<T>],
     band: Band,
 ) -> Result<Vec<WallReading<T>>, SplitReduceError> {
     let n = entries.len();
@@ -203,7 +210,7 @@ pub(super) fn apply_rule_a<T: Decide>(
         .map(|e| e.class == PlaneSide::On && e.kind == SectorEntryKind::Edge)
         .collect();
     for k in 0..n {
-        let (face, n_face, is_plane) = sector_face(body, vertex, entries[k].he, band)?;
+        let (face, at_vertex, is_plane) = sector_face(body, vertex, entries[k].he, band)?;
         let refuse = |reading| SplitReduceError::SliverSector {
             vertex,
             face,
@@ -229,6 +236,33 @@ pub(super) fn apply_rule_a<T: Decide>(
             ),
             Err(diag) => return Err(sliver(diag)),
         }
+        // Where a knife edge at this sector touches: an in-plane straight
+        // edge bounding it, else the vertex.
+        let knife_at = || {
+            [k, (k + 1) % n]
+                .into_iter()
+                .filter(|&j| in_plane[j])
+                .map(|j| proven(&body.half_edges, entries[j].he, EntityId::HalfEdge).edge)
+                .find(|&e| straight(body, e))
+                .map_or(KnifeEdgeSite::Vertex(vertex), KnifeEdgeSite::Edge)
+        };
+        let n_face = match at_vertex {
+            VertexFace::Tangent(n_face) | VertexFace::NearAxis(n_face) => n_face,
+            VertexFace::Apex(apex) => {
+                let reading = apex_reading(plane, &apex, [rays[k], rays[(k + 1) % n]], band)
+                    .map_err(sliver)?;
+                if let WallReading::Grazed(_) = reading
+                    && !apex.material_inside()
+                {
+                    return Err(SplitReduceError::KnifeEdge(KnifeEdge {
+                        wall: face,
+                        at: knife_at(),
+                    }));
+                }
+                readings.push(reading);
+                continue;
+            }
+        };
         // Oriented parallelism, part 1: are the normals parallel at
         // all? Margin ‖n_face × n_SP‖·extent (≥ 0; sin θ metered at
         // the face extent). For curved faces `n_face` is the LOCAL
@@ -289,22 +323,9 @@ pub(super) fn apply_rule_a<T: Decide>(
                                     continue;
                                 }
                                 WallBend::OutOfMaterial => {
-                                    let at = [k, (k + 1) % n]
-                                        .into_iter()
-                                        .filter(|&j| in_plane[j])
-                                        .map(|j| {
-                                            proven(
-                                                &body.half_edges,
-                                                entries[j].he,
-                                                EntityId::HalfEdge,
-                                            )
-                                            .edge
-                                        })
-                                        .find(|&e| straight(body, e))
-                                        .map_or(KnifeEdgeSite::Vertex(vertex), KnifeEdgeSite::Edge);
                                     return Err(SplitReduceError::KnifeEdge(KnifeEdge {
                                         wall: face,
-                                        at,
+                                        at: knife_at(),
                                     }));
                                 }
                                 // A cylinder or cone has one zero principal
@@ -342,6 +363,49 @@ pub(super) fn apply_rule_a<T: Decide>(
         entries[(k + 1) % n].class = class;
     }
     Ok(readings)
+}
+
+/// Rule (a) at a cone's apex, for the sub-sector between the entry rays
+/// `bounds`: an edge's chord, or an extremal ruling the walk subdivided
+/// at (`neighborhood::wide_entries`, the apex lane's own). A cone is
+/// never coplanar with the plane, and the apex has no tangent plane: the
+/// plane grazes the face along a ruling where the face's side is
+/// extremal, and every such ruling is an entry's ray. At an extremal
+/// ruling `g` the plane's normal has no component round the axis, so the
+/// sine between it and the outward normal along `g` is `|n·ĝ|`, the
+/// quantity the walk read the entry's side by, levered at the same reach
+/// (the ray's length). So the sub-sector is grazed where the outward
+/// normal along either bounding ray is parallel to the plane's at that
+/// ray's reach (`split_sector_coplanar`) — where the walk read that
+/// entry On — and otherwise clear. The two are not one predicate: the
+/// walk decides a signed side, and this decides a magnitude whose
+/// parallel verdict carries the sense rule (b) reads the material side
+/// by ([`geom_brep::ParallelNormal`]); they share the band, the lever
+/// and, at an extremal ruling, the quantity. The cone is straight along a
+/// ruling, so there is no bend to read: a graze's material side is the
+/// parallel normal's sense, and whether the cone bends into its material
+/// is its sense alone ([`ConeApex::material_inside`], the caller's).
+fn apex_reading<T: Decide>(
+    plane: &SplitPlane<T>,
+    apex: &ConeApex<T>,
+    bounds: [Vec3<T>; 2],
+    band: Band,
+) -> Result<WallReading<T>, Indeterminate> {
+    let [first, second] = bounds.map(|ray| {
+        geom_brep::normal_alignment(
+            "split_sector_coplanar",
+            plane.normal.get(),
+            apex.normal_along(ray),
+            ray.norm(),
+            band,
+        )
+    });
+    Ok(match (first?, second?) {
+        (NormalAlignment::Parallel(parallel), _) | (_, NormalAlignment::Parallel(parallel)) => {
+            WallReading::Grazed(ParallelFace(parallel))
+        }
+        (NormalAlignment::Oblique(sine), NormalAlignment::Oblique(_)) => WallReading::Clear(sine),
+    })
 }
 
 /// What rule (a) read of an entry's face against the split plane, for
@@ -425,9 +489,9 @@ pub(super) fn apply_rule_b<T: Decide>(
         let next = entries[(k + 1) % n].class;
         entries[k].class = match (prev.class, next) {
             (side @ (PlaneSide::Below | PlaneSide::Above), next) if next == side => {
-                // A duplicate stands inside one face's sector of 180° or
-                // more, so it has no edge to read: its face's wall
-                // decides, as both faces' walls do at a smooth edge.
+                // A duplicate stands inside one face's sector, with no
+                // edge to read: its own sub-sector's wall reading decides,
+                // as both faces' walls do at a smooth edge.
                 match entries[k].kind {
                     SectorEntryKind::WideBisector => {
                         wall_graze(body, vertex, &[(entries[k].he, readings[k])], side)?
@@ -465,6 +529,8 @@ pub(super) fn apply_rule_b<T: Decide>(
 /// is on is not its question: that sign is [`enters_material`] of the
 /// direction into the mate's face, across the edge, against the own
 /// face's outward normal, metered over the same folded lever arm.
+/// Where either face is a cone at its apex, both are read along the
+/// edge's ray ([`VertexFace::normal_along`]).
 fn edge_wedge<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -472,17 +538,29 @@ fn edge_wedge<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<Option<bool>, SplitReduceError> {
-    let (own_face, n_own, _) = sector_face(body, vertex, prev, band)?;
-    let (mate_face, n_mate, _) = sector_face(body, vertex, he, band)?;
+    let (own_face, own_at, _) = sector_face(body, vertex, prev, band)?;
+    let (mate_face, mate_at, _) = sector_face(body, vertex, he, band)?;
     let sliver = |diag| SplitReduceError::SliverSector {
         vertex,
         face: mate_face,
         reading: SectorReading::Escalated(diag),
     };
     let (s_own, s_mate) = (face_surface(body, own_face), face_surface(body, mate_face));
-    let p = body.resolve_vertex_point(vertex, Proven);
     let (_, along, _) = chord(body, vertex, he)?;
     let extent = along.norm();
+    // Both faces are read along the edge's ray: at the vertex where each
+    // has a tangent plane, and out along the ray where either is a cone at
+    // its apex, whose normal is constant along the ruling the ray lies on
+    // and undefined at the apex itself.
+    let p = body.resolve_vertex_point(vertex, Proven);
+    let p = match (own_at, mate_at) {
+        (
+            VertexFace::Tangent(_) | VertexFace::NearAxis(_),
+            VertexFace::Tangent(_) | VertexFace::NearAxis(_),
+        ) => p,
+        _ => p + along,
+    };
+    let (n_own, n_mate) = (own_at.normal_along(along), mate_at.normal_along(along));
     match geom_brep::classify_dihedral(s_own, s_mate, p, extent, band) {
         Ok(geom_brep::DihedralClass::Smooth) => return Ok(None),
         Ok(geom_brep::DihedralClass::Transverse) => {}
@@ -1004,7 +1082,7 @@ mod tests {
                 geom_brep::EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
                         pair: geom_brep::SurfacePair::new(wall, rim_plane),
-                        witness: carrier.mid_point(0.0, t1),
+                        selector: geom_brep::CurveSelector::Witness(carrier.mid_point(0.0, t1)),
                     },
                     carrier: carrier.clone(),
                     param_start: 0.0,
@@ -1322,6 +1400,9 @@ mod tests {
             .find_map(|&he| {
                 let (_, n_face, _) =
                     sector_face(body, vertex, he, Band::linear(Tol::witness()).unwrap()).unwrap();
+                let crate::sector_face::VertexFace::Tangent(n_face) = n_face else {
+                    panic!("a cube corner has a tangent plane on every face")
+                };
                 ((n_face.vec() - n).norm() == 0.0).then_some((he, n_face))
             })
             .expect("a face at the corner has that normal")
@@ -1374,6 +1455,7 @@ mod tests {
             &corner_plane((0.0, 0.0, 1.0)),
             vertex,
             &mut on_entries(&orbit),
+            &[],
             band,
         );
     }
@@ -1442,6 +1524,7 @@ mod tests {
                 &corner_plane(n),
                 vertex,
                 &mut on_entries(&orbit),
+                &[],
                 band,
             ) {
                 Err(e) => too_short_to_read(&label, &e),

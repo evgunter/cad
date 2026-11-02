@@ -4,7 +4,6 @@ kind: issue
 title: Boolean refuses when a cutter plane crosses an arc's CARRIER (not the arc); circle-derived cylinder unions refuse
 status: closed
 opened: 2026-08-10
-github: 347
 refs: [346, 1044, 1068]
 priority: P0
 cost: H

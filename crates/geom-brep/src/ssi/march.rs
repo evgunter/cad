@@ -124,10 +124,10 @@
 //! - **The ℝ³ lane ([`SlabExit`])** ends an open branch at the caller's
 //!   slab by its boundary search. **`ssi_branch_open_end`** — "the
 //!   branch ends on the slab": the margin is the signed distance to the
-//!   slab in meters. `Negative` ends the branch open; `Zero` also ends
-//!   it and labels the end in band ([`BranchEnd::SlabInBand`]). The
-//!   label is a report, not a mechanism: a region no tube covers is
-//!   refined by the accounting pass and refuses typed at the floor. The
+//!   slab in meters. `Negative` and `Zero` both end the branch open, a
+//!   cut end ([`BranchEnd::Cut`]): a region no tube covers past an end
+//!   in the band is refined by the accounting pass and refuses typed at
+//!   the floor. The
 //!   settled seed is decided the same way before it is marched: a seed
 //!   `Negative`, or `Zero` outside the box, is no branch
 //!   ([`super::SsiError::SeedOffDomain`]), and one in the escalation
@@ -551,23 +551,18 @@ impl StepBound {
 pub enum BranchEnd {
     /// The trace returned to its seed on a matching tangent — a loop.
     Closed,
-    /// The plane × NURBS lane: the branch runs between two crossings of
-    /// the locus with the wall's knot rectangle, both certified by the
+    /// Rim ends, on a chart lane: the branch runs between two crossings
+    /// of the locus with a knot rectangle's sides, both certified by the
     /// boundary pass before any march.
-    Crossings {
+    Rim {
         /// The crossing it starts at.
         from: BoundaryPoint,
         /// The crossing it ends at.
         to: BoundaryPoint,
     },
-    /// The ℝ³ lane: the trace left the caller's slab (definitely).
-    Slab,
-    /// The ℝ³ lane: the trace reached the slab **in band**: the end is
-    /// within ε of the slab and the honest report is that we do not
-    /// know which side it fell on. A label, not a mechanism: what
-    /// happens to the region past such an end is what happens to any
-    /// region no tube covers.
-    SlabInBand,
+    /// Cut ends, on the ℝ³ lane: the trace reached the caller's slab at
+    /// both ends, definitely or in the band.
+    Cut,
 }
 
 pub use super::boundary::BoundaryPoint;
@@ -768,10 +763,8 @@ pub(crate) struct SlabExit;
 pub(crate) enum SlabEnd {
     /// It returned to its seed.
     Closed,
-    /// It left the slab, definitely.
-    Slab,
-    /// It reached the slab in band.
-    SlabInBand,
+    /// It reached the slab, definitely or in the band.
+    Cut,
 }
 
 impl SlabEnd {
@@ -779,8 +772,7 @@ impl SlabEnd {
     pub(crate) fn branch_end(self) -> BranchEnd {
         match self {
             Self::Closed => BranchEnd::Closed,
-            Self::Slab => BranchEnd::Slab,
-            Self::SlabInBand => BranchEnd::SlabInBand,
+            Self::Cut => BranchEnd::Cut,
         }
     }
 }
@@ -825,13 +817,9 @@ impl<S: LocalSystem<2, 3>> Exit<2, 3, S> for SlabExit {
         let margin = domain_margin(&next, ctx, sys, &inside);
         match decide("ssi_branch_open_end", Margin::of(margin), band) {
             Ok(Sign::Positive) => Ok(None),
-            Ok(Sign::Zero) => {
+            Ok(Sign::Zero | Sign::Negative) => {
                 push_boundary(sys, states, inside, next, ctx);
-                Ok(Some(SlabEnd::SlabInBand))
-            }
-            Ok(Sign::Negative) => {
-                push_boundary(sys, states, inside, next, ctx);
-                Ok(Some(SlabEnd::Slab))
+                Ok(Some(SlabEnd::Cut))
             }
             Err(diag) => Err(TraceDecision::BranchOpenEnd.escalated(diag)),
         }
@@ -1592,13 +1580,7 @@ where
     }
     Ok(Trace {
         states,
-        // If either end is in band of the slab, the branch's end is in
-        // band: the honest verdict is the weaker of the two.
-        end: if fwd.end == SlabEnd::SlabInBand || bwd.end == SlabEnd::SlabInBand {
-            SlabEnd::SlabInBand
-        } else {
-            SlabEnd::Slab
-        },
+        end: SlabEnd::Cut,
         steps: fwd.steps + bwd.steps,
         longest_step,
         held: fwd.held.plus(bwd.held),
@@ -1924,7 +1906,7 @@ pub(crate) mod tests {
         };
         let first = super::Trace {
             states: Vec::new(),
-            end: super::SlabEnd::Slab,
+            end: super::SlabEnd::Cut,
             steps: 1000,
             longest_step: 0.0,
             held: super::Held {

@@ -687,12 +687,19 @@ pub enum ReplaceFaceError<T: Real> {
         /// Which shape it is.
         what: &'static str,
     },
-    /// **An edge the axial door would carry along an open conic.** A cone
-    /// wall's section with a plane parallel to the axis that stands off
-    /// the moved apex is a hyperbola, minted as a rational-quadratic
-    /// NURBS arc (`geom_brep`'s C1) whose uniqueness tube has no cone
-    /// enclosure yet, so no body carrying it certifies. Refused at the
-    /// door's gate, before any corner is solved.
+    /// **An edge the axial door carries along an open conic that does not
+    /// certify.** A cone wall's section with a plane parallel to the axis
+    /// that stands off the moved apex is a hyperbola, minted as a
+    /// rational-quadratic NURBS arc (`geom_brep`'s C1) between the moved
+    /// corners. Its uniqueness tube has no cone enclosure, so it rests
+    /// only where the plane×cone section states the bounds that retire
+    /// the tube (C2); an arc whose pose states none
+    /// (`geom_brep::intersect::Unstated`: its stretch at the apex's
+    /// height, the overlap not clear of its tube, no section point
+    /// certified beside it, or a box too wide for any of these) is
+    /// refused here, read off the re-chart's refusal of that edge
+    /// (`EulerOpError::RechartFalsifies` with the cone's
+    /// `NoTubeEnclosure`).
     TogetherConicArc {
         /// The edge.
         edge: EdgeKey,
@@ -947,8 +954,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             Self::TogetherConicArc { conic, .. } => write!(
                 f,
                 "an edge of the body would follow the offset along {}, where the moved flat \
-                 face cuts the cone off its axis, and that arc cannot yet be certified on a \
-                 cone. {NOT_YET_ENDING}",
+                 face cuts the cone off its axis, and the section states no bound that \
+                 certifies that arc there. {NOT_YET_ENDING}",
                 conic.named()
             ),
             Self::DegenerateTorus { refusal, .. } => refusal.fmt(f),
@@ -2750,12 +2757,16 @@ fn plan_edge<'s, T: Decide>(
                 // every other variant is answered inside it and
                 // never returned.
                 other @ (geom_brep::SectionError::WrongLane { .. }
-                | geom_brep::SectionError::UnequalRadii
+                | geom_brep::SectionError::NoRegion { .. }
                 | geom_brep::SectionError::DegenerateOperand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
                 | geom_brep::SectionError::Carrier(_)
+                | geom_brep::SectionError::Pinched { .. }
+                | geom_brep::SectionError::Unordered { .. }
+                | geom_brep::SectionError::NoMarch { .. }
+                | geom_brep::SectionError::Unaccounted { .. }
                 | geom_brep::SectionError::Spiric(_)) => unreachable!(
                     "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and \
                  returned {other:?}"
@@ -2859,7 +2870,7 @@ fn plan_edge<'s, T: Decide>(
             } else {
                 EdgeDescriptionSpec::Intersection {
                     pair,
-                    witness: new_mid,
+                    selector: geom_brep::CurveSelector::Witness(new_mid),
                 }
             }
         }
@@ -2940,8 +2951,8 @@ fn plan_edge<'s, T: Decide>(
                 band,
             )?
         }
-        EdgeDescription::Intersection { pair, witness } => {
-            EdgeDescriptionSpec::Intersection { pair, witness }
+        EdgeDescription::Intersection { pair, selector } => {
+            EdgeDescriptionSpec::Intersection { pair, selector }
         }
         EdgeDescription::TangentIntersection { pair, witness } => {
             EdgeDescriptionSpec::TangentIntersection { pair, witness }
@@ -3005,7 +3016,6 @@ fn plan_between_moved<'w, 's, T: Decide>(
     let description = curve.description().clone();
     untilted(edge, &description)?;
     if let Some((carrier, delta)) = carried_alike(edge, old, (t0, t1), (a, b), band, tol)? {
-        let mid = carrier.mid_point(t0, t1);
         // Both charts move, so an image in either has slid within it and
         // is derived afresh from the moved carrier; a declaration rides
         // the edge's own rigid shift.
@@ -3025,7 +3035,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
             curve.authority(),
             [(a.old_key, true), (b.old_key, true)],
             true,
-            mid,
+            (&carrier, t0, t1),
             carried,
             |declared| {
                 crate::offset_restate::re_ask_on_pair(
@@ -3202,13 +3212,17 @@ fn derive_edge<'w, 's, T: Decide>(
         // As at `neighbour_section`: every other variant is answered
         // inside `route_pose` and never returned.
         other @ (geom_brep::SectionError::WrongLane { .. }
-        | geom_brep::SectionError::UnequalRadii
+        | geom_brep::SectionError::NoRegion { .. }
         | geom_brep::SectionError::DegenerateOperand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces
         | geom_brep::SectionError::RoutesToGeneralRung { .. }
         | geom_brep::SectionError::Carrier(_)
-        | geom_brep::SectionError::Spiric(_)) => unreachable!(
+        | geom_brep::SectionError::Pinched { .. }
+                | geom_brep::SectionError::Unordered { .. }
+                | geom_brep::SectionError::NoMarch { .. }
+                | geom_brep::SectionError::Unaccounted { .. }
+                | geom_brep::SectionError::Spiric(_)) => unreachable!(
             "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and returned \
              {other:?}"
         ),
@@ -3330,7 +3344,7 @@ fn derive_edge<'w, 's, T: Decide>(
         )?,
         _ => EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(old_key, other_key),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         },
     };
     Ok(EdgePlan {
@@ -3576,10 +3590,12 @@ pub(crate) fn remap_description<T: Real>(
 ) -> EdgeDescriptionSpec<T> {
     let map = |k: SurfaceKey| if k == old { new } else { k };
     match description {
-        EdgeDescriptionSpec::Intersection { pair, witness } => EdgeDescriptionSpec::Intersection {
-            pair: pair.map(map),
-            witness,
-        },
+        EdgeDescriptionSpec::Intersection { pair, selector } => {
+            let Some((pair, selector)) = selector.remapped(pair, |k| Some(map(k))) else {
+                unreachable!("an infallible map answers every key")
+            };
+            EdgeDescriptionSpec::Intersection { pair, selector }
+        }
         EdgeDescriptionSpec::TangentIntersection { pair, witness } => {
             EdgeDescriptionSpec::TangentIntersection {
                 pair: pair.map(map),
@@ -3889,8 +3905,11 @@ fn plan_reanchors<T: Decide>(
         // read at the new midpoint.
         let mid = carrier.mid_point(t0, t1);
         description = match description {
-            EdgeDescriptionSpec::Intersection { pair, .. } => {
-                EdgeDescriptionSpec::Intersection { pair, witness: mid }
+            EdgeDescriptionSpec::Intersection { pair, selector } => {
+                EdgeDescriptionSpec::Intersection {
+                    pair,
+                    selector: selector.repinned(&carrier, t0, t1),
+                }
             }
             EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
                 EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
@@ -4601,8 +4620,8 @@ fn read_ends<T: Decide>(
     };
     let restated = |m| restate(restate(m, p_start, true)?, p_end, false);
     match &mut plan.spec.description {
-        EdgeDescriptionSpec::Intersection { witness, .. } => {
-            *witness = plan.spec.carrier.mid_point(t0, t1);
+        EdgeDescriptionSpec::Intersection { selector, .. } => {
+            *selector = selector.repinned(&plan.spec.carrier, t0, t1);
         }
         EdgeDescriptionSpec::Chart {
             declared: Some(mc), ..
@@ -4926,6 +4945,68 @@ mod pose_reach_rows {
     /// The refusal is the offset row's: the arm refuses the same way a
     /// cylinder EXACTLY parallel to the cone's axis and as far off the
     /// apex is refused, which only `coc_coaxial` can do.
+    /// **A cylinder × torus pose is served at the neighbour gate, general
+    /// or square**: the section value classifies both, the general one
+    /// as its march's, so `route_pose` answers the kind's arm
+    /// implemented. Past the gate the offset door derives the moved
+    /// edge's section in closed form only (`offset_derive::section_closed`),
+    /// which has no cylinder × torus arm: the general pose's edge is
+    /// refused there, by that door's own `Unsupported`, and no carrier is
+    /// minted for it.
+    #[test]
+    fn a_general_cylinder_torus_pose_is_served() {
+        let torus = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 1.0,
+            minor_radius: 0.25,
+            u_ref: Vec3::unit_x(),
+        };
+        let rod = |axis: Vec3<f64>| Surface::Cylinder {
+            origin: Point3::new(1.0, 0.05, 0.02),
+            axis,
+            radius: 0.1,
+            u_ref: axis.cross(Vec3::new(0.3, 0.5, 0.7)).normalize(),
+        };
+        let edge = Curve3::Line {
+            origin: Point3::new(1.0, 0.0, 0.2),
+            dir: Vec3::unit_z(),
+        };
+        let general = rod(Vec3::new(0.3, 0.4, 1.0).normalize());
+        for (label, a, b) in [
+            ("cyl, torus", &general, &torus),
+            ("torus, cyl", &torus, &general),
+        ] {
+            let got = pose_route(a, b, &edge, 0.0, 0.1, band());
+            assert!(
+                matches!(got, Ok(ref r) if r.implemented),
+                "({label}): the general pose is served, got {got:?}"
+            );
+        }
+        let square = rod(Vec3::unit_x());
+        let got = pose_route(&square, &torus, &edge, 0.0, 0.1, band());
+        assert!(
+            matches!(got, Ok(ref r) if r.implemented),
+            "the square pose is served, got {got:?}"
+        );
+        for (label, a, b) in [
+            ("cyl, torus", &general, &torus),
+            ("torus, cyl", &torus, &general),
+        ] {
+            let derived =
+                crate::offset_derive::section_closed(a, b, &edge, (0.0, 0.1), 0.1, band());
+            assert!(
+                matches!(
+                    derived,
+                    Ok(Err(
+                        crate::offset_derive::SectionVerdict::Unsupported { .. }
+                    ))
+                ),
+                "({label}): the offset door's derivation past the gate, got {derived:?}"
+            );
+        }
+    }
+
     #[test]
     fn a_cone_cylinder_pose_is_read_at_the_apex() {
         let theta: f64 = 0.5 * band().zero() / 1.5;
@@ -5283,7 +5364,7 @@ mod read_ends_rows {
             spec: EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
-                    witness: Point3::origin(),
+                    selector: geom_brep::CurveSelector::Witness(Point3::origin()),
                 },
                 carrier,
                 param_start: 0.0,
@@ -5404,7 +5485,7 @@ mod pair_over_its_span_rows {
                 spec: EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
-                        witness: Point3::origin(),
+                        selector: geom_brep::CurveSelector::Witness(Point3::origin()),
                     },
                     carrier: l1.clone(),
                     param_start: from,
@@ -5483,7 +5564,7 @@ mod pair_over_its_span_rows {
                 spec: EdgeCurveSpec {
                     description: EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(SurfaceKey::default(), SurfaceKey::default()),
-                        witness: Point3::origin(),
+                        selector: geom_brep::CurveSelector::Witness(Point3::origin()),
                     },
                     carrier: l1.clone(),
                     param_start: 0.0,

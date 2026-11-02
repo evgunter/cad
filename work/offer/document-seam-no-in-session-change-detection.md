@@ -4,7 +4,6 @@ kind: issue
 title: The document seam has no in-session change detection - a store edit is invisible until reopen (plus two adjacent edges)
 status: open
 opened: 2026-08-31
-github: 1387
 refs: [1376]
 priority: P1
 cost: D

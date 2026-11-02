@@ -114,6 +114,10 @@ test_utils::f6_variants! {
         MeridianFreeCurvedFace,
         SingleColumnCurvedFace,
         Band,
+        TrimLoopOrientation,
+        FoldedTriangle,
+        BoundaryEar,
+        SphereTrimShape,
     ];
 }
 
@@ -146,6 +150,7 @@ const TESSELLATE_ERROR_FIELDS: &[&str] = &[
     "source:",
     "surface:",
     "error:",
+    "cause:",
 ];
 
 /// The Display contract (#1111): a façade consumer renders a
@@ -287,6 +292,26 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                 },
             },
             vec!["band", "tolerance"],
+        ),
+        (
+            TessellateError::TrimLoopOrientation { face },
+            vec!["winds against", "complement", "kernel defect"],
+        ),
+        (
+            TessellateError::FoldedTriangle { face },
+            vec!["folds over", "wound against"],
+        ),
+        (
+            TessellateError::BoundaryEar { face },
+            vec!["consecutive boundary chord points", "four"],
+        ),
+        (
+            TessellateError::SphereTrimShape {
+                face,
+                edge,
+                cause: mesh::types::SphereTrimCause::PoleInside,
+            },
+            vec!["sphere arm", "pole inside"],
         ),
     ];
     assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);

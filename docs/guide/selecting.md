@@ -67,7 +67,7 @@ let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
 
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new(), on: None }),
 );
 doc = next;
 let (next, cube) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(1.0) });
@@ -166,7 +166,7 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new(), on: None }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -345,7 +345,7 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new(), on: None }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -423,6 +423,7 @@ let footprint = |x0: f64, y0: f64, x1: f64, y1: f64| ProfileProgram {
             .expect("finite corners"),
     ],
     ids: Vec::new(),
+    on: None,
 };
 
 // A unit box, and a smaller box RESTING on its top cap. Each is a
@@ -454,7 +455,7 @@ let value = ev.value(uni).expect("the union evaluates");
 let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
     panic!("expected a body");
 };
-let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
+let body = AtRestBody::validate(Body::clone(body.body()), tol).expect("a finished body");
 assert_eq!(mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6))).expect("mass").met().expect("mass").volume, 1.125);
 assert_eq!(
     value.coincidences.len(),

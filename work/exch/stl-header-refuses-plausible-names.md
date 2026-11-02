@@ -4,7 +4,6 @@ kind: issue
 title: A plausible part name is a hard panic in both demos — StlOptions::header refuses solid-block and anything over 80 bytes
 status: closed
 opened: 2026-08-20
-github: 743
 refs: [732]
 closed: 2026-09-17
 ---

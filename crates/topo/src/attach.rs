@@ -105,22 +105,35 @@ impl<T: Decide> Body<T> {
 
         // ---- Mutation (infallible from here on). ----
         let new = self.mint_face_surface(surface, old);
-        let Some(f) = self.get_face_mut(face) else {
-            unreachable!(
-                "set_face_surface: `face` resolved in the plan phase and minting a \
-                 surface kills no face"
-            )
-        };
-        f.sense = resolved.sense;
-        if new != old {
-            f.surface = new;
-            self.drop_rows(dropped);
-            self.remove_surface_if_orphaned(old);
-        }
+        self.drop_rows(dropped);
+        self.rechart_in_place(face, (new, resolved.sense));
 
         #[cfg(debug_assertions)]
         self.assert_tier1_postcondition("set_face_surface");
         Ok(new)
+    }
+
+    /// **The write of a re-chart in place**: `face` wears `new`, a key
+    /// the body holds, at `sense`, and the key it leaves goes where
+    /// nothing names it. Asks nothing: the caller has vouched for the
+    /// move ([`Body::set_face_surface`]) or describes the face's
+    /// boundary again after it (the merge's survivor,
+    /// `merge_faces::rechart_survivor`), and has dropped the rows the
+    /// chart change strands.
+    ///
+    /// # Panics
+    ///
+    /// Where `face` does not resolve: every caller resolved it.
+    pub(crate) fn rechart_in_place(&mut self, face: FaceKey, (new, sense): (SurfaceKey, bool)) {
+        let Some(f) = self.get_face_mut(face) else {
+            unreachable!("rechart_in_place: {face:?} was resolved by its caller")
+        };
+        let old = f.surface;
+        f.sense = sense;
+        if new != old {
+            f.surface = new;
+            self.remove_surface_if_orphaned(old);
+        }
     }
 
     /// The door [`Construct::set_face_surface_unvouched_for_tests`](crate::construction::Construct::set_face_surface_unvouched_for_tests) forwards to;
@@ -2985,7 +2998,7 @@ mod tests {
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(surf(body, plus), surf(body, minus)),
-            witness: p0.lerp(p1, 0.5),
+            selector: geom_brep::CurveSelector::Witness(p0.lerp(p1, 0.5)),
         };
         spec
     }
@@ -3450,7 +3463,7 @@ mod tests {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: Point3::new(-1.0, 0.0, 0.0),
+                selector: geom_brep::CurveSelector::Witness(Point3::new(-1.0, 0.0, 0.0)),
             },
             carrier: geom::Curve3::Circle {
                 center: Point3::origin(),

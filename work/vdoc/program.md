@@ -4,7 +4,7 @@ kind: program
 title: VDOC — the viewer's prose, citations and censuses
 status: ready
 opened: 2026-09-17
-area: gui
+group: gui/viewer
 prefix: vdoc/
 tag: (VDOC orchestrator)
 ab_band: 5500-5599

@@ -271,8 +271,8 @@ fn plane_section_across_a_revolve_seam_is_an_annulus() {
 /// maximal edges) and that half keeps a vertex on `P` only at the seam
 /// (azimuth 0), whose meridian still ends there. Where `−D/R` rounds off ±1 its `acos` lands √-scale (1e-8
 /// rad) away from `P`: `RESIDUE_OFF_P` are azimuths where a root read
-/// there escalates `split_conic_departure` (5.9e-9 at 0.3) at the
-/// default ε.
+/// there escalates the split's conic first order (`enters_material`,
+/// 5.9e-9 at 0.3) at the default ε.
 #[test]
 fn a_section_touching_a_rim_splits_at_the_closed_form() {
     const RESIDUE_OFF_P: [f64; 6] = [
@@ -325,5 +325,82 @@ fn a_section_touching_a_rim_splits_at_the_closed_form() {
                 near_vol(&label, below + above, whole, 1e-8);
             }
         }
+    }
+}
+
+/// **A plane touching the bore's rim splits alike under either normal.**
+/// The plane passes through the bore's top rim point
+/// `P = (0.5 cos a, 1, 0.5 sin a)` leaning `t = 0.2` off `ŷ` away from
+/// the axis, so its trace on the cap is tangent to the bore at `P` with
+/// material on both sides: the trace and the bore wall's section leave
+/// `P` along one tangent. Under both normals the cap side keeps
+/// `tan t ∫∫ (0.5 − d·x) dA` over the annulus where `d·x < 0.5` and the
+/// other side the rest, each at tiers 1, 3 and 3′; and so at the seam
+/// (`a = 0`, [`a_plane_touching_a_bore_rim_at_its_seam_splits_alike_under_either_normal`])
+/// at the shallowest and steepest tilts that keep the plane inside the
+/// tube's band.
+#[test]
+fn a_plane_touching_a_bore_rim_splits_alike_under_either_normal() {
+    let tube = revolved(SketchPlane::xy(), &TUBE);
+    for az in [
+        0.3,
+        PI * 6.0 / 32.0,
+        0.5 * PI,
+        PI * 29.0 / 32.0 + 0.01,
+        PI,
+        PI * 47.0 / 32.0 + 0.01,
+    ] {
+        touching_the_bore_rim(&tube, 0.2, az);
+    }
+    for t in [0.05, 0.5] {
+        touching_the_bore_rim(&tube, t, 0.0);
+    }
+}
+
+/// **A plane touching the bore's rim at its seam splits alike under
+/// either normal.** At `a = 0`, `P` is the bore rim's seam vertex, and
+/// the bore wall's whole section ellipse meets the face's boundary there
+/// alone: its chord runs from `P` back to `P` a whole turn on, from one
+/// vertex to itself under one normal and between two copies of it the
+/// null edges tie under the other.
+#[test]
+fn a_plane_touching_a_bore_rim_at_its_seam_splits_alike_under_either_normal() {
+    touching_the_bore_rim(&revolved(SketchPlane::xy(), &TUBE), 0.2, 0.0);
+}
+
+/// The tube split under both normals of the plane through the bore's
+/// top rim point at azimuth `az`, leaning `t` off `ŷ` away from the axis
+/// ([`a_plane_touching_a_bore_rim_splits_alike_under_either_normal`]),
+/// each half at tiers 1, 3 and 3′ and at its closed form.
+fn touching_the_bore_rim(tube: &Body<f64>, t: f64, az: f64) {
+    // ∫ (0.5 − u)·2√(1 − u²) du over the unit disc's segment u > 0.5.
+    let primitive =
+        |u: f64| 0.5 * (u * (1.0 - u * u).sqrt() + u.asin()) + (1.0 - u * u).powf(1.5) * 2.0 / 3.0;
+    let segment = primitive(1.0) - primitive(0.5);
+    let whole = 0.75 * PI;
+    let cap_side = t.tan() * (0.5 * whole - segment);
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let d = Vec3::new(az.cos(), 0.0, az.sin());
+    let n = y * t.cos() - d * t.sin();
+    let p = Point3::new(0.5 * d.x, 1.0, 0.5 * d.z);
+    for s in [1.0, -1.0] {
+        let label = format!("tilt {t}, azimuth {az}, s = {s}");
+        let plane = topo::test_support::split_plane(p, n * s, tol());
+        let halves = halves_at_rest(&label, tube, &plane);
+        for (h, side) in halves.iter().zip(["below", "above"]) {
+            assert_eq!(
+                topo::validate_pseudomanifold(h, &topo::ContactRecords::default(), tol()),
+                Ok(()),
+                "{label} {side}: tier 3′"
+            );
+        }
+        let [below, above] = halves.map(|h| volume(&h));
+        let (cap, rest) = if s > 0.0 {
+            (above, below)
+        } else {
+            (below, above)
+        };
+        near_vol(&format!("{label}: the cap side"), cap, cap_side, 1e-9);
+        near_vol(&format!("{label}: the rest"), rest, whole - cap_side, 1e-9);
     }
 }

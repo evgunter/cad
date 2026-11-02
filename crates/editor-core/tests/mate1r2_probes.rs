@@ -16,13 +16,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Dimension;
 
 use editor_core::{
-    CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
-    NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, TargetAxis, VarId,
+    CapEnd, Coord, DocumentId, EvalOptions, Formula, Frame, MateRef, MateSide, Node, NodeErrorKind,
+    ProfileDoc, RecipeNodeId, TargetAxis, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step};
+use fixture::{in_copy, insert, len, on_frame, run, solve};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -53,34 +54,6 @@ fn block_part(
 
 fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
-}
-
-/// **Each of `pattern`'s `copies` placed in the world**: a `Part` per
-/// copy, each placed at the identity — the world a pattern's copies are
-/// in the product by (A10). Copy 0 of a pattern over an instance is the
-/// instance itself, already in the product, so a caller places it only
-/// to have it twice. `o` reaches the parts the pins evaluate.
-fn place_copies(
-    doc: ProfileDoc,
-    pattern: RecipeNodeId,
-    copies: &[i64],
-    o: &EvalOptions,
-) -> ProfileDoc {
-    copies.iter().fold(doc, |doc, &i| {
-        let (doc, copy) = insert(
-            doc,
-            Node::Part {
-                of: pattern.into(),
-                select: editor_core::PartSelect::Instance(Formula::count(i)),
-            },
-        );
-        fixture::insert_pinned(
-            doc,
-            crate::fixture::stood(editor_core::BodyRead::plain(copy)),
-            o,
-        )
-        .0
-    })
 }
 
 /// **`placed`'s face seated on `target`'s**: a plane mate — the faces
@@ -115,7 +88,7 @@ fn seat(
         &[
             (Coord::Slide(TargetAxis::X), len(slide[0])),
             (Coord::Slide(TargetAxis::Y), len(slide[1])),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     (doc, mate)
@@ -173,16 +146,6 @@ struct Rigid {
 }
 
 impl Rigid {
-    const IDENTITY: Rigid = Rigid {
-        r: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        t: [0.0, 0.0, 0.0],
-    };
-    fn translation(t: [f64; 3]) -> Rigid {
-        Rigid {
-            r: Rigid::IDENTITY.r,
-            t,
-        }
-    }
     /// Rotation by `angle` about the axis through `origin` along the
     /// (unnormalized) direction `d` — Rodrigues, written here.
     fn rotation_about_axis(origin: [f64; 3], d: [f64; 3], angle: f64) -> Rigid {
@@ -244,22 +207,24 @@ fn leg_frame() -> Frame {
     .as_frame()
 }
 
-// ---- P1: hand-derived seat at F ≠ identity, oblique axis ----
+// ---- P1: a seat at F ≠ identity, an axis off the origin ----
 
-/// PROBE (claim 1): a CIRCULAR pattern about an OBLIQUE axis (direction
-/// (1,1,1), origin (1,0,0), step 2π/5), with the leg pinned to the
-/// world at a rotation+translation, and the top seated on copy 1. The
-/// plane the seat pins is composed by hand in this file: copy 1's end
-/// cap is the leg's `z = 1` plane under `O₁ ∘ F`, with `O₁` this file's
-/// own Rodrigues — the copy's offset acts in document coordinates,
-/// outside the leg's world frame. The axis is read off the placed leg,
-/// so it is authored in the leg's own coordinates (the document's line
-/// carried back through `F`), and the line it reads is the document's.
-/// The top's own `z` axis is that cap's normal and its start cap
-/// (through its own origin) lies in that plane. The solver's output is
-/// never read into the expectation.
+/// PROBE (claim 1): a CIRCULAR family about an axis that misses the
+/// origin (direction z, through (1,0,0), step 2π/5), with the leg pinned to the
+/// world at a rotation+translation, and one top seated on copy 1 and
+/// another on copy 0. The axis is read off the placed leg, so it is
+/// authored in the leg's own coordinates (the document's line carried
+/// back through `F`), and the line it reads is the document's. Copy 1
+/// is copy 0 turned by the step about that line in document
+/// coordinates, so the plane the top on copy 1 is seated in is the one
+/// the top on copy 0 is seated in under the turn, composed here by
+/// Rodrigues; where member 0 stands is the ring's chart
+/// (`mate/value.rs`) and not this probe's question.
+///
+/// *Breaks if* the member's turn is composed inside `F` rather than
+/// outside it, or about the wrong line.
 #[test]
-fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
+fn r2_off_origin_circular_seat_at_a_pinned_world_frame() {
     let mut store = PartStore::default();
     let (leg_ref, leg_body) = store.insert_part(leg_part("r2-obl-leg"), Tol::witness());
     let (top_ref, top_body) = store.insert_part(leg_part("r2-obl-top"), Tol::witness());
@@ -270,54 +235,58 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
     let unturn = |v: [f64; 3]| mv(transpose(f.r), v);
     let own_origin = unturn([1.0 - f.t[0], 0.0 - f.t[1], 0.0 - f.t[2]]);
     let axis =
-        crate::mate1_member_vocab::axis_with(&doc, leg, own_origin, unturn([1.0, 1.0, 1.0]), &o);
+        crate::mate1_member_vocab::axis_with(&doc, leg, own_origin, unturn([0.0, 0.0, 1.0]), &o);
     let theta = 2.0 * core::f64::consts::PI / 5.0;
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: leg.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Circular {
-                axis,
-                step: ang(theta),
-            },
-        },
-    );
-    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let (doc, mate) = seat(
-        doc,
-        in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
-        in_part(top, top_body, CapEnd::Start),
-        [0.0, 0.0],
-        true,
-        false,
-    );
-    assert_eq!(mate.placement, top, "the mate places the top");
+    let (doc, k, pattern) = crate::fixture::circular(doc, leg, (axis, TargetAxis::Z), theta, 3);
+    let mut doc = doc;
+    let mut tops = Vec::new();
+    for member in [0, 1] {
+        let (next, top) = insert(doc, fixture::mated_instance(top_ref));
+        let (next, mate) = seat(
+            next,
+            in_copy(pattern, k, member, in_part(leg, leg_body, CapEnd::End)),
+            in_part(top, top_body, CapEnd::Start),
+            [0.0, 0.0],
+            true,
+            false,
+        );
+        assert_eq!(mate.placement, top, "the mate places the top");
+        doc = next;
+        tops.push(top);
+    }
 
     let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(
-        poses.fault(top),
-        None,
-        "the mate solves: {:?}",
-        poses.fault(top)
-    );
-    assert_eq!(poses.space(top), Some(VarId::WORLD));
-
-    let o1 = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta);
-    let cap = o1.compose(f).compose(Rigid::translation([0.0, 0.0, 1.0]));
-    let normal = [cap.r[0][2], cap.r[1][2], cap.r[2][2]];
+    for &top in &tops {
+        assert_eq!(
+            poses.fault(top),
+            None,
+            "the mate solves: {:?}",
+            poses.fault(top)
+        );
+        assert_eq!(poses.space(top), Some(VarId::WORLD));
+    }
+    let placed = |top| Rigid::from_frame(poses.placement(&doc, top).expect("the top places"));
+    let (on0, on1) = (placed(tops[0]), placed(tops[1]));
+    // The seat's values are charted on the space's axes (D′2), so what
+    // the turn carries is the seated plane: its normal (each top's
+    // `z`) and its offset.
+    let want = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], theta).compose(on0);
+    let z = |r: Rigid| [r.r[0][2], r.r[1][2], r.r[2][2]];
     let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    let got = Rigid::from_frame(poses.placement(&doc, top).expect("the top places"));
-    let z = [got.r[0][2], got.r[1][2], got.r[2][2]];
     assert!(
-        z.iter().zip(normal).all(|(a, b)| (a - b).abs() <= 1e-12),
-        "the top's z is copy 1's cap normal, hand-derived:\n got      {z:?}\n expected {normal:?}"
+        z(on1)
+            .iter()
+            .zip(z(want))
+            .all(|(a, b)| (a - b).abs() <= 1e-12),
+        "the top on copy 1 faces as the top on copy 0 turned:\n got      {:?}\n expected {:?}",
+        z(on1),
+        z(want)
     );
     assert!(
-        (dot(normal, got.t) - dot(normal, cap.t)).abs() <= 1e-12,
-        "the top's start cap lies in copy 1's end cap plane: {:?} against {:?}",
-        got.t,
-        cap.t
+        (dot(z(want), on1.t) - dot(z(want), want.t)).abs() <= 1e-12,
+        "the top on copy 1 lies in copy 0's seat plane turned: {:?} against {:?}",
+        on1.t,
+        want.t
     );
 }
 
@@ -337,28 +306,18 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r2-loopf"), Tol::witness());
     let (doc, leg) = instance_at(doc, leg_ref, leg_frame(), &o);
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: leg.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                // Document ŷ: the pattern offset is a document-coordinate
-                // map, applied outside the leg's world pose.
-                direction: [scl(0.0), scl(1.0), scl(0.0)],
-                spacing: len(1.5),
-            },
-        },
-    );
+    // Document ŷ: the family's slide is on the world's axes, applied
+    // outside the leg's world pose. One member, one pitch on, so it
+    // stands clear of the leg in the product.
+    let (doc, k, pattern) = crate::fixture::linear_on(doc, leg, [0.0, 1.0, 0.0], 1.5, 1);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let doc = place_copies(doc, pattern, &[1], &o);
-    // A value on a pattern copy's target is charted on its space's
-    // frame — the world's here — so the top's slides are where copy 1's
-    // footprint lies in the world: the leg's unit square turned a
-    // quarter about z and moved by (1, 2), then 1.5 along ŷ.
+    // A value on a member's target is charted on its space's axes — the
+    // world's here — so the top's slides are where member 0's footprint
+    // lies in the world: the leg's unit square turned a quarter about z
+    // and moved by (1, 2), then 1.5 along ŷ.
     let (doc, m0) = seat(
         doc,
-        in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+        in_copy(pattern, k, 0, in_part(leg, leg_body, CapEnd::End)),
         in_part(top, top_body, CapEnd::Start),
         [0.0, 3.5],
         true,
@@ -395,22 +354,12 @@ fn r2_a_pattern_copy_of_the_placed_instance_is_not_its_copy() {
     let doc = ProfileDoc::empty(DocumentId::derive("r2-rev"), Tol::witness());
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, leg) = insert(doc, fixture::mated_instance(leg_ref));
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: leg.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
+    let (doc, k, pattern) = crate::fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
     let refused = fixture::at_the_door_of(
         &doc,
         leg,
         fixture::rest(
-            fixture::head(in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End))),
+            fixture::head(in_copy(pattern, k, 1, in_part(leg, leg_body, CapEnd::End))),
             fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
         ),
     );
@@ -445,22 +394,12 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r2-oor"), Tol::witness());
     let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(leg_ref), &o);
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: leg.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
+    let (doc, k, pattern) = crate::fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, top2) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, m0) = seat(
         doc,
-        in_copy(pattern, 0, in_part(leg, leg_body, CapEnd::End)),
+        in_copy(pattern, k, 0, in_part(leg, leg_body, CapEnd::End)),
         in_part(top, top_body, CapEnd::Start),
         [0.0, 0.0],
         true,
@@ -471,7 +410,7 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
     // stops resolving after insert (N5).
     let (doc, m1) = seat(
         doc,
-        in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End)),
+        in_copy(pattern, k, 1, in_part(leg, leg_body, CapEnd::End)),
         in_part(top2, top_body, CapEnd::Start),
         [0.0, 0.0],
         true,
@@ -479,15 +418,7 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
     );
     let (m0, m1): (MateRef, MateRef) = (m0, m1);
     assert_eq!((m0.placement, m1.placement), (top, top2));
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetStructuralParam {
-            node: pattern,
-            slot: editor_core::SlotId::Count,
-            expr: Formula::count(1),
-            fresh: Vec::new(),
-        },
-    );
+    let doc = crate::fixture::recount(doc, k, Formula::count(1));
 
     let poses = solve(&doc, &o, Tol::witness());
     let fault = poses

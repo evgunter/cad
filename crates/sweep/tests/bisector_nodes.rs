@@ -204,8 +204,9 @@ fn rod(z0: f64, z1: f64) -> Body<f64> {
 /// **A node on an operand's edge is not this lane's** (U2): where a cap
 /// stands at the axes' meeting point, its rim circle passes through
 /// both nodes, tangent there to the partner wall. With one operand
-/// capped there the crossing layer refuses that tangency at its own
-/// door; with both, the rims meet at the nodes, which lie on both
+/// capped there that touch reads in the band's gap and the circle ×
+/// wall roots escalate, at the rim and the wall; with both, the rims
+/// meet at the nodes, which lie on both
 /// walls' boundaries, and the node pass refuses them. Every operation,
 /// both poses.
 #[test]
@@ -241,8 +242,14 @@ fn a_rim_through_the_nodes_refuses_typed() {
                     );
                 } else {
                     assert!(
-                        matches!(r, Err(topo::BooleanError::CurvedPierceUnsupported { .. })),
-                        "{what}, {pose}, {op}: the crossing layer's tangency door, got {r:?}"
+                        matches!(
+                            r,
+                            Err(topo::BooleanError::CurvedPierceEscalated {
+                                decision: topo::BooleanDecision::ArcCylinderRoots,
+                                ..
+                            })
+                        ),
+                        "{what}, {pose}, {op}: the rim's touch of the wall escalates, got {r:?}"
                     );
                 }
             }
@@ -266,7 +273,9 @@ fn rod_at(z0: f64, z1: f64, phi: f64) -> Body<f64> {
 /// planes:
 ///
 /// - `δ` in the zero band: the two crossings are one, a node on the
-///   edge, which keeps the quadric's door;
+///   edge, which keeps the quadric's door where the roots decide it a
+///   tangency, and escalates on their decision, at the edge and the
+///   wall, where they read it in the band's gap;
 /// - `δ` a few bands: their distance in band escalates `VertexOnVertex`
 ///   (or, at a fragment's end, `VertexOnCurvedFace`);
 /// - `δ` beyond the band and short of `√band`: each pierce reads the
@@ -341,9 +350,14 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                             Want::Door => assert!(
                                 matches!(
                                     r,
-                                    Err(topo::BooleanError::CurvedPierceUnsupported { .. })
+                                    Err(topo::BooleanError::CurvedPierceUnsupported { .. }
+                                        | topo::BooleanError::CurvedPierceEscalated {
+                                            decision: topo::BooleanDecision::ArcCylinderRoots,
+                                            ..
+                                        })
                                 ),
-                                "{cut}: one crossing, the quadric's door, got {r:?}"
+                                "{cut}: one crossing, the quadric's door or a touch on its roots, \
+                                 got {r:?}"
                             ),
                             Want::Escalates => assert!(
                                 matches!(
@@ -610,6 +624,95 @@ fn the_near_node_poses_at_the_witness_band() {
                 single_cap_builds > 0,
                 "a single cap 1e-8 off builds in at least one pose and order"
             );
+        }
+    }
+}
+
+/// **A single cap just past the band builds as the parting leaves it**:
+/// A's or B's cap `δ = √(2·c·K·ε)` off the other rod's axis, `c` 1.1,
+/// 1.2 and 1.3, and `δ = 1e-4`. The cap's rim arcs from each pierce to
+/// the node lie within about `δ²/2 = c·K·ε` of the other rod's wall,
+/// in band of it, and the arc's two faces leave it on opposite sides of
+/// the wall: the parting's gate reads that as the arc not lying in the
+/// wall (`Crossed`), the wall's side read at its carrier's foot, and
+/// leaves it alone. Every op, both orders and both poses, at
+/// every ε: no cell refuses at the parting (`EdgeInFace`), and each
+/// that builds is at its closed form. At ε 1e-9 and 1e-6 every cell
+/// builds; at 1e-12 the merge refuses some, as it does without the
+/// parting.
+#[test]
+fn a_single_cap_just_past_the_band_builds_as_the_parting_leaves_it() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    // At ε 1e-9 and coarser every cell builds; at 1e-12 the merge
+    // refuses some.
+    let at_witness = band.zero() >= 1e-9;
+    let across = |b: &Body<f64>| spin(b, Vec3::new(1.0, 0.0, 0.0), -PI / 2.0);
+    let v = |d: f64| PI * (2.0 - d);
+    let beyond = |d: f64| {
+        let s = (1.0 - d * d).sqrt();
+        2.0 * (s.powi(3) / 3.0 - d * d.acos() + s)
+    };
+    let ds = [1.1, 1.2, 1.3]
+        .map(|c: f64| (2.0 * c * band.escalate()).sqrt())
+        .into_iter()
+        .chain([1e-4]);
+    for d in ds {
+        for (what, a, b, va, vb) in [
+            (
+                "A's cap",
+                rod(d, 2.0),
+                across(&rod(-2.0, 2.0)),
+                v(d),
+                4.0 * PI,
+            ),
+            (
+                "B's cap",
+                rod(-2.0, 2.0),
+                across(&rod(d, 2.0)),
+                4.0 * PI,
+                v(d),
+            ),
+        ] {
+            let cap = beyond(d);
+            for (pose, a, b) in [
+                ("direct", a.clone(), b.clone()),
+                ("re-posed", repose(&a), repose(&b)),
+            ] {
+                let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+                for (order, x, y, vx, vy) in [("A, B", &a, &b, va, vb), ("B, A", &b, &a, vb, va)] {
+                    for (op, r, closed) in [
+                        ("∪", topo::union(x, y, tol), vx + vy - cap),
+                        ("∩", topo::intersect(x, y, tol), cap),
+                        ("∖", topo::subtract(x, y, tol), vx - cap),
+                    ] {
+                        let cut = format!("{what} δ = {d:e}, {pose} ({order}), {op}");
+                        let out = match r {
+                            Ok(BooleanResult::Body(out)) => out,
+                            Err(e) if !at_witness => {
+                                assert!(
+                                    !matches!(e, topo::BooleanError::EdgeInFace { .. }),
+                                    "{cut}: the parting refuses, {e:?}"
+                                );
+                                continue;
+                            }
+                            r => panic!("{cut}: builds, got {r:?}"),
+                        };
+                        let m = topo::mass_properties(
+                            &out.body,
+                            tol,
+                            topo::test_support::pinned_resolution(tol),
+                        )
+                        .unwrap();
+                        assert!(
+                            (m.enclosure.volume - closed).abs() <= m.enclosure.volume_pad + 1e-9,
+                            "{cut}: volume {} ± {}, want {closed}",
+                            m.enclosure.volume,
+                            m.enclosure.volume_pad
+                        );
+                    }
+                }
+            }
         }
     }
 }
@@ -1088,6 +1191,22 @@ fn mesh_agrees(body: &topo::AtRestBody<f64>, tol: Tol, what: &str) {
 /// both, an edge four triangles hold that the body has no counterpart of.
 #[test]
 fn slanted_bores_build_every_operation_one_difference_pinched_to_itself() {
+    // Pinned red since PR 5664: at ε = 1e-12 the 3° pose's B ∖ A exhausts its
+    // probe ray (`work/tang/main-red-slanted-bores-b-minus-a-exhausts-its-probe-ray-at-1e-12`,
+    // `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows`).
+    test_utils::pinned_red::row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the slanted bores",
+        &[
+            "3° (B, A), ∖: the node builds, got Err(Pieces(Probe { shell: ShellKey(2v5), source: Loop(RayExhausted { loop: LoopKey(16v5) }) }))",
+        ],
+        slanted_bores_build_every_operation_one_difference_pinched_to_itself_row,
+    );
+}
+
+/// The row [`slanted_bores_build_every_operation_one_difference_pinched_to_itself`] runs, under its pin.
+fn slanted_bores_build_every_operation_one_difference_pinched_to_itself_row() {
     let tol = Tol::witness();
     let measure = |b: &topo::AtRestBody<f64>| {
         let m = topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol)).unwrap();

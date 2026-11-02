@@ -1589,4 +1589,14 @@ subject, and what has actually caught them.
 - 2026-10-27 — **Seam (ATREST):** `atrest/an-instance-carries-its-parts-coincidences` touches this program's ground. `tests/all.rs` + new `tests/atrest_carried_coincidence.rs` (four rows; three in the slow set).
 
 - 2026-10-27 — **Seam (ATREST):** `atrest/curved-copies-filling-one-volume-interfere` adds rows in this program's ground: `crates/sweep/tests/curved_copies_filling_one_volume.rs` (registered in `crates/sweep/tests/all.rs`, four rows under 0.5 s each) and `asm_r2b_assembly.rs` `copies_of_one_cylinder_filling_one_volume_are_one_interference`. Two copies of one revolved cylinder or ball are now one `SameSideInterference`, and the aligned face-pair arm reads arc-bounded discs and cylinder or sphere faces on two keys. (ATREST curved-copies lane)
+
+- 2026-10-27 — **Seam (ATREST):** `atrest/aligned-arc-or-curved-faces-that-abut-are-flush` re-pins rows in this program's ground: `crates/sweep/tests/curved_copies_filling_one_volume.rs`. Aligned arc-bounded discs and cylinder or sphere faces on one carrier that only abut are now certified apart (`census.rs` `arc_interiors_meet`) and read as flush rows, so the half-cylinders' walls and half-discs, and the coincident copies' seam-sharing half-bands, are flush rather than undecidable. It also re-pins `crates/editor-core/tests/asm_r2b_assembly.rs` (the pinned copies' evidence, (1, 10, 11) → (1, 8, 9)) and re-blesses the `cut_cylinder` section of `crates/editor-core/tests/golden/perf12_census_*.txt` (14 → 10 findings, 2 flush rows); `kitchen_sink` there is left as main's red. One new row, `overlaps_are_never_read_clear_and_abutments_never_interfere`, in the slow set.
 - 2026-10-27 — **Seam (ATREST):** `atrest/an-assertion-quiets-an-operations-unproven-row` adds a row file in this program's ground: `crates/editor-core/tests/atrest_operation_rows_quiet.rs` (registered in `tests/all.rs`; its five rows are in the `ci` slow set).
+
+## A note from GREEN (2026-10-28) — rows re-homed or re-banded
+
+GREEN (`work/green/`) opened with a priority-seam cut across the infra
+group and took this program's green-main or gate-latency rows by
+`git mv`, ids unchanged; `work/green/log.md` lists them. Any P1 left
+here was re-banded where it was test-side rather than production
+architecture; the row's own `## Re-banded` section says why.

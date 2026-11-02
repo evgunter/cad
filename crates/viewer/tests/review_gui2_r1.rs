@@ -41,9 +41,9 @@ test_utils::gated_to![
 ];
 
 use crate::common;
-use crate::common::{inserted, len, scl};
+use crate::common::{inserted, len};
 
-use pncad::document::{Doc, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
+use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::select::{Ray, Resolution, RunCtx};
 use test_utils::fuzz;
@@ -51,7 +51,6 @@ use viewer::camera::Camera;
 use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
 use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PickIndex, PictureKey};
-use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, Hovered, Selection, SessionOp};
 use viewer::{cursor_projection, input};
@@ -426,25 +425,16 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
         },
         tol,
     );
-    let (doc, pattern) = inserted(
+    let (doc, pattern) = common::row_of_copies(
         &doc,
-        Node::Pattern {
-            input: extrude.into(),
-            count: pncad::document::Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(0.0), scl(1.0), scl(0.0)],
-                spacing: len(0.08),
-            },
-        },
+        extrude,
+        2,
+        (pncad::document::TargetAxis::Y, 0.08),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    session.perform(SessionOp::SetSlot {
-        node: pattern,
-        slot: SlotId::Count,
-        value: SlotValue::Count(3),
-    });
+    session.perform(common::recount_op(&session, pattern, 3));
     // The third copy reaches the world through its projection (A10).
     let third = common::session_insert(
         &mut session,
@@ -464,7 +454,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
         .expect("the third instance's wall is under this ray");
     assert_eq!(
         face.node,
-        common::copy_of(session.committed_doc(), third),
+        common::drawn_node(session.committed_doc(), third),
         "the youngest instance's copy is hit"
     );
     session.perform(SessionOp::Select(Selection::Face(face.clone())));

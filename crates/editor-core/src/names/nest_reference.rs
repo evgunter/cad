@@ -133,6 +133,10 @@ pub(super) enum RoleSeg {
 
     LoftWall(Vec<ProfileEdgeRef>),
     LoftSeam(Vec<ProfileVertexRef>),
+    LoftSlabWall(u32, Vec<ProfileEdgeRef>),
+    LoftSlabSeam(u32, Vec<ProfileVertexRef>),
+    LoftSectionEdge(u32, ProfileEdgeRef),
+    LoftSectionVertex(u32, ProfileVertexRef),
 
     Band(PieceRun),
     BandRim(ProfileVertexRef),
@@ -220,8 +224,8 @@ pub(super) enum RoleSeg {
         hole: u32,
     },
 
-    Instance {
-        i: u32,
+    Member {
+        at: Vec<(crate::VarId, u32)>,
         of: NameRef,
     },
 }

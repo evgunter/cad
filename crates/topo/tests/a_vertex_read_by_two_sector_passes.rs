@@ -46,8 +46,8 @@
 //!   refuse `PartnerAlongFace`;
 //! - a **dart** on the plate, whose apex is a reflex edge, and the plate
 //!   less a dart or a near-flat quadrilateral, a void below the top
-//!   whose apex is one too, each read as a polygon cone
-//!   (`sectors::cone_read`);
+//!   whose apex is one too, each read through the gathered cone
+//!   (`vtxfac::cone_classes`);
 //! - the plate alone, and the arches without it, read once.
 //!
 //! A kernel op called without `BooleanInputs` records carries none of
@@ -68,11 +68,12 @@ use common::meeting::{
     poses, wedge,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
+use topo::test_support::VolumeOracle;
 use topo::{
-    AlongFace, AtRestBody, BooleanError, BooleanErrorKind, BooleanResult, CensusContact, EntityId,
-    Operand, SectorRead, SideCode, SolidContainment, ValidationError, intersect, mass_properties,
-    point_in_solid, point_in_solid_of, readback, subtract, union, validate_geometric,
-    validate_pseudomanifold,
+    AlongFace, AtRestBody, BooleanError, BooleanErrorKind, BooleanOp, BooleanResult, CensusContact,
+    EntityId, Operand, SectorRead, SideCode, SolidContainment, ValidationError, intersect,
+    mass_properties, point_in_solid, point_in_solid_of, readback, subtract, union,
+    validate_geometric, validate_pseudomanifold,
 };
 
 const THIRD: f64 = 1.0 / 3.0;
@@ -342,7 +343,7 @@ fn samples(x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> Vec<Point3<
     let mut dirs: Vec<Vec3<f64>> = (0..32)
         .map(|k| {
             let z = 1.0 - (2.0 * f64::from(k) + 1.0) / 32.0;
-            let (s, c) = (2.399_963 * f64::from(k)).sin_cos();
+            let (s, c) = (geom_core::GOLDEN_ANGLE * f64::from(k)).sin_cos();
             let r = z.mul_add(-z, 1.0).sqrt();
             Vec3::new(r * c, r * s, z)
         })
@@ -488,13 +489,38 @@ fn builds_where(
     let y_less: fn(bool, bool) -> bool = |x, y| y && !x;
     let or: fn(bool, bool) -> bool = |x, y| x || y;
     let and: fn(bool, bool) -> bool = |x, y| x && y;
-    for (k, (what, keep, a, b, r)) in [
-        ("x − y", x_less, x, y, subtract(x, y, t())),
-        ("y − x", y_less, y, x, subtract(y, x, t())),
-        ("x ∪ y", or, x, y, union(x, y, t())),
-        ("y ∪ x", or, y, x, union(y, x, t())),
-        ("x ∩ y", and, x, y, intersect(x, y, t())),
-        ("y ∩ x", and, y, x, intersect(y, x, t())),
+    let oracle = VolumeOracle::new(x, y, t());
+    for (k, (what, keep, a, b, (kind, r))) in [
+        (
+            "x − y",
+            x_less,
+            x,
+            y,
+            (BooleanOp::Subtract, subtract(x, y, t())),
+        ),
+        (
+            "y − x",
+            y_less,
+            y,
+            x,
+            (BooleanOp::Subtract, subtract(y, x, t())),
+        ),
+        ("x ∪ y", or, x, y, (BooleanOp::Union, union(x, y, t()))),
+        ("y ∪ x", or, y, x, (BooleanOp::Union, union(y, x, t()))),
+        (
+            "x ∩ y",
+            and,
+            x,
+            y,
+            (BooleanOp::Intersect, intersect(x, y, t())),
+        ),
+        (
+            "y ∩ x",
+            and,
+            y,
+            x,
+            (BooleanOp::Intersect, intersect(y, x, t())),
+        ),
     ]
     .into_iter()
     .enumerate()
@@ -508,11 +534,13 @@ fn builds_where(
                 material_holds(&what, keep, Some(&r.body), &probes);
                 classes_hold(&what, &r, a, b, pose);
                 held += usize::from(three_prime(&what, &r, pose, along, ray, glued));
+                oracle.assert(&what, kind, a, b, Some(&r.body));
                 Some(volume(&r.body))
             }
             Ok(BooleanResult::Empty) => {
                 not_pinned(label, op);
                 material_holds(&what, keep, None, &probes);
+                oracle.assert(&what, kind, a, b, None);
                 Some(0.0)
             }
             Err(e) if pinned(label, op, &e) => None,
@@ -595,6 +623,7 @@ fn refuses_beside_the_ray(
                 operand,
                 vertex,
                 reads: [SectorRead::Pierce(_), SectorRead::Pair(partner)],
+                ..
             }) => {
                 assert!(crosses, "{what}: refuses {how:?}, got the crossing pierce");
                 assert_eq!(operand, x_is, "{what}: the touching operand");
@@ -639,6 +668,7 @@ fn refuses(
                 operand,
                 vertex,
                 reads: [SectorRead::Pierce(first), next],
+                ..
             }) => {
                 assert_eq!(operand, x_is, "{what}: the operand read twice");
                 if minted {
@@ -934,9 +964,10 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
         pose,
     );
     builds("a pyramid over a dart void", &s.over, &s.dart_void, pose);
-    // A dart's apex is a reflex edge, read as a polygon cone
-    // (`sectors::cone_read`): beside it on the top, and below the top
-    // beside a void whose apex is one, a touching vertex layers it.
+    // A dart's apex is a reflex edge, read through the gathered cone
+    // (`vtxfac::cone_classes`): beside it on the top, and below the top
+    // beside a void whose apex is one, a touching vertex reads it with
+    // the face it touches.
     builds("a standing pyramid beside a dart", &s.cone, &s.dart, pose);
     builds("a pyramid over a dart", &s.over, &s.dart, pose);
     builds(
@@ -986,8 +1017,8 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
 /// void holds the ray as a zero-area ring of the top, whose tip each
 /// partner's apex meets ([`REFUSING`] names the cells that refuse). A
 /// pyramid with a face flush on the top across the ray, and one with a
-/// face on the lying pyramid's, refuse `PartnerAlongFace`: the layering
-/// is not read beside a coincidence of the touch's or the pair's
+/// face on the lying pyramid's, refuse `PartnerAlongFace`: the cone is
+/// not read beside a coincidence of the touch's or the pair's
 /// (`vtxfac::partner_side`). At rest; every pose is the slow matrix's.
 #[test]
 fn a_touching_vertex_beside_a_partner_along_the_face_builds_sound_in_every_op() {
@@ -1598,9 +1629,12 @@ fn inside_or_unread(body: &AtRestBody<f64>, q: Point3<f64>) -> Option<bool> {
 /// about [`MEET`] the op's over the operands', and each class its naming
 /// reads at `MEET` the other operand's containment a little along the
 /// edge, wherever those read; where all six build, their volumes add up
-/// as in [`builds_along`]. Returns how many built.
+/// as in [`builds_along`]. `pins` names the scene whose [`REFUSING`]
+/// cells this one shares, refusing where that scene is pinned to refuse
+/// and building where it builds: the scene on the top, for a partner
+/// within the zero of it. Returns how many built.
 fn builds_or_refuses(
-    label: &str,
+    (label, pins): (&str, Option<&str>),
     x: &AtRestBody<f64>,
     y: &AtRestBody<f64>,
     pose: &Pose,
@@ -1616,21 +1650,46 @@ fn builds_or_refuses(
     let or: fn(bool, bool) -> bool = |x, y| x || y;
     let and: fn(bool, bool) -> bool = |x, y| x && y;
     let mut v = [None; 6];
-    for (k, (what, keep, a, b, r)) in [
-        ("x − y", x_less, x, y, subtract(x, y, t())),
-        ("y − x", y_less, y, x, subtract(y, x, t())),
-        ("x ∪ y", or, x, y, union(x, y, t())),
-        ("y ∪ x", or, y, x, union(y, x, t())),
-        ("x ∩ y", and, x, y, intersect(x, y, t())),
-        ("y ∩ x", and, y, x, intersect(y, x, t())),
+    let oracle = VolumeOracle::new(x, y, t());
+    for (k, (what, keep, a, b, (kind, r))) in [
+        (
+            "x − y",
+            x_less,
+            x,
+            y,
+            (BooleanOp::Subtract, subtract(x, y, t())),
+        ),
+        (
+            "y − x",
+            y_less,
+            y,
+            x,
+            (BooleanOp::Subtract, subtract(y, x, t())),
+        ),
+        ("x ∪ y", or, x, y, (BooleanOp::Union, union(x, y, t()))),
+        ("y ∪ x", or, y, x, (BooleanOp::Union, union(y, x, t()))),
+        (
+            "x ∩ y",
+            and,
+            x,
+            y,
+            (BooleanOp::Intersect, intersect(x, y, t())),
+        ),
+        (
+            "y ∩ x",
+            and,
+            y,
+            x,
+            (BooleanOp::Intersect, intersect(y, x, t())),
+        ),
     ]
     .into_iter()
     .enumerate()
     {
         let op = what;
         let what = format!("{label}, {}, {what}", pose.label);
-        if r.is_ok() {
-            not_pinned(label, op);
+        if let (Ok(_), Some(scene)) = (&r, pins) {
+            not_pinned(scene, op);
         }
         let r = match r {
             Ok(BooleanResult::Body(r)) => r,
@@ -1638,12 +1697,13 @@ fn builds_or_refuses(
                 for &(q, inx, iny) in &probes {
                     assert!(!keep(inx, iny), "{what}: empty, but holds {q:?}");
                 }
+                oracle.assert(&what, kind, a, b, None);
                 v[k] = Some(0.0);
                 continue;
             }
             Err(e) => {
                 assert!(
-                    typed(&e) || pinned(label, op, &e),
+                    typed(&e) || pins.is_some_and(|scene| pinned(scene, op, &e)),
                     "{what}: builds or refuses typed, got {e:?}"
                 );
                 continue;
@@ -1681,6 +1741,7 @@ fn builds_or_refuses(
             };
             assert_eq!(row.class, want, "{what}: {row:?} against the other operand");
         }
+        oracle.assert(&what, kind, a, b, Some(&r.body));
         v[k] = Some(volume(&r.body));
     }
     if let [Some(xy), Some(yx), Some(u), Some(u2), Some(i), Some(i2)] = v {
@@ -1709,9 +1770,10 @@ fn builds_or_refuses(
 /// each a multiple of ε, so every tolerance row reads the same margins.
 /// In band the plate and the lying pyramid do not unite: their own
 /// touch escalates, so no partner in band reaches a pair. Within the
-/// zero every scene builds as on the top or escalates where a sector
-/// pair reads in band; off it the partner is strictly one side, or
-/// crosses the top. A refusal is an escalation, the
+/// zero every scene builds as on the top, refusing where that scene is
+/// pinned to refuse ([`REFUSING`]), or escalates where a sector pair
+/// reads in band; off it the partner is strictly one side, or crosses
+/// the top. A refusal is an escalation, the
 /// coincidence a face of the pyramid on the top or on the lying one's
 /// refuses (`PartnerAlongFace`, or `VertexReadTwice` where its pierce
 /// crosses the top), or, a pyramid inside the lifted one, the
@@ -1759,31 +1821,10 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
             .chain(s.along_ray.iter().map(|(label, x)| (*label, x, false)))
             {
                 let inside = label.starts_with("inside");
-                // Pinned: at ε 1e-12 the turned pose's `x ∩ y`, which is
-                // `x`, stores its result a sub-ulp outside `x`, and the
-                // volume backstop's exact band refuses it
-                // (`work/cleave/a-correct-intersect-a-sub-ulp-outside-its-operand-refuses-at-the-backstops-exact-band.md`).
-                // The refusal is asserted, so this goes red when it is fixed.
-                let pinned = eps == 1e-12
-                    && k == 100.0
-                    && pose.label == "turned"
-                    && label == "inside the lying pyramid";
-                let excess = |e: &BooleanError| {
-                    matches!(e, BooleanError::ResultVolumeImplausible { which, .. }
-                        if *which == "vol(A ∩ B) ≤ vol(A)")
-                };
-                if pinned {
-                    let got = intersect(x, &y, t());
-                    assert!(
-                        got.as_ref().is_err_and(excess),
-                        "the pinned sub-ulp backstop refusal: got {:?}",
-                        got.map(|_| ())
-                    );
-                }
+                let pins = (f64::abs(k) < 1.0).then_some(label);
                 let label = format!("{label}, the pyramid lying {k}ε off the top");
-                built += builds_or_refuses(&label, x, &y, &pose, &|e| {
-                    (pinned && excess(e))
-                        || matches!(e, BooleanError::Escalated { .. })
+                built += builds_or_refuses((&label, pins), x, &y, &pose, &|e| {
+                    matches!(e, BooleanError::Escalated { .. })
                         || (faced
                             && matches!(
                                 e,

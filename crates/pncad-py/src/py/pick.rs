@@ -591,10 +591,9 @@ impl NodePick {
     #[getter]
     fn mesh(&self) -> Mesh {
         Mesh {
-            inner: Arc::clone(
-                self.mesh
-                    .get_or_init(|| Arc::new(self.inner.mesh().clone())),
-            ),
+            inner: Arc::clone(self.mesh.get_or_init(|| {
+                Arc::new(pncad::export::pick_mesh_in_space(&self.inner).into_owned())
+            })),
         }
     }
 

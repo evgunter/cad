@@ -2,11 +2,12 @@
 id: offset-lane-has-no-conic-carrier
 kind: issue
 title: the offset lane cannot carry a hyperbolic edge: a partial-revolve cone's wall meets its moved meridian cap in a conic the kernel has no carrier for (C5 R1)
-status: parked
+status: closed
 opened: 2026-09-08
 priority: P0
 cost: H
-blocked_on: [a-classified-pairs-section-states-the-bounds-that-retire-the-tube]
+closed: 2026-10-28
+pr: 5897
 ---
 
 
@@ -66,3 +67,16 @@ state it:
 
 The build is cut into units on this slate
 (`work/offset/plan.md`); this row closes when they land.
+
+## Closed
+
+Its three units have landed: limb 2 for every carrier (PR 5689), the
+exact plane×cone arc and the axial door's moved section (PR 5692), and the
+section's tube bounds (`a-classified-pairs-section-states-the-bounds-that-retire-the-tube`).
+A partial-revolve cone's moved wall/cap edge is now the moved pair's exact
+hyperbolic arc, and it rests: the conical wedges at a quarter and a third
+of a turn and the three-quarter-turn frustum hollow to their closed forms.
+Residue filed: `a-cone-wedges-apex-corner-beside-two-moved-caps-is-read-as-a-pole`
+(a whole cone's wedge), `doors-that-read-the-plane-cone-section-do-not-carry-its-open-conic`
+(the other doors still refuse the conic),
+`a-family-scalars-cone-pose-too-wide-for-the-tube-bounds-refuses-rather-than-bisecting`.

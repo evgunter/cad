@@ -29,7 +29,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 
 fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
     match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => b,
+        ValuePayload::Body(b) => b.body(),
         other => panic!("expected a body, got {other:?}"),
     }
 }

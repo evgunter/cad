@@ -390,13 +390,30 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+///
+/// RE-BLESSED, `kitchen_sink` only, for INTENT stage 3 E: the digest
+/// feeds each body where it stands, composed through `in_space`, and
+/// every other row held main's value. The kitchen sink's turned copy
+/// (node 171) composes one map where it was rebuilt by two, and one of
+/// its planes' normals reads `-0.0` where it read `0.0` in x, and so
+/// does the product `⊔` (node 284), which reads that copy through its
+/// map; every point, curve and face holds main's bits (measured over
+/// main's merge at `1f851964`). Re-taken over main's merge at
+/// `cd5f9dee`, whose word is `0x2cab_0c2d_cbd8_4ea8`: with each copy
+/// rebuilt at `place` as before E, this branch reads main's word.
+///
+/// RE-BLESSED when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
+/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x0286_358d_ae09_89ce_u64),
-        ("part_select", 0x8aa1_95af_2c83_4e37),
-        ("kitchen_sink", 0x2cab_0c2d_cbd8_4ea8),
+        ("cut_cylinder", 0x863c_8c78_7943_b812_u64),
+        ("part_select", 0xbca1_dc45_d456_c7a7),
+        ("kitchen_sink", 0xd8b7_373c_ad55_7d3c),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -535,6 +552,12 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+///
+/// RE-BLESSED when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), which changes
+/// the edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape the digest reproduces main's value at all three ε rows,
+/// so nothing else moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -555,7 +578,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x95b6_b099_d57e_e9be,
+        got, 0x883a_4673_251b_8566,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
@@ -616,14 +639,14 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     };
     assert_eq!(
         (
-            read.faces().count(),
-            read.edges().count(),
-            read.vertices().count()
+            read.body().faces().count(),
+            read.body().edges().count(),
+            read.body().vertices().count()
         ),
         (
-            side.faces().count(),
-            side.edges().count(),
-            side.vertices().count()
+            side.body().faces().count(),
+            side.body().edges().count(),
+            side.body().vertices().count()
         ),
         "the reader holds the split's own side"
     );

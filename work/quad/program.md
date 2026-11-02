@@ -4,7 +4,7 @@ kind: program
 title: QUAD — the quadrature lane's engines, its budgets and its dials
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/props
 prefix: quad/
 tag: (QUAD orchestrator)
 ab_band: 5700-5799

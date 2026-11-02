@@ -59,6 +59,7 @@ fn half_disc(doc: ProfileDoc, a0: f64, am: f64, a1: f64) -> (ProfileDoc, RecipeN
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -142,7 +143,7 @@ fn rim_arcs(ev: &Evaluation<f64>, union: RecipeNodeId, z: f64) -> BTreeMap<Stabl
     for (name, entry) in table(ev, union).iter() {
         let Entry::Unique(e) = entry else { continue };
         let EntityKey::Edge(k) = e.key else { continue };
-        if topo::query::edge_carrier_kind(body, k) != Some(topo::query::CurveKind::Circle) {
+        if topo::query::edge_carrier_kind(&body, k) != Some(topo::query::CurveKind::Circle) {
             continue;
         }
         let edge = body.get_edge(k).unwrap();

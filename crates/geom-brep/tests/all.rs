@@ -52,6 +52,8 @@
 // directory carrying a `mod.rs`.
 mod shared;
 
+#[path = "a_shared_row_is_certified_per_wall.rs"]
+mod a_shared_row_is_certified_per_wall;
 #[path = "analytic_rung3_certificate.rs"]
 mod analytic_rung3_certificate;
 #[path = "approx_surface.rs"]
@@ -78,6 +80,10 @@ mod cert5_arm_and_cells;
 mod cert5_r1_patch_probes;
 #[path = "chart_box_span.rs"]
 mod chart_box_span;
+#[path = "chart_singularity_locate.rs"]
+mod chart_singularity_locate;
+#[path = "chart_singularity_sweep.rs"]
+mod chart_singularity_sweep;
 #[path = "closed_form_limb2.rs"]
 mod closed_form_limb2;
 
@@ -93,6 +99,8 @@ mod coplanar_ellipses_one_locus;
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
 mod cylinder_green_conditioning;
+#[path = "cylinder_pair_section.rs"]
+mod cylinder_pair_section;
 #[path = "d290_r2_e2e.rs"]
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
@@ -133,6 +141,8 @@ mod m5_pr9_tangent;
 mod m7_8_plane_nurbs_edge;
 #[path = "m8_f67_r1_probes.rs"]
 mod m8_f67_r1_probes;
+#[path = "marched_windings.rs"]
+mod marched_windings;
 #[path = "offa_r1_probes.rs"]
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]
@@ -167,6 +177,10 @@ mod props_sphere_circle_loop;
 mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
+#[path = "section_acceleration_review.rs"]
+mod section_acceleration_review;
+#[path = "section_bounds.rs"]
+mod section_bounds;
 #[path = "section_reads_at_the_reach.rs"]
 mod section_reads_at_the_reach;
 
@@ -224,6 +238,12 @@ mod r1_pxn_probes;
 mod r2_cert3_e2e;
 #[path = "review_4553_pxn_probes.rs"]
 mod review_4553_pxn_probes;
+#[path = "review_6092_delta_probes.rs"]
+mod review_6092_delta_probes;
+#[path = "review_6092_probes.rs"]
+mod review_6092_probes;
+#[path = "review_6092_r2_probes.rs"]
+mod review_6092_r2_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_flux_probes_r1.rs"]
@@ -268,6 +288,8 @@ mod span_meter_dim_twins;
 mod sphere_torus_ssi;
 #[path = "spline_pair_any_carrier.rs"]
 mod spline_pair_any_carrier;
+#[path = "spline_pair_arc_rim.rs"]
+mod spline_pair_arc_rim;
 #[path = "ssi_limb3_one_arc.rs"]
 mod ssi_limb3_one_arc;
 #[path = "stored_span_winding_bound.rs"]
@@ -335,7 +357,13 @@ mod span_reach_differential;
 mod span_reach_hunt;
 #[path = "tangent_gap_hull_charges_both_sags.rs"]
 mod tangent_gap_hull_charges_both_sags;
+#[path = "tori_coincide.rs"]
+mod tori_coincide;
 #[path = "torus_chart_guards.rs"]
 mod torus_chart_guards;
+#[path = "torus_doors_ssi.rs"]
+mod torus_doors_ssi;
+#[path = "torus_gap.rs"]
+mod torus_gap;
 #[path = "torus_meridian_radial.rs"]
 mod torus_meridian_radial;

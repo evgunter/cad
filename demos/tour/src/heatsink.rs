@@ -1,24 +1,17 @@
 //! The parametric heat-sink strip (#91 C5): the tour's first M4-layer
 //! showcase. ONE editor-core recipe document — base extrude, a fin
-//! extrude, a `PlacedUnion` of the fin along a `Linear` rule, a
-//! `Boolean(Union)` folding the group into the base, and a `Fillet`
-//! rounding the base's twelve edges on the unioned part — evaluated
-//! three times with the fin count edited 5 → 7 → 9 through
-//! `SetStructuralParam`. Each re-eval feeds the PRIOR evaluation as the
-//! memo, so the caption's recompute counters are the ratified
-//! downstream-only-recompute story: the count edit re-runs the group,
+//! extrude, a row of the fin — one placement over the index
+//! `k = index(5)`, fin `k` slid `scalar(k)·312.5 mm` (D10
+//! `[repetition]`) — a `Union` folding the base and the fin family into
+//! one body, and a `Fillet` rounding the base's twelve edges on the
+//! unioned part — evaluated three times with the fin count edited
+//! 5 → 7 → 9 by redefining the index's count. Each re-eval feeds the
+//! PRIOR evaluation as the memo, so the caption's recompute counters are
+//! the downstream-only-recompute story: the count edit re-runs the row,
 //! the union and the fillet below it, and the five nodes upstream of the
-//! edited slot — both profiles, both extrudes and the fin's placement
-//! on the base — are reused by content key. Stable names
-//! (N1 `Instance(i)` wrapping) survive the edits, counted live.
-//!
-//! The fin group is a `PlacedUnion`, not a `Pattern`: a `Boolean`
-//! recipe node refuses a `Pattern`'s `Instances` payload typed, because
-//! Pattern's N-bodies-unfused contract is the ASSEMBLY product's
-//! currency (`benchlayout` wants that). `PlacedUnion` (GROUP-BOOLEAN-
-//! DESIGN, ratified A′) is one prototype, a placement rule and ONE BODY
-//! out, `Instance(i)` naming preserved and `SlotId::Count` the
-//! structural slot the edit drives.
+//! index — both profiles, both extrudes and the fin's placement on the
+//! base — are reused by content key. Stable names (each fin's names
+//! under its `Member(k)`) survive the edits, counted live.
 //!
 //! # Sunk fins, and flush ones ([`flush_fins`], run live)
 //!
@@ -27,12 +20,12 @@
 //! A real extruded heat sink's fins are flush with its base, and the
 //! flush document builds: fins sketched ON the base top, the union
 //! glues the five base-face contacts on their decided zero (D10,
-//! Booleans), and the union against the five-shell `PlacedUnion`
-//! operand comes out at the closed-form volume of the rounded base + 5
+//! Booleans), and the union against the five-member fin family comes
+//! out at the closed-form volume of the rounded base + 5
 //! fins.
 //!
 //! The count EDIT builds in one step too: the edit to 7 leaves
-//! `Instance(5)` and `Instance(6)` flush with the base, and the union
+//! `Member(5)` and `Member(6)` flush with the base, and the union
 //! glues them alike, at the closed-form volume of 7 fins with the
 //! union keeping its id. The
 //! scene keeps the sunk fins as its subject, and measures the flush
@@ -62,9 +55,9 @@ use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Bodies, CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Formula, LoopProgram, Node,
-    PatternKind, ProfileProgram, RecipeNodeId, SlotId, ValuePayload, apply, evaluate,
-    parse_formula,
+    Bodies, BodyRead, CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Formula, LoopProgram,
+    Node, Operand, ProfileProgram, RecipeNodeId, TargetAxis, ValuePayload, VarDecl, VarId, VarName,
+    VarRef, apply, evaluate, parse_formula,
 };
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
@@ -89,12 +82,11 @@ fn pe(src: &str) -> Formula {
 use crate::{SceneBody, TourStop, View};
 use pncad::geom_core::Tol;
 
-/// The count-5 name table's size, pinned. Measured, not derived: the
-/// group node emits `Instance(i)` over one fused body, and how many
-/// names that comes to is the naming vocabulary's answer rather than
-/// something this scene can compute. Moving it is a deliberate act —
-/// see the assertion below.
-const HEATSINK_NAMES_AT_5: usize = 131;
+/// The count-5 name table's size, pinned: the fin family's table is
+/// each fin's names under its `Member(k)` and nothing family-wide, so it
+/// is five times one seated fin's 27. Moving it is the naming
+/// vocabulary moving — see the assertion below.
+const HEATSINK_NAMES_AT_5: usize = 135;
 /// The base plate, `3 × 1 × 0.25`.
 const BASE: [f64; 3] = [3.0, 1.0, 0.25];
 /// The base fillet's radius, as authored (`R` below is the same value).
@@ -114,14 +106,16 @@ enum Seat {
     Flush,
 }
 
-struct Recipe {
-    doc: Doc<ProfileProgram>,
-    /// The `PlacedUnion` over the fin — the fin count's structural
-    /// slot, and what `SetStructuralParam` edits.
+pub struct Recipe {
+    pub doc: Doc<ProfileProgram>,
+    /// The placement whose copy is the fin family.
     group: RecipeNodeId,
+    /// The index `k = index(n)` the fins are copied over: its count is
+    /// the fin count, and what the count edit redefines.
+    fins: VarId,
     /// The `Fillet` that rounds the plate's edges on the unioned part:
     /// the document's final body.
-    solid: RecipeNodeId,
+    pub solid: RecipeNodeId,
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
@@ -148,19 +142,17 @@ fn eval(doc: &Doc<ProfileProgram>, prior: Option<&Evaluation<f64>>, tol: Tol) ->
     )
 }
 
-/// The fin-count edit, the one the tour's story is about.
-fn set_count(
-    doc: &Doc<ProfileProgram>,
-    group: RecipeNodeId,
-    n: usize,
-    tol: Tol,
-) -> Doc<ProfileProgram> {
+/// The fin-count edit, the one the tour's story is about: the index
+/// redefined at count `n`.
+fn set_count(doc: &Doc<ProfileProgram>, fins: VarId, n: usize, tol: Tol) -> Doc<ProfileProgram> {
     apply(
         doc,
-        &DocEdit::SetStructuralParam {
-            node: group,
-            slot: SlotId::Count,
-            expr: pe(&format!("{n}")),
+        &DocEdit::DefineVar {
+            var: VarRef::Id(fins),
+            def: VarDecl::Index {
+                count: pe(&format!("{n}")),
+                within: None,
+            },
             fresh: Vec::new(),
         },
         tol,
@@ -170,7 +162,7 @@ fn set_count(
 }
 
 /// The scene's own document: fins sunk.
-fn scene_doc(tol: Tol) -> Recipe {
+pub fn scene_doc(tol: Tol) -> Recipe {
     build_doc(tol, Seat::Sunk)
 }
 
@@ -197,6 +189,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         Node::Profile(ProfileProgram {
             loops: base_loops,
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -217,6 +210,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         Node::Profile(ProfileProgram {
             loops: fin_loops,
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -239,19 +233,29 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     );
     doc = seated.doc;
     let fin_e = seated.placement;
-    // `placed_union` is the PARAMETRIC-rule constructor, so the count
-    // is a structural slot.
+    // One fin per value of `k = index(5)`, fin `k` slid
+    // `scalar(k)·312.5 mm` along the base's x.
+    let k = VarName::new("k").expect("an index name");
+    doc = apply(
+        &doc,
+        &pncad::pattern::index_decl(k.clone(), pe("5"), None),
+        tol,
+    )
+    .expect("the index declares")
+    .doc;
+    let fins = doc.var_named("k").expect("the index just declared");
+    let space = doc
+        .node_space(fin_e)
+        .expect("the seated fin is in the base's space");
     let group = insert(
         &mut doc,
-        Node::placed_union(
-            fin_e,
-            pe("5"),
-            PatternKind::Linear {
-                direction: [pe("1.0"), pe("0.0"), pe("0.0")],
-                spacing: pe("312.5 mm"),
-            },
+        pncad::pattern::linear_pattern(
+            &k,
+            BodyRead::plain(Operand::Node(fin_e)),
+            Operand::Var(space),
+            &[(TargetAxis::X, pe("312.5 mm"))],
         )
-        .expect("a Linear rule is parametric, so it carries a count"),
+        .expect("the pitch is a length"),
         tol,
     );
     let union = insert(
@@ -273,16 +277,27 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     );
     assert_eq!(edges.len(), 12, "the plate's edges: {edges:#?}");
     let solid = insert(&mut doc, Node::fillet(union, pe(RADIUS), edges), tol);
-    Recipe { doc, group, solid }
+    Recipe {
+        doc,
+        group,
+        fins,
+        solid,
+    }
 }
 
 /// The document's OWN final body, read back, gated on the exact
 /// volume: the rounded plate's closed form plus `n` fins.
-fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize, tol: Tol) -> pncad::topo::Body<S> {
+pub fn solidify<S: Scalar>(
+    r: &Recipe,
+    ev: &Evaluation<S>,
+    n: usize,
+    tol: Tol,
+) -> pncad::topo::Body<S> {
     let value = ev.value(r.solid).expect("the fillet node evaluated");
     let ValuePayload::Body(body) = &value.payload else {
         panic!("fillet payload: {:?}", value.payload);
     };
+    let body = &crate::world::in_its_space(body, tol);
     let want = volume(n);
     let got =
         pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol, crate::printed())
@@ -296,7 +311,7 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize, tol: Tol) -> pn
     );
     pncad::topo::validate_geometric(body, tol)
         .unwrap_or_else(|e| panic!("the {n}-fin solid is tier-3 valid, got {e:?}"));
-    (**body).clone()
+    body.clone()
 }
 
 /// The rounded plate's closed form plus `n` fins.
@@ -336,7 +351,7 @@ pub(crate) fn probe_solids(tol: Tol) -> Vec<pncad::topo::Body<Probe>> {
     let mut doc = r.doc.clone();
     let mut prior = ev5;
     for n in [7usize, 9] {
-        doc = set_count(&doc, r.group, n, tol);
+        doc = set_count(&doc, r.fins, n, tol);
         let ev = evaluate::<Probe>(&doc, Some(&prior), &cancel, &opts, tol);
         out.push(solidify(&r, &ev, n, tol));
         prior = ev;
@@ -372,7 +387,7 @@ fn flush_fins(tol: Tol) {
         volume(5)
     );
 
-    let doc7 = set_count(&flush.doc, flush.group, 7, tol);
+    let doc7 = set_count(&flush.doc, flush.fins, 7, tol);
     let ev7 = eval(&doc7, Some(&ev5), tol);
     let edited = Recipe { doc: doc7, ..flush };
     solidify(&edited, &ev7, 7, tol);
@@ -403,16 +418,15 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let cold = format!("cold evaluation: all {} nodes computed", ev5.recomputed);
     evs.push((5, ev5, cold));
     for (prior_idx, n) in [7usize, 9].into_iter().enumerate() {
-        doc = set_count(&doc, r.group, n, tol);
+        doc = set_count(&doc, r.fins, n, tol);
         let ev = eval(&doc, Some(&evs[prior_idx].1), tol);
         let caption = format!(
             "count edit -> {n}: recomputed {} node(s), reused {} (downstream-only recompute)",
             ev.recomputed, ev.reused
         );
-        // The fin group, the union that consumes it and the fillet on
+        // The fin family, the union that consumes it and the fillet on
         // the union re-run; both profiles, both extrudes and the fin's
-        // placement are upstream of the edited slot and reuse by content
-        // key.
+        // placement read no index and reuse by content key.
         assert_eq!(
             ev.recomputed, 3,
             "a count edit re-runs exactly the fin group, the union and the fillet below it"
@@ -425,7 +439,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         evs.push((n, ev, caption));
     }
 
-    // Stable names survive the structural edits (N1 Instance(i)).
+    // Stable names survive the count edits (each fin's under its Member(k)).
     assert_eq!(
         names5.len(),
         HEATSINK_NAMES_AT_5,
@@ -445,14 +459,14 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     );
     println!(
         "   stable names: {survived}/{} of the count-5 pattern names still resolve \
-         after both edits (N1 Instance(i) wrapping)",
+         after both edits (each fin's names under its Member(k))",
         names5.len()
     );
     flush_fins(tol);
 
     let recipe_ops = "ONE recipe doc: Profile -> Extrude (base), Profile -> Extrude (fin) -> \
-         PlacedUnion(Linear count) -> Boolean(Union) -> Fillet (the base's edges); count edited \
-         via SetStructuralParam";
+         Place over k = index(n) (a row) -> Union -> Fillet (the base's edges); count edited \
+         by redefining the index";
     let colors = [[0.45, 0.62, 0.62], [0.38, 0.58, 0.68], [0.32, 0.54, 0.74]];
     evs.into_iter()
         .zip(colors)
@@ -474,7 +488,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 // standalone renders.
                 montage: false,
                 story: "parametric heat-sink strip from ONE recipe document — fin count \
-                        is a structural parameter; this render is one evaluation",
+                        is an index's count; this render is one evaluation",
                 ops: recipe_ops,
                 delta: 1e-2,
                 note: Some(format!(
@@ -493,114 +507,4 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             }
         })
         .collect()
-}
-
-#[cfg(test)]
-mod name_column {
-    //! The budget sweep's `name` column, pinned where a real document
-    //! mints the names: this scene is one of the six the tour can name
-    //! at all, and the token it writes has to survive a CSV and mean
-    //! one face.
-    //!
-    //! **What these rows can and cannot say.** `crate::face_names` is a
-    //! crate-root item with six callers — `heatsink5`, `heatsink7`,
-    //! `heatsink9` here and `diefillet`, `diepips`, `diecomposed` in
-    //! `diefillet.rs` — and it is exercised from exactly one of them,
-    //! this one. What that misses is a scene whose faces the node's
-    //! table does not name, which would panic at the door rather than
-    //! render badly; the door is the same door for all six and the
-    //! panic names the node and the face, so the failure is loud
-    //! wherever it happens, but it is not under test at five of them.
-    //!
-    //! **Non-emptiness and comma-freedom are NOT asserted here**, and
-    //! deliberately: `crate::face_names` puts every token through
-    //! `tess_meter::FaceName::new` and `.expect()`s exactly those two
-    //! properties, so no input can reach an assertion in this module in
-    //! a failing state — the door panics first. A row asserting them
-    //! after the door would be a comment wearing an `assert!`. The
-    //! refusal itself is `tess-meter`'s, tested there; what is left for
-    //! this scene is what the door does not check, which is that the
-    //! rendering means ONE face and is reversible.
-
-    use super::scene_doc;
-    use pncad::document::{CancelToken, EvalOptions, evaluate};
-    use pncad::geom_core::Tol;
-    use pncad::prelude::StableName;
-
-    /// The scene's own body and the names of its faces, as
-    /// `crate::face_names` renders them for the CSV.
-    fn tokens() -> Vec<(String, StableName)> {
-        let tol = Tol::witness();
-        let r = scene_doc(tol);
-        let ev = evaluate::<f64>(
-            &r.doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            tol,
-        );
-        let body = super::solidify(&r, &ev, 5, tol);
-        let rendered = crate::face_names(&ev, r.solid, &body);
-        let rows = body
-            .faces()
-            .map(|(key, _)| {
-                let token = rendered
-                    .get(&key)
-                    .expect("face_names covers every face of the body")
-                    .as_str()
-                    .to_string();
-                let name = pncad::select::face_name(&ev, r.solid, 0, key)
-                    .expect("the node names its own face")
-                    .clone();
-                (token, name)
-            })
-            .collect::<Vec<_>>();
-        assert!(
-            rows.len() > 1,
-            "the fixture has faces to name: {} rows",
-            rows.len()
-        );
-        rows
-    }
-
-    /// **The token means ONE face.** A rendering that collapsed two
-    /// derivation paths would hand `tools/tess-lint` a join key no
-    /// better than the ordinal it already has.
-    #[test]
-    fn distinct_faces_render_distinct_tokens() {
-        let rows = tokens();
-        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
-        for (token, name) in &rows {
-            assert!(seen.insert(token), "{name} shares its token: {token:?}");
-        }
-        assert_eq!(seen.len(), rows.len());
-    }
-
-    /// **The `,` → `;` swap is reversible**, which is what makes the
-    /// flattening injective rather than merely comma-free: a
-    /// `StableName` contains no string payload, so no `;` of its own
-    /// can be confused with one the swap wrote. Asserted by putting
-    /// the commas back and reading the name out again.
-    #[test]
-    fn the_swap_round_trips_to_the_same_name() {
-        for (token, name) in tokens() {
-            let json = token.replace(';', ",");
-            let back: StableName =
-                serde_json::from_str(&json).expect("the swapped token is the name's own JSON");
-            assert_eq!(back, name, "round trip through {token:?}");
-        }
-    }
-}
-
-#[cfg(test)]
-mod scene {
-    //! The PR gate runs the tour's tests, not the tour: this is where the
-    //! scene's own assertions — the recompute and reuse counts, the
-    //! surviving names, the volume at every count, and the flush fins'
-    //! build — run on every PR that touches the tour.
-
-    #[test]
-    fn the_scene_holds() {
-        super::stops(pncad::geom_core::Tol::witness());
-    }
 }

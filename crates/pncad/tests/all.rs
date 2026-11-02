@@ -445,14 +445,7 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
         // and the difference is that the answer is now readable.
         CensusContact::ConformalPatch { finding } => {
             named::<ContactFinding>(finding);
-            named::<DeclaredContact>(finding.pair);
-            let _bridgeable = match finding.verdict {
-                // A finding is only minted on definite evidence, so
-                // this is the arm that arrives; the other is the
-                // shape of the verdict type and not of this payload.
-                ContactVerdict::Definite => false,
-                ContactVerdict::Bridged => true,
-            };
+            named::<ContactPair>(finding.pair);
             false
         }
     }
@@ -1515,9 +1508,9 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     }
 }
 
-/// Which normalization a record reports, matched EXHAUSTIVELY: a sixth
+/// Which normalization a record reports, matched EXHAUSTIVELY: a new
 /// kind minted kernel-side stops this compiling rather than arriving
-/// under one of these five words.
+/// under one of these words.
 ///
 /// `SurfacePromotion` carries the discriminant the refusal side
 /// carries too, and it is read here through the same `PromotedKind`
@@ -1525,9 +1518,15 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
 fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
-        NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
+        NormalizationKind::ChartSingularityVertex { found } => match found {
+            SingularityFound::Interior => "chart_singularity_vertex_interior",
+            SingularityFound::InsideEdge => "chart_singularity_vertex_inside_edge",
+            SingularityFound::ValenceOneVertex => "chart_singularity_vertex_valence_one",
+        },
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::JoinedEdges => "joined_edges",
+        NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
+        NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
         NormalizationKind::SurfacePromotion { to, residual } => {
             named::<&f64>(residual);
             match to {
@@ -1834,7 +1833,7 @@ fn squashed_with_offsets(code: &str) -> (String, Vec<usize>) {
 /// source-scanning guards below all read this one list;
 /// `the_boundary_guard_scans_every_facade_source_file` pins it
 /// against the directory, so a new module cannot arrive unguarded.
-const FACADE_SOURCES: [(&str, &str); 12] = [
+const FACADE_SOURCES: [(&str, &str); 14] = [
     ("lib.rs", include_str!("../src/lib.rs")),
     ("analysis.rs", include_str!("../src/analysis.rs")),
     ("prelude.rs", include_str!("../src/prelude.rs")),
@@ -1844,8 +1843,10 @@ const FACADE_SOURCES: [(&str, &str); 12] = [
     ("authoring.rs", include_str!("../src/authoring.rs")),
     ("export.rs", include_str!("../src/export.rs")),
     ("guide.rs", include_str!("../src/guide.rs")),
+    ("pattern.rs", include_str!("../src/pattern.rs")),
     ("tolerance.rs", include_str!("../src/tolerance.rs")),
     ("topo.rs", include_str!("../src/topo.rs")),
+    ("trace.rs", include_str!("../src/trace.rs")),
     ("workspace.rs", include_str!("../src/workspace.rs")),
 ];
 
@@ -2153,6 +2154,7 @@ fn square(s: f64) -> pncad::document::AuthoredNode {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -2433,6 +2435,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         Node::Profile(ProfileProgram {
             loops: vec![lifted],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, body) = insert(
@@ -2447,7 +2450,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         &pncad::topo::AtRestBody::validate(
             pncad::topo::Body::clone(
                 match &evaluated.value(body).expect("the plate evaluated").payload {
-                    ValuePayload::Body(b) => b,
+                    ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {other:?}"),
                 },
             ),
@@ -2487,7 +2490,7 @@ fn the_persist_doors_round_trip_through_the_facade() {
         &pncad::topo::AtRestBody::validate(
             pncad::topo::Body::clone(
                 match &before.value(body_node).expect("the box evaluated").payload {
-                    pncad::document::ValuePayload::Body(b) => b,
+                    pncad::document::ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {}", other.kind_name()),
                 },
             ),
@@ -2527,7 +2530,7 @@ fn the_persist_doors_round_trip_through_the_facade() {
                     .expect("the box re-evaluated")
                     .payload
                 {
-                    pncad::document::ValuePayload::Body(b) => b,
+                    pncad::document::ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {}", other.kind_name()),
                 },
             ),
@@ -2590,6 +2593,7 @@ fn square_at(s: f64, x: f64) -> pncad::document::AuthoredNode {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -2831,6 +2835,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         Node::Profile(ProfileProgram {
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, plate) = insert(
@@ -2848,6 +2853,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
                     .expect("finite tab corners"),
             ],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, tab) = insert(
@@ -2998,7 +3004,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         panic!("a union yields a body");
     };
     let volume = mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.as_ref()), Tol::witness())
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.body()), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
         pinned_resolution(Tol::witness()),
@@ -3476,6 +3482,54 @@ fn workspace_save_at_refuses_a_second_file_for_one_identity() {
     assert_eq!(reopened.documents().get(&doc.id()), Some(&original));
 }
 
+/// A save at a file that holds ANOTHER document refuses typed, before
+/// any write: the write would delete that part from the store. The
+/// store's map and the directory are as they were, and a fork aimed
+/// at the original's own file refuses the same way.
+#[test]
+fn workspace_save_at_refuses_to_replace_another_document() {
+    let dir = WsDir::new("save-replace");
+    let (held, text) = ws_doc("ws-save-replace-held");
+    let held_path = dir.write("held.pncad", &text);
+    let (doc, _) = ws_doc("ws-save-replace-incoming");
+    let mut ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+
+    let refused = ws.save_at(&doc, "held.pncad", Tol::witness());
+    match &refused {
+        Err(pncad::workspace::WorkspaceError::SaveWouldReplaceDocument { id, path }) => {
+            assert_eq!(
+                *id,
+                held.id(),
+                "the refusal names the document the file holds"
+            );
+            assert_eq!(path, &held_path);
+        }
+        other => panic!("expected SaveWouldReplaceDocument, got {other:?}"),
+    }
+    let said = refused.expect_err("refused").to_string();
+    assert!(
+        said.contains(pncad::workspace::SAVE_WOULD_REPLACE_RECOURSE),
+        "the sentence ends on its recourse: {said}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&held_path).expect("the held file reads"),
+        text,
+        "nothing was written"
+    );
+    assert_eq!(ws.documents().len(), 1);
+    assert!(ws.documents().get(&doc.id()).is_none());
+
+    // The fork goes through the same door, so it cannot replace the
+    // file it forks from either.
+    assert!(matches!(
+        ws.save_as_new_document(&held, "held.pncad", Tol::witness()),
+        Err(pncad::workspace::WorkspaceError::SaveWouldReplaceDocument { .. })
+    ));
+    assert_eq!(ws_listing(&dir), vec!["held.pncad".to_string()]);
+    let scanned = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    assert_eq!(scanned.documents().get(&held.id()), Some(&held_path));
+}
+
 /// A save at the id's OWN scanned path is a resave: the file keeps its
 /// name, the identity does not move and the content does.
 #[test]
@@ -3577,10 +3631,10 @@ fn workspace_save_as_new_document_mints_a_fresh_identity() {
     let inbound = pncad::document::DocRef { id: doc.id(), pin };
 
     let (new_id, new_path) = ws
-        .save_as_new_document(&doc, Tol::witness())
+        .save_as_new_document(&doc, "copy.pncad", Tol::witness())
         .expect("the fork writes");
     assert_ne!(new_id, doc.id(), "a fork is a new part");
-    assert_eq!(new_path, dir.0.join(format!("{new_id}.pncad")));
+    assert_eq!(new_path, dir.0.join("copy.pncad"), "at the caller's name");
 
     // The original is untouched, so the inbound reference still names
     // it — which is what a fork MEANS.
@@ -3823,7 +3877,7 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     // Solid order = placement order: instance 0 is at the origin, instance 1
     // ten units along +x.
     let x_of = |node| match ev.value(node).map(|v| &v.payload) {
-        Some(pncad::document::ValuePayload::Body(b)) => b
+        Some(pncad::document::ValuePayload::Body(b)) => standing(b)
             .vertex_points()
             .map(|(_, p)| p.x)
             .fold(f64::INFINITY, f64::min),
@@ -4367,6 +4421,7 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     // and x = 10 (B's own spacing), instance 1's ten further along.
     let xs = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => {
+            let b = standing(b);
             assert_eq!(b.solids().count(), 2, "an instance carries both solids");
             let mut v: Vec<f64> = b.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
             v.sort_by(f64::total_cmp);
@@ -5056,11 +5111,10 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `AxisScalar`, `var_env_over`, `SeedScalar`,
 ///   `seed_env`, `std_deviation`, `sensitivities`,
-///   `BindingViolation`; the third lane seam `MinClearanceLane`
-///   with its `MinClearanceOperand`, which is how a `min_clearance`
-///   measure asks the interval lane for the bracket only that lane
-///   can carry; and `ProfileLane`, the sealed fact that the `f64`
-///   lane is a profile's first pass).
+///   `BindingViolation`; `MinClearanceOperand`, which is how a
+///   `min_clearance` measure hands the engine one resolved side; and
+///   `ProfileLane`, the sealed fact that the `f64` lane is a profile's
+///   first pass).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
 ///   (M10-6): the driver and its box,
@@ -5099,7 +5153,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 98] = [
+const NOT_CARRIED: [&str; 101] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5134,7 +5188,6 @@ const NOT_CARRIED: [&str; 98] = [
     "MetaError",
     "MetaInt",
     "MetaValue",
-    "MinClearanceLane",
     "MinClearanceOperand",
     "Mint",
     "Minted",
@@ -5200,6 +5253,16 @@ const NOT_CARRIED: [&str; 98] = [
     "to_value",
     "verdict_summary",
     "vertex_name",
+    // The traces a drawn profile reads, which the evaluation builds
+    // from the faces it read and hands the program's resolution. A
+    // modeller writes `DrawnOn` and the trace steps (carried) and
+    // reads the refusal (`TraceRefusal`, carried), never the traces.
+    "TracedFace",
+    "Traces",
+    // The same read and its display sampling, which `trace::sketch_trace`
+    // runs for a caller drawing a face's trace in a frame's plane.
+    "traced_faces",
+    "trace_marks",
 ];
 
 /// Every name a `pub use` statement of `src` introduces, restricted
@@ -5646,14 +5709,23 @@ fn the_root_readers_read_statements_not_lines() {
 ///   not run: what the evaluator's `f64` lane logs in the second pass's
 ///   place is read off it. A fact between the profile layer and the
 ///   evaluator, which a modeller never asks.
+/// - `pen` and its `Pen`, where a program's prefix leaves the tip:
+///   the document layer's trace resolution
+///   (`editor_core::trace`) runs a traced step from it. A modeller
+///   writes the traced step, and the document resolves it.
 ///
 /// The list is checked in both directions — a future interior root
 /// export is a finding, and a stale entry fails. It once held
 /// `RawLoop`, the minting tier, which left the shipped root surface
 /// behind that crate's `test-support` feature instead
 /// ([`code_without_cfg_gated`] is what makes the scan agree).
-const PROFILE_NOT_CARRIED: [&str; 3] =
-    ["PINNED_UNDER_GUIDANCE", "decision_subject", "is_full_turn"];
+const PROFILE_NOT_CARRIED: [&str; 5] = [
+    "PINNED_UNDER_GUIDANCE",
+    "Pen",
+    "decision_subject",
+    "is_full_turn",
+    "pen",
+];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**
@@ -6038,7 +6110,7 @@ fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
 /// catch: a new scene module has to be picked up by the scan itself,
 /// with no edit here.
 ///
-/// `main.rs` is excluded: it DEFINES `struct Stop` and builds none.
+/// `lib.rs` is excluded: it DEFINES `struct TourStop` and builds none.
 /// Files behind a cargo feature (`probe`, `tessbudget`) are read like
 /// any other — a text scan cannot see `cfg`, and reading them is the
 /// safe direction, since a stop the tour builds only sometimes is
@@ -6058,7 +6130,7 @@ fn tour_sources() -> Vec<(String, String)> {
             .and_then(|n| n.to_str())
             .expect("a UTF-8 file name")
             .to_string();
-        if name == "main.rs" {
+        if name == "lib.rs" {
             continue;
         }
         let text = std::fs::read_to_string(&path)
@@ -6198,7 +6270,7 @@ fn first_arg_literals(code: &str, ident: &str) -> Vec<String> {
 /// The scan walks every `Stop {` struct literal (a `-> Stop {`
 /// function signature is not one) and reads its FIRST field, which is
 /// `name` in every case because that is the field's position in
-/// `main.rs`'s definition. Three forms are understood:
+/// `lib.rs`'s definition. Three forms are understood:
 ///
 /// 1. `name: "literal"` — the common case;
 /// 2. `name: match … { … "a", … "b" }` — every literal in the arms
@@ -6881,6 +6953,7 @@ mod the_hollowed_box_through_the_facade {
             Node::Profile(ProfileProgram {
                 loops: vec![square],
                 ids: Vec::new(),
+                on: None,
             }),
         );
         let (doc, blank) = super::insert(
@@ -6933,8 +7006,11 @@ mod the_hollowed_box_through_the_facade {
             panic!("the shell's payload is not a body");
         };
         let props = pncad::topo::mass_properties(
-            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), Tol::witness())
-                .expect("the measured body passes tier 3"),
+            &pncad::topo::AtRestBody::validate(
+                pncad::topo::Body::clone(body.body()),
+                Tol::witness(),
+            )
+            .expect("the measured body passes tier 3"),
             Tol::witness(),
             crate::pinned_resolution(Tol::witness()),
         )
@@ -7200,4 +7276,322 @@ fn a_facade_slot_shares_an_unnamed_variable_only_once_it_is_named() {
     let shared = apply(&named, &second).expect("a named variable is shared");
     let b = shared.record.minted.expect("minted");
     assert_eq!(shared.doc.slot(b, SlotId::Distance), Some(x));
+}
+
+/// **Moving a document's only world placement moves no body bit and no
+/// measured bit, and moves the STEP bytes** (INTENT stage 3 E, D10
+/// `[placement.frame]` and `[placement.world]`, test 13). The box's copy
+/// is the box's own body under its frame, so moving it moves the frame
+/// and nothing computed in it: every node's body, the product's and a
+/// distance measured between the copy's two caps keep their bits. Export
+/// alone composes the frame into the world (`in_space`), so the STEP
+/// bytes are where the move shows.
+///
+/// *Breaks if* a placement maps its source's body (every bit of the copy
+/// and of the product moves), or export writes a body in its own frame
+/// (the STEP bytes stay put).
+#[test]
+fn moving_the_only_world_placement_moves_no_body_bit_and_moves_the_step_bytes() {
+    use pncad::document::{
+        Coord, Dimension, Formula, MeasurePrimitive, Node, SitedRef, TargetAxis, ValuePayload,
+    };
+    let (doc, _, body) = box_doc("e-world-move");
+    let placement = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .expect("the copy is the product");
+    let cap = |end| pncad::prelude::StableName {
+        kind: pncad::select::EntityKind::Face,
+        node: body,
+        path: vec![pncad::select::RoleSeg::Cap(end)],
+    };
+    let (doc, measure) = insert(
+        doc,
+        Node::measure(&MeasurePrimitive::Distance {
+            a: SitedRef::new(placement, cap(pncad::select::CapEnd::Start)),
+            b: SitedRef::new(placement, cap(pncad::select::CapEnd::End)),
+        }),
+    );
+    let mut moved = pncad::document::stand();
+    moved.values = vec![
+        (Coord::Slide(TargetAxis::X), len(3.25)),
+        (Coord::Slide(TargetAxis::Y), len(-1.5)),
+        (Coord::Slide(TargetAxis::Z), len(0.75)),
+        (
+            Coord::Spin(Some(TargetAxis::X)),
+            Formula::literal(0.0, Dimension::Angle).unwrap(),
+        ),
+        (
+            Coord::Spin(Some(TargetAxis::Y)),
+            Formula::literal(0.0, Dimension::Angle).unwrap(),
+        ),
+        (
+            Coord::Spin(Some(TargetAxis::Z)),
+            Formula::literal(std::f64::consts::FRAC_1_SQRT_2, Dimension::Angle).unwrap(),
+        ),
+    ];
+    let elsewhere = applied(&doc, moved.write(placement)).doc;
+    // Every node's body bits, the product's and the measure's.
+    let bits = |doc: &pncad::document::ProfileDoc| {
+        let ev = pncad::document::evaluate::<f64>(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            Tol::witness(),
+        );
+        let mut out: Vec<u64> = Vec::new();
+        for id in doc.ids() {
+            match ev.value(id).map(|v| &v.payload) {
+                Some(ValuePayload::Body(b)) => out.extend(
+                    b.body()
+                        .points()
+                        .flat_map(|(_, p)| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]),
+                ),
+                Some(ValuePayload::Measure { value, .. }) => out.push(value.to_bits()),
+                _ => {}
+            }
+        }
+        let product =
+            pncad::document::product_recorded(doc, &ev, Tol::witness()).expect("the box gathers");
+        out.extend(
+            product
+                .body
+                .points()
+                .flat_map(|(_, p)| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]),
+        );
+        let step =
+            pncad::export::export_document_step(&ev, doc, &StepOptions::default(), Tol::witness())
+                .expect("the box exports");
+        let measured = match ev.value(measure).map(|v| &v.payload) {
+            Some(ValuePayload::Measure { value, .. }) => *value,
+            other => panic!("the measure has a value: {other:?}"),
+        };
+        (out, step, measured)
+    };
+    let (here, here_step, here_measured) = bits(&doc);
+    let (there, there_step, there_measured) = bits(&elsewhere);
+    assert_eq!(here_measured, 1.5, "the caps stand the box's height apart");
+    assert_eq!(
+        here, there,
+        "moving the only world placement moves no body bit and no measured bit"
+    );
+    assert_ne!(here_step, there_step, "and it moves the STEP bytes");
+    assert_eq!(
+        here_measured.to_bits(),
+        there_measured.to_bits(),
+        "the distance between the copy's caps is the same bits"
+    );
+}
+
+/// **A copy where it stands in its space**: its body composed through
+/// the façade's read-out door ([`pncad::export::body_in_space`]), for a
+/// row that reads positions.
+fn standing(value: &pncad::document::Framed<f64>) -> pncad::topo::Body<f64> {
+    pncad::topo::Body::clone(
+        &pncad::export::body_in_space(value, Tol::witness())
+            .expect("a copy composes into its space"),
+    )
+}
+
+/// **A body far out builds and refuses to be read out** (INTENT stage 3
+/// E, R2's far-from-origin note): a block's copy turned and stood
+/// `1e17 ε` out (at least 1e7) builds, sharing its source's body under its frame, so nothing in
+/// the model maps it. The façade's read-out composes it into the world
+/// and re-certifies every edge there, which refuses at that distance:
+/// `body_in_space` answers `compose_refused`'s refusal, and so does a
+/// STEP export of the node. The viewer's picture, which moves the copy's
+/// tessellation on the CPU and certifies nothing, draws it
+/// (`work/intent/a-far-body-the-read-out-refuses-the-picture-draws.md`).
+#[test]
+fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
+    use pncad::document::{Coord, Dimension, Formula, TargetAxis, ValuePayload};
+    let (doc, _, _) = box_doc("e-far-read-out");
+    let placement = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .expect("the copy is the product");
+    let mut far = pncad::document::stand();
+    let turn = |r: f64| Formula::literal(r, Dimension::Angle).unwrap();
+    // Far enough that the composition's rounding outgrows the run's ε:
+    // the distance scales with it.
+    let d = (1.0e17 * Tol::witness().eps()).max(1.0e7);
+    far.values = vec![
+        (Coord::Slide(TargetAxis::X), len(d + 0.3)),
+        (Coord::Slide(TargetAxis::Y), len(-0.3 * d - 0.7)),
+        (Coord::Slide(TargetAxis::Z), len(0.2 * d + 0.1)),
+        (Coord::Spin(Some(TargetAxis::X)), turn(0.3)),
+        (
+            Coord::Spin(Some(TargetAxis::Y)),
+            turn(std::f64::consts::FRAC_1_SQRT_2),
+        ),
+        (Coord::Spin(Some(TargetAxis::Z)), turn(1.1)),
+    ];
+    let doc = applied(&doc, far.write(placement)).doc;
+    let ev = pncad::document::evaluate::<f64>(
+        &doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        Tol::witness(),
+    );
+    let Some(ValuePayload::Body(copy)) = ev.value(placement).map(|v| &v.payload) else {
+        panic!(
+            "the far copy builds: {:?}",
+            ev.node_error(placement).map(|e| &e.kind)
+        );
+    };
+    let read = pncad::export::body_in_space::<f64>(copy, Tol::witness());
+    assert!(
+        read.is_err(),
+        "the read-out composes it into the world and re-certifies there, which refuses this far out"
+    );
+    let step = pncad::export::step_for_node(
+        &ev,
+        placement,
+        &pncad::step_export::StepOptions::default(),
+        Tol::witness(),
+    );
+    assert!(
+        matches!(step, Err(pncad::export::ExportError::Compose(_))),
+        "and so does the node's STEP export: {:?}",
+        step.as_ref().map(|_| ())
+    );
+}
+
+/// **Each pattern preset is recognised as itself** (`pncad::pattern`):
+/// a row, a grid, a ring and a bolt circle, each written by its writer
+/// and read back by `recognise` as the pattern it is, with its index
+/// and its step. `recognise` reads the recipe as written, so the ring's
+/// axis is any axis read the door admits: the box's end cap's.
+mod pattern_presets_are_recognised_as_themselves {
+    use pncad::document::{
+        BodyRead, Formula, Operand, ProfileDoc, RecipeNodeId, TargetAxis, VarName,
+    };
+    use pncad::pattern::{Recognised, RingStep};
+
+    /// The box, an index `k = index(4)` beside it, and the box's space.
+    fn with_index(name: &'static str) -> (ProfileDoc, RecipeNodeId, Operand) {
+        let (doc, _, body) = super::box_doc("pattern-presets");
+        let doc = super::applied(
+            &doc,
+            pncad::pattern::index_decl(VarName::from_static(name), Formula::count(4), None),
+        )
+        .doc;
+        let space = doc.node_space(body).expect("the box stands in a space");
+        (doc, body, Operand::Var(space))
+    }
+
+    fn index_of(doc: &ProfileDoc, name: &'static str) -> pncad::document::VarId {
+        doc.var_named(name).expect("the index is declared")
+    }
+
+    /// An axis read off the box's end cap.
+    fn cap_axis(body: RecipeNodeId) -> Operand {
+        Operand::Pose(Box::new(pncad::document::pose::PoseDef::Axis {
+            of: Operand::Select {
+                body: Box::new(Operand::Node(body)),
+                names: vec![pncad::prelude::StableName {
+                    kind: pncad::select::EntityKind::Face,
+                    node: body,
+                    path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::End)],
+                }],
+            },
+        }))
+    }
+
+    #[test]
+    fn a_row_is_recognised_as_a_row() {
+        let (doc, body, space) = with_index("k");
+        let k = VarName::from_static("k");
+        let row = pncad::pattern::linear_pattern(
+            &k,
+            BodyRead::plain(Operand::Node(body)),
+            space,
+            &[(TargetAxis::X, super::len(3.0))],
+        )
+        .expect("a length pitch");
+        let (doc, row) = super::insert(doc, row);
+        let want = Recognised::Linear {
+            index: index_of(&doc, "k"),
+            steps: vec![(TargetAxis::X, super::len(3.0))],
+        };
+        assert_eq!(pncad::pattern::recognise(&doc, row), Some(want));
+        assert_eq!(pncad::pattern::recognise(&doc, body), None);
+    }
+
+    #[test]
+    fn a_grid_is_recognised_as_a_grid() {
+        let (doc, body, space) = with_index("i");
+        let (i, j) = (VarName::from_static("i"), VarName::from_static("j"));
+        let doc = super::applied(
+            &doc,
+            pncad::pattern::index_decl(j.clone(), Formula::count(3), Some(&i)),
+        )
+        .doc;
+        let grid = pncad::pattern::grid(
+            (&i, (TargetAxis::X, super::len(3.0))),
+            (&j, (TargetAxis::Y, super::len(2.5))),
+            BodyRead::plain(Operand::Node(body)),
+            space,
+        )
+        .expect("length pitches");
+        let (doc, grid) = super::insert(doc, grid);
+        let want = Recognised::Grid {
+            outer: (index_of(&doc, "i"), vec![(TargetAxis::X, super::len(3.0))]),
+            inner: (index_of(&doc, "j"), vec![(TargetAxis::Y, super::len(2.5))]),
+        };
+        assert_eq!(pncad::pattern::recognise(&doc, grid), Some(want));
+    }
+
+    #[test]
+    fn a_ring_and_a_bolt_circle_are_recognised_as_rings() {
+        let (doc, body, space) = with_index("k");
+        let k = VarName::from_static("k");
+        let step = Formula::div(
+            Formula::turn(),
+            Formula::count_to_scalar(Formula::count(5)).expect("a count converts"),
+        )
+        .expect("an angle");
+        let axis = (cap_axis(body), cap_axis(body), TargetAxis::Z);
+        let ring = pncad::pattern::circular_pattern(
+            &doc,
+            &k,
+            BodyRead::plain(Operand::Node(body)),
+            space.clone(),
+            axis.clone(),
+            RingStep::By(step.clone()),
+        )
+        .expect("an angle step");
+        let (doc, ring) = super::insert(doc, ring);
+        assert_eq!(
+            pncad::pattern::recognise(&doc, ring),
+            Some(Recognised::Circular {
+                index: index_of(&doc, "k"),
+                step,
+            })
+        );
+        let bolts = pncad::pattern::bolt_circle(
+            &doc,
+            &k,
+            Formula::count(4),
+            BodyRead::plain(Operand::Node(body)),
+            space,
+            axis,
+        )
+        .expect("a count");
+        let (doc, bolts) = super::insert(doc, bolts);
+        let quarter = Formula::div(
+            Formula::turn(),
+            Formula::count_to_scalar(Formula::count(4)).expect("a count converts"),
+        )
+        .expect("an angle");
+        assert_eq!(
+            pncad::pattern::recognise(&doc, bolts),
+            Some(Recognised::Circular {
+                index: index_of(&doc, "k"),
+                step: quarter,
+            })
+        );
+    }
 }

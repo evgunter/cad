@@ -4,12 +4,12 @@ kind: program
 title: CLEARTAIL — CLEAR's tail behind its P0/P1 slate - the clearance engine's witness, seam and refusal-text rows
 status: ready
 opened: 2026-10-27
-area: kernel
+group: api/assembly
 prefix: cleartail/
 tag: (CLEARTAIL orchestrator)
 ab_band: 18100-18199
 paths: [crates/editor-core/src/clearance.rs]
-keep_out: [opened 2026-10-27 by CLEAR's priority-seam cut (work/README.md Track size) when CLEAR measured 42.5 budget points - CLEAR keeps its P0 and P1 rows on the same file and SHELL-3 moves the engine's body-level half into topo, so a row here may find its code in topo by the time it is taken, run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-27 by CLEAR's priority-seam cut (work/README.md Track size) when CLEAR measured 42.5 budget points - CLEAR keeps its P0 and P1 rows on the same file and SHELL-3 moves the engine's body-level half into topo, so a row here may find its code in topo by the time it is taken, run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 ---
 
 **What remains of CLEAR behind its P0 and P1 slate.** The clearance

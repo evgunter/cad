@@ -291,12 +291,12 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                     }
                     ValuePayload::Body(b) => {
                         d.u64(14);
-                        d.body(b);
+                        d.body(b.body());
                     }
                     ValuePayload::Boolean(BooleanValue::Empty) => d.u64(15),
                     ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
                         d.u64(16);
-                        d.body(body);
+                        d.body(body.body());
                     }
                     ValuePayload::Split { above, below } => {
                         d.u64(17);
@@ -305,16 +305,17 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                                 SplitSide::Empty => d.u64(0),
                                 SplitSide::Body(b) => {
                                     d.u64(1);
-                                    d.body(b);
+                                    d.body(b.body());
                                 }
                             }
                         }
                     }
+                    ValuePayload::Family => d.u64(19),
                     ValuePayload::Instances(bodies) => {
                         d.u64(18);
                         d.u64(bodies.len() as u64);
                         for b in bodies {
-                            d.body(b);
+                            d.body(b.body());
                         }
                     }
                     // The measured quantity IS a lane value, so it is
@@ -490,6 +491,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![disc],
         ids: Vec::new(),
+        on: None,
     }));
     let puck = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -520,7 +522,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let p_f = product_recorded(&doc, &ev_f, tol);
     let p_d = product_recorded(&doc, &ev_d, tol);
     // The two arms agree EXCEPT where the certified at-rest gate
-    // decides: `RootInvalid` is minted only by `gate_at_rest`, which
+    // decides: `PieceInvalid` is minted only by `gate_at_rest`, which
     // is structurally absent at `Dual` (DUAL-DESIGN DL3), so an f64
     // gate refusal — which this document produces at tight ε, where
     // `props_quad_converged` escalates on the arc-walled split — is
@@ -533,7 +535,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
             "f64 gathered but Dual64 refused: {:?}",
             p_d.as_ref().err()
         ),
-        Err(ProductError::RootInvalid { .. }) => assert!(
+        Err(ProductError::PieceInvalid { .. }) => assert!(
             p_d.is_ok(),
             "the at-rest gate is structurally absent at Dual64 (DL3), so an \
              f64 gate refusal must leave the Dual64 gather Ok; got {:?}",
@@ -571,8 +573,8 @@ fn direct_validation_door_behavior_at_dual64() {
     // runs and answers. That door is the `_structural` twin: the composed
     // entry carries the +V invariant's certified bound and cannot be
     // called at a dual at all.
-    let direct = topo::validate_geometric_structural(body, tol);
-    let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(body, tol);
+    let direct = topo::validate_geometric_structural(&body, tol);
+    let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(&body, tol);
     assert_eq!(
         policy,
         Ok(topo::AtRestOutcome::NotRunAtThisScalar),
@@ -589,7 +591,7 @@ fn direct_validation_door_behavior_at_dual64() {
         // NURBS wall and says so as `VolumeUncomputable` rather than
         // passing it unbounded. Nothing else the battery consults refuses
         // this body.
-        let verdict = topo::validate_geometric_structural(body_n, tol);
+        let verdict = topo::validate_geometric_structural(&body_n, tol);
         assert!(
             matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
                 e,

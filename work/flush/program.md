@@ -2,13 +2,13 @@
 id: flush
 kind: program
 title: FLUSH — planar and declared-contact correctness at the join
-status: active
+status: ready
 opened: 2026-10-10
-area: kernel
+group: kernel/boolean/join
 prefix: flush/
 tag: (FLUSH orchestrator)
 paths: [crates/topo/src/boolean/join.rs, crates/topo/src/loop_winding.rs]
-keep_out: [opened 2026-10-10 by JOIN's close (Ev approved the plan in chat 2026-10-10) - the rows moved by git mv with ids and bodies unchanged and JOIN's directory left the tracker (docs/doc-ledger/join-leaves-the-tracker.md), SECT holds the curved section-frame and lane rows on the same join.rs and owns them outright so a curved pair that reaches the join is SECT's, rows on declared contact and continuations wait on INTENT stage 4 (work/flush/plan.md The intent-refactor hold), TALLY holds the door's in-band typing rows beside this slate's sliver-shell P0, crates/topo/src/boolean/* is shared ground with SECT ZIP FUSE GERM CONTACTHOLD TANG CLEAVE BOXES PIN by design and RESTFRONT owns validate.rs, so run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-10 by JOIN's close (Ev approved the plan in chat 2026-10-10) - the rows moved by git mv with ids and bodies unchanged and JOIN's directory left the tracker (docs/doc-ledger/join-leaves-the-tracker.md), SECT holds the curved section-frame and lane rows on the same join.rs and owns them outright so a curved pair that reaches the join is SECT's, rows on declared contact and continuations wait on INTENT stage 4 (work/flush/plan.md The intent-refactor hold), TALLY holds the door's in-band typing rows beside this slate's sliver-shell P0, crates/topo/src/boolean/* is shared ground with SECT ZIP FUSE GERM CONTACTHOLD TANG CLEAVE BOXES PIN by design and RESTFRONT owns validate.rs, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled]
 budget: 32
 ---
 **Planar and declared-contact correctness at the join.** The join's

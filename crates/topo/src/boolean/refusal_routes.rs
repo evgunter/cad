@@ -3,12 +3,9 @@
 //! raised or wrapped, so its sentence is an exhaustive match, composed
 //! here.
 //!
-//! - [`Contradiction`]: which fact contradicted a declared face pair
-//!   (`BooleanError::DeclarationContradicted`,
-//!   `MergeCoplanarError::DeclarationContradicted`), set by the rung
-//!   that decided it (`plane_eq`'s declared rung, `carrier_eq`'s kind
-//!   and data rungs). The verdict is definite, so it ends in
-//!   `contact::CONTRADICTION_RECOURSE`, with no tolerance arm.
+//! - [`Contradiction`]: which fact contradicted a glued tangency
+//!   (`BooleanError::ContactContradicted`). The verdict is definite and
+//!   the kernel's own, so it ends on the kernel-defect sentence.
 //! - [`BooleanDecision`]: which decision `BooleanError::Escalated`
 //!   escalated on, set at the site that wraps the escalation.
 //!   [`BooleanDecision::render`] composes the whole sentence from the
@@ -55,40 +52,16 @@ use crate::splitting::ConicRootFault;
 pub use crate::splitting::CrossingDecision;
 pub use geom_brep::{SectionRadius, TorusConvention};
 
-/// Which fact contradicted a declared pair: the rung that found the
-/// two carriers definitely distinct.
+/// Which fact contradicted a glued pair's class: the carrier ladder
+/// reading a pair the tangent lane glued as one carrier.
 ///
 /// The façade's curated list carries neither this nor
 /// [`BooleanDecision`]; why, and what would change that, is
 /// `work/lib/boolean-decision-and-contradiction-are-rungs-under-boolean-error.md`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Contradiction {
-    /// The declared planes' normals are not parallel.
-    PlanesNotParallel,
-    /// The declared planes are parallel and offset.
-    PlanesApart,
-    /// The declared faces lie on different kinds of surface.
-    KindsDiffer,
-    /// The declared cylinders' axes are not parallel.
-    CylinderAxesNotParallel,
-    /// The declared cylinders' axes are parallel and offset.
-    CylinderAxesApart,
-    /// The declared cylinders' radii differ.
-    CylinderRadiiDiffer,
-    /// The declared spheres' centres differ.
-    SphereCentresDiffer,
-    /// The declared spheres' radii differ.
-    SphereRadiiDiffer,
-    /// The declared tori's axes are not parallel.
-    TorusAxesNotParallel,
-    /// The declared tori's centres differ.
-    TorusCentresDiffer,
-    /// The declared tori's major radii differ.
-    TorusMajorRadiiDiffer,
-    /// The declared tori's tube radii differ.
-    TorusTubeRadiiDiffer,
-    /// A tangency claimed between faces on ONE carrier: conformal
-    /// contact, which is a `Rest` contact or a continuation.
+    /// A tangency read between faces on ONE carrier: conformal contact,
+    /// which is a `Rest` contact or a continuation.
     OneCarrier,
 }
 
@@ -97,21 +70,9 @@ impl Contradiction {
     #[must_use]
     pub fn fact(self) -> &'static str {
         match self {
-            Self::PlanesNotParallel => "the declared planes are not parallel",
-            Self::PlanesApart => "the declared planes are parallel but apart",
-            Self::KindsDiffer => "the declared faces are different kinds of surface",
-            Self::CylinderAxesNotParallel => "the declared cylinders' axes are not parallel",
-            Self::CylinderAxesApart => "the declared cylinders' axes are parallel but apart",
-            Self::CylinderRadiiDiffer => "the declared cylinders' radii differ",
-            Self::SphereCentresDiffer => "the declared spheres' centres differ",
-            Self::SphereRadiiDiffer => "the declared spheres' radii differ",
-            Self::TorusAxesNotParallel => "the declared tori's axes are not parallel",
-            Self::TorusCentresDiffer => "the declared tori's centres differ",
-            Self::TorusMajorRadiiDiffer => "the declared tori's major radii differ",
-            Self::TorusTubeRadiiDiffer => "the declared tori's tube radii differ",
             Self::OneCarrier => {
-                "the declared faces lie on one carrier, which is a Rest contact or a \
-                 continuation, not a tangency"
+                "the two faces lie on one carrier, which is a Rest contact or a continuation, \
+                 not a tangency"
             }
         }
     }
@@ -137,6 +98,24 @@ macro_rules! corner_edges {
         "make the edges at the corner where the two faces meet span clearly more than the tolerance"
     };
 }
+
+/// [`BooleanDecision::CurveMeeting`]'s subject.
+const CURVE_MEETING: &str =
+    "where an edge on a curved face's carrier meets a curve of that face's boundary";
+
+/// [`BooleanDecision::CurveMeeting`]'s levers: the two curves come from
+/// two cuts of the carrier, which one construction makes one.
+const CURVE_MEETING_LEVER: &str = "make the two cuts of the curved face one construction, or \
+                                   move the parts so the edge clearly crosses that curve or \
+                                   clearly parts from it";
+
+/// [`BooleanDecision::BoundaryMeeting`]'s subject.
+const BOUNDARY_MEETING: &str = "where an edge meets a curve of a curved face's boundary";
+
+/// [`BooleanDecision::BoundaryMeeting`]'s lever: the edge is off the
+/// face's carrier, so no shared construction makes the two curves one.
+const BOUNDARY_MEETING_LEVER: &str =
+    "move the parts so the edge clearly crosses that curve or clearly parts from it";
 
 /// Which decision a Boolean escalation came from, set at the site that
 /// wraps the escalation.
@@ -200,9 +179,6 @@ pub enum BooleanDecision {
     /// ring that reads in band refuses rather than divide the face the
     /// wrong way round.
     CutRingWinding,
-    /// Whether the result's volume agrees with its operands': the
-    /// kernel checking its own result.
-    VolumeBackstop,
     /// Whether a length to measure an angle over is positive, at a gate
     /// that meters a reading by it.
     LeverArm(LeverArm),
@@ -225,6 +201,14 @@ pub enum BooleanDecision {
     /// depth, contour residuals and sides, a coaxial tilt and offset, and
     /// the quartic's own rows.
     ArcTorusRoots,
+    /// Where an edge on a curved face's carrier meets a curve of that
+    /// face's boundary: the curve-pair reading in band (`carrier_cross`),
+    /// an escalation of the meeting table or a root finder's touch.
+    CurveMeeting,
+    /// Where an edge NOT on a curved face's carrier (covered against it,
+    /// or against a spline face) meets a curve of that face's boundary:
+    /// the same reading in band, told without the carrier.
+    BoundaryMeeting,
     /// Where a straight edge crosses a sphere: the line × sphere
     /// quadratic's discriminant (`solid_contain::line_sphere_roots`,
     /// `bool_ray_sphere_disc`).
@@ -273,15 +257,6 @@ pub enum BooleanDecision {
     /// reading in the zero band, reachable only where the band's ratio
     /// is 2 or less, refuses rather than read the wrong side.
     BisectorSide,
-    /// Whether the faces two corners of one solid leave an edge of the
-    /// other's corner in part around it, where that edge lies on both
-    /// corners' boundaries (`vtxfac::along_partners`,
-    /// `bool_partner_half_plane`): the chord between two such
-    /// half-planes' directions levered at the farthest reach, a
-    /// magnitude. A definitely positive chord passes, and the edge is
-    /// on the solid's boundary; a zero is the corners flush along it,
-    /// which refuses with its decided margin, as the in-band arm does.
-    PartnerFaces,
     /// Whether the two faces at a seam edge of the result cross there or
     /// touch tangentially (`dihedral_wedge`, as the result's seam
     /// re-description reads it): every definite verdict passes (a crease
@@ -480,12 +455,10 @@ impl<T: geom_core::Real> super::GluedPairs<T> {
 
     /// The plane door of two corners of the two solids read on one
     /// another (`vtxfac`'s coplanar lump, `recl`'s carrier identity),
-    /// with what it read of the pair's declaration: a one-carrier
-    /// declaration bridges an in-band parallelism
-    /// ([`Coincide::OnPlanes`]), and the door admits the one the pair's
-    /// `senses` make it ([`GlueClass::of_senses`]). Senses the
-    /// door could not read admit none: a guess would offer a declaration
-    /// the declaration door contradicts.
+    /// with what it read of the pair's glue: the one-carrier class the
+    /// pair's `senses` make it ([`GlueClass::of_senses`]). Senses the
+    /// door could not read admit none. A glued pair is read through its
+    /// record and never reaches this door.
     pub(crate) fn on_pair_door(
         &self,
         pair: (
@@ -544,7 +517,8 @@ pub enum Coincide {
     /// another are parallel (`vtxfac`, `recl`, and a declared `Rest`
     /// pair's ladder): only zero passes (a definitely positive one there
     /// contradicts the reading that brought the pair, a kernel
-    /// invariant), and a `Rest` declaration bridges the residue.
+    /// invariant). A glued pair is read through its record and never
+    /// asks it.
     OnPlanes,
     /// Whether a vertex of one solid lies on a plane face of the other,
     /// where every side passes. The sweep refuses at the first vertex it
@@ -623,21 +597,11 @@ pub enum Coincide {
     /// Whether a declared contact holds along its witness: the contact
     /// table's rows pass on different sets.
     Contact,
-    /// Whether two faces declared on one carrier (`Rest` or a
-    /// continuation) lie within the band of one another at every point
-    /// of both: the pair's displacement, bounded above over a ball
-    /// enclosing the faces, stands past the band, and no point known to
-    /// lie on them stands definitely off (`carrier_eq`'s
-    /// `CarrierEqError::Unsettled`). Only an in-band bound passes, and
-    /// the bound is what stands past it, so no sign of the margin
-    /// passes.
-    DeclaredReach,
     /// Whether a face of each solid lies on one carrier, at the
     /// operation's glue door or a corner site: the faces' data decided
     /// Zero over their extent glue, and definitely apart pass; a datum
     /// in band is a sliver, and a Zero a corner reads for a pair the
-    /// door did not glue is one too. A one-carrier declaration bridges
-    /// the residue.
+    /// door did not glue is one too.
     Carriers,
     /// Where the surfaces of a face of each solid meet (a section's
     /// pose): the pose rows pass on different sets.
@@ -679,12 +643,7 @@ impl Coincide {
             }
             Self::TangentLocus => "where two faces of the two solids touch tangentially",
             Self::Rim => "whether a face of each solid ends on one circle",
-            Self::Contact => "whether a declared contact holds along its witness",
-            Self::DeclaredReach => {
-                "whether two faces declared on one surface stay within the tolerance of one \
-                 another at every point of both, which neither a bound over the faces nor a point \
-                 on them settles"
-            }
+            Self::Contact => "whether a recorded contact holds along its witness",
             Self::Carriers => "whether a face of each solid lies on one surface",
             Self::Section => "where the surfaces of a face of each solid meet",
             Self::Join => "how the sections' ends pair up where the two solids meet",
@@ -695,13 +654,11 @@ impl Coincide {
     /// change this question's verdict: the one statement
     /// [`GluedPairs::read`](super::GluedPairs::read) settles by.
     ///
-    /// - [`Coincide::OnPlanes`]: a one-carrier pair's (`Rest` or a
-    ///   continuation) ladder bridges an in-band parallelism
-    ///   (`plane_eq`'s declared rung).
+    /// - [`Coincide::OnPlanes`]: a one-carrier pair (`Rest` or a
+    ///   continuation) is read through its record, not this question.
     /// - [`Coincide::Sectors`], at `vtxfac`'s coplanar sector: a
-    ///   one-carrier pair's lump takes the residue through the carrier
-    ///   ladder's declared rung, and a `Tangent` pair's descends to the
-    ///   second order (`sectors::tangent_lump`).
+    ///   one-carrier pair's lump is its record's, and a `Tangent` pair's
+    ///   descends to the second order (`sectors::tangent_lump`).
     ///
     /// Every other question refuses a declared pair as it refuses an
     /// undeclared one, or meets no declaration its door verifies.
@@ -728,7 +685,6 @@ impl Coincide {
                 | Self::TangentLocus
                 | Self::Rim
                 | Self::Contact
-                | Self::DeclaredReach
                 | Self::Section
                 | Self::Join,
                 Rest | Tangent | Continuation,
@@ -759,7 +715,6 @@ impl Coincide {
             Self::CurvedFlankSense => Ending::Lever(CURVED_FLANK_LEVER),
             Self::TangentLocus => Ending::Lever(TANGENT_LOCUS_LEVER),
             Self::Contact | Self::Section => Ending::Lever(proximity_lever!()),
-            Self::DeclaredReach => Ending::Lever(DECLARED_REACH_LEVER),
         }
     }
 
@@ -789,17 +744,38 @@ impl Coincide {
             | Self::TangentLocus
             | Self::Rim
             | Self::Contact
-            | Self::DeclaredReach
             | Self::Section
             | Self::Join => self.ending(),
         }
     }
 }
 
-/// [`Coincide::DeclaredReach`]'s lever: a declared pair is settled by
-/// geometry that reads one way or the other over both faces.
-const DECLARED_REACH_LEVER: &str =
-    "move the parts so the declared faces clearly coincide, or clearly do not";
+/// **A same-direction parallelism reading** ([`super::sectors::parallel_same`]):
+/// the name its levered sine is decided under, and the coincidence an
+/// in-band reading refuses as. Each reading's one home: the sites that
+/// read it pass it, [`super::decision_words`] states its words, and the
+/// site census credits each site that passes it with its coincidence.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Parallelism {
+    pub predicate: &'static str,
+    pub coincide: Coincide,
+}
+
+/// Two bound directions of one vertex's sectors, read along one ray.
+pub(super) const BOUNDS_PARALLEL: Parallelism = Parallelism {
+    predicate: "bool_dir_parallel",
+    coincide: Coincide::Sectors,
+};
+
+/// Two directions mentioned at one site, read along one ray: an edge of
+/// one solid along an edge of the other.
+pub(super) const RAY_COLLINEAR: Parallelism = Parallelism {
+    predicate: "bool_ee_collinear",
+    coincide: Coincide::EdgeOnEdge,
+};
+
+/// Every [`Parallelism`] reading.
+pub(super) const PARALLELISMS: [Parallelism; 2] = [BOUNDS_PARALLEL, RAY_COLLINEAR];
 
 /// A coincidence whose geometry lever is to make the parts clearly meet
 /// or clearly stand apart, passing on `passes`: an in-band gap on a side
@@ -818,7 +794,7 @@ const fn proximity(passes: SizedPass) -> SizedDecision {
 /// declared-`Tangent` pair's conformal screen ([`Coincide::Planes`]):
 /// parallel goes on to the offset rung, which contradicts a `Tangent`
 /// claim (`ContactContradicted`), and a clear tilt to the witness lane,
-/// which has no locus for two planes (`UnsupportedDeclarationClass`).
+/// which has no locus for two planes (`TangencyUnsupported`).
 /// No move of the parts passes under that declaration, so no lever is
 /// named.
 const PLANES_FRONTIER: &str = "Whichever way it reads, the Boolean cannot yet act on a Tangent \
@@ -957,22 +933,6 @@ pub(crate) const CORNER_SENSE: SizedDecision = SizedDecision {
 const FLANK_SENSE: SizedDecision = SizedDecision {
     passes: SizedPass::Negative,
     ..CORNER_SENSE
-};
-
-/// Whether two corners of one solid that meet along an edge of the
-/// other part around it ([`BooleanDecision::PartnerFaces`]): the chord
-/// between their faces' half-planes there levered at the farthest
-/// reach, a magnitude, so a definitely positive one alone passes. Both
-/// corners are one solid's, so moving the parts reaches the reading
-/// only by taking the other solid's corner off that point; reshaping
-/// the one solid parts its corners.
-const PARTNER_FACES: SizedDecision = SizedDecision {
-    lever: "move the parts so that edge's corner lands clear of them, or reshape that solid so \
-            they clearly part",
-    size: "gap between their faces",
-    passes: SizedPass::Positive,
-    side: RefusedSide::Lever,
-    no_size: None,
 };
 
 /// The one move that lengthens the arm a corner's reading is metered
@@ -1144,13 +1104,9 @@ pub enum SelfCheck {
     /// (`bool_ring_run_winding`): a zero area is a degenerate run
     /// (`JoinDesync`).
     RingWinding,
-    /// The carrier ladder's contradiction arm, which its detector
-    /// posture (nothing declared) cannot reach.
-    CarrierLadder,
-    /// Where a record's span along a line edge lies (`ops::record_spans`):
-    /// the order of its bounds along the edge, or whether a face holds
-    /// its midpoint, asked as the census confirms a record. The records
-    /// bounding it certified at rest, so an undecided answer is one the
+    /// Which piece of a face the op divided holds a record's point
+    /// (`ops::piece_reading`), asked as the census confirms a record. The
+    /// record certified at rest, so an undecided answer is one the
     /// census could not decide either.
     CarriedLineage,
     /// Which way a one-vertex seam edge runs against its partner
@@ -1170,7 +1126,6 @@ impl SelfCheck {
             Self::Normals => "whether the normals of two faces can be read",
             Self::ArcFacing => "which way a germ turns about the section it lies on",
             Self::RingWinding => "which way a ring run of the section winds",
-            Self::CarrierLadder => "whether a face of each solid lies on one surface",
             Self::CarriedLineage => {
                 "where a contact lands on the pieces of a split edge or a divided face"
             }
@@ -1394,8 +1349,8 @@ impl BooleanDecision {
 
     /// The decision a plane-identity rung escalated on at `door`:
     /// across the operands, in-band parallelism is the question the door
-    /// asks of the pair, with what it read (a declared `Rest` pair's
-    /// ladder bridges an in-band margin), and orientation a decision of
+    /// asks of the pair, with what it read (a glued pair is read through
+    /// its record and never reaches it), and orientation a decision of
     /// its own; between neighbours of one operand, both rungs ask the
     /// maximal-faces question. A norm read definitely negative is
     /// poisoned input at every door, which no declaration and no move
@@ -1466,7 +1421,6 @@ impl BooleanDecision {
             Self::CutRingWinding => {
                 "which way a ring that the cut of a coincident face closes winds"
             }
-            Self::VolumeBackstop => "whether the result's volume agrees with its operands'",
             Self::LeverArm(gate) => gate.subject(),
             Self::Radius(radius) => radius.subject(),
             Self::WallRoots(WallRung::AxisParallel) => {
@@ -1478,6 +1432,8 @@ impl BooleanDecision {
             Self::CylinderAxes => CYLINDER_AXES_PARALLEL,
             Self::TorusRoots => "how many times an edge crosses a torus",
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
+            Self::CurveMeeting => CURVE_MEETING,
+            Self::BoundaryMeeting => BOUNDARY_MEETING,
             Self::SphereRoots => "whether an edge crosses a sphere, grazes it or misses it",
             Self::ArcSphereRoots => "whether an arc crosses a sphere, grazes it or misses it",
             Self::ArcCylinderRoots => {
@@ -1497,9 +1453,6 @@ impl BooleanDecision {
                 "whether two parallel directions at a corner point the same way or opposite ways"
             }
             Self::BisectorSide => "which side of a face a corner's bisector leaves on",
-            Self::PartnerFaces => {
-                "whether two corners of one solid part around an edge of the other"
-            }
             Self::SeamWedge => {
                 "whether the two faces at a seam edge cross there or touch tangentially"
             }
@@ -1549,9 +1502,8 @@ impl BooleanDecision {
             ) => Ending::Sized(CORNER_SENSE),
             Self::Coincidence(which, _) => which.ending(),
             // Its margin is the normals' cosine at the door's arm, `≈ ±arm`,
-            // and the offset rung asks next: a declared `Rest` pair's
-            // bridges, an undeclared pair's glues on a decided Zero or
-            // refuses in band, at every tolerance.
+            // and the offset rung asks next: an unglued pair's glues on a
+            // decided Zero or refuses in band, at every tolerance.
             Self::PlaneOrientation => Ending::Lever(CORNER_EDGES),
             // The margin is the normals' sine over the shared edge's
             // extent, and a definitely positive one (a clear angle)
@@ -1615,7 +1567,6 @@ impl BooleanDecision {
                 SizedPass::NonNegative,
             ),
             Self::CutRingWinding => Ending::Lever(CUT_RING_WINDING),
-            Self::VolumeBackstop => Ending::Unsized(Unsized::Defect),
             // The arm passes on a positive length, and a zero-band one
             // is a size a smaller tolerance decides positive
             // (`geom_brep::enters`'s arm gate carries its margin).
@@ -1671,6 +1622,13 @@ impl BooleanDecision {
             Self::ArcTorusRoots => Ending::Lever(
                 "move the parts so the arc clearly crosses the torus or clearly misses it",
             ),
+            // The readings are the meeting table's (a residual at a walk's
+            // cut, a pose's swing, an end's gap off a carrier), no size
+            // the user drew, so no tolerance is offered.
+            Self::CurveMeeting => Ending::Lever(CURVE_MEETING_LEVER),
+            // The same readings, of an edge off the carrier: moving the
+            // parts is the lever, as for the other gap-sign escalations.
+            Self::BoundaryMeeting => Ending::Lever(BOUNDARY_MEETING_LEVER),
             // As the wall's discriminant: two roots pass, a miss passes
             // where both ends are off the sphere, and a zero is a
             // tangency, refused at the frontier.
@@ -1706,7 +1664,6 @@ impl BooleanDecision {
             // measured margin; a longer arm lengthens every reading of the
             // corner.
             Self::BisectorSide => Ending::Lever(CORNER_EDGES),
-            Self::PartnerFaces => Ending::Sized(PARTNER_FACES),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
             Self::LineEdges => Ending::Lever(LINE_EDGES_LEVER),
@@ -1788,10 +1745,9 @@ mod offer_rows;
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(in crate::boolean) mod tests {
     use super::*;
-    use crate::boolean::{BooleanError, CarrierDesc, CarrierEqError, Operand, PlaneIdentity};
+    use crate::boolean::{BooleanError, Operand};
     use crate::entity::{EdgeKey, VertexKey};
     use crate::euler::EulerOpError;
-    use crate::merge_faces::MergeCoplanarError;
     use crate::sector_shape::SectorRungKind;
     use crate::splitting::SplitReduceError;
     use geom_brep::recourse::Classified;
@@ -2035,7 +1991,6 @@ pub(in crate::boolean) mod tests {
                     vec![BooleanDecision::SplitPointOnCircle]
                 }
                 BooleanDecisionKind::CutRingWinding => vec![BooleanDecision::CutRingWinding],
-                BooleanDecisionKind::VolumeBackstop => vec![BooleanDecision::VolumeBackstop],
                 BooleanDecisionKind::LeverArm => {
                     LeverArm::iter().map(BooleanDecision::LeverArm).collect()
                 }
@@ -2048,6 +2003,8 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::CylinderAxes => vec![BooleanDecision::CylinderAxes],
                 BooleanDecisionKind::TorusRoots => vec![BooleanDecision::TorusRoots],
                 BooleanDecisionKind::ArcTorusRoots => vec![BooleanDecision::ArcTorusRoots],
+                BooleanDecisionKind::CurveMeeting => vec![BooleanDecision::CurveMeeting],
+                BooleanDecisionKind::BoundaryMeeting => vec![BooleanDecision::BoundaryMeeting],
                 BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
                 BooleanDecisionKind::ArcSphereRoots => vec![BooleanDecision::ArcSphereRoots],
                 BooleanDecisionKind::ArcCylinderRoots => vec![BooleanDecision::ArcCylinderRoots],
@@ -2057,7 +2014,6 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::ConicBend => vec![BooleanDecision::ConicBend],
                 BooleanDecisionKind::DirectionSense => vec![BooleanDecision::DirectionSense],
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
-                BooleanDecisionKind::PartnerFaces => vec![BooleanDecision::PartnerFaces],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
                 BooleanDecisionKind::LineEdges => vec![BooleanDecision::LineEdges],
@@ -2159,12 +2115,7 @@ pub(in crate::boolean) mod tests {
             }
             Coincide::TangentLocus => "where two faces of the two solids touch tangentially",
             Coincide::Rim => "whether a face of each solid ends on one circle",
-            Coincide::Contact => "whether a declared contact holds along its witness",
-            Coincide::DeclaredReach => {
-                "whether two faces declared on one surface stay within the tolerance of one \
-                 another at every point of both, which neither a bound over the faces nor a point \
-                 on them settles"
-            }
+            Coincide::Contact => "whether a recorded contact holds along its witness",
             Coincide::Section => "where the surfaces of a face of each solid meet",
             Coincide::Join => "how the sections' ends pair up where the two solids meet",
         }
@@ -2228,9 +2179,6 @@ pub(in crate::boolean) mod tests {
                  do not",
             ),
             Coincide::Contact => Ending::Lever(MEET),
-            Coincide::DeclaredReach => Ending::Lever(
-                "Recourse: move the parts so the declared faces clearly coincide, or clearly do not",
-            ),
             Coincide::Section => Ending::Lever(MEET),
             Coincide::Join => Ending::Sized(MEET, SizedPass::AnySign),
         }
@@ -2264,7 +2212,6 @@ pub(in crate::boolean) mod tests {
             | Coincide::TangentLocus
             | Coincide::Rim
             | Coincide::Contact
-            | Coincide::DeclaredReach
             | Coincide::Section
             | Coincide::Join => None,
         }
@@ -2309,14 +2256,6 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::BisectorSide => (
                 "which side of a face a corner's bisector leaves on",
                 Ending::Lever(LONGER),
-            ),
-            BooleanDecision::PartnerFaces => (
-                "whether two corners of one solid part around an edge of the other",
-                Ending::Sized(
-                    "Recourse: move the parts so that edge's corner lands clear of them, or \
-                     reshape that solid so they clearly part",
-                    SizedPass::Positive,
-                ),
             ),
             BooleanDecision::LeverArm(LeverArm::SectorSide) => (
                 "whether an edge at a corner is long enough to read which side of a face it \
@@ -2379,6 +2318,20 @@ pub(in crate::boolean) mod tests {
                 Ending::Lever(
                     "Recourse: move the parts so the arc clearly crosses the torus or clearly \
                      misses it",
+                ),
+            ),
+            BooleanDecision::CurveMeeting => (
+                "where an edge on a curved face's carrier meets a curve of that face's boundary",
+                Ending::Lever(
+                    "Recourse: make the two cuts of the curved face one construction, or move \
+                     the parts so the edge clearly crosses that curve or clearly parts from it",
+                ),
+            ),
+            BooleanDecision::BoundaryMeeting => (
+                "where an edge meets a curve of a curved face's boundary",
+                Ending::Lever(
+                    "Recourse: move the parts so the edge clearly crosses that curve or clearly \
+                     parts from it",
                 ),
             ),
             BooleanDecision::SphereRoots => (
@@ -2525,10 +2478,6 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::SelfCheck(SelfCheck::RingWinding) => {
                 ("which way a ring run of the section winds", Ending::Defect)
             }
-            BooleanDecision::SelfCheck(SelfCheck::CarrierLadder) => (
-                "whether a face of each solid lies on one surface",
-                Ending::Defect,
-            ),
             BooleanDecision::SelfCheck(SelfCheck::CarriedLineage) => (
                 "where a contact lands on the pieces of a split edge or a divided face",
                 Ending::Defect,
@@ -2627,10 +2576,6 @@ pub(in crate::boolean) mod tests {
                      other spans clearly more than the tolerance",
                 ),
             ),
-            BooleanDecision::VolumeBackstop => (
-                "whether the result's volume agrees with its operands'",
-                Ending::Defect,
-            ),
         }
     }
 
@@ -2644,6 +2589,7 @@ pub(in crate::boolean) mod tests {
                     SizedPass::Positive | SizedPass::NonNegative => v > 0.0,
                     SizedPass::Negative => v < 0.0,
                     SizedPass::NonZero | SizedPass::AnySign => true,
+                    SizedPass::Zero => false,
                 }
         };
         match margin.diagnostic_f64_for_error_text() {
@@ -2871,7 +2817,6 @@ pub(in crate::boolean) mod tests {
                 | Coincide::TangentLocus
                 | Coincide::Rim
                 | Coincide::Contact
-                | Coincide::DeclaredReach
                 | Coincide::Section
                 | Coincide::Join => &[],
             }
@@ -3100,220 +3045,6 @@ pub(in crate::boolean) mod tests {
         }
     }
 
-    /// The recourse of a contradicted declaration, as `contact` states
-    /// it for every contradiction.
-    const CONTRADICTED: &str =
-        "Recourse: correct or remove the declaration, or move the geometry so it holds";
-
-    /// Each contradiction's clause, and the predicate whose definite
-    /// verdict raises it, written independently of the enum.
-    const FACTS: &[(Contradiction, &str, &str)] = &[
-        (
-            Contradiction::PlanesNotParallel,
-            "bool_plane_parallel",
-            "the declared planes are not parallel",
-        ),
-        (
-            Contradiction::PlanesApart,
-            "bool_plane_offset",
-            "the declared planes are parallel but apart",
-        ),
-        (
-            Contradiction::KindsDiffer,
-            "carrier_kind",
-            "the declared faces are different kinds of surface",
-        ),
-        (
-            Contradiction::SphereCentresDiffer,
-            "carrier_sphere_center",
-            "the declared spheres' centres differ",
-        ),
-        (
-            Contradiction::SphereRadiiDiffer,
-            "carrier_sphere_radius",
-            "the declared spheres' radii differ",
-        ),
-        (
-            Contradiction::CylinderAxesNotParallel,
-            "carrier_cyl_axis_parallel",
-            "the declared cylinders' axes are not parallel",
-        ),
-        (
-            Contradiction::CylinderAxesApart,
-            "carrier_cyl_axis_offset",
-            "the declared cylinders' axes are parallel but apart",
-        ),
-        (
-            Contradiction::CylinderRadiiDiffer,
-            "carrier_cyl_radius",
-            "the declared cylinders' radii differ",
-        ),
-        (
-            Contradiction::TorusAxesNotParallel,
-            "carrier_torus_axis_parallel",
-            "the declared tori's axes are not parallel",
-        ),
-        (
-            Contradiction::TorusCentresDiffer,
-            "carrier_torus_center",
-            "the declared tori's centres differ",
-        ),
-        (
-            Contradiction::TorusMajorRadiiDiffer,
-            "carrier_torus_major_radius",
-            "the declared tori's major radii differ",
-        ),
-        (
-            Contradiction::TorusTubeRadiiDiffer,
-            "carrier_torus_minor_radius",
-            "the declared tori's tube radii differ",
-        ),
-    ];
-
-    /// A declared pair of `c1` and `c2`, verified by the real rung
-    /// (`carrier_eq`, which `recl` and `vtxfac` call and `plane_eq`
-    /// serves for planes) over a metre about the origin, with points on
-    /// `c1` known: the contradiction it raises.
-    fn contradicted(c1: CarrierDesc<f64>, c2: CarrierDesc<f64>) -> (Contradiction, Indeterminate) {
-        let id = PlaneIdentity::DECLARED;
-        let on = crate::boolean::carrier_eq::points_on(&c1);
-        let extent = crate::boolean::ConsumedExtent {
-            on: [&on, &[]],
-            ..crate::boolean::ConsumedExtent::arm(1.0)
-        };
-        match crate::boolean::carrier_eq(&c1, &c2, id, &extent, band()) {
-            Err(CarrierEqError::Contradicted { fact, diag }) => (fact, diag),
-            other => panic!("a declared pair this far apart contradicts: {other:?}"),
-        }
-    }
-
-    /// **A contradicted declaration names the fact that contradicted
-    /// it**, one clause per rung, on the verdict the real rung raises
-    /// for a pair built to trip that rung alone — two cylinders of
-    /// different radii among them, the non-planar pair `recl` raises.
-    /// The verdict is definite: no payload, no declaration offered, no
-    /// tolerance, one recourse.
-    #[test]
-    fn every_contradiction_names_the_fact_that_contradicted() {
-        let p = Point3::new;
-        let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        let o = p(0.0, 0.0, 0.0);
-        let plane = |origin, normal| CarrierDesc::Plane { origin, normal };
-        let sphere = |center, radius| CarrierDesc::Sphere {
-            center,
-            radius,
-            outward: true,
-        };
-        let cylinder = |origin, axis, radius| CarrierDesc::Cylinder {
-            origin,
-            axis,
-            radius,
-            outward: true,
-        };
-        let torus = |center, axis, major_radius, minor_radius| CarrierDesc::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            outward: true,
-        };
-        let pairs = [
-            (plane(o, z), plane(o, x)),
-            (plane(o, z), plane(p(0.0, 0.0, 1.0), z)),
-            (plane(o, z), sphere(o, 1.0)),
-            (sphere(o, 1.0), sphere(p(1.0, 0.0, 0.0), 1.0)),
-            (sphere(o, 1.0), sphere(o, 2.0)),
-            (cylinder(o, z, 1.0), cylinder(o, x, 1.0)),
-            (cylinder(o, z, 1.0), cylinder(p(1.0, 0.0, 0.0), z, 1.0)),
-            (cylinder(o, z, 1.0), cylinder(o, z, 2.0)),
-            (torus(o, z, 2.0, 0.5), torus(o, x, 2.0, 0.5)),
-            (torus(o, z, 2.0, 0.5), torus(p(0.0, 0.0, 1.0), z, 2.0, 0.5)),
-            (torus(o, z, 2.0, 0.5), torus(o, z, 3.0, 0.5)),
-            (torus(o, z, 2.0, 0.5), torus(o, z, 2.0, 0.25)),
-        ];
-        assert_eq!(pairs.len(), FACTS.len());
-        for ((c1, c2), &(want, name, clause)) in pairs.into_iter().zip(FACTS) {
-            let (fact, diag) = contradicted(c1, c2);
-            assert_eq!(
-                (fact, diag.predicate),
-                (want, Some(name)),
-                "the pair trips {name}"
-            );
-            let planar = matches!(
-                fact,
-                Contradiction::PlanesNotParallel | Contradiction::PlanesApart
-            );
-            let mut texts = vec![(
-                BooleanError::DeclarationContradicted { fact }.to_string(),
-                "the Boolean",
-            )];
-            if planar {
-                texts.push((
-                    MergeCoplanarError::DeclarationContradicted { fact }.to_string(),
-                    "the merge",
-                ));
-            }
-            for (text, who) in texts {
-                assert_eq!(
-                    text,
-                    format!(
-                        "a declared coincidence contradicts the geometry: {clause}, and {who} \
-                         never glues a lie. {CONTRADICTED}"
-                    ),
-                    "{who}, {name}"
-                );
-                let problems = short_of_the_guard(&text, &[]);
-                assert!(problems.is_empty(), "{who}, {name}: {problems:?}: {text}");
-                assert!(
-                    !text.contains("tolerance"),
-                    "{who}, {name}: a definite verdict names no tolerance: {text}"
-                );
-            }
-        }
-    }
-
-    /// **The merge meets a contradicted declaration on a real raise**:
-    /// two faces of a brick that meet at an edge, declared one surface.
-    #[test]
-    fn a_declared_pair_of_meeting_faces_is_contradicted_at_the_merge() {
-        let tol = Tol::witness();
-        let mut body =
-            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-        let normal = |b: &crate::body::Body<f64>, s| match b.get_surface(s) {
-            Some(&crate::Surface::Plane { normal, .. }) => normal,
-            other => panic!("a brick face is a plane: {other:?}"),
-        };
-        let surfaces: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
-        let first = surfaces[0];
-        let meeting = *surfaces
-            .iter()
-            .find(|&&s| normal(&body, s).dot(normal(&body, first)).abs() < 0.5)
-            .expect("a brick face meets four others");
-        let err = body
-            .merge_coplanar_faces_declared(&[(first, meeting)], tol)
-            .expect_err("two meeting faces are not one plane");
-        assert!(
-            matches!(
-                err,
-                MergeCoplanarError::DeclarationContradicted {
-                    fact: Contradiction::PlanesNotParallel
-                }
-            ),
-            "the declared rung contradicts on parallelism: {err:?}"
-        );
-        let text = err.to_string();
-        assert_eq!(
-            text,
-            format!(
-                "a declared coincidence contradicts the geometry: the declared planes are not \
-                 parallel, and the merge never glues a lie. {CONTRADICTED}"
-            )
-        );
-        let wrapped = BooleanError::from(err).to_string();
-        let problems = short_of_the_guard(&wrapped, &[]);
-        assert!(problems.is_empty(), "{problems:?}: {wrapped}");
-    }
-
     /// A one-face skeletal body whose face carries `surface`.
     fn face_on(surface: crate::Surface<f64>) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
         let st = crate::fixtures::mvfs_state();
@@ -3419,15 +3150,12 @@ pub(in crate::boolean) mod tests {
         (plane(1.0), plane(sign))
     }
 
-    const DECLARED: PlaneIdentity = PlaneIdentity::DECLARED;
-
     /// **At the Boolean's cross-operand doors a plane pair's orientation
     /// refusal names its own decision, the move that reaches a pass, and
     /// no declaration** (D4 ¶1 (i)), each a real raise: two coincident
     /// planes, facing the same way and opposite ways, compared at an arm
     /// that puts the orientation margin (the normals' cosine at the arm)
-    /// in the zero band and in the ambiguity band, by the declared rung
-    /// and by the undeclared ladder. The zero verdict carries the margin
+    /// in the zero band and in the ambiguity band. The zero verdict carries the margin
     /// the rung decided. Both definite signs pass the rung, but the
     /// offset rung asks next, where a coincident pair's offset decides
     /// alone, glued on Zero or refused in band at every tolerance
@@ -3443,16 +3171,11 @@ pub(in crate::boolean) mod tests {
         for (arm, zero) in [(0.5 * z, true), ((z + e) / 2.0, false)] {
             for sign in [1.0, -1.0] {
                 let (p1, p2) = planes(sign);
-                for id in [DECLARED, PlaneIdentity::NONE] {
-                    let label = format!("arm {arm:e}, facing {sign}, declared {}", id.declared);
-                    let err = oriented_plane_eq(
-                        &p1,
-                        &p2,
-                        id,
-                        &crate::boolean::ConsumedExtent::arm(arm),
-                        b,
-                    )
-                    .expect_err("an orientation margin this small refuses");
+                {
+                    let label = format!("arm {arm:e}, facing {sign}");
+                    let err =
+                        oriented_plane_eq(&p1, &p2, &crate::boolean::ConsumedExtent::arm(arm), b)
+                            .expect_err("an orientation margin this small refuses");
                     let PlaneEqError::Escalated {
                         rung: PlaneRung::Orientation,
                         diag,
@@ -3467,11 +3190,7 @@ pub(in crate::boolean) mod tests {
                     );
                     let text = BooleanError::plane_identity(
                         PlaneRung::Orientation,
-                        PlaneDoor::OnPair(if id.declared {
-                            DeclarationRead::Spent(GlueClass::Rest)
-                        } else {
-                            DeclarationRead::Moot
-                        }),
+                        PlaneDoor::OnPair(DeclarationRead::Moot),
                         diag,
                     )
                     .to_string();
@@ -3493,96 +3212,6 @@ pub(in crate::boolean) mod tests {
                     );
                     assert_eq!(offered_below(&text), None, "{label}: {text}");
                 }
-            }
-        }
-    }
-
-    /// **The merge's declared pair tells one story across its in-band
-    /// and definite arms** (D4 ¶1 (iv)), and it is the merge's own: only
-    /// a pair facing the same way glues, so the decision passes on a
-    /// positive margin alone, where the Boolean's passes on either sign.
-    /// Real raises of the declared rung, routed as the merge routes them
-    /// (`declared_pair_verdict`): coincident planes facing the same way
-    /// (positive margins) and opposite ways (negative), over a reach in
-    /// the zero band, in the ambiguity band, and definite. The
-    /// same-facing definite pair glues; every other arm names the one
-    /// lever toward that pass, no declaration, no stage label and no
-    /// face key; a positive margin offers the tolerance it gives, and a
-    /// negative margin or the definite opposite arm offers none, since
-    /// no smaller tolerance turns opposite faces into same-facing ones.
-    /// The Boolean's merge stage wraps the sentence behind its own
-    /// label, compared as text rather than through the shape guard,
-    /// which does not see that label
-    /// (`work/tint/the-shape-guard-misses-the-boolean-merge-stage-label.md`).
-    #[test]
-    fn the_merge_orientation_tells_one_story_across_its_arms() {
-        use crate::boolean::oriented_plane_eq;
-        use crate::entity::FaceKey;
-        use crate::merge_faces::declared_pair_verdict;
-        const LEVER: &str = "Recourse: turn one of the two faces so both clearly face the same \
-                             way, on faces that clearly span a length";
-        let b = band();
-        let (z, e) = (b.zero(), b.escalate());
-        let (f1, f2) = (FaceKey::default(), FaceKey::default());
-        for (reach, definite) in [(0.5 * z, false), ((z + e) / 2.0, false), (1.0, true)] {
-            for sign in [1.0, -1.0] {
-                let label = format!("reach {reach:e}, facing {sign}");
-                let (p1, p2) = planes(sign);
-                let verdict = declared_pair_verdict(
-                    oriented_plane_eq(
-                        &p1,
-                        &p2,
-                        DECLARED,
-                        &crate::boolean::ConsumedExtent::arm(reach),
-                        b,
-                    ),
-                    f1,
-                    f2,
-                );
-                let err = match verdict {
-                    Ok(glued) => {
-                        assert!(
-                            definite && sign > 0.0 && glued,
-                            "{label}: only a definite same-facing pair glues"
-                        );
-                        continue;
-                    }
-                    Err(err) => err,
-                };
-                assert_eq!(
-                    matches!(err, MergeCoplanarError::DeclaredOppositeOrientation { .. }),
-                    definite,
-                    "{label}: the definite opposite pair is the decision's sign-certain arm: \
-                     {err:?}"
-                );
-                let text = err.to_string();
-                assert_eq!(recourse_markers(&text), 1, "{label}: {text}");
-                assert!(
-                    subjectless_escalations(&text).is_empty()
-                        && stage_prefixes(&text, &[]).is_empty(),
-                    "{label}: {text}"
-                );
-                let head = if definite {
-                    "the two declared faces face opposite ways across the edge they share. "
-                } else {
-                    "whether the two declared faces face the same way across the edge they \
-                     share is undecided: "
-                };
-                assert!(
-                    text.starts_with(head)
-                        && text.contains(LEVER)
-                        && !text.contains("declare the")
-                        && !text.contains("merge_coplanar_faces")
-                        && !text.contains("FaceKey"),
-                    "{label}: {text}"
-                );
-                let offer = (!definite && sign > 0.0).then_some(reach);
-                assert_eq!(offered_below(&text), offer_at(offer), "{label}: {text}");
-                assert_eq!(
-                    BooleanError::from(err).to_string(),
-                    format!("coplanar-merge output stage refused: {text}"),
-                    "{label}: the Boolean's merge stage forwards the sentence"
-                );
             }
         }
     }
@@ -3956,12 +3585,11 @@ pub(in crate::boolean) mod tests {
         }
     }
 
-    /// **A declared pair's parallelism, and the maximal-faces gate's
-    /// rungs, each end where their own door can reach** (D4 ¶1 (i)).
-    /// At a declared door the parallelism rung bridges an in-band
-    /// margin, so its one escalation is a norm it could not read
-    /// (`plane_eq::unreadable_norm`, the rung's own raise): the merge and
-    /// the Boolean both end it as a defect, with no declaration. The
+    /// **An unreadable norm, and the maximal-faces gate's rungs, each
+    /// end where their own door can reach** (D4 ¶1 (i)). A norm the
+    /// parallelism rung could not read (`plane_eq::unreadable_norm`, the
+    /// rung's own raise) ends as a defect at every Boolean door, with no
+    /// declaration. The
     /// maximal-faces gate compares two faces of one operand, which no
     /// declaration names: a real in-band parallelism raise there (two
     /// neighbours bent by an in-band angle over a unit extent) and a
@@ -3999,10 +3627,9 @@ pub(in crate::boolean) mod tests {
             PlaneDoor::Screen(DeclarationRead::Spent(GlueClass::Tangent)),
             PlaneDoor::Neighbours,
         ];
-        let merge = MergeCoplanarError::of_declared_refusal(unreadable_norm(b)).to_string();
         let texts =
             doors.map(|door| BooleanError::plane_identity(PlaneRung::Norm, door, diag).to_string());
-        for text in texts.iter().chain([&merge]) {
+        for text in &texts {
             let problems = short_of_the_guard(text, &[]);
             assert!(problems.is_empty(), "{problems:?}: {text}");
             assert_eq!(
@@ -4026,14 +3653,9 @@ pub(in crate::boolean) mod tests {
             (bent, 1.0, PlaneRung::Parallel),
             (flat, (z + e) / 2.0, PlaneRung::Orientation),
         ] {
-            let err = oriented_plane_eq(
-                &flat,
-                &p2,
-                PlaneIdentity::NONE,
-                &crate::boolean::ConsumedExtent::arm(extent),
-                b,
-            )
-            .expect_err("the gate's rung refuses");
+            let err =
+                oriented_plane_eq(&flat, &p2, &crate::boolean::ConsumedExtent::arm(extent), b)
+                    .expect_err("the gate's rung refuses");
             let PlaneEqError::Escalated { rung: got, diag } = err else {
                 panic!("{rung:?}: an escalation: {err:?}");
             };

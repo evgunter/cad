@@ -19,11 +19,12 @@
 
 use crate::fixture;
 use crate::fixture::resolver::{PartStore, with_resolver};
+use editor_core::Formula;
 use editor_core::pose::PoseDef;
 use editor_core::{
     BodyRead, CapEnd, Coord, Dimension, DocEdit, DocumentId, EvalOptions, FlattenError, FreeValue,
     FreeVar, Node, Operand, PartResolver, Placed, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    TargetAxis, VarName, flatten, inline, product,
+    TargetAxis, VarName, flatten, inline,
 };
 use fixture::{head, head_at, insert, len, on_frame, run, solve, step};
 use geom_core::Tol;
@@ -100,8 +101,11 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
         mates: vec![fixture::rest(head(start), target)],
         values: vec![
             (Coord::Slide(TargetAxis::X), len(10.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     };
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
@@ -257,7 +261,8 @@ fn inline_keeps_a_variable_driving() {
         "the new placement holds the instance's bundle as written"
     );
     let bounds = |doc: &ProfileDoc, o: &EvalOptions| {
-        let body = product(doc, &run(doc, o), Tol::witness()).expect("gathers");
+        let body =
+            crate::fixture::product_in_world(doc, &run(doc, o), Tol::witness()).expect("gathers");
         let pts: Vec<[f64; 3]> = body.points().map(|(_, p)| [p.x, p.y, p.z]).collect();
         let lo = pts.iter().fold([f64::INFINITY; 3], |m, p| {
             [m[0].min(p[0]), m[1].min(p[1]), m[2].min(p[2])]
@@ -345,8 +350,12 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
         "the part's placement takes the target"
     );
     let volume = |doc: &ProfileDoc| {
-        let body =
-            product(doc, &run(doc, &EvalOptions::default()), Tol::witness()).expect("gathers");
+        let body = crate::fixture::product_in_world(
+            doc,
+            &run(doc, &EvalOptions::default()),
+            Tol::witness(),
+        )
+        .expect("gathers");
         let measured = topo::test_support::finished("the product", body, Tol::witness());
         topo::test_support::pinned_volume("mass", &measured, Tol::witness()).volume
     };
@@ -483,7 +492,7 @@ fn a_slide_value_sets_its_translation_with_no_width() {
         values: vec![
             (Coord::Slide(TargetAxis::X), len(3.0)),
             (Coord::Slide(TargetAxis::Y), len(2.0)),
-            (Coord::SPIN, fixture::ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     };
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
@@ -663,6 +672,18 @@ fn a_mate_reports_each_value_it_drops() {
         "the three links and the z slide go, each reported"
     );
     assert_eq!(dropped[1].1, tilt, "the x link's row names `tilt`");
+    let said: Vec<String> = editor_core::Maintenance::values_dropped(&applied.maintenance)
+        .map(|s| s.to_string())
+        .collect();
+    assert_eq!(
+        said,
+        [format!(
+            "{}'s placement was written again without the values on its spin about z, spin \
+             about x and slide along z, which read tilt",
+            doc.spoken(copy)
+        )],
+        "the four rows are said once, each freedom once, naming only the named variable"
+    );
     assert!(
         applied.doc.var_named("tilt").is_some(),
         "the named variable stays declared"
@@ -679,5 +700,56 @@ fn a_mate_reports_each_value_it_drops() {
             Coord::SPIN,
         ],
         "the x slide, then the 0 on the y slide and on the spin"
+    );
+}
+
+/// **A named variable read on two dropped freedoms is said once.**
+/// `a_mate_reports_each_value_it_drops`'s fixture with `tilt` written
+/// on the chain's first two links: both rows name `tilt`, and the
+/// sentence names it once.
+///
+/// *Breaks if* `Maintenance::values_dropped` lists a variable once per
+/// row rather than once.
+#[test]
+fn a_variable_dropped_twice_is_named_once() {
+    let doc = ProfileDoc::empty(DocumentId::derive("dprime2-drops"), Tol::witness());
+    let (doc, _) = step(
+        doc,
+        DocEdit::DeclareVar {
+            name: VarName::from_static("tilt"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.2)),
+        },
+    );
+    let (doc, floor) = block(doc, 20.0, 20.0, 1.0);
+    let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
+    let (doc, f) = fixture::in_world_by(doc, floor, Placed::unmated(vec![]).values);
+    let mut moves = chain(None);
+    moves[1].1 = editor_core::Formula::named(VarName::from_static("tilt"), Dimension::Angle);
+    moves[0].1 = editor_core::Formula::named(VarName::from_static("tilt"), Dimension::Angle);
+    let (doc, copy) = fixture::in_world_by(doc, boss, Placed::unmated(moves).values);
+    let top = fixture::fname(floor, RoleSeg::Cap(CapEnd::End));
+    let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
+    let mate = fixture::rest(head(start), head_at(f, top));
+    let applied = doc
+        .apply(
+            &DocEdit::AddConstraint {
+                placement: copy,
+                mate: Box::new(mate),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("the rest is admitted");
+    let said: Vec<String> = editor_core::Maintenance::values_dropped(&applied.maintenance)
+        .map(|s| s.to_string())
+        .collect();
+    assert_eq!(
+        said,
+        [format!(
+            "{}'s placement was written again without the values on its spin about z, spin \
+             about x and slide along z, which read tilt",
+            doc.spoken(copy)
+        )],
+        "tilt is named once"
     );
 }

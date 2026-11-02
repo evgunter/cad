@@ -52,12 +52,14 @@ pub(crate) mod words;
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
 pub(crate) use discriminate::{CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE};
+#[cfg(debug_assertions)]
+pub(crate) use emit::assert_own_bodies;
 pub use emit::{
     CrossingSensesShape, DisagreeShape, JoinShape, NamingError, RimShare, SeamSidesShape,
     SeamVertexShape, UnionNameShape, WayShape,
 };
-pub(crate) use emit::{check_total, empty, name_pattern, name_placed_union, output_body, to_u32};
-pub(crate) use emit::{name_assemble, name_copy};
+pub(crate) use emit::{GRAFT_TOTAL, name_assemble, name_copy};
+pub(crate) use emit::{check_total, empty, name_family, output_body, to_u32};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;
@@ -80,8 +82,8 @@ pub(crate) use nest::HoldMut;
 pub use nest::NameTextError;
 pub(crate) use nest::{read_door, write_door};
 pub use role::{
-    CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, PieceRole, PieceRun,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, RunLine,
+    CapEnd, EntityKind, FaceName, MemberAt, MeridianEnd, NameRef, NotAFaceName, PieceRole,
+    PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, RunLine,
     SectionCircle, Sense, SplitHalf, StableName, band, band_pi, band_rim, band_rim_pi, carried,
     meridian_vertex,
 };
@@ -96,7 +98,7 @@ pub use table::{
 };
 /// The kernel's contact vocabulary, re-exported so a refusal the recipe
 /// layer renders quotes the kernel's own words.
-pub use topo::{CONTACT_RECOURSE, ContactRefusal, ContactVerdict, DeclaredContact};
+pub use topo::{CONTACT_RECOURSE, ContactPair, ContactRefusal};
 pub use words::{LeafRole, leaf_role, role_leaf};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**

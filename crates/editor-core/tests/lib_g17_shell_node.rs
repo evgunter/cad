@@ -119,8 +119,8 @@ fn the_cup_evaluates_green_and_is_exactly_its_closed_form() {
     assert_eq!(ev.order.len(), d.len());
 
     let body = body_of(&ev, d.result.expect("the cup is the head"));
-    assert_eq!(topo::validate(body), Ok(()), "tier 1");
-    assert_eq!(topo::validate_closed(body), Ok(()), "closed");
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(&body), Ok(()), "closed");
     // Five outer faces, the rim annulus, the cavity floor and its four
     // walls: the opened top is a face that became a rim, not a hole.
     assert_eq!(body.faces().count(), 11, "5 outer + 1 rim + 5 cavity");
@@ -130,7 +130,7 @@ fn the_cup_evaluates_green_and_is_exactly_its_closed_form() {
         1,
         "the rim fused the cavity into the outer shell"
     );
-    assert_exact(body, d.pin.expect("the cup pins"), "cup");
+    assert_exact(&body, d.pin.expect("the cup pins"), "cup");
 }
 
 /// **The interval row**: both documents, green at the certified
@@ -162,8 +162,8 @@ fn an_empty_open_list_is_the_sealed_hollow() {
     let bad = failures(&ev);
     assert!(bad.is_empty(), "sealed:\n{}", bad.join("\n"));
     let body = body_of(&ev, sealed);
-    assert_eq!(topo::validate(body), Ok(()), "tier 1");
-    assert_eq!(topo::validate_closed(body), Ok(()), "closed");
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(&body), Ok(()), "closed");
     assert_eq!(body.solids().count(), 1, "one solid");
     assert_eq!(
         body.shells().count(),
@@ -173,7 +173,7 @@ fn an_empty_open_list_is_the_sealed_hollow() {
     assert_eq!(body.faces().count(), 12, "two complete boxes");
     // Euler on the two boxes: genus 0 each, so V − E + F = 2 per shell —
     // 4 over the two, no rings, and the door's whole-body genus is 0.
-    let counts = euler_counts(body);
+    let counts = euler_counts(&body);
     assert_eq!(
         (
             counts.v - counts.e + counts.f,
@@ -185,7 +185,7 @@ fn an_empty_open_list_is_the_sealed_hollow() {
         "two genus-0 shells"
     );
     assert_exact(
-        body,
+        &body,
         cup::sealed_forms(cup::L, cup::H, cup::T),
         "sealed cup",
     );
@@ -297,7 +297,7 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
     assert!(bad.is_empty(), "bumped cup:\n{}", bad.join("\n"));
     let body = body_of(&after, shell);
     assert_exact(
-        body,
+        &body,
         cup::closed_forms(cup::L, cup::H_BUMPED, cup::T_BUMPED),
         "bumped cup",
     );
@@ -335,8 +335,8 @@ fn the_vessel_opens_its_mouth_into_one_rim() {
     assert!(bad.is_empty(), "vessel:\n{}", bad.join("\n"));
     let shell = d.result.expect("head");
     let body = body_of(&ev, shell);
-    assert_eq!(topo::validate(body), Ok(()), "tier 1");
-    assert_eq!(topo::validate_closed(body), Ok(()), "closed");
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(&body), Ok(()), "closed");
     // Outer: base, foot ×2, belly ×2; the rim; cavity: the same five.
     assert_eq!(body.faces().count(), 11, "5 outer + 1 rim + 5 cavity");
     let pot = d.doc.upstream(shell)[0];
@@ -371,7 +371,7 @@ fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
     assert!(bad.is_empty(), "capped vessel:\n{}", bad.join("\n"));
     let body = body_of(&ev, shell);
     assert_eq!(
-        topo::validate_geometric(body, Tol::witness()),
+        topo::validate_geometric(&body, Tol::witness()),
         Ok(()),
         "tier 3"
     );
@@ -414,7 +414,7 @@ fn a_planar_void_designation_opens_and_its_rim_is_named_for_it() {
     assert!(bad.is_empty(), "the void-opened cup:\n{}", bad.join("\n"));
     let body = body_of(&ev, opened);
     assert_eq!(
-        topo::validate_geometric(body, Tol::witness()),
+        topo::validate_geometric(&body, Tol::witness()),
         Ok(()),
         "tier 3"
     );
@@ -440,6 +440,7 @@ fn unplaced_vessel(
         Node::Profile(editor_core::ProfileProgram {
             loops: vec![vessel::meridian()],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, pot) = fixture::insert(
@@ -754,7 +755,7 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
     assert!(bad.is_empty(), "shelled ball:\n{}", bad.join("\n"));
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(&ev, sealed)),
+        topo::Body::clone(&(body_of(&ev, sealed))),
         Tol::witness(),
     );
     assert_eq!(
@@ -800,6 +801,7 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![meridian],
         ids: Vec::new(),
+        on: None,
     }));
     let tube = r.insert(fixture::revolve_about(
         profile,
@@ -820,7 +822,7 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
     assert!(bad.is_empty(), "the opened tube:\n{}", bad.join("\n"));
     let body = body_of(&ev, shell);
     assert_eq!(
-        topo::validate_geometric(body, Tol::witness()),
+        topo::validate_geometric(&body, Tol::witness()),
         Ok(()),
         "tier 3"
     );

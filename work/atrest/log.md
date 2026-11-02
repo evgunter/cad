@@ -273,4 +273,76 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - Conditions: a near-tangent double-crossing row; disconnected-face refusal; an audit of every flush-row consumer for planar assumptions.
 - 2026-10-27 21:20Z (orchestrator): **#5871 merged** at `e19603f0`, head `5e7a59f7`, CI green; the fix pass (`97038c84`) was read by me, and the dual-review row is holdout, tallied 0. The lane is archived.
 - 2026-10-27 (orchestrator): **main red caused by ATREST.** #5773 added `topo/src/link.rs`, which reads its own source in tests, with no `reader_census` ledger entry. QUAD's triage filed it (`main-red-reader-census-misses-topo-link-rs`, P1). Fixed with a `Shared` entry; FLUSH's dead given-pair entry on the same row was dropped too. **Lesson:** a new source file whose tests read source needs a ledger entry, and `reader_census` is not in the topo PR gate.
+- 2026-10-27 22:29Z (orchestrator): the P0 is up as #5882 at head `f510d54e`, CI green.
+  - Tier: dual, because it adds a public `quietable` field and changes what refuses. Letter M, byte 244 (22:16:27Z), mod 3 = 1: SEQUENTIAL. First review `session_018u3gVGpc4xU8JHM6BXrc6p`.
+  - Filed `the-unproven-coincidence-knob-is-re-read-against-ds3` (P2): re-deciding spec §11 Q4 is a design change, for a designer pair and an `[ev]` PR.
+- 2026-10-27 23:05Z (orchestrator): **#5882's review** (sequential, `session_018u3gVGpc4xU8JHM6BXrc6p`) rated it APPROVE-WITH-FIXES with 0 MAJOR, so it is the only review.
+  - **I corrected my own 21:28Z F2 ruling.** DESIGN `[assertions.quiet]` (ratified) quiets only by an assertion that "says the same", `= 0` for a contact. Spec §4's "whatever the row's kind" came from the orchestrator's §11 fold-in (`d5bf4f55`), not a ratification.
+  - So a `Gap = 0` quiets only rows that decided their cells meet. Tangency, coaxial and common-foot rows are unquietable: loud, never refuse. That closes the vacuity in the safe direction. The vacuity row becomes the `needs_ev` question "what assertion says a tangency".
+  - Also in the fix pass:
+    - `contact_quietable` decides a `Gap = 0` could hold (Zero under the contact bound), not just admission;
+    - the DESIGN.md:46 as-built line updated;
+    - the pose row set `needs_ev` (it conflicts with ratified `[intent.checked]`);
+    - a refusal row at Error.
+  - **Lesson:** before ruling a quieting rule "as ratified", check DESIGN's own clause, not the spec's restatement.
+- 2026-10-27 (orchestrator): #5884's lint job failed on its new head `24da1028`; the lane is told. It still owes the lens-depth answer (an Ok(false) where `meet` merges two crossings at 1 escalation width).
+- 2026-10-27 23:50Z (orchestrator): **#5882's fix pass** (`4e0bf258`) was read and accepted: an exhaustive table over `DecisionSite`, `contact_quietable` asking `Sign::Zero` through the measure's own path, DESIGN's status line as-built, and both issues `needs_ev`. The dual-review row (sequential, tallied 0) is the PR's last commit, `ee11b641`. Merge on green.
+- 2026-10-27 23:50Z (orchestrator): took up SECT's filing `the-tour-gallery-pin-reads-the-chains-old-could-not-look-count` (P1). The prior is that the 10 findings are true. The pins are solid extrudes through the bar ends, which is 10 pairs counting the target. That is tested by execution before any re-pin, and a false finding stops the lane as a P0. The lane is `session_018u3gVHPS28rbmkXyeRciat`, from main `cd5f9dee`.
+- 2026-10-27 23:59Z (orchestrator): **#5884's lens-depth answer is in.** At 1e-12, Ok(false) appears only for lenses ≤ 0.0056ε, inside the zero band. No Ok(false) appears with a deeper lens, so there is no false flush. The k = 1 row is restored as flush-or-unread, and the bounds-allowlist red is fixed at `b0d6040c`, CI green.
+  - Tier: dual, letter M, byte 192 (23:58:12Z), mod 3 = 0, so HOLDOUT: two reviewers, R1 `session_018u3gVH6DQpXmJTXkJCGqDd` and R2 `session_018u3gVH8HwJn2iaBCKNuPYm`, dispatched together on frozen `b0d6040c` with identical briefs.
+- 2026-10-28 00:04Z (orchestrator): **#5882 merged** at `dffb772b`, head `ee11b641`, CI green. That is the P0 `an-assertion-quiets-an-operations-unproven-row`. The row is sequential, tallied 0. Main's changes since its base were disjoint (`section_cert`, the lily demo), and `nextest.toml` merged cleanly. The lane is archived.
+- 2026-10-28 00:50Z (orchestrator): **The chain-scene pin is #5888**, head `0f450205`.
+  - All 10 findings are true interference, checked by a closed form of box against cylinder that is independent of the census, plus `point_in_solid`:
+    - 9 half-disc overlaps 0.4 mm deep;
+    - the target coincident with the tip pin, 0.8 mm deep, `Unlocalized`.
+  - No other pair of the 45 shares volume, and the bars' end-cap contacts are no at-rest finding.
+  - So it is a stale pin (196 → 10), not a P0.
+  - Tier: orchestrator's read, as a mechanical re-pin of an independently verified count. Merge on green.
+  - The item's "the links interlock" framing was wrong: the bars butt end to end.
+- 2026-10-28 01:09Z (orchestrator): **#5888 merged** at `c56ac2cd`, head `0f450205`, with CI green including `demos (tour + wild)`. That is the chain-scene re-pin, 196 → 10, all true interference. The lane is archived. #5884's R1 reported APPROVE-WITH-FIXES, 0/3/7, and R2 is pending.
+- 2026-10-28 01:15Z (orchestrator): **#5884's holdout pair is in.** R1 rated it APPROVE-WITH-FIXES 0/3/7, R2 APPROVE-WITH-FIXES 0/1/7; no MAJOR.
+  - Both found an in-band lens read as `Ok(true)` by main's `shared_interior_witness`. That is loud, not a false flush, but the rustdoc, the row and the body overclaim it. It is to be owned in the row and the doc, and filed P2.
+  - The fix pass, F1–F7, went to the lane:
+    - F2: one flush loop over carriers, fixing the curved half's silent drops at the root;
+    - F3: an arc-only shared run on a plane (rod in tube, R1), in scope as the item's own shape;
+    - F4: step-import `gate3_findings` against the new curved flush findings (R2). The freecad job was skipped in CI, so the lane runs it locally;
+    - F5: enforce the meet/contact coupling at run ends.
+  - My brief's census path was wrong (`crates/topo/src/census.rs`).
+  - Blind coding: inputs `analysis/dual-review/pr-5884-coding` @ `5a710ae4`, byte 130.
+- 2026-10-28 04:30Z (orchestrator): **#5884's fix pass** (`623240b2`) was read and accepted.
+  - F2 makes `flush_pairs` one loop over planes, cylinders and spheres, with every unread outcome loud. F3, the rod in a tube, now reads flush.
+  - F4: step-import is 296/296 at three ε, and its corpus golden is unchanged.
+  - F1: the in-band lens is owned and filed P2.
+  - CI is green but skipped `demos`, so the lane runs `demos/tour` and `demos/wild` before the row and merge.
+  - **Lesson:** a census change must run the demos locally. CI's change filter skips them, which is how #5853's chain pin went red unseen.
 - 2026-10-28 (implementer): **`the-tour-gallery-pin-reads-the-chains-old-could-not-look-count` closed.** The chain's 10 at-rest findings since #5853 are all TRUE interference. Each pin is a separate extrude sharing a half-disc with every bar end it stands in (9 pairs); the target also coincides with the tip pin (1 pair). This was checked by the closed form and by `point_in_solid` at depth 0.4 mm (0.8 mm for target × tip pin). The bar end-cap contacts only touch and stay unreported at rest. `gallery.rs` re-pinned from 196 could-not-look to 10 interference.
+- 2026-10-28 07:20Z (orchestrator): **#5884 merged** at `db0fa98b`, head `e577bcfa`, CI green, with main merged twice and re-validated at three ε. The holdout row is tallied 0 (blind coding byte 130). The lane is archived.
+  - Closed `main-red-the-gallery-chain-pins-196-at-rest-findings-after-pr-5853` (P0, SPLICE's filing): it duplicates SECT's filing, which #5888 fixed.
+  - Moved `a-ridge-segment-at-contact-escalates-the-touch-plane-at-1e-6` (P3) from `work/issues/` to here, since `topo::link` is ATREST's (#5773).
+- 2026-10-28 07:20Z (orchestrator, `session_01AcexwLF78WVWsEy15j7s5B`): **the track is handed back, `ready`.**
+  - This sitting's P0 and P1 rows are all merged: #5773, #5803, #5823, #5827, #5810 (stage 5 C), #5853, #5871, #5878, #5882, #5884 and #5888.
+  - What is left is P2 and below. Two rows wait on design:
+    - `a-gap-over-adjacent-cells-states-nothing-of-the-row` (P2, `needs_ev`), which goes to a designer pair and then an `[ev]` PR: "what assertion says a tangency, a coaxiality, a blend's common foot";
+    - `the-unproven-coincidence-knob-is-re-read-against-ds3` (P2), which waits on that and on the flush-pair question.
+  - Also left: `a-row-over-a-pose-is-quieted-by-no-assertion` (P3, `needs_ev`); `an-in-band-lens-reads-as-shared-interior` (P2, new).
+  - The stray branch `review/atrest-round-cvvr` (identical to `review/atrest-round-Nvcrvr`) is left for Ev; the permission classifier denied deleting it.
+  - **Lessons for a successor:**
+    - a census change runs `demos/tour` locally, because CI's change filter skips it;
+    - check DESIGN's own clause, not a spec's restatement, before ruling a rule "as ratified";
+    - merge main and re-run the slow goldens at three ε before merging a census PR.
+- 2026-10-28 — (INTENT orchestrator) Six census rows move here from INTENT by `git mv`, ids unchanged, on Ev's ask to cut INTENT to D10's core:
+  - the census per `⊔` (`each-space-runs-its-census-between-arrivals`, P1 M), still parked on INTENT's carry (`a-placement-carries-its-sources-at-rest-result`, dispatched, single review);
+  - `the-in-arrival-census-check-retires` (P1 E), parked on it;
+  - `the-census-at-a-union-of-assembles-is-not-carried`, `the-separation-check-misses-an-overlap-inside-a-nested-or-unread-assemble`, `a-parts-loose-spaces-and-member-reads-drop-its-census-rows`, `a-census-witness-is-stated-in-the-products-computing-frame` (open).
+
+  They meet stage 5 C at the same `⊔` door. INTENT keeps the carry and announces its merge here.
+- 2026-10-28 14:15 (INTENT) — **The carry merged (#5903).** A placement, an instance, a pattern's members and a pick now carry their source's at-rest result. A meeting the source's door decided is reported once, as the source's, and a copy's pieces stand where the copy stands. `each-space-runs-its-census-between-arrivals` is released to open, and the carry is pruned from `the-in-arrival-census-check-retires`. The review's findings landed here:
+  - a new P1, `run-checks-panics-on-a-cut-of-an-instances-copy`: `checks.rs:1709`'s `unreachable!` is reachable from ordinary documents;
+  - evidence folded into `a-boolean-over-an-instance-drops-its-parts-census-findings`, whose pick half the carry fixed.
+- 2026-10-28 — **Filed by SPLITDOOR:** `the-census-cannot-settle-a-curved-edge-edge-count-on-a-splits-sliver-sides` (P1). It blocks SPLITDOOR's tier-3′ split gate: the census reports `CensusUnsupported` NotCertifiable on split sliver, graze and near-seam sides that tier 3 passes. Test list on the row. (SPLITDOOR orchestrator)
+- **2026-10-30 (INTENT orchestrator):** `a-gap-over-adjacent-cells-states-nothing-of-the-row` raised P2 → P0. It is D10's last unbuilt item per DESIGN's state-of-the-build, and D10's umbrella waits on it. The INTENT orchestrator takes it (designer pair first) unless ATREST has an orchestrator on it.
+- **2026-10-30, Ev answered `[ev]` #6086 (merged).** Assertions quiet every unproven row they can say: Gap's curved arms read material sides, measures reference poses, and a flush stack-up is quietable too. The recourse is chosen by kind. The P0 `a-gap-over-adjacent-cells-states-nothing-of-the-row` is dispatched as the last D10 build, dual H.
+- **2026-10-30, ruling on the P0's item 1 (INTENT orchestrator), asked by its lane.** Where two faces' senses don't decide opposed from aligned (convex×convex; plane×round), `Gap`'s curved arms decide the configuration by one margined predicate at a new funnel site, with a margin of ±r at every tangency, refusing in band (the lane's R1). The role order stays authored (C5).
+  - The alternative (R2: senses only; convex×convex always external, plane×convex always opposed) was rejected: it would leave an aligned tangency and a flush pair on a cylinder unquietable, against #6086's ratified "assertions everywhere".
+- **2026-10-30, the P0 merged (#6103)**, dual H, tally 0 (row `PR-6103.md`). This was D10's last unbuilt item, and D10's umbrella closes with it. The track is handed back `ready` by the INTENT orchestrator.
+- 2026-11-01 — ONEREAD's `the-link-splits-into-a-cone-and-a-link` takes item 2 (the wide parity) of `the-census-reads-its-link-without-the-wide-parity`, and a note there records a measurement on item 1 (`Reading::own` decides 86 of 998 `cone_fuzz` probes in band at 1e-9). (ONEREAD orchestrator)

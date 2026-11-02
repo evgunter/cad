@@ -5,7 +5,6 @@ title: A pierce RING has no join arm on any carrier: three typed doors, one miss
 status: closed
 closed: 2026-10-02
 opened: 2026-08-30
-github: 1291
 refs: [347, 1068]
 priority: P0
 cost: H

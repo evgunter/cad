@@ -53,7 +53,7 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
-use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
+use editor_core::drive::{DriveConfig, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
@@ -77,6 +77,15 @@ use fixture::{Recorder, len};
 ///
 /// A bit-exact golden therefore has to be keyed by the ε row, and the
 /// three rows are the three the matrix draws.
+///
+/// **Pinned at what main measures** (2026-10-29), not a re-bless: the
+/// planted flip certifies half its box and refuses half as
+/// `flip_crossing`, and containment fires, where it certified 0.917 and
+/// refused 0.083 as `flip_crossing`. #5542's merge (`fa901e4308`) first
+/// moved it, to certifying none of the box; PR 5952 (the gap read by an
+/// overlap's depth, and not on a shared-vertex pair) moved it here
+/// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`). The
+/// terminal sliver did not move.
 const ACCOUNTING_GOLDENS: &[(&str, &str, &str)] = &[
     (
         "1e-6",
@@ -248,6 +257,7 @@ fn distributed_plate() -> ProfileDoc {
             .expect("finite plate corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
@@ -263,6 +273,7 @@ fn distributed_plate() -> ProfileDoc {
             radius: Formula::named(name("hole_a_r"), Dimension::Length),
         }],
         ids: Vec::new(),
+        on: None,
     }));
     let hole_a = r.insert(Node::Extrude {
         profile: hole_a_p.into(),
@@ -274,6 +285,7 @@ fn distributed_plate() -> ProfileDoc {
             radius: Formula::named(name("hole_b_r"), Dimension::Length),
         }],
         ids: Vec::new(),
+        on: None,
     }));
     let hole_b = r.insert(Node::Extrude {
         profile: hole_b_p.into(),
@@ -407,6 +419,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -418,8 +431,8 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         solid,
         [
             Formula::named(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
         ],
     );
     let measured = r.measure(
@@ -444,38 +457,6 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     (r.doc, measure)
 }
 
-/// The lane a registered document is driven on.
-///
-/// The symbolic identity tier (ERROR-DESIGN E12) is the shipped default
-/// and every document here takes it — except the ones whose measure is
-/// a `min_clearance`, whose engine has no lane at the tier
-/// (`DriveRefusal::SymbolicClearanceUnsupported`; the deviation is issue
-/// `symbolic-tier-and-clearance-engine`). Those fall back to the numeric-only replay, which keeps their
-/// recorded budgets real rows rather than skipped ones.
-///
-/// The fallback is driven by the DRIVER'S OWN refusal rather than by a
-/// list of document names here: a name list would go stale the first
-/// time a fixture grew a clearance measure, and the refusal is exactly
-/// the fact being reacted to.
-fn drive_registered(
-    doc: &ProfileDoc,
-    analyzed: &editor_core::analysis::AnalyzedBox,
-    tol: Tol,
-) -> Result<editor_core::drive::ParamBoxVerdict, editor_core::DriveRefusal> {
-    match drive(doc, analyzed, &DriveConfig::default(), tol) {
-        Err(editor_core::DriveRefusal::SymbolicClearanceUnsupported { .. }) => drive(
-            doc,
-            analyzed,
-            &DriveConfig {
-                symbolic: SymbolicDials::off(),
-                ..DriveConfig::default()
-            },
-            tol,
-        ),
-        other => other,
-    }
-}
-
 /// **ROW 1.** Every assertion of every registered document holds over
 /// every certified leaf, and the unresolved mass stays inside the
 /// recorded budget.
@@ -487,7 +468,12 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
             .find(|b| b.document == entry.name)
             .unwrap_or_else(|| panic!("{} has no recorded budget", entry.name));
         let analyzed = analyzed_box(&entry.doc, &AnalysisPolicy::default());
-        let verdict = match drive_registered(&entry.doc, &analyzed, Tol::witness()) {
+        let verdict = match drive(
+            &entry.doc,
+            &analyzed,
+            &DriveConfig::default(),
+            Tol::witness(),
+        ) {
             Ok(v) => v,
             // **The degenerate document, handled rather than skipped.**
             // A document whose parameters declare no distribution has
@@ -575,27 +561,19 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
         let nodes = assertions_of(&entry.doc);
         assert!(!nodes.is_empty(), "{} carries no assertion", entry.name);
         for leaf in verdict.certified() {
-            let opts = EvalOptions {
-                param_box: Some(std::sync::Arc::new(leaf.box_.clone())),
-                ..EvalOptions::default()
-            };
-            let ev: editor_core::Evaluation<geom_core::Interval> =
-                evaluate(&entry.doc, None, &CancelToken::new(), &opts, Tol::witness());
             for &node in &nodes {
-                let verdict = match ev.result(node) {
-                    Some(NodeResult::Ok(v)) => match &v.payload {
-                        ValuePayload::Assertion(verdict) => verdict.clone(),
-                        other => panic!(
-                            "{}: assertion node {} evaluated to a {}",
-                            entry.name,
-                            node.0,
-                            other.kind_name()
-                        ),
-                    },
-                    other => panic!(
-                        "{}: assertion node {} did not evaluate over a certified leaf: {other:?}",
+                // On the lane the drive certified the leaf on.
+                let Some(verdict) = editor_core::drive::assertion_at(
+                    &entry.doc,
+                    node,
+                    &leaf.box_,
+                    verdict.symbolic(),
+                    Tol::witness(),
+                ) else {
+                    panic!(
+                        "{}: assertion node {} did not evaluate over a certified leaf",
                         entry.name, node.0
-                    ),
+                    );
                 };
                 match &verdict {
                     AssertionVerdict::Holds { .. } => {}
@@ -758,11 +736,9 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
     // And the RENDERING says so in words, which is what a consumer
     // actually meets.
     let analyzed = forced;
-    // The band fixture is a `min_clearance` document (its measure is
-    // the neck's), so it takes the numeric lane — see
-    // [`drive_registered`].
     let band = band_placement();
-    let verdict = drive_registered(&band, &analyzed, Tol::witness()).expect("the nominal builds");
+    let verdict = drive(&band, &analyzed, &DriveConfig::default(), Tol::witness())
+        .expect("the nominal builds");
     let rendered = MassBudget::of(verdict.accounting(), &analyzed).render(&band);
     assert!(
         rendered.contains("FORCED, not priced"),
@@ -836,6 +812,21 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// join the vector's contents. With those rows stripped, both
 /// documents' vectors give the keys held before (144 rows on
 /// `min_clearance_neck`, 24 on `plain_distance`).
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when E made a copy its
+/// source's body under its frame (D10 `[placement.frame]`): the neck's
+/// placed copy is no longer mapped by `transform_rigid`, so that map's
+/// decisions left the vector's rows. Rebuilding each copy as before
+/// puts back exactly the keys E's parent held, and again over main's
+/// merge at `cd5f9dee` the keys main holds.
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when the neck's
+/// placement came to write its two unmoved slides as the constant `0`
+/// rather than as literals (`[variables.literals]`), the one change to
+/// that document: those slides no longer read variables, and the
+/// vector's rows carry what the placement reads.
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();
@@ -896,6 +887,7 @@ fn plain_distance_doc() -> ProfileDoc {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),

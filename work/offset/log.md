@@ -358,3 +358,20 @@ SELECT's `edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short`
 - **Unit 3 (the tube exemption) is dispatched.** It lands severable, and its PR is to recall Ev's reservation.
 
 Process: the box has 15 GB RAM and limited disk, so concurrent builds OOM. Lanes now build with `CARGO_BUILD_JOBS=2` and `CARGO_INCREMENTAL=0`, and finished lanes' target dirs are deleted at once.
+
+## 2026-10-28 — conic unit 3 merged; the track is handed back (OFFSET orchestrator)
+
+- **PR 5897 (conic unit 3, the tube exemption).** A classified pair's section states a certified sin θ floor `s` and a moat (the ε-overlap empty between 8ε/s and 16ε/s, a Poincaré–Miranda section point within 16ε/s); `analytic_rung3` skips limb 3 only where `section_bounds::tube_bounds` states them. The conical wedges and the three-quarter frustum now hollow, with volume and area checked against closed form. `offset-lane-has-no-conic-carrier` and SHELF's frustum row closed with it; `work/shelf/plan.md` still names the frustum row as parked, for SHELF to drop.
+- **Ev ruled on the PR** that README C2's radius reads 8ε over the sine, out to 16ε, instead of "ε over that sine" (which is not a valid tube: the overlap's own band reaches about 2ε/sin θ). Ev agreed that tying the radius to K has the wrong semantics: 8 is a proof constant, K a policy dial.
+- **Speed, for Ev.** 65 of 73 `analytic_rung3` calls across the geom-brep, topo, sweep and editor-core suites skip the tube; the waiver ran 1.3–12× faster than the tube on stated pairs (26 ms against 102 ms in total).
+- **Review.** Concurrent dual review, 0 tallied: no MAJOR in the pair. R2's delta read of the fix pass found one (contract, executed): `uncertified_arc` matched an error shape the re-chart never produces, so `TogetherConicArc` never fired, on the first head as well; both first reviews missed it. Fixed by reading `RechartFalsifies{edge, ..}`.
+- **Hand-back.** No P0 or P1 row remains; the track is `ready` with 19 P2 rows. Its dispatchable load (77 against a budget of 30) is over; a successor should cut it (Track size) before dispatching.
+
+## A note from GREEN (2026-10-28) — shared tests with #5935
+
+GREEN's `main-reds-editor-core-slow-set-and-the-k-probe-sweep`
+(`work/green/`) covers editor-core slow-set reds that include
+`m10_3_driver_interval`, `m10_9_pins_interval` and `sym11`'s
+`two_hole_plate`, which #5935 re-pins at #5728's reading. GREEN's lane
+(branch `green/slow-set-reds*`) leaves the reds #5935 attributes to
+#5728 to that PR, and names any test both PRs touch in its PR body.

@@ -567,7 +567,11 @@ fn split_edge_intersection_witness_bitwise_remint() {
             .unwrap()
             .certified()
             .unwrap();
-        let topo::EdgeDescription::Intersection { witness, pair } = *child.description() else {
+        let topo::EdgeDescription::Intersection {
+            pair,
+            selector: geom_brep::CurveSelector::Witness(witness),
+        } = *child.description()
+        else {
             panic!("child lost its Intersection description");
         };
         // Independent derivation of the mid-parameter: (t_a + t_b) / 2,

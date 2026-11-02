@@ -2,8 +2,9 @@
 id: needs-ev-on-a-program-is-invisible-to-the-board
 kind: issue
 title: needs_ev is schema-valid on a program and the Waiting on Ev queue can never show one, so a program's exit ask is invisible on the board
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-10-27
 priority: P3
 cost: E
 ---
@@ -72,3 +73,10 @@ the README's stated guarantee true rather than narrowing it.
 for its exit walk and will keep carrying it until the walk is ratified;
 until this is settled, that ask is visible only on the `[ev]` PR and in
 the header itself.
+
+## Closed
+
+2026-10-27: moot. `needs_ev` is gone from the schema and the board
+(`work/README.md`, Ev's channel): what waits on Ev is the set of open
+`[ev]` PRs, read off GitHub, so there is no tracker queue for a program's
+ask to be missing from.

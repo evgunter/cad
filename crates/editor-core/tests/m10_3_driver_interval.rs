@@ -69,7 +69,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Interval, Tol};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, len};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -118,6 +118,7 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -168,6 +169,7 @@ pub(crate) fn notch_with(nominal: f64, dist: Distribution, height: Formula) -> P
             [len(0.0), len(1.0)],
         ])],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -214,6 +216,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
             },
         ],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -222,9 +225,11 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
     r.doc
 }
 
-/// **The terminal-sliver fixture**: a linear pattern whose DIRECTION
-/// length is a document parameter, over a box reaching into the
-/// ambiguity band.
+/// **The terminal-sliver fixture**: a block placed by an `Axis` mate
+/// onto the line where two planes meet — its top cap's plane, and that
+/// plane spun about the cap's front edge by an ANGLE that is a document
+/// parameter — so the line's direction, `n × spun(n)`, has the length
+/// `|sin(angle)|`.
 ///
 /// The direction's norm is a margin like any other. At the nominal (`20ε`)
 /// it is definitely positive, so the witness builds; a leaf whose whole
@@ -234,36 +239,46 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
 /// refuse it rather than refine it.
 /// Crate-visible for the same reason [`slab`] is.
 pub(crate) fn sliver_axis() -> ProfileDoc {
+    use editor_core::Operand;
+    use editor_core::pose::{PoseDef, RoleRead};
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("axis"),
         def: editor_core::VarDecl::Free(FreeVar::Continuous {
-            dim: Dimension::Scalar,
+            dim: Dimension::Angle,
             value: 20.0 * eps(),
-            display_unit: UnitSym::canonical_for(Dimension::Scalar),
+            display_unit: UnitSym::canonical_for(Dimension::Angle),
             distribution: Some(uniform(15.0 * eps())),
         }),
     });
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![unit_square()],
         ids: Vec::new(),
+        on: None,
     }));
     let block = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
     });
-    r.insert(Node::Pattern {
-        input: block.into(),
-        count: Formula::count(2),
-        kind: editor_core::PatternKind::Linear {
-            direction: [
-                scl(0.0),
-                scl(0.0),
-                Formula::named(name("axis"), Dimension::Scalar),
-            ],
-            spacing: len(2.0),
-        },
-    });
+    let top = fixture::plane_on(&r.doc, block, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
+    let edge = fixture::axis_on(&r.doc, block, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    let spun = RoleRead::plain(Operand::Pose(Box::new(PoseDef::Spin {
+        pose: top.clone(),
+        about: edge.clone(),
+        by: Formula::named(name("axis"), Dimension::Angle),
+    })));
+    let meet = Operand::Pose(Box::new(PoseDef::Meet { a: top, b: spun }));
+    let target = fixture::space(&r.doc, block);
+    let placed = editor_core::Placed::of(
+        &r.doc,
+        vec![fixture::mate(edge.read.clone(), meet)],
+        Vec::new(),
+    );
+    r.insert(Node::place(
+        editor_core::BodyRead::plain(Operand::Node(block)),
+        Operand::Var(target),
+        placed.bundle(),
+    ));
     r.doc
 }
 
@@ -521,19 +536,17 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     // other predicate.
     let past = slab(1.0, hi);
     let why = node_failures(&past, &analyzed_box(&past, &AnalysisPolicy::default()));
+    // Since PR 5728 the predicate past the ceiling is limb 2's, not
+    // `dihedral_wedge` at the extrude's wall join (`SliverJoin`): a
+    // wall's line carrier has no certified enclosure over the box, and
+    // that arrives first. It is what moved the ceiling down
+    // (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
     assert!(
-        why.iter().any(|f| f.contains("dihedral_wedge")),
-        "just past the ceiling a ONE-LEAF replay must fail on `dihedral_wedge`; a \
-         different predicate means the mechanism that sets the ceiling moved, and the \
-         doc above is then wrong rather than the number: {why:?}"
-    );
-    // That read is the extrude's first-order wall join, `SliverJoin`,
-    // an arm no point input reaches since the wedge is levered at its
-    // faces (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`):
-    // this row is where it is reached.
-    assert!(
-        why.iter().any(|f| f.contains("SliverJoin")),
-        "just past the ceiling the one-leaf replay refuses at the extrude's wall join: {why:?}"
+        why.iter()
+            .any(|f| f.contains("CarrierEnclosure(CarrierEnclosureRefusal { kind: Line")),
+        "just past the ceiling a ONE-LEAF replay must fail on limb 2's line-carrier \
+         enclosure; a different predicate means the mechanism that sets the ceiling \
+         moved, and the doc above is then wrong rather than the number: {why:?}"
     );
     let wide = slab(1.0, 0.5);
     let why = node_failures(&wide, &analyzed_box(&wide, &AnalysisPolicy::default()));
@@ -544,22 +557,22 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     );
 }
 
-/// The whole-certifying half-width measured on the slab at each ε row,
-/// with the relative band this row admits.
+/// The whole-certifying half-width measured on the slab, with the
+/// relative band this row admits.
 ///
-/// Three numbers rather than one because the ceiling is ε-dependent (the
-/// row's docs say why). The band is 2%: wide enough to absorb the last
-/// bits of a bisection search, far too narrow to absorb a change of
+/// **Pinned at what main measures since PR 5728** (limb 2 for every
+/// carrier): 0.094756 at every ε row. It was ε-dependent before (the
+/// row's docs say why): 0.438988 at 1e-6, 0.488315 at 1e-9, 0.497892
+/// at 1e-12, measured 2026-09-04. A move this far DOWN is, by this
+/// row's own reading, the tier no longer discharging an identity, and
+/// the mechanism is unread
+/// (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`):
+/// closing that row restores the per-ε ceilings or re-documents the
+/// account above. The band is 2%: wide enough to absorb the last bits
+/// of a bisection search, far too narrow to absorb a change of
 /// mechanism.
-fn ceiling_at(eps: f64) -> (f64, f64) {
-    // `Tol` admits exactly the rows CI draws from.
-    if eps >= 1.0e-7 {
-        (0.438_988, 0.02)
-    } else if eps >= 1.0e-10 {
-        (0.488_315, 0.02)
-    } else {
-        (0.497_892, 0.02)
-    }
+fn ceiling_at(_eps: f64) -> (f64, f64) {
+    (0.094_756, 0.02)
 }
 
 /// Every node failure of a `Sym<Interval>` evaluation over `analyzed`'s
@@ -975,7 +988,7 @@ fn a_terminal_sliver_refuses_naming_its_predicate_and_is_not_refined() {
         .collect();
     assert_eq!(
         slivers.first(),
-        Some(&"eval_direction_norm"),
+        Some(&topo::POSE_UNIT_NORM),
         "classes were {:?}",
         v.refused()
             .iter()

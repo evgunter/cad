@@ -11,7 +11,7 @@
 
 use geom_brep::{EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
+use geom_core::{Band, Decide, Margin, Real, Sign};
 
 use crate::geometry::SurfaceKey;
 use crate::replace_face::ReplaceFaceError;
@@ -59,12 +59,12 @@ pub(crate) fn chart_moves<T: Decide>(distance: T, band: Band) -> Result<bool, Re
 /// stated here is trusted: the attach layer certifies the spec against
 /// the new carrier and refuses a mismatch.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn restate<T: Real>(
+pub(crate) fn restate<T: geom_core::SpanLocate>(
     description: EdgeDescription<T>,
     authority: EdgeAuthority<T>,
     sides: [(SurfaceKey, bool); 2],
     slides: bool,
-    mid: Point3<T>,
+    (carrier, t0, t1): (&geom::Curve3<T>, T, T),
     carried: impl Fn(MappedCurve<T>) -> Result<MappedCurve<T>, ReplaceFaceError<T>>,
     re_ask: impl FnOnce(
         &dyn Fn() -> Result<Option<MappedCurve<T>>, ReplaceFaceError<T>>,
@@ -76,11 +76,15 @@ pub(crate) fn restate<T: Real>(
         EdgeAuthority::Declared(mc) => Ok(Some(carried(mc)?)),
     };
     Ok(match description {
-        EdgeDescription::Intersection { pair, .. } => {
-            EdgeDescriptionSpec::Intersection { pair, witness: mid }
-        }
+        EdgeDescription::Intersection { pair, selector } => EdgeDescriptionSpec::Intersection {
+            pair,
+            selector: selector.repinned(carrier, t0, t1),
+        },
         EdgeDescription::TangentIntersection { pair, .. } => {
-            EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
+            EdgeDescriptionSpec::TangentIntersection {
+                pair,
+                witness: carrier.mid_point(t0, t1),
+            }
         }
         EdgeDescription::OnPair { .. } => re_ask(&declared)?,
         EdgeDescription::Chart(c) => match beside_moving(c.surface, sides) {

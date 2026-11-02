@@ -25,9 +25,7 @@ use editor_core::{
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
-use fixture::{
-    ang, could_look, flip, head, insert, insert_pinned, len, plane, rest, run, solve, step,
-};
+use fixture::{could_look, flip, head, insert, insert_pinned, len, plane, rest, run, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -54,7 +52,7 @@ fn plane_seated(
         &[
             (Coord::Slide(TargetAxis::X), x),
             (Coord::Slide(TargetAxis::Y), y),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     let vx = fixture::bundle(&doc, placement)

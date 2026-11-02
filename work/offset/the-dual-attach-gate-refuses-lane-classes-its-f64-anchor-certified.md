@@ -15,8 +15,7 @@ parent: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-t
 
 
 Filed by the designer lanes of the plane × spline rim fork, off their
-question. It is a question for Ev, to be raised as its own fork;
-`needs_ev` is set when that `[ev]` PR opens.
+question. It is a question for Ev, to be raised as its own fork in an `[ev]` PR.
 
 ## Finding
 

@@ -132,7 +132,7 @@ fn name_tables_by_position() {
             // as one digest of their positional spelling: equal across
             // the trees where only the ids moved.
             let channels = at_position(
-                &format!("{:?}|{:?}", value.payload, value.contacts),
+                &format!("{:?}|{:?}", value.payload, value.carry.contacts),
                 &at,
                 &mut unplaced,
             );

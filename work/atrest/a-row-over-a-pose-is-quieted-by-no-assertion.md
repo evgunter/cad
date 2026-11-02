@@ -2,11 +2,11 @@
 id: a-row-over-a-pose-is-quieted-by-no-assertion
 kind: issue
 title: A split's ON row is quieted by no assertion, though [intent.checked] says one at its site quiets every unproven coincidence: Gap reads no pose
-status: open
+status: closed
 opened: 2026-10-27
 priority: P3
 cost: M
-needs_ev: true
+closed: 2026-10-30
 ---
 
 A split's ON row (`DecisionSite::SplitOn`, `crates/topo/src/splitting/mod.rs`
@@ -36,3 +36,14 @@ pose? If it does, `[assertions.quiet]` and `Gap`'s door would need to
 read a plane or a pose as a reference, or a measure would need to state
 a point on a plane. If it does not, `[intent.checked]` would need to
 name the exception.
+
+**Closed (2026-10-30, folded into `a-gap-over-adjacent-cells-states-nothing-of-the-row`).**
+Ev's answer on `[ev]` #6086 holds `[intent.checked]` for a row over a
+pose: a measure's reference may be a pose. `Gap` reads a plane, or a
+frame as its xy plane, against a vertex, and the row half of the
+quieting rule (`checks::at_rest::quiet_row`, `saying`) quiets a split's
+ON row under a holding `Gap(tool, vertex) = 0` over its tool read and
+its vertex. `atrest_operation_rows_quiet.rs`
+`a_splits_on_row_is_quiet_under_its_tool_gap` re-pins the row this
+issue cited. A profile junction's row is over pieces, which no
+assertion reads; it keeps the construction as its recourse.

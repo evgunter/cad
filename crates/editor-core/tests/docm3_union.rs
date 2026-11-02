@@ -171,18 +171,18 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
     let curves = |b: &topo::Body<f64>| sorted(b.curves().map(|(_, c)| format!("{c:?}")).collect());
     let points = |b: &topo::Body<f64>| sorted(b.points().map(|(_, p)| format!("{p:?}")).collect());
     assert_eq!(
-        surfaces(folded),
-        surfaces(chained),
+        surfaces(&folded),
+        surfaces(&chained),
         "the fold's surfaces are not the chain's, description for description"
     );
     assert_eq!(
-        curves(folded),
-        curves(chained),
+        curves(&folded),
+        curves(&chained),
         "the fold's curves are not the chain's, description for description"
     );
     assert_eq!(
-        points(folded),
-        points(chained),
+        points(&folded),
+        points(&chained),
         "the fold's points are not the chain's, description for description"
     );
     // And the names are what moved: the chain's are two descents deep
@@ -868,18 +868,18 @@ fn the_dies_union_is_the_chain_it_replaced() {
     let curves = |b: &topo::Body<f64>| sorted(b.curves().map(|(_, c)| format!("{c:?}")).collect());
     let points = |b: &topo::Body<f64>| sorted(b.points().map(|(_, p)| format!("{p:?}")).collect());
     assert_eq!(
-        surfaces(folded),
-        surfaces(chained),
+        surfaces(&folded),
+        surfaces(&chained),
         "the fold's surfaces are not the chain's, description for description"
     );
     assert_eq!(
-        curves(folded),
-        curves(chained),
+        curves(&folded),
+        curves(&chained),
         "the fold's curves are not the chain's, description for description"
     );
     assert_eq!(
-        points(folded),
-        points(chained),
+        points(&folded),
+        points(&chained),
         "the fold's points are not the chain's, description for description"
     );
     // And the names are what moved. The chain's LAST member is one

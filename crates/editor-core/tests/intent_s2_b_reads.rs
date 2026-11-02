@@ -6,11 +6,11 @@
 //! member re-pointed forward saves, loads and deletes.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{self, insert, len, on_frame, plane_on, scl, slid, xform};
+use crate::fixture::{self, insert, len, on_frame, plane_on, slid, xform};
 use crate::wire::up_to_ids;
 use editor_core::{
     Dimension, DocEdit, EditError, Formula, Maintenance, Node, NodeErrorKind, Operand, OperandSlot,
-    PatternKind, ProfileDoc, RecipeNodeId, SlotId, SlotKind, Took, VarKind, apply, load, save,
+    ProfileDoc, RecipeNodeId, SlotId, SlotKind, Took, VarKind, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -636,14 +636,6 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
         up_to_ids::same_up_to_ids(&old, &new).unwrap_or_else(|err| panic!("{file}: {err}"));
         println!("{file}: equal up to ids, reads as inputs");
     }
-    // Every operand family, a list member among them: the base's save of
-    // the families document, beside this build's.
-    let (old, new) = families_pair();
-    let new = up_to_ids::reads_as_inputs(&new);
-    let old = up_to_ids::plane_field_as_frame(&up_to_ids::split_half_parts_as_reads(&old));
-    up_to_ids::same_up_to_ids(&old, &new)
-        .unwrap_or_else(|err| panic!("the families document: {err}"));
-    println!("the families document: equal up to ids, reads as inputs");
 }
 
 /// **No door re-points an assertion's value across dimensions** (DM6;
@@ -757,7 +749,7 @@ fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
         "mass properties",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(crate::corpus::body_of(ev, id)),
+            topo::Body::clone(&(crate::corpus::body_of(ev, id))),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -775,6 +767,7 @@ fn vertex_bits(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> Vec<[u64;
         other => panic!("not a body: {other:?} / {:?}", ev.node_error(id)),
     };
     let mut bits: Vec<[u64; 3]> = body
+        .body()
         .points()
         .map(|(_, p)| p.to_array().map(f64::to_bits))
         .collect();
@@ -836,7 +829,7 @@ fn a_port_re_point_keys_apart_and_the_memo_serves_no_stale_half() {
 /// **DM5 is over variables** (spec §3; the orchestrator's ruling on the
 /// lane's seventh call): a split's two halves are two variables, so a
 /// union of both is admitted and builds the whole block, and so is a
-/// pattern of a revolve's body about the revolve's own axis port
+/// ring of a revolve's body about the revolve's own axis port
 /// (FORK-1b). One variable at two seats glues (FORK-DM4): it is that
 /// variable's body.
 #[test]
@@ -898,152 +891,8 @@ fn dm5_is_over_the_variables_read() {
             fixture::ang(0.5),
         ),
     );
-    insert(
-        doc,
-        Node::Pattern {
-            input: Operand::output(revolve, 0),
-            count: editor_core::Formula::count(3),
-            kind: PatternKind::Circular {
-                axis: Operand::output(revolve, 1).into(),
-                step: fixture::ang(1.0),
-            },
-        },
-    );
-}
-
-/// **Every operand family in one document** (review A's MINOR-2): a
-/// union, a loft, a sweep, a linear pattern and a part of one of its
-/// instances, a placement, a split read at each half, a fillet, a
-/// circular pattern of a revolve's body, and an instance of a part — so
-/// the one-shot's roots and reads cover each family, a list member
-/// among them. Inserted, never evaluated: what the one-shot compares is
-/// the saved document. `pre_b_families.json` is this document as the
-/// base built it, through its own fixtures, before an operand was a
-/// read, with a part of each half where it now reads each port
-/// ([`up_to_ids::split_half_parts_as_reads`]).
-pub(crate) fn families_document() -> ProfileDoc {
-    let doc = ProfileDoc::empty_derived("s2b-families", Tol::witness());
-    let (doc, low) = on_frame(
-        doc,
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![fixture::square(0.5, 0.5, 0.5)],
-    );
-    let (doc, high) = insert(
-        doc,
-        Node::Profile(fixture::desc(vec![fixture::square(0.5, 0.5, 0.25)])),
-    );
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile: low.into(),
-            distance: len(1.0),
-        },
-    );
-    let (doc, loft) = insert(
-        doc,
-        Node::Loft {
-            first: low.into(),
-            then: vec![editor_core::LoftSection {
-                profile: high.into(),
-                station: vec![editor_core::StationMove::Slide {
-                    along: editor_core::Axis3::Z,
-                    by: len(2.0),
-                }],
-            }],
-            v_degree: editor_core::Formula::count(1),
-        },
-    );
-    let (doc, _) = insert(
-        doc,
-        Node::Sweep {
-            profile: high.into(),
-            path: low.into(),
-            stations: editor_core::Formula::count(4),
-            v_degree: editor_core::Formula::count(3),
-        },
-    );
-    let (doc, revolve) = insert(
-        doc,
-        fixture::revolve_about(
-            low,
-            (3.0, 0.0),
-            crate::fixture::along_y(),
-            fixture::ang(1.0),
-        ),
-    );
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: body.into(),
-            count: editor_core::Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(2.0),
-            },
-        },
-    );
-    let (doc, _) = insert(
-        doc,
-        Node::Pattern {
-            input: Operand::output(revolve, 0),
-            count: editor_core::Formula::count(2),
-            kind: PatternKind::Circular {
-                axis: Operand::output(revolve, 1).into(),
-                step: fixture::ang(1.0),
-            },
-        },
-    );
-    let (doc, middle) = insert(
-        doc,
-        Node::Part {
-            of: pattern.into(),
-            select: editor_core::PartSelect::Instance(editor_core::Formula::count(1)),
-        },
-    );
-    let cut = plane_on(&doc, body, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
-    let (doc, split) = insert(
-        doc,
-        Node::Split {
-            target: loft.into(),
-            tool: cut,
-        },
-    );
-    let (doc, moved) = xform(doc, body, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0], 0.0);
-    let (doc, rounded) = insert(doc, Node::fillet(body, len(0.1), Vec::new()));
-    let (doc, instance) = insert(
-        doc,
-        crate::fixture::mated_instance(editor_core::DocRef {
-            id: editor_core::DocumentId::derive("s2b-families-part"),
-            pin: editor_core::ContentPin::of_bytes(b"s2b-families-part"),
-        }),
-    );
-    let (doc, _) = insert(
-        doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
-                middle.into(),
-                Operand::output(split, editor_core::SplitHalf::Above.port()).into(),
-                Operand::output(split, editor_core::SplitHalf::Below.port()).into(),
-                moved.into(),
-                rounded.into(),
-                instance.into(),
-            ]),
-        },
-    );
-    doc
-}
-
-/// `pre_b_families.json`, the base's save of [`families_document`],
-/// and this build's save of it, as JSON bodies.
-fn families_pair() -> (serde_json::Value, serde_json::Value) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/intent_s2_b/pre_b_families.json");
-    let base = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let text =
-        save(&families_document(), &[], Tol::witness()).expect("the families document saves");
-    (crate::wire::wire_body(&base), crate::wire::wire_body(&text))
+    let axis = editor_core::pose::RoleRead::plain(Operand::output(revolve, 1));
+    fixture::circular(doc, revolve, (axis, editor_core::TargetAxis::Y), 1.0, 3);
 }
 
 /// A union of two blocks under a placement, saved: the file the load

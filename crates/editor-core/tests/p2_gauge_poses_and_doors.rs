@@ -449,7 +449,8 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
         )
         .volume
     };
-    let gathered = editor_core::product(&outer, &ev, Tol::witness()).expect("the world gathers");
+    let gathered =
+        crate::fixture::product_in_world(&outer, &ev, Tol::witness()).expect("the world gathers");
     assert!(
         (vol(&gathered) - vol(&body_of(&ev_sub, base))).abs() < 1e-9,
         "the outer product is the sub-assembly's world"

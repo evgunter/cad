@@ -1,7 +1,7 @@
-//! **A tie carried onto several copies in one body** (WIRE): a placed
-//! union, the op that carries several copies of a tie onto one body.
-//! Disjoint instances keep every candidate, so each instance's tie
-//! stays tied.
+//! **A tie carried onto several copies in one body** (WIRE): a union
+//! of a family, which carries several copies of a tie onto one body
+//! (D10 `[repetition]`). Disjoint members keep every candidate, so each
+//! member's tie stays tied.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -11,10 +11,8 @@
 
 use crate::fixture;
 
-use editor_core::{
-    Entry, EvalOptions, Evaluation, Formula, Node, PatternKind, ProfileDoc, RecipeNodeId,
-};
-use fixture::{insert, len, on_frame, scl, table};
+use editor_core::{Entry, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId};
+use fixture::{insert, len, on_frame, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -83,26 +81,20 @@ fn u_cutter_subtract() -> (ProfileDoc, RecipeNodeId) {
     (doc, sub)
 }
 
-/// The U-cutter subtract's tie, placed three times by a placed union
-/// whose instances are disjoint: each instance's tie keeps BOTH its
-/// candidates through the fuse, so the fused table carries one
-/// two-candidate `Tied` row per prototype tie per instance — the
-/// several-survivor branch of the placed union's narrowing, which no
-/// other row reaches.
+/// The U-cutter subtract's tie, placed three times by a row whose
+/// members are disjoint and fused by a union reading the family whole:
+/// each member's tie keeps BOTH its candidates through the fuse, so the
+/// fused table carries one two-candidate `Tied` row per prototype tie
+/// per member — the several-survivor branch of the union's narrowing.
 #[test]
-fn a_placed_union_carries_each_instances_tie_with_both_candidates() {
+fn a_union_of_a_family_carries_each_members_tie_with_both_candidates() {
     let (doc, sub) = u_cutter_subtract();
+    let (doc, _, row) = fixture::linear(doc, sub, [1.0, 0.0, 0.0], 10.0, 3);
     let (doc, group) = insert(
         doc,
-        Node::placed_union(
-            sub,
-            Formula::count(3),
-            PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(10.0),
-            },
-        )
-        .unwrap(),
+        Node::Union {
+            members: editor_core::Bodies::Family(row.into()),
+        },
     );
     let ev = run(&doc);
     let proto: Vec<usize> = table(&ev, sub)
@@ -123,6 +115,6 @@ fn a_placed_union_carries_each_instances_tie_with_both_candidates() {
     assert_eq!(
         fused,
         vec![2; proto.len() * 3],
-        "one two-candidate tie per prototype tie per instance"
+        "one two-candidate tie per prototype tie per member"
     );
 }

@@ -4,7 +4,7 @@ kind: program
 title: S-TINT — test-suite integrity
 status: ready
 opened: 2026-09-11
-area: infra
+group: infra/tests
 prefix: tint/
 tag: (S-TINT orchestrator)
 ab_band: 3500-3599
