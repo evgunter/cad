@@ -4,6 +4,8 @@ kind: issue
 title: the picture takes a whole copy for a pick of one of its pieces
 status: open
 opened: 2026-11-01
+priority: P2
+cost: M
 ---
 
 

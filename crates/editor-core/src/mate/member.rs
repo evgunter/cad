@@ -117,10 +117,11 @@ impl Walk {
 /// walk before the head is ever reached.
 pub(super) fn walk<P: crate::ProfilePayload>(
     doc: &Doc<P>,
-    r: &crate::node::SitedFace,
+    at: RecipeNodeId,
+    name: &crate::names::StableName,
 ) -> Result<Walk, RecipeNodeId> {
-    let mut at = r.at;
-    let mut name: &crate::names::StableName = &r.name;
+    let mut at = at;
+    let mut name = name;
     let mut chain: Vec<Placing> = Vec::new();
     loop {
         // A family's member: the name must SAY which member, and the
@@ -243,11 +244,39 @@ pub(super) fn walk<P: crate::ProfilePayload>(
 /// does not admit would mint a record for a mate that never solved,
 /// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
 /// clause).
-pub fn member_of<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
-    head: &crate::node::SitedFace,
-) -> Option<Member> {
-    walk(doc, head).ok().map(|w| w.member)
+///
+/// The walk reads the name alone, so a head of any entity kind — a
+/// face, an edge or a vertex read at its node ([`Headed`]) — takes the
+/// one vocabulary.
+pub fn member_of<P: crate::ProfilePayload>(doc: &Doc<P>, head: &impl Headed) -> Option<Member> {
+    let (at, name) = head.head();
+    walk(doc, at, name).ok().map(|w| w.member)
+}
+
+/// **A reference the member walk starts from**: the node it is read at
+/// and its name — a mate head ([`crate::node::SitedFace`]) or a
+/// reference of any entity kind ([`crate::node::SitedRef`]).
+pub trait Headed {
+    /// The node the name is read at, and the name.
+    fn head(&self) -> (RecipeNodeId, &crate::names::StableName);
+}
+
+impl Headed for crate::node::SitedFace {
+    fn head(&self) -> (RecipeNodeId, &crate::names::StableName) {
+        (self.at, &self.name)
+    }
+}
+
+impl Headed for crate::node::SitedRef {
+    fn head(&self) -> (RecipeNodeId, &crate::names::StableName) {
+        (self.at, &self.name)
+    }
+}
+
+impl<H: Headed> Headed for &H {
+    fn head(&self) -> (RecipeNodeId, &crate::names::StableName) {
+        (**self).head()
+    }
 }
 
 /// **The member a side resolves to, and the side's name as that
@@ -262,7 +291,9 @@ pub fn member_reading<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     head: &crate::node::SitedFace,
 ) -> Option<(Member, crate::names::StableName)> {
-    walk(doc, head).ok().map(|w| (w.member, w.placed))
+    walk(doc, head.at, &head.name)
+        .ok()
+        .map(|w| (w.member, w.placed))
 }
 
 /// **The face of the member's source a side names** — the side walked
@@ -275,7 +306,7 @@ pub fn head_face<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     head: &crate::node::SitedFace,
 ) -> Option<crate::FaceName> {
-    walk(doc, head).ok()?.part_face()
+    walk(doc, head.at, &head.name).ok()?.part_face()
 }
 
 /// **A mate side's head, read off its selection** (D10): the node whose

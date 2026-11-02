@@ -618,7 +618,12 @@ pub fn index_at(
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, PictureKey::of(generation, delta), session.tol())
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta, session.display().shown()),
+        session.tol(),
+    )
 }
 
 /// [`index_at`] for a fixture that indexes by construction: the

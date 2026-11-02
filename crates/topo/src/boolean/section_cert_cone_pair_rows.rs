@@ -379,6 +379,7 @@ fn classify_at(
         f,
         g,
         Reach { centre, radius },
+        None,
         Some(geom_brep::SsiLane::marched()),
         band,
     )

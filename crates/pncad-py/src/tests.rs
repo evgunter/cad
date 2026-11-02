@@ -4433,6 +4433,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "boolean_error_tag",
         values: &[
+            "apex_section",
             "arc_loop_containment_unsupported",
             "band",
             "carry_refused",
@@ -4492,6 +4493,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "poisoned_carrier_datum",
             "recharted_row_unstated",
             "result_invalid",
+            "result_pinched_at_cone_apex",
             "revert",
             "rim_cusp_arm_unbuilt",
             "scaffolding_operand",
@@ -4510,6 +4512,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "underflowed_sector_chord",
             "unjoined_operand",
             "unrepresentable_result",
+            "vertex_near_cone_axis",
+            "vertex_pair_at_cone_apex",
             "vertex_read_twice",
             "zip_correspondence",
         ],
