@@ -1,20 +1,23 @@
 //! **The session box** (D4 ¶4; `crates/geom-core/README.md`, "Float
 //! rounding"): one predicate over a body's consumed extent, its vertices
-//! and its edges' spans (which bound its faces), never a carrier's stored
-//! terms. The finished-body gate asks it before any check reads a margin
-//! on the body's geometry, so every such check takes "in the box" as its
-//! premise.
+//! and its edges' own points (which bound its faces), never a carrier's
+//! stored terms. The finished-body gate asks it before any check reads a
+//! margin on the body's geometry, so every such check takes "in the box"
+//! as its premise.
 //!
-//! The extent is read through [`geom_brep::Reach::Span`], the consumed
-//! extent's span arm.
+//! An edge's reach is read through [`geom_brep::edge_reach_bounds`], the
+//! one per-edge reach; the box decides on its bound from below, so a body
+//! is refused only where points of it lie past the box.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, tolerance::SESSION_BOX_EXTENT};
 
 use crate::body::Body;
 use crate::validate::ValidationError;
 
-/// **The farthest `body` reaches from the origin**: each vertex's point
-/// and each certified edge's span ([`geom_brep::Reach::span_reach_from`]).
+/// **How far `body` reaches from the origin, bounded from below**: each
+/// vertex's point and each certified edge's reach over its own span
+/// ([`geom_brep::edge_reach_bounds`]'s `below`), every one a distance of
+/// a point of the body.
 pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
     let origin = Point3::origin();
     let vertices = body
@@ -23,12 +26,7 @@ pub(crate) fn body_reach<T: Decide>(body: &Body<T>) -> T {
     let edges = body.edges().filter_map(|(e, data)| {
         let curve = body.edge_curve_linked(e, data).certified()?;
         let (t0, t1) = curve.params();
-        let span = geom_brep::Reach::Span {
-            carrier: curve.carrier().clone(),
-            t0,
-            t1,
-        };
-        Some(span.span_reach_from(origin))
+        Some(geom_brep::edge_reach_bounds(curve.carrier(), t0, t1, origin).below())
     });
     vertices.chain(edges).fold(T::zero(), T::max)
 }

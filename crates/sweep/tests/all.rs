@@ -1312,6 +1312,8 @@ mod pinch_faces_tessellate;
 mod rest_nested_strut;
 #[path = "rest_zip_admission.rs"]
 mod rest_zip_admission;
+#[path = "session_box_reach.rs"]
+mod session_box_reach;
 
 #[path = "a_grazed_rim_never_pinches.rs"]
 mod a_grazed_rim_never_pinches;
