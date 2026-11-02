@@ -1308,7 +1308,7 @@ pub use chord_join::face_azimuth_window_traces;
 pub use census::{
     CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, census_cell_solid,
     census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
-    census_uncleared_solids, record_at_rest,
+    census_uncleared_solids, line_segments_meet, line_segments_overlap, record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
