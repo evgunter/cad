@@ -3743,7 +3743,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     }
                     if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
                         if lk == f.outer {
-                            let surface = body.get_surface(f.surface)?;
+                            let surface = body.face_surface_linked(face, f);
                             let periodic =
                                 [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
                             out.extent = extent_of(

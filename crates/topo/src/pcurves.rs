@@ -8344,10 +8344,7 @@ pub(crate) mod pole_slit_tests {
         let faces: Vec<FaceKey> = twin.faces().map(|(f, _)| f).collect();
         assert_eq!(faces.len(), 2);
         let bound = |body: &Body<f64>, f: FaceKey| {
-            let s = body
-                .get_surface(body.get_face(f).unwrap().surface)
-                .unwrap()
-                .clone();
+            let s = body.face_surface(f).unwrap().clone();
             super::loop_windings(body, f, &s, band)
         };
         for periods in [5.0, 6.0, 10.0] {

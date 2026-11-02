@@ -7622,10 +7622,7 @@ mod torn_hop_rows {
     #[test]
     fn the_azimuth_walk_panics_on_a_torn_loop_and_a_torn_curve() {
         let (body, face) = cyl_sheet();
-        let surface = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap()
-            .clone();
+        let surface = body.face_surface(face).unwrap().clone();
         let images = |b: &Body<f64>| {
             super::face_azimuth_images(b, &surface, face, band()).map(|i| i.map(|i| i.len()))
         };
