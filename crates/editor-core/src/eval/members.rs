@@ -201,20 +201,18 @@ fn listing<'a, P: crate::ProfilePayload, E: Clone + 'a, C: Decide + 'a>(
 }
 
 /// **The listing steps `chain`'s members take**: every index value
-/// bound while they are listed by [`members`]' own walk, over `env` and
-/// `nominal` as [`eval_family`] binds them, no member evaluated. `None`
-/// as soon as the steps pass `remaining`, so a charge never lists
-/// further than the budget it is charged against. A
-/// count that faults ends the listing where the family's evaluation
+/// bound while they are listed by [`members`]' own walk over `env`, no
+/// member evaluated. `None` as soon as the steps pass `remaining`, so
+/// a charge never lists further than the budget it is charged against.
+/// A count that faults ends the listing where the family's evaluation
 /// refuses it.
 ///
 /// # Errors
 ///
 /// [`super::Canceled`] where `cancel` is set before a step.
-pub(super) fn listing_steps<T: Decide>(
+pub(super) fn listing_steps(
     doc: &Doc<ProfileProgram>,
-    env: &crate::expr::VarEnv<T>,
-    nominal: &crate::expr::VarEnv<f64>,
+    env: &crate::expr::VarEnv<f64>,
     chain: &[VarId],
     remaining: u64,
     cancel: &super::CancelToken,
@@ -222,15 +220,14 @@ pub(super) fn listing_steps<T: Decide>(
     let mut steps = 0u64;
     for step in listing(
         doc,
-        (env.clone(), nominal.clone()),
+        env.clone(),
         chain,
-        |(params, _): &(crate::expr::VarEnv<T>, crate::expr::VarEnv<f64>)| params,
+        |env: &crate::expr::VarEnv<f64>| env,
         // Only an outer index's binding is read, by the counts within
         // it; a member's environment is never built.
-        |(params, nominal): &mut (crate::expr::VarEnv<T>, crate::expr::VarEnv<f64>), at| {
+        |env: &mut crate::expr::VarEnv<f64>, at| {
             if at.iter().all(|(index, _)| Some(index) != chain.last()) {
-                doc.bind_member(params, at);
-                doc.bind_member(nominal, at);
+                doc.bind_member(env, at);
             }
         },
     ) {

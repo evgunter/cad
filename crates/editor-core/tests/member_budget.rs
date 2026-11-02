@@ -326,3 +326,121 @@ fn two_parts_that_each_fit_together_run_out() {
         );
     }
 }
+
+/// A document instancing each of `parts`, in order.
+fn instances_of(parts: &[editor_core::DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let mut doc = ProfileDoc::empty_derived("budget-instances-of", Tol::witness());
+    let mut instances = Vec::new();
+    for &part in parts {
+        let (next, instance) = fixture::insert(doc, fixture::mated_instance(part));
+        doc = next;
+        instances.push(instance);
+    }
+    (doc, instances)
+}
+
+/// **A part is charged by listing it, before anything is built**: a
+/// part `p` instances two parts of 6 steps each (a row of 3, listed
+/// twice), 12 in all. Under a budget of 11 the run runs out at `p`'s
+/// instance having built no part at all; under 12 it builds all three.
+/// Red if a part's parts are built before they are charged.
+#[test]
+fn nested_parts_run_out_before_any_is_built() {
+    let mut store = fixture::resolver::PartStore::new();
+    let (q1, _) = store.insert_part(row_part("budget-q-one", 3), Tol::witness());
+    let (q2, _) = store.insert_part(row_part("budget-q-two", 3), Tol::witness());
+    let (p_doc, _) = instances_of(&[q1, q2]);
+    let p = store.insert(p_doc, Tol::witness());
+    let (doc, instances) = instances_of(&[p]);
+    let opts = fixture::resolver::with_resolver(store);
+    let at = |member_budget| {
+        run(
+            &doc,
+            None,
+            &EvalOptions {
+                member_budget,
+                ..opts.clone()
+            },
+        )
+    };
+    let out = at(11);
+    assert_eq!(
+        out.outcome,
+        EvalOutcome::Exhausted {
+            at: instances[0],
+            held: 0,
+            budget: 11
+        },
+        "the instance runs out"
+    );
+    assert_eq!(out.part_evaluations, 0, "and no part was built");
+    let fits = at(12);
+    assert_eq!(fits.outcome, EvalOutcome::Completed, "12 admits both");
+    assert_eq!(fits.part_evaluations, 3, "and every part is built");
+}
+
+/// **A part whose build refuses is charged its listing all the same**:
+/// two parts with no world product, rows of 5 and 6 copies, each fault
+/// at their instance, and together list 11 steps, so a budget of 10
+/// runs out at the second instance. Red if a faulted row charges
+/// nothing.
+#[test]
+fn faulting_parts_are_charged_what_they_list() {
+    let mut store = fixture::resolver::PartStore::new();
+    let five = store.insert(row_part("budget-fault-five", 5).0, Tol::witness());
+    let six = store.insert(row_part("budget-fault-six", 6).0, Tol::witness());
+    let (doc, instances) = instances_of(&[five, six]);
+    let ev = run(
+        &doc,
+        None,
+        &EvalOptions {
+            member_budget: 10,
+            ..fixture::resolver::with_resolver(store)
+        },
+    );
+    assert_eq!(
+        ev.outcome,
+        EvalOutcome::Exhausted {
+            at: instances[1],
+            held: 5,
+            budget: 10
+        },
+        "the second instance crosses"
+    );
+    assert!(
+        ev.node_error(instances[0]).is_some(),
+        "the first, admitted, refuses its faulted part"
+    );
+}
+
+/// **A part instanced twice is charged once**, as it is built once: two
+/// instances of a part of 6 steps fit a budget of 6, and run out of 5
+/// at the first. Red if each instance is charged.
+#[test]
+fn a_part_instanced_twice_is_charged_once() {
+    let mut store = fixture::resolver::PartStore::new();
+    let (part, _) = store.insert_part(row_part("budget-twice", 3), Tol::witness());
+    let (doc, instances) = instances_of(&[part, part]);
+    let opts = fixture::resolver::with_resolver(store);
+    let at = |member_budget| {
+        run(
+            &doc,
+            None,
+            &EvalOptions {
+                member_budget,
+                ..opts.clone()
+            },
+        )
+        .outcome
+    };
+    assert_eq!(at(6), EvalOutcome::Completed, "charged once, 6 fits");
+    assert_eq!(
+        at(5),
+        EvalOutcome::Exhausted {
+            at: instances[0],
+            held: 0,
+            budget: 5
+        },
+        "and 5 does not, at the first instance"
+    );
+}

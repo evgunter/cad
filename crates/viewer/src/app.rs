@@ -195,13 +195,12 @@ const CANCELED_LINE: &str = "canceled — showing an older result";
 
 /// What the toolbar says while a run that ran out of its member budget
 /// leaves an older picture on screen (`frame::Progress::Exhausted`),
-/// `at` the spoken family it ran out at.
-fn exhausted_line(at: &str, out: crate::session::OutOfBudget) -> String {
-    format!(
-        "ran out of the member budget at {at} ({} of {} listing steps held before it) — \
-         showing an older result; lower a count to evaluate it",
-        out.held, out.budget
-    )
+/// spoken from `doc`.
+fn exhausted_line(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    out: crate::session::OutOfBudget,
+) -> String {
+    format!("showing an older result: the run {}", out.said(doc))
 }
 
 /// `color` as the toolkit's own colour type.
@@ -1974,8 +1973,7 @@ impl ViewerApp {
                         ui.spinner();
                         ui.ctx().request_repaint();
                     }
-                    let at = self.session.doc().spoken(out.at).to_string();
-                    crate::widgets::message(ui, exhausted_line(&at, out));
+                    crate::widgets::message(ui, exhausted_line(self.session.doc(), out));
                 }
                 // No Cancel button beside it, and that is the
                 // seam's promise showing through the chrome: the
@@ -3243,7 +3241,7 @@ mod tests {
             held: 0,
             budget: pncad::document::DEFAULT_MEMBER_BUDGET,
         };
-        let out_line = crate::app::exhausted_line(&huge.spoken(row).to_string(), out);
+        let out_line = crate::app::exhausted_line(&huge, out);
         let words = [
             "evaluating…",
             "Cancel",

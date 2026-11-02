@@ -858,12 +858,29 @@ pub enum Landing {
 /// ([`pncad::document::EvalOutcome::Exhausted`]'s fields).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OutOfBudget {
-    /// The family whose listing crossed the budget.
+    /// The node whose charge crossed the budget: a family, or an
+    /// instance whose part's listing did.
     pub at: RecipeNodeId,
-    /// The listing steps the families before it were charged.
+    /// The listing steps the nodes before it were charged.
     pub held: u64,
     /// The budget.
     pub budget: u64,
+}
+
+impl OutOfBudget {
+    /// **What a run that ran out says**, `at` the node it ran out at,
+    /// as `doc` speaks it: where, how much was held, and the recourse,
+    /// a smaller count in the document or a part it instances.
+    #[must_use]
+    pub fn said(&self, doc: &Doc<ProfileProgram>) -> String {
+        format!(
+            "ran out of the member budget at {} ({} of {} listing steps held before it); \
+             lower a count it reaches, here or in a part it instances",
+            doc.spoken(self.at),
+            self.held,
+            self.budget
+        )
+    }
 }
 
 /// What the session owes at one moment: the picture against the
@@ -4598,8 +4615,9 @@ pub enum Staged<'a> {
     Refused(&'a Refusal),
     /// Its run has not landed.
     Checking,
-    /// Its run ran out of its member budget: the draft is not evaluated,
-    /// and evaluating it again runs out at the same family.
+    /// Its run ran out of its member budget, at a family or at an
+    /// instance whose part's listing crossed it: the draft is not
+    /// evaluated, and evaluating it again runs out at the same node.
     Exhausted {
         /// The staged document.
         doc: &'a Doc<ProfileProgram>,
