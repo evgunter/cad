@@ -161,7 +161,6 @@ not (
   (binary_id(viewer::all) & (test(=sketch_on_face::the_face_is_read_through_the_body_the_ray_met_and_not_the_feature) | test(=creation_ops::a_boss_is_authored_on_a_picked_face) | test(=whole_rim_pick::the_teapot_lids_three_rims_roll_from_one_click_each) | test(=index_memo::a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both))) |
   (binary_id(viewer::all) & test(=node_labels::every_creation_labelled_is_one_undo_whatever_door_commits_it)) |
   (binary_id(viewer::all) & (test(=review_6302::review_6302_every_corpus_profile_round_trips_unmoved_unit_for_unit) | test(=review_6302::review_6302_a_moved_corner_keeps_every_neighbour_as_written))) |
-  (binary_id(viewer) & (test(=app::properties_pane_tests::trace_tool::review_6302_e2e_traced_profile_edit_apply_undo_redo_drag) | test(=app::properties_pane_tests::trace_tool::review_6302_structural_edits_around_a_trace_step) | test(=app::properties_pane_tests::trace_tool::a_traced_profile_opens_in_the_editor_and_an_edit_keeps_its_trace_steps))) |
   (binary_id(mesh) & (test(=nurbs_cert::tests::a_lofted_circle_straddler_reads_its_true_deviation))) |
   (binary_id(geom-core) & (test(=spline::derivative::tests::the_measure_quotients_hold_the_sampled_area_and_flux_over_a_cut))) |
   (binary_id(geom-brep) & (test(=props::quad::rational::tests::the_statements_hulls_and_pads_hold_the_sampled_integrand_on_every_rational_carrier))) |
