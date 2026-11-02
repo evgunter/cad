@@ -2,10 +2,11 @@
 id: torus-extent-overreaches-the-support-along-a-turned-direction
 kind: issue
 title: boxes::torus_extent reaches (R+r)|a⊥| + r|aᵢ| along a direction whose true support is R|a⊥| + r, so a face just off a torus refuses CurvedWithinReach
-status: open
+status: parked
 opened: 2026-10-10
 priority: P3
 cost: M
+blocked_on: [cover-geom-readings]
 ---
 
 
